@@ -146,10 +146,10 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
         node->m_time += dtime;
         m_node_gen.m_p_queue.push(node);
     }
-    handle_rx_pkts();
+    handle_rx_pkts(false);
 }
 
-uint16_t CFlowGenListPerThread::handle_rx_pkts(void) {
+uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
     CVirtualIF * v_if=m_node_gen.m_v_if;
     rte_mbuf_t * rx_pkts[64];
     int dir;
@@ -191,7 +191,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(void) {
                     #endif
                 }
 #endif
-                ctx->m_ft.rx_handle_packet(ctx,m);
+                ctx->m_ft.rx_handle_packet(ctx, m, is_idle);
             }
             sum+=cnt;
             if (sum>127) {

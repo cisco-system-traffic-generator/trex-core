@@ -91,12 +91,6 @@ void CFlowTable::reset_stats(){
     m_sts.Clear();
 }
 
-static void ctx_dummy_cb(void *, void *) {
-}
-
-void CFlowTable::clear_ft(void) {
-    m_ft.detach_all(nullptr, ctx_dummy_cb);
-}
 
 void CFlowTable::redirect_to_rx_core(CTcpPerThreadCtx * ctx,
                                      struct rte_mbuf * mbuf){
@@ -720,7 +714,8 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
 
 
 bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
-                                  struct rte_mbuf * mbuf){
+                                  struct rte_mbuf * mbuf,
+                                  bool is_idle) {
 
     CFlowKeyTuple tuple;
     CFlowKeyFullTuple ftuple;
@@ -733,11 +728,11 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
     #endif
 
-   #ifdef FLOW_TABLE_DEBUG
-   printf ("-- \n");
-   printf (" client:%d process packet %d \n",m_client_side,pkt_cnt);
-   pkt_cnt++;
-   #endif
+    #ifdef FLOW_TABLE_DEBUG
+    printf ("-- \n");
+    printf (" client:%d process packet %d \n",m_client_side,pkt_cnt);
+    pkt_cnt++;
+    #endif
 
     CSimplePacketParser parser(mbuf);
 
@@ -750,9 +745,13 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                 ctx->get_rx_checksum_check(),
                 action);
 
-    if (action !=tPROCESS ){
-        rx_non_process_packet(action,ctx,mbuf);
-        return(false);
+    if ( action != tPROCESS ) {
+        rx_non_process_packet(action, ctx, mbuf);
+        return false;
+    }
+
+    if ( is_idle ) {
+        return false;
     }
 
     /* it is local mbuf, no need to atomic ref count */

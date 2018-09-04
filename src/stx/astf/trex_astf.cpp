@@ -35,7 +35,6 @@ limitations under the License.
 #include "trex_astf_rpc_cmds.h"
 #include "trex_astf_rx_core.h"
 
-
 #include "stt_cp.h"
 
 using namespace std;
@@ -93,88 +92,55 @@ TrexAstfPort * TrexAstf::get_port_by_id(uint8_t port_id) {
 }
 
 
-void
-TrexAstf::launch_control_plane() {
+void TrexAstf::launch_control_plane() {
     /* start RPC server */
     m_rpc_server.start();
 }
 
-
-void
-TrexAstf::shutdown() {
-    printf("TrexAstf::shutdown\n");
-    stop_transmit();
-
+void TrexAstf::shutdown() {
     /* stop RPC server */
     m_rpc_server.stop();
 
     /* shutdown all DP cores */
     send_msg_to_all_dp(new TrexDpQuit());
-    delay(150);
-    printf("done waiting 150ms\n");
 
     /* shutdown RX */
     send_msg_to_rx(new TrexRxQuit());
 }
 
-bool
-TrexAstf::stop_actions(void) {
-    if ( m_cur_state == STATE_IDLE ) {
-        return true;
+void TrexAstf::dp_core_finished(int thread_id) {
+    m_active_cores--;
+    assert(m_active_cores>=0);
+
+    if ( m_active_cores || m_cur_state == STATE_IDLE ) {
+        return;
     }
 
     set_barrier(0.5);
     TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp();
     send_message_to_all_dp(msg);
-    if ( m_sync_b->listen(false) != 0 ) {
-        return false;
-    }
+    m_sync_b->listen(true);
 
     for (auto &port_pair : get_port_map()) {
         port_pair.second->stop();
     }
 
     m_cur_state = STATE_IDLE;
-    return true;
 }
 
-void
-TrexAstf::dp_core_finished(int thread_id) {
-    m_active_cores--;
-    assert(m_active_cores>=0);
-    if ( m_active_cores == 0 ) {
-        stop_actions();
-    }
-}
-
-TrexDpCore *
-TrexAstf::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) {
+TrexDpCore* TrexAstf::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) {
     return new TrexAstfDpCore(thread_id, core);
 }
 
-void
-TrexAstf::publish_async_data(void) {
-    //string json;
-    //
-    //CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
-    //if (lpstt) {
-    //    //if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
-    //    if (lpstt->dump_json(json)) {
-    //        get_publisher()->publish_json(json);
-    //    }
-    //    //}
-    //}
+void TrexAstf::publish_async_data(void) {
 }
 
-void
-TrexAstf::set_barrier(double timeout_sec) {
-    printf("TrexAstf::set_barrier, cores: %u\n", m_dp_core_count);
+void TrexAstf::set_barrier(double timeout_sec) {
     m_sync_b->reset(timeout_sec);
 }
 
 
-void
-TrexAstf::check_whitelist_states(const states_t &whitelist) {
+void TrexAstf::check_whitelist_states(const states_t &whitelist) {
     assert(whitelist.size());
     for ( auto &state : whitelist ) {
         if ( m_cur_state == state ) {
@@ -198,8 +164,7 @@ TrexAstf::check_whitelist_states(const states_t &whitelist) {
     throw TrexException(err);
 }
 
-void
-TrexAstf::acquire_context(const string &user, bool force) {
+void TrexAstf::acquire_context(const string &user, bool force) {
     if ( get_owner().is_free() || force ) {
         get_owner().own("", 0);
         for (auto &port: m_ports) {
@@ -210,39 +175,33 @@ TrexAstf::acquire_context(const string &user, bool force) {
     }
 }
 
-void
-TrexAstf::release_context(void) {
+void TrexAstf::release_context(void) {
     for (auto &port: m_ports) {
         port.second->get_owner().release();
     }
     get_owner().release();
 }
 
-bool
-TrexAstf::profile_check(uint32_t total_size) {
+bool TrexAstf::profile_check(uint32_t total_size) {
     return total_size == m_profile_buffer.size();
 }
 
-bool
-TrexAstf::profile_check(const string &hash) {
+bool TrexAstf::profile_check(const string &hash) {
     return md5(m_profile_buffer) == hash;
 }
 
-void
-TrexAstf::profile_clear(void) {
+void TrexAstf::profile_clear(void) {
     check_whitelist_states({STATE_IDLE});
     m_profile_buffer.clear();
 }
 
-void
-TrexAstf::profile_append(const string &fragment) {
+void TrexAstf::profile_append(const string &fragment) {
     check_whitelist_states({STATE_IDLE});
     m_profile_buffer += fragment;
 }
 
 
-void
-TrexAstf::profile_load(void) {
+void TrexAstf::profile_load(void) {
     check_whitelist_states({STATE_IDLE});
 
     CAstfDB *db = CAstfDB::instance();
@@ -263,8 +222,7 @@ TrexAstf::profile_load(void) {
     }
 }
 
-void
-TrexAstf::start_transmit(double duration, double mult) {
+void TrexAstf::start_transmit(double duration, double mult) {
     if ( unlikely(!m_wd) ) {
         m_wd = TrexWatchDog::getInstance().get_current_monitor();
     }
@@ -272,22 +230,11 @@ TrexAstf::start_transmit(double duration, double mult) {
     check_whitelist_states({STATE_IDLE});
 
     CGlobalInfo::m_options.m_factor = mult;
-    TrexCpToDpMsgBase *msg;
-
-    set_barrier(0.5);
-    msg = new TrexAstfDpCreateTcp();
-    send_message_to_all_dp(msg);
-    m_sync_b->listen(true);
-    if ( m_wd ) {
-        m_wd->tickle();
-    }
 
     m_fl->m_stt_cp->clear_counters();
 
-
-    printf("Start (STX)\n");
     set_barrier(0.5);
-    msg = new TrexAstfDpStart(duration);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(duration);
     send_message_to_all_dp(msg);
     m_sync_b->listen(true);
 
@@ -299,13 +246,10 @@ TrexAstf::start_transmit(double duration, double mult) {
     m_cur_state = STATE_WORK;
 }
 
-bool
-TrexAstf::stop_transmit(void) {
+bool TrexAstf::stop_transmit(void) {
     if ( m_cur_state == STATE_IDLE ) {
         return true;
     }
-
-    printf("TrexAstf::stop_transmit\n");
 
     set_barrier(0.5);
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop();
@@ -318,10 +262,8 @@ TrexAstf::stop_transmit(void) {
 }
 
 
-void
-TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg) {
+void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg) {
     for ( uint8_t core_id = 0; core_id < m_dp_core_count; core_id++ ) {
-        printf("send msg to core id: %u\n", core_id);
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
         ring->Enqueue((CGenNode *)msg->clone());
     }

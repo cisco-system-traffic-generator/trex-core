@@ -243,7 +243,8 @@ public:
                                 );
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
-                            struct rte_mbuf * mbuf);
+                            struct rte_mbuf * mbuf,
+                            bool is_idle);
 
       /* insert new flow - usualy client */
       bool insert_new_flow(CFlowBase *  flow,
@@ -323,8 +324,6 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
     void set_debug(bool enable){
         m_verbose = enable;
     }
-
-    void clear_ft(void);
 
 private:
     void redirect_to_rx_core(CTcpPerThreadCtx * ctx,

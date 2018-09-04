@@ -67,20 +67,6 @@ TrexCpToDpMsgBase* TrexAstfDpStop::clone(void) {
 }
 
 /*************************
-  create tcp batch
- ************************/
-TrexAstfDpCreateTcp::TrexAstfDpCreateTcp() {}
-
-bool TrexAstfDpCreateTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->create_tcp_batch();
-    return true;
-}
-
-TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone(void) {
-    return new TrexAstfDpCreateTcp();
-}
-
-/*************************
   delete tcp batch
  ************************/
 TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp() {}
