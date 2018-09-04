@@ -260,26 +260,48 @@ class TrexTUILatencyStats(TrexTUIPanel):
 
 # streams stats
 class TrexTUIAstfStats(TrexTUIPanel):
-    def __init__ (self, mng):
+    def __init__(self, mng):
         super(TrexTUIAstfStats, self).__init__(mng, "astats")
+        self.start_row = 0
+        self.max_lines = TrexTUI.MIN_ROWS - 16 # 16 is size of panels below and above
+        self.num_lines = 0
 
         self.key_actions = OrderedDict()
 
         self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+        self.key_actions['Up'] = {'action': self.action_up, 'legend': 'scroll up', 'show': True}
+        self.key_actions['Down'] = {'action': self.action_down, 'legend': 'scroll down', 'show': True}
 
 
-    def show (self, buffer):
+    def show(self, buffer):
         self.client._show_global_stats(buffer = buffer)
-        self.client._show_astf_stats(False, buffer = buffer)
+
+        buf = StringIO()
+        self.client._show_astf_stats(False, buffer = buf)
+        buf.seek(0)
+        out_lines = buf.readlines()
+        self.num_lines = len(out_lines)
+        if self.start_row > self.num_lines - self.max_lines:
+            self.start_row = max(0, self.num_lines - self.max_lines)
+        buffer.write(''.join(out_lines[self.start_row:self.start_row+self.max_lines]))
+        buffer.write('\n')
 
 
-    def get_key_actions (self):
+    def get_key_actions(self):
         return self.key_actions
 
 
-    def action_clear (self):
+    def action_clear(self):
          self.client.clear_astf_stats()
          return ""
+
+    def action_up(self):
+        if self.start_row > 0:
+            self.start_row -= 1
+
+    def action_down(self):
+        if self.start_row < self.num_lines - self.max_lines:
+            self.start_row += 1
 
 
 # utilization stats
@@ -363,7 +385,7 @@ class TrexTUIPanelManager():
 
         elif self.client.get_mode() == "ASTF":
             self.panels['astats'] = TrexTUIAstfStats(self)
-            self.key_actions['a'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
+            self.key_actions['s'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
@@ -905,8 +927,11 @@ class AsyncKeysEngineLegend:
         if seq == 'q':
             raise TUIQuit()
 
-        # ignore escapes
         if len(seq) > 1:
+            if seq == '\x1b\x5b\x41': # scroll up
+                pm.handle_key('Up')
+            if seq == '\x1b\x5b\x42': # scroll down
+                pm.handle_key('Down')
             return AsyncKeys.STATUS_NONE
 
         rc = pm.handle_key(seq)
