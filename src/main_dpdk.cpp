@@ -4660,9 +4660,7 @@ void CGlobalTRex::shutdown() {
     /* interactive shutdown */
     m_stx->shutdown();
 
-    if (!is_all_cores_finished()) {
-        wait_for_all_cores();
-    }
+    wait_for_all_cores();
 
     /* shutdown drivers */
     for (int i = 0; i < m_max_ports; i++) {
