@@ -109,8 +109,6 @@ void CSTTCpPerDir::clear_aggregated_counters(void) {
 }
 
 void CSTTCpPerDir::clear_counters(void) {
-    printf("CSTTCpPerDir::clear_counters\n");
-
     clear_aggregated_counters();
 
     m_tx_bw_l7.reset();
@@ -120,7 +118,6 @@ void CSTTCpPerDir::clear_counters(void) {
     m_rx_pps.reset();
 
     for (auto &ctx : m_tcp_ctx) {
-        printf("CSTTCpPerDir::clear_counters (per ctx)\n");
         ctx->m_tcpstat.Clear();
         ctx->m_udpstat.Clear();
         ctx->m_ft.m_sts.Clear();
@@ -386,7 +383,6 @@ bool CSTTCp::dump_json(std::string &json){
 
 void CSTTCp::clear_counters(void) {
     for (auto &sts : m_sts) {
-        printf("Clear counters\n");
         sts.clear_counters();
     }
     m_dtbl.inc_epoch();

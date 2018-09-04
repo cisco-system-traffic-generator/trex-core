@@ -28,14 +28,6 @@ limitations under the License.
 class CSyncBarrier;
 
 
-// create tcp batch per DP core
-class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
-public:
-    TrexAstfDpCreateTcp();
-    virtual TrexCpToDpMsgBase* clone(void);
-    virtual bool handle(TrexDpCore *dp_core);
-};
-
 // delete tcp batch per DP core
 class TrexAstfDpDeleteTcp : public TrexCpToDpMsgBase {
 public:

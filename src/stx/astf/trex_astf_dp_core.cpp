@@ -52,8 +52,6 @@ bool TrexAstfDpCore::is_port_active(uint8_t port_id) {
 
 void TrexAstfDpCore::start_scheduler() {
 
-    printf("start_scheduler\n");
-
     dsec_t d_time_flow;
 
     CParserOption *go=&CGlobalInfo::m_options;
@@ -85,12 +83,11 @@ void TrexAstfDpCore::start_scheduler() {
     }
     m_flow_gen->m_cur_flow_id = 1;
     m_flow_gen->m_stats.clear();
-    //m_flow_gen->m_ft.reset_stats();
+    m_flow_gen->Create_tcp_batch();
 
     double old_offset=0.0;
     CGenNode *node;
 
-    printf("start sync barrier\n");
     /* sync all core to the same time */
     if ( sync_barrier() ) {
         dsec_t now = now_sec();
@@ -124,8 +121,7 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.add_node(node);
 
         m_flow_gen->m_node_gen.flush_file(c_stop_sec, d_time_flow, false, m_flow_gen, old_offset);
-        printf("is_terminated_by_master: %u\n", m_flow_gen->is_terminated_by_master());
-        
+
         if ( !m_flow_gen->is_terminated_by_master() && !no_close ) { // close gracefully
             m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, true, m_flow_gen, old_offset);
         }
@@ -133,25 +129,15 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.close_file(m_flow_gen);
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
-        printf("close async\n");
 
-        if ( sync_stop ) { // sync stop
+        if ( sync_stop ) { // explicit stop by user
             sync_barrier();
-            printf("end sync barrier (was sync stop)\n");
-        } else {
-            printf("was async stop\n");
         }
     }
 
-    report_finished();
-    m_state = STATE_IDLE;
-}
-
-void TrexAstfDpCore::create_tcp_batch(void) {
-    if ( m_flow_gen->Create_tcp_batch() ) {
-        sync_barrier();
-    } else {
-        assert(0);
+    if ( m_state != STATE_TERMINATE ) {
+        report_finished();
+        m_state = STATE_IDLE;
     }
 }
 
@@ -188,7 +174,7 @@ void TrexAstfDpCore::report_finished(void) {
 }
 
 bool TrexAstfDpCore::rx_for_astf(void) {
-    return m_flow_gen->handle_rx_pkts() > 0;
+    return m_flow_gen->handle_rx_pkts(true) > 0;
 }
 
 
