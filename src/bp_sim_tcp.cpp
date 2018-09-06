@@ -545,7 +545,7 @@ bool CFlowGenListPerThread::Create_tcp_batch() {
 
 void CFlowGenListPerThread::Delete_tcp_batch() {
     if ( CAstfDB::has_instance() ) {
-        CAstfDB::instance()->clear_db_ro_rw();
+        CAstfDB::instance()->clear_db_ro_rw(&m_smart_gen);
     }
 }
 

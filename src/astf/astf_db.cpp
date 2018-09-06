@@ -52,7 +52,6 @@ CAstfDB::~CAstfDB(){
         m_validator->Delete();
         delete m_validator;
     }
-    clear_db_ro_rw();
 }
 
 
@@ -1315,7 +1314,7 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     }
 }
 
-void CAstfDB::clear_db_ro_rw() {
+void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen) {
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
     printf("CAstfDB::clear_db_ro_rw\n");
     for ( auto &rw_db : m_rw_db) {
@@ -1334,6 +1333,7 @@ void CAstfDB::clear_db_ro_rw() {
     for (auto &tcp_data : m_tcp_data) {
         tcp_data.Delete();
     }
+    g_gen->Delete();
     m_json_initiated = false;
     my_lock.unlock();
 }
