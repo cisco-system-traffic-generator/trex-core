@@ -149,7 +149,7 @@ To display current device status:
         %(argv0)s --status
 
 To display full device info in JSON format:
-        %(argv0)s --status--json
+        %(argv0)s --status --json
 
 To bind eth1 from the current driver and move to use igb_uio
         %(argv0)s --bind=igb_uio eth1
