@@ -533,7 +533,7 @@ void CClientServerTcp::on_rx(int dir,
         m_c_pcap.write_pcap_mbuf(m,t);
     }
 
-    ctx->m_ft.rx_handle_packet(ctx,m);
+    ctx->m_ft.rx_handle_packet(ctx,m,false);
 }
 
 
