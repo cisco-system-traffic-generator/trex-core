@@ -65,7 +65,6 @@ class CTRexServer(object):
         """
         self.TREX_PATH          = os.path.abspath(os.path.dirname(trex_path+'/'))
         self.trex_files_path    = os.path.abspath(os.path.dirname(trex_files_path+'/'))
-        self.trex_cfg_path      = '/etc/trex_cfg.yaml'
         self.__check_trex_path_validity()
         self.__check_files_path_validity()
         self.trex               = CTRex()
@@ -100,25 +99,16 @@ class CTRexServer(object):
             logger.error(e)
             return Fault(-33, err_str)
 
-    # change TRex YAML config file. To apply changes you need to restart TRex instance
-    def push_trex_config(self, bin_data):
-        logger.info("Processing push_trex_config() command.")
-        try:
-            return self._push_file(self.trex_cfg_path, bin_data)
-        except Exception as e:
-            err_str = "Error processing push_trex_config(): %s" % e
-            logger.error(err_str)
-            return Fault(-33, err_str)
-
     def push_file (self, filename, bin_data):
         logger.info("Processing push_file() command.")
         try:
             filepath = os.path.join(self.trex_files_path, os.path.basename(filename))
-            result = self._push_file(self.trex_cfg_path, bin_data)
+            with open(filepath, 'wb') as f:
+                f.write(binascii.a2b_base64(bin_data))
             logger.info("push_file() command finished. File is saved as %s" % filepath)
-            return result
-        except Exception as e:
-            logger.error("push_file method failed. " + str(e))
+            return True
+        except IOError as inst:
+            logger.error("push_file method failed. " + str(inst))
             return False
 
     def connectivity_check (self):
@@ -152,7 +142,6 @@ class CTRexServer(object):
 
         # set further functionality and peripherals to server instance 
         self.server.register_function(self.add)
-        self.server.register_function(self.push_trex_config)
         self.server.register_function(self.get_devices_info)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
@@ -202,17 +191,6 @@ class CTRexServer(object):
             logger.error(err_str)
             return Fault(-33, err_str)
 
-    # push files to Trex server
-    @staticmethod
-    def _push_file(filepath, bin_data):
-        try:
-            with open(filepath, 'wb') as f:
-                f.write(binascii.a2b_base64(bin_data))
-            return True
-        except IOError as inst:
-            logger.error("Can't push file %s: %s" % (filepath, e))
-            return False
-
     # returns True if given path is under TRex package or under /tmp/trex_files
     def _check_path_under_TRex_or_temp(self, path):
         if not os.path.relpath(path, self.trex_files_path).startswith(os.pardir):
@@ -253,7 +231,7 @@ class CTRexServer(object):
     # get /etc/trex_cfg.yaml
     def get_trex_config(self):
         logger.info("Processing get_trex_config() command.")
-        return self._pull_file(self.trex_cfg_path)
+        return self._pull_file('/etc/trex_cfg.yaml')
 
     # get daemon log /var/log/trex/trex_daemon_server.log
     def get_trex_daemon_log (self):
@@ -538,7 +516,7 @@ class CTRexServer(object):
     def _check_zmq_port(self, trex_cmd_options):
         zmq_cfg_port = 4500 # default
         parser = ArgumentParser()
-        parser.add_argument('--cfg', default = self.trex_cfg_path)
+        parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
         args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
         if not os.path.exists(args.cfg):
             raise Exception('Platform config file "%s" does not exist!' % args.cfg)
