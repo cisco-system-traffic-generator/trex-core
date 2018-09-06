@@ -40,6 +40,7 @@ from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
 import platform
 import errno
+import json
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 
@@ -82,6 +83,7 @@ b_flag = None
 status_flag = False
 table_flag = False
 force_flag = False
+json_flag = False
 args = []
 loaded_modules = []
 
@@ -120,6 +122,9 @@ Options:
         NOTE: if this flag is passed along with a bind/unbind option, the status
         display will always occur after the other operations have taken place.
 
+    --json:
+        Additional flag for --status option. Print full network interfaces info in JSON format.
+
     -t, --table:
         Similar to --status, but gives more info: NUMA, MAC etc.
 
@@ -142,6 +147,9 @@ Examples:
 
 To display current device status:
         %(argv0)s --status
+
+To display full device info in JSON format:
+        %(argv0)s --status--json
 
 To bind eth1 from the current driver and move to use igb_uio
         %(argv0)s --bind=igb_uio eth1
@@ -756,14 +764,16 @@ def show_status():
                 dpdk_drv.append(devices[d])
             else:
                 kernel_drv.append(devices[d])
-
-    # print each category separately, so we can clearly see what's used by DPDK
-    display_devices("Network devices using DPDK-compatible driver", dpdk_drv, \
-                    "drv=%(Driver_str)s unused=%(Module_str)s")
-    display_devices("Network devices using kernel driver", kernel_drv,
-                    "if=%(Interface)s drv=%(Driver_str)s unused=%(Module_str)s %(Active)s")
-    display_devices("Other network devices", no_drv,\
-                    "unused=%(Module_str)s")
+    if json_flag:
+        print(json.dumps(devices))
+    else:
+        # print each category separately, so we can clearly see what's used by DPDK
+        display_devices("Network devices using DPDK-compatible driver", dpdk_drv, \
+                        "drv=%(Driver_str)s unused=%(Module_str)s")
+        display_devices("Network devices using kernel driver", kernel_drv,
+                        "if=%(Interface)s drv=%(Driver_str)s unused=%(Module_str)s %(Active)s")
+        display_devices("Other network devices", no_drv,\
+                        "unused=%(Module_str)s")
 
 def get_info_from_trex(pci_addr_list):
     if not pci_addr_list:
@@ -848,6 +858,7 @@ def parse_args():
     global status_flag
     global table_flag
     global force_flag
+    global json_flag
     global args
     if len(sys.argv) <= 1:
         usage()
@@ -856,7 +867,7 @@ def parse_args():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "b:ust",
                                ["help", "usage", "status", "table", "force",
-                                "bind=", "unbind"])
+                                "bind=", "unbind", "json"])
     except getopt.GetoptError as error:
         print(str(error))
         print("Run '%s --usage' for further information" % sys.argv[0])
@@ -870,6 +881,8 @@ def parse_args():
             status_flag = True
         if opt == "--table" or opt == "-t":
             table_flag = True
+        if opt == "--json":
+            json_flag = True
         if opt == "--force":
             force_flag = True
         if opt == "-b" or opt == "-u" or opt == "--bind" or opt == "--unbind":
