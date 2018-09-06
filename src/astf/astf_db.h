@@ -432,7 +432,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     // multi-threaded need to be protected 
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
-    void clear_db_ro_rw(void);
+    void clear_db_ro_rw(CTupleGeneratorSmart *g_gen);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
     CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
