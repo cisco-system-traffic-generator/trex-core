@@ -601,12 +601,12 @@ class ASTFProgram(object):
         self.fields['commands'].append(ASTFCmdDelayRnd(min_usec,max_usec))
 
     def __add_var (self,var_name):
-        if not (var_name in self.vars):
+        if var_name not in self.vars:
             var_index=len(self.vars);
             self.vars[var_name]=var_index
 
     def __get_var_index (self,var_name):
-        if not (var_name in self.vars):
+        if var_name not in self.vars:
             raise ASTFError("var {0} wasn't defined  ".format(var_name))
         return (self.vars[var_name]);
 
@@ -644,7 +644,7 @@ class ASTFProgram(object):
         self.labels[label]=len(self.fields['commands']);
 
     def __get_label_id (self,label):
-        if not (label in self.labels):
+        if label not in self.labels:
             raise ASTFError("label {0} wasn't defined ".format(label))
         return(self.labels[label]);
 
@@ -1032,7 +1032,7 @@ class ASTFTCPOptions(object):
         if not hasattr(other, 'fields'):
             return False
         for key in self.fields.keys():
-            if not key in other.fields:
+            if key not in other.fields:
                 return False
             if self.fields[key] != other.fields[key]:
                 return False

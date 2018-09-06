@@ -250,6 +250,21 @@ public:
     void conf_ipv6_async(bool enabled, const std::string &src_ipv6);
 
     /**
+     * Enable capture port for this port
+     */
+    bool start_capture_port(const std::string&  filter, const std::string& endpoint, std::string &err);
+
+    /**
+     * Disable capture port for this port
+     */
+    bool stop_capture_port(std::string &err);
+
+    /**
+     * Change BPF filter for the capture port
+     */
+    void set_capture_port_bpf_filter(const std::string& filter);
+
+    /**
      * configure VLAN
      */
     void set_vlan_cfg_async(const vlan_list_t &vlan_cfg);

@@ -147,19 +147,9 @@ eal_get_runtime_dir(void)
 }
 
 /* Return user provided mbuf pool ops name */
-const char * __rte_experimental
+const char *
 rte_eal_mbuf_user_pool_ops(void)
 {
-	return internal_config.user_mbuf_pool_ops_name;
-}
-
-/* Return mbuf pool ops name */
-const char *
-rte_eal_mbuf_default_mempool_ops(void)
-{
-	if (internal_config.user_mbuf_pool_ops_name == NULL)
-		return RTE_MBUF_DEFAULT_MEMPOOL_OPS;
-
 	return internal_config.user_mbuf_pool_ops_name;
 }
 

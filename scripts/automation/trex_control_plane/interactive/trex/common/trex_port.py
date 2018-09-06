@@ -102,8 +102,8 @@ class Port(object):
 
         self.state          = self.STATE_IDLE
         self.service_mode   = False
-        
-        self.handler        = None
+
+        self.handler        = ''
         self.rpc            = rpc
         self.transmit       = rpc.transmit
         self.transmit_batch = rpc.transmit_batch
@@ -121,6 +121,7 @@ class Port(object):
         self.last_factor_type = None
 
         self.__attr = PortAttr()
+        self.__is_sync = False
 
     def err(self, msg):
         return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
@@ -129,6 +130,8 @@ class Port(object):
     def ok(self, data = ""):
         return RC_OK(data)
 
+    def is_sync(self):
+        return self.__is_sync
 
     def get_speed_bps (self):
         return (self.get_speed_gbps() * 1000 * 1000 * 1000)
@@ -139,7 +142,7 @@ class Port(object):
 
 
     def is_acquired(self):
-        return (self.handler != None)
+        return (self.handler != '')
 
 
     def is_up (self):
@@ -196,10 +199,10 @@ class Port(object):
                   "handler": self.handler}
 
         rc = self.transmit("release", params)
-        
+
         if rc.good():
 
-            self.handler = None
+            self.handler = ''
             self.owner = ''
 
             return self.ok()
@@ -245,7 +248,8 @@ class Port(object):
         self.update_ts_attr(rc.data()['attr'])
         
         self.service_mode = rc.data()['service']
-        
+
+        self.__is_sync = True
         return self.ok()
 
      
@@ -401,7 +405,53 @@ class Port(object):
         # update the dictionary from the server explicitly
         return self.sync()
 
+
+    @owned
+    def start_capture_port (self, endpoint, bpf_filter=None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for start capture port. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "bpf_filter":     bpf_filter if bpf_filter is not None else "",
+                  "endpoint":       endpoint}
+
+        rc = self.transmit("start_capture_port", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+
+
+    @owned
+    def stop_capture_port (self):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for stop capture port. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id}
+
+        rc = self.transmit("stop_capture_port", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
     
+    @owned
+    def set_capture_port_bpf_filter (self, bpf_filter):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for changing capture port BPF filter. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "bpf_filter":     bpf_filter if bpf_filter is not None else ""}
+
+        rc = self.transmit("set_capture_port_bpf", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+
     def push_packets (self, pkts, force, ipg_usec):
         params = {'port_id'   : self.port_id,
                   'pkts'      : pkts,
@@ -437,6 +487,8 @@ class Port(object):
         # sync the status
         if sync:
             self.sync()
+        elif not self.is_sync():
+            return {}
 
         # get a copy of the current attribute set (safe against manipulation)
         attr = self.get_ts_attr()
@@ -698,11 +750,14 @@ class Port(object):
         
         # get a thread safe duplicate
         cur_attr = self.get_ts_attr()
-        
+
+        if not cur_attr:
+            return
+
         # check if anything changed
         if new_attr == cur_attr:
-            return None
-            
+            return
+
         # generate before
         before = self.get_formatted_info(sync = False)
         
@@ -744,7 +799,7 @@ class Port(object):
 
 
     def async_event_port_acquired (self, who):
-        self.handler = None
+        self.handler = ''
         self.owner = who
 
 

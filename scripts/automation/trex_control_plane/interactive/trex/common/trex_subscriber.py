@@ -42,7 +42,7 @@ class CTRexAsyncStats(object):
 
     def get(self, field, format=False, suffix=""):
 
-        if not field in self.current:
+        if field not in self.current:
             return "N/A"
 
         if not format:
@@ -51,7 +51,7 @@ class CTRexAsyncStats(object):
             return format_num(self.current[field], suffix)
 
     def get_rel (self, field, format=False, suffix=""):
-        if not field in self.current:
+        if field not in self.current:
             return "N/A"
 
         if not format:
@@ -92,7 +92,7 @@ class CTRexAsyncStatsManager():
 
     def get_port_stats (self, port_id):
 
-        if not str(port_id) in self.port_stats:
+        if str(port_id) not in self.port_stats:
             return None
 
         return self.port_stats[str(port_id)]
@@ -116,7 +116,7 @@ class CTRexAsyncStatsManager():
                 port_id = m.group(2)
                 field_name = m.group(1)
 
-                if not port_id in port_stats:
+                if port_id not in port_stats:
                     port_stats[port_id] = {}
 
                 port_stats[port_id][field_name] = value
@@ -131,7 +131,7 @@ class CTRexAsyncStatsManager():
         # update all ports
         for port_id, data in port_stats.items():
 
-            if not port_id in self.port_stats:
+            if port_id not in self.port_stats:
                 self.port_stats[port_id] = CTRexAsyncStatsPort()
 
             self.port_stats[port_id].update(data)
@@ -316,14 +316,14 @@ class TRexSubscriber():
 
             msg = json.loads(line)
 
-            name = msg['name']
-            data = msg['data']
-            type = msg['type']
+            name     = msg['name']
+            data     = msg['data']
+            msg_type = msg['type']
             baseline = msg.get('baseline', False)
 
             self.raw_snapshot[name] = data
 
-            self.__dispatch(name, type, data, baseline)
+            self.__dispatch(name, msg_type, data, baseline)
 
 
 

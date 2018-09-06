@@ -901,7 +901,10 @@ TrexStatelessPort::set_service_mode(bool enabled) {
         
     case TrexStatelessRxQuery::RC_FAIL_CAPTURE_ACTIVE:
         throw TrexException("unable to disable service mode - an active capture on port " + std::to_string(m_port_id) + " exists");
-        
+
+    case TrexStatelessRxQuery::RC_FAIL_CAPTURE_PORT_ACTIVE:
+        throw TrexException("unable to disable service mode - port " + std::to_string(m_port_id) + " is configured as capture port"); 
+
     default:
         assert(0);
     }

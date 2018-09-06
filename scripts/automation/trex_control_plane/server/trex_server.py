@@ -703,7 +703,8 @@ class CTRex(object):
 
 
 def generate_trex_parser ():
-    default_path        = os.path.abspath(os.path.join(outer_packages.CURRENT_PATH, os.pardir, os.pardir, os.pardir))
+    cur = os.path.dirname(__file__)
+    default_path        = os.path.abspath(os.path.join(cur, os.pardir, os.pardir, os.pardir))
     default_files_path  = os.path.abspath(CTRexServer.DEFAULT_FILE_PATH)
 
     parser = ArgumentParser(description = 'Run server application for TRex traffic generator',

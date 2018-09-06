@@ -158,7 +158,7 @@ class STLPort(Port):
 
             next = stream.get_next()
             if next:
-                if not next in lookup:
+                if next not in lookup:
                     return self.err("stream dependency error - unable to find '{0}'".format(next))
                 next_id = lookup[next]
 

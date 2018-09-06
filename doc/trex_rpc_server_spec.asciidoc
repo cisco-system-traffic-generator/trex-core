@@ -41,6 +41,9 @@ include::trex_ga.asciidoc[]
 | 1.6    | Itay Marom (imarom)
 |
 - added API synchronization
+| 1.7    | Mathieu Monney (mamonney)
+|
+- add capture port support
 |=================
 
 
@@ -1744,6 +1747,117 @@ Request example:
         },
         "handler": "vGp4EyA5",
         "port_id": 7
+    }
+}
+
+----
+
+=== Enabling Capture Port
+* *Name* - 'start_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Start Capture port to receive/inject raw packets using a ZeroMQ socket
+* *Parameters* -
+** *port_id* ['int'] - port to enable the capture port
+** *attr* ['object'] - dictionary with attributes, only endpoint is mandatory, see below
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| endpoint   | string | ZeroMQ Socket endpoint to connect to for this port (e.g. ipc:///tmp/my_zmq_socket_pair)
+| bpf_filter | string | (Optional) The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket.
+|=================
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "attr": {
+            "endpoint": "ipc:///tmp/my_zmq_socket_pair",
+            "bpf_filter": "ip"
+        },
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Disabling Capture Port
+* *Name* - 'stop_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Stop previously started capture port
+* *Parameters* -
+** *port_id* ['int'] - port to disable the capture port on
+* *Result* ['object'] - {}
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Setting Capture Port BPF Filter
+* *Name* - 'set_capture_port_bpf'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Change the BPF filter of the capture port to a new value, can be done while the capture port is active.
+* *Parameters* -
+** *port_id* ['int'] - port on which to change the BPF filter
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| bpf_filter | string | The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket. If empty or omitted, the filter is disabled.
+|=================
+
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "set_capture_port_bpf",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 1,
+        "attr": {
+            "bpf_filter": "ip"
+        }
     }
 }
 

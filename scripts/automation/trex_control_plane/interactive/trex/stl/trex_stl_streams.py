@@ -1001,7 +1001,7 @@ class STLProfile(object):
 
             t = STLProfile.get_module_tunables(module)
             #for arg in kwargs:
-            #    if not arg in t:
+            #    if arg not in t:
             #        raise TRexError("Profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
 
             streams = module.register().get_streams(direction = direction,
@@ -1417,11 +1417,11 @@ class Graph(object):
     # add a connection v1 --> v2
     def add (self, v1, v2):
         # init value for v1
-        if not v1 in self.db:
+        if v1 not in self.db:
             self.db[v1] = set()
 
         # init value for v2
-        if not v2 in self.db:
+        if v2 not in self.db:
             self.db[v2] = set()
 
         # ignore self to self edges
@@ -1448,7 +1448,7 @@ class Graph(object):
             friends = self.db[node]
 
             # node has never been seen - move to color_a
-            if not node in color_a and not node in color_b:
+            if node not in color_a and node not in color_b:
                 self.log("<NEW> {0} --> A".format(node))
                 color_a.add(node)
 

@@ -3,9 +3,13 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 import pprint
+import zmq
+import threading
+import time
 import tempfile
+import socket
 from scapy.utils import RawPcapReader
-from nose.tools import assert_raises
+from nose.tools import assert_raises, nottest
 
 def ip2num (ip_str):
     return struct.unpack('>L', socket.inet_pton(socket.AF_INET, ip_str))[0]
@@ -15,8 +19,8 @@ def num2ip (ip_num):
 
 def ip_add (ip_str, cnt):
     return num2ip(ip2num(ip_str) + cnt)
-    
-    
+
+
 class STLCapture_Test(CStlGeneral_Test):
     """Tests for capture packets"""
 
@@ -44,8 +48,8 @@ class STLCapture_Test(CStlGeneral_Test):
 
         # some setups (enic) might add VLAN always
         self.nic_adds_vlan = CTRexScenario.setup_name in ['trex11']
-        
-        
+        self.hostname = socket.gethostname()
+
     @classmethod
     def tearDownClass(cls):
         if CTRexScenario.stl_init_error:
@@ -348,3 +352,251 @@ class STLCapture_Test(CStlGeneral_Test):
         finally:
             self.c.remove_all_captures()
             self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
+
+    @staticmethod
+    def _poll_tcp_port(shared):
+        for i in range(20):
+            if shared['tcp_port']:
+                break
+            time.sleep(0.1)
+        assert shared['tcp_port']
+        return shared['tcp_port']
+
+    def test_tx_from_capture_port (self):
+        '''
+            test TX packets from the RX core using capture port mechanism
+        '''
+        rx_capture_id = None
+
+        # use explicit values for easy comparsion
+        tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
+        tx_dst_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['dst']
+
+        self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
+
+        # Add ZeroMQ Socket
+        zmq_context = zmq.Context()
+        zmq_socket = zmq_context.socket(zmq.PAIR)
+
+        try:
+            zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
+            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+
+            # VICs adds VLAN 0 on RX side
+            max_capture_packet = 2000
+            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)', limit = max_capture_packet)['id']
+
+            self.c.start_capture_port(port = self.tx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
+
+            self.c.clear_stats()
+
+            nb_packets = 20000
+            assert max_capture_packet <= nb_packets
+            pkt = bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = 100,dport=1000)/('x' * 100))
+            for _ in range(1,nb_packets):
+                zmq_socket.send(pkt)
+
+            stats = self.stl_trex.get_stats()
+
+            # check capture status with timeout
+            timeout = PassiveTimer(2)
+            while not timeout.has_expired():
+                caps = self.c.get_capture_status()
+                assert(len(caps) == 1)
+                if caps[rx_capture_id]['count'] == max_capture_packet:
+                    break
+                time.sleep(0.1)
+
+            assert abs(max_capture_packet-caps[rx_capture_id]['count']) / max_capture_packet < 0.05
+
+            # RX capture
+            rx_pkts = []
+            self.c.stop_capture(rx_capture_id, output = rx_pkts)
+            rx_capture_id = None
+
+            rx_pkts = [x['binary'] for x in rx_pkts]
+
+            # RX pkts are not the same - loose check, all here and are UDP
+            assert abs(max_capture_packet-len(rx_pkts)) / max_capture_packet < 0.05
+            assert (all(['UDP' in Ether(x) for x in rx_pkts]))
+
+            # Report the number of pps we were able to send
+            print('Done, %6s TX pps' % (round(stats[self.rx_port]['rx_pps'],2)))
+        finally:
+            self.c.remove_all_captures()
+            self.c.stop_capture_port(port = self.tx_port)
+            self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
+            zmq_context.destroy()
+
+
+    def test_rx_from_capture_port_with_filter(self):
+        '''
+            test RX packets from the RX core using capture port mechanism
+            and BPF filter on the port
+        '''
+
+        pkt_count = 10
+
+        try:
+            # move to service mode
+            self.c.set_service_mode(ports = self.rx_port)
+
+            # Start a thread to receive and count how many packet we receive
+            shared = {'tcp_port': 0, 'stop': False, 'failed': False}
+            def run():
+                # Add ZeroMQ Socket for RX Port
+                zmq_context = zmq.Context()
+                zmq_socket = zmq_context.socket(zmq.PAIR)
+                zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
+                shared['tcp_port'] = zmq_socket.bind_to_random_port('tcp://*')
+                nb_received = 0
+                first_packet = 0
+                try:
+                    while not shared['stop']:
+                        try:
+                            pkt = zmq_socket.recv()
+                            if not first_packet:
+                                first_packet = time.time()
+
+                            scapy_pkt = Ether(pkt)
+                            assert(scapy_pkt['UDP'].dport == 1222)
+                            nb_received += 1
+                            if nb_received == pkt_count:
+                                delta = time.time() - first_packet
+                                print('Done (%ss), %6s RX pps' % (round(delta,2), round(nb_received/delta,2)))
+                                return
+                        except zmq.Again:
+                            pass
+                        finally:
+                            time.sleep(0.01)
+                    raise Exception('Did not get needed packets')
+                except Exception as e:
+                    print('Expected packets: %s, received: %s' % (pkt_count, nb_received))
+                    shared['failed'] = True
+                    print('Error: %s' % e)
+                finally:
+                    zmq_context.destroy()
+
+            t = threading.Thread(name="capture_port_thread", target=run)
+            t.daemon=True
+            t.start()
+            tcp_port = self._poll_tcp_port(shared)
+
+            # Start with wrong filter
+            self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port), bpf_filter="ip host 18.0.0.1")
+
+            # should not let start if started
+            with assert_raises(TRexError):
+                self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
+
+            # should not let disable service mode
+            with assert_raises(TRexError):
+                self.c.set_service_mode(ports = self.rx_port, enabled = False)
+
+            # Then change it
+            self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222 or (vlan and udp port 1222)")
+
+            # start heavy traffic with wrong IP first
+            pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=1222,sport=1025)/'a_payload_example')
+
+            stream = STLStream(name = 'burst',
+                               packet = pkt,
+                               mode = STLTXSingleBurst(pps = 10, total_pkts=pkt_count)
+                               )
+
+            self.c.add_streams(ports = self.tx_port, streams = [stream])
+
+            # then start traffic with correct IP
+            pkt = STLPktBuilder(pkt = Ether()/IP(src="18.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/'a_payload_example')
+
+            stream = STLStream(name = 'burst2',
+                               packet = pkt,
+                               mode = STLTXSingleBurst(pps = 10, total_pkts=pkt_count)
+                               )
+
+            self.c.add_streams(ports = self.tx_port, streams = [stream])
+            self.c.start(ports = self.tx_port, force = True)
+
+            # Wait until we have received everything
+            t.join(timeout=10)
+            if t.is_alive():
+                shared['stop'] = True
+                t.join(timeout=5)
+                raise Exception('Thread did not stop')
+            else:
+                assert not shared['failed']
+
+        finally:
+            self.c.remove_all_captures()
+            self.c.stop_capture_port(port = self.rx_port)
+            # should allow stop stopped
+            self.c.stop_capture_port(port = self.rx_port)
+            self.c.set_service_mode(ports = [self.rx_port], enabled = False)
+            self.c.stop()
+
+    @nottest
+    def test_capture_port_stress (self):
+        '''
+            test RX & Tx packets from the RX core using capture port mechanism
+            while start & stopping the capture port
+        '''
+
+        try:
+            # move to service mode
+            self.c.set_service_mode(ports = self.rx_port)
+            shared = {'tcp_port': 0, 'stop': False, 'failed': False}
+
+            # Start a thread to receive and send packets
+            def run_rx_tx():
+                # Add ZeroMQ Socket for RX Port
+                zmq_context = zmq.Context()
+                zmq_socket = zmq_context.socket(zmq.PAIR)
+                try:
+                    zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
+                    shared['tcp_port'] = zmq_socket.bind_to_random_port('tcp://*')
+    
+                    while not shared['stop']:
+                        try:
+                            pkt = zmq_socket.recv()
+                            # Send it back
+                            zmq_socket.send(pkt)
+                        except zmq.Again:
+                            pass
+                        finally:
+                            time.sleep(0.1)
+                finally:
+                    zmq_context.destroy()
+
+            t = threading.Thread(name="capture_port_thread_rx", target=run_rx_tx)
+            t.daemon=True
+            t.start()
+            tcp_port = self._poll_tcp_port(shared)
+
+            # start heavy traffic
+            pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/'a_payload_example')
+
+            stream = STLStream(name = 'burst',
+                               packet = pkt,
+                               mode = STLTXCont(pps = 100000)
+                               )
+
+            self.c.add_streams(ports = self.tx_port, streams = [stream])
+            self.c.start(ports = self.tx_port, force = True)
+
+            # Now start & stop the capture port while doing the work
+            for _ in range(5):
+                self.c.start_capture_port(port = self.rx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
+                time.sleep(0.2)
+                self.c.stop_capture_port(port = self.rx_port)
+                time.sleep(0.2)
+
+            # Wait until thread dies
+            shared['stop'] = True
+            t.join(timeout=10)
+            assert not t.is_alive()
+
+
+        finally:
+            self.c.remove_all_captures()
+            self.c.stop()
+            self.c.set_service_mode(ports = [self.rx_port], enabled = False)

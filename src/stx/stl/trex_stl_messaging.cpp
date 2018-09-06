@@ -293,7 +293,13 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
             rc = RC_FAIL_CAPTURE_ACTIVE;
             break;
         }
-        
+
+        /* cannot leave service mode if capture port is active */
+        if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::CAPTURE_PORT)) {
+            rc = RC_FAIL_CAPTURE_PORT_ACTIVE;
+            break;
+        }
+
         break;
     
     default:

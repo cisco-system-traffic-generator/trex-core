@@ -2,44 +2,56 @@
 
 import sys
 import os
-cpu_arch = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
-python_ver = 'python%s' % sys.version_info.major
-ucs_ver = 'ucs2' if sys.maxunicode == 65535 else 'ucs4'
 
-CURRENT_PATH         = os.path.dirname(os.path.realpath(__file__))                
-ROOT_PATH            = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
-PATH_TO_PYTHON_LIB   = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pardir, 'external_libs'))
-ZMQ_PATH             = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyzmq-14.5.0', python_ver, cpu_arch, ucs_ver, '64bit'))
-YAML_PATH            = os.path.abspath(os.path.join(PATH_TO_PYTHON_LIB, 'pyyaml-3.11', python_ver))
+_ext_libs = [ {'name': 'simple_enum'},
+              {'name': 'pyyaml-3.11', 'py-dep': True},
+              {'name': 'pyzmq-ctypes', 'arch-dep': True},
+              {'name': 'jsonrpclib-pelix-0.2.5'},
+              {'name': 'termstyle'},
+              {'name': 'netstat'}
+            ]
 
-SERVER_MODULES = [
-                  'simple_enum',
-                  'zmq',
-                  'jsonrpclib-pelix-0.2.5',
-                  'python-daemon-2.0.5',
-                  'lockfile-0.10.2',
-                  'termstyle'
-                  ]
+def _import_server_modules():
 
+    cpu_vendor = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
+    cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
+    python_ver = 'python%s' % sys.version_info.major
 
-def import_server_modules():
-    # must be in a higher priority
-    if PATH_TO_PYTHON_LIB not in sys.path:
-        sys.path.insert(0, PATH_TO_PYTHON_LIB)
-    for path in (ROOT_PATH, ZMQ_PATH, YAML_PATH):
-        if path not in sys.path:
-            sys.path.insert(0, path)
-    import_module_list(SERVER_MODULES)
+    cur = cur = os.path.dirname(__file__)
+    par = os.pardir
+    parent_path = os.path.abspath(os.path.join(cur, par))
+    if parent_path not in sys.path:
+        sys.path.insert(1, parent_path)
+    interactive_path = os.path.join(parent_path, 'interactive')
+    if interactive_path not in sys.path:
+        sys.path.insert(1, interactive_path)
 
+    if os.getenv('TREX_EXT_LIBS'):
+        ext_libs_path = os.environ['TREX_EXT_LIBS']
+    else:
+        ext_libs_path = os.path.abspath(os.path.join(cur, par, par, par, 'external_libs'))
 
-def import_module_list(modules_list):
-    assert(isinstance(modules_list, list))
-    for p in modules_list:
-        full_path = os.path.join(PATH_TO_PYTHON_LIB, p)
-        fix_path = os.path.normcase(full_path)
+    if not os.path.isdir(ext_libs_path):
+        raise Exception('Could not determine path of external_libs, try setting TREX_EXT_LIBS variable')
+
+    for p in _ext_libs:
+        special = []
+        if p.get('py-dep'):
+            special.append(python_ver)
+        if p.get('arch-dep'):
+            special.append(cpu_vendor)
+            special.append(cpu_bits)
+        full_path = os.path.join(ext_libs_path, p['name'], *special)
+
+        if not os.path.exists(full_path):
+            err_msg  =  "\n\nUnable to find required external library: '{0}'\n".format(p['name'])
+            err_msg +=  "Current path used: '{0}'".format(full_path)
+
+            raise Exception(err_msg)
+
         if full_path not in sys.path:
             sys.path.insert(1, full_path)
 
 
-import_server_modules()
+_import_server_modules()
 

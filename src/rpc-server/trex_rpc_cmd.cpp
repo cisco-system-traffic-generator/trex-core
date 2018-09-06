@@ -237,7 +237,7 @@ TrexRpcCommand::check_field_type_common(const Json::Value &field, const std::str
 
     /* first check if field exists */
     if (field == Json::Value::null) {
-        specific_err = "field '" + name + "' is missing";
+        specific_err = "field '" + name + "' value is null";
         generate_parse_err(result, specific_err);
     }
 

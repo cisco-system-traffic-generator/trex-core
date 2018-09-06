@@ -22,6 +22,7 @@ import subprocess
 import platform
 import stat
 import time
+import shutil
 
 # exit code is Important should be
 # -1 : don't continue
@@ -604,38 +605,43 @@ Other network devices
             if not input_file:
                 return
 
-            just_copy=False
-            extension = os.path.splitext(input_file)[1]
-            if extension == '.json':
-                just_copy = True;
-            else:
-              if extension != '.py':
-                  raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
-
-            instance_name = ""
+            instance_name = ''
             prefix = self.get_prefix()
             if prefix:
                 instance_name = '-' + prefix
+            dst_json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
 
-            json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
+            extension = os.path.splitext(input_file)[1]
+            if extension == '.json':
+                shutil.copyfile(input_file, dst_json_file)
+                return
+            elif extension != '.py':
+                raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
 
-            msg="converting astf profile {file} to json {out}".format(file = input_file, out=json_file)
-            print(msg);
-            tunable='';
+            print('converting astf profile %s to json %s' % (input_file, dst_json_file))
+
+            # imports from trex.astf
+            cur_path = os.path.abspath(os.path.dirname(__file__))
+            trex_path = os.path.join(cur_path, 'automation', 'trex_control_plane', 'interactive')
+            if trex_path not in sys.path:
+                sys.path.insert(1, trex_path)
+            from trex.astf.trex_astf_profile import ASTFProfile
+            from trex.astf.sim import decode_tunables
+
+            tunables = {}
             if map_driver.parent_args.tunable:
-                tunable="-t "+map_driver.parent_args.tunable+" "
+                tunables = decode_tunables(map_driver.parent_args.tunable)
 
-            if just_copy:
-                cmd = 'cp {file} {json_file}'.format(file=input_file, json_file=json_file)
-            else:
-              cmd = './astf-sim -f {file} {tun} --json > {json_file}'.format(file=input_file, tun=tunable, json_file=json_file)
-            print(cmd)
-            ret = os.system(cmd)
-            os.chmod(json_file, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-            if ret:
-                with open(json_file) as f:
-                    out = '    ' + '\n    '.join(f.read().splitlines())
-                raise DpdkSetup('ERROR could not convert astf profile to JSON try to debug it using the command above.\nProduced output:\n%s' % out)
+            try:
+                profile = ASTFProfile.load(input_file, **tunables)
+                json_content = profile.to_json_str()
+            except Exception as e:
+                raise DpdkSetup('ERROR: Could not convert astf profile to JSON:\n%s' % e)
+
+            with open(dst_json_file, 'w') as f:
+                f.write(json_content)
+            os.chmod(dst_json_file, 0o777)
+
 
     def verify_stf_file(self):
         """ check the input file of STF """
@@ -1282,7 +1288,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--astf', action = 'store_true')
     parent_parser.add_argument('--limit-ports', type = int)
     parent_parser.add_argument('-f', dest = 'file')
-    parent_parser.add_argument('-t', dest = 'tunable',default=None)
+    parent_parser.add_argument('-t', dest = 'tunable', default=None)
     parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if map_driver.parent_args.help:
