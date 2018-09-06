@@ -751,6 +751,7 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
 
     if ( is_idle ) {
+        rte_pktmbuf_free(mbuf);
         return false;
     }
 
