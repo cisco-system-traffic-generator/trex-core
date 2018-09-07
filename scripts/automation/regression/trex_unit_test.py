@@ -376,7 +376,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             fatal('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
         if self.no_daemon and self.stateful :
             fatal("Can't run stateful without daemon.")
-        if self.collect_only or self.functional:
+        if self.collect_only or self.functional or self.wireless:
             return
         self.enabled       = True
         self.kill_running  = options.kill_running
@@ -627,10 +627,10 @@ if __name__ == "__main__":
             if key in sys_args:
                 CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
                 sys_args.remove(key)
-        for key in ('--wireless'):
-            if key in sys_args:
-                CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
-                sys_args.remove(key)
+        key = '--wireless'
+        if key in sys_args:
+            CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
+            sys_args.remove(key)
         # Run all of the tests or just the selected ones
         if not sum([len(x) for x in CTRexScenario.test_types.values()]):
             for key in CTRexScenario.test_types.keys():
@@ -672,16 +672,15 @@ if __name__ == "__main__":
             attr_arr.append('!long')
         attrs = ','.join(attr_arr)
         if CTRexScenario.test_types['wireless_tests']:
-            nose_argv = ['', '-s', '-v', '--exe', '--nologcapture']
-            additional_args = ['../trex_control_plane/interactive/trex/stl']
-            result = nose.run(argv = nose_argv + additional_args) and result
+            additional_args = ['--wireless', '../trex_control_plane/interactive/trex/wireless']
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
             if attrs:
                 additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
-            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins)
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if CTRexScenario.test_types['stateless_tests']:
             if is_wlc:
                 additional_args = ['--stl', '-a', 'wlc'] + CTRexScenario.test_types['stateless_tests']
