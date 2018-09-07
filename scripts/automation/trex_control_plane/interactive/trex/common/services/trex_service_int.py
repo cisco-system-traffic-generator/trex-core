@@ -14,11 +14,9 @@ Author:
 """
 
 from collections import deque, namedtuple
-import threading
 
 import simpy
 from simpy.core import BoundClass
-from simpy.resources.store import StorePut
 
 from scapy.layers.l2 import Ether
 
@@ -416,108 +414,6 @@ class Pkt(simpy.resources.store.Store):
                 self.items = self.items[event.limit:]
 
 
-class SynchronizedList(list):
-    """A locked list using the provided lock for locking. Used to ensure
-       that both the get and put queue of a store are in sync and thread-safe.
-    """
-    def __init__(self, lock):
-        self.lock = lock
-
-    def __getitem__(self, a):
-        with self.lock:
-            return list.__getitem__(self, a)
-
-    def __len__(self):
-        with self.lock:
-            return list.__len__(self)
-
-    def append(self, a):
-        with self.lock:
-            return list.append(self, a)
-
-    def pop(self, a):
-        with self.lock:
-            return list.pop(self, a)
-
-    def remove(self, a):
-        with self.lock:
-            return list.remove(self, a)
-
-class SynchronizedStore:
-    """Buffer for received packet directed to the client's service.
-    Is a synchronized simpy.resources.resource.store
-    """
-    put = BoundClass(StorePut)
-    get = BoundClass(PktRX)
-
-    def __init__(self, env, capacity=float('inf')):
-        # BaseResource
-        self._env = env
-        self._capacity = capacity
-        self.lock = threading.RLock()
-        self.put_queue = SynchronizedList(self.lock)
-        self.get_queue = SynchronizedList(self.lock)
-        BoundClass.bind_early(self)
-
-        self.callbacks = []
-        # Store
-        self.items = []
-
-    @property
-    def capacity(self):
-        """Maximum capacity of the resource."""
-        return self._capacity
-
-    def _do_put(self, event):
-        with self.lock:
-            if len(self.items) < self._capacity:
-                self.items.append(event.item)
-                event.succeed()
-
-    def _do_get (self, event):
-        with self.lock:
-            if self.items:
-                # if no limit - fetch all
-                if event.limit is None:
-                    event.succeed(self.items)
-                    self.items = []
-
-                else:
-                # if limit was set - slice the list
-                    event.succeed(self.items[:event.limit])
-                    self.items = self.items[event.limit:]
-
-    def _trigger_put(self, get_event):
-        with self.put_queue.lock:
-            l =list(self.put_queue)
-            toremove=[]
-
-            idx = 0
-            while idx < len(l):
-                put_event = l[idx]
-                self._do_put(put_event)
-                toremove.append(put_event)
-                idx += 1
-
-            for e in toremove:
-                idx = self.put_queue.index(e)
-                self.put_queue.pop(idx)
-
-    def _trigger_get(self, put_event):
-        with self.get_queue.lock:
-            idx = 0
-            while idx < len(self.get_queue):
-                get_event = self.get_queue[idx]
-                proceed = self._do_get(get_event)
-                if not get_event.triggered:
-                    idx += 1
-                elif self.get_queue.pop(idx) != get_event:
-                    raise RuntimeError('Get queue invariant violated')
-
-                if not proceed:
-                    break
-
-
 ##################
 #
 # Service Pipe
@@ -534,7 +430,7 @@ class ServicePipe(object):
     def __init__ (self, env, tx_buffer):
         self.env         = env
         self.tx_buffer   = tx_buffer
-        self.pkt         = SynchronizedStore(self.env)
+        self.pkt         = Pkt(self.env)
         
     def async_wait (self, time_sec):
         '''

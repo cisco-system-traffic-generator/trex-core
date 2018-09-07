@@ -1,10 +1,10 @@
 import simpy
 import threading
 import time
-import struct 
+import struct
 
 from wireless.services.trex_wireless_device_service import WirelessDeviceService
-from trex.common.services.trex_service_int import SynchronizedStore
+from wireless.utils.utils import SynchronizedStore
 from scapy.contrib.capwap import CAPWAP_PKTS, capwap_result_codes
 
 class APService(WirelessDeviceService):
@@ -29,7 +29,7 @@ class APService(WirelessDeviceService):
 
         for _ in range(config.capwap.max_retransmit):
             RetransmitInterval *= 2
-            
+
             encrypted = self.ap.encrypt(capw_ctrl_pkt)
             if encrypted and encrypted != '':
                 tx_pkt_wrapped = self.ap.wrap_capwap_pkt(
@@ -39,7 +39,7 @@ class APService(WirelessDeviceService):
                 self.send_pkt(tx_pkt_wrapped)
             else:
                 continue
-            
+
             # wait on expected response
             pkts = yield self.async_recv_pkt(time_sec=RetransmitInterval)
             if not pkts:
@@ -57,7 +57,7 @@ class APService(WirelessDeviceService):
             result_code = CAPWAP_PKTS.parse_message_elements(
                 capwap_bytes, capwap_hlen, self.ap, self)
 
-            
+
             if result_code in (None, 0, 2) and ctrl_header_type == expected_response_type:
                 # good
                 return True
@@ -84,7 +84,7 @@ class APService(WirelessDeviceService):
                 ap: an AP
             """
             self.connection = connection
-        
+
         def send(self, pkt):
             """Send a packet on to connection.
             Send the packet as is with no added layers.

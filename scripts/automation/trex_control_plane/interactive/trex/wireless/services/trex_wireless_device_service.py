@@ -6,7 +6,7 @@ import abc
 
 from .trex_wireless_service_event import *
 from .trex_wireless_service import *
-from trex.common.services.trex_service_int import SynchronizedStore, PktRX
+from ..utils.utils import SynchronizedStore
 from ..pubsub.broker import register_sub, deregister_sub ,subscribers
 from ..pubsub.message import PubSubMessage
 
@@ -14,9 +14,9 @@ Interrupt = simpy.events.Interrupt
 
 class WirelessDeviceService(WirelessService):
     """A Service that runs on a simulated wireless device (access point or client)."""
-    
+
     FILTER = ""
-    
+
     # a simpy.resources.resource.Resource for throttling the number of concurrent same services
     concurrent_resource = None
 
@@ -108,7 +108,7 @@ class WirelessDeviceService(WirelessService):
             self.device.deregister_service(self)
 
         return super().async_request_stop(done, success, delete)
-        
+
     def async_wait_for_event(self, event, timeout_sec=None):
         """Async wait for an event to happen (WirelessServiceEvent).
         The event must happen in the same "context" as the device :
@@ -116,7 +116,7 @@ class WirelessDeviceService(WirelessService):
         However a client can wait on events from its attached AP, and an AP can wait on its clients events.
 
         Args:
-            event (WirelessServiceEvent): event to wait for 
+            event (WirelessServiceEvent): event to wait for
             timeout_sec (int): number of seconds to wait before timeout, default: no timeout
 
         Return:
