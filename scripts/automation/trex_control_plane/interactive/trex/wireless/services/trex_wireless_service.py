@@ -5,7 +5,7 @@ import abc
 
 
 from .trex_wireless_service_event import *
-from trex.common.services.trex_service_int import SynchronizedStore, PktRX
+from ..utils.utils import SynchronizedStore
 from ..pubsub.broker import register_sub, deregister_sub ,subscribers
 from ..pubsub.message import PubSubMessage
 from ..pubsub.pubsub import Publisher
@@ -14,9 +14,9 @@ Interrupt = simpy.events.Interrupt
 
 class WirelessService:
     """A Service that runs on a simulated wireless device (access point or client)."""
-    
+
     FILTER = ""
-    
+
     # a simpy.resources.resource.Resource for throttling the number of concurrent same services
     concurrent_resource = None
 
@@ -35,7 +35,6 @@ class WirelessService:
         self.env = env
         self.tx_conn = tx_conn
         self.rx_store = SynchronizedStore(env)
-        self.rx_store_lock = threading.Lock()
 
         self.done_event = done_event
         self.max_concurrent = max_concurrent
@@ -69,7 +68,7 @@ class WirelessService:
 
     def get_service_info(self, key):
         raise NotImplementedError
-        
+
     def async_request_start(self, first_start=False, request_packets=True):
         """Request to start the service.
 
@@ -120,7 +119,7 @@ class WirelessService:
         self.service_stopped_event = simpy.events.Event(self.env)
 
         return release
-    
+
     def _run_until_interrupt(self):
         try:
             yield from self.run()
@@ -133,10 +132,10 @@ class WirelessService:
         To be implemented by subclasses.
         """
         raise NotImplementedError
-    
+
     def stop(self, hard=False):
         """Cleanup method to execute after running the service.
-        
+
         By default does nothing.
         """
         return
@@ -156,12 +155,12 @@ class WirelessService:
         However a client can wait on events from its attached AP, and an AP can wait on its clients events.
 
         Args:
-            event (WirelessServiceEvent): event to wait for 
+            event (WirelessServiceEvent): event to wait for
             timeout_sec (int): number of seconds to wait before timeout, default: no timeout
 
         Return:
             a simpy event to wait for
-        """                
+        """
         # create a subscription
         sub = WirelessServiceEventSubscription(event)
         # register subscription
@@ -172,7 +171,7 @@ class WirelessService:
             return simpy.events.AnyOf(event.env, [event.simpy_event, simpy.events.Timeout(event.env, timeout_sec)])
         return event.simpy_event
 
- 
+
     def async_wait_for_any_events(self, events, wait_packet=False, timeout_sec=None):
         """Async wait for an event to happen (WirelessServiceEvent).
         The event must happen in the same "context" as the device :
@@ -189,41 +188,40 @@ class WirelessService:
         if not events:
             raise ValueError("should not wait on no events")
         env = events[0].env
+
         sim_events = []
         for event in events:
             sim_events.append(self.async_wait_for_event(event, timeout_sec=None))
         if timeout_sec:
             sim_events.append(simpy.events.Timeout(env, timeout_sec))
         if wait_packet:
-            with self.rx_store_lock:
-                sim_events.append(self.rx_store.get(timeout_sec, 1))
-                return simpy.events.AnyOf(self.env, sim_events)
+            sim_events.append(self.rx_store.get(timeout_sec, 1))
+            return simpy.events.AnyOf(self.env, sim_events)
         return simpy.events.AnyOf(self.env, sim_events)
 
     def async_recv_pkt(self, time_sec=None):
         """Async wait to receive one packet, wakes when either a packet is available or when timeout is done.
         Returns a list of one packet or None if timed out.
-        
+
         Args:
             time_sec (int): timeout in seconds, defaults to None (no timeout).
 
         Return:
             a list of one packet or None
         """
-        with self.rx_store_lock:
-            return self.rx_store.get(time_sec, 1)
+        return self.rx_store.get(time_sec, 1)
 
     def async_recv_pkts(self, num_packets=None, time_sec=None):
         """Async wait to receive multiple packets, wakes when either 'num_packets' packets have been received or when timeout is done.
-                        
+
         Args:
             time_sec (int): timeout in seconds, defaults to None (no timeout).
 
         Return:
             a list of received packets or None
         """
-        
-        
+
+
         return self.rx_store.get(time_sec, num_packets)
 
     def raise_event(self, event):
@@ -281,7 +279,7 @@ class WirelessService:
 
         def send(self, pkt):
             """Send a packet via this connection.
-            
+
             To be implemented by subclasses.
             """
             raise NotImplementedError
@@ -294,8 +292,7 @@ class WirelessService:
         Args:
             pkt (bytes): packet bytes received for the device
         """
-        with self.rx_store_lock:
-            self.rx_store.put(pkt)
+        self.rx_store.put(pkt)
 
     @classmethod
     def _set_concurrent_resource(cls, env, max_concurrent):

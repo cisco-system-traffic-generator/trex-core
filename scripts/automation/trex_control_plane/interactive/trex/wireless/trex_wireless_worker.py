@@ -20,7 +20,7 @@ from .trex_wireless_worker_rpc import *
 from .trex_wireless_ap_state import *
 from .trex_wireless_client_state import *
 from .services.trex_stl_ap import *
-from trex.common.services.trex_service_int import ServicePipe, SynchronizedStore
+from .utils.utils import SynchronizedStore, SynchronizedServicePipe
 from .utils.utils import remote_call, RemoteCallable, SyncronizedConnection, thread_safe_remote_call, mac2str, load_service
 from scapy.contrib.capwap import CAPWAP_PKTS
 from .trex_wireless_packet import Packet
@@ -110,8 +110,8 @@ class WirelessWorker(multiprocessing.Process):
 
         self.filters = {}
         self.services = {}  # for now, service_name -> GeneralService instance
-        self.__service_processes = {}  # service name => simpyprocess for GeneralService   
-        self.stl_services = {}  # 
+        self.__service_processes = {}  # service name => simpyprocess for GeneralService
+        self.stl_services = {}  #
         self.services_lock = threading.Lock()
         self.filter = None
 
@@ -303,7 +303,7 @@ class WirelessWorker(multiprocessing.Process):
                 self.ap_by_mac[ap.mac] = ap
                 if _ap.ip:
                     self.ap_by_ip[ap.ip] = ap
-                
+
                 if ap.udp_port not in self.aps_by_udp_port:
                     self.aps_by_udp_port[ap.udp_port] = []
                 self.aps_by_udp_port[ap.udp_port].append(ap)
@@ -329,7 +329,7 @@ class WirelessWorker(multiprocessing.Process):
 
         for _ap in aps:
             create_ap()
-            
+
     # @remote_call
     def remove_ap(self, ap_id):
         raise NotImplementedError
@@ -367,7 +367,7 @@ class WirelessWorker(multiprocessing.Process):
                 # only one event to wait for
                 done_event = threading.Event()
                 wait_events = [done_event]
-                
+
             new_service = service(devices=devices, env=self.env, tx_conn=service.Connection(
                 self.pkt_pipe), topics_to_subs=self.topics_to_subs, done_event=done_event)
 
@@ -386,7 +386,7 @@ class WirelessWorker(multiprocessing.Process):
                 if service_name in device.services:
                     raise ValueError("device {} already owns this service: {}".format(
                         device.name, service_name))
-                
+
                 done_event = None
                 if wait_for_completion:
                     done_event = threading.Event()
@@ -395,9 +395,9 @@ class WirelessWorker(multiprocessing.Process):
                 new_service = service(device=device, env=self.env, tx_conn=service.Connection(
                     self.pkt_pipe, device), topics_to_subs=self.topics_to_subs, done_event=done_event, max_concurrent=max_concurrent)
 
-                # register service, adding to 
+                # register service, adding to
                 device.register_service(new_service, self.env.process(new_service._run_until_interrupt()))
-                
+
         # wait for events
         for event in wait_events:
             event.wait()
@@ -512,7 +512,7 @@ class WirelessWorker(multiprocessing.Process):
     @remote_call
     def wrap_client_pkts(self, client_pkts):
         """Wrap clients packets into capwap data.
-        
+
         Args:
             worker (WirelessWorker): worker to call
             client_pkts (dict): dict client_mac -> list of packets (Dot11)
@@ -590,7 +590,7 @@ class WirelessWorker(multiprocessing.Process):
         clients = []
         for ap in aps:
             clients.extend(ap.clients)
-        
+
         # hard stop clients' services
         for client in clients:
             client.stop_services(hard=True)
@@ -599,7 +599,7 @@ class WirelessWorker(multiprocessing.Process):
             # stop sevices
             ap.stop_services()
             ap.state = APState.CLOSING
-        
+
         # clear
         self.filters.clear()
         self.stl_services.clear()
@@ -608,7 +608,7 @@ class WirelessWorker(multiprocessing.Process):
         self.logger.debug("launching ApShutdown for %d APs" % len(aps))
         self.__add_stl_services([ServiceAPShutdown(self, ap, self.env, topics_to_subs=self.topics_to_subs)
                         for ap in aps])
-                        
+
     @remote_call
     def stop_clients(self, ids=None, max_concurrent=float('inf')):
         """Stop all processes for given clients.
@@ -666,9 +666,9 @@ class WirelessWorker(multiprocessing.Process):
         # create simpy processes
         with self.services_lock:
             for service in services:
-                pipe = ServicePipe(self.env, None)
+                pipe = SynchronizedServicePipe(self.env, None)
                 self.stl_services[service]['pipe'] = pipe
-                
+
                 if hasattr(service, "ap"):
                     # AP service
                     device = service.ap
@@ -679,7 +679,7 @@ class WirelessWorker(multiprocessing.Process):
 
     def __register_general_subservices(self, service):
         """Register the service and all its subservices recursively.
-        
+
         Args:
             service (GeneralService): service to register with its subservices
         """
@@ -691,7 +691,7 @@ class WirelessWorker(multiprocessing.Process):
 
     def __register_general_service(self, service, sim_process):
         """Registers a service for multiple devices on the worker.
-        
+
         Args:
             service (GeneralService): to register
             sim_process (simpy.events.Process): running simpy process, obtained via 'env.process(service)'
@@ -1064,13 +1064,13 @@ class WirelessWorker(multiprocessing.Process):
                 def process_capwap_ctrl():
                     # do not forward capwap control if not reconstructed
                     forward = False
-                    
+
                     def capwap_reassemble(ap, rx_pkt_buf):
                         """Return the reassembled packet if 'rx_pkt_buf' is the last fragmented,
                         or None if more fragmented packets are expected, or the packet itself if not fragmented.
                         The returned packet is a CAPWAP CTRL / PAYLOAD"""
                         capwap_assemble = ap.capwap_assemble
-                        
+
                         # is_fragment
                         if struct.unpack('!B', rx_pkt_buf[3:4])[0] & 0x80:
                             rx_pkt = CAPWAP_CTRL(rx_pkt_buf)
@@ -1184,7 +1184,7 @@ class WirelessWorker(multiprocessing.Process):
                     ap.last_recv_ts = time.time()
                     # get reassembled if needed
                     # capwap_assemble = ap.capwap_assemble
-                    rx_pkt_buf = capwap_reassemble(ap, rx_pkt_buf)                
+                    rx_pkt_buf = capwap_reassemble(ap, rx_pkt_buf)
                     if not rx_pkt_buf or rx_pkt_buf[0:1] != b'\0':
                         return
                     ap.capwap_assemble.clear()
@@ -1218,7 +1218,7 @@ class WirelessWorker(multiprocessing.Process):
                     elif ctrl_header_type == 14:  # Echo Response
                         ap.logger.debug("received echo reply")
                         ap.echo_resp_timer = None
-                        
+
                     elif ctrl_header_type == 17:  # Reset Request
                         logger.error(
                             'AP %s got Reset request, shutting down' % ap.name)
