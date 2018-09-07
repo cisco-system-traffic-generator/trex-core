@@ -30,11 +30,11 @@ class ANQPQueryNonAssociated(APService):
 
        Example of use:
 
-            service = manager.load_ap_service("wireless.services.ap.ap_service_anqp", "ANQPQueryNonAssociated")
+            service = "wireless.services.ap.ap_service_anqp.ANQPQueryNonAssociated"
             print('Starting ANQP')
             manager.set_aps_service_info_for_service('ANQPQueryNonAssociated', 'nb_clients', 5)
             manager.set_aps_service_info_for_service('ANQPQueryNonAssociated', 'anqp_element_ids', [258, 277])
-            manager.add_aps_service(ap_ids=ap_macs, service_info=service, wait_for_completion=True, max_concurrent=float('inf'))
+            manager.add_aps_service(ap_ids=ap_macs, service_class=service, wait_for_completion=True, max_concurrent=float('inf'))
             print('ANQP Done, received GAS payloads:')
             print(manager.get_aps_service_info_for_service('ANQPQueryNonAssociated', 'gas_payloads'))
     """
@@ -60,7 +60,7 @@ class ANQPQueryNonAssociated(APService):
 
         yield self.async_request_start(first_start=True, request_packets=True)
         self.ap.logger.info("ANQPQueryNonAssociated started")
-        
+
         try:
             self.nb_clients = self.get_service_info("nb_clients")
         except:

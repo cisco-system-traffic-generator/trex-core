@@ -5,7 +5,7 @@ import inspect
 if sys.version_info < (3, 4):
     raise ImportError('Python < 3.4 is unsupported.')
 
-# set stl (parent directory) in python path for imports
+# set trex (parent directory) in python path for imports
 currentdir = os.path.dirname(os.path.abspath(
     inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
