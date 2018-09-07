@@ -29,8 +29,8 @@ Check the examples for a better understanding.
 Location
 ~~~~~~~~
 
-| A plugin can be written anywhere, it is loaded on the manager from a module name and a the name of the service class using : 
- 
+| A plugin can be written anywhere, it is loaded on the manager from a module name and a the name of the service class using :
+
     :meth:`wireless.trex_wireless_manager.WirelessManager.load_ap_service`
 
     :meth:`wireless.trex_wireless_manager.WirelessManager.load_client_service`
@@ -47,7 +47,7 @@ Coroutines
 ~~~~~~~~~~
 
 | Since services are coroutine, one has to use asynchronous methods prefixed with 'async' using the 'yield' keyword,
-    check :ref:`writing_plugins.packets` for example. 
+    check :ref:`writing_plugins.packets` for example.
     There are still blocking calls such as :meth:`~wireless.services.trex_wireless_service.WirelessService.send_pkt` but they should not impact performance too much.
 
 .. _writing_plugins.packets:
@@ -81,9 +81,9 @@ Sending and Receiving packets
 
     | When writing an APService, the packets received are the full packets.
     | However, for a ClientService, the packets received from the plugin are the capwap-data-desencapsulated packet.
-    | In short, a ClientService would only receive packets as a real client would : 
-    | Dot11 / IP / ... in contrary to Ether / IP / CAPWAP DATA / Dot11 / IP / ... 
-    
+    | In short, a ClientService would only receive packets as a real client would :
+    | Dot11 / IP / ... in contrary to Ether / IP / CAPWAP DATA / Dot11 / IP / ...
+
 
 Saving Information
 ~~~~~~~~~~~~~~~~~~
@@ -108,7 +108,7 @@ Events
 
 .. autoclass:: wireless.services.trex_wireless_service_event.WirelessServiceEvent
 
-| To raise an event, first create a subclass of :class:`~wireless.services.trex_wireless_service_event.WirelessServiceEvent` : 
+| To raise an event, first create a subclass of :class:`~wireless.services.trex_wireless_service_event.WirelessServiceEvent` :
 
     .. code-block:: python
 
@@ -124,7 +124,7 @@ Events
     .. code-block:: python
 
         self.raise_event(ClientAssociationAssociatedEvent(self.env, client.mac))
-    
+
 
 | To wait for such an event use :
 
@@ -157,7 +157,7 @@ Events
         An AP can wait on its events, or its clients' events.
         A client can wait on its events or its AP's events.
     | This is because APs do not always live on the same python process.
-    
+
 ---------
 
  .. automethod:: wireless.services.trex_wireless_service.WirelessService.raise_event
@@ -190,7 +190,7 @@ Examples
 AP packets printer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: /../wireless/services/ap/ap_service_printer_example.py
+.. literalinclude:: /../services/ap/ap_service_printer_example.py
     :linenos:
     :language: python
 
@@ -210,7 +210,7 @@ AP packets printer
 AP periodic capwap data packets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: /../wireless/services/ap/ap_service_periodic_reports_example.py
+.. literalinclude:: /../services/ap/ap_service_periodic_reports_example.py
     :linenos:
     :language: python
 
@@ -224,18 +224,18 @@ AP periodic capwap data packets
 | If the AP is not yet Joined, the service will wait on the Join event.
 | Otherwise, it will send the packet.
 
-| However, for ease of use the payload is sent as is, and this is the 
+| However, for ease of use the payload is sent as is, and this is the
     :class:`~wireless.services.ap.ap_service_periodic_reports_example.PeriodicAPRepors.Connection`
     that does it for us.
 | Writing a :class:`~wireless.services.ap.ap_service_periodic_reports_example.PeriodicAPRepors.Connection`
-    class inside a 
+    class inside a
     :class:`~wireless.services.trex_wireless_service.WirelessService`
     overrides the default Connection, only used to send packets.
 
 | When running the service, it ouputs for example:
 
 ::
-    
+
     Sending: Ether / IP / UDP 9.2.0.6:10006 > 9.1.0.1:5247 / CAPWAP_DATA
 
 
@@ -254,7 +254,7 @@ A plugin can be written to launch other plugins and coordinate them.
 An example is given for the client association followed by DHCP :
 
 
-.. literalinclude:: /../wireless/services/client/client_service_association_and_dhcp.py
+.. literalinclude:: /../services/client/client_service_association_and_dhcp.py
     :linenos:
     :language: python
 
@@ -264,7 +264,7 @@ Same Plugin for AP and Clients
 
 | Some services may share the same logic for APs and Clients, for instance, DHCP.
 | To not repeat yourself, it is therefore best to write the logic only once.
-| The solution is to write a plugin for a WirelessDevice (super class of simulated APs and Clients) 
+| The solution is to write a plugin for a WirelessDevice (super class of simulated APs and Clients)
     and to inherit from it for the APService and ClientService.
 | Therefore a concrete WirelessService (APService or ClientService) would need to inherit from both classes
     :class:`~wireless.services.trex_wireless_service.WirelessService`,

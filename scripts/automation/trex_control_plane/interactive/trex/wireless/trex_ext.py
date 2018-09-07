@@ -6,7 +6,7 @@ import platform
 # if not set - set it to default
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 # trex-core/scripts/external_libs
-TREX_EXT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
+TREX_EXT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
 
 if not os.path.exists(TREX_EXT_PATH):
     raise Exception('Could not determine path of external_libs, try setting TREX_EXT_PATH variable')

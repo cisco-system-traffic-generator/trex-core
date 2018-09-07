@@ -5,7 +5,7 @@ API - Wireless Manager Documentation
     :maxdepth: 4
 
 
-| :ref:`introduction`
+| :ref:`introduction_api`
 | :ref:`example_use`
 | :ref:`initialization`
 | :ref:`creating_devices`
@@ -15,7 +15,7 @@ API - Wireless Manager Documentation
 | :ref:`info_stats`
 
 
-.. _introduction:
+.. _introduction_api:
 
 Introduction
 ------------
@@ -30,7 +30,7 @@ Example of Scripting use
 
 | Here is an example of how to instanciate and use a WirelessManager.
 
-    :ref:`example_min`
+    :ref:`example`
 
 .. _initialization:
 
@@ -112,17 +112,7 @@ Join and Association
 Plugins Use
 -----------
 
-| To use plugins, first thing to do is to load them in the Manager.
-| This should be done before starting the Manager.
-
-    .. automethod:: wireless.trex_wireless_manager.WirelessManager.load_ap_service
-        :noindex:
-
-    .. automethod:: wireless.trex_wireless_manager.WirelessManager.load_client_service
-        :noindex:
-
-| These methods returns a ServiceInfo used to start services.
-| Once the plugins loaded, and devices created, one can start services on a set of devices :
+| Once the devices are created, one can start services on a set of devices :
 
     .. automethod:: wireless.trex_wireless_manager.WirelessManager.add_aps_service
         :noindex:
@@ -146,4 +136,4 @@ Retrieving stats
 
 | These function return a list of "services info" for each device:
 | a "services info" is a dictionnary "service_name -> infos"
-| where "infos" is a dictionnary "info_name -> value" 
+| where "infos" is a dictionnary "info_name -> value"

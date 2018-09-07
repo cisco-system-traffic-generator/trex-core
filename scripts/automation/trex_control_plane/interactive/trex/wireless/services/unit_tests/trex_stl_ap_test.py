@@ -8,9 +8,6 @@ import logging
 from collections import namedtuple
 import queue
 
-sys.path.append(os.path.dirname(__file__) + os.pardir +
-                os.sep + os.pardir + os.sep + os.pardir + "/examples/")
-    
 # from trex_stl_lib.api import *
 from wireless.services import *
 from wireless.trex_wireless_ap import *
@@ -134,7 +131,7 @@ class ServiceAPDiscoverWLCTest(ApTestCase):
 
         Goes through all stages of the Discovery State Machine, mocking the reception of the packets.
         '''
-        
+
         self.service = ServiceAPDiscoverWLC(self.ap)
 
         running_gen = self.service.run_with_buffer()
@@ -652,7 +649,7 @@ class ServiceAPJoinWLCTest(ApTestCase):
         self.ap.create_vap(ssid=b"TRex Test SSID", vap_id=1, slot_id=0)
         self.ap.last_recv_ts = time.time() - 5
 
-        
+
         # Wait for SSID
         action, val = next_gen(running_gen)
         self.assertEqual(action[0], 'process_with_timeout')
@@ -827,7 +824,7 @@ class ServiceAPJoinWLCTest(ApTestCase):
         self.ap.got_keep_alive = False
 
 
-        
+
         # Wait for SSID
         action, val = next_gen(running_gen)
         self.assertEqual(action[0], 'process_with_timeout')

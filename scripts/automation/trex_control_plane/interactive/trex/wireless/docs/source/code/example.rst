@@ -1,10 +1,10 @@
-.. _example_min:
+.. _example:
 
 Example Manager Scripting Use
 =============================
 
 
-.. literalinclude:: /../wireless_examples/example_min.py
+.. literalinclude:: /../examples/example.py
     :linenos:
     :language: python
 

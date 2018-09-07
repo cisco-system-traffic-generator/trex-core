@@ -3,7 +3,7 @@
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
-SPHINXBUILD   = sphinx-build
+SPHINXBUILD   = python3 -msphinx
 SPHINXPROJ    = TRexWireless
 SOURCEDIR     = .
 BUILDDIR      = _build
@@ -17,4 +17,5 @@ help:
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
 %: Makefile
+	python3 -m sphinx.ext.apidoc -fo source ../ --separate
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
