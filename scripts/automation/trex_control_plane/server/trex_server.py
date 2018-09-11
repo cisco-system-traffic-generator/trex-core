@@ -29,8 +29,6 @@ import json
 import re
 import shlex
 import tempfile
-from collections import defaultdict
-import xml.etree.ElementTree as ET
 
 try:
     from .tcp_daemon import run_command
@@ -67,7 +65,6 @@ class CTRexServer(object):
         """
         self.TREX_PATH          = os.path.abspath(os.path.dirname(trex_path+'/'))
         self.trex_files_path    = os.path.abspath(os.path.dirname(trex_files_path+'/'))
-        self.trex_cfg_path      = '/etc/trex_cfg.yaml'
         self.__check_trex_path_validity()
         self.__check_files_path_validity()
         self.trex               = CTRex()
@@ -95,38 +92,23 @@ class CTRexServer(object):
     def get_devices_info(self):
         logger.info("Processing get_devices_info() command.")
         try:
-            args = ['lshw', '-c', 'network', '-xml']
-            output = subprocess.check_output(args)
-            xml_output = ET.fromstring(output)
-            devices = self.xml_to_dict(xml_output)
-            try:
-                return devices['list']['node']
-            except Exception as e:
-                logger.trace(e)
-                return devices
-        except OSError as e:
-            logger.error(e)
-            return Fault(-33, "Command 'get_devices_info' is unavailable on this server")
-
-    # change TRex YAML config file. To apply changes you need to restart TRex instance
-    def push_trex_config(self, bin_data):
-        logger.info("Processing push_trex_config() command.")
-        try:
-            return self._push_file(self.trex_cfg_path, bin_data)
+            args = [os.path.join(self.TREX_PATH, 'dpdk_nic_bind.py'), '-s', '--json']
+            return subprocess.check_output(args, cwd=self.TREX_PATH, universal_newlines=True)
         except Exception as e:
-            err_str = "Error processing push_trex_config(): %s" % e
-            logger.error(err_str)
+            err_str = "Error processing get_devices_info(): %s" % e
+            logger.error(e)
             return Fault(-33, err_str)
 
     def push_file (self, filename, bin_data):
         logger.info("Processing push_file() command.")
         try:
             filepath = os.path.join(self.trex_files_path, os.path.basename(filename))
-            result = self._push_file(self.trex_cfg_path, bin_data)
+            with open(filepath, 'wb') as f:
+                f.write(binascii.a2b_base64(bin_data))
             logger.info("push_file() command finished. File is saved as %s" % filepath)
-            return result
-        except Exception as e:
-            logger.error("push_file method failed. " + str(e))
+            return True
+        except IOError as inst:
+            logger.error("push_file method failed. " + str(inst))
             return False
 
     def connectivity_check (self):
@@ -160,7 +142,6 @@ class CTRexServer(object):
 
         # set further functionality and peripherals to server instance 
         self.server.register_function(self.add)
-        self.server.register_function(self.push_trex_config)
         self.server.register_function(self.get_devices_info)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
@@ -210,37 +191,6 @@ class CTRexServer(object):
             logger.error(err_str)
             return Fault(-33, err_str)
 
-    # push files to Trex server
-    @staticmethod
-    def _push_file(filepath, bin_data):
-        try:
-            with open(filepath, 'wb') as f:
-                f.write(binascii.a2b_base64(bin_data))
-            return True
-        except IOError as inst:
-            logger.error("Can't push file %s: %s" % (filepath, e))
-            return False
-
-    def xml_to_dict(self, elem):
-        d = {elem.tag: {} if elem.attrib else None}
-        children = list(elem)
-        text = elem.text.strip() if elem.text else None
-        attrib = elem.attrib
-        if children:
-            dd = defaultdict(list)
-            for dc in map(self.xml_to_dict, children):
-                for k, v in dc.items():
-                    dd[k].append(v)
-            d = {elem.tag: {k: v[0] if len(v) == 1 else v for k, v in dd.items()}}
-        if text:
-            if children or attrib:
-                d[elem.tag]['text'] = text
-            else:
-                d[elem.tag] = text
-        if attrib:
-            d[elem.tag].update(attrib)
-        return d
-
     # returns True if given path is under TRex package or under /tmp/trex_files
     def _check_path_under_TRex_or_temp(self, path):
         if not os.path.relpath(path, self.trex_files_path).startswith(os.pardir):
@@ -281,7 +231,7 @@ class CTRexServer(object):
     # get /etc/trex_cfg.yaml
     def get_trex_config(self):
         logger.info("Processing get_trex_config() command.")
-        return self._pull_file(self.trex_cfg_path)
+        return self._pull_file('/etc/trex_cfg.yaml')
 
     # get daemon log /var/log/trex/trex_daemon_server.log
     def get_trex_daemon_log (self):
@@ -566,7 +516,7 @@ class CTRexServer(object):
     def _check_zmq_port(self, trex_cmd_options):
         zmq_cfg_port = 4500 # default
         parser = ArgumentParser()
-        parser.add_argument('--cfg', default = self.trex_cfg_path)
+        parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
         args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
         if not os.path.exists(args.cfg):
             raise Exception('Platform config file "%s" does not exist!' % args.cfg)
@@ -703,7 +653,8 @@ class CTRex(object):
 
 
 def generate_trex_parser ():
-    default_path        = os.path.abspath(os.path.join(outer_packages.CURRENT_PATH, os.pardir, os.pardir, os.pardir))
+    cur = os.path.dirname(__file__)
+    default_path        = os.path.abspath(os.path.join(cur, os.pardir, os.pardir, os.pardir))
     default_files_path  = os.path.abspath(CTRexServer.DEFAULT_FILE_PATH)
 
     parser = ArgumentParser(description = 'Run server application for TRex traffic generator',

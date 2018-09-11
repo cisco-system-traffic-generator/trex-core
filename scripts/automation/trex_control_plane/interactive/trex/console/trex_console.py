@@ -57,11 +57,19 @@ from . import trex_tui
 
 __version__ = "3.0"
 
+# readline.write_history_file can fail with IOError in Python2
+def write_history_file(hist_file):
+    hist_end   = readline.get_current_history_length()
+    hist_start = max(0, hist_end - readline.get_history_length())
+    with open(hist_file, 'w') as f:
+        for i in range(hist_start, hist_end):
+            f.write('%s\n' % readline.get_history_item(i + 1))
+
 # console custom logger
 class ConsoleLogger(Logger):
     def __init__ (self):
         Logger.__init__(self)
-        self.prompt_redraw = None
+        self.prompt_redraw = lambda: None
         self.tid = threading.current_thread().ident
 
     def _write (self, msg, newline = True):
@@ -128,7 +136,7 @@ class TRexGeneralCmd(cmd.Cmd):
             
         # os.mknod(self._history_file)
         try:
-            readline.write_history_file(self._history_file)
+            write_history_file(self._history_file)
         except BaseException as e:
             print(bold('\nCould not save history file: %s\nError: %s\n' % (self._history_file, e)))
 
@@ -374,7 +382,7 @@ class TRexConsole(TRexGeneralCmd):
     # save current history to a temp file
     def _push_history(self):
         tmp_file = tempfile.NamedTemporaryFile()
-        readline.write_history_file(tmp_file.name)
+        write_history_file(tmp_file.name)
         readline.clear_history()
         return tmp_file
 
@@ -605,7 +613,7 @@ class TRexConsole(TRexGeneralCmd):
              self._help_cmds('Stateless Commands', categories['STL'])
 
          if 'ASTF' in categories:
-             self._help_cmds('Advance Stateful Commands', categories['ASTF'])
+             self._help_cmds('Advanced Stateful Commands', categories['ASTF'])
 
 
     def _help_cmds (self, title, cmds):

@@ -116,6 +116,9 @@ TREX_RPC_CMD_EXT(TrexRpcCmdSetL3,             "set_l3",
 TREX_RPC_CMD_EXT(TrexRpcCmdConfIPv6,          "conf_ipv6",
     void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
 );
+TREX_RPC_CMD(TrexRpcCmdStartCapturePort,      "start_capture_port");
+TREX_RPC_CMD(TrexRpcCmdStopCapturePort,       "stop_capture_port");
+TREX_RPC_CMD(TrexRpcCmdSetCapturePortBPF,     "set_capture_port_bpf");
 
 TREX_RPC_CMD_EXT(TrexRpcCmdSetVLAN,           "set_vlan",
     void validate_vlan(uint16_t vlan, Json::Value &result);
@@ -1144,6 +1147,82 @@ void TrexRpcCmdConfIPv6::process_results(uint64_t ticket_id, const Json::Value &
     result["result"] = Json::objectValue;
 }
 
+ /**
++ * Start capture port
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdStartCapturePort::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    const std::string filter  = parse_string(params, "bpf_filter", result, "");
+
+    /* compile BPF to verify */
+    if (filter.size() > 0 && !bpf_verify(filter.c_str())) {
+        generate_parse_err(result, "BPF filter: '" + filter + "' is not a valid pattern");
+    }
+
+    const std::string endpoint  = parse_string(params, "endpoint", result);
+    if (endpoint.size() < 5) {
+        std::stringstream ss;
+        ss << "invalid endpoint '" << endpoint << "'";
+        generate_parse_err(result, ss.str());
+    }
+
+    std::string err = "Unknown error";
+    bool res = port->start_capture_port(filter, endpoint, err);
+    if (!res) {
+        generate_execute_err(result, "Could not enable capture port on port " + std::to_string(port_id) + ": " + err);
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+/**
+ * Stop capture port
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdStopCapturePort::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    std::string err = "Unknown error";
+    bool res = port->stop_capture_port(err);
+    if (!res) {
+        generate_execute_err(result, "Could not disable capture port on port " + std::to_string(port_id) + ": " + err);
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * Set capture port BPF Filter
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetCapturePortBPF::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    const std::string filter  = parse_string(params, "bpf_filter", result, "");
+
+    /* compile BPF to verify */
+    if (filter.size() > 0 && !bpf_verify(filter.c_str())) {
+        generate_parse_err(result, "BPF filter: '" + filter + "' is not a valid pattern");
+    }
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    port->set_capture_port_bpf_filter(filter);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
 
 /**
  * capture command tree
@@ -1549,7 +1628,11 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdSetRxFeature(this));
     m_cmds.push_back(new TrexRpcCmdGetAsyncResults(this));
     m_cmds.push_back(new TrexRpcCmdCancelAsyncTask(this));
-    
+
+    m_cmds.push_back(new TrexRpcCmdStartCapturePort(this));
+    m_cmds.push_back(new TrexRpcCmdStopCapturePort(this));
+    m_cmds.push_back(new TrexRpcCmdSetCapturePortBPF(this));
+ 
 }
 
 

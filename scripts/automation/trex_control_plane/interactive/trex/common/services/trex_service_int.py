@@ -210,7 +210,7 @@ class ServiceCtx(object):
         filter_type = service.get_filter_type()
 
         # if the service does not have a filter installed - create it
-        if not filter_type in self.filters:
+        if filter_type not in self.filters:
             self.filters[filter_type] = {'inst': filter_type(), 'capture_id': None}
 
         # add to the filter

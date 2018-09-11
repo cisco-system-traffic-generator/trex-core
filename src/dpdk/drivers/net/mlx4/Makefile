@@ -85,6 +85,11 @@ mlx4_autoconf.h.new: FORCE
 mlx4_autoconf.h.new: $(RTE_SDK)/buildtools/auto-config-h.sh
 	$Q $(RM) -f -- '$@'
 	$Q : > '$@'
+	$Q sh -- '$<' '$@' \
+		HAVE_IBV_MLX4_WQE_LSO_SEG \
+		infiniband/mlx4dv.h \
+		type 'struct mlx4_wqe_lso_seg' \
+		$(AUTOCONF_OUTPUT)
 
 # Create mlx4_autoconf.h or update it in case it differs from the new one.
 
@@ -110,7 +115,7 @@ endif
 $(LIB_GLUE): mlx4_glue.o
 	$Q $(LD) $(GLUE_LDFLAGS) $(EXTRA_LDFLAGS) \
 		-Wl,-h,$(LIB_GLUE) \
-		-s -shared -o $@ $< -libverbs -lmlx4
+		-shared -o $@ $< -libverbs -lmlx4
 
 mlx4_glue.o: mlx4_autoconf.h
 

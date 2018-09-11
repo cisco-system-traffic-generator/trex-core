@@ -1,17 +1,5 @@
 
 import sys
-import os
-
-cpu_arch = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
-python_ver = 'python%s' % sys.version_info.major
-ucs_ver = 'ucs2' if sys.maxunicode == 65535 else 'ucs4'
-
-zmq_path = os.path.abspath(os.path.join(os.pardir,os.pardir,os.pardir,os.pardir,
-        os.pardir,'external_libs','pyzmq-14.5.0', python_ver, cpu_arch, ucs_ver,'64bit'))
-
-if zmq_path not in sys.path:
-    sys.path.append(zmq_path)
-
 import zmq
 import json
 from argparse import *

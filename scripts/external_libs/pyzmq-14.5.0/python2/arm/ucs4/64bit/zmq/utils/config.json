@@ -1,9 +1,0 @@
-{
-  "have_sys_un_h": true, 
-  "zmq_prefix": "/home/fontaine/dev-internal/trex-core/external_libs/zmq", 
-  "no_libzmq_extension": true, 
-  "libzmq_extension": false, 
-  "bdist_egg": {}, 
-  "skip_check_zmq": false, 
-  "build_ext": {}
-}

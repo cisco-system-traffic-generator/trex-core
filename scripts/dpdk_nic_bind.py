@@ -40,6 +40,7 @@ from os.path import exists, abspath, dirname, basename
 from distutils.util import strtobool
 import platform
 import errno
+import json
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 
@@ -48,7 +49,7 @@ sys.path.append(text_tables_path)
 import texttable
 sys.path.remove(text_tables_path)
 
-netstat_path = os.path.join(curdir, 'external_libs')
+netstat_path = os.path.join(curdir, 'external_libs', 'netstat')
 sys.path.append(netstat_path)
 import netstat
 sys.path.remove(netstat_path)
@@ -59,7 +60,9 @@ import termios
 
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
-NAPATECH_CLASS = "0280"
+NETWORK_CLASS = "0280"
+NAPATECH_VENDOR_STR = '18f4'
+NAPATECH_VENDOR_NUM = 0x18f4
 PATH = os.getenv('PATH', '')
 needed_path = '.:/bin:/usr/bin:/usr/sbin'
 if needed_path not in PATH:
@@ -80,6 +83,7 @@ b_flag = None
 status_flag = False
 table_flag = False
 force_flag = False
+json_flag = False
 args = []
 loaded_modules = []
 
@@ -118,6 +122,9 @@ Options:
         NOTE: if this flag is passed along with a bind/unbind option, the status
         display will always occur after the other operations have taken place.
 
+    --json:
+        Additional flag for --status option. Print full network interfaces info in JSON format.
+
     -t, --table:
         Similar to --status, but gives more info: NUMA, MAC etc.
 
@@ -140,6 +147,9 @@ Examples:
 
 To display current device status:
         %(argv0)s --status
+
+To display full device info in JSON format:
+        %(argv0)s --status --json
 
 To bind eth1 from the current driver and move to use igb_uio
         %(argv0)s --bind=igb_uio eth1
@@ -393,6 +403,9 @@ def get_nt_mac_address(pci_slot):
         mac = "" #"00:00:00:00:00:00"
     return mac
 
+def is_napatech(dev):
+    return dev['Class'] == NETWORK_CLASS and dev['Vendor'] in (NAPATECH_VENDOR_STR, NAPATECH_VENDOR_NUM)
+
 def get_nic_details():
     '''This function populates the "devices" dictionary. The keys used are
     the pci addresses (domain:bus:slot.func). The values are themselves
@@ -410,7 +423,7 @@ def get_nic_details():
     dev = {};
     for dev_line in dev_lines:
         if (len(dev_line) == 0):
-            if dev["Class"] == ETHERNET_CLASS or dev["Class"] == NAPATECH_CLASS:
+            if dev["Class"] == ETHERNET_CLASS or is_napatech(dev):
                 #convert device and vendor ids to numbers, then add to global
                 dev["Vendor"] = int(dev["Vendor"],16)
                 dev["Device"] = int(dev["Device"],16)
@@ -465,7 +478,7 @@ def get_nic_details():
                 with open(mac_file) as f:
                     devices[d]['MAC'] = f.read().strip()
 
-        if devices[d]["Class"] == NAPATECH_CLASS:
+        if is_napatech(devices[d]):
             devices[d]['MAC'] = get_nt_mac_address(devices[d]['Slot'])
 
         # get NUMA from Linux if available
@@ -751,14 +764,16 @@ def show_status():
                 dpdk_drv.append(devices[d])
             else:
                 kernel_drv.append(devices[d])
-
-    # print each category separately, so we can clearly see what's used by DPDK
-    display_devices("Network devices using DPDK-compatible driver", dpdk_drv, \
-                    "drv=%(Driver_str)s unused=%(Module_str)s")
-    display_devices("Network devices using kernel driver", kernel_drv,
-                    "if=%(Interface)s drv=%(Driver_str)s unused=%(Module_str)s %(Active)s")
-    display_devices("Other network devices", no_drv,\
-                    "unused=%(Module_str)s")
+    if json_flag:
+        print(json.dumps(devices))
+    else:
+        # print each category separately, so we can clearly see what's used by DPDK
+        display_devices("Network devices using DPDK-compatible driver", dpdk_drv, \
+                        "drv=%(Driver_str)s unused=%(Module_str)s")
+        display_devices("Network devices using kernel driver", kernel_drv,
+                        "if=%(Interface)s drv=%(Driver_str)s unused=%(Module_str)s %(Active)s")
+        display_devices("Other network devices", no_drv,\
+                        "unused=%(Module_str)s")
 
 def get_info_from_trex(pci_addr_list):
     if not pci_addr_list:
@@ -823,7 +838,7 @@ def show_table(get_macs = True):
     for id, pci in enumerate(sorted(devices.keys())):
         custom_row_added = False
         d = devices[pci]
-        if d["Class"] == NAPATECH_CLASS:
+        if is_napatech(d):
             custom_row_added = add_table_entry_napatech(id, d, table)
         if not custom_row_added:
             table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
@@ -843,6 +858,7 @@ def parse_args():
     global status_flag
     global table_flag
     global force_flag
+    global json_flag
     global args
     if len(sys.argv) <= 1:
         usage()
@@ -851,7 +867,7 @@ def parse_args():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "b:ust",
                                ["help", "usage", "status", "table", "force",
-                                "bind=", "unbind"])
+                                "bind=", "unbind", "json"])
     except getopt.GetoptError as error:
         print(str(error))
         print("Run '%s --usage' for further information" % sys.argv[0])
@@ -865,6 +881,8 @@ def parse_args():
             status_flag = True
         if opt == "--table" or opt == "-t":
             table_flag = True
+        if opt == "--json":
+            json_flag = True
         if opt == "--force":
             force_flag = True
         if opt == "-b" or opt == "-u" or opt == "--bind" or opt == "--unbind":

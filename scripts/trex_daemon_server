@@ -18,26 +18,18 @@ if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))
-
 server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'server')
 if server_path not in sys.path:
     sys.path.append(server_path)
-
-ext_libs_path = os.path.join(cur_dir, 'external_libs')
-if ext_libs_path not in sys.path:
-    sys.path.append(ext_libs_path)
 
 if 'start-live' not in sys.argv:
     import CCustomLogger
     CCustomLogger.setup_daemon_logger('TRexServer', '/var/log/trex/trex_daemon_server.log')
 
+import outer_packages
 import trex_server
 import netstat
-
-try:
-    from termstyle import termstyle
-except ImportError:
-    import termstyle
+import termstyle
 
 
 def get_daemon_pid():
