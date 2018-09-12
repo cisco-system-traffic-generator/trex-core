@@ -5,14 +5,14 @@ import sys
 
 from trex.console.plugins import *
 from trex.stl.api import *
-from trex.stl.wireless.trex_wireless_manager import WirelessManager, load_config
-from trex.stl.wireless.utils.utils import round_robin_list
+from trex.wireless.trex_wireless_manager import WirelessManager, load_config
+from trex.wireless.utils.utils import round_robin_list
 
 
 
 class Wireless_Plugin(ConsolePlugin):
     def plugin_description(self):
-        return 'Wireless AP & Client simulation.'
+        return 'Wireless AP & Client emulation.'
 
     def plugin_load(self):
         self.manager = None
@@ -87,9 +87,9 @@ class Wireless_Plugin(ConsolePlugin):
 
 
     def __require_manager(self):
-        """Check if manager is initialized, if not raises an Exception."""
+        """Check if manager is initialized, if not raises an TRexError."""
         if not self.manager:
-            raise Exception("Wireless must be started")
+            raise TRexError("Wireless must be started")
 
     def do_show(self):
         """Prints information on simulated APs and Clients."""
@@ -129,7 +129,7 @@ class Wireless_Plugin(ConsolePlugin):
     def do_start(self, cfg_file, logging_level):
         """Starts wireless."""
         if self.manager:
-            raise Exception("Wireless already started")
+            raise TRexError("Wireless already started")
         # load configuration file
         self.config = load_config(cfg_file)
         # add config file's directory to path
@@ -208,7 +208,7 @@ class Wireless_Plugin(ConsolePlugin):
     def do_join_clients(self, wait):
         """Join new Clients."""
         if len(self.new_aps) > 0:
-            raise Exception("cannot join clients when APs are not yet joined, run join_aps command")
+            raise TRexError("cannot join clients when APs are not yet joined, run join_aps command")
         self.__require_manager()
         self.manager.join_clients(self.new_clients, max_concurrent=self.config.client_concurrent, wait=wait)
         self.new_clients = []
@@ -223,9 +223,9 @@ class Wireless_Plugin(ConsolePlugin):
 
         clients = set([self.manager.client_info_by_id[id] for id in client_macs])
         if len(client_macs) != len(clients):
-            raise Exception('Client IDs should be unique')
+            raise TRexError('Client IDs should be unique')
         if not clients:
-            raise Exception('No clients to start traffic on behalf of them!')
+            raise TRexError('No clients to start traffic on behalf of them!')
 
         ports = set([client.ap_info.port_id for client in clients])
 
