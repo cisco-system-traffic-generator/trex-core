@@ -544,9 +544,15 @@ bool CFlowGenListPerThread::Create_tcp_batch() {
 }
 
 void CFlowGenListPerThread::Delete_tcp_batch() {
+    m_tcp_terminate = true;
     if ( CAstfDB::has_instance() ) {
         CAstfDB::instance()->clear_db_ro_rw(&m_smart_gen);
     }
+    m_c_tcp->reset_tuneables();
+    m_s_tcp->reset_tuneables();
+    m_sched_accurate = false;
+    m_c_tcp->delete_startup();
+    m_s_tcp->delete_startup();
 }
 
 void CFlowGenListPerThread::Delete_tcp_ctx(){

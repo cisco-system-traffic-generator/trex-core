@@ -560,6 +560,23 @@ static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
 }
 #endif
 
+void CTcpPerThreadCtx::reset_tuneables() {
+    tcp_blackhole = 0;
+    tcp_do_rfc1323 = 1;
+    tcp_fast_tick_msec = TCP_FAST_TICK_;
+    tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR); 
+    tcp_initwnd_factor = TCP_INITWND_FACTOR;
+    tcp_keepidle = TCPTV_KEEP_IDLE;
+    tcp_keepinit = TCPTV_KEEP_INIT;
+    tcp_keepintvl = TCPTV_KEEPINTVL;
+    tcp_mssdflt = TCP_MSS;
+    tcp_no_delay = 0;
+    tcp_rx_socket_bsize = 32*1024;
+    tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
+    tcp_tx_socket_bsize = 32*1024;
+    tcprexmtthresh = 3;
+}
+
 void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     if (tune == NULL)
         return;
@@ -569,12 +586,12 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
         tcp_mssdflt = tune->m_tcp_mss;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);   
+        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
         tcp_initwnd_factor = tune->m_tcp_initwnd;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor); 
+        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
@@ -634,27 +651,13 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     #endif
     m_sch_rampup = 0;
     m_rand = new KxuLCRand(seed);
-    tcp_tx_socket_bsize=32*1024;
-    tcp_rx_socket_bsize=32*1024 ;
     sb_max = SB_MAX;        /* patchable, not used  */
     m_mbuf_socket=0;
     m_offload_flags=0;
-    tcprexmtthresh = 3 ;
-    tcp_mssdflt = TCP_MSS;
-    tcp_initwnd_factor=TCP_INITWND_FACTOR;
-    tcp_initwnd = _update_initwnd(TCP_MSS,TCP_INITWND_FACTOR); 
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
-    tcp_do_rfc1323 = 1;
-    tcp_no_delay = 0;
-    tcp_keepinit = TCPTV_KEEP_INIT;
-    tcp_keepidle = TCPTV_KEEP_IDLE;
-    tcp_keepintvl = TCPTV_KEEPINTVL;
-    tcp_blackhole =0;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
-    tcp_fast_tick_msec =  TCP_FAST_TICK_;
-    tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_maxidle=0;
     tcp_ttl=0;
     m_disable_new_flow=0;
@@ -668,6 +671,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_cb = NULL;
     m_template_rw = NULL;
     m_template_ro = NULL;
+    reset_tuneables();
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
@@ -715,12 +719,14 @@ void CTcpPerThreadCtx::call_startup(){
     }
 }
 
+void CTcpPerThreadCtx::delete_startup() {
+    delete m_sch_rampup;
+    m_sch_rampup = nullptr;
+}
+
 void CTcpPerThreadCtx::Delete(){
     assert(m_rand);
-    if (m_sch_rampup){
-        delete  m_sch_rampup;
-        m_sch_rampup=0;
-    }
+    delete_startup();
     delete m_rand;
     m_rand=0;
     m_timer_w.Delete();

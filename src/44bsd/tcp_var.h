@@ -841,6 +841,7 @@ public:
 
     /* called after init */
     void call_startup();
+    void delete_startup();
 
     /* cleanup m_timer_w from left flows */
     void cleanup_flows(void);
@@ -901,6 +902,7 @@ public:
 
     bool is_open_flow_enabled();
 
+    void reset_tuneables();
     void update_tuneables(CTcpTuneables *tune);
 
     bool is_client_side(void) {
