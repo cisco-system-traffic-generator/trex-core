@@ -1066,7 +1066,7 @@ class AP_Manager:
                 if 'wlc_ip' in base_values:
                     wlc_ip = base_values['wlc_ip']
                 else:
-                    wlc_ip = None
+                    wlc_ip = '255.255.255.255'
             except Exception as e:
                 self.trex_client.logger.post_cmd(False)
                 raise Exception('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
