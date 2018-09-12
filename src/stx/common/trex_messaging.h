@@ -376,6 +376,45 @@ private:
 };
 
 
+class TrexRxStartCapwapProxy : public TrexCpToRxMsgBase {
+public:
+    TrexRxStartCapwapProxy(uint8_t port_id,
+                           uint8_t pair_port_id,
+                           bool is_wireless_side,
+                           const Json::Value &capwap_map,
+                           MsgReply<std::string> &reply) : m_reply(reply) {
+
+        m_port_id = port_id;
+        m_pair_port_id = pair_port_id;
+        m_is_wireless_side = is_wireless_side;
+        m_capwap_map = capwap_map;
+    }
+
+     bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<std::string>   &m_reply;
+    uint8_t                 m_port_id;
+    uint8_t                 m_pair_port_id;
+    bool                    m_is_wireless_side;
+    Json::Value             m_capwap_map;
+};
+
+
+class TrexRxStopCapwapProxy : public TrexCpToRxMsgBase {
+public:
+    TrexRxStopCapwapProxy(uint8_t port_id, MsgReply<std::string> &reply) : m_reply(reply) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<std::string>   &m_reply;
+    uint8_t                 m_port_id;
+};
+
+
 class TrexRxStartQueue : public TrexCpToRxMsgBase {
 public:
     TrexRxStartQueue(uint8_t port_id,

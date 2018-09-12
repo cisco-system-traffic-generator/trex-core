@@ -2,6 +2,7 @@
 
 from trex.console.plugins import *
 from trex.common.trex_exceptions import TRexError
+from trex.utils.common import natural_sorted_key
 
 
 class WLC_Plugin(ConsolePlugin):
@@ -63,12 +64,6 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('-i', '--ip', type = check_ipv4_addr,
                 dest = 'ap_ip',
                 help = 'Base AP IP')
-        self.add_argument('-u', '--udp', type = int,
-                dest = 'ap_udp',
-                help = 'Base AP UDP port')
-        self.add_argument('-r', '--radio', metavar = 'MAC', type = check_mac_addr,
-                dest = 'ap_radio',
-                help = 'Base AP Radio MAC')
         self.add_argument('--client-mac', metavar = 'MAC', type = check_mac_addr,
                 dest = 'client_mac',
                 help = 'Base client MAC')
@@ -84,6 +79,18 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--load', action = 'store_true',
                 dest = 'base_load',
                 help = 'Load saved AP and Client base values.')
+        self.add_argument('--lan', '--wired', type = int,
+                dest = 'proxy_wired_port',
+                help = 'Wired side of proxy (connected to WLC).')
+        self.add_argument('--wlan', '--wireless', type = int,
+                dest = 'proxy_wireless_port',
+                help = 'Wireless side of proxy (connected to Stateful TRex).')
+        self.add_argument('--disable', action = 'store_true',
+                dest = 'proxy_disable',
+                help = 'Disable the proxy (enable if not specified).')
+        self.add_argument('--clear', action = 'store_true',
+                dest = 'proxy_clear',
+                help = 'Remove all proxy configurations.')
 
 
     def plugin_unload(self):
@@ -108,7 +115,7 @@ class WLC_Plugin(ConsolePlugin):
         if aps:
             info_arr = [('IP', aps[0].ip_dst), ('Hostname', aps[0].wlc_name.decode('ascii')), ('Image ver', '.'.join(['%s' % c for c in aps[0].wlc_sw_ver]))]
             general_table.add_row([bold('WLC'), ' / '.join(['%s: %s' % (k, v or '?') for k, v in info_arr])])
-        general_table.add_row([bold('Next AP:'), 'LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s / WLC IP: %s' % self.ap_manager._gen_ap_params()])
+        general_table.add_row([bold('Next AP:'), 'MAC: %s / IP: %s / WLC IP: %s' % self.ap_manager._gen_ap_params()])
         general_table.add_row([bold('Next Client:'), 'MAC: %s / IP: %s' % self.ap_manager._gen_client_params()])
         self.ap_manager.log(general_table.draw())
 
@@ -124,7 +131,10 @@ class WLC_Plugin(ConsolePlugin):
         categories = ['Port', 'AP(s) info', 'Client(s) info']
         ap_client_info_table.header([bold(c) for c in categories])
         for port_id in sorted(info.keys()):
+            proxy_status = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = False)[port_id]
             port_info = '%s\nBG thread: %s' % (port_id, 'alive' if info[port_id]['bg_thread_alive'] else bold('dead'))
+            if proxy_status and proxy_status['is_active']:
+                port_info += '\nProxy port %s' % proxy_status['pair_port_id']
             ap_arr = []
             client_arr = []
             name_per_num = {}
@@ -162,7 +172,7 @@ class WLC_Plugin(ConsolePlugin):
         if not port_list:
             raise TRexError('Please specify TRex ports where to add AP(s)')
 
-        bu_mac, bu_ip, bu_udp, bu_radio, _ = self.ap_manager._gen_ap_params()
+        bu_mac, bu_ip, _ = self.ap_manager._gen_ap_params()
         init_ports = [port for port in port_list if port not in self.ap_manager.service_ctx]
         ap_names = []
         success = False
@@ -180,7 +190,7 @@ class WLC_Plugin(ConsolePlugin):
             if not success:
                 for name in ap_names: # rollback
                     self.ap_manager.remove_ap(name)
-                self.ap_manager.set_base_values(mac = bu_mac, ip = bu_ip, udp = bu_udp, radio = bu_radio)
+                self.ap_manager.set_base_values(mac = bu_mac, ip = bu_ip)
                 close_ports = [port for port in init_ports if port in self.ap_manager.service_ctx]
                 if close_ports:
                     self.ap_manager.close(close_ports)
@@ -337,10 +347,71 @@ class WLC_Plugin(ConsolePlugin):
         return RC_OK()
 
 
-    def do_base(self, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, wlc_ip, base_save, base_load):
+    def do_base(self, ap_mac, ap_ip, client_mac, client_ip, wlc_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
-        self.ap_manager.set_base_values(ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, wlc_ip, base_save, base_load)
+        self.ap_manager.set_base_values(ap_mac, ap_ip, client_mac, client_ip, wlc_ip, base_save, base_load)
         self.show_base()
+
+
+    def do_proxy(self, proxy_wired_port, proxy_wireless_port, proxy_disable, proxy_clear):
+        '''Proxify traffic between wireless side (Stateful TRex) and wired side (WLC).'''
+        if proxy_clear:
+            self.ap_manager.disable_proxy_mode(ignore_errors = True)
+        elif any([proxy_wired_port, proxy_wireless_port]):
+            if proxy_wired_port is None:
+                raise TRexError('Must specify wired port')
+            if proxy_wireless_port is None:
+                raise TRexError('Must specify wireless port')
+            if proxy_disable:
+                self.ap_manager.disable_proxy_mode(ports = [proxy_wired_port, proxy_wireless_port])
+            else:
+                assert proxy_wireless_port in self.trex_client.ports, 'Invalid wireless port ID: %s' % proxy_wireless_port
+                port = self.trex_client.ports[proxy_wireless_port]
+                if not port.is_service_mode_on():
+                    port.set_service_mode(True)
+                self.ap_manager.enable_proxy_mode(wired_port = proxy_wired_port, wireless_port = proxy_wireless_port)
+        else:
+            counters_dict = {
+                'BPF reject':       'm_bpf_rejected',
+                'IP convert err':   'm_ip_convert_err',
+                'Alloc error':      'm_map_alloc_err',
+                'Map not found':    'm_map_not_found',
+                'Not IP pkt':       'm_not_ip',
+                'Pkt too large':    'm_too_large_pkt',
+                'Pkt too small':    'm_too_small_pkt',
+                'TX err': 'm_tx_err',
+                'TX OK': 'm_tx_ok',
+                }
+            proxy_table = text_tables.Texttable(max_width = 200)
+            categories = ['Port', 'Counters', 'Wrapping map per client']
+            proxy_table.header([bold(c) for c in categories])
+            proxy_table.set_cols_align(['l'] * len(categories))
+            proxy_table.set_deco(15)
+            for port_id in sorted(self.trex_client.get_acquired_ports()):
+                data = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = True)[port_id]
+                if not data or not data['is_active']:
+                    continue
+                row = ['ID: %s\n(%s)\nPair: %s' % (port_id, 'WLAN' if data['is_wireless_side'] else 'LAN', data['pair_port_id'])]
+                counters_table = text_tables.Texttable()
+                counters_table.set_deco(0)
+                counters_table.set_cols_dtype(['t', 'i'])
+                counters_table.set_cols_align(['l'] * 2)
+                for k in sorted(counters_dict.keys()):
+                    val =  data['counters'][counters_dict[k]]
+                    if not val:
+                        continue
+                    counters_table.add_row(['%s:' % k, val])
+                row.append(counters_table.draw())
+                mappings = []
+                for client_ip in sorted(list(data['capwap_map'].keys()), key = natural_sorted_key):
+                    pkt_cmd = data['capwap_map'][client_ip]
+                    if len(pkt_cmd) > 100:
+                        pkt_cmd = pkt_cmd[:97] + '...'
+                    mappings.append('%s: %s' % (client_ip, pkt_cmd))
+                row.append('\n'.join(mappings))
+                proxy_table.add_row(row)
+            self.ap_manager.log(proxy_table.draw())
+
 
 
 

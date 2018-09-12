@@ -145,13 +145,23 @@ class CRxCore : public TrexRxCore {
 
     
     const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id);
-    
+
+    bool tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id);
+    bool tx_pkt(const std::string &pkt, uint8_t tx_port_id);
+
     /**
      * start RX queueing of packets
      * 
      */
     void start_queue(uint8_t port_id, uint64_t size);
     void stop_queue(uint8_t port_id);
+
+    /**
+     * start proxifying of CAPWAP traffic between WLC and STF TRex
+     * 
+     */
+    bool start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map);
+    void stop_capwap_proxy(uint8_t port_id);
 
     /**
      * enable latency feature for RX packets
@@ -213,7 +223,7 @@ class CRxCore : public TrexRxCore {
     
     void recalculate_next_state();
     bool is_latency_active();
-    bool is_latency_or_capture_active();
+    bool should_be_hot();
 
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();

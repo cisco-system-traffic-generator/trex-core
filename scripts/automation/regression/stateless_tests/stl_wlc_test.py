@@ -35,8 +35,6 @@ class CTRexWLC_Test(CStlGeneral_Test):
         ap_manager.set_base_values(
             mac = base_data['ap_mac'],
             ip = base_data['ap_ip'],
-            udp = base_data['ap_udp'],
-            radio = base_data['ap_radio'],
             client_mac = base_data['client_mac'],
             client_ip = base_data['client_ip'],
             )

@@ -214,9 +214,9 @@ class PluginsManager:
             del opts.subparser_command
             try:
                 func(**vars(opts))
-            except TRexError as e:
-                self.client.logger.error(traceback.format_exc(), 3)
-                self.print_err('%s\n' % (e.brief() if isinstance(e, TRexError) else e))
+            except Exception as e:
+                self.client.logger.debug(traceback.format_exc())
+                self.print_err('%s\n' % e)
 
 
     def complete_plugins(self, text, line, start_index, end_index):

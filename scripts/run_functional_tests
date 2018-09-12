@@ -6,7 +6,6 @@ if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
     source find_python.sh --python2
     cd automation/regression
 
-    # Python 2
     echo Python2 test
     $PYTHON trex_unit_test.py --functional $INPUT_ARGS
     if [ $? -eq 0 ]; then
@@ -22,9 +21,13 @@ if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
     source find_python.sh --python3
     cd automation/regression
 
-    # Python 3
+    $PYTHON -c "from abc import ABC" &> /dev/null
+    if [ $? -eq 0 ]; then
+        WIRELESS='--wireless'
+    fi
+
     echo Python3 test
-    $PYTHON trex_unit_test.py --functional --wireless $INPUT_ARGS
+    $PYTHON trex_unit_test.py --functional $WIRELESS $INPUT_ARGS
     if [ $? -eq 0 ]; then
         printf "\n$PYTHON test succeeded\n\n"
     else
