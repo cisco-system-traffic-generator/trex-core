@@ -130,7 +130,6 @@ public:
         return m_owner;
     }
     CSyncBarrier* get_barrier(void) {
-        printf("CSyncBarrier* get_barrier\n");
         return m_sync_b;
     }
 

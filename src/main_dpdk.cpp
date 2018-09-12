@@ -5313,14 +5313,22 @@ void CPhyEthIF::conf_queues() {
         lp_rss->rss_key_len = hash_key_size;
     }
 
-    g_trex.m_port_cfg.m_port_conf.txmode.offloads = g_trex.m_port_cfg.tx_offloads.common_best_effort;
+    uint64_t &tx_offloads = g_trex.m_port_cfg.m_port_conf.txmode.offloads;
+
+    tx_offloads = g_trex.m_port_cfg.tx_offloads.common_best_effort;
     if ( get_is_tcp_mode() ) {
-        g_trex.m_port_cfg.m_port_conf.txmode.offloads |= g_trex.m_port_cfg.tx_offloads.astf_best_effort;
+        tx_offloads |= g_trex.m_port_cfg.tx_offloads.astf_best_effort;
     }
     // disable non-supported best-effort offloads
-    g_trex.m_port_cfg.m_port_conf.txmode.offloads &= dev_info->tx_offload_capa;
+    tx_offloads &= dev_info->tx_offload_capa;
 
-    g_trex.m_port_cfg.m_port_conf.txmode.offloads |= g_trex.m_port_cfg.tx_offloads.common_required;
+    tx_offloads |= g_trex.m_port_cfg.tx_offloads.common_required;
+
+    if ( CGlobalInfo::m_options.preview.getTsoOffloadDisable() ) {
+        tx_offloads &= ~(
+            DEV_TX_OFFLOAD_TCP_TSO | 
+            DEV_TX_OFFLOAD_UDP_TSO);
+    }
 
     check_offloads(dev_info, &g_trex.m_port_cfg.m_port_conf);
     configure(dpdk_p.rx_drop_q_num + dpdk_p.rx_data_q_num, num_tx_q, &g_trex.m_port_cfg.m_port_conf);

@@ -545,7 +545,9 @@ void CClientServerTcp::Delete(){
         delete m_drop_rnd;
     }
     delete m_reorder_rnd;
-
+    CAstfDB::instance()->clear_db_ro_rw(m_gen);
+    CAstfDB::free_instance();
+    delete m_gen;
 }
 
 
@@ -1163,14 +1165,15 @@ int CClientServerTcp::fill_from_file() {
     CTcpFlow *c_flow;
     CEmulApp *app_c;
 
+    m_gen = new CTupleGeneratorSmart();
 
 
     CAstfDbRO * ro_db=CAstfDB::instance()->get_db_ro(0);
+    CAstfTemplatesRW * rw_db=CAstfDB::instance()->get_db_template_rw(0, m_gen,0,1,0);
+    CAstfDB::instance()->clear_db_ro_rw(m_gen);
+    ro_db=CAstfDB::instance()->get_db_ro(0);
+    rw_db=CAstfDB::instance()->get_db_template_rw(0, m_gen,0,1,0);
 
-    CTupleGeneratorSmart g_gen;
-
-
-    CAstfTemplatesRW * rw_db=CAstfDB::instance()->get_db_template_rw(0, &g_gen,0,1,0);
 
 
     m_c_ctx.update_tuneables(rw_db->get_c_tuneables());

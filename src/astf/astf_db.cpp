@@ -1316,7 +1316,6 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
 
 void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen) {
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
-    printf("CAstfDB::clear_db_ro_rw\n");
     for ( auto &rw_db : m_rw_db) {
         if ( !rw_db ) {
             continue;
@@ -1329,6 +1328,7 @@ void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen) {
         delete s_tuneables;
     }
     m_s_tuneables.clear();
+    m_prog_lens.clear();
 
     for (auto &tcp_data : m_tcp_data) {
         tcp_data.Delete();
@@ -1354,7 +1354,6 @@ void CAstfDbRO::dump(FILE *fd) {
 }
 
 void CAstfDbRO::Delete() {
-    printf("CAstfDbRO::Delete\n");
     int i;
     for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();
@@ -1373,10 +1372,7 @@ void CAstfDbRO::Delete() {
     m_templates.clear();
 
     m_assoc_trans.clear();
-    printf("m_init = false\n");
     m_init = false;
 }
-
-
 
 
