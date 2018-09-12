@@ -24,7 +24,7 @@ if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
 
     # Python 3
     echo Python3 test
-    $PYTHON trex_unit_test.py --functional $INPUT_ARGS
+    $PYTHON trex_unit_test.py --functional --wireless $INPUT_ARGS
     if [ $? -eq 0 ]; then
         printf "\n$PYTHON test succeeded\n\n"
     else
