@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 from trex.console.plugins import *
+from trex.common.trex_exceptions import TRexError
 
 
 class WLC_Plugin(ConsolePlugin):
@@ -157,9 +158,9 @@ class WLC_Plugin(ConsolePlugin):
     def do_create_ap(self, port_list, count, verbose_level, ap_cert, ap_privkey, ap_ca_priv):
         '''Create AP(s) on port'''
         if count < 1:
-            raise Exception('Count should be greated than zero')
+            raise TRexError('Count should be greated than zero')
         if not port_list:
-            raise Exception('Please specify TRex ports where to add AP(s)')
+            raise TRexError('Please specify TRex ports where to add AP(s)')
 
         bu_mac, bu_ip, bu_udp, bu_radio, _ = self.ap_manager._gen_ap_params()
         init_ports = [port for port in port_list if port not in self.ap_manager.service_ctx]
@@ -188,7 +189,7 @@ class WLC_Plugin(ConsolePlugin):
     def do_add_client(self, ap_ids, count):
         '''Add client(s) to AP(s)'''
         if count < 1 or count > 200:
-            raise Exception('Count of clients should be within range 1-200')
+            raise TRexError('Count of clients should be within range 1-200')
         ap_ids = ap_ids or self.ap_manager.aps
 
         bu_mac, bu_ip = self.ap_manager._gen_client_params()
@@ -231,7 +232,7 @@ class WLC_Plugin(ConsolePlugin):
                 except:
                     err_ids.add(device_id)
         if err_ids:
-            raise Exception('Invalid IDs: %s' % ', '.join(sorted(err_ids, key = natural_sorted_key)))
+            raise TRexError('Invalid IDs: %s' % ', '.join(sorted(err_ids, key = natural_sorted_key)))
         if not self.ap_manager.bg_client.is_connected():
             self.ap_manager.bg_client.connect()
         for port_id in ports:
@@ -262,9 +263,9 @@ class WLC_Plugin(ConsolePlugin):
         else:
             clients = set([self.ap_manager._get_client_by_id(id) for id in client_ids])
             if len(client_ids) != len(clients):
-                raise Exception('Client IDs should be unique')
+                raise TRexError('Client IDs should be unique')
         if not clients:
-            raise Exception('No clients to start traffic on behalf of them!')
+            raise TRexError('No clients to start traffic on behalf of them!')
         ports = list(set([client.ap.port_id for client in clients]))
 
         # stop ports if needed
@@ -302,9 +303,9 @@ class WLC_Plugin(ConsolePlugin):
         else:
             aps = set([self.ap_manager._get_ap_by_id(id) for id in ap_ids])
             if len(ap_ids) != len(aps):
-                raise Exception('AP IDs should be unique')
+                raise TRexError('AP IDs should be unique')
         if not aps:
-            raise Exception('No AP to start traffic on behalf of them!')
+            raise TRexError('No AP to start traffic on behalf of them!')
         ports = list(set([ap.port_id for ap in aps]))
 
         # stop ports if needed
