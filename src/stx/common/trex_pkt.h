@@ -35,6 +35,14 @@
  */
 void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m);
 
+
+/**
+ * duplicate MBUF into target port ID pool
+ * 
+ */
+rte_mbuf_t * duplicate_mbuf(const rte_mbuf_t *m, uint8_t port_id);
+
+
 /**************************************
  * TRex packet
  * 

@@ -94,6 +94,7 @@ void CRxCore::create(const CRxSlCfg &cfg) {
     /* create per port manager */
     for (auto &port : cfg.m_ports) {
         m_rx_port_mngr[port.first].create_async(port.first,
+                                                this,
                                                 port.second,
                                                 m_rfc2544,
                                                 &m_err_cntrs,
@@ -150,7 +151,7 @@ void CRxCore::recalculate_next_state() {
     }
 
     /* only latency requires the 'hot' state */
-    m_state = (is_latency_or_capture_active() ? STATE_HOT : STATE_COLD);
+    m_state = (should_be_hot() ? STATE_HOT : STATE_COLD);
 }
 
 
@@ -168,12 +169,14 @@ bool CRxCore::is_latency_active() {
 }
 
 /**
- * return true if latency or capture is active
+ * return true if features requiring quick response are enabled
+ * (latency, capture, capwap proxy)
  */
-bool CRxCore::is_latency_or_capture_active() {
+bool CRxCore::should_be_hot() {
     for (auto &mngr_pair : m_rx_port_mngr) {
         if ( TrexCaptureMngr::getInstance().is_active(mngr_pair.first)
-            || mngr_pair.second.is_feature_set(RXPortManager::LATENCY ) ) {
+            || mngr_pair.second.is_feature_set(RXPortManager::LATENCY)
+            || mngr_pair.second.is_feature_set(RXPortManager::CAPWAP_PROXY) ) {
             return true;
         }
     }
@@ -281,6 +284,25 @@ bool CRxCore::work_tick() {
     
     return did_something;
 }
+
+
+bool CRxCore::tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id) {
+    if ( tx_port_id < m_max_ports ) {
+        return m_rx_port_mngr[tx_port_id].tx_pkt(m);
+    } else {
+        return false;
+    }
+}
+
+
+bool CRxCore::tx_pkt(const std::string &pkt, uint8_t tx_port_id) {
+    if ( tx_port_id < m_max_ports ) {
+        return m_rx_port_mngr[tx_port_id].tx_pkt(pkt);
+    } else {
+        return false;
+    }
+}
+
 
 void CRxCore::start() {
     
@@ -397,6 +419,20 @@ CRxCore::start_queue(uint8_t port_id, uint64_t size) {
 void
 CRxCore::stop_queue(uint8_t port_id) {
     m_rx_port_mngr[port_id].stop_queue();
+    recalculate_next_state();
+}
+
+bool
+CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
+    bool rc;
+    rc = m_rx_port_mngr[port_id].start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map);
+    recalculate_next_state();
+    return rc;
+}
+
+void
+CRxCore::stop_capwap_proxy(uint8_t port_id) {
+    m_rx_port_mngr[port_id].stop_capwap_proxy();
     recalculate_next_state();
 }
 

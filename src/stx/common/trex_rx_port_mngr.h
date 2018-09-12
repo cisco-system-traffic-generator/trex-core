@@ -23,7 +23,9 @@
 #define __TREX_RX_PORT_MNGR_H__
 
 #include <stdint.h>
+#include <unordered_map>
 #include "common/base64.h"
+#include "bpf_api.h"
 
 #include "trex_pkt.h"
 #include "trex_rx_feature_api.h"
@@ -34,6 +36,10 @@ class CRFC2544Info;
 class CRxCoreErrCntrs;
 class BPFFilter;
 
+enum rx_pkt_action_t {
+    RX_PKT_NOOP,
+    RX_PKT_FREE,
+};
 
 /**************************************
  * RX feature latency
@@ -196,6 +202,63 @@ private:
 };
 
 
+/**************************************
+ * CAPWAP proxy for stateful.
+ * Can be either:
+ *      "wireless" side (coming from clients side, need to add CAPWAP)
+ *      "wired" side (coming from WLC side, need to strip CAPWAP)
+ *************************************/
+class RXCapwapProxy {
+public:
+
+    void create(RXFeatureAPI *api);
+    bool set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map);
+    void reset();
+    rx_pkt_action_t handle_pkt(rte_mbuf_t *m);
+    rx_pkt_action_t handle_wired(rte_mbuf_t *m);
+    rx_pkt_action_t handle_wireless(rte_mbuf_t *m);
+
+    Json::Value to_json() const;
+
+private:
+    RXFeatureAPI        *m_api;
+    uint8_t              m_pair_port_id;
+    bool                 m_is_wireless_side;
+    char                *m_pkt_data_ptr;
+    uint16_t             m_rx_pkt_size;
+    uint16_t             m_new_ip_length;
+    bpf_h                m_wired_bpf_filter;
+    int                  rc;
+    EthernetHeader      *m_ether;
+    IPHeader            *m_ipv4;
+    uint32_t             m_client_ip_num;
+    rte_mbuf_t          *m_mbuf_ptr;
+
+    // wrapping map stuff
+    struct uint32_hasher {
+        uint16_t operator()(const uint32_t& ip) const {
+            return (ip & 0xffff) ^ (ip >> 16); // xor upper and lower 16 bits
+        }
+    };
+    typedef std::unordered_map<uint32_t,lengthed_str_t*,uint32_hasher> capwap_map_t;
+    typedef capwap_map_t::const_iterator capwap_map_it_t;
+    capwap_map_t         m_capwap_map;
+    capwap_map_it_t      m_capwap_map_it;
+
+    // counters
+    uint64_t             m_bpf_rejected;
+    uint64_t             m_ip_convert_err;
+    uint64_t             m_map_alloc_err;
+    uint64_t             m_map_not_found;
+    uint64_t             m_not_ip;
+    uint64_t             m_too_large_pkt;
+    uint64_t             m_too_small_pkt;
+    uint64_t             m_tx_err;
+    uint64_t             m_tx_ok;
+
+};
+
+
 /************************ manager ***************************/
 
 /**
@@ -213,6 +276,7 @@ public:
         QUEUE        = 1 << 1,
         STACK        = 1 << 2,
         CAPTURE_PORT = 1 << 3,
+        CAPWAP_PROXY = 1 << 4,
     };
 
     RXPortManager();
@@ -220,6 +284,7 @@ public:
     ~RXPortManager(void);
 
     void create_async(uint32_t port_id,
+                CRxCore *rx_core,
                 CPortLatencyHWBase *io,
                 CRFC2544Info *rfc2544,
                 CRxCoreErrCntrs *err_cntrs,
@@ -307,6 +372,19 @@ public:
         m_capture_port.set_bpf_filter(filter);
     }
 
+    bool start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
+        if ( !m_capwap_proxy.set_values(pair_port_id, is_wireless_side, capwap_map) ) {
+            return false;
+        }
+        set_feature(CAPWAP_PROXY);
+        return true;
+    }
+
+    void stop_capwap_proxy() {
+        m_capwap_proxy.reset();
+        unset_feature(CAPWAP_PROXY);
+    }
+
     /**
      * fetch and process all packets
      * 
@@ -365,7 +443,7 @@ private:
      * handle a single packet
      * 
      */
-    void handle_pkt(const rte_mbuf_t *m);
+    rx_pkt_action_t handle_pkt(const rte_mbuf_t *m);
 
 
     void clear_all_features() {
@@ -382,8 +460,10 @@ private:
 
     uint32_t                     m_features;
     uint8_t                      m_port_id;
+    CRxCore                     *m_rx_core;
     RXLatency                    m_latency;
     RXQueue                      m_queue;
+    RXCapwapProxy                m_capwap_proxy;
     RXCapturePort                m_capture_port;
 
     CStackBase                  *m_stack;
@@ -395,6 +475,7 @@ private:
     CRXCoreIgnoreStat            m_ign_stats_prev;
     
     RXFeatureAPI                 m_feature_api;
+    rx_pkt_action_t              m_rx_pkt_action;
 };
 
 

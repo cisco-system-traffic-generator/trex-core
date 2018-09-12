@@ -1,5 +1,6 @@
 from trex.stl.api import *
 from trex.utils.text_opts import *
+from trex.utils.common import natural_sorted_key
 from .trex_service import Service, ServiceFilter
 from .trex_service_int import ServiceCtx, simpy, TXBuffer
 import time

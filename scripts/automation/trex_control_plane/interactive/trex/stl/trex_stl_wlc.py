@@ -7,6 +7,7 @@ from trex.stl.api import *
 from trex.common.services.trex_service_ap import *
 
 from trex.utils import text_tables, parsing_opts
+from trex.utils.common import natural_sorted_key
 from trex.utils.parsing_opts import ArgumentPack, ArgumentGroup, is_valid_file, check_mac_addr, check_ipv4_addr, MUTEX
 
 from scapy.contrib.capwap import *
@@ -48,21 +49,21 @@ class SSL_Context:
 
         self.ctx = libssl.SSL_CTX_new(libssl.DTLSv1_method())
         if self.ctx is None:
-            raise Exception('Could not create SSL Context')
+            raise TRexError('Could not create SSL Context')
 
         try:
             bne = libcrypto.BN_new()
             libcrypto.BN_set_word(bne, SSL_CONST.RSA_F4)
             rsa = libcrypto.RSA_new()
             if libcrypto.RSA_generate_key_ex(rsa, 1024, bne, None) != 1:
-                raise Exception('Could not generate RSA key in SSL Context')
+                raise TRexError('Could not generate RSA key in SSL Context')
 
             if libssl.SSL_CTX_use_RSAPrivateKey(self.ctx, rsa) != 1:
-                raise Exception('Could not set RSA key into SSL Context')
+                raise TRexError('Could not set RSA key into SSL Context')
 
             self.evp = libcrypto.EVP_PKEY_new()
             if libcrypto.EVP_PKEY_set1_RSA(self.evp, rsa) != 1:
-                raise Exception('Could not create EVP_PKEY in SSL Context')
+                raise TRexError('Could not create EVP_PKEY in SSL Context')
 
             libssl.SSL_CTX_set_options(self.ctx, SSL_CONST.SSL_OP_NO_TICKET) # optimization
 
@@ -97,31 +98,27 @@ class AP:
     VERB_DEBUG = 4
     _scapy_cache_static = {}
 
-    def __init__(self, ssl_ctx, logger, trex_port, mac, ip, port, radio_mac, wlc_ip, verbose_level = VERB_WARN, rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
+    def __init__(self, ssl_ctx, logger, trex_port, mac, ip, wlc_ip, verbose_level = VERB_WARN, rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
         self.ssl_ctx = ssl_ctx
         self.logger = logger
         self.trex_port = trex_port
         self.port_id = trex_port.port_id
         check_mac_addr(mac)
         check_ipv4_addr(ip)
-        check_mac_addr(radio_mac)
         try:
             self.mac_bytes = mac2str(mac)
         except:
-            raise Exception('Bad MAC format, expected aa:bb:cc:dd:ee:ff')
+            raise TRexError('Bad MAC format, expected aa:bb:cc:dd:ee:ff')
         self.mac = mac
         self.name = 'AP%s%s.%s%s.%s%s' % (mac[:2], mac[3:5], mac[6:8], mac[9:11], mac[12:14], mac[15:17])
         self.name_bytes = self.name.encode('ascii')
         assert '.' in ip, 'Bad IP format, expected x.x.x.x'
         self.ip_bytes = is_valid_ipv4_ret(ip)
         self.ip = ip
-        self.udp_port = port
-        self.udp_port_str = int2str(port, 2)
-        try:
-            self.radio_mac_bytes = mac2str(radio_mac)
-        except:
-            raise Exception('Bad radio MAC format, expected aa:bb:cc:dd:ee:ff')
-        self.radio_mac = radio_mac
+        self.udp_port = 50000 # should not matter
+        self.udp_port_str = int2str(self.udp_port, 2)
+        self.radio_mac_bytes = b'\x94' + self.ip_bytes + b'\x00'
+        self.radio_mac = str2mac(self.radio_mac_bytes)
         self.ssl = None
         self.in_bio = None
         self.out_bio = None
@@ -190,7 +187,7 @@ class AP:
 
 
     def fatal(self, msg):
-        raise Exception('%s: %s' % (self.name, msg))
+        raise TRexError('%s: %s' % (self.name, msg))
 
 
     @property
@@ -221,7 +218,7 @@ class AP:
 
             evp_ca = libcrypto.EVP_PKEY_new()
             if libcrypto.EVP_PKEY_set1_RSA(evp_ca, rsa_ca) != 1:
-                raise Exception('Could not create EVP_PKEY in SSL Context for controller key')
+                raise TRexError('Could not create EVP_PKEY in SSL Context for controller key')
 
         else:
             if not self.rsa_cert_file:
@@ -548,7 +545,7 @@ eWLC:
     def encrypt(self, buf):
         with self.ssl_lock:
             if isinstance(buf, Packet):
-                raise Exception('Consider converting to buffer: %s' % buf.command())
+                raise TRexError('Consider converting to buffer: %s' % buf.command())
             if isinstance(buf, ctypes.Array):
                 ret = libssl.SSL_write(self.ssl, buf, len(buf))
             else:
@@ -579,7 +576,7 @@ eWLC:
         elif op == 'garp':
             arp_dst = b'\0\0\0\0\0\0' + src_ip_bytes
         else:
-            raise Exception('Bad op of ARP: %s' % op)
+            raise TRexError('Bad op of ARP: %s' % op)
         return (
             (b'\xff\xff\xff\xff\xff\xff' if op in ('who-has', 'garp') else self.mac_dst_bytes) + src_mac_bytes + b'\x08\x06' + # Ethernet
             b'\x00\x01\x08\x00\x06\x04' +
@@ -633,7 +630,7 @@ class APClient:
             self.ip_bytes = ip
             self.ip = str2ip(ip)
         else:
-            raise Exception('Bad IP provided, should be x.x.x.x, got: %s' % ip)
+            raise TRexError('Bad IP provided, should be x.x.x.x, got: %s' % ip)
         check_mac_addr(self.mac)
         check_ipv4_addr(self.ip)
         assert isinstance(ap, AP)
@@ -664,8 +661,6 @@ class AP_Manager:
         self.ap_by_name = {}
         self.ap_by_mac = {}
         self.ap_by_ip = {}
-        self.ap_by_udp_port = {}
-        self.ap_by_radio_mac = {}
         self.client_by_id = {}
         self.bg_lock = threading.RLock()
         self.service_ctx = {}
@@ -684,14 +679,14 @@ class AP_Manager:
 
         for port_id in trex_port_ids:
             if port_id in self.service_ctx:
-                raise Exception('AP manager already initialized on port %s. Close it to proceed.' % port_id)
+                raise TRexError('AP manager already initialized on port %s. Close it to proceed.' % port_id)
             if port_id >= len(self.trex_client.ports):
-                raise Exception('TRex port %s does not exist!' % port_id)
+                raise TRexError('TRex port %s does not exist!' % port_id)
             trex_port = self.trex_client.ports[port_id]
             if not trex_port.is_acquired():
-                raise Exception('Port %s is not acquired' % port_id)
+                raise TRexError('Port %s is not acquired' % port_id)
             if trex_port.get_vlan_cfg():
-                raise Exception('Port %s has VLAN, plugin does not support it. Use trunk with native vlans.' % port_id)
+                raise TRexError('Port %s has VLAN, plugin does not support it. Use trunk with native vlans.' % port_id)
 
         for port_id in trex_port_ids:
             success = False
@@ -718,8 +713,6 @@ class AP_Manager:
         except:
             self.next_ap_mac = '94:12:12:12:12:01'
             self.next_ap_ip = '9.9.12.1'
-            self.next_ap_udp = 10001
-            self.next_ap_radio = '94:14:14:14:01:00'
             self.next_client_mac = '94:13:13:13:13:01'
             self.next_client_ip = '9.9.13.1'
             self.wlc_ip = '255.255.255.255'
@@ -734,12 +727,8 @@ class AP_Manager:
             return self.ap_by_mac[ap_id]
         elif ap_id in self.ap_by_ip:
             return self.ap_by_ip[ap_id]
-        elif ap_id in self.ap_by_udp_port:
-            return self.ap_by_udp_port[ap_id]
-        elif ap_id in self.ap_by_radio_mac:
-            return self.ap_by_radio_mac[ap_id]
         else:
-            raise Exception('AP with id %s does not exist!' % ap_id)
+            raise TRexError('AP with id %s does not exist!' % ap_id)
 
 
     def _get_client_by_id(self, client_id):
@@ -748,30 +737,22 @@ class AP_Manager:
         elif client_id in self.client_by_id:
             return self.client_by_id[client_id]
         else:
-            raise Exception('Client with id %s does not exist!' % client_id)
+            raise TRexError('Client with id %s does not exist!' % client_id)
 
 
-    def create_ap(self, trex_port_id, mac, ip, udp_port, radio_mac, wlc_ip = None, verbose_level = AP.VERB_WARN,rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
+    def create_ap(self, trex_port_id, mac, ip, wlc_ip = None, verbose_level = AP.VERB_WARN,rsa_ca_priv_file = None, rsa_priv_file = None, rsa_cert_file = None):
         if trex_port_id not in self.service_ctx:
-            raise Exception('TRex port %s does not exist!' % trex_port_id)
+            raise TRexError('TRex port %s does not exist!' % trex_port_id)
         if ':' not in mac:
             mac = str2mac(mac)
-        if ':' not in radio_mac:
-            radio_mac = str2mac(radio_mac)
         if mac in self.ap_by_mac:
-            raise Exception('AP with such MAC (%s) already exists!' % mac)
+            raise TRexError('AP with such MAC (%s) already exists!' % mac)
         if ip in self.ap_by_ip:
-            raise Exception('AP with such IP (%s) already exists!' % ip)
-        if udp_port in self.ap_by_udp_port:
-            raise Exception('AP with such UDP port (%s) already exists!' % udp_port)
-        if radio_mac in self.ap_by_radio_mac:
-            raise Exception('AP with such radio MAC port (%s) already exists!' % radio_mac)
-        ap = AP(self.ssl_ctx, self.trex_client.logger, self.trex_client.ports[trex_port_id], mac, ip, udp_port, radio_mac, wlc_ip, verbose_level, rsa_ca_priv_file, rsa_priv_file, rsa_cert_file)
+            raise TRexError('AP with such IP (%s) already exists!' % ip)
+        ap = AP(self.ssl_ctx, self.trex_client.logger, self.trex_client.ports[trex_port_id], mac, ip, wlc_ip, verbose_level, rsa_ca_priv_file, rsa_priv_file, rsa_cert_file)
         self.ap_by_name[ap.name] = ap
         self.ap_by_mac[mac] = ap
         self.ap_by_ip[ip] = ap
-        self.ap_by_udp_port[udp_port] = ap
-        self.ap_by_radio_mac[radio_mac] = ap
         with self.bg_lock:
             self.aps.append(ap)
             self.service_ctx[trex_port_id]['synced'] = False
@@ -792,8 +773,6 @@ class AP_Manager:
         del self.ap_by_name[ap.name]
         del self.ap_by_mac[ap.mac]
         del self.ap_by_ip[ap.ip]
-        del self.ap_by_udp_port[ap.udp_port]
-        del self.ap_by_radio_mac[ap.radio_mac]
 
 
     def remove_client(self, id):
@@ -822,12 +801,12 @@ class AP_Manager:
         if len(good_aps) != len(aps):
             self.trex_client.logger.post_cmd(False)
             bad_aps = set(aps) - set(good_aps)
-            raise Exception('Following AP(s) could not %s: %s' % (err, ', '.join(sorted([ap.name for ap in bad_aps], key = natural_sorted_key))))
+            raise TRexError('Following AP(s) could not %s: %s' % (err, ', '.join(sorted([ap.name for ap in bad_aps], key = natural_sorted_key))))
         if show_success:
             self.trex_client.logger.post_cmd(True)
 
     '''
-    ids is a list, each index can be either mac, ip, udp_port or name
+    ids is a list, each index can be either mac, ip or name
     '''
     def join_aps(self, ids = None):
         if not ids:
@@ -835,11 +814,11 @@ class AP_Manager:
         else:
             aps = [self._get_ap_by_id(id) for id in ids]
         if not aps:
-            raise Exception('No APs to join!')
+            raise TRexError('No APs to join!')
 
         MAX_JOINS = 512
         if len(aps) > MAX_JOINS:
-            raise Exception('Can not join more than %s at once, please split the joins' % MAX_JOINS)
+            raise TRexError('Can not join more than %s at once, please split the joins' % MAX_JOINS)
 
         # discover
         self.trex_client.logger.pre_cmd('Discovering WLC')
@@ -877,9 +856,9 @@ class AP_Manager:
             mac = str2mac(mac)
         ap = self._get_ap_by_id(ap_id)
         if mac in self.client_by_id:
-            raise Exception('Client with such MAC (%s) already exists!' % mac)
+            raise TRexError('Client with such MAC (%s) already exists!' % mac)
         if ip in self.client_by_id:
-            raise Exception('Client with such IP (%s) already exists!' % ip)
+            raise TRexError('Client with such IP (%s) already exists!' % ip)
         client = APClient(mac = mac, ip = ip, ap = ap)
         self.client_by_id[mac] = client
         self.client_by_id[ip] = client
@@ -895,7 +874,7 @@ class AP_Manager:
         else:
             clients = set([self._get_client_by_id(id) for id in ids])
         if not clients:
-            raise Exception('No Clients to join!')
+            raise TRexError('No Clients to join!')
 
         # Assoc clients
         batch_size = 1024
@@ -923,11 +902,11 @@ class AP_Manager:
         no_assoc_clients = [client.ip for client in clients if not client.is_associated]
         if no_assoc_clients:
             self.trex_client.logger.post_cmd(False)
-            raise Exception('Following client(s) could not be associated: %s' % ', '.join(no_assoc_clients))
+            raise TRexError('Following client(s) could not be associated: %s' % ', '.join(no_assoc_clients))
         no_resp_clients = [client.ip for client in clients if not client.seen_arp_reply]
         if no_resp_clients:
             self.trex_client.logger.post_cmd(False)
-            raise Exception('Following client(s) did not receive ARP response from WLC: %s' % ', '.join(no_resp_clients))
+            raise TRexError('Following client(s) did not receive ARP response from WLC: %s' % ', '.join(no_resp_clients))
         self.trex_client.logger.post_cmd(True)
 
 
@@ -983,6 +962,7 @@ class AP_Manager:
 
 
     def close(self, ports = None):
+        self.disable_proxy_mode(ignore_errors = True)
         if ports is None:
             ports = list(self.service_ctx.keys())
         else:
@@ -991,7 +971,7 @@ class AP_Manager:
 
         for port_id in ports:
             if port_id not in self.service_ctx:
-                raise Exception('AP manager is not initialized on port %s!' % port_id)
+                raise TRexError('AP manager is not initialized on port %s!' % port_id)
             service = self.service_ctx[port_id]
             service['bg'].stop()
             aps = ap_per_port.get(port_id, [])
@@ -1015,18 +995,7 @@ class AP_Manager:
             self.next_ap_ip = increase_ip(self.next_ap_ip)
             assert is_valid_ipv4(self.next_ap_ip)
 
-        # udp
-        while self.next_ap_udp in self.ap_by_udp_port:
-            if self.next_ap_udp >= 65500:
-                raise Exception('Can not increase base UDP any further: %s' % self.next_ap_udp)
-            self.next_ap_udp += 1
-
-        # radio
-        while self.next_ap_radio in self.ap_by_radio_mac:
-            self.next_ap_radio = increase_mac(self.next_ap_radio, 256)
-            assert is_valid_mac(self.next_ap_radio)
-
-        return self.next_ap_mac, self.next_ap_ip, self.next_ap_udp, self.next_ap_radio, self.wlc_ip
+        return self.next_ap_mac, self.next_ap_ip, self.wlc_ip
 
 
     def _gen_client_params(self):
@@ -1047,29 +1016,27 @@ class AP_Manager:
         self.trex_client.logger.info(msg)
 
 
-    def set_base_values(self, mac = None, ip = None, udp = None, radio = None, client_mac = None, client_ip = None, wlc_ip = None, save = None, load = None):
+    def set_base_values(self, mac = None, ip = None, client_mac = None, client_ip = None, wlc_ip = None, save = None, load = None):
         if load:
-            if any([mac, ip, udp, radio, client_mac, client_ip, save]):
-                raise Exception('Can not use --load with other arguments.')
+            if any([mac, ip, client_mac, client_ip, save]):
+                raise TRexError('Can not use --load with other arguments.')
             if not os.path.exists(self.base_file_path):
-                raise Exception('No saved file.')
+                raise TRexError('No saved file.')
             try:
                 self.trex_client.logger.pre_cmd('Loading base values')
                 with open(self.base_file_path) as f:
                     base_values = yaml.safe_load(f.read())
                 mac        = base_values['ap_mac']
                 ip         = base_values['ap_ip']
-                udp        = base_values['ap_udp']
-                radio      = base_values['ap_radio']
                 client_mac = base_values['client_mac']
                 client_ip  = base_values['client_ip']
                 if 'wlc_ip' in base_values:
                     wlc_ip = base_values['wlc_ip']
                 else:
                     wlc_ip = '255.255.255.255'
-            except Exception as e:
+            except TRexError as e:
                 self.trex_client.logger.post_cmd(False)
-                raise Exception('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
+                raise TRexError('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
             self.trex_client.logger.post_cmd(True)
 
         # first pass, check arguments
@@ -1077,13 +1044,6 @@ class AP_Manager:
             check_mac_addr(mac)
         if ip:
             check_ipv4_addr(ip)
-        if udp:
-            if udp < 1023 and udp > 65000:
-                raise Exception('Base UDP port should be within range 1024-65000')
-        if radio:
-            check_mac_addr(radio)
-            if radio.split(':')[-1] != '00':
-                raise Exception('Radio MACs should end with zero, got: %s' % radio)
         if client_mac:
             check_mac_addr(client_mac)
         if client_ip:
@@ -1096,10 +1056,6 @@ class AP_Manager:
             self.next_ap_mac = mac
         if ip:
             self.next_ap_ip = ip
-        if udp:
-            self.next_ap_udp = udp
-        if radio:
-            self.next_ap_radio = radio
         if client_mac:
             self.next_client_mac = client_mac
         if client_ip:
@@ -1113,16 +1069,124 @@ class AP_Manager:
                     f.write(yaml.dump({
                         'ap_mac':     self.next_ap_mac,
                         'ap_ip':      self.next_ap_ip,
-                        'ap_udp':     self.next_ap_udp,
-                        'ap_radio':   self.next_ap_radio,
                         'client_mac': self.next_client_mac,
                         'client_ip':  self.next_client_ip,
                         'wlc_ip':     self.wlc_ip,
                         }))
-            except Exception as e:
+            except TRexError as e:
                 self.trex_client.logger.post_cmd(False)
-                raise Exception('Could not save config file %s, error: %s' % (self.base_file_path, e))
+                raise TRexError('Could not save config file %s, error: %s' % (self.base_file_path, e))
             self.trex_client.logger.post_cmd(True)
+
+
+    @staticmethod
+    def _set_proxy_mode(port, params):
+        params.update({
+            'handler': port.handler,
+            'port_id': port.port_id,
+            'type': 'capwap_proxy',
+            })
+        rc = port.transmit('set_rx_feature', params)
+        if not rc:
+            raise TRexError(rc.err())
+
+
+    def enable_proxy_mode(self, wired_port, wireless_port):
+        assert wired_port in self.service_ctx, 'Specified wired port %s does not have any APs' % wired_port
+        assert wireless_port in self.trex_client.ports, 'Specified wireless port %s is invalid' % wireless_port
+        assert wireless_port not in self.service_ctx, 'Specified wireless port %s should not have any APs' % wireless_port
+        clients = [c for c in self.clients if (c.ap.port_id == wired_port and c.ap.is_connected and c.is_associated)]
+        assert clients, 'Specified wired port %s does not have any connected clients' % wired_port
+
+        # wireless side
+        port = self.trex_client.ports[wireless_port]
+        assert port.is_acquired(), 'Port of "wireless" side is not acquired!'
+        assert port.is_resolved(), 'Port destination is not resolved!'
+        wireless_src_mac = mac2str(port.get_layer_cfg()['ether']['src'])
+        wireless_dst_mac = mac2str(port.get_layer_cfg()['ether']['dst'])
+
+        capwap_map = {}
+        for client in clients:
+            wlan_wrapping = client.ap.wrap_pkt_by_wlan(client, client.ap.mac_dst_bytes + client.mac_bytes + b'\x08\x00')
+            #Ether(wlan_wrapping).show2()
+            capwap_map[client.ip] = base64encode(wlan_wrapping)
+
+        params = {
+            'enabled': True,
+            'pair_port_id': wired_port,
+            'is_wireless_side': True,
+            'capwap_map': capwap_map,
+            }
+        self.trex_client.logger.pre_cmd('Setting wireless side')
+        try:
+            self._set_proxy_mode(port, params)
+        except:
+            self.trex_client.logger.post_cmd(False)
+            raise
+        self.trex_client.logger.post_cmd(True)
+
+        # wired side
+        port = self.trex_client.ports[wired_port]
+        capwap_map = {}
+        for client in clients:
+            assert client.ap.mac_dst
+            ether_wrapping = wireless_dst_mac + wireless_src_mac + b'\x08\x00'
+            #ether_wrapping.show2()
+            capwap_map[client.ip] = base64encode(ether_wrapping)
+
+        params = {
+            'enabled': True,
+            'pair_port_id': wireless_port,
+            'is_wireless_side': False,
+            'capwap_map': capwap_map,
+            }
+        self.trex_client.logger.pre_cmd('Setting wired side')
+        try:
+            self._set_proxy_mode(port, params)
+        except:
+            self.trex_client.logger.post_cmd(False)
+            raise
+        self.trex_client.logger.post_cmd(True)
+
+
+
+    def disable_proxy_mode(self, ports = None, ignore_errors = False):
+        if ports is None:
+            ports = list(self.trex_client.ports.keys())
+        else:
+            ports = listify(ports)
+        for port_id in ports:
+            try:
+                assert port_id in self.trex_client.ports, 'Invalid port id: %s' % port_id
+                params = {'enabled': False}
+                self._set_proxy_mode(self.trex_client.ports[port_id], params)
+            except:
+                if not ignore_errors:
+                    raise
+
+
+    def get_proxy_stats(self, ports = None, decode_map = True):
+        if ports is None:
+            ports = list(self.trex_client.ports.keys())
+        else:
+            ports = listify(ports)
+        per_port_info = {}
+        for port_id in ports:
+            port = self.trex_client.ports[port_id]
+            port.sync()
+            capwap_proxy_info = port.status['rx_info'].get('capwap_proxy')
+            if capwap_proxy_info and decode_map and capwap_proxy_info['is_active']:
+                capwap_map_base64 = capwap_proxy_info['capwap_map']
+                if capwap_map_base64:
+                    capwap_map = {}
+                    del capwap_proxy_info['capwap_map']
+                    for client_ip, wrapping in capwap_map_base64.items():
+                        pkt = Ether(base64decode(wrapping))
+                        pkt.hide_defaults()
+                        capwap_map[client_ip] = pkt.command()
+                    capwap_proxy_info['capwap_map'] = capwap_map
+            per_port_info[port_id] = capwap_proxy_info
+        return per_port_info
 
 
     def __del__(self):

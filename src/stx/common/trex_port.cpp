@@ -130,6 +130,39 @@ TrexPort::stop_rx_queue() {
 }
 
 
+void
+TrexPort::start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map) {
+    static MsgReply<std::string> reply;
+    reply.reset();
+
+    TrexRxStartCapwapProxy *msg = new TrexRxStartCapwapProxy(m_port_id, pair_port_id, is_wireless_side, capwap_map, reply);
+
+    send_message_to_rx(msg);
+
+    const std::string &err = reply.wait_for_reply();
+
+    if ( err.size() ) {
+        throw TrexException(err);
+    }
+}
+
+
+void
+TrexPort::stop_capwap_proxy() {
+    static MsgReply<std::string> reply;
+    reply.reset();
+
+    TrexRxStopCapwapProxy *msg = new TrexRxStopCapwapProxy(m_port_id, reply);
+
+    send_message_to_rx(msg);
+    const std::string &err = reply.wait_for_reply();
+
+    if ( err.size() ) {
+        throw TrexException(err);
+    }
+}
+
+
 const TrexPktBuffer *
 TrexPort::get_rx_queue_pkts() {
     static MsgReply<const TrexPktBuffer *> reply;

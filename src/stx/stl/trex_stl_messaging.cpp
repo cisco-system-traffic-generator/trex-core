@@ -287,6 +287,12 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
             rc = RC_FAIL_RX_QUEUE_ACTIVE;
             break;
         }
+
+        /* cannot leave service mode if CAPWAP proxy is active */
+        if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::CAPWAP_PROXY)) {
+            rc = RC_FAIL_CAPWAP_PROXY_ACTIVE;
+            break;
+        }
         
         /* cannot leave service mode if PCAP capturing is active */
         if (TrexCaptureMngr::getInstance().is_active(m_port_id)) {

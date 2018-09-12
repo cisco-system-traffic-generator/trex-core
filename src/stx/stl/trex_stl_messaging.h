@@ -312,6 +312,8 @@ public:
         RC_FAIL_RX_QUEUE_ACTIVE,
         RC_FAIL_CAPTURE_ACTIVE,
         RC_FAIL_CAPTURE_PORT_ACTIVE,
+        RC_FAIL_CAPWAP_PROXY_ACTIVE,
+        RC_FAIL_CAPWAP_PROXY_INACTIVE,
     };
     
     TrexStatelessRxQuery(uint8_t port_id, query_type_e query_type, MsgReply<query_rc_e> &reply) : m_reply(reply) {
