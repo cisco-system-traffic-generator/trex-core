@@ -647,13 +647,16 @@ class APClient:
 
 
 class AP_Manager:
-    def __init__(self, trex_client = None, server = None):
+    def __init__(self, trex_client = None, server = None, sync_port = 4501, async_port = 4500):
         self.ssl_ctx = None
         if not (bool(server) ^ bool(trex_client)):
             raise STLError('Please specify either trex_client or server argument.')
-        if not server:
-            server = trex_client.get_connection_info()['server']
-        self.bg_client = STLClient('AP Manager', server, verbose_level = 'none')
+        if trex_client:
+            conn_info = trex_client.get_connection_info()
+            server     = conn_info['server']
+            sync_port  = conn_info['sync_port']
+            async_port = conn_info['async_port']
+        self.bg_client = STLClient('AP Manager', server, sync_port, async_port, verbose_level = 'none')
         self.trex_client = trex_client or self.bg_client
         self.aps = []
         self.clients = []
