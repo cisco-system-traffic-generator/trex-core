@@ -58,6 +58,17 @@ class CTRexWLC_Test(CStlGeneral_Test):
             print('Joining APs')
             ap_manager.join_aps()
             print('Took: %gs' % round(time.time() - start_time, 2))
+            assert ap_manager.aps[0].is_connected == True
+
+            start_time = time.time()
+            print('Re-joining APs')
+
+            ap_manager.disconnect_aps()
+            assert ap_manager.aps[0].is_connected == False
+
+            ap_manager.join_aps()
+            assert ap_manager.aps[0].is_connected == True
+            print('Took: %gs' % round(time.time() - start_time, 2))
 
             with assert_raises(AssertionError): # clients are not emulated yet
                 ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
