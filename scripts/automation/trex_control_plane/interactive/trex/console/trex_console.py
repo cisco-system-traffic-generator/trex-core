@@ -112,9 +112,6 @@ class TRexGeneralCmd(cmd.Cmd):
         atexit.register(self.save_console_history)
 
 
-    def get_console_identifier(self):
-        return self.__class__.__name__
-
     def get_history_file_full_path(self):
         return "{dir}{filename}.hist".format(dir=self._history_file_dir,
                                              filename=self.get_console_identifier())
@@ -275,9 +272,9 @@ class TRexConsole(TRexGeneralCmd):
 
 
     def get_console_identifier(self):
-        return "{context}_{server}".format(context=get_current_user(),
-                                           server=self.client.get_connection_info()['server'])
-    
+        conn = self.client.get_connection_info()
+        return "%s_%s_%s_%s" % (get_current_user(), conn['server'], conn['sync_port'], conn['async_port'])
+
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
         for name in main_names:

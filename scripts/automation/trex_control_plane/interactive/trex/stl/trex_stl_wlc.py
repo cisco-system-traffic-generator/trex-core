@@ -666,7 +666,7 @@ class AP_Manager:
         self.client_by_id = {}
         self.bg_lock = threading.RLock()
         self.service_ctx = {}
-        self.base_file_path = '/tmp/trex/console/%s_%s.wlc_base' % (get_current_user(), server)
+        self.base_file_path = '/tmp/trex/console/%s_%s_%s_%s.wlc_base' % (get_current_user(), server, sync_port, async_port)
         base_file_dir = os.path.dirname(self.base_file_path)
         if not os.path.exists(base_file_dir):
             os.makedirs(base_file_dir, mode = 0o777)
@@ -712,7 +712,8 @@ class AP_Manager:
     def _init_base_vals(self):
         try:
             self.set_base_values(load = True)
-        except:
+        except Exception as e:
+            self.err('Error setting base values (%s), will use default' % e)
             self.next_ap_mac = '94:12:12:12:12:01'
             self.next_ap_ip = '9.9.12.1'
             self.next_client_mac = '94:13:13:13:13:01'
@@ -1027,6 +1028,8 @@ class AP_Manager:
     def log(self, msg):
         self.trex_client.logger.info(msg)
 
+    def err(self, msg):
+        self.trex_client.logger.error(msg)
 
     def set_base_values(self, mac = None, ip = None, client_mac = None, client_ip = None, wlc_ip = None, save = None, load = None):
         if load:
@@ -1046,7 +1049,7 @@ class AP_Manager:
                     wlc_ip = base_values['wlc_ip']
                 else:
                     wlc_ip = '255.255.255.255'
-            except TRexError as e:
+            except Exception as e:
                 self.trex_client.logger.post_cmd(False)
                 raise TRexError('Parsing of config file %s failed, error: %s' % (self.base_file_path, e))
             self.trex_client.logger.post_cmd(True)
@@ -1068,6 +1071,7 @@ class AP_Manager:
             self.next_ap_mac = mac
         if ip:
             self.next_ap_ip = ip
+            print self.next_ap_ip
         if client_mac:
             self.next_client_mac = client_mac
         if client_ip:
@@ -1085,7 +1089,7 @@ class AP_Manager:
                         'client_ip':  self.next_client_ip,
                         'wlc_ip':     self.wlc_ip,
                         }))
-            except TRexError as e:
+            except Exception as e:
                 self.trex_client.logger.post_cmd(False)
                 raise TRexError('Could not save config file %s, error: %s' % (self.base_file_path, e))
             self.trex_client.logger.post_cmd(True)
