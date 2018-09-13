@@ -1,8 +1,10 @@
 #!/router/bin/python
 from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from nose.plugins.attrib import attr
+from nose.tools import assert_raises
 import time
 import os
+from trex.common.trex_exceptions import TRexError
 
 @attr('wlc')
 class CTRexWLC_Test(CStlGeneral_Test):
@@ -22,7 +24,7 @@ class CTRexWLC_Test(CStlGeneral_Test):
 
         ap_count = 1
         client_count = 1
-        
+
         self.start_trex()
         self.connect()
         if self.elk:
@@ -49,16 +51,44 @@ class CTRexWLC_Test(CStlGeneral_Test):
                 ap_manager.create_client(*client_params, ap_id = ap_params[0])
 
         try:
+            with assert_raises(AssertionError): # nothing is emulated yet
+                ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
+
             start_time = time.time()
             print('Joining APs')
             ap_manager.join_aps()
             print('Took: %gs' % round(time.time() - start_time, 2))
-    
+
+            with assert_raises(AssertionError): # clients are not emulated yet
+                ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
+
             start_time = time.time()
             print('Associating clients')
             ap_manager.join_clients()
             print('Took: %gs' % round(time.time() - start_time, 2))
-    
+
+            start_time = time.time()
+            print('Enable/disable capwap proxy')
+
+            self.client.set_service_mode(1, False)
+            with assert_raises(TRexError): # port 1 not in service mode
+                ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
+
+            self.client.set_service_mode(1, True)
+            ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
+
+            with assert_raises(TRexError): # proxy already enabled
+                ap_manager.enable_proxy_mode(wired_port = 0, wireless_port = 1)
+
+            with assert_raises(TRexError): # proxy is enabled
+                self.client.set_service_mode(0, False)
+
+            ap_manager.disable_proxy_mode(ports = [0, 1])
+
+            with assert_raises(TRexError): # proxy already active
+                ap_manager.disable_proxy_mode(ports = [0, 1])
+            print('Took: %gs' % round(time.time() - start_time, 2))
+
             print('Adding streams')
             profile = os.path.join(CTRexScenario.scripts_path, 'stl', 'imix_wlc.py')
             for client in ap_manager.clients:
