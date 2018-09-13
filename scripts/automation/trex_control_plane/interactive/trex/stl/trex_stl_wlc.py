@@ -1071,7 +1071,6 @@ class AP_Manager:
             self.next_ap_mac = mac
         if ip:
             self.next_ap_ip = ip
-            print self.next_ap_ip
         if client_mac:
             self.next_client_mac = client_mac
         if client_ip:
