@@ -21,6 +21,7 @@ if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
     source find_python.sh --python3
     cd automation/regression
 
+    # check for Python 3.4 and above (--wireless requirement)
     $PYTHON -c "from abc import ABC" &> /dev/null
     if [ $? -eq 0 ]; then
         WIRELESS='--wireless'
