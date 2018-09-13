@@ -135,7 +135,6 @@ class AP:
         self.capwap_MaxRetransmit = 5
         self.capwap_RetransmitInterval = 0.5
         self.ssl_lock = threading.RLock()
-        self._create_ssl()
         self.reset_vars()
         if wlc_ip and wlc_ip != '255.255.255.255':
             self.ip_dst = wlc_ip
@@ -959,6 +958,16 @@ class AP_Manager:
 
     def get_connected_aps(self):
         return [ap for ap in self.aps if ap.is_connected]
+
+
+    def disconnect_aps(self, aps = None):
+        if aps is None:
+            aps = self.aps
+        ap_per_port = self._get_ap_per_port(aps)
+        for port_id, aps in ap_per_port.items():
+            if aps:
+                assert(port_id in self.service_ctx)
+                self.service_ctx[port_id]['fg'].run([ServiceApShutdownDTLS(ap) for ap in aps])
 
 
     def close(self, ports = None):
