@@ -2,7 +2,7 @@
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import bold
 from ..common.trex_types import *
-from ..common.trex_exceptions import TRexError
+from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 
 from .plugins import ConsolePlugin
 import glob
@@ -162,7 +162,13 @@ class PluginsManager:
         if not line:
             line = '-h'
 
-        opts = self.plugins_parser.parse_args(line.split(), default_ports = [])
+        try:
+            opts = self.plugins_parser.parse_args(line.split(), default_ports = [])
+        except TRexConsoleNoAction:
+            return
+        except TRexConsoleError:
+            return
+
         if not opts:
             return
 
@@ -212,11 +218,14 @@ class PluginsManager:
             func = getattr(plugin, 'do_%s' % (opts.subparser_command))
             del opts.plugins_command
             del opts.subparser_command
+
             try:
                 func(**vars(opts))
-            except Exception as e:
+            except TRexError as e:
                 self.client.logger.debug(traceback.format_exc())
                 self.print_err('%s\n' % e)
+            except Exception as e:
+                self.client.logger.error(traceback.format_exc())
 
 
     def complete_plugins(self, text, line, start_index, end_index):
