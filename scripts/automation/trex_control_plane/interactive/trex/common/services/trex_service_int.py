@@ -210,12 +210,11 @@ class ServiceCtx(object):
         filter_type = service.get_filter_type()
 
         # if the service does not have a filter installed - create it
-        if filter_type and not filter_type in self.filters:
+        if filter_type not in self.filters:
             self.filters[filter_type] = {'inst': filter_type(), 'capture_id': None}
 
         # add to the filter
-        if filter_type:
-            self.filters[filter_type]['inst'].add(service)
+        self.filters[filter_type]['inst'].add(service)
 
         # data per service
         self.services[service] = {'pipe': None}
@@ -431,6 +430,7 @@ class ServicePipe(object):
         self.env         = env
         self.tx_buffer   = tx_buffer
         self.pkt         = Pkt(self.env)
+
         
     def async_wait (self, time_sec):
         '''
@@ -478,7 +478,7 @@ class ServicePipe(object):
         
 ################### internal functions ##########################
 
-    def _on_rx_pkt (self, pkt, rx_ts = None):
+    def _on_rx_pkt (self, pkt, rx_ts):
         '''
             Called by the reciver side
             (the service)
