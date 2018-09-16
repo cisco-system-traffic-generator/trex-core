@@ -240,7 +240,6 @@ class CRxCore : public TrexRxCore {
     
  private:
     TrexMonitor      m_monitor;
-    uint32_t         m_max_ports;
     uint32_t         m_tx_cores;
     bool             m_capture;
     state_e          m_state;
