@@ -287,20 +287,12 @@ bool CRxCore::work_tick() {
 
 
 bool CRxCore::tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id) {
-    if ( tx_port_id < m_max_ports ) {
-        return m_rx_port_mngr[tx_port_id].tx_pkt(m);
-    } else {
-        return false;
-    }
+    return m_rx_port_mngr[tx_port_id].tx_pkt(m);
 }
 
 
 bool CRxCore::tx_pkt(const std::string &pkt, uint8_t tx_port_id) {
-    if ( tx_port_id < m_max_ports ) {
-        return m_rx_port_mngr[tx_port_id].tx_pkt(pkt);
-    } else {
-        return false;
-    }
+    return m_rx_port_mngr[tx_port_id].tx_pkt(pkt);
 }
 
 
