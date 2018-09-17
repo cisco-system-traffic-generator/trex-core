@@ -151,10 +151,10 @@ class IGMPv3(Packet):
     """
     p += pay
     if self.type in [0, 0x31, 0x32, 0x22]:   # for these, field is reserved (0)
-      p = p[:1]+chr(0)+p[2:]
+      p = p[:1]+b'\0'+p[2:]
     if self.chksum is None:
       ck = checksum(p)
-      p = p[:2]+chr(ck>>8)+chr(ck&0xff)+p[4:]
+      p = p[:2]+bytes([ck>>8])+bytes([ck&0xff])+p[4:]
     return p
 
 #--------------------------------------------------------------------------
