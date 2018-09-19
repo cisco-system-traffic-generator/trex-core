@@ -729,7 +729,7 @@ mode object can be 'one' of the following objects:
 | Field         | Type        | Description
 | type          | string      | ''single_burst''
 | rate          | object      |  rate object
-| total pkts    | int         | total packets in the burst
+| total pkts    | uint32_t    | total packets to be sent. It should be bigger than 0.
 |=================
 
 .Object type 'mode - multi_burst' 
@@ -738,9 +738,9 @@ mode object can be 'one' of the following objects:
 | Field          | Type        | Description
 | type           | string      | ''multi_burst''
 | rate           | object      |  rate object
-| pkts_per_burst | int         | packets in a single burst
+| pkts_per_burst | uint32_t    | number of packets to be sent in a single burst. It should be bigger than 0.
 | ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
-| count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
+| count          | uint32_t    | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
 |=================
 
 ==== vm

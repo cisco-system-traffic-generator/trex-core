@@ -360,6 +360,9 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
         uint32_t total_pkts      = parse_uint32(mode, "total_pkts", result);
 
+        if (total_pkts == 0) {
+            generate_parse_err(result, type + ": 'total_pkts' cannot be zero.");
+        }
         stream.reset(new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id));
         stream->set_single_burst(total_pkts);
 
@@ -370,6 +373,9 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         uint32_t  num_bursts       = parse_uint32(mode, "count", result);
         uint32_t  pkts_per_burst   = parse_uint32(mode, "pkts_per_burst", result);
 
+        if (pkts_per_burst == 0) {
+            generate_parse_err(result, type + ": 'pkts_per_burst' cannot be zero.");
+        }
         stream.reset(new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id));
         stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
 
