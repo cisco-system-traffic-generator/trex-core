@@ -400,12 +400,14 @@ public:
                            uint8_t pair_port_id,
                            bool is_wireless_side,
                            const Json::Value &capwap_map,
+                           uint32_t wlc_ip,
                            MsgReply<std::string> &reply) : m_reply(reply) {
 
         m_port_id = port_id;
         m_pair_port_id = pair_port_id;
         m_is_wireless_side = is_wireless_side;
         m_capwap_map = capwap_map;
+        m_wlc_ip = wlc_ip;
     }
 
      bool handle(CRxCore *rx_core);
@@ -416,6 +418,7 @@ private:
     uint8_t                 m_pair_port_id;
     bool                    m_is_wireless_side;
     Json::Value             m_capwap_map;
+    uint32_t                m_wlc_ip;
 };
 
 

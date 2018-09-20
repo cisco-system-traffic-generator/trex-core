@@ -220,7 +220,7 @@ TrexRxStartCapwapProxy::handle(CRxCore *rx_core) {
         m_reply.set_reply("CAPWAP proxy mode is already active at port " + std::to_string(m_port_id) + " !");
 
     } else {
-        if ( rx_core->start_capwap_proxy(m_port_id, m_pair_port_id, m_is_wireless_side, m_capwap_map) ) {
+        if ( rx_core->start_capwap_proxy(m_port_id, m_pair_port_id, m_is_wireless_side, m_capwap_map, m_wlc_ip) ) {
             m_reply.set_reply("");
         } else {
             m_reply.set_reply("Could not start CAPWAP proxy on port " + std::to_string(m_port_id) + " !");

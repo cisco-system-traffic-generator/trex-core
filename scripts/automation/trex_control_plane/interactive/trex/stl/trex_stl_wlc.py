@@ -1126,11 +1126,14 @@ class AP_Manager:
             #Ether(wlan_wrapping).show2()
             capwap_map[client.ip] = base64encode(wlan_wrapping)
 
+        wlc_ip_num = ipv4_str_to_num(self.aps[0].wlc_ip_bytes)
+
         params = {
             'enabled': True,
             'pair_port_id': wired_port,
             'is_wireless_side': True,
             'capwap_map': capwap_map,
+            'wlc_ip': wlc_ip_num,
             }
         self.trex_client.logger.pre_cmd('Setting wireless side')
         try:
@@ -1154,6 +1157,7 @@ class AP_Manager:
             'pair_port_id': wireless_port,
             'is_wireless_side': False,
             'capwap_map': capwap_map,
+            'wlc_ip': wlc_ip_num,
             }
         self.trex_client.logger.pre_cmd('Setting wired side')
         try:

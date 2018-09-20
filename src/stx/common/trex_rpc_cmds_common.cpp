@@ -794,7 +794,8 @@ TrexRpcCmdSetRxFeature::parse_capwap_proxy_msg(const Json::Value &msg, TrexPort 
             uint8_t pair_port_id = parse_byte(msg, "pair_port_id", result);
             bool is_wireless_side = parse_bool(msg, "is_wireless_side", result);
             const Json::Value &capwap_map = parse_object(msg, "capwap_map", result);
-            port->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map);
+            uint32_t wlc_ip = parse_uint32(msg, "wlc_ip", result, 0);
+            port->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
 
         } else {
             port->stop_capwap_proxy();

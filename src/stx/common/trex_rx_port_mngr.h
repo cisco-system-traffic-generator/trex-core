@@ -212,7 +212,7 @@ class RXCapwapProxy {
 public:
 
     void create(RXFeatureAPI *api);
-    bool set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map);
+    bool set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
     void reset();
     rx_pkt_action_t handle_pkt(rte_mbuf_t *m);
     rx_pkt_action_t handle_wired(rte_mbuf_t *m);
@@ -225,7 +225,6 @@ private:
     uint8_t              m_pair_port_id;
     bool                 m_is_wireless_side;
     char                *m_pkt_data_ptr;
-    uint16_t             m_rx_pkt_size;
     uint16_t             m_new_ip_length;
     bpf_h                m_wired_bpf_filter;
     int                  rc;
@@ -233,6 +232,7 @@ private:
     IPHeader            *m_ipv4;
     uint32_t             m_client_ip_num;
     rte_mbuf_t          *m_mbuf_ptr;
+    uint32_t             m_wlc_ip;
 
     // wrapping map stuff
     struct uint32_hasher {
@@ -240,7 +240,7 @@ private:
             return (ip & 0xffff) ^ (ip >> 16); // xor upper and lower 16 bits
         }
     };
-    typedef std::unordered_map<uint32_t,lengthed_str_t*,uint32_hasher> capwap_map_t;
+    typedef std::unordered_map<uint32_t,std::string,uint32_hasher> capwap_map_t;
     typedef capwap_map_t::const_iterator capwap_map_it_t;
     capwap_map_t         m_capwap_map;
     capwap_map_it_t      m_capwap_map_it;
@@ -248,13 +248,13 @@ private:
     // counters
     uint64_t             m_bpf_rejected;
     uint64_t             m_ip_convert_err;
-    uint64_t             m_map_alloc_err;
     uint64_t             m_map_not_found;
     uint64_t             m_not_ip;
     uint64_t             m_too_large_pkt;
     uint64_t             m_too_small_pkt;
     uint64_t             m_tx_err;
     uint64_t             m_tx_ok;
+    uint64_t             m_pkt_from_wlc;
 
 };
 
@@ -373,8 +373,8 @@ public:
         m_capture_port.set_bpf_filter(filter);
     }
 
-    bool start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
-        if ( !m_capwap_proxy.set_values(pair_port_id, is_wireless_side, capwap_map) ) {
+    bool start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
+        if ( !m_capwap_proxy.set_values(pair_port_id, is_wireless_side, capwap_map, wlc_ip) ) {
             return false;
         }
         set_feature(CAPWAP_PROXY);

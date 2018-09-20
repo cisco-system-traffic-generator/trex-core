@@ -420,9 +420,9 @@ CRxCore::stop_queue(uint8_t port_id) {
 }
 
 bool
-CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
+CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
     bool rc;
-    rc = m_rx_port_mngr[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map);
+    rc = m_rx_port_mngr[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
     recalculate_next_state();
     return rc;
 }

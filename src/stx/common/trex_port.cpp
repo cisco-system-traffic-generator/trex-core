@@ -131,11 +131,11 @@ TrexPort::stop_rx_queue() {
 
 
 void
-TrexPort::start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map) {
+TrexPort::start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map, uint32_t wlc_ip) {
     static MsgReply<std::string> reply;
     reply.reset();
 
-    TrexRxStartCapwapProxy *msg = new TrexRxStartCapwapProxy(m_port_id, pair_port_id, is_wireless_side, capwap_map, reply);
+    TrexRxStartCapwapProxy *msg = new TrexRxStartCapwapProxy(m_port_id, pair_port_id, is_wireless_side, capwap_map, wlc_ip, reply);
 
     send_message_to_rx(msg);
 
