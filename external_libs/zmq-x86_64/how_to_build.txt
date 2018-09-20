@@ -10,7 +10,13 @@
 - Find libzmq.so.5.1.5 and copy to:
     current directory as libzmq.so
     scripts/so as libzmq.so.5
-    scripts/external_libs/pyzmq-ctypes/intel/64bit/zmq as libzmq.so (adapt intel/arm 64bit/32bit to your CPU/Python arch)
+    scripts/external_libs/pyzmq-ctypes/zmq/intel/64bit as libzmq.so (adapt intel/arm 64bit/32bit to your CPU/Python arch)
+
+Notes:
+
+- To build 32bit version, add this to CMakeLists.txt:
+    set( CMAKE_C_FLAGS "-m32" )
+    set( CMAKE_CXX_FLAGS "-m32" )
 
 
 
