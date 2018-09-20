@@ -3026,6 +3026,10 @@ void CGlobalTRex::pre_test() {
                 resolve_needed = false;
             }
 
+            if ( !m_ports[port_id]->get_port_attr()->is_link_up() && get_is_interactive() ) {
+                resolve_needed = false;
+            }
+
             need_grat_arp[port_id] = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip() != 0;
 
             pretest.add_ip(port_id, CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip()
@@ -3413,10 +3417,11 @@ int  CGlobalTRex::ixgbe_start(void){
 
         if ( !is_all_links_are_up() ){ // disable start with link down for now
 
-            /* temporary solution for trex-192 issue, solve the case for X710/XL710, will work for both Statless and Stateful */
-            if (  get_ex_drv()->drop_packets_incase_of_linkdown() ){
+            if ( get_is_interactive() ) {
+                printf(" WARNING : there is no link on one of the ports, interactive mode can continue\n");
+            } else if ( get_ex_drv()->drop_packets_incase_of_linkdown() ) {
                 printf(" WARNING : there is no link on one of the ports, driver support auto drop in case of link down - continue\n");
-            }else{
+            } else {
                 dump_links_status(stdout);
                 rte_exit(EXIT_FAILURE, " One of the links is down \n");
             }
