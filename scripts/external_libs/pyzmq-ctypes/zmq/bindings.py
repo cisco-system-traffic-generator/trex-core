@@ -7,12 +7,15 @@ https://github.com/svpcom/pyzmq-ctypes
 '''
 
 import os
+import sys
 from zmq.constants import *
 from ctypes import *
 
+cpu_vendor = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
+cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))
-libzmq = CDLL(os.path.join(cur_dir, 'libzmq.so'), use_errno=True)
+libzmq = CDLL(os.path.join(cur_dir, cpu_vendor, cpu_bits, 'libzmq.so'), use_errno=True)
 
 assert(libzmq)
 

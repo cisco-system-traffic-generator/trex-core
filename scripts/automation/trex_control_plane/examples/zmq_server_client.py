@@ -1,12 +1,9 @@
 import sys
 import os
 
-cpu_vendor = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
-cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
-
 par = os.pardir
 ext_libs = os.path.abspath(os.path.join(os.path.dirname(__file__), par, par, par, 'external_libs'))
-zmq_path = os.path.join(ext_libs, 'pyzmq-ctypes', cpu_vendor, cpu_bits)
+zmq_path = os.path.join(ext_libs, 'pyzmq-ctypes')
 if zmq_path not in sys.path:
    sys.path.append(zmq_path)
 
