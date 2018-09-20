@@ -71,11 +71,6 @@ struct active_pgid {
     pgid_types_e m_type;
 };
 
-struct lengthed_str_t {
-    uint16_t m_len;
-    char *m_str;
-};
-
 typedef std::vector<active_pgid> flow_stat_active_t_new;
 typedef std::vector<active_pgid>::iterator flow_stat_active_it_t_new;
 typedef std::set<uint32_t> flow_stat_active_t;

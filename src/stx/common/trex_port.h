@@ -127,7 +127,7 @@ public:
      *      pair_port_id  - pair port to pass the traffic to
      *      is_wireless_side - is port connected to STF TRex
      */
-    void start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map);
+    void start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map, uint32_t wlc_ip);
 
     /**
      * stop proxyifying traffic between STF TRex and WLC

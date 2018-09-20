@@ -3,6 +3,7 @@
 from trex.console.plugins import *
 from trex.common.trex_exceptions import TRexError
 from trex.utils.common import natural_sorted_key
+from trex.stl.trex_stl_packet_builder_scapy import ipv4_str_to_num, is_valid_ipv4_ret
 
 
 class WLC_Plugin(ConsolePlugin):
@@ -87,10 +88,10 @@ class WLC_Plugin(ConsolePlugin):
                 help = 'Wireless side of proxy (connected to Stateful TRex).')
         self.add_argument('--disable', action = 'store_true',
                 dest = 'proxy_disable',
-                help = 'Disable the proxy (enable if not specified).')
+                help = 'Disable the proxy on specific port.')
         self.add_argument('--clear', action = 'store_true',
                 dest = 'proxy_clear',
-                help = 'Remove all proxy configurations.')
+                help = 'Remove all proxy configuration on all ports. Ignores errors.')
 
 
     def plugin_unload(self):
@@ -365,50 +366,64 @@ class WLC_Plugin(ConsolePlugin):
             if proxy_disable:
                 self.ap_manager.disable_proxy_mode(ports = [proxy_wired_port, proxy_wireless_port])
             else:
-                assert proxy_wireless_port in self.trex_client.ports, 'Invalid wireless port ID: %s' % proxy_wireless_port
+                if proxy_wireless_port not in self.trex_client.ports:
+                    raise TRexError('Invalid wireless port ID: %s' % proxy_wireless_port)
                 port = self.trex_client.ports[proxy_wireless_port]
                 if not port.is_service_mode_on():
                     port.set_service_mode(True)
                 self.ap_manager.enable_proxy_mode(wired_port = proxy_wired_port, wireless_port = proxy_wireless_port)
         else:
             counters_dict = {
-                'BPF reject':       'm_bpf_rejected',
-                'IP convert err':   'm_ip_convert_err',
-                'Alloc error':      'm_map_alloc_err',
-                'Map not found':    'm_map_not_found',
-                'Not IP pkt':       'm_not_ip',
-                'Pkt too large':    'm_too_large_pkt',
-                'Pkt too small':    'm_too_small_pkt',
-                'TX err': 'm_tx_err',
-                'TX OK': 'm_tx_ok',
+                'BPF reject':                   'm_bpf_rejected',
+                'IP convert ERR':               'm_ip_convert_err',
+                'Map not found':                'm_map_not_found',
+                'Not IP pkt':                   'm_not_ip',
+                'Pkt too large':                'm_too_large_pkt',
+                'Pkt too small':                'm_too_small_pkt',
+                'Pkts from WLC':                'm_pkt_from_wlc',
+                'TX ERR':                       'm_tx_err',
+                'TX OK':                        'm_tx_ok',
                 }
+
             proxy_table = text_tables.Texttable(max_width = 200)
-            categories = ['Port', 'Counters', 'Wrapping map per client']
+            categories = ['Port', 'Counters', 'Clients']
             proxy_table.header([bold(c) for c in categories])
             proxy_table.set_cols_align(['l'] * len(categories))
             proxy_table.set_deco(15)
             for port_id in sorted(self.trex_client.get_acquired_ports()):
-                data = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = True)[port_id]
+                data = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = False)[port_id]
                 if not data or not data['is_active']:
                     continue
                 row = ['ID: %s\n(%s)\nPair: %s' % (port_id, 'WLAN' if data['is_wireless_side'] else 'LAN', data['pair_port_id'])]
+
                 counters_table = text_tables.Texttable()
                 counters_table.set_deco(0)
                 counters_table.set_cols_dtype(['t', 'i'])
                 counters_table.set_cols_align(['l'] * 2)
                 for k in sorted(counters_dict.keys()):
                     val =  data['counters'][counters_dict[k]]
-                    if not val:
-                        continue
-                    counters_table.add_row(['%s:' % k, val])
+                    if val:
+                        counters_table.add_row(['%s:' % k, val])
                 row.append(counters_table.draw())
-                mappings = []
-                for client_ip in sorted(list(data['capwap_map'].keys()), key = natural_sorted_key):
-                    pkt_cmd = data['capwap_map'][client_ip]
-                    if len(pkt_cmd) > 100:
-                        pkt_cmd = pkt_cmd[:97] + '...'
-                    mappings.append('%s: %s' % (client_ip, pkt_cmd))
-                row.append('\n'.join(mappings))
+
+                clients = ''
+                clients_arr = sorted(data['capwap_map'].keys(), key = natural_sorted_key)
+                if len(clients_arr) > 1:
+                    first_ip_num = ipv4_str_to_num(is_valid_ipv4_ret(clients_arr[0]))
+                    last_ip_num = ipv4_str_to_num(is_valid_ipv4_ret(clients_arr[-1]))
+                    if first_ip_num == last_ip_num - len(clients_arr) + 1: # continuous range of IPs
+                        clients = 'From %s to %s' % (clients_arr[0], clients_arr[-1])
+                    else:
+                        while True:
+                            clients_row = ['%15s' % ip for ip in clients_arr[0:5]]
+                            if not clients_row:
+                                break
+                            clients += ', '.join(clients_row) + '\n'
+                            clients_arr = clients_arr[5:]
+                else:
+                    clients = clients_arr[0]
+                row.append(clients)
+
                 proxy_table.add_row(row)
             self.ap_manager.log(proxy_table.draw())
 

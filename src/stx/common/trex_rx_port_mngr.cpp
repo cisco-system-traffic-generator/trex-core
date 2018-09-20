@@ -408,32 +408,25 @@ RXCapwapProxy::reset() {
     // clear counters
     m_bpf_rejected = 0;
     m_ip_convert_err = 0;
-    m_map_alloc_err = 0;
     m_map_not_found = 0;
     m_not_ip = 0;
     m_too_large_pkt = 0;
     m_too_small_pkt = 0;
     m_tx_err = 0;
     m_tx_ok = 0;
+    m_pkt_from_wlc = 0;
 
-    // clear map
-    lengthed_str_t *lengthed_str_ptr;
-    for (auto& elem: m_capwap_map) {
-        lengthed_str_ptr = elem.second;
-        free(lengthed_str_ptr->m_str);
-        free(lengthed_str_ptr);
-    }
     m_capwap_map.clear();
 }
 
 
 bool
-RXCapwapProxy::set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
+RXCapwapProxy::set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
     m_is_wireless_side = is_wireless_side;
     m_pair_port_id = pair_port_id;
+    m_wlc_ip = wlc_ip;
     reset();
     std::string wrap_data;
-    lengthed_str_t *lengthed_str_ptr;
 
     for (const std::string &client_ip_str : capwap_map.getMemberNames()) {
         wrap_data = base64_decode(capwap_map[client_ip_str].asString());
@@ -442,21 +435,7 @@ RXCapwapProxy::set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Val
             m_ip_convert_err += 1;
             return false;
         }
-        lengthed_str_ptr = (lengthed_str_t *) malloc(sizeof(lengthed_str_t));
-        if (lengthed_str_ptr == NULL) {
-            m_map_alloc_err += 1;
-            return false; 
-        }
-        lengthed_str_ptr->m_str = (char *) malloc(wrap_data.size());
-        if (lengthed_str_ptr->m_str == NULL) {
-            free(lengthed_str_ptr);
-            m_map_alloc_err += 1;
-            return false; 
-        }
-        lengthed_str_ptr->m_len = wrap_data.size();
-        memcpy(lengthed_str_ptr->m_str, wrap_data.c_str(), wrap_data.size());
-
-        m_capwap_map[m_client_ip_num] = lengthed_str_ptr;
+        m_capwap_map[m_client_ip_num] = wrap_data;
     }
     return true;
 }
@@ -468,26 +447,27 @@ RXCapwapProxy::to_json() const {
     std::string client_ip, encoded_pkt;
 
     Json::Value capwap_map_json = Json::objectValue;
-    for (auto& x: m_capwap_map) {
+    for (auto &x: m_capwap_map) {
         client_ip = utl_uint32_to_ipv4(x.first);
-        encoded_pkt = base64_encode((unsigned char *) x.second->m_str, x.second->m_len);
+        encoded_pkt = base64_encode((unsigned char *) x.second.c_str(), x.second.size());
         capwap_map_json[client_ip] = encoded_pkt;
     }
     output["capwap_map"]        = capwap_map_json;
     output["is_wireless_side"]  = m_is_wireless_side;
     output["pair_port_id"]      = m_pair_port_id;
+    output["wlc_ip"]            = m_wlc_ip;
 
     // counters
     Json::Value counters   = Json::objectValue;
-    counters["m_bpf_rejected"]    = Json::UInt64(m_bpf_rejected);
-    counters["m_ip_convert_err"]  = Json::UInt64(m_ip_convert_err);
-    counters["m_map_alloc_err"]   = Json::UInt64(m_map_alloc_err);
-    counters["m_map_not_found"]   = Json::UInt64(m_map_not_found);
-    counters["m_not_ip"]          = Json::UInt64(m_not_ip);
-    counters["m_too_large_pkt"]   = Json::UInt64(m_too_large_pkt);
-    counters["m_too_small_pkt"]   = Json::UInt64(m_too_small_pkt);
-    counters["m_tx_err"]          = Json::UInt64(m_tx_err);
-    counters["m_tx_ok"]           = Json::UInt64(m_tx_ok);
+    counters["m_bpf_rejected"]          = Json::UInt64(m_bpf_rejected);
+    counters["m_ip_convert_err"]        = Json::UInt64(m_ip_convert_err);
+    counters["m_map_not_found"]         = Json::UInt64(m_map_not_found);
+    counters["m_not_ip"]                = Json::UInt64(m_not_ip);
+    counters["m_too_large_pkt"]         = Json::UInt64(m_too_large_pkt);
+    counters["m_too_small_pkt"]         = Json::UInt64(m_too_small_pkt);
+    counters["m_tx_err"]                = Json::UInt64(m_tx_err);
+    counters["m_tx_ok"]                 = Json::UInt64(m_tx_ok);
+    counters["m_pkt_from_wlc"]          = Json::UInt64(m_pkt_from_wlc);
     output["counters"] = counters;
 
     return output;
@@ -510,33 +490,39 @@ No checks of AP and client MAC!
 */
 rx_pkt_action_t
 RXCapwapProxy::handle_wired(rte_mbuf_t *m) {
-    m_rx_pkt_size = rte_pktmbuf_pkt_len(m);
-    if ( unlikely(m_rx_pkt_size < WLAN_IP_OFFSET + ETH_HDR_LEN + IPV4_HDR_LEN) ) { // not accurate but sufficient
+    uint16_t rx_pkt_size = rte_pktmbuf_pkt_len(m);
+    if ( unlikely(rx_pkt_size < WLAN_IP_OFFSET + ETH_HDR_LEN + IPV4_HDR_LEN) ) { // not accurate but sufficient
         m_too_small_pkt += 1;
         return RX_PKT_FREE;
     }
     m_pkt_data_ptr = rte_pktmbuf_mtod(m, char *);
 
-    // verify capwap + wlan
-    rc = bpfjit_run(m_wired_bpf_filter, m_pkt_data_ptr, m_rx_pkt_size);
+    rc = bpfjit_run(m_wired_bpf_filter, m_pkt_data_ptr, rx_pkt_size);
     if ( unlikely(!rc) ) {
         m_bpf_rejected += 1;
         return RX_PKT_FREE;
     }
 
-    // get dst IP
     m_ipv4 = (IPHeader *)(m_pkt_data_ptr + WLAN_IP_OFFSET);
+
+    // get dst IP
     m_client_ip_num = m_ipv4->getDestIp();
     m_capwap_map_it = m_capwap_map.find(m_client_ip_num);
     if ( unlikely(m_capwap_map_it == m_capwap_map.end()) ) {
-        //printf("Wired: %u not found in map\n", m_client_ip_num);
         m_map_not_found += 1;
+        return RX_PKT_FREE;
+    }
+
+    // get src IP
+    uint32_t src_ip = m_ipv4->getSourceIp();
+    if (unlikely( src_ip == m_wlc_ip )) {
+        m_pkt_from_wlc += 1;
         return RX_PKT_FREE;
     }
 
     // removing capwap+wlan and adding ether
     rte_pktmbuf_adj(m, (WLAN_IP_OFFSET - ETH_HDR_LEN));
-    memcpy(m_pkt_data_ptr + WLAN_IP_OFFSET - ETH_HDR_LEN, m_capwap_map_it->second->m_str, m_capwap_map_it->second->m_len);
+    memcpy(m_pkt_data_ptr + WLAN_IP_OFFSET - ETH_HDR_LEN, m_capwap_map_it->second.c_str(), m_capwap_map_it->second.size());
 
     rc = m_api->tx_pkt(m, m_pair_port_id);
     if ( unlikely(!rc) ) {
@@ -553,8 +539,8 @@ No checks of client MAC!
 */
 rx_pkt_action_t
 RXCapwapProxy::handle_wireless(rte_mbuf_t *m) {
-    m_rx_pkt_size = rte_pktmbuf_pkt_len(m);
-    if ( unlikely(m_rx_pkt_size < ETH_HDR_LEN + IPV4_HDR_LEN) ) {
+    uint16_t rx_pkt_size = rte_pktmbuf_pkt_len(m);
+    if ( unlikely(rx_pkt_size < ETH_HDR_LEN + IPV4_HDR_LEN) ) {
         m_too_small_pkt += 1;
         return RX_PKT_FREE;
     }
@@ -572,33 +558,32 @@ RXCapwapProxy::handle_wireless(rte_mbuf_t *m) {
     m_client_ip_num = m_ipv4->getSourceIp();
     m_capwap_map_it = m_capwap_map.find(m_client_ip_num);
     if ( unlikely(m_capwap_map_it == m_capwap_map.end()) ) {
-        //printf("Wireless: %u not found in map\n", m_client_ip_num);
         m_map_not_found += 1;
         return RX_PKT_FREE;
     }
 
-    if ( unlikely(m_rx_pkt_size > MAX_PKT_ALIGN_BUF_9K - (m_capwap_map_it->second->m_len - ETH_HDR_LEN)) ) {
+    if ( unlikely(rx_pkt_size > MAX_PKT_ALIGN_BUF_9K - (m_capwap_map_it->second.size() - ETH_HDR_LEN)) ) {
         m_too_large_pkt += 1;
         return RX_PKT_FREE;
     }
 
-    m_new_ip_length = m_rx_pkt_size + m_capwap_map_it->second->m_len - ETH_HDR_LEN - ETH_HDR_LEN; //adding capwap+wlan and removing ether
+    m_new_ip_length = rx_pkt_size + m_capwap_map_it->second.size() - ETH_HDR_LEN - ETH_HDR_LEN; //adding capwap+wlan and removing ether
 
     // Fix IP total length and checksum
-    m_ipv4 = (IPHeader *)(m_capwap_map_it->second->m_str + ETH_HDR_LEN);
+    m_ipv4 = (IPHeader *)(m_capwap_map_it->second.c_str() + ETH_HDR_LEN);
     m_ipv4->updateTotalLength(m_new_ip_length);
 
     // Update UDP length
-    UDPHeader *udp = (UDPHeader *)(m_capwap_map_it->second->m_str + ETH_HDR_LEN + IPV4_HDR_LEN);
+    UDPHeader *udp = (UDPHeader *)(m_capwap_map_it->second.c_str() + ETH_HDR_LEN + IPV4_HDR_LEN);
     udp->setLength(m_new_ip_length - IPV4_HDR_LEN);
 
     // allocate new mbuf and chain it to received one
-    m_mbuf_ptr = CGlobalInfo::pktmbuf_alloc_by_port(m_pair_port_id, m_capwap_map_it->second->m_len);
-    memcpy(rte_pktmbuf_mtod(m_mbuf_ptr, char *), m_capwap_map_it->second->m_str, m_capwap_map_it->second->m_len);
+    m_mbuf_ptr = CGlobalInfo::pktmbuf_alloc_by_port(m_pair_port_id, m_capwap_map_it->second.size());
+    memcpy(rte_pktmbuf_mtod(m_mbuf_ptr, char *), m_capwap_map_it->second.c_str(), m_capwap_map_it->second.size());
 
     rte_pktmbuf_adj(m, ETH_HDR_LEN);
     m_mbuf_ptr->next = m;
-    m_mbuf_ptr->data_len = m_capwap_map_it->second->m_len;
+    m_mbuf_ptr->data_len = m_capwap_map_it->second.size();
     m_mbuf_ptr->pkt_len = m_mbuf_ptr->data_len + m->pkt_len;
     m_mbuf_ptr->nb_segs = m->nb_segs + 1;
     m->pkt_len = m->data_len;
