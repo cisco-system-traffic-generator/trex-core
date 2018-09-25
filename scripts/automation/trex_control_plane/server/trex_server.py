@@ -93,7 +93,8 @@ class CTRexServer(object):
         logger.info("Processing get_devices_info() command.")
         try:
             args = [os.path.join(self.TREX_PATH, 'dpdk_nic_bind.py'), '-s', '--json']
-            return subprocess.check_output(args, cwd=self.TREX_PATH, universal_newlines=True)
+            result = subprocess.check_output(args, cwd=self.TREX_PATH, universal_newlines=True)
+            return json.loads(result)
         except Exception as e:
             err_str = "Error processing get_devices_info(): %s" % e
             logger.error(e)
