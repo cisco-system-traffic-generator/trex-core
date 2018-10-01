@@ -1,0 +1,347 @@
+[
+    {
+        "id": "port_limit",
+        "name": "Port limit",
+        "type": "NUMBER",
+        "mandatory": true,
+        "description": "Number of ports. Should be equal to the number of \"interfaces\""
+    },
+    {
+        "id": "version",
+        "name": "Version",
+        "type": "NUMBER",
+        "default": 2,
+        "description": "Must be set to 2",
+        "mandatory": true
+    },
+    {
+        "id": "interfaces",
+        "name": "Interfaces",
+        "type": "LIST",
+        "mandatory": true,
+        "description": "List of interfaces to use. Run sudo ./dpdk_setup_ports.py --show to see the list you can choose from. - mandatory. there are cases that one PCI can have more than one port (MLX4 driver for example), for this you can use the format dd:dd.d/d for example 03:00.0/1, it means the second port of this device. The order of the list is important the first will the virtual port 0",
+        "item": {
+                "name": "Interface",
+                "type": "STRING",
+                "mandatory": true
+            }
+    },
+    {
+        "id": "low_end",
+        "name": "Low end",
+        "type": "BOOLEAN",
+        "default": false,
+        "mandatory": false,
+        "description": "This mode implies following:\nAll TRex threads will be assigned to core 0\nLower memory allocation/requirement\nIf you have already started without low_end argument, reboot the Linux to free hugepages\nSleeps in scheduler instead of busy wait (less accurate, but saves power)\nDo not retry sending packets in case of queue full\n\"platform\" section in config file is ignored"
+
+    },
+    {
+        "id": "enable_zmq_pub",
+        "name": "Enable ZMQ publisher",
+        "type": "BOOLEAN",
+        "default": true,
+        "mandatory": false,
+        "description": "Enable the ZMQ publisher for stats data"
+    },
+    {
+        "id": "zmq_pub_port",
+        "name": "ZMQ publisher port",
+        "type": "NUMBER",
+        "default": 4500,
+        "mandatory": false,
+        "description": "ZMQ port number. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this option"
+    },
+    {
+        "id": "zmq_rpc_port",
+        "name": "Stateless ZMQ RPC port",
+        "type": "NUMBER",
+        "default": 4501,
+        "mandatory": false,
+        "description": "Stateless ZMQ RPC port number. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line"
+    },
+    {
+        "id": "prefix",
+        "name": "TRex instance prefix",
+        "type": "STRING",
+        "default": "setup1",
+        "mandatory": false,
+        "description": "If running two TRex instances on the same machine, each should be given distinct name. Otherwise, can remove this line (passed to DPDK as --file-prefix arg)"
+    },
+    {
+        "id": "limit_memory",
+        "name": "Limit memory",
+        "type": "NUMBER",
+        "default": 1024,
+        "mandatory": false,
+        "description": "Limit the amount of packet memory used (passed to dpdk as -m arg)"
+    },
+    {
+        "id": "c",
+        "name": "Threads (cores) count",
+        "type": "NUMBER",
+        "default": 4,
+        "mandatory": false,
+        "description": "Number of threads (cores) TRex will use per interface pair (can be overridden by -c command line option)"
+    },
+    {
+        "id": "port_bandwidth_gb",
+        "name": "Port bandwidth (Gbs)",
+        "type": "NUMBER",
+        "default": 1,
+        "mandatory": false,
+        "description": "The bandwidth of each interface in Gbs. For VM, put 1. Used to tune the amount of memory allocated by TRex"
+    },
+    {
+        "id": "port_info",
+        "name": "Ports info",
+        "type": "LIST",
+        "mandatory": true,
+        "description": "Mandatory section. It is used to configure each ports IP/MAC addresses and VLANs",
+        "item": {
+            "type": "OBJECT",
+            "name": "Port parameters",
+            "mandatory": true,
+            "attributes": [
+                {
+                    "id": "default_gw",
+                    "name": "Default gateway",
+                    "type": "IP",
+                    "mandatory_if_not_set": "dest_mac",
+                    "description": "Default gateway of TRex port. Used to get ARP resolution and obtain destination MAC address. If no dest_mac given, and no ARP response received, TRex will exit. You must specify either \"default_gw\" or \"dest_mac\""
+                },
+                {
+                    "id": "dest_mac",
+                    "name": "Destination MAC",
+                    "type": "MAC",
+                    "mandatory_if_not_set": "default_gw",
+                    "description": "Destination MAC address. If no dest_mac given, and no ARP response received, TRex will exit. You must specify either \"default_gw\" or \"dest_mac\""
+                },
+                {
+                    "id": "src_mac",
+                    "name": "Source MAC",
+                    "type": "MAC",
+                    "mandatory": false,
+                    "description": "Source MAC to use when sending packets from this interface. If not given, MAC address of the port will be used"
+
+                },
+                {
+                    "id": "ip",
+                    "name": "Source IP",
+                    "type": "IP",
+                    "mandatory": false,
+                    "description": "If given, TRex will issue gratuitous ARP for the ip + src MAC pair on appropriate port. In stateful mode, gratuitous ARP for each ip will be sent every 120 seconds (can be changed using --arp-refresh-period argument)"
+                },
+                {
+                    "id": "vlan",
+                    "name": "VLAN id",
+                    "type": "NUMBER",
+                    "mandatory": false,
+                    "description": "If given, all traffic on the port will be sent with this VLAN tag. This field doesn't support QinQ"
+                }
+            ]
+        }
+    },
+
+    {
+        "id": "memory",
+        "name": "Memory",
+        "type": "OBJECT",
+        "mandatory" : false,
+        "description": "Optional section. It is used when there is a need to tune the amount of memory used by TRex packet manager. Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can eliminate this section\n\nmbuf_<64-2048> -- Numbers of memory buffers allocated for packets in transit, per port pair. Numbers are specified per packet size\n\ntraffic_mbuf_<64-2048> -- Numbers of memory buffers allocated for holding the part of the packet which is remained unchanged per template. You should increase numbers here, only if you have very large amount of templates",
+        "attributes": [
+            {
+                "id":  "mbuf_64",
+                "name": "Memory buffers (64)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 16380
+            },
+            {
+                "id": "mbuf_128",
+                "name": "Memory buffers (128)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "mbuf_256",
+                "name": "Memory buffers (256)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "mbuf_512",
+                "name": "Memory buffers (512)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "mbuf_1024",
+                "name": "Memory buffers (1024)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "mbuf_2048",
+                "name": "Memory buffers (2048)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 4096
+            },
+             {
+                "id": "traffic_mbuf_64",
+                "name": "Traffic memory buffers (64)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 16380
+            },
+            {
+                "id": "traffic_mbuf_128",
+                "name": "Traffic memory buffers (128)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "traffic_mbuf_256",
+                "name": "Traffic memory buffers (256)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "traffic_mbuf_512",
+                "name": "Traffic memory buffers (512)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "traffic_mbuf_1024",
+                "name": "Traffic memory buffers (1024)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 8190
+            },
+            {
+                "id": "traffic_mbuf_2048",
+                "name": "Traffic memory buffers (2048)",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 4096
+            },
+            {
+                "id": "dp_flows",
+                "name": "TRex flow objects count",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 1048576,
+                "description": "Number of TRex flow objects allocated (To get best performance they are allocated upfront, and not dynamically). If you expect more concurrent flows than the default, enlarge this"
+            },
+            {
+                "id": "global_flows",
+                "name": "TRex NAT objects count",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 10240,
+                "description": "Number objects TRex allocates for holding NAT \"in transit\" connections. In stateful mode, TRex learn NAT translation by looking at the address changes done by the DUT to the first packet of each flow. So, these are the number of flows for which TRex sent the first flow packet, but did not learn the translation yet. Again, default here should be good. Increase only if you use NAT and see issues"
+            }
+        ]
+    },
+
+    {
+        "id": "platform",
+        "name": "Platform",
+        "type": "OBJECT",
+        "mandatory": false,
+        "description": "Optional section. It is used to tune the performance and allocate the cores to the right NUMA",
+        "attributes": [
+            {
+                "id": "master_thread_id",
+                "name": "Master thread ID",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 0,
+                "description": "Hardware thread_id for control thread"
+            },
+            {
+                "id": "latency_thread_id",
+                "name": "RX thread id",
+                "type": "NUMBER",
+                "mandatory": false,
+                "description": "Hardware thread_id for RX thread"
+            },
+            {
+                "id": "dual_if",
+                "name": "Dual interfaces",
+                "type": "LIST",
+                "mandatory": false,
+                "description": "\"dual_if\" section defines info for interface pairs (according to the order in \"interfaces\" list). each section, starting with \"- socket\" defines info for different interface pair",
+                "item": {
+                    "type": "OBJECT",
+                    "name": "Interface pair",
+                    "mandatory": true,
+                    "attributes": [
+                        {
+                            "id": "socket",
+                            "name" : "NUMA node (socket)",
+                            "type": "NUMBER",
+                            "mandatory": true,
+                            "description": "The NUMA node from which memory will be allocated for use by the interface pair"
+                        },
+                        {
+                            "id": "threads",
+                            "name" : "Threads",
+                            "type": "LIST",
+                            "mandatory": true,
+                            "description": "Hardware threads to be used for sending packets for the interface pair. Threads are pinned to cores, so specifying threads actually determines the hardware cores",
+                            "item": {
+                                "name": "Thread (core) ID",
+                                "type": "NUMBER",
+                                "mandatory": true
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+
+    {
+        "id": "tw",
+        "name": "Timer wheel",
+        "type": "OBJECT",
+        "mandatory": false,
+        "description": "Optional section. The flow scheduler uses a timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values. This is an advanced configuration; don’t use it if you don’t know what you are doing",
+        "attributes": [
+            {
+                "id": "buckets",
+                "name": "Buckets count",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 1024,
+                "description": "The number of buckets in each level, higher number will improve performance, but will reduce the maximum levels"
+            },
+            {
+                "id": "levels",
+                "name": "Levels count",
+                "type": "NUMBER",
+                "mandatory": false,
+                "default": 3,
+                "description": "How many levels"
+            },
+
+            {
+                "id": "bucket_time_usec",
+                "name": "Bucket time (usec)",
+                "type": "FLOAT",
+                "mandatory": false,
+                "default": 20.0,
+                "description": "Bucket time in usec, higher number will create more bursts"
+            }
+        ]  
+    }
+]
