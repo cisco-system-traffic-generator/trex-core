@@ -143,6 +143,7 @@ class CTRexServer(object):
         self.server.register_function(self.get_running_status)
         self.server.register_function(self.get_trex_cmds)
         self.server.register_function(self.get_trex_config)
+        self.server.register_function(self.get_trex_config_metadata)
         self.server.register_function(self.get_trex_daemon_log)
         self.server.register_function(self.get_trex_log)
         self.server.register_function(self.get_trex_version)
@@ -220,6 +221,16 @@ class CTRexServer(object):
     def get_trex_config(self):
         logger.info("Processing get_trex_config() command.")
         return self._pull_file('/etc/trex_cfg.yaml')
+
+    #get metadata used to generate trex_cfg.yaml
+    def get_trex_config_metadata(self):
+        logger.info("Processing get_trex_config_metadata() command.")
+        metadata_json_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config_metadata.json'))
+        try:
+            with open(metadata_json_path) as f:
+                return json.load(f)
+        except Exception as e:
+            return Fault(-33, "Can't load config metadata contents: %s" % e)
 
     # get daemon log /var/log/trex/trex_daemon_server.log
     def get_trex_daemon_log (self):
