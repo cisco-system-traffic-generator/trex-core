@@ -163,7 +163,7 @@ class Scapy_server():
                         json_response = json.dumps(self.scapy_wrapper.error_handler(e,req_id))
 
                 #  Send reply back to client
-                    self.socket.send_string(json_response)
+                    self.socket.send(json_response.encode('utf-8'))
                     if (method == 'shut_down'):
                         break
 
