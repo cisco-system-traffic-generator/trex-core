@@ -3,7 +3,7 @@
 
 TRex is a traffic generator for Stateful and Stateless use cases.
 
-Traditionally, network infrastructure devices have been tested using commercial traffic generators, while performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
+Traditionally, network infrastructure devices have been tested using commercial traffic generators, while the performance was measured using metrics like packets per second (PPS) and No Drop Rate (NDR). As the network infrastructure functionality has become more complex, stateful traffic generators have become necessary in order to test with more realistic application traffic pattern scenarios.
 Realistic and Stateful traffic generators are needed in order to:
 
 * Test and provide more realistic performance numbers
@@ -11,17 +11,17 @@ Realistic and Stateful traffic generators are needed in order to:
 
 === Current Challenges
 
-* *Cost* : Commercial State-full traffic generators are expensive
-* *Scale* : Bandwidth does not scale up well with features complexity
-* *Standardization* : Lack of standardization of traffic patterns and methodologies
-* *Flexibility* : Commercial tools do not allow agility when flexibility and changes are needed
+* *Cost*: Commercial State-full traffic generators are expensive
+* *Scale*: Bandwidth does not scale up well with features complexity
+* *Standardization*: Lack of standardization of traffic patterns and methodologies
+* *Flexibility*: Commercial tools do not allow agility when flexibility and changes are needed
 
 === Implications
 
-* High capital expenditure (capex) spent by different teams
-* Testing in low scale and extrapolation became a common practice, it is not accurate, and hides real life bottlenecks and quality issues
-* Different feature / platform teams benchmark and results methodology
-* Delays in development and testing due to testing tools features dependency
+* High capital expenditure (capEx) spent by different teams
+* Testing in low scale and extrapolation became a common practice, it is not accurate and hides real life bottlenecks and quality issues
+* Different feature/platform teams benchmark and results methodology
+* Delays in development and testing due to testing tools feature dependency
 * Resource and effort investment in developing different ad hoc tools and test methodologies
 
 TRex addresses these problems through an innovative and extendable software implementation and by leveraging standard and open SW and working on COTS x86/ARM server.
@@ -41,7 +41,7 @@ TRex addresses these problems through an innovative and extendable software impl
 ** Self-contained packaging
 * Cisco Pioneer Award Winner 2015
 
-=== Current TRex DPDK interaces supported
+=== Current TRex DPDK interfaces supported
 
 * Support Physical DPDK 1/2.5/10/25/50/40/100Gbps interfaces (Intel/Mellanox/Cisco VIC/Napatech/Amazon ENA)
 * Virtualization interfaces support (virtio/VMXNET3/E1000)
@@ -62,9 +62,9 @@ This feature is for stateful features that inspect the traffic.
 
 === TRex Stateless feature sets  (STL)
 
-This feature is for Stateless features that do routing/switching e.g. Cisco VPP/OVS . It is more packet based.
+This feature is for Stateless features that do routing/switching e.g. Cisco VPP/OVS. It is more packet based.
 
-* Large scale - Supports about 10-30 million packets per second (mpps) per core, scalable with the number of cores
+* Large-scale - Supports about 10-30 million packets per second (Mpps) per core, scalable with the number of cores
 * Profile can support multiple streams, scalable to 10K parallel streams
 * Supported for each stream:
 ** Packet template - ability to build *any* packet (including malformed) using link:https://en.wikipedia.org/wiki/Scapy[Scapy] (example: MPLS/IPv4/Ipv6/GRE/VXLAN/NSH)
@@ -83,9 +83,9 @@ This feature is for Stateless features that do routing/switching e.g. Cisco VPP/
 * Statistics per stream done in hardware/software
 * Latency and Jitter per stream
 * Blazingly fast Python automation API 
-* L2 Emulation Python event driven framework with examples of ARP/ICMP/ICMPv6/IPv6ND/DHCP and more. The framework can be extendable with new protocols
+* L2 Emulation Python event-driven framework with examples of ARP/ICMP/ICMPv6/IPv6ND/DHCP and more. The framework can be extendable with new protocols
 * Capture/Monitor traffic with BPF filters - no need for Wireshark
-* Capture network traffic by redirect the traffic to Wireshark
+* Capture network traffic by redirecting the traffic to Wireshark
 * Functional tests
 * PCAP file import/export
 * Huge pcap file transmission  (e.g. 1TB pcap file) for DPI
@@ -103,9 +103,9 @@ more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[
 
 === TRex Advance Stateful feature sets (ASTF)
 
-With the new advanced scalable TCP/UDP support, TRex uses TCP/UDP layer for generating the L7 data. This open the following new capabilities:
+With the new advanced scalable TCP/UDP support, TRex uses TCP/UDP layer for generating the L7 data. This opens the following new capabilities:
 
-* Ability to work when the DUT terminates the TCP stack (e.g. compress/uncompress). In this case there is a different TCP session on each side, but L7 data are *almost* the same.
+* Ability to work when the DUT terminates the TCP stack (e.g. compress/uncompress). In this case, there is a different TCP session on each side, but L7 data are *almost* the same.
 * Ability to work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.
 * Performance and scale
 ** High bandwidth - 200gb/sec with many realistic flows (not one elephant flow )
@@ -179,7 +179,7 @@ blogs can be found  TRex link:https://communities.cisco.com/community/developer/
 === Stateless Client GUI
 
 * Cross-Platform - runs on Windows, Linux, Mac OS X
-* Written in JavaFx use TRex RPC API
+* Written in JavaFX use TRex RPC API
 * Scapy base packet builder to build any type of packet using GUI
 **  very easy to add new protocols builders (using scapy)
 * Open and edit PCAP files, replay and save back
