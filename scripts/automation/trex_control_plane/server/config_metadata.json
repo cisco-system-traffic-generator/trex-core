@@ -315,7 +315,7 @@
         "name": "Timer wheel",
         "type": "OBJECT",
         "mandatory": false,
-        "description": "Optional section. The flow scheduler uses a timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values. This is an advanced configuration; don’t use it if you don’t know what you are doing",
+        "description": "Optional section. The flow scheduler uses a timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values. This is an advanced configuration; don't use it if you don't know what you are doing",
         "attributes": [
             {
                 "id": "buckets",
