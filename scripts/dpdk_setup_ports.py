@@ -971,11 +971,13 @@ Other network devices
             if info['TRex_Driver'] not in drivers_table:
                 raise DpdkSetup("Got unknown driver '%s', description: %s" % (info['TRex_Driver'], dev['Device_str']))
             linux_driver = drivers_table[info['TRex_Driver']]
-            if linux_driver not in dpdk_nic_bind.get_loaded_modules():
-                print("No Linux driver installed, or wrong module name: %s" % linux_driver)
-            else:
-                print('Returning to Linux %s' % pci)
-                dpdk_nic_bind.bind_one(pci, linux_driver, False)
+            print('Returning to Linux %s' % pci)
+            success = dpdk_nic_bind.bind_one(pci, linux_driver, False)
+            if not success:
+                if linux_driver not in dpdk_nic_bind.get_loaded_modules():
+                    print("No Linux driver installed, or wrong module name: %s" % linux_driver)
+                else:
+                    print('Could not bind interface to module name: %s' % linux_driver)
 
     def split_pci_key(self, pci_id):
         return pci_id.split('/')[0]
