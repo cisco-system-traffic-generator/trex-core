@@ -17,7 +17,9 @@ import os
 import sys
 import subprocess
 import re
-from .trex_astf_profile import ASTFProfile
+import tempfile
+from .trex_astf_profile import *
+from .cap_handling import CPcapFixTime, is_udp_pcap, pcap_cut_udp
 
 
 DEFAULT_OUT_JSON_FILE = "/tmp/astf.json"
@@ -117,20 +119,22 @@ def execute_bp_sim(opts):
     if opts.verbose:
         print ("executing {0}".format(' '.join(cmd)))
 
-    if opts.verbose:
-        rc = subprocess.call(cmd)
-    else:
-        with open(os.devnull, 'wb') as devnull:
-            rc = subprocess.call(cmd, stdout=devnull)
-    if rc != 0:
-        raise Exception('simulation has failed with error code {0}'.format(rc))
+    with tempfile.TemporaryFile('w+') as out:
+        rc = subprocess.call(' '.join(cmd), stdout = out, stderr = subprocess.STDOUT, shell = True)
+
+        out.seek(0)
+        output = out.read()
+        if rc != 0:
+            raise Exception('Simulation has failed with error code %s\nOutput: %s' % (rc, output))
+        if opts.verbose:
+            print(output)
 
 
 # when parsing paths, return an absolute path (for chdir)
-def parse_path (p):
+def parse_path(p):
     return os.path.abspath(p)
-    
-    
+
+
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="astf_sim.py")
 
@@ -150,7 +154,7 @@ def setParserOptions():
     parser.add_argument('-p', '--path',
                         help="BP sim path",
                         dest='bp_sim_path',
-                        default=None,
+                        required=True,
                         type=parse_path)
 
     parser.add_argument("--cc",
@@ -228,8 +232,47 @@ def setParserOptions():
                         default = None,
                         type = decode_tunables)
 
+    fix_pcap = parser.add_argument_group(title = 'Processing input pcap (-f option is pcap, most of other options will be ignored)')
+
+    fix_pcap.add_argument('--rtt',
+                          help = 'Simulate network latency (msec). Recommended to use at least 5msec',
+                          type = int)
+
+    fix_pcap.add_argument('--fix-timing',
+                          help = 'Changes times as if the capture was done in intermediate device, supported only for TCP',
+                          action = 'store_true')
+
+    fix_pcap.add_argument('--mss',
+                          help = 'Size of data. TCP will be fragmented, UDP will be trimmed',
+                          type = int)
+
     return parser
 
+
+def profile_from_pcap(pcap, mss):
+
+    class Prof1():
+        def get_profile(self, pcap, mss):
+            ip_gen_c = ASTFIPGenDist(ip_range = ['16.0.0.0', '16.0.0.255'], distribution = 'seq')
+            ip_gen_s = ASTFIPGenDist(ip_range = ['48.0.0.0', '48.0.255.255'], distribution = 'seq')
+            ip_gen = ASTFIPGen(glob = ASTFIPGenGlobal(ip_offset = '1.0.0.0'),
+                            dist_client = ip_gen_c,
+                            dist_server = ip_gen_s)
+
+            c_glob_info = ASTFGlobalInfo()
+            if mss is not None:
+                c_glob_info.tcp.mss = mss
+
+            return ASTFProfile(default_ip_gen = ip_gen,
+                               default_c_glob_info = c_glob_info,
+                               default_s_glob_info = c_glob_info,
+                               cap_list = [ASTFCapInfo(file = pcap,
+                                                       cps = 1)])
+    return Prof1().get_profile(pcap, mss)
+
+def fatal(msg):
+    print(msg)
+    sys.exit(1)
 
 def main(args=None):
 
@@ -242,40 +285,70 @@ def main(args=None):
     tun=opts.tunables if opts.tunables else {};
 
     profile = None
-    if opts.dev:
-        profile = ASTFProfile.load(opts.input_file,**tun);
+    if opts.rtt or opts.fix_timing or opts.mss:
+        if opts.rtt is not None and opts.rtt <= 0:
+            fatal('ERROR: RTT must be positive')
+        if opts.mss is not None:
+            if opts.mss <= 0:
+                fatal('ERROR: MSS must be positive')
+            elif opts.mss < 500:
+                print('WARNING: MSS is too small - %s' % opts.mss)
+        if is_udp_pcap(opts.input_file):
+            if opts.rtt or opts.fix_timing:
+                fatal('Fix timing and/or rtt are supported only with TCP')
+            pcap_cut_udp(opts.mss, opts.input_file, opts.output_file, verbose = opts.verbose)
+            return
+        else:
+            profile = profile_from_pcap(opts.input_file, opts.mss)
+            opts.pcap = True
+            if opts.rtt:
+                opts.cmd = '"--rtt=%s"' % (opts.rtt * 1000)
+            else:
+                opts.cmd = None
+
     else:
-       try:
-           profile = ASTFProfile.load(opts.input_file,**tun);
-       except Exception as e:
-           print(e)
-           sys.exit(100)
+        if opts.dev:
+            profile = ASTFProfile.load(opts.input_file, **tun);
+        else:
+            try:
+                profile = ASTFProfile.load(opts.input_file, **tun);
+            except Exception as e:
+                fatal(e)
 
-    if opts.json:
-        print(profile.to_json_str())
-        sys.exit(0)
+        if opts.json:
+            print(profile.to_json_str())
+            return
 
-    if opts.stat:
-        profile.print_stats()
-        sys.exit(0)
+        if opts.stat:
+            profile.print_stats()
+            return
 
     f = open(DEFAULT_OUT_JSON_FILE, 'w')
     f.write(str(profile.to_json_str()).replace("'", "\""))
     f.close()
-    
+
     # if the path is not the same - handle the switch
     if os.path.normpath(opts.bp_sim_path) == os.path.normpath(os.getcwd()):
         execute_inplace(opts)
     else:
         execute_with_chdir(opts)
-        
-        
+
+    if opts.fix_timing:
+        proc_file = opts.output_file
+        if not opts.full:
+            proc_file += '_c.pcap'
+        try:
+            pcap = CPcapFixTime(proc_file, opts.output_file)
+            pcap.fix_timing()
+        except Exception as e:
+            fatal('Could not fix timing: %s ' % e)
+
+
 def execute_inplace (opts):
     try:
         execute_bp_sim(opts)
     except Exception as e:
-        print(e)
-        sys.exit(1)
+        fatal(e)
         
         
 def execute_with_chdir (opts):
@@ -287,8 +360,7 @@ def execute_with_chdir (opts):
         os.chdir(opts.bp_sim_path)
         execute_bp_sim(opts)
     except TypeError as e:
-        print (e)
-        sys.exit(1)
+        fatal(e)
         
     finally:
         os.chdir(cwd)

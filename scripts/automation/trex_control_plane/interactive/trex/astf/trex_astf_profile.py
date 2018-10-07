@@ -743,7 +743,7 @@ class ASTFProgram(object):
         for cmd in self.fields['commands']:
             if cmd.stream != None:
                 if cmd.stream !=self.stream:
-                    raise ASTFError(" Command stream mode is {0} and different from the flow stream mode {1}".format(cmd.stream,self.stream))
+                    raise ASTFError(" Command %s stream mode is %s and different from the flow stream mode %s" % (cmd.fields['name'], cmd.stream, self.stream))
 
             if isinstance(cmd, ASTFCmdJMPNZ):
                 #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
