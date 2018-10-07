@@ -882,12 +882,20 @@ void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     pool.m_tcp_aging_sec=0;
     pool.m_udp_aging_sec=0;
     pool.m_is_bundling=false;
+    pool.m_per_core_distro =false;
 
     for (int i = 0; i < ip_gen_list.size(); i++) {
         Json::Value g=ip_gen_list[i];
         uint32_t ip_start = ip_from_str(g["ip_start"].asString().c_str());
         uint32_t ip_end = ip_from_str(g["ip_end"].asString().c_str());
         uint32_t mask = ip_from_str(g["ip_offset"].asString().c_str());
+
+        /* backward compatible */
+        if (g["per_core_distribution"] != Json::nullValue){
+            if (g["per_core_distribution"] == "seq") {
+                pool.m_per_core_distro =true;
+            }
+        }
 
         pool.m_ip_start = ip_start;
         pool.m_ip_end = ip_end;
@@ -934,6 +942,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
         IP_DIST_t dist;
+        poolinfo.m_per_core_distro =false;
         poolinfo.m_ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
         poolinfo.m_ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
         if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "seq", 3)) {
@@ -946,9 +955,20 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             fprintf(stderr, "wrong distribution string %s in json\n", ip_gen_list[i]["distribution"].asString().c_str());
             exit(1);
         }
+
+        if (ip_gen_list[i]["per_core_distribution"] != Json::nullValue){
+            if (ip_gen_list[i]["per_core_distribution"] == "seq") {
+                poolinfo.m_per_core_distro =true;
+            }
+        }
+
         poolinfo.m_dist =  dist;
         poolinfo.m_dual_interface_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
-        split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+        if (poolinfo.m_per_core_distro) {
+            split_ips_v2(max_threads, rss_thread_id,rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(),dual_port_id, poolinfo, portion);
+        }else{
+            split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+        }
         active_flows_per_core = (portion.m_ip_end - portion.m_ip_start) * 32000;
         if (ip_gen_list[i]["dir"] == "c") {
             gen_idx_trans.push_back(last_c_idx);
