@@ -803,11 +803,13 @@ class ASTFIPGenDist(object):
         ASTFIPGenDist.in_list = []
 
     class Inner(object):
-        def __init__(self, ip_range, distribution="seq"):
+        def __init__(self, ip_range, distribution="seq",per_core_distribution=None):
             self.fields = {}
             self.fields['ip_start'] = ip_range[0]
             self.fields['ip_end'] = ip_range[1]
             self.fields['distribution'] = distribution
+            if per_core_distribution:
+                self.fields['per_core_distribution']=per_core_distribution
 
         def __eq__(self, other):
             if self.fields == other.fields:
@@ -845,7 +847,7 @@ class ASTFIPGenDist(object):
         def to_json(self):
             return dict(self.fields)
 
-    def __init__(self, ip_range, distribution="seq"):
+    def __init__(self, ip_range, distribution="seq",per_core_distribution=None):
 
         """
         Define a ASTFIPGenDist
@@ -857,6 +859,10 @@ class ASTFIPGenDist(object):
                   distribution  : string
                       "seq" or "rand"
 
+                  per_core_distribution : "seq" or "default"
+                     in case of "seq" each core will get continuous range of Ip. 
+                     in case of "default" it is not necessarily the case.
+
         """
 
         ver_args = {"types":
@@ -864,10 +870,15 @@ class ASTFIPGenDist(object):
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         distribution_vals = ["seq", "rand"]
+        per_core_distribution_vals =  ["default", "seq"]
         if distribution not in distribution_vals:
             raise ASTFError("Distribution must be one of {0}".format(distribution_vals))
+        if per_core_distribution:
+            if per_core_distribution not in per_core_distribution_vals:
+                raise ASTFError("per_core_distribution must be one of {0}".format(per_core_distribution_vals))
 
-        new_inner = self.Inner(ip_range=ip_range, distribution=distribution)
+
+        new_inner = self.Inner(ip_range=ip_range, distribution=distribution,per_core_distribution=per_core_distribution)
         for i in range(0, len(self.in_list)):
             if new_inner == self.in_list[i]:
                 self.index = i

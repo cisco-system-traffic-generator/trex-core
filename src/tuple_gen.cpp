@@ -417,6 +417,7 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     fi.m_number_of_clients_per_gb = 0;
     fi.m_min_clients = 0;
     fi.m_is_bundling = false;
+    fi.m_per_core_distro =false;
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
@@ -454,6 +455,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
+        s_pool.m_per_core_distro =false;
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     } else {
@@ -532,3 +534,25 @@ void split_ips(uint32_t thread_id,
     portion.m_ip_start  = poolinfo.get_ip_start()  + thread_id*chunks + dual_if_mask;
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
+
+
+/* split in way that each core will get continues range of ip's */
+
+void split_ips_v2( uint32_t total_threads, 
+                   uint32_t rss_thread_id,
+                   uint32_t rss_max_threads,
+                   uint32_t max_dual_ports, 
+                   uint32_t dual_port_id,
+                   CTupleGenPoolYaml& poolinfo,
+                   CIpPortion & portion){
+
+    uint32_t chunks = poolinfo.getTotalIps()/total_threads;
+
+    assert(chunks>0);
+
+    uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
+
+    portion.m_ip_start  = poolinfo.get_ip_start()  + (rss_thread_id+rss_max_threads*dual_port_id)*chunks + dual_if_mask;
+    portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
+}
+

@@ -1028,6 +1028,7 @@ struct CTupleGenPoolYaml {
     uint16_t        m_udp_aging_sec;
     std::string     m_name;
     bool            m_is_bundling;
+    bool            m_per_core_distro;
     public:
     uint32_t getTotalIps(void){
         return ( m_ip_end-m_ip_start+1);
@@ -1098,6 +1099,14 @@ void split_ips(uint32_t thread_id,
                    CTupleGenPoolYaml& poolinfo,
                    CIpPortion & portion);
 
+
+void split_ips_v2( uint32_t total_threads, 
+                   uint32_t rss_thread_id,
+                   uint32_t rss_max_threads,
+                   uint32_t max_dual_ports, 
+                   uint32_t dual_port_id,
+                   CTupleGenPoolYaml& poolinfo,
+                   CIpPortion & portion);
 
 
 #endif //TUPLE_GEN_H_
