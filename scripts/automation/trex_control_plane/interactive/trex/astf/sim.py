@@ -291,14 +291,19 @@ def main(args=None):
         if opts.mss is not None:
             if opts.mss <= 0:
                 fatal('ERROR: MSS must be positive')
-            elif opts.mss < 500:
-                print('WARNING: MSS is too small - %s' % opts.mss)
+            elif opts.mss < 256:
+                print('WARNING: MSS is too small - %s, continuing...' % opts.mss)
+
         if is_udp_pcap(opts.input_file):
             if opts.rtt or opts.fix_timing:
                 fatal('Fix timing and/or rtt are supported only with TCP')
             pcap_cut_udp(opts.mss, opts.input_file, opts.output_file, verbose = opts.verbose)
             return
         else:
+            if not opts.fix_timing:
+                print('WARNING: Enabling fix timing implicitly')
+                opts.fix_timing = True
+
             profile = profile_from_pcap(opts.input_file, opts.mss)
             opts.pcap = True
             if opts.rtt:
