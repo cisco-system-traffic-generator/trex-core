@@ -27,6 +27,22 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.46 ==
+
+* ASTF: add per_core_distribution field see  link:cp_astf_docs/_modules/trex/astf/trex_astf_profile.html#ASTFIPGenDist[per_core_distribution]
+* Extend astf-sim to replay pcap file for STF mode link:https://github.com/cisco-system-traffic-generator/trex-core/issues/156[github-256] 
+* Amazon DPDK ENA driver fix
+* Stateless GUI can build  trex_cfg.yaml file 
+* Support Python ZMQ 32bit binding for x86-32bit platforms 
+* fix scapy igmp3 for python-3
+* eWLC plugin for AP scale tests
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-536[trex-536]
+* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/150[github-150]
+* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/123[github-123]
+
 == Release 2.45 ==
 
 * Upgrade to DPDK 18.08
