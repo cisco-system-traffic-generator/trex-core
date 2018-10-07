@@ -256,7 +256,7 @@ static int load_list_of_cap_files(CParserOption * op,
                       args->dump_json);
                                       
     uint32_t stop=    os_get_time_msec();
-    printf(" d time = %ul %ul \n",stop-start,os_get_time_freq());
+    printf(" took time: %umsec (freq: %u) \n", stop-start, os_get_time_freq());
 
     lpt->Delete();
     fl.Delete();
@@ -272,7 +272,7 @@ int SimAstf::run() {
     STXSimGuard guard(new TrexAstfBatch(TrexSTXCfg(), nullptr));
     
     try {
-        return load_list_of_cap_files(&CGlobalInfo::m_options,args);
+        return load_list_of_cap_files(&CGlobalInfo::m_options, args);
     } catch (const std::runtime_error &e) {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
@@ -281,7 +281,7 @@ int SimAstf::run() {
 
 
 
-int SimAstfSimple::run(){
+int SimAstfSimple::run() {
     CParserOption * po=&CGlobalInfo::m_options;
     bool rc = CAstfDB::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
     assert(rc);

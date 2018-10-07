@@ -1,5 +1,6 @@
 from .trex_astf_exceptions import ASTFError
 import dpkt
+import struct
 from repoze.lru import lru_cache
 
 
@@ -274,7 +275,7 @@ class _CPcapReader(object):
         return self.obj.is_same_pkts(cap_reader.obj)
 
     def analyze(self):
-          self.obj.analyze()
+        self.obj.analyze()
 
     def gen_prog_file_header(self, out):
         return self.obj.gen_prog_file_header(out)
@@ -337,8 +338,151 @@ class _CPcapReader(object):
         return self.obj.total_payload_len
 
 @lru_cache(maxsize=None)
-def  pcap_reader(file_name):
+def pcap_reader(file_name):
     obj = _CPcapReader(file_name)
     return (obj)
 
+
+class CPktWithTime(list):
+    def __init__(self, *a):
+        list.__init__(self, a)
+
+    @property
+    def ts(self):
+        return self[0]
+
+    @property
+    def pkt(self):
+        return self[1]
+
+    def __repr__(self):
+        return " %g: %s" % (self.ts, self.pkt)
+
+
+class CPcapFixTime:
+    def __init__(self, in_file_name, out_file_name):
+        with open(in_file_name, 'rb') as f:
+            self.pcap_data = list(dpkt.pcap.Reader(f))
+        self.out_file_name = out_file_name
+        self.tuple = None
+        self.swap = False
+        self.rtt = 0
+        self.rtt_syn_ack_ack = 0 # ack on the syn ack 
+        self.pkts = []
+
+    def calc_rtt(self):
+        cnt = 0
+        first_time_set = False
+        first_time = 0
+        last_syn_time = 0
+        rtt = 0
+        rtt_syn_ack_ack = 0
+        for ts, buf in self.pcap_data:
+            eth = dpkt.ethernet.Ethernet(buf)
+            ip = eth.data
+            tcp = ip.data
+            if first_time_set ==False:
+                first_time = ts
+                first_time_set = True;
+            else:
+                rtt = ts-first_time
+            if ip.p != 6:
+                raise Exception("not a TCP flow ..")
+            if cnt==0 or cnt==1:
+                if (tcp.flags & dpkt.tcp.TH_SYN) != dpkt.tcp.TH_SYN :
+                    raise Exception("first packet should be with SYN")
+            if cnt == 1:
+                last_syn_time = ts
+            if cnt == 2:
+                rtt_syn_ack_ack = ts - last_syn_time
+            if cnt > 1:
+                break
+            cnt += 1
+
+        self.rtt_syn_ack_ack = rtt_syn_ack_ack
+        return rtt
+
+    def is_client_side(self, swap):
+        if self.swap == swap:
+            return True
+        else:
+            return False
+
+    def calc_timing (self):
+        self.rtt = self.calc_rtt()
+
+    @staticmethod
+    def nl(buf):
+        return struct.unpack('>I', buf)[0]
+
+    def fix_timing(self):
+        rtt = self.calc_rtt()
+        print("RTT is %f msec" % (rtt*1000))
+        if (rtt/2)*1000 < 5:
+            raise Exception('RTT is less than 5msec, enlarge the RTT')
+        time_to_center = rtt/4
+        for ts, buf in self.pcap_data:
+            eth = dpkt.ethernet.Ethernet(buf)
+            ip = eth.data
+            tcp = ip.data
+            pld = tcp.data
+            pkt_swap = False
+            if self.nl(ip.src) > self.nl(ip.dst):
+                pkt_swap = True
+                tuple = (self.nl(ip.dst), self.nl(ip.src), tcp.dport ,tcp.sport, ip.p)
+            else:
+                tuple = (self.nl(ip.src), self.nl(ip.dst), tcp.sport, tcp.dport, ip.p)
+            if self.tuple == None:
+                self.swap = pkt_swap
+                self.tuple = tuple
+            else:
+                if self.tuple != tuple:
+                    raise Exception("More than one flow - can't process")
+            if self.is_client_side(pkt_swap):
+                self.pkts.append(CPktWithTime(ts + time_to_center, buf))
+            else:
+                self.pkts.append(CPktWithTime(ts - time_to_center, buf))
+
+        self.pkts.sort()
+
+        with open(self.out_file_name, 'wb') as fo:
+            pcap_out = dpkt.pcap.Writer(fo)
+            for pkt in self.pkts:
+                pcap_out.writepkt(pkt.pkt, pkt.ts)
+
+def is_udp_pcap(in_file_name):
+    with open(in_file_name, 'rb') as f:
+        for _, buf in dpkt.pcap.Reader(f):
+            eth = dpkt.ethernet.Ethernet(buf)
+            ip = eth.data
+            return ip.p == dpkt.ip.IP_PROTO_UDP
+
+def pcap_cut_udp(max_data_len, in_file_name, out_file_name, verbose = False):
+    assert(max_data_len)
+    with open(in_file_name, 'rb') as f:
+        pcap_data = list(dpkt.pcap.Reader(f))
+
+    pkts = []
+    for i, (ts, buf) in enumerate(pcap_data):
+        eth = dpkt.ethernet.Ethernet(buf)
+        ip = eth.data
+        udp = ip.data
+        assert type(udp) is dpkt.udp.UDP
+        pld = udp.data
+        exceed = len(pld) - max_data_len
+        if exceed > 0:
+            if verbose:
+                print('pkt %d pld size is %d, exceeding by %d' % (i, len(pld), exceed))
+            ip.sum = 0
+            udp.sum = 0
+            udp.ulen -= exceed
+            udp.data = udp.data[:-exceed]
+            pkts.append(CPktWithTime(ts, bytes(eth)))
+        else:
+            pkts.append(CPktWithTime(ts, buf))
+
+    with open(out_file_name, 'wb') as fo:
+        pcap_out = dpkt.pcap.Writer(fo)
+        for pkt in pkts:
+            pcap_out.writepkt(pkt.pkt, pkt.ts)
 
