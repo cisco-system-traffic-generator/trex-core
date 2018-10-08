@@ -952,30 +952,36 @@ See link:cp_docs/index.html[TRex Stateful Python API] for details about using th
 
 ----
 
-in case there is no errors the 'err' object won't be there. in case of an error counters the 'err' section will include the counter and the description. the 'all' section includes the good and error counters value
-                
-==== Tutorial: Simple simulator 
+In case there are no errors the 'err' object won't be there.
+In case of an error counters the 'err' section will include the counter and the description.
+The 'all' section includes the good and error counters value
+
+==== Tutorial: Simple simulator
 
 *Goal*:: Use the TRex ASTF simple simulator.
 
-The TRex package includes a simulator tool, `astf-sim`. The simulator operates as a Python script that calls an executable. The platform requirements for the simulator tool are the same as for TRex. There is no need for super user in case of simulation.
+The TRex package includes a simulator tool, `astf-sim`.
+The simulator operates as a Python script that calls an executable.
+The platform requirements for the simulator tool are the same as for TRex.
+There is no need for super user in case of simulation.
 
 The TRex simulator can:
 
-Demonstrates the most basic use case using TRex simulator. In this simple simulator there is *one* client flow and *one* server flow and there is *only* one template (the first one). 
-the objective of this simulator is to verify the TCP layer and application layer. 
+Demonstrates the most basic use case using TRex simulator.
+In this simple simulator there is *one* client flow and *one* server flow and there is *only* one template (the first one).
+The objective of this simulator is to verify the TCP layer and application layer.
 In this simulator, it is possible to simulate many abnormal cases for example:
 
-* Drop of specific packets. 
-* Change of packet information (e.g. wrong  sequence numbers)
-* Man in the middle RST and redirect 
+* Drop of specific packets.
+* Change of packet information (e.g. wrong sequence numbers)
+* Man in the middle RST and redirect
 * Keepalive timers.
-* Set the round trip time  
-* Convert the profile to JSON format 
+* Set the round trip time
+* Convert the profile to JSON format
 
 We didn't expose all the capability of the simulator tool but you could debug the emulation layer using this tool and explore the pcap output files. 
 
-Example traffic profile: 
+Example traffic profile:
 
 *File*:: link:{github_astf_path}/http_simple.py[stl/http_simple.py]
 
@@ -986,8 +992,8 @@ The following runs the traffic profile through the TRex simulator, and storing t
 [bash]>./astf-sim -f astf/http_simple.py -o b
 ----
 
-those are the pcap file that generated:
- 
+Those are the pcap file that generated:
+
 * b_c.pcap  client side pcap 
 * b_s.pcap  server side pcap 
 
@@ -1094,7 +1100,7 @@ Adding `--json` displays the details of the JSON profile
 
 [NOTE] 
 =====================================================================
-we might change the JSON format in the future as this is a first version 
+We might change the JSON format in the future as this is a first version 
 =====================================================================
 
 
