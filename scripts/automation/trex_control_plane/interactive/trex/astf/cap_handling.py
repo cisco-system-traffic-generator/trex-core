@@ -381,15 +381,15 @@ class CPcapFixTime:
             eth = dpkt.ethernet.Ethernet(buf)
             ip = eth.data
             tcp = ip.data
-            if first_time_set ==False:
+            if first_time_set == False:
                 first_time = ts
                 first_time_set = True;
             else:
                 rtt = ts-first_time
-            if ip.p != 6:
+            if ip.p != dpkt.ip.IP_PROTO_TCP:
                 raise Exception("not a TCP flow ..")
             if cnt==0 or cnt==1:
-                if (tcp.flags & dpkt.tcp.TH_SYN) != dpkt.tcp.TH_SYN :
+                if (tcp.flags & dpkt.tcp.TH_SYN) != dpkt.tcp.TH_SYN:
                     raise Exception("first packet should be with SYN")
             if cnt == 1:
                 last_syn_time = ts

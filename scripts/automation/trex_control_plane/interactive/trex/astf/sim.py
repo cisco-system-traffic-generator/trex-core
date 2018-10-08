@@ -235,11 +235,11 @@ def setParserOptions():
     fix_pcap = parser.add_argument_group(title = 'Processing input pcap (-f option is pcap, most of other options will be ignored)')
 
     fix_pcap.add_argument('--rtt',
-                          help = 'Simulate network latency (msec). Recommended to use at least 5msec',
+                          help = 'Simulate network latency (msec). Recommended to use at least 5msec. Supported only for TCP',
                           type = int)
 
     fix_pcap.add_argument('--fix-timing',
-                          help = 'Changes times as if the capture was done in intermediate device, supported only for TCP',
+                          help = 'Changes times as if the capture was done in intermediate device. Supported only for TCP',
                           action = 'store_true')
 
     fix_pcap.add_argument('--mss',
