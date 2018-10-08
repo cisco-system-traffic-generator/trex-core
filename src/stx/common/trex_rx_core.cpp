@@ -292,12 +292,12 @@ bool CRxCore::work_tick() {
 
 
 bool CRxCore::tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id) {
-    return m_rx_port_mngr[tx_port_id].tx_pkt(m);
+    return m_rx_port_mngr[tx_port_id]->tx_pkt(m);
 }
 
 
 bool CRxCore::tx_pkt(const std::string &pkt, uint8_t tx_port_id) {
-    return m_rx_port_mngr[tx_port_id].tx_pkt(pkt);
+    return m_rx_port_mngr[tx_port_id]->tx_pkt(pkt);
 }
 
 
@@ -422,14 +422,14 @@ CRxCore::stop_queue(uint8_t port_id) {
 bool
 CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map) {
     bool rc;
-    rc = m_rx_port_mngr[port_id].start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map);
+    rc = m_rx_port_mngr[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map);
     recalculate_next_state();
     return rc;
 }
 
 void
 CRxCore::stop_capwap_proxy(uint8_t port_id) {
-    m_rx_port_mngr[port_id].stop_capwap_proxy();
+    m_rx_port_mngr[port_id]->stop_capwap_proxy();
     recalculate_next_state();
 }
 
