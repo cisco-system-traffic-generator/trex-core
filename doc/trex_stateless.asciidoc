@@ -1745,26 +1745,27 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
         pad = max(0, size - len(base_pkt)) * 'x'
 
 
-        return STLProfile( [ STLStream( isg = 10.0, # start in delay                                  <1>
+        return STLProfile( [ STLStream( isg = 500000.0, # start in delay                                  <1>
                                         name    ='S0',
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
                                         mode = STLTXSingleBurst( pps = 10, total_pkts = 10),
                                         next = 'S1'), # point to next stream 
 
-                             STLStream( self_start = False, # stream is disabled. Enabled by S0       <2>
+                             STLStream( isg = 500000.0
+                                        self_start = False, # stream is disabled. Enabled by S0       <2>
                                         name    ='S1',
                                         packet  = STLPktBuilder(pkt = base_pkt1/pad),
                                         mode    = STLTXMultiBurst( pps = 1000,
                                                                    pkts_per_burst = 4,
                                                                    ibg = 1000000.0,                         
-                                                                   count = 5)
+                                                                   count = 3)
                                         )
 
                             ]).get_streams()
 
 ----
-<1> Stream S0 waits 10 usec (inter-stream gap, ISG) and then sends a burst of 10 packets at 10 PPS.
-<2> Multi-burst of 5 bursts of 4 packets with an inter-burst gap of 1 second.
+<1> Stream S0 waits 0.5 sec (inter-stream gap, ISG) and then sends a burst of 10 packets at 10 PPS.
+<2> Multi-burst of 3 bursts of 4 packets with an inter-burst gap of 1 second.
  
 
 The following illustration does not fully match the Python example cited above. It has been simplified, such as using a 0.5 second ISG, for illustration purposes.
@@ -2318,7 +2319,7 @@ class STLS1(object):
                                           offset_fixup=2),                           <2>
                            STLVmFixIpv4(offset = "IP")
                           ]
-                         ,split_by_field = "mac_src"  # split 
+                         ,split_by_field = "mac_src"  # split                        <3>
                        )
 
         return STLStream(packet = STLPktBuilder(pkt = base_pkt/pad,vm = vm),
@@ -2326,7 +2327,7 @@ class STLS1(object):
 ----
 <1> Writes the stream variable `mac_src` with an offset of 10 (last 2 bytes of `src_mac` field). The offset is specified explicitly as 10 bytes from the beginning of the packet.
 <2> Writes the stream variable `mac_src` with an offset determined by the offset of `IP.src` plus the `offset_fixup` of 2. 
-
+<3> Deprecated parameter.
 
 ==== Tutorial: Field Engine, many clients with ARP
 
@@ -2450,6 +2451,34 @@ The new implementation is always to split as if the profile were sent from one c
 
 The following example creates a stream with no packets. The example uses the inter-stream gap (ISG) of the null stream, and then starts a new stream. Essentially, this uses one property of the stream (ISG) without actually including packets in the stream.
 
+
+
+*File*:: link:{github_stl_path}/null_stream.py[stl/null_stream.py]
+
+[source,python]
+----
+    def create_stream (self):
+        # Create base packet and pad it to size
+        size = self.fsize - 4  # no FCS
+    	base_pkt1 = Ether()/IP(src = "16.0.0.1", dst = "48.0.0.1")/UDP(dport = 12, sport = 1025)
+    	base_pkt2 = Ether()/IP(src = "16.0.0.2", dst = "48.0.0.1")/UDP(dport = 12, sport = 1025)
+    	pad = max(0, size - len(base_pkt1)) * 'x'
+
+    	return STLProfile([ STLStream(	name = 'S1',
+    									packet = STLPktBuilder(pkt = base_pkt1/pad),
+    									mode = STLTXSingleBurst(pps = 10, total_pkts = 5),
+    									next = 'S2'),
+    						STLStream(	self_start = False,
+    									isg = 1000000.0, # 1 sec
+    									name = 'S2',
+    									packet = STLPktBuilder(pkt = base_pkt2/pad),
+    									mode = STLTXSingleBurst(pps = 10, total_pkts = 1),
+    									dummy_stream = True,
+    									next = 'S1')
+    						]).get_streams()
+
+
+----
 This method can create loops like the following:
 
 image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width_1}, link="images/stl_null_stream_02.png"]
@@ -2459,10 +2488,12 @@ image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_w
 
 Null stream configuration:
 
-1. Mode: Burst 
-2. Number of packets: 0
+1. Mode: Single Burst
+2. Dummy stream flag: True
 
-// I think that the actual example is missing.
+
+
+
 
 ==== Tutorial: Field Engine, stream barrier (split)
 
