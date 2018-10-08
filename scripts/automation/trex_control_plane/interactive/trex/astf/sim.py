@@ -250,25 +250,21 @@ def setParserOptions():
 
 
 def profile_from_pcap(pcap, mss):
+    ip_gen_c = ASTFIPGenDist(ip_range = ['16.0.0.0', '16.0.0.255'], distribution = 'seq')
+    ip_gen_s = ASTFIPGenDist(ip_range = ['48.0.0.0', '48.0.255.255'], distribution = 'seq')
+    ip_gen = ASTFIPGen(glob = ASTFIPGenGlobal(ip_offset = '1.0.0.0'),
+                    dist_client = ip_gen_c,
+                    dist_server = ip_gen_s)
 
-    class Prof1():
-        def get_profile(self, pcap, mss):
-            ip_gen_c = ASTFIPGenDist(ip_range = ['16.0.0.0', '16.0.0.255'], distribution = 'seq')
-            ip_gen_s = ASTFIPGenDist(ip_range = ['48.0.0.0', '48.0.255.255'], distribution = 'seq')
-            ip_gen = ASTFIPGen(glob = ASTFIPGenGlobal(ip_offset = '1.0.0.0'),
-                            dist_client = ip_gen_c,
-                            dist_server = ip_gen_s)
+    c_glob_info = ASTFGlobalInfo()
+    if mss is not None:
+        c_glob_info.tcp.mss = mss
 
-            c_glob_info = ASTFGlobalInfo()
-            if mss is not None:
-                c_glob_info.tcp.mss = mss
-
-            return ASTFProfile(default_ip_gen = ip_gen,
-                               default_c_glob_info = c_glob_info,
-                               default_s_glob_info = c_glob_info,
-                               cap_list = [ASTFCapInfo(file = pcap,
-                                                       cps = 1)])
-    return Prof1().get_profile(pcap, mss)
+    return ASTFProfile(default_ip_gen = ip_gen,
+                       default_c_glob_info = c_glob_info,
+                       default_s_glob_info = c_glob_info,
+                       cap_list = [ASTFCapInfo(file = pcap,
+                                               cps = 1)])
 
 def fatal(msg):
     print(msg)
@@ -306,10 +302,10 @@ def main(args=None):
 
             profile = profile_from_pcap(opts.input_file, opts.mss)
             opts.pcap = True
-            if opts.rtt:
-                opts.cmd = '"--rtt=%s"' % (opts.rtt * 1000)
-            else:
-                opts.cmd = None
+            if not opts.rtt:
+                input_pcap = CPcapFixTime(opts.input_file)
+                opts.rtt = input_pcap.calc_rtt() * 1000
+            opts.cmd = '"--rtt=%s"' % (opts.rtt * 1000)
 
     else:
         if opts.dev:
@@ -343,8 +339,8 @@ def main(args=None):
         if not opts.full:
             proc_file += '_c.pcap'
         try:
-            pcap = CPcapFixTime(proc_file, opts.output_file)
-            pcap.fix_timing()
+            pcap = CPcapFixTime(proc_file)
+            pcap.fix_timing(opts.output_file)
         except Exception as e:
             fatal('Could not fix timing: %s ' % e)
 

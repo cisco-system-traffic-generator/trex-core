@@ -360,14 +360,13 @@ class CPktWithTime(list):
 
 
 class CPcapFixTime:
-    def __init__(self, in_file_name, out_file_name):
+    def __init__(self, in_file_name):
         with open(in_file_name, 'rb') as f:
             self.pcap_data = list(dpkt.pcap.Reader(f))
-        self.out_file_name = out_file_name
         self.tuple = None
         self.swap = False
         self.rtt = 0
-        self.rtt_syn_ack_ack = 0 # ack on the syn ack 
+        self.rtt_syn_ack_ack = 0 # ack on the syn ack
         self.pkts = []
 
     def calc_rtt(self):
@@ -415,9 +414,9 @@ class CPcapFixTime:
     def nl(buf):
         return struct.unpack('>I', buf)[0]
 
-    def fix_timing(self):
+    def fix_timing(self, out_file_name):
         rtt = self.calc_rtt()
-        print("RTT is %f msec" % (rtt*1000))
+        print('RTT is %g msec' % (rtt*1000))
         if (rtt/2)*1000 < 5:
             raise Exception('RTT is less than 5msec, enlarge the RTT')
         time_to_center = rtt/4
@@ -445,7 +444,7 @@ class CPcapFixTime:
 
         self.pkts.sort()
 
-        with open(self.out_file_name, 'wb') as fo:
+        with open(out_file_name, 'wb') as fo:
             pcap_out = dpkt.pcap.Writer(fo)
             for pkt in self.pkts:
                 pcap_out.writepkt(pkt.pkt, pkt.ts)
