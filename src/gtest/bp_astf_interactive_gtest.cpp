@@ -100,9 +100,11 @@ TEST_F(gt_astf_inter, astf_positive_4) {
     lpastf->free_instance();
 }
 
+#if 0
 TEST_F(gt_astf_inter, astf_negative_4) {
     CAstfDB::instance();
 }
+#endif
 
 TEST_F(gt_astf_inter, astf_positive_5) {
     CFlowGenList fl;
