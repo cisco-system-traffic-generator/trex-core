@@ -296,7 +296,8 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_check_counters=false;
     m_skip_compare_file=false;
     m_mss=0;
-    m_drop_rnd = NULL;
+    m_drop_rnd = nullptr;
+    m_gen = nullptr;
 
     m_rtt_sec =0.05; /* 50msec */
     m_drop_ratio =0.0;
@@ -545,8 +546,10 @@ void CClientServerTcp::Delete(){
         delete m_drop_rnd;
     }
     delete m_reorder_rnd;
-    CAstfDB::instance()->clear_db_ro_rw(m_gen);
-    CAstfDB::free_instance();
+    if ( CAstfDB::has_instance() ) {
+        CAstfDB::instance()->clear_db_ro_rw(m_gen);
+        CAstfDB::free_instance();
+    }
     delete m_gen;
 }
 

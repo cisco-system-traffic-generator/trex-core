@@ -48,7 +48,8 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
             {'name': 'All gtests (non-valgrind)', 'cmd': './bp-sim-64 --ut'},
             {'name': 'run-gtest-clean', 'cmd': os.path.join(cur_dir, 'run-gtest-clean')},
             {'name': 'gt_tcp.* valgrind', 'cmd': os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_tcp.*"')},
-            {'name': '*.astf_positive* valgrind', 'cmd': os.path.join(cur_dir, 'run-gtest-tcp-clean "*.astf_positive*"')}]
+            {'name': '*.astf_positive* valgrind', 'cmd': os.path.join(cur_dir, 'run-gtest-tcp-clean "*.astf_positive*"')}
+            ]
 
         # run in parallel
         for test in tests:
