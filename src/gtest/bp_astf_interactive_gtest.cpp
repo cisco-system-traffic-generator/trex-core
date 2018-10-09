@@ -115,6 +115,7 @@ TEST_F(gt_astf_inter, astf_positive_5) {
     fl.Delete();
 }
 
+#if 0
 TEST_F(gt_astf_inter, astf_negative_5) {
     CFlowGenList fl;
     fl.Create();
@@ -122,6 +123,7 @@ TEST_F(gt_astf_inter, astf_negative_5) {
     CFlowGenListPerThread *lpt = fl.m_threads_info[0];
     lpt->Create_tcp_ctx(); // DP core should allocate it (should assert)
 }
+#endif
 
 TEST_F(gt_astf_inter, astf_positive_6) {
     bool success;
