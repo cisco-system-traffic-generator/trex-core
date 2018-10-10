@@ -1354,6 +1354,9 @@ void CAstfDbRO::dump(FILE *fd) {
 }
 
 void CAstfDbRO::Delete() {
+    if (m_init==0)
+        return;
+
     int i;
     for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();
@@ -1372,7 +1375,8 @@ void CAstfDbRO::Delete() {
     m_templates.clear();
 
     m_assoc_trans.clear();
-    m_init = false;
+    m_init = 0;
+    m_cps_sum=0.0;
 }
 
 

@@ -33,7 +33,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
     m_flow_gen->Create_tcp_ctx();
-    no_close = true;
+    //no_close = true;  /* default is without --nc*/
     sync_stop = false;
 }
 

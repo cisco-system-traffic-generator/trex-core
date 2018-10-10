@@ -508,8 +508,6 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
 }
 
 bool CFlowGenListPerThread::Create_tcp_batch() {
-    m_tcp_terminate = false;
-
     uint8_t mem_socket_id = get_memory_socket_id();
     CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
     if ( !template_db ) {
@@ -544,15 +542,16 @@ bool CFlowGenListPerThread::Create_tcp_batch() {
 }
 
 void CFlowGenListPerThread::Delete_tcp_batch() {
-    m_tcp_terminate = true;
     if ( CAstfDB::has_instance() ) {
         CAstfDB::instance()->clear_db_ro_rw(&m_smart_gen);
     }
     m_c_tcp->reset_tuneables();
     m_s_tcp->reset_tuneables();
-    m_sched_accurate = false;
     m_c_tcp->delete_startup();
     m_s_tcp->delete_startup();
+    m_sched_accurate = false;
+    m_tcp_terminate=false;
+    m_tcp_terminate_cnt=0;
 }
 
 void CFlowGenListPerThread::Delete_tcp_ctx(){

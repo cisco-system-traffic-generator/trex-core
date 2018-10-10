@@ -553,6 +553,9 @@ private:
 
     void on_tick_level_inc(int level);
 
+    /* reset state in case of timer restart */
+     void reset_tick_level_inc(int level);
+
 
     RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
                               htw_ticks_t  ticks);
