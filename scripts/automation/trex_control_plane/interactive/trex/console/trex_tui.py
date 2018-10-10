@@ -281,8 +281,6 @@ class TrexTUIAstfStats(TrexTUIPanel):
         buf.seek(0)
         out_lines = buf.readlines()
         self.num_lines = len(out_lines)
-        if self.start_row > self.num_lines - self.max_lines:
-            self.start_row = max(0, self.num_lines - self.max_lines)
         buffer.write(''.join(out_lines[self.start_row:self.start_row+self.max_lines]))
         buffer.write('\n')
 
@@ -296,7 +294,9 @@ class TrexTUIAstfStats(TrexTUIPanel):
          return ""
 
     def action_up(self):
-        if self.start_row > 0:
+        if self.start_row > self.num_lines:
+            self.start_row = self.num_lines
+        elif self.start_row > 0:
             self.start_row -= 1
 
     def action_down(self):
