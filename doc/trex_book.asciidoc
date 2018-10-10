@@ -75,10 +75,10 @@ This guide explains the use of TRex internals and the use of TRex together with 
 
 TRex is a Linux application, interacting with Linux kernel modules. It uses DPDK (there is *no* need to install DPDK as a library).
 TRex should work on any COTS x86 server (it can be compiled to ARM but not tested in our regression).
-Our regression setups uses Cisco UCS hardware for high performance low latency use cases. 
+Our regression setups uses Cisco UCS hardware for high performance low latency use cases.
 The following platforms have been tested and are recommended for operating TRex.
 
-Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces). 
+Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces).
 Docker example is provided link:trex_vm_manual.html#docker[Docker] for more info see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 
 
@@ -131,10 +131,10 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 .Supported NICs
 [options="header",cols="1,1,1,1,4",width="90%"]
 |=================
-| Chipset              | Bandwidth  (Gb/sec)  | LSO  | LRO   | Example    
+| Chipset              | Bandwidth  (Gb/sec)  | LSO  | LRO   | Example
 | Any Kernel Linux interface |x| x | x | veth,tap,tun,eth0,wireless interface, up to ~1MPPS, one thread. see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
-| Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. X550-T2,x540-T2 for tbase Cisco part ID:UCSC-PCIE-ID10GC 
+| Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. X550-T2,x540-T2 for tbase Cisco part ID:UCSC-PCIE-ID10GC
 | Intel 82599 VF       | x   | + | + |
 | Intel X710           | 10  | + | - |Cisco part ID:UCSC-PCIE-IQ10GF link:https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver[SFP+], *Preferred* support per stream stats in hardware link:http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49[Silicom PE310G4i71L]
 | Intel XL710          | 40  | + | - |Cisco part ID:UCSC-PCIE-ID40GF, link:https://en.wikipedia.org/wiki/QSFP[QSFP+] (copper/optical) *Preferred* support per stream stats in hardware
@@ -496,7 +496,7 @@ A script is available to automate the process of tailoring the basic configurati
 
 There are two ways to run the script:
 
-* Interactive mode: Script pormpts you for parameters.
+* Interactive mode: Script prompts you for parameters.
 * Command line mode: Provide all parameters using command line options.
 
 ==== Interactive mode
@@ -613,7 +613,7 @@ To enable this mode, define low_end argument in platform config file:
 ...
 ----
 
-This mode implies following:
+This mode implies the following:
 
 * All TRex threads will be assigned to core 0
 * Lower memory allocation/requirement. +
@@ -684,7 +684,7 @@ Platform config file example:
 ...
 ----
 
-Under the hood it's being replaced with following (this full syntax can also be used, possibly containing another DPDK arguments):
+Under the hood it's being replaced with the following (this full syntax can also be used, possibly containing another DPDK arguments):
 [source,bash]
 ----
   - port_limit: 2
@@ -817,7 +817,7 @@ zmq publisher at: tcp://*:4500
 <6> Expected number of packets per second (calculated without latency packets).
 <7> Expected number of connections per second (calculated without latency packets).
 <8> Expected number of bits per second (calculated without latency packets).
-<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router because the router ages flows slower.
+<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usually the TRex number of active flows is much lower than that of the router because the router ages flows slower.
 <10> Total number of TRex flows opened since startup (including active ones, and ones already closed).
 <11> Drop rate.
 
@@ -1012,7 +1012,7 @@ The keywords `src_ipv6` and `dst_ipv6` specify the most significant 96 bits of t
   - duration : 10
     src_ipv6 : [0xFE80,0x0232,0x1002,0x0051,0x0000,0x0000]
     dst_ipv6 : [0x2001,0x0DB8,0x0003,0x0004,0x0000,0x0000]
-    generator :  
+    generator :
           distribution : "seq"
           clients_start : "16.0.0.1"
           clients_end   : "16.0.1.255"
@@ -1020,7 +1020,7 @@ The keywords `src_ipv6` and `dst_ipv6` specify the most significant 96 bits of t
           servers_end   : "48.0.0.255"
           clients_per_gb : 201
           min_clients    : 101
-          dual_port_mask : "1.0.0.0" 
+          dual_port_mask : "1.0.0.0"
           tcp_aging      : 1
           udp_aging      : 1
 ----
@@ -1927,7 +1927,7 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 ----
 <1>  Number of ports. Should be equal to the number of interfaces listed in 3. - mandatory
 <2>  Must be set to 2. - mandatory
-<3>  List of interfaces to use. Run `sudo ./dpdk_setup_ports.py --show` to see the list you can choose from. - mandatory. there are cases that one PCI can have more than one port (MLX4 driver for example), for this you can use the format dd:dd.d/d for example 03:00.0/1, it means the second port of this device. The order of the list is important the first will the virtual port 0.
+<3>  List of interfaces to use. Run `sudo ./dpdk_setup_ports.py --show` to see the list you can choose from. - mandatory. there are cases that one PCI can have more than one port (MLX4 driver for example), for this you can use the format dd:dd.d/d for example 03:00.0/1, it means the second port of this device. The order of the list is important, the first will be the virtual port 0.
 <4>  Enable the ZMQ publisher for stats data, default is true.
 <5>  ZMQ port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
 <6>  If running two TRex instances on the same machine, each should be given distinct name. Otherwise, can remove this line. ( Passed to DPDK as --file-prefix arg)
