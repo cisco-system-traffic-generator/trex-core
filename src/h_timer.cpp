@@ -274,6 +274,7 @@ RC_HTW_t CHTimerWheel::Delete(){
 void CNATimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
     #ifndef _DEBUG 
     if (m_total_events==0) {
+        reset_tick_level_inc(1);
         return;
     }
     #endif
@@ -285,6 +286,7 @@ void CNATimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
         assert(m_total_events>=res);
         m_total_events -=res;
     }
+    reset_tick_level_inc(1);
     assert(m_total_events==0);
 }
 
@@ -305,6 +307,19 @@ void CNATimerWheel::on_tick_level0(void *userdata,htw_on_tick_cb_t cb){
    lp->timer_tick();
    m_ticks[0]++;
 }
+
+
+void CNATimerWheel::reset_tick_level_inc(int level){
+    if (m_cnt_div){
+        /* two level mode is enabled */
+        CHTimerOneWheel * lp=&m_timer_w[level];
+        lp->timer_tick();
+        m_ticks[level]++;
+        m_cnt_state=0;
+    }
+}
+
+
 
 void CNATimerWheel::on_tick_level_inc(int level){
     m_cnt_state++;
