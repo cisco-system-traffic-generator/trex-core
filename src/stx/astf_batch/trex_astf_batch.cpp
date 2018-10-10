@@ -56,7 +56,7 @@ TrexDpCoreAstfBatch::start_astf() {
         }
     }
 
-    if ( !m_core->Create_tcp_batch() ) {
+    if ( !m_core->load_tcp_profile() ) {
         fprintf(stderr," ERROR in tcp object creation \n");
         return;
     }

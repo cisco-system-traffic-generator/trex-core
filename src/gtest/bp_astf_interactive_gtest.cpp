@@ -134,19 +134,19 @@ TEST_F(gt_astf_inter, astf_positive_6) {
     fl.generate_p_thread_info(1);
     CFlowGenListPerThread *lpt = fl.m_threads_info[0];
 
-    success = lpt->Create_tcp_batch(); // DB not loaded
+    success = lpt->load_tcp_profile(); // DB not loaded
     EXPECT_EQ(success, false);
 
     CAstfDB * lpastf = CAstfDB::instance();
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");
     EXPECT_EQ(success, true);
 
-    success = lpt->Create_tcp_batch(); // DB loaded
+    success = lpt->load_tcp_profile(); // DB loaded
     EXPECT_EQ(success, true);
 
     /* TODO: run simulation of traffic here with --nc */
 
-    lpt->Delete_tcp_batch();
+    lpt->unload_tcp_profile();
 
     lpastf->free_instance();
     fl.clean_p_thread_info();

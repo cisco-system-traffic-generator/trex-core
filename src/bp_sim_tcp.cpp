@@ -507,7 +507,7 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-bool CFlowGenListPerThread::Create_tcp_batch() {
+bool CFlowGenListPerThread::load_tcp_profile() {
     uint8_t mem_socket_id = get_memory_socket_id();
     CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
     if ( !template_db ) {
@@ -541,7 +541,7 @@ bool CFlowGenListPerThread::Create_tcp_batch() {
     return(true);
 }
 
-void CFlowGenListPerThread::Delete_tcp_batch() {
+void CFlowGenListPerThread::unload_tcp_profile() {
     if ( CAstfDB::has_instance() ) {
         CAstfDB::instance()->clear_db_ro_rw(&m_smart_gen);
     }
