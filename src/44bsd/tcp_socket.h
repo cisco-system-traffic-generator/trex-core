@@ -168,8 +168,11 @@ public:
     void Dump(FILE *fd);
     void Free(){
         if (m_mbuf) {
+            /*  
+            can't work with ASTF interactive see https://trex-tgn.cisco.com/youtrack/issue/trex-537
             rte_mbuf_set_as_core_multi(m_mbuf);
             assert(rte_mbuf_refcnt_read(m_mbuf)==1);
+            */
             rte_pktmbuf_free(m_mbuf);
             m_mbuf=0;
         }
