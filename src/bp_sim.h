@@ -3083,8 +3083,8 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    bool Create_tcp_batch();
-    void Delete_tcp_batch();
+    bool load_tcp_profile();
+    void unload_tcp_profile();
     void Delete_tcp_ctx();
 
     void generate_flow(bool &done);

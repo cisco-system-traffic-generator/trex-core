@@ -83,7 +83,7 @@ void TrexAstfDpCore::start_scheduler() {
     }
     m_flow_gen->m_cur_flow_id = 1;
     m_flow_gen->m_stats.clear();
-    m_flow_gen->Create_tcp_batch();
+    m_flow_gen->load_tcp_profile();
 
     double old_offset=0.0;
     CGenNode *node;
@@ -142,7 +142,7 @@ void TrexAstfDpCore::start_scheduler() {
 }
 
 void TrexAstfDpCore::delete_tcp_batch(void) {
-    m_flow_gen->Delete_tcp_batch();
+    m_flow_gen->unload_tcp_profile();
     sync_barrier();
 }
 
