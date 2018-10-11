@@ -42,35 +42,38 @@ def get_proc_status(proc, stdout_file, timeout = 60):
 
 @attr('run_on_trex')
 class CPP_Test(functional_general_test.CGeneralFunctional_Test):
+    def test_gtests_all(self):
+        command = './bp-sim-64 --ut'
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of gtests (%s)' % ret)
 
-    def test_gtests_positive(self):
-        tests = [
-            {'name': 'All gtests (non-valgrind)', 'cmd': './bp-sim-64 --ut'},
-            {'name': 'run-gtest-clean', 'cmd': os.path.join(cur_dir, 'run-gtest-clean')},
-            {'name': 'gt_tcp.* valgrind', 'cmd': os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_tcp.*"')},
-            {'name': '*.astf_positive* valgrind', 'cmd': os.path.join(cur_dir, 'run-gtest-tcp-clean "*.astf_positive*"')}
-            ]
+    def test_gtests_valgrind(self):
+        command = os.path.join(cur_dir, 'run-gtest-clean')
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
-        # run in parallel
-        for test in tests:
-            test['stdout'] = tempfile.TemporaryFile()
-            test['proc'] = run_command_bg(test['cmd'], test['stdout'])
+    def test_gtests_tcp_valgrind(self):
+        command = os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_tcp.*"')
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
-        failed_tests = []
-        for test in tests:
-            ret, out = get_proc_status(test['proc'], test['stdout'])
-            if ret:
-                print('Non-zero return status of test %s. Output:\n%s' % (test['name'], out))
-                failed_tests.append(test['name'])
-
-        if failed_tests:
-            raise Exception('Some tests failed (%s)' % ', '.join(failed_tests))
-
+    def test_gtests_astf_positive(self):
+        command = os.path.join(cur_dir, 'run-gtest-tcp-clean "*.astf_positive*"')
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
     def test_gtests_astf_negative(self):
         print('')
-        cmd = './bp-sim-64 --ut --gtest_filter=*.astf_negative* --gtest_list_tests'
-        ret, out = run_command(cmd)
+        command = './bp-sim-64 --ut --gtest_filter=*.astf_negative* --gtest_list_tests'
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
         if ret:
             print('\nOutput:\n%s' % out)
             raise Exception('Could not get negative ASTF tests list')
@@ -101,8 +104,8 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
 
 
     def test_bp_sim_client_cfg(self):
-        cmd = './bp-sim-64 --pcap -f cap2/dns.yaml --client_cfg automation/regression/cfg/client_cfg_vlan_mac.yaml -o generated/bp_sim_dns_vlans_gen.pcap'
-        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd))
+        command = './bp-sim-64 --pcap -f cap2/dns.yaml --client_cfg automation/regression/cfg/client_cfg_vlan_mac.yaml -o generated/bp_sim_dns_vlans_gen.pcap'
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
         if ret:
             print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
@@ -117,8 +120,8 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
             print("Can run only at csi-trex-05, skip here")
             return
         
-        cmd = './astf-sim-utl --sfr'
-        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50)
+        command = './astf-sim-utl --sfr'
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path, timeout = 50)
         if ret:
             print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of test_astf_sim_utl_sfr (%s)' % ret)
@@ -130,8 +133,8 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
             print("Can run only at csi-trex-05, skip here")
             return
 
-        cmd = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
-        ret, out = run_command(os.path.join(CTRexScenario.scripts_path, cmd), timeout = 50)
+        command = './astf-sim-utl --sfr  --cmd="--sim-mode=28,--sim-arg=0.1" --skip-counter-err'
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path, timeout = 50)
         if ret:
             print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of test_astf_sim_utl_sfr_drop (%s)' % ret)
