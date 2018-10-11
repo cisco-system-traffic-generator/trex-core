@@ -41,7 +41,7 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(double duration);
+    void start_transmit(double duration,bool nc);
     void stop_transmit(void);
     void create_tcp_batch(void);
     void delete_tcp_batch(void);
@@ -51,8 +51,8 @@ protected:
     void report_finished(void);
     bool sync_barrier(void);
     CFlowGenListPerThread *m_flow_gen;
-    bool no_close;
-    bool sync_stop;
+    bool m_no_close;
+    bool m_sync_stop;
 
     virtual void start_scheduler() override;
 };

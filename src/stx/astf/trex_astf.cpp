@@ -222,7 +222,7 @@ void TrexAstf::profile_load(void) {
     }
 }
 
-void TrexAstf::start_transmit(double duration, double mult) {
+void TrexAstf::start_transmit(double duration, double mult,bool nc) {
     if ( unlikely(!m_wd) ) {
         m_wd = TrexWatchDog::getInstance().get_current_monitor();
     }
@@ -234,7 +234,7 @@ void TrexAstf::start_transmit(double duration, double mult) {
     m_fl->m_stt_cp->clear_counters();
 
     set_barrier(0.5);
-    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(duration);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(duration,nc);
     send_message_to_all_dp(msg);
     m_sync_b->listen(true);
 

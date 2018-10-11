@@ -42,11 +42,12 @@ public:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart(double duration);
+    TrexAstfDpStart(double duration,bool nc);
     virtual TrexCpToDpMsgBase* clone(void);
     virtual bool handle(TrexDpCore *dp_core);
 private:
     double m_duration;
+    bool m_nc;
 };
 
 /**

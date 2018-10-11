@@ -63,6 +63,7 @@ FILE_PATH_NO_CHECK
 OUTPUT_FILENAME
 LIMIT
 PORT_RESTART
+ASTF_NC
 
 RETRIES
 
@@ -558,6 +559,12 @@ OPTIONS_DB = {
          'default': None,
          'type': str}),
 
+    ASTF_NC: ArgumentPack(
+        ['--nc'],
+        {'help': 'Faster flow termination at the end of the test, see --nc in the manual',
+         'dest': 'nc',
+         'default': False,
+         'action': 'store_true'}),
 
     PORT_RESTART: ArgumentPack(
         ['-r', '--restart'],
