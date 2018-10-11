@@ -33,8 +33,8 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
     m_flow_gen->Create_tcp_ctx();
-    //no_close = true;  /* default is without --nc*/
-    sync_stop = false;
+    m_no_close = true;  /* default is without --nc*/
+    m_sync_stop = false;
 }
 
 TrexAstfDpCore::~TrexAstfDpCore(void) {
@@ -122,7 +122,7 @@ void TrexAstfDpCore::start_scheduler() {
 
         m_flow_gen->m_node_gen.flush_file(c_stop_sec, d_time_flow, false, m_flow_gen, old_offset);
 
-        if ( !m_flow_gen->is_terminated_by_master() && !no_close ) { // close gracefully
+        if ( !m_flow_gen->is_terminated_by_master() && !m_no_close ) { // close gracefully
             m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, true, m_flow_gen, old_offset);
         }
         m_flow_gen->flush_tx_queue();
@@ -130,7 +130,7 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
 
-        if ( sync_stop ) { // explicit stop by user
+        if ( m_sync_stop ) { // explicit stop by user
             sync_barrier();
         }
     }
@@ -146,11 +146,11 @@ void TrexAstfDpCore::delete_tcp_batch(void) {
     sync_barrier();
 }
 
-void TrexAstfDpCore::start_transmit(double duration) {
+void TrexAstfDpCore::start_transmit(double duration,bool nc) {
     assert(m_state==STATE_IDLE);
-
+    m_no_close = nc;
     m_flow_gen->m_yaml_info.m_duration_sec = duration;
-    sync_stop = false;
+    m_sync_stop = false;
     m_state = STATE_TRANSMITTING;
 }
 
@@ -161,7 +161,7 @@ void TrexAstfDpCore::stop_transmit(void) {
     }
 
     add_global_duration(0.0001);
-    sync_stop = true;
+    m_sync_stop = true;
 }
 
 bool TrexAstfDpCore::sync_barrier(void) {

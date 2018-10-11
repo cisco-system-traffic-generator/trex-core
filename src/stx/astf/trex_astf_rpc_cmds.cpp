@@ -161,9 +161,10 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
     const double duration = parse_double(params, "duration", result);
     const double mult = parse_double(params, "mult", result);
+    const bool nc = parse_bool(params, "nc", result);
 
     try {
-        get_astf_object()->start_transmit(duration, mult);
+        get_astf_object()->start_transmit(duration, mult,nc);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

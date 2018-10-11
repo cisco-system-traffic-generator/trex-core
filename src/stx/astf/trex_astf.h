@@ -119,7 +119,7 @@ public:
     /**
      * Start transmit
      */
-    void start_transmit(double duration, double mult);
+    void start_transmit(double duration, double mult,bool nc);
 
     /**
      * Stop transmit

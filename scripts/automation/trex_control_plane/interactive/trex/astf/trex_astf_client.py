@@ -254,11 +254,12 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1):
+    def start(self, mult = 1, duration = -1,nc=False):
 
         params = {
             'handler': self.handler,
             'mult': mult,
+            'nc':nc,
             'duration': duration,
             }
 
@@ -342,11 +343,12 @@ class ASTFClient(TRexClient):
             parsing_opts.MULTIPLIER_INT,
             parsing_opts.DURATION,
             parsing_opts.TUNABLES,
+            parsing_opts.ASTF_NC
             )
         opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
         tunables = opts.tunables or {}
         self.load_profile(opts.file[0], tunables)
-        self.start(opts.mult, duration = opts.duration)
+        self.start(opts.mult, duration = opts.duration, nc = opts.nc)
         return True
 
     @console_api('stop', 'ASTF', True)
