@@ -76,7 +76,7 @@ This can easily be automated, therefore we've created a python module that handl
 image:images/blog/figure3.jpg[title="figure3",align="left",width={p_width}, link="images/blog/figure3.jpg"]
 
 [small]#Figure 3# +
-https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/stl/trex_stl_lib/utils/GAObjClass.py/[View this on GitHub] +
+https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/GAObjClass.py/[View this on GitHub] +
 
  
 The payload is a string which will be sent as the payload of the http request.
@@ -87,7 +87,7 @@ image:images/blog/figure4.jpg[title="figure4",align="left",width={p_width}, link
 
 [small]#Figure 4# +
  
-https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/stl/trex_stl_lib/utils/GAObjClass.py/[View this on GitHub] +
+https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/GAObjClass.py/[View this on GitHub] +
 
 (We are using "batched reporting", you can batch up to 20 payloads and report all at once)
 Each test result is reported to GA using the above code. +

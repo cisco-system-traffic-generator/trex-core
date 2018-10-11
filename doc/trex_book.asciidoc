@@ -496,7 +496,7 @@ A script is available to automate the process of tailoring the basic configurati
 
 There are two ways to run the script:
 
-* Interactive mode: Script pormpts you for parameters.
+* Interactive mode: Script prompts you for parameters.
 * Command line mode: Provide all parameters using command line options.
 
 ==== Interactive mode
@@ -684,7 +684,7 @@ Platform config file example:
 ...
 ----
 
-Under the hood it's being replaced with following (this full syntax can also be used, possibly containing another DPDK arguments):
+Under the hood it's being replaced with the following (this full syntax can also be used, possibly containing another DPDK arguments):
 [source,bash]
 ----
   - port_limit: 2
@@ -817,7 +817,7 @@ zmq publisher at: tcp://*:4500
 <6> Expected number of packets per second (calculated without latency packets).
 <7> Expected number of connections per second (calculated without latency packets).
 <8> Expected number of bits per second (calculated without latency packets).
-<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router because the router ages flows slower.
+<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usually the TRex number of active flows is much lower than that of the router because the router ages flows slower.
 <10> Total number of TRex flows opened since startup (including active ones, and ones already closed).
 <11> Drop rate.
 
