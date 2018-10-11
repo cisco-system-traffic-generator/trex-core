@@ -217,6 +217,22 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
 }
 
 
+static void on_flow_free_cb(void *userdata,void  *obh){
+    CFlowTable * ft = (CFlowTable *)userdata;
+    CFlowBase * flow = CFlowBase::cast_from_hash_obj((flow_hash_ent_t *)obh);
+    ft->terminate_flow(flow->m_ctx,flow);
+}
+
+void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
+                                CFlowBase * flow){
+    INC_STAT(ctx,tcps_testdrops);
+    INC_STAT(ctx,tcps_closed); 
+    handle_close(ctx,flow,false);
+}
+
+void CFlowTable::terminate_all_flows(){
+    m_ft.detach_all(this,on_flow_free_cb);
+}
 
 void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
                               CFlowBase * flow,

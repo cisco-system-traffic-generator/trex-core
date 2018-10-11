@@ -44,6 +44,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_ASTF_SIM_MODE,OPT_ASTF_FULL,
        OPT_ASTF_SIM_ARG,
        OPT_ASTF_EMUL_DEBUG,
+       OPT_NO_CLEAN_FLOW_CLOSE,
 
        /* simulator ASTF */
        OPT_ASTF_SHAPER_RATE,
@@ -92,6 +93,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
+    { OPT_NO_CLEAN_FLOW_CLOSE,    "--nc",              SO_NONE    },
     { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
     { OPT_ASTF_FULL,          "--full",       SO_NONE    },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
@@ -235,6 +237,10 @@ static int parse_options(int argc,
 
             case OPT_FILE_OUT:
                 po->out_file = args.OptionArg();
+                break;
+
+             case OPT_NO_CLEAN_FLOW_CLOSE :
+                po->preview.setNoCleanFlowClose(true);
                 break;
 
             case OPT_IPV6:

@@ -83,6 +83,7 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_keeptimeo);
     MYC(tcps_keepprobe);   
     MYC(tcps_keepdrops);   
+    MYC(tcps_testdrops);
 
     MYC(tcps_sndtotal);    
     MYC(tcps_sndpack);     
@@ -475,31 +476,11 @@ static void ctx_timer(void *userdata,
     };
 }
 
-static void ctx_deplete_flow_cb(void *ctx_void, CHTimerObj *tmr) {
-    CTcpPerThreadCtx *ctx = (CTcpPerThreadCtx*) ctx_void;
-    switch (tmr->m_type) {
-        case ttTCP_FLOW:
-            CTcpFlow * tcp_flow;
-            UNSAFE_CONTAINER_OF_PUSH;
-            tcp_flow=my_unsafe_container_of(tmr,CTcpFlow,m_timer);
-            UNSAFE_CONTAINER_OF_POP;
-            ctx->m_ft.handle_close(ctx, tcp_flow, true);
-            break;
-        case ttUDP_FLOW:
-            CUdpFlow * udp_flow;
-            UNSAFE_CONTAINER_OF_PUSH;
-            udp_flow=my_unsafe_container_of(tmr,CUdpFlow,m_keep_alive_timer);
-            UNSAFE_CONTAINER_OF_POP;
-            ctx->m_ft.handle_close(ctx, udp_flow, true);
-            break;
-        default:
-            assert(0);
-    }
-}
-
 
 void CTcpPerThreadCtx::cleanup_flows(void) {
-    m_timer_w.detach_all((void*)this, ctx_deplete_flow_cb);
+    m_ft.terminate_all_flows();
+    delete_startup();
+    assert(m_timer_w.is_any_events_left()==0);
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */
@@ -720,13 +701,14 @@ void CTcpPerThreadCtx::call_startup(){
 }
 
 void CTcpPerThreadCtx::delete_startup() {
-    delete m_sch_rampup;
-    m_sch_rampup = nullptr;
+    if (m_sch_rampup) {
+        delete m_sch_rampup;
+        m_sch_rampup = nullptr;
+    }
 }
 
 void CTcpPerThreadCtx::Delete(){
     assert(m_rand);
-    delete_startup();
     delete m_rand;
     m_rand=0;
     m_timer_w.Delete();

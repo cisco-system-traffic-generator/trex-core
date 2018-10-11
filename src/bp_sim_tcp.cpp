@@ -547,8 +547,6 @@ void CFlowGenListPerThread::unload_tcp_profile() {
     }
     m_c_tcp->reset_tuneables();
     m_s_tcp->reset_tuneables();
-    m_c_tcp->delete_startup();
-    m_s_tcp->delete_startup();
     m_sched_accurate = false;
     m_tcp_terminate=false;
     m_tcp_terminate_cnt=0;
