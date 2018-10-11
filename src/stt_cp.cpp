@@ -260,6 +260,8 @@ void CSTTCpPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_keeptimeo,"keepalive timeouts");
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
     TCP_S_ADD_CNT_E(tcps_keepdrops,"connections dropped in keepalive");
+    TCP_S_ADD_CNT(tcps_testdrops,"connections dropped by user at timeout (no-close flag --nc)"); // due to test timeout --nc 
+    
     
     TCP_S_ADD_CNT_E(tcps_sndrexmitpack,"data packets retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");

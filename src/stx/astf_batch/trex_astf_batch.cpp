@@ -142,10 +142,11 @@ TrexDpCoreAstfBatch::start_astf() {
         m_core->m_stats.dump(stdout);
     }
     m_core->m_node_gen.close_file(m_core);
-    /* Cleanup flows is buggy, do not clean in batch for now.
+
     m_core->m_c_tcp->cleanup_flows();
     m_core->m_s_tcp->cleanup_flows();
-    */
+
+    m_core->unload_tcp_profile();
 }
 
 

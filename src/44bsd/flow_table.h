@@ -324,6 +324,11 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
     void set_debug(bool enable){
         m_verbose = enable;
     }
+public:
+    void terminate_all_flows();
+    void terminate_flow(CTcpPerThreadCtx * ctx,
+                        CFlowBase * flow);
+
 
 private:
     void redirect_to_rx_core(CTcpPerThreadCtx * ctx,

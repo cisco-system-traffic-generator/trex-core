@@ -318,6 +318,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
     uint64_t    tcps_keepprobe;     /* keepalive probes sent */
     uint64_t    tcps_keepdrops;     /* connections dropped in keepalive */
+    uint64_t    tcps_testdrops;     /* connections dropped at the end of the test due to --nc  */
 
     uint64_t    tcps_sndrexmitpack; /* data packets retransmitted */
     uint64_t    tcps_sndrexmitbyte; /* data bytes retransmitted */
@@ -841,7 +842,6 @@ public:
 
     /* called after init */
     void call_startup();
-    void delete_startup();
 
     /* cleanup m_timer_w from left flows */
     void cleanup_flows(void);
@@ -909,6 +909,7 @@ public:
         return (m_ft.is_client_side());
     }
 private:
+    void delete_startup();
 
     void init_sch_rampup();
 
