@@ -258,7 +258,7 @@ class CTRexServer(object):
                 ret_code, stdout, stderr = run_command('./t-rex-64 --help', cwd = self.TREX_PATH)
                 search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
                 if not search_result:
-                    raise Exception('Could not determine version from ./t-rex-64 --help')
+                    raise Exception('Could not determine version from ./t-rex-64 --help. Stdout: %s. Stderr: %s' % (stdout, stderr))
                 self.trex_version = binascii.b2a_base64(search_result.group(1).encode(errors='replace'))
             if base64:
                 return self.trex_version.decode(errors='replace')
@@ -418,7 +418,7 @@ class CTRexServer(object):
         logger.info('Processing get_trex_cmds() command.')
         ret_code, stdout, stderr = run_command('ps -u root --format pid,comm,cmd')
         if ret_code:
-            raise Exception('Failed to determine running processes, stderr: %s' % stderr)
+            raise Exception('Failed to determine running processes. Stdout: %s. Stderr: %s' % (stdout, stderr))
         trex_cmds_list = []
         for line in stdout.splitlines():
             pid, proc_name, full_cmd = line.strip().split(' ', 2)
