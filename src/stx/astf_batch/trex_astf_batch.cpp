@@ -146,7 +146,13 @@ TrexDpCoreAstfBatch::start_astf() {
     m_core->m_c_tcp->cleanup_flows();
     m_core->m_s_tcp->cleanup_flows();
 
+#ifdef TREX_SIM
+   /* this is only for simulator, for calling this in ASTF there is a need to make sure all cores stopped 
+      in ASTF interactive we have state machine for testing this 
+      for now keeping this for simulation valgrind testing here
+    */
     m_core->unload_tcp_profile();
+#endif
 }
 
 
