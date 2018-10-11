@@ -57,7 +57,7 @@ TRex replaces the client_ip, client_port, and server_ip. The server_port will be
 
 [source,bash]
 ----
-[bash]>./bp-sim-32-debug -f cap2/dns.yaml -o my.erf -v 3
+[bash]>./bp-sim-64-debug -f cap2/dns.yaml -o my.erf -v 3
  -- loading cap file cap2/dns.pcap 
  id,name               , tps, cps,f-pkts,f-bytes, duration,   Mb/sec,   MB/sec,   #<1>
  00, cap2/dns.pcap     ,1.00,1.00,     2 ,     170 ,   0.02 ,   0.00 ,    0.00 ,  
@@ -212,7 +212,7 @@ Running this produces the following output:
 
 [source,bash]
 ----
-[bash]>./bp-sim-32-debug -f cap2/dns_test.yaml -o my.erf -v 3 
+[bash]>./bp-sim-64-debug -f cap2/dns_test.yaml -o my.erf -v 3 
 ----
 
 .Formated results
@@ -348,7 +348,7 @@ In this example, the IPG was taken from the pcap file, which is closer to 20 mse
   #cap_ipg_min    : 30           <1>
   #cap_override_ipg    : 200     <2>
 ----
-<1> Sets the minimum IPG (microseconds) which should be override : ( if (pkt_ipg<cap_ipg_min) { pkt_ipg = cap_override_ipg } )
+<1> Sets the minimum IPG (microseconds) which should be overriden : ( if (pkt_ipg<cap_ipg_min) { pkt_ipg = cap_override_ipg } )
 <2> Value to override (microseconds).
 
 
@@ -514,7 +514,7 @@ you need to be sure that you have enogth free sockets when running TRex in high 
  drop-rate       :       0.00  bps   
 ----
 <1> Number of clients
-<2> sockets utilization (should be lowwer than 20%, elarge the number of clients in case of an issue).
+<2> sockets utilization (should be lower than 20%, enlarge the number of clients in case of an issue).
 
 === DNS, W=1
 
@@ -544,9 +544,9 @@ Setting `w=2` configures a burst of two allocations from the same client. See th
        cps : 1.0
        ipg : 10000
        rtt : 10000
-       w   : 2                <1>
+       w   : 2                
 ----
-<1> Two clients will be allocated from the same template.
+
 
 
 .DNS ipg from pcap file
@@ -2625,7 +2625,7 @@ TRex commands typically include the following main arguments, but only `-f` is r
 
 [source,bash]
 ----
-[bash]>sudo /t-rex-64 -f <traffic_yaml> -m <multiplier>  -d <duration>  -l <latency test rate>  -c <cores>
+[bash]>sudo ./t-rex-64 -f <traffic_yaml> -m <multiplier>  -d <duration>  -l <latency test rate>  -c <cores>
 ----
 Full command line reference can be found xref:cml-line[here]
 
@@ -2891,7 +2891,7 @@ $more cap2/imix_example.yaml
 
 [source,bash]
 ----
-[bash]>./bp-sim-32-debug -f cap2/imix_example.yaml  -o my.erf -v 3 > a.txt
+[bash]>./bp-sim-64-debug -f cap2/imix_example.yaml  -o my.erf -v 3 > a.txt
 ----
 
 .IMIX example limit=3
@@ -3016,7 +3016,7 @@ For example, with four ports, TRex will produce the following ip ranges:
 - TCP/UDP aging is the time it takes to return the socket to the pool. It is required when the number of clients is very small and the template defines a very long duration.
 //TBD: not clear - is TCP/UDP aging an option used when the template defines a long duration? also, should specify what "very long" refers to.
 
-If ``dual-port_mask'' was set to 0.0.0.0, both port pairs would have uses the same ip range.
+If ``dual_port_mask'' was set to 0.0.0.0, both port pairs would have used the same ip range.
 For example, with four ports, we would have get the following ip range is :
 
 [source,python]
@@ -3221,7 +3221,7 @@ The YAML configuration is something like this:
 
 - *2) More distributions will be supported in the future (normal distribution for example)*
 
-Currently, only sequcence and random are supported. 
+Currently, only sequence and random are supported. 
 
 - *3) Histogram of tuple pool will be supported* 
 

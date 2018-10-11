@@ -8,7 +8,7 @@ TRex Stateless support
 :web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
-:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
 :toclevels: 6
 
 include::trex_ga.asciidoc[]
@@ -238,9 +238,9 @@ If you are confused you probably need Stateless. :-)
 | /automation     | Python client/server code for both Stateful and Stateless
 | /automation/regression     | Regression for Stateless and Stateful
 | /automation/config     | Regression setups config files
-| /automation/trex_control_plane/stl     | Stateless lib and Console 
-| /automation/trex_control_plane/stl/trex_stl_lib     | Stateless lib
-| /automation/trex_control_plane/stl/examples     | Stateless examples
+| /automation/trex_control_plane/interactive/trex     | Stateless lib and Console 
+| /automation/trex_control_plane/interactive/trex/stl     | Stateless lib
+| /automation/trex_control_plane/interactive/trex/examples/stl     | Stateless examples
 |=============================
 
 
@@ -666,9 +666,9 @@ Interfaces are not set to promiscuous mode by default. Typically, after changing
 
 // This comment is here to fix rendering error.
 
-Python API examples: `automation/trex_control_plane/stl/examples`
+Python API examples: `automation/trex_control_plane/interactive/trex/examples/stl`
 
-Python API library: `automation/trex_control_plane/stl/trex_stl_lib`
+Python API library: `automation/trex_control_plane/interactive/trex/stl`
 
 The TRex console uses the Python API library to interact with the TRex server using the JSON-RPC2 protocol over ZMQ.
 
@@ -1748,7 +1748,7 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
         return STLProfile( [ STLStream( isg = 10.0, # start in delay                                  <1>
                                         name    ='S0',
                                         packet = STLPktBuilder(pkt = base_pkt/pad),
-                                        mode = STLTXSingleBurst( pps = 10, total_pkts = 10),
+                                        mode = STLTXSingleBurst( pps = 10, total_pkts = self.burst_size),
                                         next = 'S1'), # point to next stream 
 
                              STLStream( self_start = False, # stream is disabled. Enabled by S0       <2>
@@ -1763,7 +1763,7 @@ TRex>start -f stl/stl/burst_3pkt_60pkt.py --port 0
                             ]).get_streams()
 
 ----
-<1> Stream S0 waits 10 usec (inter-stream gap, ISG) and then sends a burst of 10 packets at 10 PPS.
+<1> Stream S0 waits 10 usec (inter-stream gap, ISG) and then sends a burst of self.burst_size packets at 10 PPS.
 <2> Multi-burst of 5 bursts of 4 packets with an inter-burst gap of 1 second.
  
 
@@ -2453,16 +2453,37 @@ The following example creates a stream with no packets. The example uses the int
 This method can create loops like the following:
 
 image::images/stl_null_stream_02.png[title="Null stream",align="left",width={p_width_1}, link="images/stl_null_stream_02.png"]
- 
-1. S1 - Sends a burst of packets, then proceed to stream NULL.
-2. NULL - Waits the inter-stream gap (ISG) time, then proceeds to S1. 
 
-Null stream configuration:
+*File*:: link:{github_stl_examples_path}/null_stream.py[null_stream.py]
 
-1. Mode: Burst 
-2. Number of packets: 0
+[source,python]
+----
+    def create_stream(self):
+        size = self.fsize - 4  # no FCS
+        base_pkt = Ether()/IP(src = "16.0.0.1", dst = "48.0.0.1")/UDP(dport = 12, sport = 1025)
+        pad = max(0, size - len(base_pkt)) * 'x'
 
-// I think that the actual example is missing.
+        return STLProfile([ STLStream( name = 'S1',    <1>
+                                       packet = STLPktBuilder(pkt = base_pkt/pad),
+                                       mode = STLTXSingleBurst(pps = 10, total_pkts = 5),
+                                       next = 'NULL'),
+                            STLStream( self_start = False,    <2>
+                                       isg = 1000000.0, 
+                                       name = 'NULL',
+                                       mode = STLTXSingleBurst(),
+                                       dummy_stream = True,
+                                       next = 'S1')
+                            ]).get_streams()
+
+----
+
+<1> S1 - Sends a burst of packets, then proceed to stream NULL.
+<2> NULL - Waits the inter-stream gap (ISG) time, then proceeds to S1. 
+
+Null stream configuration requirements:
+
+1. Mode: Single Burst 
+2. dummy_stream = True
 
 ==== Tutorial: Field Engine, stream barrier (split)
 
@@ -4779,7 +4800,7 @@ start_trex(trex_cmd_options, user, block_to_success = True, timeout = 40, statel
 +
 [source,bash]
 ----
-cd automation/trex_control_plane/stl/examples
+cd automation/trex_control_plane/interactive/trex/examples/stl
 python rpc_proxy_server.py
 ----
 

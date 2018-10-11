@@ -8,7 +8,7 @@
 :web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
-:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
 
 :navigation:
 :source-highlighter: coderay
@@ -522,7 +522,7 @@ done in *TRex stateless mode*.
 
 For more information about TRex stateless mode please refer to the manual.
 
-all the examples should be executed from the directory *'automation/trex_control_plane/stl'*
+all the examples should be executed from the directory *'automation/trex_control_plane/interactive/trex/examples/stl'*
 
 
 TRex traffic is defined by a *profile* which is a list of *streams*.

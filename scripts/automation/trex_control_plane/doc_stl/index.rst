@@ -65,7 +65,7 @@ TRex supports both Python2 and Python3 pyATS.
   	/auto/pyats/bin/pyats-install --python3
 
 * setenv TREX_PATH to the trex stateless lib path 
-   	setenv TREX_PATH <your path>/automation/trex_control_plane/stl
+   	setenv TREX_PATH <your path>/automation/trex_control_plane/interactive/trex/stl
 
 * In the script or job file, add the TREX_PATH to sys.path::
  
