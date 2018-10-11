@@ -42,6 +42,8 @@ def is_updating():
     return CUpdate.thread and CUpdate.thread.is_alive()
 
 def _update_trex_process(package_path):
+    if not os.path.exists(tmp_dir):
+        os.makedirs(tmp_dir)
     file_name = 'trex_package.tar.gz'
 
     # getting new package
