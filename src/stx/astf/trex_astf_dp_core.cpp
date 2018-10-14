@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "astf/astf_db.h"
 #include "trex_astf_dp_core.h"
 #include "bp_sim.h"
 #include "stt_cp.h"
@@ -27,17 +28,17 @@ limitations under the License.
 #include "trex_astf.h"
 #include "trex_messaging.h"
 
+using namespace std;
+
 TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
                 TrexDpCore(thread_id, core, STATE_IDLE) {
     CSyncBarrier *sync_barrier = get_astf_object()->get_barrier();
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
     m_flow_gen->Create_tcp_ctx();
-    m_no_close = true;  /* default is without --nc*/
-    m_sync_stop = false;
 }
 
-TrexAstfDpCore::~TrexAstfDpCore(void) {
+TrexAstfDpCore::~TrexAstfDpCore() {
     m_flow_gen->Delete_tcp_ctx();
 }
 
@@ -54,18 +55,17 @@ void TrexAstfDpCore::start_scheduler() {
 
     dsec_t d_time_flow;
 
-    CParserOption *go=&CGlobalInfo::m_options;
+    CParserOption *go = &CGlobalInfo::m_options;
 
     /* do we need to disable this tread client port */
-    bool disable_client=false;
-    if (go->m_astf_mode==CParserOption::OP_ASTF_MODE_SERVR_ONLY) {
-        disable_client=true;
+    bool disable_client = false;
+    if ( go->m_astf_mode == CParserOption::OP_ASTF_MODE_SERVR_ONLY ) {
+        disable_client = true;
     } else {
         uint8_t p1;
         uint8_t p2;
-        m_flow_gen->get_port_ids(p1,p2);
-        if (go->m_astf_mode==CParserOption::OP_ASTF_MODE_CLIENT_MASK && 
-           ((go->m_astf_client_mask & (0x1<<p1))==0) ){
+        m_flow_gen->get_port_ids(p1, p2);
+        if ( go->m_astf_mode == CParserOption::OP_ASTF_MODE_CLIENT_MASK && ((go->m_astf_client_mask & (0x1<<p1))==0) ) {
             disable_client=true;
         } else if ( go->m_dummy_port_map[p1] ) { // dummy port
             disable_client=true;
@@ -74,18 +74,15 @@ void TrexAstfDpCore::start_scheduler() {
 
     d_time_flow = m_flow_gen->m_c_tcp->m_fif_d_time; /* set by Create_tcp function */
 
-    double d_phase= 0.01 + (double)m_flow_gen->m_thread_id * d_time_flow / (double)m_flow_gen->m_max_threads;
+    double d_phase = 0.01 + (double)m_flow_gen->m_thread_id * d_time_flow / (double)m_flow_gen->m_max_threads;
 
-    if ( CGlobalInfo::is_realtime()  ) {
+    if ( CGlobalInfo::is_realtime() ) {
         if (d_phase > 0.2 ) {
             d_phase =  0.01 + m_flow_gen->m_thread_id * 0.01;
         }
     }
-    m_flow_gen->m_cur_flow_id = 1;
-    m_flow_gen->m_stats.clear();
-    m_flow_gen->load_tcp_profile();
 
-    double old_offset=0.0;
+    double old_offset = 0.0;
     CGenNode *node;
 
     /* sync all core to the same time */
@@ -121,18 +118,19 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.add_node(node);
 
         m_flow_gen->m_node_gen.flush_file(c_stop_sec, d_time_flow, false, m_flow_gen, old_offset);
+        printf("stopped regular\n");
 
-        if ( !m_flow_gen->is_terminated_by_master() && !m_no_close ) { // close gracefully
+        if ( !m_flow_gen->is_terminated_by_master() && !go->preview.getNoCleanFlowClose() ) { // close gracefully
+            printf("continuing until close all flows\n");
             m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, true, m_flow_gen, old_offset);
         }
+        printf("done\n");
         m_flow_gen->flush_tx_queue();
         m_flow_gen->m_node_gen.close_file(m_flow_gen);
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
-
-        if ( m_sync_stop ) { // explicit stop by user
-            sync_barrier();
-        }
+    } else {
+        report_error("Could not sync DP thread for start");
     }
 
     if ( m_state != STATE_TERMINATE ) {
@@ -141,39 +139,85 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::delete_tcp_batch(void) {
-    m_flow_gen->unload_tcp_profile();
-    sync_barrier();
+void TrexAstfDpCore::parse_astf_json(string *profile_buffer) {
+    TrexWatchDog::IOFunction dummy;
+    (void)dummy;
+
+    CAstfDB *db = CAstfDB::instance();
+    string err;
+    bool rc;
+
+    rc = db->set_profile_one_msg(*profile_buffer, err);
+    if ( !rc ) {
+        report_error(err);
+    }
+
+    // once we support speficying number of cores in start,
+    // this should not be disabled by cache of profile hash
+    int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
+    CJsonData_err err_obj = db->verify_data(num_dp_cores);
+
+    if (err_obj.is_error()) {
+        report_error(err_obj.description());
+    }
+
+    report_finished();
 }
 
-void TrexAstfDpCore::start_transmit(double duration,bool nc) {
+void TrexAstfDpCore::create_tcp_batch() {
+    TrexWatchDog::IOFunction dummy;
+    (void)dummy;
+
+    CParserOption *go = &CGlobalInfo::m_options;
+
+    m_flow_gen->m_cur_flow_id = 1;
+    m_flow_gen->m_stats.clear();
+    m_flow_gen->m_yaml_info.m_duration_sec = go->m_duration;
+    bool success = m_flow_gen->load_tcp_profile();
+
+    if ( success ) {
+        report_finished();
+    } else {
+        report_error("Could not compile batch");
+    }
+}
+
+void TrexAstfDpCore::delete_tcp_batch() {
+    TrexWatchDog::IOFunction dummy;
+    (void)dummy;
+
+    m_flow_gen->unload_tcp_profile();
+    report_finished();
+}
+
+void TrexAstfDpCore::start_transmit() {
     assert(m_state==STATE_IDLE);
-    m_no_close = nc;
-    m_flow_gen->m_yaml_info.m_duration_sec = duration;
-    m_sync_stop = false;
     m_state = STATE_TRANSMITTING;
 }
 
-void TrexAstfDpCore::stop_transmit(void) {
+void TrexAstfDpCore::stop_transmit() {
     if ( m_state == STATE_IDLE ) { // is stopped, just ack
-        sync_barrier();
         return;
     }
 
     add_global_duration(0.0001);
-    m_sync_stop = true;
 }
 
-bool TrexAstfDpCore::sync_barrier(void) {
+bool TrexAstfDpCore::sync_barrier() {
     return (m_flow_gen->get_sync_b()->sync_barrier(m_flow_gen->m_thread_id) == 0);
 }
 
-void TrexAstfDpCore::report_finished(void) {
+void TrexAstfDpCore::report_finished() {
     TrexDpToCpMsgBase *msg = new TrexDpCoreStopped(m_flow_gen->m_thread_id);
     m_ring_to_cp->Enqueue((CGenNode *)msg);
 }
 
-bool TrexAstfDpCore::rx_for_astf(void) {
+void TrexAstfDpCore::report_error(const string &error) {
+    TrexDpToCpMsgBase *msg = new TrexDpCoreError(m_flow_gen->m_thread_id, error);
+    m_ring_to_cp->Enqueue((CGenNode *)msg);
+}
+
+bool TrexAstfDpCore::rx_for_astf() {
     return m_flow_gen->handle_rx_pkts(true) > 0;
 }
 

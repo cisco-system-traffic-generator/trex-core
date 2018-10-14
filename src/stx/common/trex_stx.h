@@ -148,6 +148,11 @@ public:
     virtual void dp_core_finished(int thread_id);
 
     /**
+     * DP core encountered error
+     */
+    virtual void dp_core_error(int thread_id, const std::string &err);
+
+    /**
      * fills ignored stats on 'stat'
      * 
      */

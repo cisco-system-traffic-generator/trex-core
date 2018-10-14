@@ -37,10 +37,13 @@ typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
  */
 class TrexAstf : public TrexSTX {
 public:
-
     enum state_e {
         STATE_IDLE,
-        STATE_WORK,
+        STATE_LOADED,
+        STATE_PARSE, // by DP core 0, not cancelable
+        STATE_BUILD, // by DP cores, not cancelable
+        STATE_TX,
+        STATE_CLEANUP, // by DP cores, not cancelable
         AMOUNT_OF_STATES,
     };
     typedef std::vector<state_e> states_t;
@@ -51,7 +54,6 @@ public:
     TrexAstf(const TrexSTXCfg &cfg);
     virtual ~TrexAstf();
 
-    
     /**
      * ASTF control plane
      * 
@@ -65,6 +67,7 @@ public:
      */
     void shutdown();
 
+    void all_dp_cores_finished();
     void dp_core_finished(int thread_id);
 
     /**
@@ -72,8 +75,7 @@ public:
      * 
      */
     void publish_async_data();
-    
-    
+
     /**
      * create a ASTF DP core
      * 
@@ -101,54 +103,76 @@ public:
     /**
      * Release context (and all ports)
      */
-    void release_context(void);
+    void release_context();
 
     /**
      * Profile-related:
      * check - check hash of loaded profile, true = matches (heavy profile will not be uploaded twice)
      * clear - clears profile JSON string (if any)
      * append - appends fragment to profile JSON string
-     * load - loads JSON profile string to DB
+     * loaded - move state from idle to loaded
      */
-    bool profile_check(uint32_t total_size);
-    bool profile_check(const std::string &hash);
-    void profile_clear(void);
+    bool profile_check_size(uint32_t total_size);
+    bool profile_check_hash(const std::string &hash);
+    void profile_clear();
     void profile_append(const std::string &fragment);
-    void profile_load(void);
+    void profile_set_loaded();
 
     /**
      * Start transmit
      */
-    void start_transmit(double duration, double mult,bool nc);
+    void start_transmit(double duration, double mult, bool nc);
 
     /**
      * Stop transmit
      */
-    bool stop_transmit(void);
+    bool stop_transmit();
 
-    TrexOwner& get_owner(void) {
+    TrexOwner& get_owner() {
         return m_owner;
     }
-    CSyncBarrier* get_barrier(void) {
+    CSyncBarrier* get_barrier() {
         return m_sync_b;
     }
 
+    std::string &get_last_error() {
+        return m_error;
+    }
+
+    void dp_core_error(int thread_id, const std::string &err);
+
 protected:
-    bool stop_actions(void);
+    // message to DP involved:
+    void parse();
+    void build();
+    void transmit();
+    void cleanup();
+
+    bool is_error() {
+        return m_error.size() > 0;
+    }
+
+    void change_state(state_e new_state);
     void set_barrier(double timeout_sec);
+    void send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone = false);
     void send_message_to_all_dp(TrexCpToDpMsgBase *msg);
 
     void check_whitelist_states(const states_t &whitelist);
     //void check_blacklist_states(const states_t &blacklist);
 
-    TrexOwner m_owner;
-    uint8_t m_cur_state;
-    int16_t m_active_cores;
-    std::vector<std::string> states_names;
-    std::string m_profile_buffer;
-    CSyncBarrier *m_sync_b;
-    CFlowGenList *m_fl;
-    TrexMonitor * m_wd;
+    void ports_report_state(state_e state);
+
+    TrexOwner       m_owner;
+    state_e         m_state;
+    int16_t         m_active_cores;
+    std::vector<std::string> m_states_names;
+    std::string     m_profile_buffer;
+    CSyncBarrier   *m_sync_b;
+    CFlowGenList   *m_fl;
+    CParserOption  *m_opts;
+    std::string     m_error;
+    std::string     m_profile_hash;
+    std::string     m_parsed_hash;
 };
 
 

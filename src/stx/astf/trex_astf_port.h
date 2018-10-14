@@ -43,8 +43,7 @@ public:
         return true;
     }
 
-    void start(void);
-    void stop(void);
+    virtual void change_state(port_state_e state);
 };
 
 

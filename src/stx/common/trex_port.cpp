@@ -226,23 +226,35 @@ std::string
 TrexPort::get_state_as_string() const {
 
     switch (get_state()) {
-    case PORT_STATE_DOWN:
-        return "DOWN";
+        case PORT_STATE_DOWN:
+            return "DOWN";
 
-    case PORT_STATE_IDLE:
-        return "IDLE";
+        case PORT_STATE_IDLE:
+            return "IDLE";
 
-    case PORT_STATE_STREAMS:
-        return "STREAMS";
+        case PORT_STATE_STREAMS:
+            return "STREAMS";
 
-    case PORT_STATE_TX:
-        return "TX";
+        case PORT_STATE_TX:
+            return "TX";
 
-    case PORT_STATE_PAUSE:
-        return "PAUSE";
+        case PORT_STATE_PAUSE:
+            return "PAUSE";
 
-    case PORT_STATE_PCAP_TX:
-        return "PCAP_TX";
+        case PORT_STATE_PCAP_TX:
+            return "PCAP_TX";
+
+        case PORT_STATE_ASTF_LOADED:
+            return "ASTF_LOADED";
+
+        case PORT_STATE_ASTF_PARSE:
+            return "ASTF_PARSE";
+
+        case PORT_STATE_ASTF_BUILD:
+            return "ASTF_BUILD";
+
+        case PORT_STATE_ASTF_CLEANUP:
+            return "ASTF_CLEANUP";
     }
 
     return "UNKNOWN";
@@ -347,7 +359,7 @@ void TrexPort::get_port_node(CNodeBase &node) {
  */
 void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
     /* not valid under traffic */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l2_mode");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_l2_mode");
 
     uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
     memcpy(dp_dst_mac, dst_mac.c_str(), 6);
@@ -362,7 +374,7 @@ void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
  * 
  */
 void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac) {
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_l3_mode");
 
     if ( dst_mac != nullptr ) {
         uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
@@ -378,7 +390,7 @@ void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string 
  * 
  */
 void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "conf_ipv6");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "conf_ipv6");
     TrexRxConfIPv6 *msg = new TrexRxConfIPv6(m_port_id, enabled, src_ipv6);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
@@ -433,7 +445,7 @@ TrexPort::set_capture_port_bpf_filter (const std::string& filter) {
  */
 void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
     /* not valid under traffic */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_vlan_cfg");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_vlan_cfg");
 
     TrexRxSetVLAN *msg = new TrexRxSetVLAN(m_port_id, vlan_list);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
@@ -447,7 +459,7 @@ void TrexPort::run_rx_cfg_tasks_initial_async(void) {
 
 uint64_t TrexPort::run_rx_cfg_tasks_async(void) {
     /* valid at startup of server */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "run_rx_cfg_tasks");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "run_rx_cfg_tasks");
 
     uint64_t ticket_id = get_stx()->get_ticket();
     TrexPort::run_rx_cfg_tasks_internal_async(ticket_id);

@@ -158,6 +158,8 @@ class TRexClient(object):
         self.ctx.event_handler.register_event_handler("port error",    self._on_port_error)
         self.ctx.event_handler.register_event_handler("port attr chg", self._on_port_attr_chg)
 
+        self.ctx.event_handler.register_event_handler("astf state changed", self._on_astf_state_chg)
+
         self.ctx.event_handler.register_event_handler("global stats update", lambda *args, **kwargs: None)
 
 
@@ -336,6 +338,10 @@ class TRexClient(object):
                 new = new_val.lower() if type(new_val) is str else new_val)
         
         return Event('server', 'info', msg)
+
+
+    def _on_astf_state_chg(self, ctx_state, error):
+        raise NotImplementedError()
 
 
 ############################     private     #############################

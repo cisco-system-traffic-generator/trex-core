@@ -28,11 +28,19 @@ limitations under the License.
 class CSyncBarrier;
 
 
+// create tcp batch per DP core
+class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpCreateTcp();
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+};
+
 // delete tcp batch per DP core
 class TrexAstfDpDeleteTcp : public TrexCpToDpMsgBase {
 public:
     TrexAstfDpDeleteTcp();
-    virtual TrexCpToDpMsgBase* clone(void);
+    virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 };
 
@@ -42,12 +50,9 @@ public:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart(double duration,bool nc);
-    virtual TrexCpToDpMsgBase* clone(void);
+    TrexAstfDpStart();
+    virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
-private:
-    double m_duration;
-    bool m_nc;
 };
 
 /**
@@ -57,10 +62,22 @@ private:
 class TrexAstfDpStop : public TrexCpToDpMsgBase {
 public:
     TrexAstfDpStop();
-    virtual TrexCpToDpMsgBase* clone(void);
+    virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 };
 
+/**
+ * a message to stop traffic
+ *
+ */
+class TrexAstfLoadDB : public TrexCpToDpMsgBase {
+public:
+    TrexAstfLoadDB(std::string *profile_buffer);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    std::string *m_profile_buffer;
+};
 
 
 

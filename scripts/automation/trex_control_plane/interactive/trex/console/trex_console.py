@@ -101,20 +101,21 @@ class ConsoleLogger(Logger):
 
 
 class TRexGeneralCmd(cmd.Cmd):
-    def __init__(self):
+    def __init__(self, client_mode):
         cmd.Cmd.__init__(self)
         # configure history behaviour
         self._history_file_dir = "/tmp/trex/console/"
-        self._history_file = self.get_history_file_full_path()
+        self._history_file = self.get_history_file_full_path(client_mode)
         readline.set_history_length(100)
         # load history, if any
         self.load_console_history()
         atexit.register(self.save_console_history)
 
 
-    def get_history_file_full_path(self):
-        return "{dir}{filename}.hist".format(dir=self._history_file_dir,
-                                             filename=self.get_console_identifier())
+    def get_history_file_full_path(self, client_mode):
+        return "{dir}{filename}_{mode}.hist".format(dir=self._history_file_dir,
+                                             filename=self.get_console_identifier(),
+                                             mode=client_mode)
 
     def load_console_history(self):
         if os.path.exists(self._history_file):
@@ -182,7 +183,7 @@ class TRexConsole(TRexGeneralCmd):
         
         self.client = client
 
-        TRexGeneralCmd.__init__(self)
+        TRexGeneralCmd.__init__(self, client.get_mode())
 
         self.tui = trex_tui.TrexTUI(self)
         self.terminal = None

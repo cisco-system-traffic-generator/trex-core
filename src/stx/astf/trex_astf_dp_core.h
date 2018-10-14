@@ -22,6 +22,7 @@ limitations under the License.
 #ifndef __TREX_ASTF_DP_CORE_H__
 #define __TREX_ASTF_DP_CORE_H__
 
+#include <string>
 #include "trex_dp_core.h"
 
 class TrexAstfDpCore : public TrexDpCore {
@@ -29,7 +30,7 @@ class TrexAstfDpCore : public TrexDpCore {
 public:
 
     TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
-    ~TrexAstfDpCore(void);
+    ~TrexAstfDpCore();
 
     /**
      * return true if all the ports are idle
@@ -41,18 +42,18 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(double duration,bool nc);
-    void stop_transmit(void);
-    void create_tcp_batch(void);
-    void delete_tcp_batch(void);
+    void start_transmit();
+    void stop_transmit();
+    void create_tcp_batch();
+    void delete_tcp_batch();
+    void parse_astf_json(std::string *profile_buffer);
 
 protected:
-    virtual bool rx_for_astf(void);
-    void report_finished(void);
-    bool sync_barrier(void);
+    virtual bool rx_for_astf();
+    void report_finished();
+    void report_error(const std::string &error);
+    bool sync_barrier();
     CFlowGenListPerThread *m_flow_gen;
-    bool m_no_close;
-    bool m_sync_stop;
 
     virtual void start_scheduler() override;
 };

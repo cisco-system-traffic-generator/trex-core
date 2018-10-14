@@ -80,20 +80,26 @@ class PortAttr(object):
 
 # describes a single port
 class Port(object):
-    STATE_DOWN         = 0
-    STATE_IDLE         = 1
-    STATE_STREAMS      = 2
-    STATE_TX           = 3
-    STATE_PAUSE        = 4
-    STATE_PCAP_TX      = 5
+    (STATE_IDLE,
+    STATE_STREAMS,
+    STATE_TX,
+    STATE_PAUSE,
+    STATE_PCAP_TX,
+    STATE_ASTF_LOADED,
+    STATE_ASTF_PARSE,
+    STATE_ASTF_BUILD,
+    STATE_ASTF_CLEANUP) = range(9)
 
 
-    STATES_MAP = {STATE_DOWN:        "DOWN",
-                  STATE_IDLE:        "IDLE",
-                  STATE_STREAMS:     "IDLE",
-                  STATE_TX:          "TRANSMITTING",
-                  STATE_PAUSE:       "PAUSE",
-                  STATE_PCAP_TX :    "TRANSMITTING"}
+    STATES_MAP = {STATE_IDLE:         'IDLE',
+                  STATE_STREAMS:      'IDLE',
+                  STATE_TX:           'TRANSMITTING',
+                  STATE_PAUSE:        'PAUSE',
+                  STATE_PCAP_TX :     'TRANSMITTING',
+                  STATE_ASTF_LOADED:  'LOADED',
+                  STATE_ASTF_PARSE:   'PARSING',
+                  STATE_ASTF_BUILD:   'BUILDING',
+                  STATE_ASTF_CLEANUP: 'CLEANUP'}
 
 
     def __init__ (self, ctx, port_id, rpc, info):
@@ -150,20 +156,20 @@ class Port(object):
 
 
     def is_active(self):
-        return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE) or (self.state == self.STATE_PCAP_TX)
+        return self.state in (self.STATE_TX, self.STATE_PAUSE, self.STATE_PCAP_TX, self.STATE_ASTF_PARSE, self.STATE_ASTF_BUILD, self.STATE_ASTF_CLEANUP)
 
 
     def is_transmitting (self):
-        return (self.state == self.STATE_TX) or (self.state == self.STATE_PCAP_TX)
+        return self.state in (self.STATE_TX, self.STATE_PCAP_TX)
 
 
     def is_paused (self):
-        return (self.state == self.STATE_PAUSE)
+        return self.state == self.STATE_PAUSE
 
 
     def is_writeable (self):
         # operations on port can be done on state idle or state streams
-        return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
+        return self.state in (self.STATE_IDLE, self.STATE_STREAMS, self.STATE_ASTF_LOADED)
 
 
     def is_virtual(self):
@@ -196,9 +202,7 @@ class Port(object):
         # sync the port
         port_state = rc.data()['state']
 
-        if port_state == "DOWN":
-            self.state = self.STATE_DOWN
-        elif port_state == "IDLE":
+        if port_state == "IDLE":
             self.state = self.STATE_IDLE
         elif port_state == "STREAMS":
             self.state = self.STATE_STREAMS
@@ -208,6 +212,14 @@ class Port(object):
             self.state = self.STATE_PAUSE
         elif port_state == "PCAP_TX":
             self.state = self.STATE_PCAP_TX
+        elif port_state == 'ASTF_LOADED':
+            self.state = self.STATE_ASTF_LOADED
+        elif port_state == 'ASTF_PARSE':
+            self.state = self.STATE_ASTF_PARSE
+        elif port_state == 'ASTF_BUILD':
+            self.state = self.STATE_ASTF_BUILD
+        elif port_state == 'ASTF_CLEANUP':
+            self.state = self.STATE_ASTF_CLEANUP
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
