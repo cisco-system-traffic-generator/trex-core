@@ -276,6 +276,25 @@ private:
 
 };
 
+/**
+ * a message indicating that DP core encountered error
+ */
+class TrexDpCoreError : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreError(int thread_id, const std::string &err) :
+                    m_err(err) {
+        m_thread_id = thread_id;
+    }
+
+    virtual bool handle(void);
+
+private:
+    int          m_thread_id;
+    const std::string &m_err;
+
+};
+
 /************************* messages from CP to RX **********************/
 
 /**

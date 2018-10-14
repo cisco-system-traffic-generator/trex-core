@@ -52,6 +52,16 @@ public:
         EVENT_PORT_ERROR            = 7,
         EVENT_PORT_ATTR_CHANGED     = 8,
 
+        EVENT_ASTF_STATE_CHG        = 50,
+        /*
+        EVENT_ASTF_IDLE             = 50,
+        EVENT_ASTF_LOADED           = 51,
+        EVENT_ASTF_PARSE            = 52,
+        EVENT_ASTF_BUILD            = 53,
+        EVENT_ASTF_TX               = 54,
+        EVENT_ASTF_CLEANUP          = 55,
+        */
+
         EVENT_SERVER_STOPPED        = 100,
         
         

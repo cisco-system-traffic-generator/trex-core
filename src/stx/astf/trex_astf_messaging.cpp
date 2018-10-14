@@ -24,11 +24,7 @@ limitations under the License.
 #include "trex_astf_messaging.h"
 #include "trex_rx_core.h"
 
-//#include "trex_stl_streams_compiler.h"
-//#include "trex_stl.h"
-//#include "trex_stl_port.h"
-
-//#include "bp_sim.h"
+using namespace std;
 
 TrexAstfDpCore* astf_core(TrexDpCore *dp_core) {
     return (TrexAstfDpCore *)dp_core;
@@ -38,19 +34,17 @@ TrexAstfDpCore* astf_core(TrexDpCore *dp_core) {
 /*************************
   start traffic message
  ************************/
-TrexAstfDpStart::TrexAstfDpStart(double duration,bool nc) {
-    m_duration = duration;
-    m_nc = nc;
+TrexAstfDpStart::TrexAstfDpStart() {
 }
 
 
 bool TrexAstfDpStart::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->start_transmit(m_duration,m_nc);
+    astf_core(dp_core)->start_transmit();
     return true;
 }
 
-TrexCpToDpMsgBase* TrexAstfDpStart::clone(void) {
-    return new TrexAstfDpStart(m_duration,m_nc);
+TrexCpToDpMsgBase* TrexAstfDpStart::clone() {
+    return new TrexAstfDpStart();
 }
 
 /*************************
@@ -63,8 +57,22 @@ bool TrexAstfDpStop::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase* TrexAstfDpStop::clone(void) {
+TrexCpToDpMsgBase* TrexAstfDpStop::clone() {
     return new TrexAstfDpStop();
+}
+
+/*************************
+  create tcp batch
+ ************************/
+TrexAstfDpCreateTcp::TrexAstfDpCreateTcp() {}
+
+bool TrexAstfDpCreateTcp::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->create_tcp_batch();
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone() {
+    return new TrexAstfDpCreateTcp();
 }
 
 /*************************
@@ -77,7 +85,25 @@ bool TrexAstfDpDeleteTcp::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone(void) {
+TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
     return new TrexAstfDpDeleteTcp();
+}
+
+
+/*************************
+  parse ASTF JSON from string
+ ************************/
+TrexAstfLoadDB::TrexAstfLoadDB(string *profile_buffer) {
+    m_profile_buffer = profile_buffer;
+}
+
+bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->parse_astf_json(m_profile_buffer);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfLoadDB::clone() {
+    assert(0); // should not be cloned [and sent to several cores]
+    return nullptr;
 }
 

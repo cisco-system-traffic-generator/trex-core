@@ -202,20 +202,27 @@ void CAstfDB::set_profile_one_msg(Json::Value msg){
     m_val =msg;
 }
 
+bool CAstfDB::set_profile_one_msg(const std::string &msg, std::string & err){
 
-bool CAstfDB::set_profile_one_msg(const std::string &msg,std::string & err){
 
     Json::Reader reader;
 
     err="";
     bool rc = reader.parse(msg, m_val, false);
+
     if (!rc) {
         std::stringstream ss;
         ss << "Failed parsing json message : " << reader.getFormattedErrorMessages() ;
         err = ss.str();
         return false;
     }
-    return(validate_profile(m_val,err));
+
+    // Disable verification on too large profiles (empiric size of sfr_full.py * 5)
+    if ( msg.size() > 25e6 ) {
+        return true;
+    }
+
+    return validate_profile(m_val, err);
 }
 
 

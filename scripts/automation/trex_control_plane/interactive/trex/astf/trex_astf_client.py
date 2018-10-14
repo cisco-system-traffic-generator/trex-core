@@ -2,10 +2,11 @@
 from ..utils.common import get_current_user
 from ..utils import parsing_opts, text_tables
 
-from ..common.trex_logger import Logger
-from ..common.trex_exceptions import TRexError
-from ..common.trex_client import TRexClient
 from ..common.trex_api_annotators import client_api, console_api
+from ..common.trex_client import TRexClient
+from ..common.trex_events import Event
+from ..common.trex_exceptions import TRexError
+from ..common.trex_logger import Logger
 from ..common.trex_types import *
 
 from .trex_astf_port import ASTFPort
@@ -86,6 +87,30 @@ class ASTFClient(TRexClient):
         with self.ctx.logger.suppress(verbose = "warning"):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_astf = False)
         return RC_OK()
+
+    def _on_astf_state_chg(self, ctx_state, error):
+        port_states = [
+            ASTFPort.STATE_IDLE,           # STATE_IDLE
+            ASTFPort.STATE_ASTF_LOADED,    # STATE_LOADED
+            ASTFPort.STATE_ASTF_PARSE,     # STATE_PARSE
+            ASTFPort.STATE_ASTF_BUILD,     # STATE_BUILD
+            ASTFPort.STATE_TX,             # STATE_TX
+            ASTFPort.STATE_ASTF_CLEANUP]   # STATE_CLEANUP
+
+        if ctx_state <0 or ctx_state >= len(port_states):
+            raise TRexError('Unhandled ASTF state: %s' % ctx_state)
+
+        port_state = port_states[ctx_state]
+        for port in self.ports.values():
+            port.state = port_state
+
+        port_state_name = ASTFPort.STATES_MAP[port_state].capitalize()
+
+        if error:
+            return Event('server', 'error', 'Moved to state: %s after error: %s' % (port_state_name, error))
+        else:
+            return Event('server', 'info', 'Moved to state: %s' % port_state_name)
+
 
 ############################     helper     #############################
 ############################     funcs      #############################

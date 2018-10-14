@@ -82,6 +82,7 @@ typedef set<TrexAstfPort *> port_list_t;
 TREX_RPC_CMD(TrexRpcCmdAstfAcquire, "acquire");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfRelease, "release");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileFragment, "profile_fragment");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileClear, "profile_clear");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStart, "start");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
 
@@ -128,9 +129,9 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
 
     if ( frag_first && !frag_last) {
         const uint32_t total_size = parse_int(params, "total_size", result);
-        if ( stx->profile_check(total_size) ) {
+        if ( stx->profile_check_size(total_size) ) {
             const string hash = parse_string(params, "md5", result);
-            if ( stx->profile_check(hash) ) {
+            if ( stx->profile_check_hash(hash) ) {
                 result["result"]["matches_loaded"] = true;
                 return TREX_RPC_CMD_OK;
             }
@@ -147,9 +148,20 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
         stx->profile_append(fragment);
 
         if ( frag_last ) {
-            stx->profile_load();
+            stx->profile_set_loaded();
         }
 
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfProfileClear::_run(const Json::Value &params, Json::Value &result) {
+    try {
+        get_astf_object()->profile_clear();
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -219,6 +231,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfAcquire(this));
     m_cmds.push_back(new TrexRpcCmdAstfRelease(this));
     m_cmds.push_back(new TrexRpcCmdAstfProfileFragment(this));
+    m_cmds.push_back(new TrexRpcCmdAstfProfileClear(this));
     m_cmds.push_back(new TrexRpcCmdAstfStart(this));
     m_cmds.push_back(new TrexRpcCmdAstfStop(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));

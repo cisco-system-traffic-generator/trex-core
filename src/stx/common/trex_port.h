@@ -48,12 +48,16 @@ public:
      * port state
      */
     enum port_state_e {
-        PORT_STATE_DOWN     = 0x1,
-        PORT_STATE_IDLE     = 0x2,
-        PORT_STATE_STREAMS  = 0x4,
-        PORT_STATE_TX       = 0x8,
-        PORT_STATE_PAUSE    = 0x10,
-        PORT_STATE_PCAP_TX  = 0x20,
+        PORT_STATE_DOWN         = 1 << 0,
+        PORT_STATE_IDLE         = 1 << 1,
+        PORT_STATE_STREAMS      = 1 << 2,
+        PORT_STATE_TX           = 1 << 3,
+        PORT_STATE_PAUSE        = 1 << 4,
+        PORT_STATE_PCAP_TX      = 1 << 5,
+        PORT_STATE_ASTF_LOADED  = 1 << 6,
+        PORT_STATE_ASTF_PARSE   = 1 << 7,
+        PORT_STATE_ASTF_BUILD   = 1 << 8,
+        PORT_STATE_ASTF_CLEANUP = 1 << 9,
     };
     
     TrexPort(uint8_t port_id);
@@ -315,7 +319,7 @@ protected:
      * change the state 
      * to a new state 
      */
-    void change_state(port_state_e new_state);
+    virtual void change_state(port_state_e new_state);
     
     
     /**
