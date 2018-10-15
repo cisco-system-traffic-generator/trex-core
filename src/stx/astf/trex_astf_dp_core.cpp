@@ -118,13 +118,10 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.add_node(node);
 
         m_flow_gen->m_node_gen.flush_file(c_stop_sec, d_time_flow, false, m_flow_gen, old_offset);
-        printf("stopped regular\n");
 
         if ( !m_flow_gen->is_terminated_by_master() && !go->preview.getNoCleanFlowClose() ) { // close gracefully
-            printf("continuing until close all flows\n");
             m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, true, m_flow_gen, old_offset);
         }
-        printf("done\n");
         m_flow_gen->flush_tx_queue();
         m_flow_gen->m_node_gen.close_file(m_flow_gen);
         m_flow_gen->m_c_tcp->cleanup_flows();
@@ -201,6 +198,10 @@ void TrexAstfDpCore::stop_transmit() {
     }
 
     add_global_duration(0.0001);
+}
+
+void TrexAstfDpCore::update_rate(double old_new_ratio) {
+    m_flow_gen->m_c_tcp->m_fif_d_time *= old_new_ratio;
 }
 
 bool TrexAstfDpCore::sync_barrier() {

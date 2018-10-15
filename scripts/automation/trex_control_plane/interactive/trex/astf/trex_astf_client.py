@@ -250,7 +250,7 @@ class ASTFClient(TRexClient):
         # send by fragments to server
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
         index_start = 0
-        fragment_length = 1000
+        fragment_length = 1000 # first fragment is small, we compare hash before sending the rest
         while len(profile_json) > index_start:
             index_end = index_start + fragment_length
             params = {
@@ -273,23 +273,23 @@ class ASTFClient(TRexClient):
                 if rc.data() and rc.data().get('matches_loaded'):
                     break
             index_start = index_end
-            fragment_length = 500000
+            fragment_length = 500000 # rest of fragments are larger
 
         self.ctx.logger.post_cmd(True)
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1,nc=False):
+    def start(self, mult = 1, duration = -1, nc = False):
 
         params = {
             'handler': self.handler,
             'mult': mult,
-            'nc':nc,
+            'nc': nc,
             'duration': duration,
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
-        rc = self._transmit("start", params = params)
+        rc = self._transmit('start', params = params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
@@ -300,7 +300,19 @@ class ASTFClient(TRexClient):
             'handler': self.handler,
             }
         self.ctx.logger.pre_cmd('Stopping traffic.')
-        rc = self._transmit("stop", params = params)
+        rc = self._transmit('stop', params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+    @client_api('command', True)
+    def update(self, mult):
+        params = {
+            'handler': self.handler,
+            'mult': mult,
+            }
+        self.ctx.logger.pre_cmd('Updating traffic.')
+        rc = self._transmit('update', params = params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
@@ -343,15 +355,16 @@ class ASTFClient(TRexClient):
 ############################             #############################
 
     @console_api('reset', 'common', True)
-    def reset_line (self, line):
+    def reset_line(self, line):
         '''Reset ports'''
 
-        parser = parsing_opts.gen_parser(self,
-                                         "reset",
-                                         self.reset_line.__doc__,
-                                         parsing_opts.PORT_RESTART)
+        parser = parsing_opts.gen_parser(
+            self,
+            'reset',
+            self.reset_line.__doc__,
+            parsing_opts.PORT_RESTART)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports(), verify_acquired = True)
+        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
         self.reset(restart = opts.restart)
         return True
 
@@ -362,15 +375,15 @@ class ASTFClient(TRexClient):
 
         parser = parsing_opts.gen_parser(
             self,
-            "start",
+            'start',
             self.start_line.__doc__,
             parsing_opts.FILE_PATH,
-            parsing_opts.MULTIPLIER_INT,
+            parsing_opts.MULTIPLIER_NUM,
             parsing_opts.DURATION,
             parsing_opts.TUNABLES,
-            parsing_opts.ASTF_NC
-            )
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
+            parsing_opts.ASTF_NC)
+
+        opts = parser.parse_args(line.split())
         tunables = opts.tunables or {}
         self.load_profile(opts.file[0], tunables)
         self.start(opts.mult, duration = opts.duration, nc = opts.nc)
@@ -382,21 +395,36 @@ class ASTFClient(TRexClient):
 
         parser = parsing_opts.gen_parser(
             self,
-            "stop",
-            self.stop_line.__doc__,
-            )
+            'stop',
+            self.stop_line.__doc__)
+
+        opts = parser.parse_args(line.split())
         self.stop()
+
+    @console_api('update', 'ASTF', True)
+    def update_line(self, line):
+        '''update traffic multiplier'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'update',
+            self.update_line.__doc__,
+            parsing_opts.MULTIPLIER_NUM)
+
+        opts = parser.parse_args(line.split())
+        self.update(opts.mult)
 
 
     @console_api('stats', 'common', True)
     def show_stats_line (self, line):
         '''Show various statistics\n'''
         # define a parser
-        parser = parsing_opts.gen_parser(self,
-                                         "stats",
-                                         self.show_stats_line.__doc__,
-                                         parsing_opts.PORT_LIST,
-                                         parsing_opts.ASTF_STATS_GROUP)
+        parser = parsing_opts.gen_parser(
+            self,
+            'stats',
+            self.show_stats_line.__doc__,
+            parsing_opts.PORT_LIST,
+            parsing_opts.ASTF_STATS_GROUP)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
         if not opts:

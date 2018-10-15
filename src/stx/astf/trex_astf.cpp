@@ -358,6 +358,21 @@ bool TrexAstf::stop_transmit() {
     return false;
 }
 
+void TrexAstf::update_rate(double mult) {
+    check_whitelist_states({STATE_TX});
+
+    // time interval for opening new flow will be multiplied by old_new_ratio
+    // new mult higher => time is shorter
+    double old_new_ratio = m_opts->m_factor / mult;
+    if ( isnan(old_new_ratio) || isinf(old_new_ratio) ) {
+        throw TrexException("Ratio between current rate and new one is invalid.");
+    }
+
+    m_opts->m_factor = mult;
+    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdate(old_new_ratio);
+    send_message_to_all_dp(msg);
+}
+
 void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
     if ( clone ) {
