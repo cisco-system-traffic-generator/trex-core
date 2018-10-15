@@ -347,6 +347,7 @@ class STLStream(object):
 
 
     """
+    _CORE_ID_NOT_SPECIFIED = -1
 
     def __init__ (self,
                   name = None,
@@ -364,6 +365,7 @@ class STLStream(object):
                   mac_dst_override_mode = None,    #see  STLStreamDstMAC_xx
                   dummy_stream = False,
                   start_paused = False,
+                  core_id = _CORE_ID_NOT_SPECIFIED
                   ):
         """ 
         Stream object 
@@ -414,6 +416,11 @@ class STLStream(object):
                   start_paused : bool
                         Experimental flag, might be removed in future!
                         Stream will not be transmitted until un-paused.
+
+                  core_id: int 
+                        Default value = self._CORE_ID_NOT_SPECIFIED.
+                        If core id is specified then the stream will run on core_id.
+                        For now this is supported only for continious streams that are not pointed by other streams. 
         """
 
 
@@ -427,12 +434,22 @@ class STLStream(object):
         validate_type('self_start', self_start, bool)
         validate_type('isg', isg, (int, float))
         validate_type('stream_id', stream_id, (type(None), int))
-        validate_type('random_seed',random_seed,int);
-        validate_type('dummy_stream', dummy_stream, bool);
-        validate_type('start_paused', start_paused, bool);
+        validate_type('random_seed',random_seed,int)
+        validate_type('dummy_stream', dummy_stream, bool)
+        validate_type('start_paused', start_paused, bool)
+        validate_type('core_id', core_id, int)
 
         if (type(mode) == STLTXCont) and (next != None):
             raise TRexError("Continuous stream cannot have a next stream ID")
+
+        if (type(mode) != STLTXCont) and (core_id != self._CORE_ID_NOT_SPECIFIED):
+            raise TRexError("Core ID is supported only for Continuous mode.")
+        
+        if (core_id != self._CORE_ID_NOT_SPECIFIED) and (self_start == False):
+            raise TRexError("Core ID is supported only for streams that aren't pointed at.")
+
+        if (core_id < 0) and (core_id != self._CORE_ID_NOT_SPECIFIED):
+            raise TRexError("Core ID must be non-negative.")
 
         # tag for the stream and next - can be anything
         self.name = name
@@ -475,6 +492,7 @@ class STLStream(object):
         self.fields['self_start'] = self_start
         self.fields['start_paused'] = start_paused
         self.fields['isg'] = isg
+        self.fields['core_id'] = core_id
 
         if random_seed !=0 :
             self.fields['random_seed'] = random_seed # optional
@@ -710,6 +728,8 @@ class STLStream(object):
             stream_params_list.append('action_count = %s' % self.fields['action_count'])
         if 'random_seed' in self.fields:
             stream_params_list.append('random_seed = %s' % self.fields.get('random_seed', 0))
+        if default_STLStream.fields['core_id'] != self.fields['core_id']:
+            stream_params_list.append('core_id = %s' % self.fields['core_id'])
         stream_params_list.append('mac_src_override_by_pkt = %s' % bool(self.fields['flags'] & 1))
         stream_params_list.append('mac_dst_override_mode = %s' % (self.fields['flags'] >> 1 & 3))
         if self.is_dummy():
@@ -823,7 +843,8 @@ class STLStream(object):
                              self_start               = json_data['self_start'],
                              isg                      = json_data['isg'],
                              action_count             = json_data['action_count'],
-                             
+                             core_id                  = json_data['core_id'],
+
                              stream_id                = json_data.get('stream_id'),
                              random_seed              = json_data.get('random_seed', 0),
                              

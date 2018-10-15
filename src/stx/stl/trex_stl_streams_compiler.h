@@ -132,7 +132,15 @@ public:
     TrexStreamsCompiledObj* clone();
 
     bool is_empty() {
-        return (m_objs.size() == 0);
+        if (m_objs.size() == 0) {
+            return true;
+        }
+        for (int i=0 ;i < m_objs.size(); i++) {
+            if (!m_objs[i].m_stream->is_null_stream()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     int size() const {
@@ -234,7 +242,8 @@ private:
                                        uint8_t dp_core_count,
                                        std::vector<TrexStreamsCompiledObj *> &objs,
                                        int new_id,
-                                       int new_next_id);
+                                       int new_next_id,
+                                       uint8_t core_id = 0);
 
     void compile_stream_on_all_cores(TrexStream *stream,
                                      uint8_t dp_core_count,
