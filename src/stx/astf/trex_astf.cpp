@@ -364,7 +364,7 @@ void TrexAstf::update_rate(double mult) {
     // time interval for opening new flow will be multiplied by old_new_ratio
     // new mult higher => time is shorter
     double old_new_ratio = m_opts->m_factor / mult;
-    if ( isnan(old_new_ratio) || isinf(old_new_ratio) ) {
+    if ( std::isnan(old_new_ratio) || std::isinf(old_new_ratio) ) {
         throw TrexException("Ratio between current rate and new one is invalid.");
     }
 
