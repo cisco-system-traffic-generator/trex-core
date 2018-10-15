@@ -544,30 +544,12 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
 
     /* check if all are cont. streams */
     bool all_continues = true;
-    int  non_splitable_count = 0;
 
     for (const auto stream : streams) {
-
         if (stream->get_type() != TrexStream::stCONTINUOUS) {
             all_continues = false;
         }
-
-        if (!stream->is_splitable(dp_core_count)) {
-            non_splitable_count++;
-        }
     }
-#if 0
-    /* if all streams are not splitable - all should go to core 0 */
-    if (non_splitable_count == streams.size()) {
-        compile_on_single_core(port_id,
-                               streams,
-                               objs,
-                               dp_core_count,
-                               factor,
-                               nodes,
-                               all_continues);
-    } else {
-#endif
         compile_on_all_cores(port_id,
                              streams,
                              objs,
@@ -575,10 +557,9 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
                              factor,
                              nodes,
                              all_continues);
-#if 0
-    }
+
 }
-#endif 
+
 
 void
 TrexStreamsCompiler::compile_latency_streams(uint8_t                                port_id,
@@ -635,40 +616,6 @@ TrexStreamsCompiler::compile_latency_streams(uint8_t                            
     }
 }
 
-
-
-/**
- * compile a list of streams on a single core (pinned to core 0)
- * 
- */
-#if 0
-void
-TrexStreamsCompiler::compile_on_single_core(uint8_t                                port_id,
-                                            const std::vector<TrexStream *>        &streams,
-                                            std::vector<TrexStreamsCompiledObj *>  &objs,
-                                            uint8_t                                dp_core_count,
-                                            double                                 factor,
-                                            GraphNodeMap                           &nodes,
-                                            bool                                   all_continues) {
-
-    /* allocate object only for core 0 */
-    TrexStreamsCompiledObj *obj = new TrexStreamsCompiledObj(port_id);
-    obj->m_all_continues = all_continues;
-    objs[0] = obj;
-
-     /* compile all the streams */
-    for (auto const stream : streams) {
-
-        /* skip non-enabled streams */
-        if (!stream->m_enabled) {
-            continue;
-        }
-     
-        /* compile the stream for only one core */
-        compile_stream(stream, factor, 1, objs, nodes);
-    }
-}
-#endif 
 /**
  * compile a list of streams on all DP cores
  * 

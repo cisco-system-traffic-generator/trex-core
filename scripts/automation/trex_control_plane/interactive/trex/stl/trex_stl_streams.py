@@ -400,7 +400,7 @@ class STLStream(object):
                   action_count : uint16_t
                         If there is a next stream, number of loops before stopping. Default: 0 (unlimited).
 
-                  random_seed: uint16_t 
+                  random_seed: uint32_t 
                        If given, the seed for this stream will be this value. Useful if you need a deterministic random value.
                         
                   mac_src_override_by_pkt : bool 
@@ -416,11 +416,11 @@ class STLStream(object):
                         Experimental flag, might be removed in future!
                         Stream will not be transmitted until un-paused.
 
-                  core_id: int 
-                        Default value = -1. 
-                        If 0 <= core_id < number of cores is specified then the stream will run on core_id.
-                        If core_id < 0 or it isn't specified the stream will be split.
-                        For now this is supported only for continuous streams that are not pointed by other streams. 
+                  core_id: int
+                        Pins the stream to core_id in case core_id is specified and 0 <= core_id < number of cores.
+                        Default value = -1.
+                        Negative value (default) keeps the current behaviour.
+                        For now this is supported only for continuous streams that are not pointed by other streams.
         """
 
 
@@ -446,9 +446,9 @@ class STLStream(object):
             raise TRexError("Core ID is supported only for Continuous mode.")
         
         if (core_id >= 0) and (self_start == False):
-            raise TRexError("Core ID is supported only for streams that aren't pointed at.")
+            raise TRexError("Core ID is supported only for streams that aren't being pointed at.")
 
-        if (flow_stats != None) and (type(flow_stats) == STLFlowLatencyStats):
+        if (type(flow_stats) == STLFlowLatencyStats):
             raise TRexError("Core ID is not supported for latency streams.")
 
         # tag for the stream and next - can be anything
