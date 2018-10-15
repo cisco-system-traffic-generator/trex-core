@@ -135,7 +135,7 @@ public:
         if (m_objs.size() == 0) {
             return true;
         }
-        for (auto obj : m_objs) {
+        for (auto& obj : m_objs) {
             if (!obj.m_stream->is_null_stream()) {
                 return false;
             }

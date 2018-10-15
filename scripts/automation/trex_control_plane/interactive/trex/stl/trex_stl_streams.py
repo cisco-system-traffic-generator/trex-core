@@ -347,7 +347,6 @@ class STLStream(object):
 
 
     """
-    _CORE_ID_NOT_SPECIFIED = -1
 
     def __init__ (self,
                   name = None,
@@ -365,7 +364,7 @@ class STLStream(object):
                   mac_dst_override_mode = None,    #see  STLStreamDstMAC_xx
                   dummy_stream = False,
                   start_paused = False,
-                  core_id = _CORE_ID_NOT_SPECIFIED
+                  core_id = -1
                   ):
         """ 
         Stream object 
@@ -418,9 +417,10 @@ class STLStream(object):
                         Stream will not be transmitted until un-paused.
 
                   core_id: int 
-                        Default value = self._CORE_ID_NOT_SPECIFIED.
-                        If core id is specified then the stream will run on core_id.
-                        For now this is supported only for continious streams that are not pointed by other streams. 
+                        Default value = -1. 
+                        If 0 <= core_id < number of cores is specified then the stream will run on core_id.
+                        If core_id < 0 or it isn't specified the stream will be split.
+                        For now this is supported only for continuous streams that are not pointed by other streams. 
         """
 
 
@@ -442,14 +442,14 @@ class STLStream(object):
         if (type(mode) == STLTXCont) and (next != None):
             raise TRexError("Continuous stream cannot have a next stream ID")
 
-        if (type(mode) != STLTXCont) and (core_id != self._CORE_ID_NOT_SPECIFIED):
+        if (type(mode) != STLTXCont) and (core_id >= 0):
             raise TRexError("Core ID is supported only for Continuous mode.")
         
-        if (core_id != self._CORE_ID_NOT_SPECIFIED) and (self_start == False):
+        if (core_id >= 0) and (self_start == False):
             raise TRexError("Core ID is supported only for streams that aren't pointed at.")
 
-        if (core_id < 0) and (core_id != self._CORE_ID_NOT_SPECIFIED):
-            raise TRexError("Core ID must be non-negative.")
+        if (flow_stats != None) and (type(flow_stats) == STLFlowLatencyStats):
+            raise TRexError("Core ID is not supported for latency streams.")
 
         # tag for the stream and next - can be anything
         self.name = name

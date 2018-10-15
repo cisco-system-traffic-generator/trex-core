@@ -556,9 +556,9 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
             non_splitable_count++;
         }
     }
-
+#if 0
     /* if all streams are not splitable - all should go to core 0 */
-    if (non_splitable_count == streams.size() && false) {
+    if (non_splitable_count == streams.size()) {
         compile_on_single_core(port_id,
                                streams,
                                objs,
@@ -567,6 +567,7 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
                                nodes,
                                all_continues);
     } else {
+#endif
         compile_on_all_cores(port_id,
                              streams,
                              objs,
@@ -574,9 +575,10 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
                              factor,
                              nodes,
                              all_continues);
+#if 0
     }
 }
-
+#endif 
 
 void
 TrexStreamsCompiler::compile_latency_streams(uint8_t                                port_id,
@@ -639,6 +641,7 @@ TrexStreamsCompiler::compile_latency_streams(uint8_t                            
  * compile a list of streams on a single core (pinned to core 0)
  * 
  */
+#if 0
 void
 TrexStreamsCompiler::compile_on_single_core(uint8_t                                port_id,
                                             const std::vector<TrexStream *>        &streams,
@@ -665,7 +668,7 @@ TrexStreamsCompiler::compile_on_single_core(uint8_t                             
         compile_stream(stream, factor, 1, objs, nodes);
     }
 }
-
+#endif 
 /**
  * compile a list of streams on all DP cores
  * 
@@ -729,21 +732,16 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
 
     /* can this stream be split to many cores ? */
     if ( (dp_core_count == 1) || (!stream->is_splitable(dp_core_count)) ) {
+        uint8_t core_id = 0;
         if (stream->m_core_id_specified) {
-            compile_stream_on_single_core(tmp_stream.get(),
-                                         dp_core_count,
-                                         objs,
-                                         new_id,
-                                         new_next_id,
-                                         stream->m_core_id);
+            core_id = stream->m_core_id;
         }
-        else {
-            compile_stream_on_single_core(tmp_stream.get(),
-                                        dp_core_count,
-                                        objs,
-                                        new_id,
-                                        new_next_id);
-        }
+        compile_stream_on_single_core(tmp_stream.get(),
+                                      dp_core_count,
+                                      objs,
+                                      new_id,
+                                      new_next_id,
+                                      core_id);
     } else {
         compile_stream_on_all_cores(tmp_stream.get(),
                                     dp_core_count,
@@ -819,7 +817,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
 }
 
 /**
- * compile the stream on core core_id, default value is 0
+ * compile the stream on core core_id, default core_id is 0
  * 
  */
 void
@@ -841,7 +839,7 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
         dp_stream->m_vm_dp = stream->m_vm_dp->clone();
     }
 
-    /* update core core_id with the real stream */
+    /* update core_id with the real stream */
     objs[core_id]->add_compiled_stream(dp_stream);
 
 
