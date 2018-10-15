@@ -79,18 +79,20 @@ TrexStream::vm_compile() {
 void TrexStream::Dump(FILE *fd){
 
     fprintf(fd,"\n");
-    fprintf(fd,"==> Stream_id    : %lu \n",(ulong)m_stream_id);
+    fprintf(fd,"==> Stream_id    : %lu \n",(ulong)(m_stream_id));
     fprintf(fd," Enabled      : %lu \n",(ulong)(m_enabled?1:0));
     fprintf(fd," Self_start   : %lu \n",(ulong)(m_self_start?1:0));
     fprintf(fd," Start_paused   : %lu \n",(ulong)(m_start_paused?1:0));
+    fprintf(fd," core_id_specified  : %lu \n", (ulong)(m_core_id_specified?1:0));
+    fprintf(fd," core_id   : %lu \n", (ulong)(m_core_id));
 
     if (m_next_stream_id>=0) {
-        fprintf(fd," Nex_stream_id  : %lu \n",(ulong)m_next_stream_id);
+        fprintf(fd," Next_stream_id  : %lu \n",(ulong)(m_next_stream_id));
     }else {
-        fprintf(fd," Nex_stream_id  : %d \n",m_next_stream_id);
+        fprintf(fd," Next_stream_id  : %d \n",m_next_stream_id);
     }
 
-    fprintf(fd," Port_id      : %lu \n",(ulong)m_port_id);
+    fprintf(fd," Port_id      : %lu \n",(ulong)(m_port_id));
 
     if (m_isg_usec>0.0) {
         fprintf(fd," isg    : %6.2f \n",m_isg_usec);
