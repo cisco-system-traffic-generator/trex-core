@@ -332,7 +332,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         int core_id = parse_int(section, "core_id", result);
         /* if core_id is negative then it wasn't specified, default value is negative */
         stream->m_core_id_specified = (core_id < 0) ? false : true ;
-        /* if core ID is specified, check if core ID is smaller than the max number of cores */
+        /* if core ID is specified, check if core ID is smaller than the number of cores */
         if (stream->m_core_id_specified) {
             if (type != "continuous") {
                 std::stringstream ss;
