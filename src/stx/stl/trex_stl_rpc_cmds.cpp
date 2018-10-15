@@ -332,17 +332,21 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         int core_id = parse_int(section, "core_id", result);
         /* if core_id is negative then it wasn't specified, default value is negative */
         stream->m_core_id_specified = (core_id < 0) ? false : true ;
-        /* if core ID specified, check if core ID is smaller than the max number of cores */
+        /* if core ID is specified, check if core ID is smaller than the max number of cores */
         if (stream->m_core_id_specified) {
+            if (type != "continuous") {
+                std::stringstream ss;
+                ss << "Core ID pinning is supported only for continuos mode.";
+                generate_execute_err(result, ss.str());
+            }
             uint8_t m_dp_core_count = get_platform_api().get_dp_core_count();
             if  (core_id >= m_dp_core_count) {
                 std::stringstream ss;
-                ss << "Core ID is: " << core_id << ". It must be an integer between 0 and " << m_dp_core_count - 1 << " include.";
+                ss << "Core ID is: " << core_id << ". It must be an integer between 0 and " << m_dp_core_count - 1 << " (inclusive).";
                 generate_execute_err(result, ss.str());
             }
             stream->m_core_id = (uint8_t)core_id;
-        }        
-        
+        }
 
         const Json::Value &pkt = parse_object(section, "packet", result);
         std::string pkt_binary = base64_decode(parse_string(pkt, "binary", result));
@@ -396,6 +400,11 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
             std::string type = parse_string(rx, "rule_type", result);
             if (type == "latency") {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+                if (stream->m_core_id_specified) {
+                    std::stringstream ss;
+                    ss << "Core ID pinning is not supported for latency streams.";
+                    generate_execute_err(result, ss.str());
+                }
             } else {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             }

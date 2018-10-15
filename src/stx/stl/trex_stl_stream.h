@@ -395,7 +395,7 @@ public:
             return false;
         }
 
-        /* cont stream is splitable unless otherwise specified */
+        /* cont stream is splittable unless otherwise specified */
         if (m_type == stCONTINUOUS) {
             return (m_core_id_specified) ? false : true ;
         }
@@ -467,8 +467,8 @@ public:
 
         dp->m_rate                  =   m_rate;
 
-        dp->m_core_id_specified = m_core_id_specified;
-        dp->m_core_id = m_core_id;
+        dp->m_core_id_specified     = m_core_id_specified;
+        dp->m_core_id               = m_core_id;
 
         return(dp);
     }
