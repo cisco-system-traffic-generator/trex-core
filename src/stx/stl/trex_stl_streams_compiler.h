@@ -135,8 +135,8 @@ public:
         if (m_objs.size() == 0) {
             return true;
         }
-        for (int i=0 ;i < m_objs.size(); i++) {
-            if (!m_objs[i].m_stream->is_null_stream()) {
+        for (auto obj : m_objs) {
+            if (!obj.m_stream->is_null_stream()) {
                 return false;
             }
         }
@@ -214,7 +214,7 @@ private:
     void on_next_not_found(const TrexStream *stream);
     void add_warning(const std::string &warning);
     void err(const std::string &err);
-
+#if 0
     void compile_on_single_core(uint8_t                                port_id,
                                 const std::vector<TrexStream *>        &streams,
                                 std::vector<TrexStreamsCompiledObj *>  &objs,
@@ -222,7 +222,7 @@ private:
                                 double                                 factor,
                                 GraphNodeMap                           &nodes,
                                 bool                                   all_continues);
-
+#endif 
     void compile_on_all_cores(uint8_t                                port_id,
                               const std::vector<TrexStream *>        &streams,
                               std::vector<TrexStreamsCompiledObj *>  &objs,
