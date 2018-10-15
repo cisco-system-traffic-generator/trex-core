@@ -67,6 +67,19 @@ public:
 };
 
 /**
+ * a message to update traffic rate
+ *
+ */
+class TrexAstfDpUpdate : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpUpdate(double old_new_ratio);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    double m_old_new_ratio;
+};
+
+/**
  * a message to stop traffic
  *
  */

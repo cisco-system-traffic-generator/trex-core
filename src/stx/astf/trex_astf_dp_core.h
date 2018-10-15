@@ -44,6 +44,7 @@ public:
 
     void start_transmit();
     void stop_transmit();
+    void update_rate(double ratio);
     void create_tcp_batch();
     void delete_tcp_batch();
     void parse_astf_json(std::string *profile_buffer);

@@ -128,6 +128,11 @@ public:
      */
     bool stop_transmit();
 
+    /**
+     * Update traffic rate
+     */
+    void update_rate(double mult);
+
     TrexOwner& get_owner() {
         return m_owner;
     }

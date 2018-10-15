@@ -85,6 +85,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileFragment, "profile_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileClear, "profile_clear");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStart, "start");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdate, "update");
 
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
@@ -176,7 +177,7 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
     const bool nc = parse_bool(params, "nc", result);
 
     try {
-        get_astf_object()->start_transmit(duration, mult,nc);
+        get_astf_object()->start_transmit(duration, mult, nc);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -193,6 +194,19 @@ TrexRpcCmdAstfStop::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
     result["result"]["stopped"] = stopped;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfUpdate::_run(const Json::Value &params, Json::Value &result) {
+    const double mult = parse_double(params, "mult", result);
+
+    try {
+        get_astf_object()->update_rate(mult);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
 
     return (TREX_RPC_CMD_OK);
 }
@@ -234,6 +248,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfProfileClear(this));
     m_cmds.push_back(new TrexRpcCmdAstfStart(this));
     m_cmds.push_back(new TrexRpcCmdAstfStop(this));
+    m_cmds.push_back(new TrexRpcCmdAstfUpdate(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
 }

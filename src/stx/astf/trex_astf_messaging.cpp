@@ -62,6 +62,22 @@ TrexCpToDpMsgBase* TrexAstfDpStop::clone() {
 }
 
 /*************************
+  update traffic message
+ ************************/
+TrexAstfDpUpdate::TrexAstfDpUpdate(double old_new_ratio) {
+    m_old_new_ratio = old_new_ratio;
+}
+
+bool TrexAstfDpUpdate::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->update_rate(m_old_new_ratio);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpUpdate::clone() {
+    return new TrexAstfDpUpdate(m_old_new_ratio);
+}
+
+/*************************
   create tcp batch
  ************************/
 TrexAstfDpCreateTcp::TrexAstfDpCreateTcp() {}
