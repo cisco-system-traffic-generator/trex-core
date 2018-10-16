@@ -68,7 +68,8 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
     def start_trex(self):
         sys.stdout.write('Starting TRex... ')
         start_time = time.time()
-        cores = self.configuration.trex.get('trex_cores', 1)
+        conf = self.configuration.trex
+        cores = conf.get('astf_cores', conf.get('trex_cores', 1))
         if self.is_virt_nics and cores > 1:
             raise Exception('Number of cores should be 1 with virtual NICs')
         if not CTRexScenario.no_daemon:

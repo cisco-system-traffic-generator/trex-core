@@ -45,9 +45,9 @@ uint32_t CRxAstfCore::handle_rx_one_queue(uint8_t thread_id, CNodeRing *r) {
     CGenNode * node;
     uint32_t got_pkts;
     CFlowGenListPerThread* lpt = get_platform_api().get_fl()->m_threads_info[thread_id];
-    uint8_t port1, port2;
+    uint8_t port1, port2, port_pair_offset;
     lpt->get_port_ids(port1, port2);
-    RXPortManager* rx_mngr[2] = {m_rx_port_mngr[port1], m_rx_port_mngr[port2]};
+    port_pair_offset = port1 & port2;
 
     for ( got_pkts=0; got_pkts<64; got_pkts++ ) { // read 64 packets at most
         if ( r->Dequeue(node)!=0 ){
@@ -59,7 +59,7 @@ uint32_t CRxAstfCore::handle_rx_one_queue(uint8_t thread_id, CNodeRing *r) {
         assert(pkt_info->m_msg_type==CGenNodeMsgBase::LATENCY_PKT);
         assert(pkt_info->m_latency_offset==0xdead);
         uint8_t dir = pkt_info->m_dir & 1;
-        rx_mngr[dir]->handle_pkt((rte_mbuf_t *)pkt_info->m_pkt);
+        m_rx_port_mngr[port_pair_offset + dir]->handle_pkt((rte_mbuf_t *)pkt_info->m_pkt);
 
         CGlobalInfo::free_node(node);
     }
