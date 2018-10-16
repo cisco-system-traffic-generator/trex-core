@@ -27,24 +27,27 @@ ASTFClient snippet
 
     c = ASTFClient()
 
-    try:
-        # connect to server
-        c.connect()
+    # connect to server
+    c.connect()
 
-        # prepare our ports (my machine has 0 <--> 1 with static route)
-        c.reset(ports = [0, 1])
+    try:
+        c.reset()
 
         c.clear_stats()
 
-        c.start(ports = [0, 1], mult = "5mpps", duration = 10)
+        c.load_profile(<profile_path>)
 
-        # block until done
-        c.wait_on_traffic(ports = [0, 1])
+        c.start(mult = 42, duration = 10)
+
+        c.wait_on_traffic()
+
+        stats = c.get_stats()
+        # check stats here
 
         # check for any warnings
-	if c.get_warnings():
-	    # handle warnings here
-	    pass
+        if c.get_warnings():
+            # handle warnings here
+            pass
 
     finally:
         c.disconnect()

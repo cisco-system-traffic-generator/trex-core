@@ -245,6 +245,11 @@ class CTRexClient(object):
             raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
 
 
+    def start_astf(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
+        trex_cmd_options['astf'] = True
+        return self.start_stateless(block_to_success, timeout, user, **trex_cmd_options)
+
+
     def stop_trex (self):
         """
         Request to stop a TRex run on server.
