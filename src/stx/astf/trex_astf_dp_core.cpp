@@ -147,6 +147,7 @@ void TrexAstfDpCore::parse_astf_json(string *profile_buffer) {
     rc = db->set_profile_one_msg(*profile_buffer, err);
     if ( !rc ) {
         report_error(err);
+        return;
     }
 
     // once we support speficying number of cores in start,
@@ -154,11 +155,11 @@ void TrexAstfDpCore::parse_astf_json(string *profile_buffer) {
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
     CJsonData_err err_obj = db->verify_data(num_dp_cores);
 
-    if (err_obj.is_error()) {
+    if ( err_obj.is_error() ) {
         report_error(err_obj.description());
+    } else {
+        report_finished();
     }
-
-    report_finished();
 }
 
 void TrexAstfDpCore::create_tcp_batch() {

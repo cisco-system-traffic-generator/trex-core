@@ -24,8 +24,10 @@ class CTRexScenario:
     configuration    = None
     trex             = None
     stl_trex         = None
+    astf_trex        = None
     stl_ports_map    = None
     stl_init_error   = None
+    astf_init_error  = None
     router           = None
     router_cfg       = None
     daemon_log_lines = 0
@@ -37,7 +39,7 @@ class CTRexScenario:
     benchmark        = None
     report_dir       = 'reports'
     # logger         = None
-    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'wireless_tests': []}
+    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'astf_tests': [], 'wireless_tests': []}
     pkg_updated      = False
     GAManager        = None
     no_daemon        = False
@@ -47,7 +49,7 @@ class CTRexScenario:
     elk              = None
     elk_info         = None
     global_cfg       = None
-    config_dict = None
+    config_dict      = None
 
 def copy_elk_info ():
    assert(CTRexScenario.elk_info)

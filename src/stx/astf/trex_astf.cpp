@@ -144,7 +144,6 @@ void TrexAstf::cleanup() {
 
 void TrexAstf::change_state(state_e new_state) {
     m_state = new_state;
-    printf("changing state to: %s\n", m_states_names[m_state].c_str());
     TrexPort::port_state_e port_state = TrexPort::PORT_STATE_IDLE;
 
     switch ( m_state ) {
@@ -175,7 +174,6 @@ void TrexAstf::change_state(state_e new_state) {
         case AMOUNT_OF_STATES:
             assert(0);
     }
-    printf("m_active_cores = %u\n", m_active_cores);
 
     Json::Value data;
     data["state"] = m_state;
@@ -193,7 +191,7 @@ void TrexAstf::all_dp_cores_finished() {
     switch ( m_state ) {
         case STATE_PARSE:
             if ( is_error() ) {
-                change_state(STATE_IDLE);
+                change_state(STATE_LOADED);
             } else {
                 m_parsed_hash = m_profile_hash;
                 build();
@@ -210,11 +208,7 @@ void TrexAstf::all_dp_cores_finished() {
             cleanup();
             break;
         case STATE_CLEANUP:
-            if ( m_profile_hash.size() ) {
-                change_state(STATE_LOADED);
-            } else {
-                change_state(STATE_IDLE);
-            }
+            change_state(STATE_LOADED);
             break;
         default:
             printf("DP cores should not report in state: %s", m_states_names[m_state].c_str());
@@ -224,7 +218,6 @@ void TrexAstf::all_dp_cores_finished() {
 
 void TrexAstf::dp_core_finished(int thread_id) {
     m_active_cores--;
-    printf("m_active_cores --\n");
     if ( m_active_cores == 0 ) {
         all_dp_cores_finished();
     } else {

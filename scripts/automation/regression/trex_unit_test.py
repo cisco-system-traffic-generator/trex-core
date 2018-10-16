@@ -297,57 +297,51 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--cfg', '--trex-scenario-config', action='store',
                             dest='config_path',
                             help='Specify path to folder with config.yaml and benchmark.yaml')
-        parser.add_option('--skip-clean', '--skip_clean', action='store_true',
+        parser.add_option('--skip-clean', action='store_true',
                             dest='skip_clean_config',
                             help='Skip the clean configuration replace on the platform.')
-        parser.add_option('--load-image', '--load_image', action='store_true', default = False,
-                            dest='load_image',
+        parser.add_option('--load-image', action='store_true',
                             help='Install image specified in config file on router.')
-        parser.add_option('--log-path', '--log_path', action='store',
-                            dest='log_path',
+        parser.add_option('--log-path', action='store',
                             help='Specify path for the tests` log to be saved at. Once applied, logs capturing by nose will be disabled.') # Default is CURRENT/WORKING/PATH/trex_log/trex_log.log')
-        parser.add_option('--json-verbose', '--json_verbose', action="store_true", default = False,
-                            dest="json_verbose",
+        parser.add_option('--json-verbose', action="store_true",
                             help="Print JSON-RPC commands.")
-        parser.add_option('--telnet-verbose', '--telnet_verbose', action="store_true", default = False,
-                            dest="telnet_verbose",
+        parser.add_option('--telnet-verbose', action="store_true",
                             help="Print telnet commands and responces.")
-        parser.add_option('--server-logs', '--server_logs', action="store_true", default = False,
-                            dest="server_logs",
+        parser.add_option('--server-logs', action="store_true",
                             help="Print server side (TRex and trex_daemon) logs per test.")
-        parser.add_option('--kill-running', '--kill_running', action="store_true", default = False,
-                            dest="kill_running",
+        parser.add_option('--kill-running', action="store_true",
                             help="Kills running TRex process on remote server (useful for regression).")
-        parser.add_option('--func', '--functional', action="store_true", default = False,
+        parser.add_option('--func', '--functional', action="store_true",
                             dest="functional",
                             help="Run functional tests.")
-        parser.add_option('--stl', '--stateless', action="store_true", default = False,
+        parser.add_option('--stl', '--stateless', action="store_true",
                             dest="stateless",
                             help="Run stateless tests.")
-        parser.add_option('--stf', '--stateful', action="store_true", default = False,
+        parser.add_option('--stf', '--stateful', action="store_true",
                             dest="stateful",
                             help="Run stateful tests.")
-        parser.add_option('--wireless', '--wireless', action="store_true", default = False,
-                            dest="wireless",
+        parser.add_option('--astf', action="store_true",
+                            help="Run stateful tests.")
+        parser.add_option('--wireless', action="store_true",
                             help="Run wireless tests.")
         parser.add_option('--pkg', type = str,
                             help="Run with given TRex package. Make sure the path available at server machine. Implies --restart-daemon.")
-        parser.add_option('--restart-daemon', action="store_true", default = False,
+        parser.add_option('--restart-daemon', action="store_true",
                             help="Flag that specifies to restart daemon. Implied by --pkg.")
-        parser.add_option('--collect', action="store_true", default = False,
+        parser.add_option('--collect', action="store_true",
                             help="Alias to --collect-only.")
-        parser.add_option('--warmup', action="store_true", default = False,
+        parser.add_option('--warmup', action="store_true",
                             help="Warm up the system for stateful: run 30 seconds 9k imix test without check of results.")
-        parser.add_option('--test-client-package', '--test_client_package', action="store_true", default = False,
+        parser.add_option('--test-client-package', '--test_client_package', action="store_true",
                             help="Includes tests of client package.")
-        parser.add_option('--long', '--nightly', action="store_true", default = False,
+        parser.add_option('--long', '--nightly', action="store_true",
                             help='Flag to enable longer (nightly) tests.')
-        parser.add_option('--ga', action="store_true", default = False,
+        parser.add_option('--ga', action="store_true",
                             help="Flag to send benchmarks to GA.")
-        parser.add_option('--no-daemon', action="store_true", default = False,
-                            dest="no_daemon",
+        parser.add_option('--no-daemon', action="store_true",
                             help="Flag that specifies to use running stl server, no need daemons.")
-        parser.add_option('--debug-image', action="store_true", default = False,
+        parser.add_option('--debug-image', action="store_true",
                             help="Flag that specifies to use t-rex-64-debug as TRex executable.")
         parser.add_option('--trex-args', default = '',
                             help="Additional TRex arguments (--no-watchdog etc.).")
@@ -363,6 +357,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
+        self.astf           = options.astf
         self.stateful       = options.stateful
         self.wireless       = options.wireless
         self.pkg            = options.pkg
@@ -374,7 +369,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         CTRexScenario.test  = options.test
         if self.no_daemon and (self.pkg or self.restart_daemon):
             fatal('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
-        if self.no_daemon and self.stateful :
+        if self.no_daemon and self.stateful:
             fatal("Can't run stateful without daemon.")
         if self.collect_only or self.functional or self.wireless:
             return
@@ -546,12 +541,18 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.trex.master_daemon.save_coredump()
         if self.stateful:
             CTRexScenario.trex = None
-        if self.stateless:
+        elif self.stateless:
             if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
                 CTRexScenario.stl_trex.disconnect()
             if not self.no_daemon:
                 CTRexScenario.trex.force_kill(False)
             CTRexScenario.stl_trex = None
+        elif self.astf:
+            if CTRexScenario.astf_trex and CTRexScenario.astf_trex.is_connected():
+                CTRexScenario.astf_trex.disconnect()
+            if not self.no_daemon:
+                CTRexScenario.trex.force_kill(False)
+            CTRexScenario.astf_trex = None
 
 
 def save_setup_info():
@@ -627,6 +628,10 @@ if __name__ == "__main__":
             if key in sys_args:
                 CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
                 sys_args.remove(key)
+        key = '--astf'
+        if key in sys_args:
+            CTRexScenario.test_types['astf_tests'].append('astf_tests')
+            sys_args.remove(key)
         key = '--wireless'
         if key in sys_args:
             CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
@@ -643,7 +648,9 @@ if __name__ == "__main__":
     parser.add_option = parser.add_argument
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
-    if not CTRexScenario.is_test_list and (options.stateless or options.stateful or not (options.stateful or options.stateless or options.functional or options.wireless)):
+
+    trex_tests = options.stateless or options.stateful or options.astf
+    if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional or options.wireless)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -690,6 +697,13 @@ if __name__ == "__main__":
                     additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+        if CTRexScenario.test_types['astf_tests'] and not is_wlc:
+            additional_args = ['--astf', 'astf_tests/astf_general_test.py:ASTFBasic_Test.test_connectivity'] + CTRexScenario.test_types['astf_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_astf.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if CTRexScenario.test_types['stateful_tests'] and not is_wlc:
             additional_args = ['--stf']

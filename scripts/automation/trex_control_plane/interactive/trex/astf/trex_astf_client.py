@@ -14,6 +14,7 @@ from .trex_astf_profile import ASTFProfile
 from .trex_astf_stats import CAstfStats
 import hashlib
 import sys
+import time
 
 class ASTFClient(TRexClient):
     def __init__(self,
@@ -59,10 +60,11 @@ class ASTFClient(TRexClient):
                             logger)
         self.handler = ''
         self.astf_stats = CAstfStats(self.conn.rpc)
+        self.last_error = ''
 
 
 
-    def get_mode (self):
+    def get_mode(self):
         return "ASTF"
 
 ############################    called       #############################
@@ -97,8 +99,10 @@ class ASTFClient(TRexClient):
             ASTFPort.STATE_TX,             # STATE_TX
             ASTFPort.STATE_ASTF_CLEANUP]   # STATE_CLEANUP
 
-        if ctx_state <0 or ctx_state >= len(port_states):
+        if ctx_state < 0 or ctx_state >= len(port_states):
             raise TRexError('Unhandled ASTF state: %s' % ctx_state)
+
+        self.last_error = error
 
         port_state = port_states[ctx_state]
         for port in self.ports.values():
@@ -116,11 +120,28 @@ class ASTFClient(TRexClient):
 ############################     funcs      #############################
 ############################                #############################
 
-    def __get_acquired_ports_param(self):
-        port_ids = self.get_acquired_ports()
-        if not port_ids:
-            raise TRexError('No acquired ports')
-        return [{'port_id': id, 'handler': self.ports[id].handler} for id in port_ids]
+    @property
+    def state(self):
+        for port in self.ports.values():
+            return port.state
+
+    def _transmit_async(self, rpc_func, ok_states = None, bad_states = None, **k):
+        self.last_error = ''
+        if ok_states is not None:
+            ok_states = listify(ok_states)
+        if bad_states is not None:
+            bad_states = listify(bad_states)
+        rc = self._transmit(rpc_func, **k)
+        if not rc:
+            return rc
+        while True:
+            time.sleep(0.01)
+            state = self.state
+            if ok_states and state in ok_states:
+                return RC_OK()
+            if self.last_error or (bad_states and state in bad_states):
+                return RC_ERR(self.last_error)
+
 
 ############################       ASTF     #############################
 ############################       API      #############################
@@ -199,6 +220,7 @@ class ASTFClient(TRexClient):
 
         self._post_acquire_common(ports)
 
+
     @client_api('command', True)
     def release(self, force = False):
         """
@@ -226,16 +248,14 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def load_profile(self, filename, tunables = {}):
-        """ |  load a profile Supported types are:
-            |  .py
-            |  .json
+    def load_profile(self, profile, tunables = {}):
+        """ Upload ASTF profile to server
 
             :parameters:
-                filename : string
-                    filename (with path) of the profile
+                profile: string or ASTFProfile
+                    Path to profile filename or profile object
 
-                tunables : dict
+                tunables: dict
                     forward those key-value pairs to the profile
 
             :raises:
@@ -243,8 +263,8 @@ class ASTFClient(TRexClient):
 
         """
 
-        # generate traffic
-        profile = ASTFProfile.load(filename, **tunables);
+        if not isinstance(profile, ASTFProfile):
+            profile = ASTFProfile.load(profile, **tunables)
         profile_json = profile.to_json_str(pretty = False, sort_keys = True)
 
         # send by fragments to server
@@ -279,7 +299,43 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False):
+    def clear_profile(self):
+        """ Clear loaded profile """
+        params = {
+            'handler': self.handler
+            }
+        self.ctx.logger.pre_cmd('Clearing loaded profile.')
+        rc = self._transmit('profile_clear', params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+
+    @client_api('command', True)
+    def start(self, mult = 1, duration = -1, nc = False, block = True):
+        """
+            Start the traffic on loaded profile. Procedure is async.
+
+            :parameters:
+                mult: int
+                    Multiply total CPS of profile by this value
+                    Default is 1
+
+                duration: float
+                    Start new flows for this duration
+                    Default (negative) is infinite
+
+                nc: bool
+                    Do not wait for flows to close at end of duration
+                    Default is False
+
+                block: bool
+                    Wait for traffic to be started (operation is async)
+                    Default is True
+
+            :raises:
+                + :exe:'TRexError'
+        """
 
         params = {
             'handler': self.handler,
@@ -289,24 +345,53 @@ class ASTFClient(TRexClient):
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
-        rc = self._transmit('start', params = params)
+        rc = self._transmit_async('start', params = params, ok_states = ASTFPort.STATE_TX, bad_states = ASTFPort.STATE_ASTF_LOADED)
         self.ctx.logger.post_cmd(rc)
+
         if not rc:
             raise TRexError(rc.err())
 
+
     @client_api('command', True)
-    def stop(self):
+    def stop(self, block = True):
+        """
+            Stop the traffic.
+
+            :parameters:
+                block: bool
+                    Wait for traffic to be stopped (operation is async)
+                    Default is True
+
+            :raises:
+                + :exe:'TRexError'
+        """
         params = {
             'handler': self.handler,
             }
         self.ctx.logger.pre_cmd('Stopping traffic.')
-        rc = self._transmit('stop', params = params)
+        if block:
+            rc = self._transmit_async('stop', params = params, ok_states = [ASTFPort.STATE_IDLE, ASTFPort.STATE_ASTF_LOADED])
+        else:
+            rc = self._transmit('stop', params = params)
         self.ctx.logger.post_cmd(rc)
+
         if not rc:
             raise TRexError(rc.err())
 
+
     @client_api('command', True)
     def update(self, mult):
+        """
+            Update the rate of running traffic.
+
+            :parameters:
+                mult: int
+                    Multiply total CPS of profile by this value (not relative to current running rate)
+                    Default is 1
+
+            :raises:
+                + :exe:'TRexError'
+        """
         params = {
             'handler': self.handler,
             'mult': mult,
@@ -318,13 +403,33 @@ class ASTFClient(TRexClient):
             raise TRexError(rc.err())
 
 
+    @client_api('command', True)
+    def wait_on_traffic(self, timeout = None):
+        """
+            Block until traffic stops
+
+            :parameters:
+                timeout: int
+                    Timeout in seconds
+                    Default is blocking
+
+            :raises:
+                + :exc:`TRexTimeoutError` - in case timeout has expired
+                + :exe:'TRexError'
+        """
+
+        ports = self.get_all_ports()
+        TRexClient.wait_on_traffic(self, ports, timeout)
+
+
     # get stats
     @client_api('getter', True)
     def get_stats (self, ports = None, sync_now = True):
 
-        ext_stats = {'astf': self.get_astf_stats()}
+        stats = self._get_stats_common(ports, sync_now)
+        stats['astf'] = self.get_astf_stats()
 
-        return self._get_stats_common(ports, sync_now, ext_stats = ext_stats)
+        return stats
 
 
     # clear stats
@@ -344,6 +449,7 @@ class ASTFClient(TRexClient):
     @client_api('getter', True)
     def get_astf_stats(self):
         return self.astf_stats.get_stats()
+
 
     @client_api('getter', True)
     def clear_astf_stats(self):

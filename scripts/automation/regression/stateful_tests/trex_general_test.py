@@ -62,6 +62,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.benchmark             = CTRexScenario.benchmark
         self.trex                  = CTRexScenario.trex
         self.stl_trex              = CTRexScenario.stl_trex
+        self.astf_trex             = CTRexScenario.stl_trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
         self.GAManager             = None  # Disable GA due to network issues ELK is our database   CTRexScenario.GAManager
@@ -468,12 +469,13 @@ class CTRexGeneral_Test(unittest.TestCase):
         test_setup_modes_conflict = self.modes & set(self.unsupported_modes)
         if test_setup_modes_conflict:
             self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
-        if not self.stl_trex and not self.trex.is_idle():
+
+        if not self.stl_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at setUp, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print('')
-            if not self.stl_trex and CTRexScenario.router_cfg['forceCleanConfig']:
+            if not self.stl_trex and not self.astf_trex and CTRexScenario.router_cfg['forceCleanConfig']:
                 self.router.load_clean_config()
             self.router.clear_counters()
             self.router.clear_packet_drop_stats()
@@ -487,7 +489,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 #   def test_isInitialized(self):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
-        if not self.stl_trex and not self.trex.is_idle():
+        if not self.stl_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at tearDown, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.skipping:
