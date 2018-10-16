@@ -95,6 +95,7 @@ def parse_args():
                         help='profile path to send, default will astf/http_simple.py',
                         type = str)
     parser.add_argument('-d',
+                        default = 10,
                         dest = 'duration',
                         help='duration of traffic, default is 10 sec',
                         type = float)
