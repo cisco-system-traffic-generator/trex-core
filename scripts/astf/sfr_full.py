@@ -1,8 +1,5 @@
 from trex.astf.api import *
 
-# Only TCP SFR data is here 
-# SFR UDP templates are not here yet (e.g. DNS)
-# 
 
 
 class Prof1():

@@ -75,17 +75,17 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
         if not CTRexScenario.no_daemon:
             self.trex.start_astf(c = cores)
         self.astf_trex = ASTFClient(username = 'TRexRegression',
-                                    server = self.configuration.trex['trex_name'],
+                                    server = conf['trex_name'],
                                     verbose_level = "debug" if CTRexScenario.json_verbose else "none")
         CTRexScenario.astf_trex = self.astf_trex
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
     def update_elk_obj(self):
-        stl_info = self.astf_trex.get_server_system_info()
+        info = self.astf_trex.get_server_system_info()
         setup = CTRexScenario.elk_info['info']['setup']
-        setup['drv-name']  = stl_info['ports'][0]['driver']
-        setup['nic-ports'] = stl_info['port_count']
+        setup['drv-name']  = info['ports'][0]['driver']
+        setup['nic-ports'] = info['port_count']
         setup['nic-speed'] = str(self.astf_trex.get_port_info(0))
 
 

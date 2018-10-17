@@ -1,4 +1,3 @@
-#!/router/bin/python
 from .astf_general_test import CASTFGeneral_Test, CTRexScenario
 from misc_methods import run_command
 from nose.plugins.attrib import attr
