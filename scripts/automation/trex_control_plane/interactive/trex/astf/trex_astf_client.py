@@ -172,6 +172,7 @@ class ASTFClient(TRexClient):
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
                 self.stop()
+                self.clear_profile()
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
                                    promiscuous = False,

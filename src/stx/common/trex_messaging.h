@@ -282,16 +282,16 @@ private:
 class TrexDpCoreError : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpCoreError(int thread_id, const std::string &err) :
-                    m_err(err) {
+    TrexDpCoreError(int thread_id, const std::string &err) {
         m_thread_id = thread_id;
+        m_err       = err;
     }
 
     virtual bool handle(void);
 
 private:
     int          m_thread_id;
-    const std::string &m_err;
+    std::string  m_err;
 
 };
 
