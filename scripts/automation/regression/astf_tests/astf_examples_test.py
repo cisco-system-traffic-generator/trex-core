@@ -16,7 +16,7 @@ class ASTFExamples_Test(CASTFGeneral_Test):
         if not self.is_connected():
             self.astf_trex.connect()
 
-    def test_stl_examples(self):
+    def test_astf_examples(self):
         examples_dir = '../trex_control_plane/interactive'
         examples_to_test = [
                             'astf_example',
