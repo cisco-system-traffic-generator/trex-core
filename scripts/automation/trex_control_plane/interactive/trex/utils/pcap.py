@@ -7,8 +7,12 @@ def __ts_key (a):
 def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
     exising_pcaps = [f for f in pcap_file_list if os.path.exists(f)]
+    if not exising_pcaps:
+        print('ERROR: DP cores did not produce output files!')
+        return
+
     if len(exising_pcaps) != len(pcap_file_list):
-        print("WARNING: not all files from DP cores exist\n")
+        print("WARNING: not all DP cores produced output files\n")
 
     out_pkts = []
     for src in exising_pcaps:
