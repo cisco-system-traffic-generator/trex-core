@@ -447,6 +447,19 @@ void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
     /* not valid under traffic */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_vlan_cfg");
 
+    if ( get_is_tcp_mode() && get_is_interactive() ) {
+        switch ( vlan_list.size() ) {
+            case 0:
+                CGlobalInfo::m_options.m_ip_cfg[m_port_id].set_vlan(0);
+                break;
+            case 1:
+                CGlobalInfo::m_options.m_ip_cfg[m_port_id].set_vlan(vlan_list[0]);
+                break;
+            default:
+                throw TrexException("Stacked VLANs are not allowed in ASTF mode");
+        }
+    }
+
     TrexRxSetVLAN *msg = new TrexRxSetVLAN(m_port_id, vlan_list);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }

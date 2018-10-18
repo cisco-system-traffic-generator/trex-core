@@ -154,4 +154,18 @@ ASTFAssociationRule class
     :members: 
     :member-order: bysource
 
+ASTFGlobalInfo class
+--------------------
+
+.. autoclass:: trex.astf.trex_astf_global_info.ASTFGlobalInfo
+    :members: 
+    :member-order: bysource
+
+ASTFGlobalInfoPerTemplate class
+-------------------------------
+
+.. autoclass:: trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate
+    :members: 
+    :member-order: bysource
+
 

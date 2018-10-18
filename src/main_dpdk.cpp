@@ -4196,6 +4196,15 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     CFlowGenListPerThread   * lpt;
     stats.m_template.Clear();
+
+    bool can_read_tuple_gen = true;
+    if ( get_is_interactive() && get_is_tcp_mode() ) {
+        TrexAstf *astf_stx = (TrexAstf*) m_stx;
+        if ( astf_stx->get_state() != TrexAstf::STATE_TX ) {
+            can_read_tuple_gen = false;
+        }
+    }
+
     for (i=0; i<get_cores_tx(); i++) {
         lpt = m_fl.m_threads_info[i];
         total_open_flows +=   lpt->m_stats.m_total_open_flows ;
@@ -4212,11 +4221,12 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
         stats.m_template.Add(&lpt->m_node_gen.m_v_if->get_stats()[0].m_template);
         stats.m_template.Add(&lpt->m_node_gen.m_v_if->get_stats()[1].m_template);
 
-
-        total_clients   += lpt->m_smart_gen.getTotalClients();
-        total_servers   += lpt->m_smart_gen.getTotalServers();
-        active_sockets  += lpt->m_smart_gen.ActiveSockets();
-        total_sockets   += lpt->m_smart_gen.MaxSockets();
+        if ( can_read_tuple_gen ) {
+            total_clients   += lpt->m_smart_gen.getTotalClients();
+            total_servers   += lpt->m_smart_gen.getTotalServers();
+            active_sockets  += lpt->m_smart_gen.ActiveSockets();
+            total_sockets   += lpt->m_smart_gen.MaxSockets();
+        }
 
         total_nat_time_out +=lpt->m_stats.m_nat_flow_timeout;
         total_nat_time_out_wait_ack += lpt->m_stats.m_nat_flow_timeout_wait_ack;
@@ -4319,24 +4329,27 @@ CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
 
 bool CGlobalTRex::sanity_check(){
 
-    CFlowGenListPerThread   * lpt;
-    uint32_t errors=0;
-    int i;
-    for (i=0; i<get_cores_tx(); i++) {
-        lpt = m_fl.m_threads_info[i];
-        errors   += lpt->m_smart_gen.getErrorAllocationCounter();
+    if ( !get_is_interactive() ) {
+        CFlowGenListPerThread   * lpt;
+        uint32_t errors=0;
+        int i;
+        for (i=0; i<get_cores_tx(); i++) {
+            lpt = m_fl.m_threads_info[i];
+            errors   += lpt->m_smart_gen.getErrorAllocationCounter();
+        }
+
+        if ( errors && (get_is_tcp_mode()==false) ) {
+            m_mark_not_enogth_clients = true;
+            printf(" ERROR can't allocate tuple, not enough clients \n");
+            printf(" you should allocate more clients in the pool \n");
+
+            /* mark test end and get out */
+            mark_for_shutdown(SHUTDOWN_NOT_ENOGTH_CLIENTS);
+
+            return(true);
+        }
     }
 
-    if ( errors && (get_is_tcp_mode()==false) ) {
-        m_mark_not_enogth_clients = true;
-        printf(" ERROR can't allocate tuple, not enough clients \n");
-        printf(" you should allocate more clients in the pool \n");
-        
-        /* mark test end and get out */
-        mark_for_shutdown(SHUTDOWN_NOT_ENOGTH_CLIENTS);
-        
-        return(true);
-    }
     return ( false);
 }
 
@@ -4950,8 +4963,6 @@ int CGlobalTRex::start_master_astf_common() {
 
 int CGlobalTRex::start_master_astf_batch() {
 
-    start_master_astf_common();
-
     std::string json_file_name = "/tmp/astf";
     if (CGlobalInfo::m_options.prefix.size() != 0) {
         json_file_name += "-" + CGlobalInfo::m_options.prefix;
@@ -4968,6 +4979,8 @@ int CGlobalTRex::start_master_astf_batch() {
 
     CTupleGenYamlInfo  tuple_info;
     db->get_tuple_info(tuple_info);
+
+    start_master_astf_common();
 
     /* client config for ASTF this is a patch.. we would need to remove this in interactive mode */
     if (CGlobalInfo::m_options.client_cfg_file != "") {
@@ -5005,19 +5018,19 @@ int CGlobalTRex::start_master_astf_batch() {
     CTcpLatency lat;
     db->get_latency_params(lat);
 
-   if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
+    if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
 
-       m_mg.set_ip( lat.get_c_ip() ,
+        m_mg.set_ip( lat.get_c_ip() ,
                    lat.get_s_ip(),
                    lat.get_mask(),
                    m_fl.m_client_config_info);
-   } else {
+    } else {
         m_mg.set_ip( lat.get_c_ip() ,
                     lat.get_s_ip(),
                     lat.get_mask());
     }
 
-   return (0);
+    return (0);
 }
 
 

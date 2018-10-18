@@ -1067,14 +1067,14 @@ class ASTFAssociationRule(object):
         """
 
         :parameters:
-                  port  : uint16_t
-                      destination port
+            port: uint16_t
+                destination port
 
-                  ip_start : string
-                      stop ip range
+            ip_start: string
+                ip range start
 
-                  ip_end   : string
-                      stop ip range
+            ip_end: string
+                ip range end
 
         """
 
@@ -1242,12 +1242,12 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                         destination port
 
                   cps      : float
-                        New connection per second rate
+                        New connection per second rate. Minimal value is 0.5
 
                   limit    : uint32_t 
                         limit the number of flows. default is None which means zero 
 
-                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
         """
 
@@ -1304,7 +1304,7 @@ class ASTFTCPServerTemplate(_ASTFTemplateBase):
                   program  : ASTFProgram see :class:`trex.astf.trex_astf_profile.ASTFProgram`
                         L7 emulation program
 
-                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
+                  glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
                   assoc    : ASTFAssociation see :class:`trex.astf.trex_astf_profile.ASTFAssociation`
 
@@ -1376,9 +1376,9 @@ class ASTFCapInfo(object):
                   limit     : uint32_t 
                         Limit the number of flows 
 
-                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
+                  s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
-                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_profile.ASTFGlobalInfoPerTemplate`
+                  c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
         """
 
@@ -1549,11 +1549,11 @@ class ASTFProfile(object):
                   default_ip_gen  : ASTFIPGen  :class:`trex.astf.trex_astf_profile.ASTFIPGen`
                        tuple generator object
 
-                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_profile.ASTFGlobalInfo`
+                  default_c_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfo`
                        tcp parameters to be used for server side, if cap_list is given. This is optional. If not specified,
                        TCP parameters for each flow will be taken from its cap file.
 
-                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_profile.ASTFGlobalInfo`
+                  default_s_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfo`
                        Same as default_tcp_server_info for client side.
 
                   templates  :  ASTFTemplate see :class:`trex.astf.trex_astf_profile.ASTFTemplate`

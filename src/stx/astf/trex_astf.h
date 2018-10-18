@@ -146,6 +146,10 @@ public:
 
     void dp_core_error(int thread_id, const std::string &err);
 
+    state_e get_state() {
+        return m_state;
+    }
+
 protected:
     // message to DP involved:
     void parse();

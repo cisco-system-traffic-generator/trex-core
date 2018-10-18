@@ -385,7 +385,7 @@ class TrexTUIPanelManager():
 
         elif self.client.get_mode() == "ASTF":
             self.panels['astats'] = TrexTUIAstfStats(self)
-            self.key_actions['s'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
+            self.key_actions['t'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
