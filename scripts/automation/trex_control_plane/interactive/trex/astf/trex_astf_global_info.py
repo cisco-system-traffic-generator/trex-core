@@ -13,7 +13,7 @@ class ASTFGlobalInfoBase(object):
 
         def __setattr__(self, name, val):
             if name.startswith("_"):
-                return super(ASTFGlobalInfoBase.inner, self).__setattr__(name, val)
+                return object.__setattr__(self, name, val)
             for p in self._params:
                 if name == p["name"]:
                     if "sub_type" in p:
@@ -40,7 +40,7 @@ class ASTFGlobalInfoBase(object):
 
         def __getattr__(self, name):
             if name.startswith("_"):
-                return super(ASTFGlobalInfoBase.inner, self).__getattr__(name)
+                return object.__getattribute__(self, name)
             for p in self._params:
                 if name == p["name"]:
                     return self._fields[name]
@@ -57,7 +57,7 @@ class ASTFGlobalInfoBase(object):
 
     def __setattr__(self, name, val):
         if name.startswith("_"):
-            return super(ASTFGlobalInfoBase, self).__setattr__(name, val)
+            return object.__setattr__(self, name, val)
 
 
         if name in self._params:
@@ -74,7 +74,7 @@ class ASTFGlobalInfoBase(object):
 
     def __getattr__(self, name):
         if name.startswith("_"):
-            return super(ASTFGlobalInfoBase.in_tcp, self).__getattr__(name)
+            return object.__getattribute__(self, name)
 
         if name in self._params:
             long_name = self._name + "." + name
@@ -130,9 +130,9 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
     }
 
     def __init__(self):
-        self._g_params = ASTFGlobalInfo._g_params
+        self._params = ASTFGlobalInfo._g_params
         self._name = "GlobalInfo"
-        return super(ASTFGlobalInfo, self).__init__()
+        return ASTFGlobalInfoBase.__init__(self)
 
 
 class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
@@ -155,6 +155,6 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
     }
 
     def __init__(self):
-        self._g_params = ASTFGlobalInfoPerTemplate._g_params
+        self._params = ASTFGlobalInfoPerTemplate._g_params
         self._name = "GlobalInfoPerTemplate"
-        return super(ASTFGlobalInfoPerTemplate, self).__init__()
+        return ASTFGlobalInfoBase.__init__(self)

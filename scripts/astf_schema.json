@@ -355,8 +355,7 @@
                       },
 
                      "offset" : {
-                          "type" : "integer",
-                          "minimum": 0
+                          "type" : "integer"
                       }
                 },
                 "required": ["name","id","offset"]
