@@ -480,7 +480,7 @@ public:
 
     /** 
      * operation mode 
-     * stateful, stateless or advacned stateful
+     * stateful, stateless or advanced stateful
      */
     enum trex_op_mode_e {
         OP_MODE_INVALID,

@@ -75,6 +75,9 @@ def int2ip(val):
         ip_arr.insert(0, '%s' % char)
     return '.'.join(ip_arr)
 
+def ip2int(ip):
+    return ipv4_str_to_num(is_valid_ipv4_ret(ip))
+
 def increase_mac(mac_str, val = 1):
     if ':' in mac_str:
         mac_str = mac2str(mac_str)

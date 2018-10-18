@@ -239,6 +239,7 @@ bool CAstfDB::parse_file(std::string file) {
     std::string err;
     bool rc = set_profile_one_msg(msg, err);
     if ( !rc ) {
+        printf("Parsing ASTF JSON file failed, error:\n%s\n", err.c_str());
         return false;
     }
 

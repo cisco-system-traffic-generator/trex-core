@@ -50,10 +50,10 @@ class ASTFGlobalInfoBase(object):
         def to_json(self):
             return self._fields
 
-    def __init__(self, params=_g_params, name="globalp"):
+    def __init__(self):
         self._fields = {}
-        self._params = params
-        self._name = name
+        assert(self._params)
+        assert(self._name)
 
     def __setattr__(self, name, val):
         if name.startswith("_"):
@@ -94,6 +94,9 @@ class ASTFGlobalInfoBase(object):
 
 
 class ASTFGlobalInfo(ASTFGlobalInfoBase):
+    '''
+        TODO: add description
+    '''
     _g_params = {
         "scheduler" : [
          {"name": "rampup_sec", "type": [int]},
@@ -126,11 +129,17 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
         ],
     }
 
-    def __init__(self, params=_g_params, name="GlobalInfo"):
-        return super(ASTFGlobalInfo, self).__init__(params, name)
+    def __init__(self):
+        self._g_params = ASTFGlobalInfo._g_params
+        self._name = "GlobalInfo"
+        return super(ASTFGlobalInfo, self).__init__()
 
 
 class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
+    '''
+        TODO: add description
+    '''
+
     _g_params = {
         "tcp": [
                 {"name": "initwnd", "type": [int]},
@@ -145,5 +154,7 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
         ],
     }
 
-    def __init__(self, params=_g_params, name="GlobalInfoPerTemplate"):
-        return super(ASTFGlobalInfoPerTemplate, self).__init__(params, name)
+    def __init__(self):
+        self._g_params = ASTFGlobalInfoPerTemplate._g_params
+        self._name = "GlobalInfoPerTemplate"
+        return super(ASTFGlobalInfoPerTemplate, self).__init__()
