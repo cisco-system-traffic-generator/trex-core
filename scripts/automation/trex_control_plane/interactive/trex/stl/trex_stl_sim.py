@@ -313,7 +313,7 @@ class STLSim(object):
 
 
         if not self.silent:
-            print("Mering cores output to a single pcap file...\n")
+            print("Merging cores output to a single pcap file...\n")
         inputs = ["{0}-{1}".format(self.outfile, index) for index in range(0, self.dp_core_count)]
         pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
 
