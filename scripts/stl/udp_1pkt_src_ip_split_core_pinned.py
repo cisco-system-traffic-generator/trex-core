@@ -8,7 +8,7 @@ class STLS1(object):
     def __init__ (self):
         self.fsize  =64;
 
-    def create_stream (self, direction, cache_size):
+    def create_stream (self, core_id, direction, cache_size):
         # Create base packet and pad it to size
         size = self.fsize - 4; # HW will add 4 bytes ethernet FCS
         src_ip = '16.0.0.1'
@@ -32,14 +32,14 @@ class STLS1(object):
                             vm = vm)
         stream = STLStream(packet = pkt,
                          mode = STLTXCont(),
-                         core_id = 3)
+                         core_id = core_id)
         #print(stream.to_code())
         return stream
 
 
-    def get_streams (self, direction = 0, cache_size = 255, **kwargs):
+    def get_streams (self, core_id = 1, direction = 0, cache_size = 255, **kwargs):
         # create 1 stream 
-        return [ self.create_stream(direction, cache_size) ]
+        return [ self.create_stream(core_id, direction, cache_size) ]
 
 
 # dynamic load - used for trex console or simulator

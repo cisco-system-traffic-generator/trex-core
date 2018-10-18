@@ -372,22 +372,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             rc = self.run_sim(mc_test, output = None, options = '--test_multi_core -d=1.0001 -m 2kpps', silent = True)
             assert_equal(rc, True)
 
-        return
 
-    def test_udp_1pkt_src_ip_split_core_pinned(self, compare = True, do_no_remove = False):
+    def test_udp_1pkt_src_ip_split_core_pinned(self):
         print("Testing core pinning for udp_1pkt_src_ip_split.py")
         output_cap = "generated/a.pcap"
         golden_file = os.path.join('exp', 'udp_1pkt_src_ip_split.pcap')
-        output_cap = "generated/a.pcap"
+
         try:
             rc = self.run_sim('stl/udp_1pkt_src_ip_split_core_pinned.py',
                               output   = output_cap,
                               options  = '-c 7 -m 1 -l 50 --valgrind', # the number of cores must be bigger than 1, because the stream is pinned on core 1.
                               silent   = False)
             assert_equal(rc, True, 'Simulation on udp_1pkt_src_ip_split_core_pinned failed.')
-        
-            if compare:
-                compare_caps(output_cap, golden_file)
+            compare_caps(output_cap, golden_file)
+
         finally:
-            if not do_no_remove:
-                os.unlink(output_cap)
+            os.unlink(output_cap)
+

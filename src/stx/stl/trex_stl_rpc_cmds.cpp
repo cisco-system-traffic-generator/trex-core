@@ -344,9 +344,8 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                 std::stringstream ss;
                 if (m_dp_core_count == 1) {
                     ss << "There is only one core, hence core ID must be 0." ;
-                }
-                else {
-                ss << "Core ID is: " << core_id << ". It must be an integer between 0 and " << m_dp_core_count - 1 << " (inclusive).";
+                } else {
+                    ss << "Core ID is: " << core_id << ". It must be an integer between 0 and " << m_dp_core_count - 1 << " (inclusive).";
                 }
                 generate_execute_err(result, ss.str());
             }

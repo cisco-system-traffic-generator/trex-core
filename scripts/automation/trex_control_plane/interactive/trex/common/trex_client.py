@@ -1076,12 +1076,12 @@ class TRexClient(object):
     @client_api('command', True)
     def get_util_stats(self):
         """
-            Get utilization stats:
+            Get utilization stats as dictionary with 2 keys: 'cpu' and 'mbuf_stats'.
+
             TRex CPU utilization and ports per core (list of dictionaries per core)
             Each dictionary contains two keys:
-            1. Ports: The ports that the core is using. Idle ports are denoted by -1.
-            2. History: The average utilization of the core in the last second.
-
+            1. 'ports': The ports that the core is using. Idle ports are denoted by -1.
+            2. 'history': List of last 20 utilization values. Each value is calculated as average in interval of second.
 
             MBUFs memory consumption per CPU socket.
 
