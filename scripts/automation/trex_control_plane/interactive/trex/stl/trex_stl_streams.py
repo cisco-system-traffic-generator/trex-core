@@ -448,7 +448,7 @@ class STLStream(object):
         if (core_id >= 0) and (self_start == False):
             raise TRexError("Core ID is supported only for streams that aren't being pointed at.")
 
-        if (type(flow_stats) == STLFlowLatencyStats):
+        if (type(flow_stats) == STLFlowLatencyStats and core_id >= 0):
             raise TRexError("Core ID is not supported for latency streams.")
 
         # tag for the stream and next - can be anything

@@ -1077,7 +1077,12 @@ class TRexClient(object):
     def get_util_stats(self):
         """
             Get utilization stats:
-            History of TRex CPU utilization per thread (list of lists)
+            TRex CPU utilization and ports per core (list of dictionaries per core)
+            Each dictionary contains two keys:
+            1. Ports: The ports that the core is using. Idle ports are denoted by -1.
+            2. History: The average utilization of the core in the last second.
+
+
             MBUFs memory consumption per CPU socket.
 
             :parameters:

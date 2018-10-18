@@ -6,12 +6,12 @@ def __ts_key (a):
 
 def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
-    if not all([os.path.exists(f) for f in pcap_file_list]):
-        print("failed to merge cap file list...\nnot all files exist\n")
-        return
+    exising_pcaps = [f for f in pcap_file_list if os.path.exists(f)]
+    if len(exising_pcaps) != len(pcap_file_list):
+        print("WARNING: not all files from DP cores exist\n")
 
     out_pkts = []
-    for src in pcap_file_list:
+    for src in exising_pcaps:
         pkts = RawPcapReader(src)
         out_pkts += pkts
         if delete_src:
