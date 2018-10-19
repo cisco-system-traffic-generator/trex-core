@@ -77,6 +77,8 @@ class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
+#define HOT_FUNC __attribute__((hot))
+#define COLD_FUNC __attribute__((cold))
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
