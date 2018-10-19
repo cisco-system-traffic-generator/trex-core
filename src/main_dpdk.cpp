@@ -4109,6 +4109,7 @@ tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index, boo
     return ret;
 }
 
+COLD_FUNC
 void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     int i;
@@ -4327,6 +4328,7 @@ CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
 
 }
 
+COLD_FUNC
 bool CGlobalTRex::sanity_check(){
 
     if ( !get_is_interactive() ) {

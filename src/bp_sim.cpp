@@ -3336,7 +3336,7 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
 
 
 
-template<int SCH_MODE,bool ON_TERIMATE> __attribute__((hot))
+template<int SCH_MODE,bool ON_TERIMATE> HOT_FUNC
 inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                                                dsec_t d_time,
                                                CFlowGenListPerThread * thread,
