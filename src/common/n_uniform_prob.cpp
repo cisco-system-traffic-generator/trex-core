@@ -153,11 +153,13 @@ static void normProbs( std::vector<u32>& probs ){
    u32 shift = 0;
    u32 max = 0;
    u32 maxIdx = 0;
- 
+   u32 sum = 0;
+
    // how many non-zero probabilities?
    u32 numNonZero = 0;
    for ( u32 i = 0; i < probs.size(); i++ ){
        if ( probs[i] ) numNonZero++;
+       sum += probs[i];
    }
  
    if ( numNonZero == 0 ){
@@ -191,19 +193,38 @@ again:
     
    scale = 0x10000000 / (( scale + 0x7FF ) >> 12 );
  
-   // apply it
+   // check if can scale
    for ( u32 i = 0; i < probs.size(); i++ ) {
-      probs[i] = ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
-      err += probs[i];
+      err += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
       if ( probs[i] > max ){
          max = probs[i];
          maxIdx = i;
       }
    }
- 
-   // correct any accumulated error - it should be negligible. Add it  
-   // to the largest probability where it will be least noticed.
-   probs[maxIdx] -= err;
+
+   // correct errors such that the sum of the probabilities is 1.
+   if (probs[maxIdx] < err) {
+       // can't scale because sum of all the scaled probs is bigger than 4G
+       probs[maxIdx] -= sum; // U32_MAX + 1 - sum
+   } else {
+     // can scale
+     for ( u32 i = 0; i < probs.size(); i++ ) {
+        probs[i] += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
+        err += probs[i];
+        if ( probs[i] > max ){
+            max = probs[i];
+            maxIdx = i;
+            }
+      }
+       probs[maxIdx] -= err;
+   }
+
+   // The sum of the probabilities in a probability distribution is always 1, in our case 4G = 0.
+   sum = 0;
+   for ( u32 i = 0; i < probs.size(); i++ ) {
+       sum += probs[i];
+   }
+   assert (sum == 0);
 }
 
 void Kx_norm_prob(std::vector<double> prob,

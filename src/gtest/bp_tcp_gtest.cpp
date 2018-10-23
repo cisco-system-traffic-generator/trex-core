@@ -2242,6 +2242,22 @@ TEST_F(gt_tcp, tst61) {
        printf(" %f \n", ur.getRandomInRange(10.0,100.0));
     }
 }
+
+TEST_F(gt_tcp, tst62) {
+    std::vector<double> dist;
+    for (int i=0; i < 650 ; i++) {
+        dist.push_back(1);
+    }
+
+    KxuLCRand rnd;
+    KxuNuRand *ru = new KxuNuRand(dist, &rnd);
+
+    delete ru;
+    std::vector<double>  ndist;
+    Kx_norm_prob(dist,ndist);
+    Kx_dump_prob(ndist);
+    test_prob2(500000,ndist);
+}
 #endif
 
 
