@@ -194,6 +194,7 @@ again:
    scale = 0x10000000 / (( scale + 0x7FF ) >> 12 );
  
    // check if can scale
+   err = sum;
    for ( u32 i = 0; i < probs.size(); i++ ) {
       err += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
       if ( probs[i] > max ){
@@ -210,7 +211,6 @@ again:
      // can scale
      for ( u32 i = 0; i < probs.size(); i++ ) {
         probs[i] += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
-        err += probs[i];
         if ( probs[i] > max ){
             max = probs[i];
             maxIdx = i;
@@ -247,6 +247,4 @@ void Kx_dump_prob(std::vector<double> prob){
         printf(" %f \n", prob[i]*100.0);
     }
 }
-
-
 
