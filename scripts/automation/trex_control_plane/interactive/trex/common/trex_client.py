@@ -2267,6 +2267,12 @@ class TRexClient(object):
             raise TRexError(rc)
 
 
+    @property
+    def any_port(self):
+        for port in self.ports.values():
+            return port
+
+
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
@@ -2528,7 +2534,7 @@ class TRexClient(object):
             return
 
         if opts.supp:
-            info = self.ports[opts.ports[0]].get_formatted_info() # assume for now all ports are same
+            info = self.any_port.get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   %s' % info['prom_supported'])

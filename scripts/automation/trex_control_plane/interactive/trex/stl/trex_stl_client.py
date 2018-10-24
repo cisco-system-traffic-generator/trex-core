@@ -167,7 +167,7 @@ class STLClient(TRexClient):
                 self.remove_all_streams(ports)
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
-                                   promiscuous = False if list(self.ports.values())[0].is_prom_supported() else None,
+                                   promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
                 self._for_each_port('stop_capture_port', ports)
