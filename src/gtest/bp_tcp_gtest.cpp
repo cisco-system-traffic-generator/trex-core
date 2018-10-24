@@ -2242,6 +2242,58 @@ TEST_F(gt_tcp, tst61) {
        printf(" %f \n", ur.getRandomInRange(10.0,100.0));
     }
 }
+#endif
+
+double norm2_relativeError(std::vector<double> expected, std::vector<int> received){
+    /* Returns the relative norm 2 distance between the two vectors, meaning
+    || received - expected || / || received ||*/
+    double difference_norm = 0;
+    double received_norm = 0;
+    for (int i = 0; i < received.size(); i++){
+        difference_norm += pow(received[i]-expected[i], 2);
+        received_norm += pow(received[i],2);
+    }
+    difference_norm = sqrt(difference_norm);
+    received_norm = sqrt(received_norm);
+    assert (received_norm != 0);
+    return difference_norm/received_norm;
+}
+
+bool test_KxUNuBin(double ratio, double error_percentage,
+                                int num_of_iterations) {
+    /* Creates a binary distribution with @param rate. The function getRandom
+    should return true with probability @param rate and return false with
+    probability 1 - @param rate. This test checks this, it calls the function
+    getRandom @param num_of_iterations times and checks that the number of times
+    we received true is rate*num_of_iterations +- error_percentage. The function
+    returns true if the test passes and false otherwise.*/
+    assert (ratio != 0);
+    KxuNuBinRand *bin = new KxuNuBinRand(ratio);
+    int trues = 0;
+    int falses = 0;
+
+    for (int i=0; i < num_of_iterations; i++) {
+        if (bin->getRandom()) {
+            trues++;
+        } else {
+            falses++;
+        }
+    }
+    delete bin;
+    std::vector<int> received;
+    received.push_back(trues);
+    received.push_back(falses);
+    assert (trues + falses == num_of_iterations);
+    std::vector<double> expected;
+    expected.push_back(ratio * num_of_iterations);
+    expected.push_back((1-ratio)*num_of_iterations);
+    double relative_error = norm2_relativeError(expected, received);
+    if (100 * relative_error > error_percentage) {
+        std::cout << "The test did not pass. The relative error is: " << 100 * relative_error << "%." << std::endl;
+        return false;
+    }
+    return true;
+}
 
 TEST_F(gt_tcp, tst62) {
     std::vector<double> dist;
@@ -2253,14 +2305,102 @@ TEST_F(gt_tcp, tst62) {
     KxuNuRand *ru = new KxuNuRand(dist, &rnd);
 
     delete ru;
-    std::vector<double>  ndist;
-    Kx_norm_prob(dist,ndist);
-    Kx_dump_prob(ndist);
-    test_prob2(500000,ndist);
+    // This used to crash if you would run it with sanitizer, it shouldn't now.
 }
-#endif
 
+TEST_F(gt_tcp, tst63) {
+    double error_percentage = 2; // set this as the error percentage allowed
+    int num_of_iterations = 10000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> ratios = {0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7,
+                                    0.75, 0.8, 0.9};
+    for (auto& ratio : ratios) {
+        assert (test_KxUNuBin(ratio, error_percentage,num_of_iterations));
+    }
+}
 
+bool test_KxuNuRand(std::vector<double>& distributions, double error_percentage,
+                                                        int num_of_iterations) {
+
+    /* Receives a vector of distributions, from which it builds a non uniform random
+    distribution object. It calls getRandom() on this object, @param num_of_iterations
+    times and tests that the distribution that getRandom returns is equal
+    (up to the error percentage) to the distribution vector received */
+
+    double sum = 0;
+    bool passed = true;
+    int number_of_distributions = distributions.size();
+    for (auto& dist : distributions){
+        sum += dist;
+    }
+
+    KxuLCRand rnd;
+    KxuNuRand *ru = new KxuNuRand(distributions, &rnd);
+
+    std::vector<int> received_distributions(number_of_distributions);
+
+    for (int i = 0; i < num_of_iterations; i++) {
+        received_distributions[ru->getRandom()]++;
+    }
+
+    std::vector<double> expected;
+    for (int i = 0; i < number_of_distributions; i++){
+        expected.push_back((distributions[i] / sum) * num_of_iterations);
+    }
+    double relative_error = norm2_relativeError(expected, received_distributions);
+    if (100 * relative_error > error_percentage) {
+        std::cout << "The test did not pass. The relative error is: " << 100 * relative_error << "%." << std::endl;
+        passed = false;
+    }
+    delete ru;
+    return passed;
+}
+
+TEST_F(gt_tcp, tst64) {
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 10000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = 10; // number of distributions we are testing
+    
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(i);
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+
+}
+
+TEST_F(gt_tcp, tst65) {
+    // Uniform distribution of random size.
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 1000000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = rand() % 1000 ; // number of distributions
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(1);
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+
+}
+
+TEST_F(gt_tcp, tst66) {
+    // 1000 random values in the distribution vector
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 1000000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = 1000; // number of distributions we are testing
+    
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(rand());
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+}
 
 
 TEST_F(gt_tcp, tst70) {
