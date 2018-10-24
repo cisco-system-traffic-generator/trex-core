@@ -125,8 +125,7 @@ class ASTFClient(TRexClient):
 
     @property
     def state(self):
-        for port in self.ports.values():
-            return port.state
+        return self.any_port.state
 
     def _transmit_async(self, rpc_func, ok_states = None, bad_states = None, **k):
         self.last_error = ''
@@ -178,7 +177,7 @@ class ASTFClient(TRexClient):
                 self.clear_profile()
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
-                                   promiscuous = False,
+                                   promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
                 self._for_each_port('stop_capture_port', ports)

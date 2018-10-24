@@ -6,6 +6,7 @@ from trex.astf.api import *
 from pprint import pprint
 import argparse
 import os
+import sys
 
 def astf_test(server, mult, duration, profile_path = None):
 
@@ -77,6 +78,8 @@ def astf_test(server, mult, duration, profile_path = None):
         print('\nTest has passed :-)\n')
     else:
         print('\nTest has failed :-(\n')
+        sys.exit(1)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description = 'Example for TRex ASTF, sending http_simple.py')
@@ -101,6 +104,7 @@ def parse_args():
                         type = float)
 
     return parser.parse_args()
+
 
 args = parse_args()
 astf_test(args.server, args.mult, args.duration, args.file)
