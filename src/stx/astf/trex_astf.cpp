@@ -64,6 +64,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
         }
     }
 
+    m_opts->m_astf_mode = CParserOption::OP_ASTF_MODE_CLIENT_MASK;
+
     m_profile_buffer = "";
     m_profile_hash = "";
     m_parsed_hash = "";
@@ -132,19 +134,18 @@ void TrexAstf::transmit() {
     if ( m_latency_pps ) {
         CAstfDB *db = CAstfDB::instance();
 
-        TrexRxStartLatency *msg = new TrexRxStartLatency();
-        if (!db->get_latency_info(msg->m_client_ip.v4,
-                                msg->m_server_ip.v4,
-                                msg->m_dual_port_mask)){
+        lat_start_params_t args;
+        if (!db->get_latency_info(args.client_ip.v4,
+                                  args.server_ip.v4,
+                                  args.dual_ip)){
             m_error = "no valid ip range for latency";
-            delete msg;
             change_state(STATE_CLEANUP);
             return;
         }
 
-        msg->m_cps = m_latency_pps;
-        msg->m_active_ports_mask = 0xffffffff;
-        start_transmit_latency(msg);
+        args.cps = m_latency_pps;
+        args.ports_mask = 0xffffffff;
+        start_transmit_latency(args);
     }
 
     change_state(STATE_TX);
@@ -346,19 +347,21 @@ void TrexAstf::profile_set_loaded() {
     m_profile_hash = md5(m_profile_buffer);
 }
 
-void TrexAstf::start_transmit(double duration, double mult, bool nc, uint32_t latency_pps) {
+void TrexAstf::start_transmit(const start_params_t &args) {
     check_whitelist_states({STATE_LOADED});
 
-    m_opts->m_factor   = mult;
-    m_opts->m_duration = duration;
-    m_opts->preview.setNoCleanFlowClose(nc);
-
-    if ( latency_pps ) {
+    if ( args.latency_pps ) {
         if (m_l_state != STATE_L_IDLE) {
             throw TrexException("Latency state is not idle, should stop latency first");
         }
-        m_latency_pps = latency_pps;
+        m_latency_pps = args.latency_pps;
     }
+
+    m_opts->m_factor           = args.mult;
+    m_opts->m_duration         = args.duration;
+    m_opts->m_astf_client_mask = args.client_mask;
+    m_opts->preview.setNoCleanFlowClose(args.nc);
+    m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
     m_fl->m_stt_cp->clear_counters();
 
@@ -402,13 +405,15 @@ void TrexAstf::update_rate(double mult) {
 }
 
 
-void TrexAstf::start_transmit_latency(TrexRxStartLatency *msg) {
+void TrexAstf::start_transmit_latency(const lat_start_params_t &args) {
 
     if (m_l_state != STATE_L_IDLE){
         throw TrexException("Latency state is not idle, should stop latency first");
     }
 
     m_l_state = STATE_L_WORK;
+
+    TrexRxStartLatency *msg = new TrexRxStartLatency(args);
     send_msg_to_rx(msg);
 }
 
@@ -431,8 +436,7 @@ void TrexAstf::update_latency_rate(double mult) {
         throw TrexException(err);
     }
 
-    TrexRxUpdateLatency *msg = new TrexRxUpdateLatency();
-    msg->m_cps = mult;
+    TrexRxUpdateLatency *msg = new TrexRxUpdateLatency(mult);
     send_msg_to_rx(msg);
 }
 

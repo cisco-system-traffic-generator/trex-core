@@ -24,6 +24,7 @@ limitations under the License.
  */
 
 #include "trex_astf.h"
+#include "trex_astf_defs.h"
 #include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
 #include "trex_astf_rx_core.h"
@@ -178,13 +179,16 @@ TrexRpcCmdAstfProfileClear::_run(const Json::Value &params, Json::Value &result)
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
-    const double duration = parse_double(params, "duration", result);
-    const double mult = parse_double(params, "mult", result);
-    const bool nc = parse_bool(params, "nc", result);
-    const uint32_t latency_pps = parse_uint32(params, "latency_pps", result, 0);
+    start_params_t args;
+    args.duration = parse_double(params, "duration", result);
+    args.mult = parse_double(params, "mult", result);
+    args.nc = parse_bool(params, "nc", result);
+    args.latency_pps = parse_uint32(params, "latency_pps", result);
+    args.ipv6 = parse_bool(params, "ipv6", result);
+    args.client_mask = parse_uint32(params, "client_mask", result);
 
     try {
-        get_astf_object()->start_transmit(duration, mult, nc, latency_pps);
+        get_astf_object()->start_transmit(args);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -221,13 +225,9 @@ TrexRpcCmdAstfUpdate::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result) {
-    const double mult = parse_double(params, "mult", result);
-
     const string src_ipv4_str  = parse_string(params, "src_addr", result);
     const string dst_ipv4_str  = parse_string(params, "dst_addr", result);
     const string dual_ipv4_str  = parse_string(params, "dual_port_addr", result);
-    const uint32_t mask  = parse_int(params, "mask", result);
-
 
     uint32_t src_ip;
     uint32_t dst_ip;
@@ -278,17 +278,16 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
         }
     }
 
-    TrexRxStartLatency *msg = new TrexRxStartLatency();
+    lat_start_params_t args;
 
-    msg->m_client_ip.v4 = src_ip;
-    msg->m_server_ip.v4 = dst_ip;
-    msg->m_dual_port_mask = dual_ip;
-    msg->m_active_ports_mask = mask;
-    msg->m_cps=mult;
-
+    args.cps = parse_double(params, "mult", result);
+    args.ports_mask  = parse_int(params, "mask", result);
+    args.client_ip.v4 = src_ip;
+    args.server_ip.v4 = dst_ip;
+    args.dual_ip = dual_ip;
 
     try {
-        get_astf_object()->start_transmit_latency(msg);
+        get_astf_object()->start_transmit_latency(args);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

@@ -418,7 +418,7 @@ class OPTIONS_DB_ARGS:
          'type': check_ipv4_addr})
 
     DUAL_IPV4 = ArgumentPack(
-        ['--dual-ip-mask'],
+        ['--dual-ip'],
         {'help': 'IP address to be added for each pair of ports (starting from second pair)',
          'default': '1.0.0.0',
          'type': check_ipv4_addr})
@@ -447,14 +447,30 @@ class OPTIONS_DB_ARGS:
     ASTF_NC = ArgumentPack(
         ['--nc'],
         {'help': 'Faster flow termination at the end of the test, see --nc in the manual',
-         'dest': 'nc',
-         'default': False,
          'action': 'store_true'})
+
+    ASTF_IPV6 = ArgumentPack(
+        ['--ipv6'],
+        {'help': 'Convert traffic to IPv6',
+         'action': 'store_true'})
+
+    ASTF_CLIENTS = ArgumentPack(
+        ['--clients'],
+        {'nargs': '+',
+         'action': 'merge',
+         'type': int,
+         'help': 'Only those client interfaces will send traffic.',
+         'default': []})
+
+    ASTF_SERVERS_ONLY = ArgumentPack(
+        ['--servers-only'],
+        {'help': 'All client interfaces will be disabled.',
+         'action': 'store_true'})
+
 
     ASTF_LATENCY = ArgumentPack(
         ['-l'],
-        {
-         'dest': 'latency_pps',
+        {'dest': 'latency_pps',
          'default':  0,
          'type': int,
          'help': "start latency streams"})
@@ -873,6 +889,14 @@ for var_name in dir(OPTIONS_DB_ARGS):
         exec('%s = %d' % (var_name, opt_index))
 
 class OPTIONS_DB_GROUPS:
+    ASTF_CLIENT_CTRL = ArgumentGroup(
+        MUTEX,
+        [
+            ASTF_CLIENTS,
+            ASTF_SERVERS_ONLY,
+        ],
+        {'required': False})
+
     SCAPY_PKT_CMD = ArgumentGroup(
         MUTEX,
         [

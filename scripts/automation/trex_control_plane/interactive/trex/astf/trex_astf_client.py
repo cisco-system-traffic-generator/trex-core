@@ -316,30 +316,32 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, client_mask = 0xffffffff):
         """
             Start the traffic on loaded profile. Procedure is async.
 
             :parameters:
                 mult: int
-                    Multiply total CPS of profile by this value
-                    Default is 1
+                    Multiply total CPS of profile by this value.
 
                 duration: float
-                    Start new flows for this duration
-                    Default (negative) is infinite
+                    Start new flows for this duration.
+                    Negative value means infinite
 
                 nc: bool
-                    Do not wait for flows to close at end of duration
-                    Default is False
+                    Do not wait for flows to close at end of duration.
 
                 block: bool
-                    Wait for traffic to be started (operation is async)
-                    Default is True
+                    Wait for traffic to be started (operation is async).
 
                 latency_pps: uint32_t
-                    Rate of latency packets
-                    Default is 0 (disabled)
+                    Rate of latency packets. Zero value means disable.
+
+                ipv6: bool
+                    Convert traffic to IPv6.
+
+                client_mask: uint32_t
+                    Bitmask of enabled client ports.
 
             :raises:
                 + :exe:'TRexError'
@@ -350,7 +352,9 @@ class ASTFClient(TRexClient):
             'mult': mult,
             'nc': nc,
             'duration': duration,
-            'latency_pps' :latency_pps
+            'latency_pps': latency_pps,
+            'ipv6': ipv6,
+            'client_mask': client_mask,
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
@@ -487,14 +491,14 @@ class ASTFClient(TRexClient):
                 dst_ipv4: IP string
                     IPv4 destination address
 
-                dual_ipv4: uint32_t
+                ports_mask: uint32_t
                     bitmask of ports
 
                 dual_ipv4: IP string
                     IPv4 address to be added for each pair of ports (starting from second pair)
 
             .. note::
-                Vlan will be taken from interface configuration
+                VLAN will be taken from interface configuration
 
             :raises:
                 + :exc:`TRexError`
@@ -615,12 +619,27 @@ class ASTFClient(TRexClient):
             parsing_opts.DURATION,
             parsing_opts.TUNABLES,
             parsing_opts.ASTF_NC,
-            parsing_opts.ASTF_LATENCY
+            parsing_opts.ASTF_LATENCY,
+            parsing_opts.ASTF_IPV6,
+            parsing_opts.ASTF_CLIENT_CTRL,
             )
+
         opts = parser.parse_args(line.split())
         tunables = opts.tunables or {}
         self.load_profile(opts.file[0], tunables)
-        self.start(opts.mult, duration = opts.duration, nc = opts.nc, latency_pps = opts.latency_pps)
+
+        kw = {}
+        if opts.clients:
+            for client in opts.clients:
+                if client not in self.ports:
+                    raise TRexError('Invalid client interface: %d' % client)
+                if client & 1:
+                    raise TRexError('Following interface is not client: %d' % client)
+            kw['client_mask'] = self._calc_port_mask(opts.clients)
+        elif opts.servers_only:
+            kw['client_mask'] = 0
+
+        self.start(opts.mult, opts.duration, opts.nc, True, opts.latency_pps, opts.ipv6, **kw)
         return True
 
     @console_api('stop', 'ASTF', True)
@@ -649,7 +668,8 @@ class ASTFClient(TRexClient):
         self.update(opts.mult)
 
 
-    def calc_latency_port_mask(self, ports):
+    @staticmethod
+    def _calc_port_mask(ports):
         mask =0
         for p in ports:
             mask += (1<<p)
@@ -690,12 +710,8 @@ class ASTFClient(TRexClient):
         opts = parser.parse_args(line.split())
 
         if opts.command == 'start':
-            ports_mask = self.calc_latency_port_mask(opts.ports)
-            self.start_latency(mult = opts.mult,
-                               src_ipv4 = opts.src_ipv4,
-                               dst_ipv4 = opts.dst_ipv4,
-                               dual_ipv4 = opts.dual_ip_mask,
-                               ports_mask = ports_mask)
+            ports_mask = self._calc_port_mask(opts.ports)
+            self.start_latency(opts.mult, opts.src_ipv4, opts.dst_ipv4, ports_mask, opts.dual_ip)
 
         elif opts.command == 'stop':
             self.stop_latency()

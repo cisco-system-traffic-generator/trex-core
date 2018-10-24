@@ -24,26 +24,19 @@ limitations under the License.
 #include "common/trex_rx_core.h"
 #include "bp_sim.h"
 #include "common/trex_messaging.h"
+#include "trex_astf_defs.h"
 
 
 class TrexRxStartLatency : public TrexCpToRxMsgBase {
 public:
-    TrexRxStartLatency() {
-        m_cps=0.0;
-        m_client_ip.v4=0;
-        m_server_ip.v4=0;
-        m_dual_port_mask=0;
-        m_active_ports_mask=0xffffffff;
+    TrexRxStartLatency(const lat_start_params_t &args) {
+        m_args = args;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
-public:
-    double    m_cps;
-    uint32_t  m_active_ports_mask;
-    ipaddr_t  m_client_ip;
-    ipaddr_t  m_server_ip;
-    uint32_t  m_dual_port_mask;
+private:
+    lat_start_params_t m_args;
 };
 
 
@@ -53,21 +46,19 @@ public:
     }
 
     virtual bool handle(CRxCore *rx_core);
-
-private:
 };
 
 
 class TrexRxUpdateLatency : public TrexCpToRxMsgBase {
 public:
-    TrexRxUpdateLatency() {
-        m_cps=0.0;
+    TrexRxUpdateLatency(double cps) {
+        m_cps = cps;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
-public:
-    double    m_cps;
+private:
+    double  m_cps;
 };
 
 
@@ -116,9 +107,9 @@ public:
 
 public:
     /* commands */ 
-    void start_latency(TrexRxStartLatency * msg);
+    void start_latency(const lat_start_params_t &args);
     void stop_latency();
-    void update_latency(TrexRxUpdateLatency * msg);
+    void update_latency(double cps);
     void cp_update_stats();
 
 
