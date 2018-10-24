@@ -345,7 +345,8 @@ static int __attribute__((cold)) usage() {
     printf(" --hops <hops>              : If rx check is enabled, the hop number can be assigned. See manual for details \n");
     printf(" --iom  <mode>              : IO mode  for server output [0- silent, 1- normal , 2- short] \n");
     printf(" --ipv6                     : Work in ipv6 mode \n");
-    printf(" -k  <num>                  : Run 'warm up' traffic for num seconds before starting the test. \n");
+    printf(" -k  <num>                  : Run 'warm up' traffic for num seconds before starting the test.\n");
+    printf("                               Works only with the latency test (-l option)\n");
     printf(" -l <rate>                  : In parallel to the test, run latency check, sending packets at rate/sec from each interface \n");
     printf(" --l-pkt-mode <0-3>         : Set mode for sending latency packets \n");
     printf("      0 (default)    send SCTP packets  \n");
