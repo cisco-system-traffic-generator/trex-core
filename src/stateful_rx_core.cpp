@@ -222,6 +222,12 @@ void CLatencyPktInfo::Delete(){
     }
 }
 
+
+void CCPortLatency::reset_seq(){
+    m_tx_seq=0;
+    m_rx_seq=0;
+}
+
 void CCPortLatency::reset(){
     m_rx_seq    =m_tx_seq;
     m_pad       = 0;
@@ -247,13 +253,20 @@ static uint8_t nat_is_port_can_send(uint8_t port_id){
     return (client_index ==0 ?1:0);
 }
 
-bool CCPortLatency::Create(CLatencyManager * parent,
-                           uint8_t id,
+
+bool CCPortLatency::Create(uint8_t id,
                            uint16_t payload_offset,
                            uint16_t l4_offset,
                            uint16_t pkt_size,
-                           CCPortLatency * rx_port){
-    m_parent    = parent;
+                           CCPortLatency * rx_port,
+                           CLatencyPktMode * pkt_mode,
+                           CNatRxManager *   nat_manager
+                           ){
+    m_epoc =0;
+    m_pkt_mode =pkt_mode;
+    assert(m_pkt_mode);
+    m_nat_manager =nat_manager;
+    m_handle_none_latency = true;
     m_id        = id;
     m_tx_seq    =0x12345678;
     m_icmp_tx_seq = 1;
@@ -288,12 +301,12 @@ void CCPortLatency::update_packet(rte_mbuf_t * m, int port_id){
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(m_id),12);
 
     latency_header * h=(latency_header *)(p+m_payload_offset);
-    h->magic = LATENCY_MAGIC | m_id ;
+    h->magic = (LATENCY_MAGIC | m_id)+ (m_epoc<<8);
     h->time_stamp = os_get_hr_tick_64();
     h->seq = m_tx_seq;
     m_tx_seq++;
 
-    CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
+    CLatencyPktMode *c_l_pkt_mode = m_pkt_mode;
     c_l_pkt_mode->update_pkt(p + m_l4_offset, is_client_to_server, m_pkt_size - m_l4_offset, &m_icmp_tx_seq);
 }
 
@@ -460,16 +473,20 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
         }
     }
 
-    CLatencyPktMode *c_l_pkt_mode = m_parent->c_l_pkt_mode;
+    CLatencyPktMode *c_l_pkt_mode = m_pkt_mode;
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     uint16_t vlan_offset=parser.m_vlan_offset;
     uint8_t *p=rte_pktmbuf_mtod(m, uint8_t*);
 
     rx_p = (CRx_check_header *)0;
 
-    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len());
+    bool is_lateancy_pkt =  c_l_pkt_mode->IsLatencyPkt(parser.m_ipv4) & IsLatencyPkt(parser.m_l4 + c_l_pkt_mode->l4_header_len(),m_epoc);
 
-    if ( ! is_lateancy_pkt) {
+    if (!is_lateancy_pkt) {
+        if (!m_handle_none_latency) {
+            /* nothing todo */
+            return true;
+        }
 
 #ifdef NAT_TRACE_
         printf(" %.3f RX : got packet !!! \n",now_sec() );
@@ -520,7 +537,8 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
                         m_no_ipv4_option++;
                         return (false);
                     }
-                    m_parent->get_nat_manager()->handle_packet_ipv4(lp, parser.m_ipv4, true);
+                    assert(m_nat_manager);
+                    m_nat_manager->handle_packet_ipv4(lp, parser.m_ipv4, true);
                     opt_len -= CNatOption::noOPTION_LEN;
                     opt_ptr += CNatOption::noOPTION_LEN;
                     break;
@@ -532,7 +550,8 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
 
         bool first;
         if (CGlobalInfo::is_learn_mode(CParserOption::LEARN_MODE_TCP) && parser.IsNatInfoPkt(first)) {
-            m_parent->get_nat_manager()->handle_packet_ipv4(NULL, parser.m_ipv4, first);
+            assert(m_nat_manager);
+            m_nat_manager->handle_packet_ipv4(NULL, parser.m_ipv4, first);
         }
 
         return (true);
@@ -611,11 +630,13 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
         CCPortLatency * lpo=&m_ports[dual_port_pair(i)].m_port;
 
         lp->m_io=cfg->m_ports[i];
-        lp->m_port.Create(this,
-                          i,
+        lp->m_port.Create(i,
                           m_pkt_gen.get_payload_offset(),
                           m_pkt_gen.get_l4_offset(),
-                          m_pkt_gen.get_pkt_size(),lpo );
+                          m_pkt_gen.get_pkt_size(),lpo,
+                          c_l_pkt_mode,
+                          &m_nat_check_manager
+                           );
         if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
             m_port_ids.push_back(i);
         }

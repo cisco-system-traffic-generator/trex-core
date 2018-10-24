@@ -24,6 +24,7 @@ limitations under the License.
 
 #include <common/closehash.h>
 #include "flow_stat_parser.h"
+#include "dpdk_port_map.h"
 
 
 typedef uint64_t flow_key_t; 
@@ -215,7 +216,8 @@ public:
                         CFlowKeyTuple      & tuple,
                         CFlowKeyFullTuple  & ftuple,
                         bool rx_l4_check,
-                        tcp_rx_pkt_action_t & action);
+                        tcp_rx_pkt_action_t & action,
+                        tvpid_t port_id=0);
 
       bool rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
                                 struct rte_mbuf * mbuf,
@@ -244,7 +246,8 @@ public:
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf,
-                            bool is_idle);
+                            bool is_idle,
+                            tvpid_t port_id=0);
 
       /* insert new flow - usualy client */
       bool insert_new_flow(CFlowBase *  flow,

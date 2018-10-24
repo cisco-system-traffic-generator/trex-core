@@ -43,6 +43,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 1;
     const int API_VER_MINOR = 0;
+    m_l_state = STATE_L_IDLE;
+    m_latency_pps = 0;
 
     TrexRpcCommandsTable &rpc_table = TrexRpcCommandsTable::get_instance();
 
@@ -127,6 +129,24 @@ void TrexAstf::build() {
 }
 
 void TrexAstf::transmit() {
+    if ( m_latency_pps ) {
+        CAstfDB *db = CAstfDB::instance();
+
+        TrexRxStartLatency *msg = new TrexRxStartLatency();
+        if (!db->get_latency_info(msg->m_client_ip.v4,
+                                msg->m_server_ip.v4,
+                                msg->m_dual_port_mask)){
+            m_error = "no valid ip range for latency";
+            delete msg;
+            change_state(STATE_CLEANUP);
+            return;
+        }
+
+        msg->m_cps = m_latency_pps;
+        msg->m_active_ports_mask = 0xffffffff;
+        start_transmit_latency(msg);
+    }
+
     change_state(STATE_TX);
     set_barrier(0.5);
 
@@ -246,6 +266,8 @@ TrexDpCore* TrexAstf::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *
 }
 
 void TrexAstf::publish_async_data() {
+    CRxAstfCore * rx= get_rx();
+    rx->cp_update_stats();
 }
 
 void TrexAstf::set_barrier(double timeout_sec) {
@@ -324,12 +346,19 @@ void TrexAstf::profile_set_loaded() {
     m_profile_hash = md5(m_profile_buffer);
 }
 
-void TrexAstf::start_transmit(double duration, double mult, bool nc) {
+void TrexAstf::start_transmit(double duration, double mult, bool nc, uint32_t latency_pps) {
     check_whitelist_states({STATE_LOADED});
 
     m_opts->m_factor   = mult;
     m_opts->m_duration = duration;
     m_opts->preview.setNoCleanFlowClose(nc);
+
+    if ( latency_pps ) {
+        if (m_l_state != STATE_L_IDLE) {
+            throw TrexException("Latency state is not idle, should stop latency first");
+        }
+        m_latency_pps = latency_pps;
+    }
 
     m_fl->m_stt_cp->clear_counters();
 
@@ -346,6 +375,12 @@ bool TrexAstf::stop_transmit() {
     }
 
     m_opts->preview.setNoCleanFlowClose(true);
+    if (m_latency_pps && (m_l_state==STATE_L_WORK)) {
+        m_latency_pps = 0;
+        stop_transmit_latency();
+    }
+
+    set_barrier(0.5);
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop();
     send_message_to_all_dp(msg);
     return false;
@@ -364,6 +399,51 @@ void TrexAstf::update_rate(double mult) {
     m_opts->m_factor = mult;
     TrexCpToDpMsgBase *msg = new TrexAstfDpUpdate(old_new_ratio);
     send_message_to_all_dp(msg);
+}
+
+
+void TrexAstf::start_transmit_latency(TrexRxStartLatency *msg) {
+
+    if (m_l_state != STATE_L_IDLE){
+        throw TrexException("Latency state is not idle, should stop latency first");
+    }
+
+    m_l_state = STATE_L_WORK;
+    send_msg_to_rx(msg);
+}
+
+bool TrexAstf::stop_transmit_latency() {
+
+    if (m_l_state != STATE_L_WORK){
+        return true;
+    }
+
+    TrexRxStopLatency *msg = new TrexRxStopLatency();
+    send_msg_to_rx(msg);
+    m_l_state = STATE_L_IDLE;
+    return (true);
+}
+
+void TrexAstf::update_latency_rate(double mult) {
+
+    if ( m_l_state != STATE_L_WORK ) {
+        string err = "Latency is not active, can't update rate";
+        throw TrexException(err);
+    }
+
+    TrexRxUpdateLatency *msg = new TrexRxUpdateLatency();
+    msg->m_cps = mult;
+    send_msg_to_rx(msg);
+}
+
+void TrexAstf::get_latency_stats(Json::Value & obj) {
+    CRxAstfCore * rx= get_rx();
+    std::string  json_str;
+    /* to do covert this function  to native object */
+    rx->cp_get_json(json_str);
+    Json::Reader reader;
+    bool parsingSuccessful = reader.parse(json_str,obj);
+    assert(parsingSuccessful==true);
 }
 
 void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone) {

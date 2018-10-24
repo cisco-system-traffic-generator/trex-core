@@ -24,6 +24,7 @@ limitations under the License.
 #include "flow_stat_parser.h"
 #include "flow_table.h"
 #include "trex_global.h"
+#include "trex_capture.h"
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -107,7 +108,8 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
                               CFlowKeyTuple & tuple,
                               CFlowKeyFullTuple & ftuple,
                               bool rx_l4_check,
-                              tcp_rx_pkt_action_t & action){
+                              tcp_rx_pkt_action_t & action,
+                              tvpid_t port_id){
     action=tDROP;
 
     if (!parser.Parse()){
@@ -123,6 +125,8 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         return;
     }
     /* TCP/UDP, only supported right now */
+
+    TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
 
     uint8_t *p=rte_pktmbuf_mtod(mbuf, uint8_t*);
     uint32_t mbuf_pkt_len=rte_pktmbuf_pkt_len(mbuf);
@@ -731,7 +735,8 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
 
 bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                                   struct rte_mbuf * mbuf,
-                                  bool is_idle) {
+                                  bool is_idle,
+                                  tvpid_t port_id) {
 
     CFlowKeyTuple tuple;
     CFlowKeyFullTuple ftuple;
@@ -759,12 +764,15 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                 tuple,
                 ftuple,
                 ctx->get_rx_checksum_check(),
-                action);
+                action,
+                port_id);
 
     if ( action != tPROCESS ) {
         rx_non_process_packet(action, ctx, mbuf);
         return false;
     }
+
+    TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
 
     if ( is_idle ) {
         rte_pktmbuf_free(mbuf);

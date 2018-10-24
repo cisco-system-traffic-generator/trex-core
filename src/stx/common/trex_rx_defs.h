@@ -70,7 +70,7 @@ class CRXCoreIgnoreStat;
 class TrexRxCore {
 public:
 
-    virtual ~TrexRxCore() {}
+    virtual ~TrexRxCore(){}
     
     
     /**

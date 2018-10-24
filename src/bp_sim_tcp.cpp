@@ -160,8 +160,12 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
         m_s_tcp
     };
 
+    tvpid_t   ports_id[2];
+
     uint16_t sum;
     uint16_t sum_both_dir = 0;
+    get_port_ids(ports_id[0], ports_id[1]);
+
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx=mctx_dir[dir];
         sum=0;
@@ -191,7 +195,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
                     #endif
                 }
 #endif
-                ctx->m_ft.rx_handle_packet(ctx, m, is_idle);
+                ctx->m_ft.rx_handle_packet(ctx, m, is_idle,ports_id[dir]);
             }
             sum+=cnt;
             if (sum>127) {

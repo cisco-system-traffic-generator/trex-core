@@ -22,6 +22,7 @@
 #define __TREX_RX_CORE_H__
 #include <stdint.h>
 #include <map>
+#include <vector>
 
 #include "stateful_rx_core.h"
 #include "os_time.h"
@@ -32,7 +33,8 @@
 
 class TrexCpToRxMsgBase;
 
-typedef std::map<uint8_t, RXPortManager*> rx_port_mngr_t;
+typedef std::map<uint8_t, RXPortManager*> rx_port_mg_map_t;
+typedef std::vector<RXPortManager*> rx_port_mg_vec_t;
 
 class CCPortLatencyStl {
  public:
@@ -106,8 +108,9 @@ class CRxCoreErrCntrs {
  * 
  */
 class CRxCore : public TrexRxCore {
-    
-    /**
+
+protected:
+        /**
      * core states 
      *  
      * STATE_COLD - will sleep until a packet arrives 
@@ -122,7 +125,9 @@ class CRxCore : public TrexRxCore {
         STATE_QUIT
     };
 
+
  public:
+
      
     CRxCore() {
         m_is_active = false;
@@ -162,6 +167,9 @@ class CRxCore : public TrexRxCore {
      */
     bool start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
     void stop_capwap_proxy(uint8_t port_id);
+
+    /* enable/disable astf fia */
+    void enable_astf_latency_fia(bool enable);
 
     /**
      * enable latency feature for RX packets
@@ -208,6 +216,9 @@ class CRxCore : public TrexRxCore {
         return m_is_active;
     }
 
+    virtual void handle_astf_latency_pkt(const rte_mbuf_t *m,
+                                         uint8_t port_id);
+
  protected:
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
 
@@ -215,6 +226,7 @@ class CRxCore : public TrexRxCore {
 
     void tickle();
 
+    virtual int _do_start(void);
     /* states */
     void hot_state_loop();
     void cold_state_loop();
@@ -255,8 +267,9 @@ class CRxCore : public TrexRxCore {
     CRxCoreErrCntrs  m_err_cntrs;
     CRFC2544Info     m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
-    rx_port_mngr_t   m_rx_port_mngr;
-    
+    rx_port_mg_map_t m_rx_port_mngr_map;
+    rx_port_mg_vec_t m_rx_port_mngr_vec;
+
     CPPSMeasure      m_rx_pps;
     
     TXQueue          m_tx_queue;

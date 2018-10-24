@@ -417,6 +417,12 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'type': check_ipv4_addr})
 
+    DUAL_IPV4 = ArgumentPack(
+        ['--dual-ip-mask'],
+        {'help': 'IP address to be added for each pair of ports (starting from second pair)',
+         'default': '1.0.0.0',
+         'type': check_ipv4_addr})
+
     DST_MAC = ArgumentPack(
         ['--dst'],
         {'help': 'Configure destination MAC address',
@@ -444,6 +450,14 @@ class OPTIONS_DB_ARGS:
          'dest': 'nc',
          'default': False,
          'action': 'store_true'})
+
+    ASTF_LATENCY = ArgumentPack(
+        ['-l'],
+        {
+         'dest': 'latency_pps',
+         'default':  0,
+         'type': int,
+         'help': "start latency streams"})
 
     PORT_RESTART = ArgumentPack(
         ['-r', '--restart'],
@@ -833,14 +847,6 @@ class OPTIONS_DB_ARGS:
          'metavar': 'name',
          'help': 'Name of plugin'})
 
-    SCAPY_PKT_CMD = ArgumentGroup(
-        MUTEX,
-        [
-            SCAPY_PKT,
-            SHOW_LAYERS
-        ],
-        {'required': True})
-
     IPV6_OFF = ArgumentPack(
         ['--off'],
         {'help': 'Disable IPv6 on port.',
@@ -860,11 +866,21 @@ class OPTIONS_DB_ARGS:
 OPTIONS_DB = {}
 opt_index = 0
 for var_name in dir(OPTIONS_DB_ARGS):
-    opt_index += 1
-    OPTIONS_DB[opt_index] = getattr(OPTIONS_DB_ARGS, var_name)
-    exec('%s = %d' % (var_name, opt_index))
+    var = getattr(OPTIONS_DB_ARGS, var_name)
+    if type(var) is ArgumentPack:
+        opt_index += 1
+        OPTIONS_DB[opt_index] = var
+        exec('%s = %d' % (var_name, opt_index))
 
 class OPTIONS_DB_GROUPS:
+    SCAPY_PKT_CMD = ArgumentGroup(
+        MUTEX,
+        [
+            SCAPY_PKT,
+            SHOW_LAYERS
+        ],
+        {'required': True})
+
     IPV6_OPTS_CMD = ArgumentGroup(
         MUTEX,
         [
@@ -921,6 +937,8 @@ class OPTIONS_DB_GROUPS:
             GLOBAL_STATS,
             PORT_STATS,
             PORT_STATUS,
+            LATENCY_STATS,
+            LATENCY_HISTOGRAM,
             CPU_STATS,
             MBUF_STATS,
             EXTENDED_STATS,
@@ -954,9 +972,11 @@ class OPTIONS_DB_GROUPS:
         {'required': False})
 
 for var_name in dir(OPTIONS_DB_GROUPS):
-    opt_index += 1
-    OPTIONS_DB[opt_index] = getattr(OPTIONS_DB_GROUPS, var_name)
-    exec('%s = %d' % (var_name, opt_index))
+    var = getattr(OPTIONS_DB_GROUPS, var_name)
+    if type(var) is ArgumentGroup:
+        opt_index += 1
+        OPTIONS_DB[opt_index] = var
+        exec('%s = %d' % (var_name, opt_index))
 
 
 class _MergeAction(argparse._AppendAction):

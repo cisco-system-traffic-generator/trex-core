@@ -11,7 +11,9 @@ from ..common.trex_types import *
 
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
-from .trex_astf_stats import CAstfStats
+from .stats.traffic import CAstfTrafficStats
+from .stats.latency import CAstfLatencyStats
+from ..utils.common import  is_valid_ipv4, is_valid_ipv6
 import hashlib
 import sys
 import time
@@ -59,9 +61,9 @@ class ASTFClient(TRexClient):
                             verbose_level,
                             logger)
         self.handler = ''
-        self.astf_stats = CAstfStats(self.conn.rpc)
+        self.traffic_stats = CAstfTrafficStats(self.conn.rpc)
+        self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.last_error = ''
-
 
 
     def get_mode(self):
@@ -85,9 +87,10 @@ class ASTFClient(TRexClient):
         return RC_OK()
 
     def _on_connect_clear_stats(self):
-        self.astf_stats.reset()
+        self.traffic_stats.reset()
+        self.latency_stats.reset()
         with self.ctx.logger.suppress(verbose = "warning"):
-            self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_astf = False)
+            self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
         return RC_OK()
 
     def _on_astf_state_chg(self, ctx_state, error):
@@ -313,7 +316,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0):
         """
             Start the traffic on loaded profile. Procedure is async.
 
@@ -334,6 +337,10 @@ class ASTFClient(TRexClient):
                     Wait for traffic to be started (operation is async)
                     Default is True
 
+                latency_pps: uint32_t
+                    Rate of latency packets
+                    Default is 0 (disabled)
+
             :raises:
                 + :exe:'TRexError'
         """
@@ -343,6 +350,7 @@ class ASTFClient(TRexClient):
             'mult': mult,
             'nc': nc,
             'duration': duration,
+            'latency_pps' :latency_pps
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
@@ -425,41 +433,159 @@ class ASTFClient(TRexClient):
 
     # get stats
     @client_api('getter', True)
-    def get_stats (self, ports = None, sync_now = True):
+    def get_stats(self, ports = None, sync_now = True):
 
         stats = self._get_stats_common(ports, sync_now)
-        stats['astf'] = self.get_astf_stats()
+        stats['traffic'] = self.get_traffic_stats()
+        stats['latency'] = self.get_latency_stats()
 
         return stats
 
 
     # clear stats
     @client_api('getter', True)
-    def clear_stats (self,
-                     ports = None,
-                     clear_global = True,
-                     clear_xstats = True,
-                     clear_astf = True):
+    def clear_stats(self,
+                    ports = None,
+                    clear_global = True,
+                    clear_xstats = True,
+                    clear_traffic = True):
 
-        if clear_astf:
-            self.clear_astf_stats()
+        if clear_traffic:
+            self.clear_traffic_stats()
 
         return self._clear_stats_common(ports, clear_global, clear_xstats)
 
 
     @client_api('getter', True)
-    def get_astf_stats(self):
-        return self.astf_stats.get_stats()
+    def get_traffic_stats(self):
+        return self.traffic_stats.get_stats()
 
 
     @client_api('getter', True)
-    def clear_astf_stats(self):
-        return self.astf_stats.clear_stats()
+    def clear_traffic_stats(self):
+        return self.traffic_stats.clear_stats()
+
+
+
+    @client_api('getter', True)
+    def get_latency_stats(self):
+        return self.latency_stats.get_stats()
+
+
+    @client_api('command', True)
+    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0xffffffff, dual_ipv4 = "1.0.0.0"):
+        """
+           Start ICMP latency traffic.
+
+            :parameters:
+                mult: float 
+                    number of packets per second
+
+                src_ipv4: IP string
+                    IPv4 source address for the port
+
+                dst_ipv4: IP string
+                    IPv4 destination address
+
+                dual_ipv4: uint32_t
+                    bitmask of ports
+
+                dual_ipv4: IP string
+                    IPv4 address to be added for each pair of ports (starting from second pair)
+
+            .. note::
+                Vlan will be taken from interface configuration
+
+            :raises:
+                + :exc:`TRexError`
+        """
+        if not is_valid_ipv4(src_ipv4):
+            raise TRexError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
+
+        if not is_valid_ipv4(dst_ipv4):
+            raise TRexError("dst_ipv4 is not a valid IPv4 address: '{0}'".format(dst_ipv4))
+
+        if not is_valid_ipv4(dual_ipv4):
+            raise TRexError("dual_ipv4 is not a valid IPv4 address: '{0}'".format(dual_ipv4))
+
+        params = {
+            'handler': self.handler,
+            'mult': mult,
+            'src_addr': src_ipv4,
+            'dst_addr': dst_ipv4,
+            'dual_port_addr': dual_ipv4,
+            'mask': ports_mask,
+            }
+
+        self.ctx.logger.pre_cmd('Starting latency traffic.')
+        rc = self._transmit("start_latency", params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+
+    @client_api('command', True)
+    def stop_latency(self):
+        """
+           Stop latency traffic.
+        """
+
+        params = {
+            'handler': self.handler
+            }
+
+        self.ctx.logger.pre_cmd('Stopping latency traffic.')
+        rc = self._transmit("stop_latency", params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+
+    @client_api('command', True)
+    def update_latency(self, mult = 1):
+        """
+           Update rate of latency traffic.
+
+            :parameters:
+                mult: float 
+                    number of packets per second
+
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        params = {
+            'handler': self.handler,
+            'mult': mult,
+            }
+
+        self.ctx.logger.pre_cmd('Updating latenct rate.')
+        rc = self._transmit("update_latency", params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
 
 
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @console_api('acquire', 'common', True)
+    def acquire_line (self, line):
+        '''Acquire ports\n'''
+
+        # define a parser
+        parser = parsing_opts.gen_parser(
+            self,
+            'acquire',
+            self.acquire_line.__doc__,
+            parsing_opts.FORCE)
+
+        opts = parser.parse_args(line.split())
+        self.acquire(force = opts.force)
+        return True
+
 
     @console_api('reset', 'common', True)
     def reset_line(self, line):
@@ -471,7 +597,7 @@ class ASTFClient(TRexClient):
             self.reset_line.__doc__,
             parsing_opts.PORT_RESTART)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
+        opts = parser.parse_args(line.split())
         self.reset(restart = opts.restart)
         return True
 
@@ -488,12 +614,13 @@ class ASTFClient(TRexClient):
             parsing_opts.MULTIPLIER_NUM,
             parsing_opts.DURATION,
             parsing_opts.TUNABLES,
-            parsing_opts.ASTF_NC)
-
+            parsing_opts.ASTF_NC,
+            parsing_opts.ASTF_LATENCY
+            )
         opts = parser.parse_args(line.split())
         tunables = opts.tunables or {}
         self.load_profile(opts.file[0], tunables)
-        self.start(opts.mult, duration = opts.duration, nc = opts.nc)
+        self.start(opts.mult, duration = opts.duration, nc = opts.nc, latency_pps = opts.latency_pps)
         return True
 
     @console_api('stop', 'ASTF', True)
@@ -522,6 +649,72 @@ class ASTFClient(TRexClient):
         self.update(opts.mult)
 
 
+    def calc_latency_port_mask(self, ports):
+        mask =0
+        for p in ports:
+            mask += (1<<p)
+        return mask
+
+
+    @console_api('latency', 'ASTF', True)
+    def latency_line(self, line):
+        '''Latency-related commands'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'latency',
+            self.latency_line.__doc__)
+
+        def latency_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        start_parser = latency_add_parsers(subparsers, 'start', help = 'Start latency traffic')
+        latency_add_parsers(subparsers, 'stop', help = 'Stop latency traffic')
+        update_parser = latency_add_parsers(subparsers, 'update', help = 'Update rate of running latency')
+        latency_add_parsers(subparsers, 'show', help = 'alias for stats -l')
+        latency_add_parsers(subparsers, 'hist', help = 'alias for stats -h')
+
+        start_parser.add_arg_list(
+            parsing_opts.MULTIPLIER_NUM,
+            parsing_opts.SRC_IPV4,
+            parsing_opts.DST_IPV4,
+            parsing_opts.PORT_LIST,
+            parsing_opts.DUAL_IPV4
+            )
+
+        update_parser.add_arg_list(
+            parsing_opts.MULTIPLIER_NUM,
+            )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.command == 'start':
+            ports_mask = self.calc_latency_port_mask(opts.ports)
+            self.start_latency(mult = opts.mult,
+                               src_ipv4 = opts.src_ipv4,
+                               dst_ipv4 = opts.dst_ipv4,
+                               dual_ipv4 = opts.dual_ip_mask,
+                               ports_mask = ports_mask)
+
+        elif opts.command == 'stop':
+            self.stop_latency()
+
+        elif opts.command == 'update':
+            self.update_latency(mult = opts.mult)
+
+        elif opts.command == 'show' or not opts.command:
+            self._show_latency_stats()
+
+        elif opts.command == 'hist':
+            self._show_latency_histogram()
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
+
+
     @console_api('stats', 'common', True)
     def show_stats_line (self, line):
         '''Show various statistics\n'''
@@ -533,7 +726,7 @@ class ASTFClient(TRexClient):
             parsing_opts.PORT_LIST,
             parsing_opts.ASTF_STATS_GROUP)
 
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
+        opts = parser.parse_args(line.split())
         if not opts:
             return
 
@@ -566,17 +759,38 @@ class ASTFClient(TRexClient):
             self._show_mbuf_util()
 
         elif opts.stats == 'astf':
-            self._show_astf_stats(False)
+            self._show_traffic_stats(False)
 
         elif opts.stats == 'astf_inc_zero':
-            self._show_astf_stats(True)
+            self._show_traffic_stats(True)
+
+        elif opts.stats == 'latency':
+            self._show_latency_stats()
+
+        elif opts.stats == 'latency_histogram':
+            self._show_latency_histogram()
 
         else:
             raise TRexError('Unhandled stat: %s' % opts.stats)
 
 
-    def _show_astf_stats(self, include_zero_lines, buffer = sys.stdout):
-        table = self.astf_stats.to_table(include_zero_lines)
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout):
+        table = self.traffic_stats.to_table(include_zero_lines)
+        text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
+
+
+    def _show_latency_stats(self, buffer = sys.stdout):
+        table = self.latency_stats.to_table_main()
+        text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
+
+
+    def _show_latency_histogram(self, buffer = sys.stdout):
+        table = self.latency_stats.histogram_to_table()
+        text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
+
+
+    def _show_latency_counters(self, buffer = sys.stdout):
+        table = self.latency_stats.counters_to_table()
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
 

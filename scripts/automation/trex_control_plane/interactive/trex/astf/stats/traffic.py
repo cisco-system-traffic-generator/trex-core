@@ -1,8 +1,8 @@
-from ..common.trex_types import TRexError
-from ..utils.text_opts import format_num, red, green
-from ..utils import text_tables
+from trex.common.trex_types import TRexError
+from trex.utils.text_opts import format_num, red, green
+from trex.utils import text_tables
 
-class CAstfStats(object):
+class CAstfTrafficStats(object):
     def __init__(self, rpc):
         self.rpc = rpc
         self.sections = ['client', 'server']
@@ -66,7 +66,7 @@ class CAstfStats(object):
         sec_count = len(self.sections)
 
         # init table
-        stats_table = text_tables.TRexTextTable('ASTF Stats')
+        stats_table = text_tables.TRexTextTable('Traffic stats')
         stats_table.set_cols_align(["r"] * (1 + sec_count) + ["l"])
         stats_table.set_cols_width([self._max_desc_name_len] + [17] * sec_count + [self._max_desc_name_len])
         stats_table.set_cols_dtype(['t'] * (2 + sec_count))

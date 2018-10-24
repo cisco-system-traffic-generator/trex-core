@@ -893,6 +893,36 @@ ClientCfgDB  *CAstfDB::get_client_db() {
 }
 
 
+bool CAstfDB::get_latency_info(uint32_t & src_ipv4,
+                               uint32_t & dst_ipv4,
+                               uint32_t & dual_port_mask){
+
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+
+    if (ip_gen_list.size()<2){
+        return(false);
+    }
+    int i;
+    uint32_t valid=0;
+    for (i=0; i<2; i++) {
+        Json::Value g=ip_gen_list[i];
+
+        if (g["dir"] == "c") {
+            dual_port_mask = ip_from_str(g["ip_offset"].asString().c_str());
+            src_ipv4 = ip_from_str(g["ip_start"].asString().c_str());
+            valid|=1;
+        }
+        if (g["dir"] == "s") {
+            dst_ipv4 = ip_from_str(g["ip_start"].asString().c_str());
+            valid|=2;
+        }
+    }
+    if (valid != 3) {
+        return(false);
+    }
+    return(true);
+}
+
 void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
 
