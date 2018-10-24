@@ -2162,7 +2162,7 @@ Flag that specifies interactive mode. Currently used for stateless (WIP adding a
 *-k <num>*::
    Run ``warm up'' traffic for num seconds before starting the test. This is needed if TRex is connected to switch running
    spanning tree. You want the switch to see traffic from all relevant source MAC addresses before starting to send real
-   data. Traffic sent is the same used for the latency test (-l option) +
+   data. Works only with the latency test (-l option). Traffic sent is the same used for the latency test. +
    Current limitation (holds for TRex version 1.82): does not work properly on VM.
 
 *-l <rate>*::
