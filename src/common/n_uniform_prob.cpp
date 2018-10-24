@@ -94,20 +94,22 @@ void KxuNuRand::init(const std::vector<u32>& dist,
        for ( u32 i = 0; i < mDist.size(); i++ ) { 
           // find a small prob, non-zero preferred
           while ( aIdx < p.size()-1 ){
-             if (( p[aIdx] < thresh ) && p[aIdx] ) break;
+             if (( p[aIdx] <= thresh ) && p[aIdx] ) break;
              aIdx++;
           }
-          if ( p[aIdx] >= thresh ){
+          assert (aIdx < p.size());
+          if ( p[aIdx] > thresh ){
              aIdx = 0;
              while ( aIdx < p.size()-1 ){
-                if ( p[aIdx] < thresh ) break;
+                if ( p[aIdx] <= thresh ) break;
                 aIdx++;
              }
           }
-
+          assert (aIdx < p.size());
           // find a prob that is not aIdx, and the sum is more than thresh.
           while ( bIdx < p.size()-1 ){
              if ( bIdx == aIdx ) { bIdx++; continue; } // can't be aIdx
+             assert (bIdx < p.size());
              if ((( p[aIdx] >> 1 ) + ( p[bIdx] >> 1 )) >= ( thresh >> 1 )) break;
              bIdx++; // find a sum big enough or equal
           }
@@ -116,7 +118,7 @@ void KxuNuRand::init(const std::vector<u32>& dist,
           // This function will initialize a new binary distribution, and make 
           // the appropriate adjustments to the input non-uniform distribution.
           computeBiDist( p, numDistros, mDist[i], aIdx, bIdx );
-
+          assert (bIdx < p.size());
           if (( bIdx < aIdx ) && ( p[bIdx] < thresh ))
              aIdx = bIdx;
           else
@@ -147,19 +149,67 @@ static void computeBiDist( std::vector<u32>& p, u32 n,
    p[aIdx] = 0; 
 } 
 
+static bool tryDistributingErrorToBiggest(std::vector<u32>& probs){
+    /* Returns true if the error is smaller than the max prob and can be distributed
+    to it. False otherwise */
+    u32 max = 0;
+    u32 maxIdx = 0;
+    u32 sum = 0;
+
+    for (u32 i = 0; i < probs.size(); i++ ){
+        sum += probs[i];
+        if (probs[i] > max) {
+            max = probs[i];
+            maxIdx = i;
+        }
+    }
+    u32 error = -sum; //4G - sum
+    u32 AllowedError = max / 1000 ; // We permit an error of 0.1% of the maximum.
+    if (error < AllowedError) {
+        // Distribute the error to the max, it is indistinguishable (0.1%)
+        probs[maxIdx] += error;
+        return true;
+    }
+    return false; 
+}
+
+static void distributeErrorRelatively(std::vector<u32>& probs){
+    u32 sum = 0;
+    u32 error = 0;
+    u32 errorPerEntry = 0;
+
+    for (u32 i = 0; i < probs.size(); i++) {
+        sum += probs[i];
+    }
+    error = - sum; // 4G - sum
+
+    for (u32 i = 0; i < probs.size(); i++) {
+        errorPerEntry = error * fixedToFloat_0_32(probs[i]);
+        probs[i] += errorPerEntry;
+    }
+}
+
+static void distributeOnesToNoError(std::vector<u32>& probs){
+    u32 sum = 0;
+    u32 error = 0;
+
+    for (u32 i = 0; i < probs.size(); i++) {
+        sum += probs[i];
+    }
+    error = - sum;
+    assert (error < probs.size());
+
+    while(error){
+        probs[--error]++;
+    }
+}
+
 static void normProbs( std::vector<u32>& probs ){
-   u32 scale = 0;
-   u32 err = 0;
-   u32 shift = 0;
-   u32 max = 0;
-   u32 maxIdx = 0;
-   u32 sum = 0;
 
    // how many non-zero probabilities?
    u32 numNonZero = 0;
    for ( u32 i = 0; i < probs.size(); i++ ){
        if ( probs[i] ) numNonZero++;
-       sum += probs[i];
    }
  
    if ( numNonZero == 0 ){
@@ -177,54 +227,21 @@ static void normProbs( std::vector<u32>& probs ){
       }
       return;
    }
- 
-   // figure out the scale
-again:
-   for ( u32 i = 0; i < probs.size(); i++ ){ 
-       scale += (( probs[i] << shift ) >> 8 );
-   }
- 
-   if (( scale < 0xFFFF ) && ( shift < 24 )) {
-      shift += 8;
-      goto again;
-   }
- 
-   assert( scale );
-    
-   scale = 0x10000000 / (( scale + 0x7FF ) >> 12 );
- 
-   // check if can scale
-   err = sum;
-   for ( u32 i = 0; i < probs.size(); i++ ) {
-      err += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
-      if ( probs[i] > max ){
-         max = probs[i];
-         maxIdx = i;
-      }
-   }
 
-   // correct errors such that the sum of the probabilities is 1.
-   if (probs[maxIdx] < err) {
-       // can't scale because sum of all the scaled probs is bigger than 4G
-       probs[maxIdx] -= sum; // U32_MAX + 1 - sum
-   } else {
-     // can scale
-     for ( u32 i = 0; i < probs.size(); i++ ) {
-        probs[i] += ((( probs[i] << shift ) + 0x7FFF ) >> 16 ) * scale;
-        if ( probs[i] > max ){
-            max = probs[i];
-            maxIdx = i;
-            }
-      }
-       probs[maxIdx] -= err;
+   if(!tryDistributingErrorToBiggest(probs)) {
+       distributeErrorRelatively(probs);
+       if (!tryDistributingErrorToBiggest(probs)) {
+           distributeOnesToNoError(probs);
+       }
    }
 
    // The sum of the probabilities in a probability distribution is always 1, in our case 4G = 0.
-   sum = 0;
+   uint64_t sum = 0;
+   uint64_t fourGiga = 0x100000000; // 2^32
    for ( u32 i = 0; i < probs.size(); i++ ) {
        sum += probs[i];
    }
-   assert (sum == 0);
+   assert (sum == fourGiga);
 }
 
 void Kx_norm_prob(std::vector<double> prob,
