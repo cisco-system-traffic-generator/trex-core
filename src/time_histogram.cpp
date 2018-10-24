@@ -49,6 +49,7 @@ void CTimeHistogram::Reset() {
 bool CTimeHistogram::Create() {
     Reset();
     m_min_delta =10.0/1000000.0;
+    m_hot_max=10;
     return (true);
 }
 
@@ -60,7 +61,9 @@ bool CTimeHistogram::Add(dsec_t dt) {
 
     period_elem.inc_cnt();
     period_elem.update_sum(dt);
-    period_elem.update_max(dt);
+    if ((m_hot_max==0) || (m_total_cnt>m_hot_max)){
+        period_elem.update_max(dt);
+    }
 
     // values smaller then certain threshold do not get into the histogram
     if (dt < m_min_delta) {
@@ -197,6 +200,7 @@ void CTimeHistogram::dump_json(std::string name,std::string & json ) {
     json += add_json("high_cnt", m_total_cnt_high);
     json += add_json("cnt", m_total_cnt);
     json+=add_json("s_avg", get_average_latency());
+    json+=add_json("s_max", get_max_latency_last_update());
     int i;
     int j;
     uint32_t base=10;

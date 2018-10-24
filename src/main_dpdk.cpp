@@ -1793,6 +1793,7 @@ int CCoreEthIFTcp::send_node(CGenNode *node){
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+    TrexCaptureMngr::getInstance().handle_pkt_tx(node_tcp->mbuf, lp_port->m_port->get_tvpid());
     send_pkt(lp_port,node_tcp->mbuf,lp_stats);
     return (0);
 }

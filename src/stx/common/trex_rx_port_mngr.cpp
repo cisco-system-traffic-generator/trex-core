@@ -28,6 +28,25 @@
 #include <zmq.h>
 
 
+
+
+
+RxAstfLatency::RxAstfLatency(){
+    m_rx_core=0;
+    m_port_id=255;
+}
+
+void RxAstfLatency::create(CRxCore *rx_core,
+                           uint8_t port_id){
+    m_rx_core = rx_core;
+    m_port_id = port_id;
+}
+
+void RxAstfLatency::handle_pkt(const rte_mbuf_t *m){
+    m_rx_core->handle_astf_latency_pkt(m, m_port_id);
+}
+
+
 /**************************************
  * latency RX feature
  * 
@@ -635,6 +654,7 @@ RXPortManager::create_async(uint32_t port_id,
     
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
+    m_astf_latency.create(m_rx_core,port_id);
 
     m_capwap_proxy.create(&m_feature_api);
     m_capture_port.create(&m_feature_api);
@@ -715,7 +735,7 @@ bool RXPortManager::stop_capture_port(std::string &err) {
     return true;
 }
 
-rx_pkt_action_t RXPortManager::handle_pkt(const rte_mbuf_t *m) {
+void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 
     /* handle features */
 
@@ -738,11 +758,19 @@ rx_pkt_action_t RXPortManager::handle_pkt(const rte_mbuf_t *m) {
         m_capture_port.handle_pkt(m);
     }
 
-    if (is_feature_set(CAPWAP_PROXY)) { // changes the mbuf, so need to be last.
-        return m_capwap_proxy.handle_pkt((rte_mbuf_t *) m);
-    } else {
-        return RX_PKT_FREE;
+    if (is_feature_set(ASTF_LATENCY)) { 
+        m_astf_latency.handle_pkt(m);
     }
+
+    if (is_feature_set(CAPWAP_PROXY)) { // changes the mbuf, so need to be last.
+        rx_pkt_action_t action;
+        action = m_capwap_proxy.handle_pkt((rte_mbuf_t *) m);
+        if ( action == RX_PKT_NOOP ) {
+            return;
+        }
+    }
+
+    rte_pktmbuf_free(m);
 }
 
 uint16_t RXPortManager::handle_tx(void) {
@@ -753,28 +781,27 @@ uint16_t RXPortManager::handle_tx(void) {
         cnt_pkts += m_stack->handle_tx(limit);
     }
 
+    /* Do TX on capture port if needed */
+    if ( is_feature_set(CAPTURE_PORT) ) {
+        cnt_pkts += m_capture_port.do_tx();
+    }
+
     return cnt_pkts;
 }
 
 int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     rte_mbuf_t *rx_pkts[64];
-    uint16_t cnt_tx = 0;
-    
+
     /* start CPU util. with heuristics
        this may or may not start the CPU util.
        measurement
      */
     m_cpu_pred.start_heur();
-    cnt_tx = handle_tx();
+    uint16_t cnt_tx = handle_tx();
 
     if ( cnt_tx ) {
         m_cpu_pred.update(true);
-    }
-
-    /* Do TX on capture port if needed */
-    if (is_feature_set(CAPTURE_PORT)) {
-        cnt_tx = m_capture_port.do_tx();
     }
 
     /* try to read 64 packets clean up the queue */
@@ -797,10 +824,7 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
         rte_mbuf_t *m = rx_pkts[j];
 
         if (!flush_rx) {
-            m_rx_pkt_action = handle_pkt(m);
-            if ( m_rx_pkt_action == RX_PKT_FREE ) {
-                rte_pktmbuf_free(m);
-            }
+            handle_pkt(m);
         } else {
             rte_pktmbuf_free(m);
         }

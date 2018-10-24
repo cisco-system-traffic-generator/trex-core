@@ -28,7 +28,8 @@ limitations under the License.
 
 class TrexAstfPort;
 class CSyncBarrier;
-
+class CRxAstfCore;
+class TrexRxStartLatency;
 typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
 
 /**
@@ -46,6 +47,13 @@ public:
         STATE_CLEANUP, // by DP cores, not cancelable
         AMOUNT_OF_STATES,
     };
+
+    enum state_latency_e {
+        STATE_L_IDLE,
+        STATE_L_WORK,
+        AMOUNT_OF_L_STATES,
+    };
+
     typedef std::vector<state_e> states_t;
 
     /** 
@@ -121,7 +129,7 @@ public:
     /**
      * Start transmit
      */
-    void start_transmit(double duration, double mult, bool nc);
+    void start_transmit(double duration, double mult, bool nc, uint32_t latency_pps);
 
     /**
      * Stop transmit
@@ -136,6 +144,28 @@ public:
     TrexOwner& get_owner() {
         return m_owner;
     }
+
+    /**
+     * Start transmit latency streams only 
+     */
+    void start_transmit_latency(TrexRxStartLatency *msg);
+
+    /**
+     * Stop transmit latency streams only 
+     */
+    bool stop_transmit_latency();
+
+
+    /**
+     * Get latency stats
+     */
+    void get_latency_stats(Json::Value & obj);
+
+    /**
+     * update latency rate command
+     */
+    void update_latency_rate(double mult);
+
     CSyncBarrier* get_barrier() {
         return m_sync_b;
     }
@@ -148,6 +178,11 @@ public:
 
     state_e get_state() {
         return m_state;
+    }
+
+    CRxAstfCore * get_rx(){
+        assert(m_rx);
+        return((CRxAstfCore *)m_rx);
     }
 
 protected:
@@ -170,6 +205,9 @@ protected:
     //void check_blacklist_states(const states_t &blacklist);
 
     void ports_report_state(state_e state);
+
+    state_latency_e m_l_state;
+    uint32_t        m_latency_pps;
 
     TrexOwner       m_owner;
     state_e         m_state;

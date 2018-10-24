@@ -72,6 +72,9 @@ public:
     void Delete();
     void Reset();
     bool Add(dsec_t dt);
+    void set_hot_max_cnt(uint32_t hot){
+        m_hot_max =hot;
+    }
     void Dump(FILE *fd);
     void DumpWinMax(FILE *fd);
     /* should be called once each sampling period */
@@ -112,6 +115,7 @@ private:
     dsec_t   m_max_dt;  // Total maximum latency
     dsec_t   m_average; /* moving average */
     uint32_t m_win_cnt;
+    uint32_t m_hot_max;
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
     uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE] __rte_cache_aligned ;
 };

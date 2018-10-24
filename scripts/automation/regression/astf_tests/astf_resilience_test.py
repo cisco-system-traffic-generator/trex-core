@@ -63,7 +63,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     profile = self.profile_gen(**params)
                     profile_str = profile.to_json_str()
                     print('Profile size: %s' % len(profile_str))
-    
+
                     start_time = time.time()
                     self.astf_trex.load_profile(profile)
                     print('Load took: %g' % round(time.time() - start_time, 3))

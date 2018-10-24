@@ -67,10 +67,10 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
 };
 
 CRxCore::~CRxCore(void) {
-    for (auto &iter_pair : m_rx_port_mngr) {
+    for (auto &iter_pair : m_rx_port_mngr_map) {
         iter_pair.second->cleanup_async();
     }
-    for (auto &iter_pair : m_rx_port_mngr) {
+    for (auto &iter_pair : m_rx_port_mngr_map) {
         iter_pair.second->wait_for_cleanup_done();
         delete iter_pair.second;
         iter_pair.second = nullptr;
@@ -94,19 +94,29 @@ void CRxCore::create(const CRxSlCfg &cfg) {
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
+    uint8_t max_port_id = 0;
+    for (auto &port : cfg.m_ports) {
+        max_port_id = std::max(max_port_id, port.first);
+    }
+
+    uint8_t ports_count = (max_port_id | 1) + 1;
+    m_rx_port_mngr_vec.resize(ports_count, nullptr);
+
     /* create per port manager */
     for (auto &port : cfg.m_ports) {
         RXPortManager *mngr = new RXPortManager();
-        m_rx_port_mngr[port.first] = mngr;
-        m_rx_port_mngr[port.first]->create_async(port.first,
-                                                this,
-                                                port.second,
-                                                m_rfc2544,
-                                                &m_err_cntrs,
-                                                &m_cpu_dp_u);
+        mngr->create_async(port.first,
+                           this,
+                           port.second,
+                           m_rfc2544,
+                           &m_err_cntrs,
+                           &m_cpu_dp_u);
+        m_rx_port_mngr_map[port.first] = mngr;
+        m_rx_port_mngr_vec[port.first] = mngr;
     }
-    for (auto &port : cfg.m_ports) {
-        m_rx_port_mngr[port.first]->wait_for_create_done();
+
+    for (auto &iter_pair : m_rx_port_mngr_map) {
+        iter_pair.second->wait_for_create_done();
     }
 
     /* create a TX queue */
@@ -163,7 +173,7 @@ void CRxCore::recalculate_next_state() {
  * return true if any port has latency enabled
  */
 bool CRxCore::is_latency_active() {
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         if (mngr_pair.second->is_feature_set(RXPortManager::LATENCY)) {
             return true;
         }
@@ -177,7 +187,7 @@ bool CRxCore::is_latency_active() {
  * (latency, capture, capwap proxy)
  */
 bool CRxCore::should_be_hot() {
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         if ( TrexCaptureMngr::getInstance().is_active(mngr_pair.first)
             || mngr_pair.second->is_feature_set(RXPortManager::LATENCY)
             || mngr_pair.second->is_feature_set(RXPortManager::CAPWAP_PROXY) ) {
@@ -292,12 +302,35 @@ bool CRxCore::work_tick() {
 
 
 bool CRxCore::tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id) {
-    return m_rx_port_mngr[tx_port_id]->tx_pkt(m);
+    return m_rx_port_mngr_vec[tx_port_id]->tx_pkt(m);
 }
 
 
 bool CRxCore::tx_pkt(const std::string &pkt, uint8_t tx_port_id) {
-    return m_rx_port_mngr[tx_port_id]->tx_pkt(pkt);
+    return m_rx_port_mngr_vec[tx_port_id]->tx_pkt(pkt);
+}
+
+
+int CRxCore::_do_start(void){
+
+    while (m_state != STATE_QUIT) {
+
+        switch (m_state) {
+
+        case STATE_HOT:
+            hot_state_loop();
+            break;
+
+        case STATE_COLD:
+            cold_state_loop();
+            break;
+
+        default:
+            assert(0);
+            break;
+        }
+    }
+    return (0);
 }
 
 
@@ -313,25 +346,8 @@ void CRxCore::start() {
     recalculate_next_state();
     
     init_work_stage();
- 
-    while (m_state != STATE_QUIT) {
 
-        switch (m_state) {
-
-        case STATE_HOT:
-            hot_state_loop();
-            break;
-            
-        case STATE_COLD:
-            cold_state_loop();
-            break;
-
-        default:
-            assert(0);
-            break;
-        }
-
-    }
+    (void)_do_start();
 
     m_monitor.disable();
 
@@ -339,10 +355,16 @@ void CRxCore::start() {
     
 }
 
+void CRxCore::handle_astf_latency_pkt(const rte_mbuf_t *m,
+                                      uint8_t port_id){
+    /* nothing to do */
+
+}
+
 int CRxCore::process_all_pending_pkts(bool flush_rx) {
 
     int total_pkts = 0;
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         total_pkts += mngr_pair.second->process_all_pending_pkts(flush_rx);
     }
 
@@ -351,14 +373,14 @@ int CRxCore::process_all_pending_pkts(bool flush_rx) {
 }
 
 void CRxCore::reset_rx_stats(uint8_t port_id) {
-    m_rx_port_mngr[port_id]->clear_stats();
+    m_rx_port_mngr_vec[port_id]->clear_stats();
 }
 
 int CRxCore::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max
                                    , bool reset, TrexPlatformApi::driver_stat_cap_e type) {
 
     /* for now only latency stats */
-    m_rx_port_mngr[port_id]->get_latency_stats(rx_stats, min, max, reset, type);
+    m_rx_port_mngr_vec[port_id]->get_latency_stats(rx_stats, min, max, reset, type);
     
     return (0);
     
@@ -409,33 +431,33 @@ double CRxCore::get_cpu_util() {
 
 void
 CRxCore::start_queue(uint8_t port_id, uint64_t size) {
-    m_rx_port_mngr[port_id]->start_queue(size);
+    m_rx_port_mngr_vec[port_id]->start_queue(size);
     recalculate_next_state();
 }
 
 void
 CRxCore::stop_queue(uint8_t port_id) {
-    m_rx_port_mngr[port_id]->stop_queue();
+    m_rx_port_mngr_vec[port_id]->stop_queue();
     recalculate_next_state();
 }
 
 bool
 CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
     bool rc;
-    rc = m_rx_port_mngr[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
+    rc = m_rx_port_mngr_vec[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
     recalculate_next_state();
     return rc;
 }
 
 void
 CRxCore::stop_capwap_proxy(uint8_t port_id) {
-    m_rx_port_mngr[port_id]->stop_capwap_proxy();
+    m_rx_port_mngr_vec[port_id]->stop_capwap_proxy();
     recalculate_next_state();
 }
 
 void
 CRxCore::enable_latency() {
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->enable_latency();
     }
     
@@ -443,8 +465,18 @@ CRxCore::enable_latency() {
 }
 
 void
+CRxCore::enable_astf_latency_fia(bool enable) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
+        mngr_pair.second->enable_astf_latency(enable);
+    }
+    
+    recalculate_next_state();
+}
+
+
+void
 CRxCore::disable_latency() {
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->disable_latency();
     }
     
@@ -452,22 +484,22 @@ CRxCore::disable_latency() {
 }
 
 const TrexPktBuffer *CRxCore::get_rx_queue_pkts(uint8_t port_id) {
-    return m_rx_port_mngr[port_id]->get_pkt_buffer();
+    return m_rx_port_mngr_vec[port_id]->get_pkt_buffer();
 }
 
 RXPortManager &CRxCore::get_rx_port_mngr(uint8_t port_id) {
-    return *m_rx_port_mngr[port_id];
+    return *m_rx_port_mngr_vec[port_id];
 }
 
 void
 CRxCore::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
-    m_rx_port_mngr[port_id]->get_ignore_stats(stat, get_diff);
+    m_rx_port_mngr_vec[port_id]->get_ignore_stats(stat, get_diff);
 }
 
 
 bool CRxCore::has_port(const std::string &mac_buf) {
     assert(mac_buf.size()==6);
-    for (auto &mngr_pair : m_rx_port_mngr) {
+    for (auto &mngr_pair : m_rx_port_mngr_map) {
         if ( mngr_pair.second->get_stack()->has_port(mac_buf) ) {
             return true;
         }
@@ -504,6 +536,6 @@ CRxCore::tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg
  */
 bool
 CRxCore::tx_pkt(int port_id, const std::string &pkt) {
-    return m_rx_port_mngr[port_id]->tx_pkt(pkt);
+    return m_rx_port_mngr_vec[port_id]->tx_pkt(pkt);
 }
 

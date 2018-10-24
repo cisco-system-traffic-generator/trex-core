@@ -41,10 +41,27 @@ enum rx_pkt_action_t {
     RX_PKT_FREE,
 };
 
+
+class RxAstfLatency {
+public:
+
+    RxAstfLatency();
+
+    void create(CRxCore *rx_core,uint8_t port_id);
+
+    void handle_pkt(const rte_mbuf_t *m);
+
+private:    
+    CRxCore * m_rx_core;
+    uint8_t   m_port_id;
+};
+
 /**************************************
  * RX feature latency
  * 
  *************************************/
+
+
 class RXLatency {
 public:
 
@@ -278,6 +295,7 @@ public:
         STACK        = 1 << 2,
         CAPTURE_PORT = 1 << 3,
         CAPWAP_PROXY = 1 << 4,
+        ASTF_LATENCY = 1 << 5
     };
 
     RXPortManager();
@@ -315,6 +333,13 @@ public:
         return m_stack;
     }
 
+    void enable_astf_latency(bool enable){
+        if (enable) {
+            set_feature(ASTF_LATENCY);
+        }else{
+            unset_feature(ASTF_LATENCY);
+        }
+    }
     /* latency */
     void enable_latency() {
         set_feature(LATENCY);
@@ -444,7 +469,7 @@ private:
      * handle a single packet
      * 
      */
-    rx_pkt_action_t handle_pkt(const rte_mbuf_t *m);
+    void handle_pkt(rte_mbuf_t *m);
 
 
     void clear_all_features() {
@@ -463,6 +488,7 @@ private:
     uint8_t                      m_port_id;
     CRxCore                     *m_rx_core;
     RXLatency                    m_latency;
+
     RXQueue                      m_queue;
     RXCapwapProxy                m_capwap_proxy;
     RXCapturePort                m_capture_port;
@@ -470,13 +496,12 @@ private:
     CStackBase                  *m_stack;
     CCpuUtlDpPredict             m_cpu_pred;
     CPortLatencyHWBase          *m_io;
-
+    RxAstfLatency                m_astf_latency;
     /* stats to ignore (ARP and etc.) */
     CRXCoreIgnoreStat            m_ign_stats;
     CRXCoreIgnoreStat            m_ign_stats_prev;
-    
+
     RXFeatureAPI                 m_feature_api;
-    rx_pkt_action_t              m_rx_pkt_action;
 };
 
 
