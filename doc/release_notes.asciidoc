@@ -27,6 +27,42 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.47 ==
+
+* ASTF: supports interactive mode. STL and ASTF works with the same framework. common features are:
+** L2 emulation (arp/ipv6/l3/ping/vlan/scan6 etc)
+** Port management  (e.g. link attribute)
+** Network namespace
+** Capture/service mode 
+** Plugin services 
+** Console/TUI/API
+** Not supported yet: cluster mode 
+* The ASTF batch mode is planned to be deprecated 
+
+.Start ASTF in interactive mode
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf
+-------------------
+
+.Console
+[source,bash]
+-------------------
+./trex-console -s [server-ip]
+-----------------
+
+
+.From Console
+[source,bash]
+-------------------
+trex>start -f astf/http_simple.py -m 1000 -d 1000 -l 1000
+trex>tui
+trex>[press] t/l for astf statistics and latency 
+trex>stop
+------------------
+ 
+* ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
+
 == Release 2.46 ==
 
 * ASTF: add per_core_distribution field see  link:cp_astf_docs/_modules/trex/astf/trex_astf_profile.html#ASTFIPGenDist[per_core_distribution]

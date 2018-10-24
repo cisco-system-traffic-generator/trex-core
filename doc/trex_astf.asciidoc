@@ -10,6 +10,7 @@ TRex Advance stateful support
 :github_astf_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/astf
 :github_astf_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/astf/examples
 :github_stf_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stf/examples
+:github_astf_i_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/astf
 
 :toclevels: 6
 
@@ -40,8 +41,8 @@ endif::backend-xhtml11[]
 == Audience 
 
 This document assumes basic knowledge of TRex, and assumes that TRex is installed and configured.
-For information, see the link:trex_manual.html[manual], especially the material up to the link:trex_manual.html#_basic_usage[Basic Usage] section.
-Consider this document as an extension to the manual, we might integrate both of them in the future. 
+For information, see the link:trex_manual.html[manual] especially the material up to the link:trex_manual.html#_basic_usage[Basic Usage] section and link:trex_stateless.html[stateless] for better understanding the interactive model.
+Consider this document as an extension to the manual, it might be integrated in the future. 
 
 == Advance Stateful support 
 
@@ -79,36 +80,27 @@ image::images/t_c3.png[title="C/S mode",align="center",width={p_width}, link="im
 * Fragmentation support 
 * Accurate latency for TCP flows - SYN/SYN ACK and REQ/RES latency histogram, usec resolution
 
-[NOTE] 
-=====================================================================
-Not all the features will be available in the first release. 
-=====================================================================
 
 ==== Status
 
-WARNING: The basic ASTF support was released, however it is under constant improvement.
+WARNING: ASTF support was released, however it is under constant improvement.
 
 ===== What works in the current version 
 
 * Profile with multi templates of TCP/UDP
 * IPv4 and IPv6 
 * VLAN configuration 
-* One DP core per dual-ports
 * Enable client only or server only or both
 * High scale with flows/BW/PPS
 * Ability to change IPv4/IPv6 configuration like default TOS etc
 * Flexible tuple generator 
-* Automation support (using STF batch framework)
+* Automation support - fast interactive support, Fast Console
 * Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
-* Client Cluster  
+* Client Cluster (only batch)
 * Basic L7 emulation capability e.g. Random delay, loops, variables, Spirent and IXIA like TCP traffic patterns, Elephant flows  
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
 * More than one core per dual-ports
 * Ability to use all ports as clients or server 
-
-===== Current high priority tasks
-
-* Interactive support - work with Console to start/stop/get a statistic. This will enable the L2 emulation framework  (e.g. Wireless AP)
 
 ===== On radar  
 
@@ -296,7 +288,74 @@ def register():
 <2> The template list with relative CPS (connection per second) 
 
 
-*Running TRex with this profile*::   
+*Running TRex with this profile interactive (v2.47 and up)*::   
+
+.Start ASTF in interactive mode
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf
+-------------------
+
+.Console
+[source,bash]
+-------------------
+./trex-console -s [server-ip]
+-----------------
+
+
+.From Console
+[source,bash]
+-------------------
+trex>start -f astf/http_simple.py -m 1000 -d 1000 -l 1000
+trex>tui
+trex>[press] t/l for astf statistics and latency 
+trex>stop
+------------------
+
+.Cosole ASTF stats 
+[source,bash]
+----
+
+                   |     client  |        server |  
+ --------------------------------------------------------------------------------
+   m_active_flows  |      39965  |        39966  |  active flows
+      m_est_flows  |      39950  |        39952  |  active est flows
+     m_tx_bw_l7_r  | 31.14 Mbps  |    4.09 Gbps  |  tx bw
+     m_rx_bw_l7_r  |  4.09 Gbps  |   31.14 Mbps  |  rx bw
+       m_tx_pps_r  |140.36 Kpps  |  124.82 Kpps  |  tx pps
+       m_rx_pps_r  |156.05 Kpps  |  155.87 Kpps  |  rx pps
+       m_avg_size  |    1.74 KB  |      1.84 KB  |  average pkt size
+                -  |        ---  |          ---  |  
+              TCP  |        ---  |          ---  |  
+                -  |        ---  |          ---  |  
+ tcps_connattempt  |      73936  |            0  |  connections initiated
+     tcps_accepts  |          0  |        73924  |  connections accepted
+    tcps_connects  |      73921  |        73910  |  connections established
+      tcps_closed  |      33971  |        33958  |  conn. closed (includes drops)
+   tcps_segstimed  |     213451  |       558085  |  segs where we tried to get rtt
+  tcps_rttupdated  |     213416  |       549736  |  times we succeeded
+      tcps_delack  |     344742  |            0  |  delayed acks sent
+    tcps_sndtotal  |     623780  |       558085  |  total packets sent
+     tcps_sndpack  |      73921  |       418569  |  data packets sent
+     tcps_sndbyte  |   18406329  |   2270136936  |  data bytes sent
+     tcps_sndctrl  |      73936  |            0  |  control (SYN,FIN,RST) packets sent
+     tcps_sndacks  |     475923  |       139516  |  ack-only packets sent 
+     tcps_rcvpack  |     550465  |       139502  |  packets received in sequence
+     tcps_rcvbyte  | 2269941776  |     18403590  |  bytes received in sequence
+  tcps_rcvackpack  |     139495  |       549736  |  rcvd ack packets
+  tcps_rcvackbyte  |   18468679  |   2222057965  |  tx bytes acked by rcvd acks
+     tcps_preddat  |     410970  |            0  |  times hdr predict ok for data pkts 
+   tcps_rcvoopack  |          0  |            0  |  *out-of-order packets received   #<1>
+                -  |        ---  |          ---  |  
+       Flow Table  |        ---  |          ---  |  
+                -  |        ---  |          ---  |  
+   redirect_rx_ok  |          0  |            1  |  redirect to rx OK
+       
+----
+<1> Counters with asterisk prefix (*) means that there is some kind of error, see counters description for more information
+
+
+*Running TRex with this profile in batch mode (planned to be deprecated)*::   
 
 [source,bash]
 ----
@@ -607,18 +666,26 @@ The tuple generator ranges should not overlap
 
 ==== Tutorial: IPv6 traffic 
 
+ASTF can run a profile that includes a mix of IPv4 and IPv6  template using ipv6. enables tunable. The tunable could be global (for all profile) or per template. 
+However, for backward compatibility, a CLI flag (in start) can  convert all the profile to ipv6 automatically 
+
+.Interactive 
+[source,bash]
+----
+trex>start -f astf/http_simple.py -m 1000 -d 1000 --astf -l 1000 --ipv6
+----
+
+.Batch
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -f astf/http_simple.py -m 1000 -d 1000 -c 1 --astf -l 1000 --ipv6
 ----
 
-just add `--ipv6' to the CLI. The IPv6 packets will be look like this  
 
 [source,bash]
 ----
 ::x.x.x.x where LSB is IPv4 addrees 
 ----
-
 
 The profile includes same HTTP template for demonstration. 
 
@@ -627,9 +694,9 @@ The profile includes same HTTP template for demonstration.
 link:{github_astf_path}/param_ipv6.py[astf/param_ipv6.py]
 
 
-Another way to enable IPv6 globally and in future per template is by tunables in the profile file
+Another way to enable IPv6 globally (or per template) is by tunables in the profile file
 
-.IPv6 tunable 
+.IPv6 tunable (global) 
 [source,python]
 ----
 
@@ -672,7 +739,7 @@ in this case there is *no* need for `--ipv6` in CLI
   
 [source,bash]
 ----
-[bash]>sudo ./t-rex-64 -f astf/param_ipv6.py -m 1000 -d 1000 -c 1 --astf -l 1000 
+trex>start -f astf/param_ipv6.py -m 1000 -d 1000 -l 1000 
 ----
 
 ==== Tutorial: Change tcp.mss using tunables mechanism 
@@ -795,7 +862,82 @@ class Prof1():
 
 for referance of all tunables see  xref:tunables[here]
 
-==== Tutorial: Python automation 
+==== Tutorial: Python automation (v2.47 and up)
+
+*Goal*:: Simple automation test using Python from a local or remote machine 
+
+*File*:: link:{github_astf_i_examples_path}/stf_tcp.py[astf_example.py]
+
+For this mode to work, TRex server should have started with interactive mode 
+
+.Start ASTF in interactive mode
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf
+-------------------
+
+
+.ASTF automation 
+[source,python]
+----
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+    passed = True
+
+    try:
+        # take all the ports
+        c.reset()
+
+        # load ASTF profile
+        if not profile_path:
+            profile_path = os.path.join(astf_path.ASTF_PROFILES_PATH, 'http_simple.py')
+
+        c.load_profile(profile_path)                                             <1>
+
+        # clear the stats before injecting
+        c.clear_stats()
+
+        print("Injecting with multiplier of '%s' for %s seconds" % (mult, duration))
+        c.start(mult = mult, duration = duration, nc = True)                      <2>
+
+        # block until done
+        c.wait_on_traffic()                                                       <3>
+
+        # read the stats after the test
+        stats = c.get_stats()                                                     <4>
+
+        # use this for debug info on all the stats
+        #pprint(stats)
+
+        sent_pkts = stats['total']['ipackets']
+        recv_pkts = stats['total']['opackets']
+
+        if c.get_warnings():
+            print('\n\n*** test had warnings ****\n\n')
+            for w in c.get_warnings():
+                print(w)
+
+        assert sent_pkts > 100, 'Too few packets sent (%s)' % sent_pkts
+        assert recv_pkts > sent_pkts * 0.99, 'Too much packets lost (sent: %s, recv: %s)' % (sent_pkts, recv_pkts)
+
+        client_stats = stats['astf']['client']
+        server_stats = stats['astf']['server']
+
+        client_sent, server_recv = client_stats['tcps_sndpack'], server_stats['tcps_rcvpack']
+        server_sent, client_recv = server_stats['tcps_sndpack'], client_stats['tcps_rcvpack']
+
+-----
+<1> connect 
+<2> start the traffic 
+<3> wait for the test to finish
+<4> get all stats  
+
+
+==== Tutorial: Python automation batch mode (planned to be deprecated)
 
 *Goal*:: Simple automation test using Python from a local or remote machine 
 
@@ -806,7 +948,7 @@ Python API examples: `automation/trex_control_plane/stf/examples`.
 Python API library: `automation/trex_control_plane/stf/trex_stl_lib`.
 
 
-We are using for the first version the same STF python API framework, we are working to move to interactive mode like the STL mode
+This mode works with STF python API framework and it is deprecated
 
 image::images/trex_control_plane_modules.png[title="RPC Server Components",align="center",width={p_width}, link="images/trex_architecture_01.png"]
 
@@ -854,8 +996,6 @@ def run_stateful_tcp_test(server):
     tcp_s= c["tcp-v1"]["data"]["server"];
     if not validate_tcp(tcp_s):
         return False
-
-
 
 
 if __name__ == '__main__':
@@ -1679,9 +1819,9 @@ link:cp_astf_docs/index.html[python index]
 [options="header",cols="2,^2,^2,^1,^1,5"]
 |=================
 |  tunable      | min-max|default| per-template |global| Description  
-|   ipv6.src_msb    | string |0 |-|+| default IPv6.src MSB address. 
-|   ipv6.dst_msb    | string |0 |-|+| default IPv6.src MSB address. 
-|   ipv6.enable     | bool   |0 |-|+| enable IPv6 for all templates. 
+|   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. 
+|   ipv6.dst_msb    | string |0 |+|+| default IPv6.src MSB address. 
+|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. 
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
 |   tcp.rxbufsize   | 1K-1M  |32K |+|+| socket rx buffer size in bytes. 
