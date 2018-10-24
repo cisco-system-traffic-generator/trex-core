@@ -1634,7 +1634,7 @@ The following example demonstrates 3 streams with different rates (10, 20, 40 PP
 
 *Output*::
 
-The folowing figure presents the output.
+The following figure presents the output.
 
 image::images/stl_interleaving_01.png[title="Interleaving of streams",align="left",width={p_width}, link="images/stl_interleaving_01.png"]
 
@@ -3400,6 +3400,75 @@ Use the following command within the TRex console to run the profile.
 [source,bash]
 ----
 TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a     
+----
+
+==== Tutorial: Core pinning 
+
+*Goal*:: Demonstrate how to assign a stream to a specific core.
+
+The following example demonstrates 2 continuous streams S0 and S1 which are pinned to cores 0 and 1 respectively.
+
+*File*:: link:{github_stl_examples_path}/core_pinning_tutorial.py[core_pinning_tutorial.py]
+
+// inserted this comment to fix rendering problem - otherwise the next several lines are not rendered
+// there's still a problem with the rendering. the image is not displayed.
+
+
+.Core pinning
+[source,python]
+----
+    def create_stream (self):
+
+        base_pkt =  Ether()/IP(src="55.55.1.1",dst="58.0.0.1")/UDP(dport=12,sport=1025)
+
+        return STLProfile ([STLStream(name = 'S0',
+                                      packet = STLPktBuilder(pkt = base_pkt),
+                                      mode = STLTXCont(),
+                                      core_id = 0), <1>
+                            STLStream(name = 'S1',
+                                      packet = STLPktBuilder(pkt = base_pkt),
+                                      mode = STLTXCont(),
+                                      core_id = 1) <2>
+                            ]).get_streams()
+----
+<1> Creates a continuous stream named S0 which runs on core 0.
+<2> Creates a continuous stream named S1 which runs on core 1.
+
+*Output*::
+
+The following figure presents the output.
+
+image::images/core_pinning.png[title="Core pinning",align="left",width={p_width}, link="images/core_pinning.png"]
+
+You need to run TRex with at least two cores for the previous test to work.
+You can define the number of cores with the -c flag:
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 --no-sca -i -c 7 #<1>
+----
+<1> Runs TRex with 7 cores.
+
+To run the console use the following command:
+
+[source,bash]
+----
+[bash]>./trex-console -s servername #<1>
+----
+<1> servername is the name of the server on which you ran TRex.
+
+To run the traffic profile from console in TRex, use the following command:
+
+[source,bash]
+----
+trex>start -f automation/trex_control_plane/interactive/trex/examples/stl/core_pinning_tutorial.py -m 10gbps
+----
+
+To see the statistics invoke tui by using the following command:
+
+[source,bash]
+----
+trex>tui
 ----
 
 === Functional Tutorials
