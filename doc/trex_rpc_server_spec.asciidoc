@@ -44,6 +44,10 @@ include::trex_ga.asciidoc[]
 | 1.7    | Mathieu Monney (mamonney)
 |
 - add capture port support
+| 1.8    | Hanoch Haim (hhaim)
+|
+- add astf commands 
+
 |=================
 
 
@@ -158,7 +162,8 @@ This will identify the connection:
 
 image::images/rpc_states.png[title="Port States",align="left",width=150, link="images/rpc_states.png"]
 
-== RPC Commands
+== RPC Commands common
+
 The following RPC commands are supported
 
 === API Synchronization
@@ -648,6 +653,496 @@ Example:
     "result": {}
 }
 ----
+
+=== Get Global Stats
+* *Name* - 'get_global_stats'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - Get machine global stats
+* *Parameters* - None
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_global_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| state             | string      | server state: can be 'unowned', 'owned' or 'active'
+| cpu_util          | double      | DP CPU util. in %
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_tx_bytes    | int         | total TX bytes
+| total_rx_bytes    | int         | total RX bytes
+| tx_rx_error       | int         | total Tx/Rx errors
+|=================
+
+=== Get Port Stats
+* *Name* - 'get_port_stats'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - Get port stats
+* *Parameters*
+** *port_id* [int] - The port id for query
+
+* *Result* ['object'] - See Below
+
+
+.Return value of 'get_port_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| status            | string      | 'down', 'idle' or 'transmitting'
+| tx_bps            | double      | total TX bits per second
+| rx_bps            | double      | total RX bits per second
+| tx_pps            | double      | total TX packets per second
+| rx_pps            | double      | total RX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_rx_pkts     | int         | total RX packets
+| total_rx_bytes    | int         | total TX bytes
+| total_tx_bytes    | int         | total RX bytes
+| tx_rx_error       | int         | total Tx/Rx errors
+|=================
+
+=== Get Stream Stats
+* *Name* - 'get_steram_stats'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - Get port stats
+* *Parameters*
+** *port_id* [int] - The port id for query
+** *stream_id* [int] - The stream id for query
+
+* *Result* ['object'] - See Below
+
+.Return value of 'get_stream_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field             | Type        | Description
+| tx_bps            | double      | total TX bits per second
+| tx_pps            | double      | total TX packets per second
+| total_tx_pkts     | int         | total TX packets
+| total_tx_bytes    | int         | total TX bytes
+| rx_bps            | double      | total RX bits per second (if 'rx_stats' enabled)
+| rx_pps            | double      | total RX packets per second (if 'rx_stats' enabled)
+| total_rx_pkts     | int         | total RX packets (if 'rx_stats' enabled)
+| total_rx_bytes    | int         | total RX bytes (if 'rx_stats' enabled)
+| latency           | array       | array of 2 ordered elements average, maximum (if 'rx_stats' enabled)
+|=================
+
+
+=== Get Utilization
+* *Name* - 'get_utilization'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Get the CPU and MBUFs utilization.
+* *Parameters* - None
+* *Result* ['object'] -
+** *cpu* - The CPU utilization per DP thread (in their order). Each element is array of history (most latest is first in array, interval between values is 1 sec, values are integers 0-100).
+** *mbuf_stats* - The MBUFs are per CPU socket, per bucket of sizes: 64b, 9kb etc. Each bucket is array of 2 values: first is number of free elements and second is total.
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "vlxrc9r6",
+    "jsonrpc": "2.0",
+    "method": "get_utilization",
+    "params": {
+        "api_h": "2AIar0tl"
+    }
+}
+
+
+
+'Response':
+
+{'id': 'vlxrc9r6',
+ 'jsonrpc': '2.0',
+ 'result': {'cpu': [[30, 33, 28, 21, 30, 35, 33, 38, 29, 25, 37, 35, 31, 34, 35, 37, 26, 31, 26, 27],
+                    [37, 31, 24, 21, 26, 32, 34, 36, 27, 28, 36, 33, 35, 35, 35, 36, 30, 39, 35, 40],
+                    [32, 34, 25, 29, 28, 44, 37, 40, 32, 33, 38, 33, 33, 35, 33, 25, 22, 26, 27, 31],
+                    [28, 33, 17, 21, 27, 36, 30, 30, 27, 25, 36, 35, 38, 43, 41, 28, 31, 32, 31, 41],
+                    [27, 31, 27, 32, 26, 36, 27, 33, 30, 29, 29, 28, 30, 36, 33, 31, 26, 30, 25, 35],
+                    [31, 31, 21, 24, 23, 31, 28, 33, 33, 33, 31, 21, 30, 33, 31, 23, 27, 29, 36, 36],
+                    [27, 32, 38, 23, 35, 44, 38, 28, 29, 31, 38, 38, 31, 32, 32, 33, 24, 28, 29, 32],
+                    [26, 26, 24, 30, 36, 36, 33, 26, 37, 24, 29, 40, 39, 37, 36, 26, 26, 25, 38, 25],
+                    [27, 37, 33, 25, 28, 37, 39, 30, 31, 26, 34, 27, 37, 31, 28, 33, 36, 39, 27, 38],
+                    [31, 31, 31, 26, 31, 28, 31, 35, 24, 25, 31, 24, 34, 30, 31, 35, 29, 30, 28, 30],
+                    [28, 40, 24, 27, 30, 26, 34, 27, 28, 31, 41, 29, 35, 33, 35, 35, 31, 31, 30, 39],
+                    [20, 34, 29, 27, 34, 25, 28, 43, 26, 26, 36, 31, 28, 36, 39, 26, 18, 24, 29, 26],
+                    [26, 29, 34, 25, 26, 42, 30, 38, 30, 26, 37, 29, 43, 36, 36, 29, 27, 37, 33, 28],
+                    [29, 30, 30, 27, 34, 34, 32, 34, 26, 28, 37, 28, 36, 38, 29, 35, 26, 32, 28, 37]],
+            'mbuf_stats': {'cpu-socket-0': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191468, 196560],
+                                            '9kb': [6912, 8960]},
+                           'cpu-socket-1': {'1024b': [73696, 73710],
+                                            '128b': [98280, 98280],
+                                            '2048b': [98266, 98280],
+                                            '256b': [73710, 73710],
+                                            '4096b': [1152, 1152],
+                                            '512b': [73710, 73710],
+                                            '64b': [191429, 196560],
+                                            '9kb': [6912, 8960]}}}}
+
+----
+
+=== Get Xstat names
+* *Name* - 'get_port_xstats_names'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Get array of names of extended stats of port. List may vary per NIC type.
+* *Parameters* - port_id
+* *Result* ['object'] - See example below
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "m348pnzr",
+    "jsonrpc": "2.0",
+    "method": "get_port_xstats_names",
+    "params": {
+        "api_h": "f682qkNJ",
+        "port_id": 0
+    }
+}
+
+'Response':
+
+{
+    "id": "m348pnzr",
+    "jsonrpc": "2.0",
+    "result": {
+        "xstats_names": [
+            "rx_good_packets",
+            "tx_good_packets",
+            "rx_good_bytes",
+            "tx_good_bytes",
+            "rx_errors",
+            "tx_errors",
+            "rx_mbuf_allocation_errors",
+            "rx_q0packets",
+            "rx_q0bytes",
+            "rx_q0errors",
+            "rx_q1packets",
+            "rx_q1bytes",
+            "rx_q1errors",
+            "tx_q0packets",
+            "tx_q0bytes",
+            "tx_q1packets",
+            "tx_q1bytes",
+            "tx_q2packets",
+            "tx_q2bytes",
+            "tx_q3packets",
+            "tx_q3bytes",
+            "rx_unicast_packets",
+            "rx_multicast_packets",
+            "rx_broadcast_packets",
+            "rx_dropped",
+            "rx_unknown_protocol_packets",
+            "tx_unicast_packets",
+            "tx_multicast_packets",
+            "tx_broadcast_packets",
+            "tx_dropped",
+            "tx_link_down_dropped",
+            "rx_crc_errors",
+            "rx_illegal_byte_errors",
+            "rx_error_bytes",
+            "mac_local_errors",
+            "mac_remote_errors",
+            "rx_length_errors",
+            "tx_xon_packets",
+            "rx_xon_packets",
+            "tx_xoff_packets",
+            "rx_xoff_packets",
+            "rx_size_64_packets",
+            "rx_size_65_to_127_packets",
+            "rx_size_128_to_255_packets",
+            "rx_size_256_to_511_packets",
+            "rx_size_512_to_1023_packets",
+            "rx_size_1024_to_1522_packets",
+            "rx_size_1523_to_max_packets",
+            "rx_undersized_errors",
+            "rx_oversize_errors",
+            "rx_mac_short_dropped",
+            "rx_fragmented_errors",
+            "rx_jabber_errors",
+            "tx_size_64_packets",
+            "tx_size_65_to_127_packets",
+            "tx_size_128_to_255_packets",
+            "tx_size_256_to_511_packets",
+            "tx_size_512_to_1023_packets",
+            "tx_size_1024_to_1522_packets",
+            "tx_size_1523_to_max_packets",
+            "rx_flow_director_atr_match_packets",
+            "rx_flow_director_sb_match_packets",
+            "tx_low_power_idle_status",
+            "rx_low_power_idle_status",
+            "tx_low_power_idle_count",
+            "rx_low_power_idle_count",
+            "rx_priority0_xon_packets",
+            "rx_priority1_xon_packets",
+            "rx_priority2_xon_packets",
+            "rx_priority3_xon_packets",
+            "rx_priority4_xon_packets",
+            "rx_priority5_xon_packets",
+            "rx_priority6_xon_packets",
+            "rx_priority7_xon_packets",
+            "rx_priority0_xoff_packets",
+            "rx_priority1_xoff_packets",
+            "rx_priority2_xoff_packets",
+            "rx_priority3_xoff_packets",
+            "rx_priority4_xoff_packets",
+            "rx_priority5_xoff_packets",
+            "rx_priority6_xoff_packets",
+            "rx_priority7_xoff_packets",
+            "tx_priority0_xon_packets",
+            "tx_priority1_xon_packets",
+            "tx_priority2_xon_packets",
+            "tx_priority3_xon_packets",
+            "tx_priority4_xon_packets",
+            "tx_priority5_xon_packets",
+            "tx_priority6_xon_packets",
+            "tx_priority7_xon_packets",
+            "tx_priority0_xoff_packets",
+            "tx_priority1_xoff_packets",
+            "tx_priority2_xoff_packets",
+            "tx_priority3_xoff_packets",
+            "tx_priority4_xoff_packets",
+            "tx_priority5_xoff_packets",
+            "tx_priority6_xoff_packets",
+            "tx_priority7_xoff_packets",
+            "tx_priority0_xon_to_xoff_packets",
+            "tx_priority1_xon_to_xoff_packets",
+            "tx_priority2_xon_to_xoff_packets",
+            "tx_priority3_xon_to_xoff_packets",
+            "tx_priority4_xon_to_xoff_packets",
+            "tx_priority5_xon_to_xoff_packets",
+            "tx_priority6_xon_to_xoff_packets",
+            "tx_priority7_xon_to_xoff_packets"
+        ]
+    }
+}
+
+----
+
+=== Get Xstat values
+* *Name* - 'get_port_xstats_values'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Get array of values of extended stats of port. Order of values matches the get_port_xstats_names.
+* *Parameters* - port_id
+* *Result* ['object'] - See example below
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "tfonjtfc",
+    "jsonrpc": "2.0",
+    "method": "get_port_xstats_values",
+    "params": {
+        "api_h": "f682qkNJ",
+        "port_id": 7
+    }
+}
+
+
+'Response':
+
+{
+    "id": "tfonjtfc",
+    "jsonrpc": "2.0",
+    "result": {
+        "xstats_values": [
+            0,
+            0,
+            ...
+            0,
+            0
+        ]
+    }
+}
+
+----
+
+=== Setting port attributes
+* *Name* - 'set_port_attr'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Sets port attributes
+* *Parameters* - 
+** *port_id* ['int'] - port to apply attributes
+** *attr* ['object'] - dictionary with attributes, each of them is optional, see below
+* *Result* ['object'] - {}
+
+.Object type 'attr' 
+[options="header",cols="1,1,1,3"]
+|=================
+| Field           | Subfield | Type    | Description 
+| link_status     | up       | bool    | True = link up
+| promiscuous     | enabled  | bool    | True = promiscuous enabled
+| led_status      | on       | bool    | False = turn off LEDs
+| flow_ctrl_mode  | mode     | int     | Flow control: 0 = none, 1 = tx, 2 = rx, 3 = full
+|=================
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "set_port_attr",
+    "params": {
+        "api_h": "f682qkNJ",
+        "attr": {
+            "flow_ctrl_mode": {
+                "mode": 1
+            },
+            "promiscuous": {
+                "enabled": true
+            }
+        },
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Enabling Capture Port
+* *Name* - 'start_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Start Capture port to receive/inject raw packets using a ZeroMQ socket
+* *Parameters* -
+** *port_id* ['int'] - port to enable the capture port
+** *attr* ['object'] - dictionary with attributes, only endpoint is mandatory, see below
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| endpoint   | string | ZeroMQ Socket endpoint to connect to for this port (e.g. ipc:///tmp/my_zmq_socket_pair)
+| bpf_filter | string | (Optional) The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket.
+|=================
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "attr": {
+            "endpoint": "ipc:///tmp/my_zmq_socket_pair",
+            "bpf_filter": "ip"
+        },
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Disabling Capture Port
+* *Name* - 'stop_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Stop previously started capture port
+* *Parameters* -
+** *port_id* ['int'] - port to disable the capture port on
+* *Result* ['object'] - {}
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Setting Capture Port BPF Filter
+* *Name* - 'set_capture_port_bpf'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Change the BPF filter of the capture port to a new value, can be done while the capture port is active.
+* *Parameters* -
+** *port_id* ['int'] - port on which to change the BPF filter
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| bpf_filter | string | The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket. If empty or omitted, the filter is disabled.
+|=================
+
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "set_capture_port_bpf",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 1,
+        "attr": {
+            "bpf_filter": "ip"
+        }
+    }
+}
+
+----
+
+
+
+== RPC commands STL
 
 
 === Add Stream
@@ -1377,498 +1872,145 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 ----
 
-=== Get Global Stats
-* *Name* - 'get_global_stats'
+
+== RPC commands ASTF
+
+
+=== Load profile 
+
+* *Name* - 'profile_fragment'
 * *API Class* - 'core'
-* *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - Get machine global stats
-* *Parameters* - None
-
-* *Result* ['object'] - See Below
-
-.Return value of 'get_global_stats'
-[options="header",cols="1,1,3"]
-|=================
-| Field             | Type        | Description
-| state             | string      | server state: can be 'unowned', 'owned' or 'active'
-| cpu_util          | double      | DP CPU util. in %
-| tx_bps            | double      | total TX bits per second
-| rx_bps            | double      | total RX bits per second
-| tx_pps            | double      | total TX packets per second
-| rx_pps            | double      | total RX packets per second
-| total_tx_pkts     | int         | total TX packets
-| total_rx_pkts     | int         | total RX packets
-| total_tx_bytes    | int         | total TX bytes
-| total_rx_bytes    | int         | total RX bytes
-| tx_rx_error       | int         | total Tx/Rx errors
-|=================
-
-=== Get Port Stats
-* *Name* - 'get_port_stats'
-* *API Class* - 'core'
-* *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - Get port stats
+* *Valid States* - 'active'
+* *Description* - load ASTF JSON profile in small chunks 
 * *Parameters*
-** *port_id* [int] - The port id for query
+** *handler* ['string'] - unique connection handler
 
-* *Result* ['object'] - See Below
+* *Result* ['object'] - {}
 
 
-.Return value of 'get_port_stats'
+.Parameters
 [options="header",cols="1,1,3"]
 |=================
-| Field             | Type        | Description
-| status            | string      | 'down', 'idle' or 'transmitting'
-| tx_bps            | double      | total TX bits per second
-| rx_bps            | double      | total RX bits per second
-| tx_pps            | double      | total TX packets per second
-| rx_pps            | double      | total RX packets per second
-| total_tx_pkts     | int         | total TX packets
-| total_rx_pkts     | int         | total RX packets
-| total_rx_bytes    | int         | total TX bytes
-| total_tx_bytes    | int         | total RX bytes
-| tx_rx_error       | int         | total Tx/Rx errors
+| Field           | Type    | Description 
+| frag_first      | boolean | true in case this is the first fragment 
+| frag_last       | boolean | true in case this is the last fragment 
+| total_size      | uint32_t| the size of the fragment 
+| md5             | string  | come in first message with frag_first=true
+| fragment        | string  | partial string of the input json
 |=================
 
-=== Get Stream Stats
-* *Name* - 'get_steram_stats'
+=== Clear profile 
+
+* *Name* - 'profile_clear'
 * *API Class* - 'core'
-* *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - Get port stats
+* *Valid States* - 'active'
+* *Description* - clear the last loaded profile 
 * *Parameters*
-** *port_id* [int] - The port id for query
-** *stream_id* [int] - The stream id for query
+** *handler* ['string'] - unique connection handler
 
-* *Result* ['object'] - See Below
+* *Result* ['object'] - {}
 
-.Return value of 'get_stream_stats'
+
+=== Start profile 
+
+* *Name* - 'start'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - start traffic on all ports on the last loaded profile 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
 [options="header",cols="1,1,3"]
 |=================
-| Field             | Type        | Description
-| tx_bps            | double      | total TX bits per second
-| tx_pps            | double      | total TX packets per second
-| total_tx_pkts     | int         | total TX packets
-| total_tx_bytes    | int         | total TX bytes
-| rx_bps            | double      | total RX bits per second (if 'rx_stats' enabled)
-| rx_pps            | double      | total RX packets per second (if 'rx_stats' enabled)
-| total_rx_pkts     | int         | total RX packets (if 'rx_stats' enabled)
-| total_rx_bytes    | int         | total RX bytes (if 'rx_stats' enabled)
-| latency           | array       | array of 2 ordered elements average, maximum (if 'rx_stats' enabled)
+| Field           | Type    | Description 
+| duration        | uint32_t| true in case this is the first fragment 
+| mult            | double  | CPS Multiplier 
+| nc              | uint32_t| If set, will terminate exacly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
+| ipv6            | bool    | convert the profile to ipv6 
+| latency         | uint32_t| rate of the latency. 0 means disable
 |=================
 
 
-=== Get Utilization
-* *Name* - 'get_utilization'
+=== Stop profile 
+
+* *Name* - 'start'
 * *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Get the CPU and MBUFs utilization.
-* *Parameters* - None
-* *Result* ['object'] -
-** *cpu* - The CPU utilization per DP thread (in their order). Each element is array of history (most latest is first in array, interval between values is 1 sec, values are integers 0-100).
-** *mbuf_stats* - The MBUFs are per CPU socket, per bucket of sizes: 64b, 9kb etc. Each bucket is array of 2 values: first is number of free elements and second is total.
+* *Valid States* - 'active'
+* *Description* - Stop the active traffic 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
 
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "vlxrc9r6",
-    "jsonrpc": "2.0",
-    "method": "get_utilization",
-    "params": {
-        "api_h": "2AIar0tl"
-    }
-}
-
-
-
-'Response':
-
-{'id': 'vlxrc9r6',
- 'jsonrpc': '2.0',
- 'result': {'cpu': [[30, 33, 28, 21, 30, 35, 33, 38, 29, 25, 37, 35, 31, 34, 35, 37, 26, 31, 26, 27],
-                    [37, 31, 24, 21, 26, 32, 34, 36, 27, 28, 36, 33, 35, 35, 35, 36, 30, 39, 35, 40],
-                    [32, 34, 25, 29, 28, 44, 37, 40, 32, 33, 38, 33, 33, 35, 33, 25, 22, 26, 27, 31],
-                    [28, 33, 17, 21, 27, 36, 30, 30, 27, 25, 36, 35, 38, 43, 41, 28, 31, 32, 31, 41],
-                    [27, 31, 27, 32, 26, 36, 27, 33, 30, 29, 29, 28, 30, 36, 33, 31, 26, 30, 25, 35],
-                    [31, 31, 21, 24, 23, 31, 28, 33, 33, 33, 31, 21, 30, 33, 31, 23, 27, 29, 36, 36],
-                    [27, 32, 38, 23, 35, 44, 38, 28, 29, 31, 38, 38, 31, 32, 32, 33, 24, 28, 29, 32],
-                    [26, 26, 24, 30, 36, 36, 33, 26, 37, 24, 29, 40, 39, 37, 36, 26, 26, 25, 38, 25],
-                    [27, 37, 33, 25, 28, 37, 39, 30, 31, 26, 34, 27, 37, 31, 28, 33, 36, 39, 27, 38],
-                    [31, 31, 31, 26, 31, 28, 31, 35, 24, 25, 31, 24, 34, 30, 31, 35, 29, 30, 28, 30],
-                    [28, 40, 24, 27, 30, 26, 34, 27, 28, 31, 41, 29, 35, 33, 35, 35, 31, 31, 30, 39],
-                    [20, 34, 29, 27, 34, 25, 28, 43, 26, 26, 36, 31, 28, 36, 39, 26, 18, 24, 29, 26],
-                    [26, 29, 34, 25, 26, 42, 30, 38, 30, 26, 37, 29, 43, 36, 36, 29, 27, 37, 33, 28],
-                    [29, 30, 30, 27, 34, 34, 32, 34, 26, 28, 37, 28, 36, 38, 29, 35, 26, 32, 28, 37]],
-            'mbuf_stats': {'cpu-socket-0': {'1024b': [73696, 73710],
-                                            '128b': [98280, 98280],
-                                            '2048b': [98266, 98280],
-                                            '256b': [73710, 73710],
-                                            '4096b': [1152, 1152],
-                                            '512b': [73710, 73710],
-                                            '64b': [191468, 196560],
-                                            '9kb': [6912, 8960]},
-                           'cpu-socket-1': {'1024b': [73696, 73710],
-                                            '128b': [98280, 98280],
-                                            '2048b': [98266, 98280],
-                                            '256b': [73710, 73710],
-                                            '4096b': [1152, 1152],
-                                            '512b': [73710, 73710],
-                                            '64b': [191429, 196560],
-                                            '9kb': [6912, 8960]}}}}
-
-----
-
-=== Get Xstat names
-* *Name* - 'get_port_xstats_names'
-* *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Get array of names of extended stats of port. List may vary per NIC type.
-* *Parameters* - port_id
-* *Result* ['object'] - See example below
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "m348pnzr",
-    "jsonrpc": "2.0",
-    "method": "get_port_xstats_names",
-    "params": {
-        "api_h": "f682qkNJ",
-        "port_id": 0
-    }
-}
-
-'Response':
-
-{
-    "id": "m348pnzr",
-    "jsonrpc": "2.0",
-    "result": {
-        "xstats_names": [
-            "rx_good_packets",
-            "tx_good_packets",
-            "rx_good_bytes",
-            "tx_good_bytes",
-            "rx_errors",
-            "tx_errors",
-            "rx_mbuf_allocation_errors",
-            "rx_q0packets",
-            "rx_q0bytes",
-            "rx_q0errors",
-            "rx_q1packets",
-            "rx_q1bytes",
-            "rx_q1errors",
-            "tx_q0packets",
-            "tx_q0bytes",
-            "tx_q1packets",
-            "tx_q1bytes",
-            "tx_q2packets",
-            "tx_q2bytes",
-            "tx_q3packets",
-            "tx_q3bytes",
-            "rx_unicast_packets",
-            "rx_multicast_packets",
-            "rx_broadcast_packets",
-            "rx_dropped",
-            "rx_unknown_protocol_packets",
-            "tx_unicast_packets",
-            "tx_multicast_packets",
-            "tx_broadcast_packets",
-            "tx_dropped",
-            "tx_link_down_dropped",
-            "rx_crc_errors",
-            "rx_illegal_byte_errors",
-            "rx_error_bytes",
-            "mac_local_errors",
-            "mac_remote_errors",
-            "rx_length_errors",
-            "tx_xon_packets",
-            "rx_xon_packets",
-            "tx_xoff_packets",
-            "rx_xoff_packets",
-            "rx_size_64_packets",
-            "rx_size_65_to_127_packets",
-            "rx_size_128_to_255_packets",
-            "rx_size_256_to_511_packets",
-            "rx_size_512_to_1023_packets",
-            "rx_size_1024_to_1522_packets",
-            "rx_size_1523_to_max_packets",
-            "rx_undersized_errors",
-            "rx_oversize_errors",
-            "rx_mac_short_dropped",
-            "rx_fragmented_errors",
-            "rx_jabber_errors",
-            "tx_size_64_packets",
-            "tx_size_65_to_127_packets",
-            "tx_size_128_to_255_packets",
-            "tx_size_256_to_511_packets",
-            "tx_size_512_to_1023_packets",
-            "tx_size_1024_to_1522_packets",
-            "tx_size_1523_to_max_packets",
-            "rx_flow_director_atr_match_packets",
-            "rx_flow_director_sb_match_packets",
-            "tx_low_power_idle_status",
-            "rx_low_power_idle_status",
-            "tx_low_power_idle_count",
-            "rx_low_power_idle_count",
-            "rx_priority0_xon_packets",
-            "rx_priority1_xon_packets",
-            "rx_priority2_xon_packets",
-            "rx_priority3_xon_packets",
-            "rx_priority4_xon_packets",
-            "rx_priority5_xon_packets",
-            "rx_priority6_xon_packets",
-            "rx_priority7_xon_packets",
-            "rx_priority0_xoff_packets",
-            "rx_priority1_xoff_packets",
-            "rx_priority2_xoff_packets",
-            "rx_priority3_xoff_packets",
-            "rx_priority4_xoff_packets",
-            "rx_priority5_xoff_packets",
-            "rx_priority6_xoff_packets",
-            "rx_priority7_xoff_packets",
-            "tx_priority0_xon_packets",
-            "tx_priority1_xon_packets",
-            "tx_priority2_xon_packets",
-            "tx_priority3_xon_packets",
-            "tx_priority4_xon_packets",
-            "tx_priority5_xon_packets",
-            "tx_priority6_xon_packets",
-            "tx_priority7_xon_packets",
-            "tx_priority0_xoff_packets",
-            "tx_priority1_xoff_packets",
-            "tx_priority2_xoff_packets",
-            "tx_priority3_xoff_packets",
-            "tx_priority4_xoff_packets",
-            "tx_priority5_xoff_packets",
-            "tx_priority6_xoff_packets",
-            "tx_priority7_xoff_packets",
-            "tx_priority0_xon_to_xoff_packets",
-            "tx_priority1_xon_to_xoff_packets",
-            "tx_priority2_xon_to_xoff_packets",
-            "tx_priority3_xon_to_xoff_packets",
-            "tx_priority4_xon_to_xoff_packets",
-            "tx_priority5_xon_to_xoff_packets",
-            "tx_priority6_xon_to_xoff_packets",
-            "tx_priority7_xon_to_xoff_packets"
-        ]
-    }
-}
-
-----
-
-=== Get Xstat values
-* *Name* - 'get_port_xstats_values'
-* *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Get array of values of extended stats of port. Order of values matches the get_port_xstats_names.
-* *Parameters* - port_id
-* *Result* ['object'] - See example below
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "tfonjtfc",
-    "jsonrpc": "2.0",
-    "method": "get_port_xstats_values",
-    "params": {
-        "api_h": "f682qkNJ",
-        "port_id": 7
-    }
-}
-
-
-'Response':
-
-{
-    "id": "tfonjtfc",
-    "jsonrpc": "2.0",
-    "result": {
-        "xstats_values": [
-            0,
-            0,
-            ...
-            0,
-            0
-        ]
-    }
-}
-
-----
-
-=== Setting port attributes
-* *Name* - 'set_port_attr'
-* *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Sets port attributes
-* *Parameters* - 
-** *port_id* ['int'] - port to apply attributes
-** *attr* ['object'] - dictionary with attributes, each of them is optional, see below
 * *Result* ['object'] - {}
 
-.Object type 'attr' 
-[options="header",cols="1,1,1,3"]
-|=================
-| Field           | Subfield | Type    | Description 
-| link_status     | up       | bool    | True = link up
-| promiscuous     | enabled  | bool    | True = promiscuous enabled
-| led_status      | on       | bool    | False = turn off LEDs
-| flow_ctrl_mode  | mode     | int     | Flow control: 0 = none, 1 = tx, 2 = rx, 3 = full
-|=================
 
-Request example:
+=== Update profile 
 
-[source,bash]
-----
 
-'Request':
-
-{
-    "id": "uuopmfln",
-    "jsonrpc": "2.0",
-    "method": "set_port_attr",
-    "params": {
-        "api_h": "f682qkNJ",
-        "attr": {
-            "flow_ctrl_mode": {
-                "mode": 1
-            },
-            "promiscuous": {
-                "enabled": true
-            }
-        },
-        "handler": "vGp4EyA5",
-        "port_id": 7
-    }
-}
-
-----
-
-=== Enabling Capture Port
-* *Name* - 'start_capture_port'
+* *Name* - 'update'
 * *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Start Capture port to receive/inject raw packets using a ZeroMQ socket
-* *Parameters* -
-** *port_id* ['int'] - port to enable the capture port
-** *attr* ['object'] - dictionary with attributes, only endpoint is mandatory, see below
+* *Valid States* - 'active'
+* *Description* - Update the multiplier 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
 * *Result* ['object'] - {}
 
-.Object type 'attr'
+.Parameters
 [options="header",cols="1,1,3"]
 |=================
-| Field      | Type   | Description
-| endpoint   | string | ZeroMQ Socket endpoint to connect to for this port (e.g. ipc:///tmp/my_zmq_socket_pair)
-| bpf_filter | string | (Optional) The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket.
+| Field           | Type    | Description 
+| mult            | double  | CPS multiplier 
 |=================
 
-Request example:
 
-[source,bash]
-----
+=== Get Counter Metadata
 
-'Request':
-
-{
-    "id": "uuopmfln",
-    "jsonrpc": "2.0",
-    "method": "start_capture_port",
-    "params": {
-        "api_h": "f682qkNJ",
-        "attr": {
-            "endpoint": "ipc:///tmp/my_zmq_socket_pair",
-            "bpf_filter": "ip"
-        },
-        "handler": "vGp4EyA5",
-        "port_id": 7
-    }
-}
-
-----
-
-=== Disabling Capture Port
-* *Name* - 'stop_capture_port'
+* *Name* - 'get_counter_desc'
 * *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Stop previously started capture port
-* *Parameters* -
-** *port_id* ['int'] - port to disable the capture port on
+* *Valid States* - 'active'
+* *Description* - Get ASTF counters description 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
 * *Result* ['object'] - {}
 
-Request example:
+each counter have the folowing metadata
 
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "uuopmfln",
-    "jsonrpc": "2.0",
-    "method": "start_capture_port",
-    "params": {
-        "api_h": "f682qkNJ",
-        "handler": "vGp4EyA5",
-        "port_id": 7
-    }
-}
-
-----
-
-=== Setting Capture Port BPF Filter
-* *Name* - 'set_capture_port_bpf'
-* *API Class* - 'core'
-* *Valid States* - 'all'
-* *Description* - Change the BPF filter of the capture port to a new value, can be done while the capture port is active.
-* *Parameters* -
-** *port_id* ['int'] - port on which to change the BPF filter
-* *Result* ['object'] - {}
-
-.Object type 'attr'
+.Parameters
 [options="header",cols="1,1,3"]
 |=================
-| Field      | Type   | Description
-| bpf_filter | string | The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket. If empty or omitted, the filter is disabled.
+| Field           | Type    | Description 
+| id              | uint32_t| counter id
+| name            | string  | the name of the counters 
+| help            | string  | help string 
+| zero            | bool    | show zero counters
+| info            | string  | short string for desribing 
+| real            | bool    | true if double, else uint64
+| abs             | bool    | show abs 
 |=================
 
+=== Get ASTF counters 
 
-Request example:
+* *Name* - 'get_counter_values'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Get ASTF counters description 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
 
-[source,bash]
-----
+* *Result* ['object'] - {}
 
-'Request':
-
-{
-    "id": "uuopmfln",
-    "jsonrpc": "2.0",
-    "method": "set_capture_port_bpf",
-    "params": {
-        "api_h": "f682qkNJ",
-        "handler": "vGp4EyA5",
-        "port_id": 1,
-        "attr": {
-            "bpf_filter": "ip"
-        }
-    }
-}
-
-----
+array of id and value
 
 == Typical Transactions Examples
 the following examples represents common scenarios.
 commands in [...] represents 'meta commands'
 and not real RPC commands such as 'repeat', 'wait' and etc.
 
-=== Init/Boot
+=== Init Boot
 This sequence represents a client implementing the protocol taking ownership
 over the server and preparing to perform work
 
@@ -1881,7 +2023,7 @@ over the server and preparing to perform work
 * *get_stream_list* - for every port, get the list and sync the GUI
 * *get_stream* - for every stream in a port list, get the stream info and sync the GUI
 
-=== Simple Traffic With Adding/Editing Streams
+=== Simple Traffic With Adding Editing Streams
 
 describes a simple scenario where a user wants to
 add or edit one or more streams to one or more ports
@@ -2205,3 +2347,4 @@ Another Example of tuple generator
 
         ]
 ----
+
