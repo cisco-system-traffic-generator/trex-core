@@ -43,7 +43,7 @@ int CRxAstfPort::tx(rte_mbuf_t *m){
 
 bool TrexRxStartLatency::handle(CRxCore *rx_core){
     CRxAstfCore * lp=(CRxAstfCore *)rx_core;
-    lp->start_latency(this);
+    lp->start_latency(m_args);
     return(true);
 }
 
@@ -58,7 +58,7 @@ bool TrexRxStopLatency::handle(CRxCore *rx_core){
 
 bool TrexRxUpdateLatency::handle(CRxCore *rx_core){
     CRxAstfCore * lp=(CRxAstfCore *)rx_core;
-    lp->update_latency(this);
+    lp->update_latency(m_cps);
     return(true);
 }
 
@@ -299,7 +299,7 @@ static double _get_d_from_cps(double cps){
     return (delta_sec);
 }
 
-void CRxAstfCore::start_latency(TrexRxStartLatency * msg){
+void CRxAstfCore::start_latency(const lat_start_params_t &args){
 
     /* create a node */
     assert(m_latency_active ==false);
@@ -318,7 +318,7 @@ void CRxAstfCore::start_latency(TrexRxStartLatency * msg){
     /*----- */
 
 
-    m_delta_sec = _get_d_from_cps(msg->m_cps);
+    m_delta_sec = _get_d_from_cps(args.cps);
     m_port_ids.clear();
     uint32_t cp_mask=0;
 
@@ -327,19 +327,19 @@ void CRxAstfCore::start_latency(TrexRxStartLatency * msg){
         CLatencyManagerPerPort * lp=&m_ports[port_id];
         lp->m_port.reset();
         lp->m_port.reset_seq();
-        lp->m_port.m_hist.set_hot_max_cnt((int(msg->m_cps)/2));
+        lp->m_port.m_hist.set_hot_max_cnt((int(args.cps)/2));
         lp->m_port.set_epoc(m_epoc);
 
-        if (msg->m_active_ports_mask & (1<<port_id)){
+        if (args.ports_mask & (1<<port_id)){
             m_port_ids.push_back(port_id);
             cp_mask |= (1<<port_id);
         }
     }
 
 
-    m_pkt_gen.set_ip(msg->m_client_ip.v4,
-                     msg->m_server_ip.v4,
-                     msg->m_dual_port_mask);
+    m_pkt_gen.set_ip(args.client_ip.v4,
+                     args.server_ip.v4,
+                     args.dual_ip);
 
     CGenNode * node;
     node = new CGenNode();
@@ -370,9 +370,9 @@ void CRxAstfCore::stop_latency(){
 }
 
 
-void CRxAstfCore::update_latency(TrexRxUpdateLatency * msg){
+void CRxAstfCore::update_latency(double cps){
     assert(m_latency_active==true);
-    m_delta_sec = _get_d_from_cps(msg->m_cps);
+    m_delta_sec = _get_d_from_cps(cps);
 }
 
 

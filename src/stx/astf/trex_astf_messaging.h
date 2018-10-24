@@ -25,8 +25,6 @@ limitations under the License.
 #include "trex_messaging.h"
 #include "trex_defs.h"
 
-class CSyncBarrier;
-
 
 // create tcp batch per DP core
 class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
