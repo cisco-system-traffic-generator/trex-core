@@ -255,7 +255,8 @@ void TrexAstf::dp_core_error(int thread_id, const string &err) {
             m_error = "Profile compilation error: " + err;
             break;
         default:
-            printf("DP core should not report error in state: %s", m_states_names[m_state].c_str());
+            printf("DP core should not report error in state: %s\n", m_states_names[m_state].c_str());
+            printf("Error is: %s\n", err.c_str());
             exit(1);
     }
     dp_core_finished(thread_id);

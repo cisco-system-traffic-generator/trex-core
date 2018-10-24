@@ -53,8 +53,8 @@ def astf_test(server, mult, duration, profile_path = None):
         assert sent_pkts > 100, 'Too few packets sent (%s)' % sent_pkts
         assert recv_pkts > sent_pkts * 0.99, 'Too much packets lost (sent: %s, recv: %s)' % (sent_pkts, recv_pkts)
 
-        client_stats = stats['astf']['client']
-        server_stats = stats['astf']['server']
+        client_stats = stats['traffic']['client']
+        server_stats = stats['traffic']['server']
 
         client_sent, server_recv = client_stats['tcps_sndpack'], server_stats['tcps_rcvpack']
         server_sent, client_recv = server_stats['tcps_sndpack'], client_stats['tcps_rcvpack']
