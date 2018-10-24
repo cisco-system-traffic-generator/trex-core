@@ -55,7 +55,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         for client_ips in (1<<8, 1<<16):
             for server_ips in (1<<8, 1<<16):
                 for templates in (1, 1<<8, 1<<12):
-                    if self.weak and max(client_ips, server_ips, templates) > 1000:
+                    if self.weak and templates > 1<<8:
                         continue
 
                     params = {
