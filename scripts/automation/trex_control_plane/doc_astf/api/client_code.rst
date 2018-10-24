@@ -3,18 +3,6 @@ ASTF Client Module
 ==================
 
 The TRex Client provides access to the TRex server.
-
-Example1::
-
-        import astf_path
-        from trex.astf.api import *
-        
-        from pprint import pprint
-        import argparse
-        import os
-        
-        def astf_test(server, mult, duration, profile_path = None):
-        
         
         
 

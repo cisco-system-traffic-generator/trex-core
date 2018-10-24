@@ -2005,6 +2005,73 @@ each counter have the folowing metadata
 
 array of id and value
 
+
+=== Start latency streams
+
+* *Name* - 'start_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - start latency ICMP streams in Rx core. used for debug. usualy those stream could start using 'start' command using '-l'
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| mult            | double  | multiplier e.g. 1000 Hz
+| src_addr        | string  | ipv4 src addr 
+| dst_addr        | string  | ipv4 dst addr 
+| dual_port_addr  | string  | dual mask ipv4 addr e.g. 1.0.0.0
+| mask            | bool    | mask of ports 
+|=================
+
+
+=== Stop latency streams
+
+* *Name* - 'stop_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Stop active latency streams
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+
+=== Update latency streams
+
+* *Name* - 'update_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - update latency rate
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| mult            | double  | multiplier e.g. 1000 Hz
+|=================
+
+=== Get latency stats
+
+* *Name* - 'get_latency_stats'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - get latency statistics (historgram,min,max,jitter)
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+se link:cp_docs/api/json_fields.html#trex-latecny-v2-field[stf latency]
+
 == Typical Transactions Examples
 the following examples represents common scenarios.
 commands in [...] represents 'meta commands'
