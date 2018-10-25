@@ -7,19 +7,13 @@ from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
 import pprint
 
 
-def get_astf_profiles ():
-    profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/')
-    return(profiles_path)
-    #py_profiles = glob.glob(profiles_path + "/*.py")
-    #yaml_profiles = glob.glob(profiles_path + "yaml/*.yaml")
-    #return py_profiles + yaml_profiles
-
 
 class ASTFProfile_Test(CASTFGeneral_Test):
     """Checking some profiles """
     def setUp(self):
         CASTFGeneral_Test.setUp(self)
-        self.astf_trex.acquire()
+        c = self.astf_trex;
+        assert(c.is_connected())
         self.weak = self.is_VM
         self.skip_test_trex_522 =False;
         setup= CTRexScenario.setup_name;
@@ -29,7 +23,6 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def get_profile_by_name (self,name):
         profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/'+name)
         return(profiles_path)
-
 
     def check_cnt (self,c,name,val):
         if name not in c:
@@ -97,21 +90,44 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if is_udp:
             self.check_udp(stats)
 
+    def check_latency_stats (self,stats):
+        for k in stats:
+            ps=stats[k]
+            l=['s_max','min_usec','s_avg','s_max']
+            for o in l:
+               if ps['hist'][o] > 200.0:
+                   self.fail('{0} latency is bigger than normal port-{1}'.format(o,k))
 
 
-    def run_astf_profile(self,profile_name,m,d,is_udp,is_tcp,ipv6 =False,check_counters=True):
+            keys=['m_l3_cs_err','m_l4_cs_err','m_length_error','m_no_id','m_no_ipv4_option','m_no_magic','m_seq_error','m_tx_pkt_err']
+            pss=ps['stats'];
+            err=False
+            for kk in keys:
+                if pss[kk]>0:
+                    err=True
+                    break;
+            if err:
+               self.fail('error in latency port-{0}'.format(k))
+
+
+    def run_astf_profile(self,profile_name,m,d,is_udp,is_tcp,ipv6 =False,check_counters=True,nc = False):
         c=self.astf_trex;
 
         try:
             c.reset();
+            print("starting profile {0}".format(profile_name))
             c.load_profile(self.get_profile_by_name(profile_name))
             c.clear_stats()
-            c.start(duration = d,nc= False,mult = m,ipv6 = ipv6)
+            c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000)
             c.wait_on_traffic()
             stats = c.get_stats()
             pprint.pprint(stats['traffic'])
+            print("latency stats:")
+            pprint.pprint(stats['latency'])
             if check_counters:
               self.check_counters(stats,is_udp,is_tcp)
+              if not self.weak:
+                 self.check_latency_stats(stats['latency'])
               if c.get_warnings():
                  print('\n\n*** test had warnings ****\n\n')
                  for w in c.get_warnings():
@@ -128,19 +144,21 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
     def get_simple_params(self):
         tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
-                  {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}]
+                  {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}
+                  ]
         return (tests);
 
     def get_sfr_params(self):
         tests = [ {'name': 'sfr.py','is_tcp' :True,'is_udp':False,'m':1.0},
-                  {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
+                  {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':2.0}
+                ]
         return (tests);
 
     def get_duration (self):
-        #return (120)
-        return (10)
+        return (120)
+        #return (10)
 
-    def test_astf_simple(self):
+    def test_astf_prof_simple(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
         tests = self.get_simple_params() 
         d= self.get_duration ()
@@ -151,18 +169,19 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         for o in tests:
           self.run_astf_profile(o['name'],mult,d,o['is_udp'],o['is_tcp'],ipv6=True)
 
-    def test_astf_sfr(self):
+    def test_astf_prof_sfr(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
         tests = self.get_sfr_params() 
         d= self.get_duration ()
         for o in tests:
            self.run_astf_profile(o['name'],mult*o['m'],d,o['is_udp'],o['is_tcp'])
 
-    def test_astf_sfr_no_crash(self):
+    def test_astf_prof_no_crash_sfr(self):
+        return;
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr_no_crash')
         tests = self.get_sfr_params() 
         d= self.get_duration ()
         for o in tests:
            for i_ipv6 in (True,False):
-               self.run_astf_profile(o['name'],mult*o['m'],d,o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False)
+               self.run_astf_profile(o['name'],mult*o['m'],d,o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False,nc=True)
 
