@@ -1806,7 +1806,6 @@ def release(bld, custom_dir = None):
 
     os.system('mkdir %s/trex_client/interactive/profiles' % exec_p)
     os.system('cp ../scripts/stl %s/trex_client/interactive/profiles/ -r' % exec_p)
-    os.system('cp ../scripts/astf %s/trex_client/interactive/profiles/ -r' % exec_p)
 
     shutil.make_archive(os.path.join(exec_p, 'trex_client_%s' % rel), 'gztar', exec_p, 'trex_client')
     os.system('rm -r %s/trex_client' % exec_p)
