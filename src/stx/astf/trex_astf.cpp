@@ -384,7 +384,6 @@ bool TrexAstf::stop_transmit() {
         stop_transmit_latency();
     }
 
-    set_barrier(0.5);
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop();
     send_message_to_all_dp(msg);
     return false;

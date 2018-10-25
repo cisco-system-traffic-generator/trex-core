@@ -127,7 +127,7 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
     } else {
-        report_error("Could not sync DP thread for start");
+        report_error("Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
     }
 
     if ( m_state != STATE_TERMINATE ) {
