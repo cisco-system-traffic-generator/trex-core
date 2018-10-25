@@ -48,11 +48,30 @@ class CAstfTrafficStats(object):
             data[section] = section_list
         return data
 
-    def get_stats(self):
+
+    def is_traffic_stats_error(self,stats):
+        data = {}
+        c=0;
+        desc={}
+        for k in self._desc:
+            desc[k['name']]=k
+
+        for section in self.sections:
+            s=stats[section]
+            data[section]={}
+            for k in desc:
+                if (s.has_key(k) and (s[k]>0) and (desc[k]['info']=='error') ):
+                    data[section][k]=desc[k]['help']
+
+            c= c+ len(data[section])
+        return (c>0,data)
+
+
+    def get_stats(self,skip_zero = True):
         vals = self._get_stats_values()
         data = {}
         for section in self.sections:
-            data[section] = dict([(k['name'], v) for k, v in zip(self._desc, vals[section]) if k['real']])
+            data[section] = dict([(k['name'], v) for k, v in zip(self._desc, vals[section]) if (((not skip_zero) or ((skip_zero and ((not k['zero']) and  (v>0))) or ( k['zero']))))  ])
         return data
 
     def clear_stats(self):

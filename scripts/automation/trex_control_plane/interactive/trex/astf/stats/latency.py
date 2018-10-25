@@ -56,7 +56,7 @@ class CAstfLatencyStats(object):
         self.window_epoch = None
 
 
-    def get_stats(self):
+    def get_stats(self,skip_zero =True):
         rc = self.rpc.transmit('get_latency_stats')
         if not rc:
             raise TRexError(rc.err())

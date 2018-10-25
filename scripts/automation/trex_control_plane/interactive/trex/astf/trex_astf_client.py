@@ -436,13 +436,17 @@ class ASTFClient(TRexClient):
 
     # get stats
     @client_api('getter', True)
-    def get_stats(self, ports = None, sync_now = True):
+    def get_stats(self, ports = None, sync_now = True,skip_zero =True):
 
         stats = self._get_stats_common(ports, sync_now)
-        stats['traffic'] = self.get_traffic_stats()
-        stats['latency'] = self.get_latency_stats()
+        stats['traffic'] = self.get_traffic_stats(skip_zero)
+        stats['latency'] = self.get_latency_stats(skip_zero)
 
         return stats
+
+
+
+
 
 
     # clear stats
@@ -460,8 +464,20 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
-    def get_traffic_stats(self):
-        return self.traffic_stats.get_stats()
+    def get_traffic_stats(self, skip_zero = True):
+        return self.traffic_stats.get_stats(skip_zero)
+
+    @client_api('getter', True)
+    def is_traffic_stats_error(self,stats):
+            """
+            Return Tuple if there is an error and what is the error (Bool,Errors)
+
+            :parameters:
+                stats: dict from get_traffic_stats output 
+                    
+
+            """
+            return (self.traffic_stats.is_traffic_stats_error(stats))
 
 
     @client_api('getter', True)
@@ -471,8 +487,8 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
-    def get_latency_stats(self):
-        return self.latency_stats.get_stats()
+    def get_latency_stats(self,skip_zero =True):
+        return self.latency_stats.get_stats(skip_zero)
 
 
     @client_api('command', True)
