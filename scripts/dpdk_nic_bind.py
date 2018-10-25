@@ -486,6 +486,9 @@ def get_nic_details():
         if os.path.exists(numa_node_file):
             with open(numa_node_file) as f:
                 devices[d]['NUMA'] = int(f.read().strip())
+        else:
+            # should we warn the user?
+            devices[d]['NUMA'] = -1
 
 def dev_id_from_dev_name(dev_name):
     '''Take a device "name" - a string passed in by user to identify a NIC
