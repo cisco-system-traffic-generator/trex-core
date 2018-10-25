@@ -9,7 +9,6 @@ class ASTFResilience_Test(CASTFGeneral_Test):
     """Checking stability of ASTF in non-usual conditions """
     def setUp(self):
         CASTFGeneral_Test.setUp(self)
-        self.astf_trex.acquire()
         self.weak = self.is_VM
 
     def ip_gen(self, client_base, server_base, client_ips, server_ips):
