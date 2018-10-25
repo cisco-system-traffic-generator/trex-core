@@ -11,15 +11,20 @@ except: # run as standalone script "python <example>"
 
 
 try: # our usual repo
-    scripts_path = os.path.abspath(os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir))
-    ASTF_PROFILES_PATH = os.path.join(scripts_path, 'astf')
+    pars = [os.pardir] * 6
+    scripts_path = os.path.abspath(os.path.join(cur_dir, *pars))
     EXT_LIBS_PATH = os.path.join(scripts_path, 'external_libs')
-    assert os.path.isdir(ASTF_PROFILES_PATH)
     assert os.path.isdir(EXT_LIBS_PATH)
 except: # in client package
-    ASTF_PROFILES_PATH = os.path.abspath(os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, 'profiles', 'astf'))
-    EXT_LIBS_PATH = os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs') # client package path
+    pars = [os.pardir] * 5
+    scripts_path = os.path.abspath(os.path.join(cur_dir, *pars))
+    EXT_LIBS_PATH = os.path.abspath(os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
+    assert os.path.isdir(EXT_LIBS_PATH), 'Could not determine external_libs path'
 
-assert os.path.isdir(ASTF_PROFILES_PATH), 'Could not determine ASTF profiles path'
-assert os.path.isdir(EXT_LIBS_PATH), 'Could not determine external_libs path'
+
+def get_profiles_path():
+    path = os.path.join(scripts_path, 'astf')
+    if os.path.isdir(path):
+        return path
+    raise Exception('Could not determine path to ASTF profiles')
 

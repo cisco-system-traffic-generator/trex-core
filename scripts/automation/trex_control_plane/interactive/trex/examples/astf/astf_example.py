@@ -8,7 +8,7 @@ import argparse
 import os
 import sys
 
-def astf_test(server, mult, duration, profile_path = None):
+def astf_test(server, mult, duration, profile_path):
 
     # create client
     c = ASTFClient(server = server)
@@ -24,7 +24,7 @@ def astf_test(server, mult, duration, profile_path = None):
 
         # load ASTF profile
         if not profile_path:
-            profile_path = os.path.join(astf_path.ASTF_PROFILES_PATH, 'http_simple.py')
+            profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
 
         c.load_profile(profile_path)
 
