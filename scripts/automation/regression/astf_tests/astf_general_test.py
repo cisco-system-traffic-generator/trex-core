@@ -90,6 +90,10 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
         setup['nic-ports'] = info['port_count']
         setup['nic-speed'] = str(self.astf_trex.get_port_info(0))
 
+    def get_driver_params(self):
+        c = CTRexScenario.astf_trex
+        driver = c.any_port.get_formatted_info()['driver']
+        return self.get_per_driver_params()[driver]
 
 class ASTFBasic_Test(CASTFGeneral_Test):
     # will run it first explicitly, check connectivity and configure routing

@@ -105,6 +105,11 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         setup['nic-ports'] = stl_info['port_count']
         setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
 
+    def get_driver_params(self):
+        c = CTRexScenario.stl_trex
+        driver = c.any_port.get_formatted_info()['driver']
+        return self.get_per_driver_params()[driver]
+
 
 class STLBasic_Test(CStlGeneral_Test):
     # will run it first explicitly, check connectivity and configure routing
