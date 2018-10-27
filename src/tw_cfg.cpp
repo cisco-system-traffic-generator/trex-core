@@ -37,7 +37,7 @@ bool CTimerWheelYamlInfo::Verify(std::string & err){
             res=false;
             err="bucket time should be betwean 10-200 usec ";
         }
-        return (res);
+        return res;
 }
 
 void CTimerWheelYamlInfo::Dump(FILE *fd){
@@ -74,9 +74,3 @@ void operator >> (const YAML::Node& node, CTimerWheelYamlInfo & info) {
         info.m_info_exist = true;
     }
 }
-
-
-
-
-
-
