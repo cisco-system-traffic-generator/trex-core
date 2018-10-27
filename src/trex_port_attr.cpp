@@ -21,12 +21,12 @@ limitations under the License.
 std::string
 TRexPortAttr::get_rx_filter_mode() const {
     switch (m_rx_filter_mode) {
-    case RX_FILTER_MODE_ALL:
-        return "all";
-    case RX_FILTER_MODE_HW:
-        return "hw";
-    default:
-        assert(0);
+        case RX_FILTER_MODE_ALL:
+            return "all";
+        case RX_FILTER_MODE_HW:
+            return "hw";
+        default:
+            assert(0);
     }
 }
 
@@ -44,5 +44,3 @@ TRexPortAttr::to_json(Json::Value &output) {
     get_flow_ctrl(mode);
     output["fc"]["mode"] = mode;
 }
-
-
