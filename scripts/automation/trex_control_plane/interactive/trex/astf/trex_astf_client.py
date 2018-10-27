@@ -446,9 +446,6 @@ class ASTFClient(TRexClient):
 
 
 
-
-
-
     # clear stats
     @client_api('getter', True)
     def clear_stats(self,
@@ -467,17 +464,17 @@ class ASTFClient(TRexClient):
     def get_traffic_stats(self, skip_zero = True):
         return self.traffic_stats.get_stats(skip_zero)
 
+
     @client_api('getter', True)
-    def is_traffic_stats_error(self,stats):
+    def is_traffic_stats_error(self, stats):
             """
             Return Tuple if there is an error and what is the error (Bool,Errors)
 
             :parameters:
                 stats: dict from get_traffic_stats output 
-                    
 
             """
-            return (self.traffic_stats.is_traffic_stats_error(stats))
+            return self.traffic_stats.is_traffic_stats_error(stats)
 
 
     @client_api('getter', True)

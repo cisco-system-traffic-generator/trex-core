@@ -92,7 +92,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if is_udp:
             self.check_udp(stats)
 
-    def check_latency_stats (self,stats):
+    def check_latency_stats (self, stats):
         if not self.driver_params['latency_9k_enable']:
             return
 
@@ -114,8 +114,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     self.fail('error in latency port-%s, key: %s, val: %s' % (port_id, k, stats[k]))
 
 
-    def run_astf_profile(self,profile_name,m,is_udp,is_tcp,ipv6 =False,check_counters=True,nc = False):
-        c=self.astf_trex;
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False):
+        c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
             return
@@ -132,13 +132,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         print("latency stats:")
         pprint.pprint(stats['latency'])
         if check_counters:
-          self.check_counters(stats,is_udp,is_tcp)
-          if not self.weak:
-             self.check_latency_stats(stats['latency'])
-          if c.get_warnings():
-             print('\n\n*** test had warnings ****\n\n')
-             for w in c.get_warnings():
-                print(w)
+            self.check_counters(stats,is_udp,is_tcp)
+            self.check_latency_stats(stats['latency'])
+            if c.get_warnings():
+                print('\n\n*** test had warnings ****\n\n')
+                for w in c.get_warnings():
+                    print(w)
 
         print("PASS")
 
