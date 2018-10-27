@@ -57,9 +57,3 @@ uint32_t os_get_time_msec(){
 uint32_t os_get_time_freq(){
     return (SANB_sysClkRateGet());
 }
-
-
-
-
-
-
