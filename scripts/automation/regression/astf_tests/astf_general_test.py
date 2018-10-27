@@ -15,6 +15,8 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.astf_init_error:
             self.skip(CTRexScenario.astf_init_error)
+        if type(self.astf_trex) is ASTFClient:
+            self.astf_trex.reset()
 
     def connect(self, tries = 10):
         # need delay and check only because TRex process might be still starting
