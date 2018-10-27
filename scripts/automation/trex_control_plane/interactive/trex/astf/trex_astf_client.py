@@ -654,7 +654,7 @@ class ASTFClient(TRexClient):
         elif opts.servers_only:
             kw['client_mask'] = 0
 
-        self.start(opts.mult, opts.duration, opts.nc, True, opts.latency_pps, opts.ipv6, **kw)
+        self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, **kw)
         return True
 
     @console_api('stop', 'ASTF', True)
@@ -667,7 +667,7 @@ class ASTFClient(TRexClient):
             self.stop_line.__doc__)
 
         opts = parser.parse_args(line.split())
-        self.stop()
+        self.stop(False)
 
     @console_api('update', 'ASTF', True)
     def update_line(self, line):

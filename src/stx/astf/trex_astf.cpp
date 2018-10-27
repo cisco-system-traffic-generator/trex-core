@@ -45,6 +45,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     const int API_VER_MINOR = 0;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
+    m_lat_with_traffic = false;
 
     TrexRpcCommandsTable &rpc_table = TrexRpcCommandsTable::get_instance();
 
@@ -131,21 +132,25 @@ void TrexAstf::build() {
 }
 
 void TrexAstf::transmit() {
-    if ( m_latency_pps ) {
+    if ( m_lat_with_traffic ) {
         CAstfDB *db = CAstfDB::instance();
-
         lat_start_params_t args;
-        if (!db->get_latency_info(args.client_ip.v4,
-                                  args.server_ip.v4,
-                                  args.dual_ip)){
-            m_error = "no valid ip range for latency";
-            change_state(STATE_CLEANUP);
+
+        try {
+            if ( !db->get_latency_info(args.client_ip.v4,
+                                       args.server_ip.v4,
+                                       args.dual_ip) ) {
+                throw TrexException("No valid ip range for latency");
+            }
+
+            args.cps = m_latency_pps;
+            args.ports_mask = 0xffffffff;
+            start_transmit_latency(args);
+        } catch (const TrexException &ex) {
+            m_error = ex.what();
+            cleanup();
             return;
         }
-
-        args.cps = m_latency_pps;
-        args.ports_mask = 0xffffffff;
-        start_transmit_latency(args);
     }
 
     change_state(STATE_TX);
@@ -158,6 +163,12 @@ void TrexAstf::transmit() {
 
 void TrexAstf::cleanup() {
     change_state(STATE_CLEANUP);
+
+    if (m_lat_with_traffic && (m_l_state==STATE_L_WORK)) {
+        m_latency_pps = 0;
+        m_lat_with_traffic = false;
+        stop_transmit_latency();
+    }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp();
     send_message_to_all_dp(msg);
@@ -356,6 +367,7 @@ void TrexAstf::start_transmit(const start_params_t &args) {
             throw TrexException("Latency state is not idle, should stop latency first");
         }
         m_latency_pps = args.latency_pps;
+        m_lat_with_traffic = true;
     }
 
     m_opts->m_factor           = args.mult;
@@ -379,10 +391,6 @@ bool TrexAstf::stop_transmit() {
     }
 
     m_opts->preview.setNoCleanFlowClose(true);
-    if (m_latency_pps && (m_l_state==STATE_L_WORK)) {
-        m_latency_pps = 0;
-        stop_transmit_latency();
-    }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop();
     send_message_to_all_dp(msg);
