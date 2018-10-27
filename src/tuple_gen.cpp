@@ -37,7 +37,7 @@ static bool _enough_ips(uint32_t total_ip,
     if ( (active_flows/((double)total_ip*(double)MAX_PORT))>0.10 ) {
         return(false);
     }
-    return (true);
+    return true;
 }
 
 void CServerPool::Create(IP_DIST_t  dist_value,
@@ -221,7 +221,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                  tcp_aging,
                  udp_aging);
     m_client_pool.push_back(pool);
-    return(true);
+    returntrue;
 }
 
 bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
@@ -240,7 +240,7 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
     pool->Create(server_dist, min_server, max_server,active_flows);
 
     m_server_pool.push_back(pool);
-    return(true);
+    returntrue;
 }
 
 
@@ -255,7 +255,7 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_rss_thread_id=0;
     m_rss_thread_max=0;
     m_rss_astf_mode=false;
-    return(true);
+    returntrue;
 }
 
 void CTupleGeneratorSmart::Delete(){
@@ -363,14 +363,14 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
     uint32_t ips= (m_ip_end - m_ip_start +1);
     if ( ips < num_threads ) {
         printf(" ERROR The number of ips should be at least number of threads %d \n",num_threads);
-        return (false);
+        return false;
     }
 
     if (ips > 1000000) {
         printf("  The number of clients requested is %d maximum supported : %d \n",ips,1000000);
-        return (false);
+        return false;
     }
-    return (true);
+    return true;
 }
 
 #define UTL_YAML_READ(type, field, target) if (node.FindValue(#field)) { \
@@ -555,4 +555,3 @@ void split_ips_v2( uint32_t total_threads,
     portion.m_ip_start  = poolinfo.get_ip_start()  + (rss_thread_id+rss_max_threads*dual_port_id)*chunks + dual_if_mask;
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
-
