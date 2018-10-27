@@ -20,12 +20,15 @@ class CAstfTrafficStats(object):
         data = rc.data()['data']
         self._desc = [0] * len(data)
         self._ref = {'epoch': -1}
+        self._err_desc = {}
         for section in self.sections:
             self._ref[section] = [0] * len(data)
         self._max_desc_name_len = 0
         for item in data:
             self._desc[item['id']] = item
             self._max_desc_name_len = max(self._max_desc_name_len, len(item['name']))
+            if item['info'] == 'error':
+                self._err_desc[item['name']] = item
         self.is_init = True
 
     def _get_stats_values(self, relative = True):
@@ -49,22 +52,19 @@ class CAstfTrafficStats(object):
         return data
 
 
-    def is_traffic_stats_error(self,stats):
+    def is_traffic_stats_error(self, stats):
         data = {}
-        c=0;
-        desc={}
-        for k in self._desc:
-            desc[k['name']]=k
+        errs = False
 
         for section in self.sections:
-            s=stats[section]
-            data[section]={}
-            for k in desc:
-                if (s.has_key(k) and (s[k]>0) and (desc[k]['info']=='error') ):
-                    data[section][k]=desc[k]['help']
+            s = stats[section]
+            data[section] = {}
+            for k, v in self._err_desc.items():
+                if s.get(k, 0):
+                    data[section][k] = v['help']
+                    errs = True
 
-            c= c+ len(data[section])
-        return (c>0,data)
+        return (errs, data)
 
 
     def get_stats(self,skip_zero = True):
