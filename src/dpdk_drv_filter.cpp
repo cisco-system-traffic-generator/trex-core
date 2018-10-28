@@ -19,8 +19,8 @@
   limitations under the License.
 */
 #include <rte_config.h>
-#include "dpdk_drv_filter.h"
-#include "main_dpdk.h"
+#include <dpdk_drv_filter.h>
+#include <main_dpdk.h>
 
 
 #define MAX_PATTERN_NUM 5
