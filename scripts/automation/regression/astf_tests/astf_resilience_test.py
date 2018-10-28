@@ -10,8 +10,9 @@ class ASTFResilience_Test(CASTFGeneral_Test):
     def setUp(self):
         CASTFGeneral_Test.setUp(self)
         self.weak = self.is_VM
-        if setup in ['trex11','trex16']:
-            self.skip_test =True;
+        setup = CTRexScenario.setup_name
+        if setup in ['trex11', 'trex16']:
+            self.skip('not enough memory for this test')
 
     def ip_gen(self, client_base, server_base, client_ips, server_ips):
         assert client_ips>0
@@ -51,11 +52,6 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         return ASTFProfile(default_ip_gen = ip_gen, templates = templates_arr)
 
     def test_astf_prof_params(self):
-        if self.skip_test:
-            self.skip('not enogth memory for this test')
-            return;
-
-
         print('')
 
         for client_ips in (1<<8, 1<<16):

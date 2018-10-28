@@ -7,7 +7,7 @@ from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
 import pprint
 import random
 import glob
-
+from nose.tools import assert_raises, nottest
 
 
 class ASTFProfile_Test(CASTFGeneral_Test):
@@ -170,25 +170,25 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
         tests = self.get_simple_params() 
         for o in tests:
-           self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'])
+            self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'])
 
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_ipv6_tcp_http')
         for o in tests:
-          self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True)
+            self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True)
 
     def test_astf_prof_sfr(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
         tests = self.get_sfr_params() 
         for o in tests:
-           self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'])
+            self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'])
 
+    @nottest
     def test_astf_prof_no_crash_sfr(self):
-        return;
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr_no_crash')
         tests = self.get_sfr_params() 
         for o in tests:
-           for i_ipv6 in (True,False):
-               self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False,nc=True)
+            for i_ipv6 in (True,False):
+                self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False,nc=True)
 
     def get_profiles_from_sample_filter (self):
         profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/')
@@ -197,40 +197,39 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     def test_astf_prof_profiles(self):
-          if self.weak:
-              self.skip('not enogth memory for this test')
-              return;
+        if self.weak:
+            self.skip('not enough memory for this test')
 
-          profiles = self.get_profiles_from_sample_filter ()
-          duration=self.duration;
-          # skip tests that are too long 
-          skip_list= ['http_by_l7_percent.py',
-                      'http_simple_split.py',
-                      'http_simple_split_per_core.py',
-                      'http_manual_tunables4.py',
-                      'http_simple_cc.py',
-                      'http_simple_cc1.py',
-                      'nginx.py',
-                      'nginx_wget.py',
-                      'sfr_full.py',
-                      'sfr.py',
-                      'param_mss_err2.py',
-                      'http_simple_rss.py',
-                      'udp_rtp.py',
-                      'http_simple_src_mac.py',
-                      'http_eflow3.py'
-                      ]
-          self.duration=1
-          try:
-              for profile in profiles:
-                  fname=os.path.split(profile)[1]
-                  if fname in skip_list:
-                      print(" skipping {}".format(fname))
-                      continue;
-                  print(" running {}".format(fname))
-                  self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True)
-          finally:
-              self.duration = duration
+        profiles = self.get_profiles_from_sample_filter ()
+        duration=self.duration;
+        # skip tests that are too long 
+        skip_list= ['http_by_l7_percent.py',
+                    'http_simple_split.py',
+                    'http_simple_split_per_core.py',
+                    'http_manual_tunables4.py',
+                    'http_simple_cc.py',
+                    'http_simple_cc1.py',
+                    'nginx.py',
+                    'nginx_wget.py',
+                    'sfr_full.py',
+                    'sfr.py',
+                    'param_mss_err2.py',
+                    'http_simple_rss.py',
+                    'udp_rtp.py',
+                    'http_simple_src_mac.py',
+                    'http_eflow3.py'
+                    ]
+        self.duration=1
+        try:
+            for profile in profiles:
+                fname=os.path.split(profile)[1]
+                if fname in skip_list:
+                    print(" skipping {}".format(fname))
+                    continue;
+                print(" running {}".format(fname))
+                self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True)
+        finally:
+            self.duration = duration
 
 
 
