@@ -154,9 +154,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         return (tests);
 
     def get_duration (self):
-        return random.randint(20, 120)
+        #return random.randint(20, 120)
         #return 120
-        #return 10
+        return 10
 
     def test_astf_prof_simple(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
