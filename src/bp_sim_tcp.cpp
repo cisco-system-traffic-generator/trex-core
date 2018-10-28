@@ -526,6 +526,9 @@ bool CFlowGenListPerThread::load_tcp_profile() {
             m_thread_id,
             m_max_threads,
             getDualPortId());
+    if (!rw) {
+        return(false);
+    }
 
     m_c_tcp->set_template_rw(rw);
     m_s_tcp->set_template_rw(rw);

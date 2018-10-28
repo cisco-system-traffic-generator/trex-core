@@ -36,8 +36,7 @@
                   "type": "array",
                   "items": {
                        "type": "string"
-                   },
-                   "minItems": 1
+                   }
               },
 
               "ip_gen_dist_list_t" : {
@@ -192,8 +191,7 @@
                       },
 
                       "buf_index" : {
-                          "type" : "integer",
-                          "minimum": 0
+                          "type" : "integer"
                       }   
                 },
                 "required": ["name","buf_index"]
@@ -266,8 +264,7 @@
                       },
 
                       "buf_index" : {
-                          "type" : "integer",
-                          "minimum": 0
+                          "type" : "integer"
                       }   
                 },
                 "required": ["name","buf_index"]
