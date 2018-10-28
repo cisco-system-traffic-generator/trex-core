@@ -92,12 +92,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if is_udp:
             self.check_udp(stats)
 
-    def check_latency_stats (self, stats):
+    def check_latency_stats (self, all_stats):
         if not self.driver_params['latency_9k_enable']:
             return
 
-        for port_id in stats:
-            hist = stats[port_id]['hist']
+        for port_id, port_stats in all_stats.items():
+            hist = port_stats['hist']
 
             for k in ['s_avg', 'min_usec']:
                if hist[k] > self.driver_params['latency_9k_max_average']:
@@ -107,11 +107,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                if hist[k] > self.driver_params['latency_9k_max_latency']:
                    self.fail('%s latency is bigger (%s) than normal port-%s' % (k, hist[k], port_id))
 
-            stats = stats[port_id]['stats']
+            counters = port_stats['stats']
 
             for k in ['m_l3_cs_err','m_l4_cs_err','m_length_error','m_no_id','m_no_ipv4_option','m_no_magic','m_seq_error','m_tx_pkt_err']:
-                if stats[k] > 0:
-                    self.fail('error in latency port-%s, key: %s, val: %s' % (port_id, k, stats[k]))
+                if counters[k] > 0:
+                    self.fail('error in latency port-%s, key: %s, val: %s' % (port_id, k, counters[k]))
 
 
     def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False):
