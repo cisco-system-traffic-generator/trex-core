@@ -48,7 +48,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
 
         return ASTFProfile(default_ip_gen = ip_gen, templates = templates_arr)
 
-    def test_astf_params(self):
+    def test_astf_prof_params(self):
         print('')
 
         for client_ips in (1<<8, 1<<16):
