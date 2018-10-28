@@ -32,7 +32,7 @@ def astf_test(server, mult, duration, profile_path):
         c.clear_stats()
 
         print("Injecting with multiplier of '%s' for %s seconds" % (mult, duration))
-        c.start(mult = mult, duration = duration, nc = True)
+        c.start(mult = mult, duration = duration)
 
         # block until done
         c.wait_on_traffic()
@@ -41,27 +41,23 @@ def astf_test(server, mult, duration, profile_path):
         stats = c.get_stats()
 
         # use this for debug info on all the stats
-        #pprint(stats)
-
-        sent_pkts = stats['total']['ipackets']
-        recv_pkts = stats['total']['opackets']
+        pprint(stats)
 
         if c.get_warnings():
             print('\n\n*** test had warnings ****\n\n')
             for w in c.get_warnings():
                 print(w)
 
-        assert sent_pkts > 100, 'Too few packets sent (%s)' % sent_pkts
-        assert recv_pkts > sent_pkts * 0.99, 'Too much packets lost (sent: %s, recv: %s)' % (sent_pkts, recv_pkts)
 
         client_stats = stats['traffic']['client']
         server_stats = stats['traffic']['server']
 
-        client_sent, server_recv = client_stats['tcps_sndpack'], server_stats['tcps_rcvpack']
-        server_sent, client_recv = server_stats['tcps_sndpack'], client_stats['tcps_rcvpack']
+        client_sent, server_recv = client_stats['tcps_sndbyte'], server_stats['tcps_rcvbyte']
+        server_sent, client_recv = server_stats['tcps_sndbyte'], client_stats['tcps_rcvbyte']
 
-        assert client_sent * 0.9 < server_recv, 'Too much TCP drops - clients sent: %s, servers received: %s' % (client_sent, server_recv)
-        assert server_sent * 0.9 < client_recv, 'Too much TCP drops - servers sent: %s, clients received: %s' % (server_sent, client_recv)
+        assert (client_sent == server_recv), 'Too much TCP drops - clients sent: %s, servers received: %s' % (client_sent, server_recv)
+        assert (server_sent == client_recv), 'Too much TCP drops - servers sent: %s, clients received: %s' % (server_sent, client_recv)
+
 
     except TRexError as e:
         passed = False
