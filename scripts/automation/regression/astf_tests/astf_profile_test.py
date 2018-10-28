@@ -104,10 +104,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                if hist[k] > self.driver_params['latency_9k_max_average']:
                    self.fail('%s latency is bigger (%s) than normal port-%s' % (k, hist[k], port_id))
 
-            for k in ['s_max', 'max_usec']:
+            for k in ['s_max']:
                if hist[k] > self.driver_params['latency_9k_max_latency']:
                    self.fail('%s latency is bigger (%s) than normal port-%s' % (k, hist[k], port_id))
 
+            # todo check the latency histogram 
             counters = port_stats['stats']
 
             for k in ['m_l3_cs_err','m_l4_cs_err','m_length_error','m_no_id','m_no_ipv4_option','m_no_magic','m_seq_error','m_tx_pkt_err']:
