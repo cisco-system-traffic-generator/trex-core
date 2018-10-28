@@ -172,7 +172,6 @@ void TrexAstfDpCore::create_tcp_batch() {
     m_flow_gen->m_stats.clear();
     m_flow_gen->m_yaml_info.m_duration_sec = go->m_duration;
     bool success = m_flow_gen->load_tcp_profile();
-
     if ( success ) {
         report_finished();
     } else {

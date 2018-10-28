@@ -130,7 +130,7 @@ bool CAstfJsonValidator::validate_program(Json::Value  profile,
     }
 
     /* check buffer size */
-    if ( max_buffer >= profile["buf_list"].size() ) {
+    if ( (max_buffer >= profile["buf_list"].size()) && (profile["buf_list"].size()>0)) {
         std::stringstream ss;
         ss << "Validation failed : max buffer size is " << max_buffer << " bigger than " << profile["buf_list"].size() <<std::endl;
         err = ss.str();

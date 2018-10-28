@@ -56,7 +56,8 @@ CAstfDB::~CAstfDB(){
 
 
 bool CAstfDB::validate_profile(Json::Value profile,std::string & err){
-    return (m_validator->validate_profile(profile, err));
+    bool res=m_validator->validate_profile(profile, err);
+    return (res);
 }
 
 
@@ -876,8 +877,8 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
 
     } catch (TrexRpcCommandException &e) {
         printf(" ERROR !!! '%s' \n",e.what());
-        /* TBD need to refactor the code .., should not have exit in this code  */
-        exit(1);
+        /* TBD need a better way to signal this */
+        return(true);
     } 
     
     return true;
@@ -1006,7 +1007,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             dist = cdNORMAL_DIST;
         } else {
             fprintf(stderr, "wrong distribution string %s in json\n", ip_gen_list[i]["distribution"].asString().c_str());
-            exit(1);
+            my_lock.unlock();
+            return((CAstfTemplatesRW *)0);
         }
 
         if (ip_gen_list[i]["per_core_distribution"] != Json::nullValue){
@@ -1089,7 +1091,10 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
         assert(s_tuneable);
 
-        read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"]);
+        if (!read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"])){
+            my_lock.unlock();
+            return((CAstfTemplatesRW *)0);
+        }
         temp_rw->set_tuneables(c_tuneable, s_tuneable);
 
         ret->add_template(temp_rw);
@@ -1197,7 +1202,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
     uint32_t buf_len;
 
     if (m_val["buf_list"].size() == 0)
-        return false;
+        return true;
 
     for (int buf_index = 0; buf_index < m_val["buf_list"].size(); buf_index++) {
         tcp_buf = new CMbufBuffer();

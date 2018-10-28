@@ -6,6 +6,7 @@ import time
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
 import pprint
 import random
+import glob
 
 
 
@@ -18,9 +19,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         self.weak = self.is_VM
         self.skip_test_trex_522 =False;
         setup= CTRexScenario.setup_name;
-        if setup in ['trex19','trex07','trex23']:
+        if setup in ['trex19','trex07','trex23','trex16']:
             self.skip_test_trex_522 =True;
+        if setup in ['trex16']:
+            self.weak = True
         self.driver_params = self.get_driver_params()
+        self.duration=None
 
     def get_profile_by_name (self,name):
         profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/'+name)
@@ -130,9 +134,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000)
         c.wait_on_traffic()
         stats = c.get_stats()
-        pprint.pprint(stats['traffic'])
-        print("latency stats:")
-        pprint.pprint(stats['latency'])
+        #pprint.pprint(stats['traffic'])
+        #print("latency stats:")
+        #pprint.pprint(stats['latency'])
         if check_counters:
             self.check_counters(stats,is_udp,is_tcp)
             self.check_latency_stats(stats['latency'])
@@ -156,6 +160,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         return (tests);
 
     def get_duration (self):
+        if self.duration:
+            return self.duration
         #return random.randint(20, 120)
         #return 120
         return 10
@@ -183,4 +189,49 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         for o in tests:
            for i_ipv6 in (True,False):
                self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False,nc=True)
+
+    def get_profiles_from_sample_filter (self):
+        profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/')
+        py_profiles = glob.glob(profiles_path + "/*.py")
+        return(py_profiles)
+
+
+    def test_astf_prof_profiles(self):
+          if self.weak:
+              self.skip('not enogth memory for this test')
+              return;
+
+          profiles = self.get_profiles_from_sample_filter ()
+          duration=self.duration;
+          # skip tests that are too long 
+          skip_list= ['http_by_l7_percent.py',
+                      'http_simple_split.py',
+                      'http_simple_split_per_core.py',
+                      'http_manual_tunables4.py',
+                      'http_simple_cc.py',
+                      'http_simple_cc1.py',
+                      'nginx.py',
+                      'nginx_wget.py',
+                      'sfr_full.py',
+                      'sfr.py',
+                      'param_mss_err2.py',
+                      'http_simple_rss.py',
+                      'udp_rtp.py',
+                      'http_simple_src_mac.py',
+                      'http_eflow3.py'
+                      ]
+          self.duration=1
+          try:
+              for profile in profiles:
+                  fname=os.path.split(profile)[1]
+                  if fname in skip_list:
+                      print(" skipping {}".format(fname))
+                      continue;
+                  print(" running {}".format(fname))
+                  self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True)
+          finally:
+              self.duration = duration
+
+
+
 
