@@ -31,10 +31,10 @@ class Prof1():
 
         # IP used in packet headers.
         self.p1_src_start_ip = '16.0.0.1'
-        self.p1_src_end_ip = '16.0.0.10'
+        self.p1_src_end_ip = '16.0.1.10'
 
         self.p1_dst_start_ip = '48.0.0.1'
-        self.p1_dst_end_ip = '48.0.0.10'
+        self.p1_dst_end_ip = '48.0.1.10'
 
         self.http_req = ('GET /0KB.bin HTTP/1.1\r\n'
                           'Host: {host}\r\n'
