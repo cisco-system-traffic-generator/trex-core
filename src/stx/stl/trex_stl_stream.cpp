@@ -84,7 +84,9 @@ void TrexStream::Dump(FILE *fd){
     fprintf(fd," Self_start   : %lu \n",(ulong)(m_self_start?1:0));
     fprintf(fd," Start_paused   : %lu \n",(ulong)(m_start_paused?1:0));
     fprintf(fd," core_id_specified  : %lu \n", (ulong)(m_core_id_specified?1:0));
-    fprintf(fd," core_id   : %lu \n", (ulong)(m_core_id));
+    if ( m_core_id_specified ) {
+        fprintf(fd," core_id   : %lu \n", (ulong)(m_core_id));
+    }
 
     if (m_next_stream_id>=0) {
         fprintf(fd," Next_stream_id  : %lu \n",(ulong)(m_next_stream_id));
