@@ -157,6 +157,7 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_flags=0;
     m_action_count=0;
     m_null_stream = false;
+    m_core_id_specified = false;
 }
 
 TrexStream::~TrexStream() {
