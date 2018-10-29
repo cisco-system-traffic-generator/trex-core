@@ -3404,7 +3404,7 @@ TRex>start -f stl/hlt/hlt_udp_inc_dec_len_9k.py -m 10mbps -a
 
 ==== Tutorial: Core pinning 
 
-*Goal*:: Demonstrate how to assign a stream to a specific core.
+*Goal*:: Demonstrate how to assign a stream to a specific core. Core pinning was developed to avoid possible out of order for packets of the same stream.
 
 The following example demonstrates 2 continuous streams S0 and S1 which are pinned to cores 0 and 1 respectively.
 
@@ -3440,7 +3440,7 @@ The following figure presents the output.
 
 image::images/core_pinning.png[title="Core pinning",align="left",width={p_width}, link="images/core_pinning.png"]
 
-You need to run TRex with at least two cores for the previous test to work.
+You need to run TRex with at least two cores for this tutorial to work. +
 You can define the number of cores with the -c flag:
 
 [source,bash]
@@ -3453,9 +3453,8 @@ To run the console use the following command:
 
 [source,bash]
 ----
-[bash]>./trex-console -s servername #<1>
+[bash]>./trex-console -s <TRex hostname>
 ----
-<1> servername is the name of the server on which you ran TRex.
 
 To run the traffic profile from console in TRex, use the following command:
 
@@ -3464,11 +3463,11 @@ To run the traffic profile from console in TRex, use the following command:
 trex>start -f automation/trex_control_plane/interactive/trex/examples/stl/core_pinning_tutorial.py -m 10gbps
 ----
 
-To see the statistics invoke tui by using the following command:
+To see the statistics use the following console command:
 
 [source,bash]
 ----
-trex>tui
+trex>stats -c
 ----
 
 === Functional Tutorials
