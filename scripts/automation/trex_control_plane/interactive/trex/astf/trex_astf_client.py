@@ -174,6 +174,7 @@ class ASTFClient(TRexClient):
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
                 self.stop()
+                self.stop_latency()
                 self.clear_profile()
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
@@ -489,7 +490,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0xffffffff, dual_ipv4 = "1.0.0.0"):
+    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0"):
         """
            Start ICMP latency traffic.
 
