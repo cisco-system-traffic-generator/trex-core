@@ -97,6 +97,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if is_udp:
             self.check_udp(stats)
 
+    def check_latency_for_errors (self,port_id,counters):
+        for k in ['m_l3_cs_err','m_l4_cs_err','m_length_error','m_no_id','m_no_ipv4_option','m_no_magic','m_seq_error','m_tx_pkt_err']:
+            if counters[k] > 0:
+                self.fail('error in latency port-%s, key: %s, val: %s' % (port_id, k, counters[k]))
+
     def check_latency_stats (self, all_stats):
         if not self.driver_params['latency_9k_enable']:
             return
@@ -115,9 +120,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             # todo check the latency histogram 
             counters = port_stats['stats']
 
-            for k in ['m_l3_cs_err','m_l4_cs_err','m_length_error','m_no_id','m_no_ipv4_option','m_no_magic','m_seq_error','m_tx_pkt_err']:
-                if counters[k] > 0:
-                    self.fail('error in latency port-%s, key: %s, val: %s' % (port_id, k, counters[k]))
+            self.check_latency_for_errors (port_id,counters)
+
 
 
     def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False):
@@ -231,6 +235,78 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         finally:
             self.duration = duration
 
+
+
+    def do_latency(self,duration,stop_after=None):
+        if self.weak:
+           self.skip('not accurate latency')
+
+        c = self.astf_trex;
+        # check polling mode 
+        ticks=0;
+        c.reset();
+        profile_name='http_simple.py'
+        print('starting profile %s ' % (profile_name))
+        c.load_profile(self.get_profile_by_name(profile_name))
+        c.clear_stats()
+        c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000)
+        while c.is_traffic_active():
+            stats = c.get_stats()
+            l=stats['latency']
+            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']),end='')
+            for k in l:
+                hist=l[k]['hist']
+                stats =l[k]['stats']
+                self.check_latency_for_errors(k,stats)
+                for t in ['s_max','s_avg']:
+                  print(" {0:.0f}".format(hist[t]),end='')
+                  if hist[t]>1000:
+                    self.fail('%s latency is bigger (%s) than normal port-%s' % (t, hist[t], k))
+                  print(",".format(hist[t]),end='')
+            print("")
+            time.sleep(1);
+            ticks += 1
+            if stop_after:
+                if ticks > stop_after:
+                  c.stop()
+                  break;
+
+
+    def test_astf_prof_latency(self):
+        self.do_latency(30,stop_after=None)
+
+    def test_astf_prof_latency_stop(self):
+        self.do_latency(20,stop_after=10)
+
+    def test_astf_prof_only_latency(self):
+        if self.weak:
+           self.skip('not accurate latency')
+
+        c = self.astf_trex;
+        c.reset();
+        ticks=0;
+        c.clear_stats()
+        c.stop_latency()
+        c.start_latency(mult = 1000)
+        while True:
+            time.sleep(1);
+            stats = c.get_stats()
+            l=stats['latency']
+            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']),end='')
+            for k in l:
+               hist=l[k]['hist']
+               stats =l[k]['stats']
+               self.check_latency_for_errors(k,stats)
+               for t in ['s_max','s_avg']:
+                 print(" {0:.0f}".format(hist[t]),end='')
+                 if hist[t]>1000:
+                   self.fail('%s latency is bigger (%s) than normal port-%s' % (t, hist[t], k))
+                 print(",".format(hist[t]),end='')
+            print("")
+            ticks += 1
+            if ticks > 10:
+                break;
+        c.stop_latency()
 
 
 
