@@ -253,16 +253,16 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         while c.is_traffic_active():
             stats = c.get_stats()
             l=stats['latency']
-            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']),end='')
+            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']))
             for k in l:
                 hist=l[k]['hist']
                 stats =l[k]['stats']
                 self.check_latency_for_errors(k,stats)
                 for t in ['s_max','s_avg']:
-                  print(" {0:.0f}".format(hist[t]),end='')
+                  print(" {0:.0f}".format(hist[t]))
                   if hist[t]>1000:
                     self.fail('%s latency is bigger (%s) than normal port-%s' % (t, hist[t], k))
-                  print(",".format(hist[t]),end='')
+                  print(",".format(hist[t]))
             print("")
             time.sleep(1);
             ticks += 1
@@ -292,16 +292,16 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             time.sleep(1);
             stats = c.get_stats()
             l=stats['latency']
-            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']),end='')
+            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']))
             for k in l:
                hist=l[k]['hist']
                stats =l[k]['stats']
                self.check_latency_for_errors(k,stats)
                for t in ['s_max','s_avg']:
-                 print(" {0:.0f}".format(hist[t]),end='')
+                 print(" {0:.0f}".format(hist[t]))
                  if hist[t]>1000:
                    self.fail('%s latency is bigger (%s) than normal port-%s' % (t, hist[t], k))
-                 print(",".format(hist[t]),end='')
+                 print(",".format(hist[t]))
             print("")
             ticks += 1
             if ticks > 10:
