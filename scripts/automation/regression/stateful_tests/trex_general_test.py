@@ -65,6 +65,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.astf_trex             = CTRexScenario.stl_trex
         self.trex_crashed          = CTRexScenario.trex_crashed
         self.modes                 = CTRexScenario.modes
+        self.GAManager             = CTRexScenario.GAManager
         self.elk                   = CTRexScenario.elk
         self.no_daemon             = CTRexScenario.no_daemon
         self.skipping              = False
