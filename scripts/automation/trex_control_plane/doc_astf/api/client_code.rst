@@ -63,10 +63,7 @@ ASTFClient snippet
             try:
                 c.reset()
 
-                if not profile_path:
-                    profile_path = os.path.join(astf_path.ASTF_PROFILES_PATH, 'http_simple.py')
-        
-                c.load_profile(profile_path)
+                c.load_profile(profile_full_path)
         
                 c.clear_stats()
         
