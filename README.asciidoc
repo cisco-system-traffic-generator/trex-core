@@ -218,5 +218,6 @@ Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@go
 * Stateless
 ** scalable and more flexible per stream statistic
 ** mini L2 emulation services.  Will run  in server side for emulation protocols in paralel to traffic
+*** new functions are cool
 
 
