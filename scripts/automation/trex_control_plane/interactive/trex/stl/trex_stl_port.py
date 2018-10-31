@@ -523,9 +523,6 @@ class STLPort(Port):
     
     ################# stream printout ######################
     def generate_loaded_streams_sum(self, stream_id_list, table_format = True):
-        if self.state == self.STATE_DOWN:
-            return {}
-
         self.sync_streams()
 
         if stream_id_list:
