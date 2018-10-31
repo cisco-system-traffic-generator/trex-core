@@ -505,7 +505,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             return
         if self.pkg or self.restart_daemon:
             print('Restarting TRex daemon server')
-            res = client.restart_trex_daemon(tries = 5)
+            res = client.restart_trex_daemon(tries = 30)
             if not res:
                 fatal('Could not restart TRex daemon server')
             print('Restarted.')
