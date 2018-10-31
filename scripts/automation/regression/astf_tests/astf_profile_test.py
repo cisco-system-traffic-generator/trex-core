@@ -22,7 +22,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         setup= CTRexScenario.setup_name;
         if setup in ['trex19','trex07','trex23','trex16']:
             self.skip_test_trex_522 =True;
-        if setup in ['trex16']:
+        if setup in ['trex16','trex41']:
             self.weak = True
         self.driver_params = self.get_driver_params()
         self.duration=None
@@ -136,9 +136,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             # we see random failures with mlx, so do retries on it as well
 
             cnt =0;
-            self.latency_error = 0
             for i in range(0,4):
-
+               self.latency_error = 0
                func(self, *args, **kwargs)
                if self.latency_error==0:
                    break;
