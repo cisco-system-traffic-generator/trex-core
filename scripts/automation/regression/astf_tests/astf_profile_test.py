@@ -260,6 +260,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
     @try_few_times
     def do_latency(self,duration,stop_after=None):
+        if self.weak:
+           self.skip('not accurate latency')
 
         self.latency_error =0;
         c = self.astf_trex;
