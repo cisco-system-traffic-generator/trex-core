@@ -27,7 +27,7 @@ Console-like example::
 
 Example 1 - Typical Python API::
 
-    c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH)
+    c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = "error")
 
     try:
         # connect to server
@@ -138,8 +138,7 @@ STLClient snippet
         def simple ():
         
             # create client
-            #verbose_level = LoggerApi.VERBOSE_HIGH  # set to see JSON-RPC commands
-            c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+            c = STLClient(verbose_level = "error")
             passed = True
             
             try:
@@ -188,8 +187,7 @@ Example 4: Load profile from a file::
   def simple ():
 
     # create client
-    #verbose_level = LoggerApi.VERBOSE_HIGH
-    c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+    c = STLClient(verbose_level = "error")
     passed = True
     
     try:
