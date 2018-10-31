@@ -62,6 +62,7 @@ trex>stop
 ------------------
  
 * ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
+* STL: add stream pinning to core see link:trex_stateless.html#_tutorial_core_pinning[core_pinning]
 
 == Release 2.46 ==
 
