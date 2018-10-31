@@ -208,6 +208,7 @@ private:
     void pre_compile_check(const std::vector<TrexStream *> &streams,
                            GraphNodeMap & nodes);
     void allocate_pass(const std::vector<TrexStream *> &streams, GraphNodeMap *nodes);
+    void validate_core_pinning(const TrexStream *stream, const TrexStream *next);
     void direct_pass(GraphNodeMap *nodes);
     void check_for_unreachable_streams(GraphNodeMap *nodes);
     void check_stream(const TrexStream *stream);
