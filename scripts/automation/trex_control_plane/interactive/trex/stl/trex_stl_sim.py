@@ -290,8 +290,8 @@ class STLSim(object):
         print("executing command: '{0}'".format(" ".join(cmd)))
 
         if self.silent:
-            FNULL = open(os.devnull, 'wb')
-            rc = subprocess.call(cmd, stdout=FNULL)
+            with open(os.devnull, 'wb') as FNULL:
+                rc = subprocess.call(cmd, stdout=FNULL)
         else:
             rc = subprocess.call(cmd)
 
