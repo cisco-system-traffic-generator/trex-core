@@ -633,7 +633,7 @@ To change ports to promiscuous mode by Python API:
 .Python API to change ports to promiscuous mode
 [source,python]
 ----
-        c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+        c = STLClient(verbose_level ="error)
 
         c.connect()
 
