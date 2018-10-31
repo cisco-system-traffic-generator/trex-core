@@ -252,6 +252,20 @@ TrexStreamsCompiler::allocate_pass(const std::vector<TrexStream *> &streams,
 
 }
 
+void
+TrexStreamsCompiler::validate_core_pinning(const TrexStream *stream, const TrexStream *next) {
+    if ( stream == nullptr || next == nullptr ) {
+        return;
+    }
+    if ( stream->m_core_id_specified || next->m_core_id_specified ) {
+        if (!(stream->m_core_id_specified && next->m_core_id_specified && (stream->m_core_id == next->m_core_id))) {
+            std::stringstream ss;
+            ss << "stream " << stream->m_stream_id << " points at stream " << next->m_stream_id << ", hence they must be pinned to the same core.";
+            err(ss.str());
+        }
+    }
+}
+
 /**
  * on this pass we direct the graph to point to the right nodes
  * 
@@ -271,6 +285,7 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
            on_next_not_found(stream);
         }
 
+        validate_core_pinning(stream, next_node->m_stream);
         node->m_next = next_node;
 
         /* do we have more than one parent ? */

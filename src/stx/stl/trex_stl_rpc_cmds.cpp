@@ -334,11 +334,6 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         stream->m_core_id_specified = (core_id < 0) ? false : true ;
         /* if core ID is specified, check if core ID is smaller than the number of cores */
         if (stream->m_core_id_specified) {
-            if (type != "continuous") {
-                std::stringstream ss;
-                ss << "Core ID pinning is supported only for continuos mode.";
-                generate_execute_err(result, ss.str());
-            }
             uint8_t m_dp_core_count = get_platform_api().get_dp_core_count();
             if  (core_id >= m_dp_core_count) {
                 std::stringstream ss;

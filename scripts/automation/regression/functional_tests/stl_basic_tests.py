@@ -382,7 +382,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             rc = self.run_sim('stl/udp_1pkt_src_ip_split_core_pinned.py',
                               output   = output_cap,
                               options  = '-c 7 -m 1 -l 50 --valgrind', # the number of cores must be bigger than 1, because the stream is pinned on core 1.
-                              silent   = False)
+                              silent   = True)
             assert_equal(rc, True, 'Simulation on udp_1pkt_src_ip_split_core_pinned failed.')
             compare_caps(output_cap, golden_file)
 

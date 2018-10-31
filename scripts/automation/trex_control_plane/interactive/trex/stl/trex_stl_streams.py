@@ -442,12 +442,6 @@ class STLStream(object):
         if (type(mode) == STLTXCont) and (next != None):
             raise TRexError("Continuous stream cannot have a next stream ID")
 
-        if (type(mode) != STLTXCont) and (core_id >= 0):
-            raise TRexError("Core ID is supported only for Continuous mode.")
-        
-        if (core_id >= 0) and (self_start == False):
-            raise TRexError("Core ID is supported only for streams that aren't being pointed at.")
-
         if (type(flow_stats) == STLFlowLatencyStats and core_id >= 0):
             raise TRexError("Core ID is not supported for latency streams.")
 

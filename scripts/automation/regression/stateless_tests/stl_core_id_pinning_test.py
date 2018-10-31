@@ -55,26 +55,10 @@ class CoreID_Test(CStlGeneral_Test):
         core_id = self.num_cores - 1
 
         try:
-            s1 = STLStream(packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), core_id = core_id)
-        except TRexError as e:
-            assert (e.msg == "Core ID is supported only for Continuous mode.")
-
-        try:
-            s1 = STLStream(packet = self.pkt, mode = STLTXMultiBurst(pps=10, pkts_per_burst = 3), core_id = core_id)
-        except TRexError as e:
-            assert e.msg == "Core ID is supported only for Continuous mode."
-
-        try:
             s1 = STLStream(packet = self.pkt, mode = STLTXCont(pps = 10), core_id = core_id, 
                                               flow_stats = STLFlowLatencyStats(pg_id = 7))
         except TRexError as e:
             assert e.msg == "Core ID is not supported for latency streams."
-
-        try:
-            s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), next = 's2')
-            s2 = STLStream(name = 's2', self_start = False, packet = self.pkt, mode = STLTXCont(pps = 10), core_id = core_id)
-        except TRexError as e:
-            assert e.msg == "Core ID is supported only for streams that aren't being pointed at."
 
         try:
             core_id = self.num_cores
@@ -83,6 +67,39 @@ class CoreID_Test(CStlGeneral_Test):
         except TRexError as e:
             assert ("It must be an integer between 0" in e.msg or
                     "There is only one core" in e.msg)
+
+        core_id = self.num_cores - 1
+        expected_err_text = 'must be pinned to the same core'
+
+        try:
+            s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), next = 's2')
+            s2 = STLStream(name = 's2', self_start = False, packet = self.pkt, mode = STLTXCont(pps = 10), core_id = core_id)
+            self.c.add_streams(streams = [s1, s2], ports = self.tx_ports)
+        except TRexError as e:
+            assert expected_err_text in e.msg
+
+        try:
+            s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), next = 's2', core_id = core_id)
+            s2 = STLStream(name = 's2', self_start = False, packet = self.pkt, mode = STLTXCont(pps = 10))
+            self.c.add_streams(streams = [s1, s2], ports = self.tx_ports)
+        except TRexError as e:
+            assert expected_err_text in e.msg
+
+        if self.num_cores > 1:
+            try:
+                s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), next = 's2', core_id = core_id)
+                s2 = STLStream(name = 's2', self_start = False, packet = self.pkt, mode = STLTXCont(pps = 10), core_id = core_id - 1)
+                self.c.add_streams(streams = [s1, s2], ports = self.tx_ports)
+            except TRexError as e:
+                assert expected_err_text in e.msg
+
+            try:
+                s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), next = 's3', core_id = core_id)
+                s2 = STLStream(name = 's2', packet = self.pkt, mode = STLTXSingleBurst(pps = 10), next = 's3', core_id = core_id - 1)
+                s3 = STLStream(name = 's3', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), core_id = core_id)
+                self.c.add_streams(streams = [s1, s2, s3], ports = self.tx_ports)
+            except TRexError as e:
+                assert expected_err_text in e.msg
 
 
     def test_core_id_pinning_single(self):
@@ -123,11 +140,24 @@ class CoreID_Test(CStlGeneral_Test):
 
     def test_core_id_pinning_several_streams(self):
 
-        core_id = 1
+        core_id = self.num_cores - 1
         s1 = STLStream(packet = self.pkt, core_id = core_id)
         s2 = STLStream(packet = self.pkt, core_id = core_id)
         self.c.add_streams(streams = s1, ports = self.tx_ports)
         self.c.add_streams(streams = s2, ports = self.tx_ports)
+        self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
+        time.sleep(1)
+        used_cores = self.get_used_cores()
+        assert used_cores == [core_id], 'Only core %s is expected to be active, got: %s' % (core_id, used_cores)
+        self.c.stop(ports = self.tx_ports)
+        self.c.remove_all_streams(ports = self.tx_ports)
+
+    def test_core_id_pinning_single_burst_loop(self):
+
+        core_id = self.num_cores - 1
+        s1 = STLStream(name = 's1', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), core_id = core_id, next = 's2')
+        s2 = STLStream(name = 's2', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), core_id = core_id, next = 's1', self_start = False)
+        self.c.add_streams(streams = [s1, s2], ports = self.tx_ports)
         self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
         time.sleep(1)
         used_cores = self.get_used_cores()
