@@ -108,7 +108,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         return (self.driver_params['latency_9k_max_average']*2)
 
     def allow_latency(self):
-        return self.driver_params['latency_9k_enable']  and  (not self.weak):
+        return self.driver_params['latency_9k_enable'] and (not self.weak)
 
     def check_latency_stats (self, all_stats):
         if not self.allow_latency():
