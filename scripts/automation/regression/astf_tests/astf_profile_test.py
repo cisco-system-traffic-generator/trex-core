@@ -107,8 +107,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def get_max_latency (self):
         return self.driver_params['latency_9k_max_average']
 
+    def allow_latency(self):
+        return self.driver_params['latency_9k_enable']
+
     def check_latency_stats (self, all_stats):
-        if not self.driver_params['latency_9k_enable']:
+        if not self.allow_latency():
             return
 
         for port_id, port_stats in all_stats.items():
@@ -133,6 +136,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             # we see random failures with mlx, so do retries on it as well
 
             cnt =0;
+            self.latency_error = 0
             for i in range(0,4):
 
                func(self, *args, **kwargs)
@@ -154,7 +158,6 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if ipv6 and self.driver_params.get('no_ipv6', False):
             return
 
-        self.latency_error=0
         c.reset();
         d = self.get_duration()
         print('starting profile %s for duration %s' % (profile_name, d))
@@ -262,8 +265,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def do_latency(self,duration,stop_after=None):
         if self.weak:
            self.skip('not accurate latency')
+        if not self.allow_latency():
+            self.skip('not allowed latency here')
 
-        self.latency_error =0;
         c = self.astf_trex;
         # check polling mode 
         ticks=0;
@@ -275,17 +279,18 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000)
         while c.is_traffic_active():
             stats = c.get_stats()
-            l=stats['latency']
+            lat = stats['latency']
             print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']))
-            for k in l:
-                hist=l[k]['hist']
-                stats =l[k]['stats']
-                self.check_latency_for_errors(k,stats)
+            for port_id, port_stats in lat.items():
+                stats_output = 'port_id: %s' % port_id
+                hist = port_stats['hist']
+                stats = port_stats['stats']
+                self.check_latency_for_errors(port_id, stats)
                 for t in ['s_max','s_avg']:
-                  print(" {0:.0f}".format(hist[t]))
-                  if hist[t] > self.get_max_latency():
-                      self.latency_error =hist[t]
-                  print(",".format(hist[t]))
+                    stats_output += ", {}: {:.0f}".format(t, hist[t])
+                    if hist[t] > self.get_max_latency():
+                        self.latency_error = hist[t]
+                print(stats_output)
             print("")
             time.sleep(1);
             ticks += 1
