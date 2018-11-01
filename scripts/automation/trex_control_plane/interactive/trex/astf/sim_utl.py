@@ -374,10 +374,13 @@ def run_sfr ():
 
     "avl/delay_10_https_0.pcap",
     "avl/delay_10_exchange_0.pcap",
-    "avl/delay_10_mail_pop_0.pcap",
-    "avl/delay_10_oracle_0.pcap", 
-    "avl/delay_10_smtp_0.pcap", 
-    "avl/delay_10_citrix_0.pcap"]
+
+    # pcaps below require --full to work correctly as they send first data from server side
+    #"avl/delay_10_mail_pop_0.pcap",
+    #"avl/delay_10_oracle_0.pcap",
+    #"avl/delay_10_smtp_0.pcap",
+    #"avl/delay_10_citrix_0.pcap",
+    ]
     for obj in l:
         run_sim(obj)
 
