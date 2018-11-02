@@ -1,8 +1,8 @@
 from trex_stl_lib.api import *
 
 
-# split the range of IP to cores 
-#
+# limit transmitting of profile to certain core
+
 class STLS1(object):
 
     def __init__ (self):
@@ -19,7 +19,7 @@ class STLS1(object):
         base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
 
         pad = max(0, size - len(base_pkt)) * 'x'
-                             
+
         vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
                                             max_value="10.0.0.255", size=4, step=1,op="inc"),
                              STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
@@ -37,7 +37,7 @@ class STLS1(object):
         return stream
 
 
-    def get_streams (self, core_id = 1, direction = 0, cache_size = 255, **kwargs):
+    def get_streams (self, core_id = 0, direction = 0, cache_size = 255, **kwargs):
         # create 1 stream 
         return [ self.create_stream(core_id, direction, cache_size) ]
 
