@@ -706,7 +706,8 @@ class ASTFClient(TRexClient):
         latency_add_parsers(subparsers, 'stop', help = 'Stop latency traffic')
         update_parser = latency_add_parsers(subparsers, 'update', help = 'Update rate of running latency')
         latency_add_parsers(subparsers, 'show', help = 'alias for stats -l')
-        latency_add_parsers(subparsers, 'hist', help = 'alias for stats -h')
+        latency_add_parsers(subparsers, 'hist', help = 'alias for stats --lh')
+        latency_add_parsers(subparsers, 'counters', help = 'alias for stats --lc')
 
         start_parser.add_arg_list(
             parsing_opts.MULTIPLIER_NUM,
@@ -737,6 +738,9 @@ class ASTFClient(TRexClient):
 
         elif opts.command == 'hist':
             self._show_latency_histogram()
+
+        elif opts.command == 'counters':
+            self._show_latency_counters()
 
         else:
             raise TRexError('Unhandled command %s' % opts.command)
@@ -798,6 +802,9 @@ class ASTFClient(TRexClient):
 
         elif opts.stats == 'latency_histogram':
             self._show_latency_histogram()
+
+        elif opts.stats == 'latency_counters':
+            self._show_latency_counters()
 
         else:
             raise TRexError('Unhandled stat: %s' % opts.stats)
