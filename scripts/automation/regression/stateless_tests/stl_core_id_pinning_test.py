@@ -7,47 +7,60 @@ from nose.tools import nottest
 
 
 class CoreID_Test(CStlGeneral_Test):
-    """Tests for stateless client"""
+    """ Tests for core pinning """
+    cores_verified = False
 
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
         self.c = CTRexScenario.stl_trex
 
-        assert 'bi' in CTRexScenario.stl_ports_map
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
-        self.tx_ports = [self.tx_port]
-
-        self.c.connect()
-        self.c.reset(ports = self.tx_ports)
-
-        self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
-        self.c.clear_stats()
-
         self.num_cores = self.c.get_server_system_info().get('dp_core_count_per_port')
         assert self.num_cores > 0, 'Cores count is zero, something bad is here'
         if self.num_cores == 1:
             self.skip('Must have more than one core for this test.')
 
+        if not self.cores_verified:
+            self._verify_cores()
+            assert self.num_cores == len(self.tx_port_cores), '%s != %s' % (self.num_cores, len(self.tx_port_cores))
+            CoreID_Test.cores_verified = True
+
+        self.c.reset(ports = self.tx_ports)
+        self.c.clear_stats()
 
     @classmethod
-    def tearDownClass(cls):
-        if CTRexScenario.stl_init_error:
-            return
-        # connect back at end of tests
-        if not cls.is_connected():
-            CTRexScenario.stl_trex.connect()
+    def _verify_cores(cls):
+        assert 'bi' in CTRexScenario.stl_ports_map
+        cls.tx_port, cls.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        cls.tx_ports = [cls.tx_port]
+        cls.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
+        cls.c = CTRexScenario.stl_trex
+        cls.c.reset(ports = cls.tx_ports)
+        s = STLStream(packet = cls.pkt)
+        cls.c.add_streams(streams = s, ports = cls.tx_ports)
+        cls.c.start(ports = [cls.tx_port], mult = "1%", duration = 3)
+        cls.tx_port_cores = cls.get_used_cores()
+        print('\nCores that belong to port %s: %s' % (cls.tx_port, cls.tx_port_cores))
+        cls.abs_to_port_dict = dict([(abs_core, port_core) for port_core, abs_core in enumerate(cls.tx_port_cores)])
 
 
     # tests core pinning with latency
-    def get_used_cores (self):
+    @classmethod
+    def get_used_cores(cls):
+        time.sleep(0.5)
         used_cores = []
-        cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu']]
+        cpu_stats = [x['ports'] for x in cls.c.get_util_stats()['cpu']]
         for i, cpu in enumerate(cpu_stats):
             cpu = [x for x in cpu if x != -1]
             if cpu:
                 used_cores.append(i)
         return used_cores
+
+
+    @classmethod
+    def get_port_used_cores(cls):
+        abs_used = cls.get_used_cores()
+        return [cls.abs_to_port_dict[k] for k in abs_used]
 
 
     def test_core_id_negative(self):
@@ -108,15 +121,13 @@ class CoreID_Test(CStlGeneral_Test):
             s = STLStream(packet = self.pkt, core_id = i)
             self.c.add_streams(streams = s, ports = self.tx_ports)
             self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
-            time.sleep(1)
-            used_cores = self.get_used_cores()
+            used_cores = self.get_port_used_cores()
             assert used_cores == [i], 'Only core %s is expected to be active, but we got %s active' % (i, used_cores)
             self.c.stop(ports = self.tx_ports)
             self.c.remove_all_streams(ports = self.tx_ports)
-            time.sleep(1)
 
         # asserting that stats are cleared
-        used_cores = self.get_used_cores()
+        used_cores = self.get_port_used_cores()
         assert not used_cores, 'Some cores are still utilized: %s' % used_cores
 
 
@@ -126,15 +137,13 @@ class CoreID_Test(CStlGeneral_Test):
         stream_list = [STLStream(packet = self.pkt, core_id = i) for i in cores_list]
         self.c.add_streams(streams = stream_list, ports = self.tx_ports)
         self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
-        time.sleep(1)
-        used_cores = self.get_used_cores()
+        used_cores = self.get_port_used_cores()
         assert sorted(used_cores) == sorted(cores_list), 'Expected working cores: %s, got: %s' % (cores_list, used_cores)
         self.c.stop(ports = self.tx_ports)
         self.c.remove_all_streams(ports = self.tx_ports)
-        time.sleep(1)
 
         #asserting that stats are cleared 
-        used_cores = self.get_used_cores()
+        used_cores = self.get_port_used_cores()
         assert not used_cores, 'Some cores are still utilized: %s' % used_cores
 
 
@@ -146,8 +155,7 @@ class CoreID_Test(CStlGeneral_Test):
         self.c.add_streams(streams = s1, ports = self.tx_ports)
         self.c.add_streams(streams = s2, ports = self.tx_ports)
         self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
-        time.sleep(1)
-        used_cores = self.get_used_cores()
+        used_cores = self.get_port_used_cores()
         assert used_cores == [core_id], 'Only core %s is expected to be active, got: %s' % (core_id, used_cores)
         self.c.stop(ports = self.tx_ports)
         self.c.remove_all_streams(ports = self.tx_ports)
@@ -159,8 +167,7 @@ class CoreID_Test(CStlGeneral_Test):
         s2 = STLStream(name = 's2', packet = self.pkt, mode = STLTXSingleBurst(total_pkts = 3), core_id = core_id, next = 's1', self_start = False)
         self.c.add_streams(streams = [s1, s2], ports = self.tx_ports)
         self.c.start(ports = self.tx_ports, mult = "5%", duration = 3)
-        time.sleep(1)
-        used_cores = self.get_used_cores()
+        used_cores = self.get_port_used_cores()
         assert used_cores == [core_id], 'Only core %s is expected to be active, got: %s' % (core_id, used_cores)
         self.c.stop(ports = self.tx_ports)
         self.c.remove_all_streams(ports = self.tx_ports)
