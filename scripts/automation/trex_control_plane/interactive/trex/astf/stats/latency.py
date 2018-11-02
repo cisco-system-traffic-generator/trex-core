@@ -106,7 +106,7 @@ class CAstfLatencyStats(object):
             else:
                 rows.append(['Last-%d' % index])
             if index < len(self.history_of_max):
-                rows[-1] += [(val if val else '') for val in self.history_of_max[index]]
+                rows[-1] += [(val if val else '') for val in self.history_of_max[index][:5]]
             else:
                 rows[-1] += [''] * port_count
 
@@ -140,7 +140,7 @@ class CAstfLatencyStats(object):
         stats_table.set_cols_align(['l'] + ['r'] * port_count)
         stats_table.set_cols_width([self.longest_key] + [15] * port_count)
         stats_table.set_cols_dtype(['t'] * (1 + port_count))
-        header = ['Port ID:'] + list(data.keys())
+        header = ['Port ID:'] + ports
         stats_table.header(header)
 
         self._fit_to_panel(rows)
@@ -175,7 +175,7 @@ class CAstfLatencyStats(object):
         stats_table.set_cols_align(['l'] + ['r'] * port_count)
         stats_table.set_cols_width([self.longest_key] + [15] * port_count)
         stats_table.set_cols_dtype(['t'] * (1 + port_count))
-        header = ['Port ID:'] + list(data.keys())
+        header = ['Port ID:'] + ports
         stats_table.header(header)
 
         keys = list(reversed(sorted(rows.keys())))
@@ -235,7 +235,7 @@ class CAstfLatencyStats(object):
         stats_table.set_cols_align(['l'] + ['r'] * port_count)
         stats_table.set_cols_width([self.longest_key] + [15] * port_count)
         stats_table.set_cols_dtype(['t'] * (1 + port_count))
-        header = ['Port ID:'] + list(data.keys())
+        header = ['Port ID:'] + ports
         stats_table.header(header)
 
         self._fit_to_panel(rows)

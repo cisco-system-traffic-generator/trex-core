@@ -695,6 +695,13 @@ class OPTIONS_DB_ARGS:
          'const': 'latency_histogram',
          'help': "Fetch only latency histogram"})
 
+    LATENCY_COUNTERS = ArgumentPack(
+        ['--lc'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'latency_counters',
+         'help': "Fetch only latency counters"})
+
     CPU_STATS = ArgumentPack(
         ['-c'],
         {'action': 'store_const',
@@ -963,6 +970,7 @@ class OPTIONS_DB_GROUPS:
             PORT_STATUS,
             LATENCY_STATS,
             LATENCY_HISTOGRAM,
+            LATENCY_COUNTERS,
             CPU_STATS,
             MBUF_STATS,
             EXTENDED_STATS,
