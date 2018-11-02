@@ -15,6 +15,7 @@ if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
         exit -1
     fi
     cd -
+    SKIP_GTESTS="-e test_gtests_"
 fi
 
 if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
@@ -28,7 +29,7 @@ if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
     fi
 
     echo Python3 test
-    $PYTHON trex_unit_test.py --functional $WIRELESS $INPUT_ARGS
+    $PYTHON trex_unit_test.py --functional $WIRELESS $INPUT_ARGS $SKIP_GTESTS
     if [ $? -eq 0 ]; then
         printf "\n$PYTHON test succeeded\n\n"
     else
