@@ -53,28 +53,24 @@ class _CPcapReader_help(object):
 
     def condense_pkt_data(self):
         if self.condensed:
-            return
-
-        combined_data = ''
-        new_pkts = []
-        new_dirs = []
-        for pkt in self._pkts:
+            return;
+        prev_pkt = None
+        new_list = []
+        for i in range(1, len(self._pkts)):
+            pkt = self._pkts[i]
             if pkt.is_empty():
                 continue
 
-            if combined_data:
-                if combined_data.direction == pkt.direction:
-                    combined_data += pkt
+            if prev_pkt:
+                if prev_pkt.direction == pkt.direction:
+                    prev_pkt += pkt
                 else:
-                    new_pkts.append(combined_data)
-                    new_dirs.append(combined_data.direction)
-                    combined_data = pkt
+                    new_list.append(prev_pkt)
+                    prev_pkt = pkt
             else:
-                combined_data = pkt
-        new_pkts.append(combined_data)
-        new_dirs.append(combined_data.direction)
-        self._pkts = new_pkts
-        self._dir = new_dirs
+                prev_pkt = pkt
+        new_list.append(prev_pkt)
+        self._pkts = new_list
         self.condensed =True
 
     # return -1 if packets in given cap_reader equals to ones in self.
@@ -109,7 +105,7 @@ class _CPcapReader_help(object):
     def analyze(self):
         if self.analyzed:
             return;
-
+        pkt_num = 0
         pcap = None
         with open(self.file_name, 'rb') as f:
             pcap = dpkt.pcap.Reader(f)
@@ -118,7 +114,8 @@ class _CPcapReader_help(object):
 
             l4_type = None
             last_time=None;
-            for index, (time,buf) in enumerate(pcap):
+            index =0 ;
+            for (time,buf) in pcap:
                 dtime= time
                 pkt_time=0.0; # time from last pkt
                 if last_time == None:
@@ -126,6 +123,8 @@ class _CPcapReader_help(object):
                 else:
                     pkt_time=dtime-last_time;
                 last_time = dtime
+    
+                pkt_num += 1
 
                 eth = dpkt.ethernet.Ethernet(buf)
 
@@ -140,7 +139,8 @@ class _CPcapReader_help(object):
 
                 if not l3:
                     self.fail('Packet #%s in pcap is not IPv4 or IPv6!' % index)
-
+    
+    
                 # first packet
                 if self.c_ip is None:
                     self.c_ip = l3.src
@@ -243,15 +243,15 @@ class _CPcapReader_help(object):
                         if exp_c_seq != tcp.seq:
                             self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are no packet
                             loss or retransmission in cap file"""
-                                      .format(index, tcp.seq, exp_c_seq))
+                                      .format(pkt_num, tcp.seq, exp_c_seq))
                         exp_c_seq = tcp.seq + l4_payload_len
                     else:
                         if exp_s_seq != tcp.seq:
                             self.fail("""TCP seq in packet {0} is {1}. We expected {2}. Please check that there are
                             no packet loss or retransmission in cap file"""
-                                      .format(index, tcp.seq, exp_s_seq))
+                                      .format(pkt_num, tcp.seq, exp_s_seq))
                         exp_s_seq = tcp.seq + l4_payload_len
-
+                index = index +1
         self.analyzed =True
 
     def gen_prog_file_header(self, out):
