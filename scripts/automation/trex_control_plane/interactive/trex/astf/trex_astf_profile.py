@@ -678,30 +678,32 @@ class ASTFProgram(object):
                 cmd.index = ASTFProgram.buf_list.add(cmd.buf)
             self.fields['commands'].append(cmd)
 
-    def _create_cmds_from_cap(self, is_tcp, cmds, times, dirs, init_side):
-        assert len(cmds) == len(dirs)
-        if not cmds:
-            return
+    def _create_cmds_from_cap(self, is_tcp,cmds,times,dirs,init_side):
         new_cmds = []
-        if dirs[0] == 's' and init_side == 's':
-            new_cmds.append(ASTFCmdDelay(1))
+        origin = init_side
         tot_rcv_bytes = 0
         rx=False
         max_delay=0;
 
         if is_tcp:
-            for cmd, dir in zip(cmds, dirs):
-                if dir == init_side:
+            for cmd in cmds:
+                if origin == "c":
                     new_cmd = ASTFCmdSend(cmd.payload)
+                    origin = "s"
                 else:
                     # Server need to see total rcv bytes, and not amount for each packet
                     tot_rcv_bytes += len(cmd.payload)
                     new_cmd = ASTFCmdRecv(tot_rcv_bytes)
+                    origin = "c"
                 new_cmds.append(new_cmd)
         else:
-            assert len(cmds) == len(times)
             last_dir=None
-            for cmd, time, dir in zip(cmds, times, dirs):
+            for i in range(len(cmds)):
+                cmd = cmds[i]
+
+                time = times[i]
+                dir = dirs[i]
+                #print([i,time,dir,cmd]);
                 if dir == init_side:
                     if last_dir == init_side:
                         dusec=int(time*1000000)
