@@ -1234,8 +1234,10 @@ class TRexClient(object):
             Sets the port mode to L2
 
             :parameters:
-                 port      - the port to set the source address
-                 dst_mac   - destination MAC
+                 port: int
+                    Port ID to set the dest address
+                 dst_mac: string
+                    Destination MAC
             :raises:
                 + :exc:`TRexError`
         """
@@ -1261,10 +1263,14 @@ class TRexClient(object):
             Sets the port mode to L3
 
             :parameters:
-                 port      - the port to set the source address
-                 src_ipv4  - IPv4 source address for the port
-                 dst_ipv4  - IPv4 destination address
-                 vlan      - VLAN configuration - can be an int or a list up to two ints
+                 port: int
+                    Port ID to set the addresses
+                 src_ipv4: string
+                    IPv4 source address for the port
+                 dst_ipv4: string
+                    IPv4 destination address
+                 vlan: int or list of ints
+                    VLAN configuration
             :raises:
                 + :exc:`TRexError`
         """
@@ -1298,9 +1304,12 @@ class TRexClient(object):
             Configure IPv6 of port.
 
             :parameters:
-                 port      - the port to disable ipv6
-                 enabled   - bool wherever IPv6 should be enabled
-                 src_ipv6  - src IPv6 of port or empty string for auto-address
+                 port: uint8_t
+                    The port to disable ipv6
+                 enabled: bool
+                    Wherever IPv6 should be enabled
+                 src_ipv6: string
+                    Src IPv6 of port or empty string for auto-address
             :raises:
                 + :exc:`TRexError`
         """
@@ -1327,14 +1336,14 @@ class TRexClient(object):
             and periodic gratidious ARP
 
             :parameters:
-                 ports     - the port(s) to set the source address
-            
-                 vlan      - can be either None, int or a list of up to two ints
-                             each value representing a VLAN tag
-                             when two are supplied, provide QinQ tagging.
-                             The first TAG is outer and the second is inner
-                             
-                 
+                ports: list
+                    The port(s) to set the vlan
+
+                vlan: either None, int or a list of up to two ints
+                    each value representing a VLAN tag
+                    when two are supplied, provide QinQ tagging.
+                    The first TAG is outer and the second is inner
+
             :raises:
                 + :exc:`TRexError`
         """
@@ -1366,7 +1375,8 @@ class TRexClient(object):
             Clear any VLAN configuration on the port
 
             :parameters:
-                 ports - on which ports to clear VLAN config
+                 ports: int
+                    On which ports to clear VLAN config
                  
             :raises:
                 + :exc:`TRexError`
@@ -1382,12 +1392,18 @@ class TRexClient(object):
             Pings an IP address through a port
 
             :parameters:
-                 src_port     - on which port_id to send the ICMP PING request
-                 dst_ip       - which IP to ping
-                 pkt_size     - packet size to use
-                 count        - how many times to ping
-                 interval_sec - how much time to wait between pings
-                 vlan         - one or two VLAN tags o.w it will be taken from the src port configuration
+                 src_port: int
+                    On which port_id to send the ICMP PING request
+                 dst_ip: string
+                    Which IP to ping
+                 pkt_size: int
+                    Packet size to use
+                 count: int
+                    How many times to ping
+                 interval_sec: float
+                    how much time to wait between pings
+                 vlan: int or list of ints
+                    One or two VLAN tags o.w it will be taken from the src port configuration
 
             :returns:
                 List of replies per 'count'
@@ -1495,8 +1511,8 @@ class TRexClient(object):
             Sends the server a request for total shutdown
 
             :parameters:
-                force - shutdown server even if some ports are owned by another
-                        user
+                force: bool
+                    Shutdown server even if some ports are owned by another user
 
             :raises:
                 + :exc:`TRexError`
@@ -1524,10 +1540,14 @@ class TRexClient(object):
             unless 'force' is specified
 
             :parameters:
-                pkts       - scapy pkt or a list of scapy pkts
-                ports      - on which ports to push the packets
-                force      - ignore size higer than 1 MB
-                ipg_usec   - IPG in usec
+                pkts: scapy pkt or a list of scapy pkts
+                    Data to send
+                ports: list of ints
+                    On which ports to push the packets
+                force: bool
+                    Ignore size higer than 1 MB
+                ipg_usec: float
+                    IPG in usec
         """
         
         # by default, take acquire ports
@@ -1629,12 +1649,18 @@ class TRexClient(object):
             Set port attributes
 
             :parameters:
-                promiscuous      - True or False
-                link_up          - True or False
-                led_on           - True or False
-                flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-                resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
-                multicast        - enable receiving multicast, True or False
+                promiscuous: bool
+                    Promiscuous mode
+                link_up: bool
+                    Link status
+                led_on: bool
+                    LED of port
+                flow_ctrl: int
+                    0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
+                resolve: bool
+                    if true, in case a destination address is configured as IPv4 try to resolve it
+                multicast: bool
+                    enable receiving multicast
             :raises:
                 + :exe:'TRexError'
 
@@ -1703,8 +1729,10 @@ class TRexClient(object):
             In service mode ports will respond to ARP, PING and etc.
 
             :parameters:
-                ports          - for which ports to configure service mode on/off
-                enabled        - True for activating service mode, False for disabling
+                ports: list
+                    for which ports to configure service mode on/off
+                enabled: bool
+                    True for activating service mode, False for disabling
             :raises:
                 + :exe:'TRexError'
 
@@ -1741,10 +1769,14 @@ class TRexClient(object):
             Resolves ports (ARP resolution)
 
             :parameters:
-                ports          - which ports to resolve
-                retries        - how many times to retry on each port (intervals of 100 milliseconds)
-                verbose        - log for each request the response
-                vlan           - one or two VLAN tags o.w it will be taken from the src port configuration
+                ports: list
+                    List of port IDs to resolve
+                retries: int
+                    How many times to retry on each port (intervals of 100 milliseconds)
+                verbose: bool
+                    Log for each request the response
+                vlan: int or list of ints
+                    One or two VLAN tags o.w it will be taken from the src port configuration
             :raises:
                 + :exe:'TRexError'
 
@@ -1807,9 +1839,12 @@ class TRexClient(object):
             Search for IPv6 devices on ports
 
             :parameters:
-                ports          - at which ports to run scan6
-                timeout        - how much time to wait for responses
-                verbose        - log for each request the response
+                ports: list
+                    List of port IDs at which ports to run scan6
+                timeout: float
+                    how much time to wait for responses
+                verbose: bool
+                    log for each request the response
             :return:
                 list of dictionaries per neighbor:
 
@@ -2138,8 +2173,10 @@ class TRexClient(object):
             The queue is cyclic and will hold last 'size' packets
 
             :parameters:
-                ports          - for which ports to apply a queue
-                size           - size of the queue
+                ports: list
+                    For which ports to apply a queue
+                size: int
+                    size of the queue
             :raises:
                 + :exe:'TRexError'
 
@@ -2168,7 +2205,8 @@ class TRexClient(object):
             Removes RX queue from port(s)
 
             :parameters:
-                ports          - for which ports to remove the RX queue
+                ports: list
+                    for which ports to remove the RX queue
             :raises:
                 + :exe:'TRexError'
 

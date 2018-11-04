@@ -606,8 +606,7 @@ Starting from version 2.37, was added feature to run TRex on low-end machines li
 To enable this mode, define low_end argument in platform config file:
 [source,bash]
 ----
-  - port_limit: 2
-    version: 2
+  - version: 2
     interfaces: ['82:00.0', '82:00.1']
     low_end: true
 ...
@@ -692,6 +691,70 @@ Under the hood it's being replaced with the following (this full syntax can also
     interfaces: ['--vdev=net_af_packet0,iface=eth2', '--vdev=net_af_packet1,iface=eth3']
 ...
 ----
+
+=== Stacks
+
+anchor:stacks[]
+
+One can choose the method of how TRex answers to ping/ARP in interactive modes (STL/ASTF).
+(Starting from version 2.43)
+
+Valid values:
+
+* "legacy" - the default value, TRex uses it's own code to answer pings/ARPs.
+* "linux_based" - ARPs/pings are redirected to Linux interfaces, that deal with them. +
+The Linux interfaces reside in separate network namespace in order to have their own ARP tables and not interfere with the rest of system. +
+It can be extended in future to:
+** Support other protocols that Linux natively supports
+** Many [thousands] emulated clients, while TRex port is behaving as switch connecting all that clients.
+
+Platform config file example:
+[source,bash]
+----
+  - version: 2
+    interfaces: ['82:00.0', '82:00.1']
+    stack: linux_based
+...
+----
+
+.Features of stacks
+[options="header",cols="1,^1,^1",width="50%"]
+|=================
+| Stack: | legacy | linux_based
+| L2:    | V      | V
+| IPv4:  | V      | V
+| IPv6:  | X      | V
+| VLAN:  | V      | V
+|=================
+
+Examples of configuration:
+
+Console:
+
+L2, IPv4, VLAN - configured in same way with both stacks.
+
+IPv6:
+
+[source,bash]
+----
+trex>ipv6 --help
+usage: port [-h] -p PORT (--off | --auto | -s SRC_IPV6)
+
+Configures IPv6 of a port
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PORT, --port PORT  source port for the action
+  --off                 Disable IPv6 on port.
+  --auto                Enable IPv6 on port with automatic address.
+  -s SRC_IPV6, --src SRC_IPV6
+                        Enable IPv6 on port with specific address.
+----
+
+API:
+
+see link:cp_stl_docs/api/client_code.html#trex.stl.trex_stl_client.STLClient.conf_ipv6[IPv6 configuration]
+
 
 === Dummy ports
 
