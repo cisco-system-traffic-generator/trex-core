@@ -224,8 +224,14 @@ class SimCounter(object):
 
         self._match("client.tx==server.rx",ctx,srx);
         self._match("client.rx==server.tx",crx,stx);
-        self._match("client.tx==pcap.rx",ctx,tx_bytes);
-        self._match("client.rx==pcap.rx",crx,rx_bytes);
+        if ctx == tx_bytes:
+            self._match("client.tx==pcap.rx",ctx,tx_bytes);
+            self._match("client.rx==pcap.rx",crx,rx_bytes);
+        else:
+            # reverse side
+            self._match("client.tx==pcap.rx",ctx,rx_bytes);
+            self._match("client.rx==pcap.rx",crx,tx_bytes);
+
 
 
 def compare_counters (output,tx_bytes,
@@ -375,11 +381,10 @@ def run_sfr ():
     "avl/delay_10_https_0.pcap",
     "avl/delay_10_exchange_0.pcap",
 
-    # pcaps below require --full to work correctly as they send first data from server side
-    #"avl/delay_10_mail_pop_0.pcap",
-    #"avl/delay_10_oracle_0.pcap",
-    #"avl/delay_10_smtp_0.pcap",
-    #"avl/delay_10_citrix_0.pcap",
+    "avl/delay_10_mail_pop_0.pcap",
+    "avl/delay_10_oracle_0.pcap",
+    "avl/delay_10_smtp_0.pcap",
+    "avl/delay_10_citrix_0.pcap",
     ]
     for obj in l:
         run_sim(obj)
