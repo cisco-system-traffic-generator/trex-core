@@ -366,6 +366,9 @@ void CFlowGenListPerThread::generate_flow(bool &done){
         app_c->set_flow_ctx(m_c_tcp,tcp_flow);
         if (CGlobalInfo::m_options.preview.getEmulDebug() ){
             app_c->set_log_enable(true);
+            app_c->set_debug_id(0);
+            tcp_flow->m_tcp.m_socket.so_options |= US_SO_DEBUG;
+            tcp_set_debug_flow(&tcp_flow->m_tcp);
         }
 
         tcp_flow->set_app(app_c);
