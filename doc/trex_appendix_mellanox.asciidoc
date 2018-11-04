@@ -194,6 +194,7 @@ mlx5_1 port 1 ==> enp4s0f1 (Up)
 |=================
 | Packet size  | Tx L1 Percent (100Gb) | Rx L1 Percent (100Gb)
 | 64  |  100%  | 88%
+| imix | 82%   | 82%,  64B PCI optimization does not work
 | 128 |  100%  | 100%
 | 256 |  100%  | 100%
 | 512 |  100%  | 100%
