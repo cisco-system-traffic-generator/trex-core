@@ -570,9 +570,16 @@ class ASTFProgram(object):
 
     def connect(self):
         """
-        for TCP connection wait for the connection to be connected. should be the first command  
+        for TCP connection wait for the connection to be connected. should be the first command in the client side
         """
 
+        self.fields['commands'].append(ASTFCmdConnect())
+
+    def accept(self):
+        """
+        for TCP connection wait for the connection to be accepted. should be the first command in the server side 
+        """
+    
         self.fields['commands'].append(ASTFCmdConnect())
 
 
@@ -683,13 +690,15 @@ class ASTFProgram(object):
         if not cmds:
             return
         new_cmds = []
-        if dirs[0] == 's' and init_side == 's':
-            new_cmds.append(ASTFCmdDelay(1))
         tot_rcv_bytes = 0
         rx=False
         max_delay=0;
 
         if is_tcp:
+            # In case that server start sending the traffic we must wait for the connection to establish
+            if dirs[0] == 's' and init_side == 's':
+                new_cmds.append(ASTFCmdConnect())
+
             for cmd, dir in zip(cmds, dirs):
                 if dir == init_side:
                     new_cmd = ASTFCmdSend(cmd.payload)
