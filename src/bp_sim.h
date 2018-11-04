@@ -1058,14 +1058,16 @@ public:
 static inline int fill_pkt(CCapPktRaw  * raw,rte_mbuf_t * m){
     raw->pkt_len = m->pkt_len;
     char *p=raw->raw;
-
-    rte_mbuf_t *m_next;
-
+    uint32_t pkt_len = m->pkt_len;
     while (m != NULL) {
-        m_next = m->next;
-        rte_memcpy(p,m->buf_addr,m->data_len);
-        p+=m->data_len;
-        m = m_next;
+        uint16_t seg_len=m->data_len;
+        rte_memcpy(p,rte_pktmbuf_mtod(m,char *),seg_len);
+        p+=seg_len;
+        pkt_len-=seg_len;
+        m = m->next;
+        if (pkt_len==0) {
+            assert(m==0);
+        }
     }
     return (0);
 }
