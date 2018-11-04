@@ -1432,6 +1432,27 @@ this example will wait for connect and then will send RST packet to shutdown pee
 
 see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
+
+==== Tutorial: L7 emulation - server send the first data
+
+When the server is the first to send the data (e.g. citrix,telnet) there is a need to wait for the server to accept the connection.
+
+.accept() server example 
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.recv(len(http_response))
+        prog_c.send(http_req)
+
+        prog_s = ASTFProgram()
+        prog_s.accept()              # server waits for the connection to be established 
+        prog_s.send(http_response)
+        prog_s.recv(len(http_req))
+
+----
+
+see link:{github_astf_path}/http_reverse2.py[astf/http_reverse2.py]
+
 ==== Tutorial: L7 emulation - delay server response
 
 .Constant delay 
