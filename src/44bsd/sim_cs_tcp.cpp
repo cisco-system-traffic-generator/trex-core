@@ -22,7 +22,7 @@ limitations under the License.
 #include "sim_cs_tcp.h"
 #include <astf/astf_db.h>
 #include <astf/astf_template_db.h>
-
+#include "trex_global.h"
 #include "stt_cp.h"
 
 #define CLIENT_SIDE_PORT        1025
@@ -618,8 +618,12 @@ int CClientServerTcp::test2(){
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(&m_c_ctx,c_flow);
-    app_c->set_debug_id(1);
+    app_c->set_debug_id(0);
     c_flow->set_app(app_c);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app_c->set_log_enable(true);
+    }
+
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
@@ -1230,8 +1234,12 @@ int CClientServerTcp::fill_from_file() {
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(&m_c_ctx,c_flow);
-    app_c->set_debug_id(1);
+    app_c->set_debug_id(0);
     c_flow->set_app(app_c);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app_c->set_log_enable(true);
+    }
+
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
 
