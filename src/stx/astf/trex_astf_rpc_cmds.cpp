@@ -136,7 +136,7 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
     TrexAstf *stx = get_astf_object();
 
     if ( frag_first && !frag_last) {
-        const uint32_t total_size = parse_int(params, "total_size", result);
+        const uint32_t total_size = parse_uint32(params, "total_size", result);
         if ( stx->profile_check_size(total_size) ) {
             const string hash = parse_string(params, "md5", result);
             if ( stx->profile_check_hash(hash) ) {
@@ -281,7 +281,7 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
     lat_start_params_t args;
 
     args.cps = parse_double(params, "mult", result);
-    args.ports_mask  = parse_int(params, "mask", result);
+    args.ports_mask  = parse_uint32(params, "mask", result);
     args.client_ip.v4 = src_ip;
     args.server_ip.v4 = dst_ip;
     args.dual_ip = dual_ip;

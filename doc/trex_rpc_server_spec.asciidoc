@@ -72,7 +72,7 @@ In general, we will describe the following:
 
 TRex server transport layer is implemented using ZMQ.
 
-The default configuration is TCP on port 5555, however this is configurable.
+The default configuration is TCP on port 4501, however this is configurable.
 
 {zwsp} +
 The communication model is based on the request-reply ZMQ model:
@@ -1897,7 +1897,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 | Field           | Type    | Description 
 | frag_first      | boolean | true in case this is the first fragment 
 | frag_last       | boolean | true in case this is the last fragment 
-| total_size      | uint32_t| the size of the fragment 
+| total_size      | uint32_t| the size of whole profile string
 | md5             | string  | come in first message with frag_first=true
 | fragment        | string  | partial string of the input json
 |=================
@@ -1914,7 +1914,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Result* ['object'] - {}
 
 
-=== Start profile 
+=== Start traffic
 
 * *Name* - 'start'
 * *API Class* - 'core'
@@ -1929,17 +1929,18 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 [options="header",cols="1,1,3"]
 |=================
 | Field           | Type    | Description 
-| duration        | uint32_t| true in case this is the first fragment 
-| mult            | double  | CPS Multiplier 
-| nc              | uint32_t| If set, will terminate exacly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
-| ipv6            | bool    | convert the profile to ipv6 
-| latency         | uint32_t| rate of the latency. 0 means disable
+| duration        | double  | Stop producing new flows after duration
+| mult            | double  | CPS Multiplier
+| nc              | bool    | If set, will terminate exacly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
+| ipv6            | bool    | convert the profile to ipv6
+| latency         | uint32_t| rate of the latency packets. 0 means disable
+| client_mask     | uint32_t| mask of client ports. bit is 0 => client is disabled.
 |=================
 
 
-=== Stop profile 
+=== Stop traffic
 
-* *Name* - 'start'
+* *Name* - 'stop'
 * *API Class* - 'core'
 * *Valid States* - 'active'
 * *Description* - Stop the active traffic 
@@ -1949,13 +1950,13 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Result* ['object'] - {}
 
 
-=== Update profile 
+=== Update traffic rate
 
 
 * *Name* - 'update'
 * *API Class* - 'core'
 * *Valid States* - 'active'
-* *Description* - Update the multiplier 
+* *Description* - Update the multiplier of running traffic
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 
@@ -1965,7 +1966,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 [options="header",cols="1,1,3"]
 |=================
 | Field           | Type    | Description 
-| mult            | double  | CPS multiplier 
+| mult            | double  | New CPS multiplier (overrides old one)
 |=================
 
 
@@ -1980,9 +1981,9 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 * *Result* ['object'] - {}
 
-each counter have the folowing metadata
+List of counters descriptions, each have the folowing metadata:
 
-.Parameters
+.Counter description
 [options="header",cols="1,1,3"]
 |=================
 | Field           | Type    | Description 
@@ -1991,8 +1992,8 @@ each counter have the folowing metadata
 | help            | string  | help string 
 | zero            | bool    | show zero counters
 | info            | string  | short string for desribing 
-| real            | bool    | true if double, else uint64
-| abs             | bool    | show abs 
+| real            | bool    | does this counter actually represent some value and not just graphical separator
+| abs             | bool    | absolute (non-relative) counters, should not be cleared by clear stats.
 |=================
 
 === Get ASTF counters 
@@ -2024,11 +2025,11 @@ array of id and value
 [options="header",cols="1,1,3"]
 |=================
 | Field           | Type    | Description 
-| mult            | double  | multiplier e.g. 1000 Hz
-| src_addr        | string  | ipv4 src addr 
-| dst_addr        | string  | ipv4 dst addr 
+| mult            | double  | rate of latency packets
+| src_addr        | string  | ipv4 src addr
+| dst_addr        | string  | ipv4 dst addr
 | dual_port_addr  | string  | dual mask ipv4 addr e.g. 1.0.0.0
-| mask            | bool    | mask of ports 
+| mask            | uint32_t| mask of ports
 |=================
 
 
@@ -2059,7 +2060,7 @@ array of id and value
 [options="header",cols="1,1,3"]
 |=================
 | Field           | Type    | Description 
-| mult            | double  | multiplier e.g. 1000 Hz
+| mult            | double  | new rate of latency packets
 |=================
 
 === Get latency stats
@@ -2120,6 +2121,44 @@ Describes the log off from the machine
 * *get_global_stats* ['optional'] - make sure the machine has stopped
 * *remove_all_streams* ['optional'] - if you want to clear all the previous streams - use this
 * *release* - release the ownership over the device
+
+
+== Error codes
+
+Some RPCs will not respond with expected result immediately (for example, configurations in linux_based stack). +
+Instead, they will return one of errors described in this section
+
+Values of used enums are available at: +
+src/rpc-server/trex_rpc_jsonrpc_v2_parser.cpp
+
+=== Try again
+
+response["error"]["code"] == JSONRPC_V2_ERR_TRY_AGAIN
+
+Command can not be executed now, try again later (query of ports status in the middle of config etc.) +
+Same query should be repeated again later (maybe several times)
+
+=== Async WIP
+
+response["error"]["code"] == JSONRPC_V2_ERR_WIP
+
+Command is being processed, results can be queried later by special ticket id, which is available at result["specific_err"]. +
+Command to query async result is: get_async_results
+
+.get_async_results parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| ticket_id       | uint64_t| Ticket ID used to identify the async command being processed.
+|=================
+
+
+=== No results
+
+response["error"]["code"] == JSONRPC_V2_ERR_NO_RESULTS
+
+Something went wrong, results are not available. +
+Should not happen...
 
 
 :numbered!:
