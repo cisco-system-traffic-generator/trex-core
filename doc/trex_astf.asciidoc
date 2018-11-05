@@ -50,7 +50,7 @@ Consider this document as an extension to the manual, it might be integrated in 
 
 TRex supports Stateless (STL) and Stateful (STF) modes.  
 
-This document describes the new Advance Stateful mode (ASTF) that support TCP layer. 
+This document describes the new Advance Stateful mode (ASTF) that supports TCP layer. 
 
 The following UDP/TCP related use-cases will be addressed by ASTF mode. 
 
@@ -122,7 +122,7 @@ WARNING: ASTF support was released, however it is under constant improvement.
 Can we leverage one of existing DPDK TCP stacks for our need? The short answer is no. 
 We chose to take a BSD4.4 original code base with FreeBSD bug fixes patches and improve the scalability to address our needs. 
 More on the reasons why in the following sections, but let me just say the above TCP DPDK stacks are optimized for real client/server application/API while in most of our traffic generation use cases, *most* of the traffic is known ahead of time allowing us to do much better.
-let's take a look into what are the main properties of TRex TCP module and understand what were the main challenges we tried to solve.
+Let's take a look into what are the main properties of TRex TCP module and understand what were the main challenges we tried to solve.
 
 ==== The main properties of scalable TCP for traffic generation
 
@@ -179,8 +179,8 @@ A better solution is to queue a pointer to both the TCP flow and the TCP descrip
 
 To emulate L7 application on top of the TCP layer we can define a set of simple operations. 
 The user would be able to build an application emulation layer from Python API or by a utility that we will provide that will analyze a pcap file and convert it to TCP operations. 
-Another thing that we can learn from pcap is the TCP parameters like MSS/Window size/Nagel/TCP options etc
-Let's give a simple example of a L7 emulation of HTTP Client and HTTP Server
+Another thing that we can learn from pcap is the TCP parameters like MSS/Window size/Nagel/TCP options etc..
+Let's give a simple example of a L7 emulation of HTTP Client and HTTP Server:
 
 .HTTP Client
 [source,python]
@@ -505,7 +505,7 @@ if ( flow_table.lookup(pkt) == False ) :
 
 ----
 <1> As you can see from the pseudo code there is no need to open all the servers ahead of time, we open and allocate socket only when packet match the criteria of server side
-<2> the program is the opposite of the client side.
+<2> The program is the opposite of the client side.
     
 The above is just a pseudo code that was created to explain how logically TRex works. It was simpler to show a pseudo code that runs in one thread in blocking  fashion, but in practice it is run in an event driven and many flows can multiplexed in high performance and scale. 
 The L7 program can be written using Python API (it is compiled to micro-code event driven by TRex server).
@@ -518,7 +518,7 @@ Simple browsing, HTTP and HTTPS flow. In this example, each template has differe
 
 *Traffic profile*::  
 
-the profile include HTTP and HTTPS profile. each second there would be 2 HTTPS flows and 1 HTTP flow. 
+The profile include HTTP and HTTPS profile. Each second there would be 2 HTTPS flows and 1 HTTP flow. 
 
 *File*:: 
 
@@ -560,12 +560,16 @@ def register():
 The server side chooses the template base on the *destination* port. Because each template has a unique destination port (80/443) there is nothing to do.  In the next example we will show what to do in case both templates has the same destination port.
 From the client side, the scheduler will schedule in each second 2 HTTPS flows and 1 HTTP flow base on the CPS
 
+[NOTE] 
+=====================================================================
+In the real file cps=1 in both profiles.
+=====================================================================
 
 ==== Tutorial: Profile with two templates same ports
 
 *Goal*:: 
 
-create profile with two HTTP templates. In this example, both templates has the same destination port (80)
+Create profile with two HTTP templates. In this example, both templates have the same destination port (80)
 
 *Traffic profile*::  
 
@@ -605,17 +609,17 @@ def register():
 
 *Discussion*::
 
-In a real world the same server can handle many types of transaction on the same port base on the request. In this TRex version we have this limitation as it is only an emulation. next we would add better engine that could associate the template base on server Ip-port socket or by L7 data 
+In the real world, the same server can handle many types of transactions on the same port based on the request. In this TRex version we have this limitation as it is only an emulation. Next, we would add a better engine that could associate the template based on server IP-port socket or by L7 data 
 
 ==== Tutorial: Profile with two range of tuple generator 
 
 *Goal*:: 
 
-create a profile with two set of client/server tuple pools
+Create a profile with two sets of client/server tuple pools.
 
 *Traffic profile*::  
 
-The profile includes same HTTP template for demonstration. 
+The profile includes the same HTTP template for demonstration. 
 
 *File*:: 
 
@@ -655,14 +659,14 @@ class Prof1():
 
         return profile
 ----
-<1> define generator range 1
-<2> define generator range 2
-<3> assigne generator range 1 to the first template 
-<4> assigne generator range 2 to the second template 
+<1> Define generator range 1
+<2> Define generator range 2
+<3> Assign generator range 1 to the first template
+<4> Assign generator range 2 to the second template
 
 *Discussion*::
 
-The tuple generator ranges should not overlap 
+The tuple generator ranges should not overlap.
 
 ==== Tutorial: IPv6 traffic 
 
@@ -735,7 +739,7 @@ class Prof1():
 <2> Set default for destination IPv6 addr (32bit LSB will be set by IPv4 tuple generator)
 <3> Enable ipv6 for all templates 
 
-in this case there is *no* need for `--ipv6` in CLI 
+In this case there is *no* need for `--ipv6` in CLI 
   
 [source,bash]
 ----
@@ -845,7 +849,7 @@ class Prof1():
 
 
 ----
-<1> only the second template will get the c_info/s_info
+<1> Only the second template will get the c_info/s_info
 
 
 *Examples Files*:: 
@@ -860,15 +864,15 @@ class Prof1():
 * link:{github_astf_path}/param_tcp_rxbufsize_8k.py[astf/param_tcp_rxbufsize_8k.py]
 * link:{github_astf_path}/tcp_param_change.py[astf/tcp_param_change.py]
 
-for referance of all tunables see  xref:tunables[here]
+For reference of all tunables see:  xref:tunables[here]
 
 ==== Tutorial: Python automation (v2.47 and up)
 
-*Goal*:: Simple automation test using Python from a local or remote machine 
+*Goal*:: Simple automation test using Python from a local or remote machine.
 
 *File*:: link:{github_astf_i_examples_path}/stf_tcp.py[astf_example.py]
 
-For this mode to work, TRex server should have started with interactive mode 
+For this mode to work, TRex server should have started with interactive mode. 
 
 .Start ASTF in interactive mode
 [source,bash]
@@ -882,14 +886,14 @@ sudo ./t-rex-64 -i --astf
 ----
     c = ASTFClient(server = server)
 
-    c.connect()
+    c.connect()                                                               <1>
 
     c.reset()
 
     if not profile_path:
         profile_path = os.path.join(astf_path.ASTF_PROFILES_PATH, 'http_simple.py')
         
-    c.load_profile(profile_path)                                             <1>
+    c.load_profile(profile_path)
         
     c.clear_stats()
         
@@ -907,10 +911,10 @@ sudo ./t-rex-64 -i --astf
         for w in c.get_warnings():
              print(w)
 -----
-<1> connect 
-<2> start the traffic 
-<3> wait for the test to finish
-<4> get all stats  
+<1> Connect 
+<2> Start the traffic 
+<3> Wait for the test to finish
+<4> Get all stats  
 
 
 ==== Tutorial: Python automation batch mode (planned to be deprecated)
@@ -924,7 +928,7 @@ Python API examples: `automation/trex_control_plane/stf/examples`.
 Python API library: `automation/trex_control_plane/stf/trex_stl_lib`.
 
 
-This mode works with STF python API framework and it is deprecated
+This mode works with STF python API framework and it is deprecated.
 
 image::images/trex_control_plane_modules.png[title="RPC Server Components",align="center",width={p_width}, link="images/trex_architecture_01.png"]
 
@@ -1004,14 +1008,14 @@ See link:cp_docs/index.html[TRex Stateful Python API] for details about using th
                     'm_active_flows': 6662,
                     'm_avg_size': 1834.3,
                     },
-            'err' : { 'some erorr counter name' : 'descriptiuon of the counter'} <1>
+            'err' : { 'some error counter name' : 'description of the counter'} <1>
             },
  'server': { 'all': {},
              'err' : {}    
            }
  }
 ----
-<1> 'err' object won't be exist in case of no error 
+<1> 'err' object won't exist in case of no error 
 
 
 .ASTF  example of ASTF counters with no errors
@@ -1070,7 +1074,7 @@ See link:cp_docs/index.html[TRex Stateful Python API] for details about using th
 
 In case there are no errors the 'err' object won't be there.
 In case of an error counters the 'err' section will include the counter and the description.
-The 'all' section includes the good and error counters value
+The 'all' section includes the good and error counters value.
 
 ==== Tutorial: Simple simulator
 
@@ -1083,7 +1087,7 @@ There is no need for super user in case of simulation.
 
 The TRex simulator can:
 
-Demonstrates the most basic use case using TRex simulator.
+Demonstrate the most basic use case using TRex simulator.
 In this simple simulator there is *one* client flow and *one* server flow and there is *only* one template (the first one).
 The objective of this simulator is to verify the TCP layer and application layer.
 In this simulator, it is possible to simulate many abnormal cases for example:
@@ -1095,7 +1099,7 @@ In this simulator, it is possible to simulate many abnormal cases for example:
 * Set the round trip time
 * Convert the profile to JSON format
 
-We didn't expose all the capability of the simulator tool but you could debug the emulation layer using this tool and explore the pcap output files. 
+We didn't expose all the capabilities of the simulator tool but you could debug the emulation layer using this tool and explore the pcap output files. 
 
 Example traffic profile:
 
@@ -1224,7 +1228,7 @@ We might change the JSON format in the future as this is a first version
 
 *Goal*:: Use the TRex ASTF advanced simulator.
 
-It is like the simple simulator but simulate multiple templates and flows exacly like TRex server would do with one DP core 
+It is like the simple simulator but simulates multiple templates and flows exacly like TRex server would do with one DP core. 
 
 [source,bash]
 ----
@@ -1232,11 +1236,11 @@ It is like the simple simulator but simulate multiple templates and flows exacly
 ----
 
 
-* Use `--full' initiated the full simulation mode
-* b.pcap output pcap file will be generated, it is the client side multiplex pcap
+* Use `--full' to initiate the full simulation mode.
+* b.pcap output pcap file will be generated, it is the client side multiplex pcap.
 * There is no server side pcap file in this simulation because we are not simulating latency/jitter/drop in this case so the server should be the same as client side.
 
-another example that will run sfr profile in release mode and will show the counters 
+Another example that will run sfr profile in release mode and will show the counters 
 
 [source,bash]
 ----
@@ -1245,7 +1249,7 @@ another example that will run sfr profile in release mode and will show the coun
 
 ==== Tutorial: Manual L7 emulation program building 
 
-*Goal*:: Build the L7 program using low level commands 
+*Goal*:: Build the L7 program using low level commands.
 
 .Manual L7 emulation program 
 [source,python]
@@ -1292,16 +1296,16 @@ class Prof1():
 
 
 ----
-<1> build the emulation program 
-<2> first send http request
-<3> wait for http response 
+<1> Build the emulation program 
+<2> First send http request
+<3> Wait for http response 
 
 We will expose in the future a capability that could take a pcap file and convert it to a Python code so you could tune it yourself.
 
 
 ==== Tutorial: Profile CLI tunable 
 
-*Goal*:: Tune a profile by the CLI arguments. for example change the response size by given args
+*Goal*:: Tune a profile by the CLI arguments. For example change the response size by given args.
 
 Every traffic profile must define the following function:
 
@@ -1319,7 +1323,7 @@ The profile defines which tunables can be input to customize output.
 * All parameters require default values. 
 * A profile must be loadable with no parameters specified.
 * Every tunable must be expressed as key-value pair with a default value.
-* `-t key=val,key=val` is the way to provide the key-value to the profile
+* `-t key=val,key=val` is the way to provide the key-value to the profile.
 
 .Example http_res_size 
 [source,python]
@@ -1351,9 +1355,9 @@ def create_profile (self, **kwargs):
 
 ==== Tutorial: L7 emulation - fin/ack/fin/ack 
 
-Bt default when the L7 emulation program is ended the socket is closed implicitly.
+By default when the L7 emulation program is ended the socket is closed implicitly.
 
-This example force the *server* side to wait for close from peer (client) and only then will send FIN.
+This example forces the *server* side to wait for close from peer (client) and only then will send FIN.
 
 .fin-ack example
 [source,python]
@@ -1383,16 +1387,16 @@ The packets trace should look like this:
   -------------
 ----  
         
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
 
 ==== Tutorial: L7 emulation - syn-syn/ack-ack/rst
 
 By default, when the L7 emulation program is started the sending buffer waits inside the socket.
 
-This will seen as SYN/SYN-ACK/GET-ACK in the trace (piggyback ack in the GET requests)
+This is seen as SYN/SYN-ACK/GET-ACK in the trace (piggyback ack in the GET requests).
 
-To force the client side to send ACK and only *then* send the data use the 'connect()' command
+To force the client side to send ACK and only *then* send the data use the 'connect()' command.
 
 [source,python]
 ----
@@ -1417,7 +1421,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
         prog_s.wait_for_peer_close(); # wait for client to close the socket 
 ----
 
-this example will wait for connect and then will send RST packet to shutdown peer and current socket 
+This example will wait for connect and then will send RST packet to shutdown peer and current socket.
 
 [source,python]
 ----
@@ -1430,7 +1434,7 @@ this example will wait for connect and then will send RST packet to shutdown pee
   -------------
 ----  
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 
 ==== Tutorial: L7 emulation - server send the first data
@@ -1451,7 +1455,7 @@ When the server is the first to send the data (e.g. citrix,telnet) there is a ne
 
 ----
 
-see link:{github_astf_path}/http_reverse2.py[astf/http_reverse2.py]
+See link:{github_astf_path}/http_reverse2.py[astf/http_reverse2.py]
 
 ==== Tutorial: L7 emulation - delay server response
 
@@ -1485,15 +1489,15 @@ This example will delay the server response by 500 msec.
         
 ----
 
-This example will delay the server by random number betwean 100-500 msec 
+This example will delay the server by a random delay between 100-500 msec 
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 ==== Tutorial: L7 emulation - delay client request
 
 This example will delay the client side.
 
-In this  example the client sends partial request (10 bytes), wait 100msec and then send the rest of the request (there would be two segments for one request)
+In this  example the client sends partial request (10 bytes), waits 100msec and then sends the rest of the request (there would be two segments for one request).
 
 .Client delay 
 [source,python]
@@ -1525,17 +1529,17 @@ In this  example the client sends partial request (10 bytes), wait 100msec and t
 
 ----
 
-In this example the client connects first, wait for 100msec the only then send full request (there would be *one* segment for one request)
+In this example the client connects first, waits for 100msec and only then sends full request (there would be *one* segment for one request).
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
-a side effect of this delay is more active-flows 
+A side effect of this delay is more active-flows.
 
-==== Tutorial: L7 emulation - Elefeant flows 
+==== Tutorial: L7 emulation - Elephant flows 
 
-Let say we would like to send only 50 flows with very big size (4GB)
-Loading a 4GB of buffer would be a challenge as TRex memory is limited. 
-What we can do is loop inside the client side to send 1MB buffer 4096 times and then finish with termination.
+Let say we would like to send only 50 flows with very big size (4GB).
+Loading a 4GB buffer would be a challenge as TRex's memory is limited. 
+What we can do is loop inside the server side to send 1MB buffer 4096 times and then finish with termination.
 
 .Client Delay 
 [source,python]
@@ -1551,13 +1555,13 @@ What we can do is loop inside the client side to send 1MB buffer 4096 times and 
         prog_s.send(http_response_1mbyte)
         prog_s.jmp_nz("var2","a:")     #<3> dec var "var2". in case it is *not* zero jump a: 
 ----
-<1> set varibale 
-<2> set label 
-<3> jump to label 4096 
+<1> Set varibale 
+<2> Set label 
+<3> Jump to label 4096 times
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
-Usually in case of a very long flows there is a need to cap the number of  active flows, this can be done by `limit` directive 
+Usually in case of very long flows there is need to cap the number of active flows, this can be done by `limit` directive. 
 
 .Limit the number to flows
 [source,python]
@@ -1567,14 +1571,14 @@ Usually in case of a very long flows there is a need to cap the number of  activ
                             cps=1,limit=50)]) #<1>
 
 ----
-<1> use `limit` field to control the total flows generated
+<1> Use `limit` field to control the total flows generated.
 
 
-==== Tutorial: L7 emulation - Elefeant flows with non-blocking send  
+==== Tutorial: L7 emulation - Elephant flows with non-blocking send  
 
 By default `send()` command waits for the ACK on the last byte. To make it non-blocking, especially in case big BDP (large window is required) it is possible to work in non-blocking mode, this way to achieve full pipeline. 
 
-have a look int `astf/htttp_eflow2.py` example 
+Have a look at `astf/htttp_eflow2.py` example. 
 
 .Non-blocking send 
 [source,python]
@@ -1614,14 +1618,14 @@ have a look int `astf/htttp_eflow2.py` example
         prog_s.send(http_response)
 ----
 <1> Set all send mode to be non-blocking from now on
-<2> Back to blocking mode. to make the last send to be blocking 
+<2> Back to blocking mode. To make the last send blocking 
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 ==== Tutorial: L7 emulation - http pipeline 
 
-In this example, there would be 5 parallel requests and wait for 5 responses 
-The first response could come while we are sending the first request as the Rx side and Tx side work in parallel
+In this example, there would be 5 parallel requests and wait for 5 responses.
+The first response could come while we are sending the first request as the Rx side and Tx side work in parallel.
 
 .Pipeline
 [source,python]
@@ -1637,12 +1641,12 @@ The first response could come while we are sending the first request as the Rx s
         prog_s.send(pipeline*http_response)
 ----
 
-see link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
+See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 
 ==== Tutorial: L7 emulation - UDP example 
 
-This example will show UDP example 
+This example will show an UDP example.
 
 .Client delay 
 [source,python]
@@ -1656,10 +1660,10 @@ This example will show UDP example
         prog_s.recv_msg(1)
         prog_s.send_msg(http_response) 
 ----
-<1> send UDP messgae 
-<2> wait for number of packets 
+<1> Send UDP message
+<2> Wait for number of packets
 
-In case of pcap file, it will be converted to send_msg/recv_msg/delay taken from the pcap file 
+In case of pcap file, it will be converted to send_msg/recv_msg/delay taken from the pcap file.
 
 === Performance 
 
@@ -1669,7 +1673,7 @@ see link:trex_astf_vs_nginx.html[ASTF Performance]
 
 With ASTF mode, it is possible to  work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.
 
-WARNING: We are in the process to move to interactive model, so the following ways to configure the C/S modes (as batch) is changing. This is a temporary solution and it going to be more flexible in the future. the roadmap is to give a RCP command to configure each port to client or server mode.
+WARNING: We are in the process to move to interactive model, so the following ways to configure the C/S modes (as batch) is changing. This is a temporary solution and it going to be more flexible in the future. The roadmap is to give a RCP command to configure each port to client or server mode.
 
 The current way to control the C/S mode is using the following CLI switch. There is only a way to disable the Client side ports for transmission, but there is no way to change the mode of each port. 
 
@@ -1681,7 +1685,7 @@ The current way to control the C/S mode is using the following CLI switch. There
 | --astf-client-mask [mask] | Enable only specific client side ports with ASTF service. 0x1 means to enable only port 0. 0x2 means to enable only port 2. 0x5 to enable port 0 and port 4.
 |=================
 
-some examples 
+Some examples:
 
 .Normal mode, 4 ports --astf
 [options="header",cols="1,5"]
@@ -1731,7 +1735,7 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 ==== Limitation 
 
 * Latency (`-l` switch) should be disabled when working in this mode because both Client and Server will send ICMP packets to all the ports
-* To configure TRex with all ports acting as client side or all ports acting as server side use "dummy" port configuration (see the main manual);
+* To configure TRex with all ports acting as client side or all ports acting as server side use "dummy" port configuration (see the main manual)
 
 === Client clustering configuration
 
@@ -1739,7 +1743,7 @@ TRex ASTF supports testing complex topologies with more than one DUT, using a fe
 
 For more information about this feature have a look here link:trex_manual.html#_client_clustering_configuration[Client clustering configuration]
 
-The format of the client cluster file is YAML the same as STF mode and it will be changed in interactive model.
+The format of the client cluster file is YAML, the same as STF mode, and it will be changed in interactive model.
 
 To run simulation with this mode add `--cc` to the CLI: 
 
@@ -1766,7 +1770,7 @@ To run TRex add `--client_cfg` CLI :
 [NOTE]
 =====================================================================
 The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT. 
-Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
+Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch, the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
 =====================================================================
 
 
@@ -1774,8 +1778,8 @@ Another fact is the TRex ports is behaving like trunk ports with all VLAN allowe
 
 Distribution to multi core is done using RSS hardware assist. Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
 It can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). 
-For more complex tunnel traffic there is a need for a software distributed that will be slower. 
-It is possible to enable this assit on some virtual NIC (e.g. vmxnet3) if there would be a request for that.
+For more complex tunnel traffic there is need for a software distribution that will be slower. 
+It is possible to enable this asset on some virtual NIC (e.g. vmxnet3) if there would be a request for that.
 
 .NICs that support RSS
 [options="header",cols="3^,2^,2^,2^",width="50%"]
@@ -1802,7 +1806,7 @@ ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
 [NOTE]
 =====================================================================
 When using RSS, the number of sockets (available source ports per clients IP) will be 100% divided by the numbers of cores (c). For example for c=3 each client IP would have 64K/3 source ports = 21K ports. In this case it is advised to add more clients to the pool (in case you are close to the limit). 
-in other words the reported socket-util is the console should be multiply by c
+In other words the reported socket-util is the console should be multiplied by c.
 =====================================================================
 
 
@@ -1836,12 +1840,12 @@ link:cp_astf_docs/index.html[python index]
 |=================
 
 * There would be a performance impact when per-template tunables are used. Try to use global tunables.
-* The tunables mechanism does not work with the basic simulator mode only with the advanced simulator mode.
+* The tunables mechanism does not work with the basic simulator mode but only with the advanced simulator mode.
 
 === Counters reference 
 
 * Client side aggregates the ASTF counters from all client ports in the system (e.g. 0/2/4)
-* Server side aggregates the ASTF counters from all client ports in the system (e.g. 1/3/5)
+* Server side aggregates the ASTF counters from all server ports in the system (e.g. 1/3/5)
 
 .General counters 
 [options="header",cols="1,^1,5"]
@@ -1963,15 +1967,15 @@ link:cp_astf_docs/index.html[python index]
 
 *1*:: 
 
-see link:https://en.wikipedia.org/wiki/Large_send_offload[TSO], we count the number of TSO packets with NIC that support that, this number could be significantly smaller than the real number of packets
+See link:https://en.wikipedia.org/wiki/Large_send_offload[TSO], we count the number of TSO packets with NICs that support that, this number could be significantly smaller than the real number of packets
 
 *2*:: 
 
-see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the number of LRO packets with NIC that support that, this number could be significantly smaller than the real number of packets
+see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the number of LRO packets with NICs that support that, this number could be significantly smaller than the real number of packets
 
 *Important information*:: 
-* It hard to compare the number of TCP tx (client) TSO packets to rx (server) LRO packets as it might be different. The better approach would be to compare the number of bytes 
-** client.tcps_rcvackbyte == server.tcps_rcvbyte and vice versa (updload and download)
+* It is hard to compare the number of TCP tx (client) TSO packets to rx (server) LRO packets as it might be different. The better approach would be to compare the number of bytes 
+** client.tcps_rcvackbyte == server.tcps_rcvbyte and vice versa (upload and download)
 ** tcps_sndbyte == tcps_rcvackbyte only if the flow were terminated correctly (in other words what was put in the Tx queue was transmitted and acked) 
 * Total Tx L7 bytes are tcps_sndbyte_ok+tcps_sndrexmitbyte+tcps_sndprobe
 * The Console/JSON does not show/sent zero counters
@@ -1995,7 +1999,7 @@ see link:https://en.wikipedia.org/wiki/Large_receive_offload[LRO], we count the 
             }
 ----
 
-some rules for counters 
+Some rules for counters:
 [source,c]
 ----
 /* for client side */
@@ -2012,18 +2016,18 @@ some rules for counters
 
 ==== TSO/LRO NIC support 
 
-see manual for 
+See manual.
 
 === FAQ 
 
 ==== Why should I use TRex in this mode? 
 
-ASTF mode can help to solve the following requirement: 
+ASTF mode can help solving the following requirements: 
 
 * Test realistic scenario on top of TCP when DUT is acting like TCP proxy
 * Test realistic scenario in high scale (flows/bandwidth)
-* flexibility to change the TCP/IP flow option 
-* flexibility to emulate L7 application using Python API (e.g. Create many types of HTTP with different user-Agent field)
+* Flexibility to change the TCP/IP flow option 
+* Flexibility to emulate L7 application using Python API (e.g. Create many types of HTTP with different user-Agent field)
 * Measure latency in high resolution (usec)
 
 ==== Why do I need to reload TRex server again with different flags to change to ASTF mode, In other words, why STL and ASTF can't work together?
@@ -2048,10 +2052,10 @@ Not implemented:
 Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
-The short answer is no. The active(concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay command.
+The short answer is no. The active (concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay command.
 
 ==== Will NAT64 work in ASTF mode?
-Yes. see IPv6 in the manual. Server side will handle IPv4 sockets
+Yes. See IPv6 in the manual. Server side will handle IPv4 sockets
 
 client side    NAT64      server side 
 
@@ -2075,7 +2079,7 @@ client works in IPV6                             server works on IPv4
                                  
  
 ==== Is TSO/LRO NIC hardware optimization supported? 
-Yes. LRO improve the performance. GRO is not there yet
+Yes. LRO improves the performance. GRO is not there yet.
 
 ==== Can I get the ASTF counters per port/template? 
 Curently the TCP/App layer counters are per client/server side. 

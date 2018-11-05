@@ -278,7 +278,7 @@ class ASTFProgram(object):
                         list of command objects cound be NULL in case you call the API
 
                   stream    : bool
-                     is stream base
+                     is stream based (TCP) or packet based (UDP)
         """
 
         ver_args = {"types":
@@ -1252,7 +1252,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                         New connection per second rate. Minimal value is 0.5
 
                   limit    : uint32_t 
-                        limit the number of flows. default is None which means zero 
+                        limit the number of flows. default is None which means zero (there is no limit)
 
                   glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
@@ -1557,7 +1557,7 @@ class ASTFProfile(object):
                        tuple generator object
 
                   default_c_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfo`
-                       tcp parameters to be used for server side, if cap_list is given. This is optional. If not specified,
+                       tcp parameters to be used for client side, if cap_list is given. This is optional. If not specified,
                        TCP parameters for each flow will be taken from its cap file.
 
                   default_s_glob_info  :  ASTFGlobalInfo :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfo`
