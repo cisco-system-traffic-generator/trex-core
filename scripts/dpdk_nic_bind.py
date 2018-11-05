@@ -404,7 +404,12 @@ def get_nt_mac_address(pci_slot):
     return mac
 
 def is_napatech(dev):
-    return dev['Class'] == NETWORK_CLASS and dev['Vendor'] in (NAPATECH_VENDOR_STR, NAPATECH_VENDOR_NUM)
+    if dev['Class'] == NETWORK_CLASS and dev['Vendor'] in (NAPATECH_VENDOR_STR, NAPATECH_VENDOR_NUM):
+        return 1
+    if ('8086' == dev['Vendor'] and '09c4' == dev['Device']):
+        if os.popen("/opt/napatech3/bin/adapterinfo | grep -c " + dev['Slot']).readline().rstrip() == '1':
+            return 1
+    return 0
 
 def get_nic_details():
     '''This function populates the "devices" dictionary. The keys used are
