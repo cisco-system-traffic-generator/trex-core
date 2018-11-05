@@ -420,7 +420,6 @@ class STLStream(object):
                         Pins the stream to core_id in case core_id is specified and 0 <= core_id < number of cores.
                         Default value = -1.
                         Negative value (default) keeps the current behaviour.
-                        For now this is supported only for continuous streams that are not pointed by other streams.
         """
 
 
