@@ -24,6 +24,8 @@ import stat
 import time
 import shutil
 
+from dpdk_nic_bind import is_napatech
+
 # exit code is Important should be
 # -1 : don't continue
 # 0  : no errors - no need to load mlx share object
@@ -876,7 +878,7 @@ Other network devices
                 err=" %s does not exist " %key;
                 raise DpdkSetup(err)
 
-            if 'Napatech' in self.m_devices[key]['Vendor_str']:
+            if (is_napatech(self.m_devices[key])):
                 # These adapters doesn't need binding
                 Napatech_cnt += 1
                 continue
