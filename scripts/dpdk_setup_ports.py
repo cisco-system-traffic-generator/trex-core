@@ -881,6 +881,12 @@ Other network devices
                 Napatech_cnt += 1
                 continue
 
+            if ((0x8086 == self.m_devices[key]['Vendor'] and 0x09c4 == self.m_devices[key]['Device']) and \
+            (os.popen("/opt/napatech3/bin/adapterinfo | grep -c " + key).readline().rstrip() == '1')):
+                # These adapters doesn't need binding
+                Napatech_cnt += 1
+                continue 
+
             if self.m_devices[key].get('Driver_str') not in (dpdk_nic_bind.dpdk_drivers + dpdk_nic_bind.dpdk_and_kernel):
                 to_bind_list.append(key)
 
