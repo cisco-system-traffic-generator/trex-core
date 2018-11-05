@@ -720,12 +720,17 @@ Platform config file example:
 .Features of stacks
 [options="header",cols="1,^1,^1",width="50%"]
 |=================
-| Stack: | legacy | linux_based
-| L2:    | V      | V
-| IPv4:  | V      | V
-| IPv6:  | X      | V
-| VLAN:  | V      | V
+| Stack: | legacy    | linux_based
+| L2:    | yes       | yes
+| IPv4:  | yes       | yes
+| IPv6:  | [red]*no* | yes
+| VLAN:  | yes       | yes
+| STL:   | fully     | [red]*in service*
+| ASTF:  | fully     | fully
 |=================
+
+WARNING: linux_based stack requires service mode to process RX packets in STL mode
+
 
 Examples of configuration:
 
@@ -754,6 +759,7 @@ optional arguments:
 API:
 
 see link:cp_stl_docs/api/client_code.html#trex.stl.trex_stl_client.STLClient.conf_ipv6[IPv6 configuration]
+
 
 
 === Dummy ports
