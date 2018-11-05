@@ -3,7 +3,7 @@ import sys
 import os
 from collections import OrderedDict
 
-from ..utils.common import get_current_user, list_intersect, is_sub_list, user_input
+from ..utils.common import get_current_user, list_intersect, is_sub_list, user_input, list_difference
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 
@@ -15,7 +15,6 @@ from ..common.trex_psv import *
 from ..common.trex_api_annotators import client_api, console_api
 
 from .trex_stl_port import STLPort
-from .trex_stl_std import stl_map_ports
 from .trex_stl_streams import STLStream, STLProfile
 from .trex_stl_stats import CPgIdStats
 
@@ -1472,37 +1471,6 @@ class STLClient(TRexClient):
 
         # show time if success
         return True
-
-
-    @console_api('map', 'STL', True)
-    def map_line (self, line):
-        '''Maps ports topology\n'''
-        ports = self.get_acquired_ports()
-
-        ports = self.psv.validate('map', ports)
-        if not ports:
-            raise TRexError('map: ')
-            print("No ports acquired\n")
-            return
-
-        
-        with self.logger.supress():
-            table = stl_map_ports(self, ports = ports)
-        
-        self.logger.info(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))
-
-        # bi-dir ports
-        self.logger.info(format_text('Bi-directional ports:\n','underline'))
-        for port_a, port_b in table['bi']:
-            self.logger.info("port {0} <--> port {1}".format(port_a, port_b))
-
-        self.logger.info('')
-
-        # unknown ports
-        self.logger.info(format_text('Mapping unknown:\n','underline'))
-        for port in table['unknown']:
-            self.logger.info("port {0}".format(port))
-        self.logger.info('')
 
 
     @console_api('stats', 'common', True)

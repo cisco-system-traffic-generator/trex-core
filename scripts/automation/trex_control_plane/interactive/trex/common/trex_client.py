@@ -7,6 +7,8 @@ import inspect
 import sys
 import time
 import base64
+import random
+import struct
 from collections import OrderedDict, defaultdict
 
 from ..utils.common import get_current_user, list_remove_dup, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_difference, list_intersect, PassiveTimer, sec_split_usec
@@ -35,6 +37,7 @@ from .services.trex_service_ipv6 import ServiceICMPv6, ServiceIPv6Scan
 
 
 from scapy.layers.l2 import Ether, Packet
+from scapy.layers.inet import IP, UDP
 from scapy.utils import RawPcapWriter
 
 
@@ -1752,17 +1755,20 @@ class TRexClient(object):
         
         if not rc:
             raise TRexError(rc)
-          
-              
+
+
     @contextmanager
-    def service_mode (self, ports):
-        self.set_service_mode(ports = ports)
+    def service_mode(self, ports):
+        non_service_ports = list_difference(ports, self.get_service_enabled_ports())
+        if non_service_ports:
+            self.set_service_mode(ports = non_service_ports, enabled = True)
         try:
             yield
         finally:
-            self.set_service_mode(ports = ports, enabled = False)
-        
-        
+            if non_service_ports:
+                self.set_service_mode(ports = non_service_ports, enabled = False)
+
+
     @client_api('command', True)
     def resolve (self, ports = None, retries = 0, verbose = True, vlan = None):
         """
@@ -2160,6 +2166,98 @@ class TRexClient(object):
         return ServiceCtx(self, port)
 
 
+    @client_api('command', True)
+    def map_ports(self, ports = None, read_delay = 0.3, send_pkts = 3):
+        """
+            Get mapping of ports (connectivity)
+
+            :parameters:
+                ports: list
+                    For which ports to apply a queue, default is all acquired ports
+                read_delay: float
+                    Delay in sec between sending packets and looking at received results
+                send_pkts: int
+                    How much packets to send from each port
+            :raises:
+                + :exe:'TRexError'
+
+        """
+        # by default use all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        if not ports:
+            raise TRexError('No ports to map, acquire some ports or specify them explicitly.')
+        # validate
+        ports = self.psv.validate('map_ports', ports)
+
+        magic = random.getrandbits(32)
+        bpf_filter = 'udp[8:4]= 0x%x' % magic
+
+        with self.service_mode(ports):
+            rc = self.start_capture(rx_ports = ports, bpf_filter = '{0} or (vlan && {0}) or (vlan && {0})'.format(bpf_filter))
+            capture_id = rc['id']
+            try:
+                base_pkt = Ether() / IP() / UDP(sport=12345,dport=12345) / struct.pack('!I', magic)
+                for port_id in ports:
+                    pkt = base_pkt / struct.pack('!B', port_id)
+                    port = self.get_port(port_id)
+                    vlan = VLAN(port.get_vlan_cfg())
+                    vlan.embed(pkt)
+                    if port.is_l3_mode():
+                        pkt[IP].src = port.get_layer_cfg()['ipv4']['src']
+                        pkt[IP].dst = port.get_layer_cfg()['ipv4']['dst']
+                    self.push_packets([pkt] * send_pkts, ports = port_id, ipg_usec = 1)
+
+                time.sleep(read_delay)
+
+                captured_pkts = []
+                self.fetch_capture_packets(capture_id, captured_pkts)
+            finally:
+                self.stop_capture(capture_id)
+
+        pkts_map = {}
+        for tx_port in ports:
+            pkts_map[tx_port] = {}
+            for rx_port in ports:
+                pkts_map[tx_port][rx_port] = 0
+
+        for pkt in captured_pkts:
+            scapy_pkt = Ether(pkt['binary'])
+            if UDP not in scapy_pkt:
+                continue
+            udp_payload = bytes(scapy_pkt[UDP].payload)
+            if len(udp_payload) < 5:
+                continue
+            tx_port = struct.unpack('!B', udp_payload[4:5])[0]
+            rx_port = pkt['port']
+            pkts_map[tx_port][rx_port] += 1
+
+        table = {'map': {}, 'bi' : [], 'unknown': []}
+
+        # actual mapping
+        for tx_port in ports:
+            table['map'][tx_port] = None
+            for rx_port in ports:
+                if pkts_map[tx_port][rx_port] * 2 > send_pkts:
+                    table['map'][tx_port] = rx_port
+
+        unmapped = list(ports)
+        while len(unmapped) > 0:
+            port_a = unmapped.pop(0)
+            port_b = table['map'][port_a]
+    
+            # if unknown - add to the unknown list
+            if port_b == None:
+                table['unknown'].append(port_a)
+            # self-loop, due to bug?
+            elif port_a == port_b:
+                continue
+            # bi-directional ports
+            elif (table['map'][port_b] == port_a):
+                unmapped.remove(port_b)
+                table['bi'].append( (port_a, port_b) )
+
+        return table
+
 
 
 ############################   deprecated   #############################
@@ -2319,6 +2417,37 @@ class TRexClient(object):
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @console_api('map', 'common', True)
+    def map_line(self, line):
+        '''Maps ports topology\n'''
+        ports = self.get_acquired_ports()
+
+        ports = self.psv.validate('map', ports)
+        if not ports:
+            raise TRexError('map: ')
+            print("No ports acquired\n")
+            return
+
+
+        with self.logger.supress():
+            table = self.map_ports(ports = ports)
+
+        self.logger.info(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))
+
+        # bi-dir ports
+        self.logger.info(format_text('Bi-directional ports:\n','underline'))
+        for port_a, port_b in table['bi']:
+            self.logger.info("port {0} <--> port {1}".format(port_a, port_b))
+
+        self.logger.info('')
+
+        # unknown ports
+        self.logger.info(format_text('Mapping unknown:\n','underline'))
+        for port in table['unknown']:
+            self.logger.info("port {0}".format(port))
+        self.logger.info('')
+
 
     @console_api('connect', 'common', False)
     def connect_line (self, line):

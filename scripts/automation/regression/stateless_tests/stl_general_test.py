@@ -25,6 +25,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 self.stl_trex.connect()
+                self.stl_trex.acquire(force = True)
                 print('')
                 return True
             except Exception as e:
@@ -41,8 +42,8 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             sys.stdout.flush()
             try:
                 CTRexScenario.stl_trex.remove_all_captures()
-                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                CTRexScenario.ports_map = self.stl_trex.map_ports()
+                if self.verify_bidirectional(CTRexScenario.ports_map):
                     print('')
                     return True
             except Exception as e:
@@ -143,7 +144,7 @@ class STLBasic_Test(CStlGeneral_Test):
             CTRexScenario.stl_init_error = 'Client could not map ports'
             self.fail(CTRexScenario.stl_init_error)
             return
-        print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
+        print('Got ports mapping: %s' % CTRexScenario.ports_map)
 
         #update elk const object 
         if self.elk:

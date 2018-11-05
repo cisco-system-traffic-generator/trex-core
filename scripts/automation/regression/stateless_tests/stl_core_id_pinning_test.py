@@ -30,8 +30,8 @@ class CoreID_Test(CStlGeneral_Test):
 
     @classmethod
     def _verify_cores(cls):
-        assert 'bi' in CTRexScenario.stl_ports_map
-        cls.tx_port, cls.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        assert 'bi' in CTRexScenario.ports_map
+        cls.tx_port, cls.rx_port = CTRexScenario.ports_map['bi'][0]
         cls.tx_ports = [cls.tx_port]
         cls.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
         cls.c = CTRexScenario.stl_trex

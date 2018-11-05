@@ -10,7 +10,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
     """Benchark stateless performance"""
 
     def test_CPU_benchmark(self):
-        tx_port, rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
         critical_test = CTRexScenario.setup_name in ('kiwi02', 'trex08', 'trex09') # temporary patch, this test needs to be fixed
         timeout       = 60 # max time to wait for stabilization
         stabilize     = 5  # ensure stabilization over this period

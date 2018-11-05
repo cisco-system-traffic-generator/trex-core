@@ -23,11 +23,11 @@ class STLServices_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
-        assert 'bi' in CTRexScenario.stl_ports_map
+        assert 'bi' in CTRexScenario.ports_map
 
         self.c = CTRexScenario.stl_trex
 
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
         self.c.connect()
         self.c.reset(ports = [self.tx_port, self.rx_port])
@@ -62,6 +62,7 @@ class STLServices_Test(CStlGeneral_Test):
         
         dst_ipv4 = attr['dest']
         src_ipv4 = attr['src_ipv4']
+        vlan     = self.c.get_port(self.tx_port).get_vlan_cfg()
         
         assert(is_valid_ipv4(src_ipv4))
         assert(is_valid_ipv4(dst_ipv4))
@@ -70,17 +71,18 @@ class STLServices_Test(CStlGeneral_Test):
         
         try:
             # single ARP
-            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, verbose_level = self.vl)
+            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, vlan = vlan, verbose_level = self.vl)
             self.ctx.run(arp)
             
             rec = arp.get_record()
+            assert rec
             
             assert rec.src_ip == src_ipv4
             assert rec.dst_ip == dst_ipv4
             assert is_valid_mac(rec.dst_mac)
             
             # timeout ARP
-            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = '1.2.3.4', verbose_level = self.vl)
+            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = '1.2.3.4', vlan = vlan, verbose_level = self.vl)
             self.ctx.run(arp)
 
             rec = arp.get_record()
@@ -90,11 +92,12 @@ class STLServices_Test(CStlGeneral_Test):
             src_ips = [num2ip((ip2num(src_ipv4) & 0xFFFFFFF0) + i) for i in range(256)]
             src_ips = [x for x in src_ips if x not in (src_ipv4, dst_ipv4)]
             
-            arps = [ServiceARP(self.ctx, src_ip = x, dst_ip = dst_ipv4, verbose_level = self.vl) for x in src_ips]
+            arps = [ServiceARP(self.ctx, src_ip = x, dst_ip = dst_ipv4, vlan = vlan, verbose_level = self.vl) for x in src_ips]
             self.ctx.run(arps)
         
             for arp in arps:
                 rec = arp.get_record()
+                assert rec
                 assert rec.dst_ip == dst_ipv4
                 assert is_valid_mac(rec.dst_mac)
                 assert rec.dst_mac == arps[0].get_record().dst_mac

@@ -14,11 +14,11 @@ class STLRX_Test(CStlGeneral_Test):
     def setUp(self):
         per_driver_params = self.get_per_driver_params()
         CStlGeneral_Test.setUp(self)
-        assert 'bi' in CTRexScenario.stl_ports_map
+        assert 'bi' in CTRexScenario.ports_map
 
         self.c = CTRexScenario.stl_trex;
 
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
         self.speed = port_info['speed']
@@ -401,7 +401,7 @@ class STLRX_Test(CStlGeneral_Test):
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
 
-        all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
+        all_ports = list(CTRexScenario.ports_map['map'].keys());
         self.c.reset(ports = all_ports)
 
         if is_random:
@@ -580,7 +580,7 @@ class STLRX_Test(CStlGeneral_Test):
     def __9k_stream(self, pgid, ports, percent, max_latency, avg_latency, duration, pkt_size):
         my_pg_id=pgid
         s_ports=ports;
-        all_ports=list(CTRexScenario.stl_ports_map['map'].keys());
+        all_ports=list(CTRexScenario.ports_map['map'].keys());
         if ports == None:
             s_ports=all_ports
         assert( type(s_ports)==list)
@@ -647,7 +647,7 @@ class STLRX_Test(CStlGeneral_Test):
             duration=random.randint(10, 70);
             pgid=random.randint(1, 65000);
             pkt_size=random.randint(1000, 9000);
-            all_ports = list(CTRexScenario.stl_ports_map['map'].keys());
+            all_ports = list(CTRexScenario.ports_map['map'].keys());
             s_port=random.sample(all_ports, random.randint(1, len(all_ports)) )
             s_port=sorted(s_port)
 
@@ -726,7 +726,7 @@ class STLRX_Test(CStlGeneral_Test):
         self.check_stats(tps['opackets'], total_pkts, "tps[opackets]")
 
         for c_port in client_ports:
-            s_port = CTRexScenario.stl_ports_map['map'][c_port]
+            s_port = CTRexScenario.ports_map['map'][c_port]
 
             ips = stats[s_port]
             ops = stats[c_port]
@@ -760,7 +760,7 @@ class STLRX_Test(CStlGeneral_Test):
             self.skip('Skip for vf_setup')
 
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
-        ports = list(CTRexScenario.stl_ports_map['map'].keys())
+        ports = list(CTRexScenario.ports_map['map'].keys())
         for lat in [True, False]:
             print("\nSending from ports: {0}, has latency: {1} ".format(ports, lat))
             self.send_1_burst(ports, lat, 100)

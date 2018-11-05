@@ -27,6 +27,7 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 self.astf_trex.connect()
+                self.astf_trex.acquire(force = True)
                 print('')
                 return True
             except Exception as e:
@@ -34,6 +35,25 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
                 time.sleep(0.5)
         print('')
         print('Error connecting: %s' % err)
+        return False
+
+    def map_ports(self, tries = 10):
+        sys.stdout.write('Mapping ports')
+        for i in range(tries):
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            try:
+                CTRexScenario.astf_trex.remove_all_captures()
+                CTRexScenario.ports_map = self.astf_trex.map_ports()
+                if self.verify_bidirectional(CTRexScenario.ports_map):
+                    print('')
+                    return True
+            except Exception as e:
+                raise
+                print('\nException during mapping: %s' % e)
+                return False
+            time.sleep(0.5)
+        print('')
         return False
 
     # verify all the ports are bidirectional
@@ -122,6 +142,12 @@ class ASTFBasic_Test(CASTFGeneral_Test):
             self.fail(CTRexScenario.astf_init_error)
             return
         print('Connected')
+
+        if not self.map_ports():
+            CTRexScenario.astf_init_error = 'Client could not map ports'
+            self.fail(CTRexScenario.astf_init_error)
+            return
+        print('Got ports mapping: %s' % CTRexScenario.ports_map)
 
         #update elk const object
         if self.elk:
