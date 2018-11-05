@@ -60,10 +60,11 @@ trex>[press] t/l for astf statistics and latency
 trex>stop
 ------------------
  
+* An updated manual with the new features  link:trex_astf.html[astf]
 * ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
+* ASTF RPC spec for developers is here link:trex_rpc_server_spec.html#_rpc_commands_astf[rpc]
 * STL: add stream pinning to core see link:trex_stateless.html#_tutorial_core_pinning[core_pinning]
 * ASTF/STL Linux network namespace emulation stacks see link:trex_manual.html#_emulation_stacks[emulation]
-
 
 === Fixed issues: ===
 
