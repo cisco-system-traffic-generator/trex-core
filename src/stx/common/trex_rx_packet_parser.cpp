@@ -77,7 +77,7 @@ uint16_t RXPktParser::parse_l2(void) {
         case EthernetHeader::Protocol::VLAN:
             {
                 VLANHeader *vlan_hdr = (VLANHeader *)parse_bytes(4);
-                m_vlan_ids.push_back(vlan_hdr->getVlanTag());
+                m_vlan_ids.push_back(vlan_hdr->getTagID());
 
                 next_proto = vlan_hdr->getNextProtocolHostOrder();
                 
@@ -87,7 +87,7 @@ uint16_t RXPktParser::parse_l2(void) {
         default:
             /* break */
             return next_proto;
-        }                            
+        }
     }
     
 }
