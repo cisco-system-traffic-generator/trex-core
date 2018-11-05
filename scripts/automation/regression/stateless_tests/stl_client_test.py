@@ -37,11 +37,11 @@ class STLClient_Test(CStlGeneral_Test):
         else:
             self.strict = False
 
-        assert 'bi' in CTRexScenario.stl_ports_map
+        assert 'bi' in CTRexScenario.ports_map
 
         self.c = CTRexScenario.stl_trex
 
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
         self.c.connect()
         self.c.reset(ports = [self.tx_port, self.rx_port])
@@ -104,7 +104,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_push_pcap(self):
         pcap_file = CTRexScenario.scripts_path + '/stl/udp_64B_no_crc.pcap'
-        ports = CTRexScenario.stl_ports_map['bi'][0]
+        ports = CTRexScenario.ports_map['bi'][0]
         self.c.push_pcap(pcap_file, ports = ports)
 
     def test_basic_single_burst (self):

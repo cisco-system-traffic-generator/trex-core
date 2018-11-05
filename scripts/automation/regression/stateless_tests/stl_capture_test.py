@@ -33,11 +33,11 @@ class STLCapture_Test(CStlGeneral_Test):
         if self.is_linux_stack:
             self.skip('capture tests are skipped with linux-based stack')
 
-        assert 'bi' in CTRexScenario.stl_ports_map
+        assert 'bi' in CTRexScenario.ports_map
 
         self.c = CTRexScenario.stl_trex
 
-        self.tx_port, self.rx_port = CTRexScenario.stl_ports_map['bi'][0]
+        self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
         self.c.connect()
         self.c.reset(ports = [self.tx_port, self.rx_port])

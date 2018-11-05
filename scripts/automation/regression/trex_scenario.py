@@ -25,7 +25,7 @@ class CTRexScenario:
     trex             = None
     stl_trex         = None
     astf_trex        = None
-    stl_ports_map    = None
+    ports_map        = None
     stl_init_error   = None
     astf_init_error  = None
     router           = None

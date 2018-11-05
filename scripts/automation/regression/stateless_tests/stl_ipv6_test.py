@@ -18,7 +18,7 @@ class STLIPv6_Test(CStlGeneral_Test):
         self.stl_trex.set_service_mode(enabled = False)
 
     def conf_ipv6(self, tx_enabled, rx_enabled, tx_src = None, rx_src = None):
-        tx, rx = CTRexScenario.stl_ports_map['bi'][0]
+        tx, rx = CTRexScenario.ports_map['bi'][0]
         self.stl_trex.conf_ipv6(tx, tx_enabled, tx_src)
         self.stl_trex.conf_ipv6(rx, rx_enabled, rx_src)
         return tx, rx
