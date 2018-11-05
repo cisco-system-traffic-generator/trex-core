@@ -692,7 +692,7 @@ Under the hood it's being replaced with the following (this full syntax can also
 ...
 ----
 
-=== Stacks
+=== Emulation stacks
 
 anchor:stacks[]
 
