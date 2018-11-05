@@ -329,7 +329,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         stream->m_next_stream_id = parse_int(section, "next_stream_id", result);
 
         /* use specific core */
-        int core_id = parse_int(section, "core_id", result);
+        int core_id = parse_int(section, "core_id", result, -1);
         /* if core_id is negative then it wasn't specified, default value is negative */
         stream->m_core_id_specified = (core_id < 0) ? false : true ;
         /* if core ID is specified, check if core ID is smaller than the number of cores */

@@ -836,11 +836,11 @@ class STLStream(object):
                              self_start               = json_data['self_start'],
                              isg                      = json_data['isg'],
                              action_count             = json_data['action_count'],
-                             core_id                  = json_data['core_id'],
+                             core_id                  = json_data.get('core_id', -1),
 
                              stream_id                = json_data.get('stream_id'),
                              random_seed              = json_data.get('random_seed', 0),
-                             
+
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
                              dummy_stream             = (json_data['flags'] & 0x8) == 0x8,
