@@ -2190,10 +2190,10 @@ class TRexClient(object):
         ports = self.psv.validate('map_ports', ports)
 
         magic = random.getrandbits(32)
-        bpf_filter = 'udp[8:4]= 0x%x' % magic
+        bpf = 'udp[8:4]= 0x%x' % magic
 
         with self.service_mode(ports):
-            rc = self.start_capture(rx_ports = ports, bpf_filter = '{0} or (vlan && {0}) or (vlan && {0})'.format(bpf_filter))
+            rc = self.start_capture(rx_ports = ports, bpf_filter = '{0} or (vlan && {0}) or (vlan && {0})'.format(bpf))
             capture_id = rc['id']
             try:
                 base_pkt = Ether() / IP() / UDP(sport=12345,dport=12345) / struct.pack('!I', magic)
