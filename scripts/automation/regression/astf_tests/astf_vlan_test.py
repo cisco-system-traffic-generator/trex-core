@@ -8,7 +8,7 @@ from scapy.all import *
 
 
 class ASTFVLAN_Test(CASTFGeneral_Test):
-    ''' Checks for VLAN in latency and traffic '''
+    ''' Checks for VLAN in latency, traffic, resolve and ping '''
 
     @classmethod
     def setUpClass(cls):
@@ -17,31 +17,40 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         c = CTRexScenario.astf_trex
         tx_port_vlan = c.get_port(cls.tx_port).get_vlan_cfg()
         rx_port_vlan = c.get_port(cls.rx_port).get_vlan_cfg()
-        assert tx_port_vlan == rx_port_vlan
-        cls.port_vlan = tx_port_vlan
+        if tx_port_vlan != rx_port_vlan:
+            print('TX port VLAN != RX port VLAN, clearing')
+            cls.conf_vlan(cls.ports, False)
+            cls.vlan_prev = None
+        else:
+            cls.vlan_prev = tx_port_vlan
         cls.vlan = 30
         cls.exp_packets = 20
-        cls.src_ip = '123.123.123.123'
 
 
     @classmethod
     def tearDownClass(cls):
         c = CTRexScenario.astf_trex
-        if cls.port_vlan:
-            c.set_vlan(cls.ports, cls.port_vlan)
+        if cls.vlan_prev:
+            c.set_vlan(cls.ports, cls.vlan_prev)
         else:
             c.clear_vlan(cls.ports)
         c.remove_all_captures()
 
+    @classmethod
+    def conf_vlan(cls, ports, enabled):
+        c = CTRexScenario.astf_trex
+        if enabled:
+            c.set_vlan(ports, vlan = cls.vlan)
+        else:
+            c.clear_vlan(ports)
 
-    def setup_vlan(self, with_vlan, bpf_ip):
+    def conf_environment(self, vlan_enabled, bpf_ip):
         c = self.astf_trex
-        if with_vlan:
+        self.conf_vlan(self.ports, vlan_enabled)
+        if vlan_enabled:
             bpf = 'vlan %s and %s' % (self.vlan, bpf_ip)
-            c.set_vlan(self.ports, vlan = self.vlan)
         else:
             bpf = bpf_ip
-            c.clear_vlan(self.ports)
 
         capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets, bpf_filter = bpf)['id']
         debug_capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets)['id']
@@ -75,14 +84,14 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         bpf_ip = 'ip src %s' % src_ip
 
         # no VLAN
-        cap_ids = self.setup_vlan(False, bpf_ip)
+        cap_ids = self.conf_environment(False, bpf_ip)
         c.start_latency(mult = 1000, src_ipv4 = src_ip)
         time.sleep(1)
         c.stop_latency()
         self.verify_vlan(False, cap_ids)
 
         # with VLAN
-        cap_ids = self.setup_vlan(True, bpf_ip)
+        cap_ids = self.conf_environment(True, bpf_ip)
         c.start_latency(mult = 1000, src_ipv4 = src_ip)
         time.sleep(1)
         c.stop_latency()
@@ -122,14 +131,14 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         c.load_profile(self.get_profile(src_ip_start, src_ip_end))
 
         # no VLAN, IPv4
-        cap_ids = self.setup_vlan(False, src_ip_bpf)
+        cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000)
         time.sleep(1)
         c.stop()
         self.verify_vlan(False, cap_ids)
 
         # with VLAN, IPv4
-        cap_ids = self.setup_vlan(True, src_ip_bpf)
+        cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000)
         time.sleep(1)
         c.stop()
@@ -137,17 +146,81 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
         src_ip_bpf   = 'ip6 src net ::123.123.123.0/120'
         # no VLAN, IPv6
-        cap_ids = self.setup_vlan(False, src_ip_bpf)
+        cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True)
         time.sleep(1)
         c.stop()
         self.verify_vlan(False, cap_ids, is_ipv4 = False)
 
         # with VLAN, IPv6
-        cap_ids = self.setup_vlan(True, src_ip_bpf)
+        cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True)
         time.sleep(1)
         c.stop()
         self.verify_vlan(True, cap_ids, is_ipv4 = False)
 
+
+    def test_resolve_vlan(self):
+        c = self.astf_trex
+        self.conf_vlan(self.ports, False)
+        c.resolve()
+        self.conf_vlan(self.tx_port, True)
+        with assert_raises(TRexError):
+            c.resolve()
+        self.conf_vlan(self.ports, True)
+        c.resolve()
+        self.conf_vlan(self.tx_port, False)
+        with assert_raises(TRexError):
+            c.resolve()
+
+
+    def test_ping_vlan(self):
+        print('')
+        c = self.astf_trex
+        rx_port = c.get_port(self.rx_port)
+        if not rx_port.is_l3_mode():
+            self.skip('Not IPv4 config')
+
+        dst_ip = rx_port.get_layer_cfg()['ipv4']['src']
+
+        print('TX port without VLAN, RX port without VLAN')
+        self.conf_vlan(self.ports, False)
+        rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
+        if rec.state == rec.SUCCESS:
+            print('Got reply as expected')
+        else:
+            self.fail('Got no reply, ping record: %s' % rec)
+
+        print('TX port with VLAN, RX port without VLAN')
+        self.conf_vlan(self.tx_port, True)
+        rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
+        if rec.state == rec.SUCCESS:
+            self.fail('Got unexpected reply, ping record: %s' % rec)
+        else:
+            print('Got no reply as expected')
+
+        print('TX port with VLAN, RX port with VLAN')
+        self.conf_vlan(self.ports, True)
+        rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
+        if rec.state == rec.SUCCESS:
+            print('Got reply as expected')
+        else:
+            self.fail('Got no reply, ping record: %s' % rec)
+
+        print('TX port without VLAN, RX port with VLAN')
+        self.conf_vlan(self.tx_port, False)
+        rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
+        if rec.state == rec.SUCCESS:
+            self.fail('Got unexpected reply, ping record: %s' % rec)
+        else:
+            print('Got no reply as expected')
+
+
+    def test_config_vlan(self):
+        with assert_raises(TRexError):
+            self.astf_trex.set_vlan(self.tx_port, [5000])
+        with assert_raises(TRexError):
+            self.astf_trex.set_vlan(self.tx_port, [-1])
+        with assert_raises(TRexError):
+            self.astf_trex.set_vlan(self.tx_port, [12, 13]) # astf allows only single VLAN
 

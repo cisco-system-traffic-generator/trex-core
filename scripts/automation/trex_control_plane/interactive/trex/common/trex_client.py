@@ -1390,7 +1390,7 @@ class TRexClient(object):
         
          
     @client_api('command', True)
-    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1, vlan = None):
+    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1, vlan = None, **kw):
         """
             Pings an IP address through a port
 
@@ -1459,17 +1459,17 @@ class TRexClient(object):
         
         
         if is_valid_ipv4(dst_ip):
-            return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw)
         else:
-            return self._ping_ipv6(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv6(src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw)
         
             
          
-    # IPv4 ping           
-    def _ping_ipv4 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
+    # IPv4 ping
+    def _ping_ipv4 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw):
         
         ctx = self.create_service_ctx(port = src_port)
-        ping = ServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan)
+        ping = ServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan, **kw)
         
         records = []
         
@@ -1486,11 +1486,11 @@ class TRexClient(object):
         return records
         
         
-    # IPv6 ping 
-    def _ping_ipv6 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
+    # IPv6 ping
+    def _ping_ipv6 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw):
         
         ctx = self.create_service_ctx(port = src_port)
-        ping = ServiceICMPv6(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan)
+        ping = ServiceICMPv6(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan, **kw)
         
         records = []
         
@@ -1825,13 +1825,17 @@ class TRexClient(object):
             
         
         self.ctx.logger.post_cmd(all([arp.get_record() for arp in arps]))
-        
+
+        failed = []
         for port, arp in zip(ports, arps):
             if arp.get_record():
                 self.ctx.logger.info(format_text("Port {0} - {1}".format(port, arp.get_record()), 'bold'))
             else:
-                self.ctx.logger.info(format_text("Port {0} - *** {1}".format(port, arp.get_record()), 'bold'))
-        
+                failed.append(port)
+
+        if failed:
+            raise TRexError('Could not resolve following ports: %s' % failed)
+
         self.ctx.logger.info('')
      
 
