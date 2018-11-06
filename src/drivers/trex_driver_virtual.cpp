@@ -39,7 +39,7 @@ int CTRexExtendedDriverVirtBase::get_min_sample_rate(void){
 }
 
 void CTRexExtendedDriverVirtBase::get_dpdk_drv_params(CTrexDpdkParams &p) {
-    p.rx_data_q_num = 1;
+    p.rx_data_q_num = CGlobalInfo::m_options.preview.getCores();
     p.rx_drop_q_num = 0;
     p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q_VM;
     p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
@@ -96,7 +96,7 @@ void CTRexExtendedDriverMlnx4::update_configuration(port_cfg_t * cfg) {
 }
 
 CTRexExtendedDriverVirtio::CTRexExtendedDriverVirtio() {
-    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_ONE_QUEUE);
+    CGlobalInfo::set_queues_mode(CGlobalInfo::Q_MODE_RSS);
     m_cap = /*TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG */ 0;
 }
 

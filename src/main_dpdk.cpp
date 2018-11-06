@@ -5169,7 +5169,7 @@ const static uint8_t client_rss_key[] = {
 
 
 void CPhyEthIF::configure_rss_astf(bool is_client,
-                                   uint16_t numer_of_queues,
+                                   uint16_t number_of_queues,
                                    uint16_t skip_queue){ 
 
     struct rte_eth_dev_info dev_info;
@@ -5193,7 +5193,7 @@ void CPhyEthIF::configure_rss_astf(bool is_client,
         reta_conf[j].mask = ~0ULL;
         for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
             while (true) {
-                q=(indx + skip) % numer_of_queues;
+                q=(indx + skip) % number_of_queues;
                 if (q != skip_queue) {
                     break;
                 }
@@ -5372,7 +5372,8 @@ void CPhyEthIF::conf_queues() {
         } else {
             // no drop q. Many rcv queues. RSS mode.
             // rss on all rcv queues. Do not skip any q.
-            configure_rss_redirect_table(dpdk_p.rx_data_q_num, 0xff);
+	    if (false) //This is the default RSS configuration
+	            configure_rss_redirect_table(dpdk_p.rx_data_q_num, 0xff);
             g_trex.m_rx_core_tx_q_id = g_trex.get_rx_core_tx_queue_id();
             for (int queue = 0; queue < dpdk_p.rx_data_q_num; queue++) {
                 rx_queue_setup(queue, dpdk_p.rx_desc_num_data_q, socket_id,
