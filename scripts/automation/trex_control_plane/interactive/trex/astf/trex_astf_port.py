@@ -10,7 +10,7 @@ class ASTFPort(Port):
         return self.ok()
 
     def is_server(self):
-        return bool(port_id % 2)
+        return bool(self.port_id % 2)
 
     def is_client(self):
         return not self.is_server()
