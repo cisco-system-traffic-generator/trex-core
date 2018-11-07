@@ -22,7 +22,7 @@ The disadvantage is the OFED dependency.
 
 We tested the following distro with TRex and OFED. Others might work too.
 
-* CentOS 7.4 (This is the only tested distro)
+* CentOS 7.4 (This is the *only* verified distro)
 
 Following distro was tested and did *not* work for us.
 
@@ -33,11 +33,17 @@ Following distro was tested and did *not* work for us.
 
 Information was taken from  link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download latest OFED 4.3.1 OFED tar for RedHat 7.4 distro. 
+* Download *OFED 4.3.1* tar for RedHat 7.4 distro. 
 
 [IMPORTANT]
 =====================================
-The version must be *MLNX_OFED_LINUX-4.3.1* or higher (4.3.1)
+The version must be exactly *MLNX_OFED_LINUX-4.3.1*  for CentOS 7.4 any other version won't work
+=====================================
+
+[IMPORTANT]
+=====================================
+RedHat 7.4 distro and MLNX_OFED_LINUX-4.3.1 is mandatory. You can't have any different version. 
+Please follow the long installation process in the following sections. There is no need to install DPDK on your system. 
 =====================================
 
 [IMPORTANT]
@@ -191,10 +197,11 @@ mlx5_1 port 1 ==> enp4s0f1 (Up)
 
 .TRex unidirectional traffic matrix
 [options="header",cols="1^,1^,1^",width="60%"]
+
 |=================
 | Packet size  | Tx L1 Percent (100Gb) | Rx L1 Percent (100Gb)
 | 64  |  100%  | 88%
-| imix | 82%   | 82%,  64B PCI optimization does not work
+| imix | 90%   | 90%,  64B PCI optimization does not work in this case. This is the reason the performance is worse than 64B and 128B
 | 128 |  100%  | 100%
 | 256 |  100%  | 100%
 | 512 |  100%  | 100%
@@ -202,6 +209,33 @@ mlx5_1 port 1 ==> enp4s0f1 (Up)
 | 1500 |  100% | 100%
 |=================
 
+== 100Gb Optics 
+
+The optics should be approved Mellanox optics any other optics might not work due to speed field in the optic eeprom that breaks vendor compatibility verification. 
+
+In case the NIC is stuck in IB try 
+
+.Change to Ethernet mode
+[source,bash]
+----
+[bash]>sudo mstconfig -d [youpci] set LINK_TYPE_P1=2 LINK_TYPE_P2=2 
+----
+
+For example for 04:00.0 
+
+[source,bash]
+----
+[bash]>sudo mstconfig -d 04:00.0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2 
+----
+
+To use Cisco optics, you need to disable to power limit by command:  
+
+[source,bash]
+----
+[bash]>mlxconfig -e -d [youpci] set ADVANCED_POWER_SETTINGS=True 
+[bash]>mlxconfig -e -d [youpci] set DISABLE_SLOT_POWER_LIMITER=True
+----
+                                                                                                  
 == Upgrade procedure
 
 anchor:ofed_upgrade[]
