@@ -1106,7 +1106,7 @@ class AP_Manager:
             raise TRexError(rc.err())
 
 
-    def enable_proxy_mode(self, wired_port, wireless_port, dest_mac, filter):
+    def enable_proxy_mode(self, wired_port, wireless_port, dest_mac = None, filter = False):
         assert wired_port in self.service_ctx, 'Specified wired port %s does not have any APs' % wired_port
         assert wireless_port in self.trex_client.ports, 'Specified wireless port %s is invalid' % wireless_port
         assert wireless_port not in self.service_ctx, 'Specified wireless port %s should not have any APs' % wireless_port
