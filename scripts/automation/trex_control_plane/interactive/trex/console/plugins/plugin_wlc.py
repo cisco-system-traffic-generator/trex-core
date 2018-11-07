@@ -86,6 +86,12 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--wlan', '--wireless', type = int,
                 dest = 'proxy_wireless_port',
                 help = 'Wireless side of proxy (connected to Stateful TRex).')
+        self.add_argument('--dst-mac', metavar = 'MAC', type = check_mac_addr,
+                dest = 'proxy_dest_mac',
+                help = 'Destination MAC of packets (by default will take WLC MAC)')
+        self.add_argument('--filter-wlc-packets', action = 'store_true',
+                dest = 'proxy_filter_wlc_packets',
+                help = 'Do not proxify packets initiated by WLC')
         self.add_argument('--disable', action = 'store_true',
                 dest = 'proxy_disable',
                 help = 'Disable the proxy on specific port.')
@@ -354,7 +360,7 @@ class WLC_Plugin(ConsolePlugin):
         self.show_base()
 
 
-    def do_proxy(self, proxy_wired_port, proxy_wireless_port, proxy_disable, proxy_clear):
+    def do_proxy(self, proxy_wired_port, proxy_wireless_port, proxy_dest_mac, proxy_filter_wlc_packets, proxy_disable, proxy_clear):
         '''Proxify traffic between wireless side (Stateful TRex) and wired side (WLC).'''
         if proxy_clear:
             self.ap_manager.disable_proxy_mode(ignore_errors = True)
@@ -371,7 +377,7 @@ class WLC_Plugin(ConsolePlugin):
                 port = self.trex_client.ports[proxy_wireless_port]
                 if not port.is_service_mode_on():
                     port.set_service_mode(True)
-                self.ap_manager.enable_proxy_mode(wired_port = proxy_wired_port, wireless_port = proxy_wireless_port)
+                self.ap_manager.enable_proxy_mode(proxy_wired_port, proxy_wireless_port, proxy_dest_mac, proxy_filter_wlc_packets)
         else:
             counters_dict = {
                 'BPF reject':                   'm_bpf_rejected',
