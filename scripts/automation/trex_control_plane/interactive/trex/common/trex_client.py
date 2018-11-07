@@ -2203,8 +2203,11 @@ class TRexClient(object):
                     vlan = VLAN(port.get_vlan_cfg())
                     vlan.embed(pkt)
                     if port.is_l3_mode():
-                        pkt[IP].src = port.get_layer_cfg()['ipv4']['src']
-                        pkt[IP].dst = port.get_layer_cfg()['ipv4']['dst']
+                        src_ip = port.get_layer_cfg()['ipv4']['src']
+                        pkt[IP].src = src_ip
+                        pkt[IP].dst = src_ip.split('.')[0] + '.255.255.255' # broadcast src ip subnet
+                    else:
+                        pkt[IP].dst = '255.1.1.1' # some address that is not taken
                     self.push_packets([pkt] * send_pkts, ports = port_id, ipg_usec = 1)
 
                 time.sleep(read_delay)
