@@ -2758,11 +2758,11 @@ public:
 
     bool Create();
     void Delete();
-    int  ixgbe_prob_init();
+    int  device_prob_init();
     int  cores_prob_init();
     int  queues_prob_init();
-    int  ixgbe_start();
-    int  ixgbe_rx_queue_flush();
+    int  device_start();
+    int  device_rx_queue_flush();
     void init_vif_cores();
     
     void rx_batch_conf();
@@ -3300,7 +3300,7 @@ void CGlobalTRex::wait_for_all_cores(){
 }
 
 
-int  CGlobalTRex::ixgbe_rx_queue_flush(){
+int  CGlobalTRex::device_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=m_ports[i];
@@ -3380,7 +3380,7 @@ void CGlobalTRex::rx_interactive_conf(void) {
 }
 
 
-int  CGlobalTRex::ixgbe_start(void){
+int  CGlobalTRex::device_start(void){
     int i;
     for (i=0; i<m_max_ports; i++) {
         socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
@@ -3435,7 +3435,7 @@ int  CGlobalTRex::ixgbe_start(void){
 
     dump_links_status(stdout);
 
-    ixgbe_rx_queue_flush();
+    device_rx_queue_flush();
 
     return (0);
 }
@@ -3508,7 +3508,7 @@ bool CGlobalTRex::Create(){
     
     /* End update pre flags */
 
-    ixgbe_prob_init();
+    device_prob_init();
     cores_prob_init();
     queues_prob_init();
 
@@ -3543,7 +3543,7 @@ bool CGlobalTRex::Create(){
                             dpdk_p.rx_mbuf_type,
                             use_hugepages);
 
-    ixgbe_start();
+    device_start();
     dump_config(stdout);
     m_sync_barrier =new CSyncBarrier(get_cores_tx(),1.0);
 
@@ -3717,7 +3717,7 @@ void CGlobalTRex::Delete(){
 
 
 
-int  CGlobalTRex::ixgbe_prob_init(void){
+int  CGlobalTRex::device_prob_init(void){
 
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
@@ -6382,7 +6382,7 @@ int main_test(int argc , char * argv[]){
     }
 
     // after doing all needed ARP resolution, we need to flush queues, and stop our drop queue
-    g_trex.ixgbe_rx_queue_flush();
+    g_trex.device_rx_queue_flush();
     if (!get_is_tcp_mode()) {
         for (int i = 0; i < g_trex.m_max_ports; i++) {
             CPhyEthIF *_if = g_trex.m_ports[i];
