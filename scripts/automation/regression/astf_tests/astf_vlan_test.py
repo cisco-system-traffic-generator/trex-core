@@ -12,6 +12,7 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
     @classmethod
     def setUpClass(cls):
+        CASTFGeneral_Test.setUpClass()
         cls.tx_port, cls.rx_port = CTRexScenario.ports_map['bi'][0]
         cls.ports = [cls.tx_port, cls.rx_port]
         c = CTRexScenario.astf_trex
@@ -36,6 +37,16 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
             c.clear_vlan(cls.ports)
         c.remove_all_captures()
 
+
+    def setUp(self):
+        CASTFGeneral_Test.setUp(self)
+        if not self.is_loopback:
+            self.skip('VLANs need DUT config')
+        driver_params = self.get_driver_params()
+        if 'no_vlan' in driver_params or 'no_vlan_even_in_software_mode' in driver_params:
+            self.skip('Some driver issues with VLANs')
+
+
     @classmethod
     def conf_vlan(cls, ports, enabled):
         c = CTRexScenario.astf_trex
@@ -43,6 +54,7 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
             c.set_vlan(ports, vlan = cls.vlan)
         else:
             c.clear_vlan(ports)
+
 
     def conf_environment(self, vlan_enabled, bpf_ip):
         c = self.astf_trex
