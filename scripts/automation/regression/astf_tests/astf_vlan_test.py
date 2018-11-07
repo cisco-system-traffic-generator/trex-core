@@ -174,6 +174,8 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
     def test_resolve_vlan(self):
         c = self.astf_trex
+        if not c.get_resolvable_ports():
+            self.skip('No resolvable ports')
         self.conf_vlan(self.ports, False)
         c.resolve()
         self.conf_vlan(self.tx_port, True)
