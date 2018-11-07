@@ -105,19 +105,10 @@ extern "C" {
 #include "utl_offloads.h"
 
 #define MAX_PKT_BURST   32
-
 #define BP_MAX_CORES 48
 #define BP_MAX_TX_QUEUE 16
 #define BP_MASTER_AND_LATENCY 2
 
-#define RX_DESC_NUM_DROP_Q 64
-#define RX_DESC_NUM_DATA_Q 4096
-#define RX_DESC_NUM_DROP_Q_MLX 8
-#define RX_DESC_NUM_DATA_Q_VM 512
-#define TX_DESC_NUM 1024
-
-//typedef struct rte_mbuf * (*rte_mbuf_convert_to_one_seg_t)(struct rte_mbuf *m);
-//struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m);
 void set_driver();
 void reorder_dpdk_ports();
 
