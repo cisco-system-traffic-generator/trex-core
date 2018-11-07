@@ -14,7 +14,6 @@ class STLRX_Test(CStlGeneral_Test):
     def setUp(self):
         per_driver_params = self.get_per_driver_params()
         CStlGeneral_Test.setUp(self)
-        assert 'bi' in CTRexScenario.ports_map
 
         self.c = CTRexScenario.stl_trex;
 

@@ -51,7 +51,7 @@ class CTRexGeneral_Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.GAManager         = CTRexScenario.GAManager
-        cls.astf_trex         = CTRexScenario.stl_trex
+        cls.astf_trex         = CTRexScenario.astf_trex
         cls.benchmark         = CTRexScenario.benchmark
         cls.configuration     = CTRexScenario.configuration
         cls.elk               = CTRexScenario.elk
@@ -468,10 +468,11 @@ class CTRexGeneral_Test(unittest.TestCase):
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print('')
-            if not self.stl_trex and not self.astf_trex and CTRexScenario.router_cfg['forceCleanConfig']:
-                self.router.load_clean_config()
-            self.router.clear_counters()
-            self.router.clear_packet_drop_stats()
+            if not self.stl_trex and not self.astf_trex:
+                if CTRexScenario.router_cfg['forceCleanConfig']:
+                    self.router.load_clean_config()
+                self.router.clear_counters()
+                self.router.clear_packet_drop_stats()
 
     ########################################################################
     ####                DO NOT ADD TESTS TO THIS FILE                   ####

@@ -10,12 +10,17 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
     """This class defines the general ASTF testcase of the TRex traffic generator"""
 
     def setUp(self):
-        self.astf_trex = CTRexScenario.astf_trex if CTRexScenario.astf_trex else 'mock'
+        if not self.astf_trex:
+            self.astf_trex = ASTFClient(username = 'TRexRegression',
+                                        server = self.configuration.trex['trex_name'],
+                                        verbose_level = "debug" if CTRexScenario.json_verbose else "none")
+            CTRexScenario.astf_trex = self.astf_trex
+
         CTRexGeneral_Test.setUp(self)
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.astf_init_error:
             self.skip('astf_init_error')
-        if type(self.astf_trex) is ASTFClient:
+        if self.astf_trex.is_connected():
             self.astf_trex.reset()
 
     @classmethod
@@ -103,10 +108,6 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
             raise Exception('Number of cores should be 1 with virtual NICs')
         if not CTRexScenario.no_daemon:
             self.trex.start_astf(c = cores)
-        self.astf_trex = ASTFClient(username = 'TRexRegression',
-                                    server = conf['trex_name'],
-                                    verbose_level = "debug" if CTRexScenario.json_verbose else "none")
-        CTRexScenario.astf_trex = self.astf_trex
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
@@ -124,26 +125,34 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
         return cls.get_per_driver_params()[driver]
 
 class ASTFBasic_Test(CASTFGeneral_Test):
+    def setUp(self):
+        try:
+            CASTFGeneral_Test.setUp(self)
+        except Exception as e:
+            CTRexScenario.astf_init_error = 'First setUp error: %s' % e
+            raise
+
     # will run it first explicitly, check connectivity and configure routing
     @nottest
     def test_connectivity(self):
+        print('')
         CTRexScenario.astf_init_error = 'Unknown error'
         if not self.is_loopback:
             try:
                 self.config_dut()
             except Exception as e:
-                print('')
                 CTRexScenario.astf_init_error = 'Could not configure device, err: %s' % e
                 self.fail(CTRexScenario.astf_init_error)
                 return
+            print('Configured DUT')
 
         try:
             self.start_trex()
         except Exception as e:
-            print('')
             CTRexScenario.astf_init_error = 'Could not start ASTF TRex, err: %s' % e
             self.fail(CTRexScenario.astf_init_error)
             return
+        print('Started TRex')
 
         if not self.connect():
             CTRexScenario.astf_init_error = 'Client could not connect'
