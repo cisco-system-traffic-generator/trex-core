@@ -57,7 +57,6 @@ class CTRexGeneral_Test(unittest.TestCase):
         cls.elk               = CTRexScenario.elk
         cls.modes             = CTRexScenario.modes
         cls.no_daemon         = CTRexScenario.no_daemon
-        cls.router            = CTRexScenario.router
         cls.stl_trex          = CTRexScenario.stl_trex
         cls.trex              = CTRexScenario.trex
         cls.trex_crashed      = CTRexScenario.trex_crashed
@@ -131,6 +130,8 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             CTRexScenario.is_init = True
             print(termstyle.green("Done instantiating TRex scenario!\n"))
+
+        cls.router            = CTRexScenario.router
 
 
     def get_elk_obj (self):
