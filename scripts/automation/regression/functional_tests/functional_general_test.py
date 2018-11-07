@@ -14,9 +14,6 @@ if not os.path.exists(generated_path):
     os.makedirs(generated_path)
 
 class CGeneralFunctional_Test(object): 
-    def __init__(self):
-        pass
-
 
     def setUp(self):
         pass

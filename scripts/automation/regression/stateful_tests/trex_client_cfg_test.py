@@ -11,8 +11,6 @@ from nose.tools import nottest
 # If resolve will fail, TRex will exit with exit code != 0
 class CTRexClientCfg_Test(CTRexNbarBase):
     """This class defines the IMIX testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        CTRexNbarBase.__init__(self, *args, **kwargs)
 
     def setUp(self):
         if CTRexScenario.setup_name == 'kiwi02':

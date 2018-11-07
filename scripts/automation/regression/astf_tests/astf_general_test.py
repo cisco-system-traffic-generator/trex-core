@@ -20,6 +20,7 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
 
     @classmethod
     def setUpClass(cls):
+        CTRexGeneral_Test.setUpClass()
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.astf_init_error:
             cls.skip('astf_init_error')

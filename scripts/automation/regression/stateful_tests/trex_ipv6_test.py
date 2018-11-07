@@ -6,8 +6,6 @@ from nose.tools import assert_equal
 
 class CTRexIPv6_Test(CTRexGeneral_Test):
     """This class defines the IPv6 testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexIPv6_Test, self).__init__(*args, **kwargs)
 
     def setUp(self):
         super(CTRexIPv6_Test, self).setUp() # launch super test class setUp process

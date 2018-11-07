@@ -43,11 +43,9 @@ class CTRexNbarBase(CTRexGeneral_Test):
 
 class CTRexNbar_Test(CTRexNbarBase):
     """This class defines the NBAR testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNbar_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # obviously no NBar in loopback
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # obviously no NBar in loopback
         super(CTRexNbar_Test, self).setUp() # launch super test class setUp process
 #       self.router.kill_nbar_flows()
         self.router.clear_cft_counters()

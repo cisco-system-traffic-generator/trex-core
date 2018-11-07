@@ -8,11 +8,9 @@ from nose.tools import assert_equal
 
 class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNoNat_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # NAT requires device
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # NAT requires device
         super(CTRexNoNat_Test, self).setUp() # launch super test class setUp process
 
     def check_nat_stats (self, nat_stats):
@@ -73,11 +71,9 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
 class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNat_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # NAT requires device
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # NAT requires device
         super(CTRexNat_Test, self).setUp() # launch super test class setUp process
         # config nat here
         
