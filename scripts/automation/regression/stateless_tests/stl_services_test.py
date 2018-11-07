@@ -23,8 +23,6 @@ class STLServices_Test(CStlGeneral_Test):
     def setUp(self):
         CStlGeneral_Test.setUp(self)
 
-        assert 'bi' in CTRexScenario.ports_map
-
         self.c = CTRexScenario.stl_trex
 
         self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]

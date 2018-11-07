@@ -245,7 +245,8 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_rss.py',
                     'udp_rtp.py',
                     'http_simple_src_mac.py',
-                    'http_eflow3.py'
+                    'http_eflow3.py',
+                    'wrapping_it_up_example.py',
                     ]
         self.duration=1
         try:
