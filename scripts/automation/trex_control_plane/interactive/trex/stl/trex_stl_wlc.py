@@ -1106,7 +1106,7 @@ class AP_Manager:
             raise TRexError(rc.err())
 
 
-    def enable_proxy_mode(self, wired_port, wireless_port):
+    def enable_proxy_mode(self, wired_port, wireless_port, dest_mac, filter):
         assert wired_port in self.service_ctx, 'Specified wired port %s does not have any APs' % wired_port
         assert wireless_port in self.trex_client.ports, 'Specified wireless port %s is invalid' % wireless_port
         assert wireless_port not in self.service_ctx, 'Specified wireless port %s should not have any APs' % wireless_port
@@ -1122,11 +1122,18 @@ class AP_Manager:
 
         capwap_map = {}
         for client in clients:
-            wlan_wrapping = client.ap.wrap_pkt_by_wlan(client, client.ap.mac_dst_bytes + client.mac_bytes + b'\x08\x00')
+            if dest_mac:
+                dest_mac_bytes = mac2str(dest_mac)
+            else:
+                dest_mac_bytes = client.ap.mac_dst_bytes
+            wlan_wrapping = client.ap.wrap_pkt_by_wlan(client, dest_mac_bytes + client.mac_bytes + b'\x08\x00')
             #Ether(wlan_wrapping).show2()
             capwap_map[client.ip] = base64encode(wlan_wrapping)
 
-        wlc_ip_num = ipv4_str_to_num(self.aps[0].wlc_ip_bytes)
+        if filter:
+            wlc_ip_num = ipv4_str_to_num(self.aps[0].wlc_ip_bytes)
+        else:
+            wlc_ip_num = 0 # IP will not match and not be filtered
 
         params = {
             'enabled': True,
