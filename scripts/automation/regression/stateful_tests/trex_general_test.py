@@ -44,48 +44,38 @@ import yaml
 import tempfile
 import shutil
 
-def setUpModule(module):
-    pass
-
-def tearDownModule(module):
-    pass
 
 class CTRexGeneral_Test(unittest.TestCase):
     """This class defines the general stateful testcase of the TRex traffic generator"""
-    def __init__ (self, *args, **kwargs):
-        sys.stdout.flush()
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        if CTRexScenario.is_test_list:
-            return
-        # Point test object to scenario global object
-        self.configuration         = CTRexScenario.configuration
-        self.benchmark             = CTRexScenario.benchmark
-        self.trex                  = CTRexScenario.trex
-        self.stl_trex              = CTRexScenario.stl_trex
-        self.astf_trex             = CTRexScenario.stl_trex
-        self.trex_crashed          = CTRexScenario.trex_crashed
-        self.modes                 = CTRexScenario.modes
-        self.GAManager             = CTRexScenario.GAManager
-        self.elk                   = CTRexScenario.elk
-        self.no_daemon             = CTRexScenario.no_daemon
-        self.skipping              = False
-        self.fail_reasons          = []
-        if not hasattr(self, 'unsupported_modes'):
-            self.unsupported_modes   = []
-        self.is_loopback           = 'loopback' in self.modes
-        self.is_virt_nics          = 'virt_nics' in self.modes
-        self.is_vf_nics            = 'vf_nics' in self.modes
-        self.is_VM                 = 'VM' in self.modes
-        self.is_lowend             = 'lowend' in self.modes
-        self.is_vdev               = 'vdev' in self.modes
-        self.is_dummy_ports        = 'dummy' in self.modes
-        self.is_linux_stack        = 'linux_stack' in self.modes
+
+    @classmethod
+    def setUpClass(cls):
+        cls.GAManager         = CTRexScenario.GAManager
+        cls.astf_trex         = CTRexScenario.stl_trex
+        cls.benchmark         = CTRexScenario.benchmark
+        cls.configuration     = CTRexScenario.configuration
+        cls.elk               = CTRexScenario.elk
+        cls.modes             = CTRexScenario.modes
+        cls.no_daemon         = CTRexScenario.no_daemon
+        cls.router            = CTRexScenario.router
+        cls.stl_trex          = CTRexScenario.stl_trex
+        cls.trex              = CTRexScenario.trex
+        cls.trex_crashed      = CTRexScenario.trex_crashed
+
+        cls.is_VM             = 'VM' in cls.modes
+        cls.is_dummy_ports    = 'dummy' in cls.modes
+        cls.is_linux_stack    = 'linux_stack' in cls.modes
+        cls.is_loopback       = 'loopback' in cls.modes
+        cls.is_lowend         = 'lowend' in cls.modes
+        cls.is_vdev           = 'vdev' in cls.modes
+        cls.is_vf_nics        = 'vf_nics' in cls.modes
+        cls.is_virt_nics      = 'virt_nics' in cls.modes
 
         if not CTRexScenario.is_init:
-            if self.trex and not self.no_daemon: # stateful
-                CTRexScenario.trex_version = self.trex.get_trex_version()
+            if cls.trex and not cls.no_daemon: # stateful
+                CTRexScenario.trex_version = cls.trex.get_trex_version()
             #update elk const object 
-            if self.elk:
+            if cls.elk:
                 timediff  = timedelta(hours=2) # workaround to get IL timezone
                 date_str  = CTRexScenario.trex_version['Date'].strip()
                 timestamp = datetime.strptime(date_str, '%b %d %Y , %H:%M:%S') - timediff
@@ -96,17 +86,17 @@ class CTRexGeneral_Test(unittest.TestCase):
                 img['version']    = CTRexScenario.trex_version['Version']
 
                 setup = CTRexScenario.elk_info['info']['setup']
-                if self.is_loopback :
+                if cls.is_loopback :
                     setup['dut'] = 'loopback' 
                 else:
                     setup['dut'] = 'router' 
 
-                if self.is_VM:
+                if cls.is_VM:
                     setup['baremetal'] = False
                     setup['hypervisor'] = 'ESXi'       #TBD
                 else:
                     setup['baremetal'] = True
-            if not self.is_loopback:
+            if not cls.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
                 device_cfg           = CDeviceCfg()
@@ -118,7 +108,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     image_d = CTRexScenario.router.get_running_image_details();
                     running_image = image_d['image']
                     print('Current router image: %s' % running_image)
-                    if self.elk:
+                    if cls.elk:
                         setup['dut'] = image_d.get('model','router');
                         print('Current router model : %s' % setup['dut'])
                     needed_image = device_cfg.get_image_name()
@@ -131,19 +121,17 @@ class CTRexGeneral_Test(unittest.TestCase):
                         CTRexScenario.router.launch_connection(device_cfg)
                         running_image = CTRexScenario.router.get_running_image_details()['image'] # verify image
                         if not CTRexScenario.router.is_image_matches(needed_image):
-                            self.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
+                            cls.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
                     else:
                         print('Matches needed image: %s' % needed_image)
                     CTRexScenario.router_image = running_image
 
-            if self.modes:
-                print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
+            if cls.modes:
+                print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(cls.modes)))
 
             CTRexScenario.is_init = True
             print(termstyle.green("Done instantiating TRex scenario!\n"))
 
-#           raise RuntimeError('CTRexScenario class is not initialized!')
-        self.router = CTRexScenario.router
 
     def get_elk_obj (self):
         obj=trex_scenario.copy_elk_info ()
@@ -467,9 +455,12 @@ class CTRexGeneral_Test(unittest.TestCase):
         return self._testMethodName
 
     def setUp(self):
-        test_setup_modes_conflict = self.modes & set(self.unsupported_modes)
-        if test_setup_modes_conflict:
-            self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
+        self.skipping              = False
+        self.fail_reasons          = []
+        if hasattr(self, 'unsupported_modes'):
+            modes_conflict = self.modes & set(self.unsupported_modes)
+            if modes_conflict:
+                self.skip("The test can't run with following modes of given setup: %s " % modes_conflict)
 
         if not self.stl_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at setUp, trying to stop it.')
@@ -517,7 +508,8 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_for_trex_crash(self):
         pass
 
-    def get_per_driver_params(self):
+    @classmethod
+    def get_per_driver_params(cls):
         return {
             'net_af_packet': {
                 'rate_percent': 1,
@@ -600,10 +592,10 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             'net_mlx5': {
                 'rate_percent': 40,
-                'rate_percent_soft': 0.01 if self.is_vf_nics else 1,
+                'rate_percent_soft': 0.01 if cls.is_vf_nics else 1,
                 'total_pkts': 1000,
-                'rate_latency': 0.01 if self.is_vf_nics else 1,
-                'latency_9k_enable': False if self.is_vf_nics else True,
+                'rate_latency': 0.01 if cls.is_vf_nics else 1,
+                'latency_9k_enable': False if cls.is_vf_nics else True,
                 'latency_9k_max_average': 200,
                 'latency_9k_max_latency': 200,
             },

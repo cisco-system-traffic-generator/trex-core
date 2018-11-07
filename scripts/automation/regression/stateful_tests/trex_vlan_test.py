@@ -6,11 +6,9 @@ from CPlatform import CStaticRouteConfig
 
 class CTRexVlan_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines test for vlan platform configutation file"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexVlan_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # We test on routers
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # We test on routers
         super(CTRexVlan_Test, self).setUp() # launch super test class setUp process
 
     def test_platform_cfg_vlan(self):

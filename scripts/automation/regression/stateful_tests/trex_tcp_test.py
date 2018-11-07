@@ -12,8 +12,6 @@ from pprint import pprint
 
 class CTRexTcp_Test(CTRexGeneral_Test):
     """This class defines the tcp test cases of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        CTRexGeneral_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)

@@ -8,9 +8,6 @@ from nose.tools import nottest
 
 class CTRexIMIX_Test(CTRexGeneral_Test):
     """This class defines the IMIX testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        # super(CTRexIMIX_Test, self).__init__()
-        CTRexGeneral_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
         super(CTRexIMIX_Test, self).setUp() # launch super test class setUp process
