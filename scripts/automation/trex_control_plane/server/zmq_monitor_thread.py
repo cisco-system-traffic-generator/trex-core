@@ -26,6 +26,8 @@ class ZmqMonitorSession(threading.Thread):
         self.expect_trex    = self.trexObj.expect_trex     # used to signal if TRex is expected to run and if data should be considered
         self.decoder        = JSONDecoder()
         self.zipped         = zipmsg.ZippedMsg()
+        self.context        = None
+        self.socket         = None
         logger.info("ZMQ monitor initialization finished")
 
     def run(self):
@@ -34,27 +36,32 @@ class ZmqMonitorSession(threading.Thread):
             self.socket     = self.context.socket(zmq.SUB)
             logger.info("ZMQ monitor started listening @ {pub}".format(pub=self.zmq_publisher))
             self.socket.connect(self.zmq_publisher)
+            self.socket.setsockopt(zmq.RCVTIMEO, 1000)
             self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
             while not self.stoprequest.is_set():
                 try:
-                    zmq_dump = self.socket.recv()   # This call is BLOCKING until data received!
+                    if self.stoprequest.is_set():
+                        break
+                    zmq_dump = self.socket.recv() # block for 1 sec
                     if self.expect_trex.is_set():
                         self.parse_and_update_zmq_dump(zmq_dump)
                         logger.debug("ZMQ dump received on socket, and saved to trexObject.")
+                except zmq.error.Again:
+                    pass
                 except Exception as e:
-                    if self.stoprequest.is_set():
-                        # allow this exception since it comes from ZMQ monitor termination
-                        pass
-                    else:
-                        logger.error("ZMQ monitor thrown an exception. Received exception: {ex}".format(ex=e))
-                        self.trexObj.zmq_error = e
+                    logger.error("ZMQ monitor thrown an exception. Received exception: {ex}".format(ex=e))
+                    self.trexObj.zmq_error = e
+                    break
+
         except Exception as e:
             logger.error('ZMQ monitor error: %s' % e)
             self.trexObj.zmq_error = e
         finally:
-            self.socket.close()
-            self.context.term()
+            if self.socket:
+                self.socket.close()
+            if self.context:
+                self.context.term()
             logger.info("ZMQ monitor resources has been freed.")
 
     def join(self, timeout=5):
