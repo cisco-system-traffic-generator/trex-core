@@ -56,7 +56,7 @@ class CTRexServer(object):
             the port number on which the trex-daemon server can be reached
             default value: 8090
         trex_zmq_port : int
-            the port number on which trex's zmq module will interact with daemon server
+            default TRex ZMQ publisher port to listen to (if not specified in config file).
             default value: 4500
         nice: int
             priority of the TRex process
@@ -75,7 +75,6 @@ class CTRexServer(object):
         self.trex_server_path   = "http://{hostname}:{port}".format( hostname = trex_host, port = trex_daemon_port )
         self.start_lock         = threading.Lock()
         self.__reservation      = None
-        self.zmq_monitor        = ZmqMonitorSession(self.trex, self.trex_zmq_port)    # intiate single ZMQ monitor thread for server usage
         self.trex_nice          = int(trex_nice)
         if self.trex_nice < -20 or self.trex_nice > 19:
             err = "Parameter 'nice' should be integer in range [-20, 19]"
@@ -171,12 +170,10 @@ class CTRexServer(object):
         signal.signal(signal.SIGTSTP, self.stop_handler)
         signal.signal(signal.SIGTERM, self.stop_handler)
         try:
-            self.zmq_monitor.start()
             self.server.serve_forever()
         except KeyboardInterrupt:
             logger.info("Daemon shutdown request detected." )
         finally:
-            self.zmq_monitor.join()            # close ZMQ monitor thread resources
             self.server.shutdown()
             #self.server.server_close()
 
@@ -276,11 +273,11 @@ class CTRexServer(object):
             self.stop_trex(self.trex.get_seq())
         sys.exit(0)
 
-    def assert_zmq_ok(self):
+    def assert_zmq_ok(self, check_alive = True):
         if self.trex.zmq_error:
             self.trex.zmq_error, err = None, self.trex.zmq_error
             raise Exception('ZMQ thread got error: %s' % err)
-        if not self.zmq_monitor.is_alive():
+        if check_alive and self.trex.zmq_monitor and not self.trex.zmq_monitor.is_alive():
             if self.trex.get_status() != TRexStatus.Idle:
                 self.force_trex_kill()
             raise Exception('ZMQ thread is dead.')
@@ -298,6 +295,7 @@ class CTRexServer(object):
         return bool(self.__reservation)
 
     def get_running_status (self):
+        self.assert_zmq_ok(check_alive = False)
         run_status = self.trex.get_status()
         logger.info("Processing get_running_status() command. Running status is: {stat}".format(stat = run_status) )
         return { 'state' : run_status.value, 'verbose' : self.trex.get_verbose_status() }
@@ -350,7 +348,6 @@ class CTRexServer(object):
 
     def start_trex(self, trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = False, debug_image = False, trex_args = ''):
         self.trex.zmq_error = None
-        self.assert_zmq_ok()
         with self.start_lock:
             logger.info("Processing start_trex() command.")
             if self.is_reserved():
@@ -364,9 +361,8 @@ class CTRexServer(object):
                 return Fault(-13, err) # raise at client TRexInUseError
 
             try:
-                server_cmd_data = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
-                self.zmq_monitor.first_dump = True
-                self.trex.start_trex(self.TREX_PATH, server_cmd_data)
+                server_cmd_data, zmq_port = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
+                self.trex.start_trex(self.TREX_PATH, server_cmd_data, zmq_port)
                 logger.info("TRex session has been successfully initiated.")
                 if block_to_success:
                     # delay server response until TRex is at 'Running' state.
@@ -457,12 +453,13 @@ class CTRexServer(object):
         return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
 
     def get_running_info (self):
-        self.assert_zmq_ok()
         logger.info("Processing get_running_info() command.")
+        self.assert_zmq_ok(check_alive = False)
         return self.trex.get_running_info()
 
     def get_latest_dump(self):
         logger.info("Processing get_latest_dump() command.")
+        self.assert_zmq_ok(check_alive = False)
         return self.trex.get_latest_dump()
 
     def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
@@ -505,7 +502,7 @@ class CTRexServer(object):
         if trex_args:
             trex_cmd_options += ' %s' % trex_args
 
-        self._check_zmq_port(trex_cmd_options)
+        zmq_port = self._check_zmq_port(trex_cmd_options)
 
         if not stateless:
             if 'f' not in kwargs:
@@ -522,11 +519,10 @@ class CTRexServer(object):
 
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
 
-        return (cmd, export_path, kwargs.get('d', 0))
+        return (cmd, export_path, kwargs.get('d', 0)), zmq_port
 
 
     def _check_zmq_port(self, trex_cmd_options):
-        zmq_cfg_port = 4500 # default
         parser = ArgumentParser()
         parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
         args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
@@ -542,9 +538,8 @@ class CTRexServer(object):
         if 'enable_zmq_pub' in trex_cfg and trex_cfg['enable_zmq_pub'] == False:
             raise Exception('TRex daemon expects ZMQ publisher to be enabled. Please change "enable_zmq_pub" to true.')
         if 'zmq_pub_port' in trex_cfg:
-            zmq_cfg_port = trex_cfg['zmq_pub_port']
-        if zmq_cfg_port != self.trex_zmq_port:
-            raise Exception('ZMQ port does not match: platform config file is configured to: %s, daemon server to: %s' % (zmq_cfg_port, self.trex_zmq_port))
+            return trex_cfg['zmq_pub_port']
+        return self.trex_zmq_port
 
 
     def __check_trex_path_validity(self):
@@ -591,6 +586,12 @@ class CTRex(object):
         self.zmq_error      = None
         self.seq            = None
         self.expect_trex    = threading.Event()
+
+    def __del__(self):
+        if self.zmq_monitor:
+            self.zmq_monitor.join()
+        if self.session:
+            self.session.join()
 
     def get_status(self):
         return self.status
@@ -650,17 +651,30 @@ class CTRex(object):
             logger.info("TRex session has been successfully aborted.")
             return True
 
-    def start_trex(self, trex_launch_path, trex_cmd):
+    def start_trex(self, trex_launch_path, trex_cmd, zmq_port):
         self.set_status(TRexStatus.Starting)
         logger.info("TRex running state changed to 'Starting'.")
         self.set_verbose_status('TRex is starting (data is not available yet)')
 
+        if not self.zmq_monitor:
+            logger.info('Starting ZMQ monitor on port %s' % zmq_port)
+            self.zmq_monitor = ZmqMonitorSession(self, zmq_port)
+            self.zmq_monitor.start()
+        else:
+            if not self.zmq_monitor.is_alive() or self.zmq_monitor.zmq_port != zmq_port:
+                if not self.zmq_monitor.is_alive():
+                    logger.info('Old ZMQ monitor is dead, starting new')
+                else:
+                    logger.info('ZMQ port is changed to %s, starting new monitor' % zmq_port)
+                self.zmq_monitor.join()
+                self.zmq_monitor = ZmqMonitorSession(self, zmq_port)
+                self.zmq_monitor.start()
+
+        self.zmq_monitor.first_dump = True
         self.errcode    = None
-        self.session    = AsynchronousTRexSession(self, trex_launch_path, trex_cmd)      
+        self.session    = AsynchronousTRexSession(self, trex_launch_path, trex_cmd)
         self.session.start()
         self.expect_trex.set()
-#       self.zmq_monitor= ZmqMonitorSession(self, zmq_port)
-#       self.zmq_monitor.start()
 
 
 
@@ -676,21 +690,16 @@ trex_daemon_server [options]
 """ )
 
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0')
-    parser.add_argument("-p", "--daemon-port", type=int, default = 8090, metavar="PORT", dest="daemon_port", 
+    parser.add_argument("-p", "--daemon-port", type=int, default = 8090, metavar="PORT",
         help="Select port on which the daemon runs.\nDefault port is 8090.", action="store")
-    parser.add_argument("-z", "--zmq-port", dest="zmq_port", type=int,
-        action="store", help="Select port on which the ZMQ module listens to TRex.\nDefault port is 4500.", metavar="PORT",
-        default = 4500)
-    parser.add_argument("-t", "--trex-path", dest="trex_path",
-        action="store", help="Specify the compiled TRex directory from which TRex would run.\nDefault path is: {def_path}.".format( def_path = default_path ),
-        metavar="PATH", default = default_path )
-    parser.add_argument("-f", "--files-path", dest="files_path",
-        action="store", help="Specify a path to directory on which pushed files will be saved at.\nDefault path is: {def_path}.".format( def_path = default_files_path ), 
-        metavar="PATH", default = default_files_path )
-    parser.add_argument("--trex-host", dest="trex_host",
-        action="store", help="Specify a hostname to be registered as the TRex server.\n"
-                             "Default is to bind all IPs using '0.0.0.0'.",
-        metavar="HOST", default = '0.0.0.0')
+    parser.add_argument("-z", "--zmq-port", type=int, metavar="PORT", default = 4500, action="store",
+        help="default TRex ZMQ publisher port to listen to (if not specified in config file).\nDefault port is 4500.")
+    parser.add_argument("-t", "--trex-path", metavar="PATH", default = default_path, action="store",
+        help="Specify the compiled TRex directory from which TRex would run.\nDefault path is: %s." % default_path)
+    parser.add_argument("-f", "--files-path", metavar="PATH", default = default_files_path, action="store",
+        help="Specify a path to directory on which pushed files will be saved at.\nDefault path is: %s." % default_files_path)
+    parser.add_argument("--trex-host", metavar="HOST", default = '0.0.0.0', action="store",
+        help="Specify a hostname to be registered as the TRex server.\nDefault is to bind all IPs using '0.0.0.0'.")
     parser.add_argument('-n', '--nice', dest='nice', action="store", default = -19, type = int,
         help="Determine the priority TRex process [-20, 19] (lower = higher priority)\nDefault is -19.")
     return parser
