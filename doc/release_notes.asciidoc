@@ -26,6 +26,11 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.48 ==
+
+* ASTF interactive vlan dynamic change fix (vlan per port was configured only from trex_cfg.yaml)
+* STL mode with old GUI fix.
+
 == Release 2.47 ==
 
 * ASTF: supports interactive framework like STL. common features are:
