@@ -870,7 +870,7 @@ For reference of all tunables see:  xref:tunables[here]
 
 *Goal*:: Simple automation test using Python from a local or remote machine.
 
-*File*:: link:{github_astf_i_examples_path}/stf_tcp.py[astf_example.py]
+*File*:: link:{github_astf_i_examples_path}/astf_example.py[astf_example.py]
 
 For this mode to work, TRex server should have started with interactive mode. 
 
