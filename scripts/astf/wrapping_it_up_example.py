@@ -28,7 +28,7 @@ class Prof1():
                    ((1 << 0) | (1 << 1) | (1 << 3) | (1 << 5)), # flags
                    7 | color
                )
-        return ('z' * 14 + 'x' * 8 + base64.b16decode(cqe))
+        return (b'z' * 14 + b'x' * 8 + base64.b16decode(cqe))
 
     def update_payload(self, payload, cmpl_ofst, cmpl_idx, cq_ofst, cq_addr):
         payload = payload[0:cmpl_ofst] + struct.pack('<H', cmpl_idx) + payload[cmpl_ofst+2:]
