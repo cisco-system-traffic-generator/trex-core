@@ -30,7 +30,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 30,   
+            d = 30,
             f = 'cap2/cur_flow.yaml',
             l = 1000)
 
@@ -68,7 +68,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             active_flows = active_flows,
             cfg = config_file_path,
             f = 'cap2/cur_flow.yaml',
@@ -102,7 +102,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             active_flows = active_flows,
             cfg = config_file_path,
             f = 'cap2/cur_flow_single.yaml',
@@ -134,7 +134,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 30,   
+            d = 30,
             f = 'cap2/imix_64.yaml',
             l = 1000)
 
@@ -157,14 +157,17 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
+        # check that non-standard zmq pub port works via daemon
+        config_file_path = self.alter_config_file('zmq_pub_port', 4600)
 
         ret = self.trex.start_trex(
             c = core,
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
+            cfg = config_file_path,
             l = 1000)
 
         trex_res = self.trex.sample_until_finish()
@@ -199,7 +202,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             e  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
@@ -233,7 +236,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             c = core,
             m = mult,
             nc = True,
-            d = 100,   
+            d = 100,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
