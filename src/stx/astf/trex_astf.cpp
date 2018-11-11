@@ -330,11 +330,7 @@ void TrexAstf::release_context() {
     get_owner().release();
 }
 
-bool TrexAstf::profile_check_size(uint32_t total_size) {
-    return total_size == m_profile_buffer.size();
-}
-
-bool TrexAstf::profile_check_hash(const string &hash) {
+bool TrexAstf::profile_cmp_hash(const string &hash) {
     return m_profile_hash == hash;
 }
 

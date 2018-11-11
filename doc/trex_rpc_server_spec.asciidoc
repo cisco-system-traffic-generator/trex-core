@@ -1897,9 +1897,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 | Field           | Type    | Description 
 | frag_first      | boolean | true in case this is the first fragment 
 | frag_last       | boolean | true in case this is the last fragment 
-| total_size      | uint32_t| the size of whole profile string
 | md5             | string  | come in first message with frag_first=true
-| fragment        | string  | partial string of the input json
+| fragment        | string  | fragment of input JSON string
 |=================
 
 === Clear profile 
