@@ -136,13 +136,10 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
     TrexAstf *stx = get_astf_object();
 
     if ( frag_first && !frag_last) {
-        const uint32_t total_size = parse_uint32(params, "total_size", result);
-        if ( stx->profile_check_size(total_size) ) {
-            const string hash = parse_string(params, "md5", result);
-            if ( stx->profile_check_hash(hash) ) {
-                result["result"]["matches_loaded"] = true;
-                return TREX_RPC_CMD_OK;
-            }
+        const string hash = parse_string(params, "md5", result);
+        if ( stx->profile_cmp_hash(hash) ) {
+            result["result"]["matches_loaded"] = true;
+            return TREX_RPC_CMD_OK;
         }
     }
 

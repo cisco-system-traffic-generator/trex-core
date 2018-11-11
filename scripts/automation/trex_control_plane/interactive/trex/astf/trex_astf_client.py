@@ -286,7 +286,6 @@ class ASTFClient(TRexClient):
             if index_end >= len(profile_json):
                 params['frag_last'] = True
             if params.get('frag_first') and not params.get('frag_last'):
-                params['total_size'] = len(profile_json)
                 params['md5'] = hashlib.md5(profile_json.encode()).hexdigest()
 
             rc = self._transmit('profile_fragment', params = params)

@@ -116,13 +116,12 @@ public:
 
     /**
      * Profile-related:
-     * check - check hash of loaded profile, true = matches (heavy profile will not be uploaded twice)
+     * cmp - compare hash to loaded profile, true = matches (heavy profile will not be uploaded twice)
      * clear - clears profile JSON string (if any)
      * append - appends fragment to profile JSON string
      * loaded - move state from idle to loaded
      */
-    bool profile_check_size(uint32_t total_size);
-    bool profile_check_hash(const std::string &hash);
+    bool profile_cmp_hash(const std::string &hash);
     void profile_clear();
     void profile_append(const std::string &fragment);
     void profile_set_loaded();
