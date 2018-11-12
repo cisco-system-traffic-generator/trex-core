@@ -696,6 +696,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
     uint64_t limit   = parse_uint64(inst, "limit", result);
     uint64_t min_value   = parse_uint64(inst, "min_value", result);
     uint64_t max_value   = parse_uint64(inst, "max_value", result);
+    bool is_split_needed   = parse_bool(inst, "split_to_core", result, true);
 
 	/* archiecture limitation - limit_flows must be greater or equal to DP core count */
 	if (limit < 1) {
@@ -711,7 +712,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
                                                                       limit,
                                                                       min_value,
                                                                       max_value,
-                                                                      seed)
+                                                                      seed,
+                                                                      is_split_needed)
                                  );
 }
 
@@ -739,6 +741,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
 
     const Json::Value &array = parse_array(inst, "value_list", result, Json::Value::null);
     uint64_t step            = parse_uint64(inst, "step", result);
+    bool is_split_needed   = parse_bool(inst, "split_to_core", result, true);
 
     if (array == Json::Value::null) {
         uint64_t init_value  = parse_uint64(inst, "init_value", result);
@@ -756,7 +759,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
                                                                     init_value,
                                                                     min_value,
                                                                     max_value,
-                                                                    step)
+                                                                    step,
+                                                                    is_split_needed)
                                      );
     }
     else {
@@ -772,7 +776,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
                                                                     flow_var_size,
                                                                     op_type,
                                                                     value_list,
-                                                                    step)
+                                                                    step,
+                                                                    is_split_needed)
                                      );
     }
 }

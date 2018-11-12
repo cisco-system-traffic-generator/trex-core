@@ -47,7 +47,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         print(pkt_builder.get_vm_data())
 
-        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc', 'split_to_core': True}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
                                                  
 
 
@@ -368,7 +368,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         print(pkt_builder.get_vm_data())
 
-        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc', 'split_to_core': True}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
 
     def test_simple_random_pkt_size_list(self):
 

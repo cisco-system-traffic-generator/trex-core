@@ -177,7 +177,7 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
     fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
-    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu) \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed,m_min_value,m_max_value);
+    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed,m_min_value,m_max_value, m_is_split_needed);
 }
 
 void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp){
@@ -289,7 +289,7 @@ void StreamVmInstructionFlowMan::Dump(FILE *fd){
         break;
     };
 
-    fprintf(fd," (%lu:%lu:%lu:%lu) \n",m_init_value,m_min_value,m_max_value,m_step);
+    fprintf(fd," (%lu:%lu:%lu:%lu:), is_split_needed:%d \n",m_init_value,m_min_value,m_max_value,m_step,m_is_split_needed);
 }
 
 
