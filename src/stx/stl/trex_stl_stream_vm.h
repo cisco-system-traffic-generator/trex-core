@@ -1272,7 +1272,11 @@ public:
 
     virtual bool need_split() const {
         /* random does not need split */
-        return (m_op != FLOW_VAR_OP_RANDOM);
+        if (m_is_split_needed) {
+            return (m_op != FLOW_VAR_OP_RANDOM);
+        } else {
+            return false;
+        }
     }
 
     virtual uint64_t get_range() const {
@@ -1298,7 +1302,8 @@ public:
                                uint64_t init_value,
                                uint64_t min_value,
                                uint64_t max_value,
-                               uint64_t step=1) : StreamVmInstructionVar(var_name) {
+                               uint64_t step=1,
+                               bool is_split_needed=true) : StreamVmInstructionVar(var_name) {
 
         m_op          = op;
         m_size_bytes  = size;
@@ -1308,6 +1313,7 @@ public:
         m_value_list.clear();
         m_step        = step % get_range(); // support step overflow by modulu
         m_wa          = step / get_range(); // save the overflow count (for complex vars such as tuple)
+        m_is_split_needed = is_split_needed;
 
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
@@ -1317,7 +1323,8 @@ public:
                                uint8_t size,
                                flow_var_op_e op,
                                std::vector<uint64_t> value_list,
-                               uint64_t step=1) : StreamVmInstructionVar(var_name) {
+                               uint64_t step=1,
+                               bool is_split_needed=true) : StreamVmInstructionVar(var_name) {
 
         m_op          = op;
         m_size_bytes  = size;
@@ -1333,6 +1340,7 @@ public:
         m_value_list  = value_list;
         m_step        = step % value_list.size(); // support step overflow by modulu
         m_wa          = step / value_list.size(); // save the overflow count (for complex vars such as tuple)
+        m_is_split_needed = is_split_needed;
     }
 
     uint32_t get_wrap_arounds(uint32_t steps = 1) const {
@@ -1383,14 +1391,16 @@ public:
                                                   m_init_value,
                                                   m_min_value,
                                                   m_max_value,
-                                                  m_step);
+                                                  m_step,
+                                                  m_is_split_needed);
         }
         else {
             return new StreamVmInstructionFlowMan(m_var_name,
                                                   m_size_bytes,
                                                   m_op,
                                                   m_value_list,
-                                                  m_step);
+                                                  m_step,
+                                                  m_is_split_needed);
         }
     }
 
@@ -1445,6 +1455,8 @@ public:
 
     uint64_t m_step;
     uint32_t m_wa;
+
+    bool m_is_split_needed;
 };
 
 
@@ -1462,7 +1474,7 @@ public:
     }
 
     virtual bool need_split() const {
-        return true;
+        return m_is_split_needed;
     }
 
     StreamVmInstructionFlowRandLimit(const std::string &var_name,
@@ -1470,7 +1482,8 @@ public:
                                      uint64_t limit,
                                      uint64_t min_value,
                                      uint64_t max_value,
-                                     uint64_t seed
+                                     uint64_t seed,
+                                     bool is_split_needed=true
                                      ) : StreamVmInstructionVar(var_name) {
 
         m_size_bytes = size;
@@ -1478,6 +1491,7 @@ public:
         m_limit      = limit;
         m_min_value  = min_value;
         m_max_value  = max_value;
+        m_is_split_needed = is_split_needed;
     }
 
     virtual void Dump(FILE *fd);
@@ -1492,7 +1506,8 @@ public:
                                                     m_limit,
                                                     m_min_value,
                                                     m_max_value,
-                                                    m_seed);
+                                                    m_seed,
+                                                    m_is_split_needed);
     }
 
     virtual void update(uint64_t phase, uint64_t step_mul) {
@@ -1515,6 +1530,8 @@ public:
 
     uint64_t       m_seed;
     uint8_t        m_size_bytes;
+
+    bool m_is_split_needed;
 };
 
 
