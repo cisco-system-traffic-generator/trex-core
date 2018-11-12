@@ -2992,7 +2992,6 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 
 			dev->rx_pkt_burst = i40e_recv_scattered_pkts_vec;
 #ifdef RTE_ARCH_X86
-#if !defined(TREX_PATCH) || defined(RTE_MACHINE_CPUFLAG_AVX512F)
 			/*
 			 * since AVX frequency can be different to base
 			 * frequency, limit use of AVX2 version to later
@@ -3001,8 +3000,7 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 			 */
 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
 				dev->rx_pkt_burst =
-					i40e_recv_scattered_pkts_vec_avx2;
-#endif
+					i40e_recv_scattered_pkts_vec;
 #endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Using a Scattered with bulk "
@@ -3024,7 +3022,6 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 
 		dev->rx_pkt_burst = i40e_recv_pkts_vec;
 #ifdef RTE_ARCH_X86
-#if !defined(TREX_PATCH) || defined(RTE_MACHINE_CPUFLAG_AVX512F)
 		/*
 		 * since AVX frequency can be different to base
 		 * frequency, limit use of AVX2 version to later
@@ -3032,8 +3029,7 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 		 * run it.
 		 */
 		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
-			dev->rx_pkt_burst = i40e_recv_pkts_vec_avx2;
-#endif
+			dev->rx_pkt_burst = i40e_recv_pkts_vec;
 #endif
 	} else if (ad->rx_bulk_alloc_allowed) {
 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
@@ -3120,7 +3116,6 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 			PMD_INIT_LOG(DEBUG, "Vector tx finally be used.");
 			dev->tx_pkt_burst = i40e_xmit_pkts_vec;
 #ifdef RTE_ARCH_X86
-#if !defined(TREX_PATCH) || defined(RTE_MACHINE_CPUFLAG_AVX512F)
 			/*
 			 * since AVX frequency can be different to base
 			 * frequency, limit use of AVX2 version to later
@@ -3128,8 +3123,7 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 			 * run it.
 			 */
 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
-				dev->tx_pkt_burst = i40e_xmit_pkts_vec_avx2;
-#endif
+				dev->tx_pkt_burst = i40e_xmit_pkts_vec;
 #endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Simple tx finally be used.");
