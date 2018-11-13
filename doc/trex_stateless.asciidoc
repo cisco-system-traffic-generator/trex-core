@@ -2403,48 +2403,6 @@ Procedure:
 =====================================================================
 This can be also be done for IPv6. ARP could be replaced with Neighbor Solicitation IPv6 packet.
 =====================================================================
- 
-==== Tutorial: Field Engine, split to core 
-
-Following TRex version 2.08, "split to core" functionality was deprecated, and remains only for backward compatibility.
-The new implementation is always to split as if the profile were sent from one core. It is not necessary for users to consider the actual number of cores.
-
-// Does post v2.08 mean that v2.08 still has "split to core" or does not?
-
-
-[source,python]
-----
-    def create_stream (self):
-
-        # TCP SYN
-        base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")     
-
-
-        # vm
-        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
-                                              min_value="16.0.0.0", 
-                                              max_value="16.0.0.254", 
-                                              size=4, op="inc"),                     
-
-
-                           STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ),  
-
-                           STLVmFixIpv4(offset = "IP"), # fix checksum              
-                          ]
-                         ,split_by_field = "ip_src"                                 <1>  
-                       )
-
-----
-<1> Deprecated split by field - not in use (post v2.08).
-
-// please clarify connection between "split to core" and "split by field" - not clear how this example relates to the "split to core" issue.
-
-
-*Some rules regarding split stream variables and burst/multi-burst*::
-
-* When using burst/multi-burst, the packets are split to the default number of threads specified in the YAML configuration file. It is not necessary to split the threads explicitly.
-* When the number of packets in a burst is smaller than the number of threads, one thread handles the burst. 
-* In the case of a stream with a burst of *1* packet, only the first DP thread handles the stream.
 
 ==== Tutorial: Field Engine, null stream 
 
@@ -3469,6 +3427,59 @@ To see the statistics use the following console command:
 ----
 trex>stats -c
 ----
+
+==== Tutorial: Field Engine variable split to cores 
+
+*Goal*:: Demonstrate how to split to cores a field engine variable. By default all the variables are split to cores
+and each core updates the variable by step * number of cores. In case we want each core to update the variable
+by step only, we set this parameter to false.
+
+*File*:: link:{github_stl_path}/split_var_to_cores.py[split_var_to_cores.py]
+
+// inserted this comment to fix rendering problem - otherwise the next several lines are not rendered
+// there's still a problem with the rendering. the image is not displayed.
+
+
+.split_var_to_cores
+[source,python]
+----
+    def create_stream (self, direction):
+
+        base_pkt =  Ether()/IP()/UDP(dport=12,sport=1025)
+
+        ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
+                    'dst': {'start': "8.0.0.1",  'end': "8.0.0.254"}}
+
+        if (direction == 0):
+            src = ip_range['src']
+            dst = ip_range['dst']
+        else:
+            src = ip_range['dst']
+            dst = ip_range['src']
+
+
+        vm = STLVM()
+
+        vm.var(name="src", min_value=src['start'], max_value=src['end'], size=4, op='inc', 
+              split_to_cores = False)                                                       #<1>
+        vm.var(name="dst", min_value=dst['start'], max_value=dst['end'], size=4, op='inc')  #<2>
+        vm.write(fv_name='src', pkt_offset='IP.src')
+        vm.write(fv_name='dst', pkt_offset='IP.dst')
+        vm.fix_chksum(offset='IP')
+        return STLStream(packet = STLPktBuilder(pkt = base_pkt, vm = vm),
+                         mode = STLTXCont())
+----
+<1> The source address variable is not split to cores, hence it will be incremented by step = 1 in each core.
+<2> By default the destination address variable is split to cores, as such it will be incremented by step * number of cores in each core.
+
+You can simulate the profile using the STL simulator:
+
+[source,bash]
+----
+[bash]>./stl-sim -f stl/split_var_to_cores.py -o b.pcap -c 7
+----
+
+In the pcap we can see that each source address is repeated number of cores times, meanwhile the destination addresses are repeated once.
 
 === Functional Tutorials
 
