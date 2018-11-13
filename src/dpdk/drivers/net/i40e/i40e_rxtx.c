@@ -3000,7 +3000,7 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 			 */
 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
 				dev->rx_pkt_burst =
-					i40e_recv_scattered_pkts_vec;
+					i40e_recv_scattered_pkts_vec_avx2;
 #endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Using a Scattered with bulk "
@@ -3029,7 +3029,7 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 		 * run it.
 		 */
 		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
-			dev->rx_pkt_burst = i40e_recv_pkts_vec;
+			dev->rx_pkt_burst = i40e_recv_pkts_vec_avx2;
 #endif
 	} else if (ad->rx_bulk_alloc_allowed) {
 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
@@ -3123,7 +3123,7 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 			 * run it.
 			 */
 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
-				dev->tx_pkt_burst = i40e_xmit_pkts_vec;
+				dev->tx_pkt_burst =  i40e_xmit_pkts_vec_avx2;
 #endif
 		} else {
 			PMD_INIT_LOG(DEBUG, "Simple tx finally be used.");
@@ -3236,7 +3236,7 @@ i40e_recv_pkts_vec_avx2(void __rte_unused *rx_queue,
 			struct rte_mbuf __rte_unused **rx_pkts,
 			uint16_t __rte_unused nb_pkts)
 {
-	return 0;
+    return(i40e_recv_pkts_vec(rx_queue,rx_pkts,nb_pkts));
 }
 
 uint16_t __attribute__((weak))
@@ -3244,7 +3244,7 @@ i40e_recv_scattered_pkts_vec_avx2(void __rte_unused *rx_queue,
 			struct rte_mbuf __rte_unused **rx_pkts,
 			uint16_t __rte_unused nb_pkts)
 {
-	return 0;
+    return(i40e_recv_scattered_pkts_vec(rx_queue,rx_pkts,nb_pkts));
 }
 
 int __attribute__((weak))
@@ -3278,5 +3278,5 @@ i40e_xmit_pkts_vec_avx2(void __rte_unused * tx_queue,
 			  struct rte_mbuf __rte_unused **tx_pkts,
 			  uint16_t __rte_unused nb_pkts)
 {
-	return 0;
+    return(i40e_xmit_pkts_vec(tx_queue,tx_pkts,nb_pkts));
 }
