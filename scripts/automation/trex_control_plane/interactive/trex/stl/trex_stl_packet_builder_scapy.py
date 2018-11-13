@@ -325,13 +325,15 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     OPERATIONS =['inc', 'dec', 'random']
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list, split_to_core):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list, split_to_cores):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
         self.name = fv_name;
         validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.op = op
-        self.split_to_core = split_to_core
+
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
 
         if value_list == None:
             self.init_value = init_value
@@ -752,7 +754,7 @@ def valid_fv_cycle(min_value, max_value, step, op):
 
 class STLVmFlowVar(CTRexVmDescBase):
 
-    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None, split_to_core = True):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None, split_to_cores = True):
         """
         Flow variable instruction. Allocates a variable on a stream context. The size argument determines the variable size.
         The operation can be inc, dec, and random. 
@@ -784,9 +786,9 @@ class STLVmFlowVar(CTRexVmDescBase):
              value_list  : int
                 List of values instead of init_value, min_value and max_value
 
-            split_to_core = bool 
-                Every core receives the variable, and by default it will be split to cores. In case this parameter
-                is false every core will update the variable independently on other cores.
+            split_to_cores = bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
 
         .. code-block:: python
 
@@ -834,9 +836,8 @@ class STLVmFlowVar(CTRexVmDescBase):
         self.op =op
         valid_fv_ops (op)
 
-        if not isinstance(split_to_core, bool):
-            raise CTRexPacketBuildException(-11, "split_to_core must be boolean")
-        self.split_to_core = split_to_core
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
 
         self.step = convert_val (step)
         if self.step <= 0:
@@ -868,7 +869,7 @@ class STLVmFlowVar(CTRexVmDescBase):
             valid_fv_var_sizes(self.size, self.value_list)
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list, self.split_to_core);
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list, self.split_to_cores)
 
     def get_var_name(self):
         return [self.name]
@@ -1803,7 +1804,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                                value_list = instr.get('value_list',None),
                                size      = instr['size'],
                                step      = instr['step'],
-                               split_to_core = instr.get('split_to_core', True))
+                               split_to_cores = instr.get('split_to_cores', True))
                     
                     
                 # write flow var
@@ -2031,7 +2032,7 @@ class STLVM(STLScVmRaw):
         self.cache_size = cache_size
         
         
-    def var (self, name, min_value, max_value, size, op, step = 1, split_to_core = True, **k):
+    def var (self, name, min_value, max_value, size, op, step = 1, split_to_cores = True, **k):
         """
         Defines a flow variable.
         Allocates a variable on a stream context. The size argument determines the variable size.
@@ -2058,12 +2059,12 @@ class STLVM(STLScVmRaw):
              op    : string 
                 Possible values: "inc", "dec", "random"
             
-            split_to_core : bool 
-                Every core receives the variable, and by default it will be split to cores. In case this parameter
-                is false every core will update the variable independently on other cores.
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
         """
         self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step,
-                                  split_to_core = split_to_core, **k))
+                                  split_to_cores = split_to_cores, **k))
         
         
     def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
