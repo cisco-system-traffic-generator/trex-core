@@ -1272,7 +1272,7 @@ public:
 
     virtual bool need_split() const {
         /* random does not need split */
-        if (m_is_split_needed) {
+        if (likely(m_is_split_needed)) {
             return (m_op != FLOW_VAR_OP_RANDOM);
         } else {
             return false;
