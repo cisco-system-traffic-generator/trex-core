@@ -40,6 +40,7 @@ class CASTFGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.flush()
                 self.astf_trex.connect()
                 self.astf_trex.acquire(force = True)
+                self.astf_trex.stop()
                 print('')
                 return True
             except Exception as e:

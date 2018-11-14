@@ -31,6 +31,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.flush()
                 self.stl_trex.connect()
                 self.stl_trex.acquire(force = True)
+                self.stl_trex.stop()
                 print('')
                 return True
             except Exception as e:
@@ -46,7 +47,7 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             sys.stdout.write('.')
             sys.stdout.flush()
             try:
-                CTRexScenario.stl_trex.remove_all_captures()
+                self.stl_trex.remove_all_captures()
                 CTRexScenario.ports_map = self.stl_trex.map_ports()
                 if self.verify_bidirectional(CTRexScenario.ports_map):
                     print('')
