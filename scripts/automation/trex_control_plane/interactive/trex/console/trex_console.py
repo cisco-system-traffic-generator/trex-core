@@ -230,11 +230,13 @@ class TRexConsole(TRexGeneralCmd):
 
     def load_client_console_functions (self):
         for cmd_name, cmd_func in self.client.get_console_methods().items():
-            
+
             # register the function and its help
             if cmd_func.preserve_history:
                 f = partial(self.history_preserver, cmd_func)
                 f.__doc__ = cmd_func.__doc__
+                f.name    = cmd_func.name
+                f.group   = cmd_func.group
                 setattr(self.__class__, 'do_' + cmd_name, f)
             else:
                 setattr(self.__class__, 'do_' + cmd_name, cmd_func)
