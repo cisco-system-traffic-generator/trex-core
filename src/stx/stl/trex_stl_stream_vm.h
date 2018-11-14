@@ -322,14 +322,18 @@ struct StreamDPOpFlowVar8Step {
     uint8_t m_min_val;
     uint8_t m_max_val;
     uint8_t m_step;
+    uint32_t m_skip;
     uint16_t m_list_size;
     uint16_t m_list_index;
     uint8_t m_val_list[];
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var) {
+    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -339,8 +343,11 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var) {
+    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -372,14 +379,18 @@ struct StreamDPOpFlowVar16Step {
     uint16_t m_min_val;
     uint16_t m_max_val;
     uint16_t m_step;
+    uint32_t m_skip;
     uint16_t m_list_size;
     uint16_t m_list_index;
     uint16_t m_val_list[];
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var) {
+    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -389,8 +400,11 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var) {
+    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -422,14 +436,18 @@ struct StreamDPOpFlowVar32Step {
     uint32_t m_min_val;
     uint32_t m_max_val;
     uint32_t m_step;
+    uint32_t m_skip;
     uint16_t m_list_size;
     uint16_t m_list_index;
     uint32_t m_val_list[];
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var) {
+    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -439,8 +457,11 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var) {
+    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -473,14 +494,18 @@ struct StreamDPOpFlowVar64Step {
     uint64_t m_min_val;
     uint64_t m_max_val;
     uint64_t m_step;
+    uint32_t m_skip;
     uint16_t m_list_size;
     uint16_t m_list_index;
     uint64_t m_val_list[];
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var) {
+    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -490,8 +515,11 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var) {
+    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
+        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
+            *program += m_skip;
+        }
         if (m_list_size == 0) {
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
@@ -988,49 +1016,49 @@ inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
 
         case StreamDPVmInstructions::ditINC8_STEP:
             ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
-            ua.lpv8s->run_inc(flow_var);
+            ua.lpv8s->run_inc(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar8Step) + ua.lpv8s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditINC16_STEP:
             ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
-            ua.lpv16s->run_inc(flow_var);
+            ua.lpv16s->run_inc(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar16Step) + ua.lpv16s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditINC32_STEP:
             ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
-            ua.lpv32s->run_inc(flow_var);
+            ua.lpv32s->run_inc(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar32Step) + ua.lpv32s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditINC64_STEP:
             ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
-            ua.lpv64s->run_inc(flow_var);
+            ua.lpv64s->run_inc(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar64Step) + ua.lpv64s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditDEC8_STEP:
             ua.lpv8s =(StreamDPOpFlowVar8Step *)p;
-            ua.lpv8s->run_dec(flow_var);
+            ua.lpv8s->run_dec(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar8Step) + ua.lpv8s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditDEC16_STEP:
             ua.lpv16s =(StreamDPOpFlowVar16Step *)p;
-            ua.lpv16s->run_dec(flow_var);
+            ua.lpv16s->run_dec(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar16Step) + ua.lpv16s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditDEC32_STEP:
             ua.lpv32s =(StreamDPOpFlowVar32Step *)p;
-            ua.lpv32s->run_dec(flow_var);
+            ua.lpv32s->run_dec(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar32Step) + ua.lpv32s->get_sizeof_list();
             break;
 
         case StreamDPVmInstructions::ditDEC64_STEP:
             ua.lpv64s =(StreamDPOpFlowVar64Step *)p;
-            ua.lpv64s->run_dec(flow_var);
+            ua.lpv64s->run_dec(flow_var, &p);
             p += sizeof(StreamDPOpFlowVar64Step) + ua.lpv64s->get_sizeof_list();
             break;
 
@@ -1156,8 +1184,6 @@ public:
         return (0);
     }
 
-private:
-    static const std::string m_name;
 };
 
 /**
@@ -1303,7 +1329,10 @@ public:
                                uint64_t min_value,
                                uint64_t max_value,
                                uint64_t step=1,
-                               bool is_split_needed=true) : StreamVmInstructionVar(var_name) {
+                               bool is_split_needed=true,
+                               const std::string &next_var_name="",
+                               bool has_previous=false) : StreamVmInstructionVar(var_name),
+                               m_next_var_name(next_var_name) {
 
         m_op          = op;
         m_size_bytes  = size;
@@ -1314,6 +1343,7 @@ public:
         m_step        = step % get_range(); // support step overflow by modulu
         m_wa          = step / get_range(); // save the overflow count (for complex vars such as tuple)
         m_is_split_needed = is_split_needed;
+        m_has_previous= has_previous;
 
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
@@ -1324,7 +1354,10 @@ public:
                                flow_var_op_e op,
                                std::vector<uint64_t> value_list,
                                uint64_t step=1,
-                               bool is_split_needed=true) : StreamVmInstructionVar(var_name) {
+                               bool is_split_needed=true,
+                               const std::string &next_var_name="",
+                               bool has_previous=false) : StreamVmInstructionVar(var_name),
+                               m_next_var_name(next_var_name) {
 
         m_op          = op;
         m_size_bytes  = size;
@@ -1341,6 +1374,8 @@ public:
         m_step        = step % value_list.size(); // support step overflow by modulu
         m_wa          = step / value_list.size(); // save the overflow count (for complex vars such as tuple)
         m_is_split_needed = is_split_needed;
+        m_has_previous= has_previous;
+
     }
 
     uint32_t get_wrap_arounds(uint32_t steps = 1) const {
@@ -1392,7 +1427,9 @@ public:
                                                   m_min_value,
                                                   m_max_value,
                                                   m_step,
-                                                  m_is_split_needed);
+                                                  m_is_split_needed,
+                                                  m_next_var_name,
+                                                  m_has_previous);
         }
         else {
             return new StreamVmInstructionFlowMan(m_var_name,
@@ -1400,7 +1437,9 @@ public:
                                                   m_op,
                                                   m_value_list,
                                                   m_step,
-                                                  m_is_split_needed);
+                                                  m_is_split_needed,
+                                                  m_next_var_name,
+                                                  m_has_previous);
         }
     }
 
@@ -1457,6 +1496,8 @@ public:
     uint32_t m_wa;
 
     bool m_is_split_needed;
+    bool m_has_previous = false;
+    std::string const m_next_var_name;
 };
 
 

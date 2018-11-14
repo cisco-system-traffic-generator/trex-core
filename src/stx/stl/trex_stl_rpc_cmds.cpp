@@ -721,6 +721,8 @@ void
 TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
 
+    std::string next_var_name = parse_string(inst, "next_var", result, "");
+
     auto sizes = {1, 2, 4, 8};
     uint8_t      flow_var_size = parse_choice(inst, "size", sizes, result);
 
@@ -760,7 +762,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
                                                                     min_value,
                                                                     max_value,
                                                                     step,
-                                                                    is_split_needed)
+                                                                    is_split_needed,
+                                                                    next_var_name)
                                      );
     }
     else {
@@ -777,7 +780,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
                                                                     op_type,
                                                                     value_list,
                                                                     step,
-                                                                    is_split_needed)
+                                                                    is_split_needed,
+                                                                    next_var_name)
                                      );
     }
 }
