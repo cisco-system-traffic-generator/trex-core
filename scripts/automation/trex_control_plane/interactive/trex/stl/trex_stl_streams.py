@@ -673,6 +673,7 @@ class STLStream(object):
                         inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
                         inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
                         inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
+                        # TODO - add next_var here
                 common_start = "vm.var(name='{name}', op='{op}', step={step}, size={size}, split_to_cores={split_to_cores}, "
                 if value_list is not None:
                     vm_list.append((common_start + "min_value=None, max_value=None, value_list={value_list})").format(**inst))

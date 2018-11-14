@@ -8,6 +8,7 @@ import binascii
 import base64
 import inspect
 import copy
+import collections
 
 from scapy.all import *
 
@@ -223,12 +224,20 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     OPERATIONS =['inc', 'dec', 'random']
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list, split_to_cores):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list, split_to_cores, next_var):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
-        self.name = fv_name;
+        self.name = fv_name
         validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.op = op
+
+        if next_var != None:
+            validate_type('next_var', next_var, basestring)
+            if op == 'random':
+                raise CTRexPacketBuildException(-11,("If next_var is defined then op can't be random. Check %s ") % (fv_name))
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,("Self loops are forbidden."))
+        self.next_var = next_var
 
         validate_type('split_to_cores', split_to_cores, bool)
         self.split_to_cores = split_to_cores
@@ -579,11 +588,17 @@ class CTRexVmDescBase(object):
         '''
         return None
 
+    def get_next_var_name(self):
+        '''
+            Virtual function that returns the name of the next variable name if it exists.
+        '''
+        return None
+
     def compile(self,parent):
         '''
           Virtual function to take parent that has function name_to_offset.
         '''
-        pass;
+        pass
 
 
 def valid_fv_size (size):
@@ -654,7 +669,7 @@ def valid_fv_cycle(min_value, max_value, step, op):
 
 class STLVmFlowVar(CTRexVmDescBase):
 
-    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None, split_to_cores = True):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None, split_to_cores=True, next_var=None):
         """
         Flow variable instruction. Allocates a variable on a stream context. The size argument determines the variable size.
         The operation can be inc, dec, and random. 
@@ -689,6 +704,10 @@ class STLVmFlowVar(CTRexVmDescBase):
             split_to_cores = bool 
                 Default value is True. If the value is True then each core updates the variable by step * num of cores.
                 If split_to_cores = False then each core updates the variable by step.
+
+            next_var = string
+                Name of the next variable. The next variable will perform its operation only when this variable
+                completes a full wrap around.
 
         .. code-block:: python
 
@@ -736,6 +755,16 @@ class STLVmFlowVar(CTRexVmDescBase):
         self.op =op
         valid_fv_ops (op)
 
+        if next_var != None:
+            validate_type('next_var', next_var, [basestring])
+            if op == 'random':
+                raise CTRexPacketBuildException(-11,("If next_var is defined then op can't be random. Check %s ") % (self.name))
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,("Self loops are forbidden."))
+        self.next_var = next_var
+
+        self.previous = None
+
         validate_type('split_to_cores', split_to_cores, bool)
         self.split_to_cores = split_to_cores
 
@@ -769,10 +798,17 @@ class STLVmFlowVar(CTRexVmDescBase):
             valid_fv_var_sizes(self.size, self.value_list)
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list, self.split_to_cores)
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list,
+                                    self.split_to_cores, self.next_var)
 
     def get_var_name(self):
         return [self.name]
+
+    def get_next_var_name(self):
+        return self.next_var
+
+    def get_previous_var_name(self):
+        return self.previous
 
 class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
@@ -1711,7 +1747,8 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                                value_list = instr.get('value_list',None),
                                size      = instr['size'],
                                step      = instr['step'],
-                               split_to_cores = instr.get('split_to_cores', True))
+                               split_to_cores = instr.get('split_to_cores', True),
+                               next_var  = instr.get('next_var', None))
                     
                     
                 # write flow var
@@ -1790,6 +1827,36 @@ class STLPktBuilder(CTrexPktBuilderInterface):
     ####################################################
     # private
 
+    def compute_previous(self, flow_variables):
+        for var_name, var in flow_variables.items():
+            next_var_name = var.get_next_var_name()
+            if next_var_name:
+                next_var = flow_variables[next_var_name]
+                if next_var.get_previous_var_name() and next_var.get_previous_var_name() != var_name:
+                        raise CTRexPacketBuildException(-11,("Variable %s is pointed by two vars.") % (next_var_name) )
+                next_var.previous = var_name
+
+
+    def order_flow_vars(self, flow_variables):
+        ordered_flow_vars = []
+        already_visited_vars = {}
+        for var in flow_variables.values():
+            if var.get_previous_var_name() is None: #it means that this var is the head of a chain
+                head = var #start inserting the whole chain in the list
+                while (head.get_next_var_name()):
+                    ordered_flow_vars.append(head)
+                    already_visited_vars[head.get_var_name()[0]] = head # head is visited
+                    head = flow_variables[head.get_next_var_name()] # update the head to the next var
+
+                # last var in a chain
+                already_visited_vars[head.get_var_name()[0]] = head
+                ordered_flow_vars.append(head)
+
+        if len(flow_variables) != len(ordered_flow_vars):
+            raise CTRexPacketBuildException(-11,("Loops are forbidden for dependent variables"))
+
+        return ordered_flow_vars
+
 
     def _get_pcap_file_path (self,pcap_file_name):
         f_path = pcap_file_name
@@ -1814,29 +1881,46 @@ class STLPktBuilder(CTrexPktBuilderInterface):
     def _compile_raw (self,obj):
 
         # make sure we have varibles once
-        vars={};
+        vars={}
+        flow_vars = collections.OrderedDict()  #dictionary of flow vars
 
-        # add it add var to dit
+        # add vars to vars dict
         for desc in obj.commands:
             var_names =  desc.get_var_name()
 
             if var_names :
                 for var_name in var_names:
                     if var_name in vars:
-                        raise CTRexPacketBuildException(-11,("Variable %s defined twice ") % (var_name)  );
+                        raise CTRexPacketBuildException(-11,("Variable %s defined twice ") % (var_name)  )
                     else:
                         vars[var_name]=1
 
-        # check that all write exits
+        # check that all write command variables exist
         for desc in obj.commands:
             var_name =  desc.get_var_ref()
             if var_name :
                 if var_name not in vars:
-                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (var_name) );
-            desc.compile(self);
+                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (var_name) )
 
+        # create dictionary of flow variables
         for desc in obj.commands:
-            self.vm_low_level.add_ins(desc.get_obj());
+            if type(desc) == STLVmFlowVar:
+                flow_vars[desc.get_var_name()[0]] = desc
+
+        # check that all next_var exist
+        for var_name, var in flow_vars.items():
+            next_var_name = var.get_next_var_name()
+            if next_var_name:
+                if next_var_name not in flow_vars:
+                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (next_var_name) )
+
+        self.compute_previous(flow_vars)
+        ordered_commands = self.order_flow_vars(flow_vars)
+        ordered_commands += [cmd for cmd in obj.commands if type(cmd) != STLVmFlowVar]
+
+        for desc in ordered_commands:
+            desc.compile(self)
+            self.vm_low_level.add_ins(desc.get_obj())
 
         #set cache size 
         if obj.cache_size :
@@ -1940,7 +2024,7 @@ class STLVM(STLScVmRaw):
         self.cache_size = cache_size
         
         
-    def var (self, name, min_value, max_value, size, op, step = 1, split_to_cores = True, **k):
+    def var (self, name, min_value, max_value, size, op, step = 1, split_to_cores = True, next_var = None, **k):
         """
         Defines a flow variable.
         Allocates a variable on a stream context. The size argument determines the variable size.
@@ -1972,7 +2056,7 @@ class STLVM(STLScVmRaw):
                 If split_to_cores = False then each core updates the variable by step.
         """
         self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step,
-                                  split_to_cores = split_to_cores, **k))
+                                  split_to_cores = split_to_cores, next_var = next_var, **k))
         
         
     def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
