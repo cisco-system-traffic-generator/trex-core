@@ -17,7 +17,8 @@ from ...utils.text_opts import format_text, format_threshold, format_num
 class PortStats(AbstractStats):
 
     def __init__(self, port_obj):
-        super(PortStats, self).__init__(RpcCmdData('get_port_stats', {'port_id': port_obj.port_id}, ''))
+        port_id = port_obj.port_id if port_obj else None
+        super(PortStats, self).__init__(RpcCmdData('get_port_stats', {'port_id': port_id }, ''))
         self._port_obj = port_obj
 
 
