@@ -211,7 +211,8 @@ public:
         m_limit_memory=""  ;
         m_thread_per_dual_if=1;
         m_tw.reset();
-
+        m_rx_desc =0;
+        m_tx_desc =0;
     }
 
     bool            m_info_exist; /* file exist ?*/
@@ -234,10 +235,13 @@ public:
     bool                          m_enable_zmq_pub_exist;
     bool                          m_enable_zmq_pub;
     uint16_t                      m_zmq_pub_port;
-
+    
 
     bool                          m_telnet_exist;
     uint16_t                      m_telnet_port;
+
+    uint16_t                      m_rx_desc;
+    uint16_t                      m_tx_desc;
 
     uint16_t                      m_zmq_rpc_port;
 

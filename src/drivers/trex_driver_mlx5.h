@@ -38,10 +38,11 @@ public:
         return ( new CTRexExtendedDriverBaseMlnx5G() );
     }
 
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p);
 
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
+
+    virtual bool is_support_for_rx_scatter_gather();
 
     virtual int get_min_sample_rate(void);
 

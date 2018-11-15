@@ -25,6 +25,15 @@
 #include "main_dpdk.h"
 #include "dpdk_drv_filter.h"
 
+class CTrexDpdkParamsOverride {
+ public:
+   uint16_t rx_desc_num_data_q;
+   uint16_t rx_desc_num_drop_q;
+   uint16_t rx_desc_num_dp_q; 
+
+   uint16_t tx_desc_num;
+};
+
 
 struct port_cfg_t {
 public:
@@ -48,23 +57,16 @@ public:
 class CTRexExtendedDriverBase {
 protected:
     enum {
-        // Is there HW support for dropping packets arriving to certain queue?
-        TREX_DRV_CAP_DROP_Q = 0x1,
+        //see trex_driver_cap_t
+
         /* Does this NIC type support automatic packet dropping in case of a link down?
            in case it is supported the packets will be dropped, else there would be a back pressure to tx queues
            this interface is used as a workaround to let TRex work without link in stateless mode, driver that
            does not support that will be failed at init time because it will cause watchdog due to watchdog hang */
-        TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN = 0x2,
+        TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN = 0x100,
+
         // Does the driver support changing MAC address?
-        TREX_DRV_CAP_MAC_ADDR_CHG = 0x4,
-
-        // when there is more than one RX queue, does RSS is configured by by default to split to all the queues.
-        // some driver configure RSS by default (MLX5/ENIC) and some (Intel) does not. in case of TCP stack need to remove the latency thread from RSS
-        TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES = 0x08,
-
-        /* ASTF multi-core is supported */
-        TREX_DRV_DEFAULT_ASTF_MULTI_CORE = 0x10
-
+        TREX_DRV_CAP_MAC_ADDR_CHG = 0x200,
 
     } trex_drv_cap;
 
@@ -75,20 +77,11 @@ public:
     virtual int configure_rx_filter_rules(CPhyEthIF * _if)=0;
     virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3, uint8_t l4
                                           , uint8_t ipv6_next_h, uint16_t id) {return 0;}
-    bool is_hardware_default_rss(){
-        return ((m_cap & TREX_DRV_DEFAULT_RSS_ON_RX_QUEUES) != 0);
-    }
 
-    bool is_capable_astf_multi_core(){
-        return ((m_cap & TREX_DRV_DEFAULT_ASTF_MULTI_CORE) != 0);
-    }
-
-    bool is_hardware_support_drop_queue() {
-        return ((m_cap & TREX_DRV_CAP_DROP_Q) != 0);
-    }
     bool hardware_support_mac_change() {
         return ((m_cap & TREX_DRV_CAP_MAC_ADDR_CHG) != 0);
     }
+
     bool drop_packets_incase_of_linkdown() {
         return ((m_cap & TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN) != 0);
     }
@@ -115,13 +108,21 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) = 0;
 
-    virtual rte_mempool_t * get_rx_mem_pool(int socket_id);
-
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p);
-
     uint32_t get_capabilities(void) {
         return m_cap;
     }
+
+    /* return true in case the driver can get 2K buffers and can make then one big 9K buffer 
+       e.g. mlx5 and napatech can't do that 
+    */
+    virtual bool is_support_for_rx_scatter_gather(){
+        return (true);
+    }
+
+    virtual bool is_override_dpdk_params(CTrexDpdkParamsOverride & dpdk_p){
+        return(false);
+    }
+
 
 protected:
     // flags describing interface capabilities
@@ -171,14 +172,18 @@ public:
     CFlowStatParser *get_flow_stat_parser() {
         return m_real_drv->get_flow_stat_parser();
     }
+
+    bool is_support_for_rx_scatter_gather(){
+        return m_real_drv->is_support_for_rx_scatter_gather();
+    }
+
+    bool is_override_dpdk_params(CTrexDpdkParamsOverride & dpdk_p){
+        return (m_real_drv->is_override_dpdk_params(dpdk_p));
+    }
+
+
     int set_rcv_all(CPhyEthIF * _if, bool set_on);
     TRexPortAttr * create_port_attr(tvpid_t tvpid, repid_t repid);
-    rte_mempool_t * get_rx_mem_pool(int socket_id) {
-        return m_real_drv->get_rx_mem_pool(socket_id);
-    }
-    void get_dpdk_drv_params(CTrexDpdkParams &p) {
-        return m_real_drv->get_dpdk_drv_params(p);
-    }
 private:
     CTRexExtendedDriverBase *m_real_drv;
 };
@@ -228,6 +233,7 @@ private:
 
 
 CTRexExtendedDriverBase * get_ex_drv();
+
 std::string& get_ntacc_so_string(void);
 std::string& get_mlx5_so_string(void);
 std::string& get_mlx4_so_string(void);

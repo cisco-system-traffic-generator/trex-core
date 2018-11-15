@@ -43,17 +43,15 @@ class gt_astf_inter : public trexAstfInteractiveTest {
 
 protected:
     virtual void SetUp() {
-        m_op_mode_prev = CGlobalInfo::m_options.m_op_mode;
-        m_op_mode = CParserOption::OP_MODE_ASTF;
+        m_op_mode_prev = get_op_mode();
+        set_op_mode(OP_MODE_ASTF);
     }
 
     virtual void TearDown() {
-        m_op_mode = m_op_mode_prev;
+        set_op_mode(m_op_mode_prev);
     }
 
-    typedef CParserOption::trex_op_mode_e trex_op_mode_e;
-    trex_op_mode_e m_op_mode_prev;
-    trex_op_mode_e &m_op_mode = CGlobalInfo::m_options.m_op_mode;
+    trex_traffic_mode_t m_op_mode_prev;
 public:
 };
 

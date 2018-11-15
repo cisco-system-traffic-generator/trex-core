@@ -46,9 +46,9 @@
 
 #define RX_DESC_NUM_DROP_Q 64
 #define RX_DESC_NUM_DATA_Q 4096
-#define RX_DESC_NUM_DROP_Q_MLX 8
 #define RX_DESC_NUM_DATA_Q_VM 512
 #define TX_DESC_NUM 1024
+
 
 
 #endif /* TREX_DRIVER_DEFINES_H */

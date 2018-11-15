@@ -24,7 +24,7 @@
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
 
 CTRexExtendedDriverBase10G::CTRexExtendedDriverBase10G() {
-    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+    m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG ;
 }
 
 int CTRexExtendedDriverBase10G::get_min_sample_rate(void){
@@ -287,8 +287,7 @@ CFlowStatParser *CTRexExtendedDriverBase10G::get_flow_stat_parser() {
 void CTRexExtendedDriverBase10G::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
     flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_RX_BYTES_COUNT
         | TrexPlatformApi::IF_STAT_PAYLOAD;
-    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)
-        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)) {
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         num_counters = MAX_FLOW_STATS;
     } else {
         num_counters = 127;

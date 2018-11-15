@@ -23,11 +23,7 @@
 #include "trex_driver_defines.h"
 
 CTRexExtendedDriverBaseVIC::CTRexExtendedDriverBaseVIC() {
-    if (get_is_tcp_mode()) {
-        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
-    }else{
-        m_cap = TREX_DRV_CAP_DROP_Q  | TREX_DRV_CAP_MAC_ADDR_CHG ;
-    }
+      m_cap = tdCAP_ALL |TREX_DRV_CAP_MAC_ADDR_CHG;
 }
 
 int CTRexExtendedDriverBaseVIC::get_min_sample_rate(void){
@@ -174,8 +170,7 @@ int CTRexExtendedDriverBaseVIC::verify_fw_ver(tvpid_t   tvpid) {
 
     repid_t repid = CTVPort(tvpid).get_repid();
 
-    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
-        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+    if (!get_dpdk_mode()->is_hardware_filter_needed()) {
         return 0;
     }
 
