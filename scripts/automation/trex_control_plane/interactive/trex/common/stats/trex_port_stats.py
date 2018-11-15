@@ -203,6 +203,7 @@ class PortStats(AbstractStats):
 ############################                #############################
 ############################                #############################
 class PortXStats(AbstractStats):
+    names = []
 
     def __init__(self, port_obj):
         super(PortXStats, self).__init__(RpcCmdData('get_port_xstats_values', {'port_id': port_obj.port_id if port_obj else None}, ''))
@@ -210,10 +211,11 @@ class PortXStats(AbstractStats):
         self.port_id = port_obj.port_id if port_obj else None
 
         # fetch the names
-        rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
-        if not rc:
-            raise TRexError('Error getting xstat names on port %s, Error: %s' % (self.port_id, rc.err()))
-        self.names = rc.data().get('xstats_names', [])
+        if not self.names:
+            rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
+            if not rc:
+                raise TRexError('Error getting xstat names on port %s, Error: %s' % (self.port_id, rc.err()))
+            PortXStats.names = rc.data().get('xstats_names', [])
 
 
     def _pre_update(self, snapshot):
