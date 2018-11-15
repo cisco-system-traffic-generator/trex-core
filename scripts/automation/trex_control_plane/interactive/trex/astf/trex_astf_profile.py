@@ -1596,7 +1596,7 @@ class ASTFProfile(object):
         if cap_list is not None:
             mode = None
             all_cap_info = []
-            d_ports = []
+            d_ports = {}
             total_payload = 0
             for cap in self.cap_list:
                 cap_file = cap.file
@@ -1631,8 +1631,8 @@ class ASTFProfile(object):
                     d_port = cap.assoc.port
                     my_assoc = cap.assoc
                 if d_port in d_ports:
-                    raise ASTFError("More than one cap use dest port {0}. This is currently not supported.".format(d_port))
-                d_ports.append(d_port)
+                    raise ASTFError("More than one cap use dest port %s. This is currently not supported. Files with same port: %s, %s" % (d_port, d_ports[d_port], cap_file))
+                d_ports[d_port] = cap_file
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
                                      "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit})
