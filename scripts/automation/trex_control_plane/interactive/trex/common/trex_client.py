@@ -426,6 +426,8 @@ class TRexClient(object):
         if not rc:
             return rc
 
+        self.any_port.xstats.get_names(self.any_port)
+
         # sync the ports
         rc = self._for_each_port('sync')
         if not rc:

@@ -17,7 +17,7 @@ from ...utils.text_opts import format_text, format_threshold, format_num
 class PortStats(AbstractStats):
 
     def __init__(self, port_obj):
-        super(PortStats, self).__init__(RpcCmdData('get_port_stats', {'port_id': port_obj.port_id if port_obj else None}, ''))
+        super(PortStats, self).__init__(RpcCmdData('get_port_stats', {'port_id': port_obj.port_id}, ''))
         self._port_obj = port_obj
 
 
@@ -204,18 +204,18 @@ class PortStats(AbstractStats):
 ############################                #############################
 class PortXStats(AbstractStats):
     names = []
-
     def __init__(self, port_obj):
-        super(PortXStats, self).__init__(RpcCmdData('get_port_xstats_values', {'port_id': port_obj.port_id if port_obj else None}, ''))
+        super(PortXStats, self).__init__(RpcCmdData('get_port_xstats_values', {'port_id': port_obj.port_id}, ''))
 
-        self.port_id = port_obj.port_id if port_obj else None
+        self.port_id = port_obj.port_id
 
-        # fetch the names
-        if not self.names:
-            rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
-            if not rc:
-                raise TRexError('Error getting xstat names on port %s, Error: %s' % (self.port_id, rc.err()))
-            PortXStats.names = rc.data().get('xstats_names', [])
+
+    @classmethod
+    def get_names(cls, port_obj):
+        rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
+        if not rc:
+            raise TRexError('Error getting xstat names, Error: %s' % rc.err())
+        cls.names = rc.data()['xstats_names']
 
 
     def _pre_update(self, snapshot):
@@ -227,7 +227,6 @@ class PortXStats(AbstractStats):
         snapshot = OrderedDict([(key, val) for key, val in zip(self.names, values)])
 
         return snapshot
-
 
 
     def to_dict(self, relative = True):
