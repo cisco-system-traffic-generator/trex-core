@@ -41,6 +41,7 @@ class Connection(object):
 
     def probe_server (self):
         rpc = JsonRpcClient(self.ctx)
+        rpc.set_timeout_sec(self.rpc.get_timeout_sec())
         try:
             rpc.connect()
             return rpc.transmit('get_version')

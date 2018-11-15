@@ -1158,6 +1158,27 @@ class TRexClient(object):
 
 
     @client_api('command', False)
+    def set_timeout(self, timeout_sec):
+        '''
+            Set timeout for connectivity to TRex server. Must be not connected.
+
+            :parameters:
+                timeout_sec : int or float
+                    | Timeout in seconds for sync operations.
+                    | If async data does not arrive for this period, disconnect.
+
+            :raises:
+                + :exc:`TRexError` - in case client is already connected.
+        '''
+
+        validate_type('timeout_sec', timeout_sec, (int, float))
+        if self.is_connected():
+            raise TRexError('Can set timeout only when not connected')
+        self.conn.rpc.set_timeout_sec(timeout_sec)
+        self.conn.async.set_timeout_sec(timeout_sec)
+
+
+    @client_api('command', False)
     def connect (self):
         """
 

@@ -83,8 +83,9 @@ class JsonRpcClient(object):
 
         # API handler provided by the server
         self.api_h = None
-        
-            
+        self.timeout_sec = 1
+
+
     def get_connection_details (self):
         rc = {}
         rc['server'] = self.server
@@ -162,7 +163,7 @@ class JsonRpcClient(object):
 
     def handle_async_transmit (self, method_name, params, retry, rc):
         sleep_sec    = 0.3
-        timeout_sec  = 3
+        timeout_sec  = max(self.get_timeout_sec(), 3)
         poll_tries   = int(timeout_sec / sleep_sec)
 
         while not rc and rc.errno() == ErrNo.JSONRPC_V2_ERR_TRY_AGAIN:
@@ -343,6 +344,14 @@ class JsonRpcClient(object):
         else:
             return RC_ERR("Not connected to server")
 
+    def get_timeout_sec(self):
+        return self.timeout_sec
+
+    def get_timeout_msec(self):
+        return int(self.get_timeout_sec() * 1000)
+
+    def set_timeout_sec(self, timeout_sec):
+        self.timeout_sec = timeout_sec
 
     def connect(self, server = None, port = None):
         if self.connected:
@@ -362,8 +371,8 @@ class JsonRpcClient(object):
         except zmq.error.ZMQError as e:
             return RC_ERR("ZMQ Error: Bad server or port name: " + str(e))
 
-        self.socket.setsockopt(zmq.SNDTIMEO, 1000)
-        self.socket.setsockopt(zmq.RCVTIMEO, 1000)
+        self.socket.setsockopt(zmq.SNDTIMEO, self.get_timeout_msec())
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
 
         self.connected = True
 
