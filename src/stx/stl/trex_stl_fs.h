@@ -532,6 +532,7 @@ class CFlowStatRuleMgr {
 
  private:
     CFlowStatRuleMgr();
+
     CFlowStatRuleMgr(CFlowStatRuleMgr const&) {};
     //    CFlowStatRuleMgr& operator=(CFlowStatRuleMgr const&) {};
     void create();

@@ -4160,7 +4160,7 @@ void CFlowGenList::Delete(){
         delete  CPluginCallback::callback;
         CPluginCallback::callback = NULL;
     }
-    if (get_is_tcp_mode()) {
+    if (m_stt_cp) {
         m_stt_cp->Delete();
         delete m_stt_cp;
         m_stt_cp=0;
@@ -4171,6 +4171,7 @@ void CFlowGenList::Delete(){
 bool CFlowGenList::Create(){
     check_objects_sizes();
     CPluginCallback::callback=  new CPluginCallbackSimple();
+    m_stt_cp =0;
     if (get_is_tcp_mode()) {
       m_stt_cp = new CSTTCp();
       m_stt_cp->Create();

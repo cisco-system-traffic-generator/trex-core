@@ -158,7 +158,7 @@ public:
                     ports[i]=lpg->GenerateOneSourcePort();
                 }
             }
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
+            set_op_mode(OP_MODE_STF);
             lpt->start_sim(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
             cmp.d_sec = m_time_diff;

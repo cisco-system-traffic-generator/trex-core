@@ -25,7 +25,7 @@
 std::string CTRexExtendedDriverBaseMlnx5G::mlx5_so_str = "";
 
 CTRexExtendedDriverBaseMlnx5G::CTRexExtendedDriverBaseMlnx5G() {
-    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG |  TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+    m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG ;
     for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
         m_port_xstats[i] = {0};
     }
@@ -35,16 +35,18 @@ std::string& get_mlx5_so_string(void) {
     return CTRexExtendedDriverBaseMlnx5G::mlx5_so_str;
 }
 
+bool CTRexExtendedDriverBaseMlnx5G::is_support_for_rx_scatter_gather(){
+    if (get_is_tcp_mode()) {
+        return (false);
+    }
+    return (true);
+}
+
+
 int CTRexExtendedDriverBaseMlnx5G::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE);
 }
 
-void CTRexExtendedDriverBaseMlnx5G::get_dpdk_drv_params(CTrexDpdkParams &p) {
-    CTRexExtendedDriverBase::get_dpdk_drv_params(p);
-    if (get_is_tcp_mode()){
-        p.rx_mbuf_type = MBUF_9k; /* due to trex-481*/
-    }
-}
 
 
 void CTRexExtendedDriverBaseMlnx5G::clear_extended_stats(CPhyEthIF * _if){

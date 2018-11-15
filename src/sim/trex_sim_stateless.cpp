@@ -263,7 +263,8 @@ void
 SimStateless::prepare_dataplane() {
     
     CGlobalInfo::m_options.m_expected_portd = m_port_count;
-    CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
+    set_op_mode(OP_MODE_STL);
+
 
     m_fl.Create();
     m_fl.generate_p_thread_info(m_dp_core_count);

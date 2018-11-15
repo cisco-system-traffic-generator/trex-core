@@ -34,7 +34,6 @@ public:
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
 
     virtual int get_min_sample_rate(void);
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p);
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual int stop_queue(CPhyEthIF * _if, uint16_t q_num);
@@ -45,6 +44,9 @@ public:
 
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on) {return 0;}
     CFlowStatParser *get_flow_stat_parser();
+
+    virtual bool is_override_dpdk_params(CTrexDpdkParamsOverride & dpdk_p);
+
 };
 
 class CTRexExtendedDriverVirtio : public CTRexExtendedDriverVirtBase {
@@ -121,10 +123,13 @@ public:
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverAfPacket() );
     }
+    virtual bool is_support_for_rx_scatter_gather(){
+        return (false);
+    }
+
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
         return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false);
     }
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
 };

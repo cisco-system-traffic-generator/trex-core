@@ -125,6 +125,12 @@ const char *get_exe_name() {
     return g_exe_name;
 }
 
+static void set_sw_mode(){
+    get_mode()->choose_mode(tdCAP_ONE_QUE);
+    get_mode()->force_software_mode(true);
+}
+
+
 static int usage(){
 
     printf(" Usage: bp_sim [OPTION] -f cfg.yaml -o outfile.erf   \n");
@@ -420,14 +426,16 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
+            set_op_mode(OP_MODE_STF);
+            set_sw_mode();
             return sf.run();
         }
 
     case OPT_TYPE_ASF:
         {
             CGlobalInfo::m_options.preview.setFileWrite(true);
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
+            set_op_mode(OP_MODE_ASTF_BATCH);
+            set_sw_mode();
 
             if (asrtf_args.full_sim){
                 SimAstf sf;
@@ -442,7 +450,8 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
+            set_op_mode(OP_MODE_STL);
+            set_sw_mode();
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;

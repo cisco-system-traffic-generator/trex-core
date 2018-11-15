@@ -29,7 +29,7 @@ uint32_t            CGlobalInfo::m_nodes_pool_size = 10*1024;
 CParserOption       CGlobalInfo::m_options;
 CGlobalMemory       CGlobalInfo::m_memory_cfg;
 CPlatformSocketInfo CGlobalInfo::m_socket;
-CGlobalInfo::queues_mode CGlobalInfo::m_q_mode = CGlobalInfo::Q_MODE_NORMAL;
+CDpdkMode           CGlobalInfo::m_dpdk_mode;
 
 
 void CGlobalMemory::Dump(FILE *fd){

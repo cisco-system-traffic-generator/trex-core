@@ -431,6 +431,15 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_telnet_exist=true;
     }
 
+    if ( node.FindValue("rx_desc") ){
+        node["rx_desc"] >> plat_info.m_rx_desc;
+    }
+
+    if ( node.FindValue("tx_desc") ){
+        node["tx_desc"] >> plat_info.m_tx_desc;
+    }
+
+
     if ( node.FindValue("zmq_rpc_port") ){
         node["zmq_rpc_port"] >> plat_info.m_zmq_rpc_port;
     }
@@ -564,6 +573,13 @@ void CPlatformYamlInfo::Dump(FILE *fd){
 
     }
     fprintf(fd," m_zmq_rpc_port    :  %d \n",m_zmq_rpc_port);
+
+    if (m_rx_desc) {
+        fprintf(fd," m_rx_desc    :  %d \n",(int)m_rx_desc);
+    }
+    if (m_tx_desc) {
+        fprintf(fd," m_tx_desc    :  %d \n",(int)m_tx_desc);
+    }
 
     if ( m_mac_info_exist ){
         int i;

@@ -538,11 +538,8 @@ void CFlowStatRuleMgr::create() {
     m_cap = cap;
     m_ip_id_reserve_base = ip_id_base;
 
-    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
-        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         set_mode(FLOW_STAT_MODE_PASS_ALL);
-        m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-        m_parser_pl = new CPassAllParser;
     } else {
         m_parser_ipid = m_api->get_flow_stat_parser();
         m_parser_pl = m_api->get_flow_stat_parser();

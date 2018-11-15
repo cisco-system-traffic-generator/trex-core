@@ -18,8 +18,13 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
         setup= CTRexScenario.setup_name;
         self.skip_test_trex_522 =False;
+        self.high_latency_skip =False; # napatech has high latency skip the test
+
         if setup in ['trex19','trex07','trex23']:
             self.skip_test_trex_522 =True;
+
+        if setup in ['trex41']:
+            self.high_latency_skip =True;
 
 
 
@@ -122,6 +127,9 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         return (tests);
 
     def test_tcp_http(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
@@ -162,6 +170,9 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 print("BYPASS the counter test for now");
 
     def test_ipv6_tcp_http(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if self.is_virt_nics:
             self.skip('--ipv6 flag does not work correctly in with virtual NICs') # TODO: fix
 
@@ -206,6 +217,9 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
     def test_tcp_sfr(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')

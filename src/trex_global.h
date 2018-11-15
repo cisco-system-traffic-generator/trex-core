@@ -30,6 +30,7 @@ limitations under the License.
 #include <json/json.h>
 #include "pal_utl.h"
 #include "trex_platform.h"
+#include "trex_modes.h"
 
 
 
@@ -478,19 +479,6 @@ public:
         RUN_FLAGS_RXCHECK_CONST_TS =1,
     };
 
-    /** 
-     * operation mode 
-     * stateful, stateless or advanced stateful
-     */
-    enum trex_op_mode_e {
-        OP_MODE_INVALID,
-        OP_MODE_STF,
-        OP_MODE_STL,
-        OP_MODE_ASTF,
-        OP_MODE_ASTF_BATCH,
-        
-        OP_MODE_DUMP_INTERFACES,
-    };
 
     enum trex_astf_mode_e {
         OP_ASTF_MODE_NONE       =0,
@@ -540,7 +528,6 @@ public:
         m_debug_pkt_proto = 0;
         m_arp_ref_per = 120; // in seconds
         m_rx_thread_enabled = false;
-        m_op_mode = OP_MODE_INVALID;
         cfg_file = "";
         client_cfg_file = "";
         platform_cfg_file = "";
@@ -596,7 +583,6 @@ public:
     uint8_t         m_dummy_count;
     uint8_t         m_reta_mask;
     bool            m_rx_thread_enabled;
-    trex_op_mode_e  m_op_mode;
     trex_astf_mode_e m_astf_mode;
     uint32_t        m_astf_client_mask;
     bool            m_is_lowend;
@@ -838,13 +824,6 @@ public:
 
 class CGlobalInfo {
 public:
-    typedef enum {
-        Q_MODE_NORMAL,
-        Q_MODE_ONE_QUEUE, // One RX queue and one TX queue
-        Q_MODE_RSS,
-        Q_MODE_MANY_DROP_Q // For Mellanox
-    } queues_mode;
-
 
     static void init_pools(uint32_t rx_buffers, uint32_t rx_pool, bool is_hugepages = true);
     /* for simulation */
@@ -948,20 +927,14 @@ public:
         return (res);
     }
 
-
     static inline void free_node(CGenNode *p){
         rte_mempool_put(m_mem_pool[0].m_mbuf_global_nodes, p);
     }
 
 
     static void dump_pool_as_json(Json::Value &json);
+
     static std::string dump_pool_as_json_str(void);
-    static inline int get_queues_mode() {
-        return m_q_mode;
-    }
-    static inline void set_queues_mode(queues_mode mode) {
-        m_q_mode = mode;
-    }
 
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
@@ -969,28 +942,50 @@ public:
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;
-    static queues_mode           m_q_mode;
+    static CDpdkMode             m_dpdk_mode;
 };
 
-
-static inline CParserOption::trex_op_mode_e get_op_mode() {
-    return CGlobalInfo::m_options.m_op_mode;
+static inline CDpdkModeBase * get_dpdk_mode(){
+    return (CGlobalInfo::m_dpdk_mode.get_mode());
 }
 
-static inline int get_is_stateless(){
-    return (get_op_mode() == CParserOption::OP_MODE_STL);
-}
-
-static inline int get_is_stateful(){
-    return (get_op_mode() == CParserOption::OP_MODE_STF);
-}
-
-static inline int get_is_tcp_mode(){
-    return ( (get_op_mode() == CParserOption::OP_MODE_ASTF) || (get_op_mode() == CParserOption::OP_MODE_ASTF_BATCH) );
+static inline CDpdkMode * get_mode(){
+    return (&CGlobalInfo::m_dpdk_mode);
 }
 
 
 /* more than 1 core with ASTF  mode */
+static inline void  set_op_mode(trex_traffic_mode_t mode){
+    get_mode()->set_opt_mode(mode);
+
+
+}
+
+static inline void  set_op_debug_mode(trex_traffic_mode_t mode){
+    get_mode()->switch_mode_debug(mode);
+}
+
+
+
+
+static inline trex_traffic_mode_t get_op_mode(){
+    return (get_mode()->get_opt_mode());
+
+}
+
+static inline int get_is_stateless(){
+    return (get_op_mode() == OP_MODE_STL);
+}
+
+static inline int get_is_stateful(){
+    return (get_op_mode() == OP_MODE_STF);
+}
+
+
+static inline int get_is_tcp_mode(){
+    return ( (get_op_mode() == OP_MODE_ASTF) || (get_op_mode() == OP_MODE_ASTF_BATCH) );
+}
+
 static inline int get_is_tcp_mode_multi_core(){
     return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) ); 
 }
@@ -998,7 +993,7 @@ static inline int get_is_tcp_mode_multi_core(){
 
 
 static inline int get_is_interactive(){
-    return ( (get_op_mode() == CParserOption::OP_MODE_STL) || (get_op_mode() == CParserOption::OP_MODE_ASTF) );
+    return ( get_mode()->is_interactive());
 }
 
 
@@ -1006,15 +1001,11 @@ static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
 }
 
-static inline bool get_is_rx_filter_enable(){
-    uint32_t latency_rate=CGlobalInfo::m_options.m_latency_rate;
-    return ( ( get_is_rx_check_mode() || CGlobalInfo::is_learn_mode() || latency_rate != 0
-               || get_is_stateless()) &&  ((CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_RSS)
-                                           && (CGlobalInfo::get_queues_mode() != CGlobalInfo::Q_MODE_ONE_QUEUE))
-             ?true:false );
-}
+
 static inline uint16_t get_rx_check_hops() {
     return (CGlobalInfo::m_options.m_rx_check_hops);
 }
+
+
 
 #endif

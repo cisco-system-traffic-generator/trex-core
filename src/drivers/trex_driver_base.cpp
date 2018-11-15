@@ -87,21 +87,6 @@ void port_cfg_t::update_global_config_fdir(void) {
 }
 
 
-rte_mempool_t* CTRexExtendedDriverBase::get_rx_mem_pool(int socket_id) {
-    CTrexDpdkParams dpdk_p;
-    get_dpdk_drv_params(dpdk_p);
-
-    switch(dpdk_p.rx_mbuf_type) {
-    case MBUF_9k:
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_9k;
-    case MBUF_2048:
-        return CGlobalInfo::m_mem_pool[socket_id].m_mbuf_pool_2048;
-    default:
-        fprintf(stderr, "Internal error: Wrong rx_mem_pool");
-        assert(0);
-        return nullptr;
-    }
-}
 
 void CTRexExtendedDriverDb::register_driver(std::string name,
                                             create_object_t func){
@@ -195,30 +180,6 @@ CTRexExtendedDriverDb * CTRexExtendedDriverDb::Ins(){
 }
 
 
-void CTRexExtendedDriverBase::get_dpdk_drv_params(CTrexDpdkParams &p) {
-    p.rx_data_q_num = 1;
-
-    if (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE) {
-        p.rx_drop_q_num = 0;
-    } else {
-        p.rx_drop_q_num = 1;
-        if (get_is_tcp_mode()) {
-            /* data queues is the number of cores , drop is the first queue in this mode */
-            p.rx_drop_q_num = CGlobalInfo::m_options.preview.getCores();
-        }
-
-    }
-    p.rx_desc_num_data_q = RX_DESC_NUM_DATA_Q;
-    p.rx_desc_num_drop_q = RX_DESC_NUM_DROP_Q;
-    if (get_is_tcp_mode()) {
-        /* data queues is the number of cores , drop is the first queue in this mode */
-        p.rx_desc_num_drop_q = RX_DESC_NUM_DATA_Q;
-    }
-    p.tx_desc_num = TX_DESC_NUM;
-    p.rx_mbuf_type = MBUF_2048;
-}
-
-// various
 
 int CTRexExtendedDriverBase::stop_queue(CPhyEthIF * _if, uint16_t q_num) {
     repid_t repid =_if->get_repid();

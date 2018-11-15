@@ -34,7 +34,7 @@ static uint16_t all_eth_types[]  = {
 };
 
 CTRexExtendedDriverBase40G::CTRexExtendedDriverBase40G() {
-    m_cap = TREX_DRV_CAP_DROP_Q | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN | TREX_DRV_DEFAULT_ASTF_MULTI_CORE;
+    m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
 }
 
 int CTRexExtendedDriverBase40G::get_min_sample_rate(void){
@@ -408,8 +408,7 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 void CTRexExtendedDriverBase40G::get_rx_stat_capabilities(uint16_t &flags, uint16_t &num_counters, uint16_t &base_ip_id) {
     flags = TrexPlatformApi::IF_STAT_IPV4_ID | TrexPlatformApi::IF_STAT_PAYLOAD;
     // HW counters on x710 do not support counting bytes.
-    if ( CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
-         || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         flags |= TrexPlatformApi::IF_STAT_RX_BYTES_COUNT;
         num_counters = MAX_FLOW_STATS;
     } else {
@@ -421,9 +420,8 @@ void CTRexExtendedDriverBase40G::get_rx_stat_capabilities(uint16_t &flags, uint1
 }
 
 bool CTRexExtendedDriverBase40G::hw_rx_stat_supported() {
-    if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat()
-        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE
-        || CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS) {
+    if (CGlobalInfo::m_options.preview.get_disable_hw_flow_stat() ||
+        (!get_dpdk_mode()->is_hardware_filter_needed())) {
         return false;
     } else {
         return true;

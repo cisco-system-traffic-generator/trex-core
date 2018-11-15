@@ -2027,7 +2027,7 @@ class rx_check_system  : public trexTest {
       po->preview.setVMode(0);
       po->preview.setFileWrite(true);
       po->preview.set_rx_check_enable(true);
-      po->m_op_mode = CParserOption::OP_MODE_STF;
+      set_op_mode(OP_MODE_STF);
   }
 
   virtual void TearDown() {

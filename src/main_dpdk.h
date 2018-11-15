@@ -21,21 +21,7 @@
 #include "pre_test.h"
 #include "bp_sim.h"
 #include "dpdk_port_map.h"
-
-enum {
-    MAIN_DPDK_DROP_Q = 0,
-    MAIN_DPDK_RX_Q = 1,
-};
-
-class CTrexDpdkParams {
- public:
-    uint16_t rx_data_q_num; /* this is for Rx thread data */
-    uint16_t rx_drop_q_num; /* for ASTF this is *NOT* drop_q it is actualy read queues could be more than 1 */
-    uint16_t rx_desc_num_data_q;
-    uint16_t rx_desc_num_drop_q;
-    uint16_t tx_desc_num;
-    uint16_t rx_mbuf_type;
-};
+#include "trex_modes.h"
 
 // These are statistics for packets we send, and do not expect to get back (Like ARP)
 // We reduce them from general statistics we report (and report them separately, so we can keep the assumption
@@ -127,8 +113,6 @@ class CPhyEthIF  {
     virtual void set_ignore_stats_base(CPreTestStats &pre_stats);
     virtual bool get_extended_stats();
     virtual void update_counters();
-    virtual int configure_rss_redirect_table(uint16_t numer_of_queues,
-                                             uint16_t skip_queue);
 
     virtual void stats_clear();
 
@@ -206,6 +190,18 @@ class CPhyEthIF  {
     virtual void configure_rss();
 
 private:
+    void conf_hardware_astf_rss();
+
+    void _conf_queues(uint16_t tx_qs,
+                      uint32_t tx_descs,
+                      uint16_t rx_qs,
+                      rx_que_desc_t & rx_qs_descs,
+                      uint16_t rx_qs_drop_qid,
+                      trex_dpdk_rx_distro_mode_t rss_mode,
+                      bool in_astf_mode);
+
+
+private:
     void conf_rx_queues_astf_multi_core();
 
     void configure_rss_astf(bool is_client,
@@ -265,7 +261,6 @@ class CPhyEthIFDummy : public CPhyEthIF {
     void set_ignore_stats_base(CPreTestStats &) {}
     bool get_extended_stats() { return 0; }
     void update_counters() {}
-    int configure_rss_redirect_table(uint16_t, uint16_t) { return 0; }
     void stats_clear() {}
     void flush_rx_queue(void) {}
     void dump_stats_extended(FILE *) {}

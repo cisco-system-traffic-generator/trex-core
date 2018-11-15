@@ -68,8 +68,7 @@ void
 RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
     m_rfc2544   = rfc2544;
     m_err_cntrs = err_cntrs;
-    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
-        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         m_rcv_all    = true;
     } else {
         m_rcv_all    = false;

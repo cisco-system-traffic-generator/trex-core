@@ -46,9 +46,11 @@ public:
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
 
-    virtual int get_min_sample_rate(void);
+    virtual bool is_support_for_rx_scatter_gather(){
+        return (false);
+    }
 
-    virtual void get_dpdk_drv_params(CTrexDpdkParams &p);
+    virtual int get_min_sample_rate(void);
 
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);

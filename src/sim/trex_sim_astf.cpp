@@ -199,7 +199,7 @@ static void dump_tcp_counters(CTcpPerThreadCtx  *      c_ctx,
 static int load_list_of_cap_files(CParserOption * op,
                                   asrtf_args_t * args){
     /* set TCP mode */
-    op->m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
+    set_op_mode(OP_MODE_ASTF_BATCH);
 
     CFlowGenList fl;
     fl.Create();
