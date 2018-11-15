@@ -190,8 +190,10 @@ class TRexSubscriber():
         self.zipped = ZippedMsg()
         
         self.t_state = self.THREAD_STATE_DEAD
-        
-        
+
+        self.timeout_sec = 3
+
+
     # connects the async channel
     def connect (self):
 
@@ -247,15 +249,20 @@ class TRexSubscriber():
         
         
     # return the timeout in seconds for the ZMQ subscriber thread
-    def get_timeout_sec (self):
-        return 3
-        
-        
+    def get_timeout_sec(self):
+        return self.timeout_sec
+
+    def get_timeout_msec(self):
+        return int(self.get_timeout_sec() * 1000)
+
+    def set_timeout_sec(self, timeout_sec):
+        self.timeout_sec = timeout_sec
+
     def _run_safe (self):
         
         # socket must be created on the same thread 
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
-        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_sec() * 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
         self.socket.connect(self.tr)
         
         try:
