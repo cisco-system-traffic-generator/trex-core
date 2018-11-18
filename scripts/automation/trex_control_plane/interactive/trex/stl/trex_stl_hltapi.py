@@ -8,6 +8,7 @@ connect_kwargs = {
     'device': 'localhost',                  # ip or hostname of TRex
     'trex_rpc_port': None,                  # TRex extention: RPC port of TRex server (for several TRexes under same OS)
     'trex_pub_port': None,                  # TRex extention: Publisher port of TRex server (for several TRexes under same OS)
+    'trex_timeout_sec': None,               # TRex extention: Timeout of rpc/pub connections
     'port_list': None,                      # list of ports
     'username': 'TRexUser',
     'reset': True,
@@ -370,6 +371,8 @@ class CTRexHltApi(object):
             if kwargs['trex_pub_port']:
                 zmq_ports['async_port'] = kwargs['trex_pub_port']
             self.trex_client = STLClient(kwargs['username'], device, verbose_level = self.verbose, **zmq_ports)
+            if kwargs['trex_timeout_sec'] is not None:
+                self.trex_client.set_timeout(kwargs['trex_timeout_sec'])
         except Exception as e:
             return HLT_ERR('Could not init stateless client %s: %s' % (device, format_error(e)))
 

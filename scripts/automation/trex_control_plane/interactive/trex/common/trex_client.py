@@ -1172,6 +1172,8 @@ class TRexClient(object):
         '''
 
         validate_type('timeout_sec', timeout_sec, (int, float))
+        if timeout_sec <= 0:
+            raise TRexError('timeout_sec must be positive')
         if self.is_connected():
             raise TRexError('Can set timeout only when not connected')
         self.conn.rpc.set_timeout_sec(timeout_sec)
