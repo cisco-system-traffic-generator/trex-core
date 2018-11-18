@@ -46,6 +46,8 @@ SANITIZE_CC_VERSION = "4.9.0"
 GCC6_DIR = '/usr/local/gcc-6.2/bin'
 GCC7_DIR = '/usr/local/gcc-7.2/bin'
 
+MAX_PKG_SIZE = 250 # MB
+
 
 #######################################
 # utility for group source code
@@ -1578,9 +1580,8 @@ def pre_build(bld):
 
 
 def write_file (file_name,s):
-    f=open(file_name,'w')
-    f.write(s)
-    f.close()
+    with open(file_name,'w') as f:
+        f.write(s)
 
 
 def get_build_num ():
@@ -1684,7 +1685,9 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp','astf', 'generated']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf']
+pkg_exclude = ['*.pyc', '__pycache__']
+pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
 
 class Env(object):
@@ -1743,12 +1746,12 @@ def check_release_permission():
         raise Exception('You are not allowed to release TRex. Please contact Hanoch.')
 
 # build package in parent dir. can provide custom name and folder with --pkg-dir and --pkg-file
-def pkg(self):
+def pkg(bld):
     build_num = get_build_num()
-    pkg_dir = self.options.pkg_dir
+    pkg_dir = bld.options.pkg_dir
     if not pkg_dir:
         pkg_dir = os.pardir
-    pkg_file = self.options.pkg_file
+    pkg_file = bld.options.pkg_file
     if not pkg_file:
         pkg_file = '%s.tar.gz' % build_num
     tmp_path = os.path.join(pkg_dir, '_%s' % pkg_file)
@@ -1757,12 +1760,15 @@ def pkg(self):
 
     # clean old dir if exists
     os.system('rm -rf %s' % build_path)
-    release(self, build_path + '/')
+    release(bld, build_path + '/')
     os.system("cp %s/%s.tar.gz %s" % (build_path, build_num, tmp_path))
     os.system("mv %s %s" % (tmp_path, dst_path))
 
     # clean new dir
     os.system('rm -rf %s' % build_path)
+    pkg_size = int(os.path.getsize(dst_path) / 1e6)
+    if pkg_size > MAX_PKG_SIZE:
+        bld.fatal('Package size is too large: %sMB (max allowed: %sMB)' % (pkg_size, MAX_PKG_SIZE))
 
 
 def release(bld, custom_dir = None):
@@ -1786,11 +1792,16 @@ def release(bld, custom_dir = None):
         dest_file = exec_p +'/'+obj
         os.system("cp %s %s " %(src_file,dest_file));
 
-    for obj in files_dir:
+    exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
+    for obj in pkg_include:
         src_file =  '../scripts/'+obj+'/'
         dest_file = exec_p +'/'+obj+'/'
-        os.system("cp -rv %s %s " %(src_file,dest_file));
+        os.system("rsync -r -v %s %s %s" % (src_file, dest_file, exclude));
         os.system("chmod 755 %s " %(dest_file));
+
+    for obj in pkg_make_dirs:
+        dest_dir = os.path.join(exec_p, obj)
+        os.system('mkdir -p %s' % dest_dir)
 
     # copy .SO objects and resolve symbols
     os.system('cp -rL ../scripts/so {0}'.format(exec_p))
@@ -1798,13 +1809,11 @@ def release(bld, custom_dir = None):
     rel=get_build_num ()
 
     # create client package
-    os.system('mkdir -p %s/trex_client/external_libs' % exec_p)
     for ext_lib in client_external_libs:
         os.system('cp ../scripts/external_libs/%s %s/trex_client/external_libs/ -r' % (ext_lib, exec_p))
     os.system('cp ../scripts/automation/trex_control_plane/stf %s/trex_client/ -r' % exec_p)
     os.system('cp ../scripts/automation/trex_control_plane/interactive/ %s/trex_client/ -r' % exec_p)
 
-    os.system('mkdir %s/trex_client/interactive/profiles' % exec_p)
     os.system('cp ../scripts/stl %s/trex_client/interactive/profiles/ -r' % exec_p)
 
     shutil.make_archive(os.path.join(exec_p, 'trex_client_%s' % rel), 'gztar', exec_p, 'trex_client')
