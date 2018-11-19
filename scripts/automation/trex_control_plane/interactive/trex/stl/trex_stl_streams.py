@@ -665,11 +665,19 @@ class STLStream(object):
             if 'is_big_endian' in inst:
                 inst['byte_order'] = "'big'" if inst['is_big_endian'] else "'little'"
             if inst['type'] == 'flow_var':
+                value_list = inst.get('value_list')
                 if inst['name'] in vm_var_usage and inst['size'] == 4 and self.__is_all_IP(vm_var_usage[inst['name']]):
-                    inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
-                    inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
-                    inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
-                vm_list.append("vm.var(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
+                    if value_list is not None:
+                        inst['value_list'] = ['%s' % ltoa(val) for val in value_list]
+                    else:
+                        inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
+                        inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
+                        inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
+                common_start = "vm.var(name='{name}', op='{op}', step={step}, size={size}, split_to_cores={split_to_cores}, "
+                if value_list is not None:
+                    vm_list.append((common_start + "min_value=None, max_value=None, value_list={value_list})").format(**inst))
+                else:
+                    vm_list.append((common_start + "min_value={min_value}, max_value={max_value}, init_value={init_value})").format(**inst))
             elif inst['type'] == 'write_flow_var':
                 vm_list.append("vm.write(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, byte_order={byte_order})".format(**inst))
             elif inst['type'] == 'write_mask_flow_var':

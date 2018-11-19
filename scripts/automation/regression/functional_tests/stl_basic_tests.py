@@ -17,6 +17,7 @@ from pprint import pprint
 
 import sys
 import json
+import glob
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -111,7 +112,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "stl/")
+        self.profiles_path = os.path.join(self.scripts_path, "stl")
+        self.generated_path = os.path.join(self.scripts_path, 'generated')
 
         self.profiles = {}
         self.profiles['imix'] = os.path.join(self.profiles_path, "imix.py")
@@ -236,12 +238,12 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
     def test_stl_profiles (self):
         p = [
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
-             ["syn_attack.py","-m 1 -l 50",True],               
+             ["syn_attack.py","-m 1 -l 50",True],
              ["udp_1pkt_1mac.py","-m 1 -l 50",True],
              ["udp_1pkt_mac.py","-m 1 -l 50",True],
              ["udp_1pkt.py","-m 1 -l 50",True],
              ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
-             ["udp_rand_len_9k.py","-m 1 -l 50",True],           
+             ["udp_rand_len_9k.py","-m 1 -l 50",True],
              ["udp_1pkt_mpls.py","-m 1 -l 50",True],
              ["udp_1pkt_mpls_vm.py","-m 1 ",True],
              ["imix.py","-m 1 -l 100",True],
@@ -287,6 +289,32 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             except: # check generated if not said otherwise
                 test_generated = True
             self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True, do_no_remove_generated = False)
+
+    def test_generated_profiles(self):
+        exclude_list = [
+            'imix_wlc.py',          # expects tunables
+            'udp_1pkt_vxlan.py',    # uses custom Scapy layer
+            ]
+        exclude_dict = {}.fromkeys(exclude_list)
+        output_file = os.path.join(self.generated_path, 'exported_to_code.py')
+
+        for input_file in glob.glob(os.path.join(self.profiles_path, '*.py')):
+            basename = os.path.basename(input_file)
+            if basename in exclude_dict:
+                continue
+
+            profile = STLProfile.load_py(input_file)
+            profile.dump_to_code(output_file)
+            orig_json = profile.to_json()
+            gen_json  = STLProfile.load_py(output_file).to_json()
+
+            if not compare_dicts_round(orig_json, gen_json):
+                print('')
+                print('Original JSON:')
+                pprint(orig_json)
+                print('Generated JSON:')
+                pprint(gen_json)
+                raise Exception('Generated file differs from original (%s) in JSON.' % basename)
 
 
     def test_hlt_profiles (self):
