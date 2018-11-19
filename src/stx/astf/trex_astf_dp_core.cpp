@@ -218,7 +218,7 @@ void TrexAstfDpCore::report_error(const string &error) {
     m_ring_to_cp->Enqueue((CGenNode *)msg);
 }
 
-bool TrexAstfDpCore::rx_for_astf() {
+bool TrexAstfDpCore::rx_for_idle() {
     return m_flow_gen->handle_rx_pkts(true) > 0;
 }
 

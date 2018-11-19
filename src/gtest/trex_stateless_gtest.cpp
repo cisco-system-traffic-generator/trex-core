@@ -2552,6 +2552,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 class basic_stl  : public trexStlTest {
  protected:
   virtual void SetUp() {
+      set_op_debug_mode(OP_MODE_STL);
   }
   virtual void TearDown() {
   }

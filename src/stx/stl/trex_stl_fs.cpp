@@ -1103,7 +1103,7 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
         delete m_parser_ipid;
         delete m_parser_pl;
         m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-        m_parser_pl = new CPassAllParser;
+        m_parser_pl = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
         break;
     case FLOW_STAT_MODE_NORMAL:
         delete m_parser_ipid;

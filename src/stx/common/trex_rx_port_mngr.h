@@ -286,6 +286,7 @@ private:
 class RXPortManager {
     friend class RXFeatureAPI;
     friend class CRxAstfCore;
+    friend class CRxCore;
 
 public:
     enum feature_t {

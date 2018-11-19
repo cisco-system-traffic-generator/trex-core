@@ -26,8 +26,9 @@ limitations under the License.
 #include "trex_stl_stream.h"
 #include "trex_stl_streams_compiler.h"
 #include "trex_stl_messaging.h"
-
+#include "flow_stat_parser.h"
 #include "mbuf.h"
+#include "utl_mbuf.h"
 
 
 
@@ -88,6 +89,19 @@ public:
     virtual CVirtualIFPerSideStats * get_stats() {
         return m_wrapped->get_stats();
     }
+
+    virtual uint16_t rx_burst(pkt_dir_t dir,
+                              struct rte_mbuf **rx_pkts,
+                              uint16_t nb_pkts){
+        return m_wrapped->rx_burst(dir,rx_pkts,nb_pkts);
+    }
+
+
+    bool redirect_to_rx_core(pkt_dir_t   dir,
+                             rte_mbuf_t * m){
+        return m_wrapped->redirect_to_rx_core(dir,m);
+    }
+
 
 private:
     CVirtualIF *m_wrapped;
@@ -747,6 +761,7 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
     m_duration        = -1;
     m_is_service_mode = NULL;
     m_wrapper         = new ServiceModeWrapper();
+    m_need_to_rx = false;
     
     m_local_port_offset = 2 * core->getDualPortId();
 
@@ -754,11 +769,12 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
     for (i=0; i<NUM_PORTS_PER_CORE; i++) {
         m_ports[i].create(core);
     }
-    
+    m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {
     delete m_wrapper;
+    delete m_parser;
 }
 
 
@@ -830,12 +846,79 @@ TrexStatelessDpCore::start_scheduler() {
 
     m_core->m_node_gen.add_node(node_sync);
 
+    if ( get_dpdk_mode()->dp_rx_queues() ){
+        // add rx node if needed 
+        CGenNode * node_rx = m_core->create_node() ;
+        node_rx->m_type = CGenNode::STL_RX_FLUSH;
+        node_rx->m_time = now_sec(); /* NOW to warm thing up */
+        m_core->m_node_gen.add_node(node_rx);
+    }
+
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
     /* bail out in case of terminate */
     if (m_state != TrexStatelessDpCore::STATE_TERMINATE) {
         m_core->m_node_gen.close_file(m_core);
         m_state = STATE_IDLE; /* we exit from all ports and we have nothing to do, we move to IDLE state */
+    }
+}
+
+
+void TrexStatelessDpCore::_rx_handle_packet(int dir,
+                                           rte_mbuf_t * m,
+                                           bool is_idle,
+                                           bool &drop){
+    /* parse the packet, if it has TOS=1, formward it */
+    //utl_rte_pktmbuf_dump_k12(stdout,m);
+    if (m_is_service_mode){
+        drop=false;
+        return;
+    }
+    drop=true;
+
+    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size= rte_pktmbuf_data_len(m);
+    CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
+
+    if (res != FSTAT_PARSER_E_OK){
+        drop=false;
+        return;
+    }
+
+    bool is_lat = m_parser->get_is_latency();
+
+    if ( is_lat && (is_idle==false)){
+        drop=false;
+    }
+
+}
+
+void TrexStatelessDpCore::set_need_to_rx(bool enable){
+    m_need_to_rx = enable;
+}
+
+
+bool TrexStatelessDpCore::rx_for_idle(void){
+    if (m_need_to_rx){
+        return (m_core->handle_stl_pkts(true) > 0?true:false);
+    }else{
+        return(false);
+    }
+}
+
+void TrexStatelessDpCore::rx_handle_packet(int dir,
+                                           rte_mbuf_t * m,
+                                           bool is_idle,
+                                           tvpid_t port_id){
+    bool drop;
+    _rx_handle_packet(dir,m,is_idle,drop);
+
+    if (drop) {
+        //TrexCaptureMngr::getInstance().handle_pkt_rx_dp(m, port_id);
+        rte_pktmbuf_free(m);
+    }else{
+        /* redirect to rx core */
+        m_core->m_node_gen.m_v_if->redirect_to_rx_core(dir, m);
     }
 }
 
@@ -1148,9 +1231,13 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     lp_port->m_active_streams = 0;
     lp_port->set_event_id(event_id);
 
+    double schd_offset = get_dpdk_mode()->dp_rx_queues()?
+        SCHD_OFFSET_DTIME_RX_ENABLED:
+        SCHD_OFFSET_DTIME;
+
     /* update cur time */
     if ( CGlobalInfo::is_realtime() ){
-        m_core->m_cur_time_sec = now_sec() + SCHD_OFFSET_DTIME;
+        m_core->m_cur_time_sec = now_sec() + schd_offset;
     }
 
     /* no nodes in the list */
@@ -1439,4 +1526,7 @@ void CGenNodePCAP::destroy() {
 
     m_state = PCAP_INVALID;
 }
+
+
+
 

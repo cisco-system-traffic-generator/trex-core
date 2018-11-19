@@ -2310,7 +2310,7 @@ Use sleeps instead of busy wait in scheduler (less accurate, more power saving)
     You can also use this mode for running TRex on interfaces which manifest themselves as ones supported by TRex, but in reality support less hardware capabilities.
     For example, NICs supported by DPDK e1000_igb driver, but with different HW capabilities than i350. +
     Drawback of this is that because software has to handle all received packets, total rate of RX streams is significantly lower.
-    Currently, this mode is also limited to using only one TX core (and one RX core as usual).
+    Up until *v2.49* (not include) this mode is also limited to using only one TX core (and one RX core as usual). Now it uses multi-queue for RX and TX mainly for scale of virtual interfaces.
 
 *-v <verbosity level>*::
    Show debug info. Value of 1 shows debug info on startup. Value of 3, shows debug info during run at some cases. Might slow down operation.

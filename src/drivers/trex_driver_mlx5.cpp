@@ -48,7 +48,6 @@ int CTRexExtendedDriverBaseMlnx5G::get_min_sample_rate(void){
 }
 
 
-
 void CTRexExtendedDriverBaseMlnx5G::clear_extended_stats(CPhyEthIF * _if){
     repid_t repid=_if->get_repid();
     rte_eth_stats_reset(repid);

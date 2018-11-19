@@ -626,7 +626,7 @@ TrexStatelessPort::calculate_effective_factor(const TrexPortMultiplier &mul, boo
     /* L1 BW must be positive */
     if (expected_l1_rate <= 0){
         stringstream ss;
-        ss << "Effective bandwidth must be positive, got: " << expected_l1_rate;
+        ss << "Effective bandwidth is zero, this means that your dpdk driver does not know the link throughput (virtual), please use absolute bandwidth  " << expected_l1_rate;
         throw TrexException(ss.str());
     }
 
@@ -889,7 +889,7 @@ TrexStatelessPort::set_service_mode(bool enabled) {
     
     TrexCpToRxMsgBase *msg = new TrexStatelessRxQuery(m_port_id, query_type, reply);
     send_message_to_rx(msg);
-    
+
     TrexStatelessRxQuery::query_rc_e rc = reply.wait_for_reply();
     
     switch (rc) {

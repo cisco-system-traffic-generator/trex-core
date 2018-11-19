@@ -72,6 +72,8 @@ class CFlowStatParser {
     virtual int get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len);
     virtual uint16_t get_pkt_size();
     virtual uint8_t get_ttl();
+    bool get_is_latency();
+
     uint8_t *get_l3() {
         if (m_ipv4)
             return (uint8_t *)m_ipv4;
@@ -130,7 +132,7 @@ class CPassAllParser : public CFlowStatParser {
  public:
  CPassAllParser() : CFlowStatParser (CFlowStatParser::FLOW_STAT_PARSER_MODE_SW) {}
     virtual CFlowStatParser_err_t parse(uint8_t *pkt, uint16_t len);
-    void set_tos_to_cpu() {}
+    //void set_tos_to_cpu() {}
     virtual int get_ip_id(uint32_t &ip_id) { ip_id = 0; return 0;}
     virtual void set_ip_id(uint32_t ip_id){}
     virtual int get_l3_proto(uint16_t &proto){proto = 0; return 0;}

@@ -191,6 +191,8 @@ class CPhyEthIF  {
 
 private:
     void conf_hardware_astf_rss();
+    void conf_multi_rx();
+
 
     void _conf_queues(uint16_t tx_qs,
                       uint32_t tx_descs,

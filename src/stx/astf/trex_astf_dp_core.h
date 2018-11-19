@@ -50,7 +50,7 @@ public:
     void parse_astf_json(std::string *profile_buffer);
 
 protected:
-    virtual bool rx_for_astf();
+    virtual bool rx_for_idle();
     void report_finished();
     void report_error(const std::string &error);
     bool sync_barrier();
