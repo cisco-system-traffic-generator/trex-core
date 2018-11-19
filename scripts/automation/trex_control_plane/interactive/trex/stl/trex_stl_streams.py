@@ -1007,9 +1007,11 @@ class STLProfile(object):
 
         basedir = os.path.dirname(python_file)
         sys.path.insert(0, basedir)
+        dont_write_bytecode = sys.dont_write_bytecode
 
         try:
             file    = os.path.basename(python_file).split('.')[0]
+            sys.dont_write_bytecode = True
             module = __import__(file, globals(), locals(), [], 0)
             imp.reload(module) # reload the update 
 
@@ -1037,6 +1039,7 @@ class STLProfile(object):
 
 
         finally:
+            sys.dont_write_bytecode = dont_write_bytecode
             sys.path.remove(basedir)
 
     
