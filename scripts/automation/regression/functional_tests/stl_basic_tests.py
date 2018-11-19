@@ -177,8 +177,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                              silent = False,
                              do_no_remove = False,
                              compare = True,
-                             test_generated = True,
-                             do_no_remove_generated = False,
                              tunables = None):
 
         print('\nTesting profile: %s' % profile)
@@ -203,36 +201,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)
-
-        if test_generated:
-            try:
-                generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
-                print('Generating %s' % generated_filename)
-                if input_file.endswith('.py'):
-                    profile = STLProfile.load_py(input_file, **(tunables if tunables else {}))
-                elif input_file.endswith('.yaml'):
-                    profile = STLProfile.load_yaml(input_file)
-                
-                profile.dump_to_code(generated_filename)
-
-                if compare:
-                    orig_json = profile.to_json()
-                    gen_json  = STLProfile.load_py(generated_filename).to_json()
-                    if not compare_dicts_round(orig_json, gen_json):
-                        print('Original JSON:')
-                        pprint(orig_json)
-                        print('Generated JSON:')
-                        pprint(gen_json)
-                        raise Exception('Generated file differs from original in JSON.')
-
-
-            finally:
-                if not do_no_remove_generated:
-                    if os.path.exists(generated_filename):
-                        os.unlink(generated_filename)
-                    # python 3 does not generate PYC under the same dir
-                    if os.path.exists(generated_filename + 'c'):
-                        os.unlink(generated_filename + 'c')
 
 
     def test_stl_profiles (self):
@@ -262,7 +230,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
              ["udp_1pkt_tuple_gen_split.py","-m 1 -l 100",True],
              ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
-             ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
+             ["udp_1pkt_vxlan.py","-m 1 -l 17",True],
              ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
@@ -284,11 +252,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         p1 = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
 
         for obj in p:
-            try:
-                test_generated = obj[3]
-            except: # check generated if not said otherwise
-                test_generated = True
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True, do_no_remove_generated = False)
+            self.run_py_profile_path(obj[0], obj[1], compare = obj[2], do_no_remove = True)
 
     def test_generated_profiles(self):
         exclude_list = [
@@ -297,8 +261,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             ]
         exclude_dict = {}.fromkeys(exclude_list)
         output_file = os.path.join(self.generated_path, 'exported_to_code.py')
+        stl_files = glob.glob(os.path.join(self.profiles_path, '*.py'))
+        hlt_files = glob.glob(os.path.join(self.profiles_path, 'hlt', '*.py'))
+        assert stl_files and hlt_files
 
-        for input_file in glob.glob(os.path.join(self.profiles_path, '*.py')):
+        print('\nChecking %s normal profiles and %s hlt profiles' % (len(stl_files), len(hlt_files)))
+
+        for input_file in stl_files + hlt_files:
             basename = os.path.basename(input_file)
             if basename in exclude_dict:
                 continue
@@ -309,7 +278,6 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             gen_json  = STLProfile.load_py(output_file).to_json()
 
             if not compare_dicts_round(orig_json, gen_json):
-                print('')
                 print('Original JSON:')
                 pprint(orig_json)
                 print('Generated JSON:')
@@ -344,7 +312,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             )
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = False, tunables = obj[3])
+            self.run_py_profile_path(obj[0], obj[1], compare = obj[2], do_no_remove = True, tunables = obj[3])
 
     # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):
