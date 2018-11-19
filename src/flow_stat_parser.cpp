@@ -237,6 +237,17 @@ uint16_t CFlowStatParser::get_pkt_size() {
     return ( ip_len + m_vlan_offset + ETH_HDR_LEN);
 }
 
+bool CFlowStatParser::get_is_latency(){
+    uint8_t tos = 0;
+    if (m_ipv4) {
+        tos = m_ipv4->getTOS();
+    }
+    if (m_ipv6) {
+        tos = m_ipv6->getTrafficClass();
+    }
+    return ((tos&0x01)==0x01)?true:false;
+}
+
 uint8_t CFlowStatParser::get_ttl(){
     if (m_ipv4) {
         return ( m_ipv4->getTimeToLive() );

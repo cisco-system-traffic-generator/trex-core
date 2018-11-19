@@ -74,7 +74,7 @@ TrexDpCore::idle_state_loop() {
             continue;
         }
 
-        bool had_rx = rx_for_astf();
+        bool had_rx = rx_for_idle();
         if (had_rx) {
             counter = 0;
             continue;
@@ -92,7 +92,7 @@ TrexDpCore::idle_state_loop() {
 }
 
 bool
-TrexDpCore::rx_for_astf(void) {
+TrexDpCore::rx_for_idle(void) {
     return false;
 }
 

@@ -26,6 +26,9 @@ limitations under the License.
 #include <stdint.h>
 #include "msg_manager.h"
 #include "pal_utl.h"
+#include "mbuf.h"
+#include "dpdk_port_map.h"
+
 
 class CFlowGenListPerThread;
 class TrexCpToDpMsgBase;
@@ -135,7 +138,12 @@ public:
      * return true if a specific port is active
      */
     virtual bool is_port_active(uint8_t port_id) = 0;
+
     
+    virtual void rx_handle_packet(int dir,rte_mbuf_t * m,bool is_idle,
+                                  tvpid_t port_id){
+        assert(0);
+    }
     
 protected:
 
@@ -144,8 +152,8 @@ protected:
      */
     virtual void start_scheduler() = 0;
 
-    /* read from RX for ASTF */
-    virtual bool rx_for_astf(void);
+    /* read from RX  */
+    virtual bool rx_for_idle(void);
 
     void idle_state_loop();
     

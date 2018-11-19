@@ -33,6 +33,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 
 #include "trex_stx.h"
+#include "utl_mbuf.h"
 
 /* stateless includes */
 #include "stl/trex_stl_stream_node.h"
@@ -3751,6 +3752,10 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
         thread->handle_tw(node,on_terminate);
         break;
 
+    case CGenNode::STL_RX_FLUSH:
+        thread->handle_stl_rx(node,on_terminate);
+        break;
+
     default:
         assert(0);
     }
@@ -4047,6 +4052,76 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
         }
     }
 }
+
+void CFlowGenListPerThread::handle_stl_rx(CGenNode * node,
+                                          bool on_terminate){
+
+    double dtime=STL_RX_FLUSH_SEC;
+    int drop=0;
+    m_node_gen.m_p_queue.pop();
+    /* in case the ports are idle for more than time ticks stop */
+    if (m_dp_core->are_all_ports_idle()){
+        m_tcp_terminate_cnt++;
+        if ( m_tcp_terminate_cnt>STL_RX_DELAY_TICKS ) {
+           drop=1;
+        }
+    }else{
+        m_tcp_terminate_cnt=0;
+    }
+    
+    if ( on_terminate ){
+           drop=1;
+    }
+    if (drop) {
+        free_node(node);
+    }else{
+        node->m_time += dtime;
+        m_node_gen.m_p_queue.push(node);
+    }
+    handle_stl_pkts(false);
+}
+
+uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
+    CVirtualIF * v_if=m_node_gen.m_v_if;
+    rte_mbuf_t * rx_pkts[64];
+    int dir;
+    uint16_t cnt;
+    tvpid_t   ports_id[2];
+    uint16_t sum;
+    uint16_t sum_both_dir = 0;
+    get_port_ids(ports_id[0], ports_id[1]);
+
+    for (dir=0; dir<CS_NUM; dir++) {
+        sum=0;
+        while (true) {
+            cnt=v_if->rx_burst(dir,rx_pkts,64);
+            if (cnt==0) {
+                break;
+            }
+            int i;
+            for (i=0; i<(int)cnt;i++) {
+                rte_mbuf_t * m=rx_pkts[i];
+#ifdef _DEBUG
+                if ( CGlobalInfo::m_options.preview.getVMode() ==7 ){
+                    fprintf(stdout,"RX---> dir %d (tid:%d) \n",dir,(int)m_thread_id);
+                    utl_rte_pktmbuf_dump_k12(stdout,m);
+                }
+#endif
+                m_dp_core->rx_handle_packet(dir,m,is_idle,ports_id[dir]);
+            }
+            sum+=cnt;
+            if (sum>127) {
+                break;
+            }
+        }
+        /*if (m_sched_accurate && sum){
+            v_if->flush_tx_queue();
+        }*/
+        sum_both_dir += sum;
+    }
+    return sum_both_dir;
+}
+
 
 
 void   CFlowGenListPerThread::no_memory_error(){

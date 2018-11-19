@@ -1442,7 +1442,7 @@ void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     m_ignore_stats.m_tx_arp = pre_stats.m_tx_arp;
     m_ignore_stats.m_rx_arp = pre_stats.m_rx_arp;
 
-    if (CGlobalInfo::m_options.preview.getVMode() >= 3) {
+    if (isVerbose(2)) {
         fprintf(stdout, "Pre test statistics for port %d\n", m_tvpid);
         m_ignore_stats.dump(stdout);
     }
@@ -1567,6 +1567,10 @@ public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
 
+     /* works in sw multi core only, need to verify it */
+    virtual uint16_t rx_burst(pkt_dir_t dir,
+                              struct rte_mbuf **rx_pkts,
+                              uint16_t nb_pkts);
     /**
      * fast path version
      */
@@ -1587,6 +1591,15 @@ protected:
                                 CVirtualIFPerSideStats *lp_stats)   __attribute__ ((always_inline));
 
     rte_mbuf_t * generate_slow_path_node_pkt(CGenNodeStateless *node_sl);
+
+public:
+    void set_rx_queue_id(uint16_t client_qid,
+                         uint16_t server_qid){
+        m_rx_queue_id[CLIENT_SIDE]=client_qid;
+        m_rx_queue_id[SERVER_SIDE]=server_qid;
+    }
+public:
+    uint16_t     m_rx_queue_id[CS_NUM]; 
 };
 
 class CCoreEthIFTcp : public CCoreEthIF {
@@ -1906,6 +1919,14 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
         return send_pkt(lp_port, m, lp_stats);
     }
 }
+
+uint16_t CCoreEthIFStateless::rx_burst(pkt_dir_t dir,
+                                 struct rte_mbuf **rx_pkts,
+                                 uint16_t nb_pkts){
+    uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
+    return (res);
+}
+
 
 int CCoreEthIFStateless::send_node(CGenNode *node) {
     return send_node_common<false>(node);
@@ -3030,7 +3051,7 @@ void CGlobalTRex::pre_test() {
 
             delete *it;
         }
-        if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+        if ( isVerbose(1)) {
             fprintf(stdout, "*******Pretest for client cfg********\n");
             pretest.dump(stdout);
             }
@@ -3080,7 +3101,7 @@ void CGlobalTRex::pre_test() {
         resolve_failed = true;
     }
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+    if ( isVerbose(1) ) {
         fprintf(stdout, "*******Pretest after resolving ********\n");
         pretest.dump(stdout);
     }
@@ -3099,7 +3120,7 @@ void CGlobalTRex::pre_test() {
             exit(1);
         }
         m_fl.set_client_config_resolved_macs(pretest_result);
-        if ( CGlobalInfo::m_options.preview.getVMode() > 1) {
+        if ( isVerbose(1) ) {
             m_fl.dump_client_config(stdout);
         }
 
@@ -3554,8 +3575,9 @@ bool CGlobalTRex::Create(){
     CTrexDpdkParams dpdk_p;
     get_dpdk_drv_params(dpdk_p);
 
-    dpdk_p.dump(stdout);
-
+    if (isVerbose(0)) {
+        dpdk_p.dump(stdout);
+    }
 
     bool use_hugepages = !CGlobalInfo::m_options.m_is_vdev;
     CGlobalInfo::init_pools( m_max_ports * dpdk_p.get_total_rx_desc(),
@@ -3633,8 +3655,18 @@ void CGlobalTRex::init_stl() {
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_stl[i + 1];
     }
-    
+
+    if (get_dpdk_mode()->dp_rx_queues() ){
+        /* multi-queue mode */
+        for (int i = 0; i < get_cores_tx(); i++) {
+           int qid =(i/get_base_num_cores());   
+           int rx_qid=get_dpdk_mode()->get_dp_rx_queues(qid); /* 0,1,2,3*/
+           m_cores_vif_stl[i+1].set_rx_queue_id(rx_qid,rx_qid);
+       }
+    }
+
     init_vif_cores();
+
     rx_interactive_conf();
     
     m_stx = new TrexStateless(get_stx_cfg());
@@ -3646,10 +3678,8 @@ void CGlobalTRex::init_stl() {
 
 void CGlobalTRex::init_astf_vif_rx_queues(){
     for (int i = 0; i < get_cores_tx(); i++) {
-        int rx_qid =(i/get_base_num_cores());   /* 0,2,3,..*/
-        if (rx_qid >= MAIN_DPDK_RX_Q) {
-            rx_qid++;
-        }
+        int qid =(i/get_base_num_cores());   /* 0,2,3,..*/
+        int rx_qid = get_dpdk_mode()->get_dp_rx_queues(qid);
         m_cores_vif_tcp[i+1].set_rx_queue_id(rx_qid,rx_qid);
     }
 }
@@ -3690,7 +3720,7 @@ void CGlobalTRex::init_stf() {
     CFlowsYamlInfo  pre_yaml_info;
     
     pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+    if ( isVerbose(0) ){
         CGlobalInfo::m_options.dump(stdout);
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
@@ -5157,7 +5187,7 @@ int CGlobalTRex::start_master_statefull() {
     }
 
 
-    if (  CGlobalInfo::m_options.preview.getVMode() >0 ) {
+    if (  isVerbose(0) ) {
         m_fl.DumpCsv(stdout);
         for (i=0; i<100; i++) {
             fprintf(stdout,"\n");
@@ -5283,6 +5313,33 @@ void CPhyEthIF::configure_rss(){
     }
 }
 
+void CPhyEthIF::conf_multi_rx() {
+    const struct rte_eth_dev_info *dev_info = m_port_attr->get_dev_info();
+    uint8_t hash_key_size;
+
+     if ( dev_info->hash_key_size==0 ) {
+          hash_key_size = 40; /* for mlx5 */
+        } else {
+          hash_key_size = dev_info->hash_key_size;
+     }
+
+    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+
+    struct rte_eth_rss_conf *lp_rss = 
+        &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
+
+    if (dev_info->flow_type_rss_offloads){
+        lp_rss->rss_hf = (dev_info->flow_type_rss_offloads & (ETH_RSS_NONFRAG_IPV4_TCP |
+                         ETH_RSS_NONFRAG_IPV4_UDP |
+                         ETH_RSS_NONFRAG_IPV6_TCP |
+                         ETH_RSS_NONFRAG_IPV6_UDP));
+        lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
+    }else{                 
+        lp_rss->rss_key =0;
+    }
+    lp_rss->rss_key_len = hash_key_size;
+}
+
 void CPhyEthIF::conf_hardware_astf_rss() {
 
     const struct rte_eth_dev_info *dev_info = m_port_attr->get_dev_info();
@@ -5357,7 +5414,7 @@ void CPhyEthIF::_conf_queues(uint16_t tx_qs,
         conf_hardware_astf_rss();
         break;
     case ddRX_DIST_BEST_EFFORT:
-        assert(0);
+        conf_multi_rx();
         break;
     case ddRX_DIST_FLOW_BASED:
         assert(0);
@@ -5398,7 +5455,9 @@ void CPhyEthIF::_conf_queues(uint16_t tx_qs,
     }
 
     for (uint16_t qid = 0; qid < rx_qs; qid++) {
-        printf(" rx_qid: %d (%d) \n", qid,rx_qs_descs[qid]);
+        if (isVerbose(0)) {
+           printf(" rx_qid: %d (%d) \n", qid,rx_qs_descs[qid]);
+        }
         rx_queue_setup(qid, rx_qs_descs[qid], 
                        socket_id, 
                        &cfg.m_rx_conf,
@@ -5956,7 +6015,7 @@ int  update_dpdk_args(void){
         return (-1);
     }
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0  ) {
+    if ( isVerbose(0)  ) {
         lpsock->dump(stdout);
     }
 
@@ -6559,7 +6618,7 @@ void reorder_dpdk_ports() {
     /* update MAP */
     lp->set(cnt, res_map);
 
-    if ( CGlobalInfo::m_options.preview.getVMode() > 0){
+    if ( isVerbose(0) ){
         port_map.dump(stdout);
         lp->Dump(stdout);
     }

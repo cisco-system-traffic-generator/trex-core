@@ -129,7 +129,9 @@ TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
 
 TrexDpCore *
 TrexStateless::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) {
-    return new TrexStatelessDpCore(thread_id, core);
+    TrexStatelessDpCore * lp=new TrexStatelessDpCore(thread_id, core);
+    lp->set_need_to_rx(get_dpdk_mode()->dp_rx_queues()>0?true:false);
+    return lp;
 }
 
 void

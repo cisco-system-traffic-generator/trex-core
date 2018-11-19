@@ -159,7 +159,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             print ("\nLATEST DUMP:")
             #pprint(trex_res.get_latest_dump());
     
-            self.check_general_scenario_results(trex_res,True,True)
+            self.check_general_scenario_results(trex_res,False,True)
             s=''
             if not obj['default']:
                 s='.'+obj['name']
@@ -208,7 +208,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             print ("\nLATEST DUMP:")
             #pprint(trex_res.get_latest_dump());
     
-            self.check_general_scenario_results(trex_res,True,True)
+            self.check_general_scenario_results(trex_res,False,True)
             self.check_CPU_benchmark(trex_res,elk_name = "."+obj['name'])
             if bypass == None:
                self.check_tcp_errors(trex_res,obj['is_tcp'],obj['is_udp'])
@@ -248,7 +248,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             print ("\nLATEST DUMP:")
             #pprint(trex_res.get_latest_dump());
     
-            self.check_general_scenario_results(trex_res,True,True)
+            self.check_general_scenario_results(trex_res,False,True)
             self.check_CPU_benchmark(trex_res,elk_name = "."+obj['name'])
             if bypass == None:
                self.check_tcp_errors(trex_res,obj['is_tcp'],obj['is_udp'])

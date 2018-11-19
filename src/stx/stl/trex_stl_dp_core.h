@@ -26,8 +26,10 @@ limitations under the License.
 
 #include "msg_manager.h"
 #include "pal_utl.h"
+#include "mbuf.h"
 
 #include "trex_dp_core.h"
+#include "dpdk_port_map.h"
 
 class TrexCpToDpMsgBase;
 class TrexStatelessDpStart;
@@ -37,6 +39,7 @@ class TrexStreamsCompiledObj;
 class TrexStream;
 class CGenNodePCAP;
 class ServiceModeWrapper;
+class CFlowStatParser;
 
 class CDpOneStream  {
 public:
@@ -125,6 +128,8 @@ class TrexStatelessDpCore : public TrexDpCore {
 public:
 
     #define SCHD_OFFSET_DTIME  (100.0/1000000.0)
+    #define SCHD_OFFSET_DTIME_RX_ENABLED  (100000.0/1000000.0)
+    
  
     TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
     
@@ -150,6 +155,7 @@ public:
     void pause_streams(uint8_t port_id, stream_ids_t &stream_ids);
 
 
+    void set_need_to_rx(bool enable);
 
     void resume_traffic(uint8_t port_id);
     void resume_streams(uint8_t port_id, stream_ids_t &stream_ids);
@@ -212,7 +218,22 @@ public:
      */
     void set_service_mode(uint8_t port_id, bool enabled);
 
+
+
+    void rx_handle_packet(int dir,
+                          rte_mbuf_t * m,
+                          bool is_idle,
+                          tvpid_t port_id);
+
+    virtual bool rx_for_idle(void);
+
 private:
+
+    void _rx_handle_packet(int dir,
+                           rte_mbuf_t * m,
+                           bool is_idle,
+                           bool &drop);
+
 
     /**
      * real job is done when scheduler is launched
@@ -240,7 +261,7 @@ private:
                               CGenNodeStateless *node);
 
 
-    
+    uint8_t                    m_need_to_rx;
     uint8_t                    m_local_port_offset;
 
     TrexStatelessDpPerPort     m_ports[NUM_PORTS_PER_CORE]; 
@@ -249,6 +270,7 @@ private:
     
     ServiceModeWrapper        *m_wrapper;
     bool                       m_is_service_mode;
+    CFlowStatParser *          m_parser;
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */
