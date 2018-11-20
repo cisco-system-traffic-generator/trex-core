@@ -3445,7 +3445,7 @@ by step only, we set this parameter to false.
 ----
     def create_stream (self, direction):
 
-        base_pkt =  Ether()/IP()/UDP(dport=12,sport=1025)
+        base_pkt =  Ether()/IP()/UDP()
 
         ip_range = {'src': {'start': "10.0.0.1", 'end': "10.0.0.254"},
                     'dst': {'start': "8.0.0.1",  'end': "8.0.0.254"}}
@@ -3460,17 +3460,25 @@ by step only, we set this parameter to false.
 
         vm = STLVM()
 
-        vm.var(name="src", min_value=src['start'], max_value=src['end'], size=4, op='inc', 
-              split_to_cores = False)                                                       #<1>
-        vm.var(name="dst", min_value=dst['start'], max_value=dst['end'], size=4, op='inc')  #<2>
-        vm.write(fv_name='src', pkt_offset='IP.src')
-        vm.write(fv_name='dst', pkt_offset='IP.dst')
+        vm.var(name="src", min_value=src['start'], max_value=src['end'], size=4,
+                op='inc', split_to_cores = False)                               #<1>
+        vm.var(name="dst", min_value=dst['start'], max_value=dst['end'], size=4,
+                op='inc')                                                       #<2>
+        vm.repeatable_random_var(fv_name="src_port", size=2, min_value = 1024, 
+                max_value = 65535, limit=3, seed=0, split_to_cores = False)     #<3>
+        vm.repeatable_random_var(fv_name="dst_port", size=2, min_value = 1024, 
+                max_value = 65535, limit=3, seed=0)
+        vm.write(fv_name="src", pkt_offset='IP.src')
+        vm.write(fv_name="dst", pkt_offset='IP.dst')
+        vm.write(fv_name="src_port", pkt_offset="UDP.sport")
+        vm.write(fv_name="dst_port", pkt_offset="UDP.dport")
         vm.fix_chksum(offset='IP')
         return STLStream(packet = STLPktBuilder(pkt = base_pkt, vm = vm),
                          mode = STLTXCont())
 ----
 <1> The source address variable is not split to cores, hence it will be incremented by step = 1 in each core.
 <2> By default the destination address variable is split to cores, as such it will be incremented by step * number of cores in each core.
+<3> Repeatable random variables can also be split to cores. The source port is such a variable and hence it will change once in number of cores.
 
 You can simulate the profile using the STL simulator:
 
@@ -3479,7 +3487,7 @@ You can simulate the profile using the STL simulator:
 [bash]>./stl-sim -f stl/split_var_to_cores.py -o b.pcap -c 7
 ----
 
-In the pcap we can see that each source address is repeated number of cores times, meanwhile the destination addresses are repeated once.
+In the pcap we can see that each source address is repeated number of cores times, meanwhile the destination addresses are repeated once. The same holds for the source and destination port.
 
 === Functional Tutorials
 
