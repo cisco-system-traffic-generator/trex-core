@@ -361,7 +361,7 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
 
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, limit, seed, min_value, max_value):
+    def __init__(self, fv_name, size, limit, seed, min_value, max_value, split_to_cores):
         super(CTRexVmInsFlowVarRandLimit, self).__init__("flow_var_rand_limit")
         self.name = fv_name;
         validate_type('fv_name', fv_name, basestring)
@@ -377,6 +377,8 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
         self.max_value=max_value
         validate_type('max_value', max_value, int)
         assert max_value >= 0, 'max_value (%s) is negative' % max_value
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
 
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
@@ -876,7 +878,7 @@ class STLVmFlowVar(CTRexVmDescBase):
 
 class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
-    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None, split_to_cores=True):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
@@ -903,6 +905,10 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
              max_value  : int
                 Max value 
 
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
+
 
         .. code-block:: python
 
@@ -923,6 +929,9 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         self.size =size
         valid_fv_size(size)
         self.limit =limit
+
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
 
         if seed == None:
             self.seed = random.randint(1, 32000)
@@ -950,18 +959,18 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
 
     def get_obj (self):
-        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value, self.split_to_cores);
 
     def get_var_name(self):
         return [self.name]
 
 class STLVmFlowVarRepetableRandom(STLVmFlowVarRepeatableRandom):
 
-    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
-        super(STLVmFlowVarRepetableRandom, self).__init__(name,  size, limit, seed, min_value, max_value)
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None, split_to_cores=True):
+        super(STLVmFlowVarRepetableRandom, self).__init__(name,  size, limit, seed, min_value, max_value, split_to_cores)
 
     def get_obj (self):
-        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value, self.split_to_cores);
 
     def get_var_name(self):
         return [self.name]
@@ -1859,7 +1868,8 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                                                  limit         = instr['limit'],
                                                  seed          = instr['seed'],
                                                  min_value     = instr['min_value'],
-                                                 max_value     = instr['max_value'])
+                                                 max_value     = instr['max_value'],
+                                                 split_to_cores = instr.get('split_to_cores', True))
                         
                     
                 else:
@@ -2265,7 +2275,7 @@ class STLVM(STLScVmRaw):
         
         
         
-    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None):
+    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None, split_to_cores = True):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
@@ -2291,6 +2301,10 @@ class STLVM(STLScVmRaw):
 
              max_value  : int
                 Max value 
+            
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
 
         """
         
@@ -2299,7 +2313,8 @@ class STLVM(STLScVmRaw):
                                                   limit      =  limit,
                                                   seed       =  seed,
                                                   min_value  =  min_value,
-                                                  max_value  =  max_value))
+                                                  max_value  =  max_value,
+                                                  split_to_cores = split_to_cores))
         
         
         
