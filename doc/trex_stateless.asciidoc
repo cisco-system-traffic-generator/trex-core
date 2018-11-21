@@ -3489,6 +3489,55 @@ You can simulate the profile using the STL simulator:
 
 In the pcap we can see that each source address is repeated number of cores times, meanwhile the destination addresses are repeated once. The same holds for the source and destination port.
 
+==== Tutorial: Field Engine dependent variables 
+
+Sometimes we would like to have a type of dependency between our field engine variables. For example, we want one variable to perform its op only if another variable finished wrapping around. A classical case would be getting all the combinations of two letters aa, ab, ..., az, ba, ..., bz, ..., zz. We want the first letter to update only after we got all the possible values of the second letter. For such cases, we implemented the next_var feature.
+
+*Goal*:: Demonstrate the next_var feature and how to use it.
+
+*File*:: link:{github_stl_path}/dependent_field_engine_vars.py[dependent_field_engine_vars.py]
+
+// inserted this comment to fix rendering problem - otherwise the next several lines are not rendered
+// there's still a problem with the rendering. the image is not displayed.
+
+
+.Dependent Field Engine Variables
+[source,python]
+----
+    def create_stream (self):
+
+        base_pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)
+
+        vm = STLVM()
+        vm.var(name='var1', min_value=ord('a'), max_value=ord('d'), size=2, step=1, op='inc',
+               next_var='var2')                                             <1>
+        vm.write(fv_name='var1', pkt_offset=44)
+        vm.var(name='var2', min_value=ord('a'), max_value=ord('c'), size=2, step=1, op='inc',
+               next_var='var3')                                             <2>
+        vm.write(fv_name='var2', pkt_offset=43)
+        vm.var(name='var3', min_value=ord('a'), max_value=ord('b'), size=2, step=1, op='inc')
+        vm.write(fv_name='var3', pkt_offset=42)
+
+        return STLStream(packet = STLPktBuilder(pkt = base_pkt, vm = vm),
+                         mode = STLTXCont())
+
+
+    def get_streams (self, **kwargs):
+        # create 1 stream 
+        return [ self.create_stream() ]
+----
+<1> var2 will increment only after var1 performs a full wrap around.
+<2> var3 will increment only after var2 performs a full wrap around.
+
+You can simulate the profile using the STL simulator:
+
+[source,bash]
+----
+[bash]>./stl-sim -f stl/dependent_field_engine_vars.py -o b.pcap
+----
+
+The payloads of the packets contain aaa,aab,aac,aad,aba,..., bcd.
+
 === Functional Tutorials
 
 
