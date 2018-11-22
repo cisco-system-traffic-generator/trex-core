@@ -155,11 +155,13 @@ void CDpdkMode::get_dpdk_drv_params(CTrexDpdkParams &p){
 }
 
 
-trex_driver_cap_t CDpdkMode::get_cap_for_mode(trex_dpdk_mode_t dpdk_mode){
+trex_driver_cap_t CDpdkMode::get_cap_for_mode(trex_dpdk_mode_t dpdk_mode,bool one_core){
+
    const trex_driver_cap_t m[tmDPDK_MODES]={ tdCAP_ONE_QUE,
                                              tdCAP_MULTI_QUE,
                                              tdCAP_DROP_QUE_FILTER,
-                                             tdCAP_RSS_DROP_QUE_FILTER };
+                                             one_core?tdCAP_DROP_QUE_FILTER:
+                                             tdCAP_RSS_DROP_QUE_FILTER }; /* In case of one core, only filter cap is needed*/
 
  const trex_driver_cap_t sw[tmDPDK_MODES]={ tdCAP_ONE_QUE,
                                             tdCAP_MULTI_QUE,
@@ -209,10 +211,10 @@ int CDpdkMode::choose_mode(uint32_t cap){
     modes.push_back( {OP_MODE_STL, true,  { tmDROP_QUE_FILTER,tmONE_QUE } } );
     modes.push_back( {OP_MODE_STL, false, { tmDROP_QUE_FILTER,tmMULTI_QUE } } );
 
-    modes.push_back( {OP_MODE_ASTF_BATCH, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } );
+    modes.push_back( {OP_MODE_ASTF_BATCH, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } ); /* only filter is needed here */
     modes.push_back( {OP_MODE_ASTF_BATCH, false, { tmRSS_DROP_QUE_FILTER } } );
 
-    modes.push_back( {OP_MODE_ASTF, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } );
+    modes.push_back( {OP_MODE_ASTF, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } ); 
     modes.push_back( {OP_MODE_ASTF, false, { tmRSS_DROP_QUE_FILTER,tmMULTI_QUE } } );
 
     bool one_core =  (dp_cores==1?true:false);
@@ -225,7 +227,7 @@ int CDpdkMode::choose_mode(uint32_t cap){
              (lp->m_mode == m_ttm_mode)) {
             for (j=0;j<lp->m_pm.size(); j++) {
                 trex_dpdk_mode_t dpdk_mode = (trex_dpdk_mode_t)lp->m_pm[j];
-                if ( get_cap_for_mode(dpdk_mode) & cap ){
+                if ( get_cap_for_mode(dpdk_mode,one_core) & cap ){
                     printf(" set dpdk queues mode to %s \n",get_str_mode(dpdk_mode).c_str());
                     set_dpdk_mode(dpdk_mode);
                     return(dpdk_mode);
