@@ -488,7 +488,7 @@ public:
     void switch_mode_debug(trex_traffic_mode_t mode);
 private:
     void set_dpdk_mode(trex_dpdk_mode_t  dpdk_mode);
-    trex_driver_cap_t get_cap_for_mode(trex_dpdk_mode_t dpdk_mode);
+    trex_driver_cap_t get_cap_for_mode(trex_dpdk_mode_t dpdk_mode,bool one_core);
 
 private:
    bool                 m_force_sw_mode;
