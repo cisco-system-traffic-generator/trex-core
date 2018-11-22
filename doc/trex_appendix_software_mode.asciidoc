@@ -1,0 +1,92 @@
+Software mode
+=============
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Software mode  
+
+This paragraph explains how packets are distributed to cores, especially in "software mode" (`--software`) with multiple rx queues (e.g. `--software -c 2`),
+It is a bit advanced topic, but it is better to understand the details and the pros/cons
+
+=== Stateless mode (STL)
+
+There are a few types of drivers:
+
+*BEST: Driver that support hardware capability of counting/redirect using filters*:
+
+In this case, datapath (DP) cores sending traffic with multiple tx queues (tx queue per core)
+There are only two Rx queues per interface: 
+
+** Drop queue - all the traffic goes for it by default
+** Latency_queue - only latency traffic redirect to this queue using hardware filters. This way latency is accurate
+
+NIC hardware support counting per filter on IPv4.id or IPv6.flow_id 
+The hardware counting usualy done in linerate
+
+*Driver that supports hardware filters for redirect (e.g. ixgbe)*:
+
+Same as above, the flow-stats is forward to Rx core for processing.
+Maximum rate of flow-stats is rx-core(one) capability to handle packets ~10MPPS
+
+*Multi rx queue (--software with c>1)*:
+
+In this mode the each DP core has one Tx queue and one Rx queue. 
+The distribution to Rx should be deterministic. e.g. each 5-tuple  flows should be redirect always to the same core (e.g. RSS)
+Each core in the RX path minic the NIC filter capability and forward latency/flow-stats to RX-core.
+Rx-core is still limiting the performance of flow-stats
+(this can be solved by counting/BPF in each DP and sum the counters)  
+
+*limitations*: 
+
+1. One flow will be redirected to one DP-core, hence better to to have traffic that split betwean cores 
+2. Generated latency stream from one core could re distributed to a number of cores (depends how hardware RX distributed works) -- this could create OOO indication. 
+
+Better to generate a latency stream that will be pinned to one DP core.
+
+=== Advance Stateful mode (ASTF)
+
+In advance stateful each DP-core has one Tx and one Rx queue (multi-tx-rx queue)
+With one DP-core per dual interface, there is no problem in the RX side as all traffic goes to one core 
+With more than one RX-queue per interface the following modes apply 
+
+*BEST: Driver that support RSS/RETA API (e.g. XL710/ixgbe/mellanox)*:
+
+The client side  generates tuples that will return to the same core (using known RSS back calculation)
+There is scale with the number of DP-cores. 
+Latency streams are using hardware filter to redirected to latency streams to RX-core (same as STL mode)
+
+*Multi-rx-queue (--software with c>1) without RSS hardware and without hardware filter*:
+
+(not implemented yet)
+
+*TCP*:
+
+*SYN*:
+
+1. TCP client DP core generates a flows and send first SYN packet 
+2. Save the tuple in global table (lock)
+3. free the TCP flow
+
+*SYN-ACK*:
+
+1. Lookup in the global-table TCP flow, if exits reopen the flow and jump to the SYN state (move state to this DP core)
+2. In case found remove the global-table entry 
+3. in case not found -- an error 
+
+
+*UDP*:
+
+Similar to TCP just, just do this logic in the first direction transition  (server is sending to client)
+
+
+=== Stateful mode (STF)
+
+Does not support multi-rx queue 
+
+
+

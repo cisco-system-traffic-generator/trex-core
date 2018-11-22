@@ -2357,3 +2357,8 @@ link:trex_appendix_active_flows.html[More active flows]
 
 link:trex_appendix_fixing_pcaps.html[astf-sim for fixing pcaps]
 
+link:trex_appendix_software_mode.html[software mode]
+
+
+
+
