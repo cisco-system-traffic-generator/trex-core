@@ -94,8 +94,6 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         sys.stdout.write('Starting TRex... ')
         start_time = time.time()
         cores = self.configuration.trex.get('trex_cores', 1)
-        if self.is_virt_nics and cores > 1:
-            raise Exception('Number of cores should be 1 with virtual NICs')
         if not CTRexScenario.no_daemon:
             self.trex.start_stateless(c = cores)
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
