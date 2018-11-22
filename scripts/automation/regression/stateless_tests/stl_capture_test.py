@@ -360,6 +360,13 @@ class STLCapture_Test(CStlGeneral_Test):
         assert shared['tcp_port']
         return shared['tcp_port']
 
+    def _conf_zmq_socket (self,zmq_socket):
+        zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
+        zmq_socket.setsockopt(zmq.SNDTIMEO, 1000)
+        tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+        return tcp_port
+
+
     def test_tx_from_capture_port (self):
         '''
             test TX packets from the RX core using capture port mechanism
@@ -377,8 +384,7 @@ class STLCapture_Test(CStlGeneral_Test):
         zmq_socket = zmq_context.socket(zmq.PAIR)
 
         try:
-            zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
-            tcp_port = zmq_socket.bind_to_random_port('tcp://*')
+            tcp_port = self._conf_zmq_socket(zmq_socket)
 
             # VICs adds VLAN 0 on RX side
             max_capture_packet = 2000
@@ -445,8 +451,8 @@ class STLCapture_Test(CStlGeneral_Test):
                 # Add ZeroMQ Socket for RX Port
                 zmq_context = zmq.Context()
                 zmq_socket = zmq_context.socket(zmq.PAIR)
-                zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
-                shared['tcp_port'] = zmq_socket.bind_to_random_port('tcp://*')
+                
+                shared['tcp_port'] = self._conf_zmq_socket(zmq_socket) 
                 nb_received = 0
                 first_packet = 0
                 try:
@@ -550,8 +556,7 @@ class STLCapture_Test(CStlGeneral_Test):
                 zmq_context = zmq.Context()
                 zmq_socket = zmq_context.socket(zmq.PAIR)
                 try:
-                    zmq_socket.setsockopt(zmq.RCVTIMEO, 1000)
-                    shared['tcp_port'] = zmq_socket.bind_to_random_port('tcp://*')
+                    shared['tcp_port'] = self._conf_zmq_socket(zmq_socket) 
     
                     while not shared['stop']:
                         try:
