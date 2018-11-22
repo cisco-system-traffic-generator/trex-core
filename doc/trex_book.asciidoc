@@ -2027,6 +2027,12 @@ ARP entries pointing to TRex port on your DUT. For an example config, you can lo
 xref:trex_config[here].
 =========================================================================================
 
+[NOTE]
+=========================================================================================
+Setups with virtual interfaces (SR-IOV/VMXNET3/virtio) has by default, only 512 ex descriptors per queue, 
+better to enlarge it for multi-rx-queue/high performance setups
+=========================================================================================
+
 To find out which interfaces (NIC ports) can be used, perform the following:
 
 [source,bash]

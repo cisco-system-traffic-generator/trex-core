@@ -70,9 +70,10 @@ by using the following link:trex_manual.html#_memory_section_configuration[confi
 
 Limitations:
 
-1. Performance is limited. For each NIC port pair, you can utilize only one CPU core.
-2. Using vSwitch will limit the maximum PPS to around 1MPPS.
-3. Latency results will not be accurate.
+1. Using vSwitch will limit the maximum PPS to around 1MPPS (DPDK-OVS/VPP can solve this)
+2. Latency results will not be accurate.
+
+* For high performance setup (multi-rx-queue), it is better to add `rx_desc: 4096` in the trexd_cfg.yaml see link:trex_manual.html#_platform_yaml_cfg_argument[platform_yaml_cfg_argument] and link:trex_appendix_software_mode.html[software mode]
           
 ==== Which NICs are supported / Why not all DPDK supported NICs supported by TRex?
 1. We are using specific NIC features. Not all the NICs have the capabilities we need.
@@ -575,6 +576,7 @@ This is because on these card types, we use hardware counters (as opposed to cou
 While this allows for counting of full 40G line rate streams, this does not allow for counting bytes (only packet
 count available), because the hardware on these NICs lacks this support.
 Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
+
 
 
 
