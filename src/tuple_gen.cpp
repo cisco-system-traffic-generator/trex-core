@@ -25,6 +25,7 @@ limitations under the License.
 #include "utl_yaml.h"
 #include "bp_sim.h"
 #include "tuple_gen.h"
+#include "trex_exception.h"
 
 static bool _enough_ips(uint32_t total_ip,
                        double active_flows,
@@ -175,16 +176,14 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                                               bool            is_long_range,
                                               ClientCfgDB     &client_info) {
 
+    printf("allocate_configured_clients\n");
     for (uint32_t i = 0; i < total_ip; i++) {
         uint32_t ip = min_ip + i;
 
         /* lookup for the right group of clients */
         ClientCfgEntry *group = client_info.lookup(ip);
         if (!group) {
-            std::stringstream ss;
-            ss << "client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
-            std::cout << ss.str();
-            exit(-1);
+            throw TrexException("Client configuration error - no group containing IP: " + ip_to_str(ip));
         }
 
         ClientCfgBase info;

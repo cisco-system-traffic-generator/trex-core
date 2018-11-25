@@ -1,5 +1,10 @@
 
-from ..utils.common import get_current_user
+import hashlib
+import sys
+import time
+import os
+
+from ..utils.common import get_current_user, user_input
 from ..utils import parsing_opts, text_tables
 
 from ..common.trex_api_annotators import client_api, console_api
@@ -11,12 +16,10 @@ from ..common.trex_types import *
 
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
+from .topo import ASTFTopologyManager
 from .stats.traffic import CAstfTrafficStats
 from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
-import hashlib
-import sys
-import time
 
 class ASTFClient(TRexClient):
     def __init__(self,
@@ -63,6 +66,7 @@ class ASTFClient(TRexClient):
         self.handler = ''
         self.traffic_stats = CAstfTrafficStats(self.conn.rpc)
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
+        self.topo_mngr     = ASTFTopologyManager(self)
         self.last_error = ''
 
 
@@ -72,6 +76,11 @@ class ASTFClient(TRexClient):
 ############################    called       #############################
 ############################    by base      #############################
 ############################    TRex Client  #############################
+
+    def _on_connect(self):
+        self.topo_mngr.sync_with_server()
+        return RC_OK()
+
 
     def _on_connect_create_ports(self, system_info):
         """
@@ -251,6 +260,33 @@ class ASTFClient(TRexClient):
             self.ports[port_id]._clear_handler()
 
 
+    def _upload_fragmented(self, rpc_cmd, upload_string):
+        index_start = 0
+        fragment_length = 1000 # first fragment is small, we compare hash before sending the rest
+        while len(upload_string) > index_start:
+            index_end = index_start + fragment_length
+            params = {
+                'handler': self.handler,
+                'fragment': upload_string[index_start:index_end],
+                }
+            if index_start == 0:
+                params['frag_first'] = True
+            if index_end >= len(upload_string):
+                params['frag_last'] = True
+            if params.get('frag_first') and not params.get('frag_last'):
+                params['md5'] = hashlib.md5(upload_string.encode()).hexdigest()
+
+            rc = self._transmit(rpc_cmd, params = params)
+            if not rc:
+                return rc
+            if params.get('frag_first') and not params.get('frag_last'):
+                if rc.data() and rc.data().get('matches_loaded'):
+                    break
+            index_start = index_end
+            fragment_length = 500000 # rest of fragments are larger
+        return RC_OK()
+
+
     @client_api('command', True)
     def load_profile(self, profile, tunables = {}):
         """ Upload ASTF profile to server
@@ -260,7 +296,7 @@ class ASTFClient(TRexClient):
                     Path to profile filename or profile object
 
                 tunables: dict
-                    forward those key-value pairs to the profile
+                    forward those key-value pairs to the profile file
 
             :raises:
                 + :exc:`TRexError`
@@ -268,36 +304,17 @@ class ASTFClient(TRexClient):
         """
 
         if not isinstance(profile, ASTFProfile):
-            profile = ASTFProfile.load(profile, **tunables)
+            try:
+                profile = ASTFProfile.load(profile, **tunables)
+            except Exception as e:
+                raise TRexError('Could not load profile: %s' % e)
         profile_json = profile.to_json_str(pretty = False, sort_keys = True)
 
-        # send by fragments to server
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
-        index_start = 0
-        fragment_length = 1000 # first fragment is small, we compare hash before sending the rest
-        while len(profile_json) > index_start:
-            index_end = index_start + fragment_length
-            params = {
-                'handler': self.handler,
-                'fragment': profile_json[index_start:index_end],
-                }
-            if index_start == 0:
-                params['frag_first'] = True
-            if index_end >= len(profile_json):
-                params['frag_last'] = True
-            if params.get('frag_first') and not params.get('frag_last'):
-                params['md5'] = hashlib.md5(profile_json.encode()).hexdigest()
-
-            rc = self._transmit('profile_fragment', params = params)
-            if not rc:
-                self.ctx.logger.post_cmd(False)
-                raise TRexError('Could not load profile, error: %s' % rc.err())
-            if params.get('frag_first') and not params.get('frag_last'):
-                if rc.data() and rc.data().get('matches_loaded'):
-                    break
-            index_start = index_end
-            fragment_length = 500000 # rest of fragments are larger
-
+        rc = self._upload_fragmented('profile_fragment', profile_json)
+        if not rc:
+            self.ctx.logger.post_cmd(False)
+            raise TRexError('Could not load profile, error: %s' % rc.err())
         self.ctx.logger.post_cmd(True)
 
 
@@ -467,20 +484,19 @@ class ASTFClient(TRexClient):
 
     @client_api('getter', True)
     def is_traffic_stats_error(self, stats):
-            """
-            Return Tuple if there is an error and what is the error (Bool,Errors)
+        '''
+        Return Tuple if there is an error and what is the error (Bool,Errors)
 
-            :parameters:
-                stats: dict from get_traffic_stats output 
+        :parameters:
+            stats: dict from get_traffic_stats output 
 
-            """
-            return self.traffic_stats.is_traffic_stats_error(stats)
+        '''
+        return self.traffic_stats.is_traffic_stats_error(stats)
 
 
     @client_api('getter', True)
     def clear_traffic_stats(self):
         return self.traffic_stats.clear_stats()
-
 
 
     @client_api('getter', True)
@@ -490,7 +506,7 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0"):
-        """
+        '''
            Start ICMP latency traffic.
 
             :parameters:
@@ -514,7 +530,7 @@ class ASTFClient(TRexClient):
 
             :raises:
                 + :exc:`TRexError`
-        """
+        '''
         if not is_valid_ipv4(src_ipv4):
             raise TRexError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
 
@@ -542,9 +558,9 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def stop_latency(self):
-        """
+        '''
            Stop latency traffic.
-        """
+        '''
 
         params = {
             'handler': self.handler
@@ -559,7 +575,7 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def update_latency(self, mult = 1):
-        """
+        '''
            Update rate of latency traffic.
 
             :parameters:
@@ -568,7 +584,7 @@ class ASTFClient(TRexClient):
 
             :raises:
                 + :exc:`TRexError`
-        """
+        '''
 
         params = {
             'handler': self.handler,
@@ -581,6 +597,82 @@ class ASTFClient(TRexClient):
         if not rc:
             raise TRexError(rc.err())
 
+
+    @client_api('command', True)
+    def topo_load(self, topology, tunables = {}):
+        ''' Load network topology
+
+            :parameters:
+                topology: string or ASTFTopology
+                    Path to topology filename or topology object
+
+                tunables: dict
+                    forward those key-value pairs to the topology file
+
+            :raises:
+                + :exc:`TRexError`
+        '''
+
+        self.topo_mngr.load(topology, **tunables)
+        print('')
+
+
+    @client_api('command', True)
+    def topo_clear(self):
+        ''' Clear network topology '''
+
+        self.topo_mngr.clear()
+
+
+    @client_api('command', True)
+    def topo_resolve(self, ports = None):
+        ''' Resolve current network topology '''
+
+        self.topo_mngr.resolve(ports)
+
+
+    @client_api('command', False)
+    def topo_show(self, ports = None):
+        ''' Show current network topology status '''
+        self.topo_mngr.show(ports)
+        print('')
+
+
+    @client_api('command', False)
+    def topo_save(self, filename):
+        ''' Save current topology to file '''
+
+        if os.path.exists(filename):
+            if os.path.islink(filename) or not os.path.isfile(filename):
+                raise TRexError("Given path exists and it's not a file!")
+            sys.stdout.write('\nFilename %s already exists, overwrite? (y/N) ' % filename)
+            ans = user_input().strip()
+            if ans.lower() not in ('y', 'yes'):
+                print('Not saving.')
+                return
+
+        try:
+            if filename.endswith('.json'):
+                self.ctx.logger.pre_cmd('Saving topology to JSON: %s' % filename)
+                code = self.topo_mngr.to_json(False)
+            elif filename.endswith('.yaml'):
+                self.ctx.logger.pre_cmd('Saving topology to YAML: %s' % filename)
+                code = self.topo_mngr.to_yaml()
+            elif filename.endswith('.py'):
+                self.ctx.logger.pre_cmd('Saving topology to Python script: %s' % filename)
+                code = self.topo_mngr.to_code()
+            else:
+                self.ctx.logger.error('Saved filename should be .py or .json or .yaml')
+                return
+
+            with open(filename, 'w') as f:
+                f.write(code)
+
+        except Exception as e:
+            self.ctx.logger.post_cmd(False)
+            raise TRexError('Saving file failed: %s' % e)
+
+        self.ctx.logger.post_cmd(True)
 
 
 ############################   console   #############################
@@ -740,6 +832,65 @@ class ASTFClient(TRexClient):
 
         elif opts.command == 'counters':
             self._show_latency_counters()
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
+
+    @console_api('topo', 'ASTF', True, True)
+    def topo_line(self, line):
+        '''Topology-related commands'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'topo',
+            self.topo_line.__doc__)
+
+        def topology_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        load_parser = topology_add_parsers(subparsers, 'load', help = 'Load topology from file')
+        reso_parser = topology_add_parsers(subparsers, 'resolve', help = 'Resolve loaded topology')
+        show_parser = topology_add_parsers(subparsers, 'show', help = 'Show current topology status')
+        topology_add_parsers(subparsers, 'clear', help = 'Clear current topology')
+        save_parser = topology_add_parsers(subparsers, 'save', help = 'Save topology to file')
+
+        load_parser.add_arg_list(
+            parsing_opts.FILE_PATH,
+            )
+
+        reso_parser.add_arg_list(
+            parsing_opts.PORT_LIST_NO_DEFAULT,
+            )
+
+        show_parser.add_arg_list(
+            parsing_opts.PORT_LIST_NO_DEFAULT,
+            )
+
+        save_parser.add_arg_list(
+            parsing_opts.FILE_PATH_NO_CHECK,
+            )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.command == 'load':
+            self.topo_load(opts.file[0])
+            return False
+
+        elif opts.command == 'resolve':
+            self.topo_resolve(opts.ports_no_default)
+
+        elif opts.command == 'show' or not opts.command:
+            self.topo_show(opts.ports_no_default)
+            return False
+
+        elif opts.command == 'clear':
+            self.topo_clear()
+
+        elif opts.command == 'save':
+            self.topo_save(opts.file[0])
 
         else:
             raise TRexError('Unhandled command %s' % opts.command)

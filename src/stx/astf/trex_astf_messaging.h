@@ -83,11 +83,12 @@ private:
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfLoadDB(std::string *profile_buffer);
+    TrexAstfLoadDB(std::string *profile_buffer, std::string *topo_buffer);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     std::string *m_profile_buffer;
+    std::string *m_topo_buffer;
 };
 
 

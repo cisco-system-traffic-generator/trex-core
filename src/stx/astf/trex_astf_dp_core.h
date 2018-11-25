@@ -47,7 +47,7 @@ public:
     void update_rate(double ratio);
     void create_tcp_batch();
     void delete_tcp_batch();
-    void parse_astf_json(std::string *profile_buffer);
+    void parse_astf_json(std::string *profile_buffer, std::string *topo_buffer);
 
 protected:
     virtual bool rx_for_idle();

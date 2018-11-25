@@ -127,6 +127,19 @@ public:
     void profile_set_loaded();
 
     /**
+     * Topology-related:
+     * cmp - compare hash to loaded topo, true = matches (heavy topo will not be uploaded twice)
+     * clear - clears topo JSON string (if any)
+     * append - appends fragment to topo JSON string
+     * loaded - mark that topo JSON string was fully loaded
+     */
+    bool topo_cmp_hash(const std::string &hash);
+    void topo_clear();
+    void topo_append(const std::string &fragment);
+    void topo_set_loaded();
+    void topo_get(Json::Value &obj);
+
+    /**
      * Start transmit
      */
     void start_transmit(const start_params_t &args);
@@ -192,6 +205,9 @@ protected:
     void transmit();
     void cleanup();
 
+    bool profile_needs_parsing();
+    bool topo_needs_parsing();
+
     bool is_error() {
         return m_error.size() > 0;
     }
@@ -214,13 +230,16 @@ protected:
     state_e         m_state;
     int16_t         m_active_cores;
     std::vector<std::string> m_states_names;
-    std::string     m_profile_buffer;
     CSyncBarrier   *m_sync_b;
     CFlowGenList   *m_fl;
     CParserOption  *m_opts;
     std::string     m_error;
+    std::string     m_profile_buffer;
     std::string     m_profile_hash;
-    std::string     m_parsed_hash;
+    bool            m_profile_parsed;
+    std::string     m_topo_buffer;
+    std::string     m_topo_hash;
+    bool            m_topo_parsed;
 };
 
 

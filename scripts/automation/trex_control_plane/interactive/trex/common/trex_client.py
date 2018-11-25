@@ -441,6 +441,10 @@ class TRexClient(object):
         # mark the event handler as ready to process async updates
         self.ctx.event_handler.enable()
 
+        rc = self._on_connect()
+        if not rc:
+            return rc
+
         return RC_OK()
 
 

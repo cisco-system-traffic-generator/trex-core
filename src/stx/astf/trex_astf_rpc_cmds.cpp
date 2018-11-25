@@ -97,6 +97,10 @@ TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
 
+TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
+
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -353,6 +357,63 @@ TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &resul
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTopoGet::_run(const Json::Value &params, Json::Value &result) {
+    try {
+        get_astf_object()->topo_get(result["result"]);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTopoFragment::_run(const Json::Value &params, Json::Value &result) {
+    const bool frag_first = parse_bool(params, "frag_first", result, false);
+    const bool frag_last = parse_bool(params, "frag_last", result, false);
+
+    TrexAstf *stx = get_astf_object();
+
+    if ( frag_first && !frag_last) {
+        const string hash = parse_string(params, "md5", result);
+        if ( stx->topo_cmp_hash(hash) ) {
+            result["result"]["matches_loaded"] = true;
+            return TREX_RPC_CMD_OK;
+        }
+    }
+
+    const string fragment = parse_string(params, "fragment", result);
+
+    try {
+        if ( frag_first ) {
+            stx->topo_clear();
+        }
+
+        stx->topo_append(fragment);
+
+        if ( frag_last ) {
+            stx->topo_set_loaded();
+        }
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
+    try {
+        get_astf_object()->topo_clear();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
+
 /****************************** component implementation ******************************/
 
 /**
@@ -373,4 +434,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfGetLatencyStats(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
 }

@@ -215,6 +215,58 @@ bool utl_str_to_macaddr(const std::string &s, uint8_t *mac) {
     return true;
 }
 
+
+bool mac2uint64(const std::string &mac_str, uint64_t &mac_num) {
+    std::vector<std::string> tokens;
+    uint64_t val;
+
+    split_str_by_delimiter(mac_str, ':', tokens);
+    if (tokens.size() != 6) {
+        return false;
+    }
+
+    val = 0;
+
+    for (int i = 0; i < 6 ; i++) {
+        char *endptr = NULL;
+        unsigned long octet = strtoul(tokens[i].c_str(), &endptr, 16);
+
+        if ( (*endptr != 0) || (octet > 0xff) ) {
+            return false;
+        }
+
+        val = (val << 8) + octet;
+    }
+
+    mac_num = val;
+
+    return true;
+}
+
+
+bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac) {
+    std::vector<std::string> tokens;
+
+    split_str_by_delimiter(mac_str, ':', tokens);
+    if (tokens.size() != 6) {
+        return false;
+    }
+
+    for (int i = 0; i < 6 ; i++) {
+        char *endptr = NULL;
+        unsigned long octet = strtoul(tokens[i].c_str(), &endptr, 16);
+
+        if ( (*endptr != 0) || (octet > 0xff) ) {
+            return false;
+        }
+
+        mac.push_back(octet);
+    }
+
+    return true;
+}
+
+
 /**
  * generate a random connection handler
  * 
@@ -237,11 +289,27 @@ utl_generate_random_str(unsigned int &seed, int len) {
 }
 
 
-std::string 
-utl_generate_random_str(int len) {
+std::string utl_generate_random_str(int len) {
     unsigned int seed = time(NULL);
     return utl_generate_random_str(seed, len);
 }
+
+
+void split_str_by_delimiter(std::string str, char delim, std::vector<std::string> &tokens) {
+    size_t pos = 0;
+    std::string token;
+
+    while ((pos = str.find(delim)) != std::string::npos) {
+        token = str.substr(0, pos);
+        tokens.push_back(token);
+        str.erase(0, pos + 1);
+    }
+
+    if (str.size() > 0) {
+        tokens.push_back(str);
+    }
+}
+
 
 /**
  * define the coredump size 

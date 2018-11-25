@@ -21,12 +21,16 @@ limitations under the License.
 */
 
 #include "astf/astf_db.h"
-#include "trex_astf_dp_core.h"
 #include "bp_sim.h"
 #include "stt_cp.h"
 #include "utl_sync_barrier.h"
-#include "trex_astf.h"
 #include "trex_messaging.h"
+
+#include "trex_astf.h"
+#include "trex_astf_dp_core.h"
+#include "trex_astf_topo.h"
+#include "trex_client_config.h"
+
 
 using namespace std;
 
@@ -136,27 +140,51 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::parse_astf_json(string *profile_buffer) {
+void TrexAstfDpCore::parse_astf_json(string *profile_buffer, string *topo_buffer) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
     CAstfDB *db = CAstfDB::instance();
-    string err;
+    string err = "";
     bool rc;
+
+    if ( topo_buffer ) {
+        try {
+            TopoMngr *topo_mngr = TopoMngr::get_instance();
+            topo_mngr->from_json_str(*topo_buffer);
+            ClientCfgDB &m_cc_db = m_flow_gen->m_flow_list->m_client_config_info;
+            m_cc_db.load_from_topo(topo_mngr);
+            db->set_client_cfg_db(&m_cc_db);
+            //topo_mngr->dump();
+        } catch (const TopoError &ex) {
+            report_error(ex.what());
+            return;
+        }
+    } else {
+        printf("empty topo\n");
+    }
+
+    if ( !profile_buffer ) {
+        printf("empty profile\n");
+        report_finished();
+        return;
+    } else {
+        printf("profile non-empty\n");
+    }
 
     rc = db->set_profile_one_msg(*profile_buffer, err);
     if ( !rc ) {
-        report_error(err);
+        report_error("Profile parsing error: " + err);
         return;
     }
 
-    // once we support speficying number of cores in start,
+    // once we support specifying number of cores in start,
     // this should not be disabled by cache of profile hash
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
     CJsonData_err err_obj = db->verify_data(num_dp_cores);
 
     if ( err_obj.is_error() ) {
-        report_error(err_obj.description());
+        report_error("Profile split to DP cores error: " + err_obj.description());
     } else {
         report_finished();
     }
@@ -171,12 +199,15 @@ void TrexAstfDpCore::create_tcp_batch() {
     m_flow_gen->m_cur_flow_id = 1;
     m_flow_gen->m_stats.clear();
     m_flow_gen->m_yaml_info.m_duration_sec = go->m_duration;
-    bool success = m_flow_gen->load_tcp_profile();
-    if ( success ) {
-        report_finished();
-    } else {
-        report_error("Could not compile batch");
+
+    try {
+        m_flow_gen->load_tcp_profile();
+    } catch (const TrexException &ex) {
+        report_error("Could not create ASTF batch: " + string(ex.what()));
+        return;
     }
+
+    report_finished();
 }
 
 void TrexAstfDpCore::delete_tcp_batch() {
