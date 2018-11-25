@@ -270,6 +270,8 @@ public:
     /* number of rx queues in DP, in case of oneQ env should return 0 */
     virtual uint16_t dp_rx_queues()=0;
 
+    /* number of tx total Tx queues (+ latency and spare) */
+    virtual uint16_t total_tx_queues()=0;
 
 public:
     /* accurate latency **/
@@ -323,6 +325,8 @@ public:
           in case of ASTF the Rx is used by DP */
           return(0);
       }
+      virtual uint16_t total_tx_queues();
+
 };
 
 
@@ -362,6 +366,9 @@ public:
       }
 
       virtual uint16_t dp_rx_queues();
+
+      virtual uint16_t total_tx_queues();
+
 };
 
 
@@ -401,6 +408,8 @@ public:
     virtual uint16_t dp_rx_queues(){
         return (0);
     }
+    virtual uint16_t total_tx_queues();
+
 };
 
 class CDpdkMode_RSS_DROP_QUE_FILTER : public CDpdkModeBase {
@@ -441,6 +450,8 @@ public:
     }
 
     virtual uint16_t dp_rx_queues();
+    virtual uint16_t total_tx_queues();
+
 };
 
 

@@ -45,6 +45,10 @@ void CTrexDpdkParams::dump(FILE *fd){
     fprintf(fd," tx_desc_num     : %d \n",(int)tx_desc_num);
 }
 
+uint16_t CDpdkMode_ONE_QUE::total_tx_queues(){
+    return(1);
+}
+
 
 bool CDpdkMode_ONE_QUE::is_rx_core_read_from_queue(){
    return (m_mode->is_astf_mode()?false:true);
@@ -52,6 +56,10 @@ bool CDpdkMode_ONE_QUE::is_rx_core_read_from_queue(){
 
 bool CDpdkMode_ONE_QUE::is_dp_latency_tx_queue(){
   return (false);
+}
+
+uint16_t CDpdkMode_MULTI_QUE::total_tx_queues(){
+    return (CGlobalInfo::m_options.preview.getCores());
 }
 
 uint16_t CDpdkMode_MULTI_QUE::dp_rx_queues(){
@@ -62,6 +70,13 @@ bool CDpdkMode_DROP_QUE_FILTER::is_dp_latency_tx_queue(){
     return ((m_mode->get_opt_mode()==OP_MODE_STL) ?true:false);
 }
 
+uint16_t CDpdkMode_DROP_QUE_FILTER::total_tx_queues(){
+    return (CGlobalInfo::m_options.preview.getCores()+2);
+}
+
+uint16_t CDpdkMode_RSS_DROP_QUE_FILTER::total_tx_queues(){
+    return (CGlobalInfo::m_options.preview.getCores()+2);
+}
 
 trex_dpdk_rx_distro_mode_t CDpdkMode_RSS_DROP_QUE_FILTER::get_rx_distro_mode(){
     if (CGlobalInfo::m_options.preview.getCores()>1) {
