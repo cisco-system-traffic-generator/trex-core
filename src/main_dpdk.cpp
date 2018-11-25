@@ -106,7 +106,6 @@ extern "C" {
 
 #define MAX_PKT_BURST   32
 #define BP_MAX_CORES 48
-#define BP_MAX_TX_QUEUE 16
 #define BP_MASTER_AND_LATENCY 2
 
 void set_driver();
@@ -3868,11 +3867,13 @@ int  CGlobalTRex::device_prob_init(void){
          m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = dev_info.max_rx_pktlen;
     }
 
-    int dp_cores = CGlobalInfo::m_options.preview.getCores();
-    if ( dev_info.max_tx_queues < dp_cores ) {
-        printf("ERROR: driver maximum tx queues is %d reduce number of cores (%d) to support it \n",
+    uint16_t tx_queues = get_dpdk_mode()->dp_rx_queues();
+     int dp_cores = CGlobalInfo::m_options.preview.getCores();
+
+    if ( dev_info.max_tx_queues < tx_queues ) {
+        printf("ERROR: driver maximum tx queues is (%d) required (%d) reduce number of cores to support it \n",
                (int)dev_info.max_tx_queues,
-               (int)dp_cores);
+               (int)tx_queues);
         exit(1);
     }
 
@@ -3941,9 +3942,9 @@ int  CGlobalTRex::queues_prob_init(){
     // One q for each core allowed to send on this port + 1 for latency q (Used in stateless) + 1 for RX core.
     m_max_queues_per_port  = m_cores_to_dual_ports + 2;
 
-    if (m_max_queues_per_port > BP_MAX_TX_QUEUE) {
+    if (m_max_queues_per_port > BP_MAX_CORES) {
         rte_exit(EXIT_FAILURE,
-                 "Error: Number of TX queues exceeds %d. Try running with lower -c <val> \n",BP_MAX_TX_QUEUE);
+                 "Error: Number of TX queues exceeds %d. Try running with lower -c <val> \n",BP_MAX_CORES);
     }
 
     assert(m_max_queues_per_port>0);
