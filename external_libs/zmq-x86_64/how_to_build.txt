@@ -5,7 +5,7 @@
 - Run:
     export BUILD_TYPE=cmake
     ./ci_build.sh
-- Copy includes dir to current directory
+- Copy include dir to current directory
 - Find libzmq.a and copy to current directory
 - Find libzmq.so.5.1.5 and copy to:
     current directory as libzmq.so
@@ -18,5 +18,7 @@ Notes:
     set( CMAKE_C_FLAGS "-m32" )
     set( CMAKE_CXX_FLAGS "-m32" )
 
+- Current ZMQ .so is v4.2.5 release with following patches:
+  https://github.com/zeromq/libzmq/pull/3063/commits/cae643434576c0cc3b631c3a5b72ea524f0203e0
 
 

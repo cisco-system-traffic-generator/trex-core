@@ -366,13 +366,15 @@ class JsonRpcClient(object):
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
         self.socket = self.context.socket(zmq.REQ)
+        self.socket.setsockopt(zmq.SNDTIMEO, self.get_timeout_msec())
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
+        self.socket.setsockopt(zmq.HEARTBEAT_IVL, 60000)
+        self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, 60000)
+
         try:
             self.socket.connect(self.transport)
         except zmq.error.ZMQError as e:
             return RC_ERR("ZMQ Error: Bad server or port name: " + str(e))
-
-        self.socket.setsockopt(zmq.SNDTIMEO, self.get_timeout_msec())
-        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
 
         self.connected = True
 
