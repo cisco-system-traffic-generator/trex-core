@@ -28,6 +28,7 @@ limitations under the License.
 #include <thread>
 #include <string>
 #include <stdexcept>
+#include <fstream>
 #include <json/json.h>
 
 #include "trex_rpc_exception_api.h"
@@ -56,11 +57,12 @@ public:
         m_is_verbose  = false;
     }
        
-    void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, bool is_verbose = false)  {
-        m_protocol    = protocol;
-        m_port        = port;
-        m_lock        = lock;
-        m_is_verbose  = is_verbose;
+    void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, std::string &logfile_name, bool is_verbose = false) {
+        m_protocol     = protocol;
+        m_port         = port;
+        m_lock         = lock;
+        m_is_verbose   = is_verbose;
+        m_logfile_name = logfile_name;
     }
     
     uint16_t get_port() const {
@@ -74,12 +76,18 @@ public:
     bool is_verbose() const {
         return m_is_verbose;
     }
-    
+
+    const std::string& get_logfile_name() const {
+        return m_logfile_name;
+    }
+
+
 private:
     rpc_prot_e              m_protocol;
     uint16_t                m_port;
     bool                    m_is_verbose;
-    
+    std::string             m_logfile_name;
+
 public:
     std::recursive_mutex   *m_lock;
 };
@@ -155,6 +163,8 @@ protected:
     std::recursive_mutex                 *m_lock;
     std::recursive_mutex                 m_dummy_lock;
     TrexMonitor                          m_monitor;
+    bool                                 m_is_logging;
+    std::ofstream                        m_logfile;
 };
 
 /**

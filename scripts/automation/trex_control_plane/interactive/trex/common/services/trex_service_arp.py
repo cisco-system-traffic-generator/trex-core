@@ -63,12 +63,15 @@ class ServiceARP(Service):
         ARP service - generate ARP requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, timeout_sec = 3, verbose_level = Service.ERROR):
+    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, src_mac = None, timeout_sec = 3, verbose_level = Service.ERROR):
         
         # init the base object
         super(ServiceARP, self).__init__(verbose_level)
 
-        self.src_mac     = ctx.get_src_mac()
+        if src_mac:
+            self.src_mac = src_mac
+        else:
+            self.src_mac = ctx.get_src_mac()
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
         self.vlan        = VLAN(vlan)
@@ -89,7 +92,7 @@ class ServiceARP(Service):
         self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
 
         
-        pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
+        pkt = Ether(dst="ff:ff:ff:ff:ff:ff",src=self.src_mac)/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
         
         # add VLAN to the packet if needed
         self.vlan.embed(pkt)

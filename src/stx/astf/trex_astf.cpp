@@ -34,6 +34,7 @@ limitations under the License.
 #include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
 #include "trex_astf_rx_core.h"
+#include "trex_astf_topo.h"
 
 #include "stt_cp.h"
 
@@ -46,6 +47,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
+
+    TopoMngr::create_instance();
 
     TrexRpcCommandsTable &rpc_table = TrexRpcCommandsTable::get_instance();
 
@@ -69,7 +72,12 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 
     m_profile_buffer = "";
     m_profile_hash = "";
-    m_parsed_hash = "";
+    m_profile_parsed = false;
+
+    m_topo_buffer = "";
+    m_topo_hash = "";
+    m_topo_parsed = false;
+
     m_states_names = {"Idle", "Loaded profile", "Parsing profile", "Setup traffic", "Transmitting", "Cleanup traffic"};
     assert(m_states_names.size()==AMOUNT_OF_STATES);
 
@@ -90,6 +98,8 @@ TrexAstf::~TrexAstf() {
     for (auto &port_pair : m_ports) {
         delete port_pair.second;
     }
+
+    TopoMngr::delete_instance();
 
     delete m_rx;
     m_rx = nullptr;
@@ -120,7 +130,11 @@ void TrexAstf::shutdown() {
 void TrexAstf::parse() {
     change_state(STATE_PARSE);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(&m_profile_buffer);
+    string *prof = profile_needs_parsing() ? &m_profile_buffer : nullptr;
+    string *topo = topo_needs_parsing() ? &m_topo_buffer : nullptr;
+    assert(prof||topo);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(prof, topo);
     send_message_to_dp(0, msg);
 }
 
@@ -174,6 +188,14 @@ void TrexAstf::cleanup() {
     send_message_to_all_dp(msg);
 }
 
+bool TrexAstf::profile_needs_parsing() {
+    return m_profile_hash.size() && !m_profile_parsed;
+}
+
+bool TrexAstf::topo_needs_parsing() {
+    return m_topo_hash.size() && !m_topo_parsed;
+}
+
 void TrexAstf::change_state(state_e new_state) {
     m_state = new_state;
     TrexPort::port_state_e port_state = TrexPort::PORT_STATE_IDLE;
@@ -225,7 +247,8 @@ void TrexAstf::all_dp_cores_finished() {
             if ( is_error() ) {
                 change_state(STATE_LOADED);
             } else {
-                m_parsed_hash = m_profile_hash;
+                m_profile_parsed = true;
+                m_topo_parsed = true;
                 build();
             }
             break;
@@ -260,10 +283,10 @@ void TrexAstf::dp_core_finished(int thread_id) {
 void TrexAstf::dp_core_error(int thread_id, const string &err) {
     switch ( m_state ) {
         case STATE_PARSE:
-            m_error = "Profile parsing error: " + err;
+            m_error = err;
             break;
         case STATE_BUILD:
-            m_error = "Profile compilation error: " + err;
+            m_error = err;
             break;
         default:
             printf("DP core should not report error in state: %s\n", m_states_names[m_state].c_str());
@@ -341,7 +364,7 @@ void TrexAstf::profile_clear() {
     }
     m_profile_buffer.clear();
     m_profile_hash.clear();
-    m_parsed_hash.clear();
+    m_profile_parsed = false;
 }
 
 void TrexAstf::profile_append(const string &fragment) {
@@ -353,6 +376,31 @@ void TrexAstf::profile_set_loaded() {
     check_whitelist_states({STATE_IDLE});
     change_state(STATE_LOADED);
     m_profile_hash = md5(m_profile_buffer);
+}
+
+bool TrexAstf::topo_cmp_hash(const string &hash) {
+    return m_topo_hash == hash;
+}
+
+void TrexAstf::topo_clear() {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_topo_buffer.clear();
+    m_topo_hash.clear();
+    m_topo_parsed = false;
+}
+
+void TrexAstf::topo_append(const string &fragment) {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_topo_buffer += fragment;
+}
+
+void TrexAstf::topo_set_loaded() {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_topo_hash = md5(m_topo_buffer);
+}
+
+void TrexAstf::topo_get(Json::Value &result) {
+    TopoMngr::get_instance()->to_json(result["topo_data"]);
 }
 
 void TrexAstf::start_transmit(const start_params_t &args) {
@@ -371,10 +419,12 @@ void TrexAstf::start_transmit(const start_params_t &args) {
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.setNoCleanFlowClose(args.nc);
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
+    ClientCfgDB &m_cc_db = m_fl->m_client_config_info;
+    m_cc_db.clear();
 
     m_fl->m_stt_cp->clear_counters();
 
-    if ( !m_parsed_hash.size() || m_parsed_hash != m_profile_hash ) {
+    if ( profile_needs_parsing() || topo_needs_parsing() ) {
         parse();
     } else {
         build();

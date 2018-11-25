@@ -11,6 +11,7 @@ import copy
 
 from scapy.all import *
 
+from ..utils.common import *
 from ..common.trex_types import *
 from ..common.trex_exceptions import TRexError
 
@@ -34,109 +35,6 @@ class CTRexPacketBuildException(Exception):
 
 ################################################################################################
 
-def safe_ord (c):
-    if type(c) is str:
-        return ord(c)
-    elif type(c) is int:
-        return c
-    else:
-        raise TypeError("Cannot convert: {0} of type: {1}".format(c, type(c)))
-
-def _buffer_to_num(str_buffer):
-    validate_type('str_buffer', str_buffer, bytes)
-    res=0
-    for i in str_buffer:
-        res = res << 8
-        res += safe_ord(i)
-    return res
-
-
-def ipv4_str_to_num (ipv4_buffer):
-    validate_type('ipv4_buffer', ipv4_buffer, bytes)
-    assert len(ipv4_buffer)==4, 'Size of ipv4_buffer is not 4'
-    return _buffer_to_num(ipv4_buffer)
-
-def mac_str_to_num (mac_buffer):
-    validate_type('mac_buffer', mac_buffer, bytes)
-    assert len(mac_buffer)==6, 'Size of mac_buffer is not 6'
-    return _buffer_to_num(mac_buffer)
-
-def int2mac(val):
-    mac_arr = []
-    for _ in range(6):
-        val, char = divmod(val, 256)
-        mac_arr.insert(0, '%02x' % char)
-    return ':'.join(mac_arr)
-
-def int2ip(val):
-    ip_arr = []
-    for _ in range(4):
-        val, char = divmod(val, 256)
-        ip_arr.insert(0, '%s' % char)
-    return '.'.join(ip_arr)
-
-def ip2int(ip):
-    return ipv4_str_to_num(is_valid_ipv4_ret(ip))
-
-def increase_mac(mac_str, val = 1):
-    if ':' in mac_str:
-        mac_str = mac2str(mac_str)
-    mac_val = mac_str_to_num(mac_str)
-    return int2mac((mac_val + val) % (1 << 48))
-
-def increase_ip(ip_str, val = 1):
-    ip_val = ipv4_str_to_num(is_valid_ipv4_ret(ip_str))
-    return int2ip((ip_val + val) % (1 << 32))
-
-# RFC 3513
-def generate_ipv6(mac_str, prefix = 'fe80'):
-    mac_arr = mac_str.split(':')
-    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
-    return '%s::%s' % (prefix, in6_mactoifaceid(mac_str).lower())
-
-# RFC 4291
-def generate_ipv6_solicited_node(ipv6):
-    ipv6_buf = is_valid_ipv6_ret(ipv6)
-    solic_buf = in6_getnsma(ipv6_buf)
-    return inet_ntop(socket.AF_INET6, solic_buf)
-
-# RFC 1972
-# return multicast mac based on ipv6 ff02::1 -> 33:33:00:00:00:01
-def multicast_mac_from_ipv6(ipv6):
-    ipv6_buf = is_valid_ipv6_ret(ipv6)
-    return in6_getnsmac(ipv6_buf)
-
-
-def is_valid_ipv4_ret(ip_addr):
-    """
-    Return buffer in network order
-    """
-    if  type(ip_addr) == bytes and len(ip_addr) == 4:
-        return ip_addr
-
-    if  type(ip_addr)== int:
-        ip_addr = socket.inet_ntoa(struct.pack("!I", ip_addr))
-
-    try:
-        return socket.inet_pton(socket.AF_INET, ip_addr)
-    except AttributeError:  # no inet_pton here, sorry
-        return socket.inet_aton(ip_addr)
-    except socket.error:  # not a valid address
-        raise CTRexPacketBuildException(-10,"Not valid ipv4 format");
-
-
-def is_valid_ipv6_ret(ipv6_addr):
-    """
-    Return buffer in network order
-    """
-    if type(ipv6_addr) == bytes and len(ipv6_addr) == 16:
-        return ipv6_addr
-    try:
-        return socket.inet_pton(socket.AF_INET6, ipv6_addr)
-    except AttributeError:  # no inet_pton here, sorry
-        raise CTRexPacketBuildException(-10, 'No inet_pton function available')
-    except:
-        raise CTRexPacketBuildException(-10, 'Not valid ipv6 format')
 
 class CTRexScriptsBase(object):
     """

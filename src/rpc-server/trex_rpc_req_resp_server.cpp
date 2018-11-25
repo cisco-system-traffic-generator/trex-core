@@ -130,7 +130,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb_int() {
             break;
         }
 
-        verbose_json("Server Received: ", TrexJsonRpcV2Parser::pretty_json_str(request));
+        verbose_json("Got request, processing...", "");
 
         handle_request(request);
     }
@@ -231,6 +231,8 @@ void TrexRpcServerReqRes::process_request(const std::string &request, std::strin
  * 
  */
 void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::string &response) {
+
+    verbose_json("Server Received: ", TrexJsonRpcV2Parser::pretty_json_str(request));
 
     std::vector<TrexJsonRpcV2ParsedObject *> commands;
 

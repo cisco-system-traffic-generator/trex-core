@@ -1,7 +1,11 @@
 
+from .topo import ASTFTopology
 from ..common.trex_port import Port
 
 class ASTFPort(Port):
+    def __init__(self, *a, **k):
+        Port.__init__(self, *a, **k)
+        self.topo = ASTFTopology()
 
     def is_service_mode_on(self):
         return True

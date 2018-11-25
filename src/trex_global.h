@@ -535,6 +535,7 @@ public:
         platform_cfg_file = "";
         out_file = "";
         prefix = "";
+        rpc_logfile_name = "";
         set_tw_bucket_time_in_usec(20.0);
         // we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
         // and we will start losing packets).
@@ -600,6 +601,7 @@ public:
     std::string        platform_cfg_file;
     std::string        out_file;
     std::string        prefix;
+    std::string        rpc_logfile_name;
     bool            m_dummy_port_map[TREX_MAX_PORTS];
     CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
     double          m_tw_bucket_time_sec;

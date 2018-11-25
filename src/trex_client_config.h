@@ -31,6 +31,11 @@ limitations under the License.
 class YAMLParserWrapper;
 struct CTupleGenYamlInfo;
 class ClientCfgDirExt;
+class TopoMngr;
+
+namespace YAML {
+    class Node;
+}
 
 // To save memory, we use here the ClientCfgExt and ClientCfgDirExt,
 // and in tuple_gen the ClientCfgBase and ClientCfgDirBase
@@ -346,18 +351,11 @@ class ClientCfgDB {
     friend class basic_client_cfg_test1_Test;
  public:
 
-    ClientCfgDB() {
-        m_is_empty    = true;
-        m_cache_group = NULL;
-        m_under_vlan  = false;
-        m_tg = NULL;
-    }
-
-    ~ClientCfgDB() {
-        m_groups.clear();
-    }
+    ClientCfgDB();
+    ~ClientCfgDB();
 
     void dump(FILE *fd) ;
+    void clear();
 
     /**
      * if no config file was loaded
@@ -365,7 +363,7 @@ class ClientCfgDB {
      *
      */
     bool is_empty() {
-        return m_is_empty;
+        return m_groups.size() == 0;
     }
 
     void set_resolved_macs(CManyIPInfo &pretest_result);
@@ -379,6 +377,8 @@ class ClientCfgDB {
      *
      */
     void load_yaml_file(const std::string &filename);
+
+    void load_from_topo(const TopoMngr *topomngr);
 
     /**
      * lookup for a specific IP address for
@@ -400,14 +400,13 @@ private:
      * verify the YAML file loaded in valid
      *
      */
-    void verify(const YAMLParserWrapper &parser) const;
+    void verify(std::string &err) const;
 
     /* maps the IP start value to client groups */
     std::map<uint32_t, ClientCfgEntry>  m_groups;
     bool m_under_vlan;
     CTupleGenYamlInfo * m_tg;
     ClientCfgEntry * m_cache_group;
-    bool m_is_empty;
 };
 
 #endif /* __TREX_CLIENT_CONFIG_H__ */

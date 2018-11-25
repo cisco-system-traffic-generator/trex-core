@@ -251,7 +251,8 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
-    ClientCfgBase * lpc=tuple.getClientCfg(); 
+    ClientCfgBase * lpc=tuple.getClientCfg();
+    printf("ClientCfgBase * lpc: %lu\n", lpc);
 
     uint16_t vlan=0;
 
@@ -514,11 +515,11 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-bool CFlowGenListPerThread::load_tcp_profile() {
+void CFlowGenListPerThread::load_tcp_profile() {
     uint8_t mem_socket_id = get_memory_socket_id();
     CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
     if ( !template_db ) {
-        return false;
+        throw TrexException("Could not create RO template database");
     }
 
     m_c_tcp->set_template_ro(template_db);
@@ -530,7 +531,7 @@ bool CFlowGenListPerThread::load_tcp_profile() {
             m_max_threads,
             getDualPortId());
     if (!rw) {
-        return(false);
+        throw TrexException("Could not create RW per-thread database");
     }
 
     m_c_tcp->set_template_rw(rw);
@@ -547,8 +548,6 @@ bool CFlowGenListPerThread::load_tcp_profile() {
     /* call startup for client side */
     m_c_tcp->call_startup();
     m_s_tcp->call_startup();
-
-    return(true);
 }
 
 void CFlowGenListPerThread::unload_tcp_profile() {

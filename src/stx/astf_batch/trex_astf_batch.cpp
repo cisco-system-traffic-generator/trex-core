@@ -56,8 +56,10 @@ TrexDpCoreAstfBatch::start_astf() {
         }
     }
 
-    if ( !m_core->load_tcp_profile() ) {
-        fprintf(stderr," ERROR in tcp object creation \n");
+    try {
+        m_core->load_tcp_profile();
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
         return;
     }
 

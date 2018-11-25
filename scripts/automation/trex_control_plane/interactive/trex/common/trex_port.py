@@ -623,7 +623,11 @@ class Port(object):
 
     def is_l3_mode (self):
         return self.get_layer_cfg()['ipv4']['state'] != 'none'
-        
+
+    def has_ipv6(self):
+        cfg = self.get_layer_cfg()
+        return 'ipv6' in cfg and cfg['ipv6']['enabled']
+
 
     def is_resolved (self):
         # for L3

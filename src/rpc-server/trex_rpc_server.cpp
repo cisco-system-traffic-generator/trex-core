@@ -27,6 +27,8 @@ limitations under the License.
 #include <zmq.h>
 #include <sstream>
 #include <iostream>
+#include <ctime>
+#include <iomanip>
 
 #include "trex_watchdog.h"
 
@@ -43,20 +45,41 @@ TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, c
     if (m_lock == NULL) {
         m_lock = &m_dummy_lock;
     }
+
+    std::string logfile_name = cfg.get_logfile_name();
+    if ( logfile_name.size() ) {
+        m_is_logging = true;
+        m_logfile.open(logfile_name);
+    }
+
 }
 
 TrexRpcServerInterface::~TrexRpcServerInterface() {
     if (m_is_running) {
         stop();
     }
+
+    if ( m_is_logging ) {
+        m_logfile.close();
+    }
 }
 
 void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
-    if (!m_is_verbose) {
+    if ( !m_is_verbose && !m_is_logging ) {
         return;
     }
 
-    std::cout << "[verbose][" << m_name << "] " << msg << "\n";
+    std::stringstream msg_ss;
+    auto t = std::time(nullptr);
+    auto tm = std::localtime(&t);
+    msg_ss << "[" << std::put_time(tm, "%d-%m-%Y %H:%M:%S") << "] [" << m_name << "] " << msg << "\n";
+
+    if ( m_is_verbose ) {
+        std::cout << msg_ss.str();
+    }
+    if ( m_is_logging ) {
+        m_logfile << msg_ss.str();
+    }
 }
 
 void TrexRpcServerInterface::verbose_json(const std::string &msg, const std::string &json_str) {

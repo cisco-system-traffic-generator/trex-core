@@ -514,6 +514,15 @@ class OPTIONS_DB_ARGS:
          'help': "A list of ports on which to apply the command",
          'default': []})
 
+    PORT_LIST_NO_DEFAULT = ArgumentPack(
+        ['-p', '--port'],
+        {"nargs": '+',
+         'dest':'ports_no_default',
+         'metavar': 'PORTS',
+         'action': 'merge',
+         'type': int,
+         'help': "A list of ports on which to apply the command"})
+
     SINGLE_PORT = ArgumentPack(
         ['-p', '--port'],
         {'dest':'ports',
@@ -599,7 +608,7 @@ class OPTIONS_DB_ARGS:
          'nargs': 1,
          'required': True,
          'type': is_valid_file,
-         'help': "File path to load"})
+         'help': "File path to use"})
 
     FILE_PATH_NO_CHECK = ArgumentPack(
         ['-f'],
@@ -608,7 +617,7 @@ class OPTIONS_DB_ARGS:
          'nargs': 1,
          'required': True,
          'type': str,
-         'help': "File path to load"})
+         'help': "File path to use"})
 
     FILE_FROM_DB = ArgumentPack(
         ['--db'],

@@ -183,6 +183,7 @@ enum {
        OPT_NO_KEYBOARD_INPUT,
        OPT_VIRT_ONE_TX_RX_QUEUE,
        OPT_PREFIX,
+       OPT_RPC_LOGFILE,
        OPT_SEND_DEBUG_PKT,
        OPT_NO_WATCHDOG,
        OPT_ALLOW_COREDUMP,
@@ -268,6 +269,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_KEYBOARD_INPUT,      "--no-key",          SO_NONE    },
         { OPT_VIRT_ONE_TX_RX_QUEUE,   "--software",        SO_NONE    },
         { OPT_PREFIX,                 "--prefix",          SO_REQ_SEP },
+        { OPT_RPC_LOGFILE,            "--rpc-logfile",     SO_REQ_SEP },
         { OPT_SEND_DEBUG_PKT,         "--send-debug-pkt",  SO_REQ_SEP },
         { OPT_MBUF_FACTOR,            "--mbuf-factor",     SO_REQ_SEP },
         { OPT_NO_WATCHDOG,            "--no-watchdog",     SO_NONE    },
@@ -840,6 +842,10 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
 
             case OPT_PREFIX:
                 po->prefix = args.OptionArg();
+                break;
+
+            case OPT_RPC_LOGFILE:
+                po->rpc_logfile_name = args.OptionArg();
                 break;
 
             case OPT_SEND_DEBUG_PKT:
@@ -3623,7 +3629,8 @@ CGlobalTRex::get_stx_cfg() {
     /* control plane config */
     cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_TCP,
                                   global_platform_cfg_info.m_zmq_rpc_port,
-                                  &m_cp_lock);
+                                  &m_cp_lock,
+                                  CGlobalInfo::m_options.rpc_logfile_name);
     
     bool hw_filter = (get_dpdk_mode()->is_hardware_filter_needed());
     std::unordered_map<uint8_t, CPortLatencyHWBase*> ports;

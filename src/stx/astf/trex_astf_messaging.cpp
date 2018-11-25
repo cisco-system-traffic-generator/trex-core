@@ -109,12 +109,13 @@ TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
 /*************************
   parse ASTF JSON from string
  ************************/
-TrexAstfLoadDB::TrexAstfLoadDB(string *profile_buffer) {
+TrexAstfLoadDB::TrexAstfLoadDB(string *profile_buffer, string *topo_buffer) {
     m_profile_buffer = profile_buffer;
+    m_topo_buffer    = topo_buffer;
 }
 
 bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->parse_astf_json(m_profile_buffer);
+    astf_core(dp_core)->parse_astf_json(m_profile_buffer, m_topo_buffer);
     return true;
 }
 

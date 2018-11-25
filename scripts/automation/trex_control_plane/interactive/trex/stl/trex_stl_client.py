@@ -79,6 +79,10 @@ class STLClient(TRexClient):
 ############################    by base      #############################
 ############################    TRex Client  #############################   
 
+    def _on_connect(self):
+        return RC_OK()
+
+
     def _on_connect_create_ports(self, system_info):
         """
             called when connecting to the server
