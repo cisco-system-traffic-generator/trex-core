@@ -252,7 +252,6 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 
     ClientCfgBase * lpc=tuple.getClientCfg();
-    printf("ClientCfgBase * lpc: %lu\n", lpc);
 
     uint16_t vlan=0;
 

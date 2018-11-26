@@ -78,13 +78,9 @@ typedef std::vector<port_topo_t> topo_per_port_t;
 class TopoMngr {
     topo_per_port_t m_topo_per_port;
     std::recursive_mutex m_lock;
-    static TopoMngr *m_inst;
-    TopoMngr();
 
 public:
-    static void create_instance();
-    static TopoMngr* get_instance();
-    static void delete_instance();
+    TopoMngr();
     void from_json_str(const std::string &topo_buffer);
     const topo_per_port_t& get_topo() const {
         return m_topo_per_port;

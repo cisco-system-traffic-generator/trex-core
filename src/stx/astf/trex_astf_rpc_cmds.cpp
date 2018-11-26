@@ -121,6 +121,15 @@ TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
         const string &handler = port.second->get_owner().get_handler();
         res["ports"][to_string(port.first)] = handler;
     }
+
+    if ( stx->profile_needs_parsing() ) {
+        stx->profile_clear();
+    }
+
+    if ( stx->topo_needs_parsing() ) {
+        stx->topo_clear();
+    }
+
     res["handler"] = stx->get_owner().get_handler();
     return (TREX_RPC_CMD_OK);
 }

@@ -176,7 +176,6 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                                               bool            is_long_range,
                                               ClientCfgDB     &client_info) {
 
-    printf("allocate_configured_clients\n");
     for (uint32_t i = 0; i < total_ip; i++) {
         uint32_t ip = min_ip + i;
 

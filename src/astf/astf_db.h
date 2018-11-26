@@ -327,6 +327,7 @@ class CAstfDbRO {
 class CAstfTemplatesRW;
 class CTupleGeneratorSmart;
 class ClientCfgDB;
+class TopoMngr;
 
 class CTcpLatency {
     friend class CAstfDB;
@@ -375,6 +376,11 @@ class CAstfDB  : public CTRexDummyCommand  {
 
     static bool has_instance() {
         return m_pInstance != nullptr;
+    }
+
+    TopoMngr* get_topo() {
+        assert(m_topo_mngr);
+        return m_topo_mngr;
     }
 
     CAstfDB();
@@ -558,10 +564,11 @@ private:
     float m_exp_bps; // total expected bit per second for all templates
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket
-    CAstfDbRO            m_tcp_data[MAX_SOCKETS_SUPPORTED];
+    CAstfDbRO           m_tcp_data[MAX_SOCKETS_SUPPORTED];
 
-    ClientCfgDB   *      m_client_config_info;
-    CAstfJsonValidator  * m_validator;
+    ClientCfgDB        *m_client_config_info;
+    CAstfJsonValidator *m_validator;
+    TopoMngr           *m_topo_mngr;
 };
 
 #endif

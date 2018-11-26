@@ -4763,29 +4763,24 @@ void CErfIF::apply_client_config(const ClientCfgBase *cfg, pkt_dir_t dir) {
     uint8_t *p = (uint8_t *)m_raw->raw;
 
     const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? cfg->m_initiator : cfg->m_responder);
-    printf("apply client config, client dir?: %u\n", dir == CLIENT_SIDE);
 
     /* dst mac */
     if (cfg_dir.has_dst_mac_addr()) {
-        printf("apply dst_mac %u\n", cfg_dir.get_dst_mac_addr());
         memcpy(p, cfg_dir.get_dst_mac_addr(), 6);
     }
 
     /* src mac */
     if (cfg_dir.has_src_mac_addr()) {
-        printf("apply src_mac %u\n", cfg_dir.get_src_mac_addr());
         memcpy(p + 6, cfg_dir.get_src_mac_addr(), 6);
     }
 
     /* VLAN */
     if (cfg_dir.has_vlan()) {
-        printf("apply vlan %u\n", cfg_dir.get_vlan() );
         add_vlan(cfg_dir.get_vlan());
     }
 }
 
 int CErfIF::send_node(CGenNode *node){
-    printf("sending node\n");
 
     if (!m_preview_mode->getFileWrite()) {
         return (0);
@@ -4804,7 +4799,6 @@ int CErfIF::send_node(CGenNode *node){
 
     /* if a client configuration was provided - apply the config */
     if (CGlobalInfo::m_options.preview.get_is_client_cfg_enable()) {
-        printf("applying cc (bp-sim)\n");
         apply_client_config(node->m_client_cfg, dir);
 
         // for simulation, VLAN_MODE_NORMAL is not relevant, since it uses vlan_id set in platform config file

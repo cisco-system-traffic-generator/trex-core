@@ -19,6 +19,7 @@
 #include "utl_split.h"
 #include "inet_pton.h"
 #include "astf/astf_json_validator.h"
+#include "stx/astf/trex_astf_topo.h"
 
 
 inline std::string methodName(const std::string& prettyFunction)
@@ -44,14 +45,16 @@ CAstfDB::CAstfDB(){
         printf("Could not create ASTF validator using file astf_schema.json\n");
         exit(-1);
     }
+    m_topo_mngr = new TopoMngr();
 }
 
 
 CAstfDB::~CAstfDB(){
-    if (m_validator){
+    if ( m_validator ) {
         m_validator->Delete();
         delete m_validator;
     }
+    delete m_topo_mngr;
 }
 
 
