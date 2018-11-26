@@ -218,7 +218,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def test_stl_profiles (self):
         p = [
-             ["dependent_field_engine_vars.py", "-m 1 -l 50", True],
+             ["dependent_field_engine_vars.py", "-m 1 -l 50 -c 2", True],
              ["split_var_to_cores.py", "-m 1 -l 20 -c 2", True],
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
              ["syn_attack.py","-m 1 -l 50",True],
