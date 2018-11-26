@@ -231,12 +231,12 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
         self.size = size
         self.op = op
 
-        if next_var != None:
+        if next_var is not None:
             validate_type('next_var', next_var, basestring)
             if op == 'random':
-                raise CTRexPacketBuildException(-11,("If next_var is defined then op can't be random. Check %s ") % (fv_name))
+                raise CTRexPacketBuildException(-11,"If next_var is defined then op can't be random. Check %s " % fv_name)
             if next_var == self.name:
-                raise CTRexPacketBuildException(-11,("Self loops are forbidden."))
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
         self.next_var = next_var
 
         validate_type('split_to_cores', split_to_cores, bool)
@@ -755,12 +755,12 @@ class STLVmFlowVar(CTRexVmDescBase):
         self.op =op
         valid_fv_ops (op)
 
-        if next_var != None:
+        if next_var is not None:
             validate_type('next_var', next_var, [basestring])
             if op == 'random':
-                raise CTRexPacketBuildException(-11,("If next_var is defined then op can't be random. Check %s ") % (self.name))
+                raise CTRexPacketBuildException(-11,"If next_var is defined then op can't be random. Check %s " % self.name)
             if next_var == self.name:
-                raise CTRexPacketBuildException(-11,("Self loops are forbidden."))
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
         self.next_var = next_var
 
         self.previous = None
@@ -1833,27 +1833,25 @@ class STLPktBuilder(CTrexPktBuilderInterface):
             if next_var_name:
                 next_var = flow_variables[next_var_name]
                 if next_var.get_previous_var_name() and next_var.get_previous_var_name() != var_name:
-                        raise CTRexPacketBuildException(-11,("Variable %s is pointed by two vars.") % (next_var_name) )
+                        raise CTRexPacketBuildException(-11,"Variable %s is pointed by two vars." % next_var_name )
                 next_var.previous = var_name
+                next_var.split_to_cores = False
 
 
     def order_flow_vars(self, flow_variables):
         ordered_flow_vars = []
-        already_visited_vars = {}
         for var in flow_variables.values():
             if var.get_previous_var_name() is None: #it means that this var is the head of a chain
                 head = var #start inserting the whole chain in the list
                 while (head.get_next_var_name()):
                     ordered_flow_vars.append(head)
-                    already_visited_vars[head.get_var_name()[0]] = head # head is visited
                     head = flow_variables[head.get_next_var_name()] # update the head to the next var
 
                 # last var in a chain
-                already_visited_vars[head.get_var_name()[0]] = head
                 ordered_flow_vars.append(head)
 
         if len(flow_variables) != len(ordered_flow_vars):
-            raise CTRexPacketBuildException(-11,("Loops are forbidden for dependent variables"))
+            raise CTRexPacketBuildException(-11,"Loops are forbidden for dependent variables")
 
         return ordered_flow_vars
 
@@ -1912,7 +1910,7 @@ class STLPktBuilder(CTrexPktBuilderInterface):
             next_var_name = var.get_next_var_name()
             if next_var_name:
                 if next_var_name not in flow_vars:
-                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (next_var_name) )
+                    raise CTRexPacketBuildException(-11,"Variable %s does not exist  " % next_var_name )
 
         self.compute_previous(flow_vars)
         ordered_commands = self.order_flow_vars(flow_vars)

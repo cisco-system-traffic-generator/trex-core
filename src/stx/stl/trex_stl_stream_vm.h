@@ -331,10 +331,10 @@ public:
 
     inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
+                *program += m_skip;
+            }
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -345,10 +345,10 @@ public:
 
     inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
+                *program += m_skip;
+            }
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -388,10 +388,10 @@ public:
 
     inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
+                *program += m_skip;
+            }
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -402,10 +402,10 @@ public:
 
     inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
+                *program += m_skip;
+            }
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -445,10 +445,10 @@ public:
 
     inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
+                *program += m_skip;
+            }
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -459,10 +459,10 @@ public:
 
     inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
+            *program += m_skip;
+            }
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -503,10 +503,10 @@ public:
 
     inline void run_inc(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((m_max_val - *p)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
+                *program += m_skip;
+            }
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -517,10 +517,10 @@ public:
 
     inline void run_dec(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
-        if ( m_skip > 0 && ((*p - m_min_val)) >= m_step ) {
-            *program += m_skip;
-        }
         if (m_list_size == 0) {
+            if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
+                *program += m_skip;
+            }
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
@@ -911,6 +911,7 @@ public:
 public:
     void clear();
     void add_command(void *buffer,uint16_t size);
+    void build_instruction_list();
     uint8_t * get_program();
     uint32_t get_program_size();
 
@@ -919,6 +920,7 @@ public:
 
 
 private:
+    std::vector<std::vector<uint8_t> > commands;
     std::vector<uint8_t> m_inst_list;
 };
 
@@ -1496,8 +1498,8 @@ public:
     uint32_t m_wa;
 
     bool m_is_split_needed;
-    bool m_has_previous = false;
-    std::string const m_next_var_name;
+    bool m_has_previous;
+    const std::string m_next_var_name;
 };
 
 

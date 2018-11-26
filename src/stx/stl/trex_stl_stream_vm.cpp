@@ -622,8 +622,9 @@ void StreamVm::build_flow_var_table() {
 
         }
     }
+
     bool error = false;
-    // third iteration - asserting that variables with next are ordered as they should
+    // third iteration - verifying that variables with next are ordered as they should
     for ( int i = 0; i < m_inst_list.size(); i++) {
         if (m_inst_list[i]->get_instruction_type() != StreamVmInstruction::itFLOW_MAN) {
             continue;
@@ -641,19 +642,23 @@ void StreamVm::build_flow_var_table() {
             if (m_inst_list[i+1]->get_instruction_type() != StreamVmInstruction::itFLOW_MAN) {
                 // next instruction isn't a flow variable
                 error = true;
-            }
-            else {
+            } else {
                 StreamVmInstructionFlowMan* next_inst = dynamic_cast<StreamVmInstructionFlowMan*>(m_inst_list[i+1]);
                 if (next_inst->get_var_name() != inst->m_next_var_name) {
-                    // next inst is variable but not next
+                    // next inst is a variable but its name is not next name
                     error = true;
+                } else {
+                    if (next_inst->m_is_split_needed) {
+                        // next instruction should run on a single core
+                        error = true;
+                    }
+                    next_inst->m_has_previous = true;
                 }
-                next_inst->m_has_previous = true; //update the next inst that it has a previous.
             }
         }
         if (error) {
             std::stringstream ss;
-            ss << "next_var is used but order of instructions is incorrect" << std::endl;
+            ss << "next_var is used but order of instructions is incorrect or some pointed variable is split to cores" << std::endl;
             err(ss.str());
         }
     }
@@ -1263,6 +1268,8 @@ void StreamVm::build_program(){
         ins_id++;
     }
 
+    m_instructions.build_instruction_list();
+
 
     if ( var_cnt ==0 ){
         std::stringstream ss;
@@ -1440,9 +1447,14 @@ void StreamDPVmInstructions::add_command(void *buffer,uint16_t size){
         tmp.push_back(*p);
         p++;
     }
-    // push buffer code byte by byte from the end to the beginning.
-    for ( int i = size - 1; i >= 0; i-- ) {
-        m_inst_list.insert(m_inst_list.begin(), tmp[i]);
+    commands.push_back(tmp);
+}
+
+void StreamDPVmInstructions::build_instruction_list() {
+    for (int i = commands.size()-1; i >= 0; i--) {
+        for (int j = 0; j < commands[i].size(); j++) {
+            m_inst_list.push_back(commands[i][j]);
+        }
     }
 }
 
