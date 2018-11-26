@@ -34,8 +34,6 @@ limitations under the License.
 
 using namespace std;
 
-TopoMngr* TopoMngr::m_inst = nullptr;
-
 
 TopoError::TopoError(const string &what) : runtime_error(what) {
 }
@@ -183,11 +181,6 @@ void TopoMngr::from_json_str(const string &topo_buffer) {
 
 }
 
-/*
-void TopoMngr::build_cc_db(ClientCfgDB &cc_db) {
-
-}
-*/
 
 void TopoMngr::dump() {
     std::unique_lock<std::recursive_mutex> lock(m_lock);
@@ -229,22 +222,6 @@ void TopoMngr::to_json(Json::Value &result) {
     result["gws"] = gws;
 }
 
-
-void TopoMngr::create_instance() {
-    assert(!m_inst);
-    m_inst = new TopoMngr();
-}
-
-
-TopoMngr* TopoMngr::get_instance() {
-    assert(m_inst);
-    return m_inst;
-}
-
-
-void TopoMngr::delete_instance() {
-    delete m_inst;
-}
 
 
 

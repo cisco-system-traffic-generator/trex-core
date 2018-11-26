@@ -453,8 +453,6 @@ class CConfiguredClientInfo : public T {
 
 public:
     CConfiguredClientInfo(uint32_t ip, const ClientCfgBase &cfg) : m_cfg(cfg) {
-        printf("CConfiguredClientInfo::CConfiguredClientInfo, cfg: %lu\n", &cfg);
-        printf("name of T: %s\n", typeid(T).name());
         T::set_ip(ip);
     }
 
@@ -913,23 +911,19 @@ public:
     /* simple tuple genertion for one low*/
     void GenerateTuple(CTupleBase & tuple){
         if (m_w==1) {
-            printf("m_w==1\n");
             /* new client each tuple generate */
             m_client_gen->GenerateTuple(tuple);
             m_server_gen->GenerateTuple(tuple);
             m_cache_client_ip = tuple.getClient();
             m_cache_client_idx = tuple.getClientId();
         }else{
-            printf("m_w!=1\n");
             if (m_cnt==0) {
-                printf("m_cnt==0\n");
                 m_client_gen->GenerateTuple(tuple);
                 m_server_gen->GenerateTuple(tuple);
                 m_cache_client_ip = tuple.getClient();
                 m_cache_client_idx = tuple.getClientId();
                 tuple.getServerAll(m_cache_server_idx, m_cache_server_ip);
             }else{
-                printf("m_cnt!=0\n");
                 tuple.setServerAll(m_cache_server_idx, 
                                    m_cache_server_ip);
                 tuple.setClientAll2(m_cache_client_idx,

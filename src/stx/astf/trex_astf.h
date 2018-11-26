@@ -198,15 +198,15 @@ public:
         return((CRxAstfCore *)m_rx);
     }
 
+    bool profile_needs_parsing();
+    bool topo_needs_parsing();
+
 protected:
     // message to DP involved:
     void parse();
     void build();
     void transmit();
     void cleanup();
-
-    bool profile_needs_parsing();
-    bool topo_needs_parsing();
 
     bool is_error() {
         return m_error.size() > 0;

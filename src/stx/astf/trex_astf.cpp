@@ -48,8 +48,6 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_latency_pps = 0;
     m_lat_with_traffic = false;
 
-    TopoMngr::create_instance();
-
     TrexRpcCommandsTable &rpc_table = TrexRpcCommandsTable::get_instance();
 
     /* init the RPC table */
@@ -98,8 +96,6 @@ TrexAstf::~TrexAstf() {
     for (auto &port_pair : m_ports) {
         delete port_pair.second;
     }
-
-    TopoMngr::delete_instance();
 
     delete m_rx;
     m_rx = nullptr;
@@ -400,7 +396,7 @@ void TrexAstf::topo_set_loaded() {
 }
 
 void TrexAstf::topo_get(Json::Value &result) {
-    TopoMngr::get_instance()->to_json(result["topo_data"]);
+    CAstfDB::instance()->get_topo()->to_json(result["topo_data"]);
 }
 
 void TrexAstf::start_transmit(const start_params_t &args) {

@@ -150,7 +150,7 @@ void TrexAstfDpCore::parse_astf_json(string *profile_buffer, string *topo_buffer
 
     if ( topo_buffer ) {
         try {
-            TopoMngr *topo_mngr = TopoMngr::get_instance();
+            TopoMngr *topo_mngr = db->get_topo();
             topo_mngr->from_json_str(*topo_buffer);
             ClientCfgDB &m_cc_db = m_flow_gen->m_flow_list->m_client_config_info;
             m_cc_db.load_from_topo(topo_mngr);
@@ -160,16 +160,11 @@ void TrexAstfDpCore::parse_astf_json(string *profile_buffer, string *topo_buffer
             report_error(ex.what());
             return;
         }
-    } else {
-        printf("empty topo\n");
     }
 
     if ( !profile_buffer ) {
-        printf("empty profile\n");
         report_finished();
         return;
-    } else {
-        printf("profile non-empty\n");
     }
 
     rc = db->set_profile_one_msg(*profile_buffer, err);

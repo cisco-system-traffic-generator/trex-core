@@ -127,7 +127,6 @@ void ClientCfgBase::update(uint32_t index, const ClientCfgExt *cfg) {
 
 void
 ClientCfgBase::apply(rte_mbuf_t *m, pkt_dir_t dir) const {
-    printf("ClientCfgBase::apply\n");
 
     assert(m_is_set);
     
@@ -195,14 +194,12 @@ void ClientCfgCompactEntry::fill_from_dir(ClientCfgDirExt cfg, uint8_t port_id) 
 }
 
 ClientCfgDB::ClientCfgDB() {
-    printf("ClientCfgDB ctor\n");
     m_cache_group = NULL;
     m_under_vlan  = false;
     m_tg = NULL;
 }
 
 ClientCfgDB::~ClientCfgDB() {
-    printf("ClientCfgDB dtor\n");
     clear();
 }
 
@@ -309,7 +306,6 @@ void ClientCfgDB::load_from_topo(const TopoMngr *topomngr) {
     const topo_per_port_t &topo_per_port = topomngr->get_topo();
     std::string err = "";
 
-    printf("build_cc_db clear groups\n");
     m_groups.clear();
     m_cache_group = nullptr;
 
@@ -362,24 +358,17 @@ void ClientCfgDB::load_from_topo(const TopoMngr *topomngr) {
                     build_err("GW has invalid MAC: " + gw.get_dst_mac());
                 }
                 cdir.set_dst_mac_addr(dst_mac);
-                //cdir.set_src_ip();
-                //cdir.set_src_ipv6();
 
-                //parse_dir(parser, init, group.m_cfg.m_initiator);
-
-                printf("dump group:\n");
-                group.dump(stdout);
+                //group.dump(stdout);
                 m_groups[group.m_ip_start] = group;
             }
         }
     }
 
-    printf("build_cc_db verify\n");
     verify(err);
     if ( err.size() ) {
         build_err(err);
     }
-    printf("build_cc_db verify success\n");
 }
 
 /**
