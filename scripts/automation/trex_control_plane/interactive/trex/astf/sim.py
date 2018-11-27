@@ -18,11 +18,12 @@ import sys
 import subprocess
 import re
 import tempfile
+from trex.utils.common import get_current_user
 from .trex_astf_profile import *
 from .cap_handling import CPcapFixTime, is_udp_pcap, pcap_cut_udp
 
 
-DEFAULT_OUT_JSON_FILE = "/tmp/astf.json"
+DEFAULT_OUT_JSON_FILE = "/tmp/astf_sim_%s.json" % get_current_user()
 
 
 def is_valid_file(filename):

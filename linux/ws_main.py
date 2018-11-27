@@ -337,13 +337,15 @@ md5_src = SrcGroup(dir='external_libs/md5',
 
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
-                         src_list=['trex_astf.cpp',
-                                   'trex_astf_dp_core.cpp',
-                                   'trex_astf_messaging.cpp',
-                                   'trex_astf_port.cpp',
-                                   'trex_astf_rpc_cmds.cpp',
-                                   'trex_astf_rx_core.cpp',
-                         ])
+    src_list=[
+        'trex_astf.cpp',
+        'trex_astf_dp_core.cpp',
+        'trex_astf_messaging.cpp',
+        'trex_astf_port.cpp',
+        'trex_astf_rpc_cmds.cpp',
+        'trex_astf_rx_core.cpp',
+        'trex_astf_topo.cpp',
+    ])
 
 
 # RPC code

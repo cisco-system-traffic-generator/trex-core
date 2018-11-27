@@ -158,7 +158,7 @@ TEST_F(basic_client_cfg, test1) {
     many_ip.insert(ip1_1);
     many_ip.insert(ip1_2);
 
-    test_db.set_resolved_macs(many_ip);
+    test_db.set_resolved_macs(&many_ip);
 
     ClientCfgBase cfg0;
 

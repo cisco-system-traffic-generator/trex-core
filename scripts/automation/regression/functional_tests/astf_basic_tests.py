@@ -76,7 +76,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
             if valgrind:
                 options=["--valgrind"]
             self.run_sim(file, output,options)
-            compare_caps(golden, output, 1)
+            compare_caps(golden = golden, output = output, max_diff_sec = 1)
 
 
     def run_client_config(self,valgrind):
@@ -98,7 +98,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
             if valgrind:
                 options=["--valgrind"]
             self.run_sim(file, output,options,cc_obj)
-            compare_caps(golden, output, 1)
+            compare_caps(golden = golden, output = output, max_diff_sec = 1)
 
         
     def test_astf_cc_caps(self):

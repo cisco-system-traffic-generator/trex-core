@@ -55,7 +55,7 @@ void ClientCfgDirBase::update(uint32_t index, const ClientCfgDirExt &cfg) {
         m_src_mac += index;
     }
 
-    if (!has_dst_mac_addr() && (cfg.has_next_hop() || cfg.has_ipv6_next_hop())) {
+    if (has_dst_mac_addr() || cfg.has_next_hop() || cfg.has_ipv6_next_hop()) {
         m_dst_mac = cfg.get_resolved_mac(index);
         m_bitfield |= HAS_DST_MAC;
     }
@@ -95,15 +95,19 @@ void ClientCfgDirExt::dump(FILE *fd) const {
     }
 }
 
-void ClientCfgDirExt::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count) {
+void ClientCfgDirExt::set_resolved_macs(CManyIPInfo *pretest_result, uint16_t count) {
     uint16_t vlan = has_vlan() ? m_vlan : 0;
     MacAddress base_mac = m_dst_mac;
     m_resolved_macs.resize(count);
 
     for (int i = 0; i < count; i++) {
         if (need_resolve()) {
+            if ( !pretest_result ) {
+                fprintf(stderr, "Failed resolving ip:%x, vlan:%d - exiting\n", m_next_hop+i, vlan);
+                exit(1);
+            }
             if (has_next_hop()) {
-                if (!pretest_result.lookup(m_next_hop + i, vlan, m_resolved_macs[i])) {
+                if (!pretest_result->lookup(m_next_hop + i, vlan, m_resolved_macs[i])) {
                     fprintf(stderr, "Failed resolving ip:%x, vlan:%d - exiting\n", m_next_hop+i, vlan);
                     exit(1);
                 }
@@ -161,7 +165,7 @@ ClientCfgEntry::dump(FILE *fd) const {
     fprintf(fd, "    count    : %d\n", m_count);
 }
 
-void ClientCfgEntry::set_resolved_macs(CManyIPInfo &pretest_result) {
+void ClientCfgEntry::set_resolved_macs(CManyIPInfo *pretest_result) {
     m_cfg.m_initiator.set_resolved_macs(pretest_result, m_count);
     m_cfg.m_responder.set_resolved_macs(pretest_result, m_count);
 }
@@ -220,11 +224,9 @@ void ClientCfgDB::clear() {
     m_groups.clear();
 }
 
-void ClientCfgDB::set_resolved_macs(CManyIPInfo &pretest_result) {
-    std::map<uint32_t, ClientCfgEntry>::iterator it;
-    for (it = m_groups.begin(); it != m_groups.end(); it++) {
-        ClientCfgEntry &cfg = it->second;
-        cfg.set_resolved_macs(pretest_result);
+void ClientCfgDB::set_resolved_macs(CManyIPInfo *pretest_result) {
+    for (auto &iter : m_groups) {
+        iter.second.set_resolved_macs(pretest_result);
     }
 }
 
@@ -369,6 +371,8 @@ void ClientCfgDB::load_from_topo(const TopoMngr *topomngr) {
     if ( err.size() ) {
         build_err(err);
     }
+
+    set_resolved_macs(nullptr);
 }
 
 /**

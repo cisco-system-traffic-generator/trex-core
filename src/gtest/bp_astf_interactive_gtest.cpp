@@ -132,14 +132,27 @@ TEST_F(gt_astf_inter, astf_positive_6) {
     fl.generate_p_thread_info(1);
     CFlowGenListPerThread *lpt = fl.m_threads_info[0];
 
-    success = lpt->load_tcp_profile(); // DB not loaded
+    try {
+        lpt->load_tcp_profile(); // DB not loaded
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR (as expected) in ASTF object creation: " << ex.what();
+        success = false;
+    }
     EXPECT_EQ(success, false);
 
     CAstfDB * lpastf = CAstfDB::instance();
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");
     EXPECT_EQ(success, true);
 
-    success = lpt->load_tcp_profile(); // DB loaded
+    try {
+        lpt->load_tcp_profile(); // DB loaded
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
+        success = false;
+    }
+
     EXPECT_EQ(success, true);
 
     /* TODO: run simulation of traffic here with --nc */

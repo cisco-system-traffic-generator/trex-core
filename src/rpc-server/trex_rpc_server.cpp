@@ -28,7 +28,6 @@ limitations under the License.
 #include <sstream>
 #include <iostream>
 #include <ctime>
-#include <iomanip>
 
 #include "trex_watchdog.h"
 
@@ -50,6 +49,8 @@ TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, c
     if ( logfile_name.size() ) {
         m_is_logging = true;
         m_logfile.open(logfile_name);
+    } else {
+        m_is_logging = false;
     }
 
 }
@@ -69,10 +70,13 @@ void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
         return;
     }
 
-    std::stringstream msg_ss;
     auto t = std::time(nullptr);
     auto tm = std::localtime(&t);
-    msg_ss << "[" << std::put_time(tm, "%d-%m-%Y %H:%M:%S") << "] [" << m_name << "] " << msg << "\n";
+    char time_buffer[80];
+    strftime (time_buffer, 80, "%d-%m-%Y %H:%M:%S", tm);
+
+    std::stringstream msg_ss;
+    msg_ss << "[" << time_buffer << "] [" << m_name << "] " << msg << "\n";
 
     if ( m_is_verbose ) {
         std::cout << msg_ss.str();

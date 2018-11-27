@@ -3154,7 +3154,7 @@ public:
     int load_client_config_file(std::string file_name);
     void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);
     void get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret);
-    void set_client_config_resolved_macs(CManyIPInfo &pretest_result);
+    void set_client_config_resolved_macs(CManyIPInfo *pretest_result);
     void dump_client_config(FILE *fd);
 
 public:
