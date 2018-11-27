@@ -4110,7 +4110,10 @@ uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
                 m_dp_core->rx_handle_packet(dir,m,is_idle,ports_id[dir]);
             }
             sum+=cnt;
-            if (sum>127) {
+            /* support up to 25MPPS per core (for 20usec tick it would be 512 
+               suggested by @jsmoon 
+            */
+            if (sum>512) {
                 break;
             }
         }
