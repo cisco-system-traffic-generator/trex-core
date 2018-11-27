@@ -172,9 +172,13 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             user_cmd += " --silent"
 
         if tunables:
-            user_cmd += " -t"
+            user_cmd += " -t "
+            i = len(tunables)
             for k, v in tunables.items():
-                user_cmd += " {0}={1}".format(k, v)
+                user_cmd += "{0}={1}".format(k, v)
+                if i > 1:
+                    user_cmd += ","
+                    i -= 1
 
         rc = trex_stl_sim.main(args = shlex.split(user_cmd))
         if obj:
@@ -190,7 +194,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                              silent = False,
                              do_no_remove = False,
                              compare = True,
-                             tunables = None):
+                             tunables = None,
+                             expected = None):
 
         print('\nTesting profile: %s' % profile)
         output_cap = "generated/a.pcap"
@@ -210,11 +215,26 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             #os.system(s)
 
             if compare:
-                compare_caps(output = output_cap, golden = golden_file)
+                if expected:
+                    compare_caps(output_cap, expected)
+                else:
+                    compare_caps(output_cap, golden_file)
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)
 
+
+    def test_dependent_vars_params (self):
+
+        profile_name = 'dependent_vars_all.py'
+        options = ['-m 1 -l 50 -c 1', '-m 1 -l 50 -c 2']
+        for op in ('inc', 'dec'):
+            for size in (1, 2):
+                for step in (1, 2):
+                    expected_name = '%s_%s_%s_%s.pcap' % (profile_name.split('.')[0], op, size, step)
+                    tunables = {'size': size, 'step': step, 'op': op}
+                    for option in options:
+                        self.run_py_profile_path(profile_name, options=option, silent=False, compare=True, tunables=tunables, expected= os.path.join('exp', expected_name))
 
     def test_stl_profiles (self):
         p = [
