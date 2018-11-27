@@ -143,7 +143,7 @@ private:
 
 public:
     void dump(FILE *fd) const;
-    void set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count);
+    void set_resolved_macs(CManyIPInfo *pretest_result, uint16_t count);
     bool need_resolve() const;
     void set_no_resolve_needed();
 
@@ -297,7 +297,7 @@ public:
 
     void dump(FILE *fd) const;
     
-    void set_resolved_macs(CManyIPInfo &pretest_result);
+    void set_resolved_macs(CManyIPInfo *pretest_result);
     
     bool contains(uint32_t ip) const {
         return ( (ip >= m_ip_start) && (ip <= m_ip_end) );
@@ -366,7 +366,7 @@ class ClientCfgDB {
         return m_groups.size() == 0;
     }
 
-    void set_resolved_macs(CManyIPInfo &pretest_result);
+    void set_resolved_macs(CManyIPInfo *pretest_result);
     void get_entry_list(std::vector<ClientCfgCompactEntry *> &ret);
 
 

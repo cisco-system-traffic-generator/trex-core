@@ -337,6 +337,9 @@ class map_driver(object):
     cfg_file='/etc/trex_cfg.yaml'
     parent_args = None
 
+def pa():
+    return map_driver.parent_args
+
 class DpdkSetup(Exception):
     pass
 
@@ -535,9 +538,8 @@ Other network devices
                 raise DpdkSetup('Error: port_limit in config file must be even number, got: %s\n' % cfg_dict['port_limit'])
             if cfg_dict['port_limit'] <= 0:
                 raise DpdkSetup('Error: port_limit in config file must be positive number, got: %s\n' % cfg_dict['port_limit'])
-        if map_driver.parent_args and map_driver.parent_args.limit_ports is not None:
-            if map_driver.parent_args.limit_ports > len(if_list):
-                raise DpdkSetup('Error: --limit-ports CLI argument (%s) must not be higher than number of interfaces (%s) in config file: %s\n' % (map_driver.parent_args.limit_ports, len(if_list), fcfg))
+        if pa() and pa().limit_ports is not None and pa().limit_ports > len(if_list):
+            raise DpdkSetup('Error: --limit-ports CLI argument (%s) must not be higher than number of interfaces (%s) in config file: %s\n' % (pa().limit_ports, len(if_list), fcfg))
 
 
     def do_bind_all(self, drv, pci, force = False):
@@ -594,65 +596,67 @@ Other network devices
         self.m_devices= dpdk_nic_bind.devices
 
     def get_prefix(self):
-        if map_driver.parent_args.prefix:
-            return map_driver.parent_args.prefix
+        if pa().prefix:
+            return pa().prefix
         return self.m_cfg_dict[0].get('prefix', '')
 
-    def preprocess_astf_file_is_needed(self):
-        """ check if we are in astf mode, in case we are convert the profile to json in tmp"""
-        is_astf_mode = map_driver.parent_args and map_driver.parent_args.astf
-        if is_astf_mode:
-            input_file = map_driver.parent_args.file
-            if not input_file:
-                return
+    def preprocess_astf_file_if_needed(self):
+        """ check if we are in astf batch mode, in case we are convert the profile to json in tmp"""
+        if not pa() or not pa().astf or pa().interactive:
+            return
 
-            instance_name = ''
-            prefix = self.get_prefix()
-            if prefix:
-                instance_name = '-' + prefix
-            dst_json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
+        input_file = pa().file
+        if not input_file:
+            return
 
-            extension = os.path.splitext(input_file)[1]
-            if extension == '.json':
-                shutil.copyfile(input_file, dst_json_file)
-                return
-            elif extension != '.py':
-                raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
+        instance_name = ''
+        prefix = self.get_prefix()
+        if prefix:
+            instance_name = '-' + prefix
+        dst_json_file = "/tmp/astf{instance}.json".format(instance=instance_name)
 
-            print('converting astf profile %s to json %s' % (input_file, dst_json_file))
-
-            # imports from trex.astf
-            cur_path = os.path.abspath(os.path.dirname(__file__))
-            trex_path = os.path.join(cur_path, 'automation', 'trex_control_plane', 'interactive')
-            if trex_path not in sys.path:
-                sys.path.insert(1, trex_path)
-            from trex.astf.trex_astf_profile import ASTFProfile
-            from trex.astf.sim import decode_tunables
-
-            tunables = {}
-            if map_driver.parent_args.tunable:
-                tunables = decode_tunables(map_driver.parent_args.tunable)
-
-            try:
-                profile = ASTFProfile.load(input_file, **tunables)
-                json_content = profile.to_json_str()
-            except Exception as e:
-                raise DpdkSetup('ERROR: Could not convert astf profile to JSON:\n%s' % e)
-
-            with open(dst_json_file, 'w') as f:
-                f.write(json_content)
+        extension = os.path.splitext(input_file)[1]
+        if extension == '.json':
+            shutil.copyfile(input_file, dst_json_file)
             os.chmod(dst_json_file, 0o777)
+            return
+        elif extension != '.py':
+            raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
+
+        print('converting astf profile %s to json %s' % (input_file, dst_json_file))
+
+        # imports from trex.astf
+        cur_path = os.path.abspath(os.path.dirname(__file__))
+        trex_path = os.path.join(cur_path, 'automation', 'trex_control_plane', 'interactive')
+        if trex_path not in sys.path:
+            sys.path.insert(1, trex_path)
+        from trex.astf.trex_astf_profile import ASTFProfile
+        from trex.astf.sim import decode_tunables
+
+        tunables = {}
+        if pa().tunable:
+            tunables = decode_tunables(pa().tunable)
+
+        try:
+            profile = ASTFProfile.load(input_file, **tunables)
+            json_content = profile.to_json_str()
+        except Exception as e:
+            raise DpdkSetup('ERROR: Could not convert astf profile to JSON:\n%s' % e)
+
+        with open(dst_json_file, 'w') as f:
+            f.write(json_content)
+        os.chmod(dst_json_file, 0o777)
 
 
     def verify_stf_file(self):
         """ check the input file of STF """
-        is_stf_mode = map_driver.parent_args and (not map_driver.parent_args.astf) and map_driver.parent_args.file
-        if is_stf_mode:
-            extension = os.path.splitext(map_driver.parent_args.file)[1]
-            if extension == '.py':
-                raise DpdkSetup('ERROR: Python files can not be used with STF mode, did you forget "--astf" flag?')
-            elif extension != '.yaml':
-                pass # should we fail here?
+        if not pa() or not pa().file or pa().astf:
+            return
+        extension = os.path.splitext(pa().file)[1]
+        if extension == '.py':
+            raise DpdkSetup('ERROR: Python files can not be used with STF mode, did you forget "--astf" flag?')
+        elif extension != '.yaml':
+            pass # should we fail here?
 
     def config_hugepages(self, wanted_count = None):
         huge_mnt_dir = '/mnt/huge'
@@ -673,8 +677,8 @@ Other network devices
             if wanted_count is None:
                 if self.m_cfg_dict[0].get('low_end', False):
                     if socket_id == 0:
-                        if map_driver.parent_args and map_driver.parent_args.limit_ports:
-                            if_count = map_driver.parent_args.limit_ports
+                        if pa() and pa().limit_ports:
+                            if_count = pa().limit_ports
                         else:
                             if_count = self.m_cfg_dict[0].get('port_limit', len(self.m_cfg_dict[0]['interfaces']))
                         wanted_count = 20 + 40 * if_count
@@ -694,15 +698,16 @@ Other network devices
 
 
     def run_scapy_server(self):
-        if map_driver.parent_args and map_driver.parent_args.stl and not map_driver.parent_args.no_scapy_server:
-            try:
-                master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
-            except:
-                master_core = 0
-            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
-            if ret:
-                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
-                sys.exit(-1)
+        if not pa() or pa().no_scapy_server or not pa().interactive or pa().astf:
+            return
+        try:
+            master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
+        except:
+            master_core = 0
+        ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
+        if ret:
+            print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
+            sys.exit(-1)
 
 
     # check vdev Linux interfaces status
@@ -786,15 +791,12 @@ Other network devices
         """ returns code that specifies if interfaces are Mellanox/Napatech etc. """
 
         self.load_config_file()
-        self.preprocess_astf_file_is_needed()
+        self.preprocess_astf_file_if_needed()
         self.verify_stf_file()
-        if (map_driver.parent_args is None or
-                map_driver.parent_args.dump_interfaces is None or
-                    (map_driver.parent_args.dump_interfaces == [] and
-                            map_driver.parent_args.cfg)):
-            if_list=if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces'])
+        if not pa() or pa().dump_interfaces is None or (pa().dump_interfaces == [] and pa().cfg):
+            if_list = if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces'])
         else:
-            if_list = map_driver.parent_args.dump_interfaces
+            if_list = pa().dump_interfaces
             if not if_list:
                 self.run_dpdk_lspci()
                 for dev in self.m_devices.values():
@@ -831,7 +833,7 @@ Other network devices
                 Mellanox_cnt += 1
 
 
-        if not (map_driver.parent_args and map_driver.parent_args.dump_interfaces):
+        if not (pa() and pa().dump_interfaces):
             if (Mellanox_cnt > 0) and ((Mellanox_cnt + dummy_cnt) != len(if_list)):
                err = "All driver should be from one vendor. You have at least one driver from Mellanox but not all."
                raise DpdkSetup(err)
@@ -839,7 +841,7 @@ Other network devices
                 self.set_only_mellanox_nics()
 
         if self.get_only_mellanox_nics():
-            if not map_driver.parent_args.no_ofed_check:
+            if not pa().no_ofed_check:
                 self.verify_ofed_os()
                 self.check_ofed_version()
 
@@ -1292,15 +1294,15 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--limit-ports', type = int)
     parent_parser.add_argument('-f', dest = 'file')
     parent_parser.add_argument('-t', dest = 'tunable', default=None)
-    parent_parser.add_argument('-i', action = 'store_true', dest = 'stl', default = False)
+    parent_parser.add_argument('-i', action = 'store_true', dest = 'interactive', default = False)
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
-    if map_driver.parent_args.help:
+    if pa().help:
         sys.exit(0)
-    if map_driver.parent_args.limit_ports is not None:
-        if map_driver.parent_args.limit_ports % 2:
-            raise DpdkSetup('ERROR: --limit-ports CLI argument must be even number, got: %s' % map_driver.parent_args.limit_ports)
-        if map_driver.parent_args.limit_ports <= 0:
-            raise DpdkSetup('ERROR: --limit-ports CLI argument must be positive, got: %s' % map_driver.parent_args.limit_ports)
+    if pa().limit_ports is not None:
+        if pa().limit_ports % 2:
+            raise DpdkSetup('ERROR: --limit-ports CLI argument must be even number, got: %s' % pa().limit_ports)
+        if pa().limit_ports <= 0:
+            raise DpdkSetup('ERROR: --limit-ports CLI argument must be positive, got: %s' % pa().limit_ports)
 
 
 def process_options ():
@@ -1412,10 +1414,10 @@ To see more detailed info on interfaces (table):
     map_driver.args = parser.parse_args();
     if map_driver.args.parent :
         parse_parent_cfg (map_driver.args.parent)
-        if map_driver.parent_args.cfg:
-            map_driver.cfg_file = map_driver.parent_args.cfg;
-        if map_driver.parent_args.prefix:
-            map_driver.prefix = map_driver.parent_args.prefix
+        if pa().cfg:
+            map_driver.cfg_file = pa().cfg;
+        if pa().prefix:
+            map_driver.prefix = pa().prefix
     if  map_driver.args.cfg :
         map_driver.cfg_file = map_driver.args.cfg;
 
@@ -1446,11 +1448,11 @@ def main ():
             obj.do_interactive_create();
         elif map_driver.args.linux:
             obj.do_return_to_linux();
-        elif map_driver.parent_args is None or map_driver.parent_args.dump_interfaces is None:
+        elif pa() is None or pa().dump_interfaces is None:
             ret = obj.do_run()
             print('The ports are bound/configured.')
             sys.exit(ret)
-        elif map_driver.parent_args.dump_interfaces:
+        elif pa().dump_interfaces:
             obj.config_hugepages(1)
         print('')
     except DpdkSetup as e:

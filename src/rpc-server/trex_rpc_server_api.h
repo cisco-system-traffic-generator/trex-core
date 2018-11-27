@@ -57,7 +57,7 @@ public:
         m_is_verbose  = false;
     }
        
-    void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, std::string &logfile_name, bool is_verbose = false) {
+    void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, const std::string &logfile_name, bool is_verbose = false) {
         m_protocol     = protocol;
         m_port         = port;
         m_lock         = lock;

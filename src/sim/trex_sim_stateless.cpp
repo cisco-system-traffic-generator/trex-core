@@ -175,7 +175,7 @@ SimStateless::init() {
 
     TrexSTXCfg cfg;
 
-    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr);
+    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr, "");
     
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;

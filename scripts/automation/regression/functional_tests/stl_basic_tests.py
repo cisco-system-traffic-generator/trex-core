@@ -45,7 +45,20 @@ def compare_dicts_round(d1, d2, precision = 4):
     return json.loads(json.dumps(d1), parse_float = lambda x:round(float(x), precision)) == json.loads(json.dumps(d2), parse_float = lambda x:round(float(x), precision))
 
 
-def compare_caps (output, golden, max_diff_sec = 0.000005):
+def compare_caps(**kw):
+    def get_arg(name, default = None):
+        arg = kw.get(name)
+        if arg is None:
+            if default is not None:
+                return default
+            raise Exception('Provide %s kwarg' % name)
+        return arg
+
+    output = get_arg('output')
+    golden = get_arg('golden')
+    max_diff_sec = get_arg('max_diff_sec', 0.000005)
+    assert output, kw
+    assert golden, kw
     pkts1 = []
     pkts2 = []
     pkts_ts_buckets = defaultdict(list)
@@ -74,10 +87,10 @@ def compare_caps (output, golden, max_diff_sec = 0.000005):
         ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
 
         if abs(ts1-ts2) > max_diff_sec: # 5 nsec
-            raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
+            raise AssertionError("TS error: cap files '{0}', '{1}' differ in pkt #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
 
         if pkt1[0] != pkt2[0]:
-            errmsg = "RAW error: output file '{0}', differs from golden '{1}' in cap #{2}".format(output, golden, i)
+            errmsg = "RAW error: output file '{0}', differs from golden '{1}' in pkt #{2}".format(output, golden, i)
             print(errmsg)
 
             print(format_text("\ndifferent fields for packet #{0}:".format(i), 'underline'))
@@ -197,7 +210,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             #os.system(s)
 
             if compare:
-                compare_caps(output_cap, golden_file)
+                compare_caps(output = output_cap, golden = golden_file)
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)
@@ -381,7 +394,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                               options  = '-c 7 -m 1 -l 50 --valgrind', # the number of cores must be bigger than 1, because the stream is pinned on core 1.
                               silent   = True)
             assert_equal(rc, True, 'Simulation on udp_1pkt_src_ip_split_core_pinned failed.')
-            compare_caps(output_cap, golden_file)
+            compare_caps(output = output_cap, golden = golden_file)
 
         finally:
             os.unlink(output_cap)

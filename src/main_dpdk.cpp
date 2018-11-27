@@ -327,7 +327,7 @@ static int __attribute__((cold)) usage() {
     printf(" --checksum-offload-disable : Disable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
     printf(" --tso-disable              : disable TSO (advanced TCP mode) \n");
     printf(" --lro-disable              : disable LRO (advanced TCP mode) \n");
-    printf(" --client_cfg <file>        : YAML file describing clients configuration \n");
+    printf(" --client-cfg <file>        : YAML file describing clients configuration \n");
     printf(" --close-at-end             : Call rte_eth_dev_stop and close at exit. Calling these functions caused link down issues in older versions, \n");
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
     printf("                               This it temporary option. Will be removed in the future \n");
@@ -376,6 +376,7 @@ static int __attribute__((cold)) usage() {
     printf(" --prom                     : Enable promiscuous for ASTF/STF mode  \n");
     printf(" -pubd                      : Disable monitors publishers \n");
     printf(" --queue-drop               : Do not retry to send packets on failure (queue full etc.)\n");
+    printf(" --rpc-log <file>           : Save log of RPC conversation in logfile\n");
     printf(" --rx-check  <rate>         : Enable rx check. TRex will sample flows at 1/rate and check order, latency and more \n");
     printf(" -s                         : Single core. Run only one data path core. For debug \n");
     printf(" --send-debug-pkt <proto>   : Do not run traffic generator. Just send debug packet and dump receive queues \n");
@@ -3124,7 +3125,7 @@ void CGlobalTRex::pre_test() {
             }
             exit(1);
         }
-        m_fl.set_client_config_resolved_macs(pretest_result);
+        m_fl.set_client_config_resolved_macs(&pretest_result);
         if ( isVerbose(1) ) {
             m_fl.dump_client_config(stdout);
         }

@@ -4293,7 +4293,7 @@ void CFlowGenList::get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &
     m_client_config_info.get_entry_list(ret);
 }
 
-void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) {
+void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo *pretest_result) {
     m_client_config_info.set_resolved_macs(pretest_result);
 }
 
