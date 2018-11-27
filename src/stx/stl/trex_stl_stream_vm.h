@@ -338,6 +338,9 @@ public:
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && m_list_index >= m_step ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = inc_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -352,6 +355,9 @@ public:
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && (m_list_index + m_step) < m_list_size ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = dec_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -395,6 +401,9 @@ public:
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && m_list_index >= m_step ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = inc_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -409,6 +418,9 @@ public:
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && (m_list_index + m_step) < m_list_size ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = dec_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -452,6 +464,9 @@ public:
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && m_list_index >= m_step ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = inc_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -466,6 +481,9 @@ public:
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && (m_list_index + m_step) < m_list_size ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = dec_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -510,6 +528,9 @@ public:
             *p = inc_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && m_list_index >= m_step ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = inc_mod_list(m_list_size, m_list_index, m_step);
         }
@@ -524,6 +545,9 @@ public:
             *p = dec_mod(m_min_val, m_max_val, *p, m_step);
         }
         else {
+            if ( m_skip > 0 && (m_list_index + m_step) < m_list_size ) {
+                *program += m_skip;
+            }
             *p = m_val_list[m_list_index];
             m_list_index = dec_mod_list(m_list_size, m_list_index, m_step);
         }
