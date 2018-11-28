@@ -177,7 +177,9 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
     fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
-    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed,m_min_value,m_max_value, m_is_split_needed);
+    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d, has_previous %d ",m_limit,(ulong)m_size_bytes,(ulong)m_seed, 
+                                    m_min_value,m_max_value, m_is_split_needed, m_has_previous);
+    fprintf(fd, "next_var: %s\n", m_next_var_name.c_str());
 }
 
 void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp){
@@ -626,33 +628,42 @@ void StreamVm::build_flow_var_table() {
     bool error = false;
     // third iteration - verifying that variables with next are ordered as they should
     for ( int i = 0; i < m_inst_list.size(); i++) {
-        if (m_inst_list[i]->get_instruction_type() != StreamVmInstruction::itFLOW_MAN) {
+        auto inst_type = m_inst_list[i]->get_instruction_type();
+        if (inst_type != StreamVmInstruction::itFLOW_MAN && inst_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
             continue;
         }
-        // if we got here then the instruction is a flow variable
-        StreamVmInstructionFlowMan* inst = dynamic_cast<StreamVmInstructionFlowMan*>(m_inst_list[i]);
-        if(inst->m_next_var_name == "") {
+        // if we got here then the instruction is a flow variable or flow rand limit
+        std::string next_var_name = "";
+        if (inst_type == StreamVmInstruction::itFLOW_MAN) {
+            StreamVmInstructionFlowMan* inst = dynamic_cast<StreamVmInstructionFlowMan*>(m_inst_list[i]);
+            next_var_name = inst->m_next_var_name;
+        } else if (inst_type == StreamVmInstruction::itFLOW_RAND_LIMIT) {
+            StreamVmInstructionFlowRandLimit* inst = dynamic_cast<StreamVmInstructionFlowRandLimit*>(m_inst_list[i]);
+            next_var_name = inst->m_next_var_name;
+        }
+        if(next_var_name == "") {
             continue;
         }
-        // if we got here then it is a flow var with next
+        // if we got here then it is a flow var or flow rand limit with next
         if (i == m_inst_list.size() - 1) {
             // no next inst
             error = true;
         } else {
-            if (m_inst_list[i+1]->get_instruction_type() != StreamVmInstruction::itFLOW_MAN) {
-                // next instruction isn't a flow variable
+            auto next_inst_type = m_inst_list[i+1]->get_instruction_type();
+            if (next_inst_type != StreamVmInstruction::itFLOW_MAN && next_inst_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
+                // next instruction isn't a flow variable or flow rand limit
                 error = true;
             } else {
-                StreamVmInstructionFlowMan* next_inst = dynamic_cast<StreamVmInstructionFlowMan*>(m_inst_list[i+1]);
-                if (next_inst->get_var_name() != inst->m_next_var_name) {
-                    // next inst is a variable but its name is not next name
+                StreamVmInstructionVar* next_inst = dynamic_cast<StreamVmInstructionVar*>(m_inst_list[i+1]);
+                if (next_inst->get_var_name() != next_var_name) {
+                    // next inst is one of the above but its name is not next name
                     error = true;
                 } else {
-                    if (next_inst->m_is_split_needed) {
+                    if (next_inst->need_split()) {
                         // next instruction should run on a single core
                         error = true;
                     }
-                    next_inst->m_has_previous = true;
+                    next_inst->set_has_previous(true);
                 }
             }
         }
@@ -703,7 +714,7 @@ void StreamVm::build_program(){
         auto inst = m_inst_list[i];
         StreamVmInstruction::instruction_type_t ins_type=inst->get_instruction_type();
 
-        if (ins_type != StreamVmInstruction::itFLOW_MAN) {
+        if (ins_type != StreamVmInstruction::itFLOW_MAN && ins_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
             skip = 0;
         }
 
@@ -863,6 +874,12 @@ void StreamVm::build_program(){
                 fv8.m_seed      = (uint32_t)lpMan->m_seed;
                 fv8.m_min_val = (uint8_t)lpMan->m_min_value;
                 fv8.m_max_val = (uint8_t)lpMan->m_max_value;
+                fv8.m_skip    = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv8);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv8,sizeof(fv8));
             }
 
@@ -874,7 +891,12 @@ void StreamVm::build_program(){
                 fv16.m_seed      = (uint32_t)lpMan->m_seed;
                 fv16.m_min_val   = (uint16_t)lpMan->m_min_value;
                 fv16.m_max_val   = (uint16_t)lpMan->m_max_value;
-
+                fv16.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv16);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv16,sizeof(fv16));
             }
 
@@ -886,7 +908,12 @@ void StreamVm::build_program(){
                 fv32.m_seed      = (uint32_t)lpMan->m_seed;
                 fv32.m_min_val   = (uint32_t)lpMan->m_min_value;
                 fv32.m_max_val   = (uint32_t)lpMan->m_max_value;
-
+                fv32.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv32);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv32,sizeof(fv32));
             }
 
@@ -898,6 +925,12 @@ void StreamVm::build_program(){
                 fv64.m_seed      = (uint32_t)lpMan->m_seed;
                 fv64.m_min_val   = lpMan->m_min_value;
                 fv64.m_max_val   = lpMan->m_max_value;
+                fv64.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv64);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv64,sizeof(fv64));
             }
         }
@@ -1830,22 +1863,22 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
 
     case StreamDPVmInstructions::ditRAND_LIMIT8:
         ua.lpv_rl8 =(StreamDPOpFlowRandLimit8 *)p;
-        ua.lpv_rl8->run(flow_var);
+        ua.lpv_rl8->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit8);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT16:
         ua.lpv_rl16 =(StreamDPOpFlowRandLimit16 *)p;
-        ua.lpv_rl16->run(flow_var);
+        ua.lpv_rl16->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit16);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT32:
         ua.lpv_rl32 =(StreamDPOpFlowRandLimit32 *)p;
-        ua.lpv_rl32->run(flow_var);
+        ua.lpv_rl32->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit32);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT64:
         ua.lpv_rl64 =(StreamDPOpFlowRandLimit64 *)p;
-        ua.lpv_rl64->run(flow_var);
+        ua.lpv_rl64->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit64);
         break;
 

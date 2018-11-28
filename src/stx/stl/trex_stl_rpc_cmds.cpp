@@ -689,7 +689,7 @@ TrexRpcCmdAddStream::check_value_list(uint8_t flow_var_size,
 void 
 TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
-
+    std::string next_var_name = parse_string(inst, "next_var", result, "");
     auto sizes = {1, 2, 4, 8};
     uint8_t      flow_var_size = parse_choice(inst, "size", sizes, result);
     uint64_t seed    = parse_uint64(inst, "seed", result);
@@ -713,7 +713,8 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
                                                                       min_value,
                                                                       max_value,
                                                                       seed,
-                                                                      is_split_needed)
+                                                                      is_split_needed,
+                                                                      next_var_name)
                                  );
 }
 
