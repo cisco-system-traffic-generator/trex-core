@@ -224,14 +224,18 @@ struct StreamDPOpFlowRandLimit8 {
     uint8_t m_min_val;
     uint8_t m_max_val;
     uint32_t m_seed;
+    uint32_t m_skip;
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var) {
+    inline void run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss8 *p = (RandMemBss8 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
             p->m_cnt=0;
+        }
+        if ( m_skip > 0 && p->m_cnt != 0) {
+            *program += m_skip;
         }
         uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1));
         p->m_val= (uint8_t)(val);
@@ -245,15 +249,19 @@ struct StreamDPOpFlowRandLimit16 {
     uint16_t m_limit;
     uint16_t m_min_val;
     uint16_t m_max_val;
-
     uint32_t m_seed;
+    uint32_t m_skip;
+
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var) {
+    inline void run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss16 *p = (RandMemBss16 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
             p->m_cnt=0;
+        }
+        if ( m_skip > 0 && p->m_cnt != 0) {
+            *program += m_skip;
         }
         uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1)); 
         p->m_val= (uint16_t)(val);
@@ -268,15 +276,19 @@ struct StreamDPOpFlowRandLimit32 {
     uint32_t m_limit;
     uint32_t m_min_val;
     uint32_t m_max_val;
-
     uint32_t m_seed;
+    uint32_t m_skip;
+
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var) {
+    inline void run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss32 *p = (RandMemBss32 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
             p->m_cnt=0;
+        }
+        if ( m_skip > 0 && p->m_cnt != 0) {
+            *program += m_skip;
         }
         uint32_t val = m_min_val + (vm_rand32(&p->m_seed)  % ((uint64_t)m_max_val - m_min_val + 1)); 
         p->m_val= val;
@@ -290,15 +302,19 @@ struct StreamDPOpFlowRandLimit64 {
     uint64_t m_limit;
     uint64_t m_min_val;
     uint64_t m_max_val;
-
     uint32_t m_seed;
+    uint32_t m_skip;
+
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var) {
+    inline void run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss64 *p = (RandMemBss64 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
             p->m_cnt=0;
+        }
+        if ( m_skip > 0 && p->m_cnt != 0) {
+            *program += m_skip;
         }
         uint64_t val;
         if ((m_max_val - m_min_val) == UINT64_MAX) {
@@ -1237,6 +1253,8 @@ public:
      */
     virtual void update(uint64_t phase, uint64_t step_mul) = 0;
 
+    virtual void set_has_previous(bool has_previous) {};
+
 
 public:
     
@@ -1333,6 +1351,10 @@ public:
 
     virtual uint64_t get_range() const {
         return (m_max_value - m_min_value + 1);
+    }
+
+    virtual void set_has_previous (bool has_previous) override {
+        m_has_previous = has_previous;
     }
 
 
@@ -1544,14 +1566,21 @@ public:
         return m_is_split_needed;
     }
 
+    virtual void set_has_previous (bool has_previous) override {
+        m_has_previous = has_previous;
+    }
+
     StreamVmInstructionFlowRandLimit(const std::string &var_name,
                                      uint8_t  size,
                                      uint64_t limit,
                                      uint64_t min_value,
                                      uint64_t max_value,
                                      uint64_t seed,
-                                     bool is_split_needed=true
-                                     ) : StreamVmInstructionVar(var_name) {
+                                     bool is_split_needed=true,
+                                     const std::string &next_var_name="",
+                                     bool has_previous=false
+                                     ) : StreamVmInstructionVar(var_name), 
+                                     m_next_var_name(next_var_name) {
 
         m_size_bytes = size;
         m_seed       = seed;
@@ -1559,6 +1588,7 @@ public:
         m_min_value  = min_value;
         m_max_value  = max_value;
         m_is_split_needed = is_split_needed;
+        m_has_previous = has_previous;
     }
 
     virtual void Dump(FILE *fd);
@@ -1574,7 +1604,9 @@ public:
                                                     m_min_value,
                                                     m_max_value,
                                                     m_seed,
-                                                    m_is_split_needed);
+                                                    m_is_split_needed,
+                                                    m_next_var_name,
+                                                    m_has_previous);
     }
 
     virtual void update(uint64_t phase, uint64_t step_mul) {
@@ -1599,6 +1631,9 @@ public:
     uint8_t        m_size_bytes;
 
     bool m_is_split_needed;
+    bool m_has_previous;
+    const std::string m_next_var_name;
+
 };
 
 

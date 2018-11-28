@@ -700,7 +700,9 @@ class STLStream(object):
                 inst['ip_max'] = ltoa(inst['ip_max'])
                 vm_list.append("vm.tuple_var(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
             elif inst['type'] == 'flow_var_rand_limit':
-                vm_list.append("vm.repeatable_random_var(fv_name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value}, split_to_cores={split_to_cores})".format(**inst))
+                if inst['next_var']:
+                    inst['next_var'] = "'%s'" % inst['next_var']
+                vm_list.append("vm.repeatable_random_var(fv_name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value}, split_to_cores={split_to_cores}, next_var={next_var})".format(**inst))
             else:
                 raise TRexError('Got unhandled FE instruction type: %s' % inst['type'])
         if 'cache' in self.fields['vm']:
