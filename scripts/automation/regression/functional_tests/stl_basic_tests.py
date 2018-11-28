@@ -172,13 +172,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             user_cmd += " --silent"
 
         if tunables:
-            user_cmd += " -t "
-            i = len(tunables)
             for k, v in tunables.items():
-                user_cmd += "{0}={1}".format(k, v)
-                if i > 1:
-                    user_cmd += ","
-                    i -= 1
+                user_cmd += " -t {0}={1}".format(k, v)
 
         rc = trex_stl_sim.main(args = shlex.split(user_cmd))
         if obj:
@@ -216,9 +211,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
             if compare:
                 if expected:
-                    compare_caps(output_cap, expected)
+                    compare_caps(output = output_cap, golden = expected)
                 else:
-                    compare_caps(output_cap, golden_file)
+                    compare_caps(output = output_cap, golden = golden_file)
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)

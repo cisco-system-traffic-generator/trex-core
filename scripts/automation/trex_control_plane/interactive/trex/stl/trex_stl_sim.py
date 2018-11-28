@@ -347,6 +347,7 @@ def unsigned_int (x):
 
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="stl_sim.py")
+    parser.register('action', 'merge', parsing_opts._MergeAction)
 
     parser.add_argument("-f",
                         dest ="input_file",
@@ -413,6 +414,7 @@ def setParserOptions():
                         help = 'sets tunable for a profile',
                         dest = 'tunables',
                         default = None,
+                        action = 'merge',
                         type = parsing_opts.decode_tunables)
 
     parser.add_argument('-p', '--path',
