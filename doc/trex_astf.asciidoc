@@ -96,7 +96,7 @@ WARNING: ASTF support was released, however it is under constant improvement.
 * Flexible tuple generator 
 * Automation support - fast interactive support, Fast Console
 * Ability to change the TCP configuration (default MSS/buffer size/RFC enabled etc) 
-* Client Cluster (only batch)
+* Client Cluster (same format as STF for batch, new Python format for interactive)
 * Basic L7 emulation capability e.g. Random delay, loops, variables, Spirent and IXIA like TCP traffic patterns, Elephant flows  
 * Tunable profile support -- give a few tunable from console to the python profile (e.g. --total-bw 10gbps)
 * More than one core per dual-ports
@@ -1879,6 +1879,8 @@ image::images/astf_cs_mode.png[title="C/S modes examples",align="center",width={
 
 === Client clustering configuration
 
+==== Batch mode
+
 TRex ASTF supports testing complex topologies with more than one DUT, using a feature called "client clustering". This feature allows specifying the distribution of clients that TRex emulates.
 
 For more information about this feature have a look here link:trex_manual.html#_client_clustering_configuration[Client clustering configuration]
@@ -1912,6 +1914,126 @@ To run TRex add `--client_cfg` CLI :
 The `responder` information is ignored in ASTF mode as the server side learn the VLAN/MAC from the DUT. 
 Another fact is the TRex ports is behaving like trunk ports with all VLAN allowed. This means that when working with a Switch, the Switch could flood the wrong packet (SYN with the wrong VLAN) to the TRex server side port and TRex will answer to this packet by mistake (as all VLAN are allowed, e.g. client side packet with client side VLAN will be responded in the server side). To overcome this either use ` allowed vlan` command in the Switch or use a dummy ARP resolution to make the Switch learn the VLAN on each port
 =====================================================================
+
+==== Interactive mode
+
+For interactive mode, Python profiles of topology can be used. +
+This topology consists of set of two objects:
+
+* Virtual interface defining src MAC and optional VLAN
+* Route table for traffic (GW). It can be applied for both TRex port or Virtual interface mentioned above.
+
+.Topology profile example
+[source,python]
+----
+from trex.astf.topo import *
+
+
+def get_topo():                        <1>
+    topo = ASTFTopology()
+
+# VIFs
+    topo.add_vif(
+        port_id = '0.2',               <2>
+        src_mac = '12:12:12:12:12:12', <3>
+        src_ipv4 = '5.5.5.5',          <4>
+        vlan = 30,                     <5>
+    )
+
+# GWs
+
+    topo.add_gw(
+        port_id = '0.2',               <6>
+        src_start = '16.0.0.0',        <7>
+        src_end = '16.0.0.2',          <7>
+        dst = '45:45:45:45:45:45',     <8>
+    )
+
+    topo.add_gw(
+        port_id = '0',                 <9>
+        src_start = '16.0.0.3',
+        src_end = '16.0.0.4',
+        dst = '2.2.2.2',               <10>
+    )
+
+    return topo
+----
+<1> Reserved name, must be used.
+<2> Virtual interface ID, in this case it's sub-interface of TRex port 0, sub-if ID 2
+<3> Source MAC of VIF (required)
+<4> Source IP of VIF, (optional, used for resolving dst MAC of GWs, if need resolve). In future versions, TRex will answer on this IP for ARP/Ping etc.
+<5> VLAN of VIF (optional)
+<6> This GW is used with VIF 0.2
+<7> Range of traffic to apply current routing
+<8> Ecplicit destination MAC for given range
+<9> This GW is used with TRex port 0
+<10> Destination IP of this range, needs resolving
+
+[NOTE]
+=====================================================================
+In order to use custom src MAC for VIF and receive packets, need to apply promiscuous mode on TRex interface.
+=====================================================================
+
+.Using topology from console example
+[source,python]
+----
+trex>portattr --prom on
+
+Applying attributes on port(s) [0, 1]:                       [SUCCESS]
+
+trex>topo load -f my_topo.py
+
+trex>topo show
+Virtual interfaces
+
+Port |        MAC        | VLAN |      IPv4       | IPv6
+-----+-------------------+------+-----------------+------
+0.2  | 12:12:12:12:12:12 |  20  |     5.5.5.5     |   -
+
+Gateways for traffic
+
+Port  |   Range start   |    Range end    |       Dest        |     Resolved
+------+-----------------+-----------------+-------------------+------------------
+ 0.2  |    16.0.0.0     |    16.0.0.1     | 45:45:45:45:45:45 | 45:45:45:45:45:45
+ 0.2  |    16.0.0.2     |    16.0.0.3     |      2.2.2.2      |         -
+  0   |    16.0.0.4     |   16.0.0.255    |      2.2.2.2      |         -
+
+
+trex>topo resolve
+1 dest(s) resolved for 2 GW(s), uploading to server
+240.41 [ms]
+
+trex>topo show
+Virtual interfaces
+
+Port |        MAC        | VLAN |      IPv4       | IPv6
+-----+-------------------+------+-----------------+------
+0.2  | 12:12:12:12:12:12 |  20  |     5.5.5.5     |   -
+
+Gateways for traffic
+
+Port  |   Range start   |    Range end    |       Dest        |     Resolved
+------+-----------------+-----------------+-------------------+------------------
+ 0.2  |    16.0.0.0     |    16.0.0.1     | 45:45:45:45:45:45 | 45:45:45:45:45:45
+ 0.2  |    16.0.0.2     |    16.0.0.3     |      2.2.2.2      | 00:0c:29:32:d3:4d
+  0   |    16.0.0.4     |   16.0.0.255    |      2.2.2.2      | 00:0c:29:32:d3:4d
+
+
+trex>start -f astf/udp1.py
+
+Loading traffic at acquired ports.                           [SUCCESS]
+
+
+Starting traffic.                                            [SUCCESS]
+
+76.22 [ms]
+
+trex>
+----
+
+Produced traffic (captured at port 1):
+
+image::images/astf_topo.png[title="Produced traffic using topology"]
 
 
 === Multi core support 

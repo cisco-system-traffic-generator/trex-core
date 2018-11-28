@@ -383,6 +383,9 @@ void TrexAstf::topo_clear() {
     m_topo_buffer.clear();
     m_topo_hash.clear();
     m_topo_parsed = false;
+    ClientCfgDB &m_cc_db = m_fl->m_client_config_info;
+    m_cc_db.clear();
+
 }
 
 void TrexAstf::topo_append(const string &fragment) {
@@ -415,8 +418,6 @@ void TrexAstf::start_transmit(const start_params_t &args) {
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.setNoCleanFlowClose(args.nc);
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
-    ClientCfgDB &m_cc_db = m_fl->m_client_config_info;
-    m_cc_db.clear();
 
     m_fl->m_stt_cp->clear_counters();
 
