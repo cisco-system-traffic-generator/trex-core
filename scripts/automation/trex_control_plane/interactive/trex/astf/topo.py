@@ -435,7 +435,7 @@ class ASTFTopologyManager(object):
                     if gw.sub_if:
                         vif = vifs[gw.port_id]
                         vlan = vif.vlan
-                        service_key = '%s - %s' % (dst, vlan)
+                        service_key = '%s - %s' % (dst, [vlan])
                         service = service_per_dest.get(service_key)
                         if service:
                             service.gws.append(gw)
