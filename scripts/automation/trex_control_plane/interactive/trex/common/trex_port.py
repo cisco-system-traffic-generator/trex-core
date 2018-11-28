@@ -770,22 +770,22 @@ class Port(object):
 
     # rest of the events are used for TUI / read only sessions
     def async_event_port_stopped (self):
-        #if not self.is_acquired():
+        if not self.is_acquired():
             self.state = self.STATE_STREAMS
 
 
     def async_event_port_paused (self):
-        #if not self.is_acquired():
+        if not self.is_acquired():
             self.state = self.STATE_PAUSE
 
 
     def async_event_port_started (self):
-        #if not self.is_acquired():
+        if not self.is_acquired():
             self.state = self.STATE_TX
 
 
     def async_event_port_resumed (self):
-        #if not self.is_acquired():
+        if not self.is_acquired():
             self.state = self.STATE_TX
 
 
