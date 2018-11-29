@@ -385,7 +385,7 @@ void TrexAstf::topo_clear() {
     m_topo_parsed = false;
     ClientCfgDB &m_cc_db = m_fl->m_client_config_info;
     m_cc_db.clear();
-
+    CAstfDB::instance()->get_topo()->clear();
 }
 
 void TrexAstf::topo_append(const string &fragment) {

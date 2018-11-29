@@ -39,6 +39,8 @@ class TopoGW(object):
     def __init__(self, port_id, src_start, src_end, dst, dst_mac = ''):
         trex_port, sub_if = split_port_str(port_id)
 
+        if trex_port % 2:
+            raise TRexError('GW can be specified only for client (even) IFs, got: %s' % port_id)
         if not is_valid_ipv4(src_start):
             raise TRexError("src_start is not a valid IPv4 address: '%s'" % src_start)
         if not is_valid_ipv4(src_end):
@@ -88,15 +90,20 @@ class TopoVIF(object):
     def __init__(self, port_id, src_mac, src_ipv4 = '', src_ipv6 = '', vlan = 0):
         trex_port, sub_if = split_port_str(port_id)
 
+        if sub_if <= 0:
+            raise TRexError('VIF port_id sub_if ID should be positive, got: %s' % port_id)
         if not is_valid_mac(src_mac):
             raise TRexError('src_mac is not valid MAC address: %s' % src_mac)
         if src_ipv4 and not is_valid_ipv4(src_ipv4):
             raise TRexError('src_ipv4 is not valid IPv4 address: %s' % src_ipv4)
         if src_ipv6 and not is_valid_ipv6(src_ipv6):
             raise TRexError('src_ipv6 is not valid IPv6 address: %s' % src_ipv6)
-        validate_type('vlan', vlan, int)
-        if vlan < 0 or vlan > 4096:
-            raise TRexError('Invalid value for VLAN: %s' % vlan)
+        if vlan is None:
+            vlan = 0
+        else:
+            validate_type('vlan', vlan, int)
+            if vlan < 0 or vlan > 4096:
+                raise TRexError('Invalid value for VLAN: %s' % vlan)
 
         self.port_id   = port_id
         self.trex_port = trex_port
@@ -441,7 +448,7 @@ class ASTFTopologyManager(object):
                 if gw.dst_type == DST_IPv4:
                     if gw.sub_if:
                         vif = vifs[gw.port_id]
-                        vlan = vif.vlan
+                        vlan = vif.vlan or None
                         service_key = '%s - %s' % (dst, [vlan])
                         service = service_per_dest.get(service_key)
                         if service:
