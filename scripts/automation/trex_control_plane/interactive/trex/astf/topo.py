@@ -206,6 +206,10 @@ class ASTFTopologyManager(object):
         return topo_per_port
 
 
+    def warn(self, msg):
+        self.client.logger.warning('WARNING: %s' % msg)
+
+
     def validate_topo(self, topo_per_port):
         start_end_gw = []
         for topo in topo_per_port.values():
@@ -226,6 +230,7 @@ class ASTFTopologyManager(object):
                     raise TRexError('GW ranges intersect: %s-%s, %s-%s' % (p_gw.src_start, p_gw.src_end, gw.src_start, gw.src_end))
             p_start, p_end, p_gw = start, end, gw
 
+        prom_warnings = {}
         for port_id, port in self.client.ports.items():
             port_attr = port.get_ts_attr()
             prom_enabled = port_attr['promiscuous']['enabled']
@@ -246,7 +251,7 @@ class ASTFTopologyManager(object):
                     raise TRexError('Duplicate VIF MAC: %s' % vif_mac)
                 vif_macs[vif_mac] = vif
                 if not prom_enabled and vif_mac != port_src_mac:
-                    raise TRexError('Promiscuous mode must be enabled on port %s for VIFs to work' % port_id)
+                    prom_warnings[port_id] = 1
 
             for gw in port_topo.gws:
                 gw_sub_if = gw.sub_if
@@ -263,6 +268,8 @@ class ASTFTopologyManager(object):
                         raise TRexError("Port %s does not have IPv4 configured, can't set GW %s" % (gw_port_id, gw.dst))
                     elif gw.dst_type == DST_IPv6 and not port_has_ipv6:
                         raise TRexError("Port %s does not have IPv6 configured, can't set GW %s" % (gw_port_id, gw.dst))
+        if prom_warnings:
+            self.warn('Promiscuous mode must be enabled on port(s) %s for VIFs to work' % list(prom_warnings.keys()))
 
 
     def load(self, topology, **kw):
