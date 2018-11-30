@@ -46,6 +46,7 @@ class TopoGW(object):
         if not is_valid_ipv4(src_end):
             raise TRexError("src_end is not a valid IPv4 address: '%s'" % src_end)
 
+        validate_type('dst', dst, basestring)
         if is_valid_ipv4(dst):
             self.dst_type = DST_IPv4
         elif is_valid_ipv6(dst):
@@ -63,6 +64,8 @@ class TopoGW(object):
         self.dst         = dst
         if dst_mac:
             self.dst_mac = dst_mac
+            if self.dst_type == DST_MAC and dst_mac != dst:
+                raise TRexError('Both dst and dst_mac is used, but they are different: %s, %s' % (dst, dst_mac))
         elif self.dst_type == DST_MAC:
             self.dst_mac = dst
         else:
@@ -83,7 +86,7 @@ class TopoGW(object):
 
     def to_code(self):
         data = self.get_data(False)
-        return "TopoGW('{port_id}', '{src_start}', '{src_end}', {sub_if}, '{dst}')".format(**data)
+        return "TopoGW('{port_id}', '{src_start}', '{src_end}', '{dst}')".format(**data)
 
 
 class TopoVIF(object):
@@ -92,6 +95,8 @@ class TopoVIF(object):
 
         if sub_if <= 0:
             raise TRexError('VIF port_id sub_if ID should be positive, got: %s' % port_id)
+
+        validate_type('src_mac', src_mac, basestring)
         if not is_valid_mac(src_mac):
             raise TRexError('src_mac is not valid MAC address: %s' % src_mac)
         if src_ipv4 and not is_valid_ipv4(src_ipv4):
@@ -217,6 +222,10 @@ class ASTFTopologyManager(object):
         self.client.logger.warning('WARNING: %s' % msg)
 
 
+    def info(self, msg):
+        self.client.logger.info(msg)
+
+
     def validate_topo(self, topo_per_port):
         start_end_gw = []
         for topo in topo_per_port.values():
@@ -239,6 +248,9 @@ class ASTFTopologyManager(object):
 
         prom_warnings = {}
         for port_id, port in self.client.ports.items():
+            port_topo = topo_per_port.get(port_id)
+            if not port_topo:
+                continue
             port_attr = port.get_ts_attr()
             prom_enabled = port_attr['promiscuous']['enabled']
             port_src_mac = port_attr['layer_cfg']['ether']['src']
@@ -247,11 +259,10 @@ class ASTFTopologyManager(object):
 
             vif_ids = {}
             vif_macs = {}
-            port_topo = topo_per_port[port_id]
             for vif in port_topo.vifs:
                 vif_id = vif.sub_if
                 if vif_id in vif_ids:
-                    raise TRexError('Duplicate VIF - %s' % vif.port_str())
+                    raise TRexError('Duplicate VIF - %s' % vif.port_id)
                 vif_ids[vif_id] = vif
                 vif_mac = vif.src_mac
                 if vif_mac in vif_macs:
@@ -265,16 +276,16 @@ class ASTFTopologyManager(object):
                 if gw_sub_if:
                     port = vif_ids.get(gw_sub_if)
                     if not port:
-                        raise TRexError('Invalid port in GW - %s' % gw.port_str())
+                        raise TRexError('Invalid port in GW - %s' % gw.port_id)
                     if gw.dst_type == DST_IPv4 and not port.src_ipv4:
-                        raise TRexError("VIF %s does not have IPv4 configured, can't set GW %s" % (gw_port_id, gw.dst))
+                        raise TRexError("VIF %s does not have IPv4 configured, can't set GW %s" % (gw.port_id, gw.dst))
                     elif gw.dst_type == DST_IPv6 and not port.src_ipv6:
-                        raise TRexError("VIF %s does not have IPv6 configured, can't set GW %s" % (gw_port_id, gw.dst))
+                        raise TRexError("VIF %s does not have IPv6 configured, can't set GW %s" % (gw.port_id, gw.dst))
                 else:
                     if gw.dst_type == DST_IPv4 and not port_has_ipv4:
-                        raise TRexError("Port %s does not have IPv4 configured, can't set GW %s" % (gw_port_id, gw.dst))
+                        raise TRexError("Port %s does not have IPv4 configured, can't set GW %s" % (gw.port_id, gw.dst))
                     elif gw.dst_type == DST_IPv6 and not port_has_ipv6:
-                        raise TRexError("Port %s does not have IPv6 configured, can't set GW %s" % (gw_port_id, gw.dst))
+                        raise TRexError("Port %s does not have IPv6 configured, can't set GW %s" % (gw.port_id, gw.dst))
         if prom_warnings:
             self.warn('Promiscuous mode must be enabled on port(s) %s for VIFs to work' % list(prom_warnings.keys()))
 
@@ -309,27 +320,6 @@ class ASTFTopologyManager(object):
 
 
     @staticmethod
-    def get_module_tunables(module):
-        # remove self and variables
-        func = module.get_topo
-        argc = func.__code__.co_argcount
-        tunables = func.__code__.co_varnames[1:argc]
-
-        # fetch defaults
-        defaults = func.__defaults__
-        if defaults is None:
-            return {}
-        if len(defaults) != (argc - 1):
-            raise TRexError("Module should provide default values for all arguments on get_topo()")
-
-        output = {}
-        for t, d in zip(tunables, defaults):
-            output[t] = d
-
-        return output
-
-
-    @staticmethod
     def load_py(python_file, **kw):
         # check filename
         if not os.path.isfile(python_file):
@@ -343,15 +333,14 @@ class ASTFTopologyManager(object):
             module = __import__(file, globals(), locals(), [], 0)
             imp.reload(module) # reload the update
 
-            ASTFTopologyManager.get_module_tunables(module)
             topo = module.get_topo(**kw)
             if not isinstance(topo, ASTFTopology):
-                raise Exception('loaded topology type is not ASTFTopology')
+                raise TRexError('Loaded topology type is not ASTFTopology')
 
             return topo
 
-        #except Exception as e:
-        #    raise TRexError('Could not load topology: %s' % e)
+        except Exception as e:
+            raise TRexError('Could not load topology: %s' % e)
 
         finally:
             sys.path.pop(0)
@@ -428,11 +417,13 @@ class ASTFTopologyManager(object):
             port_ids = listify(ports)
 
         for port_id in port_ids:
+            self.validate_topo({port_id: self.client.get_port(port_id).topo})
+
+        for port_id in port_ids:
             port = self.client.get_port(port_id)
             ctx = self.client.create_service_ctx(port_id)
             port_attr = port.get_ts_attr()
             ipv4 = port_attr['layer_cfg']['ipv4']
-            port_ipv4 = None if ipv4['state'] == 'none' else ipv4['src']
             port_vlan = port_attr['vlan']['tags']
 
             vifs = {}
@@ -461,10 +452,10 @@ class ASTFTopologyManager(object):
                         if service:
                             service.gws.append(gw)
                             continue
-                        service = ServiceARP(ctx, dst, port_ipv4, port_vlan, timeout_sec = 1)
+                        service = ServiceARP(ctx, dst, ipv4['src'], port_vlan, timeout_sec = 1)
                     service.gws = [gw]
                     service_per_dest[service_key] = service
-                elif gw.dst_type == DST_IPv6 and not port.has_ipv6():
+                elif gw.dst_type == DST_IPv6:
                     raise TRexError('Not supported')
 
             if service_per_dest:
@@ -477,11 +468,12 @@ class ASTFTopologyManager(object):
                         for gw in service.gws:
                             gw.dst_mac = record.dst_mac
                     else:
-                        unresolved.extend(service.gws)
+                        unresolved.append(service.dst_ip)
 
         if unresolved:
-            first_unresolved = [gw.dst for gw in unresolved[:5]]
-            raise TRexError('Could not resolve %s GWs, first are: %s' % (len(unresolved), first_unresolved))
+            if len(unresolved) == 1:
+                raise TRexError('Could not resolve GW: %s' % unresolved[0])
+            raise TRexError('Could not resolve %s GWs, first are: %s' % (len(unresolved), unresolved[:5]))
 
         if services_cnt:
             status = '%s dest(s) resolved for %s GW(s)' % (services_cnt, gw_need_resolve_cnt)
@@ -489,23 +481,25 @@ class ASTFTopologyManager(object):
             status = 'No need to resolve anything'
 
         if ports is None:
-            print(status + ', uploading to server')
+            self.info(status + ', uploading to server')
             rc = self.client._upload_fragmented('topo_fragment', self.to_json())
             if not rc:
                 raise TRexError('Could not upload topology: %s' % rc.err())
         else:
-            print(status)
+            self.info(status)
 
 
     def show(self, ports = None):
         if self.is_empty():
-            print('Topology is empty!')
+            self.info('Topology is empty!')
             return
+        print(ports)
 
         if ports is None:
             port_ids = self.client.ports.keys()
         else:
             port_ids = listify(ports)
+        print(port_ids)
 
         sorted_ports = [self.client.ports[port_id] for port_id in sorted(port_ids)]
         sorted_topo = [port.topo for port in sorted_ports]
@@ -529,7 +523,7 @@ class ASTFTopologyManager(object):
                 max_port_id  = max(max_port_id, len(vif_id))
                 vifs_table.add_row([vif_id, vif.src_mac, vlan, ipv4, ipv6])
         vifs_table.set_cols_width([max_port_id, 17, 4, 15, max_ipv6_len])
-        print_table_with_header(vifs_table, untouched_header = vifs_table.title)
+        print_table_with_header(vifs_table, untouched_header = vifs_table.title, buffer = sys.stdout)
 
         gws_table = TRexTextTable('Gateways for traffic')
         gws_table.set_cols_align(['c'] * 5)
@@ -548,7 +542,7 @@ class ASTFTopologyManager(object):
                     max_res_len = max(max_res_len, len(dst_mac))
                     gws_table.add_row([gw.port_id, gw.src_start, gw.src_end, dst, dst_mac])
         gws_table.set_cols_width([5, 15, 15, max_dst_len, max_res_len])
-        print_table_with_header(gws_table, untouched_header = gws_table.title)
+        print_table_with_header(gws_table, untouched_header = gws_table.title, buffer = sys.stdout)
 
 
     def get_merged_data(self, to_server = True):

@@ -449,6 +449,8 @@ class CAstfDB  : public CTRexDummyCommand  {
                           uint32_t & dst_ipv4,
                           uint32_t & dual_port_mask);
 
+    void get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
+            std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion);
 
 private:
     bool validate_profile(Json::Value profile,std::string & err);

@@ -23,6 +23,7 @@ limitations under the License.
  * ASTF specific RPC commands
  */
 
+#include "astf/astf_db.h"
 #include "trex_astf.h"
 #include "trex_astf_defs.h"
 #include "trex_astf_port.h"
@@ -96,6 +97,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdateLatency, "update_latency");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
+TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 
 TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
@@ -343,6 +345,46 @@ TrexRpcCmdAstfGetLatencyStats::_run(const Json::Value &params, Json::Value &resu
 
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &result) {
+    auto db = CAstfDB::instance();
+    auto stx = get_astf_object();
+    auto &api = get_platform_api();
+
+    const string &start_ip = parse_string(params, "start_ip", result);
+    const string &end_ip   = parse_string(params, "end_ip", result);
+    const string &dual_ip  = parse_string(params, "dual_ip", result);
+    bool seq_split         = parse_bool(params, "seq_split", result);
+
+    Json::Value &res = result["result"];
+    std::vector<std::pair<uint8_t, uint8_t>> cores_id_list;
+    uint8_t max_threads = api.get_dp_core_count();
+    try {
+        for (auto &port : stx->get_port_map()) {
+            if ( port.first & 1 ) {
+                continue;
+            }
+            uint8_t dual_id = port.first/2;
+            Json::Value cores_ranges;
+            api.port_id_to_cores(port.first, cores_id_list);
+            for (auto &core_pair : cores_id_list) {
+                uint8_t thread_id = core_pair.first;
+                CIpPortion portion;
+                db->get_thread_ip_range(thread_id, max_threads, dual_id, start_ip, end_ip, dual_ip, seq_split, portion);
+                Json::Value core_range;
+                core_range["start"] = utl_uint32_to_ipv4(portion.m_ip_start);
+                core_range["end"] = utl_uint32_to_ipv4(portion.m_ip_end);
+                cores_ranges[to_string(thread_id)] = core_range;
+            }
+            res[to_string(port.first)] = cores_ranges;
+        }
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result) {
     CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
     if (lpstt) {
@@ -441,6 +483,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfStopLatency(this));
     m_cmds.push_back(new TrexRpcCmdAstfUpdateLatency(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetLatencyStats(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetTrafficDist(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));

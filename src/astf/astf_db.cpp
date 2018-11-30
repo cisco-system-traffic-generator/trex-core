@@ -970,6 +970,32 @@ void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     }
 }
 
+void fill_rss_vals(uint16_t thread_id, uint16_t &rss_thread_id, uint16_t &rss_thread_max) {
+    rss_thread_id =0;
+    rss_thread_max  = CGlobalInfo::m_options.preview.getCores();
+    if ( rss_thread_max > 1 ) {
+        rss_thread_id = thread_id / CGlobalInfo::m_options.get_expected_dual_ports();
+    }
+}
+
+void CAstfDB::get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
+        std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion) {
+
+    CTupleGenPoolYaml poolinfo;
+
+    poolinfo.m_per_core_distro = per_core_dist;
+    poolinfo.m_ip_start = ip_from_str(ip_start.c_str());
+    poolinfo.m_ip_end = ip_from_str(ip_end.c_str());
+    poolinfo.m_dual_interface_mask = ip_from_str(ip_offset.c_str());
+
+    if (poolinfo.m_per_core_distro) {
+        uint16_t rss_thread_id, rss_thread_max;
+        fill_rss_vals(thread_id, rss_thread_id, rss_thread_max);
+        split_ips_v2(max_threads, rss_thread_id, rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(), dual_port_id, poolinfo, portion);
+    }else{
+        split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+    }
+}
 
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                               uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
@@ -982,11 +1008,10 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
     g_gen->Create(0, thread_id);
 
-    uint16_t rss_thread_id =0;
-    uint16_t rss_thread_max  = CGlobalInfo::m_options.preview.getCores();
+    uint16_t rss_thread_id, rss_thread_max;
+    fill_rss_vals(thread_id, rss_thread_id, rss_thread_max);
     if ( rss_thread_max > 1 ) {
-        rss_thread_id = ( thread_id / (CGlobalInfo::m_options.get_expected_dual_ports() ));
-        g_gen->set_astf_rss_mode(rss_thread_id,rss_thread_max,CGlobalInfo::m_options.m_reta_mask); /* configure the generator */
+        g_gen->set_astf_rss_mode(rss_thread_id ,rss_thread_max, CGlobalInfo::m_options.m_reta_mask); /* configure the generator */
     }
 
     uint32_t active_flows_per_core;
