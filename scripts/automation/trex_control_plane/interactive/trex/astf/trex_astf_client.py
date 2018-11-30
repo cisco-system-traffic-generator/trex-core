@@ -53,7 +53,7 @@ class ASTFClient(TRexClient):
                 if None, will use ScreenLogger
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 2}
+        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 3}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -316,6 +316,48 @@ class ASTFClient(TRexClient):
             self.ctx.logger.post_cmd(False)
             raise TRexError('Could not load profile, error: %s' % rc.err())
         self.ctx.logger.post_cmd(True)
+
+
+    @client_api('command', False)
+    def get_traffic_distribution(self, start_ip, end_ip, dual_ip, seq_split):
+        ''' Get distribution of IP range per TRex port per core
+
+            :parameters:
+                start_ip: IP string
+                    Related to "ip_range" argument of ASTFIPGenDist
+
+                end_ip: IP string
+                    Related to "ip_range" argument of ASTFIPGenDist
+
+                dual_ip: IP string
+                    Related to "ip_offset" argument of ASTFIPGenGlobal
+
+                seq_split: bool
+                    Related to "per_core_distribution" argument of ASTFIPGenDist, "seq" => seq_split=True
+        '''
+        if not is_valid_ipv4(start_ip):
+            raise TRexError("start_ip is not a valid IPv4 address: '%s'" % start_ip)
+        if not is_valid_ipv4(end_ip):
+            raise TRexError("end_ip is not a valid IPv4 address: '%s'" % end_ip)
+        if not is_valid_ipv4(dual_ip):
+            raise TRexError("dual_ip is not a valid IPv4 address: '%s'" % dual_ip)
+
+        params = {
+            'start_ip': start_ip,
+            'end_ip': end_ip,
+            'dual_ip': dual_ip,
+            'seq_split': seq_split,
+        }
+        rc = self._transmit('get_traffic_dist', params = params)
+        if not rc:
+            raise TRexError(rc.err())
+        res = {}
+        for port_id, port_data in rc.data().items():
+            core_dict = {}
+            for core_id, core_data in port_data.items():
+                core_dict[int(core_id)] = core_data
+            res[int(port_id)] = core_dict
+        return res
 
 
     @client_api('command', True)
@@ -591,7 +633,7 @@ class ASTFClient(TRexClient):
             'mult': mult,
             }
 
-        self.ctx.logger.pre_cmd('Updating latenct rate.')
+        self.ctx.logger.pre_cmd('Updating latency rate.')
         rc = self._transmit("update_latency", params = params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
@@ -612,8 +654,12 @@ class ASTFClient(TRexClient):
             :raises:
                 + :exc:`TRexError`
         '''
-
         self.topo_mngr.load(topology, **tunables)
+        try:
+            pass
+            #self.topo_mngr.load(topology, **tunables)
+        except Exception as e:
+            raise TRexError(e)
         print('')
 
 
@@ -859,6 +905,7 @@ class ASTFClient(TRexClient):
 
         load_parser.add_arg_list(
             parsing_opts.FILE_PATH,
+            parsing_opts.TUNABLES,
             )
 
         reso_parser.add_arg_list(
@@ -876,7 +923,7 @@ class ASTFClient(TRexClient):
         opts = parser.parse_args(line.split())
 
         if opts.command == 'load':
-            self.topo_load(opts.file[0])
+            self.topo_load(opts.file[0], opts.tunables)
             return False
 
         elif opts.command == 'resolve':

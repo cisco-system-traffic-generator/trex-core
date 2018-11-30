@@ -402,9 +402,11 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         uint16_t rx_count_num;
         uint16_t rx_caps;
         uint16_t ip_id_base;
-        
+        std::vector<std::pair<uint8_t, uint8_t>> cores_id_list;
+
         /* query the port info through the platform API */
         api.get_port_info(i, port_info);
+        api.port_id_to_cores(i, cores_id_list);
 
         get_platform_api().getPortAttrObj(i)->get_supported_speeds(supp_speeds);
         Json::Value port_json;
@@ -442,6 +444,10 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port_json["supp_speeds"] = Json::arrayValue;
         for (int speed_id=0; speed_id<supp_speeds.size(); speed_id++) {
             port_json["supp_speeds"].append(supp_speeds[speed_id]);
+        }
+        port_json["cores"] = Json::arrayValue;
+        for (auto &pair : cores_id_list) {
+            port_json["cores"].append(pair.first);
         }
         section["ports"].append(port_json);
 

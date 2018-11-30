@@ -651,6 +651,9 @@ class Port(object):
     def is_mult_enabled(self):
         return self.__attr.get_param('multicast', 'enabled')
 
+    def get_port_cores(self):
+        return self.info.get('cores')
+
 
     ################# stats handler ######################
 

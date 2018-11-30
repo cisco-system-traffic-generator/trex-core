@@ -591,7 +591,7 @@ if __name__ == "__main__":
     if setup_dir and not CTRexScenario.setup_dir:
         fatal('Could not find setup directory %s' % setup_dir)
 
-
+    RedNose.score = 201 # above coverage
     nose_argv = ['', '-s', '-v', '--exe', '--rednose', '--nologcapture']
 
     if '--collect' in sys.argv:
@@ -671,6 +671,15 @@ if __name__ == "__main__":
     is_wlc = 'wlc' in CTRexScenario.modes
     addplugins = [RedNose(), cfg_plugin]
     result = True
+
+    try:
+        import coverage
+    except ImportError:
+        pass
+    else:
+        CTRexScenario.coverage = coverage.coverage(include = ['*topo.py'])
+        CTRexScenario.coverage.start()
+
     try:
         attr_arr = []
         if not is_wlc:
