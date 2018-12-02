@@ -411,7 +411,12 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         try:
             vm = STLVM()
             vm.var(name='simple', min_value=1, max_value=3, op='inc', size=4, step=1, next_var='simple')
-            
+        except CTRexPacketBuildException as e:
+            assert e.message == "Self loops are forbidden."
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name = 'simple', size=2, limit=5, seed = 1, next_var = 'simple')
         except CTRexPacketBuildException as e:
             assert e.message == "Self loops are forbidden."
 
@@ -432,6 +437,14 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             vm = STLVM()
             vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='second')
             vm.var(name='second', min_value=1, max_value=4, op='inc', size=4, next_var='first')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert e.message == "Loops are forbidden for dependent variables"
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='second')
+            vm.repeatable_random_var(fv_name='second', size=4, limit=5, next_var='first')
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert e.message == "Loops are forbidden for dependent variables"
@@ -462,6 +475,22 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert "is pointed by two vars" in e.message
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name='rep_random', size=2, limit=100, next_var='var2')
+            vm.var(name='var1', min_value=1, max_value=10, op='inc', size=1, next_var='var2')
+            vm.var(name='var2', min_value=1, max_value=10, op='inc', size=1)
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "is pointed by two vars" in e.message
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name='var', size=2, limit=100, next_var='non_existent')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "does not exist" in e.message
 
 
     def test_next_var_order(self):
@@ -507,6 +536,26 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert fourth_inst_vm2['type'] == 'write_flow_var'
         assert fourth_inst_vm2['name'] == 'var1'
 
+        vm3 = STLVM()
+        # The order is complicated on purpose.
+        vm3.write(fv_name='var1', pkt_offset=42)
+        vm3.var(name='var1', min_value = ord('a'), max_value = ord('d'), size = 1, step = 1, op = 'inc')
+        vm3.var(name='var3', min_value=0, max_value=200, size=1, step=3, op='inc', next_var='IP')
+        vm3.var(name='IP', min_value='16.0.0.1', max_value='16.0.0.9', size=4, step=2, op='dec')
+        vm3.write(fv_name='var3', pkt_offset=45)
+        vm3.write(fv_name='IP', pkt_offset='IP.src')
+        vm3.repeatable_random_var(fv_name='var2', size=2, limit=500, next_var='var3')
+        vm3.write(fv_name='var2', pkt_offset=43)
+        vm3.fix_chksum()
+        pkt3 = STLPktBuilder(pkt=self.base_pkt, vm=vm3)
+        json3 = pkt3.to_json()
+        inst_types=['flow_var', 'flow_var_rand_limit', 'flow_var', 'flow_var', 'write_flow_var', 'write_flow_var', 'write_flow_var',
+        'write_flow_var']
+        inst_names = ['var1', 'var2', 'var3', 'IP', 'var1', 'var3', 'IP', 'var2']
+        for i in range(len(inst_names)):
+            instruction = json3['vm']['instructions'][i]
+            assert instruction['type'] == inst_types[i]
+            assert instruction['name'] == inst_names[i]
 
     def tearDown(self):
         pass
