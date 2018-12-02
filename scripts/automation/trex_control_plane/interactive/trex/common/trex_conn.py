@@ -56,6 +56,7 @@ class Connection(object):
         '''
         try:
             self.rpc.disconnect()
+            self.rpc.set_api_h(None)
             self.async.disconnect()
 
         finally:

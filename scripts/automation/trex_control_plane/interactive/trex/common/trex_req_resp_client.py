@@ -332,10 +332,6 @@ class JsonRpcClient(object):
 
 
     def disconnect (self):
-
-        # invalidate the server API handler
-        self.api_h = None
-
         if self.connected:
             self.socket.close(linger = 0)
             self.context.destroy(linger = 0)
