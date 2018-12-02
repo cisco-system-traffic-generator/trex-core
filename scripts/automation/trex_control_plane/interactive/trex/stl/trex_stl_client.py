@@ -1160,8 +1160,8 @@ class STLClient(TRexClient):
             # create a dual profile
             split_mode = 'MAC'
             if (ipg_usec and ipg_usec < 1000 * speedup) or (min_ipg_usec and min_ipg_usec < 1000):
-                self.event_handler.log_warning('In order to get synchronized traffic, ensure that effective ipg is at least 1000 usec ')
-            
+                self.ctx.logger.warning('In order to get synchronized traffic, ensure that effective ipg is at least 1000 usec')
+
             try:
                 self.ctx.logger.pre_cmd("Analyzing '{0}' for dual ports based on {1}:".format(pcap_filename, split_mode))
                 profile_a, profile_b = STLProfile.load_pcap(pcap_filename,
