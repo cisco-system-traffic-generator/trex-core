@@ -413,18 +413,24 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             vm.var(name='simple', min_value=1, max_value=3, op='inc', size=4, step=1, next_var='simple')
         except CTRexPacketBuildException as e:
             assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
             vm.repeatable_random_var(fv_name = 'simple', size=2, limit=5, seed = 1, next_var = 'simple')
         except CTRexPacketBuildException as e:
             assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLScVmRaw( [ STLVmFlowVar('ip_src', min_value='10.0.0.1', max_value='10.0.0.255',
                                             size=4, step=1, op='inc', next_var='ip_src')])
         except CTRexPacketBuildException as e:
             assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -432,6 +438,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             vm.var(name='also_simple', min_value=1, max_value=4, op='inc', size=4)
         except CTRexPacketBuildException as e:
             assert "If next_var is defined then op can't be random." in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -440,6 +448,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -448,6 +458,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -457,6 +469,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -466,6 +480,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -475,6 +491,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -484,6 +502,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
         try:
             vm = STLVM()
@@ -491,6 +511,8 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
             pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
         except CTRexPacketBuildException as e:
             assert "does not exist" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
 
 
     def test_next_var_order(self):
