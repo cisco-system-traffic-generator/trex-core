@@ -625,7 +625,6 @@ void StreamVm::build_flow_var_table() {
         }
     }
 
-    bool error = false;
     // third iteration - verifying that variables with next are ordered as they should
     for ( int i = 0; i < m_inst_list.size(); i++) {
         auto inst_type = m_inst_list[i]->get_instruction_type();
@@ -646,31 +645,22 @@ void StreamVm::build_flow_var_table() {
         }
         // if we got here then it is a flow var or flow rand limit with next
         if (i == m_inst_list.size() - 1) {
-            // no next inst
-            error = true;
+            err("Last instruction in the list of instructions has next_var");
         } else {
             auto next_inst_type = m_inst_list[i+1]->get_instruction_type();
             if (next_inst_type != StreamVmInstruction::itFLOW_MAN && next_inst_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
-                // next instruction isn't a flow variable or flow rand limit
-                error = true;
+                err ("Next instruction isn't a variable or a repeatable random");
             } else {
                 StreamVmInstructionVar* next_inst = dynamic_cast<StreamVmInstructionVar*>(m_inst_list[i+1]);
                 if (next_inst->get_var_name() != next_var_name) {
-                    // next inst is one of the above but its name is not next name
-                    error = true;
+                    err("Next instruction name does not match next_var");
                 } else {
                     if (next_inst->need_split()) {
-                        // next instruction should run on a single core
-                        error = true;
+                        err("A variable that is being pointed at by some other variable must run on a single core.");
                     }
                     next_inst->set_has_previous(true);
                 }
             }
-        }
-        if (error) {
-            std::stringstream ss;
-            ss << "next_var is used but order of instructions is incorrect or some pointed variable is split to cores" << std::endl;
-            err(ss.str());
         }
     }
 }
