@@ -4,6 +4,7 @@ from datetime import datetime
 import copy
 import base64
 import threading
+import time
 
 from ..utils.constants import FLOW_CTRL_DICT_REVERSED
 from ..utils.text_tables import Tableable, TRexTextTable
@@ -113,6 +114,9 @@ class Port(object):
         self.rpc            = rpc
         self.transmit       = rpc.transmit
         self.transmit_batch = rpc.transmit_batch
+        self.ticket_id      = None
+        self.last_async_results      = None
+
 
         self.info = dict(info)
 
@@ -238,6 +242,113 @@ class Port(object):
 
         self.__is_sync = True
         return self.ok()
+
+    @writeable
+    def set_namespace_start (self, json_str_commands):
+        
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "batch":          json_str_commands,
+                  "block"  :        False}
+
+        rc = self.transmit("conf_ns_batch", params)
+        if rc.bad():
+           return self.err(rc.err())
+
+
+        if not ('ticket_id' in rc.data()):
+            return self.err(' this command should return ticket_id')
+
+        self.ticket_id =  rc.data()['ticket_id']
+        print(" ticket id {}".format(self.ticket_id))
+
+        return self.ok(rc.data())
+
+    def _cancel_async_task (self):
+
+        if self.ticket_id is None:
+            return self.err(' there is no active batch command ')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "ticket_id":      self.ticket_id,
+                  }
+        rc = self.transmit("cancel_async_task", params)
+        self.ticket_id = None
+
+
+    @writeable
+    def is_async_results_ready (self):
+           if not self.is_service_mode_on():
+               return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+           if self.ticket_id is None and self.last_async_results is not None:
+               return True
+
+           params = {"handler":        self.handler,
+                     "port_id":        self.port_id,
+                     "ticket_id":      self.ticket_id,
+                     }
+
+           rc = self.transmit("get_async_results", params)
+           if rc.bad():
+              self.ticket_id = None
+              return self.err(rc.err())
+
+           if "ticket_id" in rc.data():
+               return False
+           else:
+               self.ticket_id = None
+               self.last_async_results = rc.data()
+               return True
+
+    @writeable
+    def get_async_results (self, timeout = None, cb = None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+
+        # check if there is last results in cache 
+        if self.ticket_id is None:
+            if self.last_async_results:
+               r=self.last_async_results
+               self.last_async_results = None
+               return r
+            else:
+               return self.err(' there is no active batch command ')
+
+
+        while True:
+
+            params = {"handler":        self.handler,
+                      "port_id":        self.port_id,
+                      "ticket_id":      self.ticket_id,
+                      }
+    
+            rc = self.transmit("get_async_results", params)
+            if rc.bad():
+               self.ticket_id = None
+               return self.err(rc.err())
+
+
+            if not ("ticket_id" in rc.data()):
+                #  data is ready 
+                self.ticket_id = None
+                break;
+
+            if cb is not None and hasattr(cb, '__call__'):
+                 cb(rc.data());
+
+            time.sleep(1);
+            if timeout != None:
+                 timeout -= 1
+                 if timeout<0:
+                     self._cancel_async_task ()
+                     return self.err(' timeout wating for data ')
+
+        return  rc.data()
+
 
      
     @writeable

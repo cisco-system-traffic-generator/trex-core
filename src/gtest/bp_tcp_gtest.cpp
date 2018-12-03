@@ -48,6 +48,9 @@ limitations under the License.
 #include <common/captureFile.h>
 #include <common/sim_event_driven.h>
 #include "44bsd/sim_cs_tcp.h"
+#include "trex_rx_rpc_tunnel.h"
+#include "utl_json.h"
+
 
 
 class gt_tcp_long  : public testing::Test {
@@ -3058,3 +3061,188 @@ TEST_F(gt_tcp, tst202) {
 #endif
 
 
+
+
+#if 0
+class CExampleNode;
+
+/* RPC tunnel Object seperate from the node */
+class CRpcTunnelBatchNode : public CRpcTunnelBatch  {
+public:
+    void init(CExampleNode * node);
+    trex_rpc_cmd_rc_e rpc_conf_ip4(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_clear(const Json::Value &params, Json::Value &result);
+    void register_rpc_functions();
+private:
+  CExampleNode * m_node;
+};
+
+void CRpcTunnelBatchNode::init(CExampleNode * node){
+    m_node = node;
+}
+
+void CRpcTunnelBatchNode::register_rpc_functions(){
+    using namespace std::placeholders;
+    register_func("ipv4",std::bind(&CRpcTunnelBatchNode::rpc_conf_ip4, this, _1, _2));
+    register_func("ipv4_clean",std::bind(&CRpcTunnelBatchNode::rpc_clear, this, _1, _2));
+}
+
+
+/* example of RPC tunnel */
+class CExampleNode  {
+public:
+
+    CExampleNode();
+    virtual ~CExampleNode();
+
+    void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
+    void clear_ip4_internal(void);
+    void conf_ip6_internal(bool enabled, const string &ip6_buf);
+    void clear_ip6_internal(void);
+
+public:
+    CRpcTunnelBatchNode * get_rpc_tunnel(){
+        return m_rpc;
+    }
+private:
+    CRpcDispatch  m_rpc_dispatch;
+    CRpcTunnelBatchNode * m_rpc;
+};
+
+
+CExampleNode::CExampleNode(){
+    m_rpc = new CRpcTunnelBatchNode();
+    m_rpc->init(this);
+    m_rpc->register_rpc_functions();
+}
+
+CExampleNode::~CExampleNode(){
+    delete m_rpc;
+}
+
+
+
+trex_rpc_cmd_rc_e CRpcTunnelBatchNode::rpc_conf_ip4(const Json::Value &params, Json::Value &result){
+    printf("rpc_conf_ip4\n");
+    string ipv4   = parse_string(params, "ipv4", result);
+    string ipv4_dg = parse_string(params, "ipv4_dg", result);
+    m_node->conf_ip4_internal(ipv4, ipv4_dg);
+    result = Json::nullValue;
+    return(TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelBatchNode::rpc_clear(const Json::Value &params, Json::Value &result){
+    printf("rpc_clear \n");
+    m_node->clear_ip4_internal();
+    return(TREX_RPC_CMD_OK);
+}
+
+
+
+void CExampleNode::conf_ip4_internal(const string &ip4_buf, 
+                                     const string &gw4_buf){
+    printf("conf_ip4_internal: %s %s \n",ip4_buf.c_str(),gw4_buf.c_str());
+}
+
+void CExampleNode::clear_ip4_internal(void){
+    printf("clear_ipv4 \n");
+}
+
+void CExampleNode::conf_ip6_internal(bool enabled, 
+                                     const string &ip6_buf){
+    printf("conf_ip6_internal: %d %s \n",enabled?1:0,ip6_buf.c_str());
+}
+
+void CExampleNode::clear_ip6_internal(void){
+    printf("clear_ipv4 \n");
+}
+
+
+
+TEST_F(gt_tcp, tst200) {
+    CExampleNode * lp = new CExampleNode();
+    lp->conf_ip4_internal("10.0.0.1","10.0.0.2");
+    lp->clear_ip4_internal();
+    lp->conf_ip6_internal(false,"::10.0.0.1");
+    lp->clear_ip6_internal();
+}
+
+TEST_F(gt_tcp, tst201) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv4";
+    commands[0]["params"]["ipv4"]="10.0.0.10";
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+TEST_F(gt_tcp, tst202) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv5";
+    commands[0]["params"]["ipv4"]="10.0.0.10";
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+TEST_F(gt_tcp, tst203) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv4";
+    commands[0]["params"]["ipv4"]=12;
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+#endif

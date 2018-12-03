@@ -109,6 +109,12 @@ TREX_RPC_CMD_EXT(TrexRpcCmdSetL3,             "set_l3",
 TREX_RPC_CMD_EXT(TrexRpcCmdConfIPv6,          "conf_ipv6",
     void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
 );
+
+TREX_RPC_CMD_EXT(TrexRpcCmdSetNameSpaceBatch,             "conf_ns_batch",
+    void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
+);
+
+
 TREX_RPC_CMD(TrexRpcCmdStartCapturePort,      "start_capture_port");
 TREX_RPC_CMD(TrexRpcCmdStopCapturePort,       "stop_capture_port");
 TREX_RPC_CMD(TrexRpcCmdSetCapturePortBPF,     "set_capture_port_bpf");
@@ -892,7 +898,7 @@ TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -953,7 +959,7 @@ TrexRpcCmdSetVLAN::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1051,7 +1057,7 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
         }
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1113,7 +1119,7 @@ TrexRpcCmdConfIPv6::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1140,6 +1146,73 @@ void TrexRpcCmdConfIPv6::process_results(uint64_t ticket_id, const Json::Value &
     }
     result["result"] = Json::objectValue;
 }
+
+
+
+/**
+ * configures a port in L3 mode
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetNameSpaceBatch::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    verify_fast_stack(params, result, port_id);  /* no block required */
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
+    }
+
+    const string json_cmds  = parse_string(params, "batch", result);
+
+    try {
+        port->set_name_space_batch_async(json_cmds);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    /* create ticket id */
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(true);
+
+    async_ticket_task_t task;
+    task.result_func = bind(&TrexRpcCmdSetNameSpaceBatch::process_results, this, ticket_id, params, _1);
+    task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+    get_stx()->add_task_by_ticket(ticket_id, task);
+
+    /* return the ticket id */
+    result["result"]["ticket_id"] = ticket_id;
+    return (TREX_RPC_CMD_OK);
+}
+
+void TrexRpcCmdSetNameSpaceBatch::process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    stack_result_t results;
+    bool found = get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results(ticket_id, results);
+    if ( !found ) {
+        generate_async_no_results(result, "Could not find name space results , probably timeout on aging.");
+    }
+
+    if ( !results.is_ready ) {
+        TrexStackResultsRC rc;
+        /* get extended info */
+        get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results_ext(ticket_id,results,rc);
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdSetNameSpaceBatch::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
+        result["result"]["ticket_id"] = ticket_id; /* didn't finished */
+        result["result"]["total_cmds"] = rc.m_total_cmds; /* return stats for completion */
+        result["result"]["exec_cmds"] = rc.m_total_exec_cmds;
+        result["result"]["errs_cmds"] = rc.m_total_errs_cmds;
+        return;
+    }
+    result["result"] = results.m_results;
+}
+
+
+
+
 
  /**
 + * Start capture port
@@ -1560,7 +1633,6 @@ TrexRpcCmdGetAsyncResults::_run(const Json::Value &params, Json::Value &result) 
     }
 
     task.result_func(result);
-
     return (TREX_RPC_CMD_OK);
 }
 
@@ -1599,6 +1671,7 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdSetL2(this));
     m_cmds.push_back(new TrexRpcCmdSetL3(this));
     m_cmds.push_back(new TrexRpcCmdConfIPv6(this));
+    m_cmds.push_back(new TrexRpcCmdSetNameSpaceBatch(this));
     m_cmds.push_back(new TrexRpcCmdSetVLAN(this));
     
     m_cmds.push_back(new TrexRpcPublishNow(this));

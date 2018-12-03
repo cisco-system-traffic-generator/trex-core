@@ -22,6 +22,8 @@ limitations under the License.
 */
 #include <string>
 #include <type_traits>
+#include <json/json.h>
+
 
 namespace details {
 inline std::string add_json_val(std::string const& name, std::string const& val, bool last){
@@ -40,6 +42,14 @@ template <typename N, typename = typename std::enable_if<std::is_integral<N>::va
 inline std::string add_json(std::string const& name, N counter, bool last=false){
     return details::add_json_val(name, std::to_string(counter), last);
 }
+
+
+std::string pretty_json_str(const std::string &json_str);
+
+std::string pretty_json_str(const Json::Value & value);
+
+void dump_json(Json::Value & value,FILE *fd);
+
 
 #endif
 

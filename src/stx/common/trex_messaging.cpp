@@ -315,6 +315,16 @@ bool TrexRxSetL3Mode::handle(CRxCore *rx_core) {
     return true;
 }
 
+
+
+bool TrexRxConfNsBatch::handle(CRxCore *rx_core){
+    CStackBase  * stack = get_stack(rx_core, m_port_id);
+    stack->conf_name_space_batch_async(m_json_cmds);
+    /* async result */
+    return true;
+}
+
+
 bool TrexRxConfIPv6::handle(CRxCore *rx_core) {
     CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
     node->conf_ip6_async(m_enabled, m_src_ipv6);
@@ -358,13 +368,24 @@ bool TrexRxSetVLAN::handle(CRxCore *rx_core) {
 }
 
 bool TrexRxRunCfgTasks::handle(CRxCore *rx_core) {
-    get_stack(rx_core, m_port_id)->run_pending_tasks_async(m_ticket_id);
+    get_stack(rx_core, m_port_id)->run_pending_tasks_async(m_ticket_id,m_rpc);
     return true;
 }
 
 bool TrexRxIsRunningTasks::handle(CRxCore *rx_core) {
     bool is_running_tasks = get_stack(rx_core, m_port_id)->is_running_tasks();
     m_reply.set_reply(is_running_tasks);
+    return true;
+}
+
+
+bool TrexRxGetTasksResultsEx::handle(CRxCore *rx_core) {
+    CStackBase* stack = get_stack(rx_core, m_port_id);
+    TrexStackResultsRC rc;
+    bool found = stack->get_tasks_results(m_ticket_id, m_results);
+    stack->get_rpc_cmds(rc);
+    rc.m_in_progress = found;
+    m_reply.set_reply(rc);
     return true;
 }
 

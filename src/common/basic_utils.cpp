@@ -198,7 +198,6 @@ void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
 std::string utl_macaddr_to_str(const uint8_t *macaddr) {
     std::string tmp;
     utl_macaddr_to_str(macaddr, tmp);
-    
     return tmp;
 }
 

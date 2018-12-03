@@ -662,7 +662,7 @@ RXPortManager::create_async(uint32_t port_id,
     std::string &stack_type = CGlobalInfo::m_options.m_stack_type;
     m_stack = CStackFactory::create(stack_type, &m_feature_api, &m_ign_stats);
     m_stack->add_port_node_async();
-    m_stack->run_pending_tasks_async(0);
+    m_stack->run_pending_tasks_async(0,false);
     set_feature(STACK);
 }
 
@@ -689,7 +689,7 @@ void RXPortManager::wait_for_create_done(void) {
 
 void RXPortManager::cleanup_async(void) {
     m_stack->cleanup_async();
-    m_stack->run_pending_tasks_async(0);
+    m_stack->run_pending_tasks_async(0,false);
 }
 
 void RXPortManager::wait_for_cleanup_done(void) {
@@ -748,8 +748,9 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
     if (is_feature_set(QUEUE)) {
         m_queue.handle_pkt(m);
     }
-    
-    if ( is_feature_set(STACK) && !m_stack->is_running_tasks() ) {
+
+
+    if ( is_feature_set(STACK) /*&& !m_stack->is_running_tasks()*/ ) {
         m_stack->handle_pkt(m);
     }
 

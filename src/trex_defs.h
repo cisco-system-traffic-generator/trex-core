@@ -94,6 +94,7 @@ typedef std::vector<uint16_t> vlan_list_t;
 typedef struct {
     bool            is_ready;
     err_per_mac_t   err_per_mac;
+    Json::Value     m_results;    
 } stack_result_t;
 typedef std::map<uint64_t,stack_result_t> stack_result_map_t;
 // end stack related
