@@ -26,6 +26,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.49 ==
+
+* STL  
+** Add support for more than one DP core in software mode see link:trex_appendix_software_mode.html[software mode]
+** Add support for Field Engine dependent variables link:trex_stateless.html#_tutorial_field_engine_dependent_variables[dependent_variables]
+* ASTF interactive - add support for topology link:trex_astf.html#_interactive_mode[interactive_mode]
+
 == Release 2.48 ==
 
 * ASTF interactive vlan dynamic change fix (vlan per port was configured only from trex_cfg.yaml)
