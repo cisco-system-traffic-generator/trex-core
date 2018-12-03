@@ -243,6 +243,7 @@ main_src = SrcGroup(dir='src',
             'utils/utl_cpuu.cpp',
             'utils/utl_dbl_human.cpp',
             'utils/utl_ip.cpp',
+            'utils/utl_json.cpp',
             'utils/utl_mbuf.cpp',
             'utils/utl_policer.cpp',
             'utils/utl_port_map.cpp',
@@ -292,9 +293,10 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_rx_port_mngr.cpp',
                                      'trex_rx_tx.cpp',
                                      'trex_stack_base.cpp',
+                                     'trex_stack_counters.cpp',
                                      'trex_stack_linux_based.cpp',
                                      'trex_stack_legacy.cpp',
-
+                                     'trex_rx_rpc_tunnel.cpp',
                                      'trex_rpc_cmds_common.cpp'
                                      ])
 

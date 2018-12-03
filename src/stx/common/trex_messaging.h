@@ -31,6 +31,7 @@ class CRxCore;
 #include "trex_exception.h"
 #include <rte_atomic.h>
 #include "trex_stack_base.h"
+#include "trex_stack_rc.h"
 
 /**
  * Generic message reply object
@@ -581,6 +582,25 @@ private:
     std::string         m_src_ipv6;
 };
 
+
+/**
+ * Configure IPv6 of port
+ */
+class TrexRxConfNsBatch : public TrexCpToRxMsgBase {
+public:
+    TrexRxConfNsBatch(uint8_t port_id, const std::string &json_cmds) {
+        m_port_id       = port_id;
+        m_json_cmds = json_cmds;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    std::string         m_json_cmds;
+};
+
+
 /**
  * Get port node for data
  */
@@ -636,15 +656,35 @@ private:
     MsgReply<bool>     &m_reply;
 };
 
+class TrexRxGetTasksResultsEx : public TrexCpToRxMsgBase {
+public:
+    TrexRxGetTasksResultsEx(uint8_t port_id, uint64_t ticket_id, stack_result_t &results, MsgReply<TrexStackResultsRC> &reply) :
+                    m_results(results), m_reply(reply) {
+        m_port_id       = port_id;
+        m_ticket_id     = ticket_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    uint64_t            m_ticket_id;
+    stack_result_t     &m_results;
+    MsgReply<TrexStackResultsRC>     &m_reply;
+};
+
+
 class TrexRxRunCfgTasks : public TrexCpToRxMsgBase {
 public:
-    TrexRxRunCfgTasks(uint8_t port_id, uint64_t ticket_id) {
+    TrexRxRunCfgTasks(uint8_t port_id, uint64_t ticket_id,bool rpc) {
         m_port_id = port_id;
         m_ticket_id = ticket_id;
+        m_rpc = rpc;
     }
     virtual bool handle(CRxCore *rx_core);
 private:
     uint8_t                  m_port_id;
+    bool                     m_rpc;
     uint64_t                 m_ticket_id;
 };
 

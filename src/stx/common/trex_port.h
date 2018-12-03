@@ -28,6 +28,7 @@ limitations under the License.
 #include "trex_port_attr.h"
 #include "trex_stack_base.h"
 #include "trex_owner.h"
+#include "trex_stack_rc.h"
 
 class TrexPktBuffer;
 class TrexCpToDpMsgBase;
@@ -158,7 +159,7 @@ public:
     std::string& get_stack_name(void);
 
     // run pending tasks of stack, need to poll results with ticket
-    uint64_t run_rx_cfg_tasks_async(void);
+    uint64_t run_rx_cfg_tasks_async(bool rpc);
 
     // same as above with ticket 0
     void run_rx_cfg_tasks_initial_async(void);
@@ -169,6 +170,9 @@ public:
     // get results of stack tasks
     // return false if results are deleted
     bool get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results);
+
+    // get extended results  
+    void get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results,TrexStackResultsRC & rc);
 
     // get port node to query ip/mac/vlan etc. info
     void get_port_node(CNodeBase &node);
@@ -190,6 +194,10 @@ public:
      * 
      */
     void conf_ipv6_async(bool enabled, const std::string &src_ipv6);
+
+
+    /* move json batch as a command to rx. marshal it to string */
+    void set_name_space_batch_async(const std::string &json_cmds);
 
     /**
      * Enable capture port for this port
@@ -364,7 +372,7 @@ protected:
     void send_message_to_rx(TrexCpToRxMsgBase *msg);
 
     // run RX core config tasks with given ticket ID
-    void run_rx_cfg_tasks_internal_async(uint64_t ticket_id);
+    void run_rx_cfg_tasks_internal_async(uint64_t ticket_id,bool rpc);
 
     
     

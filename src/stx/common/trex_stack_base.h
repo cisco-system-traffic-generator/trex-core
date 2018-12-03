@@ -31,13 +31,17 @@
 #include "mbuf.h"
 #include "trex_exception.h"
 #include "trex_rx_feature_api.h"
+#include "trex_rx_rpc_tunnel.h"
+#include "rte_atomic.h"
+#include "trex_stack_rc.h"
+#include "trex_stack_counters.h"
 
 class CRXCoreIgnoreStat;
 
 void debug(const std::string &msg);
 void debug(const std::initializer_list<const std::string> &msg_list);
 
-class CNodeBase {
+class CNodeBase  {
 public:
     CNodeBase();
     virtual ~CNodeBase();
@@ -62,7 +66,12 @@ public:
     bool is_dst_mac_valid(void);
     bool is_loopback(void);
     bool is_ip6_enabled(void);
+    /* return mac_buf and NOT mac string */
     const std::string &get_src_mac(void);
+
+    /* return src_mac as string xx:xx:xx:xx:xx  for RPC */
+    std::string get_src_mac_as_str(void);
+
     const std::string &get_dst_mac(void);
     const vlan_list_t &get_vlan(void);
     const std::string &get_src_ip4(void);
@@ -70,6 +79,10 @@ public:
     const std::string &get_src_ip6(void);
 
     task_list_t         m_tasks;
+
+    string mac_str_to_mac_buf(const std::string & mac);
+
+    virtual void to_json(Json::Value &res);
 
 protected:
     virtual void set_dst_mac_valid_internal(bool valid);
@@ -91,6 +104,43 @@ protected:
     std::string         m_gw4;
     std::string         m_ip6;
     bool                m_ip6_enabled;
+};
+
+
+class CStackBase;
+
+class CRpcTunnelCStackBase : public CRpcTunnelBatch  {
+
+public:
+    void init(CStackBase * obj);
+
+    trex_rpc_cmd_rc_e rpc_add_node(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_remove_node(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_vlans(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_ipv4(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_clear_ipv4(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_ipv6(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_remove_all(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_get_nodes(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_get_nodes_info(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_get_commands_list(const Json::Value &params, Json::Value &result);
+
+    trex_rpc_cmd_rc_e rpc_clear_counters(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_counters_get_meta(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_counters_get_value(const Json::Value &params, Json::Value &result);
+
+
+    /* debug commands */
+    trex_rpc_cmd_rc_e rpc_help(const Json::Value &params, Json::Value &result);
+
+    void register_rpc_functions();
+
+protected:
+    virtual void update_cmd_count(uint32_t total_exec_commands,
+                                  uint32_t err_exec_commands); 
+
+private:
+  CStackBase * m_obj;
 };
 
 
@@ -150,7 +200,7 @@ public:
     bool is_running_tasks(void);
 
     // Run the tasks with ticket to query status
-    void run_pending_tasks_async(uint64_t ticket_id);
+    void run_pending_tasks_async(uint64_t ticket_id,bool rpc);
 
     // Get results of running tasks by ticket
     // return false if results not found (deleted by timeout)
@@ -161,24 +211,122 @@ public:
 
     void cancel_pending_tasks(void);
     void cancel_running_tasks(void);
+public:
+    virtual void dummy_rpc_command(string ipv4,string ipv4_dg);
+    virtual void rpc_help(const std::string & mac,const std::string & p1,const std::string & p2);
+
+/***************/
+/* RPC commands */
+/***************/
+    void throw_not_supported(){
+        throw TrexRpcException(" not supported with this stack ");
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_add_node(const std::string & mac){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac,vlan_list_t vlan_list){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string & mac,std::string ip4_buf,std::string gw4_buf){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_clear_ipv4(const std::string & mac){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_remove_all(void){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_get_nodes_info(const Json::Value &params,Json::Value &result){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_clear_counters(void){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_counters_get_meta(const Json::Value &params, Json::Value &result){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_counters_get_value(bool zeros, Json::Value &result){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+
+/***************/
+/* TBD need to add get_nodes etc */
+
+
+    /* run batch of json commands  in async mode */
+    void conf_name_space_batch_async(const std::string &json);
+
+    void get_rpc_cmds(TrexStackResultsRC & rc);
+
+    void update_rcp_cmds_count(uint32_t total_commands,
+                               uint32_t err_commands);
 
 protected:
     typedef std::unordered_map<std::string,CNodeBase*> nodes_map_t;
     virtual CNodeBase* add_node_internal(const std::string &mac_buf)=0;
     virtual void del_node_internal(const std::string &mac_buf)=0;
     void run_pending_tasks_internal(uint64_t ticket_id);
+    void run_pending_tasks_internal_rpc(uint64_t ticket_id);
+
     CNodeBase* get_node_internal(const std::string &mac_buf);
     bool has_pending_tasks(void);
 
+private:
+    void _finish_rpc(uint64_t ticket_id);
+
+protected:
+    
+
     str_set_t                   m_add_macs_list;
     str_set_t                   m_del_macs_list;
-    bool                        m_is_running_tasks;
+    volatile bool               m_is_running_tasks;
     RXFeatureAPI               *m_api;
     CRXCoreIgnoreStat          *m_ignore_stats;
     CNodeBase                  *m_port_node;
     nodes_map_t                 m_nodes;
     pthread_t                   m_thread_handle;
     stack_result_map_t          m_results;
+    CRpcTunnelCStackBase        m_rpc_tunnel;
+    std::string                 m_rpc_commands;
+    uint32_t                    m_total_cmds;
+    rte_atomic32_t              m_exec_cmds;
+    rte_atomic32_t              m_exec_cmds_err;
+    CRxCounters                 m_counters;
+
 };
 
 

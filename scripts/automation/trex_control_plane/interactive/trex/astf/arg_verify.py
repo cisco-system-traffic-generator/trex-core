@@ -1,8 +1,30 @@
-from .trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange
+from .trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange,ASTFErrorBadMac
 import socket
 
 
 class ArgVerify(object):
+
+    @staticmethod
+    def verify_mac(mac):
+        array=mac.split(':');
+        if len(array) !=6:
+            return False
+        for obj in array:
+            try:
+               a=int("0x"+obj,16)
+            except Exception as e:
+                return False
+            if a>255:
+                return False
+        return True                
+
+    @staticmethod
+    def verify_ipv6(ip):
+        try:
+            socket.inet_pton(socket.AF_INET6,ip)
+        except Exception:
+            return False
+        return True
 
     @staticmethod
     def verify_ip(ip):
@@ -55,12 +77,22 @@ class ArgVerify(object):
                         type_ok = True
                     else:
                         raise ASTFErrorBadIp(f_name, name, given_arg)
+                elif one_type == "ipv6_addr":
+                  if ArgVerify.verify_ipv6(given_arg):
+                     type_ok = True
+                  else:
+                      raise ASTFErrorBadIp(f_name, name, given_arg)
                 elif one_type == "ip range":
                     ret = ArgVerify.verify_ip_range(given_arg)
                     if ret == "ok":
                         type_ok = True
                     else:
                         raise ASTFErrorBadIpRange(f_name, name, given_arg, ret)
+                elif one_type == "mac":
+                    if ArgVerify.verify_mac(given_arg):
+                        type_ok = True
+                    else:
+                        raise ASTFErrorBadMac(f_name, name, given_arg)
                 else:
                     if isinstance(given_arg, one_type):
                         type_ok = True

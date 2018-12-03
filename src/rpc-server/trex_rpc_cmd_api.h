@@ -402,6 +402,10 @@ protected:
         return parent[param].asString();
     }
 
+    std::string  parse_ipv4(const Json::Value &parent, const std::string &param, Json::Value &result);
+
+    std::string  parse_ipv6(const Json::Value &parent, const std::string &param, Json::Value &result);
+
     template<typename T> const Json::Value & parse_object(const Json::Value &parent, const T &param, Json::Value &result) {
         check_field_type(parent, param, FIELD_TYPE_OBJ, result);
         return parent[param];

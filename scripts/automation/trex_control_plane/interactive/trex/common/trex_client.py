@@ -19,6 +19,7 @@ from ..utils.text_tables import TRexTextTable
 from .trex_events import Event
 from .trex_ctx import TRexCtx
 from .trex_conn import Connection
+from .trex_ns import NSCmds,NSCmd,NSCmdResult
 from .trex_logger import ScreenLogger
 from .trex_types import *
 from .trex_exceptions import *
@@ -1259,6 +1260,195 @@ class TRexClient(object):
 
         return rc.data()
 
+
+    @client_api('command', True)
+    def set_namespace_start(self, port, ns_cmds):
+        """
+            start namespace batch configuration. 
+            This commands is a batch command that interact with the kernel and could be slow 
+            in case of a big batch. 
+            use wait_for_async_results to block for the response, or  is_async_results_ready to pool if the results is ready. 
+
+            Using other Python API while there is an active batch is not recommended 
+
+
+                   c.set_namespace_start( port=0, ns_cmds)
+                   res = c.wait_for_async_results(port=0);
+
+                   res.data 
+
+
+            :parameters:
+                 port: int
+                    Port ID to set the dest address
+
+                 ns_cmds :  NSCmds objects that includes batch commands  
+                    
+            :raises:
+                + :exc:`TRexError`
+        """
+        validate_type('port', port, int)
+        if not isinstance(ns_cmds, NSCmds):
+            raise TRexTypeError('ns_cmds', type(ns_cmds), NSCmds)
+
+        json_rpc = ns_cmds.get_json_str()
+        if len(json_rpc)==0:
+            raise TRexError('commands is empty ')
+
+        self.psv.validate('set_namespace_start', port)
+        self.ctx.logger.pre_cmd("Setting port {0} in with namespace configuration".format(port))
+        rc = self.ports[port].set_namespace_start(json_rpc)
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+        return rc
+
+
+    @client_api('command', True)
+    def wait_for_async_results(self, port, timeout = None, cb = None):
+        """
+            wait for the namespace batch operations to finish, return an a list of batch results 
+            it includes something like that 
+            [None, {'u'error':'some error'},{u'result': {u'nodes': [u'\x00\x01\x02\x03\x04\x05']}}
+
+            None : means that there is no error and command was executed 
+            object: that include 'error' means that there is an error
+            object with  'result'
+
+            :parameters:
+                 port: int
+                    Port ID to set the dest address
+
+                 timeout :  in second, None is unlimited 
+
+                 cb: A callback function that gets an object for calculating progress of a log operation 
+
+                     exec_cmds:  total commands executed 
+                     total_cmds: total commands in the queue
+                     errs_cmds: number of errros in the last operation
+                     ticket_id: ticket id
+
+                     this will print the progress into the screen 
+
+                     def progress_cb(obj):
+                        prog = 100.0*( float(obj['exec_cmds']) / float(obj['total_cmds']))
+                        err = obj['errs_cmds'] 
+                        print("progress {:3.0f}% errors : {}".format(prog,err))
+
+
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """
+
+        validate_type('port', port, int)
+        if timeout is not None:
+            validate_type('timeout', timeout, int)
+
+        self.ctx.logger.pre_cmd("wait_for_async_results".format(port))
+        rc = self.ports[port].get_async_results(timeout , cb)
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc :
+            raise TRexError(rc)
+
+        # check for errors 
+        nc = NSCmdResult(rc)
+
+        if nc.is_any_error():
+            raise TRexError(str(nc.errors()))
+
+        return rc
+
+    @client_api('command', True)
+    def set_namespace(self, port, method, **args):
+        """
+         a utility function that works on top of namespace_start/wait_for_async_results batch operation API. It is good for slow operations  that require blocking 
+
+            it calls 
+            c.set_namespace_start(Obj(method, args))
+            r=c.wait_for_async_results()
+            return (r)
+
+            usage example:
+
+
+            r=set_namespace(port=0,method='get_nodes')
+
+            
+
+            See documentation for above API 
+            :parameters:
+                 port: int
+                    Port ID to set the dest address
+
+                 timeout :  in second, None is unlimited 
+
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """
+
+        cmds = NSCmds()
+
+        func = getattr(cmds, method)
+
+        func(**args)
+
+        self.set_namespace_start(port,cmds)
+        rc = self.wait_for_async_results(port)
+
+        return (rc[0]);
+
+
+
+    @client_api('command', True)
+    def is_async_results_ready(self, port):
+        """
+         return True if the namsspace batch commnand was finished. need to call  wait_for_async_results to get the resutl
+
+         for example
+
+         while True:
+           if c.is_async_results_ready(0):
+              res = c.wait_for_async_results(0)
+              break;
+
+        """
+        validate_type('port', port, int)
+
+        self.ctx.logger.pre_cmd("is_async_results_ready".format(port))
+        rc = self.ports[port].is_async_results_ready() 
+        self.ctx.logger.post_cmd(rc)
+        return rc
+
+
+    @client_api('command', True)
+    def namespace_remove_all (self, ports = None):
+        """ 
+            remove all namespaces from all ports 
+
+            :parameters:
+                ports: list
+                    The port(s) to remove all the namespaces 
+
+
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        # validate ports and state
+        ports = ports if ports is not None else self.get_acquired_ports()
+
+        # validate ports
+        ports = self.psv.validate('namespace_remove_all', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
+
+        cmds=NSCmds()
+        cmds.remove_all();
+
+        for port in ports:
+            self.set_namespace_start(port, cmds)
+            r=self.wait_for_async_results(port)
+    
 
     @client_api('command', True)
     def set_l2_mode (self, port, dst_mac):

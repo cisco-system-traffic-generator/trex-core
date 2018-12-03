@@ -39,7 +39,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/epoll.h>
 #include <unistd.h>
+#include <errno.h>
+#include "os_time.h"
 
 
 char clean_old_nets_and_get_prefix(void);
@@ -64,76 +67,207 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         m_is_initialized = true;
     }
+    rte_spinlock_init(&m_main_loop);
+    m_epoll_fd = epoll_create1(0); 
+    if(m_epoll_fd == -1){
+        throw TrexException("Failed to create epoll file descriptor  ");
+    }
     get_platform_api().getPortAttrObj(api->get_port_id())->set_multicast(true); // We need multicast for IPv6
     m_next_namespace_id = 0;
 }
 
 CStackLinuxBased::~CStackLinuxBased(void) {
     debug("Linux stack dtor");
+    assert(m_epoll_fd);
+    close(m_epoll_fd);
 }
 
 void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
     if ( (m->data_len >= 6) && (m->pkt_len <= MAX_PKT_ALIGN_BUF_9K) ) {
         char *seg_ptr = (char*)m->buf_addr + m->data_off;
+        rte_spinlock_lock(&m_main_loop);
+        /* TBD need to fix the multicast issue could create bursts */
+
         if ( seg_ptr[0] & 1 ) {
+            if (seg_ptr[0] == 0xff) {
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST] +=1;
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST] +=m->pkt_len;
+            }else{
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST] +=1;
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST] +=m->pkt_len;
+            }
             debug("Linux handle_pkt: got broadcast or multicast");
             for (auto &iter_pair : m_nodes ) {
                 uint16_t sent_len = ((CLinuxIfNode*)iter_pair.second)->filter_and_send(m);
                 debug({"sent:", to_string(sent_len)});
             }
         } else {
-            string mac_dst(seg_ptr, 6);
+            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST] +=1;
+            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST] +=m->pkt_len;
+            string mac_dst_buf(seg_ptr, 6);
             debug("Linux handle_pkt: got unicast");
-            CLinuxIfNode *node = (CLinuxIfNode *)get_node(mac_dst);
+            CLinuxIfNode *node = (CLinuxIfNode *)get_node(mac_dst_buf);
             if ( node ) {
                 uint16_t sent_len = node->filter_and_send(m);
                 debug({"sent:", to_string(sent_len)});
             } else {
-                debug({"Linux handle_pkt: did not find node with mac:", utl_macaddr_to_str((uint8_t *)mac_dst.data())});
+                debug({"Linux handle_pkt: did not find node with mac:", utl_macaddr_to_str((uint8_t *)mac_dst_buf.data())});
             }
         }
+        rte_spinlock_unlock(&m_main_loop);
+    }else{
+        m_counters.m_rx_err_invalid_pkt++;
     }
 }
 
-uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
-    string read_buf_str;
-    uint16_t cnt_pkts = 0;
-    if ( poll(m_pollfds.data(), m_pollfds.size(), 0) > 0 ) {
-        for (auto &pollfd: m_pollfds) {
-            if ( pollfd.revents == POLLIN ) {
-                uint16_t pkt_len = recv(pollfd.fd, m_rw_buf, MAX_PKT_ALIGN_BUF_9K, MSG_DONTWAIT);
-                if ( pkt_len < 14 ) {
-                    continue;
-                }
-                string src_mac(m_rw_buf + 6, 6);
-                auto iter_pair = m_nodes.find(src_mac);
-                if ( iter_pair == m_nodes.end() ) {
-                    continue;
-                }
-                CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
-                string &vlans_insert_to_pkt = node->get_vlans_insert_to_pkt();
-                if ( pkt_len + vlans_insert_to_pkt.size() <= MAX_PKT_ALIGN_BUF_9K ) {
-                    debug({"Linux handle_tx: pkt len:", to_string(pkt_len)});
-                    if ( vlans_insert_to_pkt.size() ) {
-                        read_buf_str.assign(m_rw_buf, 12);
-                        read_buf_str += vlans_insert_to_pkt;
-                        read_buf_str.append(m_rw_buf + 12, pkt_len - 12);
-                    } else {
-                        read_buf_str.assign(m_rw_buf, pkt_len);
-                    }
-                    m_api->tx_pkt(read_buf_str);
-                    cnt_pkts++;
-                }
-            }
-            if ( limit == cnt_pkts ) {
-                break;
-            }
-        }
+
+void CStackLinuxBased::rpc_help(const std::string & mac,const std::string & p1,const std::string & p2){
+    printf(" rpc_help in the thread %s %s %s \n",mac.c_str(),p1.c_str(),p2.c_str());
+    delay(2000); /* delay 2 sec */
+}
+
+
+string CStackLinuxBased::mac_str_to_mac_buf(const std::string & mac){
+    char mac_buf[6];
+    if ( utl_str_to_macaddr(mac, (uint8_t*)mac_buf) ){
+        string s;
+        s.assign(mac_buf,6);
+        return(s);
     }
-    return cnt_pkts;
+    throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,"wrong mac format"));
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_node(const std::string & mac){
+    /* this is RPC command */
+    try {
+        CLinuxIfNode *node = (CLinuxIfNode *)add_node_internal(mac_str_to_mac_buf(mac));
+        node->set_associated_trex(false); /* from RPC we need to mark them as namespace ! */
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_node(const std::string & mac){
+    try {
+       del_node_internal(mac_str_to_mac_buf(mac));
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
+                                                  vlan_list_t vlan_list){
+    CLinuxIfNode * lp=get_node_rpc(mac);
+
+    rte_spinlock_lock(&m_main_loop);
+    lp->conf_vlan_internal(vlan_list);
+    rte_spinlock_unlock(&m_main_loop);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string & mac,
+                                                 std::string ip4_buf,
+                                                 std::string gw4_buf){
+    CLinuxIfNode * lp=get_node_rpc(mac);
+    try {
+      lp->conf_ip4_internal(ip4_buf,gw4_buf);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_ipv4(const std::string & mac){
+    CLinuxIfNode * lp=get_node_rpc(mac);
+    try {
+       lp->clear_ip4_internal();
+    } catch (const TrexException &ex) {
+       throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf){
+    CLinuxIfNode * lp=get_node_rpc(mac);
+    try {
+        if (enable) {
+            lp->conf_ip6_internal(true,src_ipv6_buf);
+        }else{
+            lp->clear_ip6_internal();
+        }
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+
+
+#define MAX_EVENTS 128
+
+uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
+    /* limit is not used */
+    string read_buf_str;
+    struct epoll_event events[MAX_EVENTS];
+    int event_count = epoll_wait(m_epoll_fd, events, MAX_EVENTS, 0);
+    if ( event_count ) {
+        int i;
+        for (i=0; i<event_count; i++) {
+                // read one packet
+            uint16_t pkt_len = recv(events[i].data.fd, m_rw_buf, MAX_PKT_ALIGN_BUF_9K, MSG_DONTWAIT);
+            if ( pkt_len < 14 ) {
+                m_counters.m_tx_err_small_pkt++;
+                continue;
+            }
+            string src_mac(m_rw_buf + 6, 6);
+
+            /* update counters */
+            if (m_rw_buf[0]== 0xff) {
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST]+=1;
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST]+=pkt_len;
+            }else{
+                if ((m_rw_buf[0]&1) == 0x1){
+                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST]+=1;
+                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST]+=pkt_len;
+                }else{
+                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST]+=1;
+                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST]+=pkt_len;
+                }
+            }
+
+            rte_spinlock_lock(&m_main_loop);
+            auto iter_pair = m_nodes.find(src_mac);
+            if ( iter_pair == m_nodes.end() ) {
+                rte_spinlock_unlock(&m_main_loop);
+                continue;
+            }
+            CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
+            string &vlans_insert_to_pkt = node->get_vlans_insert_to_pkt();
+            if ( pkt_len + vlans_insert_to_pkt.size() <= MAX_PKT_ALIGN_BUF_9K ) {
+                debug({"Linux handle_tx: pkt len:", to_string(pkt_len)});
+                if ( vlans_insert_to_pkt.size() ) {
+                    read_buf_str.assign(m_rw_buf, 12);
+                    read_buf_str += vlans_insert_to_pkt;
+                    read_buf_str.append(m_rw_buf + 12, pkt_len - 12);
+                } else {
+                    read_buf_str.assign(m_rw_buf, pkt_len);
+                }
+                m_api->tx_pkt(read_buf_str);
+            }else{
+                m_counters.m_tx_err_big_9k++;
+            }
+            rte_spinlock_unlock(&m_main_loop);
+      }
+   }
+   return event_count;
 }
 
 CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
+    debug({" add_node_internal  ", utl_macaddr_to_str((uint8_t *)mac_buf.data())} );
+
     string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
     if ( get_node_internal(mac_buf) != nullptr ) {
         throw TrexException("Node with MAC " + mac_str + " already exists");
@@ -145,32 +279,170 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
         throw TrexException("Could not create node " + mac_str);
     }
     m_next_namespace_id++;
+
+    node->m_event.events = EPOLLIN;
+    node->m_event.data.fd = node->get_pair_id();
+
+    // thread safe 
+    if(epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, node->get_pair_id(), &node->m_event)){
+       throw TrexException("Failed to add file descriptor to epoll " + mac_str +" " +strerror(errno));
+    }
+
+    rte_spinlock_lock(&m_main_loop);
+    /* add the nodes */
     m_nodes[mac_buf] = node;
-    struct pollfd m_pfd;
-    m_pfd.fd = node->get_pair_id();
-    m_pfd.events = POLLIN;
-    m_pfd.revents = 0;
-    m_pollfds.emplace_back(m_pfd);
+    rte_spinlock_unlock(&m_main_loop);
+
     return node;
 }
 
-void CStackLinuxBased::del_node_internal(const string &mac_buf) {
+
+
+CLinuxIfNode * CStackLinuxBased::get_node_rpc(const std::string &mac){
+    CLinuxIfNode * lp=get_node_by_mac(mac);
+    if (!lp) {
+        stringstream ss;
+        ss << "node " << mac << " does not exits " ;
+        throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,ss.str()));
+    }
+    return (lp);
+}
+
+CLinuxIfNode * CStackLinuxBased::get_node_by_mac(const std::string &mac){
+    string mac_buf = mac_str_to_mac_buf(mac);
     auto iter_pair = m_nodes.find(mac_buf);
     if ( iter_pair == m_nodes.end() ) {
-        string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
+        return(0);
+    }
+    CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
+    return (node);
+}
+
+void CStackLinuxBased::del_node_internal(const string &mac_buf) {
+    string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
+
+    debug({" del_node_internal  ", mac_str} );
+
+    rte_spinlock_lock(&m_main_loop);
+    auto iter_pair = m_nodes.find(mac_buf);
+    if ( iter_pair == m_nodes.end() ) {
+        rte_spinlock_unlock(&m_main_loop);
         throw TrexException("Node with MAC " + mac_str + " does not exist");
     }
     CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
     int pair_id = node->get_pair_id();
-    delete node;
     m_nodes.erase(iter_pair->first);
-    for (auto it = m_pollfds.begin(); it != m_pollfds.end(); it++ ) {
-        if ( it->fd == pair_id ) {
-            m_pollfds.erase(it);
+    rte_spinlock_unlock(&m_main_loop);
+
+    struct epoll_event event;
+    event.events = EPOLLIN;
+    event.data.fd = pair_id;
+
+    if(epoll_ctl(m_epoll_fd, EPOLL_CTL_DEL, pair_id, &event)){
+       throw TrexException("Failed to remove file descriptor to epoll " + mac_str);
+    }
+
+    /* could raise an exception */
+    delete node;
+}
+
+
+#define MAX_REMOVES_UNDER_LOCK 20
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(void){
+
+    std::vector<std::string> m_vec;
+
+    std::string last_ex;
+    bool error = false;
+    while (true) {
+
+        /* under the lock */
+        rte_spinlock_lock(&m_main_loop);
+        for (auto &iter_pair : m_nodes ) {
+            CLinuxIfNode * lp=(CLinuxIfNode*)iter_pair.second;
+            /* add the nodes that are not related to trex physical ports */
+            if (!lp->is_associated_trex()){
+                m_vec.push_back(lp->get_src_mac());
+            }
+            if (m_vec.size()>MAX_REMOVES_UNDER_LOCK){
+                break;
+            }
+        }
+        rte_spinlock_unlock(&m_main_loop);
+
+        if (m_vec.size()==0) {
             break;
         }
+        /* try to remove them, might be removed by other command*/
+        for (auto &mac_buf:m_vec) {
+            try {
+              del_node_internal(mac_buf);
+            } catch (const TrexException &ex) {
+                last_ex  = ex.what();
+                error =true;
+            }
+        }
+        m_vec.clear();
     }
+
+    if (error) {
+        throw TrexRpcException(last_ex);
+    }
+
+    return (TREX_RPC_CMD_OK);
 }
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_counters(void){
+    m_counters.clear_counters();
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_counters_get_meta(const Json::Value &params, Json::Value &result){
+    m_counters.dump_meta("stack_counters",result);
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_counters_get_value(bool zeros, Json::Value &result){
+    m_counters.dump_values("stack_counters",zeros,result);
+    return (TREX_RPC_CMD_OK);
+}
+
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params,
+                                                       Json::Value &result){
+    result["nodes"]= Json::arrayValue;
+
+    int i;     
+    for (i=0; i<params.size(); i++) {
+        string mac_str = params[i].asString();
+        CLinuxIfNode * lp=get_node_rpc(mac_str);
+        if (lp) {
+            Json::Value json_val;
+            lp->to_json(json_val);
+            result["nodes"].append(json_val);
+        }
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
+
+    result["nodes"]= Json::arrayValue;
+    /* no need for locks */
+    for (auto &iter_pair : m_nodes ) {
+        CLinuxIfNode * lp=(CLinuxIfNode*)iter_pair.second;
+        /* add the nodes that are not related to trex physical ports */
+        if (!lp->is_associated_trex()){
+            Json::Value json_val=lp->get_src_mac_as_str();
+            result["nodes"].append(json_val);
+        }
+    }
+
+   return (TREX_RPC_CMD_OK);
+}
+
 
 uint16_t CStackLinuxBased::get_capa(void) {
     return (CLIENTS);
@@ -183,6 +455,7 @@ uint16_t CStackLinuxBased::get_capa(void) {
 CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu) {
     debug("Linux node ctor");
     m_ns_name = ns_name;
+    m_associated_trex_ports = true;
     create_net(mtu);
     set_src_mac(mac_str, mac_buf);
     bind_pair();
@@ -459,7 +732,7 @@ int lock_cleanup(void) {
 }
 
 char clean_old_nets_and_get_prefix(void) {
-    uint8_t timeout_sec = 5;
+    uint16_t timeout_sec = 1000;
 
     future<int> lock_thread_handle = async(launch::async, lock_cleanup);
     future_status thread_status = lock_thread_handle.wait_for(chrono::seconds(timeout_sec));
@@ -511,6 +784,7 @@ char clean_old_nets_and_get_prefix(void) {
     if ( res ) {
         throw TrexException("Could not unlock cleanup file");
     }
+    printf("Cleanup Done\n");
     return prefix_char;
 }
 

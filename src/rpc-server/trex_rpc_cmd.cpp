@@ -125,6 +125,35 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
     return (port_id);
 }
 
+std::string  
+TrexRpcCommand::parse_ipv6(const Json::Value &parent, const std::string &param, Json::Value &result){
+    string src_ipv6 = parse_string(parent, param, result);
+    char buf[16];
+    if ( inet_pton(AF_INET6, src_ipv6.c_str(), buf) != 1 ) {
+        stringstream ss;
+        ss << "invalid source IPv6 address: '" << src_ipv6 << "'";
+        generate_parse_err(result, ss.str());
+    }
+    src_ipv6.assign(buf, 16);
+    return (src_ipv6);
+}
+
+std::string  
+TrexRpcCommand::parse_ipv4(const Json::Value &parent,const std::string &param, Json::Value &result){
+
+     std::string ipv4 = parse_string(parent, param, result);
+
+     char buf[4];
+
+     if ( inet_pton(AF_INET, ipv4.c_str(), buf) != 1 ) {
+         stringstream ss;
+         ss << "invalid source IPv4 address: '" << ipv4 << "'";
+         generate_parse_err(result, ss.str());
+     }
+     string ip4_buf(buf, 4);
+     return ip4_buf;
+ }
+
 void 
 TrexRpcCommand::validate_port_id(uint8_t port_id, Json::Value &result) {
     const stx_port_map_t &port_map = get_stx()->get_port_map();

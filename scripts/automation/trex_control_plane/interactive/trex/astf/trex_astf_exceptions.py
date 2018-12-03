@@ -74,3 +74,10 @@ class ASTFErrorBadIpRange(ASTFError):
     def __init__(self, func, param, addr, err):
         msg = "Bad IP range \"{0}\" for parameter {1} to function {2} - {3}".format(addr, param, func, err)
         ASTFError.__init__(self, msg)
+
+
+class ASTFErrorBadMac(ASTFError):
+    def __init__(self, func, param, mac):
+        msg = "Bad MAC \"{0}\" for parameter {1} to function {2}".format(mac, param, func)
+        ASTFError.__init__(self, msg)
+

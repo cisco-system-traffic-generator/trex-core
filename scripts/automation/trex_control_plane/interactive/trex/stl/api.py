@@ -7,6 +7,8 @@ from ..utils.common import *
 from .trex_stl_client import STLClient, PacketBuffer
 from .trex_stl_packet_builder_scapy import *
 from .trex_stl_streams import *
+from ..common.trex_ns import *
+
 
 # scapy
 from scapy.all import Ether, IP, TCP, UDP

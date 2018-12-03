@@ -395,6 +395,15 @@ void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+
+
+void  TrexPort::set_name_space_batch_async(const std::string &json_cmds){
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "conf_ns_batch");
+    TrexRxConfNsBatch *msg = new TrexRxConfNsBatch(m_port_id, json_cmds);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+
 void TrexPort::invalidate_dst_mac(void) {
     TrexRxInvalidateDstMac *msg = new TrexRxInvalidateDstMac(m_port_id);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
@@ -479,20 +488,20 @@ void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
 void TrexPort::run_rx_cfg_tasks_initial_async(void) {
     /* valid at startup of server */
     verify_state(PORT_STATE_IDLE, "run_rx_cfg_tasks_initial");
-    TrexPort::run_rx_cfg_tasks_internal_async(0);
+    TrexPort::run_rx_cfg_tasks_internal_async(0,false);
 }
 
-uint64_t TrexPort::run_rx_cfg_tasks_async(void) {
+uint64_t TrexPort::run_rx_cfg_tasks_async(bool rpc) {
     /* valid at startup of server */
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "run_rx_cfg_tasks");
 
     uint64_t ticket_id = get_stx()->get_ticket();
-    TrexPort::run_rx_cfg_tasks_internal_async(ticket_id);
+    TrexPort::run_rx_cfg_tasks_internal_async(ticket_id,rpc);
     return ticket_id;
 }
 
-void TrexPort::run_rx_cfg_tasks_internal_async(uint64_t ticket_id) {
-    TrexRxRunCfgTasks *msg = new TrexRxRunCfgTasks(m_port_id, ticket_id);
+void TrexPort::run_rx_cfg_tasks_internal_async(uint64_t ticket_id,bool rpc) {
+    TrexRxRunCfgTasks *msg = new TrexRxRunCfgTasks(m_port_id, ticket_id,rpc);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
@@ -509,6 +518,17 @@ bool TrexPort::is_rx_running_cfg_tasks(void) {
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
     return reply.wait_for_reply();
 }
+
+
+void TrexPort::get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results,TrexStackResultsRC & rc){
+
+    static MsgReply<TrexStackResultsRC> reply;
+    reply.reset();
+    TrexRxGetTasksResultsEx *msg = new TrexRxGetTasksResultsEx(m_port_id, ticket_id, results, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    rc = reply.wait_for_reply();
+}
+
 
 bool TrexPort::get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results) {
     static MsgReply<bool> reply;
