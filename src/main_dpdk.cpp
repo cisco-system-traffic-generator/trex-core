@@ -568,6 +568,7 @@ static void get_dpdk_drv_params(CTrexDpdkParams &dpdk_p){
         dpdk_p.tx_desc_num = cg->m_tx_desc;
     }
 
+
     bool rx_scatter = get_ex_drv()->is_support_for_rx_scatter_gather();
     if (!rx_scatter){
         dpdk_p.rx_mbuf_type = MBUF_9k;
@@ -3772,6 +3773,23 @@ void CGlobalTRex::Delete(){
 }
 
 
+static bool is_valid_dpdk_limits(struct rte_eth_desc_lim * lim){
+    if ((lim->nb_min>0) && (lim->nb_max>0)) {
+        return (true);
+    }
+    return (false);
+}
+
+static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
+                                        uint16_t val,
+                                        uint16_t & new_val){
+    if ( lim->nb_max < val ) {
+        new_val =  lim->nb_max;
+        return (true);
+    }
+    return (false);
+}
+
 
 int  CGlobalTRex::device_prob_init(void){
 
@@ -3854,6 +3872,10 @@ int  CGlobalTRex::device_prob_init(void){
         printf("tx_offload_capa : 0x%lx \n",dev_info.tx_offload_capa);
         printf("rss reta_size   : %d \n",dev_info.reta_size);
         printf("flow_type_rss   : 0x%lx \n",dev_info.flow_type_rss_offloads);
+        printf("tx_desc_max     : 0x%lx \n",dev_info.tx_desc_lim.nb_max);
+        printf("tx_desc_min     : 0x%lx \n",dev_info.tx_desc_lim.nb_min);
+        printf("rx_desc_max     : 0x%lx \n",dev_info.rx_desc_lim.nb_max);
+        printf("rx_desc_min     : 0x%lx \n",dev_info.rx_desc_lim.nb_min);
     }
 
     m_drv = get_ex_drv();
@@ -3911,6 +3933,38 @@ int  CGlobalTRex::device_prob_init(void){
             exit(1);
         }
     }
+
+    if ( is_valid_dpdk_limits(&dev_info.tx_desc_lim) && 
+         is_valid_dpdk_limits(&dev_info.rx_desc_lim)) {
+        /* driver support min/max descriptors*/
+        CTrexDpdkParams dpdk_p;
+        CPlatformYamlInfo *cg = &global_platform_cfg_info;
+
+        get_dpdk_drv_params(dpdk_p);
+        if (is_val_not_in_range_dpdk_limits(&dev_info.tx_desc_lim,
+                                            dpdk_p.tx_desc_num,
+                                            cg->m_tx_desc)){
+            printf(" WARNING tx_desc_num was reduced from %d to %d \n",
+                   (int)dpdk_p.tx_desc_num,
+                   (int)cg->m_tx_desc);
+        }
+        if (is_val_not_in_range_dpdk_limits(&dev_info.rx_desc_lim,
+                                            dpdk_p.rx_desc_num_data_q,
+                                            cg->m_rx_desc)){
+            printf(" WARNING rx_desc_num was reduced from %d to %d \n",
+                   (int)dpdk_p.rx_desc_num_data_q,
+                   (int)cg->m_rx_desc);
+        }
+        if (is_val_not_in_range_dpdk_limits(&dev_info.rx_desc_lim,
+                                            dpdk_p.rx_desc_num_dp_q,
+                                            cg->m_rx_desc)){
+            printf(" WARNING tx_desc_num was reduced from %d to %d \n",
+                   (int)dpdk_p.rx_desc_num_dp_q,
+                   (int)cg->m_rx_desc);
+        }
+    }
+
+
     return (0);
 }
 
