@@ -2,11 +2,11 @@
 import sys, os
 from multiprocessing import Process
 import tempfile
+from functools import wraps
 
-def check_offsets(build, stdout, scapy_str):
+
+def check_offsets(build, scapy_str):
     import sys
-    sys.stdout = stdout
-    sys.stderr = stdout
 
     # clean this env
     for key in sys.modules.copy().keys():
@@ -49,10 +49,9 @@ def check_offsets(build, stdout, scapy_str):
 
         lay = lay.payload
 
-def check_offsets_pcap(stdout, pcap):
+
+def check_offsets_pcap(pcap):
     import sys
-    sys.stdout = stdout
-    sys.stderr = stdout
 
     # clean this env
     for key in sys.modules.copy().keys():
@@ -116,31 +115,39 @@ def check_offsets_pcap(stdout, pcap):
         lay = lay.payload
 
 
-def isolate_env(f, *a, **k):
-    with tempfile.TemporaryFile(mode = 'w+') as tmpfile:
-        k['stdout'] = tmpfile
-        p = Process(target = f, args = a, kwargs = k)
+def isolate_env(f):
+    @wraps(f)
+    def wrapped(*a):
+        print('')
+        p = Process(target = f, args = a)
         p.start()
         p.join()
-        print('')
-        tmpfile.seek(0)
-        print(tmpfile.read())
-    if p.exitcode:
-        raise Exception('Return status not zero, check the output')
+        if p.exitcode:
+            raise Exception('Return status not zero, check the output')
+    return wrapped
 
-class CScapyOffsets_Test():
+
+class CScapy_Test():
     def setUp(self):
         self.dir = os.path.abspath(os.path.dirname(__file__)) + '/'
 
     # verify that built packet gives non-zero offsets
-    def test_offsets_udp_build(self):
-        isolate_env(check_offsets, scapy_str = "Ether()/IP()/UDP()/('x'*9)", build = True)
+    @isolate_env
+    def test_scapy_offsets_udp_build(self):
+        check_offsets(scapy_str = "Ether()/IP()/UDP()/('x'*9)", build = True)
 
     # verify that non-built packet gives zero offsets
-    def test_offsets_udp_nobuild(self):
-        isolate_env(check_offsets, scapy_str = "Ether()/IP()/UDP()/('x'*9)", build = False)
+    @isolate_env
+    def test_scapy_offsets_udp_nobuild(self):
+        check_offsets(scapy_str = "Ether()/IP()/UDP()/('x'*9)", build = False)
 
     # verify that pcap either built or not gives same non-zero offsets
-    def test_offsets_pcap(self):
-        isolate_env(check_offsets_pcap, pcap = self.dir + 'golden/bp_sim_dns_vlans.pcap')
+    @isolate_env
+    def test_scapy_offsets_pcap(self):
+        check_offsets_pcap(pcap = self.dir + 'golden/bp_sim_dns_vlans.pcap')
 
+    @isolate_env
+    def test_scapy_ipfix(self):
+        from scapy.contrib.ipfix import NetflowV10
+        p = NetflowV10()
+        p.show2()
