@@ -128,7 +128,6 @@ TREX_RPC_CMD(TrexRpcCmdGetOwner,   "get_owner");
 /**
  * service mode & capture
  */
-TREX_RPC_CMD(TrexRpcCmdSetServiceMode, "service");
 
 TREX_RPC_CMD_EXT(TrexRpcCmdCapture,  "capture",
     void parse_cmd_start(const Json::Value &msg, Json::Value &result);
@@ -408,7 +407,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         api.get_port_info(i, port_info);
         api.port_id_to_cores(i, cores_id_list);
 
-        get_platform_api().getPortAttrObj(i)->get_supported_speeds(supp_speeds);
+        api.getPortAttrObj(i)->get_supported_speeds(supp_speeds);
         Json::Value port_json;
 
         port_json["index"]   = i;

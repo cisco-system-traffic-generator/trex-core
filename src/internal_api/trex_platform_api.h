@@ -79,6 +79,7 @@ public:
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const = 0;
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
+    virtual bool hw_rx_stat_supported() const = 0;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
@@ -125,6 +126,7 @@ public:
     int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const;
     int get_rx_err_cntrs(void *rx_err_cntrs) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
+    bool hw_rx_stat_supported() const;
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
@@ -209,6 +211,7 @@ public:
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const {return 0;};
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
+    virtual bool hw_rx_stat_supported() const { return false; }
     virtual int add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const {return 0;};
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto

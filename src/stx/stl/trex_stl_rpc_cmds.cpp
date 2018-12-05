@@ -982,6 +982,15 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    if ( get_platform_api().hw_rx_stat_supported() && port->has_flow_stats() ) {
+        for (auto &port : get_stateless_obj()->get_port_map()) {
+            if ( port.second->is_service_mode_on() ) {
+                generate_execute_err(result, "Port " + to_string(port.first) + " is under service mode, can't use flow_stats."
+                                             " (see https://trex-tgn.cisco.com/youtrack/issue/trex-545)");
+            }
+        }
+    }
+
     double    duration    = parse_double(params, "duration", result);
     bool      force       = parse_bool(params, "force", result);
     uint64_t  core_mask   = parse_uint64(params, "core_mask", result, TrexDPCoreMask::MASK_ALL);
@@ -994,10 +1003,6 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
         generate_parse_err(result, ss.str());
     }
 
-    if ( port->is_rx_running_cfg_tasks() ) {
-        generate_execute_err(result, "Interface is in the middle of configuration");
-    }
-
     /* multiplier */
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
 
@@ -1005,7 +1010,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string op     = parse_string(mul_obj, "op", result);
     double      value  = parse_udouble(mul_obj, "value", result);
     
-    if ( value == 0 ){
+    if ( value == 0 ) {
         generate_parse_err(result, "multiplier can't be zero");
     }
 
@@ -1015,6 +1020,10 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     dsec_t ts = now_sec();
     TrexPortMultiplier mul(type, op, value);
+
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
+    }
 
     try {
         port->start_traffic(mul, duration, force, core_mask, start_at_ts);
@@ -1376,7 +1385,17 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     bool enabled = parse_bool(params, "enabled", result);
-    
+
+    if ( enabled && get_platform_api().hw_rx_stat_supported() ) {
+        for (auto &port : get_stateless_obj()->get_port_map()) {
+            if ( port.second->is_running_flow_stats() ) {
+                string err = "port " + to_string(port.first) + " is using flow_stats."
+                             " (see https://trex-tgn.cisco.com/youtrack/issue/trex-545)";
+                generate_execute_err(result, err);
+            }
+        }
+    }
+
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
     try {
         port->set_service_mode(enabled);

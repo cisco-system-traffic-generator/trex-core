@@ -4,6 +4,7 @@ from functools import wraps
 from trex_stl_lib.api import *
 import os, sys
 import copy
+from nose.tools import assert_raises
 
 ERROR_LATENCY_TOO_HIGH = 1
 ERROR_CNTR_NOT_0 = 2
@@ -841,6 +842,36 @@ class STLRX_Test(CStlGeneral_Test):
         exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
 
         self.__rx_iteration( [exp] )
+
+
+    def test_service_mode_flow_stats(self):
+        s = STLStream(packet = self.pkt,
+                       flow_stats = STLFlowStats(pg_id = 5))
+        self.c.add_streams(s, ports = [self.tx_port])
+
+        self.c.set_service_mode(ports = [self.tx_port, self.rx_port], enabled = True)
+        self.c.set_service_mode(ports = [self.tx_port], enabled = False)
+
+        # i40 should not let start traffic with flow stats if service is enabled on some port
+        # (...unless --software, but we don't use it)
+        if self.drv_name == 'net_i40e':
+            with assert_raises(TRexError):
+                self.c.start(ports = [self.tx_port])
+        else:
+            self.c.start(ports = [self.tx_port])
+
+        self.c.stop()
+        self.c.set_service_mode(ports = [self.rx_port], enabled = False)
+        self.c.start(ports = [self.tx_port])
+
+        # i40 should not let enable service mode with flow stats on some port
+        # (...unless --software, but we don't use it)
+        if self.drv_name == 'net_i40e':
+            with assert_raises(TRexError):
+                self.c.set_service_mode(ports = [self.rx_port], enabled = True)
+        else:
+            self.c.set_service_mode(ports = [self.rx_port], enabled = True)
+
 
     def get_stats(self):
         old_stats = self.c.get_stats()

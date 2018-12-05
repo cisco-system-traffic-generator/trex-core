@@ -383,6 +383,14 @@ public:
         return (m_rx_check.m_enabled && (m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD));
     }
 
+    bool need_flow_stats() const {
+        return m_rx_check.m_enabled && !m_null_stream;
+    }
+
+    bool has_explicit_dst_mac() {
+        return get_override_dst_mac_mode() == TrexStream::stPKT;
+    }
+
     bool is_fixed_rate_stream() const {
         return is_latency_stream();
     }
