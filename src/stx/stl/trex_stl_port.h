@@ -135,7 +135,10 @@ public:
     bool is_service_mode_on() const {
         return m_is_service_mode_on;
     }
-     
+
+    bool is_running_flow_stats();
+    bool has_flow_stats();
+
     /**
      * the the max stream id currently assigned
      *
@@ -192,7 +195,7 @@ public:
 private:
     void set_service_mode_on();
     void set_service_mode_off();
-    
+
     
     /**
      * when a port stops, perform various actions
@@ -227,6 +230,8 @@ private:
     bool               m_last_all_streams_continues;
     double             m_last_duration;
     double             m_factor;
+    uint32_t           m_non_explicit_dst_macs_count;
+    uint32_t           m_flow_stats_count;
 
     /* holds a graph of streams rate*/
     const TrexStreamsGraphObj  *m_graph_obj;

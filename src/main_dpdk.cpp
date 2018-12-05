@@ -6859,6 +6859,10 @@ int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
     return g_trex.m_ports[port_id]->reset_hw_flow_stats();
 }
 
+bool TrexDpdkPlatformApi::hw_rx_stat_supported() const {
+    return get_ex_drv()->hw_rx_stat_supported();
+}
+
 int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                                , uint8_t ipv6_next_h, uint16_t id) const {
     if (!get_dpdk_mode()->is_hardware_filter_needed()) {

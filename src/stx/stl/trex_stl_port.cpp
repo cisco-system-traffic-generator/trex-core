@@ -172,6 +172,8 @@ private:
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
     m_is_service_mode_on  = false;
     m_graph_obj = NULL;
+    m_non_explicit_dst_macs_count = 0;
+    m_flow_stats_count = 0;
 }
 
 TrexStatelessPort::~TrexStatelessPort() {
@@ -180,6 +182,13 @@ TrexStatelessPort::~TrexStatelessPort() {
     remove_and_delete_all_streams();
 }
 
+bool TrexStatelessPort::is_running_flow_stats() {
+    return ( m_port_state == PORT_STATE_TX || m_port_state == PORT_STATE_PAUSE ) && has_flow_stats();
+}
+
+bool TrexStatelessPort::has_flow_stats() {
+    return m_flow_stats_count;
+}
 
 /**
  * starts the traffic on the port
@@ -204,28 +213,13 @@ TrexStatelessPort::start_traffic(const TrexPortMultiplier &mul, double duration,
         }
 
         /* verify either valid dest MAC on port or explicit dest MAC on ALL streams */
-        bool has_non_explicit_dst_mac_stream = false;
-        for (auto &stream : m_stream_table) {
-            if ( stream.second->get_override_dst_mac_mode() != TrexStream::stPKT ) {
-                has_non_explicit_dst_mac_stream = true;
-                break;
-            }
-        }
-
-        if ( has_non_explicit_dst_mac_stream ) {
-            bool port_dst_mac_valid = is_dst_mac_valid();
-            if ( !port_dst_mac_valid ) {
-                std::string err;
-                err = "Port " + std::to_string(m_port_id) + " dest MAC is invalid and there are streams without explicit dest MAC.";
-                throw TrexException(err);
-            }
+        if ( m_non_explicit_dst_macs_count && !is_dst_mac_valid()) {
+            throw TrexException("Port " + to_string(m_port_id) + " dest MAC is invalid and there are streams without explicit dest MAC.");
         }
     }
 
-    /* we now need the graph - generate it if we don't have it (happens once) */
-    if (!m_graph_obj) {
-        generate_streams_graph();
-    }
+    /* we now need the graph - generate it (happens once) */
+    generate_streams_graph();
 
     /* caclulate the effective factor for DP */
     double factor = calculate_effective_factor(mul, force, *m_graph_obj);
@@ -844,6 +838,15 @@ TrexStatelessPort::add_stream(TrexStream *stream) {
     m_stream_table.add_stream(stream);
     delete_streams_graph();
 
+    if ( !stream->is_null_stream() ) {
+        if ( stream->m_rx_check.m_enabled ) {
+            m_flow_stats_count++;
+        }
+        if ( !stream->has_explicit_dst_mac() ) {
+            m_non_explicit_dst_macs_count++;
+        }
+    }
+
     change_state(PORT_STATE_STREAMS);
 }
 
@@ -856,6 +859,15 @@ TrexStatelessPort::remove_stream(TrexStream *stream) {
 
     m_stream_table.remove_stream(stream);
     delete_streams_graph();
+
+    if ( !stream->is_null_stream() ) {
+        if ( stream->m_rx_check.m_enabled ) {
+            m_flow_stats_count--;
+        }
+        if ( !stream->has_explicit_dst_mac() ) {
+            m_non_explicit_dst_macs_count--;
+        }
+    }
 
     if (m_stream_table.size() == 0) {
         change_state(PORT_STATE_IDLE);
@@ -873,6 +885,8 @@ TrexStatelessPort::remove_and_delete_all_streams() {
         remove_stream(stream);
         delete stream;
     }
+    m_non_explicit_dst_macs_count = 0;
+    m_flow_stats_count = 0;
 }
 
 /**

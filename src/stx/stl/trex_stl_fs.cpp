@@ -556,13 +556,9 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
 #endif
     CFlowStatParser_err_t ret = parser->parse(stream->m_pkt.binary, stream->m_pkt.len);
 
-    if (ret != FSTAT_PARSER_E_OK) {
-        // if we could not parse the packet, but no stat count needed, it is probably OK.
-        if (stream->m_rx_check.m_enabled && !stream->is_null_stream()) {
-            throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
-        } else {
-            return 0;
-        }
+    // if we could not parse the packet, but no stat count needed, it is probably OK.
+    if ( ret != FSTAT_PARSER_E_OK && stream->need_flow_stats() ) {
+        throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
     }
 
     return 0;
@@ -594,7 +590,7 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     stream_dump(stream);
 #endif
 
-    if ( !stream->m_rx_check.m_enabled || stream->is_null_stream() ) {
+    if ( !stream->need_flow_stats() ) {
         return 0;
     }
 
@@ -696,7 +692,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
     stream_dump(stream);
 #endif
 
-    if ( !stream->m_rx_check.m_enabled || stream->is_null_stream() ) {
+    if ( !stream->need_flow_stats() ) {
         return 0;
     }
 
@@ -812,7 +808,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     }
 
     // first handle streams that do not need rx stat
-    if ( !stream->m_rx_check.m_enabled || stream->is_null_stream() ) {
+    if ( !stream->need_flow_stats() ) {
         try {
             compile_stream(stream, m_parser_ipid);
         } catch (TrexFStatEx) {
@@ -1005,7 +1001,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 
     int ret = -1;
 
-    if ( !stream->m_rx_check.m_enabled || stream->is_null_stream() ) {
+    if ( !stream->need_flow_stats() ) {
         return -1;
     }
 
