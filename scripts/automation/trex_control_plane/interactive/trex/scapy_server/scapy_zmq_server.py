@@ -130,7 +130,9 @@ class Scapy_server():
         try:
             while True:
                 try:
-                    message = self.socket.recv_string()
+                    message = self.socket.recv()
+                    message = message.decode()
+
                     self.logger.info('Received Message: %s' % message)
                 except zmq.ZMQError as e:
                     if e.errno != errno.EINTR:

@@ -16,9 +16,11 @@ class Scapy_server_wrapper():
     def call_method(self,method_name,method_params):
         json_rpc_req = { "jsonrpc":"2.0","method": method_name ,"params": method_params, "id":"1"}
         request = json.dumps(json_rpc_req)
-        self.socket.send_string(request)
+        self.socket.send(request.encode('utf-8'))
         #  Get the reply.
-        message = self.socket.recv_string()
+        message = self.socket.recv()
+        message = message.decode()
+
         message_parsed = json.loads(message)
         if 'result' in message_parsed.keys():
             result = message_parsed['result']
@@ -41,50 +43,57 @@ class Scapy_server_wrapper():
 
     def build_pkt(self,pkt_descriptor):
         return self.call_method('build_pkt',[pkt_descriptor])
-        
+
+    def _input(self, *args, **kwargs):
+        try:
+            return raw_input(*args, **kwargs)
+        except NameError:
+            return input(*args, **kwargs)
+
     def _get_all_pkt_offsets(self,pkt_desc):
         return self.call_method('_get_all_pkt_offsets',[pkt_desc])
 
     def _activate_console(self):
         context = zmq.Context()
         #  Socket to talk to server
-        print 'Connecting:'
+        print('Connecting:')
         socket = context.socket(zmq.REQ)
         socket.connect("tcp://"+str(self.server_ip_address)+":"+str(self.dest_scapy_port)) 
         try:
             print('This is a simple console to communicate with Scapy server.\nInvoke supported_methods (with 1 parameter = all) to see supported commands\n')
             while True:
-                command = raw_input("enter RPC command [enter quit to exit]:\n")
+                command = self._input("enter RPC command [enter quit to exit]:\n")
                 if (command == 'quit'):
                     break      
                 parameter_num = 0
                 params = []
                 while True:
                     try:
-                        parameter_num = int(raw_input('Enter number of parameters to command:\n'))
+                        parameter_num = int(self._input('Enter number of parameters to command:\n'))
                         break
                     except Exception:
                         print('Invalid input. Try again')
                 for i in range(1,parameter_num+1,1):
-                    print "input parameter %d:" % i
-                    user_parameter = raw_input()
+                    print("input parameter %d:" % i)
+                    user_parameter = self._input()
                     params.append(user_parameter)
-                pprint_output = raw_input('pprint the output [y/n]? ')
+                pprint_output = self._input('pprint the output [y/n]? ')
                 while ((pprint_output!= 'y')  and (pprint_output!='n')):
-                    pprint_output = raw_input('pprint the output [y/n]? ')
+                    pprint_output = self._input('pprint the output [y/n]? ')
                 json_rpc_req = { "jsonrpc":"2.0","method": command ,"params":params, "id":"1"}
                 request = json.dumps(json_rpc_req)
                 print("Sending request in json format %s " % request)
-                socket.send(request)
+                socket.send(request.encode('utf-8'))
 
                 #  Get the reply.
                 message = socket.recv()
-                print ('received reply:')
+                message = message.decode()
+                print('received reply:')
                 parsed_message = json.loads(message)
                 if (pprint_output == 'y'):
                     pprint(parsed_message)
                 else:
-                    print message
+                    print(message)
         except KeyboardInterrupt:
                         print('Terminated By Ctrl+C')
         finally:
