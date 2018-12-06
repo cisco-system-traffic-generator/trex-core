@@ -211,13 +211,13 @@ class STLRX_Test(CStlGeneral_Test):
                     func(self, *args, **kwargs)
                     break
                 except STLError as e:
-                    num_tries += 1
-                    if num_tries > max_tries:
+                    if num_tries >= max_tries:
                         print ("Try {0} failed. Giving up".format(num_tries))
-                        assert False , '{0}'.format(e)
+                        raise
                     else:
                         print ("Try {0} failed. Retrying".format(num_tries))
                         print("({0}".format(e))
+                    num_tries += 1
 
         return wrapped
 
@@ -573,7 +573,7 @@ class STLRX_Test(CStlGeneral_Test):
                     self.__rx_iteration( [exp] )
                 except STLError as e:
                     self.c.remove_all_streams(ports = [self.tx_port])
-                    raise e
+                    raise
             self.c.remove_all_streams(ports = [self.tx_port])
 
 
@@ -660,15 +660,15 @@ class STLRX_Test(CStlGeneral_Test):
 
             error=1;
             for j in range(0,5):
-               print(" {4} - duration {0} pgid {1} pkt_size {2} s_port {3} ".format(duration,pgid,pkt_size,s_port,j));
-               if self.__9k_stream(pgid,
+                print(" {4} - duration {0} pgid {1} pkt_size {2} s_port {3} ".format(duration,pgid,pkt_size,s_port,j));
+                if self.__9k_stream(pgid,
                                         s_port, self.rate_percent,
                                         self.latency_9k_max_latency,
                                         self.latency_9k_max_average,
                                         duration,
                                         pkt_size)==0:
-                   error=0;
-                   break;
+                    error=0;
+                    break;
 
             if error:
                 assert False , "Latency too high"
