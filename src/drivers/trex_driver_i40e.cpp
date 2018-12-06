@@ -104,6 +104,8 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
     case RTE_ETH_FLOW_NONFRAG_IPV4_TCP:
     case RTE_ETH_FLOW_NONFRAG_IPV4_SCTP:
     case RTE_ETH_FLOW_NONFRAG_IPV4_OTHER:
+    case RTE_ETH_FLOW_IPV4:
+    case RTE_ETH_FLOW_FRAG_IPV4:
         filter.input.flow.ip4_flow.ttl=ttl;
         filter.input.flow.ip4_flow.ip_id = ip_id;
         if (l4_proto != 0)
@@ -112,6 +114,8 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
     case RTE_ETH_FLOW_NONFRAG_IPV6_UDP:
     case RTE_ETH_FLOW_NONFRAG_IPV6_TCP:
     case RTE_ETH_FLOW_NONFRAG_IPV6_OTHER:
+    case RTE_ETH_FLOW_IPV6:
+    case RTE_ETH_FLOW_FRAG_IPV6:
         filter.input.flow.ipv6_flow.hop_limits=ttl;
         filter.input.flow.ipv6_flow.flow_label = ip_id;
         filter.input.flow.ipv6_flow.proto = l4_proto;
@@ -239,11 +243,18 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, IPPROTO_ICMP, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV4, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
         add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 0
+                      , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
+
+        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV6, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
 
         rte_eth_fdir_stats_reset(repid, NULL, FDIR_TEMP_HW_ID, 1);
@@ -393,10 +404,15 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, repid, RTE_ETH_FLOW_FRAG_IPV4, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    
+
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_SCTP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+    add_del_rules(op, repid, RTE_ETH_FLOW_FRAG_IPV6, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
+
 
     if (! set_on) {
         configure_rx_filter_rules(_if);
