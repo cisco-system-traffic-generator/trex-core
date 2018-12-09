@@ -184,6 +184,10 @@ void TrexAstf::cleanup() {
     send_message_to_all_dp(msg);
 }
 
+bool TrexAstf::is_trans_state() {
+    return m_state == STATE_PARSE || m_state == STATE_BUILD || m_state == STATE_CLEANUP;
+}
+
 bool TrexAstf::profile_needs_parsing() {
     return m_profile_hash.size() && !m_profile_parsed;
 }
@@ -227,7 +231,7 @@ void TrexAstf::change_state(state_e new_state) {
 
     Json::Value data;
     data["state"] = m_state;
-    if ( is_error() ) {
+    if ( is_error() && !is_trans_state() ) {
         data["error"] = m_error;
         m_error = "";
     }
