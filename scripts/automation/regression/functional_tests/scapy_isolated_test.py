@@ -148,6 +148,6 @@ class CScapy_Test():
 
     @isolate_env
     def test_scapy_ipfix(self):
-        from scapy.contrib.ipfix import NetflowV10
-        p = NetflowV10()
+        from scapy.contrib.ipfix import IPFIX
+        p = IPFIX()
         p.show2()

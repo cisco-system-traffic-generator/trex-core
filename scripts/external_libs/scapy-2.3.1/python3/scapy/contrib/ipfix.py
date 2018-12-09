@@ -36,20 +36,11 @@ ietf_field_type_names = _fill_from_csv(ietf_csv)
 cisco_field_type_names = _fill_from_csv(cisco_csv)
 
 
-class _NetflowV10MessageHeader(Packet):
-    fields_desc = [
-            ShortField('version', 10),
-            ShortField('length', 0),
-            IntField('export_time', 0),
-            IntField('sequence_number',0),
-            IntField('domain_id', 0) ]
-
-
-class NetflowV10Set(Raw):
+class IPFIXSet(Raw):
     _set_types = {}
     @classmethod
     def register_variant(cls):
-        if cls.__name__ == 'NetflowV10Set':
+        if cls.__name__ == 'IPFIXSet':
             return
         cls._set_types[cls.set_id.default] = cls
 
@@ -64,7 +55,7 @@ class NetflowV10Set(Raw):
         return cls
 
 
-class _NetflowV10TemplateRecordHeader(Packet):
+class _IPFIXTemplateRecordHeader(Packet):
     fields_desc = [
             ShortField('template_id', 255),
             FieldLenField('field_count', None, count_of='field_specifiers') ]
@@ -75,8 +66,8 @@ class FieldNameByType(BitField):
         return _get_type_name(pkt.enterprise_bit, x, pkt.enterprise_number)
 
 
-class NetflowV10FieldSpecifier(Packet):
-    name = 'Netflow V10 Field Specifier'
+class IPFIXFieldSpecifier(Packet):
+    name = 'IPFIX Field Specifier'
     fields_desc = [
             BitField('enterprise_bit', 0, 1),
             FieldNameByType('information_element_identifier', 0, 15),
@@ -87,10 +78,10 @@ class NetflowV10FieldSpecifier(Packet):
         return '', s
 
 
-class NetflowV10TemplateRecord(Packet):
+class IPFIXTemplateRecord(Packet):
     fields_desc = [
-            _NetflowV10TemplateRecordHeader,
-            PacketListField('field_specifiers', [], NetflowV10FieldSpecifier, count_from = lambda p:p.field_count) ]
+            _IPFIXTemplateRecordHeader,
+            PacketListField('field_specifiers', [], IPFIXFieldSpecifier, count_from = lambda p:p.field_count) ]
 
     def extract_padding(self, s):
         return '', s
@@ -99,43 +90,48 @@ class NetflowV10TemplateRecord(Packet):
         tmpl_sets[self.template_id] = [field_desc.fields for field_desc in  self.field_specifiers]
         return Packet.post_dissect(self, *a, **k)
 
+    def post_build(self, *a, **k):
+        assert self.template_id is not None
+        tmpl_sets[self.template_id] = [field_desc.fields for field_desc in  self.field_specifiers]
+        return Packet.post_build(self, *a, **k)
 
-class _NetflowV10SetHeader(Packet):
+
+class _IPFIXSetHeader(Packet):
     fields_desc = [ 
             ShortField('set_id', None),
             FieldLenField('length', None, length_of = 'records', adjust = lambda pkt,x:x+4) ]
 
 
-class NetflowV10SetTemplate(NetflowV10Set):
-    name = 'Netflow V10 Template set'
+class IPFIXSetTemplate(IPFIXSet):
+    name = 'IPFIX Template set'
     set_id = 2
     fields_desc = [
-            _NetflowV10SetHeader,
-            PacketListField('records', [], NetflowV10TemplateRecord, length_from = lambda pkt: pkt.length-4) ]
+            _IPFIXSetHeader,
+            PacketListField('records', [], IPFIXTemplateRecord, length_from = lambda pkt: pkt.length-4) ]
 
     def extract_padding(self, s):
         return '', s
 
 
-class NetflowV10OptionRecord(Raw): pass
+class IPFIXOptionRecord(Raw): pass
 
 
-class NetflowV10SetOption(NetflowV10Set):
-    name = 'Netflow V10 Option template set'
+class IPFIXSetOption(IPFIXSet):
+    name = 'IPFIX Option template set'
     set_id = 3
     fields_desc = [
-            _NetflowV10SetHeader,
-            PacketListField('records', [], NetflowV10OptionRecord, length_from = lambda pkt: pkt.length-4) ]
+            _IPFIXSetHeader,
+            PacketListField('records', [], IPFIXOptionRecord, length_from = lambda pkt: pkt.length-4) ]
 
     def extract_padding(self, s):
         return '', s
 
 
-class NetflowV10SetDataRaw(Packet):
-    name = 'Netflow V10 Data set (no template)'
+class IPFIXSetDataRaw(IPFIXSet):
+    name = 'IPFIX Data set (no template)'
     fields_desc = [
-            _NetflowV10SetHeader,
-            StrFixedLenField('raw', None, length_from = lambda pkt: pkt.length-4) ]
+            _IPFIXSetHeader,
+            StrField('records', '') ]
 
     def extract_padding(self, s):
         return '', s
@@ -174,8 +170,7 @@ def _get_type_name(enter_bit, field_type, enter_num):
 def _get_field_desc(tmpl_set):
     _fields_desc = []
     for index, desc in enumerate(tmpl_set):
-        type_name = _get_type_name(desc['enterprise_bit'], desc['information_element_identifier'], desc['enterprise_number'])
-        #name = 'Field %s/%s, %s ' % (index, len(tmpl_set), type_name)
+        type_name = _get_type_name(desc['enterprise_bit'], desc['information_element_identifier'], desc.get('enterprise_number'))
         length = desc['field_length']
         if length == 65535: # Variable length field
             field = VariableLengthField(type_name, '')
@@ -188,32 +183,35 @@ def _get_field_desc(tmpl_set):
 def generate_data_record(set_id, pkt, *a, **k):
     tmpl_set = tmpl_sets.get(set_id)
     if not tmpl_set: # we did not see template
-        return NetflowV10SetDataRaw
+        return IPFIXSetDataRaw
 
     _fields_desc = _get_field_desc(tmpl_set)
-    class NetflowV10DataRecord(Packet):
+    class IPFIXDataRecord(Packet):
         fields_desc = _fields_desc
 
         def extract_padding(self, s):
             return '', s
 
-    class NetflowV10SetData(NetflowV10SetDataRaw):
-        name = 'Netflow V10 Data set (ID %s)' % set_id
+    class IPFIXSetData(IPFIXSetDataRaw):
+        name = 'IPFIX Data set (ID %s)' % set_id
         fields_desc = [
-                _NetflowV10SetHeader,
-                PacketListField('records', [], NetflowV10DataRecord, length_from = lambda pkt: pkt.length-4) ]
+                _IPFIXSetHeader,
+                PacketListField('records', [], IPFIXDataRecord, length_from = lambda pkt: pkt.length-4) ]
 
-    return NetflowV10SetData
+    return IPFIXSetData
 
 
-class NetflowV10(Packet):
-    name = 'Netflow V10'
+class IPFIX(Packet):
+    name = 'IPFIX'
     fields_desc = [
-            _NetflowV10MessageHeader,
-            PacketListField('sets', [], NetflowV10Set) ]
+            ShortField('version', 10),
+            FieldLenField('length', None, length_of = 'sets', adjust = lambda pkt,x: x+16),
+            IntField('export_time', 0),
+            IntField('sequence_number',0),
+            IntField('domain_id', 0),
+            PacketListField('sets', [], IPFIXSet, length_from = lambda pkt: pkt.length-16) ]
 
 
 
-
-bind_layers( NetflowHeader, NetflowV10, version=10 )
+bind_layers( UDP, IPFIX, dport=4739 )
 
