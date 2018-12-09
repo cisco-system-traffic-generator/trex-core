@@ -71,7 +71,7 @@ def start_daemon():
                 print(termstyle.green('TRex server daemon is started'))
                 os._exit(0)
             sleep(0.1)
-        fail(termstyle.red('TRex server daemon failed to run'))
+        fail(termstyle.red('TRex server daemon failed to run, look at: /var/log/trex/trex_daemon_server.log'))
     os.setsid()
     pid = os.fork()
     if pid > 0:

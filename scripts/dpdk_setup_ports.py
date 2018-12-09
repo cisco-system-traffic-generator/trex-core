@@ -23,6 +23,7 @@ import platform
 import stat
 import time
 import shutil
+import signal
 
 from dpdk_nic_bind import is_napatech
 
@@ -1421,11 +1422,20 @@ To see more detailed info on interfaces (table):
     if  map_driver.args.cfg :
         map_driver.cfg_file = map_driver.args.cfg;
 
+
+def signal_handler(sig, frame):
+    sys.stdout.write('Caught signal SIGUSR1, printing traceback:')
+    sys.stdout.flush()
+    traceback.print_stack(frame)
+    sys.exit(1)
+
+
 def main ():
     try:
         if os.getuid() != 0:
             raise DpdkSetup('Please run this program as root/with sudo')
 
+        signal.signal(signal.SIGUSR1, signal_handler)
         process_options ()
 
         if map_driver.args.show:

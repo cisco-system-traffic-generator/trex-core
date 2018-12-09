@@ -126,6 +126,7 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Idle:
                 raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
+        self.server.force_trex_kill()
         raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
