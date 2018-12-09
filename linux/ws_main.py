@@ -435,6 +435,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 #'-DGLIBCXX_USE_CXX11_ABI=0',
                 '-g',
                 '-Wno-deprecated-declarations',
+                '-Wno-error=uninitialized',
                 '-std=c++0x',
        ];
 

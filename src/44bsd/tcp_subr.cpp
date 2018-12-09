@@ -875,10 +875,11 @@ void CFlowTemplate::build_template_ip(CTcpPerThreadCtx * ctx){
 void CFlowTemplate::build_template_tcp(CTcpPerThreadCtx * ctx){
        const uint8_t tcp_header[] = {
          0x00, 0x00, 0x00, 0x00, // src, dst ports  //TCP
-         0x00, 0x00, 0x00, 0x00, 
+         0x00, 0x00, 0x00, 0x00,
          0x00, 0x00, 0x00, 0x00, // seq num, ack num
          0x50, 0x00, 0x00, 0x00, // Header size, flags, window size
-         0x00, 0x00, 0x00, 0x00 // checksum ,urgent pointer
+         0x00, 0x00, 0x00, 0x00, // checksum ,urgent pointer
+         0x00, 0x00, 0x00, 0x00
        };
 
        uint8_t *p=m_template_pkt;
