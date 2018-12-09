@@ -207,6 +207,7 @@ protected:
     void build();
     void transmit();
     void cleanup();
+    bool is_trans_state();
 
     bool is_error() {
         return m_error.size() > 0;

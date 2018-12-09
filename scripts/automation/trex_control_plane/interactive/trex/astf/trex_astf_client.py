@@ -144,14 +144,21 @@ class ASTFClient(TRexClient):
             bad_states = listify(bad_states)
         rc = self._transmit(rpc_func, **k)
         if not rc:
+            if bad_states:
+                while self.state not in bad_states:
+                    time.sleep(0.1)
             return rc
         while True:
-            time.sleep(0.01)
+            time.sleep(0.1)
             state = self.state
             if ok_states and state in ok_states:
                 return RC_OK()
-            if self.last_error or (bad_states and state in bad_states):
-                return RC_ERR(self.last_error)
+            error = self.last_error
+            if bad_states:
+                if state in bad_states:
+                    return RC_ERR(error or 'Unknown error')
+            elif error:
+                return RC_ERR(error)
 
 
 ############################       ASTF     #############################
