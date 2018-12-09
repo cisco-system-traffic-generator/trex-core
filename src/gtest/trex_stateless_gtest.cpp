@@ -4743,20 +4743,20 @@ TEST_F(flow_stat, add_del_stream) {
 
     try {
         CFlowStatRuleMgr::instance()->del_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
     }
 
     try {
         CFlowStatRuleMgr::instance()->add_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
     }
 
     stream.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
     try {
         CFlowStatRuleMgr::instance()->add_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
     }
 
@@ -4772,7 +4772,7 @@ TEST_F(flow_stat, add_del_stream) {
     stream3.m_pkt.len = sizeof(test_pkt);
     try {
         ret = CFlowStatRuleMgr::instance()->add_stream(&stream3);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DUP_PG_ID);
     }
 
@@ -4791,7 +4791,7 @@ TEST_F(flow_stat, add_del_stream) {
     assert (ret == 0);
     try {
         CFlowStatRuleMgr::instance()->del_stream(&stream2);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     }
 

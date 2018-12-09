@@ -157,10 +157,8 @@ void CFlowStatUserIdInfo::reset_hw_id() {
     FUNC_ENTRY;
 
     m_hw_id = HW_ID_INIT;
-    for (int i = 0; i < TREX_MAX_PORTS; i++) {
-        memset(&m_rx_cntr[i], 0, sizeof(m_rx_cntr[0]));
-        memset(&m_tx_cntr[i], 0, sizeof(m_tx_cntr[0]));
-    }
+    memset(m_rx_cntr, 0, sizeof(m_rx_cntr[0]) * TREX_MAX_PORTS);
+    memset(m_tx_cntr, 0, sizeof(m_tx_cntr[0]) * TREX_MAX_PORTS);
 }
 
 void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update
@@ -826,7 +824,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     if ( !stream->need_flow_stats() ) {
         try {
             compile_stream(stream, m_parser_ipid);
-        } catch (TrexFStatEx) {
+        } catch (TrexFStatEx&) {
             // If no statistics needed, and we can't parse the stream, that's OK.
             DEBUG_PRINT("  No rx check needed. Compilation failed - return 0\n");
             return 0;
