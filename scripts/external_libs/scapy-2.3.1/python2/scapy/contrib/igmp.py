@@ -19,16 +19,14 @@ def isValidMCAddr(ip):
 
 class IGMP(Packet):
   """IGMP Message Class for v1 and v2.
-
 This class is derived from class Packet. You  need to "igmpize"
 the IP and Ethernet layers before a full packet is sent.
 a=Ether(src="00:01:02:03:04:05")
 b=IP(src="1.2.3.4")
 c=IGMP(type=0x12, gaddr="224.2.3.4")
 c.igmpize(b, a)
-print "Joining IP " + c.gaddr + " MAC " + a.dst
+print("Joining IP " + c.gaddr + " MAC " + a.dst)
 sendp(a/b/c, iface="en0")
-
     Parameters:
       type    IGMP type field, 0x11, 0x12, 0x16 or 0x17
       mrtime  Maximum Response time (zero for v1)
@@ -36,7 +34,6 @@ sendp(a/b/c, iface="en0")
       
 See RFC2236, Section 2. Introduction for definitions of proper 
 IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
-
   """
   name = "IGMP"
   
@@ -53,7 +50,6 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
 #--------------------------------------------------------------------------
   def post_build(self, p, pay):
     """Called implicitly before a packet is sent to compute and place IGMP checksum.
-
     Parameters:
       self    The instantiation of an IGMP class
       p       The IGMP message in hex in network byte order
@@ -62,33 +58,31 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
     p += pay
     if self.chksum is None:
       ck = checksum(p)
-      p = p[:2]+chr(ck>>8)+chr(ck&0xff)+p[4:]
+      p = p[:2]+bytes(ck>>8)+bytes(ck&0xff)+p[4:]
+      
     return p
 
 #--------------------------------------------------------------------------
   def mysummary(self):
     """Display a summary of the IGMP object."""
-
-    if isinstance(self.underlayer, IP):
-      return self.underlayer.sprintf("IGMP: %IP.src% > %IP.dst% %IGMP.type% %IGMP.gaddr%")
-    else:
-      return self.sprintf("IGMP %IGMP.type% %IGMP.gaddr%")
+    pass;
+    #if isinstance(self.underlayer, IP):
+    #  return self.underlayer.sprintf("IGMP: %IP.src% > %IP.dst% %IGMP.type% %IGMP.gaddr%")
+    #else:
+    #  return self.sprintf("IGMP %IGMP.type% %IGMP.gaddr%")
 
 #--------------------------------------------------------------------------
   def igmpize(self, ip=None, ether=None):
     """Called to explicitely fixup associated IP and Ethernet headers
-
     Parameters:
       self    The instantiation of an IGMP class.
       ip      The instantiation of the associated IP class.
       ether   The instantiation of the associated Ethernet.
-
     Returns:
       True    The tuple ether/ip/self passed all check and represents
                a proper IGMP packet.
       False   One of more validation checks failed and no fields 
                were adjusted.
-
     The function will examine the IGMP message to assure proper format. 
     Corrections will be attempted if possible. The IP header is then properly 
     adjusted to ensure correct formatting and assignment. The Ethernet header
@@ -109,7 +103,6 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
 #--------------------------------------------------------------------------
   def adjust_ether (self, ip=None, ether=None):
     """Called to explicitely fixup an associated Ethernet header
-
     The function adjusts the ethernet header destination MAC address based on 
     the destination IP address.
     """
@@ -126,7 +119,6 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
 #--------------------------------------------------------------------------
   def adjust_ip (self, ip=None):
     """Called to explicitely fixup an associated IP header
-
     The function adjusts the IP header based on conformance rules 
     and the group address encoded in the IGMP message.
     The rules are:
@@ -146,7 +138,7 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
           ip.dst = self.gaddr                    # IP rule 3a
           retCode = True
         else:
-          print "Warning: Using invalid Group Address"
+          print("Warning: Using invalid Group Address")
           retCode = False
       elif ((self.type == 0x17) and isValidMCAddr(self.gaddr)):
           ip.dst = "224.0.0.2"                   # IP rule 2
@@ -155,10 +147,10 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
           ip.dst = self.gaddr                    # IP rule 3b
           retCode = True
       else:
-        print "Warning: Using invalid IGMP Type"
+        print("Warning: Using invalid IGMP Type")
         retCode = False
     else:
-      print "Warning: No IGMP Group Address set"
+      print("Warning: No IGMP Group Address set")
       retCode = False
     if retCode == True:
        ip.ttl=1                                  # IP Rule 4
@@ -167,5 +159,4 @@ IGMPv2 message format   http://www.faqs.org/rfcs/rfc2236.html
 
 
 bind_layers( IP,            IGMP,            frag=0, proto=2)
-
 
