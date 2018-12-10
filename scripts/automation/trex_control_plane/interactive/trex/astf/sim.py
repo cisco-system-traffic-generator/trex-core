@@ -18,6 +18,7 @@ import sys
 import subprocess
 import re
 import tempfile
+import signal
 from trex.utils.common import get_current_user
 from .trex_astf_profile import *
 from .cap_handling import CPcapFixTime, is_udp_pcap, pcap_cut_udp
@@ -125,6 +126,8 @@ def execute_bp_sim(opts):
 
         out.seek(0)
         output = out.read()
+        if rc == -signal.SIGSEGV:
+            raise Exception('Segmentation fault in simulator!\nOutput: %s' % output)
         if rc != 0:
             raise Exception('Simulation has failed with error code %s\nOutput: %s' % (rc, output))
         if opts.verbose:
