@@ -76,6 +76,8 @@ class CTRexServer(object):
         self.start_lock         = threading.Lock()
         self.__reservation      = None
         self.trex_nice          = int(trex_nice)
+        self.trex_log           = None
+        self.trex_cfg           = '/etc/trex_cfg.yaml'
         if self.trex_nice < -20 or self.trex_nice > 19:
             err = "Parameter 'nice' should be integer in range [-20, 19]"
             print(err)
@@ -222,15 +224,15 @@ class CTRexServer(object):
             logger.error(err_str)
             return Fault(-33, err_str)
 
-    # get Trex log /tmp/trex.txt
+    # get Trex log
     def get_trex_log(self):
         logger.info("Processing get_trex_log() command.")
-        return self._pull_file('/tmp/trex.txt')
+        return self._pull_file(self.trex_log)
 
-    # get /etc/trex_cfg.yaml
+    # get trex config file
     def get_trex_config(self):
         logger.info("Processing get_trex_config() command.")
-        return self._pull_file('/etc/trex_cfg.yaml')
+        return self._pull_file(self.trex_cfg)
 
     #get metadata used to generate trex_cfg.yaml
     def get_trex_config_metadata(self):
@@ -242,10 +244,14 @@ class CTRexServer(object):
         except Exception as e:
             return Fault(-33, "Can't load config metadata contents: %s" % e)
 
-    # get daemon log /var/log/trex/trex_daemon_server.log
+    # get daemon log (default:/var/log/trex/trex_daemon_server.log)
     def get_trex_daemon_log (self):
         logger.info("Processing get_trex_daemon_log() command.")
-        return self._pull_file('/var/log/trex/trex_daemon_server.log')
+        daemon_log_path = '/var/log/trex/trex_daemon_server.log'
+        for handler in logger.handlers:
+            if hasattr(handler,'baseFilename'):
+                daemon_log_path = handler.baseFilename
+        return self._pull_file(daemon_log_path)
         
     # get Trex version from ./t-rex-64 --help (last lines starting with "Version : ...")
     def get_trex_version (self, base64 = True):
@@ -521,6 +527,8 @@ class CTRexServer(object):
             io          = iom)
 
         logger.info("TREX FULL COMMAND: {command}".format(command = cmd) )
+        # save export_path for get_trex_log()
+        self.trex_log = export_path
 
         return (cmd, export_path, kwargs.get('d', 0)), zmq_port
 
@@ -540,6 +548,8 @@ class CTRexServer(object):
         trex_cfg = trex_cfg[0]
         if 'enable_zmq_pub' in trex_cfg and trex_cfg['enable_zmq_pub'] == False:
             raise Exception('TRex daemon expects ZMQ publisher to be enabled. Please change "enable_zmq_pub" to true.')
+        # save used trex config file (default:/etc/trex_cfg.yaml)
+        self.trex_cfg = args.cfg
         if 'zmq_pub_port' in trex_cfg:
             return trex_cfg['zmq_pub_port']
         return self.trex_zmq_port
