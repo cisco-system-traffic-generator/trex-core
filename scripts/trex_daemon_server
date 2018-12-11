@@ -22,9 +22,11 @@ server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'server'
 if server_path not in sys.path:
     sys.path.append(server_path)
 
+default_log_path = '/var/log/trex/trex_daemon_server.log'
+daemon_log_path = os.getenv('TREX_DAEMON_LOG', default_log_path)
 if 'start-live' not in sys.argv:
     import CCustomLogger
-    CCustomLogger.setup_daemon_logger('TRexServer', '/var/log/trex/trex_daemon_server.log')
+    CCustomLogger.setup_daemon_logger('TRexServer', daemon_log_path)
 
 import outer_packages
 import trex_server
@@ -129,7 +131,7 @@ trex_server.trex_parser.usage = None
 args = trex_server.trex_parser.parse_args()
 
 daemon_dir = os.path.dirname(os.path.realpath(__file__))
-mkpath('/var/log/trex')
+mkpath(os.path.dirname(daemon_log_path))
 mkpath('/var/run/trex')
 
 action_funcs[args.action]()
