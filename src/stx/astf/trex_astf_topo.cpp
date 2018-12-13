@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include <assert.h>
+#include <utility>
 
 #include <json/json.h>
 
@@ -135,7 +136,7 @@ void TopoMngr::from_json_str(const string &topo_buffer) {
         }
 
         TopoVIF vif_obj(src_mac, vlan, src_ipv4, src_ipv6);
-        if ( !tmp_topo_per_port[trex_port].emplace(sub_if, vif_obj).second ) {
+        if ( !tmp_topo_per_port[trex_port].insert(std::make_pair(sub_if, vif_obj)).second ) {
             parse_err("Double sub_if: " + to_string(sub_if));
         }
 
@@ -160,7 +161,7 @@ void TopoMngr::from_json_str(const string &topo_buffer) {
         if ( subif_it == tmp_topo_per_port[trex_port].end() ) {
             if ( !sub_if ) {
                 TopoVIF vif_obj("", 0, "", ""); // mock
-                subif_it = tmp_topo_per_port[trex_port].emplace(0, vif_obj).first;
+                subif_it = tmp_topo_per_port[trex_port].insert(std::make_pair(0, vif_obj)).first;
             } else {
                 parse_err("GW has sub_if '" + to_string(sub_if) + "' which is missing");
             }
