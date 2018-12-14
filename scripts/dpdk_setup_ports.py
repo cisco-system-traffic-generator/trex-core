@@ -17,7 +17,6 @@ import copy
 import shlex
 import traceback
 from collections import defaultdict, OrderedDict
-from distutils.util import strtobool
 import subprocess
 import platform
 import stat
@@ -306,16 +305,27 @@ def compile_and_load_igb_uio():
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if not os.path.exists(km):
         print("ERROR: We don't have precompiled igb_uio.ko module for your kernel version")
-        print('Will try compiling automatically - make sure you have file-system read/write permission')
+        print('Will try compiling automatically...')
+        build_path = '/tmp/trex-ko'
+        ret = os.system('mkdir -p %s' % build_path)
+        assert not ret, 'Makedirs failed'
+        ret = os.system('chmod -R 755 %s' % build_path)
+        assert not ret, 'chmod failed'
+        build_src_path = build_path + '/src'
+        shutil.rmtree(build_src_path, ignore_errors = True)
+        shutil.copytree('./ko/src', build_src_path)
         try:
-            subprocess.check_output('make', cwd = './ko/src', stderr = subprocess.STDOUT)
-            subprocess.check_output(['make', 'install'], cwd = './ko/src', stderr = subprocess.STDOUT)
-            print('\nSuccess.')
-        except Exception as e:
-            print('\n ERROR:  Automatic compilation failed: (%s)' % e)
-            print('Make sure you have file-system read/write permission')
-            print('You can try compiling yourself, using the following commands:')
-            print('  $cd ko/src')
+            subprocess.check_output('make', cwd = build_src_path, stderr = subprocess.STDOUT, universal_newlines = True)
+            subprocess.check_output(['make', 'install'], cwd = build_src_path, stderr = subprocess.STDOUT, universal_newlines = True)
+            print('Success.\n')
+        except subprocess.CalledProcessError as e:
+            print('\n ERROR:  Automatic compilation failed (return code: %s)' % e.returncode)
+            print(' Output:\n    %s' % '\n    '.join(e.output.splitlines()))
+
+            print('\nYou can try compiling yourself, using the following commands:')
+            print('  $mkdir -p /tmp/trex-ko')
+            print('  $cp -r ./ko/src /tmp/trex-ko')
+            print('  $cd /tmp/trex-ko/src')
             print('  $make')
             print('  $make install')
             print('  $cd -')
@@ -325,9 +335,10 @@ def compile_and_load_igb_uio():
             print('        sudo yum install kernel-devel-`uname -r`')
             print('        sudo yum group install "Development tools"')
             print('  * apt based (Ubuntu):')
-            print('        sudo apt install linux-headers-`uname -r`')
-            print('        sudo apt install build-essential')
+            print('        sudo apt install linux-headers-`uname -r` build-essential')
             sys.exit(-1)
+        km = os.path.join(build_path, dpdk_nic_bind.kernel_ver, 'igb_uio.ko')
+
     ret = os.system('insmod %s' % km)
     if ret:
         print('Failed inserting igb_uio module')

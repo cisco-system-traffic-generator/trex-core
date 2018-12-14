@@ -560,21 +560,22 @@ def confirm(msg, default = False):
     termios.tcflush(sys.stdin, termios.TCIFLUSH)
     try:
         return strtobool(raw_input(msg))
-    except KeyboardInterrupt:
-        print('')
-        sys.exit(-1)
-    except Exception:
+    except Exception as e:
+        if isinstance(e, (EOFError, KeyboardInterrupt)):
+            print('')
+            sys.exit(-1)
         return default
 
-def read_line(msg = '', default = ''):
-    if not os.isatty(1):
-        return default
+def read_line(msg = ''):
+    assert os.isatty(1), 'Must be TTY'
     termios.tcflush(sys.stdin, termios.TCIFLUSH)
     try:
         return raw_input(msg).strip()
-    except KeyboardInterrupt:
-        print('')
-        sys.exit(-1)
+    except Exception as e:
+        if isinstance(e, (EOFError, KeyboardInterrupt)):
+            print('')
+            sys.exit(-1)
+        raise
 
 def unbind_one(dev_id, force):
     '''Unbind the device identified by "dev_id" from its current driver'''
