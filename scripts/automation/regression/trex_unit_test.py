@@ -565,12 +565,17 @@ def save_setup_info():
             for key, value in CTRexScenario.trex_version.items():
                 setup_info += '{0:8}: {1}\n'.format(key, value)
             cfg = CTRexScenario.configuration
-            setup_info += 'Server: %s, Modes: %s' % (cfg.trex.get('trex_name'), cfg.trex.get('modes'))
+            build_url = os.getenv('BUILD_URL')
+            if build_url:
+                server = '<a href=%s>%s</a>' % (build_url, CTRexScenario.setup_name)
+            else:
+                server = CTRexScenario.setup_name
+            setup_info += 'Server: %s, Modes: %s' % (server, cfg.trex.get('modes'))
             if cfg.router:
                 setup_info += '\nRouter: Model: %s, Image: %s' % (cfg.router.get('model'), CTRexScenario.router_image)
             if CTRexScenario.debug_image:
                 setup_info += '\nDebug image: %s' % CTRexScenario.debug_image
-                
+
             with open('%s/report_%s.info' % (CTRexScenario.report_dir, CTRexScenario.setup_name), 'w') as f:
                 f.write(setup_info)
     except Exception as err:
