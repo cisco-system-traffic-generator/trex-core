@@ -405,9 +405,12 @@ class CTRexServer(object):
             else:
                 return False
 
-    def force_trex_kill (self):
-        logger.info("Processing force_trex_kill() command. --> Killing TRex session indiscriminately.")
-        return self.trex.stop_trex()
+    def force_trex_kill(self, with_tb = False):
+        tb_print = ''
+        if with_tb:
+            tb_print = ' (with traceback)'
+        logger.info("Processing force_trex_kill() command%s." % tb_print)
+        return self.trex.stop_trex(with_tb)
 
     # returns list of tuples (pid, command line) of running TRex(es)
     def get_trex_cmds(self):
@@ -634,11 +637,11 @@ class CTRex(object):
                     return Fault(self.errcode, self.verbose_status)               # raise at client relevant exception, depending on the reason the error occured
                 else:
                     logger.info("TRex is in Idle state, no errors. returning {}")
-                    return u'{}'    
-                
+                    return u'{}'
+
             return Fault(-12, self.verbose_status)                                # raise at client TRexWarning, indicating TRex is back to Idle state or still in Starting state
 
-    def stop_trex(self):
+    def stop_trex(self, with_tb):
         if self.status == TRexStatus.Idle:
             # TRex isn't running, nothing to abort
             logger.info("TRex isn't running. No need to stop anything.")
@@ -647,7 +650,7 @@ class CTRex(object):
             return False
         else:
             # handle stopping TRex's run
-            self.session.join()
+            self.session.join(with_tb = with_tb)
             logger.info("TRex session has been successfully aborted.")
             return True
 
