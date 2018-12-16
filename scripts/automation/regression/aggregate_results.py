@@ -283,11 +283,12 @@ if __name__ == '__main__':
             if not len(file_lines):
                 continue # to next file
             for info_line in file_lines:
-                key_value = info_line.split(':', 1)
-                not_trex_keys = ['Server', 'Router', 'User']
-                if key_value[0].strip() in not_trex_keys:
+                key, val = info_line.split(':', 1)
+                key = key.strip()
+                not_trex_keys = ['Router', 'User', 'Modes', 'BUILD_URL']
+                if key in not_trex_keys:
                     continue # to next parameters
-                trex_info_dict[key_value[0].strip()] = key_value[1].strip()
+                trex_info_dict[key] = val.strip()
             break
 
     branch_name = ''
@@ -589,15 +590,25 @@ if __name__ == '__main__':
             mail_output += '<table class="reference_fail" align=left style="Margin-bottom:10;Margin-right:10;">\n'
         else:
             mail_output += '<table class="reference" align=left style="Margin-bottom:10;Margin-right:10;">\n'
-        mail_output += add_th_th('Setup:', pad_tag(category.replace('.', '/'), 'b'))
-        category_info_file = '%s/report_%s.info' % (args.input_dir, category.replace('.', '_'))
+        category_info_file = '%s/report_%s.info' % (args.input_dir, category)
         if os.path.exists(category_info_file):
             with open(category_info_file) as f:
-                for info_line in f.readlines():
-                    key_value = info_line.split(':', 1)
-                    if key_value[0].strip() in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
-                        continue
-                    mail_output += add_th_td('%s:' % key_value[0].strip(), key_value[1].strip())
+                lines = f.readlines()
+            args_dict = OrderedDict()
+            for info_line in lines:
+                key, val = info_line.split(':', 1)
+                key = key.strip()
+                if not key or key in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
+                    continue
+                args_dict[key] = val.strip()
+            build_url = args_dict.get('BUILD_URL')
+            if build_url:
+                del args_dict['BUILD_URL']
+                mail_output += add_th_th('Setup:', pad_tag('<a href=%s>%s</a>' % (build_url, category), 'b'))
+            else:
+                mail_output += add_th_th('Setup:', pad_tag(category, 'b'))
+            for key, val in args_dict.items():
+                mail_output += add_th_td('%s:' % key, val)
         else:
             mail_output += add_th_td('Info:', 'No info')
         mail_output += '</table>\n'
