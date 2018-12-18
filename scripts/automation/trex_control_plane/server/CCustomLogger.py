@@ -5,7 +5,7 @@ import logging
 
 def prepare_dir(log_path):
     log_dir = os.path.dirname(log_path)
-    if not os.path.exists(log_dir):
+    if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
 def setup_custom_logger(name, log_path = None):

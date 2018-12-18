@@ -44,6 +44,8 @@ class CTRexServer(object):
     """This class defines the server side of the RESTfull interaction with TRex"""
     TREX_START_CMD    = './t-rex-64'
     DEFAULT_FILE_PATH = '/tmp/trex_files/'
+    DEFAULT_TREX_LOG  = '/tmp/trex.txt'
+    DEFAULT_TREX_CFG  = '/etc/trex_cfg.yaml'
 
     def __init__(self, trex_path, trex_files_path, trex_host='0.0.0.0', trex_daemon_port=8090, trex_zmq_port=4500, trex_nice=-19):
         """ 
@@ -76,8 +78,8 @@ class CTRexServer(object):
         self.start_lock         = threading.Lock()
         self.__reservation      = None
         self.trex_nice          = int(trex_nice)
-        self.trex_log           = None
-        self.trex_cfg           = '/etc/trex_cfg.yaml'
+        self.trex_log           = self.DEFAULT_TREX_LOG
+        self.trex_cfg           = self.DEFAULT_TREX_CFG
         if self.trex_nice < -20 or self.trex_nice > 19:
             err = "Parameter 'nice' should be integer in range [-20, 19]"
             print(err)
@@ -247,12 +249,10 @@ class CTRexServer(object):
     # get daemon log (default:/var/log/trex/trex_daemon_server.log)
     def get_trex_daemon_log (self):
         logger.info("Processing get_trex_daemon_log() command.")
-        daemon_log_path = '/var/log/trex/trex_daemon_server.log'
-        for handler in logger.handlers:
-            if hasattr(handler,'baseFilename'):
-                daemon_log_path = handler.baseFilename
+        default_log_path = '/var/log/trex/trex_daemon_server.log'
+        daemon_log_path = os.getenv('TREX_DAEMON_LOG', default_log_path)
         return self._pull_file(daemon_log_path)
-        
+
     # get Trex version from ./t-rex-64 --help (last lines starting with "Version : ...")
     def get_trex_version (self, base64 = True):
         try:
@@ -471,7 +471,7 @@ class CTRexServer(object):
         self.assert_zmq_ok(check_alive = False)
         return self.trex.get_latest_dump()
 
-    def generate_run_cmd (self, iom = 0, export_path="/tmp/trex.txt", stateless = False, debug_image = False, trex_args = '', **kwargs):
+    def generate_run_cmd (self, iom = 0, export_path = None, stateless = False, debug_image = False, trex_args = '', **kwargs):
         """ generate_run_cmd(self, iom, export_path, kwargs) -> str
 
         Generates a custom running command for the kick-off of the TRex traffic generator.
@@ -494,6 +494,8 @@ class CTRexServer(object):
         if 'results_file_path' in kwargs:
             export_path = kwargs['results_file_path']
             del kwargs['results_file_path']
+        elif export_path is None:
+            export_path = self.DEFAULT_TREX_LOG
         if stateless:
             kwargs['i'] = True
 
@@ -535,7 +537,7 @@ class CTRexServer(object):
 
     def _check_zmq_port(self, trex_cmd_options):
         parser = ArgumentParser()
-        parser.add_argument('--cfg', default = '/etc/trex_cfg.yaml')
+        parser.add_argument('--cfg', default = self.DEFAULT_TREX_CFG)
         args, _ = parser.parse_known_args(shlex.split(trex_cmd_options))
         if not os.path.exists(args.cfg):
             raise Exception('Platform config file "%s" does not exist!' % args.cfg)

@@ -130,10 +130,6 @@ trex_server.trex_parser.add_argument('action', choices=action_funcs.keys(),
 trex_server.trex_parser.usage = None
 args = trex_server.trex_parser.parse_args()
 
-daemon_dir = os.path.dirname(os.path.realpath(__file__))
-mkpath(os.path.dirname(daemon_log_path))
-mkpath('/var/run/trex')
-
 action_funcs[args.action]()
 
 
