@@ -151,10 +151,7 @@ class CPgIdStats(object):
 
                 if 'histogram' in ans_dict['latency'][pg_id]['lat']:
                     #translate histogram numbers from string to integers
-                    lat['latency']['histogram'] = {
-                                        int(elem): ans_dict['latency'][pg_id]['lat']['histogram'][elem]
-                                         for elem in ans_dict['latency'][pg_id]['lat']['histogram']
-                    }
+                    lat['latency']['histogram'] = {int(k): v for k, v in ans_dict['latency'][pg_id]['lat']['histogram'].items()}
                     min_val = min(lat['latency']['histogram'])
                     if min_val == 0:
                         min_val = 2
@@ -166,7 +163,7 @@ class CPgIdStats(object):
         # translate json 'flow_stats' to python API 'flow_stats'
         if 'flow_stats' in ans_dict and ans_dict['flow_stats'] is not None:
             stats['flow_stats'] = {}
-            stats['flow_stats']['global'] = {}
+            fs_global = stats['flow_stats']['global'] = {}
 
             all_ports = []
             for pg_id in ans_dict['flow_stats']:
@@ -206,16 +203,16 @@ class CPgIdStats(object):
             if 'g' in ans_dict['flow_stats']:
                 for field, val in json_keys_global_err.items():
                     if field in ans_dict['flow_stats']['g']:
-                        stats['flow_stats']['global'][val] = ans_dict['flow_stats']['g'][field]
+                        fs_global[val] = ans_dict['flow_stats']['g'][field]
                     else:
-                        stats['flow_stats']['global'][val] = {}
+                        fs_global[val] = {}
                         for port in all_ports:
-                            stats['flow_stats']['global'][val][int(port)] = 0
+                            fs_global[val][int(port)] = 0
             else:
                 for val in json_keys_global_err.values():
-                    stats['flow_stats']['global'][val] = {}
+                    fs_global[val] = {}
                     for port in all_ports:
-                        stats['flow_stats']['global'][val][int(port)] = 0
+                        fs_global[val][int(port)] = 0
 
         # if pgid appears with different ver_id (or absent), delete it from the saved reference
         for pg_id in self.ref['ver_id']:
@@ -235,54 +232,66 @@ class CPgIdStats(object):
 
         # update total_max
         if 'latency' in self.ref and 'latency' in stats:
-            for pg_id in self.ref['latency']:
-                if 'latency' in self.ref['latency'][pg_id] and pg_id in stats['latency']:
-                    if 'total_max' in self.ref['latency'][pg_id]['latency']:
-                        if stats['latency'][pg_id]['latency']['last_max'] > self.ref['latency'][pg_id]['latency']['total_max']:
-                            self.ref['latency'][pg_id]['latency']['total_max'] = stats['latency'][pg_id]['latency']['last_max']
+            for pg_id, ref_pg_id in self.ref['latency'].items():
+                if 'latency' in ref_pg_id and pg_id in stats['latency']:
+                    ref_lat = ref_pg_id['latency']
+                    sts_lat = stats['latency'][pg_id]['latency']
+                    if 'total_max' in ref_lat:
+                        if sts_lat['last_max'] > ref_lat['total_max']:
+                            ref_lat['total_max'] = sts_lat['last_max']
                     else:
-                        self.ref['latency'][pg_id]['latency']['total_max'] = self._get(stats, ['latency', pg_id, 'latency', 'total_max'], default=0)
-                    stats['latency'][pg_id]['latency']['total_max'] = self.ref['latency'][pg_id]['latency']['total_max']
+                        ref_lat['total_max'] = self._get(stats, ['latency', pg_id, 'latency', 'total_max'], default=0)
+                    sts_lat['total_max'] = ref_lat['total_max']
 
         if 'flow_stats' not in stats:
             return stats
 
         flow_stat_fields = ['rx_pkts', 'tx_pkts', 'rx_bytes', 'tx_bytes']
 
-        for pg_id in stats['flow_stats']:
+        for pg_id, pg_id_val in stats['flow_stats'].items():
             for field in flow_stat_fields:
                 if pg_id in self.ref['flow_stats'] and field in self.ref['flow_stats'][pg_id]:
-                    for port in stats['flow_stats'][pg_id][field]:
+                    for port, val in pg_id_val[field].items():
                         if port in self.ref['flow_stats'][pg_id][field]:
                             try:
-                                stats['flow_stats'][pg_id][field][port] -= self.ref['flow_stats'][pg_id][field][port]
+                                rel_val = val - self.ref['flow_stats'][pg_id][field][port]
+                                assert rel_val >= 0, 'Negative pg_id stat value: %s (%s %s %s)' % (rel_val, pg_id, field, port)
+                                pg_id_val[field][port] = rel_val
                             except TypeError: # might be StatNotAvailable
                                 pass
 
         if 'latency' not in stats:
             return stats
 
-        for pg_id in stats['latency']:
+        for pg_id, pg_id_val in stats['latency'].items():
             if pg_id not in self.ref['latency']:
                 continue
-            if 'latency' in stats['latency'][pg_id]:
+            if 'latency' in pg_id_val:
                 to_delete = []
-                for key in stats['latency'][pg_id]['latency']['histogram']:
-                    if pg_id in self.ref['latency'] and key in self.ref['latency'][pg_id]['latency']['histogram']:
-                        stats['latency'][pg_id]['latency']['histogram'][key] -= self.ref['latency'][pg_id]['latency']['histogram'][key]
-                        if stats['latency'][pg_id]['latency']['histogram'][key] == 0:
+                sts_pgid_latency = pg_id_val['latency']
+                ref_pgid_latency = self.ref['latency'][pg_id]['latency']
+                for key, val in sts_pgid_latency['histogram'].items():
+                    ref_val = ref_pgid_latency['histogram'].get(key)
+                    if ref_val is not None:
+                        rel_val = val - ref_val
+                        assert rel_val >= 0, 'Negative latency stat value: %s (%s %s)' % (rel_val, pg_id, key)
+                        sts_pgid_latency['histogram'][key] = rel_val
+                        if rel_val == 0:
                             to_delete.append(key)
                 # cleaning values in histogram which are 0 (after decreasing ref from last)
                 for del_key in to_delete:
-                    del stats['latency'][pg_id]['latency']['histogram'][del_key]
+                    del sts_pgid_latency['histogram'][del_key]
                 # special handling for 'total_max' field. We want to take it at first, from server reported 'total_max'
                 # After running clear_stats, we zero it, and start calculating ourselves by looking at 'last_max' in each sampling
-                if 'total_max' in self.ref['latency'][pg_id]['latency']:
-                    stats['latency'][pg_id]['latency']['total_max'] = self.ref['latency'][pg_id]['latency']['total_max']
-                if 'err_cntrs' in stats['latency'][pg_id] and 'err_cntrs' in self.ref['latency'][pg_id]:
-                    for key in stats['latency'][pg_id]['err_cntrs']:
-                         if key in self.ref['latency'][pg_id]['err_cntrs']:
-                            stats['latency'][pg_id]['err_cntrs'][key] -= self.ref['latency'][pg_id]['err_cntrs'][key]
+                if 'total_max' in ref_pgid_latency:
+                    sts_pgid_latency['total_max'] = ref_pgid_latency['total_max']
+                if 'err_cntrs' in pg_id_val and 'err_cntrs' in self.ref['latency'][pg_id]:
+                    for key, val in pg_id_val['err_cntrs'].items():
+                        ref_val = self.ref['latency'][pg_id]['err_cntrs'].get(key)
+                        if ref_val is not None:
+                            rel_val = val - ref_val
+                            assert rel_val >= 0, 'Negative latency error value: %s (%s %s)' % (rel_val, pg_id, key)
+                            pg_id_val['err_cntrs'][key] = rel_val
 
         return stats
 
