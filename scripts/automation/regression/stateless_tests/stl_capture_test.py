@@ -44,8 +44,9 @@ class STLCapture_Test(CStlGeneral_Test):
 
         self.percentage = 5 if self.is_virt_nics else 50
 
-        # some setups (enic) might add VLAN always
-        self.nic_adds_vlan = CTRexScenario.setup_name in ['trex11']
+        # some drivers (enic) might add VLAN always
+        driver = self.c.any_port.get_formatted_info()['driver']
+        self.nic_adds_vlan = driver in ['net_enic']
         self.hostname = socket.gethostname()
 
     @classmethod
@@ -56,6 +57,10 @@ class STLCapture_Test(CStlGeneral_Test):
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()
 
+    def correct_bpf(self, bpf):
+        if self.nic_adds_vlan:
+            return '{0} or (vlan and {0})'.format(bpf)
+        return bpf
 
     def __compare_captures (self, tx_pkt_list, rx_pkt_list):
         # make sure we have the same binaries in both lists
@@ -84,8 +89,9 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
             
             # start a capture
-            txc = self.c.start_capture(tx_ports = self.tx_port, limit = pkt_count)
-            rxc = self.c.start_capture(rx_ports = self.rx_port, limit = pkt_count)
+            bpf = self.correct_bpf('ip and udp')
+            txc = self.c.start_capture(tx_ports = self.tx_port, limit = pkt_count, bpf_filter = bpf)
+            rxc = self.c.start_capture(rx_ports = self.rx_port, limit = pkt_count, bpf_filter = bpf)
             
             # inject few packets with a VM
             vm = STLScVmRaw( [STLVmFlowVar ( "ip_src",  min_value="16.0.0.0", max_value="16.255.255.255", size=4, step = 7, op = "inc"),
@@ -118,7 +124,7 @@ class STLCapture_Test(CStlGeneral_Test):
                 self.c.stop_capture(rxc['id'], output = rx_pcap.name)
                 rx_pkt_list = [{'binary': pkt[0]} for pkt in RawPcapReader(rx_pcap.name)]
             
-            assert (len(tx_pkt_list) == len(rx_pkt_list) == pkt_count)
+            assert (len(tx_pkt_list) == len(rx_pkt_list) == pkt_count), 'Not equal: %s %s %s' % (len(tx_pkt_list), len(rx_pkt_list), pkt_count)
             
             # make sure we have the same binaries in both lists
             self.__compare_captures(tx_pkt_list, rx_pkt_list)
@@ -144,7 +150,7 @@ class STLCapture_Test(CStlGeneral_Test):
             
     # in this test we apply captures under traffic multiple times
     def test_stress_capture (self):
-        pkt_count = 100
+        pkts_limit = set([40, 70, 100])
         
         try:
             # move to service mode
@@ -160,19 +166,21 @@ class STLCapture_Test(CStlGeneral_Test):
             
             self.c.add_streams(ports = self.tx_port, streams = [stream])
             self.c.start(ports = self.tx_port, force = True)
-            captures = [{'capture_id': None, 'limit': 50}, {'capture_id': None, 'limit': 80}, {'capture_id': None, 'limit': 100}]
+            captures = [{'capture_id': None, 'limit': pkts} for pkts in pkts_limit]
             
             for i in range(0, 100):
                 # start a few captures
                 for capture in captures:
-                    capture['capture_id'] = self.c.start_capture(rx_ports = [self.rx_port], limit = capture['limit'])['id']
+                    bpf = self.correct_bpf('ip and udp')
+                    res = self.c.start_capture(rx_ports = [self.rx_port], limit = capture['limit'], bpf_filter = bpf)
+                    capture['capture_id'] = res['id']
                 
                 # a little time to wait for captures to be full
                 wait_iterations = 0
                 while True:
                     server_captures = self.c.get_capture_status()
                     counts = ([c['count'] for c in server_captures.values()])
-                    if {50, 80, 100} == set(counts):
+                    if pkts_limit == set(counts):
                         break
                         
                     time.sleep(0.1)
@@ -217,15 +225,16 @@ class STLCapture_Test(CStlGeneral_Test):
         try:
             # move to service mode
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
-                                                                        
+
+            bpf = self.correct_bpf('arp')
             # start a capture
-            capture_info = self.c.start_capture(rx_ports = [self.tx_port, self.rx_port], limit = 2)
+            cap_info = self.c.start_capture(rx_ports = [self.tx_port, self.rx_port], limit = 2, bpf_filter = bpf)
          
             # generate an ARP request
             self.c.arp(ports = self.tx_port)
             
             pkts = []
-            self.c.stop_capture(capture_info['id'], output = pkts)
+            self.c.stop_capture(cap_info['id'], output = pkts)
         
             assert len(pkts) == 2
             
@@ -271,7 +280,8 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
 
             # start a capture
-            capture_info = self.c.start_capture(rx_ports = [self.tx_port, self.rx_port], limit = 100)
+            bpf = self.correct_bpf('ip and icmp')
+            cap_info = self.c.start_capture(rx_ports = [self.tx_port, self.rx_port], limit = 100, bpf_filter = bpf)
 
             # generate an ARP request
             tx_ipv4 = self.c.get_port_attr(port = self.tx_port)['src_ipv4']
@@ -282,7 +292,7 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.ping_ip(src_port = self.tx_port, dst_ip = rx_ipv4, pkt_size = 1500, count = count, interval_sec = 0.01)
 
             pkts = []
-            self.c.stop_capture(capture_info['id'], output = pkts)
+            self.c.stop_capture(cap_info['id'], output = pkts)
 
             req_pkts = [Ether(pkt['binary']) for pkt in pkts if pkt['port'] == self.rx_port]
             res_pkts = [Ether(pkt['binary']) for pkt in pkts if pkt['port'] == self.tx_port]
@@ -386,9 +396,9 @@ class STLCapture_Test(CStlGeneral_Test):
         try:
             tcp_port = self._conf_zmq_socket(zmq_socket)
 
-            # VICs adds VLAN 0 on RX side
             max_capture_packet = 2000
-            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)', limit = max_capture_packet)['id']
+            bpf = self.correct_bpf('udp')
+            rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, limit = max_capture_packet, bpf_filter = bpf)['id']
 
             self.c.start_capture_port(port = self.tx_port, endpoint = 'tcp://%s:%s' % (self.hostname, tcp_port))
 
@@ -498,7 +508,8 @@ class STLCapture_Test(CStlGeneral_Test):
                 self.c.set_service_mode(ports = self.rx_port, enabled = False)
 
             # Then change it
-            self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter="udp port 1222 or (vlan and udp port 1222)")
+            bpf = self.correct_bpf('udp port 1222')
+            self.c.set_capture_port_bpf_filter(port = self.rx_port, bpf_filter = bpf)
 
             # start heavy traffic with wrong IP first
             pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=1222,sport=1025)/'a_payload_example')
