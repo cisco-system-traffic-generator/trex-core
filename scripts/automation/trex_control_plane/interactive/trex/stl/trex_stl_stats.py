@@ -16,7 +16,7 @@ class CPgIdStats(object):
 
     def reset(self):
         # sample when clear was last called. Values we return are last - ref
-        self.ref =  {'flow_stats': {}, 'latency': {}}
+        self.ref =  {'flow_stats': {}, 'latency': {}, 'ver_id': {}}
         self.max_hist = {}
         self.max_hist_index = 0
 
@@ -100,10 +100,7 @@ class CPgIdStats(object):
 
             for key, val in rc.data().items():
                 if key in ans_dict:
-                    try:
-                        ans_dict[key].update(val)
-                    except:
-                        pass
+                    ans_dict[key].update(val)
                 else:
                     ans_dict[key] = val
 
@@ -220,17 +217,14 @@ class CPgIdStats(object):
                     for port in all_ports:
                         stats['flow_stats']['global'][val][int(port)] = 0
 
-        # if pgid appears with different ver_id, delete it from the saved reference
-        if 'ver_id' in self.ref:
-            for pg_id in self.ref['ver_id']:
-                if pg_id in stats['ver_id'] and self.ref['ver_id'][pg_id] != stats['ver_id'][pg_id]:
-                    int_pg_id = int(pg_id)
-                    if int_pg_id in self.ref['flow_stats']:
-                        del self.ref['flow_stats'][int_pg_id]
-                    if int_pg_id in self.ref['latency']:
-                        del self.ref['latency'][int(pg_id)]
-        else:
-            self.ref['ver_id'] = {}
+        # if pgid appears with different ver_id (or absent), delete it from the saved reference
+        for pg_id in self.ref['ver_id']:
+            if pg_id not in stats['ver_id'] or self.ref['ver_id'][pg_id] != stats['ver_id'][pg_id]:
+                int_pg_id = int(pg_id)
+                if int_pg_id in self.ref['flow_stats']:
+                    del self.ref['flow_stats'][int_pg_id]
+                if int_pg_id in self.ref['latency']:
+                    del self.ref['latency'][int_pg_id]
 
         self.ref['ver_id'].update(stats['ver_id'])
 
@@ -260,10 +254,9 @@ class CPgIdStats(object):
                 if pg_id in self.ref['flow_stats'] and field in self.ref['flow_stats'][pg_id]:
                     for port in stats['flow_stats'][pg_id][field]:
                         if port in self.ref['flow_stats'][pg_id][field]:
-                            # might be StatNotAvailable
                             try:
                                 stats['flow_stats'][pg_id][field][port] -= self.ref['flow_stats'][pg_id][field][port]
-                            except:
+                            except TypeError: # might be StatNotAvailable
                                 pass
 
         if 'latency' not in stats:
