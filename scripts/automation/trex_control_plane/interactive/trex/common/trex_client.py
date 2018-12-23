@@ -2154,7 +2154,7 @@ class TRexClient(object):
         if not rc:
             raise TRexError(rc)
 
-                    
+
     @client_api('command', True)
     def remove_all_captures (self):
         """

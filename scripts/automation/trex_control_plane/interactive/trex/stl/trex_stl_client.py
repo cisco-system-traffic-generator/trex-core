@@ -164,9 +164,9 @@ class STLClient(TRexClient):
     
         try:
             with self.ctx.logger.suppress():
-            # force take the port and ignore any streams on it
+                # force take the port and ignore any streams on it
                 self.acquire(ports, force = True, sync_streams = False)
-                self.stop(ports, rx_delay_ms = 0)
+                self.stop(ports)
                 self.remove_all_streams(ports)
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
@@ -174,6 +174,7 @@ class STLClient(TRexClient):
                                    link_up = True if restart else None)
                 self.remove_rx_queue(ports)
                 self._for_each_port('stop_capture_port', ports)
+                self.remove_all_captures()
                 self.set_service_mode(ports, False)
     
             self.ctx.logger.post_cmd(RC_OK())
@@ -181,7 +182,7 @@ class STLClient(TRexClient):
     
         except TRexError as e:
             self.ctx.logger.post_cmd(False)
-            raise e
+            raise
 
 
     @client_api('command', True)
