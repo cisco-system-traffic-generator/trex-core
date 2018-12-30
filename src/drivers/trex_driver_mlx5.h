@@ -29,16 +29,12 @@ class CTRexExtendedDriverBaseMlnx5G : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseMlnx5G();
 
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        // disabling flow control on 40G using DPDK API causes the interface to malfunction
-        return new DpdkTRexPortAttr(tvpid, repid, false, false, true, true);
-    }
-
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBaseMlnx5G() );
     }
 
 
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
 

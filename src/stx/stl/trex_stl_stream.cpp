@@ -151,6 +151,7 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_pkt.len          = 0;
 
     m_rx_check.m_enabled = false;
+    m_rx_check.m_vxlan_skip = false;
 
     m_burst_total_pkts=0; 
     m_num_bursts=1; 

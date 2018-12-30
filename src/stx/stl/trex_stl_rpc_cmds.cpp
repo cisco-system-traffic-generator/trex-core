@@ -396,6 +396,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
             }
 
             stream->m_rx_check.m_pg_id      = parse_uint32(rx, "stream_id", result);
+            stream->m_rx_check.m_vxlan_skip = parse_bool(rx, "vxlan", result, false);
             std::string type = parse_string(rx, "rule_type", result);
             if (type == "latency") {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
@@ -698,12 +699,12 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
     uint64_t max_value   = parse_uint64(inst, "max_value", result);
     bool is_split_needed   = parse_bool(inst, "split_to_cores", result, true);
 
-	/* archiecture limitation - limit_flows must be greater or equal to DP core count */
-	if (limit < 1) {
-		std::stringstream ss;
+    /* architecture limitation - limit_flows must be greater or equal to DP core count */
+    if (limit < 1) {
+        std::stringstream ss;
         ss << "VM: request random flow var variable with limit of zero '";
-		generate_parse_err(result, ss.str());
-	}
+        generate_parse_err(result, ss.str());
+    }
 
     check_min_max(flow_var_size, min_value, 1, min_value, max_value, result);
 

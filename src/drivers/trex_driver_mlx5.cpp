@@ -31,6 +31,10 @@ CTRexExtendedDriverBaseMlnx5G::CTRexExtendedDriverBaseMlnx5G() {
     }
 }
 
+TRexPortAttr* CTRexExtendedDriverBaseMlnx5G::create_port_attr(tvpid_t tvpid,repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, false, false, true, false, true);
+}
+
 std::string& get_mlx5_so_string(void) {
     return CTRexExtendedDriverBaseMlnx5G::mlx5_so_str;
 }

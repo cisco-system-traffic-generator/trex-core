@@ -29,6 +29,22 @@ std::string& get_mlx4_so_string(void) {
     return CTRexExtendedDriverMlnx4::mlx4_so_str;
 }
 
+TRexPortAttr* CTRexExtendedDriverVirtBase::create_port_attr(tvpid_t tvpid, repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, true);
+}
+
+TRexPortAttr* CTRexExtendedDriverI40evf::create_port_attr(tvpid_t tvpid, repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, false, false, true);
+}
+
+TRexPortAttr* CTRexExtendedDriverIxgbevf::create_port_attr(tvpid_t tvpid, repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, false, false, true);
+}
+
+TRexPortAttr* CTRexExtendedDriverAfPacket::create_port_attr(tvpid_t tvpid, repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, false);
+}
+
 CTRexExtendedDriverMlnx4::CTRexExtendedDriverMlnx4() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE | TREX_DRV_CAP_MAC_ADDR_CHG ;
 }

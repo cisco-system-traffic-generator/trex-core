@@ -242,10 +242,9 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     res["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
     res["state"]         = port->get_state_as_string();
     res["service"]       = port->is_service_mode_on();
-    
-    /* yes, this is an ugly hack... for now */
-    TrexStatelessPort *stl_port = dynamic_cast<TrexStatelessPort *>(port);
-    if (stl_port) {
+
+    if ( get_is_stateless() ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
         result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
     }
 
@@ -438,6 +437,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port_json["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
         port_json["is_link_supported"]  = api.getPortAttrObj(i)->is_link_change_supported();
         port_json["is_prom_supported"]  = api.getPortAttrObj(i)->is_prom_change_supported();
+        port_json["is_vxlan_supported"] = api.getPortAttrObj(i)->is_vxlan_fs_supported();
         port_json["is_virtual"]         = api.getPortAttrObj(i)->is_virtual();
         
         port_json["supp_speeds"] = Json::arrayValue;
@@ -592,6 +592,25 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
         else if (name == "flow_ctrl_mode") {
             int mode = parse_int(attr[name], "mode", result);
             ret = get_platform_api().getPortAttrObj(port_id)->set_flow_ctrl(mode);
+        }
+
+        else if (name == "vxlan_fs") {
+            if ( !get_is_stateless() ) {
+                generate_execute_err(result, "VXLAN flow stats are relevant only to stateless mode");
+            }
+            const Json::Value &vxlan_fs_ports_json = parse_array(attr, name, result);
+            vxlan_fs_ports_t vxlan_fs_ports;
+            for (auto vxlan_fs_port_json : vxlan_fs_ports_json) {
+                uint64_t vxlan_fs_port = vxlan_fs_port_json.asUInt64();
+                if ( vxlan_fs_port == 0 ) {
+                    generate_execute_err(result, "VXLAN UDP port can't be zero (DPDK error)");
+                }
+                if ( vxlan_fs_port > UINT16_MAX ) {
+                    generate_execute_err(result, "VXLAN UDP port must be 16bit, got: " + to_string(vxlan_fs_port));
+                }
+                vxlan_fs_ports.insert(vxlan_fs_port);
+            }
+            ret = get_platform_api().getPortAttrObj(port_id)->set_vxlan_fs(vxlan_fs_ports);
         }
 
         /* unknown attribute */

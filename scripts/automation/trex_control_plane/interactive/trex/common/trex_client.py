@@ -11,7 +11,7 @@ import random
 import struct
 from collections import OrderedDict, defaultdict
 
-from ..utils.common import get_current_user, list_remove_dup, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_difference, list_intersect, PassiveTimer, sec_split_usec
+from ..utils.common import *
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 from ..utils.text_tables import TRexTextTable
@@ -1675,8 +1675,8 @@ class TRexClient(object):
                        link_up = None,
                        led_on = None,
                        flow_ctrl = None,
-                       resolve = True,
-                       multicast = None):
+                       multicast = None,
+                       vxlan_fs = None):
         """
             Set port attributes
 
@@ -1689,10 +1689,12 @@ class TRexClient(object):
                     LED of port
                 flow_ctrl: int
                     0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-                resolve: bool
-                    if true, in case a destination address is configured as IPv4 try to resolve it
                 multicast: bool
-                    enable receiving multicast
+                    Enable receiving multicast
+                vxlan_fs: list
+                    | UDP ports for which HW flow stats will be read from layers after VXLAN
+                    | UDP(<dst_port>)/VXLAN()/Ether()/... <--- NIC will look for flow stats magic here
+                    | Limited only to supported NICs (currently i40e)
             :raises:
                 + :exe:'TRexError'
 
@@ -1708,7 +1710,10 @@ class TRexClient(object):
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
         validate_type('multicast', multicast, (bool, type(None)))
-    
+        validate_type('vxlan_fs', vxlan_fs, (list, type(None)))
+
+        if all_none([promiscuous, link_up, led_on, flow_ctrl, multicast, vxlan_fs]):
+            return
 
         self.ctx.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
 
@@ -1718,42 +1723,15 @@ class TRexClient(object):
                                  link_up = link_up,
                                  led_on = led_on,
                                  flow_ctrl = flow_ctrl,
-                                 multicast = multicast)
+                                 multicast = multicast,
+                                 vxlan_fs = vxlan_fs)
 
         self.ctx.logger.post_cmd(rc)
 
         if not rc:
             raise TRexError(rc)
 
-        return
 
-        """
-
-        # common attributes for all ports
-        cmn_attr_dict = {}
-
-        cmn_attr_dict['promiscuous']     = promiscuous
-        cmn_attr_dict['link_status']     = link_up
-        cmn_attr_dict['led_status']      = led_on
-        cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
-        cmn_attr_dict['multicast']       = multicast
-        
-        # each port starts with a set of the common attributes
-        attr_dict = [dict(cmn_attr_dict) for _ in ports]
-    
-        self.ctx.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
-
-        rc = RC()
-        for port_id, port_attr_dict in zip(ports, attr_dict):
-            rc.add(self.ports[port_id].set_attr(**port_attr_dict))
-
-        self.ctx.logger.post_cmd(rc)
-            
-        if not rc:
-            raise TRexError(rc)
-        """
-      
-        
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True):
         """
@@ -2724,6 +2702,7 @@ class TRexClient(object):
                                          parsing_opts.LINK_STATUS,
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
+                                         parsing_opts.VXLAN_FS,
                                          parsing_opts.SUPPORTED,
                                          parsing_opts.MULTICAST)
 
@@ -2750,16 +2729,19 @@ class TRexClient(object):
             print('  Link status:   %s' % info['link_change_supported'])
             print('  LED status:    %s' % info['led_change_supported'])
             print('  Flow control:  %s' % info['fc_supported'])
+            print('  VXLAN FS:      %s' % info['is_vxlan_supported'])
             print('')
         else:
             if not opts.ports:
                 raise TRexError('No acquired ports!')
-            self.set_port_attr(opts.ports,
-                               opts.prom,
-                               opts.link,
-                               opts.led,
-                               opts.flow_ctrl,
-                               multicast = opts.mult)
+            self.set_port_attr(
+                    opts.ports,
+                    opts.prom,
+                    opts.link,
+                    opts.led,
+                    opts.flow_ctrl,
+                    opts.mult,
+                    opts.vxlan_fs)
 
 
 

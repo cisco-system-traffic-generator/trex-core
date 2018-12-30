@@ -5,6 +5,7 @@ from trex_stl_lib.api import *
 import os, sys
 import copy
 from nose.tools import assert_raises
+from scapy.layers.vxlan import *
 
 ERROR_LATENCY_TOO_HIGH = 1
 ERROR_CNTR_NOT_0 = 2
@@ -842,6 +843,150 @@ class STLRX_Test(CStlGeneral_Test):
         exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
 
         self.__rx_iteration( [exp] )
+
+    def setup_vxlan_streams(self, is_lat, *a):
+        self.c.remove_all_streams()
+        streams = []
+        for id, (pkt, with_vxlan) in enumerate(a):
+            if is_lat:
+                fs_cls = STLFlowLatencyStats
+            else:
+                fs_cls = STLFlowStats
+            streams.append(
+                STLStream(
+                    mode = STLTXCont(pps = 1000),
+                    packet = STLPktBuilder(pkt = pkt),
+                    flow_stats = fs_cls(pg_id = id, vxlan = with_vxlan),
+                    ))
+        self.c.add_streams(ports = self.tx_port, streams = streams)
+
+    def dump_vxlan_fs(self, fs, streams_desc):
+        for pgid in sorted(fs.keys()):
+            try:
+                int(pgid)
+            except:
+                continue
+            print('ID: %s   (VXLAN: %s)' % (pgid, streams_desc[pgid][1]))
+            for k in ('tx_pkts', 'rx_pkts'):
+                    print('    %s: %s' % (k, fs[pgid][k]['total']))
+
+    # VXLAN tunnel and flow stats
+    def test_vxlan_fs(self):
+        c = self.c
+        with assert_raises(TRexTypeError):
+            c.set_port_attr(vxlan_fs = 'qq')
+        with assert_raises(TRexTypeError):
+            c.set_port_attr(vxlan_fs = 123)
+
+        if self.drv_name != 'net_i40e':
+            with assert_raises(TRexError):
+                c.set_port_attr(vxlan_fs = [12]) # works only in i40e
+                c.set_port_attr(vxlan_fs = [])
+            return
+
+        # i40e
+        pkt0 = Ether()/IP()/UDP()/VXLAN()/Ether()/IP()/UDP()
+        pkt1 = Ether()/IP()/UDP()/VXLAN()/Ether()/IPv6()/UDP()
+        pkt2 = Ether()/IPv6()/UDP()/VXLAN()/Ether()/IP()/UDP()
+        pkt3 = Ether()/IPv6()/UDP()/VXLAN()/Ether()/IPv6()/UDP()
+        pkt4 = Ether()/IP()/UDP()
+        pkt5 = Ether()/IPv6()/UDP()
+
+        vxlan_port = pkt0[UDP].dport
+        assert vxlan_port != pkt4[UDP].dport
+
+        print('Negative tests')
+        try:
+            self.setup_vxlan_streams(False, [pkt4, True])
+            c.start(ports = self.tx_port)
+        except TRexError as e:
+            assert 'too small' in str(e), 'Bad message in exception: %s' % e
+        else:
+            raise TRexError('Did not raise exception')
+
+        try:
+            self.setup_vxlan_streams(True, [pkt0, True])
+            c.start(ports = self.tx_port)
+        except TRexError as e:
+            assert 'not supported for latency' in str(e), 'Bad message in exception: %s' % e
+        else:
+            raise TRexError('Did not raise exception')
+
+        try:
+            bad_pkt = Ether()/IP()/TCP()/('x' * 50)
+            self.setup_vxlan_streams(False, [bad_pkt, True])
+            c.start(ports = self.tx_port)
+        except TRexError as e:
+            assert 'requires UDP' in str(e), 'Bad message in exception: %s' % e
+        else:
+            raise TRexError('Did not raise exception')
+
+        try:
+            bad_pkt = Ether()/IP()/UDP()/UDP()/('x' * 50)
+            streams = self.setup_vxlan_streams(False, [bad_pkt, True])
+            c.start(ports = self.tx_port)
+        except TRexError as e:
+            pass
+        else:
+            raise TRexError('Did not raise exception')
+
+        streams_desc = [
+            (pkt0, True), # v4/v4 put FS magic in inner IP
+            (pkt0, False),
+            (pkt1, True), # v4/v6 put FS magic in inner IP
+            (pkt1, False),
+            (pkt2, True), # v6/v4 put FS magic in inner IP
+            (pkt2, False),
+            (pkt3, True), # v6/v6 put FS magic in inner IP
+            (pkt3, False),
+            (pkt4, False), # v4
+            (pkt5, False), # v6
+        ]
+
+        print('Flow stats without VXLAN portattr')
+        self.setup_vxlan_streams(False, *streams_desc)
+        c.start(ports = self.tx_port, duration = 1)
+        c.wait_on_traffic()
+
+        fs = c.get_pgid_stats()['flow_stats']
+        try:
+            for pg_id, (_, vxlan) in enumerate(streams_desc):
+                tx_pkts = fs[pg_id]['tx_pkts']['total']
+                rx_pkts = fs[pg_id]['rx_pkts']['total']
+                assert tx_pkts > 100, 'Too few TX pkts for pg_id %s: %s' % (pg_id, tx_pkts)
+                if vxlan:
+                    assert rx_pkts < 10, 'Some RX pkts for pg_id %s despite vxlan in stream: %s' % (pg_id, rx_pkts)
+                else:
+                    assert rx_pkts > tx_pkts * 0.9, 'Not enough RX pkts for pg_id %s. Expected: %s, got: %s' % (pg_id, tx_pkts, rx_pkts)
+
+        except:
+            self.dump_vxlan_fs(fs, streams_desc)
+            raise
+
+        c.clear_stats()
+        print('Flow stats with VXLAN portattr')
+        c.set_port_attr(vxlan_fs = [vxlan_port])
+        try:
+            c.start(ports = self.tx_port, duration = 1)
+            c.wait_on_traffic()
+        finally:
+            c.set_port_attr(vxlan_fs = [])
+
+        fs = c.get_pgid_stats()['flow_stats']
+        try:
+            for pg_id, (pkt, vxlan) in enumerate(streams_desc):
+                tx_pkts = fs[pg_id]['tx_pkts']['total']
+                rx_pkts = fs[pg_id]['rx_pkts']['total']
+                assert tx_pkts > 100, 'Too few TX pkts for pg_id %s: %s' % (pg_id, tx_pkts)
+                if vxlan or VXLAN not in pkt:
+                    assert rx_pkts > tx_pkts * 0.9, 'Not enough RX pkts for pg_id %s. Expected: %s, got: %s' % (pg_id, tx_pkts, rx_pkts)
+                else:
+                    assert rx_pkts < 10, 'Some RX pkts for pg_id %s despite lack of vxlan in stream and portattr: %s' % (pg_id, rx_pkts)
+
+        except:
+            self.dump_vxlan_fs(fs, streams_desc)
+            raise
+
 
 
     def test_service_mode_flow_stats(self):

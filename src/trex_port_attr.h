@@ -60,6 +60,7 @@ public:
     virtual bool is_led_change_supported() { return flag_is_led_change_supported; }
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual bool is_prom_change_supported() { return flag_is_prom_change_supported; }
+    virtual bool is_vxlan_fs_supported() { return flag_is_vxlan_fs_supported; }
     virtual const std::string &get_description() { return intf_info_st.description; }
     virtual int get_numa(void) { return intf_info_st.numa_node; }
     virtual const std::string& get_pci_addr(void) { return intf_info_st.pci_addr; }
@@ -81,6 +82,7 @@ public:
     virtual int set_flow_ctrl(int mode) = 0;
     virtual int set_led(bool on) = 0;
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
+    virtual int set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) = 0;
 
     
     
@@ -113,6 +115,7 @@ protected:
     bool       flag_is_led_change_supported;
     bool       flag_is_link_change_supported;
     bool       flag_is_prom_change_supported;
+    bool       flag_is_vxlan_fs_supported;
 
     struct intf_info_st {
         std::string     pci_addr;
@@ -120,34 +123,14 @@ protected:
         int             numa_node;
     }intf_info_st;
 
+    vxlan_fs_ports_t m_vxlan_fs_ports;
 };
 
 class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
-    DpdkTRexPortAttr(uint8_t tvpid, 
-                     uint8_t repid,
-                     bool is_virtual, 
-                     bool fc_change_allowed,
-                     bool is_prom_allowed,
-                     bool has_pci) {
-
-        m_tvpid = tvpid;
-        m_repid = repid;
-        m_port_id = tvpid; /* child */
-
-        m_rx_filter_mode = RX_FILTER_MODE_HW;
-
-        flag_has_pci    = has_pci;
-        flag_is_virtual = is_virtual;
-        int tmp;
-        flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
-        flag_is_led_change_supported = (set_led(true) != -ENOTSUP);
-        flag_is_link_change_supported = (set_link_up(true) != -ENOTSUP);
-        flag_is_prom_change_supported = is_prom_allowed;
-        update_device_info();
-        update_description();
-    }
+    DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual, bool fc_change_allowed,
+            bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci);
 
 /*    UPDATES    */
     virtual void update_link_status();
@@ -163,7 +146,7 @@ public:
     virtual int get_flow_ctrl(int &mode);
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds);
     virtual bool is_loopback() const;
-    
+
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled);
     virtual int set_multicast(bool enabled);
@@ -173,6 +156,7 @@ public:
     virtual int set_led(bool on);
 
     virtual int set_rx_filter_mode(rx_filter_mode_e mode);
+    virtual int set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports);
 
 /*    DUMPS    */
     virtual void dump_link(FILE *fd);
@@ -182,8 +166,8 @@ protected:
     virtual void update_description();
 
 private:
-    uint8_t         m_tvpid ;
-    uint8_t         m_repid ;
+    uint8_t         m_tvpid;
+    uint8_t         m_repid;
 
     rte_eth_fc_conf fc_conf_tmp;
     std::vector <struct rte_eth_xstat> xstats_values_tmp;
@@ -197,8 +181,6 @@ In order to use custom methods of port attributes per driver, need to instantiat
 */
 class DpdkTRexPortAttrMlnx5G : public DpdkTRexPortAttr {
 public:
-    DpdkTRexPortAttrMlnx5G(uint8_t tvpid, uint8_t repid, bool is_virtual, bool fc_change_allowed, bool prom_change_allowed, bool has_pci) :
-                DpdkTRexPortAttr(tvpid, repid, is_virtual, fc_change_allowed, prom_change_allowed, has_pci) {}
     virtual int set_link_up(bool up);
 };
 
@@ -216,6 +198,7 @@ public:
         flag_is_led_change_supported = false;
         flag_is_link_change_supported = false;
         flag_is_prom_change_supported = false;
+        flag_is_vxlan_fs_supported = false;
         update_description();
     }
 
@@ -238,6 +221,7 @@ public:
     int set_led(bool on) { return -ENOTSUP; }
     void dump_link(FILE *fd) {}
     int set_rx_filter_mode(rx_filter_mode_e mode) { return -ENOTSUP; }
+    int set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) { return -ENOTSUP; }
     bool is_loopback() const { return false; }
     std::string get_rx_filter_mode() {return "";}
 protected:

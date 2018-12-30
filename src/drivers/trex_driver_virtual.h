@@ -28,9 +28,7 @@
 // Base for all virtual drivers. No constructor. Should not create object from this type.
 class CTRexExtendedDriverVirtBase : public CTRexExtendedDriverBase {
 public:
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, true, true, true, true);
-    }
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual void update_global_config_fdir(port_cfg_t * cfg) {}
 
     virtual int get_min_sample_rate(void);
@@ -84,9 +82,7 @@ public:
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverI40evf() );
     }
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, true, true, false, true);
-    }
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
 };
 
 class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
@@ -100,9 +96,7 @@ public:
     static CTRexExtendedDriverBase * create() {
         return ( new CTRexExtendedDriverIxgbevf() );
     }
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, true, true, false, true);
-    }
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
 };
 
 class CTRexExtendedDriverBaseE1000 : public CTRexExtendedDriverVirtBase {
@@ -127,9 +121,7 @@ public:
         return (false);
     }
 
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false);
-    }
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
 };

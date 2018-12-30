@@ -77,17 +77,20 @@ std::string CFlowStatParser::get_error_str(CFlowStatParser_err_t err) {
     case FSTAT_PARSER_E_UNKNOWN_HDR:
         return base + " NIC does not support given L2 header type";
     case FSTAT_PARSER_E_VLAN_NEEDED:
-        return base + " NIC does not support packets with no vlan (If you used --vlan command line arg, try to remove it)";
-        return "";
+        return base + " NIC does not support packets with no vlan "
+                      "(If you used --vlan command line arg, try to remove it)";
     }
 
     return "";
 }
 
 CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
+    int min_len = ETH_HDR_LEN;
+    if (len < min_len)
+        return FSTAT_PARSER_E_TOO_SHORT;
+
     EthernetHeader *ether = (EthernetHeader *)p;
     VLANHeader *vlan;
-    int min_len = ETH_HDR_LEN;
     uint16_t next_hdr = ether->getNextProtocol();
     bool finished = false;
     bool has_vlan = false;
@@ -95,10 +98,8 @@ CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
 
     m_start = p;
     m_len = len;
-    if (len < min_len)
-        return FSTAT_PARSER_E_TOO_SHORT;
 
-    p += ETH_HDR_LEN;
+    p += min_len;
     while (! finished) {
         switch( next_hdr ) {
         case EthernetHeader::Protocol::IP :
@@ -148,6 +149,22 @@ CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
         return FSTAT_PARSER_E_VLAN_NEEDED;
     }
     return FSTAT_PARSER_E_OK;
+}
+
+#define VXLAN_LEN 8
+
+uint16_t CFlowStatParser::get_vxlan_payload_offset(uint8_t *pkt, uint16_t len) {
+    uint16_t payload_len;
+    if ( get_payload_len(pkt, len, payload_len) < 0 ) {
+        throw TrexFStatEx("Failed getting payload len", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+    if ( m_l4_proto != IPPROTO_UDP ) {
+        throw TrexFStatEx("VXLAN tunnel requires UDP", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+    if ( payload_len < VXLAN_LEN + ETH_HDR_LEN ) {
+        throw TrexFStatEx("Packet is too small to have VXLAN tunnel", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+    return len - payload_len + VXLAN_LEN;
 }
 
 // arg is uint32_t in below two functions because we want same function to work for IPv4 and IPv6
