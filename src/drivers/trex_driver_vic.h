@@ -29,13 +29,11 @@ class CTRexExtendedDriverBaseVIC : public CTRexExtendedDriverBase {
 public:
     CTRexExtendedDriverBaseVIC();
 
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, false, false, true, true);
-    }
-
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverBaseVIC() );
     }
+
+    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
     void clear_extended_stats(CPhyEthIF * _if);

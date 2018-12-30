@@ -30,6 +30,9 @@ std::string& get_ntacc_so_string(void) {
     return CTRexExtendedDriverBaseNtAcc::ntacc_so_str;
 }
 
+TRexPortAttr* CTRexExtendedDriverBaseNtAcc::create_port_attr(tvpid_t tvpid,repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, false, false, true, false, true);
+}
 
 CTRexExtendedDriverBaseNtAcc::CTRexExtendedDriverBaseNtAcc(){
     m_cap = tdCAP_ALL_NO_RSS | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;

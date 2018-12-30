@@ -40,6 +40,12 @@ TRexPortAttr::to_json(Json::Value &output) {
     output["speed"]                  = get_link_speed() / 1000.0;
     output["rx_filter_mode"]         = get_rx_filter_mode();
 
+    Json::Value vxlan_fs_ports = Json::arrayValue;
+    for (auto vxlan_fs_port : m_vxlan_fs_ports) {
+        vxlan_fs_ports.append(vxlan_fs_port);
+    }
+    output["vxlan_fs"]               = vxlan_fs_ports;
+
     int mode;
     get_flow_ctrl(mode);
     output["fc"]["mode"] = mode;

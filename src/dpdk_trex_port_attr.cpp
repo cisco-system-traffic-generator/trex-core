@@ -17,27 +17,51 @@ limitations under the License.
 #include "trex_port_attr.h"
 #include "main_dpdk.h"
 
+using namespace std;
+
+DpdkTRexPortAttr::DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual,
+        bool fc_change_allowed, bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci) {
+
+    m_tvpid = tvpid;
+    m_repid = repid;
+    m_port_id = tvpid; /* child */
+
+    m_rx_filter_mode = RX_FILTER_MODE_HW;
+
+    flag_has_pci    = has_pci;
+    flag_is_virtual = is_virtual;
+    int tmp;
+    flag_is_fc_change_supported = fc_change_allowed && (get_flow_ctrl(tmp) != -ENOTSUP);
+    flag_is_led_change_supported = (set_led(true) != -ENOTSUP);
+    flag_is_link_change_supported = (set_link_up(true) != -ENOTSUP);
+    flag_is_prom_change_supported = is_prom_allowed;
+    flag_is_vxlan_fs_supported = is_vxlan_fs_allowed;
+    update_device_info();
+    update_description();
+}
+
+
 /*
 Get user friendly devices description from saved env. var
 Changes certain attributes based on description
 */
 void DpdkTRexPortAttr::update_description(){
     char * envvar;
-    std::string pci_envvar_name;
+    string pci_envvar_name;
 
     pci_envvar_name = "pci" + intf_info_st.pci_addr;
-    std::replace(pci_envvar_name.begin(), pci_envvar_name.end(), ':', '_');
-    std::replace(pci_envvar_name.begin(), pci_envvar_name.end(), '.', '_');
-    envvar = std::getenv(pci_envvar_name.c_str());
+    replace(pci_envvar_name.begin(), pci_envvar_name.end(), ':', '_');
+    replace(pci_envvar_name.begin(), pci_envvar_name.end(), '.', '_');
+    envvar = getenv(pci_envvar_name.c_str());
     if (envvar) {
         intf_info_st.description = envvar;
     } else {
         intf_info_st.description = "Unknown";
     }
-    if (intf_info_st.description.find("82599ES") != std::string::npos) { // works for 82599EB etc. DPDK does not distinguish them
+    if (intf_info_st.description.find("82599ES") != string::npos) { // works for 82599EB etc. DPDK does not distinguish them
         flag_is_link_change_supported = false;
     }
-    if (intf_info_st.description.find("82545EM") != std::string::npos) { // in virtual E1000, DPDK claims fc is supported, but it's not
+    if (intf_info_st.description.find("82545EM") != string::npos) { // in virtual E1000, DPDK claims fc is supported, but it's not
         flag_is_fc_change_supported = false;
         flag_is_led_change_supported = false;
     }
@@ -201,6 +225,36 @@ int DpdkTRexPortAttr::set_link_up(bool up){
     }else{
         return rte_eth_dev_set_link_down(m_repid);
     }
+}
+
+int DpdkTRexPortAttr::set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) {
+
+    if ( vxlan_fs_ports != m_vxlan_fs_ports ) {
+        rte_eth_udp_tunnel udp_tunnel;
+        udp_tunnel.prot_type = RTE_TUNNEL_TYPE_VXLAN;
+        int ret = 0;
+
+        while ( m_vxlan_fs_ports.size() ) { // delete old ports
+            const auto &it = m_vxlan_fs_ports.begin();
+            udp_tunnel.udp_port = *it;
+            ret = rte_eth_dev_udp_tunnel_port_delete(m_port_id, &udp_tunnel);
+            if ( ret ) {
+                return ret;
+            }
+            m_vxlan_fs_ports.erase(it);
+        }
+
+        for (auto &vxlan_fs_port : vxlan_fs_ports) { // add new ports
+            udp_tunnel.udp_port = vxlan_fs_port;
+            ret = rte_eth_dev_udp_tunnel_port_add(m_port_id, &udp_tunnel);
+            if ( ret ) {
+                return ret;
+            }
+            m_vxlan_fs_ports.insert(vxlan_fs_port);
+        }
+    }
+
+    return 0;
 }
 
 bool DpdkTRexPortAttr::get_promiscuous(){

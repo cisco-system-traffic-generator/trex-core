@@ -354,32 +354,33 @@ class Port(object):
             pkts[i]['binary'] = base64.b64decode(pkts[i]['binary'])
             
         return RC_OK(pkts)
-        
-        
- 
+
+
     @owned
     def set_attr (self, **kwargs):
-        
+
         json_attr = {}
-        
+
         if kwargs.get('promiscuous') is not None:
-            json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
+            json_attr['promiscuous'] = {'enabled': kwargs['promiscuous']}
 
         if kwargs.get('multicast') is not None:
-            json_attr['multicast'] = {'enabled': kwargs.get('multicast')}
+            json_attr['multicast'] = {'enabled': kwargs['multicast']}
 
         if kwargs.get('link_status') is not None:
-            json_attr['link_status'] = {'up': kwargs.get('link_status')}
-        
+            json_attr['link_status'] = {'up': kwargs['link_status']}
+
         if kwargs.get('led_status') is not None:
-            json_attr['led_status'] = {'on': kwargs.get('led_status')}
-        
+            json_attr['led_status'] = {'on': kwargs['led_status']}
+
         if kwargs.get('flow_ctrl_mode') is not None:
-            json_attr['flow_ctrl_mode'] = {'mode': kwargs.get('flow_ctrl_mode')}
+            json_attr['flow_ctrl_mode'] = {'mode': kwargs['flow_ctrl_mode']}
 
         if kwargs.get('rx_filter_mode') is not None:
-            json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
+            json_attr['rx_filter_mode'] = {'mode': kwargs['rx_filter_mode']}
 
+        if kwargs.get('vxlan_fs') is not None:
+            json_attr['vxlan_fs'] = kwargs['vxlan_fs']
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -504,6 +505,11 @@ class Port(object):
         else:
             info['mult'] = "N/A"
 
+        if 'vxlan_fs' in attr:
+            info['vxlan_fs'] = fit_arr(attr['vxlan_fs'], 20) or '-'
+        else:
+            info['vxlan_fs'] = 'N/A'
+
         if 'description' not in info:
             info['description'] = "N/A"
 
@@ -526,6 +532,11 @@ class Port(object):
             info['link_change_supported'] = 'yes' if info['is_link_supported'] else 'no'
         else:
             info['link_change_supported'] = 'N/A'
+
+        if 'is_vxlan_supported' in info:
+            info['is_vxlan_supported'] = 'yes' if info['is_vxlan_supported'] else 'no'
+        else:
+            info['is_vxlan_supported'] = 'N/A'
 
         if 'is_virtual' in info:
             info['is_virtual'] = 'yes' if info['is_virtual'] else 'no'
@@ -676,6 +687,7 @@ class Port(object):
                            ("promiscuous",     info['prom']),
                            ("multicast",       info['mult']),
                            ("flow ctrl",       info['fc']),
+                           ("vxlan fs",        info['vxlan_fs']),
                            ("--", ""),
 
                            ("layer mode",      format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta')),

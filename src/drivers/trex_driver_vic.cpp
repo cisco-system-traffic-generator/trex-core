@@ -26,6 +26,10 @@ CTRexExtendedDriverBaseVIC::CTRexExtendedDriverBaseVIC() {
       m_cap = tdCAP_ALL |TREX_DRV_CAP_MAC_ADDR_CHG;
 }
 
+TRexPortAttr* CTRexExtendedDriverBaseVIC::create_port_attr(tvpid_t tvpid,repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, false, false, true, false, true);
+}
+
 int CTRexExtendedDriverBaseVIC::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE);
 }

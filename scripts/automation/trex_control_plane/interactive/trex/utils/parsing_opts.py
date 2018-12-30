@@ -403,6 +403,13 @@ class OPTIONS_DB_ARGS:
          'dest': 'flow_ctrl',
          'choices': FLOW_CTRL_DICT})
 
+    VXLAN_FS = ArgumentPack(
+        ['--vxlan-fs'],
+        {'help': 'UDP ports for which HW flow stats will be read from layers after VXLAN',
+         'nargs': '*',
+         'action': 'merge',
+         'type': int})
+
     SRC_IPV4 = ArgumentPack(
         ['--src'],
         {'help': 'Configure source IPv4 address',

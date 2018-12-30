@@ -561,6 +561,18 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
         throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
     }
 
+    if ( !stream->m_rx_check.m_vxlan_skip ) {
+        return 0;
+    }
+
+    uint16_t vxlan_skip = parser->get_vxlan_payload_offset(stream->m_pkt.binary, stream->m_pkt.len);
+
+    ret = parser->parse(stream->m_pkt.binary + vxlan_skip, stream->m_pkt.len - vxlan_skip);
+
+    if ( ret != FSTAT_PARSER_E_OK ) {
+        throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+
     return 0;
 }
 
@@ -629,6 +641,9 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
+        if ( stream->m_rx_check.m_vxlan_skip ) {
+            throw TrexFStatEx("VXLAN skip is not supported for latency stream", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_MODE);
+        }
         uint16_t payload_len;
         // compile_stream throws exception if something goes wrong
         compile_stream(stream, m_parser_pl);

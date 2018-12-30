@@ -28,6 +28,10 @@ CTRexExtendedDriverBase1G::CTRexExtendedDriverBase1G() {
     m_cap = tdCAP_ALL_NO_RSS  | TREX_DRV_CAP_MAC_ADDR_CHG;
 }
 
+TRexPortAttr* CTRexExtendedDriverBase1G::create_port_attr(tvpid_t tvpid,repid_t repid) {
+    return new DpdkTRexPortAttr(tvpid, repid, false, true, true, false, true);
+}
+
 int CTRexExtendedDriverBase1G::get_min_sample_rate(void){
     return (RX_CHECK_MIX_SAMPLE_RATE_1G);
 }

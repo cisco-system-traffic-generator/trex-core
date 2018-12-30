@@ -31,10 +31,6 @@ public:
     CTRexExtendedDriverBaseNtAcc();
     ~CTRexExtendedDriverBaseNtAcc();
 
-    virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) {
-        return new DpdkTRexPortAttr(tvpid, repid, false, false, true, true);
-    }
-
     virtual bool sleep_after_arp_needed(){
         return(true);
     }
@@ -43,6 +39,7 @@ public:
         return ( new CTRexExtendedDriverBaseNtAcc() );
     }
 
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual void update_global_config_fdir(port_cfg_t * cfg){
     }
 

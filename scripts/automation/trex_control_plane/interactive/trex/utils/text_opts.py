@@ -121,6 +121,25 @@ def limit_string(string, trim_limit):
         return string
     return (string[:trim_limit-3] + '...')
 
+def fit_arr(arr, limit):
+    str_full = ','.join(map(str, arr))
+    if len(str_full) <= limit: # fits whole
+        return str_full
+    str_few = ''
+    for elem in arr:
+        if str_few:
+            str_elem = ',%s' % elem
+        else:
+            str_elem = str(elem)
+        if len(str_elem) + len(str_few) > trim_limit-3:
+            break
+        str_few += str_elem
+    if len(str_few) < trim_limit-3:
+        return str_few + ',...'
+    else:
+        return str_few + ',..'
+
+
 def format_percentage (size):
     return "%0.2f %%" % (size)
 

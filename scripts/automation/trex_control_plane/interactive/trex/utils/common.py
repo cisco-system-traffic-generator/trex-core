@@ -305,6 +305,11 @@ def try_int(i):
 def natural_sorted_key(val):
     return [int(c) if c.isdigit() else c for c in re.split('(\d+)', val)]
 
+def filter_none(seq):
+    return filter(lambda x: x is not None, seq)
+
+def all_none(seq):
+    return not filter_none(seq)
 
 # with Profiler_Context():
 #     <profiled code>
