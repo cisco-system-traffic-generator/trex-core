@@ -1583,6 +1583,8 @@ Example of using IPv6 methods in automation:
 
 ==== Linux network namespace 
 
+anchor:linux_network_namespace[]
+
 From version v2.50 it is possible to attach a few Linux Network Namespaces to TRex physical interface. Each host in a namespace a.k.a Node simulating a real client. 
 Using this method, it is possible to simulate a network with many Linux network devices, each with its own separate network stack (e.g. different ipv4/ipv6/QinQ/Dot1Q/routing/arp tables etc.)
 
@@ -1853,6 +1855,34 @@ Now we can ping to the new node
    Reply from 1.1.1.3: bytes=64, time=2.85ms, TTL=64
    Reply from 1.1.1.3: bytes=64, time=2.82ms, TTL=64
 ----
+
+to debug it from Linux shell you can do this 
+
+[source,bash]
+----
+$sudo ip netns show
+----
+
+This will shows al the network namespace 
+
+for port 0 the name is *trex-a-0-x* where X is the number of the namespace 
+
+to look into the information 
+
+[source,bash]
+----
+
+$sudo ip netns exec trex-a-0-1 ifconfig
+trex-a-0-1-L: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 9280
+        inet 1.1.1.3  netmask 255.255.255.255  broadcast 0.0.0.0
+        inet6 fe80::201:2ff:fe03:405  prefixlen 64  scopeid 0x20<link>
+        ether 00:01:02:03:04:05  txqueuelen 1000  (Ethernet)
+        RX packets 1  bytes 60 (60.0 B)
+        RX errors 0  dropped 1  overruns 0  frame 0
+        TX packets 8  bytes 648 (648.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+----
+
 
 [NOTE] 
 =====================================================================
