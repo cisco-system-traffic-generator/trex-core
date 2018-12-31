@@ -1264,25 +1264,22 @@ class TRexClient(object):
     @client_api('command', True)
     def set_namespace_start(self, port, ns_cmds):
         """
-            start namespace batch configuration. 
+            Start namespace batch operation. 
             This commands is a batch command that interact with the kernel and could be slow 
             in case of a big batch. 
             use wait_for_async_results to block for the response, or  is_async_results_ready to pool if the results is ready. 
+            see see :class:`trex.common.trex_ns.NSCmds` and :class:`trex.common.trex_ns.NSCmdResult`
 
-            Using other Python API while there is an active batch is not recommended 
+            Using other Python API while there is an active batch is not recommended::
 
-
-                   c.set_namespace_start( port=0, ns_cmds)
-                   res = c.wait_for_async_results(port=0);
-
-                   res.data 
-
+                    c.set_namespace_start(port=0, ns_cmds)
+                    res = c.wait_for_async_results(port=0);
 
             :parameters:
                  port: int
                     Port ID to set the dest address
 
-                 ns_cmds :  NSCmds objects that includes batch commands  
+                 ns_cmds :  see :class:`trex.common.trex_ns.NSCmds` objects that includes batch commands  
                     
             :raises:
                 + :exc:`TRexError`
@@ -1329,12 +1326,12 @@ class TRexClient(object):
                      errs_cmds: number of errros in the last operation
                      ticket_id: ticket id
 
-                     this will print the progress into the screen 
+                     this will print the progress into the screen::
 
-                     def progress_cb(obj):
-                        prog = 100.0*( float(obj['exec_cmds']) / float(obj['total_cmds']))
-                        err = obj['errs_cmds'] 
-                        print("progress {:3.0f}% errors : {}".format(prog,err))
+                             def progress_cb(obj):
+                                prog = 100.0*( float(obj['exec_cmds']) / float(obj['total_cmds']))
+                                err = obj['errs_cmds'] 
+                                print("progress {:3.0f}% errors : {}".format(prog,err))
 
 
             :raises:
@@ -1363,26 +1360,31 @@ class TRexClient(object):
     @client_api('command', True)
     def set_namespace(self, port, method, **args):
         """
-         a utility function that works on top of namespace_start/wait_for_async_results batch operation API. It is good for slow operations  that require blocking 
+            a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
+            it creates a batch of one command and one result.
+            It is good for slow operations that require blocking (such as get API)
 
-            it calls 
-            c.set_namespace_start(Obj(method, args))
-            r=c.wait_for_async_results()
-            return (r)
+            the function calls:: 
 
-            usage example:
+                  c.set_namespace_start(Obj(method, args))
+                  r=c.wait_for_async_results()
+                  return (r)
 
+            usage example::
 
-            r=set_namespace(port=0,method='get_nodes')
-
+                  r=set_namespace(port=0,method='get_nodes')
             
 
-            See documentation for above API 
             :parameters:
+
                  port: int
                     Port ID to set the dest address
 
-                 timeout :  in second, None is unlimited 
+                 method:  string
+                    method name. see NSCmds object for method names 
+
+                 args:  dict 
+                    method args 
 
             :raises:
                 + :exc:`TRexError` in case of any error 
@@ -1406,12 +1408,12 @@ class TRexClient(object):
         """
          return True if the namsspace batch commnand was finished. need to call  wait_for_async_results to get the resutl
 
-         for example
+         for example::
 
-         while True:
-           if c.is_async_results_ready(0):
-              res = c.wait_for_async_results(0)
-              break;
+             while True:
+               if c.is_async_results_ready(0):
+                  res = c.wait_for_async_results(0)
+                  break;
 
         """
         validate_type('port', port, int)
