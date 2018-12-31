@@ -173,11 +173,11 @@ class NSCmds(object):
         self.add_cmd ('get_nodes_info',macs= macs_list)
 
     def clear_counters(self):
-        ''' clear debug counters. these counters are debug counters and are *global* to all users in the system. clearing them will clear to all users '''
+        ''' clear debug counters. these counters are *global* to all users in the system. '''
         self.add_cmd ('counters_clear')
 
     def counters_get_meta(self):
-        ''' get the counters description  '''
+        ''' get the counters description as dict  '''
         self.add_cmd ('counters_get_meta')
 
     def counters_get_values(self,zeros=False):
