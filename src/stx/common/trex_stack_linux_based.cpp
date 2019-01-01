@@ -419,7 +419,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params
         CLinuxIfNode * lp=get_node_rpc(mac_str);
         if (lp) {
             Json::Value json_val;
-            lp->to_json(json_val);
+            lp->to_json_node(json_val);
             result["nodes"].append(json_val);
         }
     }
@@ -469,6 +469,14 @@ CLinuxIfNode::~CLinuxIfNode() {
 
 void CLinuxIfNode::run_in_ns(const string &cmd, const string &err) {
     popen_with_err("ip netns exec " + m_ns_name + " " + cmd, err);
+}
+
+
+void CLinuxIfNode::to_json_node(Json::Value &res){
+    CNodeBase::to_json_node(res);
+    res["linux-ns"] = m_ns_name;
+    res["linux-veth-internal"] = m_ns_name+"-L";
+    res["linux-veth-external"] = m_ns_name+"-T";
 }
 
 uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {

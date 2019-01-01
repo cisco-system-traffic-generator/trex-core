@@ -637,6 +637,43 @@ void CNodeBase::clear_ip6_async(void) {
 }
 
 
+void CNodeBase::to_json_node(Json::Value &cfg){
+
+        // MAC
+    cfg["ether"]["src"] = utl_macaddr_to_str((uint8_t *)get_src_mac().data());
+
+    // VLAN
+    cfg["vlan"]["tags"] = Json::arrayValue;
+    for (auto tag : get_vlan()) {
+        cfg["vlan"]["tags"].append(tag);
+    }
+
+    // IPv4
+    if ( get_src_ip4().size() ) {
+        char buf[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, get_src_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["src"] = buf;
+        inet_ntop(AF_INET, get_dst_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["dst"] = buf;
+    } else {
+        cfg["ipv4"]["state"] = "none";
+    }
+
+    if ( is_ip6_enabled() ) {
+        cfg["ipv6"]["enabled"] = true;
+        string ipv6_src = get_src_ip6();
+        if ( ipv6_src.size() ) {
+            char buf[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipv6_src.c_str(), buf, INET6_ADDRSTRLEN);
+            ipv6_src = buf;
+        }
+        cfg["ipv6"]["src"] = ipv6_src;
+    } else {
+        cfg["ipv6"]["enabled"] = false;
+    }
+}
+
+
 void CNodeBase::to_json(Json::Value &cfg){
 
         // MAC

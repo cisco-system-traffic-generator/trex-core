@@ -437,6 +437,13 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'type': check_mac_addr})
 
+    NODE_MAC = ArgumentPack(
+        ['--mac'],
+        {'help': 'Configure node MAC address',
+         'dest': 'mac',
+         'required': True,
+         'type': check_mac_addr})
+
     RETRIES = ArgumentPack(
         ['-r', '--retries'],
         {'help': 'retries count [default is zero]',

@@ -52,6 +52,8 @@ public:
     bool is_associated_trex(void){
         return (m_associated_trex_ports);
     }
+    virtual void to_json_node(Json::Value &res);
+
 
 private:
     void run_in_ns(const string &cmd, const string &err);
