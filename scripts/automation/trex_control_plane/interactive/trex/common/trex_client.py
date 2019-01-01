@@ -2974,7 +2974,7 @@ class TRexClient(object):
 
     @console_api('ns', 'common', True, True)
     def ns_line(self, line):
-        '''network namespace commands'''
+        '''Network namespace '''
 
         parser = parsing_opts.gen_parser(
             self,
