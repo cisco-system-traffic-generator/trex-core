@@ -263,7 +263,6 @@ class Port(object):
             return self.err(' this command should return ticket_id')
 
         self.ticket_id =  rc.data()['ticket_id']
-        print(" ticket id {}".format(self.ticket_id))
 
         return self.ok(rc.data())
 

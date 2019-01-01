@@ -35,11 +35,14 @@ from .services.trex_service_int import ServiceCtx
 from .services.trex_service_icmp import ServiceICMP
 from .services.trex_service_arp import ServiceARP
 from .services.trex_service_ipv6 import ServiceICMPv6, ServiceIPv6Scan
+from .stats.trex_ns import CNsStats
+
 
 
 from scapy.layers.l2 import Ether, Packet
 from scapy.layers.inet import IP, UDP
 from scapy.utils import RawPcapWriter
+import pprint
 
 
 # imarom: move me to someplace apropriate
@@ -2880,6 +2883,173 @@ class TRexClient(object):
 
         return True
 
+
+    def _ns_add(self,opts):
+
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        MAC=opts.mac
+        cmds.add_node(MAC)
+        cmds.set_ipv4(MAC,opts.src_ipv4,opts.dst_ipv4)
+        if opts.ipv6:
+           cmds.set_ipv6(MAC,True)
+
+        self.set_namespace_start(port, cmds)
+        self.wait_for_async_results(port);
+
+    def _ns_remove (self,opts):
+        port= opts.ports[0]
+        cmds=NSCmds()
+        MAC=opts.mac
+        cmds.remove_node(MAC)
+
+        self.set_namespace_start(port, cmds)
+        self.wait_for_async_results(port);
+
+    def _ns_show_countres (self,opts):
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        cmds.counters_get_meta()
+        cmds.counters_get_values()
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        ns_stat = CNsStats()
+        ns_stat.set_meta_values(r[0]['result']['data'], r[1]['result'][''])
+        ns_stat.dump_stats()
+
+    def _ns_clear_countres(self,opts):
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        cmds.clear_counters()
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+
+
+    def _ns_show_nodes (self,opts):
+
+        cmds=NSCmds()
+        cmds.get_nodes()
+
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        macs=r[0]['result']['nodes']
+        if len(macs)==0:
+            print("Empty")
+            return;
+        stable = text_tables.TRexTextTable('ns nods')
+        stable.set_cols_align(['c','c'] )
+        stable.set_cols_width([10,17] )
+        stable.set_cols_dtype(['t','t'])
+        stable.header(['node-id','mac'])
+        cnt=0
+        for obj in macs:
+            stable.add_row([cnt,obj])
+            cnt +=1
+            if cnt>20:
+                print(" Limited to only 20 nodes !")
+                break;
+        text_tables.print_table_with_header(stable, untouched_header = stable.title, buffer = sys.stdout)
+
+            
+    def _ns_remove_all (self,opts):
+        self.namespace_remove_all()
+
+
+    def _ns_show_node(self,opts):
+        port = opts.ports[0]
+        MAC =opts.mac
+        cmds=NSCmds()
+        cmds.get_nodes_info([MAC])
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        pprint.pprint(r[0]['result'])
+
+
+    @console_api('ns', 'common', True, True)
+    def ns_line(self, line):
+        '''network namespace commands'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'ns',
+            self.ns_line.__doc__)
+
+        def ns_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        add_parser = ns_add_parsers(subparsers, 'add', help = 'add one node')
+        remove_parser = ns_add_parsers(subparsers, 'remove', help = 'remove one node')
+        show_cnt_parser = ns_add_parsers(subparsers, 'show-counters', help = 'show counters')
+        clear_cnt_parser = ns_add_parsers(subparsers, 'clear-counters', help = 'clear counters')
+        show_nodes = ns_add_parsers(subparsers, 'show-nodes', help = 'show nodes')
+        show_node = ns_add_parsers(subparsers, 'show-node', help = 'show nodes')
+        remove_all_parser = ns_add_parsers(subparsers, 'remove-all', help = 'remove all')
+
+
+        add_parser.add_arg_list(
+            parsing_opts.SINGLE_PORT,
+            parsing_opts.NODE_MAC,
+            parsing_opts.SRC_IPV4,
+            parsing_opts.DST_IPV4,
+            parsing_opts.ASTF_IPV6
+            )
+
+        remove_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+           parsing_opts.NODE_MAC,
+          )
+
+        show_node.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+           parsing_opts.NODE_MAC,
+        )
+
+        show_cnt_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+        )
+
+        clear_cnt_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+        )
+
+        show_nodes.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+         )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.command == 'add':
+            self._ns_add(opts);
+            return False
+        elif opts.command == 'remove':
+            self._ns_remove(opts);
+        elif opts.command == 'show-counters' or not opts.command:
+            self._ns_show_countres(opts);
+            return False
+        elif opts.command == 'clear-counters':
+            self._ns_clear_countres(opts);
+            return False
+        elif opts.command == 'show-nodes' :
+            self._ns_show_nodes(opts);
+            return False
+        elif opts.command == 'show-node' :
+            self._ns_show_node(opts);
+            return False
+        elif opts.command == 'remove-all':
+            self._ns_remove_all (opts)
+            return False
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
 
 
     @console_api('portattr', 'common', True)

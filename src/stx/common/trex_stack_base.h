@@ -84,6 +84,8 @@ public:
 
     virtual void to_json(Json::Value &res);
 
+    virtual void to_json_node(Json::Value &res);
+
 protected:
     virtual void set_dst_mac_valid_internal(bool valid);
     virtual void set_is_loopback_internal(bool is_loopback);
