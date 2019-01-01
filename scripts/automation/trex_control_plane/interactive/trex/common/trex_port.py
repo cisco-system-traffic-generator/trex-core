@@ -258,6 +258,8 @@ class Port(object):
         if rc.bad():
            return self.err(rc.err())
 
+        if rc.data() is None:
+            return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
 
         if not ('ticket_id' in rc.data()):
             return self.err(' this command should return ticket_id')
@@ -296,6 +298,9 @@ class Port(object):
               self.ticket_id = None
               return self.err(rc.err())
 
+           if rc.data() is None:
+              return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
+
            if "ticket_id" in rc.data():
                return False
            else:
@@ -330,6 +335,8 @@ class Port(object):
                self.ticket_id = None
                return self.err(rc.err())
 
+            if rc.data() is None:
+                return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
 
             if not ("ticket_id" in rc.data()):
                 #  data is ready 
