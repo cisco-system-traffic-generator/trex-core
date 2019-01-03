@@ -60,6 +60,7 @@ class STLServices_Test(CStlGeneral_Test):
         
         dst_ipv4 = attr['dest']
         src_ipv4 = attr['src_ipv4']
+        fmt      = attr['fmt']
         vlan     = self.c.get_port(self.tx_port).get_vlan_cfg()
         
         assert(is_valid_ipv4(src_ipv4))
@@ -69,7 +70,7 @@ class STLServices_Test(CStlGeneral_Test):
         
         try:
             # single ARP
-            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, vlan = vlan, verbose_level = self.vl)
+            arp = ServiceARP(self.ctx, src_ip = src_ipv4, dst_ip = dst_ipv4, fmt=fmt, vlan = vlan, verbose_level = self.vl)
             self.ctx.run(arp)
             
             rec = arp.get_record()
