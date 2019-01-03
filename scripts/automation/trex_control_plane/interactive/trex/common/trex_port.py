@@ -194,18 +194,7 @@ class Port(object):
         self.handler = ''
         self.owner = ''
 
-
-    def sync(self):
-
-        params = {"port_id": self.port_id, 'block': False}
-
-        rc = self.transmit("get_port_status", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        # sync the port
-        port_state = rc.data()['state']
-
+    def state_from_name(self, port_state):
         if port_state == "IDLE":
             self.state = self.STATE_IDLE
         elif port_state == "STREAMS":
@@ -226,6 +215,17 @@ class Port(object):
             self.state = self.STATE_ASTF_CLEANUP
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
+
+    def sync(self):
+
+        params = {"port_id": self.port_id, 'block': False}
+
+        rc = self.transmit("get_port_status", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        # sync the port
+        self.state_from_name(rc.data()['state'])
 
         self.owner = rc.data()['owner']
         

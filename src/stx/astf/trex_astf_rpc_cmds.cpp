@@ -82,6 +82,9 @@ typedef set<TrexAstfPort *> port_list_t;
 
 /****************************** commands declarations ******************************/
 
+TREX_RPC_CMD(TrexRpcCmdAstfSync, "sync");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfIncEpoch, "inc_epoch");
+
 TREX_RPC_CMD(TrexRpcCmdAstfAcquire, "acquire");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfRelease, "release");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileFragment, "profile_fragment");
@@ -104,6 +107,31 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 
 /****************************** commands implementation ******************************/
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfSync::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *stx = get_astf_object();
+
+    Json::Value &res = result["result"];
+    res["epoch"] = stx->get_epoch();
+    res["state"] = stx->get_state();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfIncEpoch::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *stx = get_astf_object();
+    try {
+        stx->inc_epoch();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    result["result"]["epoch"] = stx->get_epoch();
+
+    return (TREX_RPC_CMD_OK);
+}
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
@@ -210,13 +238,11 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStop::_run(const Json::Value &params, Json::Value &result) {
-    bool stopped = true;
     try {
-        stopped = get_astf_object()->stop_transmit();
+        get_astf_object()->stop_transmit();
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    result["result"]["stopped"] = stopped;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -472,6 +498,8 @@ TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
  * 
  */
 TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
+    m_cmds.push_back(new TrexRpcCmdAstfSync(this));
+    m_cmds.push_back(new TrexRpcCmdAstfIncEpoch(this));
     m_cmds.push_back(new TrexRpcCmdAstfAcquire(this));
     m_cmds.push_back(new TrexRpcCmdAstfRelease(this));
     m_cmds.push_back(new TrexRpcCmdAstfProfileFragment(this));
