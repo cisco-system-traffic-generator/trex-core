@@ -453,7 +453,8 @@ class TRexSubscriber():
         elif event_id == ServerEventsIDs.EVENT_ASTF_STATE_CHG:
             state = data['state']
             error = data.get('error', '')
-            self.ctx.event_handler.on_event('astf state changed', state, error)
+            epoch = data.get('epoch')
+            self.ctx.event_handler.on_event('astf state changed', state, error, epoch)
 
 
         # server stopped

@@ -21,7 +21,17 @@ from .stats.traffic import CAstfTrafficStats
 from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
 
+astf_states = [
+    'STATE_IDLE',
+    'STATE_ASTF_LOADED',
+    'STATE_ASTF_PARSE',
+    'STATE_ASTF_BUILD',
+    'STATE_TX',
+    'STATE_ASTF_CLEANUP']
+
 class ASTFClient(TRexClient):
+    port_states = [getattr(ASTFPort, state) for state in astf_states]
+
     def __init__(self,
                  username = get_current_user(),
                  server = "localhost",
@@ -53,7 +63,7 @@ class ASTFClient(TRexClient):
                 if None, will use ScreenLogger
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 4}
+        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 5}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -68,6 +78,14 @@ class ASTFClient(TRexClient):
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.topo_mngr     = ASTFTopologyManager(self)
         self.last_error = ''
+        self.epoch = None
+        self.state = None
+        for index, state in enumerate(astf_states):
+            setattr(self, state, index)
+        self.transient_states = [
+            self.STATE_ASTF_PARSE,
+            self.STATE_ASTF_BUILD,
+            self.STATE_ASTF_CLEANUP]
 
 
     def get_mode(self):
@@ -78,6 +96,8 @@ class ASTFClient(TRexClient):
 ############################    TRex Client  #############################
 
     def _on_connect(self):
+        self.last_error = ''
+        self.sync()
         self.topo_mngr.sync_with_server()
         return RC_OK()
 
@@ -102,23 +122,17 @@ class ASTFClient(TRexClient):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
         return RC_OK()
 
-    def _on_astf_state_chg(self, ctx_state, error):
-        port_states = [
-            ASTFPort.STATE_IDLE,           # STATE_IDLE
-            ASTFPort.STATE_ASTF_LOADED,    # STATE_LOADED
-            ASTFPort.STATE_ASTF_PARSE,     # STATE_PARSE
-            ASTFPort.STATE_ASTF_BUILD,     # STATE_BUILD
-            ASTFPort.STATE_TX,             # STATE_TX
-            ASTFPort.STATE_ASTF_CLEANUP]   # STATE_CLEANUP
-
-        if ctx_state < 0 or ctx_state >= len(port_states):
+    def _on_astf_state_chg(self, ctx_state, error, epoch):
+        if ctx_state < 0 or ctx_state >= len(astf_states):
             raise TRexError('Unhandled ASTF state: %s' % ctx_state)
+
+        if epoch is None or epoch != self.epoch:
+            return
 
         self.last_error = error
 
-        port_state = port_states[ctx_state]
-        for port in self.ports.values():
-            port.state = port_state
+        self.state = ctx_state
+        port_state = self.apply_port_states(ctx_state)
 
         port_state_name = ASTFPort.STATES_MAP[port_state].capitalize()
 
@@ -132,34 +146,55 @@ class ASTFClient(TRexClient):
 ############################     funcs      #############################
 ############################                #############################
 
-    @property
-    def state(self):
-        return self.any_port.state
+    def apply_port_states(self, ctx_state):
+        port_state = self.port_states[ctx_state]
+        for port in self.ports.values():
+            port.state = port_state
+        return port_state
 
-    def _transmit_async(self, rpc_func, ok_states = None, bad_states = None, **k):
-        self.last_error = ''
-        if ok_states is not None:
-            ok_states = listify(ok_states)
+    def sync(self):
+        self.epoch = None
+        rc = self._transmit('sync')
+        if not rc:
+            raise TRexError(rc.err())
+
+        self.state = rc.data()['state']
+        self.apply_port_states(self.state)
+        self.epoch = rc.data()['epoch']
+
+    def wait_for_steady(self):
+        while True:
+            self.sync()
+            if self.state not in self.transient_states:
+                break
+            time.sleep(0.1)
+
+    def inc_epoch(self):
+        rc = self._transmit('inc_epoch', {'handler': self.handler})
+        if not rc:
+            raise TRexError(rc.err())
+        self.sync()
+
+    def _transmit_async(self, rpc_func, ok_states, bad_states = None, **k):
+        ok_states = listify(ok_states)
         if bad_states is not None:
             bad_states = listify(bad_states)
+        self.sync()
+        self.wait_for_steady()
+        self.inc_epoch()
+        self.last_error = ''
         rc = self._transmit(rpc_func, **k)
+        self.wait_for_steady()
         if not rc:
-            if bad_states:
-                while self.state not in bad_states:
-                    time.sleep(0.1)
             return rc
         while True:
-            time.sleep(0.1)
             state = self.state
-            if ok_states and state in ok_states:
+            if state in ok_states:
                 return RC_OK()
-            error = self.last_error
-            if bad_states:
-                if state in bad_states:
-                    return RC_ERR(error or 'Unknown error')
-            elif error:
-                return RC_ERR(error)
-
+            if self.last_error or (bad_states and state in bad_states):
+                error = self.last_error
+                return RC_ERR(error or 'Unknown error')
+            time.sleep(0.1)
 
 ############################       ASTF     #############################
 ############################       API      #############################
@@ -422,9 +457,11 @@ class ASTFClient(TRexClient):
             'ipv6': ipv6,
             'client_mask': client_mask,
             }
-
         self.ctx.logger.pre_cmd('Starting traffic.')
-        rc = self._transmit_async('start', params = params, ok_states = ASTFPort.STATE_TX, bad_states = ASTFPort.STATE_ASTF_LOADED)
+        if block:
+            rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED)
+        else:
+            rc = self._transmit('start', params = params)
         self.ctx.logger.post_cmd(rc)
 
         if not rc:
@@ -449,7 +486,7 @@ class ASTFClient(TRexClient):
             }
         self.ctx.logger.pre_cmd('Stopping traffic.')
         if block:
-            rc = self._transmit_async('stop', params = params, ok_states = [ASTFPort.STATE_IDLE, ASTFPort.STATE_ASTF_LOADED])
+            rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
         else:
             rc = self._transmit('stop', params = params)
         self.ctx.logger.post_cmd(rc)

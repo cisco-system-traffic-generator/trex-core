@@ -43,7 +43,7 @@ using namespace std;
 TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 1;
-    const int API_VER_MINOR = 4;
+    const int API_VER_MINOR = 5;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
@@ -81,6 +81,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 
     m_state = STATE_IDLE;
     m_active_cores = 0;
+    m_epoch = 0;
 
     /* create RX core */
     CRxCore *rx = (CRxCore*) new CRxAstfCore();
@@ -231,6 +232,7 @@ void TrexAstf::change_state(state_e new_state) {
 
     Json::Value data;
     data["state"] = m_state;
+    data["epoch"] = m_epoch;
     if ( is_error() && !is_trans_state() ) {
         data["error"] = m_error;
         m_error = "";
@@ -432,16 +434,15 @@ void TrexAstf::start_transmit(const start_params_t &args) {
     }
 }
 
-bool TrexAstf::stop_transmit() {
-    if ( m_state == STATE_IDLE ) {
-        return true;
+void TrexAstf::stop_transmit() {
+    if ( m_state == STATE_IDLE || m_state == STATE_LOADED ) {
+        return;
     }
 
     m_opts->preview.setNoCleanFlowClose(true);
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop();
     send_message_to_all_dp(msg);
-    return false;
 }
 
 void TrexAstf::update_rate(double mult) {
@@ -487,8 +488,7 @@ bool TrexAstf::stop_transmit_latency() {
 void TrexAstf::update_latency_rate(double mult) {
 
     if ( m_l_state != STATE_L_WORK ) {
-        string err = "Latency is not active, can't update rate";
-        throw TrexException(err);
+        throw TrexException("Latency is not active, can't update rate");
     }
 
     TrexRxUpdateLatency *msg = new TrexRxUpdateLatency(mult);
@@ -522,4 +522,10 @@ void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg) {
     msg = nullptr;
 }
 
+void TrexAstf::inc_epoch() {
+    if ( is_trans_state() ) {
+        throw TrexException("Can't increase epoch in current state: " + m_states_names[m_state]);
+    }
+    m_epoch++;
+}
 

@@ -1,8 +1,9 @@
-from .astf_general_test import CASTFGeneral_Test, CTRexScenario
 import os, sys
-from misc_methods import run_command
-from trex.astf.api import *
 import time
+
+from .astf_general_test import CASTFGeneral_Test, CTRexScenario
+from nose.tools import assert_raises
+from trex.astf.api import *
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
 
 class ASTFResilience_Test(CASTFGeneral_Test):
@@ -51,7 +52,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
 
         return ASTFProfile(default_ip_gen = ip_gen, templates = templates_arr)
 
-    def test_astf_prof_params(self):
+    def test_astf_params(self):
         print('')
 
         for client_ips in (1<<8, 1<<16):
@@ -78,5 +79,23 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     self.astf_trex.start(duration = 1, nc = True)
                     print('Start took: %g' % round(time.time() - start_time, 3))
                     self.astf_trex.stop()
+
+    def test_double_start_stop(self):
+        print('')
+        c = self.astf_trex
+        c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'))
+        c.start(duration = 20)
+        with assert_raises(TRexError):
+            c.start()
+        c.stop()
+        c.stop()
+
+    def test_stress_start_stop(self):
+        print('')
+        c = self.astf_trex
+        c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'))
+        for _ in range(99):
+            c.start()
+            c.stop()
 
 

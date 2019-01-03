@@ -347,7 +347,7 @@ class TRexClient(object):
         return Event('server', 'info', msg)
 
 
-    def _on_astf_state_chg(self, ctx_state, error):
+    def _on_astf_state_chg(self, ctx_state, error, epoch):
         raise NotImplementedError()
 
 

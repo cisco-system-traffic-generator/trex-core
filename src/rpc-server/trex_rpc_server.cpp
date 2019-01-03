@@ -79,10 +79,11 @@ void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
     msg_ss << "[" << time_buffer << "] [" << m_name << "] " << msg << "\n";
 
     if ( m_is_verbose ) {
-        std::cout << msg_ss.str();
+        std::cout << msg_ss.str() << std::flush;
     }
     if ( m_is_logging ) {
         m_logfile << msg_ss.str();
+        m_logfile.flush();
     }
 }
 

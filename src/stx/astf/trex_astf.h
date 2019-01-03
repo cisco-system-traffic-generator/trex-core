@@ -147,7 +147,7 @@ public:
     /**
      * Stop transmit
      */
-    bool stop_transmit();
+    void stop_transmit();
 
     /**
      * Update traffic rate
@@ -183,15 +183,17 @@ public:
         return m_sync_b;
     }
 
-    std::string &get_last_error() {
-        return m_error;
-    }
-
     void dp_core_error(int thread_id, const std::string &err);
 
     state_e get_state() {
         return m_state;
     }
+
+    uint64_t get_epoch() {
+        return m_epoch;
+    }
+
+    void inc_epoch();
 
     CRxAstfCore * get_rx(){
         assert(m_rx);
@@ -241,6 +243,7 @@ protected:
     std::string     m_topo_buffer;
     std::string     m_topo_hash;
     bool            m_topo_parsed;
+    uint64_t        m_epoch;
 };
 
 
