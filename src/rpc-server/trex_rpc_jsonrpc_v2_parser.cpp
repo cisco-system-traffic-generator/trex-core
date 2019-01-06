@@ -113,7 +113,7 @@ public:
         case TREX_RPC_CMD_TRY_AGAIN_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_TRY_AGAIN;
             response["error"]["message"]       = "Try again later";
-            if ( result["specific_err"].size() ) {
+            if ( result["specific_err"].asString().size() ) {
                 response["error"]["specific_err"]  = result["specific_err"];
             }
             break;
@@ -127,7 +127,7 @@ public:
         case TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_NO_RESULTS;
             response["error"]["message"]       = "No results for request";
-            if ( result["specific_err"].size() ) {
+            if ( result["specific_err"].asString().size() ) {
                 response["error"]["specific_err"]  = result["specific_err"];
             }
             break;
