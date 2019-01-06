@@ -4051,7 +4051,7 @@ This method can provide every type of functionality that a regular list of strea
 
 ===== Server-based push
 
-The server-based push method enables TRex to inject larger PCAP files. The mechansim is quite different from the local PCAP push method, with distinct advantages and limitations. +
+The server-based push method enables TRex to inject larger PCAP files. The mechanism is quite different from the local PCAP push method, with distinct advantages and limitations. +
 
 In this method, you provide a server with a PCAP file. The server loads the file and injects the packets, one after another. The file size is unlimted, enabling any number of packets to be injected. Setting up the server with the required configuration involves less overhead than the local PCAP push method.
 
@@ -4065,8 +4065,9 @@ In this method, you provide a server with a PCAP file. The server loads the file
 
 * Does not support Field Engine
 * Supports only PCAP and ERF formats
+* "Dual" mode is usable only with ERF format
 * File path must be accessible from the server
-* Rate of transmition is usually limited by I/O performance and buffering (HDD)
+* Rate of transmition (and IPG) is usually limited by I/O performance and buffering (HDD).
 
 
 ==== Tutorial: Simple PCAP file - Profile

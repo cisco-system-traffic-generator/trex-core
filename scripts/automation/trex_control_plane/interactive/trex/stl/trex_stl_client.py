@@ -1084,8 +1084,7 @@ class STLClient(TRexClient):
 
                 is_dual: bool
                     Inject from both directions.
-                    requires ERF file with meta data for direction.
-                    also requires that all the ports will be in master mode
+                    Requires that all the ports will be in master mode
                     with their adjacent ports as slaves
 
                 min_ipg_usec : float
@@ -1118,8 +1117,11 @@ class STLClient(TRexClient):
 
 
         # no support for > 1MB PCAP - use push remote
-        if not force and os.path.getsize(pcap_filename) > (1024 * 1024):
-            raise TRexError("PCAP size of {:} is too big for local push - consider using remote push or provide 'force'".format(format_num(os.path.getsize(pcap_filename), suffix = 'B')))
+        file_size = os.path.getsize(pcap_filename)
+        if not force and file_size > (1024 * 1024):
+            file_size_str = format_num(file_size, suffix = 'B')
+            url = 'https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_pcap_based_traffic'
+            raise TRexError("PCAP size of {:} is too big for local push - consider using remote (-r):\n{}".format(file_size_str, url))
 
         if is_dual:
             for port in ports:
