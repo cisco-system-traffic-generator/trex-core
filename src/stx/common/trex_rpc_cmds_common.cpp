@@ -1187,16 +1187,15 @@ TrexRpcCmdSetNameSpaceBatch::_run(const Json::Value &params, Json::Value &result
 void TrexRpcCmdSetNameSpaceBatch::process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
 
+    /* get extended info */
+    TrexStackResultsRC rc;
     stack_result_t results;
-    bool found = get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results(ticket_id, results);
-    if ( !found ) {
-        generate_async_no_results(result, "Could not find name space results , probably timeout on aging.");
+    get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results_ext(ticket_id, results, rc);
+    if ( !rc.m_in_progress ) {
+        generate_async_no_results(result, "Could not find name space results, probably timeout on aging.");
     }
 
     if ( !results.is_ready ) {
-        TrexStackResultsRC rc;
-        /* get extended info */
-        get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results_ext(ticket_id,results,rc);
         async_ticket_task_t task;
         task.result_func = bind(&TrexRpcCmdSetNameSpaceBatch::process_results, this, ticket_id, params, _1);
         task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
@@ -1205,9 +1204,9 @@ void TrexRpcCmdSetNameSpaceBatch::process_results(uint64_t ticket_id, const Json
         result["result"]["total_cmds"] = rc.m_total_cmds; /* return stats for completion */
         result["result"]["exec_cmds"] = rc.m_total_exec_cmds;
         result["result"]["errs_cmds"] = rc.m_total_errs_cmds;
-        return;
+    } else {
+        result["result"] = results.m_results;
     }
-    result["result"] = results.m_results;
 }
 
 
