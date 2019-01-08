@@ -132,7 +132,7 @@ class ASTFClient(TRexClient):
         self.last_error = error
 
         self.state = ctx_state
-        port_state = self.apply_port_states(ctx_state)
+        port_state = self.apply_port_states()
 
         port_state_name = ASTFPort.STATES_MAP[port_state].capitalize()
 
@@ -146,8 +146,8 @@ class ASTFClient(TRexClient):
 ############################     funcs      #############################
 ############################                #############################
 
-    def apply_port_states(self, ctx_state):
-        port_state = self.port_states[ctx_state]
+    def apply_port_states(self):
+        port_state = self.port_states[self.state]
         for port in self.ports.values():
             port.state = port_state
         return port_state
@@ -159,7 +159,7 @@ class ASTFClient(TRexClient):
             raise TRexError(rc.err())
 
         self.state = rc.data()['state']
-        self.apply_port_states(self.state)
+        self.apply_port_states()
         self.epoch = rc.data()['epoch']
 
     def wait_for_steady(self):
@@ -188,13 +188,13 @@ class ASTFClient(TRexClient):
         if not rc:
             return rc
         while True:
-            state = self.state
-            if state in ok_states:
+            self.sync()
+            if self.state in ok_states:
                 return RC_OK()
-            if self.last_error or (bad_states and state in bad_states):
+            if self.last_error or (bad_states and self.state in bad_states):
                 error = self.last_error
                 return RC_ERR(error or 'Unknown error')
-            time.sleep(0.1)
+            time.sleep(0.2)
 
 ############################       ASTF     #############################
 ############################       API      #############################
