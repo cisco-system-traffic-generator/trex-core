@@ -47,10 +47,12 @@ TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, c
 
     std::string logfile_name = cfg.get_logfile_name();
     if ( logfile_name.size() ) {
-        m_is_logging = true;
         m_logfile.open(logfile_name);
-    } else {
-        m_is_logging = false;
+        if ( !m_logfile.is_open() ) {
+            printf("ERROR: Could not open rpc-log file.\n");
+            printf("Check path correctness and permissions: %s", logfile_name.c_str());
+            exit(1);
+        }
     }
 
 }
@@ -60,13 +62,13 @@ TrexRpcServerInterface::~TrexRpcServerInterface() {
         stop();
     }
 
-    if ( m_is_logging ) {
+    if ( m_logfile.is_open() ) {
         m_logfile.close();
     }
 }
 
 void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
-    if ( !m_is_verbose && !m_is_logging ) {
+    if ( !m_is_verbose && !m_logfile.is_open() ) {
         return;
     }
 
@@ -81,7 +83,7 @@ void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
     if ( m_is_verbose ) {
         std::cout << msg_ss.str() << std::flush;
     }
-    if ( m_is_logging ) {
+    if ( m_logfile.is_open() ) {
         m_logfile << msg_ss.str();
         m_logfile.flush();
     }
