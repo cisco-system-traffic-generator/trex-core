@@ -8,7 +8,9 @@ Author:
 
 import json
 from ..astf.arg_verify import ArgVerify
-from ..astf.trex_astf_exceptions import  ASTFErrorBadIp
+from ..astf.trex_astf_exceptions import ASTFErrorBadIp
+from ..common.trex_exceptions import TRexError
+from ..common.trex_types import validate_type
 
 class NSCmd(object):
     def __init__(self):
@@ -50,7 +52,8 @@ class NSCmds(object):
 
             :parameters:
 
-               mac: mac address in the format of xx:xx:xx:xx:xx:xx
+            mac: string
+                MAC address in the format of xx:xx:xx:xx:xx:xx
 
         '''
 
@@ -65,7 +68,8 @@ class NSCmds(object):
 
             :parameters:
 
-               mac: key to the already created namespace in format xx:xx:xx:xx:xx:xx
+            mac: string
+                Key to the already created namespace in format xx:xx:xx:xx:xx:xx
 
 
         '''
@@ -76,35 +80,49 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd ('remove_node',mac=mac)
 
-    def set_vlan(self,mac,vlans):
+    def set_vlan(self, mac, vlans, tpids = None):
         ''' add/remove QinQ and Dot1Q. could be up to 2 tags
 
             :parameters:
 
-               mac: key to the already created namespace in format xx:xx:xx:xx:xx:xx
+            mac: string
+                Key to the already created namespace in format xx:xx:xx:xx:xx:xx
 
-               vlans: array of 2 uint16 tags in case of empty remove the vlans 
+            vlans: list
+                Array of up to 2 uint16 tags. In case of empty remove the vlans
+
+            tpids: list
+                | Array of tpids that correspond to vlans.
+                | Default is [0x8100] in case of single VLAN and [0x88a8, 0x8100] in case of QinQ
 
         '''
 
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"},
-                     {"name": "vlans", 'arg': vlans, "t": list}
-                     ]
+                     {"name": "vlans", 'arg': vlans, "t": list}]
                      }
+
+        if tpids is not None:
+            validate_type('tpids', tpids, list)
+            if len(tpids) != len(vlans):
+                raise TRexError('Size of vlan tags %s must match tpids %s' % (vlans, tpids))
+
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        self.add_cmd ('set_vlans',mac=mac,vlans=vlans)
+        self.add_cmd ('set_vlans', mac=mac, vlans=vlans, tpids=tpids)
 
     def set_ipv4(self,mac,ipv4,dg):
         ''' set or change ipv4 configuration 
 
             :parameters:
 
-               mac: key to the already created namespace in format xx:xx:xx:xx:xx:xx
+            mac: string
+                Key to the already created namespace in format xx:xx:xx:xx:xx:xx
 
-               ipv4: ipv4 self address as string 
+            ipv4: string
+                IPv4 self address
 
-               dg: default gateway 
+            dg: string
+                Default gateway
 
         '''
 

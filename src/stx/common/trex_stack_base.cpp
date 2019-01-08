@@ -69,7 +69,20 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlans(const Json::Value &params,
         vlan_list.push_back(vlan);
     }
 
-    return (m_obj->rpc_set_vlans(mac,vlan_list));
+    vlan_list_t tpid_list;
+
+    if ( params["tpids"].isArray() ) {
+        const Json::Value &tpids = parse_array(params, "tpids", result);
+        if ( tpids.size() != vlans.size() ) {
+            generate_parse_err(result, "mismatch between size of vlan tags and pgids");
+        }
+        for (int i=0; i<tpids.size(); i++) {
+            uint16_t tpid = parse_uint16(tpids, i, result);
+            tpid_list.push_back(tpid);
+        }
+    }
+
+    return (m_obj->rpc_set_vlans(mac, vlan_list, tpid_list));
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv4(const Json::Value &params, Json::Value &result){
@@ -200,13 +213,13 @@ CStackBase::CStackBase(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) {
     m_counters.Create();
 }
 
-CStackBase::~CStackBase(void) {
+CStackBase::~CStackBase() {
     debug("base stack dtor");
     assert(m_nodes.size() == 0);
     m_counters.Delete();
 }
 
-void CStackBase::add_port_node_async(void) {
+void CStackBase::add_port_node_async() {
     debug("add port node");
     uint8_t port_id = m_api->get_port_id();
     string port_mac((char*)CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, 6);
@@ -224,7 +237,7 @@ void CStackBase::attr_to_json(Json::Value &res) {
 
     // VLAN
     res["vlan"]["tags"] = Json::arrayValue;
-    for (auto tag : m_port_node->get_vlan()) {
+    for (auto &tag : m_port_node->get_vlan_tags()) {
         res["vlan"]["tags"].append(tag);
     }
 
@@ -289,7 +302,7 @@ CNodeBase* CStackBase::get_node_internal(const string &mac_buf) {
     return nullptr;
 }
 
-CNodeBase* CStackBase::get_port_node(void) {
+CNodeBase* CStackBase::get_port_node() {
     assert(m_port_node!=nullptr);
     assert(!m_is_running_tasks);
     return m_port_node;
@@ -427,7 +440,7 @@ void CStackBase::run_pending_tasks_internal(uint64_t ticket_id) {
     rte_rmb();
 }
 
-bool CStackBase::has_pending_tasks(void) {
+bool CStackBase::has_pending_tasks() {
     if ( m_add_macs_list.size() || m_del_macs_list.size() ) {
         return true;
     }
@@ -472,7 +485,7 @@ void CStackBase::dummy_rpc_command(string ipv4,string ipv4_dg){
     printf(" dummy_rpc_command %s %s \n",ipv4.c_str(),ipv4_dg.c_str());
 }
 
-void CStackBase::cancel_pending_tasks(void) {
+void CStackBase::cancel_pending_tasks() {
     debug("Canceling pending tasks");
     m_add_macs_list.clear();
     m_del_macs_list.clear();
@@ -482,7 +495,7 @@ void CStackBase::cancel_pending_tasks(void) {
     }
 }
 
-void CStackBase::cancel_running_tasks(void) {
+void CStackBase::cancel_running_tasks() {
     debug("Canceling running tasks");
     if ( m_is_running_tasks ) {
         pthread_cancel(m_thread_handle);
@@ -525,7 +538,7 @@ void CStackBase::run_pending_tasks_async(uint64_t ticket_id,bool rpc) {
     }
 }
 
-void CStackBase::reset_async(void) {
+void CStackBase::reset_async() {
     cancel_running_tasks();
     cancel_pending_tasks();
     if ( m_nodes.size() <= 1 ) {
@@ -538,7 +551,7 @@ void CStackBase::reset_async(void) {
     }
 }
 
-void CStackBase::cleanup_async(void) {
+void CStackBase::cleanup_async() {
     debug("cleanup");
     cancel_running_tasks();
     cancel_pending_tasks();
@@ -548,7 +561,7 @@ void CStackBase::cleanup_async(void) {
     }
 }
 
-bool CStackBase::is_running_tasks(void) {
+bool CStackBase::is_running_tasks() {
     return m_is_running_tasks;
 }
 
@@ -574,25 +587,25 @@ void CNodeBase::conf_dst_mac_async(const string &dst_mac) {
     }
 }
 
-void CNodeBase::set_dst_mac_valid_async(void) {
+void CNodeBase::set_dst_mac_valid_async() {
     debug("set dst valid");
     if ( !m_dst_mac_valid ) {
         m_tasks.push_back(bind(&CNodeBase::set_dst_mac_valid_internal, this, true));
     }
 }
 
-void CNodeBase::set_dst_mac_invalid(void) {
+void CNodeBase::set_dst_mac_invalid() {
     set_dst_mac_valid_internal(false);
 }
 
-void CNodeBase::set_is_loopback_async(void) {
+void CNodeBase::set_is_loopback_async() {
     debug("set is loop");
     if ( !m_is_loopback ) {
         m_tasks.push_back(bind(&CNodeBase::set_is_loopback_internal, this, true));
     }
 }
 
-void CNodeBase::set_not_loopback(void) {
+void CNodeBase::set_not_loopback() {
     debug("set no loop");
     set_is_loopback_internal(false);
 }
@@ -600,7 +613,8 @@ void CNodeBase::set_not_loopback(void) {
 void CNodeBase::conf_vlan_async(const vlan_list_t &vlans) {
     debug("conf vlan");
     if ( vlans != m_vlan_tags ) {
-        m_tasks.push_back(bind(&CNodeBase::conf_vlan_internal, this, vlans));
+        vlan_list_t tpids_dummy;
+        m_tasks.push_back(bind(&CNodeBase::conf_vlan_internal, this, vlans, tpids_dummy));
     }
 }
 
@@ -613,7 +627,7 @@ void CNodeBase::conf_ip4_async(const string &ip4_buf, const string &gw4_buf) {
     }
 }
 
-void CNodeBase::clear_ip4_async(void) {
+void CNodeBase::clear_ip4_async() {
     debug("clear ip4");
     if ( m_ip4.size() || m_gw4.size() ) {
         m_tasks.push_back(bind(&CNodeBase::clear_ip4_internal, this));
@@ -629,7 +643,7 @@ void CNodeBase::conf_ip6_async(bool enabled, const string &ip6_buf) {
     }
 }
 
-void CNodeBase::clear_ip6_async(void) {
+void CNodeBase::clear_ip6_async() {
     debug("clear ip6");
     if ( m_ip6_enabled || m_ip6.size() ) {
         m_tasks.push_back(bind(&CNodeBase::clear_ip6_internal, this));
@@ -644,8 +658,12 @@ void CNodeBase::to_json_node(Json::Value &cfg){
 
     // VLAN
     cfg["vlan"]["tags"] = Json::arrayValue;
-    for (auto tag : get_vlan()) {
+    for (auto &tag : get_vlan_tags()) {
         cfg["vlan"]["tags"].append(tag);
+    }
+    cfg["vlan"]["tpids"] = Json::arrayValue;
+    for (auto &tpid : get_vlan_tpids()) {
+        cfg["vlan"]["tpids"].append(tpid);
     }
 
     // IPv4
@@ -683,7 +701,7 @@ void CNodeBase::to_json(Json::Value &cfg){
 
     // VLAN
     cfg["vlan"]["tags"] = Json::arrayValue;
-    for (auto tag : get_vlan()) {
+    for (auto &tag : get_vlan_tags()) {
         cfg["vlan"]["tags"].append(tag);
     }
 
@@ -733,7 +751,7 @@ void CNodeBase::conf_dst_mac_internal(const string &dst_mac) {
     m_dst_mac = dst_mac;
 }
 
-void CNodeBase::conf_vlan_internal(const vlan_list_t &vlans) {
+void CNodeBase::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
     throw TrexException("VLAN is not supported with current stack");
 }
 
@@ -741,7 +759,7 @@ void CNodeBase::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) 
     throw TrexException("IPv4 is not supported with current stack");
 }
 
-void CNodeBase::clear_ip4_internal(void) {
+void CNodeBase::clear_ip4_internal() {
     m_ip4.clear();
     m_gw4.clear();
 }
@@ -751,21 +769,21 @@ void CNodeBase::conf_ip6_internal(bool enabled, const string &ip6_buf) {
 }
 
 
-void CNodeBase::clear_ip6_internal(void) {
+void CNodeBase::clear_ip6_internal() {
     m_ip6_enabled = false;
     m_ip6.clear();
 }
 
 // getters
-bool CNodeBase::is_dst_mac_valid(void) {
+bool CNodeBase::is_dst_mac_valid() {
     return m_dst_mac_valid;
 }
 
-bool CNodeBase::is_loopback(void) {
+bool CNodeBase::is_loopback() {
     return m_is_loopback;
 }
 
-bool CNodeBase::is_ip6_enabled(void) {
+bool CNodeBase::is_ip6_enabled() {
     return m_ip6_enabled;
 }
 
@@ -780,31 +798,35 @@ string CNodeBase::mac_str_to_mac_buf(const std::string & mac){
     assert(0);
 }
 
-std::string CNodeBase::get_src_mac_as_str(void){
+std::string CNodeBase::get_src_mac_as_str(){
     return ( utl_macaddr_to_str((uint8_t *)get_src_mac().data()) );
 }
 
-const string &CNodeBase::get_src_mac(void) {
+const string &CNodeBase::get_src_mac() {
     return m_src_mac;
 }
 
-const string &CNodeBase::get_dst_mac(void) {
+const string &CNodeBase::get_dst_mac() {
     return m_dst_mac;
 }
 
-const vlan_list_t &CNodeBase::get_vlan(void) {
+const vlan_list_t &CNodeBase::get_vlan_tags() {
     return m_vlan_tags;
 }
 
-const string &CNodeBase::get_src_ip4(void) {
+const vlan_list_t &CNodeBase::get_vlan_tpids() {
+    return m_vlan_tpids;
+}
+
+const string &CNodeBase::get_src_ip4() {
     return m_ip4;
 }
 
-const string &CNodeBase::get_dst_ip4(void) {
+const string &CNodeBase::get_dst_ip4() {
     return m_gw4;
 }
 
-const string &CNodeBase::get_src_ip6(void) {
+const string &CNodeBase::get_src_ip6() {
     return m_ip6;
 }
 

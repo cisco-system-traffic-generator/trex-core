@@ -36,7 +36,7 @@ class CLegacyNode : public CNodeBase {
 public:
     CLegacyNode(const string &mac_buf);
     ~CLegacyNode();
-    void conf_vlan_internal(const vlan_list_t &vlans);
+    void conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids);
     void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
 
 private:
@@ -48,9 +48,9 @@ private:
 class CStackLegacy : public CStackBase {
 public:
     CStackLegacy(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
-    ~CStackLegacy(void);
+    ~CStackLegacy();
 
-    uint16_t get_capa(void);
+    uint16_t get_capa();
 
     void grat_to_json(Json::Value &res);
 
@@ -61,10 +61,10 @@ public:
     uint16_t handle_tx(uint16_t limit);
 
 private:
-    bool is_grat_active(void);
+    bool is_grat_active();
     CNodeBase* add_node_internal(const std::string &mac_buf);
     void del_node_internal(const std::string &mac_buf);
-    uint16_t send_grat_arp(void);
+    uint16_t send_grat_arp();
     void handle_icmp(RXPktParser &parser);
     void handle_arp(RXPktParser &parser);
     rte_mbuf_t *duplicate_mbuf(const rte_mbuf_t *m);
