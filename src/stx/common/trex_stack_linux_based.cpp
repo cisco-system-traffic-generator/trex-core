@@ -45,8 +45,8 @@
 #include "os_time.h"
 
 
-char clean_old_nets_and_get_prefix(void);
-void verify_programs(void);
+char clean_old_nets_and_get_prefix();
+void verify_programs();
 void str_from_mbuf(const rte_mbuf_t *m, string &result);
 void popen_with_err(const string &cmd, const string &err);
 
@@ -76,7 +76,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
     m_next_namespace_id = 0;
 }
 
-CStackLinuxBased::~CStackLinuxBased(void) {
+CStackLinuxBased::~CStackLinuxBased() {
     debug("Linux stack dtor");
     assert(m_epoll_fd);
     close(m_epoll_fd);
@@ -158,11 +158,12 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_node(const std::string & mac){
 }
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
-                                                  vlan_list_t vlan_list){
+                                                  const vlan_list_t &vlan_list,
+                                                  const vlan_list_t &tpid_list) {
     CLinuxIfNode * lp=get_node_rpc(mac);
 
     rte_spinlock_lock(&m_main_loop);
-    lp->conf_vlan_internal(vlan_list);
+    lp->conf_vlan_internal(vlan_list, tpid_list);
     rte_spinlock_unlock(&m_main_loop);
 
     return (TREX_RPC_CMD_OK);
@@ -349,7 +350,7 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
 
 #define MAX_REMOVES_UNDER_LOCK 20
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(void){
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
 
     std::vector<std::string> m_vec;
 
@@ -393,7 +394,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(void){
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_counters(void){
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_counters(){
     m_counters.clear_counters();
     return (TREX_RPC_CMD_OK);
 }
@@ -444,7 +445,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
 }
 
 
-uint16_t CStackLinuxBased::get_capa(void) {
+uint16_t CStackLinuxBased::get_capa() {
     return (CLIENTS);
 }
 
@@ -506,12 +507,12 @@ void CLinuxIfNode::create_net(const string &mtu) {
     run_in_ns("ip link set " + m_ns_name + "-L mtu " + mtu + " up", "Could not configure veth");
 }
 
-void CLinuxIfNode::delete_net(void) {
+void CLinuxIfNode::delete_net() {
     popen_with_err("ip link delete " + m_ns_name + "-T", "Could not delete veth");
     popen_with_err("ip netns delete " + m_ns_name, "Could not delete network namespace");
 }
 
-void CLinuxIfNode::bind_pair(void) {
+void CLinuxIfNode::bind_pair() {
     int sockfd;
     sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if ( sockfd < 0 ) {
@@ -547,24 +548,34 @@ void append_to_str(uint16_t num, string &str) {
     str += num & 0xff;
 }
 
-void CLinuxIfNode::conf_vlan_internal(const vlan_list_t &vlans) {
+uint16_t get_tpid(const vlan_list_t &tpids, uint8_t index, uint16_t def) {
+    return tpids.size() > index ? tpids[index] : def;
+}
+
+void CLinuxIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
     string bpf_str = "";
     m_vlans_insert_to_pkt = "";
+
+    uint16_t tpid;
     for (auto &vlan : vlans) {
         if ( vlans.size() == 2 && !bpf_str.size() ) {
-            append_to_str(EthernetHeader::Protocol::QINQ, m_vlans_insert_to_pkt);
+            tpid = get_tpid(tpids, 0, EthernetHeader::Protocol::QINQ);
+            append_to_str(tpid, m_vlans_insert_to_pkt);
         } else {
-            append_to_str(EthernetHeader::Protocol::VLAN, m_vlans_insert_to_pkt);
+            tpid = get_tpid(tpids, 1, EthernetHeader::Protocol::VLAN);
+            append_to_str(tpid, m_vlans_insert_to_pkt);
         }
         append_to_str(vlan, m_vlans_insert_to_pkt);
         bpf_str += "vlan " + to_string(vlan) + " and ";
     }
+
     bpf_str += "not udp and not tcp";
     m_bpf = bpfjit_compile(bpf_str.c_str());
     m_vlan_tags = vlans;
+    m_vlan_tpids = tpids;
 }
 
-void CLinuxIfNode::clear_ip4_internal(void) {
+void CLinuxIfNode::clear_ip4_internal() {
     run_in_ns("ip -4 addr flush dev " + m_ns_name + "-L", "Could not flush IPv4 for veth");
     m_ip4.clear();
     m_gw4.clear();
@@ -587,7 +598,7 @@ void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_bu
     m_gw4 = gw4_buf;
 }
 
-void CLinuxIfNode::clear_ip6_internal(void) {
+void CLinuxIfNode::clear_ip6_internal() {
     run_in_ns("sysctl net.ipv6.conf." + m_ns_name + "-L.disable_ipv6=1", "Could not disable ipv6 for veth");
     m_ip6_enabled = false;
     m_ip6.clear();
@@ -610,12 +621,12 @@ void CLinuxIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
 }
 
 // veth pair (from TRex side)
-int CLinuxIfNode::get_pair_id(void) {
+int CLinuxIfNode::get_pair_id() {
     return m_pair_id;
 }
 
 // string of VLAN header(s) to insert into packet
-string &CLinuxIfNode::get_vlans_insert_to_pkt(void) {
+string &CLinuxIfNode::get_vlans_insert_to_pkt() {
     return m_vlans_insert_to_pkt;
 }
 
@@ -628,7 +639,7 @@ bool is_file_exists(const string &filename) {
     return stat(filename.data(), &buf) == 0;
 }
 
-char clean_old_nets_helper(void) {
+char clean_old_nets_helper() {
     DIR *dirp;
     struct dirent *direntp;
     regex_t search_regex;
@@ -725,7 +736,7 @@ char clean_old_nets_helper(void) {
     return free_prefix;
 }
 
-int lock_cleanup(void) {
+int lock_cleanup() {
     string lock_cleanup_file = "/var/lock/trex_cleanup";
     debug("Locking cleanup file " + lock_cleanup_file);
     int cleanup_fd = open(lock_cleanup_file.data(), O_RDONLY | O_CREAT, 0600);
@@ -739,7 +750,7 @@ int lock_cleanup(void) {
     return cleanup_fd;
 }
 
-char clean_old_nets_and_get_prefix(void) {
+char clean_old_nets_and_get_prefix() {
     uint16_t timeout_sec = 1000;
 
     future<int> lock_thread_handle = async(launch::async, lock_cleanup);
@@ -796,7 +807,7 @@ char clean_old_nets_and_get_prefix(void) {
     return prefix_char;
 }
 
-void verify_programs(void) {
+void verify_programs() {
     // ensure sbin(s) are in path
     string path = getenv("PATH");
     setenv("PATH", ("/sbin:/usr/sbin:/usr/local/sbin/:" + path).c_str(), 1);

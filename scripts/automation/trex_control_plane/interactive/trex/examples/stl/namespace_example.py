@@ -1,6 +1,7 @@
 import stl_path
 from trex.stl.api import *
 from trex.utils.text_opts import format_text
+import argparse
 
 import pprint
 import time
@@ -11,19 +12,7 @@ def my_cb(obj):
     err = obj['errs_cmds'] 
     print("progress {:3.0f}% errors : {}".format(prog,err ))
 
-def simple (json_cmd_list):
-
-    # create client
-    #verbose_level = 'debug','error'
-    c = STLClient(verbose_level = 'error',server='csi-trex-17')
-    passed = True
-    
-    c.connect()
-
-    my_ports=[0,1]
-    c.reset(ports = my_ports)
-
-    c.set_service_mode (ports = my_ports, enabled = True)
+def run(c, json_cmd_list):
     c.namespace_remove_all()
     c.set_namespace(0,method='clear_counters')
     pprint.pprint(c.set_namespace(0,method='counters_get_meta'))
@@ -31,38 +20,46 @@ def simple (json_cmd_list):
 
 
     # json to string
-    cnt=0
     for cmd in json_cmd_list:
-       res=c.set_namespace_start( 0, cmd)
-       res = c.wait_for_async_results(0,cb=my_cb);
-       print(res);
-       cnt +=1
+        res=c.set_namespace_start( 0, cmd)
+        res = c.wait_for_async_results(0,cb=my_cb);
+        print(res);
 
     print(c.set_namespace(0,method='get_nodes'))
     pprint.pprint(c.set_namespace(0,method='counters_get_values',zeros=True))
 
 
     #while True:
-      #if c.is_async_results_ready(0):
-      #    print(c.wait_for_async_results(0))
-      #    break;
-      #else:
-      #    print(" not ready !\n")
+        #if c.is_async_results_ready(0):
+        #    print(c.wait_for_async_results(0))
+        #    break;
+        #else:
+        #    print(" not ready !\n")
 
 
+def simple(server, json_cmd_list):
 
+    # create client
+    #verbose_level = 'debug','error'
+    c = STLClient(verbose_level = 'error', server=server)
+    c.connect()
 
-    c.set_service_mode (ports = my_ports, enabled = False)
+    my_ports=[0,1]
+    c.acquire(my_ports)
 
-    c.disconnect()
+    try:
+        with c.service_mode(my_ports):
+            run(c, json_cmd_list)
 
+    finally:
+        c.release()
 
 
 def test2 ():
     cmds=NSCmds()
     MAC="00:01:02:03:04:05"
     cmds.add_node(MAC)
-    #cmds.set_vlan("00:01:02:03:04:05",[123,123])
+    #cmds.set_vlan("00:01:02:03:04:05", [123,123], [0x8100, 0x8100])
     #cmds.set_vlan("00:01:02:03:04:05",[1])
     cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
     #cmds.set_vlan("00:01:02:03:04:05",[2,2])
@@ -116,22 +113,29 @@ def test4_args (method,**args):
     func(**args)
     pprint.pprint(cmds.get_json())
 
+
 def test_5 ():
-  MAC="00:01:02:03:04:05"
-  test4_args ('add_node',mac=MAC)
-  test4_args ('remove_all')
-  test4_args ('set_ipv4',mac=MAC,ipv4="1.1.1.3",dg="1.1.1.2")
-  test4_args ('add_node',mac=MAC)
-
-  
+    MAC="00:01:02:03:04:05"
+    test4_args ('add_node',mac=MAC)
+    test4_args ('remove_all')
+    test4_args ('set_ipv4',mac=MAC,ipv4="1.1.1.3",dg="1.1.1.2")
+    test4_args ('add_node',mac=MAC)
 
 
-#simple([test2 ()])
-#simple([build_network(1000)])
-#simple([test3 ()])
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', dest = 'server',
+            type=str, default = 'localhost',
+            help = 'TRex server address',)
+    return parser.parse_args()
 
-simple([test2()])
-#simple([build_network(20)])
+args = parse_args()
+#simple(args.server, [test2 ()])
+#simple(args.server, [build_network(1000)])
+#simple(args.server, [test3 ()])
+
+simple(args.server, [test2()])
+#simple(args.server, [build_network(20)])
 
 
 #test_5 ()

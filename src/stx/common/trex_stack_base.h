@@ -49,34 +49,35 @@ public:
     void conf_dst_mac_async(const std::string &dst_mac);
     void conf_vlan_async(const vlan_list_t &vlans);
     void conf_ip4_async(const std::string &ip4_buf, const std::string &gw4_buf);
-    void clear_ip4_async(void);
+    void clear_ip4_async();
     void conf_ip6_async(bool enabled, const std::string &ip6_buf);
-    void clear_ip6_async(void);
+    void clear_ip6_async();
 
     // mark dst mac as invalid (after link down, or if IPv4 is not resolved)
-    void set_dst_mac_invalid(void);
+    void set_dst_mac_invalid();
     // mark dst mac as valid
-    void set_dst_mac_valid_async(void);
+    void set_dst_mac_valid_async();
     // dst mac is NOT one of our ports
-    void set_not_loopback(void);
+    void set_not_loopback();
     // dst mac is one of our ports
-    void set_is_loopback_async(void);
+    void set_is_loopback_async();
 
     // getters
-    bool is_dst_mac_valid(void);
-    bool is_loopback(void);
-    bool is_ip6_enabled(void);
+    bool is_dst_mac_valid();
+    bool is_loopback();
+    bool is_ip6_enabled();
     /* return mac_buf and NOT mac string */
-    const std::string &get_src_mac(void);
+    const std::string &get_src_mac();
 
     /* return src_mac as string xx:xx:xx:xx:xx  for RPC */
-    std::string get_src_mac_as_str(void);
+    std::string get_src_mac_as_str();
 
-    const std::string &get_dst_mac(void);
-    const vlan_list_t &get_vlan(void);
-    const std::string &get_src_ip4(void);
-    const std::string &get_dst_ip4(void);
-    const std::string &get_src_ip6(void);
+    const std::string &get_dst_mac();
+    const vlan_list_t &get_vlan_tags();
+    const vlan_list_t &get_vlan_tpids();
+    const std::string &get_src_ip4();
+    const std::string &get_dst_ip4();
+    const std::string &get_src_ip6();
 
     task_list_t         m_tasks;
 
@@ -91,10 +92,10 @@ protected:
     virtual void set_is_loopback_internal(bool is_loopback);
     virtual void conf_dst_mac_internal(const std::string &dst_mac);
     virtual void conf_ip4_internal(const std::string &ip6_buf, const std::string &gw4_buf);
-    virtual void clear_ip4_internal(void);
-    virtual void conf_vlan_internal(const vlan_list_t &vlans);
+    virtual void clear_ip4_internal();
+    virtual void conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids);
     virtual void conf_ip6_internal(bool enabled, const std::string &ip6_buf);
-    virtual void clear_ip6_internal(void);
+    virtual void clear_ip6_internal();
 
     // binary values as it would be in packet
     bool                m_dst_mac_valid;
@@ -102,6 +103,7 @@ protected:
     std::string         m_dst_mac;
     std::string         m_src_mac;
     vlan_list_t         m_vlan_tags;
+    vlan_list_t         m_vlan_tpids;
     std::string         m_ip4;
     std::string         m_gw4;
     std::string         m_ip6;
@@ -154,10 +156,10 @@ public:
     };
 
     CStackBase(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
-    virtual ~CStackBase(void)=0;
+    virtual ~CStackBase()=0;
 
     // Get capabilities of stack
-    virtual uint16_t get_capa(void)=0;
+    virtual uint16_t get_capa()=0;
 
     // Handle RX packet (TRex RX port -> node)
     virtual void handle_pkt(const rte_mbuf_t *m)=0;
@@ -172,16 +174,16 @@ public:
     virtual void grat_to_json(Json::Value &res);
 
     // Not used currently, to be used for cleaning extra "client" nodes
-    void reset_async(void);
+    void reset_async();
 
     // Upon exit, cleanup of all nodes / networks / resources
-    void cleanup_async(void);
+    void cleanup_async();
 
     // Add node by MAC
     void add_node_async(const std::string &mac_buf);
 
     // Add node of port
-    void add_port_node_async(void);
+    void add_port_node_async();
 
     // Delete node by MAC
     void del_node_async(const std::string &mac_buf);
@@ -190,7 +192,7 @@ public:
     CNodeBase* get_node(const std::string &mac_buf);
 
     // Get port node
-    CNodeBase* get_port_node(void);
+    CNodeBase* get_port_node();
 
     // Return true if port MAC is mac_buf
     bool has_port(const std::string &mac_buf);
@@ -199,7 +201,7 @@ public:
     bool has_capa(capa_enum capa);
 
     // Is stack in the middle of running tasks
-    bool is_running_tasks(void);
+    bool is_running_tasks();
 
     // Run the tasks with ticket to query status
     void run_pending_tasks_async(uint64_t ticket_id,bool rpc);
@@ -211,8 +213,8 @@ public:
     // busy wait for tasks to finish
     void wait_on_tasks(uint64_t ticket_id, stack_result_t &results, double timeout);
 
-    void cancel_pending_tasks(void);
-    void cancel_running_tasks(void);
+    void cancel_pending_tasks();
+    void cancel_running_tasks();
 public:
     virtual void dummy_rpc_command(string ipv4,string ipv4_dg);
     virtual void rpc_help(const std::string & mac,const std::string & p1,const std::string & p2);
@@ -234,7 +236,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac,vlan_list_t vlan_list){
+    virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac, const vlan_list_t &vlan_list, const vlan_list_t &tpid_list) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
@@ -254,7 +256,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_remove_all(void){
+    virtual trex_rpc_cmd_rc_e rpc_remove_all(){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
@@ -269,7 +271,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_clear_counters(void){
+    virtual trex_rpc_cmd_rc_e rpc_clear_counters(){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
@@ -305,7 +307,7 @@ protected:
     void run_pending_tasks_internal_rpc(uint64_t ticket_id);
 
     CNodeBase* get_node_internal(const std::string &mac_buf);
-    bool has_pending_tasks(void);
+    bool has_pending_tasks();
 
 private:
     void _finish_rpc(uint64_t ticket_id);

@@ -36,20 +36,20 @@ public:
     CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu);
     ~CLinuxIfNode();
 
-    void conf_vlan_internal(const vlan_list_t &vlans);
+    void conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids);
     void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
-    void clear_ip4_internal(void);
+    void clear_ip4_internal();
     void conf_ip6_internal(bool enabled, const string &ip6_buf);
-    void clear_ip6_internal(void);
-    int  get_pair_id(void);
-    string &get_vlans_insert_to_pkt(void);
+    void clear_ip6_internal();
+    int  get_pair_id();
+    string &get_vlans_insert_to_pkt();
     uint16_t filter_and_send(const rte_mbuf_t *m);
 
     void set_associated_trex(bool enable){
         m_associated_trex_ports = enable;
     }
 
-    bool is_associated_trex(void){
+    bool is_associated_trex(){
         return (m_associated_trex_ports);
     }
     virtual void to_json_node(Json::Value &res);
@@ -58,8 +58,8 @@ public:
 private:
     void run_in_ns(const string &cmd, const string &err);
     void create_net(const string &mtu);
-    void delete_net(void);
-    void bind_pair(void);
+    void delete_net();
+    void bind_pair();
     void set_src_mac(const string &mac_str, const string &mac_buf);
     void set_pair_id(int pair_id);
 
@@ -76,9 +76,9 @@ public:
 class CStackLinuxBased : public CStackBase {
 public:
     CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
-    ~CStackLinuxBased(void);
+    ~CStackLinuxBased();
 
-    uint16_t get_capa(void);
+    uint16_t get_capa();
 
     // TRex port -> node
     void handle_pkt(const rte_mbuf_t *m);
@@ -92,14 +92,14 @@ public:
 
     virtual trex_rpc_cmd_rc_e rpc_add_node(const std::string & mac);
     virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac);
-    virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac,vlan_list_t vlan_list);
+    virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac, const vlan_list_t &vlan_list, const vlan_list_t &tpid_list);
     virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string & mac,std::string ip4_buf,std::string gw4_buf);
     virtual trex_rpc_cmd_rc_e rpc_clear_ipv4(const std::string & mac);
     virtual trex_rpc_cmd_rc_e rpc_set_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf);
-    virtual trex_rpc_cmd_rc_e rpc_remove_all(void);
+    virtual trex_rpc_cmd_rc_e rpc_remove_all();
     virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result);
     virtual trex_rpc_cmd_rc_e rpc_get_nodes_info(const Json::Value &params,Json::Value &result);
-    virtual trex_rpc_cmd_rc_e rpc_clear_counters(void);
+    virtual trex_rpc_cmd_rc_e rpc_clear_counters();
     virtual trex_rpc_cmd_rc_e rpc_counters_get_meta(const Json::Value &params, Json::Value &result);
     virtual trex_rpc_cmd_rc_e rpc_counters_get_value(bool zeros, Json::Value &result);
 
