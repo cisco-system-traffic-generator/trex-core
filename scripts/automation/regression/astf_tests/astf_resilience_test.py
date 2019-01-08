@@ -80,6 +80,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     print('Start took: %g' % round(time.time() - start_time, 3))
                     self.astf_trex.stop()
 
+
     def test_double_start_stop(self):
         print('')
         c = self.astf_trex
@@ -89,6 +90,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
             c.start()
         c.stop()
         c.stop()
+
 
     def test_stress_start_stop(self):
         print('')
