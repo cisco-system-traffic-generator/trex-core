@@ -163,7 +163,6 @@ protected:
     std::recursive_mutex                 *m_lock;
     std::recursive_mutex                 m_dummy_lock;
     TrexMonitor                          m_monitor;
-    bool                                 m_is_logging;
     std::ofstream                        m_logfile;
 };
 

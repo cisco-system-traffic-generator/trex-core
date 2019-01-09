@@ -26,7 +26,8 @@ class STLNS_Test(CStlGeneral_Test):
     def test_ns_add_remove(self):
         c= self.stl_trex
 
-        port= 0
+        port = CTRexScenario.ports_map['bi'][0][0]
+        print('Using port %s' % port)
 
         c.namespace_remove_all()
 
@@ -53,9 +54,9 @@ class STLNS_Test(CStlGeneral_Test):
         r=c.wait_for_async_results(port);
         macs=r[0]['result']['nodes']
 
-        print(macs)
+        print('MACs of nodes: %s' % macs)
         if len(macs) != 1:
-           self.fail(' macs should include one mac')
+           self.fail(' must be exactly one MAC')
         if macs[0] != "00:01:02:03:04:05":
            self.fail(' macs should include 00:01:02:03:04:05')
 
@@ -68,11 +69,29 @@ class STLNS_Test(CStlGeneral_Test):
         ns_stat = CNsStats()
         ns_stat.set_meta_values(r[0]['result']['data'], r[1]['result'][''])
         cnt = ns_stat.get_values_stats()
+        print('Counters:')
         pprint.pprint(cnt)
 
+        for k, v in cnt.items():
+            assert v < 1e6, 'Value is too big in counter %s=%s' % (k, v)
         assert cnt['tx_multicast_pkts']>0, 'multicast rx counter is zero'
 
-         # clear counters
+        # remove Node
+        cmds=NSCmds()
+        cmds.remove_node(MAC)
+        c.set_namespace_start(port, cmds)
+        r=c.wait_for_async_results(port);
+
+        cmds=NSCmds()
+        cmds.get_nodes()
+        c.set_namespace_start(port, cmds)
+        r=c.wait_for_async_results(port);
+        macs=r[0]['result']['nodes']
+        print('MACs of nodes: %s' % macs)
+        if len(macs) != 0:
+            self.fail(' must be no MACs, we deleted node')
+
+        # clear counters
         cmds=NSCmds()
         cmds.clear_counters()
         cmds.counters_get_meta()
@@ -83,26 +102,11 @@ class STLNS_Test(CStlGeneral_Test):
         ns_stat = CNsStats()
         ns_stat.set_meta_values(r[1]['result']['data'], r[2]['result'][''])
         cnt = ns_stat.get_values_stats()
+        print('Counters:')
         pprint.pprint(cnt)
 
-        assert len(cnt)==0, 'multicast tx shoule be zero '
+        assert len(cnt)==0, 'Counters should be zero'
 
-        # remove one
-        cmds=NSCmds()
-        cmds.remove_node(MAC)
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-
-
-        cmds=NSCmds()
-        cmds.get_nodes()
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-        macs=r[0]['result']['nodes']
-
-        print(macs)
-        if len(macs) != 0:
-           self.fail(' macs should include zero')
 
     def test_ping_to_ns(self):
 

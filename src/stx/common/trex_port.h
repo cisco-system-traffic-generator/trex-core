@@ -172,7 +172,7 @@ public:
     bool get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results);
 
     // get extended results  
-    void get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results,TrexStackResultsRC & rc);
+    void get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results, TrexStackResultsRC &rc);
 
     // get port node to query ip/mac/vlan etc. info
     void get_port_node(CNodeBase &node);

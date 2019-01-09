@@ -85,6 +85,9 @@ void CRxCounters::dump(){
 }
 
 void CRxCounters::clear_counters(){
+    m_tx_err_small_pkt = 0;
+    m_tx_err_big_9k = 0;
+    m_rx_err_invalid_pkt = 0;
 
     int i,j,k;
     for (i=0; i<CNT_RX_TX_SIZE; i++) {
