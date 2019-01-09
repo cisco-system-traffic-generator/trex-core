@@ -30,8 +30,8 @@ endif::backend-docbook[]
 
 * STL/ASTF
 ** L2 emulation (IPv4,IPv6,Dot1q,QinQ) API using Linux network namespace. This works for STL and ASTF see link:trex_stateless.html#linux_network_namespace[name space] for more info
-* STL, supports VxLAN hardware counters for XL710/X710 TBD-link 
-
+* STL, supports VxLAN hardware counters for XL710/X710 
+* Maximum of 24 ports (instead of 16)
 
 == Release 2.49 ==
 
