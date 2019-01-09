@@ -3872,10 +3872,10 @@ int  CGlobalTRex::device_prob_init(void){
         printf("tx_offload_capa : 0x%lx \n",dev_info.tx_offload_capa);
         printf("rss reta_size   : %d \n",dev_info.reta_size);
         printf("flow_type_rss   : 0x%lx \n",dev_info.flow_type_rss_offloads);
-        printf("tx_desc_max     : 0x%lx \n",dev_info.tx_desc_lim.nb_max);
-        printf("tx_desc_min     : 0x%lx \n",dev_info.tx_desc_lim.nb_min);
-        printf("rx_desc_max     : 0x%lx \n",dev_info.rx_desc_lim.nb_max);
-        printf("rx_desc_min     : 0x%lx \n",dev_info.rx_desc_lim.nb_min);
+        printf("tx_desc_max     : %u \n",dev_info.tx_desc_lim.nb_max);
+        printf("tx_desc_min     : %u \n",dev_info.tx_desc_lim.nb_min);
+        printf("rx_desc_max     : %u \n",dev_info.rx_desc_lim.nb_max);
+        printf("rx_desc_min     : %u \n",dev_info.rx_desc_lim.nb_min);
     }
 
     m_drv = get_ex_drv();

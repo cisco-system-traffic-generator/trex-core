@@ -520,8 +520,7 @@ bool TrexPort::is_rx_running_cfg_tasks(void) {
 }
 
 
-void TrexPort::get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results,TrexStackResultsRC & rc){
-
+void TrexPort::get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results, TrexStackResultsRC & rc){
     static MsgReply<TrexStackResultsRC> reply;
     reply.reset();
     TrexRxGetTasksResultsEx *msg = new TrexRxGetTasksResultsEx(m_port_id, ticket_id, results, reply);

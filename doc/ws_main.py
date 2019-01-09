@@ -688,7 +688,10 @@ def build(bld):
 
     bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='release_notes.asciidoc waf.css', target='release_notes.html', scan=ascii_doc_scan)
-                
+
+    bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+        source='release_notes_old.asciidoc waf.css', target='release_notes_old.html', scan=ascii_doc_scan)
+
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
