@@ -74,6 +74,7 @@ class CFlowStatParser {
     virtual uint16_t get_pkt_size();
     virtual uint8_t get_ttl();
     bool get_is_latency();
+    uint8_t get_protocol();
 
     uint8_t *get_l3() {
         if (m_ipv4)

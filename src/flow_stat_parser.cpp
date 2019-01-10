@@ -254,6 +254,17 @@ uint16_t CFlowStatParser::get_pkt_size() {
     return ( ip_len + m_vlan_offset + ETH_HDR_LEN);
 }
 
+uint8_t CFlowStatParser::get_protocol(){
+    uint8_t proto = 0;
+    if (m_ipv4) {
+        proto = m_ipv4->getProtocol();
+    }
+    if (m_ipv6) {
+        proto = m_ipv6->getNextHdr();
+    }
+    return (proto);
+}
+
 bool CFlowStatParser::get_is_latency(){
     uint8_t tos = 0;
     if (m_ipv4) {
