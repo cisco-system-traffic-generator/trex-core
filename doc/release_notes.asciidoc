@@ -26,6 +26,11 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.51 ==
+
+* Minor fixes for namespaces feature 
+
+
 == Release 2.50 ==
 
 * STL/ASTF
