@@ -885,9 +885,16 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
         return;
     }
 
-    bool is_lat = m_parser->get_is_latency();
+    uint8_t proto = m_parser->get_protocol();
+    bool tcp_udp=false;
 
-    if ( is_lat && (is_idle==false)){
+    if ((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)){
+        tcp_udp = true;
+    }
+
+    bool forward_to_rx = m_parser->get_is_latency() || (!tcp_udp) ;
+
+    if ( forward_to_rx && (is_idle==false)){
         drop=false;
     }
 
