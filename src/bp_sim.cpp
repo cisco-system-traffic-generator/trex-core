@@ -745,7 +745,7 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     IPHeader *ipv4 = (IPHeader *) (pkt->raw+offset);
     IPv6Header *ipv6 = (IPv6Header *) (cbuff+offset);
     uint8_t ipv6_hdrlen = ipv6->getHeaderLength();
-
+    memset(ipv6,0,ipv6_hdrlen);
     ipv6->setVersion(6);
     if (ipv4->getTotalLength() < ipv4->getHeaderLength()) {
         return(false);
