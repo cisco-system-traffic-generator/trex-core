@@ -64,7 +64,7 @@ class ServiceARP(Service):
         ARP service - generate ARP requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', src_mac = None, fmt=None, vlan = None, timeout_sec = 3, trigger_pkt=None, verbose_level = Service.ERROR):
+    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, src_mac = None, timeout_sec = 3,  verbose_level = Service.ERROR,fmt=None,trigger_pkt=None):
         
         # init the base object
         super(ServiceARP, self).__init__(verbose_level)
@@ -99,7 +99,7 @@ class ServiceARP(Service):
 
         else:
             self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
-            pkt = Ether(src=self.src_mac, dst="ff:ff:ff:ff:ff:ff")/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
+            pkt = Ether(dst="ff:ff:ff:ff:ff:ff",src=self.src_mac)/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
         
             # add VLAN to the packet if needed
             self.vlan.embed(pkt, self.fmt)
@@ -117,15 +117,8 @@ class ServiceARP(Service):
         # parse record
         response = Ether(pkts[0]['pkt'])
 
-        if response[ARP].op == ARP.is_at:
-            self.record = ARPRecord(self.src_ip, self.dst_ip, response)
-            self.log("ARP: <--- '{0} is at '{1}'".format(self.record.dst_ip, self.record.dst_mac))
-        else:
-            # build ARP response
-            pkt = Ether(src=self.src_mac, dst=response[Ether].src)/ \
-                  ARP(psrc  = self.src_ip, pdst = response[ARP].psrc, hwsrc = self.src_mac)
-            self.embed(pkt, self.fmt)
-            pipe.async_tx_pkt(pkt)
+        self.record = ARPRecord(self.src_ip, self.dst_ip, response)
+        self.log("ARP: <--- '{0} is at '{1}'".format(self.record.dst_ip, self.record.dst_mac))
         
 
     def get_record (self):
