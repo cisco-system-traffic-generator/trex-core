@@ -398,11 +398,11 @@ class CTRexServer(object):
                 raise TypeError('TRex -f (traffic generation .yaml file) and -c (num of cores) must be specified. %s' % e)
 
 
-    def stop_trex(self, seq):
+    def stop_trex(self, seq, with_tb = False):
         logger.info("Processing stop_trex() command.")
         if self.trex.get_seq()== seq:
             logger.debug("Abort request legit since seq# match")
-            return self.trex.stop_trex()
+            return self.trex.stop_trex(with_tb)
         else:
             if self.trex.get_status() != TRexStatus.Idle:
                 logger.warning("Abort request is only allowed to process initiated the run. Request denied.")
