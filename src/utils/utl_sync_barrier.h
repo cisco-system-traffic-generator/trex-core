@@ -23,9 +23,9 @@ limitations under the License.
 
 #include <stdio.h>
 #include <stdint.h>
-#include "mbuf.h"
 #include "os_time.h"
 #include <rte_atomic.h>
+#include <rte_spinlock.h>
 #include <string>
 #include <stdexcept>
 #include "trex_exception.h"
@@ -64,6 +64,15 @@ private:
 
 };
 
+
+class CSpinLock {
+    rte_spinlock_t *m_lock;
+    bool            m_locked;
+public:
+    CSpinLock(rte_spinlock_t *lock);
+    ~CSpinLock();
+    void unlock();
+} __attribute__ ((unused));
 
 #endif
 

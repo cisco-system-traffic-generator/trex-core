@@ -23,6 +23,7 @@
 #include "trex_stack_linux_based.h"
 #include "trex_global.h"
 #include "common/basic_utils.h"
+#include "utl_sync_barrier.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -49,6 +50,74 @@ char clean_old_nets_and_get_prefix();
 void verify_programs();
 void str_from_mbuf(const rte_mbuf_t *m, string &result);
 void popen_with_err(const string &cmd, const string &err);
+
+CMcastFilter::CMcastFilter() {
+    m_vlan_nodes[0] = 0;
+    m_vlan_nodes[1] = 0;
+    m_vlan_nodes[2] = 0;
+    m_multicast_bpf = bpfjit_compile("");
+}
+
+void CMcastFilter::renew_multicast_bpf() {
+    const string emul_pkts = "not udp and not tcp";
+    string bpf_str;
+    bool v0 = m_vlan_nodes[0];
+    bool v1 = m_vlan_nodes[1];
+    bool v2 = m_vlan_nodes[2];
+
+    if ( v0 ) {
+        if ( v1 ) {
+            if ( v2 ) { // all the mix
+                bpf_str = emul_pkts + " or vlan and " + emul_pkts + " or vlan and " + emul_pkts;
+            } else { // untagged and 1 VLAN
+                bpf_str = emul_pkts + " or vlan and " + emul_pkts;
+            }
+        } else {
+            if ( v2 ) { // untagged and 2 VLANs
+                bpf_str = emul_pkts + " or vlan and vlan and " + emul_pkts;
+            } else { // untagged only
+                bpf_str = emul_pkts;
+            }
+        }
+    } else {
+        if ( v1 ) {
+            if ( v2 ) { // 1 and 2 VLANs only
+                bpf_str = "vlan and " + emul_pkts + " or vlan and " + emul_pkts;
+            } else { // only 1 VLAN
+                bpf_str = "vlan and " + emul_pkts;
+            }
+        } else {
+            if ( v2 ) { // only 2 VLANs
+                bpf_str = "vlan and vlan and " + emul_pkts;
+            } else { // no nodes
+                bpf_str = "";
+            }
+        }
+    }
+
+    m_multicast_bpf = bpfjit_compile(bpf_str.c_str());
+}
+
+const bpf_h& CMcastFilter::get_bpf() {
+    return m_multicast_bpf;
+}
+
+void CMcastFilter::add_del_vlans(uint8_t add_vlan_size, uint8_t del_vlan_size) {
+    if ( add_vlan_size == del_vlan_size ) {
+        return;
+    }
+    m_vlan_nodes[add_vlan_size]++;
+    m_vlan_nodes[del_vlan_size]--;
+    renew_multicast_bpf();
+}
+
+void CMcastFilter::add_empty() {
+    m_vlan_nodes[0]++;
+    if ( m_vlan_nodes[0] == 1 ) {
+        renew_multicast_bpf();
+    }
+}
+
 
 /***************************************
 *          CStackLinuxBased            *
@@ -84,37 +153,47 @@ CStackLinuxBased::~CStackLinuxBased() {
 
 void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
     if ( (m->data_len >= 6) && (m->pkt_len <= MAX_PKT_ALIGN_BUF_9K) ) {
-        char *seg_ptr = (char*)m->buf_addr + m->data_off;
-        rte_spinlock_lock(&m_main_loop);
+        string pkt;
+        str_from_mbuf(m, pkt);
+
+        CSpinLock lock(&m_main_loop);
         /* TBD need to fix the multicast issue could create bursts */
 
-        if ( seg_ptr[0] & 1 ) {
-            if (seg_ptr[0] == 0xff) {
-                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST] +=1;
-                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST] +=m->pkt_len;
-            }else{
-                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST] +=1;
-                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST] +=m->pkt_len;
+        if ( pkt[0] & 1 ) {
+            bool rc = bpfjit_run(m_mcast_filter.get_bpf(), pkt.c_str(), pkt.size());
+            if ( (uint8_t)pkt[0] == 0xff ) {
+                if ( !rc ) {
+                    m_counters.m_rx_bcast_filtered++;
+                    return;
+                }
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST]++;
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST] += pkt.size();
+            } else {
+                if ( !rc ) {
+                    m_counters.m_rx_mcast_filtered++;
+                    return;
+                }
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST]++;
+                m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST] += pkt.size();
             }
             debug("Linux handle_pkt: got broadcast or multicast");
             for (auto &iter_pair : m_nodes ) {
-                uint16_t sent_len = ((CLinuxIfNode*)iter_pair.second)->filter_and_send(m);
+                uint16_t sent_len = ((CLinuxIfNode*)iter_pair.second)->filter_and_send(pkt);
                 debug({"sent:", to_string(sent_len)});
             }
         } else {
-            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST] +=1;
-            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST] +=m->pkt_len;
-            string mac_dst_buf(seg_ptr, 6);
+            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST]++;
+            m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST] += pkt.size();
+            string mac_dst_buf(pkt, 0, 6);
             debug("Linux handle_pkt: got unicast");
             CLinuxIfNode *node = (CLinuxIfNode *)get_node(mac_dst_buf);
             if ( node ) {
-                uint16_t sent_len = node->filter_and_send(m);
+                uint16_t sent_len = node->filter_and_send(pkt);
                 debug({"sent:", to_string(sent_len)});
             } else {
                 debug({"Linux handle_pkt: did not find node with mac:", utl_macaddr_to_str((uint8_t *)mac_dst_buf.data())});
             }
         }
-        rte_spinlock_unlock(&m_main_loop);
     }else{
         m_counters.m_rx_err_invalid_pkt++;
     }
@@ -162,9 +241,8 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
                                                   const vlan_list_t &tpid_list) {
     CLinuxIfNode * lp=get_node_rpc(mac);
 
-    rte_spinlock_lock(&m_main_loop);
+    CSpinLock lock(&m_main_loop);
     lp->conf_vlan_internal(vlan_list, tpid_list);
-    rte_spinlock_unlock(&m_main_loop);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -226,23 +304,21 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
             string src_mac(m_rw_buf + 6, 6);
 
             /* update counters */
-            if (m_rw_buf[0]== 0xff) {
-                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST]+=1;
-                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST]+=pkt_len;
-            }else{
-                if ((m_rw_buf[0]&1) == 0x1){
-                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST]+=1;
-                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST]+=pkt_len;
-                }else{
-                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST]+=1;
-                    m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST]+=pkt_len;
-                }
+            if ( (uint8_t)m_rw_buf[0] == 0xff ) {
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST]++;
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST] += pkt_len;
+            } else if ( m_rw_buf[0] & 1 ) {
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST]++;
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST] += pkt_len;
+            } else {
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_PKT][CRxCounters::CNT_UNICAST]++;
+                m_counters.m_gen_cnt[CRxCounters::CNT_TX][CRxCounters::CNT_BYTE][CRxCounters::CNT_UNICAST] += pkt_len;
             }
 
-            rte_spinlock_lock(&m_main_loop);
+            CSpinLock lock(&m_main_loop);
             auto iter_pair = m_nodes.find(src_mac);
             if ( iter_pair == m_nodes.end() ) {
-                rte_spinlock_unlock(&m_main_loop);
+                lock.unlock();
                 continue;
             }
             CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
@@ -260,10 +336,10 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
             }else{
                 m_counters.m_tx_err_big_9k++;
             }
-            rte_spinlock_unlock(&m_main_loop);
-      }
-   }
-   return event_count;
+            lock.unlock();
+        }
+    }
+    return event_count;
 }
 
 CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
@@ -275,7 +351,7 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
     }
     stringstream ss;
     ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << m_next_namespace_id;
-    CLinuxIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu);
+    CLinuxIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter);
     if (node == nullptr) {
         throw TrexException("Could not create node " + mac_str);
     }
@@ -289,10 +365,9 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
        throw TrexException("Failed to add file descriptor to epoll " + mac_str +" " +strerror(errno));
     }
 
-    rte_spinlock_lock(&m_main_loop);
+    CSpinLock lock(&m_main_loop);
     /* add the nodes */
     m_nodes[mac_buf] = node;
-    rte_spinlock_unlock(&m_main_loop);
 
     return node;
 }
@@ -324,16 +399,15 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
 
     debug({" del_node_internal  ", mac_str} );
 
-    rte_spinlock_lock(&m_main_loop);
+    CSpinLock lock(&m_main_loop);
     auto iter_pair = m_nodes.find(mac_buf);
     if ( iter_pair == m_nodes.end() ) {
-        rte_spinlock_unlock(&m_main_loop);
         throw TrexException("Node with MAC " + mac_str + " does not exist");
     }
     CLinuxIfNode *node = (CLinuxIfNode*)iter_pair->second;
     int pair_id = node->get_pair_id();
     m_nodes.erase(iter_pair->first);
-    rte_spinlock_unlock(&m_main_loop);
+    lock.unlock();
 
     struct epoll_event event;
     event.events = EPOLLIN;
@@ -359,7 +433,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
     while (true) {
 
         /* under the lock */
-        rte_spinlock_lock(&m_main_loop);
+        CSpinLock lock(&m_main_loop);
         for (auto &iter_pair : m_nodes ) {
             CLinuxIfNode * lp=(CLinuxIfNode*)iter_pair.second;
             /* add the nodes that are not related to trex physical ports */
@@ -370,7 +444,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
                 break;
             }
         }
-        rte_spinlock_unlock(&m_main_loop);
+        lock.unlock();
 
         if (m_vec.size()==0) {
             break;
@@ -453,7 +527,8 @@ uint16_t CStackLinuxBased::get_capa() {
 *            CLinuxIfNode              *
 ***************************************/
 
-CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu) {
+CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf,
+            const string &mtu, CMcastFilter &mcast_filter) {
     debug("Linux node ctor");
     m_ns_name = ns_name;
     m_associated_trex_ports = true;
@@ -461,6 +536,8 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
     set_src_mac(mac_str, mac_buf);
     bind_pair();
     m_bpf = bpfjit_compile("not udp and not tcp");
+    m_mcast_filter = &mcast_filter;
+    m_mcast_filter->add_empty();
 }
 
 CLinuxIfNode::~CLinuxIfNode() {
@@ -480,9 +557,7 @@ void CLinuxIfNode::to_json_node(Json::Value &res){
     res["linux-veth-external"] = m_ns_name+"-T";
 }
 
-uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {
-    string pkt;
-    str_from_mbuf(m, pkt);
+uint16_t CLinuxIfNode::filter_and_send(const string &pkt) {
     bool rc = bpfjit_run(m_bpf, pkt.c_str(), pkt.size());
     if ( !rc ) {
         debug("Packet filtered out by BPF");
@@ -490,9 +565,12 @@ uint16_t CLinuxIfNode::filter_and_send(const rte_mbuf_t *m) {
     }
     debug("Packet was NOT filtered by BPF");
     if ( m_vlans_insert_to_pkt.size() ) {
-        pkt = pkt.substr(0, 12) + pkt.substr(12 + m_vlans_insert_to_pkt.size());
+        string vlan_pkt(pkt, 0, 12);
+        vlan_pkt += pkt.substr(12 + m_vlans_insert_to_pkt.size());
+        return send(m_pair_id, vlan_pkt.c_str(), vlan_pkt.size(), MSG_DONTWAIT);
+    } else {
+        return send(m_pair_id, pkt.c_str(), pkt.size(), MSG_DONTWAIT);
     }
-    return send(m_pair_id, pkt.c_str(), pkt.size(), MSG_DONTWAIT);
 }
 
 void CLinuxIfNode::create_net(const string &mtu) {
@@ -571,6 +649,7 @@ void CLinuxIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_
 
     bpf_str += "not udp and not tcp";
     m_bpf = bpfjit_compile(bpf_str.c_str());
+    m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
     m_vlan_tags = vlans;
     m_vlan_tpids = tpids;
 }
@@ -685,7 +764,7 @@ char clean_old_nets_helper() {
             if ( res ) {
                 throw TrexException("Could not compile regex");
             }
-            for (if_iter = if_list; if_iter != nullptr; if_iter = if_iter->ifa_next) {
+            for (if_iter = if_list; if_iter; if_iter = if_iter->ifa_next) {
                 if (if_iter->ifa_addr == nullptr) {
                    continue;
                 }
