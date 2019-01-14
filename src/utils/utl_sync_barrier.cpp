@@ -20,6 +20,7 @@ limitations under the License.
 */
 
 #include "utl_sync_barrier.h"
+#include <assert.h>
 
 using namespace std;
 
@@ -81,6 +82,24 @@ int CSyncBarrier::listen(bool throw_error) {
 
 CSyncBarrier::~CSyncBarrier(){
     delete []m_arr;
+}
+
+
+CSpinLock::CSpinLock(rte_spinlock_t *lock) {
+    m_lock = lock;
+    rte_spinlock_lock(m_lock);
+    m_locked = true;
+}
+
+CSpinLock::~CSpinLock() {
+    unlock();
+}
+
+void CSpinLock::unlock() {
+    if ( m_locked ) {
+        m_locked = false;
+        rte_spinlock_unlock(m_lock);
+    }
 }
 
 

@@ -31,9 +31,23 @@
 
 using namespace std;
 
+class CMcastFilter {
+    void        renew_multicast_bpf();
+    bpf_h       m_multicast_bpf;
+    uint16_t    m_vlan_nodes[3]; // count of: untagged, 1 VLAN, 2 VLANs
+
+public:
+    CMcastFilter();
+    const bpf_h&    get_bpf();
+    void            add_del_vlans(uint8_t add_vlan_size, uint8_t del_vlan_size);
+    void            add_empty();
+};
+
+
 class CLinuxIfNode : public CNodeBase {
 public:
-    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu);
+    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf,
+                 const string &mtu, CMcastFilter &mcast_filter);
     ~CLinuxIfNode();
 
     void conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids);
@@ -43,7 +57,7 @@ public:
     void clear_ip6_internal();
     int  get_pair_id();
     string &get_vlans_insert_to_pkt();
-    uint16_t filter_and_send(const rte_mbuf_t *m);
+    uint16_t filter_and_send(const string &pkt);
 
     void set_associated_trex(bool enable){
         m_associated_trex_ports = enable;
@@ -68,6 +82,7 @@ private:
     string          m_ns_name;
     bpf_h           m_bpf;
     string          m_vlans_insert_to_pkt;
+    CMcastFilter   *m_mcast_filter;
 public:
     struct epoll_event m_event;
 };
@@ -112,7 +127,6 @@ private:
     CLinuxIfNode * get_node_by_mac(const std::string &mac);
     CLinuxIfNode * get_node_rpc(const std::string &mac);
 
-        
     int                 m_epoll_fd;
     static string       m_mtu;
     static string       m_ns_prefix;
@@ -120,6 +134,7 @@ private:
     uint64_t            m_next_namespace_id;
     char                m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
     rte_spinlock_t      m_main_loop; /* protect main loop in case of add/remove ns*/
+    CMcastFilter        m_mcast_filter;
 };
 
 

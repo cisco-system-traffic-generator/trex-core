@@ -5,6 +5,8 @@
 #ifndef _RTE_SPINLOCK_H_
 #define _RTE_SPINLOCK_H_
 
+#include <assert.h>
+
 /* a stub for spin locks, API was taken fro m DPDK  */
 
 /**

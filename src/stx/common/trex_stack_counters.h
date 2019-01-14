@@ -33,20 +33,24 @@ class CRxCounters {
 public:
     enum {
         /* TX/RX */
-        CNT_RX                  =0,
-        CNT_TX                  =1,
-        CNT_RX_TX_SIZE          =2,
+        CNT_RX,
+        CNT_TX,
+        CNT_RX_TX_SIZE,
+    };
 
+    enum {
         /* PKT/BYTE*/
-        CNT_PKT                 =0,
-        CNT_BYTE                =1,
-        CNT_TYPE                =2,
+        CNT_PKT,
+        CNT_BYTE,
+        CNT_TYPE,
+    };
 
+    enum {
         /* type of packet */
-        CNT_UNICAST             =0,
-        CNT_MULTICAST           =1,
-        CNT_BROADCAST           =2,
-        CNT_UMB_TYPE            =3,
+        CNT_UNICAST,
+        CNT_MULTICAST,
+        CNT_BROADCAST,
+        CNT_UMB_TYPE,
     };
 
 
@@ -67,6 +71,8 @@ public:
     uint64_t            m_tx_err_small_pkt;
     uint64_t            m_tx_err_big_9k;
     uint64_t            m_rx_err_invalid_pkt;
+    uint64_t            m_rx_bcast_filtered;
+    uint64_t            m_rx_mcast_filtered;
 
     CPPSMeasure         m_rx_pps;
     CPPSMeasure         m_tx_pps;
