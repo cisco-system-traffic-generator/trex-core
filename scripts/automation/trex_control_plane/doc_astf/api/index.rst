@@ -2,7 +2,7 @@
 TRex ASTF API Reference
 ============================
 
-**Client: ASTFClient**
+**ASTF Client**
 
 .. toctree::
     :maxdepth: 4
@@ -17,6 +17,12 @@ TRex ASTF API Reference
     
     profile_code
 
+**ASTF topology**
+
+.. toctree::
+    :maxdepth: 4
+    
+    topo_code
 
 
 
