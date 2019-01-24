@@ -1712,12 +1712,6 @@ class STLClient(TRexClient):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(opts.ports, core_mask)
 
-        # process tunables
-        if type(opts.tunables) is dict:
-            tunables = opts.tunables
-        else:
-            tunables = {}
-
         streams_per_port = {}
         # pack the profile
         try:
