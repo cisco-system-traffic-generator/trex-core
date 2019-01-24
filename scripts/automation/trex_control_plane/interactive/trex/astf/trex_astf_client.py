@@ -11,7 +11,6 @@ from ..common.trex_api_annotators import client_api, console_api
 from ..common.trex_client import TRexClient
 from ..common.trex_events import Event
 from ..common.trex_exceptions import TRexError
-from ..common.trex_logger import Logger
 from ..common.trex_types import *
 
 from .trex_astf_port import ASTFPort
@@ -77,6 +76,7 @@ class ASTFClient(TRexClient):
         self.traffic_stats = CAstfTrafficStats(self.conn.rpc)
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.topo_mngr     = ASTFTopologyManager(self)
+        self.sync_waiting = False
         self.last_error = ''
         self.epoch = None
         self.state = None
@@ -96,6 +96,7 @@ class ASTFClient(TRexClient):
 ############################    TRex Client  #############################
 
     def _on_connect(self):
+        self.sync_waiting = False
         self.last_error = ''
         self.sync()
         self.topo_mngr.sync_with_server()
@@ -130,6 +131,8 @@ class ASTFClient(TRexClient):
             return
 
         self.last_error = error
+        if error and not self.sync_waiting:
+            self.ctx.logger.error('Last command failed: %s' % error)
 
         self.state = ctx_state
         port_state = self.apply_port_states()
@@ -182,19 +185,24 @@ class ASTFClient(TRexClient):
         self.sync()
         self.wait_for_steady()
         self.inc_epoch()
-        self.last_error = ''
-        rc = self._transmit(rpc_func, **k)
-        self.wait_for_steady()
-        if not rc:
-            return rc
-        while True:
-            self.sync()
-            if self.state in ok_states:
-                return RC_OK()
-            if self.last_error or (bad_states and self.state in bad_states):
-                error = self.last_error
-                return RC_ERR(error or 'Unknown error')
-            time.sleep(0.2)
+        self.sync_waiting = True
+        try:
+            self.last_error = ''
+            rc = self._transmit(rpc_func, **k)
+            self.wait_for_steady()
+            if not rc:
+                return rc
+            while True:
+                self.sync()
+                if self.state in ok_states:
+                    return RC_OK()
+                if self.last_error or (bad_states and self.state in bad_states):
+                    error = self.last_error
+                    return RC_ERR(error or 'Unknown error')
+                time.sleep(0.2)
+        finally:
+            self.sync_waiting = False
+
 
 ############################       ASTF     #############################
 ############################       API      #############################
@@ -815,7 +823,7 @@ class ASTFClient(TRexClient):
             )
 
         opts = parser.parse_args(line.split())
-        self.load_profile(opts.file[0], tunables)
+        self.load_profile(opts.file[0], opts.tunables)
 
         kw = {}
         if opts.clients:
