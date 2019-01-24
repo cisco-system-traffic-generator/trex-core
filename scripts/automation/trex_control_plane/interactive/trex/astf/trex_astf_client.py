@@ -700,11 +700,6 @@ class ASTFClient(TRexClient):
                 + :exc:`TRexError`
         '''
         self.topo_mngr.load(topology, **tunables)
-        try:
-            pass
-            #self.topo_mngr.load(topology, **tunables)
-        except Exception as e:
-            raise TRexError(e)
         print('')
 
 
@@ -820,7 +815,6 @@ class ASTFClient(TRexClient):
             )
 
         opts = parser.parse_args(line.split())
-        tunables = opts.tunables or {}
         self.load_profile(opts.file[0], tunables)
 
         kw = {}

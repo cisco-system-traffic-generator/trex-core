@@ -514,7 +514,7 @@ class OPTIONS_DB_ARGS:
         {'help': "Sets tunables for a profile. Example: '-t fsize=100,pg_id=7'",
          'metavar': 'T1=VAL[,T2=VAL ...]',
          'dest': "tunables",
-         'default': None,
+         'default': {},
          'action': 'merge',
          'type': decode_tunables})
 
