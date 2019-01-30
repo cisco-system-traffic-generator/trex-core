@@ -699,10 +699,14 @@ class ASTFClient(TRexClient):
 
             :parameters:
                 topology: string or ASTFTopology
-                    Path to topology filename or topology object
+                    | Path to topology filename or topology object
+                    | Supported file formats:
+                    | * JSON
+                    | * YAML
+                    | * Python
 
                 tunables: dict
-                    forward those key-value pairs to the topology file
+                    forward those key-value pairs to the topology Python file
 
             :raises:
                 + :exc:`TRexError`
@@ -720,7 +724,7 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def topo_resolve(self, ports = None):
-        ''' Resolve current network topology '''
+        ''' Resolve current network topology. On success, upload to server '''
 
         self.topo_mngr.resolve(ports)
 
@@ -734,7 +738,16 @@ class ASTFClient(TRexClient):
 
     @client_api('command', False)
     def topo_save(self, filename):
-        ''' Save current topology to file '''
+        '''
+            Save current topology to file
+
+            :parameters:
+                filename: string
+                    | Path to topology filename, supported formats:
+                    | * JSON
+                    | * YAML
+                    | * Python
+        '''
 
         if os.path.exists(filename):
             if os.path.islink(filename) or not os.path.isfile(filename):
@@ -945,7 +958,7 @@ class ASTFClient(TRexClient):
 
         subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
         load_parser = topology_add_parsers(subparsers, 'load', help = 'Load topology from file')
-        reso_parser = topology_add_parsers(subparsers, 'resolve', help = 'Resolve loaded topology')
+        reso_parser = topology_add_parsers(subparsers, 'resolve', help = 'Resolve loaded topology, push to server on success')
         show_parser = topology_add_parsers(subparsers, 'show', help = 'Show current topology status')
         topology_add_parsers(subparsers, 'clear', help = 'Clear current topology')
         save_parser = topology_add_parsers(subparsers, 'save', help = 'Save topology to file')
