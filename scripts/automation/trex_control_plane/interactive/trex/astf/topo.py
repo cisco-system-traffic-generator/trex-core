@@ -27,7 +27,7 @@ def split_port_str(port_id):
         else:
             raise ValueError('')
     except ValueError:
-        raise TRexError("Invalid port_id %s, valid examples: '1' for TRex port 1 or '0.2' for TRex port 0 and sub-interface 2" % port_id)
+        raise TRexError("Invalid port_id %s, valid examples: '4' for TRex port 4 or '0.2' for TRex port 0 and sub-interface 2" % port_id)
 
     if sub_if < 0 or sub_if > MAX_VIF_ID:
         raise TRexError('sub_if should be between 1 and %s, got: %s' % (MAX_VIF_ID, sub_if))
@@ -37,6 +37,19 @@ def split_port_str(port_id):
 
 class TopoGW(object):
     def __init__(self, port_id, src_start, src_end, dst, dst_mac = ''):
+        '''
+        Defines next hop for traffic.
+
+        :parameters:
+            port_id: string
+                Format of "A.B", where A is TRex port ID and B is sub-interface ID >= 1.
+            src_start, src_end: strings
+                IPv4 addresses, traffic within this range will be routed via this GW
+            dst: string
+                Either IPv4/v6 or MAC address. IP will need resolve before uploading to server.
+            dst_mac: string
+                Resolved MAC, for internal usage.
+        '''
         trex_port, sub_if = split_port_str(port_id)
 
         if trex_port % 2:
@@ -91,6 +104,21 @@ class TopoGW(object):
 
 class TopoVIF(object):
     def __init__(self, port_id, src_mac, src_ipv4 = '', src_ipv6 = '', vlan = 0):
+        '''
+        Source MAC and VLAN are taken from here for traffic.
+
+        :parameters:
+            port_id: string
+                Format of "A.B", where A is TRex port ID and B is sub-interface ID >= 1.
+            src_mac: string
+                MAC address of virtual interface. Will be used in sent traffic.
+            src_ipv4: string
+                IPv4 address of interface. If specified, used in resolve, otherwise taken from TRex port.
+            src_ipv6: string
+                IPv6 address of interface. Currently not used.
+            vlan: int
+                VLAN ID, will be used in traffic and in resolve process.
+        '''
         trex_port, sub_if = split_port_str(port_id)
 
         if sub_if <= 0:
@@ -137,26 +165,27 @@ class TopoVIF(object):
 
 
 class ASTFTopology(object):
-    """ ASTF topology
-
-       .. code-block:: python
-
-       TODO: add example
-    """
+    ''' Init ASTFTopology from list of TopoVIFs and TopoGWs (default is empty) '''
 
     def __init__(self, vifs = None, gws = None):
         self.vifs = vifs or []
         self.gws  = gws or []
 
     def add_vif_obj(self, vif):
+        ''' Add TopoVIF object '''
         validate_type('vif', vif, TopoVIF)
         self.vifs.append(vif)
 
     def add_gw_obj(self, gw):
+        ''' Add TopoGW object '''
         validate_type('gw', gw, TopoGW)
         self.gws.append(gw)
 
     def add_vif(self, *a, **k):
+        '''
+        | Create (from given arguments) and add TopoVIF object.
+        | Instead of port_id, one may specify trex_port and sub_if - integers, TRex port ID and sub-interface ID respectfully.
+        '''
         trex_port = k.get('trex_port')
         if trex_port is not None:
             k['port_id'] = '%s.%s' % (trex_port, k['sub_if'])
@@ -166,6 +195,10 @@ class ASTFTopology(object):
         self.vifs.append(vif)
 
     def add_gw(self, *a, **k):
+        '''
+        | Create (from given arguments) and add TopoGW object.
+        | Instead of port_id, one may specify trex_port and sub_if - integers, TRex port ID and sub-interface ID respectfully.
+        '''
         trex_port = k.get('trex_port')
         if trex_port is not None:
             k['port_id'] = '%s.%s' % (trex_port, k['sub_if'])
@@ -175,6 +208,7 @@ class ASTFTopology(object):
         self.gws.append(gw)
 
     def is_empty(self):
+        ''' Return True if nothing is added '''
         return len(self.gws) + len(self.vifs) == 0
 
 

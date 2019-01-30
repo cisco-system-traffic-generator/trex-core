@@ -610,7 +610,7 @@ def build_cp(bld,dir,root,callback):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
     trex_core_docs_path = os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', root, 'index.rst')
-    bld(rule=callback,target = dir)
+    bld(rule=callback, target = dir, always = True)
 
 
 
@@ -670,7 +670,7 @@ def build(bld):
 
     bld(rule=my_copy, target='my_chart.js')
 
-    build_cp(bld,'hlt_args.asciidoc','stl/trex_stl_lib', parse_hlt_args)
+    bld(rule=parse_hlt_args, target = 'hlt_args.asciidoc')
 
     bld.add_group() # separator, the documents may require any of the pictures from above
 
