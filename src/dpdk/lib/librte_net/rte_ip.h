@@ -126,7 +126,7 @@ __rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
 
 	/* if length is in odd bytes */
 	if (len == 1)
-		sum += *((const uint8_t *)u16_buf);
+		sum += *((const uint8_t *)u16_buf) & rte_be_to_cpu_16(0xff00);
 
 	return sum;
 }
@@ -221,8 +221,10 @@ rte_raw_cksum_mbuf(const struct rte_mbuf *m, uint32_t off, uint32_t len,
 	done = 0;
 	for (;;) {
 		tmp = __rte_raw_cksum(buf, seglen, 0);
-		if (done & 1)
+		if (done & 1) {
+			tmp = __rte_raw_cksum_reduce(tmp);
 			tmp = rte_bswap16((uint16_t)tmp);
+                }
 		sum += tmp;
 		done += seglen;
 		if (done == len)
