@@ -18,6 +18,8 @@
 #define MAIN_DPDK_H
 
 #include <rte_ethdev.h>
+#include <rte_udp.h>
+#include <rte_tcp.h>
 #include "pre_test.h"
 #include "bp_sim.h"
 #include "dpdk_port_map.h"
@@ -145,8 +147,61 @@ class CPhyEthIF  {
     }
     virtual void flush_rx_queue(void);
 
+    inline void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
+        /* assume that l2_len and l3_len in rte_mbuf updated properly */
+        uint16_t csum = 0, csum_start = m->l2_len + m->l3_len;
+
+        /* assume that IP pseudo header checksum was already caclulated */
+        if (rte_raw_cksum_mbuf(m, csum_start, rte_pktmbuf_pkt_len(m) - csum_start, &csum) < 0)
+            return;
+        csum = (csum != 0xffff) ? ~csum: csum;
+
+        if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) &&
+            !(tx_offload & DEV_TX_OFFLOAD_TCP_CKSUM)) {
+            struct tcp_hdr *tcp_hdr = rte_pktmbuf_mtod_offset(m, struct tcp_hdr *, csum_start);
+
+            tcp_hdr->cksum = csum;
+            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+        } else if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM) &&
+                    !(tx_offload & DEV_TX_OFFLOAD_UDP_CKSUM)) {
+            struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct udp_hdr *, csum_start);
+
+            udp_hdr->dgram_cksum = csum;
+            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+        }
+
+        if ((m->ol_flags & PKT_TX_IPV4) && (m->ol_flags & PKT_TX_IP_CKSUM) &&
+            !(tx_offload & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
+            struct ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct ipv4_hdr *, m->l2_len);
+
+            if (!iph->hdr_checksum) {
+                iph->hdr_checksum = rte_ipv4_cksum(iph);
+                m->ol_flags &= ~PKT_TX_IP_CKSUM;
+            }
+        }
+    }
+    inline void tx_burst_offload_csum(struct rte_mbuf **tx_pkts, uint16_t nb_pkts, uint64_t tx_offload) {
+        uint16_t nb_tx = 0;
+
+        for (nb_tx = 0; nb_tx < nb_pkts; nb_tx++) {
+            struct rte_mbuf *m = tx_pkts[nb_tx];
+
+            if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) ||
+                ((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM)) {
+                tx_offload_csum(m, tx_offload);
+            }
+        }
+    }
+
+#define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
     inline uint16_t tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
         if (likely( !m_is_dummy )) {
+            const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
+
+            if (unlikely((m_dev_info->tx_offload_capa & DEV_OFFLOAD_CAPA) != DEV_OFFLOAD_CAPA)) {
+                tx_burst_offload_csum(tx_pkts, nb_pkts, m_dev_info->tx_offload_capa);
+            }
+
             return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
         } else {
             for (int i=0; i<nb_pkts;i++) {
