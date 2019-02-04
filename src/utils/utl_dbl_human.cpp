@@ -78,6 +78,18 @@ double CBwMeasure::add(uint64_t size) {
     return ( m_last_result );
 }
 
+void CBwMeasure::start(uint32_t time_msec) {
+    m_start=true;
+    m_last_bytes=0;
+    m_last_time_msec=time_msec;
+}
+
+void CPPSMeasure::reset(void){
+    m_start=false;
+    m_last_time_msec=0;
+    m_last_pkts=0;
+    m_last_result=0.0;
+}
 
 float CPPSMeasure::calc_pps(uint32_t dtime_msec,
                              uint32_t pkts){
@@ -85,7 +97,6 @@ float CPPSMeasure::calc_pps(uint32_t dtime_msec,
     return (rate);
 
 }
-
 
 float CPPSMeasure::add(uint64_t pkts){
     if ( false == m_start ){
@@ -110,5 +121,10 @@ float CPPSMeasure::add(uint64_t pkts){
     return ( m_last_result );
 }
 
+void CPPSMeasure::start(uint32_t time_msec) {
+    m_start=true;
+    m_last_pkts=0;
+    m_last_time_msec=time_msec;
+}
 
 

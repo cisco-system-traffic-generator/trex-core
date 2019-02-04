@@ -30,6 +30,7 @@ limitations under the License.
 #include "utl_json.h"
 #include <stdint.h>
 #include <json/json.h>
+#include <functional>
 
 class CGCountersUtl64;
 class CGCountersUtl32 {
@@ -359,9 +360,9 @@ private:
 
 class CTblGCounters {
 public:
-    CTblGCounters(){
-        m_free_objects=false;
-        m_epoch = 0;
+    CTblGCounters() : m_epoch(m_internal_epoch) {
+        m_free_objects = false;
+        m_internal_epoch = 0;
     }
 
     ~CTblGCounters();
@@ -392,6 +393,10 @@ public:
 
     void inc_epoch(void);
 
+    void set_epoch(uint64_t& epoch) {
+        m_epoch = epoch;
+    }
+
 private:
     void verify();
     bool can_skip_zero(int index);
@@ -399,9 +404,10 @@ private:
 
 
 private:
-    uint64_t                   m_epoch;
-    bool                       m_free_objects;
-    std::vector<CGTblClmCounters*> m_counters;
+    std::reference_wrapper<uint64_t>    m_epoch;
+    uint64_t                            m_internal_epoch;
+    bool                                m_free_objects;
+    std::vector<CGTblClmCounters*>      m_counters;
 };
 
 

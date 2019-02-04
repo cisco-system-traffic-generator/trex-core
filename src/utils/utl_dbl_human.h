@@ -50,14 +50,11 @@ public:
         reset();
     }
     //reset
-    void reset(void){
-        m_start=false;
-        m_last_time_msec=0;
-        m_last_pkts=0;
-        m_last_result=0.0;
-    }
+    void reset(void);
     //add packet size
     float add(uint64_t pkts);
+
+    void start(uint32_t time_msec);
 
 private:
     float calc_pps(uint32_t dtime_msec,
@@ -80,6 +77,8 @@ public:
     //add packet size
     double add(uint64_t size);
 
+    void start(uint32_t time_msec);
+
 private:
     double calc_MBsec(uint32_t dtime_msec,
                      uint64_t dbytes);
@@ -88,7 +87,7 @@ public:
    bool      m_start;
    uint32_t  m_last_time_msec;
    uint64_t  m_last_bytes;
-   double     m_last_result;
+   double    m_last_result;
 };
 
 
