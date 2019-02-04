@@ -259,6 +259,7 @@ class CTcpTemplateInfo {
     uint16_t            m_dport;
     CEmulAppProgram *    m_client_prog; /* client program per template */
     uint32_t m_num_bytes;
+    uint16_t m_tg_id;                   /* template group id */
 };
 
 typedef enum {
@@ -309,16 +310,22 @@ class CAstfDbRO {
         return (1.0/get_total_cps_per_thread(max_threads));
     }
 
-    // for tests in simulation
-    void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
-        CTcpDataAssocParams params(port,true);
-        m_assoc_trans.insert_vec(params, prog, tune, 0);
+    uint16_t get_template_tg_id(uint16_t template_id){
+        return m_templates[template_id].m_tg_id;
     }
+
+    uint16_t get_num_of_tg_ids() {
+        return m_num_of_tg_ids;
+    }
+
+    // for tests in simulation
+    void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune);
  private:
     uint8_t                         m_init;
     double                          m_cps_sum;
+    uint16_t                        m_num_of_tg_ids;
     std::vector<CMbufBuffer *>      m_buf_list;
-    std::vector<CEmulAppProgram *>   m_prog_list;
+    std::vector<CEmulAppProgram *>  m_prog_list;
     std::vector<CTcpDataFlowInfo>   m_flow_info;
     std::vector<CTcpTemplateInfo>   m_templates;
     CTcpDataAssocTranslation        m_assoc_trans;
@@ -452,6 +459,11 @@ class CAstfDB  : public CTRexDummyCommand  {
     void get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
             std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion);
 
+    uint16_t get_num_of_tg_ids() {
+        return m_num_of_tg_ids;
+    }
+    const std::vector<std::string>& get_tg_names();
+
 private:
     bool validate_profile(Json::Value profile,std::string & err);
 
@@ -571,6 +583,10 @@ private:
     ClientCfgDB        *m_client_config_info;
     CAstfJsonValidator *m_validator;
     TopoMngr           *m_topo_mngr;
+
+    uint16_t m_num_of_tg_ids;
+    std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
+    starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
 };
 
 #endif

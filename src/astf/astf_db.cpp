@@ -3,6 +3,7 @@
 */
 
 #include <iostream>
+#include <unordered_set>
 #include <string>
 #include <fstream>
 #include <streambuf>
@@ -21,6 +22,7 @@
 #include "astf/astf_json_validator.h"
 #include "stx/astf/trex_astf_topo.h"
 
+#define MAX_TG_NAME_LENGTH 20
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -1173,6 +1175,8 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     CTcpTemplateInfo one_template;
     uint32_t num_bytes_in_template=0;
     double template_cps;
+    std::unordered_set<uint16_t> tcp_server_ports;
+    std::unordered_set<uint16_t> udp_server_ports;
 
     assert(m_tcp_data[socket_id].m_init > 0);
 
@@ -1184,10 +1188,39 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         is_hash_needed = true;
     }
 
+    uint16_t num_of_tg_ids = m_val["tg_names"].size()+1;
+    m_tcp_data[socket_id].m_num_of_tg_ids = num_of_tg_ids; // CAstfDBRo m_num_of_tg_ids updated.
+    m_num_of_tg_ids = num_of_tg_ids; // CAstfDB m_num_of_tg_ids updated.
+    auto tg_names = m_val["tg_names"];
+    m_tg_names.clear(); // To avoid multiple entry.
+    for (uint16_t index = 0; index < num_of_tg_ids - 1; index++) {
+        std::string tg_name = tg_names[index].asString();
+        if (tg_name.length() > MAX_TG_NAME_LENGTH) {
+            throw TrexException("TG name too long. Please limit TG names to " + std::to_string(MAX_TG_NAME_LENGTH) + " characters");
+        }
+        if ( tg_name.size() == 0 ) {
+            throw TrexException("Empty TG name");
+        }
+        m_tg_names.push_back(tg_name);
+    }
+
     for (uint32_t index = 0; index < m_val["templates"].size(); index++) {
         // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
         bool is_stream = get_emul_stream(m_val["templates"][index]["server_template"]["program_index"].asInt());
+        if (is_stream) {
+            if (tcp_server_ports.find(port) != tcp_server_ports.end()) {
+                // port already seen for tcp
+                throw TrexException("Two servers with port " + std::to_string(port));
+            }
+            tcp_server_ports.insert(port);
+        } else {
+            if (udp_server_ports.find(port) != udp_server_ports.end()) {
+                // port already seen for udp.
+                throw TrexException("Two servers with port " + std::to_string(port));
+            }
+            udp_server_ports.insert(port);
+        }
         CTcpDataAssocParams tcp_params(port,is_stream);
         CEmulAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
@@ -1208,6 +1241,11 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         one_template.m_dport = m_val["templates"][index]["client_template"]["port"].asInt();
         uint32_t c_prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
         uint32_t s_prog_index = m_val["templates"][index]["server_template"]["program_index"].asInt();
+        uint16_t tg_id = m_val["templates"][index]["tg_id"].asInt();
+        if ( tg_id > num_of_tg_ids || tg_id < 0 ) {
+            throw TrexException("TG ID not in range, it should be between 0 and " + std::to_string(num_of_tg_ids));
+        }
+        one_template.m_tg_id = tg_id;
         num_bytes_in_template += m_prog_lens[c_prog_index];
         num_bytes_in_template += m_prog_lens[s_prog_index];
         one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[c_prog_index];
@@ -1385,6 +1423,10 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     }
 }
 
+const std::vector<std::string>& CAstfDB::get_tg_names() {
+    return m_tg_names;
+}
+
 void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen) {
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
     for ( auto &rw_db : m_rw_db) {
@@ -1450,4 +1492,11 @@ void CAstfDbRO::Delete() {
     m_cps_sum=0.0;
 }
 
-
+void CAstfDbRO::set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
+        CTcpDataAssocParams params(port,true);
+        CTcpTemplateInfo one_template;
+        one_template.m_tg_id = 0;
+        m_assoc_trans.insert_vec(params, prog, tune, 0);
+        m_num_of_tg_ids = 1;
+        m_templates.push_back(one_template);
+    }
