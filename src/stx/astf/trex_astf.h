@@ -140,6 +140,10 @@ public:
     void topo_get(Json::Value &obj);
 
     /**
+     * Stats Related
+     */
+    bool is_state_build();
+    /**
      * Start transmit
      */
     void start_transmit(const start_params_t &args);
