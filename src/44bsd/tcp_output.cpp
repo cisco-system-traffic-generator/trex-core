@@ -178,7 +178,7 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
     m=tp->pktmbuf_alloc(len);
     pkt.m_buf=m;
     if (m==0) {
-        INC_STAT(ctx,tcps_nombuf);
+        INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_nombuf);
         /* drop the packet */
         return(-1);
     }
@@ -281,7 +281,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
                 /* need to allocate indirect */
                 rte_mbuf_t   * mi=tp->pktmbuf_alloc_small();
                 if (mi==0) {
-                    INC_STAT(ctx,tcps_nombuf);
+                    INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_nombuf);
                     rte_pktmbuf_free(m);
                     return(-1);
                 }
@@ -654,15 +654,16 @@ send:
      * be transmitted, and initialize the header from
      * the template for sends on this connection.
      */
+    uint16_t tg_id = tp->m_flow->m_tg_id; 
     if (len) {
         if (tp->t_force && len == 1){
-            INC_STAT(ctx,tcps_sndprobe);
+            INC_STAT(ctx, tg_id, tcps_sndprobe);
         } else if (SEQ_LT(tp->snd_nxt, tp->snd_max)) {
-            INC_STAT(ctx,tcps_sndrexmitpack);
-            INC_STAT_CNT(ctx,tcps_sndrexmitbyte,len);
+            INC_STAT(ctx, tg_id, tcps_sndrexmitpack);
+            INC_STAT_CNT(ctx, tg_id, tcps_sndrexmitbyte,len);
         } else {
-            INC_STAT(ctx,tcps_sndpack);
-            INC_STAT_CNT(ctx,tcps_sndbyte_ok,len); /* better to be handle by application layer */
+            INC_STAT(ctx, tg_id, tcps_sndpack);
+            INC_STAT_CNT(ctx, tg_id, tcps_sndbyte_ok,len); /* better to be handle by application layer */
         }
 
         if (tcp_build_dpkt(ctx,tp,off,len,hdrlen,pkt)!=0){
@@ -681,13 +682,13 @@ send:
             flags |= TH_PUSH;
     } else {
         if (tp->t_flags & TF_ACKNOW){
-            INC_STAT(ctx,tcps_sndacks);
+            INC_STAT(ctx, tg_id, tcps_sndacks);
         } else if (flags & (TH_SYN|TH_FIN|TH_RST)){
-            INC_STAT(ctx,tcps_sndctrl);
+            INC_STAT(ctx, tg_id, tcps_sndctrl);
         } else if (SEQ_GT(tp->snd_up, tp->snd_una)){
-            INC_STAT(ctx,tcps_sndurg);
+            INC_STAT(ctx, tg_id, tcps_sndurg);
         } else{
-            INC_STAT(ctx,tcps_sndwinup);
+            INC_STAT(ctx, tg_id, tcps_sndwinup);
         }
 
         if ( tcp_build_cpkt(ctx,tp,hdrlen,pkt)!=0){
@@ -787,7 +788,7 @@ send:
             if (tp->t_rtt == 0) {
                 tp->t_rtt = 1;
                 tp->t_rtseq = startseq;
-                INC_STAT(ctx,tcps_segstimed);
+                INC_STAT(ctx, tg_id, tcps_segstimed);
             }
         }
 
@@ -833,7 +834,7 @@ out:
         }
         return (error);
     }
-    INC_STAT(ctx,tcps_sndtotal);
+    INC_STAT(ctx, tg_id, tcps_sndtotal);
 
     /*
      * Data sent (as far as we can tell).

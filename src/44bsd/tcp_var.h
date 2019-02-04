@@ -363,10 +363,17 @@ struct  tcpstat_int_t {
  */
 struct  tcpstat {
 
-    tcpstat_int_t m_sts;
+    tcpstat_int_t*  m_sts_tg_id;
+    tcpstat_int_t   m_sts;
+    uint16_t        m_num_of_tg_ids;
 public:
+    tcpstat(uint16_t num_of_tg_ids=1);
+    ~tcpstat();
+    void Init(uint16_t num_of_tg_ids);
     void Clear();
+    void ClearPerTGID(uint16_t tg_id);
     void Dump(FILE *fd);
+    void Resize(uint16_t new_num_of_tg_ids);
 };
 
 #define PRU_SLOWTIMO        19  /* 500ms timeout */
@@ -545,7 +552,7 @@ inline bool CFlowTemplate::is_tcp_tso(){
 class CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx);
+    void Create(CTcpPerThreadCtx *ctx, uint16_t tg_id=0);
     void Delete();
 
     void set_tuple(uint32_t src,
@@ -606,6 +613,7 @@ public:
     uint32_t          m_c_idx;
     uint16_t          m_c_pool_idx;
     uint16_t          m_c_template_idx;
+    uint16_t          m_tg_id;
 
     CTcpPerThreadCtx *m_ctx;
     flow_hash_ent_t   m_hash;  /* hash object - 64bit  */
@@ -634,20 +642,27 @@ struct  udp_stat_int_t {
 
 struct  CUdpStats {
 
-    udp_stat_int_t m_sts;
+    udp_stat_int_t* m_sts_tg_id;
+    udp_stat_int_t  m_sts;
+    uint16_t        m_num_of_tg_ids;
 public:
+    CUdpStats(uint16_t num_of_tg_ids=1);
+    ~CUdpStats();
+    void Init(uint16_t num_of_tg_ids);
     void Clear();
+    void ClearPerTGID(uint16_t tg_id);
     void Dump(FILE *fd);
+    void Resize(uint16_t new_num_of_tg_ids);
 };
 
 
-#define INC_UDP_STAT(ctx,p) {ctx->m_udpstat.m_sts.p++; }
-#define INC_UDP_STAT_CNT(ctx,p,cnt) {ctx->m_udpstat.m_sts.p += cnt; }
+#define INC_UDP_STAT(ctx, tg_id, p) {ctx->m_udpstat.m_sts.p++; ctx->m_udpstat.m_sts_tg_id[tg_id].p++; }
+#define INC_UDP_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_udpstat.m_sts.p += cnt; ctx->m_udpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 class CUdpFlow : public CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx,bool client);
+    void Create(CTcpPerThreadCtx *ctx,bool client, uint16_t tg_id=0);
     void Delete();
 
     static CUdpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
@@ -713,7 +728,7 @@ public:
 class CTcpFlow : public CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx);
+    void Create(CTcpPerThreadCtx *ctx, uint16_t tg_id=0);
     void Delete();
 
     void init();
@@ -908,6 +923,9 @@ public:
     bool is_client_side(void) {
         return (m_ft.is_client_side());
     }
+
+    void resize_stats();
+
 private:
     void delete_startup();
 
@@ -1016,8 +1034,8 @@ private:
 
 
 
-#define INC_STAT(ctx,p) {ctx->m_tcpstat.m_sts.p++; }
-#define INC_STAT_CNT(ctx,p,cnt) {ctx->m_tcpstat.m_sts.p += cnt; }
+#define INC_STAT(ctx, tg_id, p) {ctx->m_tcpstat.m_sts.p++; ctx->m_tcpstat.m_sts_tg_id[tg_id].p++; }
+#define INC_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_tcpstat.m_sts.p += cnt; ctx->m_tcpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 
 void tcp_fasttimo(CTcpPerThreadCtx * ctx, struct tcpcb *tp);
@@ -1090,13 +1108,13 @@ inline bool tcp_reass_is_exists(struct tcpcb *tp){
 
 inline void tcp_reass_alloc(CTcpPerThreadCtx * ctx,
                             struct tcpcb *tp){
-    INC_STAT(ctx,tcps_reasalloc);
+    INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_reasalloc);
     tp->m_tpc_reass = new CTcpReass();
 }
 
 inline void tcp_reass_free(CTcpPerThreadCtx * ctx,
                             struct tcpcb *tp){
-    INC_STAT(ctx,tcps_reasfree);
+    INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_reasfree);
     delete tp->m_tpc_reass;
     tp->m_tpc_reass=(CTcpReass *)0;
 }
@@ -1134,7 +1152,7 @@ public:
 
     /* add bytes to tx queue */
     virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
-        INC_STAT_CNT(flow->m_ctx,tcps_sndbyte,bytes);
+        INC_STAT_CNT(flow->m_ctx, flow->m_tg_id, tcps_sndbyte,bytes);
         flow->m_tcp.m_socket.so_snd.sbappend(bytes);
     }
 

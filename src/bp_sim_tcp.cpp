@@ -273,6 +273,7 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     bool is_udp=cur->is_udp();
 
     CFlowBase * c_flow;
+    uint16_t tg_id = cur_tmp_ro->get_template_tg_id(template_id);
     if (is_udp) {
         c_flow = m_c_tcp->m_ft.alloc_flow_udp(m_c_tcp,
                                                      tuple.getClient(),
@@ -283,7 +284,8 @@ void CFlowGenListPerThread::generate_flow(bool &done){
 
                                                      vlan,
                                                      is_ipv6,
-                                                     true);
+                                                     true,
+                                                     tg_id);
     }else{
         c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
                                                      tuple.getClient(),
@@ -291,7 +293,8 @@ void CFlowGenListPerThread::generate_flow(bool &done){
                                                      tuple.getClientPort(),
                                                      tuple.getServerPort(),
                                                      vlan,
-                                                     is_ipv6);
+                                                     is_ipv6,
+                                                     tg_id);
     }
 
     #ifdef  RSS_DEBUG
@@ -520,9 +523,10 @@ void CFlowGenListPerThread::load_tcp_profile() {
     if ( !template_db ) {
         throw TrexException("Could not create RO template database");
     }
-
     m_c_tcp->set_template_ro(template_db);
+    m_c_tcp->resize_stats();
     m_s_tcp->set_template_ro(template_db);
+    m_s_tcp->resize_stats();
     CAstfTemplatesRW * rw = CAstfDB::instance()->get_db_template_rw(
             mem_socket_id,
             &m_smart_gen,

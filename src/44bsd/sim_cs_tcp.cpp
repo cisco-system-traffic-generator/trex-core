@@ -334,6 +334,7 @@ bool CClientServerTcp::Create(std::string out_dir,
 void CClientServerTcp::set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *s_tune) {
     m_tcp_data_ro.set_test_assoc_table(port, prog, s_tune);
     m_s_ctx.set_template_ro(&m_tcp_data_ro);
+    /* We work under the assumption that when you call this we don't need to resize. */
 }
 
 void CClientServerTcp::on_tx(int dir,
@@ -1193,7 +1194,10 @@ int CClientServerTcp::fill_from_file() {
         dst_port+=1;
     }
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false);
+    uint16_t temp_index = 0;
+    uint16_t tg_id = ro_db->get_template_tg_id(temp_index);
+
+    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false, tg_id);
 
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);
@@ -1210,7 +1214,6 @@ int CClientServerTcp::fill_from_file() {
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
     app_c = &c_flow->m_app;
 
-    uint16_t temp_index = 0;
     prog_c = ro_db->get_client_prog(temp_index);
     if (prog_c->is_stream() == false) {
         printf(" \n");
@@ -1223,6 +1226,7 @@ int CClientServerTcp::fill_from_file() {
     // c_flow->set_c_tcp_info(rw_db, temp_index);
     // s_flow->set_c_tcp_info(rw_db, temp_index);
     m_s_ctx.set_template_ro(ro_db);
+    m_s_ctx.resize_stats();
 
     if (m_debug) {
         CTcpServreInfo * s_info = ro_db->get_server_info_by_port(dst_port,true);

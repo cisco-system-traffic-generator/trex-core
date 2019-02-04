@@ -219,14 +219,14 @@ public:
                         tcp_rx_pkt_action_t & action,
                         tvpid_t port_id=0);
 
-      bool rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
-                                struct rte_mbuf * mbuf,
-                                flow_hash_ent_t * lpflow,
-                                CSimplePacketParser & parser,
-                                CFlowKeyTuple & tuple,
-                                CFlowKeyFullTuple & ftuple,
-                                uint32_t  hash
-                                );
+      bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
+                                        struct rte_mbuf * mbuf,
+                                        flow_hash_ent_t * lpflow,
+                                        CSimplePacketParser & parser,
+                                        CFlowKeyTuple & tuple,
+                                        CFlowKeyFullTuple & ftuple,
+                                        uint32_t  hash
+                                        );
 
       void process_udp_packet(CTcpPerThreadCtx * ctx,
                               CUdpFlow *  flow,
@@ -235,14 +235,14 @@ public:
                               CFlowKeyFullTuple &ftuple);
 
 
-      bool rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
-                                struct rte_mbuf * mbuf,
-                                flow_hash_ent_t * lpflow,
-                                CSimplePacketParser & parser,
-                                CFlowKeyTuple & tuple,
-                                CFlowKeyFullTuple & ftuple,
-                                uint32_t  hash
-                                );
+      bool rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
+                                        struct rte_mbuf * mbuf,
+                                        flow_hash_ent_t * lpflow,
+                                        CSimplePacketParser & parser,
+                                        CFlowKeyTuple & tuple,
+                                        CFlowKeyFullTuple & ftuple,
+                                        uint32_t  hash
+                                        );
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf,
@@ -310,7 +310,8 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
                           uint16_t src_port,
                           uint16_t dst_port,
                           uint16_t vlan,
-                          bool is_ipv6);
+                          bool is_ipv6,
+                          uint16_t tg_id=0);
 
     CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
                               uint32_t src,
@@ -319,7 +320,8 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
                               uint16_t dst_port,
                               uint16_t vlan,
                               bool is_ipv6,
-                              bool client);
+                              bool client,
+                              uint16_t tg_id=0);
 
 
     void free_flow(CFlowBase * flow);
