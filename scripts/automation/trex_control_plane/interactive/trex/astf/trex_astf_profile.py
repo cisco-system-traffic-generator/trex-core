@@ -12,6 +12,7 @@ import traceback
 from ..common.trex_exceptions import *
 from ..common.trex_types import listify
 import imp
+import collections
 
 
 class _ASTFCapPath(object):
@@ -1062,8 +1063,8 @@ class ASTFAssociationRule(object):
     """
        .. code-block:: python
 
-            # only port
-            assoc=ASTFAssociationRule(port=81)
+            # only `port`
+            assoc=ASTFAssociationRule(`port`=81)
 
             # port with range or destination ips
             assoc=ASTFAssociationRule(port=81,ip_start="48.0.0.1",ip_end="48.0.0,16")
@@ -1457,7 +1458,7 @@ class ASTFTemplate(object):
 
      """
 
-    def __init__(self, client_template=None, server_template=None):
+    def __init__(self, client_template=None, server_template=None, tg_name=None):
         """
         Define a ASTF profile
 
@@ -1470,24 +1471,37 @@ class ASTFTemplate(object):
                   server_template  :  ASTFTCPServerTemplate see :class:`trex.astf.trex_astf_profile.ASTFTCPServerTemplate`
                        server side template info
 
+                  tg_name          : string or None
+                        All the templates within the tg_name (template group name) will have shared statistics. 
+                        All the templates that haven't defined tg_name are collected under the same group.
         """
         ver_args = {"types":
                     [{"name": "client_template", 'arg': client_template, "t": ASTFTCPClientTemplate},
-                     {"name": "server_template", 'arg': server_template, "t": ASTFTCPServerTemplate}]
+                     {"name": "server_template", 'arg': server_template, "t": ASTFTCPServerTemplate},
+                     {"name": "tg_name", 'arg': tg_name, "t": str, "must": False}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         if client_template.is_stream() != server_template.is_stream() :
             raise ASTFError(" Client template stream mode is {0} and different from server template mode {1}".format( client_template.is_stream(), server_template.is_stream() ) )
 
+        if tg_name is not None:
+            if len(tg_name) > 20 or len(tg_name) == 0:
+                raise ASTFError("tg_name is empty or too long")
+
+        self.tg_name = tg_name
         self.fields = {}
         self.fields['client_template'] = client_template
         self.fields['server_template'] = server_template
 
+
     def to_json(self):
         ret = {}
         for field in self.fields.keys():
-            ret[field] = self.fields[field].to_json()
+            if field != 'tg_id':
+                ret[field] = self.fields[field].to_json()
+            else:
+                ret['tg_id'] = self.fields['tg_id']
 
         return ret
 
@@ -1550,7 +1564,7 @@ class ASTFProfile(object):
         """
         Define a ASTF profile
 
-        You should give either templates or cap_list (mutual exclusion).
+        You should give at least a template or a cap_list, maybe both.
 
         :parameters:
                   default_ip_gen  : ASTFIPGen  :class:`trex.astf.trex_astf_profile.ASTFIPGen`
@@ -1567,7 +1581,7 @@ class ASTFProfile(object):
                        define a list of manual templates or one template
 
                   cap_list  : ASTFCapInfo see :class:`trex.astf.trex_astf_profile.ASTFCapInfo`
-                      define a list of pcap files list in case there is no  templates
+                      define a list of pcap files list in case there is no templates
         """
 
         ver_args = {"types":
@@ -1582,7 +1596,7 @@ class ASTFProfile(object):
         self.default_c_glob_info = default_c_glob_info
         self.default_s_glob_info = default_s_glob_info
         self.templates = []
-
+        self.tg_name_to_id = collections.OrderedDict()
 
         if (templates is None) and (cap_list is None):
              raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
@@ -1592,6 +1606,15 @@ class ASTFProfile(object):
 
         if templates is not None:
             self.templates = listify(templates)
+            for template in self.templates:
+                if template.tg_name in self.tg_name_to_id:
+                    template.fields['tg_id'] = self.tg_name_to_id[template.tg_name]
+                else:
+                    if template.tg_name is None:
+                        template.fields['tg_id'] = 0
+                    if template.tg_name:
+                            template.fields['tg_id'] = len(self.tg_name_to_id) + 1
+                            self.tg_name_to_id[template.tg_name] = len(self.tg_name_to_id) + 1
 
         if cap_list is not None:
             mode = None
@@ -1670,9 +1693,12 @@ class ASTFProfile(object):
         if self.default_s_glob_info is not None:
             ret['s_glob_info'] = self.default_s_glob_info.to_json()
         ret['templates'] = []
-        for i in range(0, len(self.templates)):
-            ret['templates'].append(self.templates[i].to_json())
-
+        for t in self.templates:
+            ret['templates'].append(t.to_json())
+        ret['tg_names'] = list(self.tg_name_to_id.keys())
+        # Remember! If tg_name = None then tg_id = 0 and tg_name is not passed to the server. As such
+        # when parsing the JSON in the server be careful to pay attention that the first tg_name belongs to
+        # tg_id = 1.
         return ret;
 
     def print_stats(self):
