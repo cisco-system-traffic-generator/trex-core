@@ -60,10 +60,31 @@
 #define MYC_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)m_sts.f)
 
 
+tcpstat::tcpstat(uint16_t num_of_tg_ids){
+    Init(num_of_tg_ids);
+}
+
+tcpstat::~tcpstat() {
+    delete[] m_sts_tg_id;
+}
+
+void tcpstat::Init(uint16_t num_of_tg_ids) {
+        m_sts_tg_id = new tcpstat_int_t[num_of_tg_ids];
+        assert(m_sts_tg_id && "Operator new failed in tcp_subr.cpp/tcpstat::Init");
+        m_num_of_tg_ids = num_of_tg_ids;
+        Clear();
+}
+
 void tcpstat::Clear(){
+    for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++){
+        ClearPerTGID(tg_id);
+    }
     memset(&m_sts,0,sizeof(tcpstat_int_t));
 }
 
+void tcpstat::ClearPerTGID(uint16_t tg_id){
+    memset(m_sts_tg_id+tg_id,0,sizeof(tcpstat_int_t));
+}
 
 void tcpstat::Dump(FILE *fd){
 
@@ -129,6 +150,10 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_nombuf);
 }
 
+void tcpstat::Resize(uint16_t new_num_of_tg_ids) {
+    delete[] m_sts_tg_id;
+    Init(new_num_of_tg_ids);
+}
 
 /*
  * Initiate connection to peer.
@@ -149,7 +174,7 @@ int tcp_connect(CTcpPerThreadCtx * ctx,
 
     soisconnecting(&tp->m_socket);
 
-    INC_STAT(ctx,tcps_connattempt);
+    INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_connattempt);
     tp->t_state = TCPS_SYN_SENT;
     tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
     tp->iss = ctx->tcp_iss; 
@@ -238,8 +263,6 @@ void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
 
-    /* back pointer */
-    m_tcp.m_flow=this;
     if (m_template.is_tcp_tso()){
         /* to cache the info*/
         m_tcp.m_tuneable_flags |=TUNE_TSO_CACHE;
@@ -261,7 +284,7 @@ void CTcpFlow::init(){
 }
 
 
-void CFlowBase::Create(CTcpPerThreadCtx *ctx){
+void CFlowBase::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){
     m_pad[0]=0;
     m_pad[1]=0;
     m_c_idx_enable =0;
@@ -269,6 +292,7 @@ void CFlowBase::Create(CTcpPerThreadCtx *ctx){
     m_c_pool_idx=0;
     m_c_template_idx=0;
     m_ctx=ctx;
+    m_tg_id=tg_id;
 }
 
 void CFlowBase::Delete(){
@@ -287,8 +311,8 @@ void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
 
 
 
-void CTcpFlow::Create(CTcpPerThreadCtx *ctx){ 
-    CFlowBase::Create(ctx);
+void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){ 
+    CFlowBase::Create(ctx, tg_id);
     m_tick=0;
     m_timer.reset();
     m_timer.m_type = 0; 
@@ -322,6 +346,8 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx){
         TCPTV_MIN, TCPTV_REXMTMAX);
     tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
     tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
+    /* back pointer */
+    tp->m_flow=this;
 }
 
 void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
@@ -617,6 +643,13 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_tick_msec);
     }
     #endif
+}
+
+void CTcpPerThreadCtx::resize_stats() {
+    m_ft.m_sts.Clear();
+    uint16_t num_of_tg_ids = m_template_ro->get_num_of_tg_ids();
+    m_tcpstat.Resize(num_of_tg_ids);
+    m_udpstat.Resize(num_of_tg_ids);
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -945,13 +978,13 @@ struct tcpcb * tcp_drop_now(CTcpPerThreadCtx * ctx,
                             struct tcpcb *tp, 
                             int res){
     struct tcp_socket *so = &tp->m_socket;
-
+    uint16_t tg_id = tp->m_flow->m_tg_id;
     if (TCPS_HAVERCVDSYN(tp->t_state)) {
         tp->t_state = TCPS_CLOSED;
         (void) tcp_output(ctx,tp);
-        INC_STAT(ctx,tcps_drops);
+        INC_STAT(ctx, tg_id, tcps_drops);
     } else{
-        INC_STAT(ctx,tcps_conndrops);
+        INC_STAT(ctx, tg_id, tcps_conndrops);
     }
     if (res == ETIMEDOUT && tp->t_softerror){
         res = tp->t_softerror;
@@ -1048,7 +1081,7 @@ tcp_close(CTcpPerThreadCtx * ctx,
     /* mark it as close and return zero */
     tp->t_state = TCPS_CLOSED;
     /* TBD -- back pointer to flow and delete it */
-    INC_STAT(ctx,tcps_closed);
+    INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_closed);
     return((struct tcpcb *)tp);
 }
 

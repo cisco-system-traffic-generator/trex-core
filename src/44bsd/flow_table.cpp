@@ -229,8 +229,9 @@ static void on_flow_free_cb(void *userdata,void  *obh){
 
 void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
                                 CFlowBase * flow){
-    INC_STAT(ctx,tcps_testdrops);
-    INC_STAT(ctx,tcps_closed); 
+    uint16_t tg_id = flow->m_tg_id;
+    INC_STAT(ctx, tg_id, tcps_testdrops);
+    INC_STAT(ctx, tg_id, tcps_closed); 
     handle_close(ctx,flow,false);
 }
 
@@ -293,7 +294,7 @@ void       CFlowTable::generate_rst_pkt(CTcpPerThreadCtx * ctx,
     }
 
 
-
+    // This is intentionally left without tg_id
     CTcpFlow * flow=alloc_flow(ctx,
                                  src,
                                  dst,
@@ -352,13 +353,14 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CTcpPerThreadCtx * ctx,
                                   uint16_t dst_port,
                                   uint16_t vlan,
                                   bool is_ipv6,
-                                  bool client){
+                                  bool client,
+                                  uint16_t tg_id){
     CUdpFlow * flow = new (std::nothrow) CUdpFlow();
     if (flow == 0 ) {
         FT_INC_SCNT(m_err_no_memory);
         return((CUdpFlow *)0);
     }
-    flow->Create(ctx,client);
+    flow->Create(ctx, client, tg_id);
     flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,is_ipv6);
     flow->init();
     return(flow);
@@ -370,13 +372,14 @@ CTcpFlow * CFlowTable::alloc_flow(CTcpPerThreadCtx * ctx,
                                   uint16_t src_port,
                                   uint16_t dst_port,
                                   uint16_t vlan,
-                                  bool is_ipv6){
+                                  bool is_ipv6,
+                                  uint16_t tg_id){
     CTcpFlow * flow = new (std::nothrow) CTcpFlow();
     if (flow == 0 ) {
         FT_INC_SCNT(m_err_no_memory);
         return((CTcpFlow *)0);
     }
-    flow->Create(ctx);
+    flow->Create(ctx, tg_id);
     flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,is_ipv6);
     flow->init();
     return(flow);
@@ -450,14 +453,14 @@ void CFlowTable::process_udp_packet(CTcpPerThreadCtx * ctx,
 }
 
 
-bool CFlowTable::rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
-                                      struct rte_mbuf * mbuf,
-                                      flow_hash_ent_t * lpflow,
-                                      CSimplePacketParser & parser,
-                                      CFlowKeyTuple & tuple,
-                                      CFlowKeyFullTuple & ftuple,
-                                      uint32_t  hash
-                                      ){
+bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
+                                              struct rte_mbuf * mbuf,
+                                              flow_hash_ent_t * lpflow,
+                                              CSimplePacketParser & parser,
+                                              CFlowKeyTuple & tuple,
+                                              CFlowKeyFullTuple & ftuple,
+                                              uint32_t  hash
+                                              ){
     CUdpFlow * flow;
 
     /* first in flow */
@@ -502,6 +505,9 @@ bool CFlowTable::rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    uint16_t c_template_idx = server_info->get_temp_idx();
+    uint16_t tg_id = tcp_data_ro->get_template_tg_id(c_template_idx);
+
     if ( ctx->is_open_flow_enabled()==false ){
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_s_nf_throttled);
@@ -518,7 +524,8 @@ bool CFlowTable::rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
                                    tuple.get_port(),
                                    vlan,
                                    is_ipv6,
-                                   false);
+                                   false,
+                                   tg_id);
 
 
 
@@ -536,7 +543,7 @@ bool CFlowTable::rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
         flow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
     }
 
-    flow->m_c_template_idx = server_info->get_temp_idx();
+    flow->m_c_template_idx = c_template_idx;
 
     flow_key_t key=tuple.get_as_uint64();
     /* add to flow-table */
@@ -559,13 +566,13 @@ bool CFlowTable::rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
 }
 
 
-bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
-                                      struct rte_mbuf * mbuf,
-                                      flow_hash_ent_t * lpflow,
-                                      CSimplePacketParser & parser,
-                                      CFlowKeyTuple & tuple,
-                                      CFlowKeyFullTuple & ftuple,
-                                      uint32_t  hash
+bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
+                                              struct rte_mbuf * mbuf,
+                                              flow_hash_ent_t * lpflow,
+                                              CSimplePacketParser & parser,
+                                              CFlowKeyTuple & tuple,
+                                              CFlowKeyFullTuple & ftuple,
+                                              uint32_t  hash
                                       ){
     CTcpFlow * lptflow;
 
@@ -670,6 +677,9 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    uint16_t c_template_idx = server_info->get_temp_idx();
+    uint16_t tg_id = tcp_data_ro->get_template_tg_id(c_template_idx);
+
     if ( ctx->is_open_flow_enabled()==false ){
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_s_nf_throttled);
@@ -685,7 +695,8 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
                                    dst_port,
                                    tuple.get_port(),
                                    vlan,
-                                   is_ipv6);
+                                   is_ipv6,
+                                   tg_id);
 
 
 
@@ -701,7 +712,7 @@ bool CFlowTable::rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
         lptflow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
     }
 
-    lptflow->m_c_template_idx = server_info->get_temp_idx();
+    lptflow->m_c_template_idx = c_template_idx;
 
     flow_key_t key=tuple.get_as_uint64();
     /* add to flow-table */
@@ -810,10 +821,10 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
 
     if ( tuple.get_proto() == IPHeader::Protocol::UDP ){
-        return (rx_handle_packet_udp(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
+        return (rx_handle_packet_udp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
     }else{
         /* TCP */
-        return (rx_handle_packet_tcp(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
+        return (rx_handle_packet_tcp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
     }
 }
 
