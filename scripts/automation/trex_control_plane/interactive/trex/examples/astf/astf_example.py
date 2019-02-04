@@ -52,11 +52,17 @@ def astf_test(server, mult, duration, profile_path):
         client_stats = stats['traffic']['client']
         server_stats = stats['traffic']['server']
 
-        client_sent, server_recv = client_stats['tcps_sndbyte'], server_stats['tcps_rcvbyte']
-        server_sent, client_recv = server_stats['tcps_sndbyte'], client_stats['tcps_rcvbyte']
+        tcp_client_sent, tcp_server_recv = client_stats.get('tcps_sndbyte', 0), server_stats.get('tcps_rcvbyte', 0)
+        tcp_server_sent, tcp_client_recv = server_stats.get('tcps_sndbyte', 0), client_stats.get('tcps_rcvbyte', 0)
 
-        assert (client_sent == server_recv), 'Too much TCP drops - clients sent: %s, servers received: %s' % (client_sent, server_recv)
-        assert (server_sent == client_recv), 'Too much TCP drops - servers sent: %s, clients received: %s' % (server_sent, client_recv)
+        udp_client_sent, udp_server_recv = client_stats.get('udps_sndbyte', 0), server_stats.get('udps_rcvbyte', 0)
+        udp_server_sent, udp_client_recv = server_stats.get('udps_sndbyte', 0), client_stats.get('udps_rcvbyte', 0)
+
+        assert (tcp_client_sent == tcp_server_recv), 'Too much TCP drops - clients sent: %s, servers received: %s' % (tcp_client_sent, tcp_server_recv)
+        assert (tcp_server_sent == tcp_client_recv), 'Too much TCP drops - servers sent: %s, clients received: %s' % (tcp_server_sent, tcp_client_recv)
+
+        assert (udp_client_sent == udp_server_recv), 'Too much UDP drops - clients sent: %s, servers received: %s' % (udp_client_sent, udp_server_recv)
+        assert (udp_server_sent == udp_client_recv), 'Too much UDP drops - servers sent: %s, clients received: %s' % (udp_server_sent, udp_client_recv)
 
 
     except TRexError as e:
