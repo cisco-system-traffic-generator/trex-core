@@ -143,6 +143,9 @@ void TrexAstf::build() {
 }
 
 void TrexAstf::transmit() {
+
+    m_fl->m_stt_cp->Resize(CAstfDB::instance()->get_num_of_tg_ids());   /* Resize the statistics vector depending on the number of template groups */
+
     if ( m_lat_with_traffic ) {
         CAstfDB *db = CAstfDB::instance();
         lat_start_params_t args;
@@ -408,6 +411,10 @@ void TrexAstf::topo_get(Json::Value &result) {
     CAstfDB::instance()->get_topo()->to_json(result["topo_data"]);
 }
 
+bool TrexAstf::is_state_build() {
+    return m_state == STATE_BUILD;
+}
+
 void TrexAstf::start_transmit(const start_params_t &args) {
     check_whitelist_states({STATE_LOADED});
 
@@ -424,8 +431,6 @@ void TrexAstf::start_transmit(const start_params_t &args) {
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.setNoCleanFlowClose(args.nc);
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
-
-    m_fl->m_stt_cp->clear_counters();
 
     if ( profile_needs_parsing() || topo_needs_parsing() ) {
         parse();

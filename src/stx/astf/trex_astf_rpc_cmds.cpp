@@ -34,6 +34,8 @@ limitations under the License.
 
 using namespace std;
 
+#define MAX_TG_ALLOWED_AT_ONCE 10
+
 TrexAstfPort* get_astf_port(uint8_t port_id) {
     return (TrexAstfPort*)get_stx()->get_port_by_id(port_id);
 }
@@ -99,6 +101,8 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdateLatency, "update_latency");
 
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfGetTGNames, "get_tg_names");
+TREX_RPC_CMD(TrexRpcCmdAstfGetTGStats, "get_tg_id_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 
@@ -435,6 +439,66 @@ TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &resul
 }
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
+    bool initialized = parse_bool(params, "initialized", result);
+    uint64_t epoch = 0;
+    if (initialized) {
+        epoch = parse_uint64(params, "epoch", result);
+    }
+    CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
+    if (lpstt && lpstt->m_init) {
+        if (!get_astf_object()->is_state_build()) {
+            lpstt->UpdateTGNames(CAstfDB::instance()->get_tg_names());
+        }
+        uint64_t server_epoch = lpstt->m_epoch;
+        result["result"]["epoch"] = server_epoch;
+        if ( (initialized && server_epoch != epoch) || !initialized)  {
+            lpstt->DumpTGNames(result["result"]);
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
+    vector<uint16_t> tgids_arr;
+    uint64_t epoch = parse_uint64(params, "epoch", result);
+    const Json::Value &tgids = parse_array(params, "tg_ids", result);
+    CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
+    try {
+        if (tgids.size() > MAX_TG_ALLOWED_AT_ONCE) {
+            generate_execute_err(result, "Trying to get statistics for too many TGs. Max allowed is "
+                                         + to_string(MAX_TG_ALLOWED_AT_ONCE));
+        }
+        if (lpstt && lpstt->m_init) {
+            for (auto &itr: tgids) {
+                uint16_t tg_id = itr.asUInt();
+                if (tg_id > lpstt->m_num_of_tg_ids) {
+                    generate_execute_err(result, "TG ID is too big. Max value is " +
+                    to_string(lpstt->m_num_of_tg_ids) + ". Received " + to_string(tg_id));
+                }
+                if (tg_id == 0) {
+                    generate_execute_err(result, "Invalid TG ID = 0");
+                }
+                tgids_arr.push_back(tg_id);
+            }
+            uint64_t server_epoch = lpstt->m_epoch;
+            result["result"]["epoch"] = server_epoch;
+            if (server_epoch == epoch) {
+                if (!get_astf_object()->is_state_build()) {
+                    lpstt->UpdateTGStats(tgids_arr);
+                }
+                lpstt->DumpTGStats(result["result"], tgids_arr);
+            }
+        }
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfTopoGet::_run(const Json::Value &params, Json::Value &result) {
     try {
         get_astf_object()->topo_get(result["result"]);
@@ -514,6 +578,8 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfGetTrafficDist(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetTGNames(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetTGStats(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
