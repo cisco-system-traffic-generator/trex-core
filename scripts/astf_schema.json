@@ -25,6 +25,9 @@
         
         "s_glob_info" : {
             "$ref": "#/definitions/glob_info_t"
+        },
+        "tg_names": {
+            "$ref": "#/definitions/tg_names_t"
         }
     },
     
@@ -163,6 +166,9 @@
 
                  "client_template" : {
                     "$ref": "#/definitions/client_template_t" 
+                  },
+                  "tg_id": {
+                      "type" : "integer"
                   }
                 },
                "required": ["server_template","client_template"]
@@ -175,6 +181,13 @@
                        "$ref": "#/definitions/template_t"     
                    },
                    "minItems": 1
+           },
+
+           "tg_names_t" : {
+               "type": "array",
+               "items": {
+                    "type": "string"
+                }
            },
 
 
