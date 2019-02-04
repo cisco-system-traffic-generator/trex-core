@@ -173,14 +173,14 @@ void CTblGCounters::dump_values(std::string name,
     obj  = root;
 
     obj["name"] = name;
-    obj["epoch"] = m_epoch;
+    obj["epoch"] = m_epoch.get();
 
     uint8_t size=m_counters.size();
 
     int i,j;
     for (i=0; i<size; i++) {
         CGTblClmCounters* lp=m_counters[i];
-        obj[lp->get_name()] = Json::objectValue;;
+        obj[lp->get_name()] = Json::objectValue;
         for (j=0; j<lp->get_size(); j++) {
             CGSimpleBase* lpcnt=lp->get_cnt(j);
             if ((zeros==true) || (!lpcnt->is_skip_zero()) ) {
@@ -257,7 +257,7 @@ void CTblGCounters::dump_table(FILE *fd,bool zeros,bool desc){
     for (i=0; i<size; i++) {
         CGTblClmCounters* lp=m_counters[i];
         fprintf(fd," %15s ",lp->get_name().c_str());
-        fprintf(fd,"  |  ");
+        fprintf(fd," | ");
     }
     fprintf(fd,"\n");
     fprintf(fd," -----------------------------------------------------------------------------------------\n");
