@@ -1665,6 +1665,75 @@ This example will show an UDP example.
 
 In case of pcap file, it will be converted to send_msg/recv_msg/delay taken from the pcap file.
 
+==== Tutorial: Template group.
+A template group is, as the name suggests, a group of templates that share statistics. Sharing statistics for templates has a number of use cases. For example, one would like to track the statistics of two different programs under the same profile. Another use case would be grouping different programs and comparing statistics between groups. Let us demonstrance a simple case, in which we run the same program with different cps in two different template groups.
+
+*File*:: 
+
+link:{github_astf_path}/template_groups.py[astf/template_groups.py]
+
+.Two simple template groups
+[source,python]
+----
+    def create_profile(self):
+        # client commands
+        prog_c = ASTFProgram(stream=False)
+        prog_c.send_msg(http_req)
+        prog_c.recv_msg(1)
+
+        prog_s = ASTFProgram(stream=False)
+        prog_s.recv_msg(1)
+        prog_s.send_msg(http_response)
+
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+
+        # template
+        temp_c1 = ASTFTCPClientTemplate(port=80, program=prog_c,ip_gen=ip_gen, cps = 1)
+        temp_c2 = ASTFTCPClientTemplate(port=81, program=prog_c, ip_gen=ip_gen, cps = 2)
+        temp_s1 = ASTFTCPServerTemplate(program=prog_s, assoc=ASTFAssociationRule(80))
+        temp_s2 = ASTFTCPServerTemplate(program=prog_s, assoc=ASTFAssociationRule(81))
+        t1 = ASTFTemplate(client_template=temp_c1, server_template=temp_s1, tg_name = '1x') <1>
+        t2 = ASTFTemplate(client_template=temp_c2, server_template=temp_s2, tg_name = '2x')
+
+        # profile
+        profile = ASTFProfile(default_ip_gen=ip_gen, templates=[t1, t2])
+        return profile
+----
+<1> The group name is '1x'. In this simple profile both template groups contain a single template.
+
+We can track the statistics using the Trex console. Within the console we can use the TUI (see previous examples) or the template group section api for live tracking of the counters.
+To move between template groups in TUI use the right and left arrow.
+
+image::images/template_group1.png[title="Statistics for template group '1x'",align="center",width={p_width}, link="images/template_group1.png"]
+image::images/template_group2.png[title="Statistics for template group '2x'",align="center",width={p_width}, link="images/template_group2.png"]
+
+We can see that the ratio of 'udps_connects' between the two groups converges to the ratio of cps, namely 2.
+
+Next we explore how to use the 'template_group' section directly from the console. For complete information, from the TRex console write:
+[source,bash]
+----
+[trex]>template_group --help
+----
+You will see that the section has two commands, 'names' and 'stats'. +
+The 'names' command can receive two parameters, 'start' (default value is 0) and 'amount' (default value is 50).
+It will show in the screen the list of names [start : start+amount]. You can use it this way:
+[source,bash]
+----
+[trex]>template_group names --start 3 --amount 20
+----
+Lastly, the 'stats' command receives as parameter the name of a template group and shows the statistics of this group.
+For example, one can write:
+[source,bash]
+----
+[trex]>template_group stats --name 1x
+----
+
 ==== Tutorial: Wrapping it up example.
 
 ASTF mode can do much more than what we saw in the previous examples. We can generate payloads offline
