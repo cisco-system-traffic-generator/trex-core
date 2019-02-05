@@ -24,6 +24,7 @@ from ..utils.common import list_intersect
 from ..utils import text_tables
 from ..utils.filters import ToggleFilter
 from ..common.trex_exceptions import TRexError
+from ..astf.trex_astf_exceptions import ASTFErrorBadTG
 
 
 class TUIQuit(Exception):
@@ -265,19 +266,26 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.start_row = 0
         self.max_lines = TrexTUI.MIN_ROWS - 16 # 16 is size of panels below and above
         self.num_lines = 0
+        self.tgid = 0
 
         self.key_actions = OrderedDict()
 
-        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': True}
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': Predicate(lambda : self.tgid == 0)}
         self.key_actions['Up'] = {'action': self.action_up, 'legend': 'scroll up', 'show': True}
         self.key_actions['Down'] = {'action': self.action_down, 'legend': 'scroll down', 'show': True}
+        self.key_actions['Left'] = {'action': self.action_left, 'legend': 'previous TG', 'show': True}
+        self.key_actions['Right'] = {'action': self.action_right, 'legend': 'next TG', 'show': True}
 
 
     def show(self, buffer):
         self.client._show_global_stats(buffer = buffer)
 
         buf = StringIO()
-        self.client._show_traffic_stats(False, buffer = buf)
+        try:
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
+        except ASTFErrorBadTG:
+            self.tgid = 0
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
         buf.seek(0)
         out_lines = buf.readlines()
         self.num_lines = len(out_lines)
@@ -290,7 +298,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
 
 
     def action_clear(self):
-         self.client.clear_astf_stats()
+         self.client.clear_traffic_stats()
          return ""
 
     def action_up(self):
@@ -302,6 +310,16 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
     def action_down(self):
         if self.start_row < self.num_lines - self.max_lines:
             self.start_row += 1
+
+
+    def action_left(self):
+        if self.tgid > 0:
+            self.tgid -= 1
+
+
+    def action_right(self):
+        if self.tgid < self.client._get_num_of_tgids():
+            self.tgid += 1
 
 
 # ASTF latency stats
@@ -985,6 +1003,10 @@ class AsyncKeysEngineLegend:
                 pm.handle_key('Up')
             if seq == '\x1b\x5b\x42': # scroll down
                 pm.handle_key('Down')
+            if seq == '\x1b\x5b\x43': # scroll right
+                pm.handle_key('Right')
+            if seq == '\x1b\x5b\x44': # scroll left
+                pm.handle_key('Left')
             return AsyncKeys.STATUS_NONE
 
         rc = pm.handle_key(seq)

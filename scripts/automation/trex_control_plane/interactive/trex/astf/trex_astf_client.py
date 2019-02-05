@@ -1,8 +1,9 @@
-
+from __future__ import print_function
 import hashlib
 import sys
 import time
 import os
+import shlex
 
 from ..utils.common import get_current_user, user_input
 from ..utils import parsing_opts, text_tables
@@ -19,6 +20,8 @@ from .topo import ASTFTopologyManager
 from .stats.traffic import CAstfTrafficStats
 from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
+from ..utils.text_opts import format_text
+from ..astf.trex_astf_exceptions import ASTFErrorBadTG
 
 astf_states = [
     'STATE_IDLE',
@@ -453,7 +456,7 @@ class ASTFClient(TRexClient):
                     Bitmask of enabled client ports.
 
             :raises:
-                + :exe:'TRexError'
+                + :exc:`TRexError`
         """
 
         params = {
@@ -487,7 +490,7 @@ class ASTFClient(TRexClient):
                     Default is True
 
             :raises:
-                + :exe:'TRexError'
+                + :exc:`TRexError`
         """
         params = {
             'handler': self.handler,
@@ -514,7 +517,7 @@ class ASTFClient(TRexClient):
                     Default is 1
 
             :raises:
-                + :exe:'TRexError'
+                + :exc:`TRexError`
         """
         params = {
             'handler': self.handler,
@@ -539,7 +542,7 @@ class ASTFClient(TRexClient):
 
             :raises:
                 + :exc:`TRexTimeoutError` - in case timeout has expired
-                + :exe:'TRexError'
+                + :exc:`TRexError`
         """
 
         ports = self.get_all_ports()
@@ -549,7 +552,16 @@ class ASTFClient(TRexClient):
     # get stats
     @client_api('getter', True)
     def get_stats(self, ports = None, sync_now = True,skip_zero =True):
+        """
+            Gets all statistics on given ports, traffic and latency.
 
+            :parameters:
+                port: list
+
+                sync_now: boolean
+
+                skip_zero: boolean
+        """
         stats = self._get_stats_common(ports, sync_now)
         stats['traffic'] = self.get_traffic_stats(skip_zero)
         stats['latency'] = self.get_latency_stats(skip_zero)
@@ -565,7 +577,18 @@ class ASTFClient(TRexClient):
                     clear_global = True,
                     clear_xstats = True,
                     clear_traffic = True):
+        """
+            Clears statistics in given ports.
 
+            :parameters:
+                port: list
+
+                clear_global: boolean
+
+                clear_xstats: boolean
+
+                clear_traffic: boolean
+        """
         if clear_traffic:
             self.clear_traffic_stats()
 
@@ -573,7 +596,44 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
+    def get_tg_names(self):
+        """
+            Returns a list of the names of all template groups defined in the current profile.
+
+            :raises:
+                + :exc:`TRexError`
+        """
+        return self.traffic_stats.get_tg_names()
+
+
+    @client_api('getter', True)
+    def get_traffic_tg_stats(self, tg_names, skip_zero=True):
+        """
+            Returns the traffic statistics for the template groups specified in tg_names.
+
+            :parameters:
+                tg_names: list or string
+                    Contains the names of the template groups for which we want to get traffic statistics.
+
+                skip_zero: boolean
+
+            :raises:
+                + :exc:`TRexError`
+                + :exc:`ASTFErrorBadTG`
+                    Can be thrown if tg_names is empty or contains a invalid name.
+        """
+        validate_type('tg_names', tg_names, (list, basestring))
+        return self.traffic_stats.get_traffic_tg_stats(tg_names, skip_zero)
+
+
+    @client_api('getter', True)
     def get_traffic_stats(self, skip_zero = True):
+        """
+            Returns aggregated traffic statistics.
+
+            :parameters:
+                skip_zero: boolean
+        """
         return self.traffic_stats.get_stats(skip_zero)
 
 
@@ -591,11 +651,20 @@ class ASTFClient(TRexClient):
 
     @client_api('getter', True)
     def clear_traffic_stats(self):
+        """
+            Clears traffic statistics.
+        """
         return self.traffic_stats.clear_stats()
 
 
     @client_api('getter', True)
     def get_latency_stats(self,skip_zero =True):
+        """
+            Gets latency statistics.
+
+            :parameters:
+                skip_zero: boolean
+        """
         return self.latency_stats.get_stats(skip_zero)
 
 
@@ -797,7 +866,7 @@ class ASTFClient(TRexClient):
             self.acquire_line.__doc__,
             parsing_opts.FORCE)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         self.acquire(force = opts.force)
         return True
 
@@ -812,7 +881,7 @@ class ASTFClient(TRexClient):
             self.reset_line.__doc__,
             parsing_opts.PORT_RESTART)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         self.reset(restart = opts.restart)
         return True
 
@@ -835,7 +904,7 @@ class ASTFClient(TRexClient):
             parsing_opts.ASTF_CLIENT_CTRL,
             )
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         self.load_profile(opts.file[0], opts.tunables)
 
         kw = {}
@@ -861,7 +930,7 @@ class ASTFClient(TRexClient):
             'stop',
             self.stop_line.__doc__)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         self.stop(False)
 
     @console_api('update', 'ASTF', True)
@@ -874,7 +943,7 @@ class ASTFClient(TRexClient):
             self.update_line.__doc__,
             parsing_opts.MULTIPLIER_NUM)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         self.update(opts.mult)
 
 
@@ -918,7 +987,7 @@ class ASTFClient(TRexClient):
             parsing_opts.MULTIPLIER_NUM,
             )
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
 
         if opts.command == 'start':
             ports_mask = self._calc_port_mask(opts.ports)
@@ -980,7 +1049,7 @@ class ASTFClient(TRexClient):
             parsing_opts.FILE_PATH_NO_CHECK,
             )
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
 
         if opts.command == 'load':
             self.topo_load(opts.file[0], opts.tunables)
@@ -1016,7 +1085,7 @@ class ASTFClient(TRexClient):
             parsing_opts.PORT_LIST,
             parsing_opts.ASTF_STATS_GROUP)
 
-        opts = parser.parse_args(line.split())
+        opts = parser.parse_args(shlex.split(line))
         if not opts:
             return
 
@@ -1067,8 +1136,50 @@ class ASTFClient(TRexClient):
             raise TRexError('Unhandled stat: %s' % opts.stats)
 
 
-    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout):
-        table = self.traffic_stats.to_table(include_zero_lines)
+    @console_api('template_group', 'ASTF', True)
+    def template_group_line(self, line):
+        "Template group commands"
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'template_group',
+            self.template_group_line.__doc__)
+
+        def template_group_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        names_parser = template_group_add_parsers(subparsers, 'names', help = 'Get template group names')
+        stats_parser = template_group_add_parsers(subparsers, 'stats', help = 'Get stats for template group')
+
+        names_parser.add_arg_list(parsing_opts.TG_NAME_START)
+        names_parser.add_arg_list(parsing_opts.TG_NAME_AMOUNT)
+        stats_parser.add_arg_list(parsing_opts.TG_STATS)
+
+        opts = parser.parse_args(shlex.split(line))
+
+        if not opts:
+            return
+
+        if opts.command == 'names':
+            self.traffic_stats._show_tg_names(start=opts.start, amount=opts.amount)
+        elif opts.command == 'stats':
+            try:
+                self.get_tg_names()
+                tgid = self.traffic_stats._translate_names_to_ids(opts.name)
+                self._show_traffic_stats(include_zero_lines=False, tgid = tgid[0])
+            except ASTFErrorBadTG:
+                print(format_text("Template group name %s doesn't exist!" % opts.name, 'bold'))
+        else:
+            raise TRexError('Unhandled command: %s' % opts.command)
+
+
+    def _get_num_of_tgids(self):
+        return self.traffic_stats._get_num_of_tgids()
+
+
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0):
+        table = self.traffic_stats.to_table(include_zero_lines, tgid)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
 

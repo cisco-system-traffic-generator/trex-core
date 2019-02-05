@@ -81,3 +81,7 @@ class ASTFErrorBadMac(ASTFError):
         msg = "Bad MAC \"{0}\" for parameter {1} to function {2}".format(mac, param, func)
         ASTFError.__init__(self, msg)
 
+
+class ASTFErrorBadTG(ASTFError):
+    def __init__(self, msg):
+        ASTFError.__init__(self, msg)
