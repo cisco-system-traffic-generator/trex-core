@@ -1717,9 +1717,9 @@ class STLClient(TRexClient):
         try:
             for port in opts.ports:
                 profile = STLProfile.load(opts.file[0],
-                                          direction = tunables.get('direction', port % 2),
+                                          direction = opts.tunables.get('direction', port % 2),
                                           port_id = port,
-                                          **tunables)
+                                          **opts.tunables)
                 streams_per_port[port] = profile.get_streams()
         except TRexError as e:
             s = format_text("\nError loading profile '{0}'\n".format(opts.file[0]), 'bold')
