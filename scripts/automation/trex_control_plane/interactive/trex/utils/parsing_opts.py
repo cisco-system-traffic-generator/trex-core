@@ -909,6 +909,29 @@ class OPTIONS_DB_ARGS:
          'dest': 'src_ipv6',
          'type': check_ipv6_addr})
 
+    TG_NAME_START = ArgumentPack(
+        ['--start'],
+        {'help': 'Starting index to print template group names',
+         'dest': 'start',
+         'type': int,
+         'default': 0
+         })
+
+    TG_NAME_AMOUNT = ArgumentPack(
+        ['--amount'],
+        {'help': 'Amount of template group names to print',
+         'dest': 'amount',
+         'type': int,
+         'default': 50
+         })
+
+    TG_STATS = ArgumentPack(
+        ['--name'],
+        {'dest': 'name',
+         'required': True,
+         'type': str,
+         'help': "Template group name"})
+
 OPTIONS_DB = {}
 opt_index = 0
 for var_name in dir(OPTIONS_DB_ARGS):
