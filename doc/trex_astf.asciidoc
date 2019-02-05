@@ -1734,6 +1734,20 @@ For example, one can write:
 [trex]>template_group stats --name 1x
 ----
 
+===== Client API
+If you are performing automation, the client API might come in handy (see more in TRex ASTF API). Using the API we can get the names of all the active template groups. We can also get statistics for each template group or groups. The following example clarifies the use:
+[source,python]
+----
+        self.c.load_profile(profile)
+        self.c.clear_stats()
+        self.c.start(duration = 60, mult = 100)
+        self.c.wait_on_traffic()
+        names = self.c.get_tg_names()                   <1>
+        stats = self.c.get_traffic_tg_stats(names[:2])  <2>
+----
+<1> Returns a list of the template group names on the profile.
+<2> Receives a list of template group names, and returns a dictionary of statistics per template group name.
+
 ==== Tutorial: Wrapping it up example.
 
 ASTF mode can do much more than what we saw in the previous examples. We can generate payloads offline
