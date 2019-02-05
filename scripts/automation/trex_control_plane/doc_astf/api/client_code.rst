@@ -82,5 +82,19 @@ ASTFClient snippet
         
 
 
+.. code-block:: python
 
+    # Example: tempate group name and counters
+
+        self.c.load_profile(profile)
+
+        self.c.clear_stats()
+
+        self.c.start(duration = 60, mult = 100)
+
+        self.c.wait_on_traffic()
+
+        names = self.c.get_tg_names()                  
+
+        stats = self.c.get_traffic_tg_stats(names[:2])  
 
