@@ -26,6 +26,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.52 ==
+
+* ASTF 
+** Add per template group counters see  link:trex_astf.html#_tutorial_template_group[template_group]
+* Update documentation for Topology module
+* Namespace: Fix multicast performance issue 
+
 == Release 2.51 ==
 
 * Minor fixes for namespaces feature 

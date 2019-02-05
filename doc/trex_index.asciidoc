@@ -7,11 +7,6 @@ TRex Documentation
 
 include::trex_ga.asciidoc[]
 
-*TRex is presented at*
-
-image:images/fosdem.png[width=200,title="Brussels, Belgium"]  
-
-* *2019-02-03* | *14:20:00*  link:https://fosdem.org/2019/schedule/event/trex_generator[session]
 
 == Presentations
 
