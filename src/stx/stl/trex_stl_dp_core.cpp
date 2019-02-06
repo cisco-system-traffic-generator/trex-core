@@ -892,7 +892,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
         tcp_udp = true;
     }
 
-    bool forward_to_rx = m_parser->get_is_latency() || (!tcp_udp) ;
+    bool forward_to_rx = m_parser->is_hardware_filter_simulaton_on() || (!tcp_udp) ;
 
     if ( forward_to_rx && (is_idle==false)){
         drop=false;

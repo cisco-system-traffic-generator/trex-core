@@ -73,7 +73,7 @@ class CFlowStatParser {
     virtual int get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload_len);
     virtual uint16_t get_pkt_size();
     virtual uint8_t get_ttl();
-    bool get_is_latency();
+    bool is_hardware_filter_simulaton_on();
     uint8_t get_protocol();
 
     uint8_t *get_l3() {
