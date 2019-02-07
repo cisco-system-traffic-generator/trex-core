@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.53 ==
+
+* Fix STL Console issue 
+
 == Release 2.52 ==
 
 * ASTF 
