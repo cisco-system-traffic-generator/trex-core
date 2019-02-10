@@ -78,6 +78,7 @@ class CPhyEthIF  {
         m_rx_queue       = 0;
         m_stats_err_cnt  = 0;
         m_is_dummy       = false;
+        m_dev_tx_offload_needed =0;
     }
     virtual ~CPhyEthIF() {}
     bool Create(tvpid_t  tvpid,
@@ -193,15 +194,11 @@ class CPhyEthIF  {
         }
     }
 
-#define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
     inline uint16_t tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
         if (likely( !m_is_dummy )) {
-            const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
-
-            if (unlikely((m_dev_info->tx_offload_capa & DEV_OFFLOAD_CAPA) != DEV_OFFLOAD_CAPA)) {
-                tx_burst_offload_csum(tx_pkts, nb_pkts, m_dev_info->tx_offload_capa);
+            if (unlikely(m_dev_tx_offload_needed)) {
+                tx_burst_offload_csum(tx_pkts, nb_pkts, m_dev_tx_offload_needed);
             }
-
             return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
         } else {
             for (int i=0; i<nb_pkts;i++) {
@@ -271,6 +268,7 @@ private:
     tvpid_t                  m_tvpid;
     repid_t                  m_repid;
     uint8_t                  m_rx_queue;
+    uint8_t                  m_dev_tx_offload_needed;
     uint64_t                 m_sw_try_tx_pkt;
     uint64_t                 m_sw_tx_drop_pkt;
     uint32_t                 m_stats_err_cnt;

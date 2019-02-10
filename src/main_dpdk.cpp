@@ -1273,7 +1273,17 @@ void CPhyEthIF::stop(){
     }
 }
 
+#define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+
 void CPhyEthIF::start(){
+
+    const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
+
+    if ((m_dev_info->tx_offload_capa & DEV_OFFLOAD_CAPA) != DEV_OFFLOAD_CAPA ){
+        m_dev_tx_offload_needed = DEV_TX_OFFLOAD_VLAN_INSERT; /* make everyting by software, deriver do not report the right capability e.g. vxnet3 does not support TCP/UDP  */
+    }else{
+        m_dev_tx_offload_needed = 0;
+    }
 
     get_ex_drv()->clear_extended_stats(this);
 
