@@ -159,7 +159,13 @@ void CClientPool::configure_client(uint32_t indx){
         lp->set_inc_port(m_rss_thread_max);
         lp->set_sport_reverse_lsb(true,m_reta_mask);
     }
+
+    #ifndef TREX_SIM
+    /* trex-522 workaround */
+    lp->reserve_src_port(4791);
+    #endif
 }
+
 
 
 /**
