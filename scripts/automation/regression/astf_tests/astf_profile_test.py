@@ -20,7 +20,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         self.weak = self.is_VM
         self.skip_test_trex_522 =False;
         setup= CTRexScenario.setup_name;
-        if setup in ['trex19','trex07','trex23','trex16']:
+        if setup in ['trex16']:
             self.skip_test_trex_522 =True;
         if setup in ['trex16','trex41']:
             self.weak = True

@@ -214,7 +214,7 @@ class CIpInfoBase {
         virtual void set_min_port(uint16_t a)=0;
         virtual void set_inc_port(uint16_t a)=0;
         virtual void set_sport_reverse_lsb(bool enable,uint8_t reta_mask)=0; /* for RSS */
-
+        virtual void reserve_src_port(uint16_t a)=0;
         virtual void return_all_ports() = 0;
         virtual ClientCfgBase * get_client_cfg(){
             return (NULL);
@@ -234,9 +234,11 @@ class CIpInfoBase {
 class CIpInfoL : public CIpInfoBase {
  private:
     uint16_t m_curr_port;
+    uint16_t m_reserve_port;
  public:
     CIpInfoL() {
         m_curr_port = MIN_PORT;
+        m_reserve_port =0;
     }
 
     /* not supported in this mode */
@@ -254,11 +256,24 @@ class CIpInfoL : public CIpInfoBase {
     }
 
 
+    void reserve_src_port(uint16_t port){
+        if ((port==0) || (m_reserve_port==0)) {
+            m_reserve_port = port;
+        }else{
+            assert(0);
+        }
+    }
+
+
+
     void set_start_port(uint16_t a){
         m_curr_port = a;
     }
 
     uint16_t get_new_free_port() {
+        if ( m_curr_port == m_reserve_port){
+            m_curr_port++;
+        }
         if (m_curr_port>MAX_PORT) {
             m_curr_port = MIN_PORT;
         }
@@ -369,6 +384,12 @@ class CIpInfo : public CIpInfoBase {
     void set_min_port(uint16_t a){
         m_min_port = a;
     }
+
+    void reserve_src_port(uint16_t port){
+        /* take the port due to trex-522 workaround until it will be fixed by them */
+        m_bitmap_port[convert_sport(port)] = PORT_IN_USE;
+    }
+
 
     void set_sport_reverse_lsb(bool enable,uint8_t reta_mask){
         m_reverse_port=enable?1:0;
