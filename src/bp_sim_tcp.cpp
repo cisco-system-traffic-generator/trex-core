@@ -499,6 +499,8 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     uint8_t dev_offload_flags=0;
     if (lp->getChecksumOffloadEnable()) {
         dev_offload_flags |= (OFFLOAD_RX_CHKSUM | OFFLOAD_TX_CHKSUM);
+    }else{
+        dev_offload_flags |= (OFFLOAD_TX_CHKSUM);
     }
     if (lp->get_dev_tso_support()) {
         dev_offload_flags |= TCP_OFFLOAD_TSO;
