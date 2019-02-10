@@ -230,8 +230,10 @@ static void on_flow_free_cb(void *userdata,void  *obh){
 void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
                                 CFlowBase * flow){
     uint16_t tg_id = flow->m_tg_id;
-    INC_STAT(ctx, tg_id, tcps_testdrops);
-    INC_STAT(ctx, tg_id, tcps_closed); 
+    if ( !flow->is_udp() ){
+        INC_STAT(ctx, tg_id, tcps_testdrops);
+        INC_STAT(ctx, tg_id, tcps_closed); 
+    }
     handle_close(ctx,flow,false);
 }
 

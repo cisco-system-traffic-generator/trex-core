@@ -73,10 +73,14 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
                             lpt_udp->udps_accepts -
                             lpt_udp->udps_closed;
     }
-    m_active_flows = lpt->tcps_connattempt +
-                     lpt->tcps_accepts  -
-                     lpt->tcps_closed +
-                     udp_active_flows;
+
+    uint64_t tcp_active_flows=0;
+    if ((lpt->tcps_connattempt + lpt->tcps_accepts) >= lpt->tcps_closed) {
+        tcp_active_flows = lpt->tcps_connattempt + lpt->tcps_accepts - lpt->tcps_closed;
+
+    }
+
+    m_active_flows = tcp_active_flows + udp_active_flows;
     if (lpt->tcps_connects>lpt->tcps_closed) {
         m_est_flows = lpt->tcps_connects -
                       lpt->tcps_closed;
