@@ -249,7 +249,7 @@ test_performance_vm_multi_cpus_cached:
         core_count             : 10
         mult                   : "50%"
         mpps_per_core_golden   : # avg 16
-                                  min: 15
+                                  min: 13
                                   max: 17
 
 
