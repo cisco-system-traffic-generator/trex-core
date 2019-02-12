@@ -150,7 +150,7 @@ class STLRX_Test(CStlGeneral_Test):
 
         # skip mlx5 VF
         self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
-        self.mlx5_defect_dpdk1711_trex_518 = CTRexScenario.setup_name in ['trex19']
+        self.mlx5_defect_dpdk1711_trex_518 = CTRexScenario.setup_name in ['trex19','trex07']
         #self.mlx5_defect_dpdk1711_3 =False
 
 
