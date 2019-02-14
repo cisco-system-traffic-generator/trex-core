@@ -43,5 +43,9 @@ static inline unsigned rte_mempool_count(rte_mempool_t  *mp){
 }
 
 
+static inline void hw_checksum_sim(struct rte_mbuf *m){
+    /* not required */
+}
+
 
 #endif

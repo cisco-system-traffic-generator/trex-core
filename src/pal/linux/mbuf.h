@@ -139,15 +139,8 @@ inline unsigned rte_mempool_count(rte_mempool_t  *mp){
     return (10);
 }
 
-static inline uint16_t
-rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags){
-    return (0);
-}
-
-static inline uint16_t
-rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags){
-    return(0);
-}
+uint16_t rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags);
+uint16_t rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags);
 
 
 #define PKT_TX_L4_NO_CKSUM   (0ULL << 52) /**< Disable L4 cksum of TX pkt. */
@@ -335,5 +328,6 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
 // has to be after the definition of rte_mbuf and other utility functions
 #include "common_mbuf.h"
 
+void hw_checksum_sim(struct rte_mbuf *m);
 
 #endif

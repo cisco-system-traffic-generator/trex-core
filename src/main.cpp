@@ -414,6 +414,7 @@ int main(int argc , char * argv[]){
     }
     set_default_mac_addr();
 
+
     opt_type_e type = (opt_type_e) params["type"];
 
     switch (type) {
@@ -434,6 +435,8 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_ASF:
         {
             CGlobalInfo::m_options.preview.setFileWrite(true);
+            CGlobalInfo::m_options.preview.setChecksumOffloadEnable(true);
+
             set_op_mode(OP_MODE_ASTF_BATCH);
             set_sw_mode();
 

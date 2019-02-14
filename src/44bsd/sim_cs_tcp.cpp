@@ -194,6 +194,7 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
     if (tp->m_flow->m_template.m_src_port==CLIENT_SIDE_PORT) {
         dir=0;
     }
+    hw_checksum_sim(m);
     rte_mbuf_t *m_rx= utl_rte_convert_tx_rx_mbuf(m);
 
     m_p->on_tx(dir,m_rx);
@@ -318,10 +319,14 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_c_ctx.Create(100,true);
     m_c_ctx.tcp_iss=0x12121212; /* for testing start from the same value */
     m_c_ctx.set_cb(&m_io_debug);
+    m_c_ctx.set_offload_dev_flags(OFFLOAD_TX_CHKSUM|OFFLOAD_RX_CHKSUM);
 
     m_s_ctx.Create(100,false);
     m_s_ctx.tcp_iss=0x21212121; /* for testing start from the same value */
     m_s_ctx.set_cb(&m_io_debug);
+    m_s_ctx.set_offload_dev_flags(OFFLOAD_TX_CHKSUM|OFFLOAD_RX_CHKSUM);
+
+
 
     int i;
     for (i=0; i<2; i++) {

@@ -118,6 +118,7 @@ void   CCoreEthIFTcpSim::write_pkt_to_file(uint8_t dir,
     m_raw->time_sec  = t_c.m_time_sec;
     uint8_t p_id = (uint8_t)dir;
     m_raw->setInterface(p_id);
+    
     int rc = write_pkt(m_raw);
     assert(rc == 0);
 }
@@ -160,6 +161,7 @@ int CCoreEthIFTcpSim::send_node(CGenNode *node){
      rte_mbuf_t   *m  = node_tcp->mbuf;
      pkt_dir_t    dir = node_tcp->dir;
      double       time = node_tcp->sim_time;
+     hw_checksum_sim(m);
 
      if (dir==0) {
          write_pkt_to_file(dir,m,time);

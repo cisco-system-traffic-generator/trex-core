@@ -29,8 +29,10 @@ limitations under the License.
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "pal_utl.h"
 
 void rte_pktmbuf_detach(struct rte_mbuf *m);
+
 
 rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                                                unsigned n,
@@ -366,6 +368,279 @@ void rte_pktmbuf_detach(struct rte_mbuf *m)
 uint64_t rte_rand(void){
     return ( rand() );
 }
+
+/* taken from DPDK to simulate hardware checksum calculation */
+
+#define DEV_TX_OFFLOAD_VLAN_INSERT 0x00000001
+#define DEV_TX_OFFLOAD_IPV4_CKSUM  0x00000002
+#define DEV_TX_OFFLOAD_UDP_CKSUM   0x00000004
+#define DEV_TX_OFFLOAD_TCP_CKSUM   0x00000008
+
+struct tcp_hdr {
+	uint16_t src_port;  /**< TCP source port. */
+	uint16_t dst_port;  /**< TCP destination port. */
+	uint32_t sent_seq;  /**< TX data sequence number. */
+	uint32_t recv_ack;  /**< RX data acknowledgement sequence number. */
+	uint8_t  data_off;  /**< Data offset. */
+	uint8_t  tcp_flags; /**< TCP flags */
+	uint16_t rx_win;    /**< RX flow control window. */
+	uint16_t cksum;     /**< TCP checksum. */
+	uint16_t tcp_urp;   /**< TCP urgent pointer, if any. */
+} __attribute__((__packed__));
+
+
+struct udp_hdr {
+	uint16_t src_port;    /**< UDP source port. */
+	uint16_t dst_port;    /**< UDP destination port. */
+	uint16_t dgram_len;   /**< UDP datagram length */
+	uint16_t dgram_cksum; /**< UDP datagram checksum */
+} __attribute__((__packed__));
+
+struct ipv4_hdr {
+	uint8_t  version_ihl;		/**< version and header length */
+	uint8_t  type_of_service;	/**< type of service */
+	uint16_t total_length;		/**< length of packet */
+	uint16_t packet_id;		/**< packet ID */
+	uint16_t fragment_offset;	/**< fragmentation offset */
+	uint8_t  time_to_live;		/**< time to live */
+	uint8_t  next_proto_id;		/**< protocol ID */
+	uint16_t hdr_checksum;		/**< header checksum */
+	uint32_t src_addr;		/**< source address */
+	uint32_t dst_addr;		/**< destination address */
+} __attribute__((__packed__));
+
+struct ipv6_hdr {
+	uint32_t vtc_flow;     /**< IP version, traffic class & flow label. */
+	uint16_t payload_len;  /**< IP packet length - includes sizeof(ip_header). */
+	uint8_t  proto;        /**< Protocol, next header. */
+	uint8_t  hop_limits;   /**< Hop limits. */
+	uint8_t  src_addr[16]; /**< IP address of source host. */
+	uint8_t  dst_addr[16]; /**< IP address of destination host(s). */
+} __attribute__((__packed__));
+
+
+static inline uint32_t
+__rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
+{
+	/* workaround gcc strict-aliasing warning */
+	uintptr_t ptr = (uintptr_t)buf;
+	typedef uint16_t __attribute__((__may_alias__)) u16_p;
+	const u16_p *u16_buf = (const u16_p *)ptr;
+
+	while (len >= (sizeof(*u16_buf) * 4)) {
+		sum += u16_buf[0];
+		sum += u16_buf[1];
+		sum += u16_buf[2];
+		sum += u16_buf[3];
+		len -= sizeof(*u16_buf) * 4;
+		u16_buf += 4;
+	}
+	while (len >= sizeof(*u16_buf)) {
+		sum += *u16_buf;
+		len -= sizeof(*u16_buf);
+		u16_buf += 1;
+	}
+
+	/* if length is in odd bytes */
+	if (len == 1)
+		sum += *((const uint8_t *)u16_buf) & PAL_NTOHS(0xff00);
+
+	return sum;
+}
+
+static inline uint16_t
+__rte_raw_cksum_reduce(uint32_t sum)
+{
+	sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+	sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+	return (uint16_t)sum;
+}
+
+
+static inline uint16_t
+rte_raw_cksum(const void *buf, size_t len)
+{
+	uint32_t sum;
+
+	sum = __rte_raw_cksum(buf, len, 0);
+	return __rte_raw_cksum_reduce(sum);
+}
+
+
+#define rte_pktmbuf_mtod_offset(m, t, o)	\
+	((t)((char *)(m)->buf_addr + (m)->data_off + (o)))
+
+
+static inline int
+rte_raw_cksum_mbuf(const struct rte_mbuf *m, uint32_t off, uint32_t len,
+	uint16_t *cksum)
+{
+	const struct rte_mbuf *seg;
+	const char *buf;
+	uint32_t sum, tmp;
+	uint32_t seglen, done;
+
+	/* easy case: all data in the first segment */
+	if (off + len <= rte_pktmbuf_data_len(m)) {
+		*cksum = rte_raw_cksum(rte_pktmbuf_mtod_offset(m,
+				const char *, off), len);
+		return 0;
+	}
+
+	if (unlikely(off + len > rte_pktmbuf_pkt_len(m)))
+		return -1; /* invalid params, return a dummy value */
+
+	/* else browse the segment to find offset */
+	seglen = 0;
+	for (seg = m; seg != NULL; seg = seg->next) {
+		seglen = rte_pktmbuf_data_len(seg);
+		if (off < seglen)
+			break;
+		off -= seglen;
+	}
+	seglen -= off;
+	buf = rte_pktmbuf_mtod_offset(seg, const char *, off);
+	if (seglen >= len) {
+		/* all in one segment */
+		*cksum = rte_raw_cksum(buf, len);
+		return 0;
+	}
+
+	/* hard case: process checksum of several segments */
+	sum = 0;
+	done = 0;
+	for (;;) {
+		tmp = __rte_raw_cksum(buf, seglen, 0);
+		if (done & 1) {
+			tmp = __rte_raw_cksum_reduce(tmp);
+			tmp = PAL_NTOHS((uint16_t)tmp);
+                }
+		sum += tmp;
+		done += seglen;
+		if (done == len)
+			break;
+		seg = seg->next;
+		buf = rte_pktmbuf_mtod(seg, const char *);
+		seglen = rte_pktmbuf_data_len(seg);
+		if (seglen > len - done)
+			seglen = len - done;
+	}
+
+	*cksum = __rte_raw_cksum_reduce(sum);
+	return 0;
+}
+
+static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
+   return((ipv4_hdr->version_ihl &0xf)<<2);
+}
+
+
+
+
+static inline uint16_t
+rte_ipv4_cksum(const struct ipv4_hdr *ipv4_hdr)
+{
+	uint16_t cksum;
+	cksum = rte_raw_cksum(ipv4_hdr, rte_ipv4_header_len(ipv4_hdr));
+	return (cksum == 0xffff) ? cksum : (uint16_t)~cksum;
+}
+
+
+
+uint16_t rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags)
+{
+	struct ipv4_psd_header {
+		uint32_t src_addr; /* IP address of source host. */
+		uint32_t dst_addr; /* IP address of destination host. */
+		uint8_t  zero;     /* zero. */
+		uint8_t  proto;    /* L4 protocol type. */
+		uint16_t len;      /* L4 length. */
+	} psd_hdr;
+
+	psd_hdr.src_addr = ipv4_hdr->src_addr;
+	psd_hdr.dst_addr = ipv4_hdr->dst_addr;
+	psd_hdr.zero = 0;
+	psd_hdr.proto = ipv4_hdr->next_proto_id;
+	if (ol_flags & PKT_TX_TCP_SEG) {
+		psd_hdr.len = 0;
+	} else {
+		psd_hdr.len =  PAL_NTOHS(
+			(uint16_t)( PAL_NTOHS(ipv4_hdr->total_length)
+				- rte_ipv4_header_len(ipv4_hdr)));
+	}
+	return rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
+}
+
+uint16_t rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags)
+{
+	uint32_t sum;
+	struct {
+		uint32_t len;   /* L4 length. */
+		uint32_t proto; /* L4 protocol - top 3 bytes must be zero */
+	} psd_hdr;
+
+	psd_hdr.proto = (uint32_t)(ipv6_hdr->proto << 24);
+	if (ol_flags & PKT_TX_TCP_SEG) {
+		psd_hdr.len = 0;
+	} else {
+		psd_hdr.len = ipv6_hdr->payload_len;
+	}
+
+	sum = __rte_raw_cksum(ipv6_hdr->src_addr,
+		sizeof(ipv6_hdr->src_addr) + sizeof(ipv6_hdr->dst_addr),
+		0);
+	sum = __rte_raw_cksum(&psd_hdr, sizeof(psd_hdr), sum);
+	return __rte_raw_cksum_reduce(sum);
+}
+
+
+
+static void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
+
+        /* assume that l2_len and l3_len in rte_mbuf updated properly */
+        uint16_t csum = 0, csum_start = m->l2_len + m->l3_len;
+
+        /* assume that IP pseudo header checksum was already caclulated */
+        if (rte_raw_cksum_mbuf(m, csum_start, rte_pktmbuf_pkt_len(m) - csum_start, &csum) < 0)
+            return;
+        csum = (csum != 0xffff) ? ~csum: csum;
+
+        if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) &&
+            !(tx_offload & DEV_TX_OFFLOAD_TCP_CKSUM)) {
+            struct tcp_hdr *tcp_hdr = rte_pktmbuf_mtod_offset(m, struct tcp_hdr *, csum_start);
+
+            tcp_hdr->cksum = csum;
+            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+        } else if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM) &&
+                    !(tx_offload & DEV_TX_OFFLOAD_UDP_CKSUM)) {
+            struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct udp_hdr *, csum_start);
+
+            udp_hdr->dgram_cksum = csum;
+            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+        }
+
+        if ((m->ol_flags & PKT_TX_IPV4) && (m->ol_flags & PKT_TX_IP_CKSUM) &&
+            !(tx_offload & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
+            struct ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct ipv4_hdr *, m->l2_len);
+
+            if (!iph->hdr_checksum) {
+                iph->hdr_checksum = rte_ipv4_cksum(iph);
+                m->ol_flags &= ~PKT_TX_IP_CKSUM;
+            }
+        }
+}
+
+void hw_checksum_sim(struct rte_mbuf *m){
+
+    if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) ||
+        ((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM)) {
+        tx_offload_csum(m, 0 );
+    }
+}
+
+
+
+
 
 
 #ifdef ONLY_A_TEST
