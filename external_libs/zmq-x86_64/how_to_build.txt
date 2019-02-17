@@ -1,24 +1,21 @@
 - Download latest stable release https://github.com/zeromq/libzmq/releases
 - Decompress the archive
 - Change directory to the extracted one
-- Edit file CMakeLists.txt, search for "option ", change non-relevant ones from "ON" to "OFF"
-- Run:
-    export BUILD_TYPE=cmake
-    ./ci_build.sh
+- Build:
+    ./configure --enable-address-sanitizer=no --disable-curve --disable-curve-keygen --disable-perf --without-docs --with-gcov=no --enable-radix-tree=no
+    make
 - Copy include dir to current directory
 - Find libzmq.a and copy to current directory
-- Find libzmq.so.5.1.5 and copy to:
+- Find libzmq.so.5.*.* and copy to:
     current directory as libzmq.so
     scripts/so as libzmq.so.5
     scripts/external_libs/pyzmq-ctypes/zmq/intel/64bit as libzmq.so (adapt intel/arm 64bit/32bit to your CPU/Python arch)
 
 Notes:
 
-- To build 32bit version, add this to CMakeLists.txt:
-    set( CMAKE_C_FLAGS "-m32" )
-    set( CMAKE_CXX_FLAGS "-m32" )
+- To build 32bit version, define following vars before build:
+    export CFLAGS="-m32"
+    export CXXFLAGS="-m32"
 
-- Current ZMQ .so is v4.2.5 release with following patches:
-  https://github.com/zeromq/libzmq/pull/3063/commits/cae643434576c0cc3b631c3a5b72ea524f0203e0
-
+- Current ZMQ .so is v4.3.1
 
