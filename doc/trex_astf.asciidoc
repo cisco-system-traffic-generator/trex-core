@@ -2006,6 +2006,48 @@ This topology consists of set of two objects:
 * Virtual interface defining src MAC and optional VLAN
 * Route table for traffic (GW). It can be applied for both TRex port or Virtual interface mentioned above.
 
+Using this method along with linux network namespace (see STL spec for more info) it is possible to create a client side network with many clients on the same network each client with different:
+
+1. Source MAC
+2. Default gateway (and reoslved Destination MAC)
+3. dot1q (qinq is not supported in ASTF)
+
+The Linux network namespace will handle the ARP/IPv6 ND protocols requirement while traffic profile will take the src_mac/dst_mac(resolved)/dot1q from the topo table -- but this is only for Client side. 
+
+The server side learn the information from the traffic.  
+The server side responds to src/dst IP traffic with the opposite ips (e.g. SYN from 10.0.0.1->40.0.0.1 will be answered by TRex 40.0.0.1->10.0.01) and it is not related to the client pool -- as there could be NAT that change inside/outside. 
+The server only cares about the TCP/UDP destination port to associate the port with the right L7 template. 
+The MAC address used by the server side port are the L2 ports information (src == TRex MAC addr and dst == default GW). 
+TRex in the server side won't learn and reverse the MAC as it does to IP in the current version. +
+
+So the servers pool should be next hop to the configured TRex IP/DG 
+(e.g. trex ip= 1.1.1.1, dg=1.1.1.2 while pool of servers ips is 48.0.0.1 - 48.0.0.255). 
+The Dot1q will be learned from the traffic too. 
+
+so back to the above example, this packet :
+
+[source,bash]
+-------------------
+(MACA->MACB)  (10.0.0.1->40.0.0.1) TCP SYN
+-------------------
+
+will be answered by TRex
+
+[source,bash]
+-------------------
+(TRex SRC_MAC->TRex DST_MAC)  (40.0.0.1->10.0.0.1) TCP SYN
+-------------------
+
+and *not* 
+
+[source,bash]
+-------------------
+(MACB -> MACA)  (40.0.0.1->10.0.0.1) TCP SYN
+-------------------
+
+*So to summerize*: Topo is used for the client side. The server side learns dot1q/ip/ipv6 but not the MAC layer (uses TRex L2) 
+ 
+
 .Topology profile example
 [source,python]
 ----
@@ -2118,6 +2160,11 @@ Produced traffic (captured at port 1):
 
 image::images/astf_topo.png[title="Produced traffic using topology"]
 
+
+[NOTE]
+=====================================================================
+This feature does not work in the astf-sim tool beacuse there is a need to resolve destination MAC
+=====================================================================
 
 === Multi core support 
 
