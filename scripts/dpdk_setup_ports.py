@@ -1205,7 +1205,7 @@ Other network devices
             try:
                 input = dpdk_nic_bind.read_line('Enter list of interfaces separated by space (for example: 1 3) : ')
                 create_interfaces = input.replace(',', ' ').replace(';', ' ').split()
-                wanted_interfaces = self._get_wanted_interfaces(create_interfaces)
+                wanted_interfaces = self._get_wanted_interfaces(create_interfaces, get_macs = not ip_based)
                 ConfigCreator._verify_devices_same_type(wanted_interfaces)
             except Exception as e:
                 print(e)
