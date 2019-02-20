@@ -230,7 +230,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
         profiles = self.get_profiles_from_sample_filter ()
         duration=self.duration;
-        # skip tests that are too long 
+        # skip tests that are too long or not traffic profiles
         skip_list= ['http_by_l7_percent.py',
                     'http_simple_split.py',
                     'http_simple_split_per_core.py',
@@ -247,6 +247,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_src_mac.py',
                     'http_eflow3.py',
                     'wrapping_it_up_example.py',
+                    'udp_topo.py', # Not traffic profile, but topology
                     ]
         self.duration=1
         try:
