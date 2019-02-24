@@ -574,6 +574,7 @@ CNodeBase::CNodeBase(){
     m_dst_mac_valid = false;
     m_is_loopback = false;
     m_ip6_enabled = false;
+    m_l2_mode =false;
 }
 
 CNodeBase::~CNodeBase() {}
@@ -595,7 +596,9 @@ void CNodeBase::set_dst_mac_valid_async() {
 }
 
 void CNodeBase::set_dst_mac_invalid() {
-    set_dst_mac_valid_internal(false);
+    if ( get_l2_mode()==false ){
+        set_dst_mac_valid_internal(false);
+    }
 }
 
 void CNodeBase::set_is_loopback_async() {

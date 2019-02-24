@@ -287,6 +287,7 @@ bool TrexRxSetL2Mode::handle(CRxCore *rx_core) {
     CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
     node->clear_ip4_async();
     node->clear_ip6_async();
+    node->set_l2_mode(true);
     node->conf_dst_mac_async(m_dst_mac);
     node->set_dst_mac_valid_async();
     if ( rx_core->has_port(m_dst_mac) ) {
@@ -299,6 +300,7 @@ bool TrexRxSetL2Mode::handle(CRxCore *rx_core) {
 
 bool TrexRxSetL3Mode::handle(CRxCore *rx_core) {
     CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->set_l2_mode(false);
     node->conf_ip4_async(m_src_ipv4, m_dst_ipv4);
     if ( m_dst_mac.size() ) {
         node->conf_dst_mac_async(m_dst_mac);
