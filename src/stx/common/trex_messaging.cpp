@@ -329,6 +329,7 @@ bool TrexRxConfNsBatch::handle(CRxCore *rx_core){
 
 bool TrexRxConfIPv6::handle(CRxCore *rx_core) {
     CNodeBase *node = get_stack(rx_core, m_port_id)->get_port_node();
+    node->set_l2_mode(false);
     node->conf_ip6_async(m_enabled, m_src_ipv6);
     return true;
 }
