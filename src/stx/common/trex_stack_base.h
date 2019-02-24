@@ -53,6 +53,13 @@ public:
     void conf_ip6_async(bool enabled, const std::string &ip6_buf);
     void clear_ip6_async();
 
+    void set_l2_mode(bool enable){
+        m_l2_mode =  enable;
+    }
+    bool get_l2_mode(){
+        return (m_l2_mode);
+    }
+
     // mark dst mac as invalid (after link down, or if IPv4 is not resolved)
     void set_dst_mac_invalid();
     // mark dst mac as valid
@@ -107,6 +114,7 @@ protected:
     std::string         m_ip4;
     std::string         m_gw4;
     std::string         m_ip6;
+    bool                m_l2_mode;
     bool                m_ip6_enabled;
 };
 
