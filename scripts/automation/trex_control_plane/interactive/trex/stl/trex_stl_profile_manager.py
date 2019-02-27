@@ -88,6 +88,25 @@ class STLProfileManager(object):
     def get_profile_state (self, profile_id = "_"):
         return self.state_list.get(profile_id)
 
+    def get_port_state (self):
+        if self.has_state(self.STATE_PCAP_TX):
+            return self.STATE_PCAP_TX
+        elif self.has_state(self.STATE_TX):
+            return self.STATE_TX
+        elif self.has_state(self.STATE_PAUSE):
+            return self.STATE_PAUSE
+        elif self.has_state(self.STATE_STREAMS):
+            return self.STATE_STREAMS
+        elif self.has_state(self.STATE_IDLE):
+            return self.STATE_IDLE
+        else:
+            raise Exception("port {0}: bad state received from server".format(self.port_id))
+
+    def has_state(self, state):
+        if not self.state_list and state == self.STATE_IDLE:
+            return True
+        return state in self.state_list.values()
+
     def has_active (self):
         result = False
         for profile_id in self.state_list.keys():

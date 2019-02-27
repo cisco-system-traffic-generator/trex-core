@@ -40,20 +40,72 @@ class STLPort(Port):
         self.next_available_id = 1
         self.profile_manager = STLProfileManager(port_id)
 
+    def __state_from_name(self, profile_state):
+        if profile_state == "IDLE":
+            return self.STATE_IDLE
+        elif profile_state == "STREAMS":
+            return self.STATE_STREAMS
+        elif profile_state == "TX":
+            return self.STATE_TX
+        elif profile_state == "PAUSE":
+            return self.STATE_PAUSE
+        elif profile_state == "PCAP_TX":
+            return self.STATE_PCAP_TX
+        else:
+            raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, profile_state))
+
+    def state_from_name(self, profile_state_list):
+        # dict is returned for profile_id *
+        for profile_id,state in profile_state_list.items():
+            profile_state = self.__state_from_name(state)
+            self.profile_manager.update_profile_state(profile_state, profile_id)
+        self.state = self.profile_manager.get_port_state()
+
+    def sync(self):
+
+        params = {"port_id": self.port_id,
+                  "profile_id": "*",
+                  'block': False}
+
+        rc = self.transmit("get_port_status", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        # sync the port
+        self.state_from_name(rc.data()['state'])
+
+        self.owner = rc.data()['owner']
+
+        # for stateless (hack)
+        if 'max_stream_id' in rc.data():
+            self.next_available_id = int(rc.data()['max_stream_id']) + 1
+
+        self.status = rc.data()
+
+        # replace the attributes in a thread safe manner
+        self.update_ts_attr(rc.data()['attr'])
+
+        self.service_mode = rc.data()['service']
+
+        self.__is_sync = True
+        return self.ok()
+
     # sync all the streams with the server
     def sync_streams (self):
 
         self.streams = {}
         
-        params = {"port_id": self.port_id}
+        params = {"port_id": self.port_id,
+                  "profile_id": "*"}
 
         rc = self.transmit("get_all_streams", params)
         if rc.bad():
             return self.err(rc.err())
 
-        for k, v in rc.data()['streams'].items():
-            self.streams[int(k)] = STLStream.from_json(v)
-            
+        for profile_id, stream_value_list in rc.data()['profiles'].items():
+            for stream_id, stream_value in stream_value_list.items():
+                self.profile_manager.add_profile_stream(stream_id, profile_id)
+                self.streams[int(stream_id)] = STLStream.from_json(stream_value)
         return self.ok()
 
 
@@ -64,6 +116,7 @@ class STLPort(Port):
             return self.err("invalid profile_id [%s]" % profile_id)
 
         profile_state = self.profile_manager.get_profile_state(profile_id)
+
         if not profile_state :
             return self.err("profile [%s] does not exist in the port [%s]" %(profile_id, self.port_id))
 
@@ -92,6 +145,7 @@ class STLPort(Port):
             return self.err("Invalid profile_id [%s]" % profile_id)
 
         profile_state = self.profile_manager.get_profile_state(profile_id)
+
         if not profile_state:
             return self.err("profile [%s] does not exist in the port [%s]" %(profile_id, self.port_id))
 
