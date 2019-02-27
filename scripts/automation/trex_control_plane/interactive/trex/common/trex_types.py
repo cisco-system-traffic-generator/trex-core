@@ -17,6 +17,15 @@ except NameError:
 __all__ = ["RC", "RC_OK", "RC_ERR", "RC_WARN", "listify", "listify_if_int", "validate_type", "is_integer", "basestring", "LRU_cache"]
 
 
+
+class STL_PORT_INFO:
+    #Full name
+    port_name = ""
+    #Physical port
+    port_id = 0
+    #Logical profile
+    profile_id = ""
+
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()
         def __str__(self):

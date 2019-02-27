@@ -5,6 +5,7 @@ from .text_opts import format_text
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
+from ..common.trex_types import STL_PORT_INFO
 from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 from ..common.trex_psv import PSV_ACQUIRED
 
@@ -320,6 +321,23 @@ def decode_tunables (tunable_str):
 
     return tunables
 
+def decode_port (port_str):
+    port_info = port_str.split(".")
+    port_result = None
+
+    if len(port_info) == 1 :
+        port_result =  int(port_str)
+    elif len(port_info) == 2 :
+#        port_result = [str(port_str), int(port_info[0]), str(port_info[1])]
+        port_result = STL_PORT_INFO()
+        port_result.port_name = str(port_str)
+        port_result.port_id = int(port_info[0])
+        port_result.profile_id = str(port_info[1])
+    else:
+        raise argparse.ArgumentTypeError("Wrong port value %s" % port_str)
+
+    return port_result
+
 class OPTIONS_DB_ARGS:
     MULTIPLIER = ArgumentPack(
         ['-m', '--multiplier'],
@@ -524,7 +542,7 @@ class OPTIONS_DB_ARGS:
          'dest':'ports',
          'metavar': 'PORTS',
          'action': 'merge',
-         'type': int,
+         'type': decode_port,
          'help': "A list of ports on which to apply the command",
          'default': []})
 
@@ -534,13 +552,13 @@ class OPTIONS_DB_ARGS:
          'dest':'ports_no_default',
          'metavar': 'PORTS',
          'action': 'merge',
-         'type': int,
+         'type': decode_port,
          'help': "A list of ports on which to apply the command"})
 
     SINGLE_PORT = ArgumentPack(
         ['-p', '--port'],
         {'dest':'ports',
-         'type': int,
+         'type': decode_port,
          'metavar': 'PORT',
          'help': 'source port for the action',
          'required': True})
@@ -1131,6 +1149,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
     def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False, allow_empty=True):
+
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
@@ -1153,10 +1172,13 @@ class CCmdArgParser(argparse.ArgumentParser):
             
             # validate the ports state
             if verify_acquired:
-                self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
+                #JH : Ignored for now
+                #self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
+                pass
             else:
-                self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
-
+                #JH : Ignored for now
+                #self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
+                pass
             return opts
 
         except ValueError as e:
