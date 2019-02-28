@@ -200,6 +200,23 @@ TrexPort::verify_state(int state, const char *cmd_name, bool should_throw) const
     return true;
 }
 
+/* verify state for profile */
+bool
+TrexPort::verify_state(string profile_id, int state, const char *cmd_name, bool should_throw) const {
+
+    if ( (state & m_port_state) == 0 ) {
+        if (should_throw) {
+            std::stringstream ss;
+            ss << "command '" << cmd_name << "' cannot be executed on current state: '" << get_state_as_string() << " on profile_id(" << profile_id << ").";
+            throw TrexException(ss.str());
+        } else {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void
 TrexPort::change_state(port_state_e new_state) {
 

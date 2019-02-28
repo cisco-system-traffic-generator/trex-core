@@ -163,6 +163,37 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_core_id_specified = false;
 }
 
+TrexStream::TrexStream(uint8_t type, uint8_t port_id, std::string profile_id, uint32_t stream_id, uint32_t user_stream_id) :
+                       m_port_id(port_id), m_profile_id(profile_id), m_stream_id(stream_id), m_user_stream_id(user_stream_id), m_rate(*this) {
+
+    /* default values */
+    m_type              = type;
+    m_isg_usec          = 0;
+    m_next_stream_id    = -1;
+    m_enabled           = false;
+    m_self_start        = false;
+    m_start_paused      = false;
+    m_cache_size        = 0;
+
+    m_mc_phase_pre_sec           = 0;
+    m_mc_phase_post_sec          = 0;
+
+    m_pkt.binary       = NULL;
+    m_pkt.len          = 0;
+
+    m_rx_check.m_enabled = false;
+    m_rx_check.m_vxlan_skip = false;
+
+    m_burst_total_pkts=0; 
+    m_num_bursts=1; 
+    m_ibg_usec=0.0;  
+    m_vm_dp = NULL;
+    m_flags=0;
+    m_action_count=0;
+    m_null_stream = false;
+    m_core_id_specified = false;
+}
+
 TrexStream::~TrexStream() {
 #if 0
     if (m_rx_check.m_enabled) {

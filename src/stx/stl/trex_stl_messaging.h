@@ -145,6 +145,13 @@ public:
         m_core = NULL;
     }
 
+    TrexStatelessDpStop(uint8_t port_id, stream_ids_t &stream_ids) : m_port_id(port_id), 
+                                                                     m_stream_ids(stream_ids) {
+        m_stop_only_for_event_id=false;
+        m_event_id = 0;
+        m_core = NULL;
+    }
+
     virtual TrexCpToDpMsgBase * clone();
 
 
@@ -183,6 +190,7 @@ private:
     bool                      m_stop_only_for_event_id;
     int                       m_event_id;
     CFlowGenListPerThread   * m_core ;
+    stream_ids_t m_stream_ids;
 
 };
 

@@ -323,6 +323,8 @@ protected:
      */
     bool verify_state(int state, const char *cmd_name, bool should_throw = true) const;
 
+    bool verify_state(string profile_id, int state, const char *cmd_name, bool should_throw = true) const;
+
     /**
      * change the state 
      * to a new state 

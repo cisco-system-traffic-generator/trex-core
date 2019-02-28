@@ -31,6 +31,7 @@ limitations under the License.
 
 #include <string>
 
+
 using namespace std;
 
 /****************************** commands declerations ******************************/
@@ -49,6 +50,13 @@ TREX_RPC_CMD(TrexRpcCmdGetPGIdsStats,    "get_pgid_stats");
 
 
 /**
+ * profile status
+ */
+TREX_RPC_CMD(TrexRpcCmdGetProfileList,   "get_profile_list");
+TREX_RPC_CMD(TrexRpcCmdGetAllProfilesState, "get_all_profiles_state");
+TREX_RPC_CMD(TrexRpcCmdGetProfileInfo,   "get_profile_info");
+
+/**
  * streams status
  */
 TREX_RPC_CMD(TrexRpcCmdGetStreamList,   "get_stream_list");
@@ -63,7 +71,7 @@ TREX_RPC_CMD(TrexRpcCmdGetStream,       "get_stream");
 TREX_RPC_CMD_OWNED_EXT(TrexRpcCmdAddStream, "add_stream",
 
 /* extended part */
-std::unique_ptr<TrexStream> allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
+std::unique_ptr<TrexStream> allocate_new_stream(const Json::Value &section, uint8_t port_id, string profile_id, uint32_t stream_id, Json::Value &result);
 void validate_stream(const std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
@@ -232,6 +240,100 @@ TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
 }
 
 
+/***************************
+ * get all profiles configured 
+ * on a specific port 
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetProfileList::_run(const Json::Value &params, Json::Value &result) {
+    std::vector<string> profile_list;
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    port->get_profile_id_list(profile_list);
+
+    Json::Value json_profile_list = Json::arrayValue;
+
+    for (auto &profile_id : profile_list) {
+        json_profile_list.append(profile_id);
+    }
+
+    result["result"] = json_profile_list;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/***************************
+ * get state of all profiles
+ * 
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetAllProfilesState::_run(const Json::Value &params, Json::Value &result) {
+    std::vector<string> profile_list;
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    port->get_profile_id_list(profile_list);
+
+    Json::Value allprofilesstate_json = Json::objectValue;
+
+    for (auto &profile_id : profile_list) {
+
+        Json::Value j = port->get_profile_state_as_string(profile_id);
+        std::stringstream ss;
+        ss << profile_id;
+
+        allprofilesstate_json[ss.str()] = j;
+    }
+
+    result["result"]["all_profiles_state"] = allprofilesstate_json;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+/***************************
+ * get profile information for future usage
+ *  
+ **************************/
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetProfileInfo::_run(const Json::Value &params, Json::Value &result) {
+
+    std::vector<uint32_t> stream_list;
+
+    uint8_t port_id = parse_port(params, result);
+    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    string profile_id = parse_profile(params, result);
+    TrexStatelessProfile *mprofile = port->get_profile_by_id(profile_id);
+    port->get_id_list(profile_id, stream_list);
+
+    Json::Value json_list = Json::arrayValue;
+    Json::Value &res = result["result"];
+
+    if (!mprofile) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
+    for (auto &stream_id : stream_list) {
+        json_list.append(stream_id);
+    }
+
+    res["profile_id"]     = profile_id;
+    res["profile state"]  = port->get_profile_state_as_string(profile_id);
+    res["stream list"]    = json_list;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
 
 /***************************
  * get all streams configured 
@@ -244,8 +346,9 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    string profile_id = parse_profile(params, result);
 
-    port->get_id_list(stream_list);
+    port->get_id_list(profile_id, stream_list);
 
     Json::Value json_list = Json::arrayValue;
 
@@ -265,29 +368,69 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
-    
+
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    std::vector <TrexStream *> streams;
-    port->get_object_list(streams);
-
+    string profile_id = parse_profile(params, result);
+    
     Json::Value streams_json = Json::objectValue;
-    for (auto &stream : streams) {
+    Json::Value profiles_json = Json::objectValue;
 
-        Json::Value j = stream->get_stream_json();
+    if (profile_id != "all_profiles") {                                                                            
+        std::vector <TrexStream *> streams;
+        if (port->get_profile_by_id(profile_id)) {
+            port->get_object_list(profile_id, streams);
 
-        std::stringstream ss;
-        ss << stream->m_stream_id;
+            for (auto &stream : streams) {
+                Json::Value j = stream->get_stream_json();
+                std::stringstream ss;
+                ss << stream->m_stream_id;
+                streams_json[ss.str()] = j; 
+            }    
+            result["result"]["profile_id"] = profile_id;
+              
+         } else {
+            result["result"]["profile_id"] = "";
 
-        streams_json[ss.str()] = j;
-    }
+         }    
+         result["result"]["streams"] = streams_json;
 
-    result["result"]["streams"] = streams_json;
+    } else {
 
+        std::vector <TrexStatelessProfile *> profiles;
+        port->get_profile_object_list(profiles);
+
+        for (auto &mprofile : profiles) {
+            string profile_id2 = mprofile->m_profile_id;
+            
+            std::vector <TrexStream *> streams;
+            port->get_object_list(profile_id2, streams);
+    
+            std::stringstream ps;
+            ps << profile_id2;
+    
+            std::vector<uint32_t> stream_list;
+            port->get_id_list(profile_id2, stream_list);
+            Json::Value json_list = Json::arrayValue;
+
+            for (auto &stream : streams) {
+                Json::Value j = stream->get_stream_json();
+                std::stringstream ss;
+                ss << stream->m_stream_id;
+                streams_json[ss.str()] = j;
+                profiles_json[ps.str()] = streams_json;
+            }
+            streams_json.clear();
+
+            for (auto &stream_id : stream_list) {
+                json_list.append(stream_id);
+            }
+        }
+           result["result"]["profiles"] = profiles_json;
+    }    
     return (TREX_RPC_CMD_OK);
 }
-
 
 
 /***************************
@@ -300,6 +443,8 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
     try {
         uint8_t port_id = parse_port(params, result);
 
+        string profile_id = parse_profile(params, result);
+
         uint32_t stream_id  = parse_uint32(params, "stream_id", result);
 
         const Json::Value &section = parse_object(params, "stream", result);
@@ -307,9 +452,10 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         /* get the type of the stream */
         const Json::Value &mode = parse_object(section, "mode", result);
         string type = parse_string(mode, "type", result);
+        
 
         /* allocate a new stream based on the type */
-        std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, stream_id, result);
+        std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, profile_id, stream_id, result);
 
         /* save this for future queries */
         stream->store_stream_json(section);
@@ -409,10 +555,10 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             }
         }
-
+        
         /* make sure this is a valid stream to add */
         validate_stream(stream, result);
-        port->add_stream(stream.get());
+        port->add_stream(profile_id, stream.get());
         stream.release();
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
@@ -426,7 +572,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
 
 std::unique_ptr<TrexStream>
-TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result) {
+TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t port_id, string profile_id, uint32_t stream_id, Json::Value &result) {
 
     std::unique_ptr<TrexStream> stream;
 
@@ -436,7 +582,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
     if (type == "continuous") {
 
-        stream.reset(new TrexStream( TrexStream::stCONTINUOUS, port_id, stream_id));
+        stream.reset(new TrexStream( TrexStream::stCONTINUOUS, port_id, profile_id, stream_id));
 
     } else if (type == "single_burst") {
 
@@ -445,7 +591,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         if (total_pkts == 0) {
             generate_parse_err(result, type + ": 'total_pkts' cannot be zero.");
         }
-        stream.reset(new TrexStream(TrexStream::stSINGLE_BURST, port_id, stream_id));
+        stream.reset(new TrexStream(TrexStream::stSINGLE_BURST, port_id, profile_id, stream_id));
         stream->set_single_burst(total_pkts);
 
 
@@ -458,7 +604,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
         if (pkts_per_burst == 0) {
             generate_parse_err(result, type + ": 'pkts_per_burst' cannot be zero.");
         }
-        stream.reset(new TrexStream(TrexStream::stMULTI_BURST,port_id, stream_id));
+        stream.reset(new TrexStream(TrexStream::stMULTI_BURST, port_id, profile_id, stream_id));
         stream->set_multi_burst(pkts_per_burst,num_bursts,ibg_usec);
 
 
@@ -875,12 +1021,13 @@ TrexRpcCmdAddStream::validate_stream(const std::unique_ptr<TrexStream> &stream, 
     TrexStatelessPort * port = get_stateless_obj()->get_port_by_id(stream->m_port_id);
 
     /* does such a stream exists ? */
-    if (port->get_stream_by_id(stream->m_stream_id)) {
-        std::stringstream ss;
-        ss << "stream " << stream->m_stream_id << " already exists";
-        generate_execute_err(result, ss.str());
+    if ( port->get_profile_by_id(stream->m_profile_id)) {
+        if (port->get_stream_by_id(stream->m_profile_id, stream->m_stream_id)) {
+            std::stringstream ss;
+            ss << "stream " << stream->m_stream_id << " already exists";
+            generate_execute_err(result, ss.str());
+        }
     }
-
 }
 
 /***************************
@@ -893,8 +1040,17 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    string profile_id = parse_profile(params, result);
+    TrexStatelessProfile *mprofile = port->get_profile_by_id(profile_id);
+       
     uint32_t stream_id = parse_uint32(params, "stream_id", result);
-    TrexStream *stream = port->get_stream_by_id(stream_id);
+    TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
+
+    if (!mprofile) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
 
     if (!stream) {
         std::stringstream ss;
@@ -903,7 +1059,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     }
 
     try {
-        port->remove_stream(stream);
+        port->remove_stream(profile_id, stream);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -925,13 +1081,29 @@ TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result)
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    string profile_id = parse_profile(params, result);
 
-    try {
-        port->remove_and_delete_all_streams();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
+
+    if (profile_id != "all_profiles") {
+        if (port->get_profile_by_id(profile_id)) {
+            try {
+                port->remove_and_delete_all_streams(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
+
+    } else {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->remove_and_delete_all_streams(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
     }
-
 
     result["result"] = Json::objectValue;
 
@@ -950,14 +1122,23 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    string profile_id = parse_profile(params, result);
+    TrexStatelessProfile *mprofile = port->get_profile_by_id(profile_id);
+
     bool     get_pkt   = parse_bool(params, "get_pkt", result);
     uint32_t stream_id = parse_uint32(params, "stream_id", result);
 
-    TrexStream *stream = port->get_stream_by_id(stream_id);
+    if (!mprofile) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
+    TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
 
     if (!stream) {
         std::stringstream ss;
-        ss << "stream id " << stream_id << " on port " << (int)port_id << " does not exists";
+        ss << "stream id " << stream_id << ", profile id " << profile_id <<" on port " << (int)port_id << " does not exists";
         generate_execute_err(result, ss.str());
     }
 
@@ -983,7 +1164,16 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    if ( get_platform_api().hw_rx_stat_supported() && port->has_flow_stats() ) {
+    string profile_id = parse_profile(params, result);
+    TrexStatelessProfile *mprofile = port->get_profile_by_id(profile_id);
+
+    if ( !mprofile ) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
+    if ( get_platform_api().hw_rx_stat_supported() && port->has_flow_stats(profile_id) ) {
         for (auto &port : get_stateless_obj()->get_port_map()) {
             if ( port.second->is_service_mode_on() ) {
                 generate_execute_err(result, "Port " + to_string(port.first) + " is under service mode, can't use flow_stats."
@@ -1027,13 +1217,13 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     }
 
     try {
-        port->start_traffic(mul, duration, force, core_mask, start_at_ts);
+        port->start_traffic(profile_id, mul, duration, force, core_mask, start_at_ts);
 
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"]["multiplier"] = port->get_multiplier();
+    result["result"]["multiplier"] = port->get_multiplier(profile_id);
     result["result"]["ts"]         = ts;
     
     return (TREX_RPC_CMD_OK);
@@ -1048,11 +1238,33 @@ TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    string profile_id = parse_profile(params, result);
 
-    try {
-        port->stop_traffic();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
+
+    if ( profile_id != "all_profiles" ) {
+        if (!(port->get_profile_by_id(profile_id))) {
+            std::stringstream ss;
+            ss << "profile_id " << profile_id << " does not exists";
+            generate_execute_err(result, ss.str());
+        }
+
+        try {
+            port->stop_traffic(profile_id);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    if ( profile_id == "all_profiles" ) {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->stop_traffic(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
     }
 
     result["result"] = Json::objectValue;
@@ -1069,11 +1281,33 @@ TrexRpcCmdRemoveRXFilters::_run(const Json::Value &params, Json::Value &result) 
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    string profile_id = parse_profile(params, result);
 
-    try {
-        port->remove_rx_filters();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
+
+    if ( profile_id != "all_profiles" ) {
+        if (!(port->get_profile_by_id(profile_id))) {
+            std::stringstream ss;
+            ss << "profile_id " << profile_id << " does not exists";
+            generate_execute_err(result, ss.str());
+        }
+
+        try {
+            port->remove_rx_filters(profile_id);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    if ( profile_id == "all_profiles" ) {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->remove_rx_filters(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
     }
 
     result["result"] = Json::objectValue;
@@ -1092,10 +1326,33 @@ TrexRpcCmdPauseTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    try {
-        port->pause_traffic();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    string profile_id = parse_profile(params, result);
+
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
+
+    if ( profile_id != "all_profiles" ) {
+        if (!(port->get_profile_by_id(profile_id))) {
+            std::stringstream ss;
+            ss << "profile_id " << profile_id << " does not exists";
+            generate_execute_err(result, ss.str());
+        }
+
+        try {
+            port->pause_traffic(profile_id);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    if ( profile_id == "all_profiles" ) {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->pause_traffic(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
     }
 
     result["result"] = Json::objectValue;
@@ -1108,12 +1365,20 @@ TrexRpcCmdPauseStreams::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+    string profile_id = parse_profile(params, result);
+
     const Json::Value &stream_ids_json = parse_array(params, "stream_ids", result);
     stream_ids_t stream_ids;
 
+    if (!(port->get_profile_by_id(profile_id))) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
     for( const Json::Value &itr : stream_ids_json ) {
         uint32_t stream_id = itr.asUInt();
-        TrexStream *stream = port->get_stream_by_id(stream_id);
+        TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
         if (!stream) {
             std::stringstream ss;
             ss << "pause_streams: stream " << stream_id << " does not exists";
@@ -1127,7 +1392,7 @@ TrexRpcCmdPauseStreams::_run(const Json::Value &params, Json::Value &result) {
     }
 
     try {
-        port->pause_streams(stream_ids);
+        port->pause_streams(profile_id, stream_ids);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -1147,10 +1412,33 @@ TrexRpcCmdResumeTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
-    try {
-        port->resume_traffic();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    string profile_id = parse_profile(params, result);
+
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
+
+    if ( profile_id != "all_profiles" ) {
+        if (!(port->get_profile_by_id(profile_id))) {
+            std::stringstream ss;
+            ss << "profile_id " << profile_id << " does not exists";
+            generate_execute_err(result, ss.str());
+        }
+
+        try {
+            port->resume_traffic(profile_id);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    if ( profile_id == "all_profiles" ) {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->resume_traffic(profile_id);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
     }
 
     result["result"] = Json::objectValue;
@@ -1163,12 +1451,21 @@ TrexRpcCmdResumeStreams::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    string profile_id = parse_profile(params, result);
+
     const Json::Value &stream_ids_json = parse_array(params, "stream_ids", result);
     stream_ids_t stream_ids;
 
+    if (!(port->get_profile_by_id(profile_id))) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
     for( const Json::Value &itr : stream_ids_json ) {
         uint32_t stream_id = itr.asUInt();
-        TrexStream *stream = port->get_stream_by_id(stream_id);
+        TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
         if (!stream) {
             std::stringstream ss;
             ss << "resume_streams: stream " << stream_id << " does not exists";
@@ -1182,7 +1479,7 @@ TrexRpcCmdResumeStreams::_run(const Json::Value &params, Json::Value &result) {
     }
 
     try {
-        port->resume_streams(stream_ids);
+        port->resume_streams(profile_id, stream_ids);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -1202,6 +1499,8 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    string profile_id = parse_profile(params, result);
+
     bool force = parse_bool(params, "force", result);
 
     /* multiplier */
@@ -1214,14 +1513,34 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     TrexPortMultiplier mul(type, op, value);
 
+    std::vector<string> profile_list;
+    port->get_profile_id_list(profile_list);
 
-    try {
-        port->update_traffic(mul, force);
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
+    if ( profile_id != "all_profiles" ) {
+        if (!(port->get_profile_by_id(profile_id))) {
+            std::stringstream ss;
+            ss << "profile_id " << profile_id << " does not exists";
+            generate_execute_err(result, ss.str());
+        }
+
+        try {
+            port->update_traffic(profile_id, mul, force);
+        } catch (const TrexException &ex) {
+            generate_execute_err(result, ex.what());
+        }
     }
 
-    result["result"]["multiplier"] = port->get_multiplier();
+    if ( profile_id == "all_profiles" ) {
+        for (auto &profile_id : profile_list) {
+            try {
+                port->update_traffic(profile_id, mul, force);
+            } catch (const TrexException &ex) {
+                generate_execute_err(result, ex.what());
+            }
+        }
+    }
+
+    result["result"]["multiplier"] = port->get_multiplier(profile_id);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1231,6 +1550,9 @@ TrexRpcCmdUpdateStreams::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
+    string profile_id = parse_profile(params, result);
+
     const Json::Value &stream_ids_json = parse_array(params, "stream_ids", result);
     std::vector <TrexStream *> streams;
 
@@ -1246,9 +1568,15 @@ TrexRpcCmdUpdateStreams::_run(const Json::Value &params, Json::Value &result) {
 
     TrexPortMultiplier mul(type, op, value);
 
+    if (!(port->get_profile_by_id(profile_id))) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
     for( const Json::Value &itr : stream_ids_json ) {
         uint32_t stream_id = itr.asUInt();
-        TrexStream *stream = port->get_stream_by_id(stream_id);
+        TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
         if (!stream) {
             std::stringstream ss;
             ss << "update_streams: stream " << stream_id << " does not exists";
@@ -1262,12 +1590,12 @@ TrexRpcCmdUpdateStreams::_run(const Json::Value &params, Json::Value &result) {
     }
 
     try {
-        port->update_streams(mul, force, streams);
+        port->update_streams(profile_id, mul, force, streams);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
-    result["result"]["multiplier"] = port->get_multiplier();
+    result["result"]["multiplier"] = port->get_multiplier(profile_id);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1284,12 +1612,13 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    string profile_id = parse_profile(params, result);
+
     const TrexStreamsGraphObj *graph = NULL;
 
     try {
-        graph = port->validate();
-    }
-    catch (const TrexException &ex) {
+        port->validate(profile_id);
+    } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
 
@@ -1342,6 +1671,7 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
+    string profile_id = parse_profile(params, result);
     std::string  pcap_filename  = parse_string(params, "pcap_filename", result);
     double       ipg_usec       = parse_double(params, "ipg_usec", result);
     double       min_ipg_sec    = usec_to_sec(parse_udouble(params, "min_ipg_usec", result, 0));
@@ -1353,6 +1683,12 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
+    if (!(port->get_profile_by_id(profile_id))) {
+        std::stringstream ss;
+        ss << "profile_id " << profile_id << " does not exists";
+        generate_execute_err(result, ss.str());
+    }
+
     /* for dual mode - make sure slave_handler matches */
     if (is_dual) {
         TrexStatelessPort *slave = get_stateless_obj()->get_port_by_id(port_id ^ 0x1);
@@ -1361,13 +1697,12 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
         }
     }
 
-
     /* IO might take time, increase timeout of WD inside this function */
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
     try {
-        port->push_remote(pcap_filename, ipg_usec, min_ipg_sec, speedup, count, duration, is_dual);
+        port->push_remote(profile_id, pcap_filename, ipg_usec, min_ipg_sec, speedup, count, duration, is_dual);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
@@ -1385,11 +1720,12 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
+    string profile_id = parse_profile(params, result);
     bool enabled = parse_bool(params, "enabled", result);
 
     if ( enabled && get_platform_api().hw_rx_stat_supported() ) {
         for (auto &port : get_stateless_obj()->get_port_map()) {
-            if ( port.second->is_running_flow_stats() ) {
+            if ( port.second->is_running_flow_stats(profile_id) ) {
                 string err = "port " + to_string(port.first) + " is using flow_stats."
                              " (see https://trex-tgn.cisco.com/youtrack/issue/trex-545)";
                 generate_execute_err(result, err);
@@ -1424,6 +1760,11 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
     
+    /* profiles */
+    m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
+    m_cmds.push_back(new TrexRpcCmdGetAllProfilesState(this));
+    m_cmds.push_back(new TrexRpcCmdGetProfileInfo(this));
+
     /* streams */
     m_cmds.push_back(new TrexRpcCmdGetStreamList(this));
     m_cmds.push_back(new TrexRpcCmdGetStream(this));

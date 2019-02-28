@@ -313,6 +313,8 @@ public:
 
 public:
     TrexStream(uint8_t type,uint8_t port_id, uint32_t stream_id) : TrexStream(type, port_id, stream_id, stream_id) {}
+
+    TrexStream(uint8_t type,uint8_t port_id, std::string profile_id, uint32_t stream_id) : TrexStream(type, port_id, profile_id, stream_id, stream_id) {}
     virtual ~TrexStream();
 
     /* provides storage for the stream json*/
@@ -545,6 +547,8 @@ public:
     uint8_t       m_type;
     uint8_t       m_port_id;
     uint16_t      m_flags;
+    
+    std::string   m_profile_id;
 
     uint32_t      m_stream_id;              /* id from RPC can be anything, will be overriden by DP ID */
     const uint32_t m_user_stream_id;        /* backup of stream_id coming from user/CP */
@@ -620,6 +624,8 @@ public:
 private:
     // additional constructor for clone() to save const m_user_stream_id
     TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32_t user_stream_id);
+    
+    TrexStream(uint8_t type, uint8_t port_id, std::string profile_id, uint32_t stream_id, uint32_t user_stream_id);
 
     /* no access to this without a lazy build method */
     TrexStreamRate m_rate;

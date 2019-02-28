@@ -30,7 +30,7 @@ limitations under the License.
 #include "mbuf.h"
 #include "utl_mbuf.h"
 
-
+using namespace std;
 
 /**
  * a wrapper for service mode 
@@ -694,6 +694,48 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
     return (true);
 }
 
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
+                                          bool     stop_on_id,
+                                          int      event_id,
+                                          stream_ids_t &stream_ids){
+
+    if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
+        assert(m_active_streams==0);
+        return false;
+    }
+
+    /* there could be race of stop after stop */
+    if ( stop_on_id ) {
+        if (event_id != m_event_id){
+            /* we can't stop it is an old message */
+            return false;
+        }
+    }
+
+    uint32_t done_count = 0;
+    for (auto  iter = m_active_nodes.begin(); iter != m_active_nodes.end(); iter++) {
+        CDpOneStream dp_stream = *iter;   
+        CGenNodeStateless * node = dp_stream.m_node;
+        if (node == 0) continue;
+        assert(node->get_port_id() == port_id);
+        if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
+            if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
+                node->mark_for_free();
+                done_count++;
+                m_active_streams--;
+                dp_stream.DeleteOnlyStream();
+                m_active_nodes.erase(iter--);
+                if ( done_count == stream_ids.size() ) {
+                    break;
+                }  
+             }
+       } 
+    }
+    
+    //add status change
+    //
+    return (true);
+}
 
 bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
                                           bool     stop_on_id,
@@ -1247,8 +1289,9 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
         m_core->m_cur_time_sec = now_sec() + schd_offset;
     }
 
+    /* comment-out for multi profiles */
     /* no nodes in the list */
-    assert(lp_port->m_active_nodes.size()==0);
+    //assert(lp_port->m_active_nodes.size()==0);
 
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
@@ -1257,8 +1300,10 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     }
 
     uint32_t nodes = lp_port->m_active_nodes.size();
+
+    /* comment-out for multi profiles */
     /* find next stream */
-    assert(nodes == obj->get_objects().size());
+    //assert(nodes == obj->get_objects().size());
 
     int cnt=0;
 
@@ -1283,7 +1328,6 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     }
 
 }
-
 
 bool TrexStatelessDpCore::are_all_ports_idle() {
 
@@ -1408,6 +1452,16 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
 
 }
 
+void
+TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                  bool     stop_on_id,
+                                  int      event_id,
+                                  stream_ids_t &stream_ids) {
+
+    TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
+    lp_port->stop_traffic(port_id,stop_on_id,event_id, stream_ids);
+
+}
 
 
 void

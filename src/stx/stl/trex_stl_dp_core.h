@@ -92,6 +92,11 @@ public:
                       bool stop_on_id, 
                       int event_id);
 
+    bool stop_traffic(uint8_t port_id,
+                      bool stop_on_id, 
+                      int event_id,
+                      stream_ids_t &stream_ids);
+
     bool update_number_of_active_streams(uint32_t d);
 
     state_e get_state() const {
@@ -149,7 +154,6 @@ public:
                        int event_id,
                        double start_at_ts);
 
-
     /* pause the streams, work only if all are continues  */
     void pause_traffic(uint8_t port_id);
     void pause_streams(uint8_t port_id, stream_ids_t &stream_ids);
@@ -191,6 +195,7 @@ public:
      * 
      */
     void stop_traffic(uint8_t port_id,bool stop_on_id, int event_id);
+    void stop_traffic(uint8_t port_id,bool stop_on_id, int event_id, stream_ids_t &stream_ids);
 
 
     /* return if all ports are idle */

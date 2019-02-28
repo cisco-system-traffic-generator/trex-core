@@ -66,7 +66,10 @@ TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2,    "api_sync_v2");
 /**
  * port status
  */
-TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
+//TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
+TREX_RPC_CMD_EXT(TrexRpcCmdGetPortStatus,    "get_port_status",
+    void get_profiles_status(const Json::Value &params, Json::Value &result);
+);
 
 /**
  * ping - the most basic command
@@ -241,12 +244,28 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     TrexPort *port = get_stx()->get_port_by_id(port_id);
     Json::Value &res = result["result"];
 
+    string profile_id = parse_profile(params, result);
+
     if ( port->is_rx_running_cfg_tasks() ) {
         generate_try_again(result);
     }
 
     res["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    res["state"]         = port->get_state_as_string();
+
+    if ( get_is_stateless() ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        if ( profile_id != "all_profiles" ) {
+            res["state"]     = stl_port->get_profile_state_as_string(profile_id);
+        }
+        else {
+            get_profiles_status(params, result);
+            res["state"] = result["all_state"];
+        }
+    } 
+    else {
+        res["state"]     = port->get_state_as_string();
+    }
+
     res["service"]       = port->is_service_mode_on();
 
     if ( get_is_stateless() ) {
@@ -267,6 +286,30 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     return (TREX_RPC_CMD_OK);
 }
+
+
+
+void
+TrexRpcCmdGetPortStatus::get_profiles_status(const Json::Value &params, Json::Value &result) {
+
+    std::vector<string> profile_list;
+    uint8_t port_id = parse_port(params, result);
+    string profile_id = parse_profile(params, result);
+    TrexStatelessPort *port = (TrexStatelessPort*) get_stx()->get_port_by_id(port_id);
+   
+    Json::Value get_profiles_status_json = Json::objectValue;
+    port->get_profile_id_list(profile_list);
+ 
+    for (auto &profile_id : profile_list) {
+        Json::Value j = port->get_profile_state_as_string(profile_id);
+        std::stringstream ss;
+        ss << profile_id;
+        get_profiles_status_json[ss.str()] = j; 
+    } 
+    
+    result["all_state"] =  get_profiles_status_json;
+}
+
 
 
 /**
