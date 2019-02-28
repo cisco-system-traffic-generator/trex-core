@@ -1504,6 +1504,7 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
     bool force = parse_bool(params, "force", result);
 
     /* multiplier */
+    double mutitiplier_factor = 1;
 
     const Json::Value &mul_obj  = parse_object(params, "mul", result);
 
@@ -1528,6 +1529,8 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
         } catch (const TrexException &ex) {
             generate_execute_err(result, ex.what());
         }
+
+        mutitiplier_factor = port->get_multiplier(profile_id);
     }
 
     if ( profile_id == "all_profiles" ) {
@@ -1537,10 +1540,12 @@ TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
             } catch (const TrexException &ex) {
                 generate_execute_err(result, ex.what());
             }
+            mutitiplier_factor = port->get_multiplier(profile_id);
         }
+
     }
 
-    result["result"]["multiplier"] = port->get_multiplier(profile_id);
+    result["result"]["multiplier"] = mutitiplier_factor;
 
     return (TREX_RPC_CMD_OK);
 }
