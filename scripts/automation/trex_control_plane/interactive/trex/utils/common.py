@@ -49,12 +49,13 @@ def parse_physical_port_ids (ports):
                 port_name = str(port)
                 port_id = int(port)
 
-            port_name_list.append(port_name)
+            if port_name not in port_name_list:
+                port_name_list.append(port_name)
+            else:
+                raise TRexError('Duplicate port(s) are not allowed')
+
             if port_id not in port_id_list:
                 port_id_list.append(port_id)
-
-        if has_dup(port_name_list):
-            raise TRexError('duplicate port(s) are not allowed')
 
     except ValueError:
         raise TRexTypeError('Wrong value for the port parameter', type(ports))
@@ -77,7 +78,7 @@ def parse_logical_port_ids (ports):
             if port_name not in port_name_list:
                 port_name_list.append(port_name)
             else:
-                raise TRexError('duplicate port(s) are not allowed')
+                raise TRexError('Duplicate port(s) are not allowed')
 
     except ValueError:
         raise TRexTypeError('Wrong value for the port parameter', type(ports))

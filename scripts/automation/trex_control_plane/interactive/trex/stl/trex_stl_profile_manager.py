@@ -43,8 +43,7 @@ class STLProfileManager(object):
                  for key in profile_id:
                      self.state_list[key] = state
             else:
-                if self.state_list.get(profile_id):
-                    self.state_list[profile_id] = state
+                 self.state_list[profile_id] = state
         #return None if not found
         return self.state_list
 

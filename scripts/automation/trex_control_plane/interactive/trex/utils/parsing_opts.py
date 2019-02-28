@@ -328,7 +328,6 @@ def decode_port (port_str):
     if len(port_info) == 1 :
         port_result =  int(port_str)
     elif len(port_info) == 2 :
-#        port_result = [str(port_str), int(port_info[0]), str(port_info[1])]
         port_result = STL_PORT_INFO()
         port_result.port_name = str(port_str)
         port_result.port_id = int(port_info[0])
@@ -1172,13 +1171,9 @@ class CCmdArgParser(argparse.ArgumentParser):
             
             # validate the ports state
             if verify_acquired:
-                #JH : Ignored for now
-                #self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
-                pass
+                self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
             else:
-                #JH : Ignored for now
-                #self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
-                pass
+                self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
             return opts
 
         except ValueError as e:

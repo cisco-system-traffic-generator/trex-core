@@ -54,7 +54,7 @@ class STLPort(Port):
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, profile_state))
 
-    def state_from_name(self, profile_state_list):
+    def state_from_name_stl(self, profile_state_list):
         # dict is returned for profile_id *
         for profile_id,state in profile_state_list.items():
             profile_state = self.__state_from_name(state)
@@ -72,7 +72,14 @@ class STLPort(Port):
             return self.err(rc.err())
 
         # sync the port
-        self.state_from_name(rc.data()['state'])
+        port_state = rc.data()['state']
+        if type(port_state) is dict:
+            self.state_from_name_stl(rc.data()['state'])
+            self.state = self.profile_manager.get_port_state()
+        else:
+            port_state = rc.data()['state']
+            self.state_from_name(port_state)
+            self.profile_manager.update_profile_state(self.state)
 
         self.owner = rc.data()['owner']
 
@@ -102,10 +109,18 @@ class STLPort(Port):
         if rc.bad():
             return self.err(rc.err())
 
-        for profile_id, stream_value_list in rc.data()['profiles'].items():
-            for stream_id, stream_value in stream_value_list.items():
-                self.profile_manager.add_profile_stream(stream_id, profile_id)
-                self.streams[int(stream_id)] = STLStream.from_json(stream_value)
+        if 'streams' in rc.data().keys():
+            for k, v in rc.data()['streams'].items():
+                self.streams[int(k)] = STLStream.from_json(v)
+                self.profile_manager.add_profile_stream(int(k))
+        elif 'profiles' in rc.data().keys():
+            for profile_id, stream_value_list in rc.data()['profiles'].items():
+                for stream_id, stream_value in stream_value_list.items():
+                    self.profile_manager.add_profile_stream(stream_id, profile_id)
+                    self.streams[int(stream_id)] = STLStream.from_json(stream_value)
+        else:
+             return self.err("invalid return from server, %s" % rc.data())
+
         return self.ok()
 
 

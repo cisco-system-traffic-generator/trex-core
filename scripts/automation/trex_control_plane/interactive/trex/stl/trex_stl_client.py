@@ -279,12 +279,12 @@ class STLClient(TRexClient):
 
 
         ports = ports if ports is not None else self.get_acquired_ports()
+        port_id_list = parse_physical_port_ids(ports)
 
         # validate ports
         ports = self.psv.validate('remove_all_streams', ports, (PSV_ACQUIRED, PSV_IDLE))
 
-        # needs to be fixed
-        self.ctx.logger.pre_cmd("Removing all streams from port(s) {0}:".format(ports))
+        self.ctx.logger.pre_cmd("Removing all streams from port(s) {0}:".format(port_id_list))
         rc = self._for_each_port('remove_all_streams', ports)
         self.ctx.logger.post_cmd(rc)
 
@@ -312,6 +312,7 @@ class STLClient(TRexClient):
         """
 
         ports = ports if ports is not None else self.get_acquired_ports()
+        port_id_list = parse_physical_port_ids(ports)
 
         # validate ports
         ports = self.psv.validate('add_streams', ports, (PSV_ACQUIRED, PSV_IDLE))
@@ -327,8 +328,7 @@ class STLClient(TRexClient):
         if not all([isinstance(stream, STLStream) for stream in streams]):
             raise TRexArgumentError('streams', streams)
 
-        # needs to be fixed
-        self.ctx.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams), ports))
+        self.ctx.logger.pre_cmd("Attaching {0} streams to port(s) {1}:".format(len(streams), port_id_list))
 
         rc = self._for_each_port('add_streams', ports, streams)
         self.ctx.logger.post_cmd(rc)
@@ -585,8 +585,7 @@ class STLClient(TRexClient):
             synchronized_str = ''
 
         # start traffic
-        # needs to be fixed
-        self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(synchronized_str, ports))
+        self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(synchronized_str, port_id_list))
 
         # mask is port specific information
         pargs = {k:{'mask': v} for k, v in decoded_mask.items()}
@@ -629,7 +628,7 @@ class STLClient(TRexClient):
         ports = self.psv.validate('STOP', ports, PSV_ACQUIRED)
         port_id_list = parse_physical_port_ids(ports)
 
-        self.ctx.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(ports))
+        self.ctx.logger.pre_cmd("Stopping traffic on port(s) {0}:".format(port_id_list))
         rc = self._for_each_port('stop', ports)
         self.ctx.logger.post_cmd(rc)
 
@@ -637,15 +636,13 @@ class STLClient(TRexClient):
             raise TRexError(rc)
 
         if rx_delay_ms is None:
-            # needs to be checked
             if self.ports[port_id_list[0]].is_virtual(): # assume all ports have same type
                 rx_delay_ms = 100
             else:
                 rx_delay_ms = 10
 
         # remove any RX filters
-        # needs to be checked
-        #rc = self._remove_rx_filters(port_id_list, rx_delay_ms)
+        rc = self._remove_rx_filters(port_id_list, rx_delay_ms)
         if not rc:
             raise TRexError(rc)
 
@@ -783,6 +780,7 @@ class STLClient(TRexClient):
         validate_type('stream_ids', stream_ids, list)
 
         ports = self.psv.validate('update_streams', port, (PSV_ACQUIRED, PSV_TX))
+        port_id_list = parse_physical_port_ids(ports)
 
         if not stream_ids:
             raise TRexError('Please specify stream IDs to update')
@@ -793,7 +791,7 @@ class STLClient(TRexClient):
             raise TRexArgumentError('mult', mult)
 
         # call low level functions
-        self.ctx.logger.pre_cmd('Updating streams %s on port %s:' % (stream_ids, port))
+        self.ctx.logger.pre_cmd('Updating streams %s on port %s:' % (stream_ids, port_id_list))
         rc = self._for_each_port("update_streams", port, mult_obj, force, stream_ids)
         self.ctx.logger.post_cmd(rc)
 
@@ -817,8 +815,9 @@ class STLClient(TRexClient):
 
         ports = ports if ports is not None else self.get_transmitting_ports()
         ports = self.psv.validate('pause', ports, (PSV_ACQUIRED, PSV_TX))
+        port_id_list = parse_physical_port_ids(ports)
 
-        self.ctx.logger.pre_cmd("Pausing traffic on port(s) {0}:".format(ports))
+        self.ctx.logger.pre_cmd("Pausing traffic on port(s) {0}:".format(port_id_list))
         rc = self._for_each_port("pause", ports)
 
         self.ctx.logger.post_cmd(rc)
@@ -849,11 +848,12 @@ class STLClient(TRexClient):
         validate_type('stream_ids', stream_ids, list)
 
         ports = self.psv.validate('pause_streams', port, (PSV_ACQUIRED, PSV_TX))
+        port_id_list = parse_physical_port_ids(ports)
 
         if not stream_ids:
             raise TRexError('Please specify stream IDs to pause')
 
-        self.ctx.logger.pre_cmd('Pause streams %s on port %s:' % (stream_ids, port))
+        self.ctx.logger.pre_cmd('Pause streams %s on port %s:' % (stream_ids, port_id_list))
         rc = self._for_each_port("pause_streams", ports, stream_ids)
         self.ctx.logger.post_cmd(rc)
 
@@ -879,8 +879,10 @@ class STLClient(TRexClient):
         ports = ports if ports is not None else self.get_paused_ports()
 
         ports = self.psv.validate('resume', ports, (PSV_ACQUIRED, PSV_PAUSED))
+        port_id_list = parse_physical_port_ids(ports)
+
         # Needs to be checked
-        self.ctx.logger.pre_cmd("Resume traffic on port(s) {0}:".format(ports))
+        self.ctx.logger.pre_cmd("Resume traffic on port(s) {0}:".format(port_id_list))
         rc = self._for_each_port('resume', ports)
         self.ctx.logger.post_cmd(rc)
 
@@ -910,11 +912,12 @@ class STLClient(TRexClient):
         validate_type('stream_ids', stream_ids, list)
 
         ports = self.psv.validate('resume_streams', port, (PSV_ACQUIRED))
+        port_id_list = parse_physical_port_ids(ports)
 
         if not stream_ids:
             raise TRexError('Please specify stream IDs to resume')
 
-        self.ctx.logger.pre_cmd('Resume streams %s on port %s:' % (stream_ids, port))
+        self.ctx.logger.pre_cmd('Resume streams %s on port %s:' % (stream_ids, port_id_list))
         rc = self._for_each_port("resume_streams", ports, stream_ids)
         self.ctx.logger.post_cmd(rc)
 
@@ -1822,7 +1825,7 @@ class STLClient(TRexClient):
             if not opts.ports:
                 msg = 'no active ports'
             else:
-                msg = 'no active traffic on ports {0}'.format(opts.ports)
+                msg = 'no active traffic on ports {0}'.format(port_id_list)
 
             raise TRexError(msg)
 
@@ -1861,7 +1864,7 @@ class STLClient(TRexClient):
             if not opts.ports:
                 msg = 'no active ports'
             else:
-                msg = 'no active traffic on ports {0}'.format(opts.ports)
+                msg = 'no active traffic on ports {0}'.format(port_id_list)
 
             raise TRexError(msg)
 
@@ -1890,8 +1893,14 @@ class STLClient(TRexClient):
             return True
 
         # check for already paused case
-        #if opts.ports and is_sub_list(opts.ports, self.get_paused_ports()):
-        #    raise TRexError('all of port(s) {0} are already paused'.format(opts.ports))
+        for port in opts.ports :
+            port_id = port
+            profile_id = "_"
+            if isinstance(port, STL_PORT_INFO):
+                port_id = port.port_id
+                profile_id = port.profile_id
+            if self.ports[port_id].profile_manager.is_paused(profile_id):
+                raise TRexError('por(s) {0} is already paused'.format(port_id))
 
         # find the relevant ports
         port_id_list = parse_physical_port_ids(opts.ports)
@@ -1901,7 +1910,7 @@ class STLClient(TRexClient):
             if not opts.ports:
                 msg = 'no transmitting ports'
             else:
-                msg = 'none of ports {0} are transmitting'.format(opts.ports)
+                msg = 'none of ports {0} are transmitting'.format(port_id_list)
 
             raise TRexError(msg)
 
@@ -1936,7 +1945,7 @@ class STLClient(TRexClient):
             if not opts.ports:
                 msg = 'no paused ports'
             else:
-                msg = 'none of ports {0} are paused'.format(opts.ports)
+                msg = 'none of ports {0} are paused'.format(port_id_list)
 
             raise TRexError(msg)
 
