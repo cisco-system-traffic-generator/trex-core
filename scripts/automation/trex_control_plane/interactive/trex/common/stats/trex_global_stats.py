@@ -68,7 +68,7 @@ class GlobalStats(AbstractStats):
                              ("connection", "{host}, Port {port}".format(host = conn_info['server'], port = conn_info['sync_port'])),
                              ("version", "{ver}".format(ver = server_version_fmt)),
 
-                             ("cpu_util.", "{0}% @ {2} cores ({3} per port) {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
+                             ("cpu_util.", "{0}% @ {2} cores ({3} per dual port) {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
                                                                                          self.get_trend_gui("m_cpu_util", use_raw = True),
                                                                                          server_info.get('dp_core_count'),
                                                                                          server_info.get('dp_core_count_per_port'),
