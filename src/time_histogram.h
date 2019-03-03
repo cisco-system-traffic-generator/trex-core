@@ -53,6 +53,14 @@ class CTimeHistogramPerPeriodData {
     inline uint64_t get_high_cnt() {return m_cnt_high;}
     inline dsec_t get_max() {return m_max;}
     inline dsec_t get_max_usec() {return m_max * 1000000;}
+    inline CTimeHistogramPerPeriodData operator+= (const CTimeHistogramPerPeriodData& in) {
+        this->m_sum += in.m_sum;
+        this->m_cnt += in.m_cnt;
+        this->m_cnt_high += in.m_cnt_high; // assuming they have the same threshold.
+        this->m_max = std::max(this->m_max, in.m_max);
+        return *this;
+    }
+
 
  private:
     uint64_t m_sum; // Sum of samples
@@ -92,6 +100,8 @@ public:
     void dump_json(Json::Value & json, bool add_histogram = true);
     uint64_t get_count() {return m_total_cnt;}
     uint64_t get_high_count() {return m_total_cnt_high;}
+    CTimeHistogram operator+= (const CTimeHistogram& in);
+    friend std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
 private:
     uint32_t get_usec(dsec_t d);
@@ -119,5 +129,7 @@ private:
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
     uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE] __rte_cache_aligned ;
 };
+
+std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
 #endif

@@ -21,7 +21,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
+#include <iostream>
 #include <stdint.h>
 
 class CJitter {
@@ -47,7 +47,28 @@ public:
         }    
    double get_jitter(){
         return (m_jitter);
-   }     
+   }
+
+   friend inline bool operator< (const CJitter& lhs, const CJitter& rhs) {
+      return lhs.m_jitter < rhs.m_jitter;
+   }
+
+   friend inline bool operator> (const CJitter& lhs, const CJitter& rhs) {
+      return rhs < lhs;
+   }
+
+   friend inline bool operator<= (const CJitter& lhs, const CJitter& rhs) {
+      return !(lhs > rhs);
+   }
+
+   friend inline bool operator>= (const CJitter& lhs, const CJitter& rhs) {
+      return !(lhs < rhs);
+   }
+
+   friend std::ostream& operator<<(std::ostream& os, const CJitter& in) {
+      os << in.m_jitter << std::endl;
+      return os;
+   }
 
 private:
   double m_old_transit;

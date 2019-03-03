@@ -25,6 +25,7 @@ limitations under the License.
 #include "utl_json.h"
 #include <rte_atomic.h>
 #include "time_histogram.h"
+#include <iostream>
 
 void CTimeHistogram::Reset() {
     m_period_data[0].reset();
@@ -61,7 +62,7 @@ bool CTimeHistogram::Add(dsec_t dt) {
 
     period_elem.inc_cnt();
     period_elem.update_sum(dt);
-    if ((m_hot_max==0) || (m_total_cnt>m_hot_max)){
+    if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || (m_win_cnt > 1)){
         period_elem.update_max(dt);
     }
 
@@ -247,6 +248,8 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             }
             base = base * 10;
         }
+        // This creates a bug in software mode as it doesn't preserve the incremention of values in the histogram. Besart Dollma
+#if 0
         CTimeHistogramPerPeriodData &period_elem = m_period_data[m_period];
         if (m_total_cnt != m_total_cnt_high) {
             // since we are not running update on each get call now, we should also
@@ -255,6 +258,44 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
                 + period_elem.get_cnt() - period_elem.get_high_cnt();
             json["histogram"]["0"] = Json::Value::UInt64(short_latency);
         }
+#endif
     }
 }
 
+CTimeHistogram CTimeHistogram::operator+= (const CTimeHistogram& in) {
+    for (uint8_t i = 0; i < HISTOGRAM_SIZE_LOG; i++) {
+        for (uint8_t j = 0; j < HISTOGRAM_SIZE; j++) {
+            this->m_hcnt[i][j] += in.m_hcnt[i][j];
+        }
+    }
+    for (uint i = 0; i < HISTOGRAM_QUEUE_SIZE; i++) {
+        this->m_max_ar[i] = std::max(this->m_max_ar[i], in.m_max_ar[i]);
+    }
+    for (uint8_t i = 0 ; i < 2; i++) {
+        this->m_period_data[i] += in.m_period_data[i];
+    }
+    this->m_total_cnt = 0;
+    this->m_total_cnt_high = 0;
+    uint64_t new_sum = 0;
+    for (uint8_t i = 0; i < 2; i++) {
+        this->m_total_cnt += m_period_data[i].get_cnt();
+        this->m_total_cnt_high += m_period_data[i].get_high_cnt();
+        new_sum += this->m_period_data[i].get_sum();
+    }
+    this->m_max_dt = std::max(this->m_max_dt, in.m_max_dt);
+    this->m_win_cnt = in.m_win_cnt;
+    this->m_period = in.m_period;
+    if (this->m_total_cnt != 0) {
+        // low pass filter
+        this->m_average = 0.5 * this->m_average + 0.5 * (new_sum / this->m_total_cnt);
+    }
+    return *this;
+}
+
+std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in) {
+    os << "m_total count << " << in.m_total_cnt << std::endl;
+    os << "m_total_count_high" << in.m_total_cnt_high << std::endl;
+    os << "m_average" << in.m_average << std::endl;
+    // Other things might be added.
+    return os;
+}
