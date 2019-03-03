@@ -221,6 +221,7 @@ protected:
 
     void check_for_dp_message_from_core(int thread_id);
     void send_msg_to_all_dp(TrexCpToDpMsgBase *msg);
+    void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
     
     /* no copy or assignment */
     TrexSTX(TrexSTX const&)              = delete;  
