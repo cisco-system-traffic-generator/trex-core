@@ -27,45 +27,6 @@
 #include "trex_rx_core.h"
 #include "trex_messaging.h"
 
-void CRFC2544Info::create() {
-    m_latency.Create();
-    m_exp_flow_seq = 0;
-    m_prev_flow_seq = 0;
-    reset();
-}
-
-// after calling stop, packets still arriving will be considered error
-void CRFC2544Info::stop() {
-    if (m_exp_flow_seq != FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ) {
-        m_prev_flow_seq = m_exp_flow_seq;
-        m_exp_flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
-    }
-}
-
-void CRFC2544Info::reset() {
-    // This is the seq num value we expect next packet to have.
-    // Init value should match m_seq_num in CVirtualIFPerSideStats
-    m_seq = UINT32_MAX - 1;  // catch wrap around issues early
-    m_seq_err = 0;
-    m_seq_err_events_too_big = 0;
-    m_seq_err_events_too_low = 0;
-    m_ooo = 0;
-    m_dup = 0;
-    m_latency.Reset();
-    m_jitter.reset();
-}
-
-void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
-    std::string json_str;
-    Json::Reader reader;
-    Json::Value json;
-
-    obj.set_err_cntrs(m_seq_err, m_ooo, m_dup, m_seq_err_events_too_big, m_seq_err_events_too_low);
-    obj.set_jitter(m_jitter.get_jitter());
-    m_latency.dump_json(json);
-    obj.set_latency_json(json);
-};
-
 CRxCore::~CRxCore(void) {
     for (auto &iter_pair : m_rx_port_mngr_map) {
         iter_pair.second->cleanup_async();

@@ -30,10 +30,9 @@
 #include "trex_pkt.h"
 #include "trex_rx_feature_api.h"
 #include "trex_stack_base.h"
+#include "trex_latency_counters.h"
 
 class CPortLatencyHWBase;
-class CRFC2544Info;
-class CRxCoreErrCntrs;
 class BPFFilter;
 
 enum rx_pkt_action_t {
@@ -55,61 +54,6 @@ private:
     CRxCore * m_rx_core;
     uint8_t   m_port_id;
 };
-
-/**************************************
- * RX feature latency
- * 
- *************************************/
-
-
-class RXLatency {
-public:
-
-    RXLatency();
-
-    void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs);
-
-    void handle_pkt(const rte_mbuf_t *m);
-
-    Json::Value to_json() const;
-    
-    void get_stats(rx_per_flow_t *rx_stats,
-                   int min,
-                   int max,
-                   bool reset,
-                   TrexPlatformApi::driver_stat_cap_e type);
-    
-    void reset_stats();
-    
-private:
-    // below functions for both IP v4 and v6, so they need uint32_t id
-    bool is_flow_stat_id(uint32_t id) {
-        if ((uint16_t) id >= m_ip_id_base)
-            return true;
-        else
-            return false;
-    }
-
-    bool is_flow_stat_payload_id(uint32_t id) {
-        if (id == FLOW_STAT_PAYLOAD_IP_ID) return true;
-        return false;
-    }
-
-    uint16_t get_hw_id(uint16_t id) {
-        return (~m_ip_id_base & (uint16_t )id);
-}
-
-public:
-
-    rx_per_flow_t        m_rx_pg_stat[MAX_FLOW_STATS];
-    rx_per_flow_t        m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-
-    bool                 m_rcv_all;
-    CRFC2544Info         *m_rfc2544;
-    CRxCoreErrCntrs      *m_err_cntrs;
-    uint16_t             m_ip_id_base;
-};
-
 
 /**************************************
  * RX feature queue 

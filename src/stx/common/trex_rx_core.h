@@ -30,78 +30,12 @@
 #include "trex_rx_port_mngr.h"
 #include "trex_capture.h"
 #include "trex_rx_tx.h"
+#include "trex_latency_counters.h"
 
 class TrexCpToRxMsgBase;
 
 typedef std::map<uint8_t, RXPortManager*> rx_port_mg_map_t;
 typedef std::vector<RXPortManager*> rx_port_mg_vec_t;
-
-class CCPortLatencyStl {
- public:
-    void reset();
-
- public:
-    rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
-    rx_per_flow_t m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-};
-
-class CRFC2544Info {
- public:
-    void create();
-    void stop();
-    void reset();
-    void export_data(rfc2544_info_t_ &obj);
-    inline void add_sample(double stime) {
-        m_latency.Add(stime);
-        m_jitter.calc(stime);
-    }
-    inline void sample_period_end() {
-        m_latency.update();
-    }
-    inline uint32_t get_seq() {return m_seq;}
-    inline void set_seq(uint32_t val) {m_seq = val;}
-    inline void inc_seq_err(uint64_t val) {m_seq_err += val;}
-    inline void dec_seq_err() {if (m_seq_err >0) {m_seq_err--;}}
-    inline void inc_seq_err_too_big() {m_seq_err_events_too_big++;}
-    inline void inc_seq_err_too_low() {m_seq_err_events_too_low++;}
-    inline void inc_dup() {m_dup++;}
-    inline void inc_ooo() {m_ooo++;}
-    inline uint16_t get_exp_flow_seq() {return m_exp_flow_seq;}
-    inline void set_exp_flow_seq(uint16_t flow_seq) {m_exp_flow_seq = flow_seq;}
-    inline uint16_t get_prev_flow_seq() {return m_prev_flow_seq;}
-    inline bool no_flow_seq() {return (m_exp_flow_seq == FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ) ? true : false;}
- private:
-    uint32_t m_seq; // expected next seq num
-    CTimeHistogram  m_latency; // latency info
-    CJitter         m_jitter;
-    uint64_t m_seq_err; // How many packet seq num gaps we saw (packets lost or out of order)
-    uint64_t m_seq_err_events_too_big; // How many packet seq num greater than expected events we had
-    uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
-    uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
-    uint64_t m_dup; // Packets we got with same seq num
-    uint16_t m_exp_flow_seq; // flow sequence number we should see in latency header
-    // flow sequence number previously used with this id. We use this to catch packets arriving late from an old flow
-    uint16_t m_prev_flow_seq;
-};
-
-class CRxCoreErrCntrs {
-    friend CRxCore;
-
- public:
-    uint64_t get_bad_header() {return m_bad_header;}
-    uint64_t get_old_flow() {return m_old_flow;}
-    CRxCoreErrCntrs() {
-        reset();
-    }
-    void reset() {
-        m_bad_header = 0;
-        m_old_flow = 0;
-    }
-
- public:
-    uint64_t m_bad_header;
-    uint64_t m_old_flow;
-};
 
 /**
  * RX core
