@@ -111,6 +111,15 @@ TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
     delete msg;
 }
 
+/**
+ * sends a message to a DP core
+ */
+void
+TrexSTX::send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
+    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
+    ring->Enqueue((CGenNode*)msg->clone());
+    delete msg;
+}
 
 /**
  * send message to RX core
