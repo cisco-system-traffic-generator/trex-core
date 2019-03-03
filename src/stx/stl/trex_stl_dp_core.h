@@ -30,6 +30,7 @@ limitations under the License.
 
 #include "trex_dp_core.h"
 #include "dpdk_port_map.h"
+#include "trex_latency_counters.h"
 
 class TrexCpToDpMsgBase;
 class TrexStatelessDpStart;
@@ -66,8 +67,7 @@ public:
     };
 
 public:
-    TrexStatelessDpPerPort(){
-    }
+    TrexStatelessDpPerPort();
 
     void create(CFlowGenListPerThread   *  core);
 
@@ -112,14 +112,18 @@ public:
 
 public:
 
-    state_e                   m_state;
+    state_e                     m_state;
 
-    uint32_t                  m_active_streams; /* how many active streams on this port  */
+    uint32_t                    m_active_streams; /* how many active streams on this port  */
                                                 
-    std::vector<CDpOneStream> m_active_nodes;   /* holds the current active nodes */
-    CGenNodePCAP              *m_active_pcap_node;
-    CFlowGenListPerThread   *  m_core ;
-    int                        m_event_id;
+    std::vector<CDpOneStream>   m_active_nodes;   /* holds the current active nodes */
+    CGenNodePCAP*               m_active_pcap_node;
+    CFlowGenListPerThread*      m_core ;
+    int                         m_event_id;
+
+    CRxCoreErrCntrs             m_err_cntrs;
+    CRFC2544Info                m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
+    RXLatency                   m_fs_latency;
 };
 
 
@@ -226,6 +230,15 @@ public:
                           tvpid_t port_id);
 
     virtual bool rx_for_idle(void);
+
+    void clear_fs_latency_stats(uint8_t dir);
+    void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
+    void rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch);
+    void rfc2544_reset(int min, int max);
+
+    inline RXLatency* get_fs_latency_object_ptr(uint8_t dir) { return &m_ports[dir].m_fs_latency; }
+    inline CRFC2544Info* get_rfc2544_object_ptr(uint8_t dir) { return m_ports[dir].m_rfc2544; }
+    inline CRxCoreErrCntrs* get_err_cntrs_object_ptr(uint8_t dir) { return &m_ports[dir].m_err_cntrs; }
 
 private:
 
