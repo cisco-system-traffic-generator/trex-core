@@ -265,7 +265,7 @@ uint8_t CFlowStatParser::get_protocol(){
     return (proto);
 }
 
-bool CFlowStatParser::is_hardware_filter_simulaton_on(){
+bool CFlowStatParser::is_fs_latency(){
     uint8_t tos = 0;
     if (m_ipv4) {
         tos = m_ipv4->getTOS();
