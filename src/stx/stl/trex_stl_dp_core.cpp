@@ -515,6 +515,12 @@ void CGenNodeStateless::free_stl_node(){
     free_stl_vm_buf();
 }
 
+TrexStatelessDpPerPort::TrexStatelessDpPerPort() {
+    for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
+            m_rfc2544[i].create();
+        }
+    m_fs_latency.create(m_rfc2544, &m_err_cntrs);
+}
 
 bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
     m_active_streams-=d; /* reduce the number of streams */
@@ -868,7 +874,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
                                            rte_mbuf_t * m,
                                            bool is_idle,
                                            bool &drop){
-    /* parse the packet, if it has TOS=1, formward it */
+    /* parse the packet, if it has TOS=1, forward it */
     //utl_rte_pktmbuf_dump_k12(stdout,m);
     if (m_is_service_mode){
         drop=false;
@@ -892,9 +898,11 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
         tcp_udp = true;
     }
 
-    bool forward_to_rx = m_parser->is_hardware_filter_simulaton_on() || (!tcp_udp) ;
+    if (m_parser->is_fs_latency()) {
+        m_ports[dir].m_fs_latency.handle_pkt(m);
+    }
 
-    if ( forward_to_rx && (is_idle==false)){
+    if ( !tcp_udp && (is_idle==false)){
         drop=false;
     }
 
@@ -1436,6 +1444,43 @@ TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
     }
 }
 
+void
+TrexStatelessDpCore::clear_fs_latency_stats(uint8_t dir) {
+    m_ports[dir].m_fs_latency.reset_stats();
+}
+
+void
+TrexStatelessDpCore::clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type) {
+    m_ports[dir].m_fs_latency.reset_stats_partial(min, max, type);
+}
+
+void
+TrexStatelessDpCore::rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch) {
+    for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
+        for (int hw_id = min; hw_id <= max; hw_id++) {
+            CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];
+
+            if (reset) {
+                // need to stop first, so count will be consistent
+                curr_rfc2544.stop();
+            }
+
+            if (period_switch) {
+                curr_rfc2544.sample_period_end();
+            }
+        }
+    }
+}
+
+void
+TrexStatelessDpCore::rfc2544_reset(int min, int max) {
+    for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
+        for (int hw_id = min; hw_id <= max; hw_id++) {
+            CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];
+            curr_rfc2544.reset();
+        }
+    }
+}
 
 /**
  * PCAP node
