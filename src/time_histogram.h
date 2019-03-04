@@ -119,7 +119,8 @@ private:
     // One element collects data for current period, other is saved for sending report.
     // Each period we switch between the two
     CTimeHistogramPerPeriodData m_period_data[2];
-    uint8_t m_period; // 0 or 1 according to m_period_data element we currently use
+    uint64_t m_short_latency;
+    uint8_t  m_period; // 0 or 1 according to m_period_data element we currently use
     uint64_t m_total_cnt;
     uint64_t m_total_cnt_high;
     dsec_t   m_max_dt;  // Total maximum latency
