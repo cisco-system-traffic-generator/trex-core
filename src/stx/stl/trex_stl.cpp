@@ -271,11 +271,18 @@ TrexStateless::publish_async_data() {
 }
 
 void
-TrexStateless::init_stats(const vector<TrexStatelessDpCore*> & dp_core_ptrs) {
-    if (get_dpdk_mode()->dp_rx_queues()) {
-        m_stats = new TrexStatelessMulticoreSoftwareFSLatencyStats(this, dp_core_ptrs);
-    }
-    else {
-        m_stats = new TrexStatelessRxFSLatencyStats(get_stl_rx());
-    }
+TrexStateless::init_stats_multiqueue(const vector<TrexStatelessDpCore*> & dp_core_ptrs) {
+    assert(get_dpdk_mode()->dp_rx_queues());
+    m_stats = new TrexStatelessMulticoreSoftwareFSLatencyStats(this, dp_core_ptrs);
+}
+
+void
+TrexStateless::init_stats_rx() {
+    assert (!get_dpdk_mode()->dp_rx_queues());
+    m_stats = new TrexStatelessRxFSLatencyStats(get_stl_rx());
+}
+
+TrexStatelessFSLatencyStats* TrexStateless::get_stats() {
+    assert(m_stats);
+    return m_stats;
 }

@@ -2829,6 +2829,8 @@ public:
     void init_stf();
     void init_astf();
 
+    void init_stl_stats();
+
     void init_astf_batch();
     
     bool is_all_links_are_up(bool dump=false);
@@ -3690,14 +3692,20 @@ void CGlobalTRex::init_stl() {
     
     start_master_stateless();
 
-    std::vector<TrexStatelessDpCore*> dp_core_ptrs;
+    init_stl_stats();
+}
+
+void CGlobalTRex::init_stl_stats() {
     if (get_dpdk_mode()->dp_rx_queues()) {
+        std::vector<TrexStatelessDpCore*> dp_core_ptrs;
         for (int thread_id = 0; thread_id < (int)m_fl.m_threads_info.size(); thread_id++) {
             TrexStatelessDpCore* stl_dp_core = (TrexStatelessDpCore*)m_fl.m_threads_info[thread_id]->get_dp_core();
             dp_core_ptrs.push_back(stl_dp_core);
         }
+        get_stateless_obj()->init_stats_multiqueue(dp_core_ptrs);
+    } else {
+        get_stateless_obj()->init_stats_rx();
     }
-    get_stateless_obj()->init_stats(dp_core_ptrs);
 }
 
 void CGlobalTRex::init_astf_vif_rx_queues(){
@@ -5688,7 +5696,7 @@ int CPhyEthIF::reset_hw_flow_stats() {
     if (get_ex_drv()->hw_rx_stat_supported()) {
         get_ex_drv()->reset_rx_stats(this, m_stats.m_fdir_prev_pkts, 0, MAX_FLOW_STATS);
     } else {
-        get_stateless_obj()->m_stats->reset_rx_stats(get_tvpid(), get_core_list());
+        get_stateless_obj()->get_stats()->reset_rx_stats(get_tvpid(), get_core_list());
     }
     return 0;
 }
@@ -5709,7 +5717,7 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
             return -1;
         }
     } else {
-        get_stateless_obj()->m_stats->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID, get_core_list());
+        get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID, get_core_list());
     }
 
     for (int i = min; i <= max; i++) {
@@ -5747,7 +5755,7 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
 }
 
 int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
-    get_stateless_obj()->m_stats->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
     
     for (int i = min; i <= max; i++) {
         if ( reset ) {
@@ -6864,11 +6872,11 @@ int TrexDpdkPlatformApi::get_flow_stats(uint8_t port_id, void *rx_stats, void *t
 
 int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset
                                           , bool period_switch) const {
-    return get_stateless_obj()->m_stats->get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
+    return get_stateless_obj()->get_stats()->get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
 }
 
 int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
-    return get_stateless_obj()->m_stats->get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
+    return get_stateless_obj()->get_stats()->get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
 }
 
 int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {

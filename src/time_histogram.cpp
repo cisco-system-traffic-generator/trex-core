@@ -248,9 +248,20 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             }
             base = base * 10;
         }
-        if (m_total_cnt > m_total_cnt_high) {
-            uint64_t short_latency = m_total_cnt - m_total_cnt_high;
-            json["histogram"]["0"] = Json::Value::UInt64(short_latency);
+        CTimeHistogramPerPeriodData &period_elem = m_period_data[m_period];
+        if (m_total_cnt != m_total_cnt_high) {
+            // since we are not running update on each get call now, we should also
+            // take into account the values in current period
+            uint64_t short_latency = m_total_cnt - m_total_cnt_high
+                + period_elem.get_cnt() - period_elem.get_high_cnt();
+            /* Since the incrementation between total_cnt and total_cnt_high is not atomic, short_latency isn't incremental.
+            Therefore we force it to be incremental by taking the maximum. Maximum is calculated this way because there might
+            be overflows. */
+            int64_t difference = short_latency - m_short_latency;
+            if (difference > 0) {
+                m_short_latency = short_latency;
+            }
+            json["histogram"]["0"] = Json::Value::UInt64(m_short_latency);
         }
     }
 }
