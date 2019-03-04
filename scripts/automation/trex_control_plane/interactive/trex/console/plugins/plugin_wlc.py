@@ -2,7 +2,7 @@
 
 from trex.console.plugins import *
 from trex.common.trex_exceptions import TRexError
-from trex.utils.common import natural_sorted_key
+from trex.utils.common import natural_sorted_key, list_intersect
 from trex.stl.trex_stl_packet_builder_scapy import ipv4_str_to_num, is_valid_ipv4_ret
 
 
@@ -304,7 +304,7 @@ class WLC_Plugin(ConsolePlugin):
 
                 self.ap_manager.add_streams(client, profile.get_streams())
 
-        except STLError as e:
+        except TRexError as e:
             msg = bold("\nError loading profile '%s'" % file_path)
             self.ap_manager.log(msg + '\n')
             self.ap_manager.log(e.brief() + "\n")
@@ -344,7 +344,7 @@ class WLC_Plugin(ConsolePlugin):
 
                 self.ap_manager.add_ap_streams(ap, profile.get_streams())
 
-        except STLError as e:
+        except TRexError as e:
             msg = bold("\nError loading profile '%s'" % file_path)
             self.ap_manager.log(msg + '\n')
             self.ap_manager.log(e.brief() + "\n")

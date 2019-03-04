@@ -209,7 +209,7 @@ def is_valid_ipv4_ret(ip_addr):
     except AttributeError:  # no inet_pton here, sorry
         return socket.inet_aton(ip_addr)
     except socket.error:  # not a valid address
-        raise CTRexPacketBuildException(-10,"Not valid ipv4 format");
+        raise TypeError('Not valid IPv4 format');
 
 
 def is_valid_ipv6_ret(ipv6_addr):
@@ -221,9 +221,9 @@ def is_valid_ipv6_ret(ipv6_addr):
     try:
         return socket.inet_pton(socket.AF_INET6, ipv6_addr)
     except AttributeError:  # no inet_pton here, sorry
-        raise CTRexPacketBuildException(-10, 'No inet_pton function available')
+        raise TypeError('No inet_pton function available')
     except:
-        raise CTRexPacketBuildException(-10, 'Not valid ipv6 format')
+        raise TypeError('Not valid IPv6 format')
 
 
 def list_remove_dup (l):
