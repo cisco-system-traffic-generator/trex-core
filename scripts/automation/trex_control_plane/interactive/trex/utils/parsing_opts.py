@@ -66,6 +66,10 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 
                           """
 
+logical_ports_help = """A list of ports on which to apply the command.
+                        Logical port concept supports multiple profiles dynamically on the same port.
+                        Logical port expression is used as <physical port number>.<logical port name>.
+                     """
 
 # decodes multiplier
 # if allow_update - no +/- is allowed
@@ -539,27 +543,27 @@ class OPTIONS_DB_ARGS:
         ['-p', '--port'],
         {"nargs": '+',
          'dest':'ports',
-         'metavar': 'PORTS',
+         'metavar': 'PORT[.PROFILE]',
          'action': 'merge',
          'type': decode_port,
-         'help': "A list of ports on which to apply the command",
+         'help': logical_ports_help,
          'default': []})
 
     PORT_LIST_NO_DEFAULT = ArgumentPack(
         ['-p', '--port'],
         {"nargs": '+',
          'dest':'ports_no_default',
-         'metavar': 'PORTS',
+         'metavar': 'PORT[.PROFILE]',
          'action': 'merge',
          'type': decode_port,
-         'help': "A list of ports on which to apply the command"})
+         'help': logical_ports_help})
 
     SINGLE_PORT = ArgumentPack(
         ['-p', '--port'],
         {'dest':'ports',
          'type': decode_port,
-         'metavar': 'PORT',
-         'help': 'source port for the action',
+         'metavar': 'PORT[.PROFILE]',
+         'help': logical_ports_help,
          'required': True})
 
     PING_IP = ArgumentPack(
