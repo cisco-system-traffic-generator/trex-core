@@ -17,7 +17,7 @@ import re
 from pprint import pprint
 
 # add some layers as an example
-# need to test more 
+# need to test more
 from scapy.layers.dns import *
 from scapy.layers.dhcp import *
 from scapy.layers.ipsec import *
@@ -560,7 +560,29 @@ class Scapy_service(Scapy_service_api):
         if type(val) == type({}):
             value_type = val['vtype']
             if value_type == 'EXPRESSION':
-                return eval(val['expr'], scapy.all.__dict__)
+                #python3 strings fix
+                expr = val['expr']
+                if is_python(3) and isinstance(expr, dict):
+                    data_base64 = expr.get('base64')
+                    if data_base64 is not None:
+                        expr = base64.b64decode(data_base64).decode('UTF-8')
+                eval_globals = {}
+                modules = [scapy.all, scapy.layers.dns, scapy.layers.dhcp, scapy.layers.ipsec, scapy.layers.netflow,
+                           scapy.layers.sctp, scapy.layers.tftp, scapy.contrib.mpls, scapy.contrib.igmp,
+                           scapy.contrib.igmpv3]
+                for module in modules:
+                   eval_globals.update(module.__dict__)
+                res = eval(expr, eval_globals)
+                #TCP options fix
+                if is_python(3) and type(res) is list:
+                    for i, t in enumerate(res):
+                        if type(t) is tuple:
+                            lst = list(t)
+                            if len(lst) == 2:
+                                if type(lst[1]) is str:
+                                    lst[1] = str_to_bytes(lst[1])
+                            res[i] = tuple(lst)
+                return res
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
                 return generate_bytes(val)
             elif value_type == 'OBJECT':
@@ -705,7 +727,17 @@ class Scapy_service(Scapy_service_api):
                         # generic serialization/deserialization needed for proper packet rebuilding from packet tree,
                         # some classes can not be mapped to json, but we can pass them serialize them
                         # as a python eval expr, value bytes base64, or field machine internal val(m2i)
-                        value = {"vtype": "EXPRESSION", "expr": hvalue}
+                        if issubclass(fieldval.__class__, scapy.packet.Packet):
+                            hvalue = expr = fieldval.command()
+                        elif type(fieldval) == list and all(issubclass(e.__class__, scapy.packet.Packet) for e in fieldval):
+                            if len(fieldval) == 0:
+                                expr = hvalue = str(fieldval)
+                            else:
+                                expr = map(lambda e : e.command(), fieldval)
+                                expr = hvalue = "[" + ", ".join(expr) + "]"
+                        else:
+                            expr = hvalue
+                        value = {"vtype": "EXPRESSION", "expr": expr}
                 if is_python(3) and is_string(fieldval):
                     hvalue = value = fieldval
                 if is_python(2) and is_string(fieldval):
@@ -1050,7 +1082,7 @@ class Scapy_service(Scapy_service_api):
             return ""
         f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
-            content = base64.b64encode(content_file.read())
+            content = base64.b64encode(str_to_bytes(content_file.read()))
         return content
 
 
