@@ -69,6 +69,7 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 logical_ports_help = """A list of ports on which to apply the command.
                         Logical port concept supports multiple profiles dynamically on the same port.
                         Logical port expression is used as <physical port number>.<logical port name>.
+                        Default logical port name is \"_\" when not specified.
                      """
 
 # decodes multiplier

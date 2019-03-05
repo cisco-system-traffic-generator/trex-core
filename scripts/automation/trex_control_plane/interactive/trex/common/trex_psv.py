@@ -83,18 +83,22 @@ class PortStateIdle(PortState):
             port_id = port
             profile_id = "_"
 
-            if port_id in dup_port:
-                print_err_msg(ports, "Cannot use * with other profile_ids")
-
             if isinstance(port, STL_PORT_INFO):
                 port_name = port.port_name
                 port_id = port.port_id
                 profile_id = port.profile_id
 
+            if port_id in dup_port:
+                self.print_err_msg(ports, "Cannot use * with other profile_ids")
+
             is_idle = False
             if profile_id == "*":
                 dup_port.append(port_id)
                 profile_state_list = client.ports[port_id].profile_manager.get_all_profiles()
+
+                if not profile_state_list:
+                    is_idle = True
+
                 for pid in profile_state_list:
                     if not client.ports[port_id].profile_manager.is_active(pid):
                         is_idle = True
@@ -114,6 +118,7 @@ class PortStateIdle(PortState):
     def get_valid_ports (self, client):
         return [port_id for port_id in client.get_all_ports() if not client.ports[port_id].is_active()]
 
+
 class PortStateTX(PortState):
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
         invalid_ports = []
@@ -124,13 +129,13 @@ class PortStateTX(PortState):
             port_id = port
             profile_id = "_"
 
-            if port_id in dup_port:
-                print_err_msg(ports, "Cannot use * with other profile_ids")
-
             if isinstance(port, STL_PORT_INFO):
                 port_name = port.port_name
                 port_id = port.port_id
                 profile_id = port.profile_id
+
+            if port_id in dup_port:
+                self.print_err_msg(ports, "Cannot use * with other profile_ids")
 
             is_active = False
             if profile_id == "*":
@@ -161,13 +166,13 @@ class PortStatePaused(PortState):
             port_id = port
             profile_id = "_"
 
-            if port_id in dup_port:
-                print_err_msg(ports, "Cannot use * with other profile_ids")
-
             if isinstance(port, STL_PORT_INFO):
                 port_name = port.port_name
                 port_id = port.port_id
                 profile_id = port.profile_id
+
+            if port_id in dup_port:
+                self.print_err_msg(ports, "Cannot use * with other profile_ids")
 
             is_paused = False
             if profile_id == "*":

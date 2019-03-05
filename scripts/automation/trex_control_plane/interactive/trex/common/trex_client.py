@@ -383,11 +383,9 @@ class TRexClient(object):
         for port in port_list:
 
             port_id = port
-            if isinstance(port, STL_PORT_INFO):
-                port_id =  port.port_id
-
             profile_id = None
             if isinstance(port, STL_PORT_INFO):
+                port_id =  port.port_id
                 profile_id = port.profile_id
 
             # get port specific

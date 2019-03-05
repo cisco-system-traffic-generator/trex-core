@@ -33,6 +33,17 @@ def user_input():
         # using python version 2
         return raw_input()
 
+def parse_all_profiles_from_port_ids (ports):
+    all_profiles_list = []
+    port_id_list = parse_physical_port_ids(ports)
+    for port_id in port_id_list:
+        port = STL_PORT_INFO()
+        port.port_name = str(port_id) + ".*"
+        port.port_id = int(port_id)
+        port.profile_id = str("*")
+        all_profiles_list.append(port)
+    return all_profiles_list
+
 def parse_physical_port_ids (ports):
     port_list = listify(ports)
     port_name_list = []
@@ -73,7 +84,7 @@ def parse_logical_port_ids (ports):
             if isinstance(port, STL_PORT_INFO):
                 port_name = port.port_name
             else:
-                port_name = str(port) + "._"
+                port_name = str(port)
 
             if port_name not in port_name_list:
                 port_name_list.append(port_name)
@@ -88,7 +99,7 @@ def parse_logical_port_ids (ports):
 def parse_a_dual_port (port):
     slave_port = None
     if isinstance(port, STL_PORT_INFO):
-        slave_port = STL_PORT_INFO
+        slave_port = STL_PORT_INFO()
         slave_port.port_id = port.port_id ^ 0x1
         slave_port.profile_id = port.profile_id
         slave_port.port_name = str(slave_port.port_id) + "." + str(slave_port.profile_id)

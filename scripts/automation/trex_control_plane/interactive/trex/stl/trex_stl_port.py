@@ -39,8 +39,9 @@ class STLPort(Port):
         self.profile = None
         self.next_available_id = 1
         self.profile_manager = STLProfileManager(port_id)
+        self.is_dynamic = False
 
-    def __state_from_name(self, profile_state):
+    def __state_from_name_dynamic(self, profile_state):
         if profile_state == "IDLE":
             return self.STATE_IDLE
         elif profile_state == "STREAMS":
@@ -51,36 +52,54 @@ class STLPort(Port):
             return self.STATE_PAUSE
         elif profile_state == "PCAP_TX":
             return self.STATE_PCAP_TX
+        ##ASTF is not supported
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, profile_state))
 
-    def state_from_name_stl(self, profile_state_list):
-        # dict is returned for profile_id *
+    def state_from_name_dynamic(self, profile_state_list):
+        # dict is returned from dynamic profile server version(new)
         for profile_id,state in profile_state_list.items():
-            profile_state = self.__state_from_name(state)
-            self.profile_manager.update_profile_state(profile_state, profile_id)
+            profile_state = self.__state_from_name_dynamic(state)
+            self.profile_manager.set_state(profile_state, profile_id)
         self.state = self.profile_manager.get_port_state()
 
-    def sync(self):
+    def sync_port_state(self, rc_state):
+        # dynamic profile server version
+        if type(rc_state) is dict:
+            self.state_from_name_dynamic(rc_state)
+            self.is_dynamic = True
+        # legacy server version
+        elif type(rc_state) is unicode:
+            self.state_from_name(rc_state)
+            self.profile_manager.set_state(self.state)
+        else:
+            raise Exception("invalid return from server, %s" % rc_state())
 
+    def sync_port_streams(self, rc_data):
+        #Legacy trex server mode
+        if 'streams' in rc_data.keys():
+            for k, v in rc_data['streams'].items():
+                self.streams[int(k)] = STLStream.from_json(v)
+                self.profile_manager.set_stream_id(int(k))
+        #Dynamic port trex server mode
+        elif 'profiles' in rc_data.keys():
+            for profile_id, stream_value_list in rc_data['profiles'].items():
+                for stream_id, stream_value in stream_value_list.items():
+                    self.profile_manager.set_stream_id(stream_id, profile_id)
+                    self.streams[int(stream_id)] = STLStream.from_json(stream_value)
+        else:
+             raise Exception("invalid return from server, %s" % rc_data)
+
+    def sync(self):
         params = {"port_id": self.port_id,
-                  "profile_id": "*",
-                  'block': False}
+                  "profile_id": "*"}
 
         rc = self.transmit("get_port_status", params)
         if rc.bad():
             return self.err(rc.err())
 
         # sync the port
-        port_state = rc.data()['state']
-        if type(port_state) is dict:
-            self.state_from_name_stl(rc.data()['state'])
-            self.state = self.profile_manager.get_port_state()
-        else:
-            port_state = rc.data()['state']
-            self.state_from_name(port_state)
-            self.profile_manager.update_profile_state(self.state)
-
+        self.sync_port_state(rc.data()['state'])
         self.owner = rc.data()['owner']
 
         # for stateless (hack)
@@ -109,20 +128,45 @@ class STLPort(Port):
         if rc.bad():
             return self.err(rc.err())
 
-        if 'streams' in rc.data().keys():
-            for k, v in rc.data()['streams'].items():
-                self.streams[int(k)] = STLStream.from_json(v)
-                self.profile_manager.add_profile_stream(int(k))
-        elif 'profiles' in rc.data().keys():
-            for profile_id, stream_value_list in rc.data()['profiles'].items():
-                for stream_id, stream_value in stream_value_list.items():
-                    self.profile_manager.add_profile_stream(stream_id, profile_id)
-                    self.streams[int(stream_id)] = STLStream.from_json(stream_value)
-        else:
-             return self.err("invalid return from server, %s" % rc.data())
+        self.sync_port_streams(rc.data())
+        return self.ok()
+
+    # Not yet implemented & Unused
+    def get_profile_id_list (self, profile_id = "*"):
+
+        params = {"port_id": self.port_id,
+                  "profile_id": profile_id}
+
+        rc = self.transmit("get_profile_list", params)
+        if rc.bad():
+            return self.err(rc.err())
 
         return self.ok()
 
+    # Unused
+    def get_stream_id_list (self, profile_id = "*"):
+
+        params = {"port_id": self.port_id,
+                  "profile_id": profile_id}
+
+        rc = self.transmit("get_stream_list", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
+
+    # Unused
+    def sync_port_stream (self, profile_id = "_"):
+
+        params = {"port_id": self.port_id,
+                  "profile_id": profile_id,
+                  'stream_ids': stream_ids or []}
+
+        rc = self.transmit("get_stream", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.ok()
 
     @owned
     def pause_streams(self, stream_ids, profile_id = "_"):
@@ -277,7 +321,7 @@ class STLPort(Port):
             if single_rc:
                 stream_id = batch[i].params['stream_id']
                 self.streams[stream_id] = streams_list[i].clone()
-                self.profile_manager.add_profile_stream(stream_id, profile_id, self.STATE_STREAMS)
+                self.profile_manager.set_stream_id(stream_id, profile_id, self.STATE_STREAMS)
 
                 ret.add(RC_OK(data = stream_id))
 
@@ -293,20 +337,26 @@ class STLPort(Port):
 
     # remove stream from port
     @writeable
-    def remove_streams (self, stream_id_list):
+    def remove_streams (self, stream_id_list, profile_id = "_"):
+
+        if profile_id == "*":
+            return self.err("Invalid profile_id [%s]" % profile_id)
 
         # single element to list
         stream_id_list = listify(stream_id_list)
 
+        profile_streams = self.profile_manager.get_stream_ids(profile_id)
+
         # verify existance
-        not_found = list_difference(stream_id_list, self.streams)
-        found     = list_intersect(stream_id_list, self.streams)
+        not_found = list_difference(stream_id_list, profile_streams)
+        found     = list_intersect(stream_id_list, profile_streams)
 
         batch = []
         
         for stream_id in found:
             params = {"handler": self.handler,
                       "port_id": self.port_id,
+                      "profile_id": profile_id,
                       "stream_id": stream_id}
 
             cmd = RpcCmdData('remove_stream', params, 'core')
@@ -319,7 +369,8 @@ class STLPort(Port):
                 if single_rc:
                     id = batch[i].params['stream_id']
                     del self.streams[id]
-    
+                    self.profile_manager.delete_stream
+
             self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
     
             # recheck if any RX stats streams present on the port
@@ -336,7 +387,7 @@ class STLPort(Port):
 
     # remove all the streams
     @writeable
-    def remove_all_streams (self, profile_id = "*"):
+    def remove_all_streams (self, profile_id = "_"):
 
         if profile_id != "*":
             if not self.profile_manager.get_profile_state(profile_id):
@@ -454,7 +505,7 @@ class STLPort(Port):
             self.state = last_state
             return self.err(rc.err())
 
-        self.profile_manager.update_profile_state(self.state, profile_id)
+        self.profile_manager.set_state(self.state, profile_id)
 
         # save this for TUI
         self.last_factor_type = mul['type']
@@ -462,13 +513,16 @@ class STLPort(Port):
         return rc
 
     def is_writeable (self):
-        # operations on port can be done on state idle or state streams
-        return self.state in (self.STATE_TX, self.STATE_IDLE, self.STATE_STREAMS, self.STATE_ASTF_LOADED)
+        if self.is_dynamic:
+            # operations on port can be done on state idle or state streams
+            return self.state in (self. STATE_PCAP_TX, self.STATE_TX, self.STATE_IDLE, self.STATE_STREAMS, self.STATE_ASTF_LOADED)
+        else:
+            return super(STLPort, self).is_writeable()
 
     # stop traffic
     # with force ignores the cached state and sends the command
     @owned
-    def stop (self, force = False, profile_id = "*"):
+    def stop (self, force = False, profile_id = "_"):
 
         if profile_id != "*":
             if not self.profile_manager.get_profile_state(profile_id):
@@ -487,15 +541,8 @@ class STLPort(Port):
             return self.err(rc.err())
 
         #must have a function that checks the port state
-        self.profile_manager.update_profile_state(self.STATE_STREAMS, profile_id)
-        profile_state_list = self.profile_manager.get_all_profile_state()
-        state_streams = True
-        for profile_state in profile_state_list:
-            if not profile_state == self.STATE_STREAMS:
-                state_streams = False
-
-        if state_streams:
-            self.state = self.STATE_STREAMS
+        self.profile_manager.set_state(self.STATE_STREAMS, profile_id)
+        self.state = self.profile_manager.get_port_state()
 
         self.last_factor_type = None
         
@@ -510,10 +557,7 @@ class STLPort(Port):
 
         profile_list = []
         if profile_id == "*":
-            profile_state_list = self.profile_manager.get_profile_state_list()
-            for pid, pstate in profile_state_list.items():
-                if pstate == self.STATE_TX:
-                    profile_list.append(pid)
+            profile_list = self.profile_manager.get_profiles_from_state(self.STATE_TX)
         else:
             profile_state = self.profile_manager.get_profile_state(profile_id)
             if not profile_state:
@@ -527,7 +571,6 @@ class STLPort(Port):
         if not profile_list :
             return self.err("port is not transmitting")
 
-
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "profile_id":  profile_id}
@@ -536,28 +579,15 @@ class STLPort(Port):
         if rc.bad():
             return self.err(rc.err())
 
-        self.profile_manager.update_profile_state(self.STATE_PAUSE, profile_list)
-        profile_state_list = self.profile_manager.get_all_profile_state()
-
-        state_pause = True
-        for pstate in profile_state_list:
-            if not pstate == self.STATE_PAUSE:
-                state_pause = False
-
-        if state_pause:
-            self.state = self.STATE_PAUSE
-
+        self.profile_manager.set_state(self.STATE_PAUSE, profile_list)
+        self.state = self.profile_manager.get_port_state()
         return self.ok()
 
     @owned
     def resume (self, profile_id = "_"):
-
         profile_list = []
         if profile_id == "*":
-            profile_state_list = self.profile_manager.get_profile_state_list()
-            for pid, pstate in profile_state_list.items():
-                if pstate == self.STATE_PAUSE:
-                    profile_list.append(pid)
+            profile_list = self.profile_manager.get_profiles_from_state(self.STATE_PAUSE)
         else:
             profile_state = self.profile_manager.get_profile_state(profile_id)
             if not profile_state:
@@ -581,7 +611,7 @@ class STLPort(Port):
             return self.err(rc.err())
 
         self.state = self.STATE_TX
-        self.profile_manager.update_profile_state(self.state, profile_list)
+        self.profile_manager.set_state(self.state, profile_list)
 
         return self.ok()
 
@@ -591,10 +621,7 @@ class STLPort(Port):
 
         profile_list = []
         if profile_id == "*":
-            profile_state_list = self.profile_manager.get_profile_state_list()
-            for pid, pstate in profile_state_list.items():
-                if pstate == self.STATE_TX:
-                    profile_list.append(pid)
+            profile_list = self.profile_manager.get_profiles_from_state(self.STATE_TX)
         else:
             profile_state = self.profile_manager.get_profile_state(profile_id)
             if (profile_state == self.STATE_PCAP_TX) :
@@ -645,7 +672,7 @@ class STLPort(Port):
             return self.err(rc.err())
 
         self.state = self.STATE_PCAP_TX
-        self.profile_manager.update_profile_state(self.state, profile_id)
+        self.profile_manager.set_state(self.state, profile_id)
         return self.ok()
 
 

@@ -28,13 +28,13 @@ class STLProfileManager(object):
         self.stream_list = {}
         self.state_list = {}
 
-    def add_profile_stream (self, stream_id, profile_id = "_", state = STATE_STREAMS):
+    def set_stream_id (self, stream_id, profile_id = "_", state = STATE_STREAMS):
         self.stream_list.setdefault(profile_id, [])
         self.stream_list[profile_id].append(stream_id)
         self.state_list.setdefault(profile_id, state)
         return self.stream_list.get(profile_id)
 
-    def update_profile_state (self, state, profile_id = "_"):
+    def set_state (self, state, profile_id = "_"):
         if state:
             if profile_id == "*":
                 for key in self.stream_list.keys():
@@ -56,33 +56,29 @@ class STLProfileManager(object):
         elif stream_ids:
             del self.stream_list[profile_id]
             del self.state_list[profile_id]
+        #no profile_id found
         else:
             stream_ids = []
 
         return stream_ids
 
+    def delete_stream (self, stream_id, profile_id = "_"):
+        if self.stream_list.get(profile_id):
+            self.stream_list[profile_id].remove(stream_id)
+
+        #if empty, make it idle
+        if not self.stream_list.get(profile_id):
+            del self.stream_list[profile_id]
+            del self.state_list[profile_id]
+
     def get_all_profiles(self):
         return self.state_list.keys()
 
-    def get_profiles (self, state = None):
-        profile_list = []
-        for profile_id, profile_state in self.state_list.items():
-            if profile_state == state:
-                profile_list.append(profile_id)
-        #returns list of profiles with the state
-        return profile_list
-
-    def get_all_profile_streams (self):
+    def get_all_streams (self):
         return self.stream_list.values()
 
-    def get_profile_streams (self, profile_id = "_"):
+    def get_stream_ids (self, profile_id = "_"):
         return self.stream_list.get(profile_id)
-
-    def get_profile_state_list (self):
-        return self.state_list
-
-    def get_all_profile_state (self):
-        return self.state_list.values()
 
     def get_profile_state (self, profile_id = "_"):
         return self.state_list.get(profile_id)
@@ -100,6 +96,13 @@ class STLProfileManager(object):
             return self.STATE_IDLE
         else:
             raise Exception("port {0}: bad state received from server".format(self.port_id))
+
+    def get_profiles_from_state (self, state):
+        result = []
+        for pid, pstate in self.state_list.items():
+            if pstate == state:
+                result.append(pid)
+        return result
 
     def has_state(self, state):
         if not self.state_list and state == self.STATE_IDLE:
