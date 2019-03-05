@@ -81,8 +81,11 @@ bool
 TrexStatelessDpStop::handle(TrexDpCore *dp_core) {
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
-    stl_core->stop_traffic(m_port_id,m_stop_only_for_event_id,m_event_id, m_stream_ids);
+    if(m_stream_ids.size()==0) {
+        stl_core->stop_traffic(m_port_id,m_stop_only_for_event_id,m_event_id);
+    } else {
+        stl_core->stop_traffic(m_port_id,m_stop_only_for_event_id,m_event_id, m_stream_ids);
+    }
     return true;
 }
 

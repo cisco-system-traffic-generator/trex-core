@@ -958,10 +958,10 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
     m_is_service_mode_on  = false;
 
     /* No need to make default profile auto-matically */
-    #if 0
+    //#if 0
     TrexStatelessProfile *mprofile = new TrexStatelessProfile(m_port_id, default_profile);
     m_profile_table.add_profile(mprofile);
-    #endif
+    //#endif
 }
 
 TrexStatelessPort::~TrexStatelessPort() {
@@ -1017,7 +1017,7 @@ TrexStatelessPort::stop_traffic(string profile_id) {
         stream_ids.insert(stream_id);
     }
 
-    //change_profile_state(profile_id, PORT_STATE_STREAMS);
+    mprofile->stop_traffic(stream_ids);
     update_port_state();
 }
 
@@ -1265,10 +1265,8 @@ TrexStatelessPort::remove_stream(string profile_id, TrexStream *stream) {
 
 void
 TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
-#if 0
    TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
    mprofile->remove_and_delete_all_streams();
-#endif
 }
 
 void
@@ -1279,8 +1277,6 @@ TrexStatelessPort::remove_and_delete_all_streams() {
 
     for (auto &profile_id : profile_list) {
        remove_and_delete_all_streams(profile_id);
-       TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-       delete mprofile;
     }
 }
 

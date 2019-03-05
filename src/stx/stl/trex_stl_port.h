@@ -522,8 +522,8 @@ public:
     void remove_and_delete_all_streams(string profile_id);
 
     TrexStream * get_stream_by_id(string profile_id, uint32_t stream_id) {
-       TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-       return mprofile->get_stream_by_id(stream_id);
+        TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
+        return mprofile->get_stream_by_id(stream_id);
     }
 
     int get_stream_count(string profile_id) {

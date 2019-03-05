@@ -346,17 +346,42 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
 
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+
     string profile_id = parse_profile(params, result);
-
-    port->get_id_list(profile_id, stream_list);
-
     Json::Value json_list = Json::arrayValue;
 
-    for (auto &stream_id : stream_list) {
-        json_list.append(stream_id);
-    }
+    if (profile_id != "all_profiles") {
+        port->get_id_list(profile_id, stream_list);
+        Json::Value json_list = Json::arrayValue;
 
-    result["result"] = json_list;
+        for (auto &stream_id : stream_list) {
+            json_list.append(stream_id);
+        }
+    
+        result["result"] = json_list;
+    
+    } else {
+
+        Json::Value json_profile_stream_list = Json::objectValue;
+        std::vector<string> profile_list;
+        port->get_profile_id_list(profile_list);
+
+        for (auto &profile_id : profile_list) {
+            port->get_id_list(profile_id, stream_list);
+            Json::Value json_list = Json::arrayValue;
+            //Json::Value j = profile_id;
+
+            for (auto &stream_id : stream_list) {
+                json_list.append(stream_id);
+            }
+            
+            std::stringstream ss;
+            ss << profile_id;
+            json_profile_stream_list[ss.str()] = json_list; 
+        }
+
+        result["result"] = json_profile_stream_list;
+    }
 
     return (TREX_RPC_CMD_OK);
 }
@@ -388,11 +413,6 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
                 ss << stream->m_stream_id;
                 streams_json[ss.str()] = j; 
             }    
-            result["result"]["profile_id"] = profile_id;
-              
-         } else {
-            result["result"]["profile_id"] = "";
-
          }    
          result["result"]["streams"] = streams_json;
 

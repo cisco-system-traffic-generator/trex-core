@@ -2838,7 +2838,7 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -2901,7 +2901,7 @@ void CBBStartStopDelay2::call_after_init(CBasicStl * m_obj){
 
     std::vector<TrexStream *> streams;
 
-    TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+    TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
     stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -2949,7 +2949,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3027,7 +3027,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3078,7 +3078,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3129,7 +3129,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3182,7 +3182,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3234,7 +3234,7 @@ TEST_F(basic_stl, simple_prog4) {
 
 
      /* stream0 */
-     TrexStream * stream0 = new TrexStream(TrexStream::stCONTINUOUS, 0,300);
+     TrexStream * stream0 = new TrexStream(TrexStream::stCONTINUOUS, 0, "_", 300);
      stream0->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream0->m_enabled = true;
      stream0->m_self_start = true;
@@ -3247,7 +3247,7 @@ TEST_F(basic_stl, simple_prog4) {
 
 
      /* stream1 */
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 100);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(5);
      stream1->m_enabled = true;
@@ -3263,7 +3263,7 @@ TEST_F(basic_stl, simple_prog4) {
 
      /* stream1 */
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stMULTI_BURST, 0,200);
+     TrexStream * stream2 = new TrexStream(TrexStream::stMULTI_BURST, 0,"_",200);
      stream2->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream2->m_isg_usec = 1000000; /*time betwean stream 1 to stream 2 */
      stream2->m_enabled = true;
@@ -3315,7 +3315,7 @@ TEST_F(basic_stl, simple_prog3) {
      std::vector<TrexStream *> streams;
 
      /* stream1 */
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",100);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(5);
      stream1->m_enabled = true;
@@ -3332,7 +3332,7 @@ TEST_F(basic_stl, simple_prog3) {
 
      /* stream1 */
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stMULTI_BURST, 0,200);
+     TrexStream * stream2 = new TrexStream(TrexStream::stMULTI_BURST, 0,"_",200);
      stream2->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream2->m_isg_usec = 1000000; /*time betwean stream 1 to stream 2 */
      stream2->m_enabled = true;
@@ -3382,7 +3382,7 @@ TEST_F(basic_stl, simple_prog2) {
      std::vector<TrexStream *> streams;
 
      /* stream1 */
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",100);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(5);
      stream1->m_enabled = true;
@@ -3399,7 +3399,7 @@ TEST_F(basic_stl, simple_prog2) {
 
      /* stream1 */
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,200);
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",200);
      stream2->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream2->set_single_burst(5);
      stream2->m_isg_usec = 2000000; /*time betwean stream 1 to stream 2 */
@@ -3442,7 +3442,7 @@ TEST_F(basic_stl, simple_prog1) {
      std::vector<TrexStream *> streams;
 
      /* stream1 */
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,100);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",100);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(5);
      stream1->m_enabled = true;
@@ -3459,7 +3459,7 @@ TEST_F(basic_stl, simple_prog1) {
 
      /* stream1 */
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,200);
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",200);
      stream2->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream2->set_single_burst(5);
      stream2->m_enabled = true;
@@ -3502,7 +3502,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST, 0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(5);
      stream1->m_enabled = true;
@@ -3547,7 +3547,7 @@ TEST_F(basic_stl, single_pkt) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3594,7 +3594,7 @@ void test_mac_replace(bool replace_src_by_pkt,
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_override_src_mac_by_pkt_data(replace_src_by_pkt);
      stream1->set_override_dst_mac_mode((TrexStream::stream_dst_mac_t)replace_dst_mode);
 
@@ -3671,7 +3671,7 @@ TEST_F(basic_stl, multi_pkt1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3685,7 +3685,7 @@ TEST_F(basic_stl, multi_pkt1) {
 
      streams.push_back(stream1);
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,1);
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",1);
      stream2->set_rate(TrexStreamRate::RATE_PPS,2.0);
 
      stream2->m_enabled = true;
@@ -3739,7 +3739,7 @@ void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
 
      if ( cache ){
          stream1->m_cache_size=cache;
@@ -3878,7 +3878,7 @@ TEST_F(basic_stl, multi_pkt2) {
      std::vector<TrexStream *> streams;
 
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
 
 
@@ -3893,7 +3893,7 @@ TEST_F(basic_stl, multi_pkt2) {
      streams.push_back(stream1);
 
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,1);
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",1);
      stream2->set_rate(TrexStreamRate::RATE_PPS,2.0);
 
      stream2->m_enabled = false;
@@ -3935,7 +3935,7 @@ TEST_F(basic_stl, multi_burst1) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stMULTI_BURST,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stMULTI_BURST,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_multi_burst(5,
                               3,
@@ -3977,7 +3977,7 @@ TEST_F(basic_stl, compile_bad_1) {
      TrexStreamsCompiler compile;
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,2);
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",2);
      stream1->m_enabled = true;
      stream1->set_rate(TrexStreamRate::RATE_PPS,52.0);
      stream1->m_next_stream_id = 3;
@@ -4002,7 +4002,7 @@ TEST_F(basic_stl, compile_bad_2) {
      TrexStreamsCompiler compile;
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,1);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,"_",1);
      stream1->m_enabled = true;
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(200);
@@ -4010,7 +4010,7 @@ TEST_F(basic_stl, compile_bad_2) {
      /* non existant next stream */
      stream1->m_next_stream_id = 5;
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,2);
+     TrexStream * stream2 = new TrexStream(TrexStream::stCONTINUOUS,0,"_",2);
      stream1->set_rate(TrexStreamRate::RATE_PPS,52.0);
 
      streams.push_back(stream1);
@@ -4041,7 +4041,7 @@ TEST_F(basic_stl, compile_bad_3) {
      TrexStream *stream;
 
      /* stream 1 */
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 231);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 231);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4052,7 +4052,7 @@ TEST_F(basic_stl, compile_bad_3) {
      streams.push_back(stream);
 
      /* stream 2 */
-     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 5481);
+     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, "_", 5481);
      stream->m_enabled = true;
      stream->m_next_stream_id = -1;
      stream->m_self_start = false;
@@ -4062,7 +4062,7 @@ TEST_F(basic_stl, compile_bad_3) {
 
      /* stream 3 */
 
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1928);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 1928);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4074,7 +4074,7 @@ TEST_F(basic_stl, compile_bad_3) {
 
       /* stream 4 */
 
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 41231);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 41231);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4086,7 +4086,7 @@ TEST_F(basic_stl, compile_bad_3) {
 
      /* stream 5 */
 
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 3928);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 3928);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4115,7 +4115,7 @@ TEST_F(basic_stl, compile_with_warnings) {
      TrexStream *stream;
 
      /* stream 1 */
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 231);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 231);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4126,7 +4126,7 @@ TEST_F(basic_stl, compile_with_warnings) {
      streams.push_back(stream);
 
      /* stream 2 */
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 5481);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 5481);
      stream->m_enabled = true;
      stream->m_next_stream_id = 1928;
      stream->m_self_start = true;
@@ -4136,7 +4136,7 @@ TEST_F(basic_stl, compile_with_warnings) {
 
      /* stream 3 */
 
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1928);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 1928);
      stream->m_enabled = true;
      stream->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream->set_single_burst(200);
@@ -4168,7 +4168,7 @@ TEST_F(basic_stl, compile_good_stream_id_compres) {
      TrexStreamsCompiler compile;
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,700);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,"_",700);
      stream1->m_self_start = true;
      stream1->m_enabled = true;
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
@@ -4178,7 +4178,7 @@ TEST_F(basic_stl, compile_good_stream_id_compres) {
      stream1->m_next_stream_id = 800;
 
 
-     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST,0,800);
+     TrexStream * stream2 = new TrexStream(TrexStream::stSINGLE_BURST,0,"_",800);
      stream2->set_rate(TrexStreamRate::RATE_PPS,52.0);
      stream2->m_enabled = true;
      stream2->m_next_stream_id = 700;
@@ -4246,7 +4246,7 @@ TEST_F(basic_stl, dp_stop_event) {
 
      std::vector<TrexStream *> streams;
 
-     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,0);
+     TrexStream * stream1 = new TrexStream(TrexStream::stSINGLE_BURST,0,"_",0);
      stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
      stream1->set_single_burst(100);
 
@@ -4288,7 +4288,7 @@ TEST_F(basic_stl, graph_generator1) {
     TrexStream *stream;
 
      /* stream 1 */
-     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, 1);
+     stream = new TrexStream(TrexStream::stSINGLE_BURST, 0, "_", 1);
      stream->m_enabled = true;
      stream->m_self_start = true;
 
@@ -4303,7 +4303,7 @@ TEST_F(basic_stl, graph_generator1) {
      streams.push_back(stream);
 
      /* stream 2 */
-     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
+     stream = new TrexStream(TrexStream::stMULTI_BURST, 0, "_", 2);
      stream->m_enabled = true;
      stream->m_self_start = false;
 
@@ -4315,7 +4315,7 @@ TEST_F(basic_stl, graph_generator1) {
      streams.push_back(stream);
 
      /* stream 3 */
-     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, 3);
+     stream = new TrexStream(TrexStream::stCONTINUOUS, 0, "_", 3);
      stream->m_enabled = true;
      stream->m_self_start = true;
 
@@ -4345,7 +4345,7 @@ TEST_F(basic_stl, graph_generator2) {
     TrexStream *stream;
 
     /* add some multi burst streams */
-    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 1);
+    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, "_", 1);
     stream->m_enabled = true;
     stream->m_self_start = true;
 
@@ -4364,7 +4364,7 @@ TEST_F(basic_stl, graph_generator2) {
     /* another multi burst stream but with a shorter burst ( less 2 ms ) and
        higher ibg (2 ms) , one milli for each side
      */
-    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, 2);
+    stream = new TrexStream(TrexStream::stMULTI_BURST, 0, "_", 2);
     stream->m_enabled = true;
     stream->m_self_start = true;
 
@@ -4527,7 +4527,7 @@ TEST_F(basic_stl, vm_split_flow_var_inc) {
 
     VmSplitTest split("stl_vm_split_flow_var_inc.erf");
 
-    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, "_", 0);
     stream.set_single_burst(1000);
     stream.set_rate(TrexStreamRate::RATE_PPS,100000);
 
@@ -4540,7 +4540,7 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
     /* small range */
     VmSplitTest split("stl_vm_split_flow_var_small_range.erf");
 
-    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, "_", 0);
     stream.set_single_burst(1000);
     stream.set_rate(TrexStreamRate::RATE_PPS,100000);
 
@@ -4554,7 +4554,7 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
 TEST_F(basic_stl, vm_split_flow_var_big_range) {
     VmSplitTest split("stl_vm_split_flow_var_big_range.erf");
 
-    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, "_", 0);
     stream.set_single_burst(1000);
     stream.set_rate(TrexStreamRate::RATE_PPS,100000);
 
@@ -4569,7 +4569,7 @@ TEST_F(basic_stl, vm_split_flow_var_big_range) {
 TEST_F(basic_stl, vm_split_client_var) {
      VmSplitTest split("stl_vm_split_client_var.erf");
 
-    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, "_", 0);
     stream.set_single_burst(1000);
     stream.set_rate(TrexStreamRate::RATE_PPS,100000);
 
@@ -4728,9 +4728,9 @@ TEST_F(flow_stat, add_del_stream) {
         0x1, 0x2, 0x3, 0x4
     };
 
-    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
-    TrexStream stream2(TrexStream::stSINGLE_BURST, 0, 0);
-    TrexStream stream3(TrexStream::stSINGLE_BURST, 0, 0);
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, "_", 0);
+    TrexStream stream2(TrexStream::stSINGLE_BURST, 0, "_", 0);
+    TrexStream stream3(TrexStream::stSINGLE_BURST, 0, "_", 0);
 
     stream.m_rx_check.m_enabled = true;
 
