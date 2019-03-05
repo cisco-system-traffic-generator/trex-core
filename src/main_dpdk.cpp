@@ -5519,8 +5519,16 @@ void CPhyEthIF::_conf_queues(uint16_t tx_qs,
     if ( in_astf_mode ) {
         tx_offloads |= cfg.tx_offloads.astf_best_effort;
     }
+
+    /* we don't want to enable this in Stateless as mlx5 will have a big performance effect
+    other driver enable this without asking  */
+    if (get_mode()->get_opt_mode() != OP_MODE_STL){
+        tx_offloads |= DEV_TX_OFFLOAD_VLAN_INSERT;
+    }
+
     // disable non-supported best-effort offloads
     tx_offloads &= dev_info->tx_offload_capa;
+
 
     tx_offloads |= cfg.tx_offloads.common_required;
 
