@@ -19,7 +19,7 @@ TEST_PKT_DEF = [
         layer_def("TCP", sport="443")
         ]
 
-TEST_DNS_PKT = Ether(src='00:16:ce:6e:8b:24', dst='00:05:5d:21:99:4c', type=2048)/IP(frag=0L, src='192.168.0.114', proto=17, tos=0, dst='205.152.37.23', chksum=26561, len=59, options=[], version=4L, flags=0L, ihl=5L, ttl=128, id=7975)/UDP(dport=53, sport=1060, len=39, chksum=877)/DNS(aa=0L, qr=0L, an=None, ad=0L, nscount=0, qdcount=1, ns=None, tc=0L, rd=1L, arcount=0, ar=None, opcode=0L, ra=0L, cd=0L, z=0L, rcode=0L, id=6159, ancount=0, qd=DNSQR(qclass=1, qtype=1, qname='wireshark.org.'))
+TEST_DNS_PKT = Ether(src='00:16:ce:6e:8b:24', dst='00:05:5d:21:99:4c', type=2048)/IP(frag=0, src='192.168.0.114', proto=17, tos=0, dst='205.152.37.23', chksum=26561, len=59, options=[], version=4, flags=0, ihl=5, ttl=128, id=7975)/UDP(dport=53, sport=1060, len=39, chksum=877)/DNS(aa=0, qr=0, an=None, ad=0, nscount=0, qdcount=1, ns=None, tc=0, rd=1, arcount=0, ar=None, opcode=0, ra=0, cd=0, z=0, rcode=0, id=6159, ancount=0, qd=DNSQR(qclass=1, qtype=1, qname='wireshark.org.'))
 
 TEST_DNS_PKT_B64 = (
     "1MOyoQIABAAAAAAAAAAAAP//AAABAAAAdzmERaAVAwBJAAAASQAAAAAFXSGZTAAWzm6LJAgARQAA"
@@ -94,6 +94,16 @@ def test_reconstruct_dns_packet():
     dns_id = dns['fields'][0]
     assert(dns_id["value"] == 777)
     assert("offset" in dns_id)
+
+def test_reconstruct_dns_packet_expr():
+    pkt_data = reconstruct_pkt(base64.b64encode(bytes(TEST_DNS_PKT)), None)
+    pkt = build_pkt_to_scapy(pkt_data)
+    query = pkt[DNS].qd
+    print(query.qname)
+    assert(query.qname == b"wireshark.org.")
+    assert(query.qtype == 1)
+    assert(query.qclass == 1)
+
 
 def test_build_invalid_structure_pkt():
     # Scapy depends on /etc/ethertypes
@@ -366,7 +376,7 @@ def test_generate_vm_instructions():
     assert(src_instruction['min_value'] == 3232235530)
     assert(src_instruction['max_value'] == 3232235620)
 
-    ttl_instruction = res['field_engine']['instructions']['instructions'][2]
+    ttl_instruction = res['field_engine']['instructions']['instructions'][1]
     assert(ttl_instruction['min_value'] == 32)
     assert(ttl_instruction['max_value'] == 64)
 

@@ -14,8 +14,11 @@ from scapy.all import *
 service = Scapy_service()
 v_handler = service.get_version_handler('1','02')
 
+def _decode_if_required(data):
+    return data.decode('utf-8') if is_python(3) and type(data) is bytes else data
+
 def pretty_json(obj):
-    return json.dumps(obj, indent=4)
+    return json.dumps(_decode_if_required(obj), indent=4)
 
 def pprint(obj):
     print(pretty_json(obj))
@@ -98,5 +101,5 @@ def get_templates():
 def get_template_by_id(templateId):
     params = {"id": templateId}
     template_b64 = service.get_template(v_handler, params)
-    return pass_result(base64.b64decode(template_b64))
+    return _decode_if_required(pass_result(base64.b64decode(template_b64)))
 
