@@ -108,7 +108,9 @@ class TrexStreamsCompiledObj {
 
 public:
 
-    TrexStreamsCompiledObj(uint8_t port_id);
+    TrexStreamsCompiledObj(uint8_t port_id, uint32_t profile_id);
+    TrexStreamsCompiledObj(uint8_t port_id) : TrexStreamsCompiledObj(port_id, 0) {
+    }
     ~TrexStreamsCompiledObj();
 
     struct obj_st {
@@ -121,6 +123,10 @@ public:
 
     uint8_t get_port_id(){
         return (m_port_id);
+    }
+
+    uint8_t get_profile_id(){
+        return (m_profile_id);
     }
 
     bool get_all_streams_continues(){
@@ -155,6 +161,7 @@ private:
 
     bool    m_all_continues;
     uint8_t m_port_id;
+    uint8_t m_profile_id;
 };
 
 class TrexStreamsCompiler {

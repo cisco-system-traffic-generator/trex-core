@@ -146,8 +146,9 @@ private:
 /**************************************
  * stream compiled object
  *************************************/
-TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id) {
+TrexStreamsCompiledObj::TrexStreamsCompiledObj(uint8_t port_id, uint32_t profile_id) {
     m_port_id = port_id;
+    m_profile_id = profile_id;
     m_all_continues = false;
 }
 
@@ -173,7 +174,7 @@ TrexStreamsCompiledObj::add_compiled_stream(TrexStream *stream){
 TrexStreamsCompiledObj *
 TrexStreamsCompiledObj::clone() {
 
-    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id);
+    TrexStreamsCompiledObj *new_compiled_obj = new TrexStreamsCompiledObj(m_port_id, m_profile_id);
 
     /**
      * clone each element

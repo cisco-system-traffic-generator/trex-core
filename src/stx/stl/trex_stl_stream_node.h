@@ -133,13 +133,14 @@ private:
     uint16_t             m_cache_size;   /*RO*/ /* the size of the mbuf array */
     uint8_t              m_batch_size;   /*RO*/ /* the batch size */
     uint8_t              m_port_id;
+    uint32_t             m_profile_id;
 
     uint16_t             m_pad5; 
 
     /* End Fast Field VM Section */
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[12];
+    uint8_t             m_pad_end[8];
 
     /* CACHE_LINE */
     uint64_t            m_pad3[8];
@@ -151,6 +152,9 @@ public:
         return (m_port_id);
     }
 
+    uint32_t            get_profile_id() {
+        return (m_profile_id);
+    }
 
     /**
      * calculate the time offset based 
@@ -618,7 +622,7 @@ public:
                             
         } else {
             TrexStatelessDpCore *stl_dp_core = (TrexStatelessDpCore *)thread->get_dp_core();
-            stl_dp_core->stop_traffic(get_port_id(), false, 0);
+            stl_dp_core->stop_traffic(get_port_id(), 0, false, 0);
         }
     }
 
