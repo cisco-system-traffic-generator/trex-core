@@ -21,6 +21,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+void print_alloc_err(bool is_hugepages) {
+    if (is_hugepages) {
+        printf(" ERROR there is not enough huge-pages memory in your system\n");
+    } else {
+        printf(" ERROR could not allocate memory for mbufs\n");
+        printf("    Either:\n");
+        printf("       * Check free memory in your system\n");
+        printf("       * Add 'limit_memory' to trex_cfg.yaml (units are MB)\n");
+        printf("       * Add --mbuf-factor to CLI\n");
+    }
+}
 
 rte_mempool_t * utl_rte_mempool_create(const char  *name,
                                        unsigned n, 
@@ -40,13 +51,9 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
                    rte_pktmbuf_pool_init, NULL,
                    rte_pktmbuf_init, NULL,
                    socket_id, flags);
-    if (res == NULL){
-        if (is_hugepages) {
-            printf(" ERROR there is not enough huge-pages memory in your system \n");
-        } else {
-            printf(" ERROR there is not enough free memory in your system \n");
-        }
-        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool %s\n",name);
+    if (res == NULL) {
+        print_alloc_err(is_hugepages);
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool %s\n", name);
     }
     return res;
 }
@@ -80,12 +87,8 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
                            NULL, NULL,
                            socket_id, flags);
     if (res == NULL) {
-        if (is_hugepages) {
-            printf(" ERROR there is not enough huge-pages memory in your system \n");
-        } else {
-            printf(" ERROR there is not enough free memory in your system \n");
-        }
-        rte_exit(EXIT_FAILURE, "Cannot init nodes mbuf pool %s\n",name);
+        print_alloc_err(is_hugepages);
+        rte_exit(EXIT_FAILURE, "Cannot init nodes mbuf pool %s\n", name);
     }
     return res;
 }
