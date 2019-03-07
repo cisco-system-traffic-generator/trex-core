@@ -231,6 +231,11 @@ public:
 
     virtual bool rx_for_idle(void);
 
+    virtual bool is_hot_state();
+
+    inline void enable_hot_state() {m_hot_state = true;}
+    inline void disable_hot_state() {m_hot_state = false;}
+
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
     void rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch);
@@ -284,6 +289,8 @@ private:
     ServiceModeWrapper        *m_wrapper;
     bool                       m_is_service_mode;
     CFlowStatParser *          m_parser;
+
+    bool                       m_hot_state;
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */

@@ -961,7 +961,11 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
 
-        send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        if (get_dpdk_mode()->dp_rx_queues()) {
+            get_stateless_obj()->enable_hot_state();
+        } else {
+            send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        }
 
         //also good time to zero global counters
         memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
@@ -1076,9 +1080,12 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
         DEBUG_PRINT("  Sending stop message to rx\n");
-        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+        if (get_dpdk_mode()->dp_rx_queues()) {
+            get_stateless_obj()->disable_hot_state();
+        } else {
+            send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+        }
     }
-
     return ret;
 }
 

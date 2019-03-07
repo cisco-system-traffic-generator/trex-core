@@ -282,6 +282,28 @@ TrexStateless::init_stats_rx() {
     m_stats = new TrexStatelessRxFSLatencyStats(get_stl_rx());
 }
 
+void
+TrexStateless::enable_hot_state(){
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpEnableHotState(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+}
+
+void
+TrexStateless::disable_hot_state(){
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpDisableHotState(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+}
+
 TrexStatelessFSLatencyStats* TrexStateless::get_stats() {
     assert(m_stats);
     return m_stats;

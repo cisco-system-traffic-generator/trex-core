@@ -81,18 +81,27 @@ TrexDpCore::idle_state_loop() {
         }
 
         /* enter deep sleep only if enough time had passed */
-        if (counter < DEEP_SLEEP_LIMIT) {
-            delay(SHORT_DELAY_MS);
-            counter++;
+        bool hot = is_hot_state();
+        if (!hot) {
+            if (counter < DEEP_SLEEP_LIMIT) {
+                delay(SHORT_DELAY_MS);
+                counter++;
+            } else {
+                delay(LONG_DELAY_MS);
+            }
         } else {
-            delay(LONG_DELAY_MS);
+            rte_pause_or_delay_lowend();
         }
-
     }
 }
 
 bool
 TrexDpCore::rx_for_idle(void) {
+    return false;
+}
+
+bool
+TrexDpCore::is_hot_state() {
     return false;
 }
 
