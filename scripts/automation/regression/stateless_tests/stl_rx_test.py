@@ -43,7 +43,10 @@ class STLRX_Test(CStlGeneral_Test):
         drv_name = port_info['driver']
         self.drv_name = drv_name
 
-        self.num_cores = self.c.get_server_system_info().get('dp_core_count', 'Unknown')
+        system_info = self.c.get_server_system_info()
+        self.num_cores = system_info.get('dp_core_count', 'Unknown')
+        self.is_multiqueue_mode = system_info.get('is_multiqueue_mode', False)
+        self.is_vxlan_supported = system_info['ports'][0]['is_vxlan_supported']
         mbufs = self.c.get_util_stats()['mbuf_stats']
         # currently in MLX drivers, we use 9k mbufs for RX, so we can't use all of them for TX.
         if self.drv_name == 'net_mlx5':
@@ -121,6 +124,12 @@ class STLRX_Test(CStlGeneral_Test):
                          ,cache_size =255 # Cache is ignored by latency flows. Need to test it is not crashing.
                          );
 
+        vm_without_cache = STLScVmRaw( [ STLVmFlowVar ( "ip_src",  min_value="10.0.0.1",
+                                          max_value="10.0.0.255", size=4, step=1,op="inc"),
+                           STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ), # write ip to packet IP.src
+                           STLVmFixIpv4(offset = "IP")                                # fix checksum
+                          ])
+
         vm_random_size = STLScVmRaw( [ STLVmFlowVar(name="fv_rand", min_value=100, max_value=1500, size=2, op="random"),
                            STLVmTrimPktSize("fv_rand"), # total packet size
                            STLVmWrFlowVar(fv_name="fv_rand", pkt_offset= "IP.len", add_val=-14), # fix ip len
@@ -130,6 +139,7 @@ class STLRX_Test(CStlGeneral_Test):
                        )
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+        self.pkt_with_vm = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'), vm=vm_without_cache)
         self.vlan_pkt = STLPktBuilder(pkt = Ether()/Dot1Q()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.qinq_pkt = STLPktBuilder(pkt = Ether(type=0x88A8)/Dot1Q(vlan=19)/Dot1Q(vlan=11)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
         self.ipv6pkt = STLPktBuilder(pkt = Ether()/IPv6(dst="2001:0:4137:9350:8000:f12a:b9c8:2815",src="2001:4860:0:2001::68")
@@ -151,6 +161,7 @@ class STLRX_Test(CStlGeneral_Test):
         # skip mlx5 VF
         self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
         self.mlx5_defect_dpdk1711_trex_518 = CTRexScenario.setup_name in ['trex19','trex07']
+        self.i40e_vf_defect_github_200 = CTRexScenario.setup_name in ['trex22']
         #self.mlx5_defect_dpdk1711_3 =False
 
 
@@ -161,7 +172,6 @@ class STLRX_Test(CStlGeneral_Test):
         #      ---------
         # we don't have control on the PF that change the way it count the packets +CRC so we disable the test
         #
-        self.i40e_vf_setup_disable = CTRexScenario.setup_name in ['trex22']
 
         self.errs = []
 
@@ -364,8 +374,6 @@ class STLRX_Test(CStlGeneral_Test):
     # one stream on TX --> RX
     @try_few_times_on_vm
     def test_one_stream(self):
-        if self.drv_name == 'net_i40e_vf':
-            self.skip('Not running on i40 vf currently due to trex-513 ')
 
         total_pkts = self.total_pkts
         self.c.reset()
@@ -394,8 +402,6 @@ class STLRX_Test(CStlGeneral_Test):
         if self.mlx5_defect_dpdk1711_trex_518:
             self.skip('Skip for mlx5_defect_dpdk1711_trex_518')
 
-        if self.drv_name == 'net_i40e_vf':
-            self.skip('Not running on i40 vf currently')
         self._test_multiple_streams(True)
 
     def _test_multiple_streams(self, is_random):
@@ -513,18 +519,25 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
-        if self.i40e_vf_setup_disable:
-            self.skip('i40e_vf_setup_disable')
 
         total_pkts = self.total_pkts
-        streams_data = [
+        latency_with_vm_streams_data = [
             {'name': 'Latency, with field engine of random packet size', 'pkt': self.vm_rand_size_pkt, 'lat': True},
-            {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
-            {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
             {'name': 'Latency, short packet with field engine', 'pkt': self.vm_pkt, 'lat': True},
             {'name': 'Latency, large packet field engine', 'pkt': self.vm_large_pkt, 'lat': True},
             {'name': 'Latency, 9k packet with field engine', 'pkt': self.vm_9k_pkt, 'lat': True}
         ]
+        basic_streams_data = [
+            {'name': 'Flow stat. No latency', 'pkt': self.pkt, 'lat': False},
+            {'name': 'Latency, no field engine', 'pkt': self.pkt, 'lat': True},
+        ]
+
+        if self.is_multiqueue_mode:
+            basic_streams_data[0]['pkt'] = self.pkt_with_vm # add vm to the pkt so rss can distribute to all cores.
+            streams_data = basic_streams_data
+        else:
+            streams_data = latency_with_vm_streams_data + basic_streams_data
+
         if self.vlan_support:
             streams_data.append({'name': 'Flow stat with vlan. No latency', 'pkt': self.vlan_pkt, 'lat': False})
 
@@ -757,8 +770,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_fcs_stream(self):
-        if self.i40e_vf_setup_disable:
-            self.skip('Skip for vf_setup')
+        if self.i40e_vf_defect_github_200:
+            self.skip('Skip for i40e_vf setup')
 
         """ this test send 1 64 byte packet with latency and check that all counters are reported as 64 bytes"""
         ports = list(CTRexScenario.ports_map['map'].keys())
@@ -771,9 +784,6 @@ class STLRX_Test(CStlGeneral_Test):
     def test_incremental_latency_streams (self):
         if self.mlx5_defect_dpdk1711_3:
             self.skip('Skip for mlx5_defect_dpdk1711_3')
-
-        if self.i40e_vf_setup_disable:
-            self.skip('Skip for vf_setup')
 
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
@@ -829,8 +839,9 @@ class STLRX_Test(CStlGeneral_Test):
         percent = min(20, self.speed * 0.8) # 8G at X710 and 20G at XL710
         total_pkts = 300000000              # send 300 million packets to ensure getting to threshold of reset several times
 
+        pkt = self.pkt_with_vm if self.is_multiqueue_mode else self.pkt
         s1 = STLStream(name = 'wrapping_stream',
-                       packet = self.pkt,
+                       packet = pkt,
                        flow_stats = STLFlowStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts,
                                                percentage = percent))
@@ -872,6 +883,10 @@ class STLRX_Test(CStlGeneral_Test):
 
     # VXLAN tunnel and flow stats
     def test_vxlan_fs(self):
+
+        if not self.is_vxlan_supported:
+            self.skip('VXLAN is not supported.')
+
         c = self.c
         with assert_raises(TRexTypeError):
             c.set_port_attr(vxlan_fs = 'qq')

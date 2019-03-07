@@ -562,11 +562,13 @@ class CTRexGeneral_Test(unittest.TestCase):
             },
 
             'net_i40e_vf': {
-                'rate_percent': 10,
+                'rate_percent': 20,
                 'rate_percent_soft': 1,
                 'total_pkts': 1000,
                 'rate_latency': 1,
-                'latency_9k_enable': False,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 300,
+                'latency_9k_max_latency': 750,
                 'no_vlan_even_in_software_mode': True,
             },
 
