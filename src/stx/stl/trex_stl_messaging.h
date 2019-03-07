@@ -352,6 +352,27 @@ public:
     bool handle (CRxCore *rx_core);
 };
 
+class TrexStatelessDpEnableHotState : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpEnableHotState(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpDisableHotState: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpDisableHotState(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
 
 
 #endif /* __TREX_STL_MESSAGING_H__ */

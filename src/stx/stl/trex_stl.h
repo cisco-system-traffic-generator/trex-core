@@ -136,8 +136,14 @@ public:
         return static_cast<CRxCore *>(m_rx);
     }
 
+
     void init_stats_multiqueue(const std::vector<TrexStatelessDpCore*>& dp_core_ptrs);
+
     void init_stats_rx();
+
+    void enable_hot_state();
+
+    void disable_hot_state();
 
     TrexStatelessFSLatencyStats* get_stats();
 

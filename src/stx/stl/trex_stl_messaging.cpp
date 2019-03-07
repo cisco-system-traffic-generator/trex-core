@@ -332,3 +332,28 @@ bool TrexStatelessRxDisableLatency::handle (CRxCore *rx_core) {
     return true;
 }
 
+bool TrexStatelessDpEnableHotState::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->enable_hot_state();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpEnableHotState::clone() {
+    TrexStatelessDpEnableHotState *new_msg = new TrexStatelessDpEnableHotState(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpDisableHotState::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->disable_hot_state();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpDisableHotState::clone() {
+    TrexStatelessDpDisableHotState *new_msg = new TrexStatelessDpDisableHotState(m_reply);
+    return new_msg;
+}
