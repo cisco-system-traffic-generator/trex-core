@@ -940,27 +940,23 @@ class STLClient(TRexClient):
 
 
 
-    def __push_remote (self, pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec):
+    def __push_remote (self, pcap_filename, port_id_list, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec):
 
         rc = RC()
 
-        for port in ports:
-            slave_port = parse_a_dual_port(port)
-            if isinstance(slave_port, STL_PORT_INFO):
-                slave_port = slave_port.port_id
+        for port_id in port_id_list:
 
             # for dual, provide the slave handler as well
-            slave_handler = self.ports[slave_port].handler if is_dual else ""
+            slave_handler = self.ports[port_id ^ 0x1].handler if is_dual else ""
 
-            rc.add(self._for_each_port("push_remote", port,
-                                                      pcap_filename,
-                                                      ipg_usec,
-                                                      speedup,
-                                                      count,
-                                                      duration,
-                                                      is_dual,
-                                                      slave_handler,
-                                                      min_ipg_usec))
+            rc.add(self.ports[port_id].push_remote(pcap_filename,
+                                                   ipg_usec,
+                                                   speedup,
+                                                   count,
+                                                   duration,
+                                                   is_dual,
+                                                   slave_handler,
+                                                   min_ipg_usec))
 
         return rc
 
@@ -1020,8 +1016,6 @@ class STLClient(TRexClient):
         """
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self.__pre_start_check('PUSH', ports, force)
-        port_id_list = parse_physical_port_ids(ports)
-        logical_id_list = parse_logical_port_ids(ports)
 
         validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
@@ -1033,9 +1027,9 @@ class STLClient(TRexClient):
 
         # if force - stop any active ports
         if force:
-            active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+            active_ports = list(set(self.get_active_ports()).intersection(ports))
             if active_ports:
-                self.stop(ports)
+                self.stop(active_ports)
                 
         # for dual mode check that all are masters
         if is_dual:
@@ -1044,26 +1038,16 @@ class STLClient(TRexClient):
 
             for port in ports:
                 master = port
-                slave = parse_a_dual_port(port)
-                slave_name = slave
-                slave_port = slave
+                slave = port ^ 0x1
 
-                if isinstance(slave, int):
-                    master = str(port)
-                    slave_name = str(slave)
-                    slave_port = slave
-                if isinstance(slave, STL_PORT_INFO):
-                    master = port.port_name
-                    slave_name = slave.port_name
-                    slave_port = slave.port_id
+                if slave in ports:
+                    raise TRexError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
-                if slave_name in logical_id_list:
-                    raise TRexError("dual mode: cannot provide adjacent ports ({0}, {1}) in a batch".format(master, slave_name))
+                if slave not in self.get_acquired_ports():
+                    raise TRexError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
-                if slave_port not in self.get_acquired_ports():
-                    raise TRexError("dual mode: adjacent port {0} must be owned during dual mode".format(slave_port))
 
-        self.ctx.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(logical_id_list))
+        self.ctx.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
         rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec)
         self.ctx.logger.post_cmd(rc)
 
@@ -1136,8 +1120,6 @@ class STLClient(TRexClient):
         """
         ports = ports if ports is not None else self.get_acquired_ports()
         ports = self.__pre_start_check('PUSH', ports, force)
-        port_id_list = parse_physical_port_ids(ports)
-        logical_id_list = parse_logical_port_ids(ports)
 
         validate_type('pcap_filename', pcap_filename, basestring)
         validate_type('ipg_usec', ipg_usec, (float, int, type(None)))
@@ -1152,9 +1134,10 @@ class STLClient(TRexClient):
 
         # if force - stop any active ports
         if force:
-            active_ports = list(set(self.get_active_ports()).intersection(port_id_list))
+            active_ports = list(set(self.get_active_ports()).intersection(ports))
             if active_ports:
-                self.stop(ports)
+                self.stop(active_ports)
+
 
         # no support for > 1MB PCAP - use push remote
         file_size = os.path.getsize(pcap_filename)
@@ -1166,24 +1149,13 @@ class STLClient(TRexClient):
         if is_dual:
             for port in ports:
                 master = port
-                slave = parse_a_dual_port(port)
-                slave_name = slave
-                slave_port = slave
+                slave = port ^ 0x1
 
-                if isinstance(slave, int):
-                    master = str(port)
-                    slave_name = str(slave)
-                    slave_port = slave
-                if isinstance(slave, STL_PORT_INFO):
-                    master = port.port_name
-                    slave_name = slave.port_name
-                    slave_port = slave.port_id
+                if slave in ports:
+                    raise TRexError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave))
 
-                if slave_name in logical_id_list:
-                    raise TRexError("dual mode: please specify only one of adjacent ports ({0}, {1}) in a batch".format(master, slave_name))
-
-                if slave_port not in self.get_acquired_ports():
-                    raise TRexError("dual mode: adjacent port {0} must be owned during dual mode".format(slave_port))
+                if slave not in self.get_acquired_ports():
+                    raise TRexError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
         # regular push
         if not is_dual:
@@ -1202,6 +1174,7 @@ class STLClient(TRexClient):
             except TRexError as e:
                 self.ctx.logger.post_cmd(RC_ERR(e))
                 raise
+
 
             self.remove_all_streams(ports = ports)
             id_list = self.add_streams(profile.get_streams(), ports)
@@ -1232,15 +1205,13 @@ class STLClient(TRexClient):
                 self.ctx.logger.post_cmd(RC_ERR(e))
                 raise
 
-            all_ports = ports
-            if profile_b:
-                all_ports = ports + parse_dual_ports(ports)
+            all_ports = ports + [p ^ 0x1 for p in ports if profile_b]
 
             self.remove_all_streams(ports = all_ports)
 
             for port in ports:
                 master = port
-                slave = parse_a_dual_port(port)
+                slave = port ^ 0x1
 
                 self.add_streams(profile_a.get_streams(), master)
                 if profile_b:
