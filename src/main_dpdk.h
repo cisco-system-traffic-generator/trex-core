@@ -79,6 +79,7 @@ class CPhyEthIF  {
         m_stats_err_cnt  = 0;
         m_is_dummy       = false;
         m_dev_tx_offload_needed =0;
+        m_stats.Clear();
     }
     virtual ~CPhyEthIF() {}
     bool Create(tvpid_t  tvpid,
