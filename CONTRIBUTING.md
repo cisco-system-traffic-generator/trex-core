@@ -47,7 +47,7 @@ General Best Practices:
  2. make changes in your own fork on a narrowly focussed branch
  3. squash commits
  4. submit a pull-request
- 5. follow (https://github.com/cisco-system-traffic-generator/trex-core/wiki#how-to-contribute)[how-to-contribute]
+ 5. follow https://github.com/cisco-system-traffic-generator/trex-core/wiki#how-to-contribute 
  
 
 Active developers assigned to the project will triage and moderate pull requests.
