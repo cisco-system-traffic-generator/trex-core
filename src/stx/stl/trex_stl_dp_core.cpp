@@ -530,43 +530,53 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
     return (false);
 }
 
-bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
+bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id, uint32_t profile_id){
 
     /* we are working with continues streams so we must be in transmit mode */
-    assert(m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE);
+    assert((m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE) ||
+           (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING));
 
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         //assert(node->is_pause() == true); <- we can't be sure of this with ability to pause specific streams.
-        node->set_pause(false);
+        if (((profile_id == 0) || (node->get_profile_id() == profile_id)) && node->is_pause()) {
+            node->set_pause(false);
+            m_paused_streams--;
+        }
     }
-    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    if (m_paused_streams < m_active_streams)
+        m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
     return (true);
 }
 
 bool TrexStatelessDpPerPort::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING) ||
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE) );
 
     uint32_t done_count = 0;
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
-            node->set_pause(false);
+            if (node->is_pause()) {
+                node->set_pause(false);
+                m_paused_streams--;
+            }
             done_count++;
             if ( done_count == stream_ids.size() ) {
                 break;
             }
         }
     }
+    if (m_paused_streams < m_active_streams)
+        m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
     // TODO: return feedback if done_count != stream_ids.size()
     return (true);
 }
 
-bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
+bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
 
     assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
             (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
@@ -576,7 +586,8 @@ bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
         assert(node->get_port_id() == port_id);
 
         if (! node->is_latency_stream()) {
-            node->update_rate(factor);
+            if ((profile_id == 0) || (node->get_profile_id() == profile_id))
+                node->update_rate(factor);
         }
     }
 
@@ -610,7 +621,7 @@ bool TrexStatelessDpPerPort::update_streams(uint8_t port_id, stream_ipgs_map_t &
     return (true);
 }
 
-bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
+bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id, uint32_t profile_id){
 
     /* we are working with continues streams so we must be in transmit mode */
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING);
@@ -619,29 +630,38 @@ bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         //assert(node->is_pause() == false); <- we can't be sure of this with ability to pause specific streams.
-        node->set_pause(true);
+        if (((profile_id == 0) || (node->get_profile_id() == profile_id)) && !node->is_pause()) {
+            node->set_pause(true);
+            m_paused_streams++;
+        }
     }
-    m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
+    if (m_paused_streams == m_active_streams)
+        m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
     return (true);
 }
 
 bool TrexStatelessDpPerPort::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING) ||
+            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE) );
 
     uint32_t done_count = 0;
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
-            node->set_pause(true);
+            if (!node->is_pause()) {
+                node->set_pause(true);
+                m_paused_streams++;
+            }
             done_count++;
             if ( done_count == stream_ids.size() ) {
                 break;
             }
         }
     }
+    if (m_paused_streams == m_active_streams)
+        m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
     return (true);
 }
 
@@ -702,6 +722,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
 
 
 bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
+                                          uint32_t profile_id,
                                           bool     stop_on_id,
                                           int      event_id){
 
@@ -719,18 +740,23 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
         }
     }
 
-    for (auto dp_stream : m_active_nodes) {
+    for (auto& dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
+        if (profile_id && (node->get_profile_id() != profile_id))
+            continue;
+
         if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
             node->mark_for_free();
             m_active_streams--;
             dp_stream.DeleteOnlyStream();
-
         }else{
             dp_stream.Delete(m_core);
         }
     }
+    /* remove all elements from m_active_nodes */
+    auto it = std::remove_if(m_active_nodes.begin(), m_active_nodes.end(), [](CDpOneStream& x) {return x.m_dp_stream == NULL;});
+    m_active_nodes.erase(it, m_active_nodes.end());
 
     /* check for active PCAP node */
     if (m_active_pcap_node) {
@@ -746,9 +772,10 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
     }
 
     /* active stream should be zero */
-    assert(m_active_streams==0);
-    m_active_nodes.clear();
-    m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
+    if (m_active_streams == 0) {
+        m_active_nodes.clear();
+        m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
+    }
     return (true);
 }
 
@@ -757,6 +784,7 @@ void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
     m_core=core;
     m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
     m_active_streams=0;
+    m_paused_streams=0;
     m_active_nodes.clear();
     m_active_pcap_node = NULL;
 }
@@ -827,7 +855,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
     if ( to_stop_port ) {
         /* call stop port explictly to move the state */
-        stop_traffic(cur_node->m_port_id,false,0);
+        stop_traffic(cur_node->m_port_id,cur_node->m_profile_id,false,0);
     }
 
     return ( schedule );
@@ -942,6 +970,7 @@ void TrexStatelessDpCore::rx_handle_packet(int dir,
 void
 TrexStatelessDpCore::add_port_duration(double duration,
                                        uint8_t port_id,
+                                       uint32_t profile_id,
                                        int event_id){
     if (duration > 0.0) {
         CGenNodeCommand *node = (CGenNodeCommand *)m_core->create_node() ;
@@ -951,7 +980,7 @@ TrexStatelessDpCore::add_port_duration(double duration,
         /* make sure it will be scheduled after the current node */
         node->m_time = m_core->m_cur_time_sec + duration ;
 
-        TrexStatelessDpStop * cmd=new TrexStatelessDpStop(port_id);
+        TrexStatelessDpStop * cmd=new TrexStatelessDpStop(port_id, profile_id);
 
 
         /* test this */
@@ -1040,6 +1069,7 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
 
 void
 TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
+                                uint32_t profile_id,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp,
                                 double start_at_ts) {
@@ -1047,6 +1077,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     CGenNodeStateless *node = (CGenNodeStateless*)m_core->create_node();
 
     node->m_thread_id = m_thread_id;
+    node->m_profile_id = profile_id;
     node->cache_mbuf_array_init();
     node->m_batch_size=0;
 
@@ -1237,13 +1268,13 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
+                                   uint32_t profile_id,
                                    double duration,
                                    int event_id,
                                    double start_at_ts) {
 
 
     TrexStatelessDpPerPort * lp_port=get_port_db(obj->get_port_id());
-    lp_port->m_active_streams = 0;
     lp_port->set_event_id(event_id);
 
     double schd_offset = get_dpdk_mode()->dp_rx_queues()?
@@ -1256,15 +1287,15 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     }
 
     /* no nodes in the list */
-    assert(lp_port->m_active_nodes.size()==0);
+    uint32_t base_node = lp_port->m_active_nodes.size();
 
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
         assert(obj->get_port_id() == single_stream.m_stream->m_port_id);
-        add_stream(lp_port,single_stream.m_stream,obj,start_at_ts);
+        add_stream(lp_port,profile_id,single_stream.m_stream,obj,start_at_ts);
     }
 
-    uint32_t nodes = lp_port->m_active_nodes.size();
+    uint32_t nodes = lp_port->m_active_nodes.size() - base_node;
     /* find next stream */
     assert(nodes == obj->get_objects().size());
 
@@ -1277,7 +1308,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
             int stream_id = single_stream.m_stream->m_next_stream_id;
             assert(stream_id<nodes);
             /* point to the next stream , stream_id is fixed */
-            lp_port->m_active_nodes[cnt].m_node->m_next_stream = lp_port->m_active_nodes[stream_id].m_node ;
+            lp_port->m_active_nodes[base_node+cnt].m_node->m_next_stream = lp_port->m_active_nodes[base_node+stream_id].m_node ;
         }
         cnt++;
     }
@@ -1287,7 +1318,7 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
 
 
     if ( duration > 0.0 ){
-        add_port_duration( duration ,obj->get_port_id(),event_id );
+        add_port_duration( duration ,obj->get_port_id(), profile_id, event_id );
     }
 
 }
@@ -1307,10 +1338,10 @@ bool TrexStatelessDpCore::are_all_ports_idle() {
 
 
 void
-TrexStatelessDpCore::resume_traffic(uint8_t port_id){
+TrexStatelessDpCore::resume_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->resume_traffic(port_id);
+    lp_port->resume_traffic(port_id, profile_id);
 
 }
 
@@ -1325,10 +1356,10 @@ TrexStatelessDpCore::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
 
 
 void
-TrexStatelessDpCore::pause_traffic(uint8_t port_id){
+TrexStatelessDpCore::pause_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->pause_traffic(port_id);
+    lp_port->pause_traffic(port_id, profile_id);
 
 }
 
@@ -1370,17 +1401,17 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
 
 
     if (duration > 0.0) {
-        add_port_duration(duration, port_id, event_id);
+        add_port_duration(duration, port_id, 0, event_id);
     }
 
      m_state = TrexStatelessDpCore::STATE_PCAP_TX;
 }
 
 void
-TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
+TrexStatelessDpCore::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->update_traffic(port_id, factor);
+    lp_port->update_traffic(port_id, profile_id, factor);
 
 }
 
@@ -1394,6 +1425,7 @@ TrexStatelessDpCore::update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_
 
 void
 TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                  uint32_t profile_id,
                                   bool     stop_on_id,
                                   int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
@@ -1401,19 +1433,20 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
        the scheduler invokes it, it will be free */
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
+    if ( lp_port->stop_traffic(port_id,profile_id,stop_on_id,event_id) == false){
         return;
     }
 
-    /* flush the TX queue before sending done message to the CP */
-    m_core->flush_tx_queue();
+    if (lp_port->m_active_streams == 0) {
+        /* flush the TX queue before sending done message to the CP */
+        m_core->flush_tx_queue();
 
-    CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
-    TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
-                                                          port_id,
-                                                          lp_port->get_event_id());
-    ring->Enqueue((CGenNode *)event_msg);
-
+        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
+        TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
+                                                              port_id,
+                                                              lp_port->get_event_id());
+        ring->Enqueue((CGenNode *)event_msg);
+    }
 }
 
 

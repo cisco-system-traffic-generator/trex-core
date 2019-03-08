@@ -38,7 +38,9 @@ class CFlowGenListPerThread;
 class TrexStatelessDpStart : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts = 0);
+    TrexStatelessDpStart(uint8_t port_id, uint32_t profile_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts = 0);
+    TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts = 0) : TrexStatelessDpStart(port_id, 0, event_id, obj, duration, start_at_ts) {
+    }
 
     ~TrexStatelessDpStart();
 
@@ -49,6 +51,7 @@ public:
 private:
 
     uint8_t                 m_port_id;
+    uint32_t                m_profile_id;
     int                     m_event_id;
     TrexStreamsCompiledObj *m_obj;
     double                  m_duration;
@@ -61,7 +64,10 @@ private:
 class TrexStatelessDpPause : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpPause(uint8_t port_id) : m_port_id(port_id) {
+    TrexStatelessDpPause(uint8_t port_id, uint32_t profile_id) : m_port_id(port_id), m_profile_id(profile_id) {
+    }
+
+    TrexStatelessDpPause(uint8_t port_id) : TrexStatelessDpPause(port_id, 0) {
     }
 
 
@@ -73,6 +79,7 @@ public:
 
 private:
     uint8_t m_port_id;
+    uint32_t m_profile_id;
 };
 
 class TrexStatelessDpPauseStreams : public TrexCpToDpMsgBase {
@@ -98,7 +105,10 @@ private:
 class TrexStatelessDpResume : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpResume(uint8_t port_id) : m_port_id(port_id) {
+    TrexStatelessDpResume(uint8_t port_id, uint32_t profile_id) : m_port_id(port_id), m_profile_id(profile_id) {
+    }
+
+    TrexStatelessDpResume(uint8_t port_id) : TrexStatelessDpResume(port_id, 0) {
     }
 
 
@@ -110,6 +120,7 @@ public:
 
 private:
     uint8_t m_port_id;
+    uint32_t m_profile_id;
 };
 
 class TrexStatelessDpResumeStreams : public TrexCpToDpMsgBase {
@@ -139,10 +150,13 @@ private:
 class TrexStatelessDpStop : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpStop(uint8_t port_id) : m_port_id(port_id) {
+    TrexStatelessDpStop(uint8_t port_id, uint32_t profile_id) : m_port_id(port_id), m_profile_id(profile_id) {
         m_stop_only_for_event_id=false;
         m_event_id = 0;
         m_core = NULL;
+    }
+
+    TrexStatelessDpStop(uint8_t port_id) : TrexStatelessDpStop(port_id, 0) {
     }
 
     virtual TrexCpToDpMsgBase * clone();
@@ -180,6 +194,7 @@ public:
 
 private:
     uint8_t                   m_port_id;
+    uint32_t                  m_profile_id;
     bool                      m_stop_only_for_event_id;
     int                       m_event_id;
     CFlowGenListPerThread   * m_core ;
@@ -194,9 +209,13 @@ private:
 class TrexStatelessDpUpdate : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpUpdate(uint8_t port_id, double factor)  {
+    TrexStatelessDpUpdate(uint8_t port_id, uint32_t profile_id, double factor)  {
         m_port_id = port_id;
+        m_profile_id = profile_id;
         m_factor  = factor;
+    }
+
+    TrexStatelessDpUpdate(uint8_t port_id, double factor): TrexStatelessDpUpdate(port_id, 0, factor) {
     }
 
     virtual bool handle(TrexDpCore *dp_core);
@@ -205,6 +224,7 @@ public:
 
 private:
     uint8_t  m_port_id;
+    uint32_t m_profile_id;
     double   m_factor;
 };
 

@@ -71,13 +71,13 @@ public:
 
     void create(CFlowGenListPerThread   *  core);
 
-    bool pause_traffic(uint8_t port_id);
+    bool pause_traffic(uint8_t port_id, uint32_t profile_id);
     bool pause_streams(uint8_t port_id, stream_ids_t &stream_ids); // filter by stream IDs, slower
 
-    bool resume_traffic(uint8_t port_id);
+    bool resume_traffic(uint8_t port_id, uint32_t profile_id);
     bool resume_streams(uint8_t port_id, stream_ids_t &stream_ids); // filter by stream IDs, slower
 
-    bool update_traffic(uint8_t port_id, double factor);
+    bool update_traffic(uint8_t port_id, uint32_t profile_id, double factor);
     bool update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream); // filter by stream IDs, slower
 
     bool push_pcap(uint8_t port_id,
@@ -89,6 +89,7 @@ public:
                    bool is_dual);
 
     bool stop_traffic(uint8_t port_id,
+                      uint32_t profile_id,
                       bool stop_on_id, 
                       int event_id);
 
@@ -115,6 +116,7 @@ public:
     state_e                     m_state;
 
     uint32_t                    m_active_streams; /* how many active streams on this port  */
+    uint32_t                    m_paused_streams; /* how many paused streams on this port  */
                                                 
     std::vector<CDpOneStream>   m_active_nodes;   /* holds the current active nodes */
     CGenNodePCAP*               m_active_pcap_node;
@@ -149,19 +151,20 @@ public:
      * @param pkt_len 
      */
     void start_traffic(TrexStreamsCompiledObj *obj, 
+                       uint32_t profile_id,
                        double duration,
                        int event_id,
                        double start_at_ts);
 
 
     /* pause the streams, work only if all are continues  */
-    void pause_traffic(uint8_t port_id);
+    void pause_traffic(uint8_t port_id, uint32_t profile_id);
     void pause_streams(uint8_t port_id, stream_ids_t &stream_ids);
 
 
     void set_need_to_rx(bool enable);
 
-    void resume_traffic(uint8_t port_id);
+    void resume_traffic(uint8_t port_id, uint32_t profile_id);
     void resume_streams(uint8_t port_id, stream_ids_t &stream_ids);
 
 
@@ -186,7 +189,7 @@ public:
      * @author imarom (25-Nov-15)
      * 
      */
-    void update_traffic(uint8_t port_id, double factor);
+    void update_traffic(uint8_t port_id, uint32_t profile_id, double factor);
     void update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream);
 
     /**
@@ -194,8 +197,7 @@ public:
      * stop all traffic for this core
      * 
      */
-    void stop_traffic(uint8_t port_id,bool stop_on_id, int event_id);
-
+    void stop_traffic(uint8_t port_id, uint32_t profile_id, bool stop_on_id, int event_id);
 
     /* return if all ports are idle */
     bool are_all_ports_idle();
@@ -257,6 +259,7 @@ private:
 
     void add_port_duration(double duration,
                            uint8_t port_id,
+                           uint32_t profile_id,
                            int event_id);
 
     void update_mac_addr(TrexStream * stream,
@@ -265,6 +268,7 @@ private:
                          char *raw_pkt);
 
     void add_stream(TrexStatelessDpPerPort * lp_port,
+                    uint32_t profile_id,
                     TrexStream * stream,
                     TrexStreamsCompiledObj *comp,
                     double start_at_ts = 0);

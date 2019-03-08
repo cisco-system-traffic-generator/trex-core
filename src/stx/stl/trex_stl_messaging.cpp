@@ -34,8 +34,9 @@ limitations under the License.
 /*************************
   start traffic message
  ************************/
-TrexStatelessDpStart::TrexStatelessDpStart(uint8_t port_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts) {
+TrexStatelessDpStart::TrexStatelessDpStart(uint8_t port_id, uint32_t profile_id, int event_id, TrexStreamsCompiledObj *obj, double duration, double start_at_ts) {
     m_port_id = port_id;
+    m_profile_id = profile_id;
     m_event_id = event_id;
     m_obj = obj;
     m_duration = duration;
@@ -52,7 +53,7 @@ TrexStatelessDpStart::clone() {
 
     TrexStreamsCompiledObj *new_obj = m_obj->clone();
 
-    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpStart(m_port_id, m_event_id, new_obj, m_duration, m_start_at_ts);
+    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpStart(m_port_id, m_profile_id, m_event_id, new_obj, m_duration, m_start_at_ts);
 
     return new_msg;
 }
@@ -69,7 +70,7 @@ TrexStatelessDpStart::handle(TrexDpCore *dp_core) {
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     
     /* start traffic */
-    stl_core->start_traffic(m_obj, m_duration, m_event_id, m_start_at_ts);
+    stl_core->start_traffic(m_obj, m_profile_id, m_duration, m_event_id, m_start_at_ts);
 
     return true;
 }
@@ -82,7 +83,7 @@ TrexStatelessDpStop::handle(TrexDpCore *dp_core) {
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     
-    stl_core->stop_traffic(m_port_id,m_stop_only_for_event_id,m_event_id);
+    stl_core->stop_traffic(m_port_id, m_profile_id, m_stop_only_for_event_id, m_event_id);
     return true;
 }
 
@@ -97,7 +98,7 @@ void TrexStatelessDpStop::on_node_remove(){
 
 TrexCpToDpMsgBase * TrexStatelessDpPause::clone(){
 
-    TrexStatelessDpPause *new_msg = new TrexStatelessDpPause(m_port_id);
+    TrexStatelessDpPause *new_msg = new TrexStatelessDpPause(m_port_id, m_profile_id);
     return new_msg;
 }
 
@@ -106,7 +107,7 @@ bool TrexStatelessDpPause::handle(TrexDpCore *dp_core){
     
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     
-    stl_core->pause_traffic(m_port_id);
+    stl_core->pause_traffic(m_port_id, m_profile_id);
     return (true);
 }
 
@@ -127,7 +128,7 @@ bool TrexStatelessDpPauseStreams::handle(TrexDpCore *dp_core){
 
 
 TrexCpToDpMsgBase * TrexStatelessDpResume::clone(){
-    TrexStatelessDpResume *new_msg = new TrexStatelessDpResume(m_port_id);
+    TrexStatelessDpResume *new_msg = new TrexStatelessDpResume(m_port_id, m_profile_id);
     return new_msg;
 }
 
@@ -135,7 +136,7 @@ bool TrexStatelessDpResume::handle(TrexDpCore *dp_core){
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     
-    stl_core->resume_traffic(m_port_id);
+    stl_core->resume_traffic(m_port_id, m_profile_id);
     return (true);
 }
 
@@ -160,7 +161,7 @@ bool TrexStatelessDpResumeStreams::handle(TrexDpCore *dp_core){
  */
 TrexCpToDpMsgBase *
 TrexStatelessDpStop::clone() {
-    TrexStatelessDpStop *new_msg = new TrexStatelessDpStop(m_port_id);
+    TrexStatelessDpStop *new_msg = new TrexStatelessDpStop(m_port_id, m_profile_id);
 
     new_msg->set_event_id(m_event_id);
     new_msg->set_wait_for_event_id(m_stop_only_for_event_id);
@@ -179,14 +180,14 @@ TrexStatelessDpUpdate::handle(TrexDpCore *dp_core) {
     
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     
-    stl_core->update_traffic(m_port_id, m_factor);
+    stl_core->update_traffic(m_port_id, m_profile_id, m_factor);
 
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexStatelessDpUpdate::clone() {
-    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdate(m_port_id, m_factor);
+    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdate(m_port_id, m_profile_id, m_factor);
 
     return new_msg;
 }
