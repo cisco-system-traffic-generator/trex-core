@@ -788,7 +788,7 @@ def get_info_from_trex(pci_addr_list):
     if not pci_addr_list:
         return {}
     pci_info_dict = {}
-    run_command = 'sudo ./t-rex-64 --dump-interfaces %s' % ' '.join(pci_addr_list)
+    run_command = './t-rex-64 --dump-interfaces %s' % ' '.join(pci_addr_list)
     proc = subprocess.Popen(shlex.split(run_command), stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, universal_newlines = True)
     stdout, _ = proc.communicate()
