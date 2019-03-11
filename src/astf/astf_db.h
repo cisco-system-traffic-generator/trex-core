@@ -265,6 +265,7 @@ class CTcpTemplateInfo {
 typedef enum {
     CJsonData_err_pool_ok,
     CJsonData_err_pool_too_small,
+    CJsonData_err_pool_err,
 } CJsonData_err_type;
 
 class CJsonData_err {

@@ -551,11 +551,19 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     uint32_t ip_end;
     uint32_t num_ips;
     std::string err_str;
+    const char* ip_start_str;
+    const char* ip_end_str;
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
-        ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-        ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
+        ip_start_str = ip_gen_list[i]["ip_start"].asString().c_str();
+        ip_end_str = ip_gen_list[i]["ip_end"].asString().c_str();
+        ip_start = ip_from_str(ip_start_str);
+        ip_end = ip_from_str(ip_end_str);
+        if (ip_end < ip_start) {
+            err_str = std::string("IP start: ") + ip_start_str + " is bigger than IP end: " + ip_end_str;
+            return CJsonData_err(CJsonData_err_pool_err, err_str);
+        }
         num_ips = ip_end - ip_start + 1;
         if (num_ips < max_threads) {
             err_str = "Pool:(" + ip_gen_list[i]["ip_start"].asString() + "-"
