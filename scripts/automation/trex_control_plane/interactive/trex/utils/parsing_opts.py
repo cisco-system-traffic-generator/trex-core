@@ -5,7 +5,7 @@ from .text_opts import format_text
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
-from ..common.trex_types import STL_PORT_INFO
+from ..common.trex_types import STLDynamicProfile
 from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 from ..common.trex_psv import PSV_ACQUIRED
 
@@ -66,11 +66,11 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 
                           """
 
-logical_ports_help = """A list of ports on which to apply the command.
-                        Logical port concept supports multiple profiles dynamically on the same port.
-                        Logical port expression is used as <physical port number>.<logical port name>.
-                        Default logical port name is \"_\" when not specified.
-                     """
+dynamic_profile_help = """A list of profiles on which to apply the command.
+                          Multiple profile ids are allocated dynamically on the same port.
+                          Profile expression is used as <port id>.<profile id>.
+                          Default profile id is \"_\" when not specified.
+                       """
 
 # decodes multiplier
 # if allow_update - no +/- is allowed
@@ -326,21 +326,6 @@ def decode_tunables (tunable_str):
 
     return tunables
 
-def decode_port (port_str):
-    port_info = port_str.split(".")
-    port_result = None
-
-    if len(port_info) == 1 :
-        port_result =  int(port_str)
-    elif len(port_info) == 2 :
-        port_result = STL_PORT_INFO()
-        port_result.port_name = str(port_str)
-        port_result.port_id = int(port_info[0])
-        port_result.profile_id = str(port_info[1])
-    else:
-        raise argparse.ArgumentTypeError("Wrong port value %s" % port_str)
-
-    return port_result
 
 class OPTIONS_DB_ARGS:
     MULTIPLIER = ArgumentPack(
@@ -540,31 +525,42 @@ class OPTIONS_DB_ARGS:
          'action': 'merge',
          'type': decode_tunables})
 
-    PORT_LIST = ArgumentPack(
+    PROFILE_LIST = ArgumentPack(
         ['-p', '--port'],
         {"nargs": '+',
          'dest':'ports',
          'metavar': 'PORT[.PROFILE]',
          'action': 'merge',
-         'type': decode_port,
-         'help': logical_ports_help,
+         'type': STLDynamicProfile,
+         'help': dynamic_profile_help,
+         'default': []})
+
+
+    PORT_LIST = ArgumentPack(
+        ['-p', '--port'],
+        {"nargs": '+',
+         'dest':'ports',
+         'metavar': 'PORTS',
+         'action': 'merge',
+         'type': int,
+         'help': "A list of ports on which to apply the command",
          'default': []})
 
     PORT_LIST_NO_DEFAULT = ArgumentPack(
         ['-p', '--port'],
         {"nargs": '+',
          'dest':'ports_no_default',
-         'metavar': 'PORT[.PROFILE]',
+         'metavar': 'PORTS',
          'action': 'merge',
-         'type': decode_port,
-         'help': logical_ports_help})
+         'type': int,
+         'help': "A list of ports on which to apply the command"})
 
     SINGLE_PORT = ArgumentPack(
         ['-p', '--port'],
         {'dest':'ports',
-         'type': decode_port,
-         'metavar': 'PORT[.PROFILE]',
-         'help': logical_ports_help,
+         'type': int,
+         'metavar': 'PORT',
+         'help': 'source port for the action',
          'required': True})
 
     PING_IP = ArgumentPack(
@@ -1153,7 +1149,6 @@ class CCmdArgParser(argparse.ArgumentParser):
         return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
     def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False, allow_empty=True):
-
         try:
             opts = super(CCmdArgParser, self).parse_args(args, namespace)
             if opts is None:
@@ -1179,6 +1174,7 @@ class CCmdArgParser(argparse.ArgumentParser):
                 self.client.psv.validate(self.cmd_name, opts.ports, PSV_ACQUIRED, allow_empty = allow_empty)
             else:
                 self.client.psv.validate(self.cmd_name, opts.ports, allow_empty = allow_empty)
+
             return opts
 
         except ValueError as e:

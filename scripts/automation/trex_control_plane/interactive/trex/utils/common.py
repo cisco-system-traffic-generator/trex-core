@@ -9,7 +9,8 @@ import cProfile, pstats
 
 from scapy.utils import *
 from scapy.utils6 import *
-from ..common.trex_types import listify, validate_type, STL_PORT_INFO
+from ..common.trex_types import listify, validate_type
+#from ..common.trex_types import STLDynamicProfile
 
 try:
     import pwd
@@ -33,97 +34,19 @@ def user_input():
         # using python version 2
         return raw_input()
 
-def parse_all_profiles_from_port_ids (ports):
-    all_profiles_list = []
-    port_id_list = parse_physical_port_ids(ports)
-    for port_id in port_id_list:
-        port = STL_PORT_INFO()
-        port.port_name = str(port_id) + ".*"
-        port.port_id = int(port_id)
-        port.profile_id = str("*")
-        all_profiles_list.append(port)
-    return all_profiles_list
-
-def parse_physical_port_ids (ports):
-    port_list = listify(ports)
-    port_name_list = []
+def parse_ports_from_profiles(ports):
+    ports = listify(ports)
     port_id_list = []
 
     try:
-        for port in port_list :
-            port_name = ""
-            port_id = 0
-            if isinstance(port, STL_PORT_INFO):
-                port_name = port.port_name
-                port_id = port.port_id
-            else:
-                port_name = str(port)
-                port_id = int(port)
-
-            if port_name not in port_name_list:
-                port_name_list.append(port_name)
-            else:
-                raise TRexError('Duplicate port(s) are not allowed')
-
+        for port in ports :
+            port_id = int(port)
             if port_id not in port_id_list:
                 port_id_list.append(port_id)
-
     except ValueError:
         raise TRexTypeError('Wrong value for the port parameter', type(ports))
 
     return port_id_list
-
-def parse_logical_port_ids (ports):
-    port_list = listify(ports)
-    port_name_list = []
-
-    try:
-        for port in port_list :
-            port_name = ""
-            port_id = 0
-            if isinstance(port, STL_PORT_INFO):
-                port_name = port.port_name
-            else:
-                port_name = str(port)
-
-            if port_name not in port_name_list:
-                port_name_list.append(port_name)
-            else:
-                raise TRexError('Duplicate port(s) are not allowed')
-
-    except ValueError:
-        raise TRexTypeError('Wrong value for the port parameter', type(ports))
-
-    return port_name_list
-
-def parse_a_dual_port (port):
-    slave_port = None
-    if isinstance(port, STL_PORT_INFO):
-        slave_port = STL_PORT_INFO()
-        slave_port.port_id = port.port_id ^ 0x1
-        slave_port.profile_id = port.profile_id
-        slave_port.port_name = str(slave_port.port_id) + "." + str(slave_port.profile_id)
-    else:
-        slave_port = port ^ 0x1
-    return slave_port
-
-def parse_dual_ports (ports):
-    port_list = listify(ports)
-    slave_port_list = []
-
-    try:
-        for port in port_list :
-            slave_port = parse_a_dual_port(port)
-            if slave_port not in slave_port_list:
-                slave_port_list.append(slave_port)
-            else:
-                raise TRexError('duplicate port(s) are not allowed')
-
-    except ValueError:
-        raise TRexTypeError('Wrong value for the port parameter', type(ports))
-
-    return slave_port_list
-
 
 class random_id_gen:
     """

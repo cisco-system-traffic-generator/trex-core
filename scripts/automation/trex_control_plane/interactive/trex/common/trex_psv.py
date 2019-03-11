@@ -7,7 +7,7 @@ Author:
 """
 
 from .trex_exceptions import TRexError, TRexTypeError
-from .trex_types import listify, STL_PORT_INFO
+from .trex_types import listify, STLDynamicProfile
 from ..utils.common import *
 
 
@@ -34,7 +34,7 @@ class PortState(object):
     '''
     
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
-        ports = parse_physical_port_ids(ports)
+        ports = parse_ports_from_profiles(ports)
         invalid_ports = list_difference(ports, self.get_valid_ports(client))
         if invalid_ports:
             self.print_err_msg(invalid_ports, custom_err_msg)
@@ -79,13 +79,11 @@ class PortStateIdle(PortState):
         dup_port = []
 
         for port in ports:
-            port_name = port
-            port_id = port
+            port_name = str(port)
+            port_id = int(port)
             profile_id = "_"
 
-            if isinstance(port, STL_PORT_INFO):
-                port_name = port.port_name
-                port_id = port.port_id
+            if isinstance(port, STLDynamicProfile):
                 profile_id = port.profile_id
 
             if port_id in dup_port:
@@ -129,8 +127,8 @@ class PortStateTX(PortState):
             port_id = port
             profile_id = "_"
 
-            if isinstance(port, STL_PORT_INFO):
-                port_name = port.port_name
+            if isinstance(port, STLDynamicProfile):
+                port_name = port.profile_name
                 port_id = port.port_id
                 profile_id = port.profile_id
 
@@ -166,8 +164,8 @@ class PortStatePaused(PortState):
             port_id = port
             profile_id = "_"
 
-            if isinstance(port, STL_PORT_INFO):
-                port_name = port.port_name
+            if isinstance(port, STLDynamicProfile):
+                port_name = port.profile_name
                 port_id = port.port_id
                 profile_id = port.profile_id
 

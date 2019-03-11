@@ -18,13 +18,44 @@ __all__ = ["RC", "RC_OK", "RC_ERR", "RC_WARN", "listify", "listify_if_int", "val
 
 
 
-class STL_PORT_INFO:
-    #Full name
-    port_name = ""
-    #Physical port
-    port_id = 0
-    #Logical profile
-    profile_id = ""
+class STLDynamicProfile(object):
+    def __init__ (self, port_str):
+        try:
+            port_str = str(port_str)
+            port_info = port_str.split(".")
+            if len(port_info) == 1 :
+                 self.port_id =  int(port_str)
+                 self.profile_id = "_"
+            elif len(port_info) == 2 :
+                 self.port_id = int(port_info[0])
+                 self.profile_id = str(port_info[1])
+            else:
+                 raise argparse.ArgumentTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
+        except ValueError:
+            raise argparse.ArgumentTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
+        self.profile_name = str(self.port_id)  + "." + str(self.profile_id)
+
+    def __index__(self):
+        return self.port_id
+
+    def __int__(self):
+        return self.port_id
+
+    def __repr__(self):
+        return self.profile_name
+
+    def __str__(self):
+        return self.profile_name
+
+    def __eq__(self, other):
+        try:
+            return (self.port_id, self.profile_id) == (other.port_id, other.profile_id)
+        except AttributeError:
+            return NotImplemented
+
+    def set_profile_id(self, profile_id):
+        self.profile_id = str(profile_id)
+        self.profile_name = str(self.port_id)  + "." + str(self.profile_id)
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()

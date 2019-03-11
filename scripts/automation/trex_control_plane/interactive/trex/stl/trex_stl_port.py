@@ -131,42 +131,6 @@ class STLPort(Port):
         self.sync_port_streams(rc.data())
         return self.ok()
 
-    # Not yet implemented & Unused
-    def get_profile_id_list (self, profile_id = "*"):
-
-        params = {"port_id": self.port_id,
-                  "profile_id": profile_id}
-
-        rc = self.transmit("get_profile_list", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
-
-    # Unused
-    def get_stream_id_list (self, profile_id = "*"):
-
-        params = {"port_id": self.port_id,
-                  "profile_id": profile_id}
-
-        rc = self.transmit("get_stream_list", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
-
-    # Unused
-    def sync_port_stream (self, profile_id = "_"):
-
-        params = {"port_id": self.port_id,
-                  "profile_id": profile_id,
-                  'stream_ids': stream_ids or []}
-
-        rc = self.transmit("get_stream", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        return self.ok()
 
     @owned
     def pause_streams(self, stream_ids, profile_id = "_"):
@@ -175,7 +139,6 @@ class STLPort(Port):
             return self.err("invalid profile_id [%s]" % profile_id)
 
         profile_state = self.profile_manager.get_profile_state(profile_id)
-
         if not profile_state :
             return self.err("profile [%s] does not exist in the port [%s]" %(profile_id, self.port_id))
 
@@ -204,7 +167,6 @@ class STLPort(Port):
             return self.err("Invalid profile_id [%s]" % profile_id)
 
         profile_state = self.profile_manager.get_profile_state(profile_id)
-
         if not profile_state:
             return self.err("profile [%s] does not exist in the port [%s]" %(profile_id, self.port_id))
 
@@ -390,7 +352,8 @@ class STLPort(Port):
     def remove_all_streams (self, profile_id = "_"):
 
         if profile_id != "*":
-            if not self.profile_manager.get_profile_state(profile_id):
+            profile_state = self.profile_manager.get_profile_state(profile_id)
+            if not profile_state:
                 return self.ok()
 
         params = {"handler": self.handler,
@@ -515,7 +478,7 @@ class STLPort(Port):
     def is_writeable (self):
         if self.is_dynamic:
             # operations on port can be done on state idle or state streams
-            return self.state in (self. STATE_PCAP_TX, self.STATE_TX, self.STATE_IDLE, self.STATE_STREAMS, self.STATE_ASTF_LOADED)
+            return self.state in (self.STATE_IDLE, self.STATE_STREAMS, self.STATE_TX, self.STATE_PAUSE, self.STATE_ASTF_LOADED)
         else:
             return super(STLPort, self).is_writeable()
 
@@ -525,7 +488,8 @@ class STLPort(Port):
     def stop (self, force = False, profile_id = "_"):
 
         if profile_id != "*":
-            if not self.profile_manager.get_profile_state(profile_id):
+            profile_state = self.profile_manager.get_profile_state(profile_id)
+            if not profile_state:
                 return self.ok()
 
         # if not is not active and not force - go back
@@ -540,7 +504,6 @@ class STLPort(Port):
         if rc.bad():
             return self.err(rc.err())
 
-        #must have a function that checks the port state
         self.profile_manager.set_state(self.STATE_STREAMS, profile_id)
         self.state = self.profile_manager.get_port_state()
 
@@ -624,6 +587,8 @@ class STLPort(Port):
             profile_list = self.profile_manager.get_profiles_from_state(self.STATE_TX)
         else:
             profile_state = self.profile_manager.get_profile_state(profile_id)
+            if not profile_state :
+                return self.err("profile [%s] does not exist in the port [%s]" %(profile_id, self.port_id))
             if (profile_state == self.STATE_PCAP_TX) :
                 return self.err("update is not supported during PCAP TX")
             if (profile_state != self.STATE_TX) :
@@ -650,14 +615,13 @@ class STLPort(Port):
 
 
     @writeable
-    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler, min_ipg_usec, profile_id = "_"):
+    def push_remote (self, pcap_filename, ipg_usec, speedup, count, duration, is_dual, slave_handler, min_ipg_usec):
 
-        if profile_id == "*":
-            return self.err("Invalid profile_id [%s]" % profile_id)
+        if ((self.state == self.STATE_TX) or (self.state == self.STATE_PAUSE)):
+            return self.err("push_remote is not allowed while transmitting traffic")
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
-                  "profile_id":  profile_id,
                   "pcap_filename": pcap_filename,
                   "ipg_usec": ipg_usec if ipg_usec is not None else -1,
                   "speedup": speedup,
@@ -672,7 +636,6 @@ class STLPort(Port):
             return self.err(rc.err())
 
         self.state = self.STATE_PCAP_TX
-        self.profile_manager.set_state(self.state, profile_id)
         return self.ok()
 
 

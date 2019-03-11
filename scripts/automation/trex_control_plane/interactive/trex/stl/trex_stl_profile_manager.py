@@ -135,3 +135,9 @@ class STLProfileManager(object):
             return False
         return (profile_state == self.STATE_PAUSE)
 
+    def is_transmitting (self, profile_id = "_"):
+        profile_state = self.get_profile_state(profile_id)
+        if profile_state == None:
+            return False
+        return (profile_state == self.STATE_TX ) or (profile_state == self.STATE_PCAP_TX)
+
