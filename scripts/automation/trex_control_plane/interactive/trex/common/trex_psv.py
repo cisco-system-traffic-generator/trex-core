@@ -28,6 +28,30 @@ __all__ = ['PSV_UP',
            'PortStateValidator']
 
 
+def check_args(func):
+    """Decorator to check port argument types.
+    """
+    def wrapper(self, *args, **kwargs):
+        code = func.__code__
+        fname = func.__name__
+        names = code.co_varnames[:code.co_argcount]
+        argname = "ports"
+        port_index = names.index(argname) - 1
+        try:
+            argval = args[port_index]
+        except IndexError:
+            argval = kwargs.get(argname)
+        if argval is None:
+            raise TypeError("%s(...): arg '%s' is null"
+                            % (fname, argname))
+        if not isinstance(argval[0], STLDynamicProfile):
+            supermeth = getattr(super(self.__class__, self), fname, None)
+            if supermeth is not None:
+                return supermeth(*args, **kwargs)
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
 class PortState(object):
     '''
         abstract class to create a state validation
@@ -71,41 +95,36 @@ class PortStateAcquired(PortState):
 
     def get_valid_ports (self, client):
         return client.get_acquired_ports()
-  
-          
+
+
 class PortStateIdle(PortState):
+    @check_args
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
+
         invalid_ports = []
         dup_port = []
 
         for port in ports:
-            port_name = str(port)
-            port_id = int(port)
-            profile_id = "_"
-
-            if isinstance(port, STLDynamicProfile):
-                profile_id = port.profile_id
-
-            if port_id in dup_port:
+            if port.port_id in dup_port:
                 self.print_err_msg(ports, "Cannot use * with other profile_ids")
 
             is_idle = False
-            if profile_id == "*":
-                dup_port.append(port_id)
-                profile_state_list = client.ports[port_id].profile_manager.get_all_profiles()
+            if port.profile_id == "*":
+                dup_port.append(port.port_id)
+                profile_list = client.ports[port.port_id].profile_manager.get_all_profiles()
 
-                if not profile_state_list:
+                if not profile_list:
                     is_idle = True
 
-                for pid in profile_state_list:
-                    if not client.ports[port_id].profile_manager.is_active(pid):
+                for pid in profile_list:
+                    if not client.ports[port.port_id].profile_manager.is_active(pid):
                         is_idle = True
             else:
-                if not client.ports[port_id].profile_manager.is_active(profile_id):
+                if not client.ports[port.port_id].profile_manager.is_active(port.profile_id):
                     is_idle = True
 
             if not is_idle :
-                invalid_ports.append(str(port_name))
+                invalid_ports.append(port)
 
         if invalid_ports:
             self.print_err_msg (invalid_ports, custom_err_msg)
@@ -118,32 +137,24 @@ class PortStateIdle(PortState):
 
 
 class PortStateTX(PortState):
+    @check_args
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
         invalid_ports = []
         dup_port = []
 
         for port in ports:
-            port_name = port
-            port_id = port
-            profile_id = "_"
-
-            if isinstance(port, STLDynamicProfile):
-                port_name = port.profile_name
-                port_id = port.port_id
-                profile_id = port.profile_id
-
-            if port_id in dup_port:
+            if port.port_id in dup_port:
                 self.print_err_msg(ports, "Cannot use * with other profile_ids")
 
             is_active = False
-            if profile_id == "*":
-                dup_port.append(port_id)
-                is_active = client.ports[port_id].profile_manager.has_active()
+            if port.profile_id == "*":
+                dup_port.append(port.port_id)
+                is_active = client.ports[port.port_id].profile_manager.has_active()
             else:
-                is_active = client.ports[port_id].profile_manager.is_active(profile_id)
+                is_active = client.ports[port.port_id].profile_manager.is_active(port.profile_id)
 
             if not is_active :
-                invalid_ports.append(str(port_name))
+                invalid_ports.append(port)
 
         if invalid_ports:
             self.print_err_msg (invalid_ports, custom_err_msg)
@@ -155,32 +166,25 @@ class PortStateTX(PortState):
         return [port_id for port_id in client.get_all_ports() if client.ports[port_id].is_active()]
 
 class PortStatePaused(PortState):
+    @check_args
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
+
         invalid_ports = []
         dup_port = []
 
         for port in ports:
-            port_name = port
-            port_id = port
-            profile_id = "_"
-
-            if isinstance(port, STLDynamicProfile):
-                port_name = port.profile_name
-                port_id = port.port_id
-                profile_id = port.profile_id
-
-            if port_id in dup_port:
+            if port.port_id in dup_port:
                 self.print_err_msg(ports, "Cannot use * with other profile_ids")
 
             is_paused = False
-            if profile_id == "*":
-                dup_port.append(port_id)
-                is_paused = client.ports[port_id].profile_manager.has_paused()
+            if port.profile_id == "*":
+                dup_port.append(port.port_id)
+                is_paused = client.ports[port.port_id].profile_manager.has_paused()
             else:
-                is_paused = client.ports[port_id].profile_manager.is_paused(profile_id)
+                is_paused = client.ports[port.port_id].profile_manager.is_paused(port.profile_id)
 
             if not is_paused :
-                invalid_ports.append(str(port_name))
+                invalid_ports.append(port)
 
         if invalid_ports:
             self.print_err_msg (invalid_ports, custom_err_msg)

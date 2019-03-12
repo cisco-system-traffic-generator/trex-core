@@ -29,6 +29,8 @@ class STLDynamicProfile(object):
             elif len(port_info) == 2 :
                  self.port_id = int(port_info[0])
                  self.profile_id = str(port_info[1])
+                 if not self.profile_id:
+                     self.profile_id = "_"
             else:
                  raise argparse.ArgumentTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
         except ValueError:

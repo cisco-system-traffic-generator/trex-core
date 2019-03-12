@@ -351,11 +351,6 @@ class STLPort(Port):
     @writeable
     def remove_all_streams (self, profile_id = "_"):
 
-        if profile_id != "*":
-            profile_state = self.profile_manager.get_profile_state(profile_id)
-            if not profile_state:
-                return self.ok()
-
         params = {"handler": self.handler,
                   "port_id": self.port_id,
                   "profile_id": profile_id}
@@ -486,11 +481,6 @@ class STLPort(Port):
     # with force ignores the cached state and sends the command
     @owned
     def stop (self, force = False, profile_id = "_"):
-
-        if profile_id != "*":
-            profile_state = self.profile_manager.get_profile_state(profile_id)
-            if not profile_state:
-                return self.ok()
 
         # if not is not active and not force - go back
         if not self.is_active() and not force:
