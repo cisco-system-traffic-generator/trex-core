@@ -785,8 +785,6 @@ bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
         return false;
     }
 
-    TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
-
     if ( is_idle ) {
         rte_pktmbuf_free(mbuf);
         return false;
