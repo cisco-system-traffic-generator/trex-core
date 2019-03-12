@@ -35,6 +35,11 @@ try:
 except:
     from tcp_daemon import run_command
 
+trex_control_plane_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+trex_api_path = os.path.join(trex_control_plane_dir, 'interactive')
+if trex_api_path not in sys.path:
+    sys.path.append(trex_api_path)
+from trex.astf.trex_astf_profile import ASTFProfile
 
 # setup the logger
 CCustomLogger.setup_custom_logger('TRexServer')
@@ -103,6 +108,18 @@ class CTRexServer(object):
             logger.error(e)
             return Fault(-33, err_str)
 
+    def prepare_astf_profile(self, filepath):
+        logger.info("Processing prepare_astf_profile() command.")
+        try:
+            if not self._check_path_under_TRex_or_temp(filepath):
+                raise Exception('Given path should be under current TRex package or /tmp/trex_files')
+            profile = ASTFProfile.load(filepath)
+            return ASTFProfile.to_json(profile)
+        except Exception as e:
+            err_str = "Error processing prepare_astf_profile(): %s" % e
+            logger.error(err_str)
+            return Fault(-33, err_str)
+
     def push_file (self, filename, bin_data):
         logger.info("Processing push_file() command.")
         try:
@@ -146,6 +163,7 @@ class CTRexServer(object):
 
         # set further functionality and peripherals to server instance 
         self.server.register_function(self.add)
+        self.server.register_function(self.prepare_astf_profile)
         self.server.register_function(self.get_devices_info)
         self.server.register_function(self.cancel_reservation)
         self.server.register_function(self.connectivity_check)
