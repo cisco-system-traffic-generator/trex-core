@@ -933,7 +933,6 @@ void TrexStatelessDpCore::rx_handle_packet(int dir,
     _rx_handle_packet(dir,m,is_idle,drop);
 
     if (drop) {
-        //TrexCaptureMngr::getInstance().handle_pkt_rx_dp(m, port_id);
         rte_pktmbuf_free(m);
     }else{
         /* redirect to rx core */
