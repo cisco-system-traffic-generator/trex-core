@@ -43,8 +43,8 @@ def parse_ports_from_profiles(ports):
             port_id = int(port)
             if port_id not in port_id_list:
                 port_id_list.append(port_id)
-    except ValueError:
-        raise TRexTypeError('Wrong value for the port parameter', type(ports))
+    except TypeError:
+        raise TypeError('Wrong value for the port parameter: {0}'.format(ports))
 
     return port_id_list
 

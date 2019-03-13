@@ -32,9 +32,9 @@ class STLDynamicProfile(object):
                  if not self.profile_id:
                      self.profile_id = "_"
             else:
-                 raise argparse.ArgumentTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
+                 raise TRexTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
         except ValueError:
-            raise argparse.ArgumentTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
+            raise TRexTypeError("Wrong port value %s. Should be in the format PORT[.PROFILE]" % port_str)
         self.profile_name = str(self.port_id)  + "." + str(self.profile_id)
 
     def __index__(self):

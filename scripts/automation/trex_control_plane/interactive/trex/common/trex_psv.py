@@ -28,7 +28,7 @@ __all__ = ['PSV_UP',
            'PortStateValidator']
 
 
-def check_args(func):
+def check_profile_arg(func):
     """Decorator to check port argument types.
     """
     def wrapper(self, *args, **kwargs):
@@ -98,7 +98,7 @@ class PortStateAcquired(PortState):
 
 
 class PortStateIdle(PortState):
-    @check_args
+    @check_profile_arg
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
 
         invalid_ports = []
@@ -137,7 +137,7 @@ class PortStateIdle(PortState):
 
 
 class PortStateTX(PortState):
-    @check_args
+    @check_profile_arg
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
         invalid_ports = []
         dup_port = []
@@ -166,7 +166,7 @@ class PortStateTX(PortState):
         return [port_id for port_id in client.get_all_ports() if client.ports[port_id].is_active()]
 
 class PortStatePaused(PortState):
-    @check_args
+    @check_profile_arg
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
 
         invalid_ports = []
