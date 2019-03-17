@@ -115,7 +115,7 @@ class DHCPParser(FastParser):
                     raise Exception('unknown type: {0}'.format(ot['type']))
 
             else:
-                raise Exception('unknown option: {0}'.format(o))
+                pass  # we should ignore oprions that we don't require for the protocol and not creash 
 
             # advance
             index += olen
