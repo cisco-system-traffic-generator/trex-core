@@ -3646,14 +3646,15 @@ void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thr
     /* first pop the node */
     m_p_queue.pop();
 
-    /* call all the maintenance required */
-    handle_maintenance(thread);
 
     /* exit in case this is the last node*/
     if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
         thread->free_node(node);
         exit_scheduler = true;
     } else {
+        /* call all the maintenance required */
+        handle_maintenance(thread);
+
         /* schedule for next maintenace */
         node->m_time += SYNC_TIME_OUT;
         m_p_queue.push(node);
@@ -4061,20 +4062,30 @@ void CFlowGenListPerThread::handle_stl_rx(CGenNode * node,
     m_node_gen.m_p_queue.pop();
     /* in case the ports are idle for more than time ticks stop */
     if (m_dp_core->are_all_ports_idle()){
-        m_tcp_terminate_cnt++;
         if ( m_tcp_terminate_cnt>STL_RX_DELAY_TICKS ) {
            drop=1;
+        }else{
+           m_tcp_terminate_cnt++;
         }
     }else{
         m_tcp_terminate_cnt=0;
     }
     
     if ( on_terminate ){
-           drop=1;
+        drop=1;
     }
+
+    int do_drop=0;
     if (drop) {
-        free_node(node);
-    }else{
+        /* this is not clean, we want to remove this node only if it the last one 
+         including the SYNC node. so ask the same query +1 */
+        if ( m_node_gen.m_p_queue.size() == (m_non_active_nodes+1) ) {
+            do_drop=1;
+            free_node(node);
+        }
+    }
+
+    if (!do_drop){
         node->m_time += dtime;
         m_node_gen.m_p_queue.push(node);
     }
