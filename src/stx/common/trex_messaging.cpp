@@ -76,14 +76,14 @@ TrexDpCanQuit::clone(){
 
 bool
 TrexDpBarrier::handle(TrexDpCore *dp_core) {
-    dp_core->barrier(m_port_id, m_event_id);
+    dp_core->barrier(m_port_id, m_profile_id, m_event_id);
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexDpBarrier::clone() {
 
-    TrexCpToDpMsgBase *new_msg = new TrexDpBarrier(m_port_id, m_event_id);
+    TrexCpToDpMsgBase *new_msg = new TrexDpBarrier(m_port_id, m_profile_id, m_event_id);
 
     return new_msg;
 }

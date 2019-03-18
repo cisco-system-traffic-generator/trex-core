@@ -85,8 +85,10 @@ private:
 class TrexStatelessDpPauseStreams : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpPauseStreams(uint8_t port_id, stream_ids_t &stream_ids) : m_port_id(port_id),
-                                                                             m_stream_ids(stream_ids) {
+    TrexStatelessDpPauseStreams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids) : m_port_id(port_id), m_profile_id(profile_id), m_stream_ids(stream_ids) {
+    }
+
+    TrexStatelessDpPauseStreams(uint8_t port_id, stream_ids_t &stream_ids) : TrexStatelessDpPauseStreams(port_id, 0, stream_ids) {
     }
 
 
@@ -98,6 +100,7 @@ public:
 
 private:
     uint8_t m_port_id;
+    uint32_t m_profile_id;
     stream_ids_t m_stream_ids;
 };
 
@@ -126,8 +129,10 @@ private:
 class TrexStatelessDpResumeStreams : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpResumeStreams(uint8_t port_id, stream_ids_t &stream_ids) : m_port_id(port_id),
-                                                                              m_stream_ids(stream_ids) {
+    TrexStatelessDpResumeStreams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids) : m_port_id(port_id), m_profile_id(profile_id), m_stream_ids(stream_ids) {
+    }
+
+    TrexStatelessDpResumeStreams(uint8_t port_id, stream_ids_t &stream_ids) : TrexStatelessDpResumeStreams(port_id, 0, stream_ids) {
     }
 
 
@@ -139,6 +144,7 @@ public:
 
 private:
     uint8_t m_port_id;
+    uint32_t m_profile_id;
     stream_ids_t m_stream_ids;
 };
 
@@ -231,9 +237,13 @@ private:
 class TrexStatelessDpUpdateStreams : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpUpdateStreams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream) {
+    TrexStatelessDpUpdateStreams(uint8_t port_id, uint32_t profile_id, stream_ipgs_map_t &ipg_per_stream) {
         m_port_id = port_id;
+        m_profile_id = profile_id;
         m_ipg_per_stream = ipg_per_stream;
+    }
+
+    TrexStatelessDpUpdateStreams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream): TrexStatelessDpUpdateStreams(port_id, 0, ipg_per_stream) {
     }
 
     virtual bool handle(TrexDpCore *dp_core);
@@ -242,6 +252,7 @@ public:
 
 private:
     uint8_t  m_port_id;
+    uint32_t m_profile_id;
     stream_ipgs_map_t m_ipg_per_stream;
 };
 

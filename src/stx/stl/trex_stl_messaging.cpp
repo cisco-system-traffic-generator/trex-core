@@ -114,7 +114,7 @@ bool TrexStatelessDpPause::handle(TrexDpCore *dp_core){
 
 TrexCpToDpMsgBase * TrexStatelessDpPauseStreams::clone(){
 
-    TrexStatelessDpPauseStreams *new_msg = new TrexStatelessDpPauseStreams(m_port_id, m_stream_ids);
+    TrexStatelessDpPauseStreams *new_msg = new TrexStatelessDpPauseStreams(m_port_id, m_profile_id, m_stream_ids);
     return new_msg;
 }
 
@@ -122,7 +122,7 @@ bool TrexStatelessDpPauseStreams::handle(TrexDpCore *dp_core){
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
-    stl_core->pause_streams(m_port_id, m_stream_ids);
+    stl_core->pause_streams(m_port_id, m_profile_id, m_stream_ids);
     return (true);
 }
 
@@ -142,7 +142,7 @@ bool TrexStatelessDpResume::handle(TrexDpCore *dp_core){
 
 
 TrexCpToDpMsgBase * TrexStatelessDpResumeStreams::clone(){
-    TrexStatelessDpResumeStreams *new_msg = new TrexStatelessDpResumeStreams(m_port_id, m_stream_ids);
+    TrexStatelessDpResumeStreams *new_msg = new TrexStatelessDpResumeStreams(m_port_id, m_profile_id, m_stream_ids);
     return new_msg;
 }
 
@@ -150,7 +150,7 @@ bool TrexStatelessDpResumeStreams::handle(TrexDpCore *dp_core){
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
-    stl_core->resume_streams(m_port_id, m_stream_ids);
+    stl_core->resume_streams(m_port_id, m_profile_id, m_stream_ids);
     return (true);
 }
 
@@ -198,14 +198,14 @@ TrexStatelessDpUpdateStreams::handle(TrexDpCore *dp_core) {
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
-    stl_core->update_streams(m_port_id, m_ipg_per_stream);
+    stl_core->update_streams(m_port_id, m_profile_id, m_ipg_per_stream);
 
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexStatelessDpUpdateStreams::clone() {
-    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdateStreams(m_port_id, m_ipg_per_stream);
+    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpUpdateStreams(m_port_id, m_profile_id, m_ipg_per_stream);
 
     return new_msg;
 }

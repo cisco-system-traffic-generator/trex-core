@@ -39,11 +39,12 @@ TrexDpCore::TrexDpCore(uint32_t thread_id, CFlowGenListPerThread *core, state_e 
 
 
 void
-TrexDpCore::barrier(uint8_t port_id, int event_id) {
+TrexDpCore::barrier(uint8_t port_id, uint32_t profile_id, int event_id) {
 
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                           port_id,
+                                                          profile_id,
                                                           event_id);
     ring->Enqueue((CGenNode *)event_msg);
 }
