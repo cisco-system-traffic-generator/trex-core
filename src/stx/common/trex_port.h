@@ -297,7 +297,11 @@ public:
     uint16_t get_rx_caps() const {
         return m_rx_caps;
     }
-    
+
+    const std::vector<uint8_t> get_core_id_list () {
+        return m_cores_id_list;
+    }
+
     /**
      * encode stats of the port 
      * to JSON 
@@ -347,12 +351,6 @@ protected:
      */
     uint8_t get_active_cores_count(void);
 
-    
-    const std::vector<uint8_t> get_core_id_list () {
-        return m_cores_id_list;
-    }
-
-    
     /**
      * send message to all cores using duplicate
      *

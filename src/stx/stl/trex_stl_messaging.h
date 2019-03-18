@@ -352,9 +352,9 @@ public:
     bool handle (CRxCore *rx_core);
 };
 
-class TrexStatelessDpEnableHotState : public TrexCpToDpMsgBase {
+class TrexStatelessDpSetLatencyFeature : public TrexCpToDpMsgBase {
 public:
-    TrexStatelessDpEnableHotState(MsgReply<bool>& reply) : m_reply(reply) {
+    TrexStatelessDpSetLatencyFeature(MsgReply<bool>& reply) : m_reply(reply) {
     }
     virtual TrexCpToDpMsgBase * clone();
     virtual bool handle(TrexDpCore* dp_core);
@@ -363,9 +363,31 @@ private:
     MsgReply<bool>      &m_reply;
 };
 
-class TrexStatelessDpDisableHotState: public TrexCpToDpMsgBase {
+class TrexStatelessDpUnsetLatencyFeature: public TrexCpToDpMsgBase {
 public:
-    TrexStatelessDpDisableHotState(MsgReply<bool>& reply) : m_reply(reply) {
+    TrexStatelessDpUnsetLatencyFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpSetCaptureFeature : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpSetCaptureFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpUnsetCaptureFeature: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpUnsetCaptureFeature(MsgReply<bool>& reply) : m_reply(reply) {
     }
     virtual TrexCpToDpMsgBase * clone();
     virtual bool handle(TrexDpCore* dp_core);

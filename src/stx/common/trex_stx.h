@@ -152,6 +152,10 @@ public:
      */
     virtual void dp_core_error(int thread_id, const std::string &err);
 
+    virtual void set_capture_feature(const std::set<uint8_t>& rx_cores) {};
+
+    virtual void unset_capture_feature() {};
+
     /**
      * fills ignored stats on 'stat'
      * 
