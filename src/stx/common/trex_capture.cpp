@@ -133,11 +133,13 @@ TrexCaptureMngr::update_global_filter() {
     }
     
     /* copy the first one */
-    CaptureFilter new_filter = m_captures[0]->get_filter();
-    
+    CaptureFilter new_filter = CaptureFilter();
+
     /* add the rest */
-    for (int i = 1; i < m_captures.size(); i++) {
-        new_filter += m_captures[i]->get_filter();
+    for (int i = 0; i < m_captures.size(); i++) {
+        if (m_captures[i]->is_active()) {
+            new_filter += m_captures[i]->get_filter();
+        }
     }
   
     /* copy and compile */
@@ -221,6 +223,11 @@ TrexCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
     
     std::unique_lock<std::mutex> ulock(m_lock);
     capture->stop();
+    /* update global filter under lock (for barrier) */
+    update_global_filter();
+
+    /* done with critical section */
+    ulock.unlock();
     
     rc.set_rc(capture->get_pkt_count());
 }

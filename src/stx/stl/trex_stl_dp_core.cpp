@@ -776,7 +776,7 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
         m_ports[i].create(core);
     }
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-    m_hot_state = false;
+    m_features = NO_FEATURES;
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {
@@ -923,7 +923,7 @@ bool TrexStatelessDpCore::rx_for_idle(void){
 }
 
 bool TrexStatelessDpCore::is_hot_state() {
-    return m_hot_state;
+    return is_feature_set(LATENCY) || is_feature_set(CAPTURE);
 }
 void TrexStatelessDpCore::rx_handle_packet(int dir,
                                            rte_mbuf_t * m,

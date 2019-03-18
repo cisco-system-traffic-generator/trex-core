@@ -65,7 +65,6 @@ private:
     TrexStateless*                      m_stl;
 
     void export_data(rfc2544_info_t *rfc2544_info, int min, int max);
-    void wait_for_all_dp_to_finish(bool* finished, uint8_t dp_core_count);
 public:
     TrexStatelessMulticoreSoftwareFSLatencyStats(TrexStateless* stl, const std::vector<TrexStatelessDpCore*>& dp_core_ptrs);
     int  get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch) override;
@@ -141,9 +140,13 @@ public:
 
     void init_stats_rx();
 
-    void enable_hot_state();
+    void set_latency_feature();
 
-    void disable_hot_state();
+    void unset_latency_feature();
+
+    virtual void set_capture_feature(const std::set<uint8_t>& rx_ports);
+
+    virtual void unset_capture_feature();
 
     TrexStatelessFSLatencyStats* get_stats();
 
