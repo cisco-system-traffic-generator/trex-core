@@ -1066,7 +1066,9 @@ class STLProfile(object):
                    vm = None,
                    packet_hook = None,
                    split_mode = None,
-                   min_ipg_usec = None):
+                   min_ipg_usec = None,
+                   src_mac_pcap = False,
+                   dst_mac_pcap = False):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -1099,6 +1101,12 @@ class STLProfile(object):
                   min_ipg_usec   : float
                        Minumum inter packet gap in usec. Used to guard from too small IPGs.
 
+                  src_mac_pcap : bool
+                        Source MAC address will be taken from pcap file if True.
+
+                  dst_mac_pcap : bool
+                        Destination MAC address will be taken from pcap file if True.
+
                  :return: STLProfile
 
         """
@@ -1127,7 +1135,9 @@ class STLProfile(object):
                 return STLProfile.__pkts_to_streams(pkts,
                                                     loop_count,
                                                     vm,
-                                                    packet_hook)
+                                                    packet_hook,
+                                                    src_mac_pcap = src_mac_pcap,
+                                                    dst_mac_pcap = dst_mac_pcap)
             else:
                 pkts_a, pkts_b = PCAPReader(pcap_file).read_all(ipg_usec, min_ipg_usec, speedup, split_mode = split_mode)
                 if not (pkts_a or pkts_b):
@@ -1156,14 +1166,18 @@ class STLProfile(object):
                                                          vm,
                                                          packet_hook,
                                                          start_delay_usec,
-                                                         end_delay_usec = end_time - end_time_a)
+                                                         end_delay_usec = end_time - end_time_a,
+                                                         src_mac_pcap = src_mac_pcap,
+                                                         dst_mac_pcap = dst_mac_pcap)
 
                 profile_b = STLProfile.__pkts_to_streams(pkts_b,
                                                          loop_count,
                                                          vm,
                                                          packet_hook,
                                                          start_delay_usec,
-                                                         end_delay_usec = end_time - end_time_b)
+                                                         end_delay_usec = end_time - end_time_b,
+                                                         src_mac_pcap = src_mac_pcap,
+                                                         dst_mac_pcap = dst_mac_pcap)
                     
                 return profile_a, profile_b
 
@@ -1173,10 +1187,12 @@ class STLProfile(object):
 
 
     @staticmethod
-    def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0):
+    def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0, src_mac_pcap = False, dst_mac_pcap = False):
         streams = []
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
+
+        stream_dst_mac = STLStreamDstMAC_PKT if dst_mac_pcap else STLStreamDstMAC_CFG_FILE
 
         last_ts = 0
         for i, (cap, ts) in enumerate(pkts, start = 1):
@@ -1194,7 +1210,9 @@ class STLProfile(object):
                                              isg = end_delay_usec,
                                              action_count = loop_count,
                                              dummy_stream = True,
-                                             next = 1))
+                                             next = 1,
+                                             mac_src_override_by_pkt = src_mac_pcap,
+                                             mac_dst_override_mode = stream_dst_mac))
                 else:
                     next = 1
                     action_count = loop_count
@@ -1209,7 +1227,9 @@ class STLProfile(object):
                                          self_start = True,
                                          isg = isg + start_delay_usec,  # usec
                                          action_count = action_count,
-                                         next = next))
+                                         next = next,
+                                         mac_src_override_by_pkt = src_mac_pcap,
+                                         mac_dst_override_mode = stream_dst_mac))
             else:
                 streams.append(STLStream(name = i,
                                          packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
@@ -1217,7 +1237,9 @@ class STLProfile(object):
                                          self_start = False,
                                          isg = isg,  # usec
                                          action_count = action_count,
-                                         next = next))
+                                         next = next,
+                                         mac_src_override_by_pkt = src_mac_pcap,
+                                         mac_dst_override_mode = stream_dst_mac))
 
 
         profile = STLProfile(streams)
