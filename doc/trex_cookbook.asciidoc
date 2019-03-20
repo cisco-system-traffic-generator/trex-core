@@ -1182,4 +1182,402 @@ finally:
 
 == Advanced Stateful
 
-*TBD*
+=== Creating an ASTF Client and Resetting it
+
+Connect an ASTF client to the server and reset it.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Loading a profile and clearing it
+
+Load an ASTF profile to the server. Then clear the loaded profile.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+    # load ASTF profile
+    profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
+
+    c.load_profile(profile_path)
+
+    c.clear_profile()
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Starting, stopping and updating traffic.
+
+Start traffic on a loaded profile, update it and then stop.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+    # load ASTF profile
+    profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
+
+    c.load_profile(profile_path)
+
+    # infinite duration, need to call stop
+    c.start(mult = 100, duration = -1) 
+
+    # update cps multiplier
+    c.update(50)
+
+    # stop traffic 
+    c.stop()
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Statistics
+
+Read and clear statistics.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+    # load ASTF profile
+    profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
+
+    c.load_profile(profile_path)
+
+    # infinite duration, need to call stop
+    c.start(mult = 100, duration = -1) 
+
+    # block until done
+    c.wait_on_traffic()
+
+    # read the stats
+    stats = c.get_stats()
+
+    # clear statistics on ports 0,1
+    c.clear_stats(ports = [0, 1])
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Latency
+
+Latency versions of the previous functions.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+    # load ASTF profile
+    profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
+
+    c.load_profile(profile_path)
+
+    c.start_latency()
+
+    c.update_latency(100)
+
+    c.stop_latency()
+
+    stats = c.get_latency_stats()
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Template groups
+
+Get template group names and statistics.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+try:
+    c.reset()
+
+    # load ASTF profile
+    profile_path = os.path.join(astf_path.get_profiles_path(), 'http_simple.py')
+
+    c.load_profile(profile_path)
+
+    # returns the list of template groups in the profile.
+    names = c.get_tg_names()
+
+    # returns the statistics for the given template groups
+    stats = c.get_traffic_tg_stats(names)
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Topology
+
+Basic topology use.
+
+[source,python]
+----
+# get TRex APIs
+from trex_astf_lib.api import *
+
+    c = ASTFClient(server = server)
+
+    # connect to server
+    c.connect()
+
+    topo = ASTFTopology()
+    topo.add_vif(
+                port_id = '0.2',
+                src_mac = '12:12:12:12:12:12',
+                src_ipv4 = '5.5.5.5',
+                vlan = 30)
+
+    topo.add_gw(
+                port_id = '0.2',
+                src_start = '16.0.0.0',
+                src_end = '16.0.0.2',
+                dst = '45:45:45:45:45:45')
+try:
+    # load this topo
+    c.topo_load(topo)
+
+    # save this topo
+    c.topo_save('tmp/topo.py')
+
+except ASTFError as e:
+    print(e)
+
+finally:
+    c.disconnect()
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Create an ASTF profile from a pcap
+
+[source,python]
+----
+def get_profile(self):
+    # ip generator
+    ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"],
+                             distribution="seq")
+    ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"],
+                              distribution="seq")
+    ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                       dist_client=ip_gen_c,
+                       dist_server=ip_gen_s)
+
+    return ASTFProfile(default_ip_gen=ip_gen,
+                        cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=1)])
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Create an ASTF TCP program
+
+[source,python]
+----
+# we can send either Python bytes type as below:
+http_req = b'GET /3384 HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n'
+# or we can send Python string containing ascii chars, as below:
+http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>**********</pre></html>'
+def get_program(self):
+    # client program
+    prog_c = ASTFProgram(stream = True) # TCP based
+    prog_c.send(http_req)
+    prog_c.recv(len(http_response))
+
+    prog_s = ASTFProgram(stream = True) # TCP based
+    prog_s.recv(len(http_req))
+    prog_s.send(http_response)
+
+    return prog_c, prog_s
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Create an ASTF UDP program
+
+[source,python]
+----
+# we can send either Python bytes type as below:
+http_req = b'GET /3384 HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n'
+# or we can send Python string containing ascii chars, as below:
+http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>**********</pre></html>'
+def get_udp_program(self):
+    # client program
+    prog_c = ASTFProgram(stream = False) # UDP based
+    prog_c.send_msg(http_req)
+    prog_c.recv_msg(1)
+
+    prog_s = ASTFProgram(stream = False) # UDP based
+    prog_s.recv_msg(1)
+    prog_s.send_msg(http_response)
+
+    return prog_c, prog_s
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Create an ASTF template
+
+[source,python]
+----
+def get_template(self):
+    # get programs, see previous section
+    prog_c, prog_s = self.get_program()
+
+    # ip generator
+    ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+    ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+    ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                       dist_client=ip_gen_c,
+                       dist_server=ip_gen_s)
+    
+    # client template
+    temp_c = ASTFTCPClientTemplate(port=80, program=prog_c,ip_gen=ip_gen, cps = 1)
+
+    # server template
+    temp_s = ASTFTCPServerTemplate(program=prog_s, assoc=ASTFAssociationRule(80))
+
+    # template
+    return ASTFTemplate(client_template=temp_c, server_template=temp_s, tg_name='1x')
+----
+     
+++++
+<disqus></disqus>
+++++
+
+=== Create an ASTF profile from a template
+
+[source,python]
+----
+def get_profile(self):
+    # ip generator
+    ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"],
+                             distribution="seq")
+    ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"],
+                              distribution="seq")
+    ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
+                       dist_client=ip_gen_c,
+                       dist_server=ip_gen_s)
+
+    # get_template, see previous section
+    template = self.get_template()
+
+    # create and return profile
+    return ASTFProfile(default_ip_gen=ip_gen, templates=template)
+----
+     
+++++
+<disqus></disqus>
+++++
