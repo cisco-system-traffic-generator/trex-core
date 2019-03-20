@@ -538,7 +538,10 @@ class HTMLInjector(object):
 
         # read all the data from file as string
         with open(self.input_filename) as f:
-            self.xml_doc = LH.parse(StringIO(f.read()))
+            try:
+                self.xml_doc = LH.parse(StringIO(f.read()))
+            except Exception as e:
+                print('Could not parse %s, error: %s' % (self.input_filename, e))
 
         return self
 
