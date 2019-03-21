@@ -17,7 +17,7 @@ void *ntacc_add_rules(uint8_t port_id, uint16_t type,
   struct rte_flow *rte_flow = NULL;
   // Simple L4PROTO and TOS/TC bit 1 filter.
   // The most annoying part is that a id <-> struct rte_flow* must be maintained
-  struct rte_flow_attr attr = { .ingress=1, };
+  struct rte_flow_attr attr = { .ingress=1};
   struct rte_flow_action_queue rte_flow_action_queue = { .index = queue, };
   struct rte_flow_action actions[2] = {
       {

@@ -37,7 +37,12 @@
 /**
  * Unsupported RTE types
  */
-#define RTE_FLOW_ITEM_TYPE_IPinIP 254
+#define RTE_FLOW_ITEM_TYPE_IPinIP 253
+/**
+   * Matches packets containing a tunnel.
+   *
+   */
+#define RTE_FLOW_ITEM_TYPE_TUNNEL 254
 
 /**
 	 * Insert a NTPL string into the NTPL filtercode.
