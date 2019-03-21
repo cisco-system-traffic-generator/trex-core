@@ -25,6 +25,7 @@ limitations under the License.
 #include "trex_dp_core.h"
 #include "trex_port.h"
 #include "trex_rx_core.h"
+#include "stl/trex_stl_port.h"
 
 /*************************
   DP quit
@@ -94,8 +95,12 @@ TrexDpBarrier::clone() {
 bool
 TrexDpPortEventMsg::handle() {
     TrexPort *port = get_stx()->get_port_by_id(m_port_id);
-    port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id, get_status());
-
+    if (m_profile_id == 0) {
+        port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id, get_status());
+    } else {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        stl_port->get_dp_events(m_profile_id).on_core_reporting_in(m_event_id, m_thread_id, get_status());
+    }
     return (true);
 }
 

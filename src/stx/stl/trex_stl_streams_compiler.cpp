@@ -327,7 +327,7 @@ TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
     std::stringstream ss;
 
     /* lookup the next in the stream table */
-    TrexStream *next = get_stateless_obj()->get_port_by_id(stream->m_port_id)->get_stream_by_id(stream->m_next_stream_id);
+    TrexStream *next = get_stateless_obj()->get_port_by_id(stream->m_port_id)->get_stream_by_id(m_profile_id, stream->m_next_stream_id);
 
     if (next == NULL) {
         ss << "stream " << stream->m_stream_id << " is pointing to a non-existent stream " << stream->m_next_stream_id;

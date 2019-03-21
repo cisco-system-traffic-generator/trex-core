@@ -125,6 +125,22 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
     return (port_id);
 }
 
+std::string
+TrexRpcCommand::parse_profile(const Json::Value &params, Json::Value &result){
+    if (params["profile_id"] == Json::Value::null) {
+        return "_" ;
+    }
+    return params["profile_id"].asString();
+}
+
+std::string
+TrexRpcCommand::parse_profile_empty(const Json::Value &params, Json::Value &result){
+    if (params["profile_id"] == Json::Value::null) {
+        return "" ;
+    }
+    return params["profile_id"].asString();
+}
+
 std::string  
 TrexRpcCommand::parse_ipv6(const Json::Value &parent, const std::string &param, Json::Value &result){
     string src_ipv6 = parse_string(parent, param, result);

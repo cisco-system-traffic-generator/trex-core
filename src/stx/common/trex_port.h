@@ -82,11 +82,19 @@ public:
     }
 
 
+    TrexDpPortEvents       m_dp_events;
+
     TrexDpPortEvents & get_dp_events() {
         return m_dp_events;
     }
 
 
+    TrexDpPortEvents & get_dp_events(uint32_t profile_id)
+    {
+        (void) profile_id;
+        return m_dp_events;
+    }
+   
     /**
      * returns the number of DP cores linked to this port
      *
@@ -323,6 +331,7 @@ protected:
      */
     bool verify_state(int state, const char *cmd_name, bool should_throw = true) const;
 
+
     /**
      * change the state 
      * to a new state 
@@ -385,7 +394,6 @@ protected:
     /* holds the DP cores associated with this port */
     std::vector<uint8_t>   m_cores_id_list;
 
-    TrexDpPortEvents       m_dp_events;
     int                    m_pending_async_stop_event;
     
     /* owner information */
