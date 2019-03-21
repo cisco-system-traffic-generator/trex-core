@@ -184,6 +184,26 @@ The /opt/napatech3/config/ntservice.ini contains the following settings that con
  [bash>
 ----
 
+=== Napatech NIC driver tweaks
+The following changes must be made to /opt/napatech3/config/ntservice.ini:
+
+[source,bash]
+----
+ [System]
+ ...
+ StatInterval=1
+ ...
+----
+
+[source,bash]
+----
+ [Adapter?]
+ ...
+ HostBufferRefreshIntervalTx = 50
+ CancelTxOnCloseMask = 1 # This must match the number of ports on the NIC (1,3,F)
+ ...
+----
+
 === Start the Napatech driver
 [source,bash]
 ----
