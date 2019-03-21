@@ -184,6 +184,32 @@ The /opt/napatech3/config/ntservice.ini contains the following settings that con
  [bash>
 ----
 
+=== Change the statistics update frequency
+The /opt/napatech3/config/ntservice.ini must be updated to the following:
+[source,bash]
+----
+ [System]
+ ...
+ StatInterval=1
+ ...
+ ----
+
+== Change the transmit pointer update interval
+The /opt/napatech3/config/ntservice.ini must be updated to the following:
+[source,bash]
+----
+...
+HostBufferRefreshIntervalTx = 50
+...
+----
+
+[source,bash]
+----
+ [bash]>sed -i -- 's/HostBufferRefreshIntervalTx = default/HostBufferRefreshIntervalTx = 50/g' /opt/napatech3/config/ntservice.ini
+ [bash>
+----
+
+
 === Start the Napatech driver
 [source,bash]
 ----

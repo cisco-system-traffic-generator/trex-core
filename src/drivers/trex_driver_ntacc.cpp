@@ -35,7 +35,13 @@ TRexPortAttr* CTRexExtendedDriverBaseNtAcc::create_port_attr(tvpid_t tvpid,repid
 }
 
 CTRexExtendedDriverBaseNtAcc::CTRexExtendedDriverBaseNtAcc(){
+#if 0
+    // Enable all incl. RSS. Some NT NICs has toeplitz support and those that doesn't will just fail and
+    // stateful traffic must therefore be run with -c 1 for those
+    m_cap = tdCAP_ALL | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN;
+#else
     m_cap = tdCAP_ALL_NO_RSS | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+#endif    
     TAILQ_INIT(&lh_fid);
     // The current rte_flow.h is not C++ includable so rte_flow wrappers
     // have been made in libntacc
