@@ -94,6 +94,7 @@ TrexPkt::TrexPkt(const rte_mbuf_t *m, int port, origin_e origin, uint64_t index)
 
 TrexPkt::TrexPkt(const TrexPkt &other) {
     m_size = other.m_size;
+    m_raw = new uint8_t[m_size];
     memcpy(m_raw, other.m_raw, m_size);
     
     m_timestamp = other.m_timestamp;
