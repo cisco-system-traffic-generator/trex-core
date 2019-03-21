@@ -209,7 +209,7 @@ def is_valid_ipv4_ret(ip_addr):
     except AttributeError:  # no inet_pton here, sorry
         return socket.inet_aton(ip_addr)
     except socket.error:  # not a valid address
-        raise TypeError('Not valid IPv4 format');
+        raise TypeError('Not valid IPv4 format: %s' % ip_addr);
 
 
 def is_valid_ipv6_ret(ipv6_addr):
@@ -223,7 +223,7 @@ def is_valid_ipv6_ret(ipv6_addr):
     except AttributeError:  # no inet_pton here, sorry
         raise TypeError('No inet_pton function available')
     except:
-        raise TypeError('Not valid IPv6 format')
+        raise TypeError('Not valid IPv6 format: %s' % ipv6_addr)
 
 
 def list_remove_dup (l):
