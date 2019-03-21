@@ -924,6 +924,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
 
 TrexStatelessPort::~TrexStatelessPort() {
 
+    /* use stop_traffic() to prevent blocking when the class is distrucked */ 
     stop_traffic();
     remove_and_delete_all_streams("*");
 }
@@ -982,7 +983,11 @@ TrexStatelessPort::stop_traffic(string profile_id) {
 
     if ((get_state()==(TrexPort::PORT_STATE_PCAP_TX))) {
         stop_traffic_pcap();
-    } else {    
+    }     
+ 
+    if (profile_id == "*") {
+        stop_traffic();
+    } else {
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->stop_traffic();
         update_port_state();
@@ -1004,11 +1009,11 @@ TrexStatelessPort::stop_traffic() {
     for (auto &profile_id : profile_list) {
         try {
             stop_traffic(profile_id);
-            update_port_state();
         } catch (const TrexException &ex) {
             ss << ex.what() << std::endl;
         }
     }
+    update_port_state();
 
     if (ss.str()!="") {
         throw TrexException(ss.str());
@@ -1104,12 +1109,11 @@ TrexStatelessPort::pause_traffic(string profile_id) {
             try {
                 TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
                 mprofile->pause_traffic();
-                change_profile_state(profile_id, PORT_STATE_PAUSE);
-                update_port_state();
             } catch (const TrexException &ex) {
                 ss << ex.what() << std::endl;
             }
         }
+        update_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1119,7 +1123,6 @@ TrexStatelessPort::pause_traffic(string profile_id) {
         valide_profile(profile_id);
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->pause_traffic();
-        change_profile_state(profile_id, PORT_STATE_PAUSE);
         update_port_state();
     }
 }
@@ -1145,12 +1148,11 @@ TrexStatelessPort::resume_traffic(string profile_id) {
             try {
                 TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
                 mprofile->resume_traffic();
-                change_profile_state(profile_id, PORT_STATE_TX);
-                update_port_state();
             } catch (const TrexException &ex) {
                 ss << ex.what() << std::endl;
             }
         }
+        update_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1160,7 +1162,6 @@ TrexStatelessPort::resume_traffic(string profile_id) {
         valide_profile(profile_id);
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->resume_traffic();
-        change_profile_state(profile_id, PORT_STATE_TX);
         update_port_state();
     }
 }
@@ -1346,11 +1347,11 @@ TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
             try {
                 TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
                 mprofile->remove_and_delete_all_streams();
-                update_port_state();
             } catch (const TrexException &ex) {
                 ss << ex.what() << std::endl;
             }
         }
+        update_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1504,40 +1505,31 @@ TrexStatelessPort::get_profile_state_as_string(string profile_id) {
 
 
 /**
- * update port state with default all profiles state 
+ * update port state with all profiles state 
  */
 void
 TrexStatelessPort::update_port_state() {
 
-    if ( sum_profile_state(PORT_STATE_TX) ) {
-        change_state(TrexPort::PORT_STATE_TX);
-    } else if ( sum_profile_state(PORT_STATE_PCAP_TX) ) {
-        change_state(TrexPort::PORT_STATE_PCAP_TX);
-    } else if ( sum_profile_state(PORT_STATE_PAUSE) ) {
-        change_state(TrexPort::PORT_STATE_PAUSE);
-    } else if ( sum_profile_state(PORT_STATE_STREAMS) ) {
-        change_state(TrexPort::PORT_STATE_STREAMS);
-    } else if ( sum_profile_state(PORT_STATE_IDLE) ) {
-        change_state(TrexPort::PORT_STATE_IDLE);
-    } else if ( sum_profile_state(PORT_STATE_DOWN) ) {
-        change_state(TrexPort::PORT_STATE_DOWN);
-    }
-}
-
-
-bool
-TrexStatelessPort::sum_profile_state(TrexPort::port_state_e input_state) {
-
     std::vector<string> profile_list;
-    get_profile_id_list(profile_list);
-    uint8_t state_count = 0;
+    get_profile_id_list(profile_list); 
 
-    for (auto &profile_id : profile_list) {
-        if (get_profile_state(profile_id) == input_state ) {
-            state_count++;
+    if (get_state() & (PORT_STATE_TX | PORT_STATE_PAUSE | PORT_STATE_STREAMS | PORT_STATE_IDLE)) {
+
+        int temp_state = 0;
+        for (auto &profile_id : profile_list) {
+            temp_state |= get_profile_state(profile_id);
+        }
+
+        if (temp_state & PORT_STATE_TX) {
+            change_state(TrexPort::PORT_STATE_TX);
+        } else if (temp_state &  PORT_STATE_PAUSE) {
+            change_state(TrexPort::PORT_STATE_PAUSE);
+        } else if (temp_state & PORT_STATE_STREAMS) {
+            change_state(TrexPort::PORT_STATE_STREAMS);
+        } else if (temp_state & PORT_STATE_IDLE ) {
+            change_state(TrexPort::PORT_STATE_IDLE);
         }
     }
-    return ( state_count > 0 );
 }
 
 
@@ -1577,10 +1569,6 @@ void TrexProfileTable::add_profile(TrexStatelessProfile *mprofile) {
     delete old_profile;
 }
 
-void TrexProfileTable::remove_profile(TrexStatelessProfile *mprofile) {
-    m_profile_table.erase(mprofile->m_profile_id);
-}
-
 
 TrexStatelessProfile * TrexProfileTable::get_profile_by_id(string profile_id) {
 
@@ -1593,16 +1581,6 @@ TrexStatelessProfile * TrexProfileTable::get_profile_by_id(string profile_id) {
     }
 }
 
-std::string
-TrexProfileTable::get_max_profile_id() const {
-    string profile_max_id = NULL;
-
-    for (auto mprofile : m_profile_table) {
-        profile_max_id = std::max(mprofile.first, profile_max_id);
-    }   
-
-    return profile_max_id;
-}
 
 void TrexProfileTable::get_profile_id_list(std::vector<string> &profile_id_list) {
 

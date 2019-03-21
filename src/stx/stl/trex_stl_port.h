@@ -246,15 +246,6 @@ public:
                                  double &percentage);
     std::string m_profile_id;
 
-    /**
-     * change profile state
-     */
-    void change_profile_state(TrexPort::port_state_e new_state) {
-        change_state(new_state);
-    }
-
-    TrexPort::port_state_e new_state;
-
 
     /**
      * profile_id  for DP
@@ -330,11 +321,6 @@ public:
      */
     void add_profile(TrexStatelessProfile *mprofile);
 
-    /**
-     * remove a profile
-     */
-    void remove_profile(TrexStatelessProfile *mprofile);
-
  
     /**
      * fetch a stream if exists 
@@ -343,15 +329,6 @@ public:
      */
     TrexStatelessProfile * get_profile_by_id(string profile_id);
 
-    /**
-     * get max profile ID assigned
-     * 
-     * 
-     * @return int
-     */
-
-
-    std::string get_max_profile_id() const;
 
     /** 
      * populate a list with all the profile IDs
@@ -568,14 +545,6 @@ public:
      */
     TrexPort::port_state_e get_profile_state(string profile_id);
 
-    /**
-     * change profile state
-     */
-    void change_profile_state(string profile_id, TrexPort::port_state_e new_state) {
-        TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-        mprofile->change_profile_state(new_state);
-    }
-
     void get_state_as_string(string profile_id, Json::Value &result);
 
     void get_profiles_status(Json::Value &result);
@@ -590,9 +559,6 @@ public:
      */
     void update_port_state();
 
-    bool sum_profile_state(TrexPort::port_state_e input_state);
-
-    TrexPort::port_state_e new_state;
 
     string default_profile = "_";
 
@@ -601,9 +567,10 @@ public:
     void get_profile_by_dp_id(uint32_t profile_id);
 
     TrexDpPortEvents & get_dp_events(uint32_t profile_id) {
+
         std::vector <TrexStatelessProfile *> profiles;
         get_profile_object_list(profiles);
-    
+
         for (auto &mprofile : profiles) {
             if ((mprofile->m_dp_profile_id) == profile_id) {
                 return mprofile->m_dp_events;
@@ -611,6 +578,7 @@ public:
         }
         return m_dp_events;
     }     
+
 
 private:
 
