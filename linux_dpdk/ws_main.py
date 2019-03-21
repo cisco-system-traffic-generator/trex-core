@@ -241,7 +241,7 @@ def get_ld_search_path(ctx):
         ctx.fatal('\nCommand: %s\n\nOutput: %s' % (cmd, out))
 
     path_arr = []
-    regex_str = '\s*SEARCH_DIR\("=([^"]+)"\)\s*'
+    regex_str = '\s*SEARCH_DIR\("=?([^"]+)"\)\s*'
     regex = re.compile(regex_str)
     for line in out.splitlines():
         if line.startswith('SEARCH_DIR'):
