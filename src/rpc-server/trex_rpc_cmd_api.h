@@ -518,8 +518,7 @@ protected:
     uint8_t parse_port(const Json::Value &params, Json::Value &result);
 
     /* shortcut for parsing profile id */
-    std::string parse_profile(const Json::Value &params, Json::Value &result);
-    std::string parse_profile_empty(const Json::Value &params, Json::Value &result);
+    std::string parse_profile(const Json::Value &params, Json::Value &result, std::string default_value = "_" );
 
     /**
      * parse a field from choices 

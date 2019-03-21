@@ -249,12 +249,12 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     res["state"]     = port->get_state_as_string();
 
-    string profile_id = parse_profile_empty(params, result);
+    string profile_id = parse_profile(params, result, "");
     if ( get_is_stateless() && (profile_id != "") ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
-        Json::Value state_profiles =  Json::objectValue;
-        stl_port->get_state_as_string(profile_id, state_profiles);
-        res["state_profiles"]     = state_profiles;
+        Json::Value state_profile =  Json::objectValue;
+        stl_port->get_state_as_string(profile_id, state_profile);
+        res["state_profile"]     = state_profile;
     }
 
     res["service"]       = port->is_service_mode_on();

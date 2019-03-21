@@ -126,17 +126,9 @@ TrexRpcCommand::parse_port(const Json::Value &params, Json::Value &result) {
 }
 
 std::string
-TrexRpcCommand::parse_profile(const Json::Value &params, Json::Value &result){
+TrexRpcCommand::parse_profile(const Json::Value &params, Json::Value &result, std::string default_value){
     if (params["profile_id"] == Json::Value::null) {
-        return "_" ;
-    }
-    return params["profile_id"].asString();
-}
-
-std::string
-TrexRpcCommand::parse_profile_empty(const Json::Value &params, Json::Value &result){
-    if (params["profile_id"] == Json::Value::null) {
-        return "" ;
+        return default_value;
     }
     return params["profile_id"].asString();
 }
