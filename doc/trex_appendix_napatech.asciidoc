@@ -184,31 +184,25 @@ The /opt/napatech3/config/ntservice.ini contains the following settings that con
  [bash>
 ----
 
-=== Change the statistics update frequency
-The /opt/napatech3/config/ntservice.ini must be updated to the following:
+=== Napatech NIC driver tweaks
+The following changes must be made to /opt/napatech3/config/ntservice.ini:
+
 [source,bash]
 ----
  [System]
  ...
  StatInterval=1
  ...
- ----
-
-== Change the transmit pointer update interval
-The /opt/napatech3/config/ntservice.ini must be updated to the following:
-[source,bash]
-----
-...
-HostBufferRefreshIntervalTx = 50
-...
 ----
 
 [source,bash]
 ----
- [bash]>sed -i -- 's/HostBufferRefreshIntervalTx = default/HostBufferRefreshIntervalTx = 50/g' /opt/napatech3/config/ntservice.ini
- [bash>
+ [Adapter?]
+ ...
+ HostBufferRefreshIntervalTx = 50
+ CancelTxOnCloseMask = 1 # This must match the number of ports on the NIC (1,3,F)
+ ...
 ----
-
 
 === Start the Napatech driver
 [source,bash]
