@@ -90,8 +90,10 @@ class Scapy_wrapper:
         except Exception as e:
             if hasattr(e,'message'):
                 response = self.create_error_response(-32098,'Scapy Server: '+str(e.message),req_id)
+            elif (is_python(3)):
+                response = self.create_error_response(-32096,'Scapy Server: '+str(e),req_id)
             else:
-                response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)            
+                response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)
         finally:
             return response
 

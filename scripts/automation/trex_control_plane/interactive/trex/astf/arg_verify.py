@@ -1,4 +1,5 @@
 from .trex_astf_exceptions import ASTFErrorWrongType, ASTFErrorMissingParam, ASTFErrorBadIp, ASTFErrorBadIpRange,ASTFErrorBadMac
+from ..utils.common import ip2int
 import socket
 
 
@@ -42,6 +43,8 @@ class ArgVerify(object):
             return "Bad first IP"
         if not ArgVerify.verify_ip(ip_range[1]):
             return "Bad second IP"
+        if ip2int(ip_range[0]) > ip2int(ip_range[1]):
+            return "Min IP is bigger than Max IP"
 
         return "ok"
 

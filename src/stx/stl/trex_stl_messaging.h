@@ -383,6 +383,49 @@ public:
     bool handle (CRxCore *rx_core);
 };
 
+class TrexStatelessDpSetLatencyFeature : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpSetLatencyFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpUnsetLatencyFeature: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpUnsetLatencyFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpSetCaptureFeature : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpSetCaptureFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpUnsetCaptureFeature: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpUnsetCaptureFeature(MsgReply<bool>& reply) : m_reply(reply) {
+    }
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>      &m_reply;
+};
 
 
 #endif /* __TREX_STL_MESSAGING_H__ */

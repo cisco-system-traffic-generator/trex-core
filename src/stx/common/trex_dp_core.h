@@ -155,6 +155,8 @@ protected:
     /* read from RX  */
     virtual bool rx_for_idle(void);
 
+    virtual bool is_hot_state();
+
     void idle_state_loop();
     
     /**

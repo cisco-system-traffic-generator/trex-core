@@ -1044,7 +1044,9 @@ class STLClient(TRexClient):
                    vm = None,
                    packet_hook = None,
                    is_dual = False,
-                   min_ipg_usec = None):
+                   min_ipg_usec = None,
+                   src_mac_pcap = False,
+                   dst_mac_pcap = False):
         """
             Push a local PCAP to the server
             This is equivalent to loading a PCAP file to a profile
@@ -1091,6 +1093,12 @@ class STLClient(TRexClient):
                     Minimum inter-packet gap in microseconds to guard from too small ipg.
                     Exclusive with ipg_usec
 
+                src_mac_pcap : bool
+                    Source MAC address will be taken from pcap file if True.
+
+                dst_mac_pcap : bool
+                    Destination MAC address will be taken from pcap file if True.
+
             :raises:
                 + :exc:`TRexError`
 
@@ -1106,6 +1114,8 @@ class STLClient(TRexClient):
         validate_type('vm', vm, (list, type(None)))
         validate_type('is_dual', is_dual, bool)
         validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
+        validate_type('src_mac_pcap', src_mac_pcap, bool)
+        validate_type('dst_mac_pcap', dst_mac_pcap, bool)
         if all([ipg_usec, min_ipg_usec]):
             raise TRexError('Please specify either ipg or minimal ipg, not both.')
 
@@ -1146,7 +1156,9 @@ class STLClient(TRexClient):
                                                count,
                                                vm = vm,
                                                packet_hook = packet_hook,
-                                               min_ipg_usec = min_ipg_usec)
+                                               min_ipg_usec = min_ipg_usec,
+                                               src_mac_pcap = src_mac_pcap,
+                                               dst_mac_pcap = dst_mac_pcap)
                 self.ctx.logger.post_cmd(RC_OK())
             except TRexError as e:
                 self.ctx.logger.post_cmd(RC_ERR(e))
@@ -1174,7 +1186,9 @@ class STLClient(TRexClient):
                                                             vm = vm,
                                                             packet_hook = packet_hook,
                                                             split_mode = split_mode,
-                                                            min_ipg_usec = min_ipg_usec)
+                                                            min_ipg_usec = min_ipg_usec,
+                                                            src_mac_pcap = src_mac_pcap,
+                                                            dst_mac_pcap = dst_mac_pcap)
 
                 self.ctx.logger.post_cmd(RC_OK())
 
@@ -1623,7 +1637,9 @@ class STLClient(TRexClient):
                 parsing_opts.MIN_IPG,
                 parsing_opts.SPEEDUP,
                 parsing_opts.FORCE,
-                parsing_opts.DUAL]
+                parsing_opts.DUAL,
+                parsing_opts.SRC_MAC_PCAP,
+                parsing_opts.DST_MAC_PCAP]
 
         parser = parsing_opts.gen_parser(*(args + [parsing_opts.FILE_PATH_NO_CHECK]))
         opts = parser.parse_args(line.split(), verify_acquired = True)
@@ -1658,7 +1674,9 @@ class STLClient(TRexClient):
                            count          = opts.count,
                            duration       = opts.duration,
                            force          = opts.force,
-                           is_dual        = opts.dual)
+                           is_dual        = opts.dual,
+                           src_mac_pcap   = opts.src_mac_pcap,
+                           dst_mac_pcap   = opts.dst_mac_pcap)
 
         return RC_OK()
 

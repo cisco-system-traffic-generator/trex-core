@@ -4,6 +4,8 @@ from scapy.layers.inet import IP, UDP
 from scapy.packet import NoPayload
 from collections import namedtuple, OrderedDict
 
+from ..trex_client import  PacketBuffer
+
 from .trex_service_fast_parser import FastParser
 
 import struct
@@ -113,7 +115,7 @@ class DHCPParser(FastParser):
                     raise Exception('unknown type: {0}'.format(ot['type']))
 
             else:
-                raise Exception('unknown option: {0}'.format(o))
+                pass  # we should ignore oprions that we don't require for the protocol and not creash 
 
             # advance
             index += olen
@@ -165,7 +167,7 @@ class DHCPParser(FastParser):
         obj.xid = xid
         obj.chaddr = chaddr
         
-        return obj.raw()
+        return PacketBuffer(obj.raw())
         
 
     def req (self, xid, chaddr, yiaddr):
@@ -180,7 +182,7 @@ class DHCPParser(FastParser):
         obj.xid = xid
         obj.chaddr = chaddr
         
-        return obj.raw()
+        return PacketBuffer(obj.raw())
         
         
 
@@ -206,6 +208,6 @@ class DHCPParser(FastParser):
         
         obj.options = {'message-type': 7, 'server_id': server_ip}
         
-        return obj.raw()
+        return PacketBuffer(obj.raw())
  
 

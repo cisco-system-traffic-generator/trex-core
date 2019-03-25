@@ -404,6 +404,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["dp_core_count"] = api.get_dp_core_count();
     section["dp_core_count_per_port"] = api.get_dp_core_count() / (api.get_port_count() / 2);
     section["core_type"] = get_cpu_model();
+    section["is_multiqueue_mode"] = get_dpdk_mode()->dp_rx_queues() ? true : false;
 
     /* ports */
     const stx_port_map_t &stx_port_map = get_stx()->get_port_map();
@@ -1357,6 +1358,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     filter.set_bpf_filter(filter_str);
     
     set<uint8_t> ports;
+    set<uint8_t> rx_ports;
     
     /* populate the filter */
     for (int i = 0; i < tx_json.size(); i++) {
@@ -1373,6 +1375,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         
         filter.add_rx(rx_port);
         ports.insert(rx_port);
+        rx_ports.insert(rx_port);
     }
     
     /* check that all ports are under service mode */
@@ -1405,6 +1408,9 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         generate_execute_err(result, ex.what());
     }
     
+    if (get_is_stateless() && get_dpdk_mode()->dp_rx_queues()) {
+        get_stx()->set_capture_feature(rx_ports);
+    }
 }
 
 /**
@@ -1435,7 +1441,9 @@ TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-   
+    if (get_is_stateless() && get_dpdk_mode()->dp_rx_queues()) {
+        get_stx()->unset_capture_feature();
+    }
 }
 
 /**

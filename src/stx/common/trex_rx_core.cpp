@@ -189,7 +189,8 @@ bool CRxCore::should_be_hot() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         if ( TrexCaptureMngr::getInstance().is_active(mngr_pair.first)
             || mngr_pair.second->is_feature_set(RXPortManager::LATENCY)
-            || mngr_pair.second->is_feature_set(RXPortManager::CAPWAP_PROXY) ) {
+            || mngr_pair.second->is_feature_set(RXPortManager::CAPWAP_PROXY)
+            || mngr_pair.second->is_feature_set(RXPortManager::CAPTURE_PORT) ) {
             return true;
         }
     }

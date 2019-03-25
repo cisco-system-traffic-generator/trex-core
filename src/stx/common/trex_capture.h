@@ -443,6 +443,14 @@ public:
     bool is_active(uint8_t port) const {
         return m_global_filter.in_any(port);
     }
+
+    /**
+     * return true if port is being monitored
+     * on rx only
+     */
+    bool is_rx_active(uint8_t port) const {
+        return m_global_filter.in_rx(port);
+    }
     
     /**
      * handle packet on TX side 

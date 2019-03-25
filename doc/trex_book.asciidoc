@@ -178,6 +178,12 @@ LSO (Large Send Offload) and LRO (Large Receive Offload) are techniques to incre
 =====================================
 // it appears that link:<link> doesn't work in a note, so i changed the wording
 
+
+[NOTE]
+=====================================
+ For Intel XXV710 Cisco NIC, make sure to upgrade cimc to latest at lest v4.0(2f), the firmware of the XXV710 will be upgraded to v6 that can support most of sfps.
+====================================
+
 // clarify above table and note
 
 .XL710 NIC base QSFP+ support

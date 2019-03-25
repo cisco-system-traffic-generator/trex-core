@@ -94,17 +94,6 @@ TrexStatelessMulticoreSoftwareFSLatencyStats::export_data(rfc2544_info_t *rfc254
     }
 }
 
-void
-TrexStatelessMulticoreSoftwareFSLatencyStats::wait_for_all_dp_to_finish(bool *finished, uint8_t dp_core_count) {
-    bool all_dp_replied;
-    do {
-        all_dp_replied = true;
-        for (int core_id = 0; core_id < dp_core_count; core_id++) {
-            all_dp_replied &= finished[core_id];
-        }
-    } while (!all_dp_replied);
-}
-
 int
 TrexStatelessMulticoreSoftwareFSLatencyStats::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch) {
     for (auto& dp_core : m_dp_cores) {
@@ -280,6 +269,68 @@ void
 TrexStateless::init_stats_rx() {
     assert (!get_dpdk_mode()->dp_rx_queues());
     m_stats = new TrexStatelessRxFSLatencyStats(get_stl_rx());
+}
+
+void
+TrexStateless::set_latency_feature(){
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpSetLatencyFeature(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+}
+
+void
+TrexStateless::unset_latency_feature(){
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpUnsetLatencyFeature(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+}
+
+void
+TrexStateless::set_capture_feature(const std::set<uint8_t>& rx_ports) {
+    for (auto& port_id : rx_ports) {
+        TrexStatelessPort* port = get_port_by_id(port_id);
+        for (auto& core_id : port->get_core_id_list()) {
+            static MsgReply<bool> reply;
+            reply.reset();
+            TrexCpToDpMsgBase* msg = new TrexStatelessDpSetCaptureFeature(reply);
+            send_msg_to_dp(core_id, msg);
+            reply.wait_for_reply();
+        }
+    }
+}
+
+void
+TrexStateless::unset_capture_feature() {
+    for (uint8_t i = 0; i < get_platform_api().get_port_count(); i+=2) {
+        bool port1_rx_active = false;
+        bool port2_rx_active = false;
+        if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
+            port1_rx_active = TrexCaptureMngr::getInstance().is_rx_active(i);
+        }
+        if ( !CGlobalInfo::m_options.m_dummy_port_map[i+1] ) {
+            port2_rx_active = TrexCaptureMngr::getInstance().is_rx_active(i+1);
+        }
+        if (port1_rx_active || port2_rx_active) {
+            continue;
+        } else {
+            TrexStatelessPort* port = get_port_by_id(i);
+            for (auto& core_id : port->get_core_id_list()) {
+                static MsgReply<bool> reply;
+                reply.reset();
+                TrexCpToDpMsgBase* msg = new TrexStatelessDpUnsetCaptureFeature(reply);
+                send_msg_to_dp(core_id, msg);
+                reply.wait_for_reply();
+            }
+        }
+    }
 }
 
 TrexStatelessFSLatencyStats* TrexStateless::get_stats() {

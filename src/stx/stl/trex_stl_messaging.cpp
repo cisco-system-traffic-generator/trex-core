@@ -333,3 +333,54 @@ bool TrexStatelessRxDisableLatency::handle (CRxCore *rx_core) {
     return true;
 }
 
+bool TrexStatelessDpSetLatencyFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->set_latency_feature();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpSetLatencyFeature::clone() {
+    TrexStatelessDpSetLatencyFeature *new_msg = new TrexStatelessDpSetLatencyFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpUnsetLatencyFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->unset_latency_feature();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpUnsetLatencyFeature::clone() {
+    TrexStatelessDpUnsetLatencyFeature *new_msg = new TrexStatelessDpUnsetLatencyFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpSetCaptureFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->set_capture_feature();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpSetCaptureFeature::clone() {
+    TrexStatelessDpSetCaptureFeature *new_msg = new TrexStatelessDpSetCaptureFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpUnsetCaptureFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->unset_capture_feature();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase*
+TrexStatelessDpUnsetCaptureFeature::clone() {
+    TrexStatelessDpUnsetCaptureFeature *new_msg = new TrexStatelessDpUnsetCaptureFeature(m_reply);
+    return new_msg;
+}

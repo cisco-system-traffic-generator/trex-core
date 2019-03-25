@@ -615,6 +615,18 @@ class OPTIONS_DB_ARGS:
          'default': False,
          'help': "Transmit in a dual mode - requires ownership on the adjacent port"})
 
+    SRC_MAC_PCAP = ArgumentPack(
+        ['--src_mac_pcap'],
+        {"action": "store_true",
+         "default": False,
+         "help": "Source MAC address will be taken from pcap file"})
+
+    DST_MAC_PCAP = ArgumentPack(
+        ['--dst_mac_pcap'],
+        {"action": "store_true",
+         "default": False,
+         "help": "Destination MAC address will be taken from pcap file"})
+
     FILE_PATH = ArgumentPack(
         ['-f'],
         {'metavar': 'FILE',

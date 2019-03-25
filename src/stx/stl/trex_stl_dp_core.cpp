@@ -938,6 +938,7 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
         m_ports[i].create(core);
     }
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
+    m_features = NO_FEATURES;
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {
@@ -1084,6 +1085,9 @@ bool TrexStatelessDpCore::rx_for_idle(void){
     }
 }
 
+bool TrexStatelessDpCore::is_hot_state() {
+    return is_feature_set(LATENCY) || is_feature_set(CAPTURE);
+}
 void TrexStatelessDpCore::rx_handle_packet(int dir,
                                            rte_mbuf_t * m,
                                            bool is_idle,
@@ -1092,7 +1096,6 @@ void TrexStatelessDpCore::rx_handle_packet(int dir,
     _rx_handle_packet(dir,m,is_idle,drop);
 
     if (drop) {
-        //TrexCaptureMngr::getInstance().handle_pkt_rx_dp(m, port_id);
         rte_pktmbuf_free(m);
     }else{
         /* redirect to rx core */

@@ -200,7 +200,13 @@ public:
     #define SCHD_OFFSET_DTIME  (100.0/1000000.0)
     #define SCHD_OFFSET_DTIME_RX_ENABLED  (100000.0/1000000.0)
 
+    enum feature_t {
+        NO_FEATURES  = 0,
+        LATENCY      = 1,
+        CAPTURE      = 1 << 1,
+    };
 
+ 
     TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
 
     ~TrexStatelessDpCore();
@@ -297,6 +303,25 @@ public:
 
     virtual bool rx_for_idle(void);
 
+    virtual bool is_hot_state();
+
+    bool has_features_set() {
+        return (m_features != NO_FEATURES);
+    }
+
+    bool no_features_set() {
+        return (!has_features_set());
+    }
+
+    bool is_feature_set(feature_t feature) const {
+        return ( (m_features & feature) == feature );
+    }
+
+    inline void set_latency_feature()   { set_feature(LATENCY); }
+    inline void unset_latency_feature() { unset_feature(LATENCY); }
+    inline void set_capture_feature()   { set_feature(CAPTURE); }
+    inline void unset_capture_feature() { unset_feature(CAPTURE); }
+
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
     void rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch);
@@ -341,6 +366,18 @@ private:
     void replay_vm_into_cache(TrexStream * stream,
                               CGenNodeStateless *node);
 
+    void clear_all_features() {
+        m_features = NO_FEATURES;
+    }
+
+    void set_feature(feature_t feature) {
+        m_features |= feature;
+    }
+
+    void unset_feature(feature_t feature) {
+        m_features &= (~feature);
+    }
+
 
     uint8_t                    m_need_to_rx;
     uint8_t                    m_local_port_offset;
@@ -352,6 +389,8 @@ private:
     ServiceModeWrapper        *m_wrapper;
     bool                       m_is_service_mode;
     CFlowStatParser *          m_parser;
+
+    uint8_t                    m_features;
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */
