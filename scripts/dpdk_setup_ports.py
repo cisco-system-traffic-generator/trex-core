@@ -670,6 +670,15 @@ Other network devices
         elif extension != '.yaml':
             pass # should we fail here?
 
+    def is_hugepage_file_exits(self,socket_id):
+        t = ['2048','1048576']
+        for obj in t:
+            filename = '/sys/devices/system/node/node{}/hugepages/hugepages-{}kB/nr_hugepages'.format(socket_id,obj)
+            if os.path.isfile(filename):
+                return (True,filename,t)
+        return (False,None,None)
+
+
     def config_hugepages(self, wanted_count = None):
         huge_mnt_dir = '/mnt/huge'
         if not os.path.isdir(huge_mnt_dir):
@@ -681,10 +690,10 @@ Other network devices
             os.system('mount -t hugetlbfs nodev %s' % huge_mnt_dir)
 
         for socket_id in range(2):
-            filename = '/sys/devices/system/node/node%d/hugepages/hugepages-2048kB/nr_hugepages' % socket_id
-            if not os.path.isfile(filename):
+            r = self.is_hugepage_file_exits(socket_id)
+            if not r[0]:
                 if socket_id == 0:
-                    print('WARNING: hugepages config file (%s) does not exist!' % filename)
+                   print('WARNING: hugepages config file does not exist!')
                 continue
             if wanted_count is None:
                 if self.m_cfg_dict[0].get('low_end', False):
@@ -698,6 +707,11 @@ Other network devices
                         wanted_count = 1 # otherwise, DPDK will not be able to see the device
                 else:
                     wanted_count = 2048
+            if r[2] > 2048:
+                wanted_count = wanted_count / 1024
+                if wanted_count < 1 :
+                    wanted_count = 1
+            filename = r[1]
             with open(filename) as f:
                 configured_hugepages = int(f.read())
             if configured_hugepages < wanted_count:
