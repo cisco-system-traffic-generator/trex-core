@@ -108,7 +108,10 @@ protected:
     virtual void on_event() {
         TrexStatelessProfile *mprofile = dynamic_cast<TrexStatelessProfile *>(get_port());
         mprofile->change_state(TrexPort::PORT_STATE_STREAMS);
-        mprofile->common_profile_stop_actions(true);
+
+        uint8_t port_id = get_port()->get_port_id();
+        TrexStatelessPort *port = (TrexStatelessPort*) get_stx()->get_port_by_id(port_id);
+        port->update_and_publish_port_state(true);
 
         assert(mprofile->m_pending_async_stop_event != TrexDpPortEvents::INVALID_ID);
         mprofile->m_pending_async_stop_event = TrexDpPortEvents::INVALID_ID;
@@ -350,12 +353,6 @@ TrexStatelessProfile::start_traffic(const TrexPortMultiplier &mul, double durati
     /* for debug - this can be turn on */
     //m_dp_events.barrier(m_dp_profile_id);
 
-    /* update subscribers */    
-    Json::Value data;
-    data["port_id"] = m_port_id;
-    data["profile_id"] = m_profile_id;
-    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
-    
 }
 
 
@@ -393,7 +390,6 @@ TrexStatelessProfile::stop_traffic() {
 
     change_state(PORT_STATE_STREAMS);
 
-    common_profile_stop_actions(false);
 }
 
 /**
@@ -408,25 +404,6 @@ TrexStatelessProfile::remove_rx_filters(void) {
 
     for (auto entry : m_stream_table) {
         CFlowStatRuleMgr::instance()->stop_stream(entry.second);
-    }
-
-}
-
-/**
- * when a port stops, perform various actions
- * 
- */
-void
-TrexStatelessProfile::common_profile_stop_actions(bool async) {
-
-    Json::Value data;
-    data["port_id"] = m_port_id;
-    data["profile_id"] = m_profile_id;
-
-    if (async) {
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_FINISHED_TX, data);
-    } else {
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STOPPED, data);
     }
 
 }
@@ -458,10 +435,6 @@ TrexStatelessProfile::pause_traffic(void) {
     /* change state */
     change_state(PORT_STATE_PAUSE);
 
-    Json::Value data;
-    data["port_id"] = m_port_id;
-    data["profile_id"] = m_profile_id;
-    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_PAUSED, data);
 }
 
 void
@@ -500,10 +473,6 @@ TrexStatelessProfile::resume_traffic(void) {
     send_message_to_all_dp(resume_msg, true);
     change_state(PORT_STATE_TX);
 
-    Json::Value data;
-    data["port_id"] = m_port_id;
-    data["profile_id"] = m_profile_id;
-    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RESUMED, data);
 }
 
 void
@@ -924,8 +893,7 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
 
 TrexStatelessPort::~TrexStatelessPort() {
 
-    /* use stop_traffic() to prevent blocking when the class is distrucked */ 
-    stop_traffic();
+    stop_traffic("*");
     remove_and_delete_all_streams("*");
 }
 
@@ -970,7 +938,8 @@ TrexStatelessPort::start_traffic(string profile_id, const TrexPortMultiplier &mu
     valide_profile(profile_id);
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
     mprofile->start_traffic(mul, duration, force, core_mask, start_at_ts);
-    update_port_state();
+    update_and_publish_port_state();
+ 
 }
 
 
@@ -983,42 +952,35 @@ TrexStatelessPort::stop_traffic(string profile_id) {
 
     if ((get_state()==(TrexPort::PORT_STATE_PCAP_TX))) {
         stop_traffic_pcap();
-    }     
- 
+    }
+
     if (profile_id == "*") {
-        stop_traffic();
+        std::vector<string> profile_list;
+        get_profile_id_list(profile_list);
+
+        std::stringstream ss ;
+        for (auto &profile_id : profile_list) {
+            try {
+                TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
+                mprofile->stop_traffic();
+            } catch (const TrexException &ex) {
+                ss << ex.what() << std::endl;
+            }
+        }
+        update_and_publish_port_state();
+
+        if (ss.str()!="") {
+            throw TrexException(ss.str());
+        }
+
     } else {
+        valide_profile(profile_id);
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->stop_traffic();
-        update_port_state();
+        update_and_publish_port_state();
     }
 }
 
-
-void
-TrexStatelessPort::stop_traffic() {
-
-    std::vector<string> profile_list;
-    get_profile_id_list(profile_list);
-
-    if (get_state()==(TrexPort::PORT_STATE_PCAP_TX)) {
-        stop_traffic_pcap();
-    }
-
-    std::stringstream ss ;
-    for (auto &profile_id : profile_list) {
-        try {
-            stop_traffic(profile_id);
-        } catch (const TrexException &ex) {
-            ss << ex.what() << std::endl;
-        }
-    }
-    update_port_state();
-
-    if (ss.str()!="") {
-        throw TrexException(ss.str());
-    }
-}
 
 
 void
@@ -1039,7 +1001,6 @@ TrexStatelessPort::stop_traffic_pcap(void) {
     m_dp_events.barrier();
 
     change_state(PORT_STATE_STREAMS);
-    update_port_state();
     common_port_stop_actions(false);
 }
 
@@ -1051,29 +1012,9 @@ TrexStatelessPort::stop_traffic_pcap(void) {
 void
 TrexStatelessPort::remove_rx_filters(string profile_id) {
 
-    if (profile_id == "*") {
-        std::vector<string> profile_list;
-        get_profile_id_list(profile_list);
-
-        std::stringstream ss ;
-        for (auto &profile_id : profile_list) {
-            try {
-                TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-                mprofile->remove_rx_filters();
-            } catch (const TrexException &ex) {
-                ss << ex.what() << std::endl;
-            }
-        }
-
-        if (ss.str()!="") {
-            throw TrexException(ss.str());
-        }
-
-    } else {
-        valide_profile(profile_id);
-        TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-        mprofile->remove_rx_filters();
-    }
+    valide_profile(profile_id);
+    TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
+    mprofile->remove_rx_filters();
 }
 
 
@@ -1113,7 +1054,7 @@ TrexStatelessPort::pause_traffic(string profile_id) {
                 ss << ex.what() << std::endl;
             }
         }
-        update_port_state();
+        update_and_publish_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1123,7 +1064,7 @@ TrexStatelessPort::pause_traffic(string profile_id) {
         valide_profile(profile_id);
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->pause_traffic();
-        update_port_state();
+        update_and_publish_port_state();
     }
 }
 
@@ -1152,7 +1093,7 @@ TrexStatelessPort::resume_traffic(string profile_id) {
                 ss << ex.what() << std::endl;
             }
         }
-        update_port_state();
+        update_and_publish_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1162,7 +1103,7 @@ TrexStatelessPort::resume_traffic(string profile_id) {
         valide_profile(profile_id);
         TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
         mprofile->resume_traffic();
-        update_port_state();
+        update_and_publish_port_state();
     }
 }
 
@@ -1321,7 +1262,7 @@ TrexStatelessPort::add_stream(string profile_id, TrexStream *stream) {
     }
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
     mprofile->add_stream(stream);
-    update_port_state();
+    update_and_publish_port_state();
 }
 
 
@@ -1331,7 +1272,7 @@ TrexStatelessPort::remove_stream(string profile_id, TrexStream *stream) {
     valide_profile(profile_id);
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
     mprofile->remove_stream(stream);
-    update_port_state();
+    update_and_publish_port_state();
 }
 
 
@@ -1351,7 +1292,7 @@ TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
                 ss << ex.what() << std::endl;
             }
         }
-        update_port_state();
+        update_and_publish_port_state();
 
         if (ss.str()!="") {
             throw TrexException(ss.str());
@@ -1362,7 +1303,7 @@ TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
         if( get_profile_by_id(profile_id) ) {
             TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
             mprofile->remove_and_delete_all_streams();
-            update_port_state();
+            update_and_publish_port_state();
         }
     }
 }
@@ -1510,14 +1451,13 @@ TrexStatelessPort::get_profile_state_as_string(string profile_id) {
 void
 TrexStatelessPort::update_port_state() {
 
-    std::vector<string> profile_list;
-    get_profile_id_list(profile_list); 
-
+    
     if (get_state() & (PORT_STATE_TX | PORT_STATE_PAUSE | PORT_STATE_STREAMS | PORT_STATE_IDLE)) {
 
         int temp_state = 0;
-        for (auto &profile_id : profile_list) {
-            temp_state |= get_profile_state(profile_id);
+        for (auto it : m_profile_table) {
+            TrexStatelessProfile *mprofile = it.second;
+            temp_state |= mprofile->get_state();
         }
 
         if (temp_state & PORT_STATE_TX) {
@@ -1532,6 +1472,31 @@ TrexStatelessPort::update_port_state() {
     }
 }
 
+/**
+ * update and publish port state 
+ */
+void
+TrexStatelessPort::update_and_publish_port_state(bool async) {
+
+    int old_state = get_state();
+
+    update_port_state();
+    if (old_state == get_state()) {
+        return;
+    }
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    if ( (get_state() == PORT_STATE_TX) && (old_state == PORT_STATE_STREAMS)) {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
+    } else if ( get_state() == PORT_STATE_PAUSE ) {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_PAUSED, data);
+    } else if ((get_state() == PORT_STATE_TX) && (old_state == PORT_STATE_PAUSE)) {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_RESUMED, data);
+    } else if ((get_state() == PORT_STATE_STREAMS) && (old_state != PORT_STATE_IDLE)) {
+        common_port_stop_actions(async);
+    }
+}
 
 
 void
@@ -1587,8 +1552,8 @@ void TrexProfileTable::get_profile_id_list(std::vector<string> &profile_id_list)
     profile_id_list.clear();
 
     for (auto mprofile : m_profile_table) {
-        if(( mprofile.first  == "_") && (mprofile.second->get_state()==(TrexPort::PORT_STATE_IDLE)))
-           continue;
+        //if(( mprofile.first  == "_") && (mprofile.second->get_state()==(TrexPort::PORT_STATE_IDLE)))
+        //continue;
         profile_id_list.push_back(mprofile.first);
     }
 }

@@ -259,12 +259,6 @@ private:
 
     
     /**
-     * when a port stops, perform various actions
-     *
-     */
-    void common_profile_stop_actions(bool async);
-
-    /**
      * calculate effective M per core
      *
      */
@@ -404,8 +398,7 @@ public:
      * stop traffic
      * throws TrexException in case of an error
      */
-    void stop_traffic();
-    void stop_traffic(string profile_id);
+    void stop_traffic(string profile_idi = "_");
     void stop_traffic_pcap();
     /**
      * remove all RX filters 
@@ -559,6 +552,7 @@ public:
      */
     void update_port_state();
 
+    void update_and_publish_port_state(bool async = false);
 
     string default_profile = "_";
 
