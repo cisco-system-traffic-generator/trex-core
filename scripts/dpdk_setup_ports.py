@@ -710,7 +710,7 @@ Other network devices
 
 
     def run_scapy_server(self):
-        if not pa() or pa().no_scapy_server or not pa().interactive or pa().astf:
+        if not pa() or pa().no_scapy_server or not pa().interactive or (not pa().scapy_server and pa().astf):
             return
         try:
             master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
@@ -1301,6 +1301,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
+    parent_parser.add_argument('--scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
     parent_parser.add_argument('--limit-ports', type = int)

@@ -195,6 +195,7 @@ enum {
        OPT_ARP_REF_PER,
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
+       OPT_SCAPY_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
        OPT_TCP_MODE,
@@ -286,6 +287,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
+        { OPT_SCAPY_SERVER,           "--scapy-server", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
         { OPT_ASTF_EMUL_DEBUG,        "--astf-emul-debug",  SO_NONE},
@@ -366,6 +368,7 @@ static int __attribute__((cold)) usage() {
     printf(" --no-key                   : Daemon mode, don't get input from keyboard \n");
     printf(" --no-ofed-check            : Disable the check of OFED version \n");
     printf(" --no-scapy-server          : Disable Scapy server implicit start at stateless \n");
+    printf(" --scapy-server             : Enable Scapy server implicit start at ASTF \n");
     printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
@@ -879,6 +882,8 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_NO_OFED_CHECK:
                 break;
             case OPT_NO_SCAPY_SERVER:
+                break;
+            case OPT_SCAPY_SERVER:
                 break;
             case OPT_QUEUE_DROP:
                 CGlobalInfo::m_options.m_is_queuefull_retry = false;
