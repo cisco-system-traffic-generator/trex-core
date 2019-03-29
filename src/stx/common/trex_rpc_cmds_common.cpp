@@ -261,6 +261,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     if ( get_is_stateless() ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        result["result"]["profile_count"] = stl_port->get_profile_count();
         result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
     }
 

@@ -50,11 +50,10 @@ TREX_RPC_CMD(TrexRpcCmdGetPGIdsStats,    "get_pgid_stats");
 
 
 /**
- * profile status
+ * profiles
  */
 TREX_RPC_CMD(TrexRpcCmdGetProfileList,   "get_profile_list");
-TREX_RPC_CMD(TrexRpcCmdGetAllProfilesState, "get_all_profiles_state");
-TREX_RPC_CMD(TrexRpcCmdGetProfileInfo,   "get_profile_info");
+
 
 /**
  * streams status
@@ -264,74 +263,6 @@ TrexRpcCmdGetProfileList::_run(const Json::Value &params, Json::Value &result) {
 
     return (TREX_RPC_CMD_OK);
 }
-
-
-/***************************
- * get state of all profiles
- * 
- **************************/
-trex_rpc_cmd_rc_e
-TrexRpcCmdGetAllProfilesState::_run(const Json::Value &params, Json::Value &result) {
-    std::vector<string> profile_list;
-
-    uint8_t port_id = parse_port(params, result);
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-
-    port->get_profile_id_list(profile_list);
-
-    Json::Value allprofilesstate_json = Json::objectValue;
-
-    for (auto &profile_id : profile_list) {
-
-        Json::Value j = port->get_profile_state_as_string(profile_id);
-        std::stringstream ss;
-        ss << profile_id;
-
-        allprofilesstate_json[ss.str()] = j;
-    }
-
-    result["result"]["all_profiles_state"] = allprofilesstate_json;
-
-    return (TREX_RPC_CMD_OK);
-}
-
-
-/***************************
- * get profile information for future usage
- *  
- **************************/
-
-trex_rpc_cmd_rc_e
-TrexRpcCmdGetProfileInfo::_run(const Json::Value &params, Json::Value &result) {
-
-    std::vector<uint32_t> stream_list;
-
-    uint8_t port_id = parse_port(params, result);
-    TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-
-    string profile_id = parse_profile(params, result);
-    port->get_id_list(profile_id, stream_list);
-
-    Json::Value json_list = Json::arrayValue;
-    Json::Value &res = result["result"];
-
-    if (!(port->get_profile_by_id(profile_id))) {
-        std::stringstream ss;
-        ss << "get_profile_info: profile_id " << profile_id << " does not exists";
-        generate_execute_err(result, ss.str());
-    }
-
-    for (auto &stream_id : stream_list) {
-        json_list.append(stream_id);
-    }
-
-    res["profile_id"]     = profile_id;
-    res["profile state"]  = port->get_profile_state_as_string(profile_id);
-    res["stream list"]    = json_list;
-
-    return (TREX_RPC_CMD_OK);
-}
-
 
 
 /***************************
@@ -1622,8 +1553,6 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     
     /* profiles */
     m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
-    m_cmds.push_back(new TrexRpcCmdGetAllProfilesState(this));
-    m_cmds.push_back(new TrexRpcCmdGetProfileInfo(this));
 
     /* streams */
     m_cmds.push_back(new TrexRpcCmdGetStreamList(this));
