@@ -5,6 +5,7 @@ from .text_opts import format_text
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
+from ..common.trex_types import PortProfileID
 from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 from ..common.trex_psv import PSV_ACQUIRED
 
@@ -65,6 +66,11 @@ match_multiplier_help = """Multiplier should be passed in the following format:
 
                           """
 
+dynamic_profile_help = """A list of profiles on which to apply the command.
+                          Multiple profile IDs are allocated dynamically on the same port.
+                          Profile expression is used as <port id>.<profile id>.
+                          Default profile id is \"_\" when not specified.
+                       """
 
 # decodes multiplier
 # if allow_update - no +/- is allowed
@@ -320,6 +326,7 @@ def decode_tunables (tunable_str):
 
     return tunables
 
+
 class OPTIONS_DB_ARGS:
     MULTIPLIER = ArgumentPack(
         ['-m', '--multiplier'],
@@ -517,6 +524,17 @@ class OPTIONS_DB_ARGS:
          'default': {},
          'action': 'merge',
          'type': decode_tunables})
+
+    PROFILE_LIST = ArgumentPack(
+        ['-p', '--port'],
+        {"nargs": '+',
+         'dest':'ports',
+         'metavar': 'PORT[.PROFILE]',
+         'action': 'merge',
+         'type': PortProfileID,
+         'help': dynamic_profile_help,
+         'default': []})
+
 
     PORT_LIST = ArgumentPack(
         ['-p', '--port'],
