@@ -675,7 +675,7 @@ Other network devices
         for obj in t:
             filename = '/sys/devices/system/node/node{}/hugepages/hugepages-{}kB/nr_hugepages'.format(socket_id,obj)
             if os.path.isfile(filename):
-                return (True,filename,t)
+                return (True,filename,int(obj))
         return (False,None,None)
 
 
