@@ -160,7 +160,6 @@ class STLRX_Test(CStlGeneral_Test):
 
         # skip mlx5 VF
         self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
-        self.mlx5_defect_dpdk1711_trex_518 = CTRexScenario.setup_name in ['trex19','trex07']
         self.i40e_vf_defect_github_200 = CTRexScenario.setup_name in ['trex22']
         #self.mlx5_defect_dpdk1711_3 =False
 
@@ -232,12 +231,32 @@ class STLRX_Test(CStlGeneral_Test):
 
         return wrapped
 
+
+    def __push_latency_elk (self,latency):
+        if self.elk : 
+            elk_obj = self.get_elk_obj()
+            obj = { "name" : self.get_name(),
+                    "type"  : "stateless",
+                    "latecny" :  { "min" : latency['total_min'],
+                                   "max" : latency['total_max'],
+                                   "avr" : latency['average'],
+                                   "jitter" : latency['jitter'],
+                                   "max-win" : latency['last_max']
+                                  }
+                  };
+
+            elk_obj['test'] =obj;
+            pprint.pprint(elk_obj['test']);
+            self.elk.perf.push_data(elk_obj)
+
     def __verify_latency (self, latency_stats,max_latency,max_average):
 
         error=0;
         err_latency = latency_stats['err_cntrs']
         latency     = latency_stats['latency']
 
+        self.__push_latency_elk (latency)
+                                         
         for key in err_latency :
             error +=err_latency[key]
         if error !=0 :
@@ -292,6 +311,9 @@ class STLRX_Test(CStlGeneral_Test):
             sth = latency_stats['err_cntrs']['seq_too_high']
             stl = latency_stats['err_cntrs']['seq_too_low']
             lat = latency_stats['latency']
+
+            self.__push_latency_elk (lat)
+
             if ooo != 0 or dup != 0 or stl != 0:
                 self.__exit_with_error(latency_stats, xstats,
                                   'Error packets - dropped:{0}, ooo:{1} dup:{2} seq too high:{3} seq too low:{4}'.format(drops, ooo, dup, sth, stl)
@@ -399,8 +421,6 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if self.mlx5_defect_dpdk1711_trex_518:
-            self.skip('Skip for mlx5_defect_dpdk1711_trex_518')
 
         self._test_multiple_streams(True)
 
@@ -645,9 +665,6 @@ class STLRX_Test(CStlGeneral_Test):
     # Verify that there is low latency with random packet size,duration and ports
     @try_few_times_on_vm
     def test_9k_stream(self):
-
-        if self.mlx5_defect_dpdk1711_trex_518:
-            self.skip('Skip for mlx5_defect_dpdk1711_trex_518')
 
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
