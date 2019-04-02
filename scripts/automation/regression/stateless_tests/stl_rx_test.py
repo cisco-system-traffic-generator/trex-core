@@ -161,6 +161,7 @@ class STLRX_Test(CStlGeneral_Test):
         # skip mlx5 VF
         self.mlx5_defect_dpdk1711_3 = CTRexScenario.setup_name in ['trex23']
         self.i40e_vf_defect_github_200 = CTRexScenario.setup_name in ['trex22']
+        self.mlx5_defect_dpdk1711_trex_518 = CTRexScenario.setup_name in ['trex07']
         #self.mlx5_defect_dpdk1711_3 =False
 
 
@@ -421,6 +422,8 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
+        if self.mlx5_defect_dpdk1711_trex_518:
+            self.skip('Skip for mlx5_defect_dpdk1711_trex_518')
 
         self._test_multiple_streams(True)
 
@@ -665,6 +668,10 @@ class STLRX_Test(CStlGeneral_Test):
     # Verify that there is low latency with random packet size,duration and ports
     @try_few_times_on_vm
     def test_9k_stream(self):
+
+        if self.mlx5_defect_dpdk1711_trex_518:
+            self.skip('Skip for mlx5_defect_dpdk1711_trex_518')
+
 
         if self.is_virt_nics:
             self.skip('Skip this for virtual NICs')
