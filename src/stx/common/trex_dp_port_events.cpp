@@ -87,8 +87,9 @@ protected:
     }
 };
 
+
 void
-TrexDpPortEvents::barrier() {
+TrexDpPortEvents::barrier(uint32_t profile_id) {
 
     /* simulator will be stuck here forever */
     #ifdef TREX_SIM
@@ -97,7 +98,7 @@ TrexDpPortEvents::barrier() {
      
     int barrier_id = create_event(new DPBarrier());
 
-    TrexCpToDpMsgBase *barrier_msg = new TrexDpBarrier(m_port->m_port_id, barrier_id);
+    TrexCpToDpMsgBase *barrier_msg = new TrexDpBarrier(m_port->m_port_id, profile_id, barrier_id);
     m_port->send_message_to_all_dp(barrier_msg);
 
     get_stx()->check_for_dp_messages();
@@ -106,7 +107,6 @@ TrexDpPortEvents::barrier() {
         get_stx()->check_for_dp_messages();
     }
 }
-
 /**
  * handle an event
  * 

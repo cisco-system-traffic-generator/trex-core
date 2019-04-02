@@ -246,11 +246,22 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     }
 
     res["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    res["state"]         = port->get_state_as_string();
+
+    res["state"]     = port->get_state_as_string();
+
+    string profile_id = parse_profile(params, result, "");
+    if ( get_is_stateless() && (profile_id != "") ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        Json::Value state_profile =  Json::objectValue;
+        stl_port->get_state_as_string(profile_id, state_profile);
+        res["state_profile"]     = state_profile;
+    }
+
     res["service"]       = port->is_service_mode_on();
 
     if ( get_is_stateless() ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        result["result"]["profile_count"] = stl_port->get_profile_count();
         result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
     }
 
@@ -269,7 +280,8 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 }
 
 
-/**
+
+/*
  * ping command
  */
 trex_rpc_cmd_rc_e

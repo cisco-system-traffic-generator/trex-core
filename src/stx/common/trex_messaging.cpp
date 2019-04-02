@@ -25,6 +25,7 @@ limitations under the License.
 #include "trex_dp_core.h"
 #include "trex_port.h"
 #include "trex_rx_core.h"
+#include "stl/trex_stl_port.h"
 
 /*************************
   DP quit
@@ -76,14 +77,14 @@ TrexDpCanQuit::clone(){
 
 bool
 TrexDpBarrier::handle(TrexDpCore *dp_core) {
-    dp_core->barrier(m_port_id, m_event_id);
+    dp_core->barrier(m_port_id, m_profile_id, m_event_id);
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexDpBarrier::clone() {
 
-    TrexCpToDpMsgBase *new_msg = new TrexDpBarrier(m_port_id, m_event_id);
+    TrexCpToDpMsgBase *new_msg = new TrexDpBarrier(m_port_id, m_profile_id, m_event_id);
 
     return new_msg;
 }
@@ -94,10 +95,17 @@ TrexDpBarrier::clone() {
 bool
 TrexDpPortEventMsg::handle() {
     TrexPort *port = get_stx()->get_port_by_id(m_port_id);
-    port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id, get_status());
+
+    if ( get_is_stateless() ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        stl_port->get_dp_events(m_profile_id).on_core_reporting_in(m_event_id, m_thread_id, get_status());
+    } else {
+        port->get_dp_events().on_core_reporting_in(m_event_id, m_thread_id, get_status());
+    }
 
     return (true);
 }
+
 
 bool
 TrexDpCoreStopped::handle(void) {

@@ -222,7 +222,7 @@ void TrexStateless::shutdown() {
     /* stop ports */
     for (auto &port : get_port_map()) {
         /* safe to call stop even if not active */
-        port.second->stop_traffic();
+        port.second->stop_traffic("*");
     }
     
     /* shutdown the RPC server */

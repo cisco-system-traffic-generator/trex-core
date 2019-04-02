@@ -175,9 +175,13 @@ public:
 class TrexDpBarrier : public TrexCpToDpMsgBase {
 public:
 
-    TrexDpBarrier(uint8_t port_id, int event_id) {
+    TrexDpBarrier(uint8_t port_id, uint32_t profile_id, int event_id) {
         m_port_id  = port_id;
+        m_profile_id = profile_id;
         m_event_id = event_id;
+    }
+
+    TrexDpBarrier(uint8_t port_id, int event_id): TrexDpBarrier(port_id, 0, event_id) {
     }
 
     virtual bool handle(TrexDpCore *dp_core);
@@ -186,6 +190,7 @@ public:
 
 private:
     uint8_t   m_port_id;
+    uint32_t  m_profile_id;
     int       m_event_id;
 };
 
@@ -226,9 +231,10 @@ public:
 class TrexDpPortEventMsg : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpPortEventMsg(int thread_id, uint8_t port_id, int event_id, bool status = true) {
+    TrexDpPortEventMsg(int thread_id, uint8_t port_id, uint32_t profile_id, int event_id, bool status = true) {
         m_thread_id     = thread_id;
         m_port_id       = port_id;
+        m_profile_id    = profile_id;
         m_event_id      = event_id;
         m_status        = status;
     }
@@ -243,6 +249,10 @@ public:
         return m_port_id;
     }
 
+    uint8_t get_profile_id() {
+        return m_profile_id;
+    }
+
     int get_event_id() {
         return m_event_id;
     }
@@ -254,6 +264,7 @@ public:
 private:
     int                         m_thread_id;
     uint8_t                     m_port_id;
+    uint32_t                    m_profile_id;
     int                         m_event_id;
     bool                        m_status;
 

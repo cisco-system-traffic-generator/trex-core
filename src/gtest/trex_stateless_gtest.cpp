@@ -2807,14 +2807,15 @@ public:
     virtual void call_after_run(CBasicStl * m_obj){
     };
     uint8_t m_port_id;
+    uint32_t m_profile_id;
 };
 
 
 
 void CBBStartPause0::call_after_init(CBasicStl * m_obj){
 
-    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
-    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
+    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id, m_profile_id);
+    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id, m_profile_id);
 
     m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 4.99); /* command in delay of 4.99 sec */
     m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 6.99);/* command in delay of 6.99 sec */
@@ -2835,6 +2836,7 @@ TEST_F(basic_stl, basic_pause_resume0) {
      TrexStreamsCompiler compile;
 
      uint8_t port_id=0;
+     uint32_t profile_id=0x12345678;
 
      std::vector<TrexStream *> streams;
 
@@ -2858,13 +2860,14 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      std::vector<TrexStreamsCompiledObj *> objs;
      assert(compile.compile(port_id, streams, objs));
-     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 9.99 /*sec */ );
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 0, objs[0], 9.99 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
 
      CBBStartPause0 sink;
      sink.m_port_id = port_id;
+     sink.m_profile_id = profile_id;
      t1.m_sink =  &sink;
 
      bool res=t1.init();
@@ -2876,6 +2879,122 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
 
 //////////////////////////////////////////////////////////////
+
+
+class CBBStartStopDelay3: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+    uint32_t m_profile_id;
+};
+
+
+
+void CBBStartStopDelay3::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(m_port_id, m_profile_id);
+    TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(m_port_id, m_profile_id);
+
+
+    TrexStreamsCompiler compile;
+
+    uint8_t port_id=0;
+    uint32_t profile_id=m_profile_id+1;
+
+    std::vector<TrexStream *> streams;
+
+    TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+    stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
+
+
+    stream1->m_enabled = true;
+    stream1->m_self_start = true;
+    stream1->m_port_id= port_id;
+
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000002);
+    pcap.clone_packet_into_stream(stream1);
+
+    streams.push_back(stream1);
+
+    // stream - clean
+    std::vector<TrexStreamsCompiledObj *>objs;
+    assert(compile.compile(port_id, streams, objs));
+    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 1, objs[0], 10.0 /*sec */ );
+
+
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd1, 7.0);/* command in delay of 7 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStartCmd, 3.5);/* command in delay of 3.5 sec */
+
+    delete stream1 ;
+
+
+}
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, single_pkt_bb_start_stop_delay3) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="stl_bb_start_stop_delay3";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+     uint32_t profile_id=1;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
+
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     // stream - clean
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 0, objs[0], 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartStopDelay3 sink;
+     sink.m_port_id = port_id;
+     sink.m_profile_id = profile_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+
 
 
 class CBBStartStopDelay2: public CBasicStlSink {
