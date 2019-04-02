@@ -32,6 +32,7 @@ limitations under the License.
 class TrexStreamsCompiler;
 class TrexStream;
 class GraphNodeMap;
+class TrexStatelessProfile;
 
 /**
  * a mask object passed to compilation
@@ -160,6 +161,11 @@ private:
 class TrexStreamsCompiler {
 public:
 
+     TrexStreamsCompiler(std::string profile_id = "_") {
+ 
+         m_profile_id = profile_id;
+     }
+     ~TrexStreamsCompiler(){}
     /**
      * compiles a vector of streams to an object passable to the DP
      * 
@@ -246,6 +252,7 @@ private:
 
 
     std::vector<std::string> m_warnings;
+    std::string    m_profile_id;
 };
 
 class TrexStreamsGraph;

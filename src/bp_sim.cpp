@@ -3065,6 +3065,7 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
             /* count before handle - node might be destroyed */
             #ifdef TREX_SIM
             uint8_t port_id = node_sl->get_port_id();
+            uint32_t profile_id = node_sl->get_profile_id();
             update_stl_stats(node_sl);
             #endif
 
@@ -3073,7 +3074,7 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
 
             #ifdef TREX_SIM
             if (has_limit_reached()) {
-                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, false, 0);
+                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, profile_id, false, 0);
             }
             #endif
         }

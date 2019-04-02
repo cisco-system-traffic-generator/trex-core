@@ -82,7 +82,7 @@ public:
      * a barrier for the DP core
      * 
      */
-    void barrier(uint8_t port_id, int event_id);
+    void barrier(uint8_t port_id, uint32_t profile_id, int event_id);
     
 
     /**

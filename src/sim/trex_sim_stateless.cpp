@@ -369,7 +369,6 @@ SimStateless::show_intro(const std::string &out_filename) {
     std::cout << "------------\n\n";
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(0);
-
     std::cout << "stream count:             " << port->get_stream_count() << "\n";
 
     port->get_port_effective_rate(pps, bps_L1, bps_L2, percentage);

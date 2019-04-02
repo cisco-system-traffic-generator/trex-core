@@ -200,6 +200,7 @@ TrexPort::verify_state(int state, const char *cmd_name, bool should_throw) const
     return true;
 }
 
+
 void
 TrexPort::change_state(port_state_e new_state) {
 
