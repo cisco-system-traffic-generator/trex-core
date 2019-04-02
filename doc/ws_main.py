@@ -656,11 +656,11 @@ def build(bld):
         bld(rule=my_copy, target=x)
         bld.add_group() 
 
-    if bld.options.performance or bld.options.performance_detailed:
-        bld(rule=create_analytic_report)
-        bld.add_group()
-        bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
-        return
+    #if bld.options.performance or bld.options.performance_detailed:
+    #    bld(rule=create_analytic_report)
+    #    bld.add_group()
+    #    bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
+    #    return
 
     if bld.options.ndr:
         bld(rule=create_ndr_report)
