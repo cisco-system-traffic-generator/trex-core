@@ -232,13 +232,19 @@ class STLRX_Test(CStlGeneral_Test):
 
         return wrapped
 
+    def __get_as_float (self,val):
+        if isinstance(val, int) or isinstance(val, float):
+            return (float(val))
+        else:
+            return (0.0)
+
 
     def __push_latency_elk (self,latency):
         if self.elk : 
             elk_obj = self.get_elk_obj()
             obj = { "name" : self.get_name(),
                     "type"  : "stateless",
-                    "latecny" :  { "min" : latency['total_min'],
+                    "latecny" :  { "min" : self.__get_as_float(latency['total_min']),
                                    "max" : latency['total_max'],
                                    "avr" : latency['average'],
                                    "jitter" : latency['jitter'],
