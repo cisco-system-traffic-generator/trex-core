@@ -776,6 +776,7 @@ Other network devices
         for iface in if_list:
             iface_without_slash.add(self.split_pci_key(iface))
         show_warning_devices = set()
+        unbind_devices = set()
         for iface in iface_without_slash:
             if iface == 'dummy':
                 continue
@@ -788,16 +789,24 @@ Other network devices
                     continue
                 if iface_pci == device['Slot'].split('.')[0]:
                     if device.get('Driver_str') == 'i40e':
-                        print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
-                        print('See following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
-                        print('Unbind the interface from Linux with following command:')
-                        print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
-                        print('')
-                        sys.exit(-1)
+                        if pa() and pa().unbind_unused_ports:
+                            # if --unbind-unused-ports is set we unbind ports that are not 
+                            # used by TRex
+                            unbind_devices.add(device['Slot'])
+                        else:
+                            print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
+                            print('See following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
+                            print('Unbind the interface from Linux with following command:')
+                            print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
+                            print('')
+                            sys.exit(-1)
                     if device.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
                         show_warning_devices.add(device['Slot'])
         for dev in show_warning_devices:
             print('WARNING: i40e interface %s is under DPDK driver and might interfere with current TRex interfaces.' % dev)
+        if unbind_devices:
+            print('Unbinding unused i40e interfaces: %s' % unbind_devices)
+            dpdk_nic_bind.unbind_all(unbind_devices, force=True)
 
     def do_run (self, only_check_all_mlx=False):
         """ returns code that specifies if interfaces are Mellanox/Napatech etc. """
@@ -1308,6 +1317,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('-f', dest = 'file')
     parent_parser.add_argument('-t', dest = 'tunable', default=None)
     parent_parser.add_argument('-i', action = 'store_true', dest = 'interactive', default = False)
+    parent_parser.add_argument("--unbind-unused-ports", action='store_true')
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if pa().help:
         sys.exit(0)
