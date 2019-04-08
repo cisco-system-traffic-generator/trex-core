@@ -42,6 +42,7 @@ class STLPort(Port):
         self.profile_stream_list = {}
         self.profile_state_list = {}
 
+
 ############################   dynamic profile   #############################
 ############################   helper functions  #############################
 
@@ -54,6 +55,14 @@ class STLPort(Port):
         self.profile_state_list.setdefault(profile_id, state)
         return self.profile_stream_list.get(profile_id)
 
+
+    def __get_stream_profile(self, stream_id):
+        if not self.profile_stream_list:
+            return None
+        for profile_id, streams in self.profile_stream_list.items():
+            if stream_id in streams:
+                return profile_id
+        return None
 
     def __set_profile_state (self, state, profile_id = DEFAULT_PROFILE_ID):
         if state:
@@ -116,7 +125,6 @@ class STLPort(Port):
         return result
 
 
-
     def __state_from_name_dynamic(self, profile_state):
         if profile_state == "IDLE":
             return self.STATE_IDLE
@@ -130,6 +138,7 @@ class STLPort(Port):
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, profile_state))
 
+
     def state_from_name_dynamic(self, profile_state):
         # dict is returned from dynamic profile server version(new)
         for profile_id,state in profile_state.items():
@@ -138,6 +147,43 @@ class STLPort(Port):
 
         if self.state is not self.STATE_PCAP_TX:
             self.__sync_port_state_from_profile()
+
+
+############################     event      #############################
+############################     handler    #############################
+
+    def async_event_profile_started (self, profile_id):
+        if not self.is_acquired():
+            self.__set_profile_state(self.STATE_TX, profile_id)
+            self.__sync_port_state_from_profile()
+
+
+    def async_event_profile_stopped (self, profile_id):
+        if not self.is_acquired():
+            self.__set_profile_state(self.STATE_STREAMS, profile_id)
+            self.__sync_port_state_from_profile()
+
+
+    def async_event_profile_paused (self, profile_id):
+        if not self.is_acquired():
+            self.__set_profile_state(self.STATE_PAUSE, profile_id)
+            self.__sync_port_state_from_profile()
+
+
+    def async_event_profile_resumed (self, profile_id):
+        if not self.is_acquired():
+            self.__set_profile_state(self.STATE_TX, profile_id)
+            self.__sync_port_state_from_profile()
+
+
+    def async_event_profile_job_done (self, profile_id):
+        # until thread is locked - order is important
+        self.tx_stopped_ts = datetime.now()
+        self.__set_profile_state(self.STATE_STREAMS, profile_id)
+        self.__sync_port_state_from_profile()
+
+        self.last_factor_type = None
+
 
 ############################  STL PORT API  #############################
 ############################                #############################
@@ -148,7 +194,7 @@ class STLPort(Port):
             if self.is_dynamic:
                 for profile_id, stream_value_list in rc_data['profiles'].items():
                     for stream_id, stream_value in stream_value_list.items():
-                        self.__set_profile_stream_id(int(stream_id), profile_id)
+                        self.__set_profile_stream_id(int(stream_id), str(profile_id))
                         self.streams[int(stream_id)] = STLStream.from_json(stream_value)
             # legacy server version (streams in rc_data.keys())
             else:
@@ -355,7 +401,7 @@ class STLPort(Port):
             if single_rc:
                 stream_id = batch[i].params['stream_id']
                 self.streams[stream_id] = streams_list[i].clone()
-                self.__set_profile_stream_id(stream_id, profile_id, self.STATE_STREAMS)
+                self.__set_profile_stream_id(int(stream_id), str(profile_id), self.STATE_STREAMS)
 
                 ret.add(RC_OK(data = stream_id))
 
@@ -734,6 +780,9 @@ class STLPort(Port):
             elif state == "paused":
                 if (profile_state == self.STATE_PAUSE):
                     result.append(port_profile)
+            elif state == "streams":
+                if (profile_state == self.STATE_STREAMS):
+                    result.append(port_profile)
             elif state == "all":
                 result.append(port_profile)
             else:
@@ -836,10 +885,10 @@ class STLPort(Port):
             p_type_field_len = max(p_type_field_len, len(pkt_types[stream_id]))
 
         info_table = text_tables.TRexTextTable()
-        info_table.set_cols_align(["c"] + ["c"] + ["c"] + ["r"] + ["c"] + ["c"] + ["c"] + ["c"])
-        info_table.set_cols_width([10]  + [15]  + [p_type_field_len]  + [8] + [16]  + [15] + [12] + [12])
-        info_table.set_cols_dtype(["t"] * 8)
-        info_table.header(["ID", "name", "packet type", "length", "mode", "rate", "PG ID", "next"])
+        info_table.set_cols_align(["c"] + ["c"] + ["c"] + ["c"] + ["r"] + ["c"] + ["c"] + ["c"] + ["c"])
+        info_table.set_cols_width([10]  + [15] + [15] + [p_type_field_len]  + [8] + [16]  + [15] + [12] + [12])
+        info_table.set_cols_dtype(["t"] * 9)
+        info_table.header(["ID", "name", "profile", "packet type", "length", "mode", "rate", "PG ID", "next"])
 
         for stream_id, stream in data.items():
             if stream.has_flow_stats():
@@ -850,6 +899,7 @@ class STLPort(Port):
             info_table.add_row([
                 stream_id,
                 stream.get_name() or '-',
+                self.__get_stream_profile(stream_id) or '-',
                 pkt_types[stream_id],
                 len(stream.get_pkt())+ 4,
                 stream.get_mode(),

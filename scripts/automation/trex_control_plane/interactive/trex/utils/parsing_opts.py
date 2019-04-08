@@ -615,6 +615,12 @@ class OPTIONS_DB_ARGS:
          'default': False,
          'help': "Set if you want to stop active ports before appyling command."})
 
+    REMOVE = ArgumentPack(
+        ['--remove'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to remove the active profiles after stopping them."})
+
     READONLY = ArgumentPack(
         ['-r'],
         {'action': 'store_true',

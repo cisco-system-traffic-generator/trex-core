@@ -153,6 +153,13 @@ class ServerEventsIDs(object):
     EVENT_PORT_ERROR     = 7
     EVENT_PORT_ATTR_CHG  = 8
 
+    EVENT_PROFILE_STARTED       = 10
+    EVENT_PROFILE_STOPPED       = 11
+    EVENT_PROFILE_PAUSED        = 12
+    EVENT_PROFILE_RESUMED       = 13
+    EVENT_PROFILE_FINISHED_TX   = 14
+    EVENT_PROFILE_ERROR         = 17
+
     EVENT_ASTF_STATE_CHG = 50
 
     EVENT_SERVER_STOPPED = 100
@@ -447,6 +454,48 @@ class TRexSubscriber():
             attr    = data['attr']
 
             self.ctx.event_handler.on_event("port attr chg", port_id, attr)
+
+
+        # profile started
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_STARTED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile started", port_id, profile_id)
+
+
+        # profile stopeed
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_STOPPED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile stopped", port_id, profile_id)
+
+
+        # profile paused
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_PAUSED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile paused", port_id, profile_id)
+
+
+        # profile resumed
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_RESUMED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile resumed", port_id, profile_id)
+
+
+        # profile finised tx
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_FINISHED_TX:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile finished tx", port_id, profile_id)
+
+
+        # profile error
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_ERROR:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile error", port_id, profile_id)
 
 
         # ASTF state changed

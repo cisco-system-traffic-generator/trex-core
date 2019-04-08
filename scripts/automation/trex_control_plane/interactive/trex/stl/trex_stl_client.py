@@ -9,6 +9,7 @@ from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 
 from ..common.trex_exceptions import *
+from ..common.trex_events import Event
 from ..common.trex_logger import Logger
 from ..common.trex_client import TRexClient, PacketBuffer
 from ..common.trex_types import *
@@ -118,6 +119,7 @@ class STLClient(TRexClient):
     def get_mode (self):
         return "STL"
 
+
 ############################    called       #############################
 ############################    by base      #############################
 ############################    TRex Client  #############################   
@@ -149,6 +151,75 @@ class STLClient(TRexClient):
         #self.pgid_stats.clear_stats()
         return RC_OK()
 
+
+############################     events     #############################
+############################                #############################
+############################                #############################
+
+    # register all common events
+    def _register_events (self):
+        super(STLClient, self)._register_events()
+        self.ctx.event_handler.register_event_handler("profile started",     self._on_profile_started)
+        self.ctx.event_handler.register_event_handler("profile stopped",     self._on_profile_stopped)
+        self.ctx.event_handler.register_event_handler("profile paused",      self._on_profile_paused)
+        self.ctx.event_handler.register_event_handler("profile resumed",     self._on_profile_resumed)
+        self.ctx.event_handler.register_event_handler("profile finished tx", self._on_profile_finished_tx)
+        self.ctx.event_handler.register_event_handler("profile error",       self._on_profile_error)
+
+
+    def _on_profile_started (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has started".format(port_id, profile_id)
+
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_started(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_stopped (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has stopped".format(port_id, profile_id)
+
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_stopped(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_paused (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has paused".format(port_id, profile_id)
+
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_paused(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_resumed (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has resumed".format(port_id, profile_id)
+
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_resumed(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_finished_tx (self, port_id, profile_id):
+        msg = "Profile {0}.{1} job done".format(port_id, profile_id)
+
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_job_done(profile_id)
+
+        ev = Event('server', 'info', msg)
+        if port_id in self.get_acquired_ports():
+            self.ctx.logger.info(ev)
+
+        return ev
+
+
+    def _on_profile_error (self, port_id, profile_id):
+        msg = "Profile {0}.{1} job failed".format(port_id, profile_id)
+
+        return Event('server', 'warning', msg)
 
 
 #########################    private/helper     #########################
@@ -198,7 +269,7 @@ class STLClient(TRexClient):
         return result_profiles
 
     # Get all profiles with the certain state from ports
-    # state = {"active", "transmitting", "paused"}
+    # state = {"active", "transmitting", "paused", "streams"}
     def get_profiles_with_state(self, state):
         active_ports = self.get_acquired_ports()
         active_profiles = []
@@ -747,7 +818,6 @@ class STLClient(TRexClient):
         rc = self._remove_rx_filters(port_id_list, rx_delay_ms)
         if not rc:
             raise TRexError(rc)
-
 
     @client_api('command', True)
     def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = None):
@@ -1937,24 +2007,34 @@ class STLClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "stop",
                                          self.stop_line.__doc__,
-                                         parsing_opts.PROFILE_LIST)
+                                         parsing_opts.PROFILE_LIST,
+                                         parsing_opts.REMOVE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_profiles_with_state("active"), verify_acquired = True, allow_empty = True)
         ports = self.validate_profile_input(opts.ports)
 
         # find the relevant ports
         port_id_list = parse_ports_from_profiles(ports)
-        ports = list_intersect(ports, self.get_profiles_with_state("active"))
-        if not ports:
+        active_ports = list_intersect(ports, self.get_profiles_with_state("active"))
+        if not active_ports:
             if not ports:
                 msg = 'no active ports'
             else:
                 msg = 'no active traffic on ports {0}'.format(ports)
+        else:
+            # call API
+            self.stop(active_ports)
 
-            raise TRexError(msg)
-
-        # call API
-        self.stop(ports)
+        if opts.remove:
+            streams_ports = list_intersect(ports, self.get_profiles_with_state("streams"))
+            if not streams_ports:
+                if not ports:
+                    msg = 'no ports with streams'
+                else:
+                    msg = 'no streams on ports {0}'.format(ports)
+            else:
+                # call API
+                self.remove_all_streams(ports)
 
         return True
 
