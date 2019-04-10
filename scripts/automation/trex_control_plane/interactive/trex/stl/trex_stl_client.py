@@ -1655,6 +1655,8 @@ class STLClient(TRexClient):
             return opts
 
         if opts.remote:
+            if opts.src_mac_pcap or opts.dst_mac_pcap:
+                raise TRexError('Remote push currently does not support --src-mac-pcap/--dst-mac-pcap')
             self.push_remote(opts.file[0],
                              ports          = opts.ports,
                              ipg_usec       = opts.ipg_usec,
