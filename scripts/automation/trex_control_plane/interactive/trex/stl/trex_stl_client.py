@@ -1991,6 +1991,7 @@ class STLClient(TRexClient):
                 msg = 'no active ports'
             else:
                 msg = 'no active traffic on ports {0}'.format(ports)
+            print(msg)
         else:
             # call API
             self.stop(active_ports)
@@ -2002,6 +2003,7 @@ class STLClient(TRexClient):
                     msg = 'no ports with streams'
                 else:
                     msg = 'no streams on ports {0}'.format(ports)
+                print(msg)
             else:
                 # call API
                 self.remove_all_streams(ports)
