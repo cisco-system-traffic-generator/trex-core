@@ -74,7 +74,6 @@ protected:
         TrexStatelessPort *port = dynamic_cast<TrexStatelessPort *>(get_port());
 
         port->change_state(TrexPort::PORT_STATE_STREAMS);
-
         port->common_port_stop_actions(true);
 
         assert(port->m_pending_async_stop_event != TrexDpPortEvents::INVALID_ID);
@@ -107,7 +106,9 @@ protected:
      */
     virtual void on_event() {
         TrexStatelessProfile *mprofile = dynamic_cast<TrexStatelessProfile *>(get_port());
+
         mprofile->change_state(TrexPort::PORT_STATE_STREAMS);
+        mprofile->common_profile_stop_actions(true);
 
         uint8_t port_id = get_port()->get_port_id();
         TrexStatelessPort *port = (TrexStatelessPort*) get_stx()->get_port_by_id(port_id);
@@ -130,7 +131,7 @@ protected:
         data["profile_id"]   = mprofile->m_profile_id;
         data["thread_id"] = thread_id;
 
-        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_ERROR, data);
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_ERROR, data);
     }
 };
 
@@ -353,6 +354,12 @@ TrexStatelessProfile::start_traffic(const TrexPortMultiplier &mul, double durati
     /* for debug - this can be turn on */
     //m_dp_events.barrier(m_dp_profile_id);
 
+    /* update subscribers */    
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    data["profile_id"] = m_profile_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_STARTED, data);
+
 }
 
 
@@ -384,12 +391,12 @@ TrexStatelessProfile::stop_traffic() {
     TrexCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id, m_dp_profile_id);
     send_message_to_all_dp(stop_msg);
 
-    /*  comment-out for multi profiles */
     /* a barrier - make sure all the DP cores stopped */
     m_dp_events.barrier(m_dp_profile_id);
 
     change_state(PORT_STATE_STREAMS);
 
+    common_profile_stop_actions(false);
 }
 
 /**
@@ -398,12 +405,28 @@ TrexStatelessProfile::stop_traffic() {
  * @author imarom (28-Mar-16)
  */
 void
-TrexStatelessProfile::remove_rx_filters(void) {
+TrexStatelessProfile::remove_rx_filters() {
     /* only valid when IDLE or with streams and not TXing */
     verify_profile_state(PORT_STATE_STREAMS, "remove_rx_filters");
 
     for (auto entry : m_stream_table) {
         CFlowStatRuleMgr::instance()->stop_stream(entry.second);
+    }
+
+}
+
+
+void
+TrexStatelessProfile::common_profile_stop_actions(bool async) {
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    data["profile_id"] = m_profile_id;
+
+    if (async) {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_FINISHED_TX, data);
+    } else {
+        get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_STOPPED, data);
     }
 
 }
@@ -428,13 +451,16 @@ TrexStatelessProfile::pause_traffic(void) {
     /* send message to all cores */
     send_message_to_all_dp(pause_msg, true);
 
-    /* comment-out for multi profiles */
     /* make sure all DP cores paused */
     m_dp_events.barrier(m_dp_profile_id);
 
     /* change state */
     change_state(PORT_STATE_PAUSE);
 
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    data["profile_id"] = m_profile_id;
+get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_PAUSED, data);
 }
 
 void
@@ -473,6 +499,11 @@ TrexStatelessProfile::resume_traffic(void) {
     send_message_to_all_dp(resume_msg, true);
     change_state(PORT_STATE_TX);
 
+
+    Json::Value data;
+    data["port_id"] = m_port_id;
+    data["profile_id"] = m_profile_id;
+    get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PROFILE_RESUMED, data);
 }
 
 void
