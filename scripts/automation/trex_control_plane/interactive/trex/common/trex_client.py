@@ -22,6 +22,7 @@ from .trex_conn import Connection
 from .trex_ns import NSCmds,NSCmd,NSCmdResult
 from .trex_logger import ScreenLogger
 from .trex_types import *
+from .trex_types import PortProfileID
 from .trex_exceptions import *
 from .trex_psv import *
 from .trex_vlan import VLAN
@@ -115,6 +116,9 @@ class TRexClient(object):
 
         # port state checker
         self.psv = PortStateValidator(self)
+
+        # server version check for dynamic port addition
+        self.is_dynamic = False
 
 
     def get_mode (self):
@@ -359,9 +363,8 @@ class TRexClient(object):
     def _transmit(self, method_name, params = None):
         return self.conn.rpc.transmit(method_name, params)
 
-
     # execute 'method' for a port list
-    def _for_each_port (self, method, port_id_list = None, *args, **kwargs):
+    def _for_each_port (self, method, port_list = None, *args, **kwargs):
 
         # specific port params
         pargs = {}
@@ -372,14 +375,21 @@ class TRexClient(object):
 
 
         # handle single port case
-        port_id_list = listify_if_int(port_id_list)
+        if port_list is not None:
+            port_list = listify(port_list)
 
         # none means all
-        port_id_list = port_id_list if port_id_list is not None else self.get_all_ports()
+        port_list = port_list if port_list is not None else self.get_all_ports()
         
         rc = RC()
 
-        for port_id in port_id_list:
+        for port in port_list:
+
+            port_id = int(port)
+            profile_id = None
+            if isinstance(port, PortProfileID):
+                profile_id = port.profile_id
+
             # get port specific
             pkwargs = pargs.get(port_id, {})
             if pkwargs:
@@ -387,8 +397,12 @@ class TRexClient(object):
             else:
                 pkwargs = kwargs
 
+            if profile_id:
+                pkwargs.update({'profile_id': profile_id})
+
             func = getattr(self.ports[port_id], method)
             rc.add(func(*args, **pkwargs))
+
 
         return rc
 
@@ -422,6 +436,9 @@ class TRexClient(object):
         rc = self._transmit("get_supported_cmds")
         if not rc:
             return rc
+
+        # server version check for dynamic port addition
+        self.is_dynamic = 'get_profile_list' in rc.data()
 
         self.supported_cmds = sorted(rc.data())
 

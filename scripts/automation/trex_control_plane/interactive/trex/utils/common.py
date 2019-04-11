@@ -9,7 +9,7 @@ import cProfile, pstats
 
 from scapy.utils import *
 from scapy.utils6 import *
-from ..common.trex_types import validate_type
+from ..common.trex_types import listify, validate_type
 
 try:
     import pwd
@@ -33,6 +33,20 @@ def user_input():
         # using python version 2
         return raw_input()
 
+def parse_ports_from_profiles(ports):
+    """
+    Parse distinct port ids from profiles
+
+    :parameters:
+        ports : list
+            list of profiles(PortProfileID)
+
+    :return:
+        list of port ids(int)
+    """
+    ports = listify(ports)
+    port_id_list = list(set([int(port) for port in ports]))
+    return port_id_list
 
 class random_id_gen:
     """
