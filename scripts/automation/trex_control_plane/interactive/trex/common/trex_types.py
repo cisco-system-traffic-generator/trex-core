@@ -16,6 +16,46 @@ except NameError:
 
 __all__ = ["RC", "RC_OK", "RC_ERR", "RC_WARN", "listify", "listify_if_int", "validate_type", "is_integer", "basestring", "LRU_cache"]
 
+DEFAULT_PROFILE_ID = "_"
+ALL_PROFILE_ID = "*"
+
+# class to represent a profile that belongs to a port
+# used for dynamic port allocation in STL
+class PortProfileID(object):
+    def __init__ (self, port_str):
+        try:
+            port_str = str(port_str)
+            port_info = port_str.split(".")
+            if len(port_info) == 1 :
+                 self.port_id =  int(port_str)
+                 self.profile_id = DEFAULT_PROFILE_ID
+            elif len(port_info) == 2 :
+                 self.port_id = int(port_info[0])
+                 self.profile_id = str(port_info[1])
+                 if not self.profile_id:
+                     self.profile_id = DEFAULT_PROFILE_ID
+            else:
+                 raise TRexTypeError("Wrong profile value %s. Should be in the format PORT[.PROFILE]" % port_str)
+        except ValueError:
+            raise TRexTypeError("Wrong profile value %s. Should be in the format PORT[.PROFILE]" % port_str)
+        self.profile_name = str(self.port_id)  + "." + str(self.profile_id)
+
+    def __index__(self):
+        return self.port_id
+
+    def __int__(self):
+        return self.port_id
+
+    def __repr__(self):
+        return self.profile_name
+
+    def __str__(self):
+        return self.profile_name
+
+    def __eq__(self, other):
+        if not isinstance(other, PortProfileID):
+            return False
+        return (self.port_id, self.profile_id) == (other.port_id, other.profile_id)
 
 class RpcResponseStatus(namedtuple('RpcResponseStatus', ['success', 'id', 'msg'])):
         __slots__ = ()

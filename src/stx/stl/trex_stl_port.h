@@ -257,6 +257,11 @@ public:
 
 private:
 
+    /**
+     * when a port stops, perform various actions
+     *
+     */
+    void common_profile_stop_actions(bool async);
     
     /**
      * calculate effective M per core

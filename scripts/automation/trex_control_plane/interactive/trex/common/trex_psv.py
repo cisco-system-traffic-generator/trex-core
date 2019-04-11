@@ -5,11 +5,10 @@ Author:
   Itay Marom 
 
 """
-
+from functools import wraps
 from .trex_exceptions import TRexError, TRexTypeError
-from .trex_types import listify_if_int
+from .trex_types import listify, PortProfileID
 from ..utils.common import *
-
 
 # type of states to be enforced
 # types starting with _ are internally used
@@ -28,34 +27,80 @@ __all__ = ['PSV_UP',
            'PortStateValidator']
 
 
+def convert_profile_to_port(port_arg):
+    '''
+       Decorator to convert profile type argument to port ids only.
+    '''
+    def wrap (func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            code = func.__code__
+            fname = func.__name__
+            names = code.co_varnames[:code.co_argcount]
+            argname = port_arg
+            try:
+                port_index = names.index(argname) - 1
+                argval = args[port_index]
+                args = list(args)
+                args[port_index] = parse_ports_from_profiles(argval)
+                args = tuple(args)
+            except (ValueError, IndexError):
+                argval = kwargs.get(argname)
+                kwargs[argname] = parse_ports_from_profiles(argval)
+
+            supermeth = getattr(super(self.__class__, self), fname, None)
+            return supermeth(*args, **kwargs)
+        return wrapper
+    return wrap
+
+
 class PortState(object):
     '''
         abstract class to create a state validation
     '''
-    
+
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
-        invalid_ports = list_difference(ports, self.get_valid_ports(client))
+        # Port state comparison
+        port_comparison_list = self.get_valid_ports(client)
+        if ports:
+            if isinstance(ports[0], PortProfileID):
+                # Profile state comparison(IDLE/TX/Paused)
+                port_comparison_list = self.get_valid_profiles(client)
+
+        invalid_ports = list_difference(ports, port_comparison_list)
         if invalid_ports:
-            err_msg = self.def_err_msg()
-            if custom_err_msg:
-                err_msg = '{0} - {1}'.format(err_msg, custom_err_msg)
-            
-            raise TRexError('port(s) {0}: {1}'.format(invalid_ports, err_msg))
-        
-            
+            self.print_err_msg(invalid_ports, custom_err_msg)
+
+    def print_err_msg (self, invalid_ports, custom_err_msg = None):
+        err_msg = self.def_err_msg()
+        if custom_err_msg:
+            err_msg = '{0} - {1}'.format(err_msg, custom_err_msg)
+        raise TRexError('port(s) {0}: {1}'.format(invalid_ports, err_msg))
+
     def get_valid_ports (self, client):
         raise NotImplementedError
-        
+
+    def get_valid_profiles (self, client):
+        raise NotImplementedError
+
 
 class PortStateAll(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'invalid port IDs'
 
     def get_valid_ports (self, client):
         return client.get_all_ports()
-    
+
 
 class PortStateUp(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'link is DOWN'
 
@@ -64,20 +109,36 @@ class PortStateUp(PortState):
 
         
 class PortStateAcquired(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'must be acquired'
 
     def get_valid_ports (self, client):
         return client.get_acquired_ports()
-  
-          
+
+
 class PortStateIdle(PortState):
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        # Profile state comparison
+        if ports:
+            if isinstance(ports[0], PortProfileID):
+                invalid_ports = list_intersect(ports, client.get_profiles_with_state("active"))
+                if invalid_ports:
+                    self.print_err_msg(invalid_ports, custom_err_msg)
+                return
+
+        # Port state comparison
+        super(PortStateIdle, self).validate(client, cmd_name, ports, custom_err_msg)
+
     def def_err_msg (self):
         return 'are active'
 
     def get_valid_ports (self, client):
         return [port_id for port_id in client.get_all_ports() if not client.ports[port_id].is_active()]
-  
+
 
 class PortStateTX(PortState):
     def def_err_msg (self):
@@ -86,6 +147,10 @@ class PortStateTX(PortState):
     def get_valid_ports (self, client):
         return [port_id for port_id in client.get_all_ports() if client.ports[port_id].is_active()]
 
+    def get_valid_profiles (self, client):
+        return client.get_profiles_with_state("active")
+
+
 class PortStatePaused(PortState):
     def def_err_msg (self):
         return 'are not paused'
@@ -93,8 +158,15 @@ class PortStatePaused(PortState):
     def get_valid_ports (self, client):
         return [port_id for port_id in client.get_all_ports() if client.ports[port_id].is_paused()]
 
+    def get_valid_profiles (self, client):
+        return client.get_profiles_with_state("paused")
+
 
 class PortStateService(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'must be under service mode'
         
@@ -103,6 +175,10 @@ class PortStateService(PortState):
     
 
 class PortStateNonService(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'cannot be under service mode'
 
@@ -111,6 +187,10 @@ class PortStateNonService(PortState):
 
         
 class PortStateL3(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'does not have a valid IPv4 address'
 
@@ -119,14 +199,17 @@ class PortStateL3(PortState):
 
 
 class PortStateResolved(PortState):
+    @convert_profile_to_port("ports")
+    def validate (self, client, cmd_name, ports, custom_err_msg = None):
+        pass
+
     def def_err_msg (self):
         return 'must have resolved destination address'
 
     def get_valid_ports (self, client):
         return client.get_resolved_ports()
 
-        
-                
+
 class PortStateValidator(object):
     '''
         port state validator
@@ -159,7 +242,8 @@ class PortStateValidator(object):
         '''
         
         # listify
-        ports = listify_if_int(ports)
+        if isinstance(ports, (int, str, PortProfileID)):
+            ports = listify(ports)
 
         if not isinstance(ports, (set, list, tuple)):
             raise TRexTypeError('ports', type(ports), list)
@@ -169,6 +253,11 @@ class PortStateValidator(object):
 
         if not ports and not allow_empty:
             raise TRexError('action requires at least one port')
+
+        # translate * profiles for validation purposes
+        if ports:
+            if isinstance(ports[0], PortProfileID):
+                ports = self.client.validate_profile_input(ports)
             
         # default checks for every command
         states_map = {_PSV_ALL: None}
@@ -186,7 +275,6 @@ class PortStateValidator(object):
 
         for state, err_msg in states_map.items():
             self.validators[state].validate(self.client, cmd_name, ports, err_msg)
-            
 
         # returns the ports listify
         return ports

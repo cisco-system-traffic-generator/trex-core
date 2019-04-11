@@ -52,6 +52,13 @@ public:
         EVENT_PORT_ERROR            = 7,
         EVENT_PORT_ATTR_CHANGED     = 8,
 
+        EVENT_PROFILE_STARTED       = 10,
+        EVENT_PROFILE_STOPPED       = 11,
+        EVENT_PROFILE_PAUSED        = 12,
+        EVENT_PROFILE_RESUMED       = 13,
+        EVENT_PROFILE_FINISHED_TX   = 14,
+        EVENT_PROFILE_ERROR         = 17,
+
         EVENT_ASTF_STATE_CHG        = 50,
         /*
         EVENT_ASTF_IDLE             = 50,
