@@ -26,6 +26,26 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.54 ==
+
+* STL 
+** Multi-Rx queue support flow stats/latency using software
+** Supporting dynamic add/remove multiple profiles (major change). It is the first phase contributed by Ericsson
+** Push API: add the ability to take the src/dst MAC from the pcap file
+* Napatech: Added support for new NICs 
+* Support 1GB huge page 
+* Add support ```--unbind-unused-ports``` to dpdk_setup_ports.py 
+
+=== Fixed issues: ===
+
+* Do not invalidate dest MAC in case of L2 mode (CSIT)
+* Fix Mellanox ASTF UDP drop see link:https://trex-tgn.cisco.com/youtrack/issue/trex-522[trex-522]
+* Virtual interfaces: Ability to fix TCP/UDP using software (default)
+* ZMQ move to v4.3.1 to fix heartbeat bug
+* mlx5: Support dot1q add/remove 
+* Packet captured twice in ASTF
+* Fix DHCP service example (REQ was sent with unicast)
+
 == Release 2.53 ==
 
 * Fix STL Console issue 
