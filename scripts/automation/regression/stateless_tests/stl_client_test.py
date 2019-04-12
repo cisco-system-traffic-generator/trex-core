@@ -113,7 +113,7 @@ class STLClient_Test(CStlGeneral_Test):
                            mode = STLTXSingleBurst(total_pkts = 100,
                                                    percentage = self.percentage)
                            )
-
+            print(" STLStream b1 : %s" % b1)
             for i in range(0, 5):
                 self.c.add_streams([b1], ports = [self.tx_port, self.rx_port])
 
@@ -123,6 +123,7 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
                 stats = self.c.get_stats()
 
+                print(" Stats  : %s" % stats)
                 assert self.tx_port in stats
                 assert self.rx_port in stats
 
@@ -215,7 +216,6 @@ class STLClient_Test(CStlGeneral_Test):
                     assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
 
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
-
 
 
         except STLError as e:
@@ -705,3 +705,164 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
+
+    def check_error_in_percentage_dynamic_profile(self, golden):
+        self.c.clear_stats()
+        time.sleep(10)
+        stats = self.c.get_stats()
+        check_params = (
+            stats[self.tx_port]['tx_pps'],
+            stats[self.rx_port]['tx_pps'],
+            stats[self.tx_port]['rx_pps'],
+            stats[self.rx_port]['rx_pps'],
+            )
+        for param in check_params: # 5% error is relaxed enough
+            assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
+
+    def test_basic_cont_dynamic_profile (self):
+
+        pps = 500
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        golden = pps * len(profile_list) 
+
+        try:
+
+            self.c.reset()
+            assert self.c.is_dynamic, 'Check the server version for dynamic port addition.'
+            profile_file = os.path.join(CTRexScenario.scripts_path, 'stl/udp_1pkt.py')
+
+            print("start")
+            for i in range(0, 5):
+
+                self.c.clear_stats()
+
+                # Start stl/udp_1pkt.py -m 500pps
+                for port in port_list:
+                    for profile in profile_list:
+                        self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, port, profile, pps))
+
+                assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+                assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+
+                # get_error_in_percentage(golden, param) < 0.05, 1000pps
+                self.check_error_in_percentage_dynamic_profile(golden)
+
+                self.c.stop_line ("")
+                self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+    def test_pause_resume_dynamic_profile(self):
+
+        pps = 500
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        golden = pps * len(profile_list) 
+
+        try: 
+
+            self.c.reset()
+            assert self.c.is_dynamic, 'is_dynamic is %s' % self.c.is_dynamic
+            profile_file = os.path.join(CTRexScenario.scripts_path, 'stl/udp_1pkt.py')
+
+            print("start")
+            self.c.clear_stats()
+
+            # Start stl/udp_1pkt.py
+            for port in port_list:
+                for profile in profile_list:
+                    self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, port, profile, pps))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be state_tx'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be state_tx'
+ 
+            # Pause -p 0.p1, 1.p1
+            self.c.pause_line (" -p %d.%s" % (self.tx_port, profile_list[0]))
+            self.c.pause_line (" -p %d.%s" % (self.rx_port, profile_list[0]))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be state_tx'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be state_tx'
+
+            # get_error_in_percentage(golden, param) < 0.05, 500pps
+            self.check_error_in_percentage_dynamic_profile(golden/2)
+
+            # Resume -p 0.p1, 1.p1
+            self.c.resume_line (" -p %d.%s" % (self.tx_port, profile_list[0]))
+            self.c.resume_line (" -p %d.%s" % (self.rx_port, profile_list[0]))
+
+            # get_error_in_percentage(golden, param) < 0.05, 1000pps
+            self.check_error_in_percentage_dynamic_profile(golden)
+
+            self.c.stop_line ("")
+            self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+
+    def test_update_stop_dynamic_profile(self):
+
+        pps = 500
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        golden = pps * len(profile_list) 
+
+        try: 
+
+            self.c.reset()
+            assert self.c.is_dynamic, 'is_dynamic is %s' % self.c.is_dynamic
+            profile_file = os.path.join(CTRexScenario.scripts_path, 'stl/udp_1pkt.py')
+
+            print("start")
+            self.c.clear_stats()
+
+            # Start stl/udp_1pkt.py
+            for port in port_list:
+                for profile in profile_list:
+                    self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, port, profile, pps))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+ 
+            # Update stl/udp_1pkt.py -m 1500pps
+            self.c.update_line (" -p %d.%s -m %dpps" % (self.tx_port, profile_list[0], pps*3))
+            self.c.update_line (" -p %d.%s -m %dpps" % (self.rx_port, profile_list[0], pps*3))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+
+            # get_error_in_percentage(golden, param) < 0.05, 2000pps
+            self.check_error_in_percentage_dynamic_profile(golden*2)
+
+            # Stop -p 0.p1, 1.p1
+            self.c.stop_line (" -p %d.%s" % (self.tx_port, profile_list[0]))
+            self.c.stop_line (" -p %d.%s" % (self.rx_port, profile_list[0]))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+
+            # get_error_in_percentage(golden, param) < 0.05, 500pps
+            self.check_error_in_percentage_dynamic_profile(golden/2)
+
+            # Start stl/udp_1pkt.py
+            self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, self.tx_port, profile_list[0], pps))
+            self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, self.rx_port, profile_list[0], pps))
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+            assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+
+            # get_error_in_percentage(golden, param) < 0.05, 1000pps
+            self.check_error_in_percentage_dynamic_profile(golden)
+
+            # Stop all port
+            self.c.stop_line ("")
+            assert self.c.ports[self.tx_port].is_writeable(), 'port should be stream or idle'
+            assert self.c.ports[self.rx_port].is_writeable(), 'port should be stream or idle'
+
+            self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
