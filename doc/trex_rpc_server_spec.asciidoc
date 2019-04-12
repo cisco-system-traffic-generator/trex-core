@@ -525,6 +525,7 @@ Example:
 * *Description* - Queries the server for status
 * *Parameters* -
 ** *port_id* ['int'] - port id to query for owner
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
 * *Result* ['object'] - see below
 
 [source,bash]
@@ -563,6 +564,49 @@ Example:
         "owner": "",
         "speed": 10000,
         "state": "TX"
+    }
+}
+
+'Request':
+
+{
+    "id": "oveilf0n",
+    "jsonrpc": "2.0",
+    "method": "get_port_status",
+    "params": {
+        "api_h": "VGDJwdiY",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": "oveilf0n",
+    "jsonrpc": "2.0",
+    "result": {
+        "attr": {
+            "fc": {
+                "mode": 0
+            },
+            "link": {
+                "up": true
+            },
+            "promiscuous": {
+                "enabled": false
+            }
+        },
+        "max_stream_id": 3,
+        "owner": "",
+        "profile_count": 3,
+        "speed": 10000,
+        "state": "TX",
+        "state_profile": {
+            "_" : "TX",
+            "imix" : "STREAMS",
+            "udp1pkt" : "IDLE"
+        }
     }
 }
 
@@ -1144,6 +1188,21 @@ Request example:
 
 == RPC commands STL
 
+In RPC commands, Port ID indicates the port number of interface.
+
+As an optional field, the profile ID allows TRex server to run multiple profiles dynamically on a single port ID.
+The profile ID is used as the identifier of profile on the port.
+
+The string type 'profile_id' anchor:profile_id[]
+
+.String type 'profile_id'
+[options="header",cols="1,3"]
+|=================
+| Expression  | Description
+| "<string>"  | The specified profile id such as "udp1pkt", "imix"
+| "_"         | Underscore means default profile. If profile_id is not specified, it is used as the default between JSON-RPC client and server.
+| "*"         | Asterisk means all profiles in the port
+|=================
 
 === Add Stream
 
@@ -1153,7 +1212,8 @@ Request example:
 * *Description* - Adds a stream to a port
 * *Parameters* 
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port id associated with this stream
+** *port_id* ['int'] - port id associated with this profile and stream
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
 ** *stream_id* ['int'] - stream id associated with the stream object
 ** *stream* - object of type xref:stream_obj['stream']
 * *Result* ['object'] - {}
@@ -1529,7 +1589,7 @@ This could be stream_id different from the stream object which contains the rx_s
 	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
-	"stream_id": 502
+        "stream_id": 502,
         "stream": {
             "enabled": true,
             "isg": 4.3,
@@ -1567,6 +1627,55 @@ This could be stream_id different from the stream object which contains the rx_s
     "result": {}
 }
 
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "add_stream",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "stream": {
+            "action_count": 0,
+            "core_id": -1,
+            "enabled": true,
+            "flags": 0,
+            "flow_stats": {
+                "enabled": false
+            },
+            "isg": 0.0,
+            "mode": {
+                "rate": {
+                    "type": "pps",
+                    "value": 1.0
+                },
+                "type": "continuous"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": "AAAAAQAAAAAAAgAACABFAAAuAAEAAEAROr0QAAABMAAAAQQBAAwAGn9veHh4eHh4eHh4eHh4eHh4eHh4",
+                "meta": ""
+            },
+            "self_start": true,
+            "start_paused": false,
+            "vm": {
+                "instructions": []
+            }
+        },
+        "stream_id": 18
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {}
+}
 
 ----
 
@@ -1582,7 +1691,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Description* - Removes a stream from a port
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port assosicated with the stream.
+** *port_id* ['int'] - port id associated with the profile and stream
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
 ** *stream_id* ['int'] - stream to remove
 
 * *Result* ['object'] - {}
@@ -1604,6 +1714,28 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     }
 }
 
+'Response':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+'Request':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "method": "remove_stream",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "stream_id": 18
+    }
+}
 
 'Response':
 
@@ -1615,6 +1747,49 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 ----
 
+=== Get Profile ID List
+* *Name* - 'get_profile_list'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - fetch all the associated profiles for a port
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id to query for registered profiles
+** *profile_id* ['string'] - xref:profile_id['profile id'] to query for registered profiles
+
+* *Result* ['array'] - array of 'profile_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "get_profile_list",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": [
+        "udp1pkt",
+        "imix"
+    ]
+}
+
+----
+
 === Get Stream ID List
 * *Name* - 'get_stream_list'
 * *API Class* - 'core'
@@ -1622,7 +1797,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Description* - fetch all the assoicated streams for a port
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port to query for registered streams
+** *port_id* ['int'] - port to query for registered profiles
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to query for registered streams
 
 * *Result* ['array'] - array of 'stream_id'
 
@@ -1648,11 +1824,38 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "id": 1,
     "jsonrpc": "2.0",
     "result": [
-        502,
-        18
+        502
     ]
 }
 
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream_list",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+        "_" : [
+            502
+        ],
+        "udp1pkt" : [
+            18
+        ]
+    }
+}
 
 ----
 
@@ -1663,7 +1866,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Description* - get a specific stream object
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port for the associated stream
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
 ** *stream_id* ['int'] - the requested stream id
 
 * *Result* ['object'] - object xref:stream_obj['stream']
@@ -1678,9 +1882,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "jsonrpc": "2.0",
     "method": "get_stream",
     "params": {
-	"api_h": "SPhoCDIV",
+        "api_h": "SPhoCDIV",
         "handler": "37JncCHr",
         "port_id": 1,
+        "profile_id": "udp1pkt",
         "stream_id": 7
     }
 }
@@ -1715,6 +1920,136 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 
 ----
 
+=== Get All Streams
+* *Name* - 'get_all_streams'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - get all streams from a port
+* *Parameters*
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
+
+* *Result* ['object'] - {}
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_all_streams",
+    "params": {
+	    "api_h": "SPhoCDIV",
+        "port_id": 1,
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "streams": {
+            "502" : {
+                "enabled": true,
+                "isg": 4.3,
+                "mode": {
+                    "pps": 3,
+                    "type": "continuous"
+                },
+                "next_stream_id": -1,
+                "packet": {
+                    "binary": [
+                        4,
+                        1,
+                        255
+                    ],
+                    "meta": ""
+                },
+                "self_start": true
+            }
+        }
+    }
+}
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_all_streams",
+    "params": {
+	    "api_h": "SPhoCDIV",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "profiles": {
+            "_" : {
+                "502" : {
+                    "enabled": true,
+                    "isg": 4.3,
+                    "mode": {
+                        "pps": 3,
+                        "type": "continuous"
+                    },
+                    "next_stream_id": -1,
+                    "packet": {
+                        "binary": [
+                            4,
+                            1,
+                            255
+                        ],
+                        "meta": ""
+                    },
+                    "self_start": true
+                }
+            },
+            "udp1pkt": {
+                "18": {
+                    "action_count": 0,
+                    "core_id": -1,
+                    "enabled": true,
+                    "flags": 0,
+                    "flow_stats": {
+                        "enabled": false
+                    },
+                    "isg": 0.0,
+                    "mode": {
+                        "rate": {
+                            "type": "pps",
+                            "value": 1.0
+                        },
+                        "type": "continuous"
+                    },
+                    "next_stream_id": -1,
+                    "packet": {
+                        "binary": "AAAAAQAAAAAAAgAACABFAAAmAAEAAEAROsUQAAABMAAAAQQBAAwAEmFheHh4eHh4eHh4eA==",
+                        "meta": ""
+                    },
+                    "self_start": true,
+                    "start_paused": false,
+                    "vm": {
+                        "instructions": []
+                    }
+                }
+            }
+        }
+    }
+}
+
+----
 
 === Remove All Streams
 * *Name* - 'remove_all_streams'
@@ -1723,7 +2058,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Description* - remove all streams from a port
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port for the associated stream
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
 
 * *Result* ['object'] - {}
 
@@ -1740,7 +2076,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "params": {
 	"api_h": "SPhoCDIV",
         "handler": "37JncCHr",
-        "port_id": 2
+        "port_id": 2,
+        "profile_id": "udp1pkt",
     }
 }
 
@@ -1764,6 +2101,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to start traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to start traffic
 ** *core_mask* ['uint64'] [*optional*] - a non zero mask to specify which cores will be active during TX, if no value is provided, the value is all bits on (MAX_UINT64)
 
 * *Result* ['object'] - {}
@@ -1780,9 +2118,10 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "params": {
         "api_h": "SPhoCDIV",
         "handler": "37JncCHr",
-        "port_id": 3
+        "port_id": 3,
         "core_mask": 0xff
     }
+}
 
 'Response':
 
@@ -1792,6 +2131,39 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "result": {}
 }
 
+'Request':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "method": "start_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "core_mask": 18446744073709551615,
+        "duration": -1.0,
+        "force": false,
+        "mul": {
+            "op": "abs",
+            "type": "raw",
+            "value": 1.0
+        },
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "start_at_ts": 0
+    }
+}
+
+'Response':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "result": {
+        "multiplier": 1.0,
+        "ts": 20395.399607074254
+    }
+}
 
 ----
 
@@ -1803,6 +2175,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to stop traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to stop traffic
 
 * *Result* ['object'] - {}
 
@@ -1830,9 +2203,166 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "result": {}
 }
 
+'Request':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "method": "stop_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "result": {}
+}
 
 ----
 
+=== Update Traffic
+* *Name* - 'update_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Update the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *mul* - object of type xref:mul_obj['mul']
+** *port_id* ['int'] - port id on which to update traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to update traffic
+
+* *Result* ['object'] - {}
+
+The object type 'mul' anchor:mul_obj[]
+
+.Object type mul
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description
+| op              | string  | operation ("abs", "add", "sub")
+| type            | string  | traffic type ("raw", "pps", "bps", "bps_L1", "percentage")
+| value           | double  | value (overrides old one)
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "update_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "force": false,
+        "handler": "37JncCHr",
+        "mul": {
+            "op": "abs",
+            "type": "bps",
+            "value": 1000.0
+        },
+        "port_id": 1,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "multiplier": 1.953125
+    }
+}
+
+----
+
+=== Pause Traffic
+* *Name* - 'pause_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Pause the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to pause traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to pause traffic
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "pause_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 0,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+=== Resume Traffic
+* *Name* - 'resume_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Resume the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to resume traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to resume traffic
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "resume_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 0,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
 
 === Remove RX Filters
 * *Name* - 'remove_rx_filters'
@@ -1845,6 +2375,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port id on which to remove all RX filters
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to remove all RX filters
 
 * *Result* ['object'] - {}
 
@@ -1860,7 +2391,8 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
     "params": {
 	"api_h": "SPhoCDIV",
         "handler": "ywVlqZa8",
-        "port_id": 3
+        "port_id": 3,
+        "profile_id": "udp1pkt"
     }
 }
 

@@ -5202,6 +5202,41 @@ For example, one could use following: +
 Prior to updating rate of whole port, need to revert changes made to rates of specific streams.
 =====================================================================
 
+===== dynamic multiple profiles
+
+TRex can support the multiple profiles dynamically on the same port.
+
+In the console, profile ids can be specified via -p argument. +
+The expression in TRex console allows -p <port number>.<profile id> instead of port number. +
+For example, start imix.py profile on port '0.imix' and udp_1pkt.py profile on port '0.udp1pkt'. +
+In this way, 'imix' and 'udp1pkt' traffic can be running simultaneously on port 0.
+
+*Example*::
+
+[source,bash]
+----
+# start(add) dynamic profile on port 0.imix(3 streams are running on IMIX)
+trex> start -f stl/imix.py -p 0.imix
+
+# start(add) dynamic profile on port 0.udp1pkt
+trex> start -f stl/udp_1pkt.py -p 0.udp1pkt
+
+# change packet rate of udp1pkt during run-time
+trex> update -p 0.udp1pkt -m 1gbps
+
+# show all profiles
+trex> profiles
+
+# stop traffic on 0.imix, 0.udp1pkt traffic is still running
+trex> stop -p 0.imix
+
+# stop all traffic on port 0
+trex> stop -p 0.*
+
+# remove the active profiles on port 0
+trex> stop -p 0.* --remove
+----
+
 ===== TUI
 
 The textual user interface (TUI) displays constantly updated TRex statistics in a text window.
