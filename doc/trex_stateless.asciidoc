@@ -5221,20 +5221,81 @@ trex> start -f stl/imix.py -p 0.imix
 # start(add) dynamic profile on port 0.udp1pkt
 trex> start -f stl/udp_1pkt.py -p 0.udp1pkt
 
+# start(add) dynamic profile on port 1.imix(3 streams are running on IMIX)
+trex> start -f stl/imix.py -p 1.imix
+
+# start(add) dynamic profile on port 1.udp1pkt
+trex> start -f stl/udp_1pkt.py -p 1.udp1pkt
+
+# show all streams
+trex> streams
+Port 0:
+
+    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
+-----------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
+    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
+    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
+    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
+    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
+
+Port 1:
+
+    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
+-----------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
+    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
+    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
+    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
+    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
+
+
 # change packet rate of udp1pkt during run-time
 trex> update -p 0.udp1pkt -m 1gbps
 
+# pause traffic on port 0.udp1pkt (traffic on 0.imix is still running
+trex> pause -p 0.udp1pkt
+
 # show all profiles
 trex> profiles
+Port 0:
 
-# stop traffic on 0.imix, 0.udp1pkt traffic is still running
+  Profile ID    |   state    | stream ID  
+----------------+------------+-----------
+    udp1pkt     |   PAUSE    |    [4]     
+     imix       |     TX     | [1, 2, 3]  
+
+Port 1:
+
+  Profile ID    |   state    | stream ID  
+----------------+------------+-----------
+    udp1pkt     |     TX     |    [4]     
+     imix       |     TX     | [1, 2, 3]  
+
+# resume every paused traffic on port 0 (including 0.udp1pkt)
+trex> resume -p 0.*
+
+Resume traffic on port(s) [0.udp1pkt]:
+[SUCCESS]
+
+# stop traffic on 0.imix (traffic on 0.udp1pkt is still running)
 trex> stop -p 0.imix
 
 # stop all traffic on port 0
 trex> stop -p 0.*
 
-# remove the active profiles on port 0
-trex> stop -p 0.* --remove
+# stop and remove all traffic on port 1
+trex> stop -p 1.* --remove
+
+# show all streams
+trex>streams
+Port 0:
+
+    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
+-----------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
+    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
+    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
+    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
+    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
+
 ----
 
 ===== TUI
