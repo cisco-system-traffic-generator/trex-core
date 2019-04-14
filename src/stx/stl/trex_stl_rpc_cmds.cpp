@@ -1416,7 +1416,7 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
     const TrexStreamsGraphObj *graph = NULL;
 
     try {
-        port->validate(profile_id);
+        graph = port->validate(profile_id);
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
