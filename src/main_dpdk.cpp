@@ -210,6 +210,7 @@ enum {
        OPT_QUEUE_DROP,
        OPT_ASTF_EMUL_DEBUG, 
        OPT_SLEEPY_SCHEDULER,
+       OPT_UNBIND_UNUSED_PORTS,
     
        /* no more pass this */
        OPT_MAX
@@ -288,6 +289,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server", SO_NONE    },
+        { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
         { OPT_ASTF_EMUL_DEBUG,        "--astf-emul-debug",  SO_NONE},
@@ -386,6 +388,7 @@ static int __attribute__((cold)) usage() {
     printf("                              Supported protocols are 1 for icmp, 2 for UDP, 3 for TCP, 4 for ARP, 5 for 9K UDP \n");
     printf(" --sleeps                   : Use sleeps instead of busy wait in scheduler (less accurate, more power saving)\n");
     printf(" --software                 : Do not configure any hardware rules. In this mode we use 1 core, and one RX queue and one TX queue per port\n");
+    printf(" --unbind-unused-ports      : Automatically unbind all unused bound ports in same NIC instead of exiting with error (i40e only)\n");
     printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
@@ -882,6 +885,8 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_NO_OFED_CHECK:
                 break;
             case OPT_NO_SCAPY_SERVER:
+                break;
+            case OPT_UNBIND_UNUSED_PORTS:
                 break;
             case OPT_SCAPY_SERVER:
                 break;
