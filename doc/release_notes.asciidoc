@@ -26,6 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.55 ==
+
+Minor version
+
+=== Fixed issues: ===
+
+* fix support ```--unbind-unused-ports``` 
+* fix astf maximum number of flows link:https://github.com/cisco-system-traffic-generator/trex-core/issues/223[github-223]
+
+
 == Release 2.54 ==
 
 * STL 
