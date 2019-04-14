@@ -2753,7 +2753,7 @@ uint8_t CFlowGenListPerThread::get_memory_socket_id(){
 /* the expected number of flows for TCP mode, this is taken from configuration file and div by threads*/
 uint32_t CFlowGenListPerThread::get_max_active_flows_per_core_tcp(){ 
 
-    double active_flows_per_core = (double)CGlobalInfo::m_memory_cfg.get_each_core_dp_flows()/(double)m_max_threads;
+    double active_flows_per_core = (double)CGlobalInfo::m_memory_cfg.get_each_core_dp_flows();
     /* can't have more than 20M flows per core ..*/
     if (active_flows_per_core>20*1e6) {
         printf("ERROR something went wrong here, more than 20M flows per core does not make sense (%f) \n",active_flows_per_core);
