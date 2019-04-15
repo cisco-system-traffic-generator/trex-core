@@ -736,7 +736,7 @@ class STLClient_Test(CStlGeneral_Test):
             print("start")
             for i in range(0, 10):
 
-                duration = random.randint(0, 10)
+                duration = random.randint(1, 10)
                 golden_duration = golden * duration
 
                 self.c.clear_stats()
@@ -880,3 +880,4 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
+
