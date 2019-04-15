@@ -929,15 +929,19 @@ class STLPort(Port):
 
 
     @writeable
-    def remove_rx_filters (self):
+    def remove_rx_filters (self, profile_id = DEFAULT_PROFILE_ID):
         assert(self.has_rx_enabled())
 
         if self.state == self.STATE_IDLE:
             return self.ok()
 
+        profile_state = self.profile_state_list.get(profile_id)
+        if not profile_state:
+            return self.ok()
 
         params = {"handler": self.handler,
-                  "port_id": self.port_id}
+                  "port_id": self.port_id,
+                  "profile_id":  profile_id}
 
         rc = self.transmit("remove_rx_filters", params)
         if rc.bad():

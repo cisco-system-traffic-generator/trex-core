@@ -197,10 +197,14 @@ class STLClient(TRexClient):
 ############################                #############################
 
     # remove all RX filters in a safe manner
+    @validate_port_input("ports")
     def _remove_rx_filters (self, ports, rx_delay_ms):
 
+        rx_profiles = []
+        port_id_list = parse_ports_from_profiles(ports)
+
         # get the enabled RX ports
-        rx_ports = [port_id for port_id in ports if self.ports[port_id].has_rx_enabled()]
+        rx_ports = [port_id for port_id in port_id_list if self.ports[port_id].has_rx_enabled()]
 
         if not rx_ports:
             return RC_OK()
@@ -209,8 +213,12 @@ class STLClient(TRexClient):
         while any([not self.ports[port_id].has_rx_delay_expired(rx_delay_ms) for port_id in rx_ports]):
             time.sleep(0.01)
 
+        for port in ports:
+            if int(port) in rx_ports:
+                rx_profiles.append(port)
+
         # remove RX filters
-        return self._for_each_port('remove_rx_filters', rx_ports)
+        return self._for_each_port('remove_rx_filters', rx_profiles)
 
     # Check console API ports argument
     def validate_profile_input(self, input_profiles):
@@ -785,7 +793,7 @@ class STLClient(TRexClient):
                 rx_delay_ms = 10
 
         # remove any RX filters
-        rc = self._remove_rx_filters(port_id_list, rx_delay_ms)
+        rc = self._remove_rx_filters(ports, rx_delay_ms)
         if not rc:
             raise TRexError(rc)
 
