@@ -881,3 +881,33 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
+    def test_latency_pause_resume_dynamic_profile (self):
+
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        stream_pg_id = 0
+
+        try:    
+            for port in port_list:
+                for profile in profile_list:
+
+                    stream_pg_id = stream_pg_id + 1
+                    s1 = STLStream(name = 'latency',
+                                   packet = self.pkt,
+                                   mode = STLTXCont(percentage = self.percentage),
+                                   flow_stats = STLFlowLatencyStats(pg_id = stream_pg_id))
+
+                    port_profile = str(port)  + "." + str(profile)
+
+                    self.c.add_streams([s1], ports = port_profile)
+                    self.c.clear_stats()
+                    self.c.start(ports = port_profile)
+
+                    for i in range(100):
+                        self.c.pause()
+                        self.c.resume()
+
+                    self.c.stop(ports = port_profile)
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
