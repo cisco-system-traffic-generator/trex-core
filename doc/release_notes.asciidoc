@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.56 ==
+
+* fix basic crash with GUI due to multi profile support link:https://github.com/cisco-system-traffic-generator/trex-core/issues/221[github-221]
+
 == Release 2.55 ==
 
 Minor version
