@@ -3,6 +3,7 @@ from .stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 import os, sys
 import glob
+import random
 from nose.tools import nottest
 
 def get_error_in_percentage (golden, value):
@@ -733,20 +734,33 @@ class STLClient_Test(CStlGeneral_Test):
             profile_file = os.path.join(CTRexScenario.scripts_path, 'stl/udp_1pkt.py')
 
             print("start")
-            for i in range(0, 5):
+            for i in range(0, 10):
+
+                duration = random.randint(0, 10)
+                golden_duration = golden * duration
 
                 self.c.clear_stats()
 
                 # Start stl/udp_1pkt.py -m 500pps
                 for port in port_list:
                     for profile in profile_list:
-                        self.c.start_line (" -f %s -p %d.%s -m %dpps" % (profile_file, port, profile, pps))
+                        self.c.start_line (" -f %s -p %d.%s -m %dpps -d %d" % (profile_file, port, profile, pps, duration))
 
                 assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
                 assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
 
-                # get_error_in_percentage(golden, param) < 0.05, 1000pps
-                self.check_error_in_percentage_dynamic_profile(golden)
+                self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
+                stats = self.c.get_stats()
+
+                # cont. with duration should be quite percise - 5% error is relaxed enough
+                check_params = (
+                    stats[self.tx_port]['opackets'],
+                    stats[self.rx_port]['opackets'],
+                    stats[self.tx_port]['ipackets'],
+                    stats[self.rx_port]['ipackets'],
+                    )
+                for param in check_params:
+                    assert get_error_in_percentage(golden_duration, param) < 0.05, 'golden: %s, got: %s' % (golden_duration, param)
 
                 self.c.stop_line ("")
                 self.c.remove_all_streams(ports = [self.tx_port, self.rx_port])
