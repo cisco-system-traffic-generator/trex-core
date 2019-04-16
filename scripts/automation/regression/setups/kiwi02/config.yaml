@@ -43,8 +43,8 @@ router:
   ip_address     : 10.56.192.57
   image          : BLD_V155_2_S_XE315_THROTTLE_LATEST_20150424_100040-std.bin # is in harddisk of router
   #image          : asr1000rp2-adventerprisek9.2014-11-10_18.33_etis.bin
-  line_password  : cisco
-  en_password    : cisco
+  line_password  : lab
+  en_password    : lab
   mgmt_interface : GigabitEthernet0
   clean_config   : /tmp/asr1001_TRex_clean_config.cfg
   intf_masking   : 255.255.255.0
