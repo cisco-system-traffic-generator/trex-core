@@ -52,6 +52,9 @@ class PortProfileID(object):
     def __str__(self):
         return self.profile_name
 
+    def __hash__(self):
+        return hash((self.port_id, self.profile_id))
+
     def __eq__(self, other):
         if not isinstance(other, PortProfileID):
             return False
