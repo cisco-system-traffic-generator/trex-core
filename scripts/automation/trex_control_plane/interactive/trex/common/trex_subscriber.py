@@ -456,11 +456,32 @@ class TRexSubscriber():
             self.ctx.event_handler.on_event("port attr chg", port_id, attr)
 
 
+        # profile started
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_STARTED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile started", port_id, profile_id)
+
+
         # profile stopeed
         elif event_id == ServerEventsIDs.EVENT_PROFILE_STOPPED:
             port_id = int(data['port_id'])
             profile_id = str(data['profile_id'])
             self.ctx.event_handler.on_event("profile stopped", port_id, profile_id)
+
+
+        # profile paused
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_PAUSED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile paused", port_id, profile_id)
+
+
+         # profile resumed
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_RESUMED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile resumed", port_id, profile_id)
 
 
         # profile finised tx
