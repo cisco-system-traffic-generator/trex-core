@@ -159,9 +159,20 @@ class STLClient(TRexClient):
     # register all common events
     def _register_events (self):
         super(STLClient, self)._register_events()
+        self.ctx.event_handler.register_event_handler("profile started",     self._on_profile_started)
         self.ctx.event_handler.register_event_handler("profile stopped",     self._on_profile_stopped)
+        self.ctx.event_handler.register_event_handler("profile paused",      self._on_profile_paused)
+        self.ctx.event_handler.register_event_handler("profile resumed",      self._on_profile_resumed)
         self.ctx.event_handler.register_event_handler("profile finished tx", self._on_profile_finished_tx)
         self.ctx.event_handler.register_event_handler("profile error",       self._on_profile_error)
+
+
+    def _on_profile_started (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has started".format(port_id, profile_id)
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_started(profile_id)
+
+        return Event('server', 'info', msg)
 
 
     def _on_profile_stopped (self, port_id, profile_id):
@@ -169,6 +180,22 @@ class STLClient(TRexClient):
 
         if port_id in self.ports:
             self.ports[port_id].async_event_profile_stopped(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_paused (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has paused".format(port_id, profile_id)
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_paused(profile_id)
+
+        return Event('server', 'info', msg)
+
+
+    def _on_profile_resumed (self, port_id, profile_id):
+        msg = "Profile {0}.{1} has resumed".format(port_id, profile_id)
+        if port_id in self.ports:
+            self.ports[port_id].async_event_profile_resumed(profile_id)
 
         return Event('server', 'info', msg)
 
