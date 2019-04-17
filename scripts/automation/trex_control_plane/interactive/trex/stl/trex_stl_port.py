@@ -41,7 +41,7 @@ class STLPort(Port):
         self.is_dynamic = dynamic
         self.profile_stream_list = {}
         self.profile_state_list = {}
-
+        self.__is_sync = False
 
 ############################   dynamic profile   #############################
 ############################   helper functions  #############################
@@ -233,6 +233,9 @@ class STLPort(Port):
 
         self.__is_sync = True
         return self.ok()
+
+    def is_sync(self):
+        return self.__is_sync
 
     # sync all the streams with the server
     def sync_streams (self):
