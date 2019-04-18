@@ -720,7 +720,7 @@ class STLClient_Test(CStlGeneral_Test):
         for param in check_params: # 5% error is relaxed enough
             assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
 
-    def test_basic_cont_dynamic_profile (self):
+    def __basic_cont_dynamic_profile (self):
 
         pps = 500
         port_list = [self.tx_port, self.rx_port]
@@ -769,7 +769,7 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-    def test_pause_resume_dynamic_profile(self):
+    def __pause_resume_dynamic_profile(self):
 
         pps = 500
         port_list = [self.tx_port, self.rx_port]
@@ -817,7 +817,7 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-    def test_update_stop_dynamic_profile(self):
+    def __update_stop_dynamic_profile(self):
 
         pps = 500
         port_list = [self.tx_port, self.rx_port]
@@ -881,7 +881,7 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-    def test_latency_pause_resume_dynamic_profile (self):
+    def __latency_pause_resume_dynamic_profile (self):
 
         port_list = [self.tx_port, self.rx_port]
         profile_list = ["p1", "p2"]
