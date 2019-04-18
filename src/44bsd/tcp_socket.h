@@ -315,7 +315,7 @@ struct CEmulAppCmdDelayRnd {
 //tcSET_VAR
 struct CEmulAppCmdSetVar {
     uint8_t     m_var_id; /* 2 vars*/
-    uint32_t    m_val;
+    uint64_t    m_val;
 };
 
 //tcJMPNZ
@@ -852,7 +852,7 @@ private:
     CHTimerObj              m_timer;
 
     /* cache line 3 */
-    uint32_t                m_vars[apVAR_NUM_SIZE];
+    uint64_t                m_vars[apVAR_NUM_SIZE];
 };
 
 

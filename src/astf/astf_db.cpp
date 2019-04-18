@@ -447,7 +447,7 @@ void CAstfDB::fill_set_var(uint32_t program_index,
     assert (cmd["name"] == "set_var");
 
     res.u.m_var.m_var_id = cmd["id"].asUInt();
-    res.u.m_var.m_val    = cmd["val"].asUInt();
+    res.u.m_var.m_val    = cmd["val"].asUInt64();
 }
 
 void CAstfDB::fill_jmpnz(uint32_t program_index, 

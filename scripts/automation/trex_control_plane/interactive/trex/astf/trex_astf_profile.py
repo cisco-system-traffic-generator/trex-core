@@ -626,7 +626,7 @@ class ASTFProgram(object):
                   var_id  : string
                      var-id there are limited number of variables 
 
-                  val  : uint32_t
+                  val  : uint64_t
                      value of the variable 
 
         """
