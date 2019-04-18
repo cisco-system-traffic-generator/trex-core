@@ -114,7 +114,6 @@ class STLClient_Test(CStlGeneral_Test):
                            mode = STLTXSingleBurst(total_pkts = 100,
                                                    percentage = self.percentage)
                            )
-            print(" STLStream b1 : %s" % b1)
             for i in range(0, 5):
                 self.c.add_streams([b1], ports = [self.tx_port, self.rx_port])
 
@@ -124,7 +123,6 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
                 stats = self.c.get_stats()
 
-                print(" Stats  : %s" % stats)
                 assert self.tx_port in stats
                 assert self.rx_port in stats
 
