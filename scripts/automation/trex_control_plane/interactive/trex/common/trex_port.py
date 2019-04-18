@@ -131,7 +131,7 @@ class Port(object):
         self.last_factor_type = None
 
         self.__attr = PortAttr()
-        self.__is_sync = False
+        self.synced = False
 
     def err(self, msg):
         return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
@@ -141,7 +141,7 @@ class Port(object):
         return RC_OK(data)
 
     def is_sync(self):
-        return self.is_sync
+        return self.synced
 
     def get_speed_bps (self):
         return (self.get_speed_gbps() * 1000 * 1000 * 1000)
@@ -233,7 +233,7 @@ class Port(object):
 
         self.service_mode = data['service']
 
-        self.is_sync = True
+        self.synced = True
         return self.ok()
 
     def sync(self):
