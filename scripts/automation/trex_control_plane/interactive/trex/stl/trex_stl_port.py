@@ -41,7 +41,6 @@ class STLPort(Port):
         self.is_dynamic = dynamic
         self.profile_stream_list = {}
         self.profile_state_list = {}
-        self.__is_sync = False
 
 ############################   dynamic profile   #############################
 ############################   helper functions  #############################
@@ -213,29 +212,12 @@ class STLPort(Port):
         if rc.bad():
             return self.err(rc.err())
 
-        # sync the port
-        self.state_from_name(rc.data()['state'])
         if self.is_dynamic:
             self.state_from_name_dynamic(rc.data()['state_profile'])
 
-        self.owner = rc.data()['owner']
+        return self.sync_shared (rc.data())
 
-        # for stateless (hack)
-        if 'max_stream_id' in rc.data():
-            self.next_available_id = int(rc.data()['max_stream_id']) + 1
 
-        self.status = rc.data()
-
-        # replace the attributes in a thread safe manner
-        self.update_ts_attr(rc.data()['attr'])
-
-        self.service_mode = rc.data()['service']
-
-        self.__is_sync = True
-        return self.ok()
-
-    def is_sync(self):
-        return self.__is_sync
 
     # sync all the streams with the server
     def sync_streams (self):
