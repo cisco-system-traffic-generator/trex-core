@@ -141,7 +141,7 @@ class Port(object):
         return RC_OK(data)
 
     def is_sync(self):
-        return self.__is_sync
+        return self.is_sync
 
     def get_speed_bps (self):
         return (self.get_speed_gbps() * 1000 * 1000 * 1000)
@@ -216,6 +216,26 @@ class Port(object):
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
+    def sync_shared (self,data):
+        # sync the port
+        self.state_from_name(data['state'])
+
+        self.owner = data['owner']
+
+        # for stateless (hack)
+        if 'max_stream_id' in data:
+            self.next_available_id = int(data['max_stream_id']) + 1
+
+        self.status = data
+
+        # replace the attributes in a thread safe manner
+        self.update_ts_attr(data['attr'])
+
+        self.service_mode = data['service']
+
+        self.is_sync = True
+        return self.ok()
+
     def sync(self):
 
         params = {"port_id": self.port_id, 'block': False}
@@ -224,24 +244,8 @@ class Port(object):
         if rc.bad():
             return self.err(rc.err())
 
-        # sync the port
-        self.state_from_name(rc.data()['state'])
+        return self.sync_shared (rc.data())
 
-        self.owner = rc.data()['owner']
-        
-        # for stateless (hack)
-        if 'max_stream_id' in rc.data():
-            self.next_available_id = int(rc.data()['max_stream_id']) + 1
-
-        self.status = rc.data()
-        
-        # replace the attributes in a thread safe manner
-        self.update_ts_attr(rc.data()['attr'])
-        
-        self.service_mode = rc.data()['service']
-
-        self.__is_sync = True
-        return self.ok()
 
     @writeable
     def set_namespace_start (self, json_str_commands):
