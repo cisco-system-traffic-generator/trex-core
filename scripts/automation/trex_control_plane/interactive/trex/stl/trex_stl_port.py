@@ -207,7 +207,7 @@ class STLPort(Port):
 
     def sync(self):
         params = {"port_id": self.port_id,
-                  "profile_id": ALL_PROFILE_ID}
+                  "profile_id": ALL_PROFILE_ID,'block': False}
 
         rc = self.transmit("get_port_status", params)
         if rc.bad():
