@@ -3909,6 +3909,148 @@ You can simulate the profile using the STL simulator:
 [bash]>./stl-sim -f stl/dependent_field_engine_vars.py -o b.pcap
 ----
 
+=== Dynamic multiple profiles
+
+anchor:dynamic_multiple_profiles[]
+
+TRex can support multiple profiles operations on the same port similar to virtual interfaces (from v2.57)
+
+In the console, profile ids can be specified via -p argument. +
+The expression in TRex console allows -p <port number>.<profile id> instead of port number. This is done for backward compatibility reasons +
+For example, start imix.py profile on port '0.imix' and udp_1pkt.py profile on port '0.udp1pkt'. +
+In this way, 'imix' and 'udp1pkt' traffic can be running simultaneously and independently on port 0.
+
+*Example*::
+
+[source,bash]
+----
+# start(add) dynamic profile on port 0.imix(3 streams are running on IMIX)
+trex> start -f stl/imix.py -p 0.imix
+
+# start(add) dynamic profile on port 0.udp1pkt
+trex> start -f stl/udp_1pkt.py -p 0.udp1pkt
+
+# start(add) dynamic profile on port 1.imix(3 streams are running on IMIX)
+trex> start -f stl/imix.py -p 1.imix
+
+# start(add) dynamic profile on port 1.udp1pkt
+trex> start -f stl/udp_1pkt.py -p 1.udp1pkt
+
+# show all streams
+trex> streams
+Port 0:
+
+    ID     |    profile     | length  |       rate       | 
+-----------+----------------+---------+------------------+-
+    1      |     imix       |      64 |      28 pps      | 
+    2      |     imix       |     594 |      16 pps      | 
+    3      |     imix       |    1518 |       4 pps      | 
+    4      |    udp1pkt     |      64 |       1 pps      | 
+
+Port 1:
+
+    ID     |    profile     |  length  |    rate       |  
+-----------+----------------+----------+---------------+--
+    1      |     imix       |       64 |   28 pps      |  
+    2      |     imix       |      594 |   16 pps      |  
+    3      |     imix       |     1518 |    4 pps      |  
+    4      |    udp1pkt     |       64 |    1 pps      |  
+
+
+# change packet rate of udp1pkt during run-time
+trex> update -p 0.udp1pkt -m 1gbps
+
+# pause traffic on port 0.udp1pkt (traffic on 0.imix is still running
+trex> pause -p 0.udp1pkt
+
+# show all profiles
+trex> profiles
+Port 0:
+
+  Profile ID    |   state    | stream ID  
+----------------+------------+-----------
+    udp1pkt     |   PAUSE    |    [4]     
+     imix       |     TX     | [1, 2, 3]  
+
+Port 1:
+
+  Profile ID    |   state    | stream ID  
+----------------+------------+-----------
+    udp1pkt     |     TX     |    [4]     
+     imix       |     TX     | [1, 2, 3]  
+
+# resume every paused traffic on port 0 (including 0.udp1pkt)
+trex> resume -p 0.*
+
+Resume traffic on port(s) [0.udp1pkt]:
+[SUCCESS]
+
+# stop traffic on 0.imix (traffic on 0.udp1pkt is still running)
+trex> stop -p 0.imix
+
+# stop all traffic on port 0
+trex> stop -p 0.*
+
+# stop and remove all traffic on port 1
+trex> stop -p 1.* --remove
+
+# show all streams
+trex>streams
+Port 0:
+
+    ID     |   profile     |  length  |       mode       |      rate       | 
+-----------+---------------+----------+------------------+-----------------+-
+    1      |    imix       |       64 |    Continuous    |     28 pps      | 
+    2      |    imix       |      594 |    Continuous    |     16 pps      | 
+    3      |    imix       |     1518 |    Continuous    |      4 pps      | 
+    4      |   udp1pkt     |       64 |    Continuous    |      1 pps      | 
+
+----
+
+From API perspective it is the same expect the port id that could include the profile id. 
+
+**Some exceptions**:
+
+1. pgid should be unique, it is not possible to run flow-stats with the same id on different profiles
+2. push pcap remote can't be run in parallel with another profile 
+
+
+.Dynmaic profile API example 
+[source,python]
+----                 
+
+    def dynamic_profile (self):
+
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        stream_pg_id = 0
+        port = 0
+
+        try:    
+                # start profiles 0.p1 0.p2 (two profiles on all ports) 
+                for profile in profile_list:
+
+                    stream_pg_id = stream_pg_id + 1
+                    s1 = STLStream(name = 'latency',
+                                   packet = self.pkt,
+                                   mode = STLTXCont(percentage = self.percentage),
+                                   flow_stats = STLFlowLatencyStats(pg_id = stream_pg_id))
+
+                    port_profile = str(port)  + "." + str(profile) #e.g 0.p1
+
+                    self.c.add_streams([s1], ports = port_profile)
+                    self.c.start(ports = port_profile)
+
+
+                # stop all profiles on port 0 using 0.*
+                self.c.stop(ports = str(port)+".*")
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+        
+----
+
+
 === Functional Tutorials
 
 
@@ -5202,101 +5344,6 @@ For example, one could use following: +
 Prior to updating rate of whole port, need to revert changes made to rates of specific streams.
 =====================================================================
 
-===== dynamic multiple profiles
-
-TRex can support the multiple profiles dynamically on the same port.
-
-In the console, profile ids can be specified via -p argument. +
-The expression in TRex console allows -p <port number>.<profile id> instead of port number. +
-For example, start imix.py profile on port '0.imix' and udp_1pkt.py profile on port '0.udp1pkt'. +
-In this way, 'imix' and 'udp1pkt' traffic can be running simultaneously on port 0.
-
-*Example*::
-
-[source,bash]
-----
-# start(add) dynamic profile on port 0.imix(3 streams are running on IMIX)
-trex> start -f stl/imix.py -p 0.imix
-
-# start(add) dynamic profile on port 0.udp1pkt
-trex> start -f stl/udp_1pkt.py -p 0.udp1pkt
-
-# start(add) dynamic profile on port 1.imix(3 streams are running on IMIX)
-trex> start -f stl/imix.py -p 1.imix
-
-# start(add) dynamic profile on port 1.udp1pkt
-trex> start -f stl/udp_1pkt.py -p 1.udp1pkt
-
-# show all streams
-trex> streams
-Port 0:
-
-    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
------------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
-    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
-    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
-    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
-    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
-
-Port 1:
-
-    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
------------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
-    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
-    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
-    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
-    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
-
-
-# change packet rate of udp1pkt during run-time
-trex> update -p 0.udp1pkt -m 1gbps
-
-# pause traffic on port 0.udp1pkt (traffic on 0.imix is still running
-trex> pause -p 0.udp1pkt
-
-# show all profiles
-trex> profiles
-Port 0:
-
-  Profile ID    |   state    | stream ID  
-----------------+------------+-----------
-    udp1pkt     |   PAUSE    |    [4]     
-     imix       |     TX     | [1, 2, 3]  
-
-Port 1:
-
-  Profile ID    |   state    | stream ID  
-----------------+------------+-----------
-    udp1pkt     |     TX     |    [4]     
-     imix       |     TX     | [1, 2, 3]  
-
-# resume every paused traffic on port 0 (including 0.udp1pkt)
-trex> resume -p 0.*
-
-Resume traffic on port(s) [0.udp1pkt]:
-[SUCCESS]
-
-# stop traffic on 0.imix (traffic on 0.udp1pkt is still running)
-trex> stop -p 0.imix
-
-# stop all traffic on port 0
-trex> stop -p 0.*
-
-# stop and remove all traffic on port 1
-trex> stop -p 1.* --remove
-
-# show all streams
-trex>streams
-Port 0:
-
-    ID     |      name       |     profile     |     packet type     |  length  |       mode       |      rate       |    PG ID     |     next     
------------+-----------------+-----------------+---------------------+----------+------------------+-----------------+--------------+-------------
-    1      |        -        |      imix       | Ethernet:IP:UDP:Raw |       64 |    Continuous    |     28 pps      |      -       |      -       
-    2      |        -        |      imix       | Ethernet:IP:UDP:Raw |      594 |    Continuous    |     16 pps      |      -       |      -       
-    3      |        -        |      imix       | Ethernet:IP:UDP:Raw |     1518 |    Continuous    |      4 pps      |      -       |      -       
-    4      |        -        |     udp1pkt     | Ethernet:IP:UDP:Raw |       64 |    Continuous    |      1 pps      |      -       |      -       
-
-----
 
 ===== TUI
 
