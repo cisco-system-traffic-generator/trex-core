@@ -26,6 +26,11 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.57 ==
+
+* STL 
+** Dynamic add/remove multiple profiles feature see link:trex_stateless.html#dynamic_multiple_profiles[dynamic]  
+
 == Release 2.56 ==
 
 * fix basic crash with GUI due to multi profile support link:https://github.com/cisco-system-traffic-generator/trex-core/issues/221[github-221]

@@ -56,6 +56,40 @@ Example 1 - Typical Python API::
         c.disconnect()
 
 
+Example 2 - Dynamic API ::
+
+       #multi profile per port could be run     
+    def dynamic_profile (self):
+
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        stream_pg_id = 0
+        port = 0
+
+        try:    
+           # start profiles 0.p1 0.p2 (two profiles on all ports) 
+           for profile in profile_list:
+
+                stream_pg_id = stream_pg_id + 1
+                s1 = STLStream(name = 'latency',
+                               packet = self.pkt,
+                               mode = STLTXCont(percentage = self.percentage),
+                               flow_stats = STLFlowLatencyStats(pg_id = stream_pg_id))
+
+                port_profile = str(port)  + "." + str(profile) #e.g 0.p1
+
+                self.c.add_streams([s1], ports = port_profile)
+                self.c.start(ports = port_profile)
+
+
+            # stop all profiles on port 0 using 0.*
+            self.c.stop(ports = str(port)+".*")
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+        
+
+
 STLClient class
 ---------------
 
