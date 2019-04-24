@@ -732,8 +732,6 @@ class STLClient_Test(CStlGeneral_Test):
                 profile_list.append(profile_name)
                 profile_id = profile_id + 1
 
-            prorilfe_list_len = len(profile_list) - 1
-
             self.c.add_streams(stream, ports = profile_list)
             self.c.start(ports = profile_list)
 
@@ -771,3 +769,67 @@ class STLClient_Test(CStlGeneral_Test):
 
         finally:
             self.cleanup()
+
+    def test_basic_cont_dynamic_profile (self):
+
+        pps = self.pps
+        duration = 10
+
+        profile_id = 1
+        profile_max = 100
+        tx_profile_list = []
+        rx_profile_list = []
+
+        golden = pps * duration * profile_max
+
+        while profile_id <= profile_max:
+            tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
+            rx_profile_name = str(self.rx_port) + str(".profile_") + str(profile_id)
+
+            tx_profile_list.append(tx_profile_name)
+            rx_profile_list.append(rx_profile_name)
+
+            profile_id = profile_id + 1
+
+        profile_list = tx_profile_list + rx_profile_list
+
+        try:
+            b1 = STLStream(name = 'burst',
+                           packet = self.pkt,
+                           mode = STLTXCont(pps = pps)
+                           )
+
+            for i in range(0, 5):
+                self.c.add_streams([b1], ports = profile_list)
+
+                self.c.clear_stats()
+                self.c.start(ports = profile_list, duration = duration)
+
+                assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+                assert self.c.ports[self.rx_port].is_transmitting(), 'port should be active'
+
+                self.c.wait_on_traffic(ports = [self.tx_port, self.rx_port])
+                stats = self.c.get_stats()
+
+                assert self.tx_port in stats, 'tx port not in stats'
+                assert self.rx_port in stats, 'rx port not in stats'
+
+                # cont. with duration should be quite percise - 5% error is relaxed enough
+                check_params = (
+                    stats[self.tx_port]['opackets'],
+                    stats[self.rx_port]['opackets'],
+                    stats[self.tx_port]['ipackets'],
+                    stats[self.rx_port]['ipackets'],
+                    )
+                for param in check_params:
+                    assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
+
+                self.c.remove_all_streams(ports = profile_list)
+
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+        finally:
+            self.cleanup()
+
