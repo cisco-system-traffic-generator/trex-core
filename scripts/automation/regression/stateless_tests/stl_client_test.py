@@ -725,9 +725,9 @@ class STLClient_Test(CStlGeneral_Test):
 
             port_id = 0
             profile_id = 1
-            profile_max = 100
+            num_profiles = 100
             profile_list = []
-            while profile_id <= profile_max:
+            while profile_id <= num_profiles:
                 profile_name = str(port_id) + str(".profile_") + str(profile_id)
                 profile_list.append(profile_name)
                 profile_id = profile_id + 1
@@ -776,13 +776,13 @@ class STLClient_Test(CStlGeneral_Test):
         duration = 10
 
         profile_id = 1
-        profile_max = 100
+        num_profiles = 100
         tx_profile_list = []
         rx_profile_list = []
 
-        golden = pps * duration * profile_max
+        golden = pps * duration * num_profiles
 
-        while profile_id <= profile_max:
+        while profile_id <= num_profiles:
             tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
             rx_profile_name = str(self.rx_port) + str(".profile_") + str(profile_id)
 
@@ -837,11 +837,11 @@ class STLClient_Test(CStlGeneral_Test):
 
         try:    
             profile_id = 1
-            profile_max = 100
+            num_profiles = 100
             tx_profile_list = []
             tx_all_profile = str(self.tx_port) + str(".*")
 
-            while profile_id <= profile_max:
+            while profile_id <= num_profiles:
                 tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
                 tx_profile_list.append(tx_profile_name)
                 profile_id = profile_id + 1
@@ -873,3 +873,36 @@ class STLClient_Test(CStlGeneral_Test):
         finally:
             self.cleanup()
 
+    def test_random_duration_dynamic_profile (self):
+
+        try:    
+            pps = self.pps
+            profile_id = 1
+            num_profiles = 100
+            tx_profile_list = []
+
+            while profile_id <= num_profiles:
+                tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
+                tx_profile_list.append(tx_profile_name)
+                profile_id = profile_id + 1
+
+            stream = STLStream(name = 'burst',
+                           packet = self.pkt,
+                           mode = STLTXCont(pps = pps)
+                           )
+
+            self.c.add_streams([stream], ports = tx_profile_list)
+            for tx_profile in tx_profile_list:
+                duration = random.randint(10,100)
+                self.c.start(ports = tx_profile, duration = duration)
+
+            assert self.c.ports[self.tx_port].is_transmitting(), 'port should be active'
+            self.c.wait_on_traffic(ports = [self.tx_port])
+            assert not self.c.get_profiles_with_state("transmitting"), 'there should no transmitting profile'
+            self.c.remove_all_streams(ports = tx_profile_list)
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+
+        finally:
+            self.cleanup()
