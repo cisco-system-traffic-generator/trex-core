@@ -705,19 +705,6 @@ class STLClient_Test(CStlGeneral_Test):
             assert False , '{0}'.format(e)
 
 
-    def check_error_in_percentage_dynamic_profile(self, golden):
-        self.c.clear_stats()
-        time.sleep(10)
-        stats = self.c.get_stats()
-        check_params = (
-            stats[self.tx_port]['tx_pps'],
-            stats[self.rx_port]['tx_pps'],
-            stats[self.tx_port]['rx_pps'],
-            stats[self.rx_port]['rx_pps'],
-            )
-        for param in check_params: # 5% error is relaxed enough
-            assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
-            
     def test_pause_resume_update_dynamic_profile(self):
         try:
             self.c.reset()
