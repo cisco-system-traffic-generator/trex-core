@@ -1202,7 +1202,7 @@ class TRexClient(object):
         if self.is_connected():
             raise TRexError('Can set timeout only when not connected')
         self.conn.rpc.set_timeout_sec(timeout_sec)
-        self.conn.async.set_timeout_sec(timeout_sec)
+        self.conn.async_.set_timeout_sec(timeout_sec)
 
 
     @client_api('command', False)
