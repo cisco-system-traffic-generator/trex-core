@@ -604,6 +604,8 @@ void StreamVm::build_flow_var_table() {
                     m_pkt_len_data.m_expected_pkt_len = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2.0;
 
                 }
+                m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_max_value;
+                m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_min_value;
             }
             else {
                 for (int i = 0; i < (int)var.m_ins.m_ins_flowv->m_value_list.size(); i++) {
@@ -613,14 +615,24 @@ void StreamVm::build_flow_var_table() {
                         ss << "instruction id '" << ins_id << "' packet size in value_list " << var.m_ins.m_ins_flowv->m_value_list[i] << " is bigger than packet size " << m_pkt_size << " or smaller than 60";
                         err(ss.str());
                     }
+
+                    if ( 0 == i ) {
+                        m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                    }
+                    else {
+                        if (var.m_ins.m_ins_flowv->m_value_list[i] > m_pkt_len_data.m_max_pkt_len) {
+                            m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        }
+                        else if (var.m_ins.m_ins_flowv->m_value_list[i] < m_pkt_len_data.m_min_pkt_len) {
+                            m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        }
+                    }
                 }
 
                 /* expected packet size calculation */
                 m_pkt_len_data.m_expected_pkt_len = std::accumulate(var.m_ins.m_ins_flowv->m_value_list.begin(), var.m_ins.m_ins_flowv->m_value_list.end(), 0.0)/var.m_ins.m_ins_flowv->m_value_list.size();
             }
-
-            m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_max_value;
-            m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_min_value;
 
         }
     }
