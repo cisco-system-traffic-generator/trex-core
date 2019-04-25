@@ -988,10 +988,10 @@ class AsyncKeys:
 # Legend engine
 class AsyncKeysEngineLegend:
     def __init__ (self, async):
-        self.async = async
+        self.async_ = async
 
     def get_type (self):
-        return self.async.MODE_LEGEND
+        return self.async_.MODE_LEGEND
 
     def tick (self, seq, pm):
 
@@ -1018,8 +1018,8 @@ class AsyncKeysEngineLegend:
 
 # console engine
 class AsyncKeysEngineConsole:
-    def __init__ (self, async, console, client, save_console_history):
-        self.async = async
+    def __init__ (self, async_, console, client, save_console_history):
+        self.async_ = async_
         self.lines = deque(maxlen = 100)
 
         self.generate_prompt       = console.generate_prompt
@@ -1052,7 +1052,7 @@ class AsyncKeysEngineConsole:
         return ' '.join([format_text(cmd, 'bold') for cmd in self.ac.keys()])
 
     def get_type (self):
-        return self.async.MODE_CONSOLE
+        return self.async_.MODE_CONSOLE
 
 
     def handle_escape_char (self, seq):
@@ -1301,7 +1301,7 @@ class AsyncKeysEngineConsole:
         
         func = self.ac.get(op)
         if func:
-            with self.async.tui_global_lock:
+            with self.async_.tui_global_lock:
                 func_rc = func(param)
 
         # take out the empty line

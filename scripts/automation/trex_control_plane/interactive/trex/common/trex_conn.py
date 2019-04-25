@@ -33,7 +33,7 @@ class Connection(object):
         self.rpc = JsonRpcClient(ctx)
         
         # async
-        self.async = TRexSubscriber(self.ctx, self.rpc)
+        self.async_ = TRexSubscriber(self.ctx, self.rpc)
          
         # init state
         self.state   = (self.DISCONNECTED, None)
@@ -57,7 +57,7 @@ class Connection(object):
         try:
             self.rpc.disconnect()
             self.rpc.set_api_h(None)
-            self.async.disconnect()
+            self.async_.disconnect()
 
         finally:
             self.state = (self.DISCONNECTED, None)
@@ -86,7 +86,7 @@ class Connection(object):
             when it retruns, an async barrier is guaranteed
             
         '''
-        return self.async.barrier()
+        return self.async_.barrier()
         
         
     def sync (self):
@@ -95,7 +95,7 @@ class Connection(object):
             must be called after all the config
             was done
         '''
-        return self.async.barrier(baseline = True)
+        return self.async_.barrier(baseline = True)
  
         
     def mark_for_disconnect (self, cause):
@@ -107,7 +107,7 @@ class Connection(object):
         '''
 
         # avoid any messages handling for the async thread
-        self.async.set_as_zombie()
+        self.async_.set_as_zombie()
         
         # change state
         self.state = (self.MARK_FOR_DISCONNECT, cause)
@@ -140,7 +140,7 @@ class Connection(object):
             return True if any data has arrived 
             the server in the last 3 seconds
         '''
-        return ( self.async.last_data_recv_ts is not None and ((time.time() - self.async.last_data_recv_ts) <= 3) )
+        return ( self.async_.last_data_recv_ts is not None and ((time.time() - self.async_.last_data_recv_ts) <= 3) )
 
 
     def is_connected (self):
@@ -186,7 +186,7 @@ class Connection(object):
 
         # connect async channel
         self.ctx.logger.pre_cmd("Connecting to publisher server on {0}:{1}".format(self.ctx.server, self.ctx.async_port))
-        rc = self.async.connect()
+        rc = self.async_.connect()
         self.ctx.logger.post_cmd(rc)
 
         if not rc:
