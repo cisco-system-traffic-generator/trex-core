@@ -830,9 +830,14 @@ class Scapy_service(Scapy_service_api):
             self._modify_layer(base_layer, scapy_layer, layer['fields'])
         return scapy_layer
 
+
+    def _all_subclasses(self, cls):
+        return set(cls.__subclasses__()).union(
+            [s for c in cls.__subclasses__() for s in self._all_subclasses(c)])
+
     def _packet_model_to_scapy_packet(self,data):
         layer_classes = {}
-        for layer_class in Packet.__subclasses__():
+        for layer_class in self._all_subclasses(Packet):
             layer_classes[layer_class.__name__] = layer_class
         base_layer = self._parse_packet_dict(data[0], layer_classes, None)
         for i in range(1,len(data),1):

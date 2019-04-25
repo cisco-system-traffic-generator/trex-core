@@ -21,6 +21,12 @@ TEST_PKT_DEF = [
 
 TEST_DNS_PKT = Ether(src='00:16:ce:6e:8b:24', dst='00:05:5d:21:99:4c', type=2048)/IP(frag=0, src='192.168.0.114', proto=17, tos=0, dst='205.152.37.23', chksum=26561, len=59, options=[], version=4, flags=0, ihl=5, ttl=128, id=7975)/UDP(dport=53, sport=1060, len=39, chksum=877)/DNS(aa=0, qr=0, an=None, ad=0, nscount=0, qdcount=1, ns=None, tc=0, rd=1, arcount=0, ar=None, opcode=0, ra=0, cd=0, z=0, rcode=0, id=6159, ancount=0, qd=DNSQR(qclass=1, qtype=1, qname='wireshark.org.'))
 
+TEST_ICMPv6_PKT_DEF = [
+        layer_def("Ether", src="00:16:ce:6e:8b:24", dst="00:05:5d:21:99:4c", type=34525),
+        layer_def("IPv6", src="0:0:0:0:0:ffff:c0a8:72", dst="0:0:0:0:0:ffff:cd98:2517", version=6, tc=0, fl=0, nh=58, hlim=64),
+        layer_def("ICMPv6EchoRequest", type=128, code=0, id=0, seq=0)
+        ]
+
 TEST_DNS_PKT_B64 = (
     "1MOyoQIABAAAAAAAAAAAAP//AAABAAAAdzmERaAVAwBJAAAASQAAAAAFXSGZTAAWzm6LJAgARQAA"
     "Ox8nAACAEWfBwKgAcs2YJRcEJAA1ACcDbRgPAQAAAQAAAAAAAAl3aXJlc2hhcmsDb3JnAAABAAF3"
@@ -94,6 +100,21 @@ def test_reconstruct_dns_packet():
     dns_id = dns['fields'][0]
     assert(dns_id["value"] == 777)
     assert("offset" in dns_id)
+
+def test_build_icmpv6_packet():
+    pkt_data = build_pkt(TEST_ICMPv6_PKT_DEF)
+
+    [ether, ipv6, icmpv6] = pkt_data['data'][:3]
+
+    assert(ether['offset'] == 0)
+    assert(ipv6['offset'] == 14)
+    assert(icmpv6['offset'] == 54)
+
+    icmp_cksum = icmpv6["fields"][2]
+    assert(icmp_cksum["id"] == "cksum")
+    assert(icmp_cksum["offset"] == 2)
+    assert(icmp_cksum["length"] == 2)
+    assert(icmp_cksum["value"] == 52210)
 
 def test_reconstruct_dns_packet_expr():
     pkt_data = reconstruct_pkt(base64.b64encode(bytes(TEST_DNS_PKT)), None)
