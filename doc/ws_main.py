@@ -616,14 +616,11 @@ def build_cp(bld,dir,root,callback):
 
 
 def create_analytic_report(task):
-    try:
-        import AnalyticsWebReport as analytics
-        if task.generator.bld.options.performance_detailed:
-            analytics.main(verbose = Logs.verbose,detailed_test_stats='yes')
-        else:
-            analytics.main(verbose = Logs.verbose)
-    except Exception as e:
-        raise Exception('Error importing or using AnalyticsWebReport script: %s' % e)
+    import AnalyticsWebReport as analytics
+    if task.generator.bld.options.performance_detailed:
+        analytics.main(verbose = Logs.verbose, detailed_test_stats = True)
+    else:
+        analytics.main(verbose = Logs.verbose)
 
 
 def create_ndr_report(task):
@@ -656,11 +653,11 @@ def build(bld):
         bld(rule=my_copy, target=x)
         bld.add_group() 
 
-    #if bld.options.performance or bld.options.performance_detailed:
-    #    bld(rule=create_analytic_report)
-    #    bld.add_group()
-    #    bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
-    #    return
+    if bld.options.performance or bld.options.performance_detailed:
+        bld(rule=create_analytic_report)
+        bld.add_group()
+        bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
+        return
 
     if bld.options.ndr:
         bld(rule=create_ndr_report)

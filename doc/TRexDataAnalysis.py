@@ -35,7 +35,7 @@ This Module is structured to work with a raw data at the following JSON format:
 
 
 class TestQuery(object):
-    QUERY_TIMEFORMAT = "%Y-%m-%d %H:%M:%S"  # date format in the query
+    QUERY_TIMEFORMAT = "%Y/%m/%d %H:%M:%S"  # date format in the query
     QUERY_TIMESTAMP = 1
     QUERY_MPPS_RESULT = 2
     QUERY_BUILD_ID = 3
@@ -211,7 +211,7 @@ def latest_runs_comparison_bar_chart(setup_name1, setup_name2, setup1_latest_res
         # WARNING: if the file _all_stats.csv already exists, this script deletes it, to prevent overflowing of data
 
 
-def create_all_data(ga_data, end_date, save_path='', detailed_test_stats=''):
+def create_all_data(ga_data, end_date, save_path='', detailed_test_stats=False):
     all_setups = {}
     all_setups_data = []
     setup_names = ga_data.keys()

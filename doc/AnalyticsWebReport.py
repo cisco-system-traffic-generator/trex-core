@@ -7,7 +7,7 @@ import time
 import datetime
 
 
-def main(verbose=False, source='elk', detailed_test_stats='yes'):
+def main(verbose=False, source='elk', detailed_test_stats=False):
     current_date = time.strftime("%Y-%m-%d")
     k_days_ago = datetime.datetime.now() - datetime.timedelta(days=15)
     start_date = str(k_days_ago.date())
@@ -17,9 +17,11 @@ def main(verbose=False, source='elk', detailed_test_stats='yes'):
         analytics = ac.initialize_analyticsreporting()
         response = ac.get_report(analytics, start_date, current_date)
         all_data_dict, setups = ac.export_to_tuples(response)
-    if source == 'elk':
+    elif source == 'elk':
         elk_manager = ec.ELKManager(hostname='sceasr-b20', index='trex_perf-*', port=9200)
         all_data_dict = elk_manager.fetch_and_parse()
+    else:
+        raise Exception('Unknown source: %s, valid are ga and elk' % source)
     dest_path = os.path.join(os.getcwd(), 'build', 'images')
     if verbose:
         print('Saving data to %s' % dest_path)

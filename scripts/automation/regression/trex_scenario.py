@@ -57,7 +57,7 @@ def copy_elk_info ():
    d = copy.deepcopy(CTRexScenario.elk_info);
 
    timestamp = datetime.datetime.now() - datetime.timedelta(hours=2); # Jerusalem timeZone, Kibana does not have feature to change timezone 
-   d['timestamp']=timestamp.strftime("%Y-%m-%d %H:%M:%S")
+   d['timestamp'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")
    return(d)
 
 global_cfg = 'cfg/global_regression_cfg.yaml'

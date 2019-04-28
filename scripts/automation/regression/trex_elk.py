@@ -77,34 +77,37 @@ class EsHelper(object):
         self.alias   = alias 
         self.index_name = index_name
         self.mapping = mapping
-        self.setting = { "index.mapper.dynamic":"false"};
+        #self.setting = { "index.mapper.dynamic":"false"}
+        self.setting = {}
 
     def delete (self):
         es=self.es;
         es.indices.delete(index=self.alias, ignore=[400, 404]);
 
     def is_exists (self):
+        #return False
         es=self.es;
         return es.indices.exists(index=self.alias, ignore=[400, 404])
 
     def create_first_fime (self):
         es=self.es;
         index_name=self.index_name
-        es.indices.create(index=index_name, ignore=[],body = {               
+        es.indices.create(index=index_name, ignore=[], body = {
            "aliases": { self.alias : {} }, 
-           "mappings" : { "data": self.mapping },
+           #"mappings" : { "data": self.mapping },
+           #"mappings" : { 'dynamic_date_formats': ['yyyy-MM-dd HH:mm:ss'] },
            "settings" : self.setting
            });
 
     def update(self):
         es=self.es;
-        es.indices.put_mapping(index=self.alias, doc_type="data",body=self.mapping);
-        es.indices.rollover(alias=self.alias,body={
+        #es.indices.put_mapping(index=self.alias, doc_type="data",body=self.mapping);
+        es.indices.rollover(alias=self.alias, body={
               "conditions": {
                             "max_age":   "30d",
-                            "max_docs":  100000
+                            "max_docs":  1000000
                             },
-               "mappings" : { "data": self.mapping },
+               #"mappings" : { "data": self.mapping },
                "settings" : self.setting
                }
               );
@@ -120,7 +123,7 @@ class EsHelper(object):
 
     def push_data(self,data):
         es=self.es;
-        es.index(index=self.alias,doc_type="data", body=data);
+        es.index(index=self.alias, doc_type="_doc", body=data);
 
 
 
