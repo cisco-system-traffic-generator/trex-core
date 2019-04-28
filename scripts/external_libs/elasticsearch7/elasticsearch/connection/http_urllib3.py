@@ -216,7 +216,6 @@ class Urllib3HttpConnection(Connection):
                     # again
                     body = gzip.zlib.compress(body)
 
-            print('Method: %s, url: %s, body: %s' % (method, url, body))
             response = self.pool.urlopen(
                 method, url, body, retries=Retry(False), headers=request_headers, **kw
             )
