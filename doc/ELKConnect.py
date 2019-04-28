@@ -5,13 +5,13 @@ import datetime
 import time
 
 ext_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'scripts', 'external_libs'))
-elk_path = os.path.join(ext_path, 'elasticsearch')
+elk_path = os.path.join(ext_path, 'elasticsearch7')
 urllib_path = os.path.join(ext_path, 'urllib3')
 
 if elk_path not in sys.path:
     sys.path.append(elk_path)
 if urllib_path not in sys.path:
-    sys.path.append(urllib_path)
+    sys.path.insert(1, urllib_path)
 
 import elasticsearch
 import elasticsearch.helpers
@@ -23,7 +23,7 @@ class ELKManager:
         self.index = index
         self.port = port
         self.setup_names = ['trex07', 'trex08', 'trex09', 'trex11', 'kiwi02','trex19']
-        self.es = elasticsearch.Elasticsearch([{"host": hostname, "port": port}])
+        self.es = elasticsearch.Elasticsearch([{"host": hostname, "port": port}], timeout = 30)
         self.all_data_raw = {}
         self.all_data_parsed = {}
 

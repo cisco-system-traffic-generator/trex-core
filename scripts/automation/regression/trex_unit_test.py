@@ -425,7 +425,7 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         img={}
         img['sha'] = "v2.14"                #TBD
-        img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        img['build_time'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")
         img['version'] = "v2.14"           #TBD need to fix  
         img['formal'] = False
 
@@ -454,7 +454,7 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         elk_info['info'] =info;
 
-        elk_info['timestamp'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")  # need to update it
+        elk_info['timestamp'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")  # need to update it
         elk_info['build_id'] = os.environ.get('BUILD_NUM')
         elk_info['scenario'] = os.environ.get('SCENARIO')
 

@@ -81,7 +81,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 
                 img               = CTRexScenario.elk_info['info']['image']
                 img['sha']        = CTRexScenario.trex_version['Git SHA']
-                img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                img['build_time'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")
                 img['version']    = CTRexScenario.trex_version['Version']
 
                 setup = CTRexScenario.elk_info['info']['setup']
