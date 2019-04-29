@@ -174,6 +174,8 @@ class STLRX_Test(CStlGeneral_Test):
         #
 
         self.errs = []
+        self.max_latency = 0
+        self.latency_obj = None
 
 
     @classmethod
@@ -239,22 +241,34 @@ class STLRX_Test(CStlGeneral_Test):
             return (0.0)
 
 
-    def __push_latency_elk (self,latency):
+
+    def __push_latency_elk (self):
         if self.elk : 
             elk_obj = self.get_elk_obj()
-            obj = { "name" : self.get_name(),
-                    "type"  : "stateless",
-                    "latecny" :  { "min" : self.__get_as_float(latency['total_min']),
-                                   "max" : latency['total_max'],
-                                   "avr" : latency['average'],
-                                   "jitter" : latency['jitter'],
-                                   "max-win" : latency['last_max']
-                                  }
-                  };
+            obj = self.latency_obj 
+            if obj:
+              elk_obj['test'] =obj;
+              pprint.pprint(elk_obj['test']);
+              self.elk.perf.push_data(elk_obj)
 
-            elk_obj['test'] =obj;
-            pprint.pprint(elk_obj['test']);
-            self.elk.perf.push_data(elk_obj)
+
+    def __save_max_latency (self,latency):
+        if self.elk : 
+            max_lat = self.__get_as_float(latency['total_max'])
+            if max_lat > self.max_latency :
+                self.max_latency  = max_lat
+                obj = { "name" : self.get_name(),
+                        "type"  : "stateless",
+                        "latecny" :  { "min" : self.__get_as_float(latency['total_min']),
+                                       "max" : max_lat,
+                                       "avr" : latency['average'],
+                                       "jitter" : latency['jitter'],
+                                       "max-win" : latency['last_max']
+                                      }
+                      };
+
+                self.latency_obj = obj
+
 
     def __verify_latency (self, latency_stats,max_latency,max_average):
 
@@ -262,7 +276,7 @@ class STLRX_Test(CStlGeneral_Test):
         err_latency = latency_stats['err_cntrs']
         latency     = latency_stats['latency']
 
-        self.__push_latency_elk (latency)
+        self.__save_max_latency (latency)
                                          
         for key in err_latency :
             error +=err_latency[key]
@@ -319,7 +333,7 @@ class STLRX_Test(CStlGeneral_Test):
             stl = latency_stats['err_cntrs']['seq_too_low']
             lat = latency_stats['latency']
 
-            self.__push_latency_elk (lat)
+            self.__save_max_latency (lat)
 
             if ooo != 0 or dup != 0 or stl != 0:
                 self.__exit_with_error(latency_stats, xstats,
@@ -718,6 +732,8 @@ class STLRX_Test(CStlGeneral_Test):
                 assert False , "Latency too high"
             else:
                 print("===>Iteration {0} PASS {1}".format(i,j));
+
+            self.__push_latency_elk()
 
 
     def check_stats(self, a, b, err):
