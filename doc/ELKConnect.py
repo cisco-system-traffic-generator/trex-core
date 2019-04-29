@@ -44,6 +44,7 @@ class ELKManager:
                 "query": {
                     "bool": {
                         "filter": [
+                            {'wildcard': {'test.name.keyword': '*CPU*'}},
                             {"term": {"info.setup.name": setup_name}},
                             {"term": {"test.type": "stateless"}},
                             {"range": {"timestamp": {"gte": two_w_ago_epoch_second, "lte": seconds_since_epoch,
