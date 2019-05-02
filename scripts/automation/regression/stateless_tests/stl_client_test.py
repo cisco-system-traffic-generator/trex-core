@@ -852,12 +852,14 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.pause(tx_all_profile)
                 self.c.resume(tx_all_profile)
 
+            print("\ntest case's stop")
             self.c.stop()
 
         except STLError as e:
             assert False , '{0}'.format(e)
 
         finally:
+            print("\ntest case's cleanup")
             self.cleanup()
 
     def test_random_duration_dynamic_profile (self):
