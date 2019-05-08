@@ -165,9 +165,79 @@ TEST_F(gt_astf_inter, astf_positive_6) {
 }
 
 
+TEST_F(gt_astf_inter, astf_positive_7) {
+    bool success;
+    CFlowGenList fl;
+    fl.Create();
+    fl.generate_p_thread_info(1);
+    CFlowGenListPerThread *lpt = fl.m_threads_info[0];
+    CAstfDB * lpastf;
 
+    uint32_t profile_id_1 = 0x12345678;
 
+    lpastf = CAstfDB::instance(profile_id_1);
+    success = lpastf->parse_file("automation/regression/data/astf_dns.json");
+    EXPECT_EQ(success, true);
 
+    try {
+        lpt->load_tcp_profile(profile_id_1); // DB 1 loaded
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
+        success = false;
+    }
+    EXPECT_EQ(success, true);
+
+    lpt->unload_tcp_profile(profile_id_1);
+
+    try {
+        lpt->load_tcp_profile(profile_id_1); // DB 1 loaded
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
+        success = false;
+    }
+    EXPECT_EQ(success, true);
+
+    uint32_t profile_id_2 = 0xfedcba98;
+
+    lpastf = CAstfDB::instance(profile_id_2);
+    success = lpastf->parse_file("automation/regression/data/astf_dns.json");
+    EXPECT_EQ(success, true);
+
+    try {
+        lpt->load_tcp_profile(profile_id_2); // DB 1 loaded again
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR (as expected) in ASTF object creation: " << ex.what();
+        lpt->unload_tcp_profile(profile_id_2);
+        success = false;
+    }
+    EXPECT_EQ(success, false);
+
+    lpastf = CAstfDB::instance(profile_id_2);
+    success = lpastf->parse_file("automation/regression/data/astf_dns2.json");
+    EXPECT_EQ(success, true);
+
+    try {
+        lpt->load_tcp_profile(profile_id_2); // DB 2 loaded
+        success = true;
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
+        success = false;
+    }
+    EXPECT_EQ(success, true);
+
+    /* TODO: run simulation of traffic here with --nc */
+
+    lpt->unload_tcp_profile(profile_id_1);
+    lpt->unload_tcp_profile(profile_id_2);
+
+    lpastf->free_instance(profile_id_1);
+    lpastf->free_instance(profile_id_2);
+    fl.clean_p_thread_info();
+    fl.Delete();
+}
 
 
 

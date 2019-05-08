@@ -601,6 +601,24 @@ public:
 };
 
 
+struct CGenNodeCommand : public CGenNodeBase  {
+
+public:
+    TrexCpToDpMsgBase  *m_cmd;
+
+    uint8_t             m_pad_end[104];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
+
+public:
+    void free_command();
+
+} __rte_cache_aligned;;
+
+
+class CPerProfileCtx;
+
 struct CGenNode : public CGenNodeBase  {
 
 public:
@@ -633,9 +651,10 @@ public:
     uint16_t            m_nat_external_port; // NAT client port
     uint16_t            m_nat_pad[1];
     const ClientCfgBase *m_client_cfg;
+    CPerProfileCtx      *m_ctx;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[6];
+    uint32_t            m_end_of_cache_line[4];
 
 
 public:
@@ -3074,10 +3093,8 @@ private:
 
 public:
     /* TCP stack memory */
-    CTcpPerThreadCtx      *         m_c_tcp;
-    CTcpCtxCb             *         m_c_tcp_io;
-    CTcpPerThreadCtx      *         m_s_tcp;
-    CTcpCtxCb             *         m_s_tcp_io;
+    CTcpPerThreadCtx      *         m_c_tcp;        /* active tcp client ctx */
+    CTcpPerThreadCtx      *         m_s_tcp;        /* active tcp server ctx */
     bool                            m_tcp_terminate;
     bool                            m_sched_accurate;
     uint32_t                        m_tcp_terminate_cnt;
@@ -3087,11 +3104,11 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    void load_tcp_profile();
-    void unload_tcp_profile();
+    void load_tcp_profile(uint32_t profile_id = 0);
+    void unload_tcp_profile(uint32_t profile_id = 0);
     void Delete_tcp_ctx();
 
-    void generate_flow(bool &done);
+    void generate_flow(bool &done, CPerProfileCtx * ctx);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
     void handle_tx_fif(CGenNode * node,bool on_terminate);
@@ -3364,6 +3381,7 @@ class CRXCoreIgnoreStat {
     uint64_t m_tot_bytes;
 };
 
+static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
 

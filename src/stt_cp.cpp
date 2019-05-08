@@ -52,11 +52,11 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         uint64_t *base_tcp;
         uint64_t *base_udp;
         if (is_sum) {
-            base_tcp = (uint64_t *)&lpctx->m_tcpstat.m_sts;
-            base_udp = (uint64_t *)&lpctx->m_udpstat.m_sts;
+            base_tcp = (uint64_t *)&lpctx->get_tcpstat()->m_sts;
+            base_udp = (uint64_t *)&lpctx->get_udpstat()->m_sts;
         } else {
-            base_tcp = (uint64_t *)&lpctx->m_tcpstat.m_sts_tg_id[tg_id];
-            base_udp = (uint64_t *)&lpctx->m_udpstat.m_sts_tg_id[tg_id];
+            base_tcp = (uint64_t *)&lpctx->get_tcpstat()->m_sts_tg_id[tg_id];
+            base_udp = (uint64_t *)&lpctx->get_udpstat()->m_sts_tg_id[tg_id];
         }
         CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
         CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));

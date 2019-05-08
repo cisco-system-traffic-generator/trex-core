@@ -36,27 +36,6 @@ class TrexStatelessDpPerPort;
 class TrexCpToDpMsgBase;
 class CFlowGenListPerThread;
 
-struct CGenNodeCommand : public CGenNodeBase  {
-
-friend class TrexStatelessDpCore;
-
-public:
-    TrexCpToDpMsgBase  *m_cmd;
-
-    uint8_t             m_pad_end[104];
-
-    /* CACHE_LINE */
-    uint64_t            m_pad3[8];
-
-
-public:
-    void free_command();
-
-} __rte_cache_aligned;;
-
-
-static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
-
 
 struct CGenNodeCacheMbuf {
     rte_mbuf_t *  m_mbuf_const;
