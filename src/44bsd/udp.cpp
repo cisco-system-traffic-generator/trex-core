@@ -43,12 +43,12 @@ void CUdpStats::Resize(uint16_t new_num_of_tg_ids){
     Init(new_num_of_tg_ids);
 }
 
-void CUdpFlow::Create(CTcpPerThreadCtx *ctx,
+void CUdpFlow::Create(CPerProfileCtx *ctx,
                       bool client, uint16_t tg_id){
     CFlowBase::Create(ctx, tg_id);
     m_keep_alive_timer.reset();
     m_keep_alive_timer.m_type = ttUDP_FLOW; 
-    m_mbuf_socket = ctx->m_mbuf_socket;
+    m_mbuf_socket = ctx->m_tcp_ctx->m_mbuf_socket;
     if (client){
         INC_UDP_STAT(m_ctx, m_tg_id, udps_connects);
     }else{
@@ -70,7 +70,7 @@ void CUdpFlow::init(){
     m_keepaive_ticks  =  tw_time_msec_to_ticks(1000);
 
     m_keepalive=1;
-    m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    m_ctx->m_tcp_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
 }
 
 
@@ -184,7 +184,7 @@ void CUdpFlow::send_pkt(CMbufBuffer *      buf){
     INC_UDP_STAT_CNT(m_ctx, m_tg_id, udps_sndbyte,buf->m_t_bytes);
 
     /* send the packet */
-    m_ctx->m_cb->on_tx(m_ctx,0,m);
+    m_ctx->m_tcp_ctx->m_cb->on_tx(m_ctx->m_tcp_ctx,0,m);
 }
 
 
@@ -194,7 +194,7 @@ void CUdpFlow::disconnect(){
     }
     /* stop the timers, apps etc*/
     if (m_keep_alive_timer.is_running()){
-        m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
+        m_ctx->m_tcp_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
     }
     m_closed=true;
 }
@@ -203,15 +203,15 @@ void CUdpFlow::set_keepalive(uint64_t  msec){
     m_keepalive=1;
     m_keepaive_ticks  =  tw_time_msec_to_ticks(msec);
     /* stop and restart the timer with new time */
-    m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
-    m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    m_ctx->m_tcp_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
+    m_ctx->m_tcp_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
 }
 
 
 void CUdpFlow::on_tick(){
     if (m_keepalive==0) {
         m_keepalive=1;
-        m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+        m_ctx->m_tcp_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
     }else{
         INC_UDP_STAT(m_ctx, m_tg_id, udps_keepdrops);
         disconnect();
