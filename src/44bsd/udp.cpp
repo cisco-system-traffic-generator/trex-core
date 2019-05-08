@@ -43,21 +43,21 @@ void CUdpStats::Resize(uint16_t new_num_of_tg_ids){
     Init(new_num_of_tg_ids);
 }
 
-void CUdpFlow::Create(CTcpPerThreadCtx *ctx,
+void CUdpFlow::Create(CPerProfileCtx *pctx,
                       bool client, uint16_t tg_id){
-    CFlowBase::Create(ctx, tg_id);
+    CFlowBase::Create(pctx, tg_id);
     m_keep_alive_timer.reset();
     m_keep_alive_timer.m_type = ttUDP_FLOW; 
-    m_mbuf_socket = ctx->m_mbuf_socket;
+    m_mbuf_socket = pctx->m_ctx->m_mbuf_socket;
     if (client){
-        INC_UDP_STAT(m_ctx, m_tg_id, udps_connects);
+        INC_UDP_STAT(m_pctx, m_tg_id, udps_connects);
     }else{
-        INC_UDP_STAT(m_ctx, m_tg_id, udps_accepts);
+        INC_UDP_STAT(m_pctx, m_tg_id, udps_accepts);
     }
 }
 
 void CUdpFlow::Delete(){
-    INC_UDP_STAT(m_ctx, m_tg_id, udps_closed);
+    INC_UDP_STAT(m_pctx, m_tg_id, udps_closed);
     disconnect();
 }
 
@@ -70,7 +70,7 @@ void CUdpFlow::init(){
     m_keepaive_ticks  =  tw_time_msec_to_ticks(1000);
 
     m_keepalive=1;
-    m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
 }
 
 
@@ -116,14 +116,14 @@ rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
     int hlen = ftp->m_offset_l4+UDP_HEADER_LEN;
     rte_mbuf_t * m;
     if ( (hlen+buf->m_t_bytes)>=MAX_PKT_SIZE){
-        INC_UDP_STAT(m_ctx, m_tg_id, udps_pkt_toobig);
+        INC_UDP_STAT(m_pctx, m_tg_id, udps_pkt_toobig);
         /* drop the packet */
         return(0);
     }
 
     m=pktmbuf_alloc(hlen);
     if (m==0) {
-        INC_UDP_STAT(m_ctx, m_tg_id, udps_nombuf);
+        INC_UDP_STAT(m_pctx, m_tg_id, udps_nombuf);
         /* drop the packet */
         return(0);
     }
@@ -154,7 +154,7 @@ rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
 
         rte_mbuf_t   * mi = pktmbuf_alloc_small();
         if (mi==0) {
-            INC_UDP_STAT(m_ctx, m_tg_id, udps_nombuf);
+            INC_UDP_STAT(m_pctx, m_tg_id, udps_nombuf);
             rte_pktmbuf_free(m);
             return(0);
         }
@@ -180,11 +180,11 @@ void CUdpFlow::send_pkt(CMbufBuffer *      buf){
     assert(utl_rte_pktmbuf_verify(m)==0);
     #endif
 
-    INC_UDP_STAT(m_ctx, m_tg_id, udps_sndpkt);
-    INC_UDP_STAT_CNT(m_ctx, m_tg_id, udps_sndbyte,buf->m_t_bytes);
+    INC_UDP_STAT(m_pctx, m_tg_id, udps_sndpkt);
+    INC_UDP_STAT_CNT(m_pctx, m_tg_id, udps_sndbyte,buf->m_t_bytes);
 
     /* send the packet */
-    m_ctx->m_cb->on_tx(m_ctx,0,m);
+    m_pctx->m_ctx->m_cb->on_tx(m_pctx->m_ctx,0,m);
 }
 
 
@@ -194,7 +194,7 @@ void CUdpFlow::disconnect(){
     }
     /* stop the timers, apps etc*/
     if (m_keep_alive_timer.is_running()){
-        m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
+        m_pctx->m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
     }
     m_closed=true;
 }
@@ -203,17 +203,17 @@ void CUdpFlow::set_keepalive(uint64_t  msec){
     m_keepalive=1;
     m_keepaive_ticks  =  tw_time_msec_to_ticks(msec);
     /* stop and restart the timer with new time */
-    m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
-    m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    m_pctx->m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
+    m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
 }
 
 
 void CUdpFlow::on_tick(){
     if (m_keepalive==0) {
         m_keepalive=1;
-        m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+        m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
     }else{
-        INC_UDP_STAT(m_ctx, m_tg_id, udps_keepdrops);
+        INC_UDP_STAT(m_pctx, m_tg_id, udps_keepdrops);
         disconnect();
     }
 }
@@ -262,8 +262,8 @@ void CUdpFlow::on_rx_packet(struct rte_mbuf *m,
 
 
     udp_pktmbuf_fix_mbuf(m,(uint16_t)offset_l7,(uint16_t)total_l7_len);
-    INC_UDP_STAT(m_ctx, m_tg_id, udps_rcvpkt);
-    INC_UDP_STAT_CNT(m_ctx, m_tg_id, udps_rcvbyte,total_l7_len);
+    INC_UDP_STAT(m_pctx, m_tg_id, udps_rcvpkt);
+    INC_UDP_STAT_CNT(m_pctx, m_tg_id, udps_rcvbyte,total_l7_len);
     m_keepalive=0;
     m_app.on_bh_rx_pkts(0,m); /* count the packets */
 }

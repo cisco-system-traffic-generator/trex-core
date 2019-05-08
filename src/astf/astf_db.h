@@ -238,6 +238,7 @@ class CTcpDataAssocTranslation {
     void insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
     void dump(FILE *fd);
     void clear();
+    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream);
 
  private:
     assoc_map_t m_map;
@@ -321,6 +322,10 @@ class CAstfDbRO {
 
     // for tests in simulation
     void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune);
+
+    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
+        m_assoc_trans.enumerate_server_ports(ports, is_stream);
+    }
  private:
     uint8_t                         m_init;
     double                          m_cps_sum;
@@ -367,23 +372,22 @@ class CAstfDB  : public CTRexDummyCommand  {
 
  public:
     // make the class singelton
-    static CAstfDB *instance() {
-        if (! m_pInstance) {
-            m_pInstance = new CAstfDB();
-            m_pInstance->m_json_initiated = false;
+    static CAstfDB *instance(profile_id_t profile_id = 0) {
+        if (m_instances.find(profile_id) == m_instances.end()) {
+            CAstfDB& new_inst = m_instances[profile_id];
+            new_inst.m_json_initiated = false;
         }
-        return m_pInstance;
+        return &m_instances[profile_id];
     }
 
-    static void free_instance(){
-        if (m_pInstance){
-            delete m_pInstance;
-            m_pInstance=0;
+    static void free_instance(profile_id_t profile_id = 0){
+        if (m_instances.find(profile_id) != m_instances.end()){
+            m_instances.erase(profile_id);
         }
     }
 
-    static bool has_instance() {
-        return m_pInstance != nullptr;
+    static bool has_instance(profile_id_t profile_id = 0) {
+        return m_instances.find(profile_id) != m_instances.end();
     }
 
     TopoMngr* get_topo() {
@@ -437,6 +441,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     void set_client_cfg_db(ClientCfgDB * client_config_info){
         m_client_config_info = client_config_info;
     }
+    ClientCfgDB  *get_client_cfg_db();
 
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
@@ -446,7 +451,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     // multi-threaded need to be protected 
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
-    void clear_db_ro_rw(CTupleGeneratorSmart *g_gen);
+    void clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id=0);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
     CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
@@ -476,7 +481,6 @@ private:
     float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
     void dump();
-    ClientCfgDB  *get_client_db();
     std::string get_buf(uint32_t temp_index, uint32_t cmd_index, int side);
     bool convert_from_json(uint8_t socket_id);
     uint32_t get_buf_index(uint32_t program_index, uint32_t cmd_index);
@@ -569,7 +573,7 @@ private:
 
  private:
     bool m_json_initiated;
-    static CAstfDB *m_pInstance;
+    static std::unordered_map<profile_id_t, CAstfDB> m_instances;
     Json::Value  m_val;
     Json::Value  m_buffers;
 
@@ -588,6 +592,30 @@ private:
     uint16_t m_num_of_tg_ids;
     std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
     starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
+
+    double m_factor; /* initial multiplier factor */
+
+    std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
+public:
+    bool is_smart_gen(uint16_t thread_id) {
+        return (m_smart_gen.find(thread_id) != m_smart_gen.end());
+    }
+    CTupleGeneratorSmart* get_smart_gen(uint16_t thread_id) {
+        if (!is_smart_gen(thread_id)) {
+            m_smart_gen[thread_id] = new CTupleGeneratorSmart();
+        }
+        return m_smart_gen[thread_id];
+    }
+    void remove_smart_gen(uint16_t thread_id) {
+        if (is_smart_gen(thread_id)) {
+            m_smart_gen[thread_id]->Delete();
+            delete m_smart_gen[thread_id];
+            m_smart_gen.erase(thread_id);
+        }
+    }
+
+    void set_factor(double factor) { m_factor = factor; }
+    double cps_factor(double cps);
 };
 
 #endif
