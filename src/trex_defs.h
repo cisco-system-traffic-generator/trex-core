@@ -109,4 +109,6 @@ typedef struct {
 typedef std::map<uint64_t,async_ticket_task_t> async_ticket_map_t;
 // end async related
 
+typedef uint32_t profile_id_t;
+
 #endif

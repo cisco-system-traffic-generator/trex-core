@@ -80,7 +80,7 @@ int CTcpIOCb::on_flow_close(CTcpPerThreadCtx *ctx,
     flow->get_tuple_generator(c_idx,c_pool_idx,c_template_id,enable);
     assert(enable==true); /* all flows should have tuple generator */
 
-    CAstfPerTemplateRW * cur = ctx->m_template_rw->get_template_by_id(c_template_id);
+    CAstfPerTemplateRW * cur = flow->m_pctx->m_template_rw->get_template_by_id(c_template_id);
 
     CTupleGeneratorSmart * lpgen= cur->m_tuple_gen.get_gen();
     if ( lpgen->IsFreePortRequired(c_pool_idx) ){
@@ -135,6 +135,7 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
         if (m_tcp_terminate){
             if (m_tcp_terminate_cnt>(uint32_t)(2.0/dtime)) {
                 drop=1;
+                m_tcp_terminate=false;
             }else{
                 m_tcp_terminate_cnt++;
             }
@@ -155,7 +156,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
     int dir;
     uint16_t cnt;
 
-    CTcpPerThreadCtx  * mctx_dir[2]={
+    CTcpPerThreadCtx * mctx_dir[2]={
         m_c_tcp,
         m_s_tcp
     };
@@ -167,7 +168,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
     get_port_ids(ports_id[0], ports_id[1]);
 
     for (dir=0; dir<CS_NUM; dir++) {
-        CTcpPerThreadCtx  * ctx=mctx_dir[dir];
+        CTcpPerThreadCtx  * ctx = mctx_dir[dir];
         sum=0;
         while (true) {
             cnt=v_if->rx_burst(dir,rx_pkts,64);
@@ -217,21 +218,27 @@ static CEmulAppApiUdpImpl  m_udp_bh_api_impl_c;
 #ifndef TREX_SIM
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
-void CFlowGenListPerThread::generate_flow(bool &done){
+void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
-  done = false;
-  if ( m_c_tcp->is_open_flow_enabled()==false ){
-       m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
-       return;
-  }
+    done = false;
 
-  CAstfTemplatesRW * c_rw = m_c_tcp->m_template_rw;
+    if ( m_c_tcp->is_open_flow_enabled()==false ){
+        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
+        return;
+    }
+
+    if (!pctx->is_active()) { // transmit stopped
+        done=true;
+        return;
+    }
+
+    CAstfTemplatesRW * c_rw = pctx->m_template_rw;
 
     /* choose template index */
     uint16_t template_id = c_rw->do_schedule_template();
 
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
-    CAstfDbRO    *   cur_tmp_ro = m_c_tcp->m_template_ro;
+    CAstfDbRO    *   cur_tmp_ro = pctx->m_template_ro;
 
     if (cur->check_limit()){
         /* we can't generate a flow, there is a limit*/
@@ -274,7 +281,7 @@ void CFlowGenListPerThread::generate_flow(bool &done){
     CFlowBase * c_flow;
     uint16_t tg_id = cur_tmp_ro->get_template_tg_id(template_id);
     if (is_udp) {
-        c_flow = m_c_tcp->m_ft.alloc_flow_udp(m_c_tcp,
+        c_flow = m_c_tcp->m_ft.alloc_flow_udp(pctx,
                                                      tuple.getClient(),
                                                      tuple.getServer(),
 
@@ -286,7 +293,7 @@ void CFlowGenListPerThread::generate_flow(bool &done){
                                                      true,
                                                      tg_id);
     }else{
-        c_flow = m_c_tcp->m_ft.alloc_flow(m_c_tcp,
+        c_flow = m_c_tcp->m_ft.alloc_flow(pctx,
                                                      tuple.getClient(),
                                                      tuple.getServer(),
                                                      tuple.getClientPort(),
@@ -349,7 +356,7 @@ void CFlowGenListPerThread::generate_flow(bool &done){
         CUdpFlow * udp_flow=(CUdpFlow*)c_flow;;
         app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
         app_c->set_bh_api(&m_udp_bh_api_impl_c);
-        app_c->set_udp_flow_ctx(m_c_tcp,udp_flow);
+        app_c->set_udp_flow_ctx(udp_flow->m_pctx,udp_flow);
         app_c->set_udp_flow();
         if (CGlobalInfo::m_options.preview.getEmulDebug() ){
             app_c->set_log_enable(true);
@@ -365,7 +372,7 @@ void CFlowGenListPerThread::generate_flow(bool &done){
         CTcpFlow * tcp_flow=(CTcpFlow*)c_flow;
         app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
         app_c->set_bh_api(&m_tcp_bh_api_impl_c);
-        app_c->set_flow_ctx(m_c_tcp,tcp_flow);
+        app_c->set_flow_ctx(tcp_flow->m_pctx,tcp_flow);
         if (CGlobalInfo::m_options.preview.getEmulDebug() ){
             app_c->set_log_enable(true);
             app_c->set_debug_id(0);
@@ -378,12 +385,12 @@ void CFlowGenListPerThread::generate_flow(bool &done){
 
         /* start connect */
         app_c->start(true);
-        tcp_connect(m_c_tcp,&tcp_flow->m_tcp);
+        tcp_connect(tcp_flow->m_pctx,&tcp_flow->m_tcp);
     }
     /* WARNING -- flow might be not valid here !!!! */
 }
 
-void CFlowGenListPerThread::handle_tx_fif(CGenNode * node,
+void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
                                               bool on_terminate){
     #ifdef TREX_SIM
     m_cur_time_sec =node->m_time;
@@ -394,7 +401,7 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNode * node,
     if ( on_terminate == false ) {
         m_cur_time_sec = node->m_time ;
 
-        generate_flow(done);
+        generate_flow(done, node->m_pctx);
 
         if (m_sched_accurate){
             CVirtualIF * v_if=m_node_gen.m_v_if;
@@ -402,13 +409,13 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNode * node,
         }
 
         if (!done) {
-            node->m_time += m_c_tcp->m_fif_d_time;
-            m_node_gen.m_p_queue.push(node);
+            node->m_time += node->m_pctx->m_fif_d_time;
+            m_node_gen.m_p_queue.push((CGenNode*)node);
         }else{
-            free_node(node);
+            free_node((CGenNode*)node);
         }
     }else{
-        free_node(node);
+        free_node((CGenNode*)node);
     }
 }
 
@@ -424,7 +431,7 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
         m_node_gen.m_p_queue.push(node);
     }
 
-    CTcpPerThreadCtx  * mctx_dir[2]={
+    CTcpPerThreadCtx * mctx_dir[2]={
         m_c_tcp,
         m_s_tcp
     };
@@ -432,12 +439,12 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
     int dir;
     bool any_event=false;
     for (dir=0; dir<CS_NUM; dir++) {
-        CTcpPerThreadCtx  * ctx=mctx_dir[dir];
+        CTcpPerThreadCtx  * ctx = mctx_dir[dir];
         ctx->maintain_resouce();
         ctx->timer_w_on_tick();
         if(ctx->timer_w_any_events()){
             any_event=true;
-        } 
+        }
     }
 
     if ( on_terminate == true ){
@@ -447,6 +454,7 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
         }else{
             free_node(node);
             m_tcp_terminate=true;
+            m_tcp_terminate_cnt=0;
         }
     }
     
@@ -460,8 +468,6 @@ double CFlowGenListPerThread::tcp_get_tw_tick_in_sec(){
 void CFlowGenListPerThread::Create_tcp_ctx(void) {
     assert(!m_c_tcp);
     assert(!m_s_tcp);
-    assert(!m_c_tcp_io);
-    assert(!m_s_tcp_io);
 
     m_c_tcp = new CTcpPerThreadCtx();
     m_s_tcp = new CTcpPerThreadCtx();
@@ -474,9 +480,6 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     s_tcp_io->m_dir =1;
     s_tcp_io->m_p   = this;
 
-    m_c_tcp_io =c_tcp_io;
-    m_s_tcp_io =s_tcp_io;
-
     uint32_t active_flows = get_max_active_flows_per_core_tcp()/2 ;
     if (active_flows<100000) {
         active_flows=100000;
@@ -484,8 +487,8 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
 
     m_c_tcp->Create(active_flows,true);
     m_s_tcp->Create(active_flows,false);
-    m_c_tcp->set_cb(m_c_tcp_io);
-    m_s_tcp->set_cb(m_s_tcp_io);
+    m_c_tcp->set_cb(c_tcp_io);
+    m_s_tcp->set_cb(s_tcp_io);
 
     uint8_t mem_socket_id = get_memory_socket_id();
 
@@ -518,19 +521,30 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-void CFlowGenListPerThread::load_tcp_profile() {
+void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_first) {
+    /* clear global statistics when new profile is started only */
+    if (is_first) {
+        m_stats.clear();    // moved from TrexAstfDpCore::create_tcp_batch()
+
+        m_c_tcp->m_ft.m_sts.Clear();
+        m_s_tcp->m_ft.m_sts.Clear();
+    }
+    m_c_tcp->create_profile_ctx(profile_id);
+    m_s_tcp->create_profile_ctx(profile_id);
+
     uint8_t mem_socket_id = get_memory_socket_id();
-    CAstfDbRO *template_db = CAstfDB::instance()->get_db_ro(mem_socket_id);
+    CAstfDbRO *template_db = CAstfDB::instance(profile_id)->get_db_ro(mem_socket_id);
     if ( !template_db ) {
         throw TrexException("Could not create RO template database");
     }
-    m_c_tcp->set_template_ro(template_db);
-    m_c_tcp->resize_stats();
-    m_s_tcp->set_template_ro(template_db);
-    m_s_tcp->resize_stats();
-    CAstfTemplatesRW * rw = CAstfDB::instance()->get_db_template_rw(
+    m_c_tcp->set_template_ro(template_db, profile_id);
+    m_c_tcp->resize_stats(profile_id);
+    m_s_tcp->set_template_ro(template_db, profile_id);
+    m_s_tcp->resize_stats(profile_id);
+    m_s_tcp->append_server_ports(profile_id);
+    CAstfTemplatesRW * rw = CAstfDB::instance(profile_id)->get_db_template_rw(
             mem_socket_id,
-            &m_smart_gen,
+            nullptr, /* use CAstfDB's internal generator */
             m_thread_id,
             m_max_threads,
             getDualPortId());
@@ -538,11 +552,13 @@ void CFlowGenListPerThread::load_tcp_profile() {
         throw TrexException("Could not create RW per-thread database");
     }
 
-    m_c_tcp->set_template_rw(rw);
-    m_s_tcp->set_template_rw(rw);
+    m_c_tcp->set_template_rw(rw, profile_id);
+    m_s_tcp->set_template_rw(rw, profile_id);
 
-    m_c_tcp->update_tuneables(rw->get_c_tuneables());
-    m_s_tcp->update_tuneables(rw->get_s_tuneables());
+    if (is_first) {
+        m_c_tcp->update_tuneables(rw->get_c_tuneables());
+        m_s_tcp->update_tuneables(rw->get_s_tuneables());
+    }
 
     if ( (rw->get_c_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ||
          (rw->get_s_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ){
@@ -550,42 +566,53 @@ void CFlowGenListPerThread::load_tcp_profile() {
     }
 
     /* call startup for client side */
-    m_c_tcp->call_startup();
-    m_s_tcp->call_startup();
+    m_c_tcp->call_startup(profile_id);
+    m_s_tcp->call_startup(profile_id);
 }
 
-void CFlowGenListPerThread::unload_tcp_profile() {
-    if ( CAstfDB::has_instance() ) {
-        CAstfDB::instance()->clear_db_ro_rw(&m_smart_gen);
+void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last) {
+    m_s_tcp->remove_server_ports(profile_id);
+
+    if ( CAstfDB::has_instance(profile_id) ) {
+        CAstfDB::instance(profile_id)->clear_db_ro_rw(nullptr, m_thread_id);
+
+        m_c_tcp->set_template_ro(nullptr, profile_id);
+        m_c_tcp->set_template_rw(nullptr, profile_id);
+        m_s_tcp->set_template_ro(nullptr, profile_id);
+        m_s_tcp->set_template_rw(nullptr, profile_id);
     }
-    m_c_tcp->reset_tuneables();
-    m_s_tcp->reset_tuneables();
-    m_sched_accurate = false;
-    m_tcp_terminate=false;
-    m_tcp_terminate_cnt=0;
+
+    if (is_last) {
+        m_c_tcp->reset_tuneables();
+        m_s_tcp->reset_tuneables();
+
+        m_sched_accurate = false;
+    }
+}
+
+void CFlowGenListPerThread::remove_tcp_profile(profile_id_t profile_id) {
+    m_s_tcp->remove_profile_ctx(profile_id);
+    m_c_tcp->remove_profile_ctx(profile_id);
 }
 
 void CFlowGenListPerThread::Delete_tcp_ctx(){
     if (m_c_tcp) {
+        CTcpIOCb * c_tcp_io = (CTcpIOCb *)m_c_tcp->get_cb();
+        if (c_tcp_io) {
+            delete c_tcp_io;
+        }
         m_c_tcp->Delete();
         delete m_c_tcp;
         m_c_tcp=0;
     }
     if (m_s_tcp) {
+        CTcpIOCb * s_tcp_io = (CTcpIOCb *)m_s_tcp->get_cb();
+        if (s_tcp_io) {
+            delete s_tcp_io;
+        }
         m_s_tcp->Delete();
         delete m_s_tcp;
         m_s_tcp=0;
-    }
-
-    CTcpIOCb * c_tcp_io = (CTcpIOCb *)m_c_tcp_io;
-    if (c_tcp_io) {
-        delete c_tcp_io;
-        m_c_tcp_io=0;
-    }
-    CTcpIOCb * s_tcp_io = (CTcpIOCb *)m_s_tcp_io;
-    if (s_tcp_io) {
-        delete s_tcp_io;
-        m_s_tcp_io=0;
     }
 }
 
