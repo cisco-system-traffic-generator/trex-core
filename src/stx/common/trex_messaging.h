@@ -277,15 +277,18 @@ private:
 class TrexDpCoreStopped : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpCoreStopped(int thread_id) {
+    TrexDpCoreStopped(int thread_id, uint32_t profile_id) {
         m_thread_id = thread_id;
+        m_profile_id = profile_id;
     }
+
+    TrexDpCoreStopped(int thread_id) : TrexDpCoreStopped(thread_id, 0) {}
 
     virtual bool handle(void);
 
 private:
     int m_thread_id;
-
+    uint32_t m_profile_id;
 };
 
 /**
@@ -294,8 +297,9 @@ private:
 class TrexDpCoreError : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpCoreError(int thread_id, const std::string &err) {
+    TrexDpCoreError(int thread_id, uint32_t profile_id, const std::string &err) {
         m_thread_id = thread_id;
+        m_profile_id = profile_id;
         m_err       = err;
     }
 
@@ -303,6 +307,7 @@ public:
 
 private:
     int          m_thread_id;
+    uint32_t     m_profile_id;
     std::string  m_err;
 
 };

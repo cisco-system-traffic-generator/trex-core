@@ -193,9 +193,9 @@ TEST_F(gt_tcp, tst5) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
 
     tst.Delete();
 }
@@ -218,12 +218,12 @@ TEST_F(gt_tcp, tst6) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvdupbyte,20);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvdupbyte,20);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
     tst.Delete();
 
 }
@@ -242,12 +242,12 @@ TEST_F(gt_tcp, tst7) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartdupbyte,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartdupbyte,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
 
     tst.Delete();
 }
@@ -267,12 +267,12 @@ TEST_F(gt_tcp, tst8) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvduppack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvdupbyte,40);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,3);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,3040);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvduppack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvdupbyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,3);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,3040);
 
     tst.Delete();
 }
@@ -293,13 +293,13 @@ TEST_F(gt_tcp, tst9) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartdupbyte,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,3);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,61);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartdupbyte,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,3);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,61);
     tst.Delete();
 }
 
@@ -324,11 +324,11 @@ TEST_F(gt_tcp, tst10) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,5);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,100);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopackdrop,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,5);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,100);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopackdrop,1);
     tst.Delete();
 }
 
@@ -349,7 +349,7 @@ TEST_F(gt_tcp, tst11) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
     tst.Delete();
 }
 
@@ -385,7 +385,7 @@ TEST_F(gt_tcp, tst12) {
     EXPECT_EQ(tst.m_tcp_res.get_active_blocks(),0);
     EXPECT_EQ(tst.m_flow.m_tcp.rcv_nxt,500+560);
 
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
     tst.Delete();
 }
 #endif
@@ -691,7 +691,7 @@ TEST_F(gt_tcp, tst17) {
     }
 
 
-    m_ctx.m_tcpstat.Dump(stdout);
+    m_ctx.get_tcpstat()->Dump(stdout);
 
 
     m_flow.Delete();
@@ -740,7 +740,7 @@ TEST_F(gt_tcp, tst18) {
     }
 
 
-    m_ctx.m_tcpstat.Dump(stdout);
+    m_ctx.get_tcpstat()->Dump(stdout);
 
     m_flow.Delete();
     m_ctx.Delete();
@@ -1719,7 +1719,7 @@ TEST_F(gt_tcp, tst42) {
     ti.ti_seq =0x1000+4000 ;
     tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
 
-    ctx.m_tcpstat.Dump(stdout);
+    ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
 
     flow.Delete();
@@ -1802,7 +1802,7 @@ TEST_F(gt_tcp, tst43) {
     ti.ti_seq =0x1000+4000 ;
     tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
 
-    ctx.m_tcpstat.Dump(stdout);
+    ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
 
     delete prog_s;

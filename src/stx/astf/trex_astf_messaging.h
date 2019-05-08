@@ -29,17 +29,23 @@ limitations under the License.
 // create tcp batch per DP core
 class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpCreateTcp();
+    TrexAstfDpCreateTcp(uint32_t profile_id);
+    TrexAstfDpCreateTcp() : TrexAstfDpCreateTcp(0) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
+private:
+    uint32_t m_profile_id;
 };
 
 // delete tcp batch per DP core
 class TrexAstfDpDeleteTcp : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpDeleteTcp();
+    TrexAstfDpDeleteTcp(uint32_t profile_id);
+    TrexAstfDpDeleteTcp() : TrexAstfDpDeleteTcp(0) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
+private:
+    uint32_t m_profile_id;
 };
 
 /**
@@ -48,9 +54,13 @@ public:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart();
+    TrexAstfDpStart(uint32_t profile_id, double duration);
+    TrexAstfDpStart() : TrexAstfDpStart(0, -1) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
+private:
+    uint32_t m_profile_id;
+    double m_duration;
 };
 
 /**
@@ -59,9 +69,17 @@ public:
  */
 class TrexAstfDpStop : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStop();
+    TrexAstfDpStop(uint32_t profile_id, uint32_t stop_id);
+    TrexAstfDpStop(uint32_t profile_id) : TrexAstfDpStop(profile_id, 0) {}
+    TrexAstfDpStop() : TrexAstfDpStop(0, 0) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
+    virtual void on_node_remove();
+    void set_core_ptr(CFlowGenListPerThread* core) { m_core = core; }
+private:
+    CFlowGenListPerThread* m_core;
+    uint32_t m_profile_id;
+    uint32_t m_stop_id;
 };
 
 /**
@@ -70,10 +88,12 @@ public:
  */
 class TrexAstfDpUpdate : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpUpdate(double old_new_ratio);
+    TrexAstfDpUpdate(uint32_t profile_id, double old_new_ratio);
+    TrexAstfDpUpdate(double old_new_ratio) : TrexAstfDpUpdate(0, old_new_ratio) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
+    uint32_t m_profile_id;
     double m_old_new_ratio;
 };
 
@@ -83,10 +103,12 @@ private:
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfLoadDB(std::string *profile_buffer, std::string *topo_buffer);
+    TrexAstfLoadDB(uint32_t profile_id, std::string *profile_buffer, std::string *topo_buffer);
+    TrexAstfLoadDB(std::string *profile_buffer, std::string *topo_buffer) : TrexAstfLoadDB(0, profile_buffer, topo_buffer) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
+    uint32_t m_profile_id;
     std::string *m_profile_buffer;
     std::string *m_topo_buffer;
 };

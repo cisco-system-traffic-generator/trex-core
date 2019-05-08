@@ -142,7 +142,6 @@ public:
 typedef CHashEntry<flow_key_t> flow_hash_ent_t;
 typedef CCloseHash<flow_key_t> flow_hash_t;
 
-
 class CTcpPerThreadCtx ;
 class CTcpFlow;
 class CUdpFlow;
@@ -291,7 +290,7 @@ public:
       }
 public:
 
-void generate_rst_pkt(CTcpPerThreadCtx * ctx,
+    void generate_rst_pkt(CPerProfileCtx * ctx,
                       uint32_t src,
                       uint32_t dst,
                       uint16_t src_port,
@@ -304,7 +303,7 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
                       CFlowKeyFullTuple &ftuple);
 
 
-    CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
+    CTcpFlow * alloc_flow(CPerProfileCtx * ctx,
                           uint32_t src,
                           uint32_t dst,
                           uint16_t src_port,
@@ -313,7 +312,7 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
                           bool is_ipv6,
                           uint16_t tg_id=0);
 
-    CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
+    CUdpFlow * alloc_flow_udp(CPerProfileCtx * ctx,
                               uint32_t src,
                               uint32_t dst,
                               uint16_t src_port,
@@ -331,8 +330,10 @@ void generate_rst_pkt(CTcpPerThreadCtx * ctx,
     }
 public:
     void terminate_all_flows();
+    void terminate_profile_flows(CPerProfileCtx * ctx);
     void terminate_flow(CTcpPerThreadCtx * ctx,
-                        CFlowBase * flow);
+                        CFlowBase  * flow,
+                        bool remove_from_ft);
 
 
 private:
@@ -344,7 +345,7 @@ private:
                                                           struct rte_mbuf * mbuf);
 
 
-private: 
+public:
     void reset_stats();
 public:
       CSttFlowTableStats m_sts;
@@ -356,7 +357,6 @@ private:
 
     CEmulAppApi    *   m_tcp_api;
     CEmulAppApi    *   m_udp_api;
-
 };
 
 
