@@ -575,7 +575,7 @@ int CClientServerTcp::test2(){
 
     uint32_t tx_num_bytes=100*1024;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,false);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(1025);
@@ -645,21 +645,21 @@ int CClientServerTcp::test2(){
     m_sim.run_sim();
 
     printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
+    m_c_ctx.get_tcpstat()->Dump(stdout);
     m_c_ctx.m_ft.dump(stdout);
     printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
+    m_s_ctx.get_tcpstat()->Dump(stdout);
     m_s_ctx.m_ft.dump(stdout);
 
 
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_connects,1);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte,4024);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte,4024);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_connects,1);
 
 
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,4024);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_accepts,1);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_preddat,m_s_ctx.m_tcpstat.m_sts.tcps_rcvpack-1);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,4024);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_accepts,1);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_preddat,m_s_ctx.get_tcpstat()->m_sts.tcps_rcvpack-1);
 
 
     //app.m_write_buf.Delete();
@@ -1068,7 +1068,7 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
     m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(1025);
@@ -1133,27 +1133,27 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     #define TX_BYTES 249
     #define RX_BYTES 32768
 
-    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,
-                                         (int)m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
-                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
-                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte,
+                                         (int)m_c_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte,
                                          (int)TX_BYTES,
                                          (int)RX_BYTES );
 
     if (m_check_counters){
-        if (m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte>0 && 
-            m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte>0) {
-            if ( (m_c_ctx.m_tcpstat.m_sts.tcps_drops ==0) && 
-                 (m_s_ctx.m_tcpstat.m_sts.tcps_drops ==0) ){
+        if (m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte>0 &&
+            m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte>0) {
+            if ( (m_c_ctx.get_tcpstat()->m_sts.tcps_drops ==0) &&
+                 (m_s_ctx.get_tcpstat()->m_sts.tcps_drops ==0) ){
                             /* flow wasn't initiated due to drop of SYN too many times */
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==TX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte==TX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvbyte==RX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte==TX_BYTES);
 
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==RX_BYTES);
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte==RX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte==RX_BYTES);
 
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte==TX_BYTES);
             }
         }
     }
@@ -1202,7 +1202,7 @@ int CClientServerTcp::fill_from_file() {
     uint16_t temp_index = 0;
     uint16_t tg_id = ro_db->get_template_tg_id(temp_index);
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false, tg_id);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,src_port,dst_port,m_vlan,false, tg_id);
 
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);

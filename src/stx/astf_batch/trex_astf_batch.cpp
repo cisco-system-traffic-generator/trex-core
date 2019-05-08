@@ -63,7 +63,7 @@ TrexDpCoreAstfBatch::start_astf() {
         return;
     }
 
-    d_time_flow = m_core->m_c_tcp->m_fif_d_time; /* set by Create_tcp function */
+    d_time_flow = m_core->m_c_tcp->get_fif_d_time(0); /* set by Create_tcp function */
 
     double d_phase= 0.01 + (double)m_core->m_thread_id * d_time_flow / (double)m_core->m_max_threads;
 
@@ -99,8 +99,11 @@ TrexDpCoreAstfBatch::start_astf() {
         node = m_core->create_node();
         node->m_type = CGenNode::TCP_TX_FIF;
         node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
+        node->m_ctx = DEFAULT_PROFILE_CTX(m_core->m_c_tcp);
         m_core->m_node_gen.add_node(node);
     }
+    m_core->m_c_tcp->activate();
+    m_core->m_s_tcp->activate();
 
     node = m_core->create_node() ;
     node->m_type = CGenNode::TCP_RX_FLUSH;
