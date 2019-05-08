@@ -36,6 +36,7 @@ private:
 
 public:
     CAstfFifRampup(CTcpPerThreadCtx * ctx,
+                   uint32_t           id,
                    uint16_t           rampup_sec,
                    double             cps);
     ~CAstfFifRampup();
@@ -45,6 +46,7 @@ public:
 
 private:
     CTcpPerThreadCtx * m_ctx;
+    uint32_t           m_profile_id;
     CAstfTimerFunctorObj  * m_tmr;
     double             m_cps;
     uint16_t           m_ticks;

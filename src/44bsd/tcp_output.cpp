@@ -168,7 +168,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
  * 
  * @return 
  */
-static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
+static inline int _tcp_build_cpkt(CPerProfileCtx * ctx,
                                   CFlowTemplate *ftp,
                                   struct tcpcb *tp,
                                   uint16_t tcphlen,
@@ -193,7 +193,7 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
     return(0);
 }
 
-int tcp_build_cpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_cpkt(CPerProfileCtx * ctx,
                    struct tcpcb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt){
@@ -240,7 +240,7 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
  * 
  * @return 
  */
-static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
+static inline int tcp_build_dpkt_(CPerProfileCtx * ctx,
                                   CFlowTemplate *ftp,
                                   struct tcpcb *tp,
                                   uint32_t offset, 
@@ -315,7 +315,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
 
 /* len : if TSO==true, it is the TSO packet size (before segmentation), 
          else it is the packet size */
-int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_dpkt(CPerProfileCtx * ctx,
                    struct tcpcb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
@@ -345,13 +345,14 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
  * In any case the ack and sequence number of the transmitted
  * segment are as specified by the parameters.
  */
-void tcp_respond(CTcpPerThreadCtx * ctx,
+void tcp_respond(CPerProfileCtx * ctx,
             struct tcpcb *tp, 
             tcp_seq ack, 
             tcp_seq seq, 
             int flags){
     assert(tp);
     uint32_t win = sbspace(&tp->m_socket.so_rcv);
+    CTcpPerThreadCtx * tcp_ctx = ctx->m_tcp_ctx;
 
     CTcpPkt pkt;
     if (tcp_build_cpkt(ctx,tp,TCP_HEADER_LEN,pkt)!=0){
@@ -364,7 +365,7 @@ void tcp_respond(CTcpPerThreadCtx * ctx,
     ti->setFlag(flags);
     ti->setWindowSize((uint16_t) (win >> tp->rcv_scale));
 
-    ctx->m_cb->on_tx(ctx,tp,pkt.m_buf);
+    tcp_ctx->m_cb->on_tx(tcp_ctx,tp,pkt.m_buf);
 }
 
 
@@ -373,7 +374,7 @@ void tcp_respond(CTcpPerThreadCtx * ctx,
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */
-int tcp_output(CTcpPerThreadCtx * ctx,struct tcpcb *tp) {
+int tcp_output(CPerProfileCtx * ctx,struct tcpcb *tp) {
 
     struct tcp_socket *so = &tp->m_socket;
     int32_t len ;
@@ -382,6 +383,7 @@ int tcp_output(CTcpPerThreadCtx * ctx,struct tcpcb *tp) {
     u_char opt[MAX_TCPOPTLEN];
     unsigned optlen, hdrlen;
     int idle, sendalot;
+    CTcpPerThreadCtx * tcp_ctx = ctx->m_tcp_ctx;
 
     /*
      * Determine length of data that should be transmitted,
@@ -618,7 +620,7 @@ send:
  
         /* Form timestamp option as shown in appendix A of RFC 1323. */
         *lp++ = bsd_htonl(TCPOPT_TSTAMP_HDR);
-        *lp++ = bsd_htonl(ctx->tcp_now);
+        *lp++ = bsd_htonl(tcp_ctx->tcp_now);
         *lp   = bsd_htonl(tp->ts_recent);
         optlen += TCPOLEN_TSTAMP_APPA;
     }
@@ -819,7 +821,7 @@ send:
         tcp_trace(ctx,TA_OUTPUT, tp->t_state, tp, (struct tcpiphdr *)0, ti,len);
     }
 
-    error = ctx->m_cb->on_tx(ctx,tp,pkt.m_buf);
+    error = tcp_ctx->m_cb->on_tx(tcp_ctx,tp,pkt.m_buf);
 
     if (error) {
 out:
@@ -851,7 +853,7 @@ out:
     return (0);
 }
 
-void tcp_setpersist(CTcpPerThreadCtx * ctx,
+void tcp_setpersist(CPerProfileCtx * ctx,
                     struct tcpcb *tp){
     int16_t t = ((tp->t_srtt >> 2) + tp->t_rttvar) >> 1;
 

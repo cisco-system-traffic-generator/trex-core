@@ -34,88 +34,107 @@ TrexAstfDpCore* astf_core(TrexDpCore *dp_core) {
 /*************************
   start traffic message
  ************************/
-TrexAstfDpStart::TrexAstfDpStart() {
+TrexAstfDpStart::TrexAstfDpStart(uint32_t profile_id, double duration) {
+    m_profile_id = profile_id;
+    m_duration = duration;
 }
 
 
 bool TrexAstfDpStart::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->start_transmit();
+    astf_core(dp_core)->start_transmit(m_profile_id, m_duration);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpStart::clone() {
-    return new TrexAstfDpStart();
+    return new TrexAstfDpStart(m_profile_id, m_duration);
 }
 
 /*************************
   stop traffic message
  ************************/
-TrexAstfDpStop::TrexAstfDpStop() {}
+TrexAstfDpStop::TrexAstfDpStop(uint32_t profile_id, uint32_t stop_id) {
+    m_profile_id = profile_id;
+    m_core = NULL;
+    m_stop_id = stop_id;
+}
 
 bool TrexAstfDpStop::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->stop_transmit();
+    astf_core(dp_core)->stop_transmit(m_profile_id, m_stop_id);
     return true;
 }
 
+void TrexAstfDpStop::on_node_remove() {
+    if (m_core) {
+        assert(m_core->m_non_active_nodes>0);
+        m_core->m_non_active_nodes--;
+    }
+}
+
 TrexCpToDpMsgBase* TrexAstfDpStop::clone() {
-    return new TrexAstfDpStop();
+    return new TrexAstfDpStop(m_profile_id, m_stop_id);
 }
 
 /*************************
   update traffic message
  ************************/
-TrexAstfDpUpdate::TrexAstfDpUpdate(double old_new_ratio) {
+TrexAstfDpUpdate::TrexAstfDpUpdate(uint32_t profile_id, double old_new_ratio) {
+    m_profile_id    = profile_id;
     m_old_new_ratio = old_new_ratio;
 }
 
 bool TrexAstfDpUpdate::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->update_rate(m_old_new_ratio);
+    astf_core(dp_core)->update_rate(m_profile_id, m_old_new_ratio);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpUpdate::clone() {
-    return new TrexAstfDpUpdate(m_old_new_ratio);
+    return new TrexAstfDpUpdate(m_profile_id, m_old_new_ratio);
 }
 
 /*************************
   create tcp batch
  ************************/
-TrexAstfDpCreateTcp::TrexAstfDpCreateTcp() {}
+TrexAstfDpCreateTcp::TrexAstfDpCreateTcp(uint32_t profile_id) {
+    m_profile_id = profile_id;
+}
 
 bool TrexAstfDpCreateTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->create_tcp_batch();
+    astf_core(dp_core)->create_tcp_batch(m_profile_id);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone() {
-    return new TrexAstfDpCreateTcp();
+    return new TrexAstfDpCreateTcp(m_profile_id);
 }
 
 /*************************
   delete tcp batch
  ************************/
-TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp() {}
+TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp(uint32_t profile_id) {
+    m_profile_id = profile_id;
+}
 
 bool TrexAstfDpDeleteTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->delete_tcp_batch();
+    astf_core(dp_core)->delete_tcp_batch(m_profile_id);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
-    return new TrexAstfDpDeleteTcp();
+    return new TrexAstfDpDeleteTcp(m_profile_id);
 }
 
 
 /*************************
   parse ASTF JSON from string
  ************************/
-TrexAstfLoadDB::TrexAstfLoadDB(string *profile_buffer, string *topo_buffer) {
+TrexAstfLoadDB::TrexAstfLoadDB(uint32_t profile_id, string *profile_buffer, string *topo_buffer) {
+    m_profile_id     = profile_id;
     m_profile_buffer = profile_buffer;
     m_topo_buffer    = topo_buffer;
 }
 
 bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->parse_astf_json(m_profile_buffer, m_topo_buffer);
+    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer);
     return true;
 }
 
