@@ -162,7 +162,7 @@ void tcpstat::Resize(uint16_t new_num_of_tg_ids) {
  * Start keep-alive timer, and seed output sequence space.
  * Send initial segment on connection.
  */
-int tcp_connect(CTcpPerThreadCtx * ctx,
+int tcp_connect(CPerProfileCtx * ctx,
                 struct tcpcb *tp) {
     int error;
 
@@ -174,17 +174,22 @@ int tcp_connect(CTcpPerThreadCtx * ctx,
 
     soisconnecting(&tp->m_socket);
 
+    CTcpPerThreadCtx * tcp_ctx = ctx->m_tcp_ctx;
+
     INC_STAT(ctx, tp->m_flow->m_tg_id, tcps_connattempt);
     tp->t_state = TCPS_SYN_SENT;
-    tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
-    tp->iss = ctx->tcp_iss; 
-    ctx->tcp_iss += TCP_ISSINCR/4;
+    tp->t_timer[TCPT_KEEP] = tcp_ctx->tcp_keepinit;
+    tp->iss = tcp_ctx->tcp_iss; 
+    tcp_ctx->tcp_iss += TCP_ISSINCR/4;
     tcp_sendseqinit(tp);
     error = tcp_output(ctx,tp);
     return (error);
 }
+#ifdef  TREX_SIM
+int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp) { return tcp_connect(DEFAULT_PROFILE_CTX(ctx), tp); }
+#endif
 
-int tcp_listen(CTcpPerThreadCtx * ctx,
+int tcp_listen(CPerProfileCtx * ctx,
                 struct tcpcb *tp) {
     assert( tp->t_state == TCPS_CLOSED);
     tp->t_state = TCPS_LISTEN;
@@ -202,7 +207,7 @@ int tcp_listen(CTcpPerThreadCtx * ctx,
  * for peer to send FIN or not respond to keep-alives, etc.
  * We can let the user exit from the close as soon as the FIN is acked.
  */
-struct tcpcb * tcp_usrclosed(CTcpPerThreadCtx * ctx,
+struct tcpcb * tcp_usrclosed(CPerProfileCtx * ctx,
                              struct tcpcb *tp){
 
     switch (tp->t_state) {
@@ -239,7 +244,7 @@ struct tcpcb * tcp_usrclosed(CTcpPerThreadCtx * ctx,
  * current input data; switch states based on user close, and
  * send segment to peer (with FIN).
  */
-struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,
+struct tcpcb * tcp_disconnect(CPerProfileCtx * ctx,
                    struct tcpcb *tp){
 
     struct tcp_socket *so = &tp->m_socket;
@@ -280,11 +285,11 @@ void CTcpFlow::init(){
     m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
 
     /* register the timer */
-    m_ctx->timer_w_start(this);
+    m_ctx->m_tcp_ctx->timer_w_start(this);
 }
 
 
-void CFlowBase::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){
+void CFlowBase::Create(CPerProfileCtx *ctx, uint16_t tg_id){
     m_pad[0]=0;
     m_pad[1]=0;
     m_c_idx_enable =0;
@@ -301,7 +306,7 @@ void CFlowBase::Delete(){
 
 void CFlowBase::init(){
         /* build template */
-    m_template.set_offload_mask(m_ctx->m_offload_flags);
+    m_template.set_offload_mask(m_ctx->m_tcp_ctx->m_offload_flags);
     m_template.build_template(m_ctx);
 }
 
@@ -311,7 +316,7 @@ void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
 
 
 
-void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){ 
+void CTcpFlow::Create(CPerProfileCtx *ctx, uint16_t tg_id){
     CFlowBase::Create(ctx, tg_id);
     m_tick=0;
     m_timer.reset();
@@ -322,16 +327,18 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){
     memset((char *) tp, 0,sizeof(struct tcpcb));
     m_timer.m_type = ttTCP_FLOW; 
 
-    tp->m_socket.so_snd.Create(ctx->tcp_tx_socket_bsize);
-    tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
+    CTcpPerThreadCtx * tcp_ctx = ctx->m_tcp_ctx;
 
-    tp->t_maxseg = ctx->tcp_mssdflt;
-    tp->m_max_tso = ctx->tcp_max_tso;
+    tp->m_socket.so_snd.Create(tcp_ctx->tcp_tx_socket_bsize);
+    tp->m_socket.so_rcv.sb_hiwat = tcp_ctx->tcp_rx_socket_bsize;
 
-    tp->mbuf_socket = ctx->m_mbuf_socket;
+    tp->t_maxseg = tcp_ctx->tcp_mssdflt;
+    tp->m_max_tso = tcp_ctx->tcp_max_tso;
 
-    tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
-    tp->t_flags |= ctx->tcp_no_delay?(TF_NODELAY):0;
+    tp->mbuf_socket = tcp_ctx->m_mbuf_socket;
+
+    tp->t_flags = tcp_ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
+    tp->t_flags |= tcp_ctx->tcp_no_delay?(TF_NODELAY):0;
 
     /*
      * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
@@ -339,7 +346,7 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){
      * reasonable initial retransmit time.
      */
     tp->t_srtt = TCPTV_SRTTBASE;
-    tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ ;
+    tp->t_rttvar = tcp_ctx->tcp_rttdflt * PR_SLOWHZ ;
     tp->t_rttmin = TCPTV_MIN;
     TCPT_RANGESET(tp->t_rxtcur, 
         ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
@@ -349,6 +356,11 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id){
     /* back pointer */
     tp->m_flow=this;
 }
+#ifdef  TREX_SIM
+void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
+    Create(DEFAULT_PROFILE_CTX(ctx), tg_id);
+}
+#endif
 
 void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
     m_tcp.m_tuneable_flags = 0;
@@ -433,7 +445,7 @@ void CTcpFlow::on_fast_tick(){
 void CTcpFlow::Delete(){
     struct tcpcb *tp=&m_tcp;
     tcp_reass_clean(m_ctx,tp);
-    m_ctx->timer_w_stop(this);
+    m_ctx->m_tcp_ctx->timer_w_stop(this);
 }
 
 
@@ -502,11 +514,17 @@ static void ctx_timer(void *userdata,
     };
 }
 
-
-void CTcpPerThreadCtx::cleanup_flows(void) {
+void CTcpPerThreadCtx::cleanup_flows() {
     m_ft.terminate_all_flows();
-    delete_startup();
+    for (auto it: m_profiles) {
+        delete_startup(it.first);
+    }
     assert(m_timer_w.is_any_events_left()==0);
+}
+
+void CTcpPerThreadCtx::cleanup_flows(uint32_t id) {
+    m_ft.terminate_profile_flows(get_profile_ctx(id));
+    delete_startup(id);
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */
@@ -582,6 +600,8 @@ void CTcpPerThreadCtx::reset_tuneables() {
     tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_tx_socket_bsize = 32*1024;
     tcprexmtthresh = 3;
+
+    m_tuneables = false;
 }
 
 void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
@@ -589,6 +609,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         return;
 
     if (tune->is_empty())
+        return;
+
+    /* update tuneables only for the first time */
+    if (m_tuneables)
         return;
 
     if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
@@ -643,13 +667,15 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_tick_msec);
     }
     #endif
+
+    m_tuneables = true;
 }
 
-void CTcpPerThreadCtx::resize_stats() {
-    m_ft.m_sts.Clear();
-    uint16_t num_of_tg_ids = m_template_ro->get_num_of_tg_ids();
-    m_tcpstat.Resize(num_of_tg_ids);
-    m_udpstat.Resize(num_of_tg_ids);
+void CTcpPerThreadCtx::resize_stats(uint32_t id) {
+    //m_ft.m_sts.Clear();
+    uint16_t num_of_tg_ids = get_template_ro(id)->get_num_of_tg_ids();
+    get_tcpstat(id)->Resize(num_of_tg_ids);
+    get_udpstat(id)->Resize(num_of_tg_ids);
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -663,7 +689,6 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     seed=rand();
     timestamp=seed;
     #endif
-    m_sch_rampup = 0;
     m_rand = new KxuLCRand(seed);
     sb_max = SB_MAX;        /* patchable, not used  */
     m_mbuf_socket=0;
@@ -677,14 +702,9 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_disable_new_flow=0;
     m_pad=0;
     tcp_iss = rand();   /* wrong, but better than a constant */
-    m_tcpstat.Clear();
-    m_udpstat.Clear();
     m_tick=0;
     tcp_now=timestamp;
-    m_fif_d_time=0.0;
     m_cb = NULL;
-    m_template_rw = NULL;
-    m_template_ro = NULL;
     reset_tuneables();
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
@@ -710,33 +730,34 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 }
 
 
-void CTcpPerThreadCtx::init_sch_rampup(){
+void CTcpPerThreadCtx::init_sch_rampup(uint32_t id){
         /* calc default fif rate*/
-        astf_thread_id_t max_threads=m_template_rw->get_max_threads();
-        m_fif_d_time = m_template_ro->get_delta_tick_sec_thread(max_threads);
+        astf_thread_id_t max_threads = get_template_rw(id)->get_max_threads();
+        set_fif_d_time(get_template_ro(id)->get_delta_tick_sec_thread(max_threads), id);
 
         /* get client tunables */
-        CTcpTuneables * ctx_tune = get_template_rw()->get_c_tuneables();
+        CTcpTuneables * ctx_tune = get_template_rw(id)->get_c_tuneables();
 
         if ( ctx_tune->is_valid_field(CTcpTuneables::sched_rampup) ){
-            m_sch_rampup = new CAstfFifRampup(this,
+            set_sch_rampup(new CAstfFifRampup(this, id,
                                               ctx_tune->m_scheduler_rampup,
-                                              m_template_ro->get_total_cps_per_thread(max_threads));
+                                              get_template_ro(id)->get_total_cps_per_thread(max_threads)),
+                           id);
         }
 }
 
 
 
-void CTcpPerThreadCtx::call_startup(){
+void CTcpPerThreadCtx::call_startup(uint32_t id){
     if ( is_client_side() ){
-        init_sch_rampup();
+        init_sch_rampup(id);
     }
 }
 
-void CTcpPerThreadCtx::delete_startup() {
-    if (m_sch_rampup) {
-        delete m_sch_rampup;
-        m_sch_rampup = nullptr;
+void CTcpPerThreadCtx::delete_startup(uint32_t id) {
+    if (get_sch_rampup(id)) {
+        delete get_sch_rampup(id);
+        set_sch_rampup(nullptr, id);
     }
 }
 
@@ -746,20 +767,100 @@ void CTcpPerThreadCtx::Delete(){
     m_rand=0;
     m_timer_w.Delete();
     m_ft.Delete();
+    for (auto iter : m_profiles) {
+        delete iter.second;
+    }
+}
+
+void CTcpPerThreadCtx::append_server_ports(uint32_t id) {
+    CPerProfileCtx * ctx = get_profile_ctx(id);
+    CAstfDbRO * template_db = ctx->m_template_ro;
+    std::vector<uint16_t> server_ports;
+
+    server_ports.clear();
+    template_db->enumerate_server_ports(server_ports, true);
+    for (auto port: server_ports) {
+        if (m_tcp_server_ports.find(port) != m_tcp_server_ports.end()) {
+            throw TrexException("Two TCP servers with port " + std::to_string(port));
+        }
+        m_tcp_server_ports[port] = ctx;
+    }
+    server_ports.clear();
+    template_db->enumerate_server_ports(server_ports, false);
+    for (auto port: server_ports) {
+        if (m_udp_server_ports.find(port) != m_udp_server_ports.end()) {
+            throw TrexException("Two UDP servers with port " + std::to_string(port));
+        }
+        m_udp_server_ports[port] = ctx;
+    }
+}
+
+void CTcpPerThreadCtx::remove_server_ports(uint32_t id) {
+    CPerProfileCtx * ctx = get_profile_ctx(id);
+    CAstfDbRO * template_db = ctx->m_template_ro;
+    std::vector<uint16_t> server_ports;
+
+    server_ports.clear();
+    template_db->enumerate_server_ports(server_ports, true);
+    for (auto port: server_ports) {
+        auto it = m_tcp_server_ports.find(port);
+        if ((it != m_tcp_server_ports.end()) && (it->second == ctx)) {
+            m_tcp_server_ports.erase(port);
+        }
+    }
+    server_ports.clear();
+    template_db->enumerate_server_ports(server_ports, false);
+    for (auto port: server_ports) {
+        auto it = m_udp_server_ports.find(port);
+        if ((it != m_udp_server_ports.end()) && (it->second == ctx)) {
+            m_udp_server_ports.erase(port);
+        }
+    }
+}
+
+void CTcpPerThreadCtx::print_server_ports(bool stream) {
+    if (stream) {
+        for (auto it: m_tcp_server_ports) {
+            std::cout << it.first << ": " << it.second << std::endl;
+        }
+        printf("[%p] TCP(%lu)\n", this, m_tcp_server_ports.size());
+    }
+    else {
+        for (auto it: m_udp_server_ports) {
+            std::cout << it.first << ": " << it.second << std::endl;
+        }
+        printf("[%p] UDP(%lu)\n", this, m_udp_server_ports.size());
+    }
+}
+
+CPerProfileCtx * CTcpPerThreadCtx::get_profile_by_server_port(uint16_t port, bool stream) {
+    if (stream) {
+        if (m_tcp_server_ports.find(port) != m_tcp_server_ports.end()) {
+            return m_tcp_server_ports[port];
+        }
+    }
+    else {
+        if (m_udp_server_ports.find(port) != m_udp_server_ports.end()) {
+            return m_udp_server_ports[port];
+        }
+    }
+    return FALLBACK_PROFILE_CTX(this);
 }
 
 static void tcp_template_ipv6_update(IPv6Header *ipv6,
-                              CTcpPerThreadCtx * ctx){
-    if (!ctx->is_client_side()){
+                              CPerProfileCtx * ctx){
+    CTcpPerThreadCtx * tcp_ctx = ctx->m_tcp_ctx;
+
+    if (!tcp_ctx->is_client_side()){
         /* in case of server side learn from the network */
         return;
     }
 
-    if (!ctx->get_template_rw()){
+    if (!ctx->m_template_rw){
         return;
     }
 
-    CTcpTuneables * ctx_tune=ctx->get_template_rw()->get_c_tuneables();
+    CTcpTuneables * ctx_tune=ctx->m_template_rw->get_c_tuneables();
 
     if (!ctx_tune){
         return;
@@ -808,7 +909,7 @@ void CFlowTemplate::server_update_mac_from_packet(uint8_t *pkt){
     memcpy(m_template_pkt,pkt+6,6);
 }
 
-void CFlowTemplate::build_template_ip(CTcpPerThreadCtx * ctx){
+void CFlowTemplate::build_template_ip(CPerProfileCtx * ctx){
 
     const uint8_t default_ipv4_header[] = {
         0x00,0x00,0x00,0x01,0x0,0x0,  // Ethr
@@ -905,7 +1006,7 @@ void CFlowTemplate::build_template_ip(CTcpPerThreadCtx * ctx){
 }
 
 
-void CFlowTemplate::build_template_tcp(CTcpPerThreadCtx * ctx){
+void CFlowTemplate::build_template_tcp(CPerProfileCtx * ctx){
        const uint8_t tcp_header[] = {
          0x00, 0x00, 0x00, 0x00, // src, dst ports  //TCP
          0x00, 0x00, 0x00, 0x00,
@@ -933,7 +1034,7 @@ void CFlowTemplate::build_template_tcp(CTcpPerThreadCtx * ctx){
 }
 
 
-void CFlowTemplate::build_template_udp(CTcpPerThreadCtx * ctx){
+void CFlowTemplate::build_template_udp(CPerProfileCtx * ctx){
 
     const uint8_t udp_header[] = {
         0x00, 0x00, 0x00, 0x00, // src, dst ports  //UDP
@@ -957,7 +1058,7 @@ void CFlowTemplate::build_template_udp(CTcpPerThreadCtx * ctx){
 }
 
 
-void CFlowTemplate::build_template(CTcpPerThreadCtx * ctx){
+void CFlowTemplate::build_template(CPerProfileCtx * ctx){
 
     build_template_ip(ctx);
     if (is_tcp()) {
@@ -974,7 +1075,7 @@ void CFlowTemplate::build_template(CTcpPerThreadCtx * ctx){
  * the specified error.  If connection is synchronized,
  * then send a RST to peer.
  */
-struct tcpcb * tcp_drop_now(CTcpPerThreadCtx * ctx,
+struct tcpcb * tcp_drop_now(CPerProfileCtx * ctx,
                             struct tcpcb *tp, 
                             int res){
     struct tcp_socket *so = &tp->m_socket;
@@ -1001,7 +1102,7 @@ struct tcpcb * tcp_drop_now(CTcpPerThreadCtx * ctx,
  *  wake up any sleepers
  */
 struct tcpcb *  
-tcp_close(CTcpPerThreadCtx * ctx,
+tcp_close(CPerProfileCtx * ctx,
           struct tcpcb *tp){
 
 

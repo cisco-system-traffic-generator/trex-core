@@ -88,7 +88,7 @@ const char *prurequests[] = {
 /*
  * Tcp debug routines
  */
-void tcp_trace(CTcpPerThreadCtx * ctx,
+void tcp_trace(CPerProfileCtx * ctx,
           short act, 
           short ostate, 
           struct tcpcb * tp, 
@@ -214,7 +214,7 @@ void tcp_trace(CTcpPerThreadCtx * ctx,
 
 #else
 
-void tcp_trace(CTcpPerThreadCtx * ctx,
+void tcp_trace(CPerProfileCtx * ctx,
           short act, 
           short ostate, 
           struct tcpcb * tp, 
