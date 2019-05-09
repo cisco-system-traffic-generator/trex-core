@@ -795,15 +795,11 @@ class STLClient(TRexClient):
 
         """
 
-        print("\n  def stop")
-        print("  1) ports : %s" %ports)
         if ports is None:
             ports = self.get_profiles_with_state("active")
-            print("  1-1) ports : %s" %ports)
             if not ports:
                 return
 
-        print("  2) ports : %s" %ports)
         ports = self.psv.validate('STOP', ports, PSV_ACQUIRED)
         if not ports:
             return
@@ -824,7 +820,6 @@ class STLClient(TRexClient):
                 rx_delay_ms = 10
 
         # remove any RX filters
-        print("  3) ports : %s" %ports)
         rc = self._remove_rx_filters(ports, rx_delay_ms)
         if not rc:
             raise TRexError(rc)
