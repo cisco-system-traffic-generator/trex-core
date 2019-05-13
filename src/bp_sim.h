@@ -619,6 +619,17 @@ public:
 
 class CPerProfileCtx;
 
+struct CGenNodeTXFIF : public CGenNodeBase {
+public:
+    CPerProfileCtx * m_ctx;
+
+    uint8_t             m_pad_end[104];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
+} __rte_cache_aligned;;
+
+
 struct CGenNode : public CGenNodeBase  {
 
 public:
@@ -651,10 +662,9 @@ public:
     uint16_t            m_nat_external_port; // NAT client port
     uint16_t            m_nat_pad[1];
     const ClientCfgBase *m_client_cfg;
-    CPerProfileCtx      *m_ctx;
     uint32_t            m_src_idx;
     uint32_t            m_dest_idx;
-    uint32_t            m_end_of_cache_line[4];
+    uint32_t            m_end_of_cache_line[6];
 
 
 public:
@@ -3111,7 +3121,7 @@ public:
     void generate_flow(bool &done, CPerProfileCtx * ctx);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
-    void handle_tx_fif(CGenNode * node,bool on_terminate);
+    void handle_tx_fif(CGenNodeTXFIF * node,bool on_terminate);
     void handle_tw(CGenNode * node,bool on_terminate);
     uint16_t handle_rx_pkts(bool is_idle);
 
@@ -3384,6 +3394,7 @@ class CRXCoreIgnoreStat {
 static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
+static_assert(sizeof(CGenNodeTXFIF) == sizeof(CGenNode), "sizeof(CGenNodeTXFIF) != sizeof(CGenNode)" );
 
 static inline void rte_pause_or_delay_lowend() {
     if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
