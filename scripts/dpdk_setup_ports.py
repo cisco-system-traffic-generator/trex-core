@@ -680,13 +680,12 @@ Other network devices
 
 
     def config_hugepages(self, wanted_count = None):
-        huge_mnt_dir = '/mnt/huge'
-        if not os.path.isdir(huge_mnt_dir):
-            print("Creating huge node")
-            os.makedirs(huge_mnt_dir)
-
         mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
         if 'hugetlbfs' not in mount_output:
+	    huge_mnt_dir = '/mnt/huge'
+	    if not os.path.isdir(huge_mnt_dir):
+		print("Creating huge node")
+		os.makedirs(huge_mnt_dir)
             os.system('mount -t hugetlbfs nodev %s' % huge_mnt_dir)
 
         for socket_id in range(2):
