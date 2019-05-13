@@ -384,7 +384,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * ctx){
     /* WARNING -- flow might be not valid here !!!! */
 }
 
-void CFlowGenListPerThread::handle_tx_fif(CGenNode * node,
+void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
                                               bool on_terminate){
     #ifdef TREX_SIM
     m_cur_time_sec =node->m_time;
@@ -411,12 +411,12 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNode * node,
 
         if (!done) {
             node->m_time += node->m_ctx->m_fif_d_time;
-            m_node_gen.m_p_queue.push(node);
+            m_node_gen.m_p_queue.push((CGenNode*)node);
         }else{
-            free_node(node);
+            free_node((CGenNode*)node);
         }
     }else{
-        free_node(node);
+        free_node((CGenNode*)node);
     }
 }
 

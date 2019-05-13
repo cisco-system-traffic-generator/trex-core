@@ -22,6 +22,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+class CPerProfileCtx;
 class CTcpPerThreadCtx;
 class CAstfTimerFunctorObj;
 
@@ -35,8 +36,7 @@ private:
     const int TICK_MSEC=1000; /* each 1000msec a tick */
 
 public:
-    CAstfFifRampup(CTcpPerThreadCtx * ctx,
-                   uint32_t           id,
+    CAstfFifRampup(CPerProfileCtx * ctx,
                    uint16_t           rampup_sec,
                    double             cps);
     ~CAstfFifRampup();
@@ -45,8 +45,7 @@ public:
     void on_timer_update(CAstfTimerFunctorObj *tmr);
 
 private:
-    CTcpPerThreadCtx * m_ctx;
-    uint32_t           m_profile_id;
+    CPerProfileCtx   * m_ctx;
     CAstfTimerFunctorObj  * m_tmr;
     double             m_cps;
     uint16_t           m_ticks;
