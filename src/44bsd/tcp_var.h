@@ -884,11 +884,11 @@ public:
     void Delete();
 
     /* called after init */
-    void call_startup(uint32_t id = 0);
+    void call_startup(uint32_t profile_id = 0);
 
     /* cleanup m_timer_w from left flows */
     void cleanup_flows();
-    void cleanup_flows(uint32_t id);
+    void cleanup_flows(uint32_t profile_id);
 
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
@@ -950,12 +950,12 @@ public:
         return (m_ft.is_client_side());
     }
 
-    void resize_stats(uint32_t id = 0);
+    void resize_stats(uint32_t profile_id = 0);
 
 private:
-    void delete_startup(uint32_t id);
+    void delete_startup(uint32_t profile_id);
 
-    void init_sch_rampup(uint32_t id);
+    void init_sch_rampup(uint32_t profile_id);
 
 public:
     /* TUNABLEs */
@@ -1015,45 +1015,45 @@ private:
     std::unordered_map<uint32_t, CPerProfileCtx*> m_profiles;
     int m_active_profile_cnt;
 
-    bool is_profile_ctx(uint32_t id) { return m_profiles.find(id) != m_profiles.end(); }
+    bool is_profile_ctx(uint32_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
 public:
 #define FALLBACK_PROFILE_CTX(ctx)   ((ctx)->get_first_profile_ctx())
 #define DEFAULT_PROFILE_CTX(ctx)    ((ctx)->get_profile_ctx(0))
-    CPerProfileCtx* get_profile_ctx(uint32_t id) {
-        if (!is_profile_ctx(id)) {
-            create_profile_ctx(id);
+    CPerProfileCtx* get_profile_ctx(uint32_t profile_id) {
+        if (!is_profile_ctx(profile_id)) {
+            create_profile_ctx(profile_id);
         }
-        return m_profiles[id];
+        return m_profiles[profile_id];
     }
     CPerProfileCtx* get_first_profile_ctx() {
         return m_profiles.begin()->second;
     }
-    void create_profile_ctx(uint32_t id) {
+    void create_profile_ctx(uint32_t profile_id) {
         uint32_t stop_id = 1;
-        if (is_profile_ctx(id)) {
-            stop_id += m_profiles[id]->m_stop_id;
-            delete m_profiles[id];
+        if (is_profile_ctx(profile_id)) {
+            stop_id += m_profiles[profile_id]->m_stop_id;
+            delete m_profiles[profile_id];
         }
-        m_profiles[id] = new CPerProfileCtx();
-        m_profiles[id]->m_tcp_ctx = this;
-        m_profiles[id]->m_profile_id = id;
-        m_profiles[id]->m_stop_id = stop_id == 0 ? 1: stop_id;
+        m_profiles[profile_id] = new CPerProfileCtx();
+        m_profiles[profile_id]->m_tcp_ctx = this;
+        m_profiles[profile_id]->m_profile_id = profile_id;
+        m_profiles[profile_id]->m_stop_id = stop_id == 0 ? 1: stop_id;
     }
-    void remove_profile_ctx(uint32_t id) {
-        assert(is_profile_ctx(id));
-        //delete m_profiles[id];
-        //m_profiles.erase(id);
+    void remove_profile_ctx(uint32_t profile_id) {
+        assert(is_profile_ctx(profile_id));
+        //delete m_profiles[profile_id];
+        //m_profiles.erase(profile_id);
     }
 
-    void activate(uint32_t id=0) {
-        CPerProfileCtx * ctx = get_profile_ctx(id);
+    void activate(uint32_t profile_id=0) {
+        CPerProfileCtx * ctx = get_profile_ctx(profile_id);
         if (ctx->m_state == CPerProfileCtx::STATE_NONE) {
             m_active_profile_cnt++;
             ctx->m_state = CPerProfileCtx::STATE_ACTIVE;
         }
     }
-    void deactivate(uint32_t id=0) {
-        CPerProfileCtx * ctx = get_profile_ctx(id);
+    void deactivate(uint32_t profile_id=0) {
+        CPerProfileCtx * ctx = get_profile_ctx(profile_id);
         if (ctx->m_state <= CPerProfileCtx::STATE_ACTIVE) {
             if (ctx->m_state == CPerProfileCtx::STATE_ACTIVE) {
                 m_active_profile_cnt--;
@@ -1061,7 +1061,7 @@ public:
             ctx->m_state = CPerProfileCtx::STATE_STOPPING;
         }
     }
-    void set_stopped(uint32_t id) { get_profile_ctx(id)->m_state = CPerProfileCtx::STATE_STOPPED; }
+    void set_stopped(uint32_t profile_id) { get_profile_ctx(profile_id)->m_state = CPerProfileCtx::STATE_STOPPED; }
     void set_all_stopped(std::vector<uint32_t>& ids) {
         for (auto& it: m_profiles) {
             if ((it.second->m_state == CPerProfileCtx::STATE_ACTIVE) ||
@@ -1072,27 +1072,27 @@ public:
         }
     }
 
-    bool is_created(uint32_t id) { return get_profile_ctx(id)->m_state == CPerProfileCtx::STATE_NONE; }
-    bool is_active(uint32_t id) { return get_profile_ctx(id)->m_state == CPerProfileCtx::STATE_ACTIVE; }
-    bool is_stopped(uint32_t id) { return get_profile_ctx(id)->m_state == CPerProfileCtx::STATE_STOPPED; }
+    bool is_created(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_NONE; }
+    bool is_active(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_ACTIVE; }
+    bool is_stopped(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_STOPPED; }
 
     int active_profile_cnt() { return m_active_profile_cnt; }
-    int profile_flow_cnt(uint32_t id) { return get_profile_ctx(id)->m_flow_cnt; }
-    int get_stop_id(uint32_t id) { return get_profile_ctx(id)->m_stop_id; }
+    int profile_flow_cnt(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
+    int get_stop_id(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_stop_id; }
 
 public:
-    CAstfFifRampup* get_sch_rampup(uint32_t id) { return get_profile_ctx(id)->m_sch_rampup; }
-    void set_sch_rampup(CAstfFifRampup* t, uint32_t id) { get_profile_ctx(id)->m_sch_rampup = t; }
-    double get_fif_d_time(uint32_t id) { return get_profile_ctx(id)->m_fif_d_time; }
-    void set_fif_d_time(double t, uint32_t id) { get_profile_ctx(id)->m_fif_d_time = t; }
+    CAstfFifRampup* get_sch_rampup(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_sch_rampup; }
+    void set_sch_rampup(CAstfFifRampup* t, uint32_t profile_id) { get_profile_ctx(profile_id)->m_sch_rampup = t; }
+    double get_fif_d_time(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_fif_d_time; }
+    void set_fif_d_time(double t, uint32_t profile_id) { get_profile_ctx(profile_id)->m_fif_d_time = t; }
 
-    CAstfDbRO* get_template_ro(uint32_t id) { return get_profile_ctx(id)->m_template_ro; }
-    CAstfTemplatesRW* get_template_rw(uint32_t id) { return get_profile_ctx(id)->m_template_rw; }
-    void set_template_ro(CAstfDbRO* t, uint32_t id=0) { get_profile_ctx(id)->m_template_ro = t; }
-    void set_template_rw(CAstfTemplatesRW* t, uint32_t id) { get_profile_ctx(id)->m_template_rw = t; }
+    CAstfDbRO* get_template_ro(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_template_ro; }
+    CAstfTemplatesRW* get_template_rw(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_template_rw; }
+    void set_template_ro(CAstfDbRO* t, uint32_t profile_id=0) { get_profile_ctx(profile_id)->m_template_ro = t; }
+    void set_template_rw(CAstfTemplatesRW* t, uint32_t profile_id) { get_profile_ctx(profile_id)->m_template_rw = t; }
 
-    struct tcpstat* get_tcpstat(uint32_t id=0) { return &get_profile_ctx(id)->m_tcpstat; }
-    struct CUdpStats* get_udpstat(uint32_t id=0) { return &get_profile_ctx(id)->m_udpstat; }
+    struct tcpstat* get_tcpstat(uint32_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
+    struct CUdpStats* get_udpstat(uint32_t profile_id=0) { return &get_profile_ctx(profile_id)->m_udpstat; }
 };
 
 
