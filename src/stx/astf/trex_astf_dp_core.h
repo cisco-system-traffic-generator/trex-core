@@ -25,6 +25,44 @@ limitations under the License.
 #include <string>
 #include "trex_dp_core.h"
 
+struct profile_param {
+    uint32_t    m_profile_id;
+    double      m_duration;
+};
+
+class DpCoreSchedParam {
+private:
+    bool        m_flag; /* starting */
+
+    uint32_t    m_profile_id;
+    double      m_duration;
+    std::vector<struct profile_param> m_params;
+
+    bool        m_stopping;
+public:
+    void set_starting_param(uint32_t profile_id, double duration) {
+        m_flag = true;
+        m_profile_id = profile_id;
+        m_duration = duration;
+    }
+    void append_starting_param(uint32_t profile_id, double duration) {
+        m_params.push_back({profile_id, duration});
+    }
+    void get_starting_param(uint32_t& profile_id, double& duration) {
+        profile_id = m_profile_id;
+        duration = m_duration;
+    }
+    std::vector<struct profile_param> get_addendum_params() { return m_params; }
+
+    void clear_starting() { m_flag = false; m_params.clear(); }
+    bool is_starting() { return m_flag; }
+
+    void set_stopping() { m_stopping = true; }
+    void clear_stopping() { m_stopping = false; }
+    bool is_stopping() { return m_stopping; }
+};
+
+
 class TrexAstfDpCore : public TrexDpCore {
 
 public:
@@ -63,20 +101,7 @@ protected:
     void start_profile_ctx(uint32_t profile_id, double duration);
     void stop_profile_ctx(uint32_t profile_id, uint32_t stop_id);
 
-    /* scheduling profile parameters */
-    struct profile_param {
-        uint32_t    m_profile_id;
-        double      m_duration;
-    };
-    struct {
-        bool        m_flag; /* starting */
-
-        uint32_t    m_profile_id;
-        double      m_duration;
-        std::vector<struct profile_param> m_params;
-
-        bool        m_stopping;
-    } m_sched_param;
+    DpCoreSchedParam    m_sched_param;
 };
 
 #endif /* __TREX_ASTF_DP_CORE_H__ */

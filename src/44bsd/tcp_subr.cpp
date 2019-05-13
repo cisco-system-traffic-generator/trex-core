@@ -522,9 +522,9 @@ void CTcpPerThreadCtx::cleanup_flows() {
     assert(m_timer_w.is_any_events_left()==0);
 }
 
-void CTcpPerThreadCtx::cleanup_flows(uint32_t id) {
-    m_ft.terminate_profile_flows(get_profile_ctx(id));
-    delete_startup(id);
+void CTcpPerThreadCtx::cleanup_flows(uint32_t profile_id) {
+    m_ft.terminate_profile_flows(get_profile_ctx(profile_id));
+    delete_startup(profile_id);
 }
 
 /*  this function is called every 20usec to see if we have an issue with resource */
@@ -671,11 +671,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     m_tuneables = true;
 }
 
-void CTcpPerThreadCtx::resize_stats(uint32_t id) {
-    //m_ft.m_sts.Clear();
-    uint16_t num_of_tg_ids = get_template_ro(id)->get_num_of_tg_ids();
-    get_tcpstat(id)->Resize(num_of_tg_ids);
-    get_udpstat(id)->Resize(num_of_tg_ids);
+void CTcpPerThreadCtx::resize_stats(uint32_t profile_id) {
+    uint16_t num_of_tg_ids = get_template_ro(profile_id)->get_num_of_tg_ids();
+    get_tcpstat(profile_id)->Resize(num_of_tg_ids);
+    get_udpstat(profile_id)->Resize(num_of_tg_ids);
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -730,34 +729,34 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 }
 
 
-void CTcpPerThreadCtx::init_sch_rampup(uint32_t id){
+void CTcpPerThreadCtx::init_sch_rampup(uint32_t profile_id){
         /* calc default fif rate*/
-        astf_thread_id_t max_threads = get_template_rw(id)->get_max_threads();
-        set_fif_d_time(get_template_ro(id)->get_delta_tick_sec_thread(max_threads), id);
+        astf_thread_id_t max_threads = get_template_rw(profile_id)->get_max_threads();
+        set_fif_d_time(get_template_ro(profile_id)->get_delta_tick_sec_thread(max_threads), profile_id);
 
         /* get client tunables */
-        CTcpTuneables * ctx_tune = get_template_rw(id)->get_c_tuneables();
+        CTcpTuneables * ctx_tune = get_template_rw(profile_id)->get_c_tuneables();
 
         if ( ctx_tune->is_valid_field(CTcpTuneables::sched_rampup) ){
-            set_sch_rampup(new CAstfFifRampup(this, id,
+            set_sch_rampup(new CAstfFifRampup(get_profile_ctx(profile_id),
                                               ctx_tune->m_scheduler_rampup,
-                                              get_template_ro(id)->get_total_cps_per_thread(max_threads)),
-                           id);
+                                              get_template_ro(profile_id)->get_total_cps_per_thread(max_threads)),
+                           profile_id);
         }
 }
 
 
 
-void CTcpPerThreadCtx::call_startup(uint32_t id){
+void CTcpPerThreadCtx::call_startup(uint32_t profile_id){
     if ( is_client_side() ){
-        init_sch_rampup(id);
+        init_sch_rampup(profile_id);
     }
 }
 
-void CTcpPerThreadCtx::delete_startup(uint32_t id) {
-    if (get_sch_rampup(id)) {
-        delete get_sch_rampup(id);
-        set_sch_rampup(nullptr, id);
+void CTcpPerThreadCtx::delete_startup(uint32_t profile_id) {
+    if (get_sch_rampup(profile_id)) {
+        delete get_sch_rampup(profile_id);
+        set_sch_rampup(nullptr, profile_id);
     }
 }
 
@@ -772,8 +771,8 @@ void CTcpPerThreadCtx::Delete(){
     }
 }
 
-void CTcpPerThreadCtx::append_server_ports(uint32_t id) {
-    CPerProfileCtx * ctx = get_profile_ctx(id);
+void CTcpPerThreadCtx::append_server_ports(uint32_t profile_id) {
+    CPerProfileCtx * ctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = ctx->m_template_ro;
     std::vector<uint16_t> server_ports;
 
@@ -795,8 +794,8 @@ void CTcpPerThreadCtx::append_server_ports(uint32_t id) {
     }
 }
 
-void CTcpPerThreadCtx::remove_server_ports(uint32_t id) {
-    CPerProfileCtx * ctx = get_profile_ctx(id);
+void CTcpPerThreadCtx::remove_server_ports(uint32_t profile_id) {
+    CPerProfileCtx * ctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = ctx->m_template_ro;
     std::vector<uint16_t> server_ports;
 
