@@ -3745,7 +3745,7 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
         break;
 
     case CGenNode::TCP_TX_FIF:
-        thread->handle_tx_fif(node,on_terminate);
+        thread->handle_tx_fif((CGenNodeTXFIF*)node,on_terminate);
         break;
 
     case CGenNode::TCP_TW:

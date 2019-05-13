@@ -25,13 +25,11 @@ limitations under the License.
 #include <assert.h>
 
 
-CAstfFifRampup::CAstfFifRampup(CTcpPerThreadCtx * ctx,
-                   uint32_t           id,
+CAstfFifRampup::CAstfFifRampup(CPerProfileCtx * ctx,
                    uint16_t           rampup_sec,
                    double             cps){
         /* total ticks */
         m_ctx=ctx;
-        m_profile_id=id;
         m_ticks = (uint32_t)rampup_sec*1000/TICK_MSEC;
         m_rampup_sec =rampup_sec;
         assert(m_ticks>1);
@@ -46,7 +44,7 @@ CAstfFifRampup::CAstfFifRampup(CTcpPerThreadCtx * ctx,
 CAstfFifRampup::~CAstfFifRampup(){
     if (m_tmr) {
         assert(m_tmr->is_running());
-        m_ctx->m_timer_w.timer_stop(m_tmr);
+        m_ctx->m_tcp_ctx->m_timer_w.timer_stop(m_tmr);
         delete m_tmr;
         m_tmr=0;
     }
@@ -55,13 +53,13 @@ CAstfFifRampup::~CAstfFifRampup(){
 void CAstfFifRampup::on_timer_update(CAstfTimerFunctorObj *tmr){
 
     double cur_cps = m_cps*(double)m_cur_tick/((double)m_ticks);
-    m_ctx->set_fif_d_time(1.0/cur_cps, m_profile_id);
+    m_ctx->m_fif_d_time = 1.0/cur_cps;
 
     double max_rampup_sec = (double)m_rampup_sec/4.0;
 
     /* make sure the d time is not bigger than the rampup time (could be in smaller numbers) */
-    if (m_ctx->get_fif_d_time(m_profile_id) > max_rampup_sec ) {
-        m_ctx->set_fif_d_time(max_rampup_sec, m_profile_id);
+    if (m_ctx->m_fif_d_time > max_rampup_sec ) {
+        m_ctx->m_fif_d_time = max_rampup_sec;
     }
     //printf("tick  %d %d (%f,%f) dtime:%f \n",(int)m_cur_tick,(int)m_ticks,cur_cps,m_cps,m_ctx->m_fif_d_time);
     if (m_cur_tick == m_ticks) {
@@ -71,7 +69,7 @@ void CAstfFifRampup::on_timer_update(CAstfTimerFunctorObj *tmr){
         return;
     }
 
-    m_ctx->m_timer_w.timer_start(tmr,
+    m_ctx->m_tcp_ctx->m_timer_w.timer_start(tmr,
                                  tw_time_msec_to_ticks(CAstfFifRampup::TICK_MSEC) 
                                  );
     m_cur_tick++;
