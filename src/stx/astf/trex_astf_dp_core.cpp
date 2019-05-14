@@ -255,11 +255,9 @@ void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
         return;
     }
 
-    if (m_flow_gen->m_c_tcp->is_active(profile_id) && m_flow_gen->m_s_tcp->is_active(profile_id)) {
-        if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) > 0) ||
-            (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) > 0)) {
-            immediate_stop = false;
-        }
+    if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) > 0) ||
+        (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) > 0)) {
+        immediate_stop = false;
     }
     m_flow_gen->m_c_tcp->deactivate(profile_id);
     m_flow_gen->m_s_tcp->deactivate(profile_id);
@@ -279,8 +277,6 @@ void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
     }
     else if (immediate_stop || go->preview.getNoCleanFlowClose()) {
         m_flow_gen->flush_tx_queue();
-        m_flow_gen->m_c_tcp->cleanup_flows(profile_id);
-        m_flow_gen->m_s_tcp->cleanup_flows(profile_id);
 
         m_flow_gen->m_c_tcp->set_stopped(profile_id);
         m_flow_gen->m_s_tcp->set_stopped(profile_id);
