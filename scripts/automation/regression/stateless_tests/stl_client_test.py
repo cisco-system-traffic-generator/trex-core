@@ -822,6 +822,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_latency_pause_resume_dynamic_profile (self):
 
+        self.c.reset()
         try:    
             profile_id = 1
             num_profiles = 100
