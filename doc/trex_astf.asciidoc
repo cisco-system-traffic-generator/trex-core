@@ -260,9 +260,6 @@ from trex_astf_lib.api import *
 
 
 class Prof1():
-    def __init__(self):
-        pass
-
     def get_profile(self):
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], 
@@ -527,10 +524,7 @@ link:{github_astf_path}/http_https.py[astf/http_https.py]
 [source,python]
 ----
 class Prof1():
-        def __init__(self):
-        pass
-        
-        def get_profile(self):
+    def get_profile(self):
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], 
                                  distribution="seq")
@@ -539,14 +533,14 @@ class Prof1():
         ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                            dist_client=ip_gen_c,
                            dist_server=ip_gen_s)
-        
+
         return ASTFProfile(default_ip_gen=ip_gen,
                             cap_list=[
                              ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
                                          cps=1),    <1>
                              ASTFCapInfo(file="avl/delay_10_https_0.pcap",
                                          cps=2)     <2>
-                                      ])                     
+                                      ])
 
 
 def register():
@@ -580,9 +574,6 @@ The profile includes same HTTP profile only for demonstration.
 [source,python]
 ----
 class Prof1():
-    def __init__(self):
-        pass
-
     def get_profile(self):
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], 
@@ -705,9 +696,6 @@ Another way to enable IPv6 globally (or per template) is by tunables in the prof
 ----
 
 class Prof1():
-    def __init__(self):
-        pass
-
     def get_profile(self):
 
         # ip generator
@@ -772,9 +760,6 @@ Example of a tunable is tcp.mss. You can change the tcp.mss:
 ----
 
 class Prof1():
-    def __init__(self):
-        pass
-
     def get_profile(self):
 
         # ip generator
@@ -814,9 +799,6 @@ class Prof1():
 ----
 
 class Prof1():
-    def __init__(self):
-        pass
-
     def get_profile(self):
 
         # ip generator
