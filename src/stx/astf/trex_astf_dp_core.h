@@ -23,45 +23,13 @@ limitations under the License.
 #define __TREX_ASTF_DP_CORE_H__
 
 #include <string>
+#include <algorithm>
 #include "trex_dp_core.h"
 
 struct profile_param {
     uint32_t    m_profile_id;
     double      m_duration;
 };
-
-class DpCoreSchedParam {
-private:
-    bool        m_flag; /* starting */
-
-    uint32_t    m_profile_id;
-    double      m_duration;
-    std::vector<struct profile_param> m_params;
-
-    bool        m_stopping;
-public:
-    void set_starting_param(uint32_t profile_id, double duration) {
-        m_flag = true;
-        m_profile_id = profile_id;
-        m_duration = duration;
-    }
-    void append_starting_param(uint32_t profile_id, double duration) {
-        m_params.push_back({profile_id, duration});
-    }
-    void get_starting_param(uint32_t& profile_id, double& duration) {
-        profile_id = m_profile_id;
-        duration = m_duration;
-    }
-    std::vector<struct profile_param> get_addendum_params() { return m_params; }
-
-    void clear_starting() { m_flag = false; m_params.clear(); }
-    bool is_starting() { return m_flag; }
-
-    void set_stopping() { m_stopping = true; }
-    void clear_stopping() { m_stopping = false; }
-    bool is_stopping() { return m_stopping; }
-};
-
 
 class TrexAstfDpCore : public TrexDpCore {
 
@@ -97,11 +65,59 @@ protected:
     virtual void start_scheduler() override;
 
     void add_profile_duration(uint32_t profile_id, double duration);
+    int get_profile_stop_id(uint32_t profile_id);
     void get_scheduler_options(uint32_t profile_id, bool& disable_client, double& d_time_flow, double& d_phase);
     void start_profile_ctx(uint32_t profile_id, double duration);
     void stop_profile_ctx(uint32_t profile_id, uint32_t stop_id);
 
-    DpCoreSchedParam    m_sched_param;
+    std::vector<struct profile_param> m_sched_param;
+
+    enum profile_state_e {
+        pSTATE_FREE,    // by create or delete_tcp_batch
+        pSTATE_LOADED,  // by create_tcp_batch or stop_transmit
+        pSTATE_ACTIVE,  // by start_transmit
+        pSTATE_WAIT     // by stop_transmit
+    };
+
+    std::unordered_map<uint32_t, profile_state_e> m_profile_states;
+    int m_active_profile_cnt;
+
+    bool is_profile(uint32_t profile_id) {
+        return m_profile_states.find(profile_id) != m_profile_states.end();
+    }
+    void create_profile_state(uint32_t profile_id) {
+        assert(!is_profile(profile_id));
+        m_profile_states[profile_id] = pSTATE_FREE;
+    }
+    void remove_profile_state(uint32_t profile_id) {
+        if (is_profile(profile_id)) {
+            m_profile_states.erase(profile_id);
+        }
+    }
+    void set_profile_state(uint32_t profile_id, profile_state_e state) {
+        assert(is_profile(profile_id));
+
+        if (m_profile_states[profile_id] != pSTATE_ACTIVE && state == pSTATE_ACTIVE) {
+            m_active_profile_cnt++;
+        }
+        if (m_profile_states[profile_id] == pSTATE_ACTIVE && state != pSTATE_ACTIVE) {
+            m_active_profile_cnt--;
+        }
+
+        m_profile_states[profile_id] = state;
+    }
+    profile_state_e get_profile_state(uint32_t profile_id) {
+        assert(is_profile(profile_id));
+        return m_profile_states[profile_id];
+    }
+    void set_profile_active(uint32_t profile_id);
+    void set_profile_stopping(uint32_t profile_id);
+    int active_profile_cnt() { return m_active_profile_cnt; }
+    int profile_cnt() { return m_profile_states.size(); }
+
+public:
+    void on_profile_stop_event(uint32_t profile_id);
+    void set_profile_stop_event(uint32_t profile_id);
 };
 
 #endif /* __TREX_ASTF_DP_CORE_H__ */

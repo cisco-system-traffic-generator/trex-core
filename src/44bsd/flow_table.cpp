@@ -405,6 +405,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * ctx,
 void CFlowTable::free_flow(CFlowBase * flow){
     assert(flow);
     flow->m_ctx->m_flow_cnt--;
+    flow->m_ctx->on_flow_close();
 
     if ( flow->is_udp() ){
         CUdpFlow * udp_flow=(CUdpFlow *)flow;
