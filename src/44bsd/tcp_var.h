@@ -854,6 +854,8 @@ static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     return((uint16_t)calc);
 }
 
+typedef void (*on_stopped_cb_t)(void *data, uint32_t profile_id);
+
 class CPerProfileCtx {
 public:
     uint32_t            m_profile_id;
@@ -869,12 +871,28 @@ public:
     struct tcpstat      m_tcpstat; /* tcp statistics */
     struct CUdpStats    m_udpstat; /* udp statistics */
 
-    enum {
-        STATE_NONE, STATE_ACTIVE, STATE_STOPPING, STATE_STOPPED
-    } m_state;
     uint32_t            m_stop_id;
 
     int                 m_flow_cnt; /* active flow count */
+
+    on_stopped_cb_t     m_on_stopped_cb;
+    void              * m_cb_data;
+
+private:
+    bool                m_stopped;
+
+public:
+    void activate() { m_stopped = false; }
+    void deactivate() { m_stopped = true; }
+    bool is_active() { return m_stopped == false; }
+
+    void on_flow_close() {
+        if (m_flow_cnt == 0 && !is_active()) {
+            if (m_on_stopped_cb) {
+                m_on_stopped_cb(m_cb_data, m_profile_id);
+            }
+        }
+    }
 };
 
 class CTcpPerThreadCtx {
@@ -1013,7 +1031,6 @@ public:
     /* profile management */
 private:
     std::unordered_map<uint32_t, CPerProfileCtx*> m_profiles;
-    int m_active_profile_cnt;
 
     bool is_profile_ctx(uint32_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
 public:
@@ -1045,40 +1062,17 @@ public:
         //m_profiles.erase(profile_id);
     }
 
-    void activate(uint32_t profile_id=0) {
-        CPerProfileCtx * ctx = get_profile_ctx(profile_id);
-        if (ctx->m_state == CPerProfileCtx::STATE_NONE) {
-            m_active_profile_cnt++;
-            ctx->m_state = CPerProfileCtx::STATE_ACTIVE;
-        }
-    }
-    void deactivate(uint32_t profile_id=0) {
-        CPerProfileCtx * ctx = get_profile_ctx(profile_id);
-        if (ctx->m_state <= CPerProfileCtx::STATE_ACTIVE) {
-            if (ctx->m_state == CPerProfileCtx::STATE_ACTIVE) {
-                m_active_profile_cnt--;
-            }
-            ctx->m_state = CPerProfileCtx::STATE_STOPPING;
-        }
-    }
-    void set_stopped(uint32_t profile_id) { get_profile_ctx(profile_id)->m_state = CPerProfileCtx::STATE_STOPPED; }
-    void set_all_stopped(std::vector<uint32_t>& ids) {
-        for (auto& it: m_profiles) {
-            if ((it.second->m_state == CPerProfileCtx::STATE_ACTIVE) ||
-                (it.second->m_state == CPerProfileCtx::STATE_STOPPING)) {
-                it.second->m_state = CPerProfileCtx::STATE_STOPPED;
-                ids.push_back(it.first);
-            }
-        }
-    }
-
-    bool is_created(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_NONE; }
-    bool is_active(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_ACTIVE; }
-    bool is_stopped(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_state == CPerProfileCtx::STATE_STOPPED; }
-
-    int active_profile_cnt() { return m_active_profile_cnt; }
     int profile_flow_cnt(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
     int get_stop_id(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_stop_id; }
+
+    void activate_profile_ctx(uint32_t profile_id) { get_profile_ctx(profile_id)->activate(); }
+    void deactivate_profile_ctx(uint32_t profile_id) { get_profile_ctx(profile_id)->deactivate(); }
+
+    void set_profile_cb(uint32_t profile_id, void *cb_data, on_stopped_cb_t cb) {
+        CPerProfileCtx *ctx = get_profile_ctx(profile_id);
+        ctx->m_on_stopped_cb = cb;
+        ctx->m_cb_data = cb_data;
+    }
 
 public:
     CAstfFifRampup* get_sch_rampup(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_sch_rampup; }
