@@ -127,12 +127,14 @@ TrexDpCore::start() {
         case STATE_IDLE:
             idle_state_loop();
             break;
-            
+
+        case STATE_STARTING:
         case STATE_TRANSMITTING:
         case STATE_PCAP_TX:
             start_scheduler();
             break;
-            
+
+        case STATE_STOPPING:
         case STATE_TERMINATE:
             return;
         }
