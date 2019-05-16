@@ -135,6 +135,7 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
         if (m_tcp_terminate){
             if (m_tcp_terminate_cnt>(uint32_t)(2.0/dtime)) {
                 drop=1;
+                m_tcp_terminate=false;
             }else{
                 m_tcp_terminate_cnt++;
             }
@@ -223,6 +224,11 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * ctx){
 
     if ( m_c_tcp->is_open_flow_enabled()==false ){
         m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
+        return;
+    }
+
+    if (!ctx->is_active()) { // transmit stopped
+        done=true;
         return;
     }
 
@@ -390,16 +396,10 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
     m_cur_time_sec =node->m_time;
     #endif
 
-    if (node->m_ctx->m_state != CPerProfileCtx::STATE_ACTIVE) {
-        on_terminate = true;
-    }
-
     bool done;
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ) {
         m_cur_time_sec = node->m_time ;
-
-        //printf("[%p] TCP_TX_FIF time: %lf\n", node->m_ctx, node->m_time);
 
         generate_flow(done, node->m_ctx);
 
@@ -407,7 +407,6 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
             CVirtualIF * v_if=m_node_gen.m_v_if;
             v_if->flush_tx_queue();
         }
-
 
         if (!done) {
             node->m_time += node->m_ctx->m_fif_d_time;
@@ -455,6 +454,7 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
         }else{
             free_node(node);
             m_tcp_terminate=true;
+            m_tcp_terminate_cnt=0;
         }
     }
     
@@ -521,9 +521,9 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id) {
+void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id, bool is_first) {
     /* clear global statistics when new profile is started only */
-    if ((m_c_tcp->active_profile_cnt() == 0) && (m_s_tcp->active_profile_cnt() == 0)) {
+    if (is_first) {
         m_stats.clear();    // moved from TrexAstfDpCore::create_tcp_batch()
 
         m_c_tcp->m_ft.reset_stats();
@@ -568,7 +568,7 @@ void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id) {
     m_s_tcp->call_startup(profile_id);
 }
 
-void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id) {
+void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id, bool is_last) {
     m_s_tcp->remove_server_ports(profile_id);
 
     if ( CAstfDB::has_instance(profile_id) ) {
@@ -578,13 +578,11 @@ void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id) {
     m_c_tcp->remove_profile_ctx(profile_id);
     m_s_tcp->remove_profile_ctx(profile_id);
 
-    if ((m_c_tcp->active_profile_cnt() == 0) && (m_s_tcp->active_profile_cnt() == 0)) {
+    if (is_last) {
         m_c_tcp->reset_tuneables();
         m_s_tcp->reset_tuneables();
 
         m_sched_accurate = false;
-        m_tcp_terminate=false;
-        m_tcp_terminate_cnt=0;
     }
 }
 

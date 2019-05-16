@@ -37,8 +37,6 @@ using namespace std;
 
 TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
                 TrexDpCore(thread_id, core, STATE_IDLE) {
-    m_sched_param.clear_starting();
-    m_sched_param.clear_stopping();
     CSyncBarrier *sync_barrier = get_astf_object()->get_barrier();
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
@@ -57,10 +55,47 @@ bool TrexAstfDpCore::is_port_active(uint8_t port_id) {
     return m_state != STATE_IDLE;
 }
 
+int TrexAstfDpCore::get_profile_stop_id(uint32_t profile_id) {
+    return m_flow_gen->m_c_tcp->get_stop_id(profile_id);
+}
+
+void TrexAstfDpCore::set_profile_active(uint32_t profile_id) {
+    set_profile_state(profile_id, pSTATE_ACTIVE);
+    m_flow_gen->m_c_tcp->activate_profile_ctx(profile_id);
+    m_flow_gen->m_s_tcp->activate_profile_ctx(profile_id);
+}
+
+void TrexAstfDpCore::set_profile_stopping(uint32_t profile_id) {
+    set_profile_state(profile_id, pSTATE_WAIT);
+    m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
+    m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
+    set_profile_stop_event(profile_id);
+}
+
+void TrexAstfDpCore::on_profile_stop_event(uint32_t profile_id) {
+    if (get_profile_state(profile_id) == pSTATE_WAIT) {
+        if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
+            (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
+            set_profile_state(profile_id, pSTATE_LOADED);
+            report_finished(profile_id);
+        }
+    }
+}
+
+static void dp_core_on_profile_stop_event(void *core, uint32_t profile_id) {
+    TrexAstfDpCore * dp_core = (TrexAstfDpCore*)core;
+    dp_core->on_profile_stop_event(profile_id);
+}
+
+void TrexAstfDpCore::set_profile_stop_event(uint32_t profile_id) {
+    m_flow_gen->m_c_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
+    m_flow_gen->m_s_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
+}
+
 void TrexAstfDpCore::add_profile_duration(uint32_t profile_id, double duration) {
     if (duration > 0.0) {
         CGenNodeCommand * node = (CGenNodeCommand*)m_core->create_node() ;
-        int stop_id = m_core->m_c_tcp->get_stop_id(profile_id);
+        int stop_id = get_profile_stop_id(profile_id);
 
         node->m_type = CGenNode::COMMAND;
 
@@ -111,17 +146,23 @@ void TrexAstfDpCore::start_scheduler() {
     uint32_t profile_id = 0;
     double duration = -1;
 
-    if (m_sched_param.is_starting()) { /* set by start_transmit function */
-        m_sched_param.get_starting_param(profile_id, duration);
+    if (m_state == STATE_STARTING) { /* set by start_transmit function */
+        m_state = STATE_TRANSMITTING;
+
+        auto it = m_sched_param.begin();
+        profile_id = it->m_profile_id;
+        duration = it->m_duration;
+
+        m_sched_param.erase(it);
     }
 
     dsec_t d_time_flow;
     bool disable_client = false;
     double d_phase;
 
-    get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
-
     CParserOption *go = &CGlobalInfo::m_options;
+
+    get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
 
     double old_offset = 0.0;
     CGenNode *node;
@@ -129,37 +170,16 @@ void TrexAstfDpCore::start_scheduler() {
     /* sync all core to the same time */
     if ( sync_barrier() ) {
         dsec_t now = now_sec();
-        dsec_t c_stop_sec = -1;
-        if ( duration > 0.0 ) {
-            c_stop_sec = now + d_phase + duration;
-        }
-        else if ( m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
-            c_stop_sec = now + d_phase + m_flow_gen->m_yaml_info.m_duration_sec;
-        }
 
         m_flow_gen->m_cur_time_sec = now;
 
-        if ( !disable_client ) {
-            CGenNodeTXFIF *tx_node = (CGenNodeTXFIF*)m_flow_gen->create_node();
-            tx_node->m_type = CGenNode::TCP_TX_FIF;
-            tx_node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
-            tx_node->m_ctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
-            m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
+        if ( duration <= 0.0 && m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
+            duration = m_flow_gen->m_yaml_info.m_duration_sec;
         }
 
-        m_flow_gen->m_c_tcp->activate(profile_id);
-        m_flow_gen->m_s_tcp->activate(profile_id);
-        if (c_stop_sec > 0.0) {
-            add_profile_duration(profile_id, c_stop_sec - now);
-        }
-
-        if (m_sched_param.is_starting()) {
-            for (auto param: m_sched_param.get_addendum_params()) {
-                if (m_flow_gen->m_c_tcp->is_created(param.m_profile_id)) {
-                    start_profile_ctx(param.m_profile_id, param.m_duration);
-                }
-            }
-            m_sched_param.clear_starting();
+        start_profile_ctx(profile_id, duration);
+        for (auto param: m_sched_param) {
+            start_profile_ctx(param.m_profile_id, param.m_duration);
         }
 
         node = m_flow_gen->create_node() ;
@@ -189,31 +209,19 @@ void TrexAstfDpCore::start_scheduler() {
     } else {
         report_error(profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
 
-        if (m_sched_param.is_starting()) {
-            for (auto param: m_sched_param.get_addendum_params()) {
-                if (m_flow_gen->m_c_tcp->is_created(param.m_profile_id)) {
-                    report_error(param.m_profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
-                }
-            }
-            m_sched_param.clear_starting();
+        for (auto param: m_sched_param) {
+            report_error(param.m_profile_id, "Could not sync DP thread for start");
         }
     }
 
     if ( m_state != STATE_TERMINATE ) {
-        std::vector<uint32_t> c_profile_ids;
-        std::vector<uint32_t> s_profile_ids;
-
-        m_flow_gen->m_c_tcp->set_all_stopped(c_profile_ids);
-        m_flow_gen->m_s_tcp->set_all_stopped(s_profile_ids);
-        assert(c_profile_ids.size() == s_profile_ids.size());
-        for (auto id: c_profile_ids) {
-            report_finished(id);
+        for (auto it: m_profile_states) {
+            if (it.second == pSTATE_ACTIVE || it.second == pSTATE_WAIT) {
+                set_profile_state(it.first, pSTATE_LOADED);
+                report_finished(it.first);
+            }
         }
-
-        if (!m_sched_param.is_starting()) {
-            m_state = STATE_IDLE;
-        }
-        m_sched_param.clear_stopping();
+        m_state = STATE_IDLE;
     }
 }
 
@@ -234,57 +242,36 @@ void TrexAstfDpCore::start_profile_ctx(uint32_t profile_id, double duration) {
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
     }
 
-    m_flow_gen->m_c_tcp->activate(profile_id);
-    m_flow_gen->m_s_tcp->activate(profile_id);
+    set_profile_active(profile_id);
+
     if ( duration > 0 ) {
         add_profile_duration(profile_id, d_phase + duration);
     }
 }
 
 void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
+    /* skip unmatched stop_id which means previous profile action */
+    if (stop_id && get_profile_stop_id(profile_id) != stop_id) {
+        return;
+    }
+
+    set_profile_stopping(profile_id);
+
+    if ((active_profile_cnt() == 0) || m_flow_gen->is_terminated_by_master()) {
+        m_state = STATE_STOPPING;
+        add_global_duration(0.0001); // trigger exit from node scheduler
+        return;
+    }
+
     CParserOption *go = &CGlobalInfo::m_options;
-    bool immediate_stop = true;
 
-    /* skip already stopped profile */
-    if (m_flow_gen->m_c_tcp->is_stopped(profile_id) && m_flow_gen->m_s_tcp->is_stopped(profile_id)) {
-        return;
-    }
-
-    /* skip unmatched stop_id profile - used only client side's value */
-    if (stop_id && m_flow_gen->m_c_tcp->get_stop_id(profile_id) != stop_id) {
-        return;
-    }
-
-    if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) > 0) ||
-        (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) > 0)) {
-        immediate_stop = false;
-    }
-    m_flow_gen->m_c_tcp->deactivate(profile_id);
-    m_flow_gen->m_s_tcp->deactivate(profile_id);
-
-    if (m_sched_param.is_stopping()) { // is stopping whole profiles
-        return;
-    }
-    if (m_sched_param.is_starting()) { // will enter into node scheduler
-        add_profile_duration(profile_id, 0.0001); // to stop in the node scheduler
-        return;
-    }
-
-    if ((m_flow_gen->m_c_tcp->active_profile_cnt() == 0) || m_flow_gen->is_terminated_by_master()) {
-        /* last profile should trigger exit scheduler */
-        add_global_duration(0.0001);
-        m_sched_param.set_stopping();
-    }
-    else if (immediate_stop || go->preview.getNoCleanFlowClose()) {
+    if (go->preview.getNoCleanFlowClose() ||
+        ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
+         (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0))) {
         m_flow_gen->flush_tx_queue();
 
-        m_flow_gen->m_c_tcp->set_stopped(profile_id);
-        m_flow_gen->m_s_tcp->set_stopped(profile_id);
+        set_profile_state(profile_id, pSTATE_LOADED);
         report_finished(profile_id);
-    }
-    else {
-        // stop profile gracefully, second stop will be done immediately
-        add_profile_duration(profile_id, 2.0);  // wait 2.0 sec, aligned with handle_rx_flush()
     }
 }
 
@@ -341,12 +328,19 @@ void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id) {
     m_flow_gen->m_yaml_info.m_duration_sec = go->m_duration;
 
     try {
-        m_flow_gen->load_tcp_profile(profile_id);
+        if (is_profile(profile_id)) {
+            throw TrexException("Existing profile state " + std::to_string(get_profile_state(profile_id)));
+        }
+
+        create_profile_state(profile_id);
+        m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1);
     } catch (const TrexException &ex) {
+        remove_profile_state(profile_id);
         report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
         return;
     }
 
+    set_profile_state(profile_id, pSTATE_LOADED);
     report_finished(profile_id);
 }
 
@@ -354,33 +348,76 @@ void TrexAstfDpCore::delete_tcp_batch(uint32_t profile_id) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
-    m_flow_gen->unload_tcp_profile(profile_id);
+    if (!is_profile(profile_id)) {
+        throw TrexException("Profile does not exist" + std::to_string(profile_id));
+    }
+    if (get_profile_state(profile_id) != pSTATE_LOADED) {
+        throw TrexException("Invalid profile state " + std::to_string(get_profile_state(profile_id)));
+    }
+
+    try {
+        remove_profile_state(profile_id);
+        m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
+    } catch (const TrexException &ex) {
+        report_error(profile_id, "Could not delete ASTF batch: " + string(ex.what()));
+        return;
+    }
+
     report_finished(profile_id);
 }
 
 void TrexAstfDpCore::start_transmit(uint32_t profile_id, double duration) {
-    assert((m_state==STATE_IDLE) || (m_state==STATE_TRANSMITTING));
-
-    if (m_sched_param.is_starting()) {
-        m_sched_param.append_starting_param(profile_id, duration);
+    if (!is_profile(profile_id)) {
+        report_error(profile_id, "Start of unknown profile");
+        return;
     }
-    else if (m_state == STATE_IDLE || m_sched_param.is_stopping()) {
-        m_state = STATE_TRANSMITTING;
-
-        /* save profile_id/duration as start_scheduler() parameters */
-        m_sched_param.set_starting_param(profile_id, duration);
+    if (get_profile_state(profile_id) != pSTATE_LOADED) {
+        report_error(profile_id, "Start of invalid profile state " + std::to_string(get_profile_state(profile_id)));
+        return;
     }
-    else {
+
+    switch (m_state) {
+    case STATE_IDLE:
+        m_state = STATE_STARTING;
+        m_sched_param.clear();
+    case STATE_STARTING:
+        m_sched_param.push_back({profile_id, duration});
+        break;
+    case STATE_TRANSMITTING:
         start_profile_ctx(profile_id, duration);
+        break;
+    case STATE_STOPPING:
+    default:
+        report_error(profile_id, "Start in unexpected DP core state: " + std::to_string(m_state));
+        break;
     }
 }
 
 void TrexAstfDpCore::stop_transmit(uint32_t profile_id, uint32_t stop_id) {
-    if ( m_state == STATE_IDLE ) { // is stopped, just ack
-        return;
+    if (!is_profile(profile_id) || get_profile_state(profile_id) < pSTATE_ACTIVE) {
+        return; // no action for invalid profile
     }
 
-    stop_profile_ctx(profile_id, stop_id);
+    switch (m_state) {
+    case STATE_IDLE: // is stopped, just ack
+        break;
+    case STATE_STARTING:
+        for (auto& param: m_sched_param) {
+            if (param.m_profile_id == profile_id) {
+                param.m_duration = 0.0001; // to trigger stop just after started.
+            }
+        }
+        break;
+    case STATE_TRANSMITTING:
+        stop_profile_ctx(profile_id, stop_id);
+        break;
+    case STATE_STOPPING:
+        set_profile_stopping(profile_id);
+        break;
+    default:
+        report_error(profile_id, "Stop in unexpected DP core state: " + std::to_string(m_state));
+        break;
+    }
 }
 
 void TrexAstfDpCore::update_rate(uint32_t profile_id, double old_new_ratio) {
