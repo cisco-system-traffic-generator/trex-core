@@ -621,7 +621,7 @@ class CPerProfileCtx;
 
 struct CGenNodeTXFIF : public CGenNodeBase {
 public:
-    CPerProfileCtx * m_ctx;
+    CPerProfileCtx *    m_ctx;
 
     uint8_t             m_pad_end[104];
 
@@ -3114,8 +3114,8 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    void load_tcp_profile(uint32_t profile_id = 0);
-    void unload_tcp_profile(uint32_t profile_id = 0);
+    void load_tcp_profile(uint32_t profile_id = 0, bool is_first = true);
+    void unload_tcp_profile(uint32_t profile_id = 0, bool is_last = true);
     void Delete_tcp_ctx();
 
     void generate_flow(bool &done, CPerProfileCtx * ctx);

@@ -46,7 +46,9 @@ public:
     /* states */
     enum state_e {
         STATE_IDLE,
+        STATE_STARTING,
         STATE_TRANSMITTING,
+        STATE_STOPPING,
         STATE_PCAP_TX,
         STATE_TERMINATE
     };
