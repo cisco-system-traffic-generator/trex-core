@@ -73,7 +73,7 @@ void TrexAstfDpCore::set_profile_stopping(uint32_t profile_id) {
 }
 
 void TrexAstfDpCore::on_profile_stop_event(uint32_t profile_id) {
-    if (get_profile_state(profile_id) == pSTATE_WAIT) {
+    if (get_profile_state(profile_id) == pSTATE_WAIT && m_state == STATE_TRANSMITTING) {
         if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
             (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
             set_profile_state(profile_id, pSTATE_LOADED);
@@ -336,6 +336,7 @@ void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id) {
         m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1);
     } catch (const TrexException &ex) {
         remove_profile_state(profile_id);
+        m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
         report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
         return;
     }
@@ -349,13 +350,15 @@ void TrexAstfDpCore::delete_tcp_batch(uint32_t profile_id) {
     (void)dummy;
 
     if (!is_profile(profile_id)) {
-        throw TrexException("Profile does not exist" + std::to_string(profile_id));
-    }
-    if (get_profile_state(profile_id) != pSTATE_LOADED) {
-        throw TrexException("Invalid profile state " + std::to_string(get_profile_state(profile_id)));
+        report_finished(profile_id);
+        return;
     }
 
     try {
+        if (get_profile_state(profile_id) > pSTATE_LOADED) {
+            throw TrexException("Invalid profile state " + std::to_string(get_profile_state(profile_id)));
+        }
+
         remove_profile_state(profile_id);
         m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
     } catch (const TrexException &ex) {
