@@ -323,7 +323,7 @@ public:
                               uint16_t tg_id=0);
 
 
-    void free_flow(CFlowBase * flow);
+    void free_flow(CFlowBase * flow, bool on_table);
 
     void set_debug(bool enable){
         m_verbose = enable;
