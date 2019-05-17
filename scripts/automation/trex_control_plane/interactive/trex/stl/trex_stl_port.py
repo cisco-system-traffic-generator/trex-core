@@ -87,9 +87,9 @@ class STLPort(Port):
             del self.profile_stream_list[profile_id]
             del self.profile_state_list[profile_id]
         else:
-            if self.profile_state_list.has_key(profile_id):
+            if profile_id in self.profile_state_list:
                 del self.profile_state_list[profile_id]
-            if self.profile_stream_list.has_key(profile_id):
+            if profile_id in self.profile_stream_list:
                 del self.profile_stream_list[profile_id]
             stream_ids = []
         #return None if not found
