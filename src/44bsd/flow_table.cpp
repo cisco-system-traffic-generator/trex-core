@@ -261,7 +261,7 @@ void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
     if ( remove_from_ft ){
         m_ft.remove(&flow->m_hash);
     }
-    free_flow(flow);
+    free_flow(flow, remove_from_ft);
 }
 
 void CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
@@ -358,7 +358,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * ctx,
     }
 
 
-    free_flow(flow);
+    free_flow(flow, false);
 }
 
 CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * ctx,
@@ -402,10 +402,12 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * ctx,
     return(flow);
 }
 
-void CFlowTable::free_flow(CFlowBase * flow){
+void CFlowTable::free_flow(CFlowBase * flow, bool on_table){
     assert(flow);
     flow->m_ctx->m_flow_cnt--;
-    flow->m_ctx->on_flow_close();
+    if (on_table) {
+        flow->m_ctx->on_flow_close();
+    }
 
     if ( flow->is_udp() ){
         CUdpFlow * udp_flow=(CUdpFlow *)flow;
