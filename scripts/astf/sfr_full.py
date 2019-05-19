@@ -38,6 +38,8 @@ class Prof1():
             ASTFCapInfo(file="../avl/delay_10_smtp_1.pcap", cps=1.85,port=26),
             ASTFCapInfo(file="../avl/delay_10_smtp_2.pcap", cps=1.85,port=27),
 
+            ASTFCapInfo(file="../avl/delay_10_video_call_0.pcap", cps=3),
+
             ASTFCapInfo(file="../avl/delay_10_video_call_rtp_0.pcap", cps=7.4),
 
             ASTFCapInfo(file="../avl/delay_10_citrix_0.pcap", cps=11.0),
