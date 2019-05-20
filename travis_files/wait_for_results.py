@@ -7,7 +7,7 @@ from google_drive_integration import GoogleDriveService
 
 def get_latest_sha(pr_number):
     command = """
-    git ls-remote https://github.com/cisco-system-traffic-generator/trex-core refs/pull/%d/head | awk '{print $1;}'""" % pr_number
+    git ls-remote https://github.com/elados93/trex-core refs/pull/%d/head | awk '{print $1;}'""" % pr_number
     return os.popen(command).read().strip()
 
 
