@@ -29,8 +29,8 @@ class GoogleDriveService:
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
         # time.
-        if os.path.exists('travis_files/token.pickle'):
-            with open('travis_files/token.pickle', 'rb') as token:
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
                 creds = pickle.load(token)
         else:
             sys.exit("can't find token.pickle")
@@ -111,10 +111,10 @@ class GoogleDriveService:
             return False, False
 
 
-# def main():
-#     google_drive_service = GoogleDriveService()
-#     google_drive_service.print_n_files(4)
-#
-#
-# if __name__ == '__main__':
-#     main()
+def main():
+    google_drive_service = GoogleDriveService()
+    google_drive_service.download_result('721b1e45f74178c97f590044287588f16ad8fc68')
+
+
+if __name__ == '__main__':
+    main()
