@@ -11,6 +11,12 @@ install:
   
 script:
   - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+  - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+  - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+  - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+  - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+  - python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST
+
 
 after_script:
   - bash travis_files/deploy.sh
