@@ -12,6 +12,9 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
+TOKEN = 'travis_files/token.pickle'
+DOWNLOAD_LINK =  "travis_files/download_link.txt"
+
 
 class GoogleDriveService:
 
@@ -27,8 +30,8 @@ class GoogleDriveService:
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
         # time.
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        if os.path.exists(TOKEN):
+            with open(TOKEN, 'rb') as token:
                 creds = pickle.load(token)
         else:
             sys.exit("can't find token.pickle")
@@ -62,7 +65,7 @@ class GoogleDriveService:
         print('Download test result at: %s' % file['webContentLink'])
 
         # create a text file with the download link (later to post as a comment)
-        with open("download_link.txt", "w") as f:
+        with open(DOWNLOAD_LINK, "w") as f:
             f.write(file['webContentLink'])
 
         file_request = self.google_drive_service.files().get_media(fileId=file_id)
