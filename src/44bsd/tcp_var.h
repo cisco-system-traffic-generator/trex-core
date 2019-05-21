@@ -1060,10 +1060,10 @@ public:
         for (auto it = m_profiles.begin(); it != m_profiles.end(); ) {
             if (!it->second->is_active()) {
                 delete it->second;
-                m_profiles.erase(it);
+                it = m_profiles.erase(it);
             }
             else {
-                it++;
+                ++it;
             }
         }
     }
