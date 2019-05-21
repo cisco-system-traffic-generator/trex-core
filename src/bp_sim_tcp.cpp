@@ -528,6 +528,10 @@ void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id, bool is_first)
 
         m_c_tcp->m_ft.reset_stats();
         m_s_tcp->m_ft.reset_stats();
+
+        // cleanup unused profile contexts (remained for stats references)
+        m_c_tcp->cleanup_inactive_profiles();
+        m_s_tcp->cleanup_inactive_profiles();
     }
     m_c_tcp->create_profile_ctx(profile_id);
     m_s_tcp->create_profile_ctx(profile_id);
@@ -573,10 +577,12 @@ void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id, bool is_last
 
     if ( CAstfDB::has_instance(profile_id) ) {
         CAstfDB::instance(profile_id)->clear_db_ro_rw(nullptr, m_thread_id);
-    }
 
-    m_c_tcp->remove_profile_ctx(profile_id);
-    m_s_tcp->remove_profile_ctx(profile_id);
+        m_c_tcp->set_template_ro(nullptr, profile_id);
+        m_c_tcp->set_template_rw(nullptr, profile_id);
+        m_s_tcp->set_template_ro(nullptr, profile_id);
+        m_s_tcp->set_template_rw(nullptr, profile_id);
+    }
 
     if (is_last) {
         m_c_tcp->reset_tuneables();
