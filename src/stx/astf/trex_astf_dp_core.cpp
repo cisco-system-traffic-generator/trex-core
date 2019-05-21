@@ -69,7 +69,6 @@ void TrexAstfDpCore::set_profile_stopping(uint32_t profile_id) {
     set_profile_state(profile_id, pSTATE_WAIT);
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
     m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
-    set_profile_stop_event(profile_id);
 }
 
 void TrexAstfDpCore::on_profile_stop_event(uint32_t profile_id) {
@@ -263,15 +262,15 @@ void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
         return;
     }
 
-    CParserOption *go = &CGlobalInfo::m_options;
-
-    if (go->preview.getNoCleanFlowClose() ||
-        ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
-         (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0))) {
+    if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
+        (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
         m_flow_gen->flush_tx_queue();
 
         set_profile_state(profile_id, pSTATE_LOADED);
         report_finished(profile_id);
+    }
+    else {
+        set_profile_stop_event(profile_id);
     }
 }
 
