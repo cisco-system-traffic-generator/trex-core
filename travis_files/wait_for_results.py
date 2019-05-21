@@ -14,6 +14,9 @@ def get_latest_sha(pr_number):
 def main():
     if len(sys.argv) < 2:
         sys.exit('need pr number as arg!')
+    if os.path.isfile("Travis_Results/download_link.txt"):
+        sys.exit(0)  # there are already results to deploy.sh
+
     sha = get_latest_sha(int(sys.argv[1]))  # sent by .travis.yml as string
     is_last = sys.argv[2] == 'True'  # sent by .travis.yml as True / False
 
