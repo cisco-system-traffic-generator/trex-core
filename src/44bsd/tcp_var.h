@@ -1056,10 +1056,16 @@ public:
         m_profiles[profile_id]->m_profile_id = profile_id;
         m_profiles[profile_id]->m_stop_id = stop_id == 0 ? 1: stop_id;
     }
-    void remove_profile_ctx(uint32_t profile_id) {
-        assert(is_profile_ctx(profile_id));
-        //delete m_profiles[profile_id];
-        //m_profiles.erase(profile_id);
+    void cleanup_inactive_profiles() {
+        for (auto it = m_profiles.begin(); it != m_profiles.end(); ) {
+            if (!it->second->is_active()) {
+                delete it->second;
+                m_profiles.erase(it);
+            }
+            else {
+                it++;
+            }
+        }
     }
 
     int profile_flow_cnt(uint32_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
