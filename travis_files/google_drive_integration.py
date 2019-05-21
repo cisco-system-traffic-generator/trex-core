@@ -27,8 +27,8 @@ class GoogleDriveService:
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
         # time.
-        if os.path.exists('travis_files/token.pickle'):
-            with open('travis_files/token.pickle', 'rb') as token:
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
                 creds = pickle.load(token)
         else:
             sys.exit("can't find token.pickle")
@@ -62,7 +62,7 @@ class GoogleDriveService:
         print('Download test result at: %s' % file['webContentLink'])
 
         # create a text file with the download link (later to post as a comment)
-        with open("Travis_Results/download_link.txt", "w") as f:
+        with open("download_link.txt", "w") as f:
             f.write(file['webContentLink'])
 
         file_request = self.google_drive_service.files().get_media(fileId=file_id)
@@ -79,7 +79,7 @@ class GoogleDriveService:
 
             # os.mkdir('Travis_Results/%s' % pull_request_number)  # create a folder for the specific test result
 
-            with io.open('Travis_Results/%s' % file_name, 'wb') as f:
+            with io.open('%s' % file_name, 'wb') as f:
                 fh.seek(0)
                 f.write(fh.read())
 
@@ -107,12 +107,3 @@ class GoogleDriveService:
             return filtered[0]['id'], filtered[0]['name']
         else:
             return False, False
-
-
-# def main():
-#     google_drive_service = GoogleDriveService()
-#     google_drive_service.print_n_files(4)
-#
-#
-# if __name__ == '__main__':
-#     main()

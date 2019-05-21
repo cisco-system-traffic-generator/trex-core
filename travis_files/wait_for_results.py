@@ -7,7 +7,7 @@ from google_drive_integration import GoogleDriveService
 
 def get_latest_sha(pr_number):
     command = """
-    git ls-remote https://github.com/elados93/trex-core refs/pull/%d/head | awk '{print $1;}'""" % pr_number
+    git ls-remote https://github.com/cisco-system-traffic-generator/trex-core refs/pull/%d/head | awk '{print $1;}'""" % pr_number
     return os.popen(command).read().strip()
 
 
@@ -15,12 +15,12 @@ def main():
     if len(sys.argv) < 2:
         sys.exit('need pr number as arg!')
     sha = get_latest_sha(int(sys.argv[1]))  # sent by .travis.yml as string
-    is_last = sys.argv[2]  # sent by .travis.yml as True / False
+    is_last = sys.argv[2] == 'True'  # sent by .travis.yml as True / False
 
     gdservice = GoogleDriveService()
-    sleeping_between_download = 1
+    total_sleep, sleeping_between_download = 45, 1  # in min
 
-    while True:
+    for _ in range(total_sleep // sleeping_between_download):
         # check if there are new results
         print('-' * 42)
         print('looking for test results for pull request for sha: %s' % sha)
