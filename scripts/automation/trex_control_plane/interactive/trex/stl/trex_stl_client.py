@@ -2014,7 +2014,7 @@ class STLClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "stop",
                                          self.stop_line.__doc__,
-                                         parsing_opts.PROFILE_LIST,
+                                         parsing_opts.PROFILE_LIST_WITH_ALL,
                                          parsing_opts.REMOVE)
 
         opts = parser.parse_args(line.split(), default_ports = self.get_profiles_with_state("active"), verify_acquired = True, allow_empty = True)
