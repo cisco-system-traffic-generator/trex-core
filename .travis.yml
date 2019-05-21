@@ -39,6 +39,3 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST True
       after_script: bash travis_files/deploy.sh
-
-
-
