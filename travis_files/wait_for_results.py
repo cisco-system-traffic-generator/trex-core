@@ -12,16 +12,18 @@ def get_latest_sha(pr_number):
 
 
 def main():
-    if len(sys.argv) < 1:
+    if len(sys.argv) < 2:
         sys.exit('need pr number as arg!')
     sha = get_latest_sha(int(sys.argv[1]))  # sent by .travis.yml as string
+    is_last = sys.argv[2]  # sent by .travis.yml as True / False
+
     gdservice = GoogleDriveService()
     sleeping_between_download = 1
 
     while True:
         # check if there are new results
-        print('looking for test results for pull request for sha: %s' % sha)
         print('-' * 42)
+        print('looking for test results for pull request for sha: %s' % sha)
         res, passed = gdservice.download_result(sha)
         if res:
             print("found the results!")
@@ -34,6 +36,12 @@ def main():
 
         print("didn't find results, sleeping for %d min..." % sleeping_between_download)
         time.sleep(sleeping_between_download * 60)
+    if is_last:
+        print('-' * 42)
+        sys.exit('waiting for results timeout! you may restart the build later')
+    else:
+        print('-' * 42)
+        print('did not find results at this run')
 
 
 if __name__ == '__main__':
