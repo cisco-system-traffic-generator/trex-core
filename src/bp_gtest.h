@@ -28,6 +28,9 @@ limitations under the License.
  * stateful test
  * 
  */
+
+ ada
+
 class trexStfTest  : public testing::Test {
 public:
     trexStfTest() {
