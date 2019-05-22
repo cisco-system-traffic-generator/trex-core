@@ -1,16 +1,15 @@
 from __future__ import print_function
 
 import io
-import pickle
 import os.path
+import pickle
 import sys
 
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
-# If modifying these scopes, delete the file token.pickle.
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+TOKEN = 'travis_files/token.pickle'
+DOWNLOAD_LINK = "travis_results/download_link.txt"
 
 
 class GoogleDriveService:
@@ -27,34 +26,20 @@ class GoogleDriveService:
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
         # time.
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        if os.path.exists(TOKEN):
+            with open(TOKEN, 'rb') as token:
                 creds = pickle.load(token)
         else:
             sys.exit("can't find token.pickle")
-        # If there are no (valid) credentials available, let the user log in.
         return creds
 
-    def print_n_files(self, n):
-        # Call the Drive v3 API
-        results = self.google_drive_service.files().list(
-            pageSize=n, fields="nextPageToken, files(id, name)").execute()
-        items = results.get('files', [])
-
-        if not items:
-            print('No files found.')
-        else:
-            print('Files:')
-            for item in items:
-                print(u'{0} ({1})'.format(item['name'], item['id']))
-
-    def download_result(self, commit_id):
+    def download_result(self, commit_sha):
         """
         Download the html file from google drive using the commit id
-        :param commit_id: The connit id to download.
+        :param commit_sha: The commit sha to download.
         :return: the html file and the results as a bool type.
         """
-        file_id, file_name = self.find_file_id(commit_id)
+        file_id, file_name = self.find_file_id(commit_sha)
         if not file_id:
             return False, False
 
@@ -62,7 +47,7 @@ class GoogleDriveService:
         print('Download test result at: %s' % file['webContentLink'])
 
         # create a text file with the download link (later to post as a comment)
-        with open("download_link.txt", "w") as f:
+        with open(DOWNLOAD_LINK, "w") as f:
             f.write(file['webContentLink'])
 
         file_request = self.google_drive_service.files().get_media(fileId=file_id)
@@ -77,9 +62,7 @@ class GoogleDriveService:
                 status, done = downloader.next_chunk()
                 print("Download %d%%." % int(status.progress() * 100))
 
-            # os.mkdir('Travis_Results/%s' % pull_request_number)  # create a folder for the specific test result
-
-            with io.open('%s' % file_name, 'wb') as f:
+            with io.open('travis_results/%s' % file_name, 'wb') as f:
                 fh.seek(0)
                 f.write(fh.read())
 
