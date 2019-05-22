@@ -393,11 +393,11 @@ public:
 
     virtual uint32_t rx_drain(CTcpFlow * flow)=0;
 
-    virtual void tx_tcp_output(CPerProfileCtx * ctx,
+    virtual void tx_tcp_output(CPerProfileCtx * pctx,
                                CTcpFlow *         flow)=0;
 
 public:
-    virtual void disconnect(CPerProfileCtx * ctx,
+    virtual void disconnect(CPerProfileCtx * pctx,
                             CTcpFlow *         flow)=0;
 
 public:
@@ -553,7 +553,7 @@ public:
 
     CEmulApp() {
         m_flow = (CTcpFlow *)0;
-        m_ctx =(CPerProfileCtx *)0;
+        m_pctx =(CPerProfileCtx *)0;
         m_api=(CEmulAppApi *)0;
         m_program =(CEmulAppProgram *)0;
         m_flags=0;
@@ -720,9 +720,9 @@ public:
         m_program = prog;
     }
 
-    void set_flow_ctx(CPerProfileCtx *  ctx,
+    void set_flow_ctx(CPerProfileCtx *  pctx,
                       CTcpFlow *          flow){
-        m_ctx = ctx;
+        m_pctx = pctx;
         m_flow = flow;
     }
 #ifdef  TREX_SIM
@@ -730,9 +730,9 @@ public:
                       CTcpFlow *          flow);
 #endif
 
-    void set_udp_flow_ctx(CPerProfileCtx *  ctx,
+    void set_udp_flow_ctx(CPerProfileCtx *  pctx,
                           CUdpFlow *          flow){
-        m_ctx = ctx;
+        m_pctx = pctx;
         m_flow = (CTcpFlow*)flow;
     }
 
@@ -836,7 +836,7 @@ private:
 private:
     /* cache line 0 */
     CTcpFlow *              m_flow;
-    CPerProfileCtx *        m_ctx;
+    CPerProfileCtx *        m_pctx;
     CEmulAppApi *           m_api; 
 
     CEmulTxQueue            m_q;
