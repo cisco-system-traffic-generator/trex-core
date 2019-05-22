@@ -290,7 +290,7 @@ public:
       }
 public:
 
-    void generate_rst_pkt(CPerProfileCtx * ctx,
+    void generate_rst_pkt(CPerProfileCtx * pctx,
                       uint32_t src,
                       uint32_t dst,
                       uint16_t src_port,
@@ -303,7 +303,7 @@ public:
                       CFlowKeyFullTuple &ftuple);
 
 
-    CTcpFlow * alloc_flow(CPerProfileCtx * ctx,
+    CTcpFlow * alloc_flow(CPerProfileCtx * pctx,
                           uint32_t src,
                           uint32_t dst,
                           uint16_t src_port,
@@ -312,7 +312,7 @@ public:
                           bool is_ipv6,
                           uint16_t tg_id=0);
 
-    CUdpFlow * alloc_flow_udp(CPerProfileCtx * ctx,
+    CUdpFlow * alloc_flow_udp(CPerProfileCtx * pctx,
                               uint32_t src,
                               uint32_t dst,
                               uint16_t src_port,
@@ -323,14 +323,13 @@ public:
                               uint16_t tg_id=0);
 
 
-    void free_flow(CFlowBase * flow, bool on_table);
+    void free_flow(CFlowBase * flow);
 
     void set_debug(bool enable){
         m_verbose = enable;
     }
 public:
     void terminate_all_flows();
-    void terminate_profile_flows(CPerProfileCtx * ctx);
     void terminate_flow(CTcpPerThreadCtx * ctx,
                         CFlowBase  * flow,
                         bool remove_from_ft);

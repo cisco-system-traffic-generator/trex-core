@@ -36,7 +36,7 @@ private:
     const int TICK_MSEC=1000; /* each 1000msec a tick */
 
 public:
-    CAstfFifRampup(CPerProfileCtx * ctx,
+    CAstfFifRampup(CPerProfileCtx * pctx,
                    uint16_t           rampup_sec,
                    double             cps);
     ~CAstfFifRampup();
@@ -45,7 +45,8 @@ public:
     void on_timer_update(CAstfTimerFunctorObj *tmr);
 
 private:
-    CPerProfileCtx   * m_ctx;
+    CTcpPerThreadCtx * m_ctx;
+    CPerProfileCtx   * m_pctx;
     CAstfTimerFunctorObj  * m_tmr;
     double             m_cps;
     uint16_t           m_ticks;
