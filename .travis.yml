@@ -1,3 +1,7 @@
+env:
+  global:
+    - SHA=$TRAVIS_PULL_REQUEST_SHA
+    - PR_NUM=$TRAVIS_PULL_REQUEST
 jobs:
   include:
     - stage: 1st check
@@ -5,7 +9,7 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST False
+      script: python3 -u travis_files/wait_for_results.py --last-check False
       after_script: bash travis_files/deploy.sh
 
     - stage: 2nd check
@@ -13,7 +17,7 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST False
+      script: python3 -u travis_files/wait_for_results.py --last-check False
       after_script: bash travis_files/deploy.sh
 
     - stage: 3rd check
@@ -21,7 +25,7 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST False
+      script: python3 -u travis_files/wait_for_results.py --last-check False
       after_script: bash travis_files/deploy.sh
 
     - stage: 4th check
@@ -29,7 +33,7 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST False
+      script: python3 -u travis_files/wait_for_results.py --last-check False
       after_script: bash travis_files/deploy.sh
 
     - stage: 5th check
@@ -37,5 +41,21 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py $TRAVIS_PULL_REQUEST True
+      script: python3 -u travis_files/wait_for_results.py --last-check False
+      after_script: bash travis_files/deploy.sh
+
+    - stage: 6th check
+      language: python
+      python: "3.6"
+      cache: pip
+      install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+      script: python3 -u travis_files/wait_for_results.py --last-check False
+      after_script: bash travis_files/deploy.sh
+
+    - stage: 7th check
+      language: python
+      python: "3.6"
+      cache: pip
+      install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+      script: python3 -u travis_files/wait_for_results.py --last-check True
       after_script: bash travis_files/deploy.sh
