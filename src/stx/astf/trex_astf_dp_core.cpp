@@ -237,7 +237,7 @@ void TrexAstfDpCore::start_profile_ctx(uint32_t profile_id, double duration) {
 
         tx_node->m_type = CGenNode::TCP_TX_FIF;
         tx_node->m_time = m_core->m_cur_time_sec + d_phase + 0.1; /* phase the transmit a bit */
-        tx_node->m_ctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+        tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
     }
 

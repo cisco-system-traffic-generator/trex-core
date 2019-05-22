@@ -253,18 +253,18 @@ void CEmulApp::force_stop_timer(){
     if (get_timer_init_done()) {
         if (m_timer.is_running()){
             /* must stop timer before free the memory */
-            m_ctx->m_tcp_ctx->m_timer_w.timer_stop(&m_timer);
+            m_pctx->m_ctx->m_timer_w.timer_stop(&m_timer);
         }
     }
 }
 
 void CEmulApp::tcp_udp_close(){
     if (is_udp_flow()) {
-        m_api->disconnect(m_ctx,m_flow);
+        m_api->disconnect(m_pctx,m_flow);
     }else{
-        tcp_usrclosed(m_flow->m_ctx,&m_flow->m_tcp);
+        tcp_usrclosed(m_flow->m_pctx,&m_flow->m_tcp);
         if (get_interrupt()==false) {
-            m_api->tx_tcp_output(m_ctx,m_flow);
+            m_api->tx_tcp_output(m_pctx,m_flow);
         }
     }
 }
@@ -276,7 +276,7 @@ void CEmulApp::on_tick(){
 
 void CEmulApp::run_cmd_delay_rand(htw_ticks_t min_ticks,
                                  htw_ticks_t max_ticks){
-    uint32_t rnd=m_ctx->m_tcp_ctx->m_rand->getRandomInRange(min_ticks,max_ticks);
+    uint32_t rnd=m_pctx->m_ctx->m_rand->getRandomInRange(min_ticks,max_ticks);
     run_cmd_delay(rnd);
 }
 
@@ -294,9 +294,9 @@ void CEmulApp::run_cmd_delay(htw_ticks_t ticks){
     }
     /* make sure the timer is not running*/
     if (m_timer.is_running()) {
-        m_ctx->m_tcp_ctx->m_timer_w.timer_stop(&m_timer);
+        m_pctx->m_ctx->m_timer_w.timer_stop(&m_timer);
     }
-    m_ctx->m_tcp_ctx->m_timer_w.timer_start(&m_timer,ticks);
+    m_pctx->m_ctx->m_timer_w.timer_start(&m_timer,ticks);
 }
 
 
@@ -341,7 +341,7 @@ void CEmulApp::process_cmd(CEmulAppCmd * cmd){
 
             m_state=te_SEND;
             if (get_interrupt()==false) {
-                m_api->tx_tcp_output(m_ctx,m_flow);
+                m_api->tx_tcp_output(m_pctx,m_flow);
             }
         }
         break;
@@ -461,7 +461,7 @@ void CEmulApp::process_cmd(CEmulAppCmd * cmd){
     case tcCLOSE_PKT:
         {
             m_state=te_NONE;
-            m_api->disconnect(m_ctx,m_flow);
+            m_api->disconnect(m_pctx,m_flow);
             next();
         }
         break;
@@ -528,7 +528,7 @@ void CEmulApp::start(bool interrupt){
 
 void CEmulApp::do_disconnect(){
     if (!m_flow->is_close_was_called()){
-        m_api->disconnect(m_ctx,m_flow);
+        m_api->disconnect(m_pctx,m_flow);
     }
 }
 
@@ -615,7 +615,7 @@ int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
 
 #ifdef  TREX_SIM
 void CEmulApp::set_flow_ctx(CTcpPerThreadCtx * ctx, CTcpFlow * flow) {
-    m_ctx = DEFAULT_PROFILE_CTX(ctx);
+    m_pctx = DEFAULT_PROFILE_CTX(ctx);
     m_flow = flow;
 }
 #endif
