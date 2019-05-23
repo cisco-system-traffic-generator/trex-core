@@ -49,13 +49,5 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script: python3 -u travis_files/wait_for_results.py --last-check False
-      after_script: bash travis_files/deploy.sh
-
-    - stage: 7th check
-      language: python
-      python: "3.6"
-      cache: pip
-      install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script: python3 -u travis_files/wait_for_results.py --last-check True
       after_script: bash travis_files/deploy.sh

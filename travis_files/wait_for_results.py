@@ -10,8 +10,8 @@ if __name__ == '__main__':
     parser.add_argument("--last-check", dest="last_check", required=True,
                         help="True/False if it is the last script checking results")
     args = parser.parse_args()
-
     pr_num, sha = os.environ['PR_NUM'], os.environ['SHA']
+
     gdservice = GoogleDriveService()
     total_sleep, sleeping_between_download = 45, 1  # in min
     os.mkdir('travis_results')
