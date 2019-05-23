@@ -145,12 +145,12 @@ public:
     /**
      * DP core has finished
      */
-    virtual void dp_core_finished(int thread_id);
+    virtual void dp_core_finished(int thread_id, uint32_t profile_id);
 
     /**
      * DP core encountered error
      */
-    virtual void dp_core_error(int thread_id, const std::string &err);
+    virtual void dp_core_error(int thread_id, uint32_t profile_id, const std::string &err);
 
     virtual void set_capture_feature(const std::set<uint8_t>& rx_cores) {};
 

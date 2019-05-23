@@ -161,11 +161,11 @@ TrexSTX::check_for_dp_message_from_core(int thread_id) {
 }
 
 void
-TrexSTX::dp_core_finished(int thread_id) {
+TrexSTX::dp_core_finished(int thread_id, uint32_t profile_id) {
 }
 
 void
-TrexSTX::dp_core_error(int thread_id, const std::string &err) {
+TrexSTX::dp_core_error(int thread_id, uint32_t profile_id, const std::string &err) {
 }
 
 /**

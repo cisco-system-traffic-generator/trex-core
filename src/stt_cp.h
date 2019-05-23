@@ -47,7 +47,7 @@ typedef uint8_t tcp_dir_t;
 
 class CSTTCpPerTGIDPerDir {
 public:
-    bool Create(uint32_t time_msec);
+    bool Create(uint32_t stt_id, uint32_t time_msec);
     void Delete();
     void update_counters(bool is_sum, uint16_t tg_id=0);
     void clear_counters();
@@ -85,12 +85,15 @@ public:
     CGTblClmCounters    m_clm; /* utility for dump */
 
     std::vector<CTcpPerThreadCtx*>  m_tcp_ctx; /* vectors contexts*/
+
+private:
+    uint32_t m_stt_id;
 };
 
 class CSTTCp {
 
 public:
-    void Create(uint16_t num_of_tg_ids=1, bool first_time=true);
+    void Create(uint32_t stt_id=0, uint16_t num_of_tg_ids=1, bool first_time=true);
     void Delete(bool last_time=true);
     void Add(tcp_dir_t dir,CTcpPerThreadCtx* ctx);
     void Init(bool first_time=true);
@@ -114,6 +117,7 @@ public:
     uint16_t                            m_num_of_tg_ids;
     std::vector<std::string>            m_tg_names;
 private:
+    uint32_t m_stt_id;
 
 };
 

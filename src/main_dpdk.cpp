@@ -4229,9 +4229,14 @@ void CGlobalTRex::update_stats(){
     m_last_total_cps = m_cps.add(total_open_flows);
 
     bool all_init=true;
-    CSTTCp  * lpstt;
-    lpstt = m_fl.m_stt_cp;
-    if ( lpstt ){
+    vector<CSTTCp *> sttcp_list;
+    if ( get_is_interactive() && get_is_tcp_mode() ) {
+        sttcp_list = get_astf_object()->get_sttcp_list();
+    }
+    else if ( m_fl.m_stt_cp ) {
+        sttcp_list.push_back(m_fl.m_stt_cp);
+    }
+    for ( auto lpstt : sttcp_list ) {
         if (!lpstt->m_init){
             /* check that we have all objects;*/
             for (i=0; i<get_cores_tx(); i++) {
@@ -4715,8 +4720,14 @@ CGlobalTRex::show_panel() {
 
     /* TCP stats */
     if (m_io_modes.m_g_mode == CTrexGlobalIoMode::gSTT) {
-        CSTTCp   * lpstt=m_fl.m_stt_cp;
-        if (lpstt) {
+        vector<CSTTCp *> sttcp_list;
+        if ( get_is_interactive() && get_is_tcp_mode() ) {
+            sttcp_list = get_astf_object()->get_sttcp_list();
+        }
+        else if ( m_fl.m_stt_cp ) {
+            sttcp_list.push_back(m_fl.m_stt_cp);
+        }
+        for ( auto lpstt : sttcp_list ) {
             if (lpstt->m_init) {
                 lpstt->DumpTable();
             }
@@ -5042,8 +5053,14 @@ int CGlobalTRex::stop_master(){
     dump_stats(stdout,CGlobalStats::dmpSTANDARD);
     dump_post_test_stats(stdout);
 
-    CSTTCp   * lpstt=m_fl.m_stt_cp;
-    if (lpstt) {
+    vector<CSTTCp *> sttcp_list;
+    if ( get_is_interactive() && get_is_tcp_mode() ) {
+        sttcp_list = get_astf_object()->get_sttcp_list();
+    }
+    else if ( m_fl.m_stt_cp ) {
+        sttcp_list.push_back(m_fl.m_stt_cp);
+    }
+    for ( auto lpstt : sttcp_list ) {
         assert(lpstt);
         assert(lpstt->m_init);
         lpstt->DumpTable();
