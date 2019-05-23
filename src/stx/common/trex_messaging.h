@@ -303,6 +303,9 @@ public:
         m_err       = err;
     }
 
+    TrexDpCoreError(int thread_id, const std::string &err): TrexDpCoreError(thread_id, 0, err) {
+    }
+
     virtual bool handle(void);
 
 private:
