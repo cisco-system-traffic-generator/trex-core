@@ -11,9 +11,6 @@ from googleapiclient.http import MediaIoBaseDownload
 TOKEN = 'travis_files/token.pickle'
 DOWNLOAD_LINK = "travis_results/download_link.txt"
 
-TOKEN = 'travis_files/token.pickle'
-DOWNLOAD_LINK =  "travis_files/download_link.txt"
-
 
 class GoogleDriveService:
 
@@ -36,15 +33,7 @@ class GoogleDriveService:
             sys.exit("can't find token.pickle")
         return creds
 
-    def download_result(self, commit_sha):
-        """
-        Download the html file from google drive using the commit id
-        :param commit_sha: The commit sha to download.
-        :return: the html file and the results as a bool type.
-        """
-        file_id, file_name = self.find_file_id(commit_sha)
-        if not file_id:
-            return False, False
+    def download_result(self, file_id, file_name):
 
         file = self.google_drive_service.files().get(fileId=file_id, fields='webContentLink').execute()
         print('Download test result at: %s' % file['webContentLink'])
@@ -71,24 +60,21 @@ class GoogleDriveService:
 
             passed = file_name[
                      file_name.index('-') + 1: file_name.index('.')] == "True"  # extract the boolean from file name
-            return True, passed
-
+            return passed
         else:
-            # there are no results yet
-            print("Didn't find the file id!")
-            return False, False
+            sys.exit('ERROR download file: %s with id: %s' % (file_id, file_name))
 
-    def find_file_id(self, commit_id):
+    def find_file_id(self, sha):
         """
         Looking for the commit id in google drive
-        :param commit_id: the commit id to look for.
+        :param sha: the commit id to look for.
         :return: The id and the file name as in google drive.
         """
         results = self.google_drive_service.files().list(
             fields="nextPageToken, files(id, name)").execute()
         files = results.get('files', [])
         # looking for the file with that name(what comes before the delimiter)
-        filtered = list(filter(lambda item: item['name'].split('-')[0] == commit_id, files))
+        filtered = list(filter(lambda item: item['name'].split('-')[0] == sha, files))
         if filtered:
             return filtered[0]['id'], filtered[0]['name']
         else:
