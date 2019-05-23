@@ -11,6 +11,9 @@ from googleapiclient.http import MediaIoBaseDownload
 TOKEN = 'travis_files/token.pickle'
 DOWNLOAD_LINK = "travis_results/download_link.txt"
 
+TOKEN = 'travis_files/token.pickle'
+DOWNLOAD_LINK =  "travis_files/download_link.txt"
+
 
 class GoogleDriveService:
 
