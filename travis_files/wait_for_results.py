@@ -1,4 +1,3 @@
-import argparse
 import os
 import sys
 import time
@@ -6,10 +5,8 @@ import time
 from google_drive_integration import GoogleDriveService
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--last-check", dest="last_check", required=True,
-                        help="True/False if it is the last script checking results")
-    args = parser.parse_args()
+
+    last_check = sys.argv[1] == "True"
     pr_num, sha = int(os.environ['PR_NUM']), os.environ['SHA']
 
     gdservice = GoogleDriveService()
@@ -33,7 +30,7 @@ if __name__ == '__main__':
         time.sleep(sleeping_between_download * 60)
 
     print('-' * 42)
-    if args.last_check:
+    if last_check:
         sys.exit('waiting for results timeout! you may restart the build later')
     else:
         print('did not find results at this run')
