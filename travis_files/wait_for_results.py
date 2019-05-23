@@ -7,7 +7,7 @@ from google_drive_integration import GoogleDriveService
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--last-check", dest="last_check", required=True,
+    parser.add_argument("--last-check", dest="last_check", required=True, type=bool,
                         help="True/False if it is the last script checking results")
     args = parser.parse_args()
     pr_num, sha = int(os.environ['PR_NUM']), os.environ['SHA']
