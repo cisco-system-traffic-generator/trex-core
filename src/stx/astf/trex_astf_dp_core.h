@@ -51,9 +51,10 @@ public:
     void start_transmit(uint32_t profile_id, double duration);
     void stop_transmit(uint32_t profile_id, uint32_t stop_id);
     void update_rate(uint32_t profile_id, double ratio);
-    void create_tcp_batch(uint32_t profile_id);
+    void create_tcp_batch(uint32_t profile_id, double factor);
     void delete_tcp_batch(uint32_t profile_id);
     void parse_astf_json(uint32_t profile_id, std::string *profile_buffer, std::string *topo_buffer);
+    void remove_astf_json(uint32_t profile_id);
 
 protected:
     virtual bool rx_for_idle();
