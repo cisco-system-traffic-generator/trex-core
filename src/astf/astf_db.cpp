@@ -48,6 +48,7 @@ CAstfDB::CAstfDB(){
         exit(-1);
     }
     m_topo_mngr = new TopoMngr();
+    m_factor = -1.0;
 }
 
 
@@ -71,9 +72,12 @@ bool CAstfDB::validate_profile(Json::Value profile,std::string & err){
 
 
 
-static double cps_factor(double cps){
-    return ( CGlobalInfo::m_options.m_factor*cps );
-
+double CAstfDB::cps_factor(double cps){
+    if (m_factor > 0.0) {
+        return ( m_factor*cps );
+    } else {
+        return ( CGlobalInfo::m_options.m_factor*cps );
+    }
 }
 
 void CTcpTuneables::dump(FILE *fd) {
