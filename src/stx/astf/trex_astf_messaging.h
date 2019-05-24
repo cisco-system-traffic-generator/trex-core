@@ -29,12 +29,13 @@ limitations under the License.
 // create tcp batch per DP core
 class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpCreateTcp(uint32_t profile_id);
-    TrexAstfDpCreateTcp() : TrexAstfDpCreateTcp(0) {}
+    TrexAstfDpCreateTcp(uint32_t profile_id, double factor);
+    TrexAstfDpCreateTcp() : TrexAstfDpCreateTcp(0, -1) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     uint32_t m_profile_id;
+    double m_factor;
 };
 
 // delete tcp batch per DP core
@@ -98,7 +99,7 @@ private:
 };
 
 /**
- * a message to stop traffic
+ * a message to load DB
  *
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
@@ -113,6 +114,18 @@ private:
     std::string *m_topo_buffer;
 };
 
+/**
+ * a message to remove DB
+ *
+ */
+class TrexAstfDeleteDB : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDeleteDB(uint32_t profile_id);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    uint32_t m_profile_id;
+};
 
 
 

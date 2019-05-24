@@ -595,6 +595,8 @@ private:
     std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
     starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
 
+    double m_factor; /* initial multiplier factor */
+
     std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
 public:
     bool is_smart_gen(uint16_t thread_id) {
@@ -613,6 +615,9 @@ public:
             m_smart_gen.erase(thread_id);
         }
     }
+
+    void set_factor(double factor) { m_factor = factor; }
+    double cps_factor(double cps);
 };
 
 #endif
