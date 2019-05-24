@@ -318,7 +318,13 @@ void TrexAstfDpCore::parse_astf_json(uint32_t profile_id, string *profile_buffer
     }
 }
 
-void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id) {
+void TrexAstfDpCore::remove_astf_json(uint32_t profile_id) {
+    CAstfDB::free_instance(profile_id);
+    report_finished(profile_id);
+}
+
+
+void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id, double factor) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -326,11 +332,19 @@ void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id) {
 
     m_flow_gen->m_yaml_info.m_duration_sec = go->m_duration;
 
-    try {
-        if (is_profile(profile_id)) {
-            throw TrexException("Existing profile state " + std::to_string(get_profile_state(profile_id)));
-        }
+    if (is_profile(profile_id)) {
+        report_error(profile_id, "Profile already exists: state " + std::to_string(get_profile_state(profile_id)));
+        return;
+    }
 
+    if (!CAstfDB::has_instance(profile_id)) {
+        report_error(profile_id, "No ASTF DB exist");
+        return;
+    } else {
+        CAstfDB::instance(profile_id)->set_factor(factor);
+    }
+
+    try {
         create_profile_state(profile_id);
         m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1);
     } catch (const TrexException &ex) {

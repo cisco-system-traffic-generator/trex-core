@@ -94,17 +94,18 @@ TrexCpToDpMsgBase* TrexAstfDpUpdate::clone() {
 /*************************
   create tcp batch
  ************************/
-TrexAstfDpCreateTcp::TrexAstfDpCreateTcp(uint32_t profile_id) {
+TrexAstfDpCreateTcp::TrexAstfDpCreateTcp(uint32_t profile_id, double factor) {
     m_profile_id = profile_id;
+    m_factor = factor;
 }
 
 bool TrexAstfDpCreateTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->create_tcp_batch(m_profile_id);
+    astf_core(dp_core)->create_tcp_batch(m_profile_id, m_factor);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone() {
-    return new TrexAstfDpCreateTcp(m_profile_id);
+    return new TrexAstfDpCreateTcp(m_profile_id, m_factor);
 }
 
 /*************************
@@ -143,3 +144,19 @@ TrexCpToDpMsgBase* TrexAstfLoadDB::clone() {
     return nullptr;
 }
 
+/*************************
+  remove ASTF JSON and DB
+ ************************/
+TrexAstfDeleteDB::TrexAstfDeleteDB(uint32_t profile_id) {
+    m_profile_id     = profile_id;
+}
+
+bool TrexAstfDeleteDB::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->remove_astf_json(m_profile_id);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDeleteDB::clone() {
+    assert(0); // should not be cloned [and sent to several cores]
+    return nullptr;
+}
