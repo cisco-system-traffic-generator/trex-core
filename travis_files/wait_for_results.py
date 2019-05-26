@@ -6,25 +6,25 @@ from google_drive_integration import GoogleDriveService
 
 if __name__ == '__main__':
 
-    last_check = sys.argv[1] == "True"
+    last_check = os.environ['IS_LAST'] == "True"
     pr_num, sha = int(os.environ['PR_NUM']), os.environ['SHA']
 
-    gdservice = GoogleDriveService()
+    gd_service = GoogleDriveService()
     os.mkdir('travis_results')
     total_sleep, sleeping_between_download = 45, 1  # in min
 
     for i in range(total_sleep // sleeping_between_download):
         # check if there are new results in google drive
         print('-' * 42)
-        print('looking for test results for pull request number %d for sha: %s' % (pr_num, sha))
-        file_id, file_name = gdservice.find_file_id(sha)
+        print('looking for test results for pull request number %d, sha: %s' % (pr_num, sha))
+        file_data = gd_service.find_file_id(sha)
 
-        if file_id:
-            if i == 0:
+        if file_data:
+            if file_data['name'].split(',')[4] == 'True':
                 print('results posted by earlier job, exit with code 0')
                 sys.exit(0)
             else:
-                passed = gdservice.download_result(file_id, file_name)  # download the results
+                passed = gd_service.download_result(file_data['id'], file_data['name'])  # download the results
                 if passed:
                     print("test passed, look for a comment with html download link at the pull request page")
                     sys.exit(0)
