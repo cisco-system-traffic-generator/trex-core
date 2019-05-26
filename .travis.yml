@@ -12,7 +12,6 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script:
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh
 
     - stage: 2nd check
       language: python
@@ -21,7 +20,6 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script:
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh
 
     - stage: 3rd check
       language: python
@@ -30,7 +28,6 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script:
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh
 
     - stage: 4th check
       language: python
@@ -39,7 +36,6 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script:
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh
 
     - stage: 5th check
       language: python
@@ -48,7 +44,6 @@ jobs:
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
       script:
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh
 
     - stage: 6th check
       language: python
@@ -58,4 +53,3 @@ jobs:
       script:
         - export IS_LAST=True
         - python3 -u travis_files/wait_for_results.py
-        - bash travis_files/deploy.sh

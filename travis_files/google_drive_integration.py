@@ -8,8 +8,6 @@ import sys
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-from apiclient import errors
-
 TOKEN = 'travis_files/token.pickle'
 DOWNLOAD_LINK = "travis_files/download_link.txt"
 
@@ -35,25 +33,10 @@ class GoogleDriveService:
             sys.exit("can't find token.pickle")
         return creds
 
-    def rename_file(self, file_id, new_name):
-        try:
-            file = {'name': new_name}
-
-            updated_file = self.google_drive_service.files().update(
-                fileId=file_id,
-                body=file).execute()
-            print('renamed to: %s' % new_name)
-        except errors.HttpError as error:
-            print("An error occurred during rename file '%s':\n%s" % (new_name, error))
-
     def download_result(self, file_id, file_name):
 
         file = self.google_drive_service.files().get(fileId=file_id, fields='webContentLink').execute()
         print('Download test result at: %s' % file['webContentLink'])
-
-        # create a text file with the download link (later to post as a comment)
-        with open(DOWNLOAD_LINK, "w") as f:
-            f.write(file['webContentLink'])
 
         file_request = self.google_drive_service.files().get_media(fileId=file_id)
 
@@ -71,10 +54,6 @@ class GoogleDriveService:
                 fh.seek(0)
                 f.write(fh.read())
 
-            file_args = file_name.split(',')
-            file_args[4] = 'True.html'
-            self.rename_file(file_id, ','.join(file_args))
-
             passed = file_name.split(',')[3] == "True"  # extract the boolean from file name
             return passed
         else:
@@ -89,7 +68,7 @@ class GoogleDriveService:
         results = self.google_drive_service.files().list(
             fields="nextPageToken, files(id, name)").execute()
         files = results.get('files', [])
-        # looking for the file with that sha(file format: pr,sha,date,passed,was_taken.html)
+        # looking for the file with that sha(file format: pr,sha,date,passed.html)
 
         for file in files:
             if sha in file['name']:

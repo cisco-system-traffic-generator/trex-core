@@ -10,7 +10,6 @@ if __name__ == '__main__':
     pr_num, sha = int(os.environ['PR_NUM']), os.environ['SHA']
 
     gd_service = GoogleDriveService()
-    os.mkdir('travis_results')
     total_sleep, sleeping_between_download = 45, 1  # in min
 
     for i in range(total_sleep // sleeping_between_download):
@@ -20,16 +19,12 @@ if __name__ == '__main__':
         file_data = gd_service.find_file_id(sha)
 
         if file_data:
-            if file_data['name'].split(',')[4] == 'True':
-                print('results posted by earlier job, exit with code 0')
+            passed = file_data['name'].split(',')[3] == "True"  # extract the boolean from file name
+            if passed:
+                print("test passed, look for a comment with html download link at the pull request page")
                 sys.exit(0)
             else:
-                passed = gd_service.download_result(file_data['id'], file_data['name'])  # download the results
-                if passed:
-                    print("test passed, look for a comment with html download link at the pull request page")
-                    sys.exit(0)
-                else:
-                    sys.exit("test failed, more information can be found in html file")
+                sys.exit("test failed, more information can be found in html file")
 
         print("didn't find results, sleeping for %d min..." % sleeping_between_download)
         time.sleep(sleeping_between_download * 60)
