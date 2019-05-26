@@ -8,8 +8,10 @@ import sys
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
+from apiclient import errors
+
 TOKEN = 'travis_files/token.pickle'
-DOWNLOAD_LINK = "travis_results/download_link.txt"
+DOWNLOAD_LINK = "travis_files/download_link.txt"
 
 
 class GoogleDriveService:
@@ -33,6 +35,17 @@ class GoogleDriveService:
             sys.exit("can't find token.pickle")
         return creds
 
+    def rename_file(self, file_id, new_name):
+        try:
+            file = {'name': new_name}
+
+            updated_file = self.google_drive_service.files().update(
+                fileId=file_id,
+                body=file).execute()
+            print('renamed to: %s' % new_name)
+        except errors.HttpError as error:
+            print("An error occurred during rename file '%s':\n%s" % (new_name, error))
+
     def download_result(self, file_id, file_name):
 
         file = self.google_drive_service.files().get(fileId=file_id, fields='webContentLink').execute()
@@ -54,12 +67,15 @@ class GoogleDriveService:
                 status, done = downloader.next_chunk()
                 print("Download %d%%." % int(status.progress() * 100))
 
-            with io.open('travis_results/%s' % file_name, 'wb') as f:
+            with io.open('travis_files/%s' % file_name, 'wb') as f:
                 fh.seek(0)
                 f.write(fh.read())
 
-            passed = file_name[
-                     file_name.index('-') + 1: file_name.index('.')] == "True"  # extract the boolean from file name
+            file_args = file_name.split(',')
+            file_args[4] = 'True.html'
+            self.rename_file(file_id, ','.join(file_args))
+
+            passed = file_name.split(',')[3] == "True"  # extract the boolean from file name
             return passed
         else:
             sys.exit('ERROR download file: %s with id: %s' % (file_id, file_name))
@@ -73,9 +89,9 @@ class GoogleDriveService:
         results = self.google_drive_service.files().list(
             fields="nextPageToken, files(id, name)").execute()
         files = results.get('files', [])
-        # looking for the file with that name(what comes before the delimiter)
-        filtered = list(filter(lambda item: item['name'].split('-')[0] == sha, files))
-        if filtered:
-            return filtered[0]['id'], filtered[0]['name']
-        else:
-            return False, False
+        # looking for the file with that sha(file format: pr,sha,date,passed,was_taken.html)
+
+        for file in files:
+            if sha in file['name']:
+                return file
+        return False
