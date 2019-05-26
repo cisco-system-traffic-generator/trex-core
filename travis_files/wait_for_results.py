@@ -19,7 +19,7 @@ if __name__ == '__main__':
         file_data = gd_service.find_file_id(sha)
 
         if file_data:
-            passed = file_data['name'].split(',')[3] == "True"  # extract the boolean from file name
+            passed = file_data['name'].split(',')[3].strip('.html') == "True"  # extract the boolean from file name
             if passed:
                 print("test passed, look for a comment with html download link at the pull request page")
                 sys.exit(0)
