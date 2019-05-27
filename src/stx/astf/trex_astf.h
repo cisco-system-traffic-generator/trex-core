@@ -52,6 +52,7 @@ public:
         STATE_BUILD, // by DP cores, not cancelable
         STATE_TX,
         STATE_CLEANUP, // by DP cores, not cancelable
+        STATE_DELETE,  // by DP core 0, not cancelable
         AMOUNT_OF_STATES,
     };
 };
@@ -98,6 +99,7 @@ public:
     bool            m_profile_stopping;
 
     int16_t         m_active_cores;
+    bool            m_nc_flow_close;
     double          m_duration;
     double          m_factor;
     std::string     m_error;
@@ -136,12 +138,11 @@ public:
     /**
      * Profile-related:
      * cmp - compare hash to loaded profile, true = matches (heavy profile will not be uploaded twice)
-     * clear - clears profile JSON string (if any)
+     * init - clears profile JSON string (if any)
      * append - appends fragment to profile JSON string
      * loaded - move state from idle to loaded
      */
     trex_astf_hash_e profile_cmp_hash(std::string profile_id, const std::string &hash);
-    void profile_clear(std::string profile_id);
     void profile_init(std::string profile_id);
     void profile_append(std::string profile_id, const std::string &fragment);
     void profile_set_loaded(std::string profile_id);
@@ -277,6 +278,11 @@ public:
     void stop_transmit(std::string profile_id);
 
     /**
+     * Clear profile
+     */
+    void profile_clear(std::string profile_id);
+
+    /**
      * Update traffic rate
      */
     void update_rate(std::string profile_id, double mult);
@@ -355,7 +361,7 @@ protected:
     // message to DP involved:
     void parse(std::string profile_id);
     void build(std::string profile_id);
-    void transmit(std::string profile_id, double duration);
+    void transmit(std::string profile_id);
     void cleanup(std::string profile_id);
     bool is_trans_state();
 
