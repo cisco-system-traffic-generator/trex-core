@@ -260,8 +260,8 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.remove_streams([s1_id], ports = [0]) # get rid of burst
         self.c.start(ports = [0])
 
-        self.c.update_streams(port = 0, mult = '10kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
-        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10200)
+        self.c.update_streams(port = 0, mult = '1kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 1200)
 
         self.c.update_streams(port = 0, mult = '100pps', stream_ids = [s3_id])
         self.c.pause_streams(port = 0, stream_ids = [s3_id])
@@ -708,7 +708,7 @@ class STLClient_Test(CStlGeneral_Test):
     def test_pause_resume_update_dynamic_profile(self):
         try:
             self.c.reset()
-            stream = STLStream(mode = STLTXCont(pps = 4))
+            stream = STLStream(mode = STLTXCont(pps = 250))
 
             port_id = 0
             profile_id = 1
@@ -732,24 +732,24 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.resume(ports = profile)
                 assert self.c.ports[port_id].is_transmitting()
 
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 400)
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 25000)
 
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.pause(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 200) # paused stream not transmitting
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 12500) # paused stream not transmitting
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.resume(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 400) # resume the paused
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 25000) # resume the paused
 
-            self.c.update(ports = profile_list, mult = '10kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10000)
+            self.c.update(ports = profile_list, mult = '500pps')
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 50000)
 
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
-                    self.c.update(ports = profile, mult = '30kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 20000)
+                    self.c.update(ports = profile, mult = '1kpps')
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 100000)
 
         except STLError as e:
             assert False , '{0}'.format(e)
