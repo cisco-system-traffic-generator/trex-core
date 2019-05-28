@@ -708,7 +708,7 @@ class STLClient_Test(CStlGeneral_Test):
     def test_pause_resume_update_dynamic_profile(self):
         try:
             self.c.reset()
-            stream = STLStream(mode = STLTXCont(pps = 400))
+            stream = STLStream(mode = STLTXCont(pps = 4))
 
             port_id = 0
             profile_id = 1
@@ -732,24 +732,24 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.resume(ports = profile)
                 assert self.c.ports[port_id].is_transmitting()
 
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 40000)
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 400)
 
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.pause(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 20000) # paused stream not transmitting
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 200) # paused stream not transmitting
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.resume(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 40000) # resume the paused
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 400) # resume the paused
 
             self.c.update(ports = profile_list, mult = '10kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 1000000)
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10000)
 
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.update(ports = profile, mult = '30kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 2000000)
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 20000)
 
         except STLError as e:
             assert False , '{0}'.format(e)
