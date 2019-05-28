@@ -23,7 +23,7 @@
 static void
 mlx5_txq_stop(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	unsigned int i;
 
 	for (i = 0; i != priv->txqs_n; ++i)
@@ -42,7 +42,7 @@ mlx5_txq_stop(struct rte_eth_dev *dev)
 static int
 mlx5_txq_start(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	unsigned int i;
 	int ret;
 
@@ -57,12 +57,6 @@ mlx5_txq_start(struct rte_eth_dev *dev)
 			rte_errno = ENOMEM;
 			goto error;
 		}
-	}
-	ret = mlx5_tx_uar_remap(dev, priv->ctx->cmd_fd);
-	if (ret) {
-		/* Adjust index for rollback. */
-		i = priv->txqs_n - 1;
-		goto error;
 	}
 	return 0;
 error:
@@ -83,7 +77,7 @@ error:
 static void
 mlx5_rxq_stop(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	unsigned int i;
 
 	for (i = 0; i != priv->rxqs_n; ++i)
@@ -102,7 +96,7 @@ mlx5_rxq_stop(struct rte_eth_dev *dev)
 static int
 mlx5_rxq_start(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	unsigned int i;
 	int ret = 0;
 
@@ -123,7 +117,7 @@ mlx5_rxq_start(struct rte_eth_dev *dev)
 		DRV_LOG(DEBUG,
 			"port %u Rx queue %u registering"
 			" mp %s having %u chunks",
-			dev->data->port_id, rxq_ctrl->idx,
+			dev->data->port_id, rxq_ctrl->rxq.idx,
 			mp->name, mp->nb_mem_chunks);
 		mlx5_mr_update_mp(dev, &rxq_ctrl->rxq.mr_ctrl, mp);
 		ret = rxq_alloc_elts(rxq_ctrl);
@@ -157,7 +151,7 @@ error:
 int
 mlx5_dev_start(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	int ret;
 
 	DRV_LOG(DEBUG, "port %u starting device", dev->data->port_id);
@@ -181,7 +175,7 @@ mlx5_dev_start(struct rte_eth_dev *dev)
 			dev->data->port_id);
 		goto error;
 	}
-	mlx5_xstats_init(dev);
+	mlx5_stats_init(dev);
 	ret = mlx5_traffic_enable(dev);
 	if (ret) {
 		DRV_LOG(DEBUG, "port %u failed to set defaults flows",
@@ -194,8 +188,11 @@ mlx5_dev_start(struct rte_eth_dev *dev)
 			dev->data->port_id);
 		goto error;
 	}
+	rte_wmb();
 	dev->tx_pkt_burst = mlx5_select_tx_function(dev);
 	dev->rx_pkt_burst = mlx5_select_rx_function(dev);
+	/* Enable datapath on secondary process. */
+	mlx5_mp_req_start_rxtx(dev);
 	mlx5_dev_interrupt_handler_install(dev);
 	return 0;
 error:
@@ -221,13 +218,15 @@ error:
 void
 mlx5_dev_stop(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 
 	dev->data->dev_started = 0;
 	/* Prevent crashes when queues are still in use. */
 	dev->rx_pkt_burst = removed_rx_burst;
 	dev->tx_pkt_burst = removed_tx_burst;
 	rte_wmb();
+	/* Disable datapath on secondary process. */
+	mlx5_mp_req_stop_rxtx(dev);
 	usleep(1000 * priv->rxqs_n);
 	DRV_LOG(DEBUG, "port %u stopping device", dev->data->port_id);
 	mlx5_flow_stop(dev, &priv->flows);
@@ -252,7 +251,7 @@ mlx5_dev_stop(struct rte_eth_dev *dev)
 int
 mlx5_traffic_enable(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 	struct rte_flow_item_eth bcast = {
 		.dst.addr_bytes = "\xff\xff\xff\xff\xff\xff",
 	};
@@ -379,7 +378,7 @@ error:
 void
 mlx5_traffic_disable(struct rte_eth_dev *dev)
 {
-	struct priv *priv = dev->data->dev_private;
+	struct mlx5_priv *priv = dev->data->dev_private;
 
 	mlx5_flow_list_flush(dev, &priv->ctrl_flows);
 }

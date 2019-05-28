@@ -1,41 +1,11 @@
-/*******************************************************************************
-
-Copyright (c) 2013 - 2015, Intel Corporation
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
- 1. Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
- 2. Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
- 3. Neither the name of the Intel Corporation nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-
-***************************************************************************/
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2001-2018
+ */
 
 #include "i40e_type.h"
 #include "i40e_adminq.h"
 #include "i40e_prototype.h"
 #include "virtchnl.h"
-
 
 /**
  * i40e_set_mac_type - Sets MAC type
@@ -65,10 +35,15 @@ STATIC enum i40e_status_code i40e_set_mac_type(struct i40e_hw *hw)
 		case I40E_DEV_ID_QSFP_C:
 		case I40E_DEV_ID_10G_BASE_T:
 		case I40E_DEV_ID_10G_BASE_T4:
+#ifdef CARLSVILLE_HW
+		case I40E_DEV_ID_10G_BASE_T_BC:
+#endif
 		case I40E_DEV_ID_20G_KR2:
 		case I40E_DEV_ID_20G_KR2_A:
 		case I40E_DEV_ID_25G_B:
 		case I40E_DEV_ID_25G_SFP28:
+		case I40E_DEV_ID_X710_N3000:
+		case I40E_DEV_ID_XXV710_N3000:
 			hw->mac.type = I40E_MAC_XL710;
 			break;
 #ifdef X722_A0_SUPPORT
@@ -1290,6 +1265,10 @@ STATIC enum i40e_media_type i40e_get_media_type(struct i40e_hw *hw)
 		break;
 	case I40E_PHY_TYPE_100BASE_TX:
 	case I40E_PHY_TYPE_1000BASE_T:
+#ifdef CARLSVILLE_HW
+	case I40E_PHY_TYPE_2_5GBASE_T:
+	case I40E_PHY_TYPE_5GBASE_T:
+#endif
 	case I40E_PHY_TYPE_10GBASE_T:
 		media = I40E_MEDIA_TYPE_BASET;
 		break;
@@ -1326,6 +1305,29 @@ STATIC enum i40e_media_type i40e_get_media_type(struct i40e_hw *hw)
 	return media;
 }
 
+/**
+ * i40e_poll_globr - Poll for Global Reset completion
+ * @hw: pointer to the hardware structure
+ * @retry_limit: how many times to retry before failure
+ **/
+STATIC enum i40e_status_code i40e_poll_globr(struct i40e_hw *hw,
+					     u32 retry_limit)
+{
+	u32 cnt, reg = 0;
+
+	for (cnt = 0; cnt < retry_limit; cnt++) {
+		reg = rd32(hw, I40E_GLGEN_RSTAT);
+		if (!(reg & I40E_GLGEN_RSTAT_DEVSTATE_MASK))
+			return I40E_SUCCESS;
+		i40e_msec_delay(100);
+	}
+
+	DEBUGOUT("Global reset failed.\n");
+	DEBUGOUT1("I40E_GLGEN_RSTAT = 0x%x\n", reg);
+
+	return I40E_ERR_RESET_FAILED;
+}
+
 #define I40E_PF_RESET_WAIT_COUNT	200
 /**
  * i40e_pf_reset - Reset the PF
@@ -1349,7 +1351,7 @@ enum i40e_status_code i40e_pf_reset(struct i40e_hw *hw)
 			I40E_GLGEN_RSTCTL_GRSTDEL_MASK) >>
 			I40E_GLGEN_RSTCTL_GRSTDEL_SHIFT;
 
-	grst_del = grst_del * 20;
+	grst_del = min(grst_del * 20, 160U);
 
 	for (cnt = 0; cnt < grst_del; cnt++) {
 		reg = rd32(hw, I40E_GLGEN_RSTAT);
@@ -1395,14 +1397,14 @@ enum i40e_status_code i40e_pf_reset(struct i40e_hw *hw)
 			if (!(reg & I40E_PFGEN_CTRL_PFSWR_MASK))
 				break;
 			reg2 = rd32(hw, I40E_GLGEN_RSTAT);
-			if (reg2 & I40E_GLGEN_RSTAT_DEVSTATE_MASK) {
-				DEBUGOUT("Core reset upcoming. Skipping PF reset request.\n");
-				DEBUGOUT1("I40E_GLGEN_RSTAT = 0x%x\n", reg2);
-				return I40E_ERR_NOT_READY;
-			}
+			if (reg2 & I40E_GLGEN_RSTAT_DEVSTATE_MASK)
+				break;
 			i40e_msec_delay(1);
 		}
-		if (reg & I40E_PFGEN_CTRL_PFSWR_MASK) {
+		if (reg2 & I40E_GLGEN_RSTAT_DEVSTATE_MASK) {
+			if (i40e_poll_globr(hw, grst_del) != I40E_SUCCESS)
+				return I40E_ERR_RESET_FAILED;
+		} else if (reg & I40E_PFGEN_CTRL_PFSWR_MASK) {
 			DEBUGOUT("PF reset polling failed to complete.\n");
 			return I40E_ERR_RESET_FAILED;
 		}
@@ -1882,6 +1884,10 @@ enum i40e_status_code i40e_aq_set_mac_config(struct i40e_hw *hw,
 	cmd->params = ((u8)pacing & 0x0F) << 3;
 	if (crc_en)
 		cmd->params |= I40E_AQ_SET_MAC_CONFIG_CRC_EN;
+
+#define I40E_AQ_SET_MAC_CONFIG_FC_DEFAULT_THRESHOLD	0x7FFF
+	cmd->fc_refresh_threshold =
+		CPU_TO_LE16(I40E_AQ_SET_MAC_CONFIG_FC_DEFAULT_THRESHOLD);
 
 	status = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
 
@@ -2711,13 +2717,14 @@ enum i40e_status_code i40e_aq_get_switch_config(struct i40e_hw *hw,
  * i40e_aq_set_switch_config
  * @hw: pointer to the hardware structure
  * @flags: bit flag values to set
+ * @mode: cloud filter mode
  * @valid_flags: which bit flags to set
  * @cmd_details: pointer to command details structure or NULL
  *
  * Set switch configuration bits
  **/
 enum i40e_status_code i40e_aq_set_switch_config(struct i40e_hw *hw,
-				u16 flags, u16 valid_flags,
+				u16 flags, u16 valid_flags, u8 mode,
 				struct i40e_asq_cmd_details *cmd_details)
 {
 	struct i40e_aq_desc desc;
@@ -2729,6 +2736,7 @@ enum i40e_status_code i40e_aq_set_switch_config(struct i40e_hw *hw,
 					  i40e_aqc_opc_set_switch_config);
 	scfg->flags = CPU_TO_LE16(flags);
 	scfg->valid_flags = CPU_TO_LE16(valid_flags);
+	scfg->mode = mode;
 	if (hw->flags & I40E_HW_FLAG_802_1AD_CAPABLE) {
 		scfg->switch_tag = CPU_TO_LE16(hw->switch_tag);
 		scfg->first_tag = CPU_TO_LE16(hw->first_tag);
@@ -3708,9 +3716,10 @@ STATIC void i40e_parse_discover_capabilities(struct i40e_hw *hw, void *buff,
 	u32 valid_functions, num_functions;
 	u32 number, logical_id, phys_id;
 	struct i40e_hw_capabilities *p;
+	enum i40e_status_code status;
+	u16 id, ocp_cfg_word0;
 	u8 major_rev;
 	u32 i = 0;
-	u16 id;
 
 	cap = (struct i40e_aqc_list_capabilities_element_resp *) buff;
 
@@ -4002,6 +4011,26 @@ STATIC void i40e_parse_discover_capabilities(struct i40e_hw *hw, void *buff,
 			hw->num_ports++;
 	}
 
+	/* OCP cards case: if a mezz is removed the ethernet port is at
+	 * disabled state in PRTGEN_CNF register. Additional NVM read is
+	 * needed in order to check if we are dealing with OCP card.
+	 * Those cards have 4 PFs at minimum, so using PRTGEN_CNF for counting
+	 * physical ports results in wrong partition id calculation and thus
+	 * not supporting WoL.
+	 */
+	if (hw->mac.type == I40E_MAC_X722) {
+		if (i40e_acquire_nvm(hw, I40E_RESOURCE_READ) == I40E_SUCCESS) {
+			status = i40e_aq_read_nvm(hw, I40E_SR_EMP_MODULE_PTR,
+						  2 * I40E_SR_OCP_CFG_WORD0,
+						  sizeof(ocp_cfg_word0),
+						  &ocp_cfg_word0, true, NULL);
+			if (status == I40E_SUCCESS &&
+			    (ocp_cfg_word0 & I40E_SR_OCP_ENABLED))
+				hw->num_ports = 4;
+			i40e_release_nvm(hw);
+		}
+	}
+
 	valid_functions = p->valid_functions;
 	num_functions = 0;
 	while (valid_functions) {
@@ -4128,6 +4157,43 @@ enum i40e_status_code i40e_aq_update_nvm(struct i40e_hw *hw, u8 module_pointer,
 	status = i40e_asq_send_command(hw, &desc, data, length, cmd_details);
 
 i40e_aq_update_nvm_exit:
+	return status;
+}
+
+/**
+ * i40e_aq_rearrange_nvm
+ * @hw: pointer to the hw struct
+ * @rearrange_nvm: defines direction of rearrangement
+ * @cmd_details: pointer to command details structure or NULL
+ *
+ * Rearrange NVM structure, available only for transition FW
+ **/
+enum i40e_status_code i40e_aq_rearrange_nvm(struct i40e_hw *hw,
+				u8 rearrange_nvm,
+				struct i40e_asq_cmd_details *cmd_details)
+{
+	struct i40e_aqc_nvm_update *cmd;
+	enum i40e_status_code status;
+	struct i40e_aq_desc desc;
+
+	DEBUGFUNC("i40e_aq_rearrange_nvm");
+
+	cmd = (struct i40e_aqc_nvm_update *)&desc.params.raw;
+
+	i40e_fill_default_direct_cmd_desc(&desc, i40e_aqc_opc_nvm_update);
+
+	rearrange_nvm &= (I40E_AQ_NVM_REARRANGE_TO_FLAT |
+			 I40E_AQ_NVM_REARRANGE_TO_STRUCT);
+
+	if (!rearrange_nvm) {
+		status = I40E_ERR_PARAM;
+		goto i40e_aq_rearrange_nvm_exit;
+	}
+
+	cmd->command_flags |= rearrange_nvm;
+	status = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
+
+i40e_aq_rearrange_nvm_exit:
 	return status;
 }
 
@@ -4487,6 +4553,9 @@ i40e_aq_set_dcb_parameters(struct i40e_hw *hw, bool dcb_enable,
 	struct i40e_aqc_set_dcb_parameters *cmd =
 		(struct i40e_aqc_set_dcb_parameters *)&desc.params.raw;
 	enum i40e_status_code status;
+
+	if (!(hw->flags & I40E_HW_FLAG_FW_LLDP_STOPPABLE))
+		return I40E_ERR_DEVICE_NOT_SUPPORTED;
 
 	i40e_fill_default_direct_cmd_desc(&desc,
 					  i40e_aqc_opc_set_dcb_parameters);
@@ -5693,10 +5762,10 @@ void i40e_add_filter_to_drop_tx_flow_control_frames(struct i40e_hw *hw,
  * to be shifted 1 byte over from the VxLAN VNI
  **/
 STATIC void i40e_fix_up_geneve_vni(
-	struct i40e_aqc_add_remove_cloud_filters_element_data *filters,
+	struct i40e_aqc_cloud_filters_element_data *filters,
 	u8 filter_count)
 {
-	struct i40e_aqc_add_remove_cloud_filters_element_data *f = filters;
+	struct i40e_aqc_cloud_filters_element_data *f = filters;
 	int i;
 
 	for (i = 0; i < filter_count; i++) {
@@ -5721,13 +5790,13 @@ STATIC void i40e_fix_up_geneve_vni(
  * @filter_count: number of filters contained in the buffer
  *
  * Set the cloud filters for a given VSI.  The contents of the
- * i40e_aqc_add_remove_cloud_filters_element_data are filled
+ * i40e_aqc_cloud_filters_element_data are filled
  * in by the caller of the function.
  *
  **/
 enum i40e_status_code i40e_aq_add_cloud_filters(struct i40e_hw *hw,
 	u16 seid,
-	struct i40e_aqc_add_remove_cloud_filters_element_data *filters,
+	struct i40e_aqc_cloud_filters_element_data *filters,
 	u8 filter_count)
 {
 	struct i40e_aq_desc desc;
@@ -5753,21 +5822,21 @@ enum i40e_status_code i40e_aq_add_cloud_filters(struct i40e_hw *hw,
 }
 
 /**
- * i40e_aq_add_cloud_filters_big_buffer
+ * i40e_aq_add_cloud_filters_bb
  * @hw: pointer to the hardware structure
  * @seid: VSI seid to add cloud filters from
  * @filters: Buffer which contains the filters in big buffer to be added
  * @filter_count: number of filters contained in the buffer
  *
  * Set the cloud filters for a given VSI.  The contents of the
- * i40e_aqc_add_rm_cloud_filt_elem_ext are filled in by the caller of
+ * i40e_aqc_cloud_filters_element_bb are filled in by the caller of the
  * the function.
  *
  **/
-enum i40e_status_code i40e_aq_add_cloud_filters_big_buffer(struct i40e_hw *hw,
-	u16 seid,
-	struct i40e_aqc_add_rm_cloud_filt_elem_ext *filters,
-	u8 filter_count)
+enum i40e_status_code
+i40e_aq_add_cloud_filters_bb(struct i40e_hw *hw, u16 seid,
+			     struct i40e_aqc_cloud_filters_element_bb *filters,
+			     u8 filter_count)
 {
 	struct i40e_aq_desc desc;
 	struct i40e_aqc_add_remove_cloud_filters *cmd =
@@ -5784,9 +5853,8 @@ enum i40e_status_code i40e_aq_add_cloud_filters_big_buffer(struct i40e_hw *hw,
 	desc.flags |= CPU_TO_LE16((u16)(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD));
 	cmd->num_filters = filter_count;
 	cmd->seid = CPU_TO_LE16(seid);
-	cmd->big_buffer_flag = I40E_AQC_ADD_REM_CLOUD_CMD_BIG_BUFFER;
+	cmd->big_buffer_flag = I40E_AQC_ADD_CLOUD_CMD_BB;
 
-	/* adjust Geneve VNI for HW issue */
 	for (i = 0; i < filter_count; i++) {
 		u16 tnl_type;
 		u32 ti;
@@ -5794,6 +5862,11 @@ enum i40e_status_code i40e_aq_add_cloud_filters_big_buffer(struct i40e_hw *hw,
 		tnl_type = (LE16_TO_CPU(filters[i].element.flags) &
 			   I40E_AQC_ADD_CLOUD_TNL_TYPE_MASK) >>
 			   I40E_AQC_ADD_CLOUD_TNL_TYPE_SHIFT;
+
+		/* Due to hardware eccentricities, the VNI for Geneve is shifted
+		 * one more byte further than normally used for Tenant ID in
+		 * other tunnel types.
+		 */
 		if (tnl_type == I40E_AQC_ADD_CLOUD_TNL_TYPE_GENEVE) {
 			ti = LE32_TO_CPU(filters[i].element.tenant_id);
 			filters[i].element.tenant_id = CPU_TO_LE32(ti << 8);
@@ -5806,21 +5879,21 @@ enum i40e_status_code i40e_aq_add_cloud_filters_big_buffer(struct i40e_hw *hw,
 }
 
 /**
- * i40e_aq_remove_cloud_filters
+ * i40e_aq_rem_cloud_filters
  * @hw: pointer to the hardware structure
  * @seid: VSI seid to remove cloud filters from
  * @filters: Buffer which contains the filters to be removed
  * @filter_count: number of filters contained in the buffer
  *
  * Remove the cloud filters for a given VSI.  The contents of the
- * i40e_aqc_add_remove_cloud_filters_element_data are filled
- * in by the caller of the function.
+ * i40e_aqc_cloud_filters_element_data are filled in by the caller
+ * of the function.
  *
  **/
-enum i40e_status_code i40e_aq_remove_cloud_filters(struct i40e_hw *hw,
-	u16 seid,
-	struct i40e_aqc_add_remove_cloud_filters_element_data *filters,
-	u8 filter_count)
+enum i40e_status_code
+i40e_aq_rem_cloud_filters(struct i40e_hw *hw, u16 seid,
+			  struct i40e_aqc_cloud_filters_element_data *filters,
+			  u8 filter_count)
 {
 	struct i40e_aq_desc desc;
 	struct i40e_aqc_add_remove_cloud_filters *cmd =
@@ -5845,22 +5918,21 @@ enum i40e_status_code i40e_aq_remove_cloud_filters(struct i40e_hw *hw,
 }
 
 /**
- * i40e_aq_remove_cloud_filters_big_buffer
+ * i40e_aq_rem_cloud_filters_bb
  * @hw: pointer to the hardware structure
  * @seid: VSI seid to remove cloud filters from
  * @filters: Buffer which contains the filters in big buffer to be removed
  * @filter_count: number of filters contained in the buffer
  *
- * Remove the cloud filters for a given VSI.  The contents of the
- * i40e_aqc_add_rm_cloud_filt_elem_ext are filled in by the caller of
- * the function.
+ * Remove the big buffer cloud filters for a given VSI.  The contents of the
+ * i40e_aqc_cloud_filters_element_bb are filled in by the caller of the
+ * function.
  *
  **/
-enum i40e_status_code i40e_aq_remove_cloud_filters_big_buffer(
-	struct i40e_hw *hw,
-	u16 seid,
-	struct i40e_aqc_add_rm_cloud_filt_elem_ext *filters,
-	u8 filter_count)
+enum i40e_status_code
+i40e_aq_rem_cloud_filters_bb(struct i40e_hw *hw, u16 seid,
+			     struct i40e_aqc_cloud_filters_element_bb *filters,
+			     u8 filter_count)
 {
 	struct i40e_aq_desc desc;
 	struct i40e_aqc_add_remove_cloud_filters *cmd =
@@ -5877,9 +5949,8 @@ enum i40e_status_code i40e_aq_remove_cloud_filters_big_buffer(
 	desc.flags |= CPU_TO_LE16((u16)(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD));
 	cmd->num_filters = filter_count;
 	cmd->seid = CPU_TO_LE16(seid);
-	cmd->big_buffer_flag = I40E_AQC_ADD_REM_CLOUD_CMD_BIG_BUFFER;
+	cmd->big_buffer_flag = I40E_AQC_ADD_CLOUD_CMD_BB;
 
-	/* adjust Geneve VNI for HW issue */
 	for (i = 0; i < filter_count; i++) {
 		u16 tnl_type;
 		u32 ti;
@@ -5887,6 +5958,11 @@ enum i40e_status_code i40e_aq_remove_cloud_filters_big_buffer(
 		tnl_type = (LE16_TO_CPU(filters[i].element.flags) &
 			   I40E_AQC_ADD_CLOUD_TNL_TYPE_MASK) >>
 			   I40E_AQC_ADD_CLOUD_TNL_TYPE_SHIFT;
+
+		/* Due to hardware eccentricities, the VNI for Geneve is shifted
+		 * one more byte further than normally used for Tenant ID in
+		 * other tunnel types.
+		 */
 		if (tnl_type == I40E_AQC_ADD_CLOUD_TNL_TYPE_GENEVE) {
 			ti = LE32_TO_CPU(filters[i].element.tenant_id);
 			filters[i].element.tenant_id = CPU_TO_LE32(ti << 8);
@@ -5916,6 +5992,14 @@ i40e_status_code i40e_aq_replace_cloud_filters(struct i40e_hw *hw,
 	enum i40e_status_code status = I40E_SUCCESS;
 	int i = 0;
 
+	/* X722 doesn't support this command */
+	if (hw->mac.type == I40E_MAC_X722)
+		return I40E_ERR_DEVICE_NOT_SUPPORTED;
+
+	/* need FW version greater than 6.00 */
+	if (hw->aq.fw_maj_ver < 6)
+		return I40E_NOT_SUPPORTED;
+
 	i40e_fill_default_direct_cmd_desc(&desc,
 					  i40e_aqc_opc_replace_cloud_filters);
 
@@ -5925,6 +6009,7 @@ i40e_status_code i40e_aq_replace_cloud_filters(struct i40e_hw *hw,
 	cmd->new_filter_type = filters->new_filter_type;
 	cmd->valid_flags = filters->valid_flags;
 	cmd->tr_bit = filters->tr_bit;
+	cmd->tr_bit2 = filters->tr_bit2;
 
 	status = i40e_asq_send_command(hw, &desc, cmd_buf,
 		sizeof(struct i40e_aqc_replace_cloud_filters_cmd_buf),  NULL);
@@ -6618,6 +6703,9 @@ enum i40e_status_code i40e_write_phy_register(struct i40e_hw *hw,
 		break;
 	case I40E_DEV_ID_10G_BASE_T:
 	case I40E_DEV_ID_10G_BASE_T4:
+#ifdef CARLSVILLE_HW
+	case I40E_DEV_ID_10G_BASE_T_BC:
+#endif
 	case I40E_DEV_ID_10G_BASE_T_X722:
 	case I40E_DEV_ID_25G_B:
 	case I40E_DEV_ID_25G_SFP28:
@@ -6773,7 +6861,7 @@ static enum i40e_status_code i40e_led_get_reg(struct i40e_hw *hw, u16 led_addr,
 	if (hw->flags & I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE) {
 		status = i40e_aq_get_phy_register(hw,
 						I40E_AQ_PHY_REG_ACCESS_EXTERNAL,
-						I40E_PHY_COM_REG_PAGE,
+						I40E_PHY_COM_REG_PAGE, true,
 						I40E_PHY_LED_PROV_REG_1,
 						reg_val, NULL);
 	} else {
@@ -6801,7 +6889,7 @@ static enum i40e_status_code i40e_led_set_reg(struct i40e_hw *hw, u16 led_addr,
 	if (hw->flags & I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE) {
 		status = i40e_aq_set_phy_register(hw,
 						I40E_AQ_PHY_REG_ACCESS_EXTERNAL,
-						I40E_PHY_COM_REG_PAGE,
+						I40E_PHY_COM_REG_PAGE, true,
 						I40E_PHY_LED_PROV_REG_1,
 						reg_val, NULL);
 	} else {
@@ -6835,7 +6923,7 @@ enum i40e_status_code i40e_led_get_phy(struct i40e_hw *hw, u16 *led_addr,
 	if (hw->flags & I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE) {
 		status = i40e_aq_get_phy_register(hw,
 						I40E_AQ_PHY_REG_ACCESS_EXTERNAL,
-						I40E_PHY_COM_REG_PAGE,
+						I40E_PHY_COM_REG_PAGE, true,
 						I40E_PHY_LED_PROV_REG_1,
 						&reg_val_aq, NULL);
 		if (status == I40E_SUCCESS)
@@ -7036,11 +7124,13 @@ do_retry:
 		wr32(hw, reg_addr, reg_val);
 }
 
+#ifdef PF_DRIVER
 /**
  * i40e_aq_set_phy_register
  * @hw: pointer to the hw struct
  * @phy_select: select which phy should be accessed
  * @dev_addr: PHY device address
+ * @page_change: enable auto page change
  * @reg_addr: PHY register address
  * @reg_val: new register value
  * @cmd_details: pointer to command details structure or NULL
@@ -7048,7 +7138,7 @@ do_retry:
  * Write the external PHY register.
  **/
 enum i40e_status_code i40e_aq_set_phy_register(struct i40e_hw *hw,
-				u8 phy_select, u8 dev_addr,
+				u8 phy_select, u8 dev_addr, bool page_change,
 				u32 reg_addr, u32 reg_val,
 				struct i40e_asq_cmd_details *cmd_details)
 {
@@ -7065,6 +7155,9 @@ enum i40e_status_code i40e_aq_set_phy_register(struct i40e_hw *hw,
 	cmd->reg_address = CPU_TO_LE32(reg_addr);
 	cmd->reg_value = CPU_TO_LE32(reg_val);
 
+	if (!page_change)
+		cmd->cmd_flags = I40E_AQ_PHY_REG_ACCESS_DONT_CHANGE_QSFP_PAGE;
+
 	status = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
 
 	return status;
@@ -7075,6 +7168,7 @@ enum i40e_status_code i40e_aq_set_phy_register(struct i40e_hw *hw,
  * @hw: pointer to the hw struct
  * @phy_select: select which phy should be accessed
  * @dev_addr: PHY device address
+ * @page_change: enable auto page change
  * @reg_addr: PHY register address
  * @reg_val: read register value
  * @cmd_details: pointer to command details structure or NULL
@@ -7082,7 +7176,7 @@ enum i40e_status_code i40e_aq_set_phy_register(struct i40e_hw *hw,
  * Read the external PHY register.
  **/
 enum i40e_status_code i40e_aq_get_phy_register(struct i40e_hw *hw,
-				u8 phy_select, u8 dev_addr,
+				u8 phy_select, u8 dev_addr, bool page_change,
 				u32 reg_addr, u32 *reg_val,
 				struct i40e_asq_cmd_details *cmd_details)
 {
@@ -7098,6 +7192,9 @@ enum i40e_status_code i40e_aq_get_phy_register(struct i40e_hw *hw,
 	cmd->dev_addres = dev_addr;
 	cmd->reg_address = CPU_TO_LE32(reg_addr);
 
+	if (!page_change)
+		cmd->cmd_flags = I40E_AQ_PHY_REG_ACCESS_DONT_CHANGE_QSFP_PAGE;
+
 	status = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
 	if (!status)
 		*reg_val = LE32_TO_CPU(cmd->reg_value);
@@ -7105,6 +7202,7 @@ enum i40e_status_code i40e_aq_get_phy_register(struct i40e_hw *hw,
 	return status;
 }
 
+#endif /* PF_DRIVER */
 #ifdef VF_DRIVER
 
 /**

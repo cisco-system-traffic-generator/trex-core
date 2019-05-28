@@ -301,11 +301,15 @@ struct vxlan_hdr {
 #define ETHER_TYPE_RARP 0x8035 /**< Reverse Arp Protocol. */
 #define ETHER_TYPE_VLAN 0x8100 /**< IEEE 802.1Q VLAN tagging. */
 #define ETHER_TYPE_QINQ 0x88A8 /**< IEEE 802.1ad QinQ tagging. */
+#define ETHER_TYPE_PPPOE_DISCOVERY 0x8863 /**< PPPoE Discovery Stage. */
+#define ETHER_TYPE_PPPOE_SESSION 0x8864 /**< PPPoE Session Stage. */
 #define ETHER_TYPE_ETAG 0x893F /**< IEEE 802.1BR E-Tag. */
 #define ETHER_TYPE_1588 0x88F7 /**< IEEE 802.1AS 1588 Precise Time Protocol. */
 #define ETHER_TYPE_SLOW 0x8809 /**< Slow protocols (LACP and Marker). */
 #define ETHER_TYPE_TEB  0x6558 /**< Transparent Ethernet Bridging. */
 #define ETHER_TYPE_LLDP 0x88CC /**< LLDP Protocol. */
+#define ETHER_TYPE_MPLS 0x8847 /**< MPLS ethertype. */
+#define ETHER_TYPE_MPLSM 0x8848 /**< MPLS multicast ethertype. */
 
 #define ETHER_VXLAN_HLEN (sizeof(struct udp_hdr) + sizeof(struct vxlan_hdr))
 /**< VXLAN tunnel header length. */
@@ -406,7 +410,7 @@ static inline int rte_vlan_insert(struct rte_mbuf **m)
 	vh = (struct vlan_hdr *) (nh + 1);
 	vh->vlan_tci = rte_cpu_to_be_16((*m)->vlan_tci);
 
-	(*m)->ol_flags &= ~PKT_RX_VLAN_STRIPPED;
+	(*m)->ol_flags &= ~(PKT_RX_VLAN_STRIPPED | PKT_TX_VLAN);
 
 	return 0;
 }

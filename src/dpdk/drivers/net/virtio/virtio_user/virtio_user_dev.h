@@ -11,6 +11,12 @@
 #include "../virtio_ring.h"
 #include "vhost.h"
 
+struct virtio_user_queue {
+	uint16_t used_idx;
+	bool avail_wrap_counter;
+	bool used_wrap_counter;
+};
+
 struct virtio_user_dev {
 	/* for vhost_user backend */
 	int		vhostfd;
@@ -33,12 +39,18 @@ struct virtio_user_dev {
 				   * and will be sync with device
 				   */
 	uint64_t	device_features; /* supported features by device */
+	uint64_t	frontend_features; /* enabled frontend features */
 	uint64_t	unsupported_features; /* unsupported features mask */
 	uint8_t		status;
 	uint16_t	port_id;
 	uint8_t		mac_addr[ETHER_ADDR_LEN];
 	char		path[PATH_MAX];
-	struct vring	vrings[VIRTIO_MAX_VIRTQUEUES];
+	union {
+		struct vring		vrings[VIRTIO_MAX_VIRTQUEUES];
+		struct vring_packed	packed_vrings[VIRTIO_MAX_VIRTQUEUES];
+	};
+	struct virtio_user_queue packed_queues[VIRTIO_MAX_VIRTQUEUES];
+
 	struct virtio_user_backend_ops *ops;
 	pthread_mutex_t	mutex;
 	bool		started;
@@ -49,8 +61,11 @@ int virtio_user_start_device(struct virtio_user_dev *dev);
 int virtio_user_stop_device(struct virtio_user_dev *dev);
 int virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 			 int cq, int queue_size, const char *mac, char **ifname,
-			 int mrg_rxbuf, int in_order);
+			 int server, int mrg_rxbuf, int in_order,
+			 int packed_vq);
 void virtio_user_dev_uninit(struct virtio_user_dev *dev);
 void virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx);
+void virtio_user_handle_cq_packed(struct virtio_user_dev *dev,
+				  uint16_t queue_idx);
 uint8_t virtio_user_handle_mq(struct virtio_user_dev *dev, uint16_t q_pairs);
 #endif

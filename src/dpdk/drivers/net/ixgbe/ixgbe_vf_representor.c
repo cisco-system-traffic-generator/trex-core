@@ -65,7 +65,7 @@ ixgbe_vf_representor_dev_infos_get(struct rte_eth_dev *ethdev,
 	dev_info->tx_offload_capa = DEV_TX_OFFLOAD_VLAN_INSERT |
 		DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM |
 		DEV_TX_OFFLOAD_TCP_CKSUM | DEV_TX_OFFLOAD_SCTP_CKSUM |
-		DEV_TX_OFFLOAD_TCP_TSO;
+		DEV_TX_OFFLOAD_TCP_TSO | DEV_TX_OFFLOAD_MULTI_SEGS;
 	/**< Device TX offload capabilities. */
 
 	dev_info->speed_capa =
@@ -135,7 +135,7 @@ ixgbe_vf_representor_vlan_strip_queue_set(struct rte_eth_dev *ethdev,
 		representor->vf_id, on);
 }
 
-struct eth_dev_ops ixgbe_vf_representor_dev_ops = {
+static const struct eth_dev_ops ixgbe_vf_representor_dev_ops = {
 	.dev_infos_get		= ixgbe_vf_representor_dev_infos_get,
 
 	.dev_start		= ixgbe_vf_representor_dev_start,
@@ -192,6 +192,7 @@ ixgbe_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 		return -ENODEV;
 
 	ethdev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
+	ethdev->data->representor_id = representor->vf_id;
 
 	/* Set representor device ops */
 	ethdev->dev_ops = &ixgbe_vf_representor_dev_ops;
@@ -225,7 +226,10 @@ ixgbe_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 }
 
 int
-ixgbe_vf_representor_uninit(struct rte_eth_dev *ethdev __rte_unused)
+ixgbe_vf_representor_uninit(struct rte_eth_dev *ethdev)
 {
+	/* mac_addrs must not be freed because part of ixgbe_vf_info */
+	ethdev->data->mac_addrs = NULL;
+
 	return 0;
 }

@@ -16,11 +16,12 @@ CFLAGS += -DALLOW_EXPERIMENTAL_API
 EXPORT_MAP := rte_bus_vdev_version.map
 
 # library version
-LIBABIVER := 1
+LIBABIVER := 2
 
 SRCS-y += vdev.c
+SRCS-y += vdev_params.c
 
-LDLIBS += -lrte_eal
+LDLIBS += -lrte_eal -lrte_kvargs
 
 #
 # Export include files

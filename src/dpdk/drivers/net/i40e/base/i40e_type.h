@@ -1,35 +1,6 @@
-/*******************************************************************************
-
-Copyright (c) 2013 - 2015, Intel Corporation
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
- 1. Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
- 2. Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
- 3. Neither the name of the Intel Corporation nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-
-***************************************************************************/
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2001-2018
+ */
 
 #ifndef _I40E_TYPE_H_
 #define _I40E_TYPE_H_
@@ -358,6 +329,14 @@ struct i40e_phy_info {
 					     I40E_PHY_TYPE_OFFSET)
 #define I40E_CAP_PHY_TYPE_25GBASE_ACC BIT_ULL(I40E_PHY_TYPE_25GBASE_ACC + \
 					     I40E_PHY_TYPE_OFFSET)
+#ifdef CARLSVILLE_HW
+/* Offset for 2.5G/5G PHY Types value to bit number conversion */
+#define I40E_PHY_TYPE_OFFSET2 (-10)
+#define I40E_CAP_PHY_TYPE_2_5GBASE_T BIT_ULL(I40E_PHY_TYPE_2_5GBASE_T + \
+					     I40E_PHY_TYPE_OFFSET2)
+#define I40E_CAP_PHY_TYPE_5GBASE_T BIT_ULL(I40E_PHY_TYPE_5GBASE_T + \
+					     I40E_PHY_TYPE_OFFSET2)
+#endif
 #define I40E_HW_CAP_MAX_GPIO			30
 #define I40E_HW_CAP_MDIO_PORT_MODE_MDIO		0
 #define I40E_HW_CAP_MDIO_PORT_MODE_I2C		1
@@ -377,6 +356,16 @@ struct i40e_hw_capabilities {
 #define I40E_NVM_IMAGE_TYPE_EVB		0x0
 #define I40E_NVM_IMAGE_TYPE_CLOUD	0x2
 #define I40E_NVM_IMAGE_TYPE_UDP_CLOUD	0x3
+
+	/* Cloud filter modes:
+	 * Mode1: Filter on L4 port only
+	 * Mode2: Filter for non-tunneled traffic
+	 * Mode3: Filter for tunnel traffic
+	 */
+#define I40E_CLOUD_FILTER_MODE1	0x6
+#define I40E_CLOUD_FILTER_MODE2	0x7
+#define I40E_CLOUD_FILTER_MODE3	0x8
+#define I40E_SWITCH_MODE_MASK	0xF
 
 	u32  management_mode;
 	u32  mng_protocols_over_mctp;
@@ -681,6 +670,7 @@ struct i40e_hw {
 	u8 revision_id;
 	u8 port;
 	bool adapter_stopped;
+	bool adapter_closed;
 
 	/* capabilities for entire device and PCI func */
 	struct i40e_hw_capabilities dev_caps;
@@ -731,6 +721,7 @@ struct i40e_hw {
 #define I40E_HW_FLAG_802_1AD_CAPABLE        BIT_ULL(1)
 #define I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE  BIT_ULL(2)
 #define I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK BIT_ULL(3)
+#define I40E_HW_FLAG_FW_LLDP_STOPPABLE	    BIT_ULL(4)
 	u64 flags;
 
 	/* Used in set switch config AQ command */
@@ -1541,7 +1532,9 @@ struct i40e_hw_port_stats {
 #define I40E_SR_CONTROL_WORD_1_MASK	(0x03 << I40E_SR_CONTROL_WORD_1_SHIFT)
 #define I40E_SR_CONTROL_WORD_1_NVM_BANK_VALID	BIT(5)
 #define I40E_SR_NVM_MAP_STRUCTURE_TYPE		BIT(12)
-#define I40E_PTR_TYPE                           BIT(15)
+#define I40E_PTR_TYPE				BIT(15)
+#define I40E_SR_OCP_CFG_WORD0			0x2B
+#define I40E_SR_OCP_ENABLED			BIT(15)
 
 /* Shadow RAM related */
 #define I40E_SR_SECTOR_SIZE_IN_WORDS	0x800

@@ -438,6 +438,10 @@ rte_cryptodev_asym_get_xform_enum(enum rte_crypto_asym_xform_type *xform_enum,
 /**< Utilises ARM CPU Cryptographic Extensions */
 #define	RTE_CRYPTODEV_FF_SECURITY			(1ULL << 16)
 /**< Support Security Protocol Processing */
+#define RTE_CRYPTODEV_FF_RSA_PRIV_OP_KEY_EXP		(1ULL << 17)
+/**< Support RSA Private Key OP with exponent */
+#define RTE_CRYPTODEV_FF_RSA_PRIV_OP_KEY_QT		(1ULL << 18)
+/**< Support RSA Private Key OP with CRT (quintuple) Keys */
 
 
 /**
@@ -495,6 +499,10 @@ enum rte_cryptodev_event_type {
 /** Crypto device queue pair configuration structure. */
 struct rte_cryptodev_qp_conf {
 	uint32_t nb_descriptors; /**< Number of descriptors per queue pair */
+	struct rte_mempool *mp_session;
+	/**< The mempool for creating session in sessionless mode */
+	struct rte_mempool *mp_session_private;
+	/**< The mempool for creating sess private data in sessionless mode */
 };
 
 /**
@@ -672,16 +680,12 @@ rte_cryptodev_close(uint8_t dev_id);
  *				- 1] previously supplied to
  *				rte_cryptodev_configure().
  * @param	qp_conf		The pointer to the configuration data to be
- *				used for the queue pair. NULL value is
- *				allowed, in which case default configuration
- *				will be used.
+ *				used for the queue pair.
  * @param	socket_id	The *socket_id* argument is the socket
  *				identifier in case of NUMA. The value can be
  *				*SOCKET_ID_ANY* if there is no NUMA constraint
  *				for the DMA memory allocated for the receive
  *				queue pair.
- * @param	session_pool	Pointer to device session mempool, used
- *				for session-less operations.
  *
  * @return
  *   - 0: Success, queue pair correctly set up.
@@ -689,8 +693,7 @@ rte_cryptodev_close(uint8_t dev_id);
  */
 extern int
 rte_cryptodev_queue_pair_setup(uint8_t dev_id, uint16_t queue_pair_id,
-		const struct rte_cryptodev_qp_conf *qp_conf, int socket_id,
-		struct rte_mempool *session_pool);
+		const struct rte_cryptodev_qp_conf *qp_conf, int socket_id);
 
 /**
  * Get the number of queue pairs on a specific crypto device
@@ -954,8 +957,17 @@ rte_cryptodev_enqueue_burst(uint8_t dev_id, uint16_t qp_id,
  * has a fixed algo, key, op-type, digest_len etc.
  */
 struct rte_cryptodev_sym_session {
-	__extension__ void *sess_private_data[0];
-	/**< Private symmetric session material */
+	uint64_t opaque_data;
+	/**< Can be used for external metadata */
+	uint16_t nb_drivers;
+	/**< number of elements in sess_data array */
+	uint16_t user_data_sz;
+	/**< session user data will be placed after sess_data */
+	__extension__ struct {
+		void *data;
+		uint16_t refcnt;
+	} sess_data[0];
+	/**< Driver specific session material, variable size */
 };
 
 /** Cryptodev asymmetric crypto session */
@@ -963,6 +975,37 @@ struct rte_cryptodev_asym_session {
 	__extension__ void *sess_private_data[0];
 	/**< Private asymmetric session material */
 };
+
+/**
+ * Create a symmetric session mempool.
+ *
+ * @param name
+ *   The unique mempool name.
+ * @param nb_elts
+ *   The number of elements in the mempool.
+ * @param elt_size
+ *   The size of the element. This value will be ignored if it is smaller than
+ *   the minimum session header size required for the system. For the user who
+ *   want to use the same mempool for sym session and session private data it
+ *   can be the maximum value of all existing devices' private data and session
+ *   header sizes.
+ * @param cache_size
+ *   The number of per-lcore cache elements
+ * @param priv_size
+ *   The private data size of each session.
+ * @param socket_id
+ *   The *socket_id* argument is the socket identifier in the case of
+ *   NUMA. The value can be *SOCKET_ID_ANY* if there is no NUMA
+ *   constraint for the reserved zone.
+ *
+ * @return
+ *  - On success return size of the session
+ *  - On failure returns 0
+ */
+struct rte_mempool * __rte_experimental
+rte_cryptodev_sym_session_pool_create(const char *name, uint32_t nb_elts,
+	uint32_t elt_size, uint32_t cache_size, uint16_t priv_size,
+	int socket_id);
 
 /**
  * Create symmetric crypto session header (generic with no private data)
@@ -1094,13 +1137,29 @@ rte_cryptodev_asym_session_clear(uint8_t dev_id,
 			struct rte_cryptodev_asym_session *sess);
 
 /**
- * Get the size of the header session, for all registered drivers.
+ * Get the size of the header session, for all registered drivers excluding
+ * the user data size.
  *
  * @return
- *   Size of the symmetric eader session.
+ *   Size of the symmetric header session.
  */
 unsigned int
 rte_cryptodev_sym_get_header_session_size(void);
+
+/**
+ * Get the size of the header session from created session.
+ *
+ * @param sess
+ *   The sym cryptodev session pointer
+ *
+ * @return
+ *   - If sess is not NULL, return the size of the header session including
+ *   the private data size defined within sess.
+ *   - If sess is NULL, return 0.
+ */
+unsigned int __rte_experimental
+rte_cryptodev_sym_get_existing_header_session_size(
+		struct rte_cryptodev_sym_session *sess);
 
 /**
  * Get the size of the asymmetric session header, for all registered drivers.

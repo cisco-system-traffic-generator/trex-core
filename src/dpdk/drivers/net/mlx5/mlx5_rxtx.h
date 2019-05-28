@@ -28,6 +28,7 @@
 #include <rte_atomic.h>
 #include <rte_spinlock.h>
 #include <rte_io.h>
+#include <rte_bus_pci.h>
 
 #include "mlx5_utils.h"
 #include "mlx5.h"
@@ -40,7 +41,6 @@
 #define MLX5_FLOW_TUNNEL 5
 
 struct mlx5_rxq_stats {
-	unsigned int idx; /**< Mapping index. */
 #ifdef MLX5_PMD_SOFT_COUNTERS
 	uint64_t ipackets; /**< Total of successfully received packets. */
 	uint64_t ibytes; /**< Total of successfully received bytes. */
@@ -50,7 +50,6 @@ struct mlx5_rxq_stats {
 };
 
 struct mlx5_txq_stats {
-	unsigned int idx; /**< Mapping index. */
 #ifdef MLX5_PMD_SOFT_COUNTERS
 	uint64_t opackets; /**< Total of successfully sent packets. */
 	uint64_t obytes; /**< Total of successfully sent bytes. */
@@ -58,7 +57,7 @@ struct mlx5_txq_stats {
 	uint64_t oerrors; /**< Total number of failed transmitted packets. */
 };
 
-struct priv;
+struct mlx5_priv;
 
 /* Compressed CQE context. */
 struct rxq_zip {
@@ -97,10 +96,11 @@ struct mlx5_rxq_data {
 	volatile uint32_t *rq_db;
 	volatile uint32_t *cq_db;
 	uint16_t port_id;
-	uint16_t rq_ci;
+	uint32_t rq_ci;
 	uint16_t consumed_strd; /* Number of consumed strides in WQE. */
-	uint16_t rq_pi;
-	uint16_t cq_ci;
+	uint32_t rq_pi;
+	uint32_t cq_ci;
+	uint16_t rq_repl_thresh; /* Threshold for buffer replenishment. */
 	struct mlx5_mr_ctrl mr_ctrl; /* MR control descriptor. */
 	uint16_t mprq_max_memcpy_len; /* Maximum size of packet to memcpy. */
 	volatile void *wqes;
@@ -114,6 +114,7 @@ struct mlx5_rxq_data {
 	struct rte_mempool *mp;
 	struct rte_mempool *mprq_mp; /* Mempool for Multi-Packet RQ. */
 	struct mlx5_mprq_buf *mprq_repl; /* Stashed mbuf for replenish. */
+	uint16_t idx; /* Queue index. */
 	struct mlx5_rxq_stats stats;
 	uint64_t mbuf_initializer; /* Default rearm_data for vectorized Rx. */
 	struct rte_mbuf fake_mbuf; /* elts padding for vectorized Rx. */
@@ -139,14 +140,13 @@ struct mlx5_rxq_ibv {
 
 /* RX queue control descriptor. */
 struct mlx5_rxq_ctrl {
+	struct mlx5_rxq_data rxq; /* Data path structure. */
 	LIST_ENTRY(mlx5_rxq_ctrl) next; /* Pointer to the next element. */
 	rte_atomic32_t refcnt; /* Reference counter. */
 	struct mlx5_rxq_ibv *ibv; /* Verbs elements. */
-	struct priv *priv; /* Back pointer to private data. */
-	struct mlx5_rxq_data rxq; /* Data path structure. */
+	struct mlx5_priv *priv; /* Back pointer to private data. */
 	unsigned int socket; /* CPU socket ID for allocations. */
 	unsigned int irq:1; /* Whether IRQ is enabled. */
-	uint16_t idx; /* Queue index. */
 	uint32_t flow_mark_n; /* Number of Mark/Flag flows using this Queue. */
 	uint32_t flow_tunnels_n[MLX5_FLOW_TUNNEL]; /* Tunnels counters. */
 };
@@ -166,6 +166,9 @@ struct mlx5_hrxq {
 	rte_atomic32_t refcnt; /* Reference counter. */
 	struct mlx5_ind_table_ibv *ind_table; /* Indirection table. */
 	struct ibv_qp *qp; /* Verbs queue pair. */
+#ifdef HAVE_IBV_FLOW_DV_SUPPORT
+	void *action; /* DV QP action pointer. */
+#endif
 	uint64_t hash_fields; /* Verbs Hash fields. */
 	uint32_t rss_key_len; /* Hash key length in bytes. */
 	uint8_t rss_key[]; /* Hash key. */
@@ -201,8 +204,9 @@ struct mlx5_txq_data {
 	volatile void *wqes; /* Work queue (use volatile to write into). */
 	volatile uint32_t *qp_db; /* Work queue doorbell. */
 	volatile uint32_t *cq_db; /* Completion queue doorbell. */
-	volatile void *bf_reg; /* Blueflame register remapped. */
 	struct rte_mbuf *(*elts)[]; /* TX elements. */
+	uint16_t port_id; /* Port ID of device. */
+	uint16_t idx; /* Queue index. */
 	struct mlx5_txq_stats stats; /* TX queue counters. */
 #ifndef RTE_ARCH_64
 	rte_spinlock_t *uar_lock;
@@ -221,18 +225,20 @@ struct mlx5_txq_ibv {
 
 /* TX queue control descriptor. */
 struct mlx5_txq_ctrl {
+	struct mlx5_txq_data txq; /* Data path structure. */
 	LIST_ENTRY(mlx5_txq_ctrl) next; /* Pointer to the next element. */
 	rte_atomic32_t refcnt; /* Reference counter. */
 	unsigned int socket; /* CPU socket ID for allocations. */
 	unsigned int max_inline_data; /* Max inline data. */
 	unsigned int max_tso_header; /* Max TSO header size. */
 	struct mlx5_txq_ibv *ibv; /* Verbs queue object. */
-	struct priv *priv; /* Back pointer to private data. */
-	struct mlx5_txq_data txq; /* Data path structure. */
+	struct mlx5_priv *priv; /* Back pointer to private data. */
 	off_t uar_mmap_offset; /* UAR mmap offset for non-primary process. */
-	volatile void *bf_reg_orig; /* Blueflame register from verbs. */
-	uint16_t idx; /* Queue index. */
+	void *bf_reg; /* BlueFlame register from Verbs. */
 };
+
+#define MLX5_TX_BFREG(txq) \
+		(MLX5_PROC_PRIV((txq)->port_id)->uar_table[(txq)->idx])
 
 /* mlx5_rxq.c */
 
@@ -301,7 +307,7 @@ uint64_t mlx5_get_rx_queue_offloads(struct rte_eth_dev *dev);
 int mlx5_tx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 			unsigned int socket, const struct rte_eth_txconf *conf);
 void mlx5_tx_queue_release(void *dpdk_txq);
-int mlx5_tx_uar_remap(struct rte_eth_dev *dev, int fd);
+int mlx5_tx_uar_init_secondary(struct rte_eth_dev *dev, int fd);
 struct mlx5_txq_ibv *mlx5_txq_ibv_new(struct rte_eth_dev *dev, uint16_t idx);
 struct mlx5_txq_ibv *mlx5_txq_ibv_get(struct rte_eth_dev *dev, uint16_t idx);
 int mlx5_txq_ibv_release(struct mlx5_txq_ibv *txq_ibv);
@@ -345,6 +351,7 @@ uint16_t removed_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts,
 			  uint16_t pkts_n);
 int mlx5_rx_descriptor_status(void *rx_queue, uint16_t offset);
 int mlx5_tx_descriptor_status(void *tx_queue, uint16_t offset);
+uint32_t mlx5_rx_queue_count(struct rte_eth_dev *dev, uint16_t rx_queue_id);
 
 /* Vectorized version of mlx5_rxtx.c */
 int mlx5_check_raw_vec_tx_support(struct rte_eth_dev *dev);
@@ -362,7 +369,13 @@ uint16_t mlx5_rx_burst_vec(void *dpdk_txq, struct rte_mbuf **pkts,
 
 void mlx5_mr_flush_local_cache(struct mlx5_mr_ctrl *mr_ctrl);
 uint32_t mlx5_rx_addr2mr_bh(struct mlx5_rxq_data *rxq, uintptr_t addr);
-uint32_t mlx5_tx_addr2mr_bh(struct mlx5_txq_data *txq, uintptr_t addr);
+uint32_t mlx5_tx_mb2mr_bh(struct mlx5_txq_data *txq, struct rte_mbuf *mb);
+uint32_t mlx5_tx_update_ext_mp(struct mlx5_txq_data *txq, uintptr_t addr,
+			       struct rte_mempool *mp);
+int mlx5_dma_map(struct rte_pci_device *pdev, void *addr, uint64_t iova,
+		 size_t len);
+int mlx5_dma_unmap(struct rte_pci_device *pdev, void *addr, uint64_t iova,
+		   size_t len);
 
 /**
  * Provide safe 64bit store operation to mlx5 UAR region for both 32bit and
@@ -376,17 +389,16 @@ uint32_t mlx5_tx_addr2mr_bh(struct mlx5_txq_data *txq, uintptr_t addr);
  *   Address of the lock to use for that UAR access.
  */
 static __rte_always_inline void
-__mlx5_uar_write64_relaxed(uint64_t val, volatile void *addr,
+__mlx5_uar_write64_relaxed(uint64_t val, void *addr,
 			   rte_spinlock_t *lock __rte_unused)
 {
 #ifdef RTE_ARCH_64
-	rte_write64_relaxed(val, addr);
+	*(uint64_t *)addr = val;
 #else /* !RTE_ARCH_64 */
 	rte_spinlock_lock(lock);
-	rte_write32_relaxed(val, addr);
+	*(uint32_t *)addr = val;
 	rte_io_wmb();
-	rte_write32_relaxed(val >> 32,
-			    (volatile void *)((volatile char *)addr + 4));
+	*((uint32_t *)addr + 1) = val >> 32;
 	rte_spinlock_unlock(lock);
 #endif
 }
@@ -404,7 +416,7 @@ __mlx5_uar_write64_relaxed(uint64_t val, volatile void *addr,
  *   Address of the lock to use for that UAR access.
  */
 static __rte_always_inline void
-__mlx5_uar_write64(uint64_t val, volatile void *addr, rte_spinlock_t *lock)
+__mlx5_uar_write64(uint64_t val, void *addr, rte_spinlock_t *lock)
 {
 	rte_io_wmb();
 	__mlx5_uar_write64_relaxed(val, addr, lock);
@@ -488,7 +500,7 @@ check_cqe(volatile struct mlx5_cqe *cqe,
 				op_code, op_code, syndrome);
 			rte_hexdump(stderr, "MLX5 Error CQE:",
 				    (const void *)((uintptr_t)err_cqe),
-				    sizeof(*err_cqe));
+				    sizeof(*cqe));
 		}
 		return 1;
 	} else if ((op_code != MLX5_CQE_RESP_SEND) &&
@@ -565,6 +577,7 @@ mlx5_tx_complete(struct mlx5_txq_data *txq)
 	}
 #endif /* NDEBUG */
 	++cq_ci;
+	rte_cio_rmb();
 	txq->wqe_pi = rte_be_to_cpu_16(cqe->wqe_counter);
 	ctrl = (volatile struct mlx5_wqe_ctrl *)
 		tx_mlx5_wqe(txq, txq->wqe_pi);
@@ -604,6 +617,24 @@ mlx5_tx_complete(struct mlx5_txq_data *txq)
 	/* Update the consumer index. */
 	rte_compiler_barrier();
 	*txq->cq_db = rte_cpu_to_be_32(cq_ci);
+}
+
+/**
+ * Get Memory Pool (MP) from mbuf. If mbuf is indirect, the pool from which the
+ * cloned mbuf is allocated is returned instead.
+ *
+ * @param buf
+ *   Pointer to mbuf.
+ *
+ * @return
+ *   Memory pool where data is located for given mbuf.
+ */
+static inline struct rte_mempool *
+mlx5_mb2mp(struct rte_mbuf *buf)
+{
+	if (unlikely(RTE_MBUF_CLONED(buf)))
+		return rte_mbuf_from_indirect(buf)->pool;
+	return buf->pool;
 }
 
 /**
@@ -647,9 +678,10 @@ mlx5_rx_addr2mr(struct mlx5_rxq_data *rxq, uintptr_t addr)
  *   Searched LKey on success, UINT32_MAX on no match.
  */
 static __rte_always_inline uint32_t
-mlx5_tx_addr2mr(struct mlx5_txq_data *txq, uintptr_t addr)
+mlx5_tx_mb2mr(struct mlx5_txq_data *txq, struct rte_mbuf *mb)
 {
 	struct mlx5_mr_ctrl *mr_ctrl = &txq->mr_ctrl;
+	uintptr_t addr = (uintptr_t)mb->buf_addr;
 	uint32_t lkey;
 
 	/* Check generation bit to see if there's any change on existing MRs. */
@@ -660,11 +692,9 @@ mlx5_tx_addr2mr(struct mlx5_txq_data *txq, uintptr_t addr)
 				    MLX5_MR_CACHE_N, addr);
 	if (likely(lkey != UINT32_MAX))
 		return lkey;
-	/* Take slower bottom-half (binary search) on miss. */
-	return mlx5_tx_addr2mr_bh(txq, addr);
+	/* Take slower bottom-half on miss. */
+	return mlx5_tx_mb2mr_bh(txq, mb);
 }
-
-#define mlx5_tx_mb2mr(rxq, mb) mlx5_tx_addr2mr(rxq, (uintptr_t)((mb)->buf_addr))
 
 /**
  * Ring TX queue doorbell and flush the update if requested.
@@ -680,7 +710,7 @@ static __rte_always_inline void
 mlx5_tx_dbrec_cond_wmb(struct mlx5_txq_data *txq, volatile struct mlx5_wqe *wqe,
 		       int cond)
 {
-	uint64_t *dst = (uint64_t *)((uintptr_t)txq->bf_reg);
+	uint64_t *dst = MLX5_TX_BFREG(txq);
 	volatile uint64_t *src = ((volatile uint64_t *)wqe);
 
 	rte_cio_wmb();
@@ -713,10 +743,6 @@ mlx5_tx_dbrec(struct mlx5_txq_data *txq, volatile struct mlx5_wqe *wqe)
  *   Pointer to the Tx queue.
  * @param buf
  *   Pointer to the mbuf.
- * @param tso
- *   TSO offloads enabled.
- * @param vlan
- *   VLAN offloads enabled
  * @param offsets
  *   Pointer to the SWP header offsets.
  * @param swp_types

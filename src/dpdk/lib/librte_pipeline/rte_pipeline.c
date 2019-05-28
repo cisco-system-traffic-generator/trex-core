@@ -178,8 +178,7 @@ rte_pipeline_check_params(struct rte_pipeline_params *params)
 	}
 
 	/* socket */
-	if ((params->socket_id < 0) ||
-	    (params->socket_id >= RTE_MAX_NUMA_NODES)) {
+	if (params->socket_id < 0) {
 		RTE_LOG(ERR, PIPELINE,
 			"%s: Incorrect value for parameter socket_id\n",
 			__func__);
@@ -215,7 +214,7 @@ rte_pipeline_create(struct rte_pipeline_params *params)
 	}
 
 	/* Save input parameters */
-	snprintf(p->name, RTE_PIPELINE_MAX_NAME_SZ, "%s", params->name);
+	strlcpy(p->name, params->name, RTE_PIPELINE_MAX_NAME_SZ);
 	p->socket_id = params->socket_id;
 	p->offset_port_id = params->offset_port_id;
 

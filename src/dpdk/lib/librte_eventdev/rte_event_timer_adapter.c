@@ -117,14 +117,14 @@ default_port_conf_cb(uint16_t id, uint8_t event_dev_id, uint8_t *event_port_id,
 	return ret;
 }
 
-struct rte_event_timer_adapter * __rte_experimental
+struct rte_event_timer_adapter *
 rte_event_timer_adapter_create(const struct rte_event_timer_adapter_conf *conf)
 {
 	return rte_event_timer_adapter_create_ext(conf, default_port_conf_cb,
 						  NULL);
 }
 
-struct rte_event_timer_adapter * __rte_experimental
+struct rte_event_timer_adapter *
 rte_event_timer_adapter_create_ext(
 		const struct rte_event_timer_adapter_conf *conf,
 		rte_event_timer_adapter_port_conf_cb_t conf_cb,
@@ -235,7 +235,7 @@ free_memzone:
 	return NULL;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_get_info(const struct rte_event_timer_adapter *adapter,
 		struct rte_event_timer_adapter_info *adapter_info)
 {
@@ -253,13 +253,19 @@ rte_event_timer_adapter_get_info(const struct rte_event_timer_adapter *adapter,
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_start(const struct rte_event_timer_adapter *adapter)
 {
 	int ret;
 
 	ADAPTER_VALID_OR_ERR_RET(adapter, -EINVAL);
 	FUNC_PTR_OR_ERR_RET(adapter->ops->start, -EINVAL);
+
+	if (adapter->data->started) {
+		EVTIM_LOG_ERR("event timer adapter %"PRIu8" already started",
+			      adapter->data->id);
+		return -EALREADY;
+	}
 
 	ret = adapter->ops->start(adapter);
 	if (ret < 0)
@@ -270,7 +276,7 @@ rte_event_timer_adapter_start(const struct rte_event_timer_adapter *adapter)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_stop(const struct rte_event_timer_adapter *adapter)
 {
 	int ret;
@@ -293,7 +299,7 @@ rte_event_timer_adapter_stop(const struct rte_event_timer_adapter *adapter)
 	return 0;
 }
 
-struct rte_event_timer_adapter * __rte_experimental
+struct rte_event_timer_adapter *
 rte_event_timer_adapter_lookup(uint16_t adapter_id)
 {
 	char name[DATA_MZ_NAME_MAX_LEN];
@@ -346,7 +352,7 @@ rte_event_timer_adapter_lookup(uint16_t adapter_id)
 	return adapter;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_free(struct rte_event_timer_adapter *adapter)
 {
 	int ret;
@@ -376,7 +382,7 @@ rte_event_timer_adapter_free(struct rte_event_timer_adapter *adapter)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_service_id_get(struct rte_event_timer_adapter *adapter,
 				       uint32_t *service_id)
 {
@@ -388,7 +394,7 @@ rte_event_timer_adapter_service_id_get(struct rte_event_timer_adapter *adapter,
 	return adapter->data->service_inited ? 0 : -ESRCH;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_stats_get(struct rte_event_timer_adapter *adapter,
 				  struct rte_event_timer_adapter_stats *stats)
 {
@@ -400,7 +406,7 @@ rte_event_timer_adapter_stats_get(struct rte_event_timer_adapter *adapter,
 	return adapter->ops->stats_get(adapter, stats);
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_stats_reset(struct rte_event_timer_adapter *adapter)
 {
 	ADAPTER_VALID_OR_ERR_RET(adapter, -EINVAL);

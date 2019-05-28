@@ -25,6 +25,8 @@ extern "C" {
 #include <rte_mempool.h>
 #include <rte_common.h>
 
+#include "rte_crypto_sym.h"
+
 typedef struct rte_crypto_param_t {
 	uint8_t *data;
 	/**< pointer to buffer holding data */
@@ -72,8 +74,8 @@ enum rte_crypto_asym_xform_type {
 	 * Refer to rte_crypto_asym_op_type
 	 */
 	RTE_CRYPTO_ASYM_XFORM_MODINV,
-	/**< Modular Inverse
-	 * Perform Modulus inverse b^(-1) mod n
+	/**< Modular Multiplicative Inverse
+	 * Perform Modular Multiplicative Inverse b^(-1) mod n
 	 */
 	RTE_CRYPTO_ASYM_XFORM_MODEX,
 	/**< Modular Exponentiation
@@ -112,15 +114,15 @@ enum rte_crypto_rsa_padding_type {
 	/**< RSA no padding scheme */
 	RTE_CRYPTO_RSA_PKCS1_V1_5_BT0,
 	/**< RSA PKCS#1 V1.5 Block Type 0 padding scheme
-	 * as descibed in rfc2313
+	 * as described in rfc2313
 	 */
 	RTE_CRYPTO_RSA_PKCS1_V1_5_BT1,
 	/**< RSA PKCS#1 V1.5 Block Type 01 padding scheme
-	 * as descibed in rfc2313
+	 * as described in rfc2313
 	 */
 	RTE_CRYPTO_RSA_PKCS1_V1_5_BT2,
 	/**< RSA PKCS#1 V1.5 Block Type 02 padding scheme
-	 * as descibed in rfc2313
+	 * as described in rfc2313
 	 */
 	RTE_CRYPTO_RSA_PADDING_OAEP,
 	/**< RSA PKCS#1 OAEP padding scheme */
@@ -227,35 +229,44 @@ struct rte_crypto_rsa_xform {
 /**
  * Asymmetric Modular exponentiation transform data
  *
- * Structure describing modular exponentation xform param
+ * Structure describing modular exponentiation xform param
  *
  */
 struct rte_crypto_modex_xform {
 	rte_crypto_param modulus;
 	/**< modulus
-	 * Prime modulus of the modexp transform operation in octet-string
-	 * network byte order format.
+	 * Pointer to the modulus data for modexp transform operation
+	 * in octet-string network byte order format
+	 *
+	 * In case this number is equal to zero the driver shall set
+	 * the crypto op status field to RTE_CRYPTO_OP_STATUS_ERROR
 	 */
 
 	rte_crypto_param exponent;
 	/**< exponent
-	 * Private exponent of the modexp transform operation in
-	 * octet-string network byte order format.
+	 * Exponent of the modexp transform operation in
+	 * octet-string network byte order format
 	 */
 };
 
 /**
- * Asymmetric modular inverse transform operation
+ * Asymmetric modular multiplicative inverse transform operation
  *
- * Structure describing modulus inverse xform params
+ * Structure describing modular multiplicative inverse transform
  *
  */
 struct rte_crypto_modinv_xform {
 	rte_crypto_param modulus;
 	/**<
-	 * Pointer to the prime modulus data for modular
-	 * inverse operation in octet-string network byte
-	 * order format.
+	 * Pointer to the modulus data for modular multiplicative inverse
+	 * operation in octet-string network byte order format
+	 *
+	 * In case this number is equal to zero the driver shall set
+	 * the crypto op status field to RTE_CRYPTO_OP_STATUS_ERROR
+	 *
+	 * This number shall be relatively prime to base
+	 * in corresponding Modular Multiplicative Inverse
+	 * rte_crypto_mod_op_param
 	 */
 };
 
@@ -271,7 +282,7 @@ struct rte_crypto_dh_xform {
 
 	rte_crypto_param p;
 	/**< p : Prime modulus data
-	 * DH prime modulous data in octet-string network byte order format.
+	 * DH prime modulus data in octet-string network byte order format.
 	 *
 	 */
 
@@ -317,14 +328,28 @@ struct rte_crypto_dsa_xform {
 
 /**
  * Operations params for modular operations:
- * exponentiation and invert
+ * exponentiation and multiplicative inverse
  *
  */
 struct rte_crypto_mod_op_param {
 	rte_crypto_param base;
 	/**<
-	 * Pointer to base of modular exponentiation/inversion data in
-	 * Octet-string network byte order format.
+	 * Pointer to base of modular exponentiation/multiplicative
+	 * inverse data in octet-string network byte order format
+	 *
+	 * In case Multiplicative Inverse is used this number shall
+	 * be relatively prime to modulus in corresponding Modular
+	 * Multiplicative Inverse rte_crypto_modinv_xform
+	 */
+
+	rte_crypto_param result;
+	/**<
+	 * Pointer to the result of modular exponentiation/multiplicative inverse
+	 * data in octet-string network byte order format.
+	 *
+	 * This field shall be big enough to hold the result of Modular
+	 * Exponentiation or Modular Multiplicative Inverse
+	 * (bigger or equal to length of modulus)
 	 */
 };
 
@@ -348,7 +373,7 @@ struct rte_crypto_asym_xform {
 		/**< Modular Exponentiation xform parameters */
 
 		struct rte_crypto_modinv_xform modinv;
-		/**< Modulus Inverse xform parameters */
+		/**< Modular Multiplicative Inverse xform parameters */
 
 		struct rte_crypto_dh_xform dh;
 		/**< DH xform parameters */
@@ -487,7 +512,7 @@ struct rte_crypto_asym_op {
 		struct rte_crypto_dh_op_param dh;
 		struct rte_crypto_dsa_op_param dsa;
 	};
-} __rte_cache_aligned;
+};
 
 #ifdef __cplusplus
 }

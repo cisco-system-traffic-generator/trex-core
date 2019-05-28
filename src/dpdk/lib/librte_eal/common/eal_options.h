@@ -5,6 +5,8 @@
 #ifndef EAL_OPTIONS_H
 #define EAL_OPTIONS_H
 
+#include "getopt.h"
+
 enum {
 	/* long options mapped to a short option */
 #define OPT_HELP              "help"
@@ -63,6 +65,10 @@ enum {
 	OPT_LEGACY_MEM_NUM,
 #define OPT_SINGLE_FILE_SEGMENTS    "single-file-segments"
 	OPT_SINGLE_FILE_SEGMENTS_NUM,
+#define OPT_IOVA_MODE          "iova-mode"
+	OPT_IOVA_MODE_NUM,
+#define OPT_MATCH_ALLOCATIONS  "match-allocations"
+	OPT_MATCH_ALLOCATIONS_NUM,
 	OPT_LONG_MAX_NUM
 };
 
@@ -73,6 +79,7 @@ int eal_parse_common_option(int opt, const char *argv,
 			    struct internal_config *conf);
 int eal_option_device_parse(void);
 int eal_adjust_config(struct internal_config *internal_cfg);
+int eal_cleanup_config(struct internal_config *internal_cfg);
 int eal_check_common_options(struct internal_config *internal_cfg);
 void eal_common_usage(void);
 enum rte_proc_type_t eal_proc_type_detect(void);

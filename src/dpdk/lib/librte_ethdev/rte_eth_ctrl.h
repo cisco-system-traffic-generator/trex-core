@@ -8,67 +8,19 @@
 #include <stdint.h>
 #include <rte_common.h>
 #include "rte_ether.h"
+#include "rte_flow.h"
 
 /**
+ * @deprecated Please use rte_flow API instead of this legacy one.
  * @file
  *
  * Ethernet device features and related data structures used
  * by control APIs should be defined in this file.
- *
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*
- * A packet can be identified by hardware as different flow types. Different
- * NIC hardwares may support different flow types.
- * Basically, the NIC hardware identifies the flow type as deep protocol as
- * possible, and exclusively. For example, if a packet is identified as
- * 'RTE_ETH_FLOW_NONFRAG_IPV4_TCP', it will not be any of other flow types,
- * though it is an actual IPV4 packet.
- * Note that the flow types are used to define RSS offload types in
- * rte_ethdev.h.
- */
-#define RTE_ETH_FLOW_UNKNOWN             0
-#define RTE_ETH_FLOW_RAW                 1
-#define RTE_ETH_FLOW_IPV4                2
-#define RTE_ETH_FLOW_FRAG_IPV4           3
-#define RTE_ETH_FLOW_NONFRAG_IPV4_TCP    4
-#define RTE_ETH_FLOW_NONFRAG_IPV4_UDP    5
-#define RTE_ETH_FLOW_NONFRAG_IPV4_SCTP   6
-#define RTE_ETH_FLOW_NONFRAG_IPV4_OTHER  7
-#define RTE_ETH_FLOW_IPV6                8
-#define RTE_ETH_FLOW_FRAG_IPV6           9
-#define RTE_ETH_FLOW_NONFRAG_IPV6_TCP   10
-#define RTE_ETH_FLOW_NONFRAG_IPV6_UDP   11
-#define RTE_ETH_FLOW_NONFRAG_IPV6_SCTP  12
-#define RTE_ETH_FLOW_NONFRAG_IPV6_OTHER 13
-#define RTE_ETH_FLOW_L2_PAYLOAD         14
-#define RTE_ETH_FLOW_IPV6_EX            15
-#define RTE_ETH_FLOW_IPV6_TCP_EX        16
-#define RTE_ETH_FLOW_IPV6_UDP_EX        17
-#define RTE_ETH_FLOW_PORT               18
-	/**< Consider device port number as a flow differentiator */
-#define RTE_ETH_FLOW_VXLAN              19 /**< VXLAN protocol based flow */
-#define RTE_ETH_FLOW_GENEVE             20 /**< GENEVE protocol based flow */
-#define RTE_ETH_FLOW_NVGRE              21 /**< NVGRE protocol based flow */
-#define RTE_ETH_FLOW_VXLAN_GPE          22 /**< VXLAN-GPE protocol based flow */
-#define RTE_ETH_FLOW_MAX                23
-
-/* Napatech ADD ON */
-#define RTE_ETH_FLOW_INNER_IPV4         24
-#define RTE_ETH_FLOW_INNER_IPV4_TCP     25
-#define RTE_ETH_FLOW_INNER_IPV4_UDP     26
-#define RTE_ETH_FLOW_INNER_IPV4_SCTP    27
-#define RTE_ETH_FLOW_INNER_IPV4_OTHER   28
-#define RTE_ETH_FLOW_INNER_IPV6         29
-#define RTE_ETH_FLOW_INNER_IPV6_TCP     30
-#define RTE_ETH_FLOW_INNER_IPV6_UDP     31
-#define RTE_ETH_FLOW_INNER_IPV6_SCTP    32
-#define RTE_ETH_FLOW_INNER_IPV6_OTHER   33
-#define RTE_ETH_FLOW_NTPL               34
 
 /**
  * Feature filter types
@@ -229,20 +181,6 @@ struct rte_eth_ntuple_filter {
 	uint16_t priority;       /**< seven levels (001b-111b), 111b is highest,
 				      used when more than one filter matches. */
 	uint16_t queue;          /**< Queue assigned to when match*/
-};
-
-/**
- * Tunneled type.
- */
-enum rte_eth_tunnel_type {
-	RTE_TUNNEL_TYPE_NONE = 0,
-	RTE_TUNNEL_TYPE_VXLAN,
-	RTE_TUNNEL_TYPE_GENEVE,
-	RTE_TUNNEL_TYPE_TEREDO,
-	RTE_TUNNEL_TYPE_NVGRE,
-	RTE_TUNNEL_TYPE_IP_IN_GRE,
-	RTE_L2_TUNNEL_TYPE_E_TAG,
-	RTE_TUNNEL_TYPE_MAX,
 };
 
 /**
@@ -612,7 +550,7 @@ struct rte_eth_fdir_masks {
 	uint16_t vlan_tci_mask;   /**< Bit mask for vlan_tci in big endian */
 	/** Bit mask for ipv4 flow in big endian. */
 	struct rte_eth_ipv4_flow   ipv4_mask;
-	/** Bit maks for ipv6 flow in big endian. */
+	/** Bit mask for ipv6 flow in big endian. */
 	struct rte_eth_ipv6_flow   ipv6_mask;
 	/** Bit mask for L4 source port in big endian. */
 	uint16_t src_port_mask;
@@ -785,16 +723,6 @@ enum rte_eth_hash_filter_info_type {
 	/** Global Hash filter input set configuration */
 	RTE_ETH_HASH_FILTER_INPUT_SET_SELECT,
 	RTE_ETH_HASH_FILTER_INFO_TYPE_MAX,
-};
-
-/**
- * Hash function types.
- */
-enum rte_eth_hash_function {
-	RTE_ETH_HASH_FUNCTION_DEFAULT = 0,
-	RTE_ETH_HASH_FUNCTION_TOEPLITZ, /**< Toeplitz */
-	RTE_ETH_HASH_FUNCTION_SIMPLE_XOR, /**< Simple XOR */
-	RTE_ETH_HASH_FUNCTION_MAX,
 };
 
 #define RTE_SYM_HASH_MASK_ARRAY_SIZE \

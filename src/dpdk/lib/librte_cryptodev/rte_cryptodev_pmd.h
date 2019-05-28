@@ -71,9 +71,6 @@ struct cryptodev_driver {
 	uint8_t id;
 };
 
-/** pointer to global crypto devices data structure. */
-extern struct rte_cryptodev_global *rte_cryptodev_globals;
-
 /**
  * Get the rte_cryptodev structure device pointer for the device. Assumes a
  * valid device index.
@@ -191,13 +188,12 @@ typedef void (*cryptodev_info_get_t)(struct rte_cryptodev *dev,
  * @param	qp_id		Queue Pair Index
  * @param	qp_conf		Queue configuration structure
  * @param	socket_id	Socket Index
- * @param	session_pool	Pointer to device session mempool
  *
  * @return	Returns 0 on success.
  */
 typedef int (*cryptodev_queue_pair_setup_t)(struct rte_cryptodev *dev,
 		uint16_t qp_id,	const struct rte_cryptodev_qp_conf *qp_conf,
-		int socket_id, struct rte_mempool *session_pool);
+		int socket_id);
 
 /**
  * Release memory resources allocated by given queue pair.
@@ -479,14 +475,23 @@ RTE_INIT(init_ ##driver_id)\
 static inline void *
 get_sym_session_private_data(const struct rte_cryptodev_sym_session *sess,
 		uint8_t driver_id) {
-	return sess->sess_private_data[driver_id];
+	if (unlikely(sess->nb_drivers <= driver_id))
+		return NULL;
+
+	return sess->sess_data[driver_id].data;
 }
 
 static inline void
 set_sym_session_private_data(struct rte_cryptodev_sym_session *sess,
 		uint8_t driver_id, void *private_data)
 {
-	sess->sess_private_data[driver_id] = private_data;
+	if (unlikely(sess->nb_drivers <= driver_id)) {
+		CDEV_LOG_ERR("Set private data for driver %u not allowed\n",
+				driver_id);
+		return;
+	}
+
+	sess->sess_data[driver_id].data = private_data;
 }
 
 static inline void *

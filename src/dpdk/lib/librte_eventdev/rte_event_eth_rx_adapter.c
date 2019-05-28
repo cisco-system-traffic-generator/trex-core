@@ -872,7 +872,7 @@ rxa_eth_rx(struct rte_event_eth_rx_adapter *rx_adapter,
 			break;
 	}
 
-	if (buf->count >= BATCH_SIZE)
+	if (buf->count > 0)
 		rxa_flush_event_buffer(rx_adapter);
 
 	return nb_rx;
@@ -912,7 +912,7 @@ rxa_intr_ring_enqueue(struct rte_event_eth_rx_adapter *rx_adapter,
 		 */
 		if (err)
 			RTE_EDEV_LOG_ERR("Failed to enqueue interrupt"
-				" to ring: %s", strerror(err));
+				" to ring: %s", strerror(-err));
 		else
 			rte_eth_dev_rx_intr_disable(port_id, queue);
 	}
@@ -1125,7 +1125,6 @@ rxa_poll(struct rte_event_eth_rx_adapter *rx_adapter)
 	wrr_pos = rx_adapter->wrr_pos;
 	max_nb_rx = rx_adapter->max_nb_rx;
 	buf = &rx_adapter->event_enqueue_buffer;
-	stats = &rx_adapter->stats;
 
 	/* Iterate through a WRR sequence */
 	for (num_queue = 0; num_queue < rx_adapter->wrr_len; num_queue++) {
@@ -1166,8 +1165,8 @@ rxa_service_func(void *args)
 	if (rte_spinlock_trylock(&rx_adapter->rx_lock) == 0)
 		return 0;
 	if (!rx_adapter->rxa_started) {
-		return 0;
 		rte_spinlock_unlock(&rx_adapter->rx_lock);
+		return 0;
 	}
 
 	stats = &rx_adapter->stats;
@@ -1998,8 +1997,7 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 	rx_adapter->id = id;
 	strcpy(rx_adapter->mem_name, mem_name);
 	rx_adapter->eth_devices = rte_zmalloc_socket(rx_adapter->mem_name,
-					/* FIXME: incompatible with hotplug */
-					rte_eth_dev_count_total() *
+					RTE_MAX_ETHPORTS *
 					sizeof(struct eth_device_info), 0,
 					socket_id);
 	rte_convert_rss_key((const uint32_t *)default_rss_key,
@@ -2012,7 +2010,7 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 		return -ENOMEM;
 	}
 	rte_spinlock_init(&rx_adapter->rx_lock);
-	RTE_ETH_FOREACH_DEV(i)
+	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
 		rx_adapter->eth_devices[i].dev = &rte_eth_devices[i];
 
 	event_eth_rx_adapter[id] = rx_adapter;
@@ -2298,7 +2296,7 @@ rte_event_eth_rx_adapter_stop(uint8_t id)
 	return rxa_ctrl(id, 0);
 }
 
-int
+int __rte_experimental
 rte_event_eth_rx_adapter_stats_get(uint8_t id,
 			       struct rte_event_eth_rx_adapter_stats *stats)
 {
@@ -2385,7 +2383,8 @@ rte_event_eth_rx_adapter_service_id_get(uint8_t id, uint32_t *service_id)
 	return rx_adapter->service_inited ? 0 : -ESRCH;
 }
 
-int rte_event_eth_rx_adapter_cb_register(uint8_t id,
+int __rte_experimental
+rte_event_eth_rx_adapter_cb_register(uint8_t id,
 					uint16_t eth_dev_id,
 					rte_event_eth_rx_adapter_cb_fn cb_fn,
 					void *cb_arg)
