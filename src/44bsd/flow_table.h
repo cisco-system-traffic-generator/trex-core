@@ -344,7 +344,7 @@ private:
                                                           struct rte_mbuf * mbuf);
 
 
-public:
+private:
     void reset_stats();
 public:
       CSttFlowTableStats m_sts;

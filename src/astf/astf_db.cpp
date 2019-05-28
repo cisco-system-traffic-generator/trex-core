@@ -36,7 +36,7 @@ inline std::string methodName(const std::string& prettyFunction)
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
 // make the class singleton
-std::unordered_map<uint32_t, CAstfDB*> CAstfDB::m_pInstances;
+std::unordered_map<profile_id_t, CAstfDB*> CAstfDB::m_pInstances;
 
 
 CAstfDB::CAstfDB(){

@@ -372,7 +372,7 @@ class CAstfDB  : public CTRexDummyCommand  {
 
  public:
     // make the class singelton
-    static CAstfDB *instance(uint32_t profile_id = 0) {
+    static CAstfDB *instance(profile_id_t profile_id = 0) {
         if (m_pInstances.find(profile_id) == m_pInstances.end()) {
             m_pInstances[profile_id] = new CAstfDB();
             m_pInstances[profile_id]->m_json_initiated = false;
@@ -380,14 +380,14 @@ class CAstfDB  : public CTRexDummyCommand  {
         return m_pInstances[profile_id];
     }
 
-    static void free_instance(uint32_t profile_id = 0){
+    static void free_instance(profile_id_t profile_id = 0){
         if (m_pInstances.find(profile_id) != m_pInstances.end()){
             delete m_pInstances[profile_id];
             m_pInstances.erase(profile_id);
         }
     }
 
-    static bool has_instance(uint32_t profile_id = 0) {
+    static bool has_instance(profile_id_t profile_id = 0) {
         return m_pInstances.find(profile_id) != m_pInstances.end();
     }
 
@@ -574,7 +574,7 @@ private:
 
  private:
     bool m_json_initiated;
-    static std::unordered_map<uint32_t, CAstfDB*> m_pInstances;
+    static std::unordered_map<profile_id_t, CAstfDB*> m_pInstances;
     Json::Value  m_val;
     Json::Value  m_buffers;
 

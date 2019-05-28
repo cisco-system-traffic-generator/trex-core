@@ -521,17 +521,13 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id, bool is_first) {
+void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_first) {
     /* clear global statistics when new profile is started only */
     if (is_first) {
         m_stats.clear();    // moved from TrexAstfDpCore::create_tcp_batch()
 
-        m_c_tcp->m_ft.reset_stats();
-        m_s_tcp->m_ft.reset_stats();
-
-        // cleanup unused profile contexts (remained for stats references)
-        m_c_tcp->cleanup_inactive_profiles();
-        m_s_tcp->cleanup_inactive_profiles();
+        m_c_tcp->m_ft.m_sts.Clear();
+        m_s_tcp->m_ft.m_sts.Clear();
     }
     m_c_tcp->create_profile_ctx(profile_id);
     m_s_tcp->create_profile_ctx(profile_id);
@@ -574,7 +570,7 @@ void CFlowGenListPerThread::load_tcp_profile(uint32_t profile_id, bool is_first)
     m_s_tcp->call_startup(profile_id);
 }
 
-void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id, bool is_last) {
+void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last) {
     m_s_tcp->remove_server_ports(profile_id);
 
     if ( CAstfDB::has_instance(profile_id) ) {
@@ -592,6 +588,11 @@ void CFlowGenListPerThread::unload_tcp_profile(uint32_t profile_id, bool is_last
 
         m_sched_accurate = false;
     }
+}
+
+void CFlowGenListPerThread::remove_tcp_profile(profile_id_t profile_id) {
+    m_s_tcp->remove_profile_ctx(profile_id);
+    m_c_tcp->remove_profile_ctx(profile_id);
 }
 
 void CFlowGenListPerThread::Delete_tcp_ctx(){
