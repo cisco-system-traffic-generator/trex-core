@@ -749,7 +749,7 @@ class STLClient_Test(CStlGeneral_Test):
             for index, profile in enumerate(profile_list):
                 if index % 2 == 0:
                     self.c.update(ports = profile, mult = '1kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 100000)
+            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 75000)
 
         except STLError as e:
             assert False , '{0}'.format(e)
