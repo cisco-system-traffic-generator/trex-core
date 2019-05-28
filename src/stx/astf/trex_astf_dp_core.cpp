@@ -55,23 +55,27 @@ bool TrexAstfDpCore::is_port_active(uint8_t port_id) {
     return m_state != STATE_IDLE;
 }
 
-int TrexAstfDpCore::get_profile_stop_id(uint32_t profile_id) {
-    return m_flow_gen->m_c_tcp->get_stop_id(profile_id);
+bool TrexAstfDpCore::is_profile_stop_id(profile_id_t profile_id, uint32_t stop_id) {
+    return (m_flow_gen->m_c_tcp->get_stop_id(profile_id) == stop_id);
 }
 
-void TrexAstfDpCore::set_profile_active(uint32_t profile_id) {
+void TrexAstfDpCore::set_profile_stop_id(profile_id_t profile_id, uint32_t stop_id) {
+    m_flow_gen->m_c_tcp->set_stop_id(profile_id, stop_id);
+}
+
+void TrexAstfDpCore::set_profile_active(profile_id_t profile_id) {
     set_profile_state(profile_id, pSTATE_ACTIVE);
     m_flow_gen->m_c_tcp->activate_profile_ctx(profile_id);
     m_flow_gen->m_s_tcp->activate_profile_ctx(profile_id);
 }
 
-void TrexAstfDpCore::set_profile_stopping(uint32_t profile_id) {
+void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
     set_profile_state(profile_id, pSTATE_WAIT);
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
     m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
 }
 
-void TrexAstfDpCore::on_profile_stop_event(uint32_t profile_id) {
+void TrexAstfDpCore::on_profile_stop_event(profile_id_t profile_id) {
     if (get_profile_state(profile_id) == pSTATE_WAIT && m_state == STATE_TRANSMITTING) {
         if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
             (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
@@ -81,20 +85,22 @@ void TrexAstfDpCore::on_profile_stop_event(uint32_t profile_id) {
     }
 }
 
-static void dp_core_on_profile_stop_event(void *core, uint32_t profile_id) {
+static void dp_core_on_profile_stop_event(void *core, profile_id_t profile_id) {
     TrexAstfDpCore * dp_core = (TrexAstfDpCore*)core;
     dp_core->on_profile_stop_event(profile_id);
 }
 
-void TrexAstfDpCore::set_profile_stop_event(uint32_t profile_id) {
+void TrexAstfDpCore::set_profile_stop_event(profile_id_t profile_id) {
     m_flow_gen->m_c_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
     m_flow_gen->m_s_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
 }
 
-void TrexAstfDpCore::add_profile_duration(uint32_t profile_id, double duration) {
+void TrexAstfDpCore::add_profile_duration(profile_id_t profile_id, double duration) {
     if (duration > 0.0) {
         CGenNodeCommand * node = (CGenNodeCommand*)m_core->create_node() ;
-        int stop_id = get_profile_stop_id(profile_id);
+        uint32_t stop_id = profile_stop_id();
+
+        set_profile_stop_id(profile_id, stop_id);
 
         node->m_type = CGenNode::COMMAND;
 
@@ -112,7 +118,7 @@ void TrexAstfDpCore::add_profile_duration(uint32_t profile_id, double duration) 
     }
 }
 
-void TrexAstfDpCore::get_scheduler_options(uint32_t profile_id, bool& disable_client, dsec_t& d_time_flow, double& d_phase) {
+void TrexAstfDpCore::get_scheduler_options(profile_id_t profile_id, bool& disable_client, dsec_t& d_time_flow, double& d_phase) {
     CParserOption *go = &CGlobalInfo::m_options;
 
     /* do we need to disable this tread client port */
@@ -142,7 +148,7 @@ void TrexAstfDpCore::get_scheduler_options(uint32_t profile_id, bool& disable_cl
 
 void TrexAstfDpCore::start_scheduler() {
 
-    uint32_t profile_id = 0;
+    profile_id_t profile_id = 0;
     double duration = -1;
 
     if (m_state == STATE_STARTING) { /* set by start_transmit function */
@@ -224,7 +230,7 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::start_profile_ctx(uint32_t profile_id, double duration) {
+void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration) {
 
     dsec_t d_time_flow;
     bool disable_client = false;
@@ -248,9 +254,9 @@ void TrexAstfDpCore::start_profile_ctx(uint32_t profile_id, double duration) {
     }
 }
 
-void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
+void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id) {
     /* skip unmatched stop_id which means previous profile action */
-    if (stop_id && get_profile_stop_id(profile_id) != stop_id) {
+    if (stop_id && !is_profile_stop_id(profile_id, stop_id)) {
         return;
     }
 
@@ -274,7 +280,7 @@ void TrexAstfDpCore::stop_profile_ctx(uint32_t profile_id, uint32_t stop_id) {
     }
 }
 
-void TrexAstfDpCore::parse_astf_json(uint32_t profile_id, string *profile_buffer, string *topo_buffer) {
+void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -318,13 +324,13 @@ void TrexAstfDpCore::parse_astf_json(uint32_t profile_id, string *profile_buffer
     }
 }
 
-void TrexAstfDpCore::remove_astf_json(uint32_t profile_id) {
+void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id) {
     CAstfDB::free_instance(profile_id);
     report_finished(profile_id);
 }
 
 
-void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id, double factor) {
+void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -350,6 +356,7 @@ void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id, double factor) {
     } catch (const TrexException &ex) {
         remove_profile_state(profile_id);
         m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
+        m_flow_gen->remove_tcp_profile(profile_id);
         report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
         return;
     }
@@ -358,22 +365,23 @@ void TrexAstfDpCore::create_tcp_batch(uint32_t profile_id, double factor) {
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::delete_tcp_batch(uint32_t profile_id) {
+void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
-    if (!is_profile(profile_id)) {
-        report_finished(profile_id);
-        return;
-    }
-
     try {
-        if (get_profile_state(profile_id) > pSTATE_LOADED) {
-            throw TrexException("Invalid profile state " + std::to_string(get_profile_state(profile_id)));
+        if (is_profile(profile_id)) {
+            if (get_profile_state(profile_id) > pSTATE_LOADED) {
+                throw TrexException("Invalid profile state " + std::to_string(get_profile_state(profile_id)));
+            }
+
+            remove_profile_state(profile_id);
+            m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
         }
 
-        remove_profile_state(profile_id);
-        m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
+        if (do_remove) {
+            m_flow_gen->remove_tcp_profile(profile_id);
+        }
     } catch (const TrexException &ex) {
         report_error(profile_id, "Could not delete ASTF batch: " + string(ex.what()));
         return;
@@ -382,7 +390,7 @@ void TrexAstfDpCore::delete_tcp_batch(uint32_t profile_id) {
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::start_transmit(uint32_t profile_id, double duration) {
+void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
     if (!is_profile(profile_id)) {
         report_error(profile_id, "Start of unknown profile");
         return;
@@ -409,7 +417,7 @@ void TrexAstfDpCore::start_transmit(uint32_t profile_id, double duration) {
     }
 }
 
-void TrexAstfDpCore::stop_transmit(uint32_t profile_id, uint32_t stop_id) {
+void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
     if (!is_profile(profile_id) || get_profile_state(profile_id) < pSTATE_ACTIVE) {
         return; // no action for invalid profile
     }
@@ -436,7 +444,7 @@ void TrexAstfDpCore::stop_transmit(uint32_t profile_id, uint32_t stop_id) {
     }
 }
 
-void TrexAstfDpCore::update_rate(uint32_t profile_id, double old_new_ratio) {
+void TrexAstfDpCore::update_rate(profile_id_t profile_id, double old_new_ratio) {
     double fif_d_time = m_flow_gen->m_c_tcp->get_fif_d_time(profile_id);
     m_flow_gen->m_c_tcp->set_fif_d_time(fif_d_time*old_new_ratio, profile_id);
 }
@@ -445,12 +453,12 @@ bool TrexAstfDpCore::sync_barrier() {
     return (m_flow_gen->get_sync_b()->sync_barrier(m_flow_gen->m_thread_id) == 0);
 }
 
-void TrexAstfDpCore::report_finished(uint32_t profile_id) {
+void TrexAstfDpCore::report_finished(profile_id_t profile_id) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreStopped(m_flow_gen->m_thread_id, profile_id);
     m_ring_to_cp->Enqueue((CGenNode *)msg);
 }
 
-void TrexAstfDpCore::report_error(uint32_t profile_id, const string &error) {
+void TrexAstfDpCore::report_error(profile_id_t profile_id, const string &error) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreError(m_flow_gen->m_thread_id, profile_id, error);
     m_ring_to_cp->Enqueue((CGenNode *)msg);
 }

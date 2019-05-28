@@ -3114,8 +3114,9 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    void load_tcp_profile(uint32_t profile_id = 0, bool is_first = true);
-    void unload_tcp_profile(uint32_t profile_id = 0, bool is_last = true);
+    void load_tcp_profile(profile_id_t profile_id = 0, bool is_first = true);
+    void unload_tcp_profile(profile_id_t profile_id = 0, bool is_last = true);
+    void remove_tcp_profile(profile_id_t profile_id);
     void Delete_tcp_ctx();
 
     void generate_flow(bool &done, CPerProfileCtx * pctx);

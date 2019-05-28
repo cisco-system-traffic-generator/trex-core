@@ -173,7 +173,7 @@ TEST_F(gt_astf_inter, astf_positive_7) {
     CFlowGenListPerThread *lpt = fl.m_threads_info[0];
     CAstfDB * lpastf;
 
-    uint32_t profile_id_1 = 0x12345678;
+    profile_id_t profile_id_1 = 0x12345678;
 
     lpastf = CAstfDB::instance(profile_id_1);
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");
@@ -199,7 +199,7 @@ TEST_F(gt_astf_inter, astf_positive_7) {
     }
     EXPECT_EQ(success, true);
 
-    uint32_t profile_id_2 = 0xfedcba98;
+    profile_id_t profile_id_2 = 0xfedcba98;
 
     lpastf = CAstfDB::instance(profile_id_2);
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");

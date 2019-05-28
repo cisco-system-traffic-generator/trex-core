@@ -658,7 +658,7 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     #endif
 }
 
-void CTcpPerThreadCtx::resize_stats(uint32_t profile_id) {
+void CTcpPerThreadCtx::resize_stats(profile_id_t profile_id) {
     uint16_t num_of_tg_ids = get_template_ro(profile_id)->get_num_of_tg_ids();
     get_tcpstat(profile_id)->Resize(num_of_tg_ids);
     get_udpstat(profile_id)->Resize(num_of_tg_ids);
@@ -716,7 +716,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 }
 
 
-void CTcpPerThreadCtx::init_sch_rampup(uint32_t profile_id){
+void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
         /* calc default fif rate*/
         astf_thread_id_t max_threads = get_template_rw(profile_id)->get_max_threads();
         set_fif_d_time(get_template_ro(profile_id)->get_delta_tick_sec_thread(max_threads), profile_id);
@@ -734,13 +734,13 @@ void CTcpPerThreadCtx::init_sch_rampup(uint32_t profile_id){
 
 
 
-void CTcpPerThreadCtx::call_startup(uint32_t profile_id){
+void CTcpPerThreadCtx::call_startup(profile_id_t profile_id){
     if ( is_client_side() ){
         init_sch_rampup(profile_id);
     }
 }
 
-void CTcpPerThreadCtx::delete_startup(uint32_t profile_id) {
+void CTcpPerThreadCtx::delete_startup(profile_id_t profile_id) {
     if (get_sch_rampup(profile_id)) {
         delete get_sch_rampup(profile_id);
         set_sch_rampup(nullptr, profile_id);
@@ -758,7 +758,7 @@ void CTcpPerThreadCtx::Delete(){
     }
 }
 
-void CTcpPerThreadCtx::append_server_ports(uint32_t profile_id) {
+void CTcpPerThreadCtx::append_server_ports(profile_id_t profile_id) {
     CPerProfileCtx * pctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = pctx->m_template_ro;
     std::vector<uint16_t> server_ports;
@@ -781,7 +781,7 @@ void CTcpPerThreadCtx::append_server_ports(uint32_t profile_id) {
     }
 }
 
-void CTcpPerThreadCtx::remove_server_ports(uint32_t profile_id) {
+void CTcpPerThreadCtx::remove_server_ports(profile_id_t profile_id) {
     CPerProfileCtx * pctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = pctx->m_template_ro;
     std::vector<uint16_t> server_ports;
