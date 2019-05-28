@@ -305,7 +305,6 @@ eth_dev_info(struct rte_eth_dev *dev,
 	dev_info->min_rx_bufsize = 0;
 	dev_info->reta_size = internals->reta_size;
 	dev_info->flow_type_rss_offloads = internals->flow_type_rss_offloads;
-	dev_info->rx_offload_capa = DEV_RX_OFFLOAD_CRC_STRIP;
 }
 
 static int
@@ -615,8 +614,7 @@ rte_pmd_null_probe(struct rte_vdev_device *dev)
 	params = rte_vdev_device_args(dev);
 	PMD_LOG(INFO, "Initializing pmd_null for %s", name);
 
-	if (rte_eal_process_type() == RTE_PROC_SECONDARY &&
-	    strlen(params) == 0) {
+	if (rte_eal_process_type() == RTE_PROC_SECONDARY) {
 		eth_dev = rte_eth_dev_attach_secondary(name);
 		if (!eth_dev) {
 			PMD_LOG(ERR, "Failed to probe %s", name);
@@ -681,7 +679,9 @@ rte_pmd_null_remove(struct rte_vdev_device *dev)
 	if (eth_dev == NULL)
 		return -1;
 
-	rte_free(eth_dev->data->dev_private);
+	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
+		/* mac_addrs must not be freed alone because part of dev_private */
+		eth_dev->data->mac_addrs = NULL;
 
 	rte_eth_dev_release_port(eth_dev);
 

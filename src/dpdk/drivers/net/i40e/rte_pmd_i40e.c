@@ -2,6 +2,7 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
+#include <rte_string_fns.h>
 #include <rte_malloc.h>
 #include <rte_tailq.h>
 
@@ -338,7 +339,7 @@ i40e_vsi_set_tx_loopback(struct i40e_vsi *vsi, uint8_t on)
 	hw = I40E_VSI_TO_HW(vsi);
 
 	/* Use the FW API if FW >= v5.0 */
-	if (hw->aq.fw_maj_ver < 5) {
+	if (hw->aq.fw_maj_ver < 5 && hw->mac.type != I40E_MAC_X722) {
 		PMD_INIT_LOG(ERR, "FW < v5.0, cannot enable loopback");
 		return -ENOTSUP;
 	}
@@ -1983,8 +1984,8 @@ int rte_pmd_i40e_get_ddp_info(uint8_t *pkg_buff, uint32_t pkg_size,
 		tlv = (struct i40e_profile_tlv_section_record *)&proto[1];
 		for (i = j = 0; i < nb_rec; j++) {
 			pinfo[j].proto_id = tlv->data[0];
-			snprintf(pinfo[j].name, I40E_DDP_NAME_SIZE, "%s",
-				 (const char *)&tlv->data[1]);
+			strlcpy(pinfo[j].name, (const char *)&tlv->data[1],
+				I40E_DDP_NAME_SIZE);
 			i += tlv->len;
 			tlv = &tlv[tlv->len];
 		}
@@ -2818,12 +2819,22 @@ i40e_queue_region_dcb_configure(struct i40e_hw *hw,
 	struct i40e_dcbx_config *old_cfg = &hw->local_dcbx_config;
 	int32_t ret = -EINVAL;
 	uint16_t i, j, prio_index, region_index;
-	uint8_t tc_map, tc_bw, bw_lf;
+	uint8_t tc_map, tc_bw, bw_lf, dcb_flag = 0;
 
 	if (!info->queue_region_number) {
 		PMD_DRV_LOG(ERR, "No queue region been set before");
 		return ret;
 	}
+
+	for (i = 0; i < info->queue_region_number; i++) {
+		if (info->region[i].user_priority_num) {
+			dcb_flag = 1;
+			break;
+		}
+	}
+
+	if (dcb_flag == 0)
+		return 0;
 
 	dcb_cfg = &dcb_cfg_local;
 	memset(dcb_cfg, 0, sizeof(struct i40e_dcbx_config));

@@ -37,6 +37,7 @@ static const struct rte_pci_id pci_id_enic_map[] = {
 };
 
 #define ENIC_DEVARG_DISABLE_OVERLAY "disable-overlay"
+#define ENIC_DEVARG_ENABLE_AVX2_RX "enable-avx2-rx"
 #define ENIC_DEVARG_IG_VLAN_REWRITE "ig-vlan-rewrite"
 
 RTE_INIT(enicpmd_init_log)
@@ -366,6 +367,7 @@ static int enicpmd_dev_configure(struct rte_eth_dev *eth_dev)
 		return ret;
 	}
 
+	enic->mc_count = 0;
 	enic->hw_ip_checksum = !!(eth_dev->data->dev_conf.rxmode.offloads &
 				  DEV_RX_OFFLOAD_CHECKSUM);
 	/* All vlan offload masks to apply the current settings */
@@ -472,7 +474,7 @@ static void enicpmd_dev_info_get(struct rte_eth_dev *eth_dev,
 	 * ignoring vNIC mtu.
 	 */
 	device_info->max_rx_pktlen = enic_mtu_to_max_rx_pktlen(enic->max_mtu);
-	device_info->max_mac_addrs = ENIC_MAX_MAC_ADDR;
+	device_info->max_mac_addrs = ENIC_UNICAST_PERFECT_FILTERS;
 	device_info->rx_offload_capa = enic->rx_offload_capa;
 	device_info->tx_offload_capa = enic->tx_offload_capa;
 	device_info->tx_queue_offload_capa = enic->tx_queue_offload_capa;
@@ -524,10 +526,34 @@ static const uint32_t *enicpmd_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_L4_NONFRAG,
 		RTE_PTYPE_UNKNOWN
 	};
+	static const uint32_t ptypes_overlay[] = {
+		RTE_PTYPE_L2_ETHER,
+		RTE_PTYPE_L2_ETHER_VLAN,
+		RTE_PTYPE_L3_IPV4_EXT_UNKNOWN,
+		RTE_PTYPE_L3_IPV6_EXT_UNKNOWN,
+		RTE_PTYPE_L4_TCP,
+		RTE_PTYPE_L4_UDP,
+		RTE_PTYPE_L4_FRAG,
+		RTE_PTYPE_L4_NONFRAG,
+		RTE_PTYPE_TUNNEL_GRENAT,
+		RTE_PTYPE_INNER_L2_ETHER,
+		RTE_PTYPE_INNER_L3_IPV4_EXT_UNKNOWN,
+		RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN,
+		RTE_PTYPE_INNER_L4_TCP,
+		RTE_PTYPE_INNER_L4_UDP,
+		RTE_PTYPE_INNER_L4_FRAG,
+		RTE_PTYPE_INNER_L4_NONFRAG,
+		RTE_PTYPE_UNKNOWN
+	};
 
-	if (dev->rx_pkt_burst == enic_recv_pkts ||
-	    dev->rx_pkt_burst == enic_noscatter_recv_pkts)
-		return ptypes;
+	if (dev->rx_pkt_burst != enic_dummy_recv_pkts &&
+	    dev->rx_pkt_burst != NULL) {
+		struct enic *enic = pmd_priv(dev);
+		if (enic->overlay_offload)
+			return ptypes_overlay;
+		else
+			return ptypes;
+	}
 	return NULL;
 }
 
@@ -619,6 +645,97 @@ static int enicpmd_set_mac_addr(struct rte_eth_dev *eth_dev,
 	if (ret)
 		return ret;
 	return enic_set_mac_address(enic, addr->addr_bytes);
+}
+
+static void debug_log_add_del_addr(struct ether_addr *addr, bool add)
+{
+	char mac_str[ETHER_ADDR_FMT_SIZE];
+
+	ether_format_addr(mac_str, ETHER_ADDR_FMT_SIZE, addr);
+	PMD_INIT_LOG(DEBUG, " %s address %s\n",
+		     add ? "add" : "remove", mac_str);
+}
+
+static int enicpmd_set_mc_addr_list(struct rte_eth_dev *eth_dev,
+				    struct ether_addr *mc_addr_set,
+				    uint32_t nb_mc_addr)
+{
+	struct enic *enic = pmd_priv(eth_dev);
+	char mac_str[ETHER_ADDR_FMT_SIZE];
+	struct ether_addr *addr;
+	uint32_t i, j;
+	int ret;
+
+	ENICPMD_FUNC_TRACE();
+
+	/* Validate the given addresses first */
+	for (i = 0; i < nb_mc_addr && mc_addr_set != NULL; i++) {
+		addr = &mc_addr_set[i];
+		if (!is_multicast_ether_addr(addr) ||
+		    is_broadcast_ether_addr(addr)) {
+			ether_format_addr(mac_str, ETHER_ADDR_FMT_SIZE, addr);
+			PMD_INIT_LOG(ERR, " invalid multicast address %s\n",
+				     mac_str);
+			return -EINVAL;
+		}
+	}
+
+	/* Flush all if requested */
+	if (nb_mc_addr == 0 || mc_addr_set == NULL) {
+		PMD_INIT_LOG(DEBUG, " flush multicast addresses\n");
+		for (i = 0; i < enic->mc_count; i++) {
+			addr = &enic->mc_addrs[i];
+			debug_log_add_del_addr(addr, false);
+			ret = vnic_dev_del_addr(enic->vdev, addr->addr_bytes);
+			if (ret)
+				return ret;
+		}
+		enic->mc_count = 0;
+		return 0;
+	}
+
+	if (nb_mc_addr > ENIC_MULTICAST_PERFECT_FILTERS) {
+		PMD_INIT_LOG(ERR, " too many multicast addresses: max=%d\n",
+			     ENIC_MULTICAST_PERFECT_FILTERS);
+		return -ENOSPC;
+	}
+	/*
+	 * devcmd is slow, so apply the difference instead of flushing and
+	 * adding everything.
+	 * 1. Delete addresses on the NIC but not on the host
+	 */
+	for (i = 0; i < enic->mc_count; i++) {
+		addr = &enic->mc_addrs[i];
+		for (j = 0; j < nb_mc_addr; j++) {
+			if (is_same_ether_addr(addr, &mc_addr_set[j]))
+				break;
+		}
+		if (j < nb_mc_addr)
+			continue;
+		debug_log_add_del_addr(addr, false);
+		ret = vnic_dev_del_addr(enic->vdev, addr->addr_bytes);
+		if (ret)
+			return ret;
+	}
+	/* 2. Add addresses on the host but not on the NIC */
+	for (i = 0; i < nb_mc_addr; i++) {
+		addr = &mc_addr_set[i];
+		for (j = 0; j < enic->mc_count; j++) {
+			if (is_same_ether_addr(addr, &enic->mc_addrs[j]))
+				break;
+		}
+		if (j < enic->mc_count)
+			continue;
+		debug_log_add_del_addr(addr, true);
+		ret = vnic_dev_add_addr(enic->vdev, addr->addr_bytes);
+		if (ret)
+			return ret;
+	}
+	/* Keep a copy so we can flush/apply later on.. */
+	memcpy(enic->mc_addrs, mc_addr_set,
+	       nb_mc_addr * sizeof(struct ether_addr));
+	enic->mc_count = nb_mc_addr;
+	return 0;
 }
 
 static int enicpmd_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
@@ -865,6 +982,26 @@ static int enicpmd_dev_udp_tunnel_port_del(struct rte_eth_dev *eth_dev,
 	return update_vxlan_port(enic, ENIC_DEFAULT_VXLAN_PORT);
 }
 
+static int enicpmd_dev_fw_version_get(struct rte_eth_dev *eth_dev,
+				      char *fw_version, size_t fw_size)
+{
+	struct vnic_devcmd_fw_info *info;
+	struct enic *enic;
+	int ret;
+
+	ENICPMD_FUNC_TRACE();
+	if (fw_version == NULL || fw_size <= 0)
+		return -EINVAL;
+	enic = pmd_priv(eth_dev);
+	ret = vnic_dev_fw_info(enic->vdev, &info);
+	if (ret)
+		return ret;
+	snprintf(fw_version, fw_size, "%s %s",
+		 info->fw_version, info->fw_build);
+	fw_version[fw_size - 1] = '\0';
+	return 0;
+}
+
 static const struct eth_dev_ops enicpmd_eth_dev_ops = {
 	.dev_configure        = enicpmd_dev_configure,
 	.dev_start            = enicpmd_dev_start,
@@ -909,6 +1046,7 @@ static const struct eth_dev_ops enicpmd_eth_dev_ops = {
 	.mac_addr_add         = enicpmd_add_mac_addr,
 	.mac_addr_remove      = enicpmd_remove_mac_addr,
 	.mac_addr_set         = enicpmd_set_mac_addr,
+	.set_mc_addr_list     = enicpmd_set_mc_addr_list,
 	.filter_ctrl          = enicpmd_dev_filter_ctrl,
 	.reta_query           = enicpmd_dev_rss_reta_query,
 	.reta_update          = enicpmd_dev_rss_reta_update,
@@ -916,24 +1054,30 @@ static const struct eth_dev_ops enicpmd_eth_dev_ops = {
 	.rss_hash_update      = enicpmd_dev_rss_hash_update,
 	.udp_tunnel_port_add  = enicpmd_dev_udp_tunnel_port_add,
 	.udp_tunnel_port_del  = enicpmd_dev_udp_tunnel_port_del,
+	.fw_version_get       = enicpmd_dev_fw_version_get,
 };
 
-static int enic_parse_disable_overlay(__rte_unused const char *key,
-				      const char *value,
-				      void *opaque)
+static int enic_parse_zero_one(const char *key,
+			       const char *value,
+			       void *opaque)
 {
 	struct enic *enic;
+	bool b;
 
 	enic = (struct enic *)opaque;
 	if (strcmp(value, "0") == 0) {
-		enic->disable_overlay = false;
+		b = false;
 	} else if (strcmp(value, "1") == 0) {
-		enic->disable_overlay = true;
+		b = true;
 	} else {
-		dev_err(enic, "Invalid value for " ENIC_DEVARG_DISABLE_OVERLAY
-			": expected=0|1 given=%s\n", value);
+		dev_err(enic, "Invalid value for %s"
+			": expected=0|1 given=%s\n", key, value);
 		return -EINVAL;
 	}
+	if (strcmp(key, ENIC_DEVARG_DISABLE_OVERLAY) == 0)
+		enic->disable_overlay = b;
+	if (strcmp(key, ENIC_DEVARG_ENABLE_AVX2_RX) == 0)
+		enic->enable_avx2_rx = b;
 	return 0;
 }
 
@@ -974,6 +1118,7 @@ static int enic_check_devargs(struct rte_eth_dev *dev)
 {
 	static const char *const valid_keys[] = {
 		ENIC_DEVARG_DISABLE_OVERLAY,
+		ENIC_DEVARG_ENABLE_AVX2_RX,
 		ENIC_DEVARG_IG_VLAN_REWRITE,
 		NULL};
 	struct enic *enic = pmd_priv(dev);
@@ -982,6 +1127,7 @@ static int enic_check_devargs(struct rte_eth_dev *dev)
 	ENICPMD_FUNC_TRACE();
 
 	enic->disable_overlay = false;
+	enic->enable_avx2_rx = false;
 	enic->ig_vlan_rewrite_mode = IG_VLAN_REWRITE_MODE_PASS_THRU;
 	if (!dev->device->devargs)
 		return 0;
@@ -989,7 +1135,9 @@ static int enic_check_devargs(struct rte_eth_dev *dev)
 	if (!kvlist)
 		return -EINVAL;
 	if (rte_kvargs_process(kvlist, ENIC_DEVARG_DISABLE_OVERLAY,
-			       enic_parse_disable_overlay, enic) < 0 ||
+			       enic_parse_zero_one, enic) < 0 ||
+	    rte_kvargs_process(kvlist, ENIC_DEVARG_ENABLE_AVX2_RX,
+			       enic_parse_zero_one, enic) < 0 ||
 	    rte_kvargs_process(kvlist, ENIC_DEVARG_IG_VLAN_REWRITE,
 			       enic_parse_ig_vlan_rewrite, enic) < 0) {
 		rte_kvargs_free(kvlist);
@@ -999,7 +1147,6 @@ static int enic_check_devargs(struct rte_eth_dev *dev)
 	return 0;
 }
 
-struct enic *enicpmd_list_head = NULL;
 /* Initialize the driver
  * It returns 0 on success.
  */
@@ -1018,6 +1165,8 @@ static int eth_enicpmd_dev_init(struct rte_eth_dev *eth_dev)
 	eth_dev->rx_pkt_burst = &enic_recv_pkts;
 	eth_dev->tx_pkt_burst = &enic_xmit_pkts;
 	eth_dev->tx_pkt_prepare = &enic_prep_pkts;
+	/* Let rte_eth_dev_close() release the port resources */
+	eth_dev->data->dev_flags |= RTE_ETH_DEV_CLOSE_REMOVE;
 
 	pdev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	rte_eth_copy_pci_info(eth_dev, pdev);
@@ -1047,7 +1196,8 @@ static int eth_enic_pci_remove(struct rte_pci_device *pci_dev)
 
 static struct rte_pci_driver rte_enic_pmd = {
 	.id_table = pci_id_enic_map,
-	.drv_flags = RTE_PCI_DRV_NEED_MAPPING | RTE_PCI_DRV_INTR_LSC,
+	.drv_flags = RTE_PCI_DRV_NEED_MAPPING | RTE_PCI_DRV_INTR_LSC |
+		     RTE_PCI_DRV_IOVA_AS_VA,
 	.probe = eth_enic_pci_probe,
 	.remove = eth_enic_pci_remove,
 };
@@ -1057,4 +1207,5 @@ RTE_PMD_REGISTER_PCI_TABLE(net_enic, pci_id_enic_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_enic, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_enic,
 	ENIC_DEVARG_DISABLE_OVERLAY "=0|1 "
+	ENIC_DEVARG_ENABLE_AVX2_RX "=0|1 "
 	ENIC_DEVARG_IG_VLAN_REWRITE "=trunk|untag|priority|pass");

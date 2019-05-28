@@ -28,6 +28,14 @@ struct sfc_dp_rxq {
 	struct sfc_dp_queue	dpq;
 };
 
+/** Datapath receive queue descriptor number limitations */
+struct sfc_dp_rx_hw_limits {
+	unsigned int rxq_max_entries;
+	unsigned int rxq_min_entries;
+	unsigned int evq_max_entries;
+	unsigned int evq_min_entries;
+};
+
 /**
  * Datapath receive queue creation information.
  *
@@ -114,6 +122,7 @@ typedef int (sfc_dp_rx_pool_ops_supported_t)(const char *pool);
  * @return 0 or positive errno.
  */
 typedef int (sfc_dp_rx_qsize_up_rings_t)(uint16_t nb_rx_desc,
+					 struct sfc_dp_rx_hw_limits *limits,
 					 struct rte_mempool *mb_pool,
 					 unsigned int *rxq_entries,
 					 unsigned int *evq_entries,
@@ -227,6 +236,9 @@ sfc_dp_find_rx_by_caps(struct sfc_dp_list *head, unsigned int avail_caps)
 
 	return (p == NULL) ? NULL : container_of(p, struct sfc_dp_rx, dp);
 }
+
+/** Get Rx datapath ops by the datapath RxQ handle */
+const struct sfc_dp_rx *sfc_dp_rx_by_dp_rxq(const struct sfc_dp_rxq *dp_rxq);
 
 extern struct sfc_dp_rx sfc_efx_rx;
 extern struct sfc_dp_rx sfc_ef10_rx;

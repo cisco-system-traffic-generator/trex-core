@@ -99,25 +99,44 @@ static unsigned optimize_object_size(unsigned obj_size)
 	return new_obj_size * RTE_MEMPOOL_ALIGN;
 }
 
+struct pagesz_walk_arg {
+	int socket_id;
+	size_t min;
+};
+
 static int
 find_min_pagesz(const struct rte_memseg_list *msl, void *arg)
 {
-	size_t *min = arg;
+	struct pagesz_walk_arg *wa = arg;
+	bool valid;
 
-	if (msl->page_sz < *min)
-		*min = msl->page_sz;
+	/*
+	 * we need to only look at page sizes available for a particular socket
+	 * ID.  so, we either need an exact match on socket ID (can match both
+	 * native and external memory), or, if SOCKET_ID_ANY was specified as a
+	 * socket ID argument, we must only look at native memory and ignore any
+	 * page sizes associated with external memory.
+	 */
+	valid = msl->socket_id == wa->socket_id;
+	valid |= wa->socket_id == SOCKET_ID_ANY && msl->external == 0;
+
+	if (valid && msl->page_sz < wa->min)
+		wa->min = msl->page_sz;
 
 	return 0;
 }
 
 static size_t
-get_min_page_size(void)
+get_min_page_size(int socket_id)
 {
-	size_t min_pagesz = SIZE_MAX;
+	struct pagesz_walk_arg wa;
 
-	rte_memseg_list_walk(find_min_pagesz, &min_pagesz);
+	wa.min = SIZE_MAX;
+	wa.socket_id = socket_id;
 
-	return min_pagesz == SIZE_MAX ? (size_t) getpagesize() : min_pagesz;
+	rte_memseg_list_walk(find_min_pagesz, &wa);
+
+	return wa.min == SIZE_MAX ? (size_t) getpagesize() : wa.min;
 }
 
 
@@ -409,11 +428,17 @@ rte_mempool_populate_default(struct rte_mempool *mp)
 	rte_iova_t iova;
 	unsigned mz_id, n;
 	int ret;
-	bool no_contig, try_contig, no_pageshift;
+	bool no_contig, try_contig, no_pageshift, external;
 
 	ret = mempool_ops_alloc_once(mp);
 	if (ret != 0)
 		return ret;
+
+	/* check if we can retrieve a valid socket ID */
+	ret = rte_malloc_heap_socket_is_external(mp->socket_id);
+	if (ret < 0)
+		return -EINVAL;
+	external = ret;
 
 	/* mempool must not be populated */
 	if (mp->nb_mem_chunks != 0)
@@ -462,15 +487,25 @@ rte_mempool_populate_default(struct rte_mempool *mp)
 	 * in one contiguous chunk as well (otherwise we might end up wasting a
 	 * 1G page on a 10MB memzone). If we fail to get enough contiguous
 	 * memory, then we'll go and reserve space page-by-page.
+	 *
+	 * We also have to take into account the fact that memory that we're
+	 * going to allocate from can belong to an externally allocated memory
+	 * area, in which case the assumption of IOVA as VA mode being
+	 * synonymous with IOVA contiguousness will not hold. We should also try
+	 * to go for contiguous memory even if we're in no-huge mode, because
+	 * external memory may in fact be IOVA-contiguous.
 	 */
-	no_pageshift = no_contig || rte_eal_iova_mode() == RTE_IOVA_VA;
-	try_contig = !no_contig && !no_pageshift && rte_eal_has_hugepages();
+	external = rte_malloc_heap_socket_is_external(mp->socket_id) == 1;
+	no_pageshift = no_contig ||
+			(!external && rte_eal_iova_mode() == RTE_IOVA_VA);
+	try_contig = !no_contig && !no_pageshift &&
+			(rte_eal_has_hugepages() || external);
 
 	if (no_pageshift) {
 		pg_sz = 0;
 		pg_shift = 0;
 	} else if (try_contig) {
-		pg_sz = get_min_page_size();
+		pg_sz = get_min_page_size(mp->socket_id);
 		pg_shift = rte_bsf32(pg_sz);
 	} else {
 		pg_sz = getpagesize();
@@ -829,7 +864,7 @@ rte_mempool_create_empty(const char *name, unsigned n, unsigned elt_size,
 	/* init the mempool structure */
 	mp = mz->addr;
 	memset(mp, 0, MEMPOOL_HEADER_SIZE(mp, cache_size));
-	ret = snprintf(mp->name, sizeof(mp->name), "%s", name);
+	ret = strlcpy(mp->name, name, sizeof(mp->name));
 	if (ret < 0 || ret >= (int)sizeof(mp->name)) {
 		rte_errno = ENAMETOOLONG;
 		goto exit_unlock;

@@ -7,7 +7,7 @@
 #include "efx.h"
 #include "efx_impl.h"
 
-#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+#if EFX_OPTS_EF10()
 
 static			void
 mcdi_phy_decode_cap(
@@ -98,8 +98,10 @@ mcdi_phy_decode_link_mode(
 	__in		uint32_t link_flags,
 	__in		unsigned int speed,
 	__in		unsigned int fcntl,
+	__in		uint32_t fec,
 	__out		efx_link_mode_t *link_modep,
-	__out		unsigned int *fcntlp)
+	__out		unsigned int *fcntlp,
+	__out		efx_phy_fec_type_t *fecp)
 {
 	boolean_t fd = !!(link_flags &
 		    (1 << MC_CMD_GET_LINK_OUT_FULL_DUPLEX_LBN));
@@ -141,6 +143,22 @@ mcdi_phy_decode_link_mode(
 		EFSYS_PROBE1(mc_pcol_error, int, fcntl);
 		*fcntlp = 0;
 	}
+
+	switch (fec) {
+	case MC_CMD_FEC_NONE:
+		*fecp = EFX_PHY_FEC_NONE;
+		break;
+	case MC_CMD_FEC_BASER:
+		*fecp = EFX_PHY_FEC_BASER;
+		break;
+	case MC_CMD_FEC_RS:
+		*fecp = EFX_PHY_FEC_RS;
+		break;
+	default:
+		EFSYS_PROBE1(mc_pcol_error, int, fec);
+		*fecp = EFX_PHY_FEC_NONE;
+		break;
+	}
 }
 
 
@@ -154,6 +172,7 @@ ef10_phy_link_ev(
 	unsigned int link_flags;
 	unsigned int speed;
 	unsigned int fcntl;
+	efx_phy_fec_type_t fec = MC_CMD_FEC_NONE;
 	efx_link_mode_t link_mode;
 	uint32_t lp_cap_mask;
 
@@ -191,7 +210,8 @@ ef10_phy_link_ev(
 	link_flags = MCDI_EV_FIELD(eqp, LINKCHANGE_LINK_FLAGS);
 	mcdi_phy_decode_link_mode(enp, link_flags, speed,
 				    MCDI_EV_FIELD(eqp, LINKCHANGE_FCNTL),
-				    &link_mode, &fcntl);
+				    MC_CMD_FEC_NONE, &link_mode,
+				    &fcntl, &fec);
 	mcdi_phy_decode_cap(MCDI_EV_FIELD(eqp, LINKCHANGE_LP_CAP),
 			    &lp_cap_mask);
 
@@ -242,16 +262,16 @@ ef10_phy_get_link(
 	__out		ef10_link_state_t *elsp)
 {
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_GET_LINK_IN_LEN,
-			    MC_CMD_GET_LINK_OUT_LEN)];
+	uint32_t fec;
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_LINK_IN_LEN,
+		MC_CMD_GET_LINK_OUT_V2_LEN);
 	efx_rc_t rc;
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_GET_LINK;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_GET_LINK_IN_LEN;
 	req.emr_out_buf = payload;
-	req.emr_out_length = MC_CMD_GET_LINK_OUT_LEN;
+	req.emr_out_length = MC_CMD_GET_LINK_OUT_V2_LEN;
 
 	efx_mcdi_execute(enp, &req);
 
@@ -266,14 +286,28 @@ ef10_phy_get_link(
 	}
 
 	mcdi_phy_decode_cap(MCDI_OUT_DWORD(req, GET_LINK_OUT_CAP),
-			    &elsp->els_adv_cap_mask);
+			    &elsp->epls.epls_adv_cap_mask);
 	mcdi_phy_decode_cap(MCDI_OUT_DWORD(req, GET_LINK_OUT_LP_CAP),
-			    &elsp->els_lp_cap_mask);
+			    &elsp->epls.epls_lp_cap_mask);
+
+	if (req.emr_out_length_used < MC_CMD_GET_LINK_OUT_V2_LEN)
+		fec = MC_CMD_FEC_NONE;
+	else
+		fec = MCDI_OUT_DWORD(req, GET_LINK_OUT_V2_FEC_TYPE);
 
 	mcdi_phy_decode_link_mode(enp, MCDI_OUT_DWORD(req, GET_LINK_OUT_FLAGS),
 			    MCDI_OUT_DWORD(req, GET_LINK_OUT_LINK_SPEED),
 			    MCDI_OUT_DWORD(req, GET_LINK_OUT_FCNTL),
-			    &elsp->els_link_mode, &elsp->els_fcntl);
+			    fec, &elsp->epls.epls_link_mode,
+			    &elsp->epls.epls_fcntl, &elsp->epls.epls_fec);
+
+	if (req.emr_out_length_used < MC_CMD_GET_LINK_OUT_V2_LEN) {
+		elsp->epls.epls_ld_cap_mask = 0;
+	} else {
+		mcdi_phy_decode_cap(MCDI_OUT_DWORD(req, GET_LINK_OUT_V2_LD_CAP),
+				    &elsp->epls.epls_ld_cap_mask);
+	}
+
 
 #if EFSYS_OPT_LOOPBACK
 	/*
@@ -301,8 +335,8 @@ ef10_phy_reconfigure(
 {
 	efx_port_t *epp = &(enp->en_port);
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_SET_LINK_IN_LEN,
-			    MC_CMD_SET_LINK_OUT_LEN)];
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_SET_LINK_IN_LEN,
+		MC_CMD_SET_LINK_OUT_LEN);
 	uint32_t cap_mask;
 #if EFSYS_OPT_PHY_LED_CONTROL
 	unsigned int led_mode;
@@ -316,7 +350,6 @@ ef10_phy_reconfigure(
 	if (supported == B_FALSE)
 		goto out;
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_SET_LINK;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_SET_LINK_IN_LEN;
@@ -464,12 +497,11 @@ ef10_phy_verify(
 	__in		efx_nic_t *enp)
 {
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_GET_PHY_STATE_IN_LEN,
-			    MC_CMD_GET_PHY_STATE_OUT_LEN)];
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_PHY_STATE_IN_LEN,
+		MC_CMD_GET_PHY_STATE_OUT_LEN);
 	uint32_t state;
 	efx_rc_t rc;
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_GET_PHY_STATE;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_GET_PHY_STATE_IN_LEN;
@@ -517,6 +549,29 @@ ef10_phy_oui_get(
 
 	return (ENOTSUP);
 }
+
+	__checkReturn	efx_rc_t
+ef10_phy_link_state_get(
+	__in		efx_nic_t *enp,
+	__out		efx_phy_link_state_t  *eplsp)
+{
+	efx_rc_t rc;
+	ef10_link_state_t els;
+
+	/* Obtain the active link state */
+	if ((rc = ef10_phy_get_link(enp, &els)) != 0)
+		goto fail1;
+
+	*eplsp = els.epls;
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 
 #if EFSYS_OPT_PHY_STATS
 
@@ -583,22 +638,34 @@ ef10_bist_poll(
 	unsigned long *valuesp,
 	__in			size_t count)
 {
+	/*
+	 * MCDI_CTL_SDU_LEN_MAX_V1 is large enough cover all BIST results,
+	 * whilst not wasting stack.
+	 */
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_POLL_BIST_IN_LEN,
+		MCDI_CTL_SDU_LEN_MAX_V1);
 	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_POLL_BIST_IN_LEN,
-			    MCDI_CTL_SDU_LEN_MAX)];
 	uint32_t value_mask = 0;
 	uint32_t result;
 	efx_rc_t rc;
 
+	EFX_STATIC_ASSERT(MC_CMD_POLL_BIST_OUT_LEN <=
+	    MCDI_CTL_SDU_LEN_MAX_V1);
+	EFX_STATIC_ASSERT(MC_CMD_POLL_BIST_OUT_SFT9001_LEN <=
+	    MCDI_CTL_SDU_LEN_MAX_V1);
+	EFX_STATIC_ASSERT(MC_CMD_POLL_BIST_OUT_MRSFP_LEN <=
+	    MCDI_CTL_SDU_LEN_MAX_V1);
+	EFX_STATIC_ASSERT(MC_CMD_POLL_BIST_OUT_MEM_LEN <=
+	    MCDI_CTL_SDU_LEN_MAX_V1);
+
 	_NOTE(ARGUNUSED(type))
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_POLL_BIST;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_POLL_BIST_IN_LEN;
 	req.emr_out_buf = payload;
-	req.emr_out_length = MCDI_CTL_SDU_LEN_MAX;
+	req.emr_out_length = MCDI_CTL_SDU_LEN_MAX_V1;
 
 	efx_mcdi_execute(enp, &req);
 
@@ -688,4 +755,4 @@ ef10_bist_stop(
 
 #endif	/* EFSYS_OPT_BIST */
 
-#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
+#endif	/* EFX_OPTS_EF10() */

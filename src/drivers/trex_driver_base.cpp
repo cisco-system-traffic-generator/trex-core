@@ -56,7 +56,6 @@ port_cfg_t::port_cfg_t() {
 
     m_port_conf.rxmode.offloads =
         DEV_RX_OFFLOAD_JUMBO_FRAME |
-        DEV_RX_OFFLOAD_CRC_STRIP |
         DEV_RX_OFFLOAD_SCATTER;
 
     tx_offloads.common_best_effort =

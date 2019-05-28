@@ -100,6 +100,8 @@ static const efx_nic_ops_t	__efx_nic_siena_ops = {
 	siena_nic_init,			/* eno_init */
 	NULL,				/* eno_get_vi_pool */
 	NULL,				/* eno_get_bar_region */
+	NULL,				/* eno_hw_unavailable */
+	NULL,				/* eno_set_hw_unavailable */
 #if EFSYS_OPT_DIAG
 	siena_nic_register_test,	/* eno_register_test */
 #endif	/* EFSYS_OPT_DIAG */
@@ -119,6 +121,8 @@ static const efx_nic_ops_t	__efx_nic_hunt_ops = {
 	ef10_nic_init,			/* eno_init */
 	ef10_nic_get_vi_pool,		/* eno_get_vi_pool */
 	ef10_nic_get_bar_region,	/* eno_get_bar_region */
+	ef10_nic_hw_unavailable,	/* eno_hw_unavailable */
+	ef10_nic_set_hw_unavailable,	/* eno_set_hw_unavailable */
 #if EFSYS_OPT_DIAG
 	ef10_nic_register_test,		/* eno_register_test */
 #endif	/* EFSYS_OPT_DIAG */
@@ -138,6 +142,8 @@ static const efx_nic_ops_t	__efx_nic_medford_ops = {
 	ef10_nic_init,			/* eno_init */
 	ef10_nic_get_vi_pool,		/* eno_get_vi_pool */
 	ef10_nic_get_bar_region,	/* eno_get_bar_region */
+	ef10_nic_hw_unavailable,	/* eno_hw_unavailable */
+	ef10_nic_set_hw_unavailable,	/* eno_set_hw_unavailable */
 #if EFSYS_OPT_DIAG
 	ef10_nic_register_test,		/* eno_register_test */
 #endif	/* EFSYS_OPT_DIAG */
@@ -157,6 +163,8 @@ static const efx_nic_ops_t	__efx_nic_medford2_ops = {
 	ef10_nic_init,			/* eno_init */
 	ef10_nic_get_vi_pool,		/* eno_get_vi_pool */
 	ef10_nic_get_bar_region,	/* eno_get_bar_region */
+	ef10_nic_hw_unavailable,	/* eno_hw_unavailable */
+	ef10_nic_set_hw_unavailable,	/* eno_set_hw_unavailable */
 #if EFSYS_OPT_DIAG
 	ef10_nic_register_test,		/* eno_register_test */
 #endif	/* EFSYS_OPT_DIAG */
@@ -220,7 +228,8 @@ efx_nic_create(
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM;
+		    EFX_FEATURE_PACKED_STREAM |
+		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
 		break;
 #endif	/* EFSYS_OPT_HUNTINGTON */
 
@@ -240,7 +249,8 @@ efx_nic_create(
 		    EFX_FEATURE_MCDI_DMA |
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM;
+		    EFX_FEATURE_PACKED_STREAM |
+		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
 		break;
 #endif	/* EFSYS_OPT_MEDFORD */
 
@@ -256,7 +266,8 @@ efx_nic_create(
 		    EFX_FEATURE_MCDI_DMA |
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM;
+		    EFX_FEATURE_PACKED_STREAM |
+		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
 		break;
 #endif	/* EFSYS_OPT_MEDFORD2 */
 
@@ -549,7 +560,7 @@ efx_nic_reset(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT(enp->en_mod_flags & EFX_MOD_PROBE);
 	/*
-	 * All modules except the MCDI, PROBE, NVRAM, VPD, MON
+	 * All modules except the MCDI, PROBE, NVRAM, VPD, MON, TUNNEL
 	 * (which we do not reset here) must have been shut down or never
 	 * initialized.
 	 *
@@ -559,7 +570,10 @@ efx_nic_reset(
 	 */
 	mod_flags = enp->en_mod_flags;
 	mod_flags &= ~(EFX_MOD_MCDI | EFX_MOD_PROBE | EFX_MOD_NVRAM |
-		    EFX_MOD_VPD | EFX_MOD_MON);
+	    EFX_MOD_VPD | EFX_MOD_MON);
+#if EFSYS_OPT_TUNNEL
+	mod_flags &= ~EFX_MOD_TUNNEL;
+#endif /* EFSYS_OPT_TUNNEL */
 	EFSYS_ASSERT3U(mod_flags, ==, 0);
 	if (mod_flags != 0) {
 		rc = EINVAL;
@@ -581,9 +595,10 @@ fail1:
 
 			const efx_nic_cfg_t *
 efx_nic_cfg_get(
-	__in		efx_nic_t *enp)
+	__in		const efx_nic_t *enp)
 {
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_PROBE);
 
 	return (&(enp->en_nic_cfg));
 }
@@ -648,6 +663,39 @@ fail1:
 
 	return (rc);
 }
+
+	__checkReturn	boolean_t
+efx_nic_hw_unavailable(
+	__in		efx_nic_t *enp)
+{
+	const efx_nic_ops_t *enop = enp->en_enop;
+
+	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+	/* NOTE: can be used by MCDI before NIC probe */
+
+	if (enop->eno_hw_unavailable != NULL) {
+		if ((enop->eno_hw_unavailable)(enp) != B_FALSE)
+			goto unavail;
+	}
+
+	return (B_FALSE);
+
+unavail:
+	return (B_TRUE);
+}
+
+			void
+efx_nic_set_hw_unavailable(
+	__in		efx_nic_t *enp)
+{
+	const efx_nic_ops_t *enop = enp->en_enop;
+
+	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+
+	if (enop->eno_set_hw_unavailable != NULL)
+		enop->eno_set_hw_unavailable(enp);
+}
+
 
 #if EFSYS_OPT_DIAG
 
@@ -786,13 +834,12 @@ efx_mcdi_get_loopback_modes(
 {
 	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_GET_LOOPBACK_MODES_IN_LEN,
-			    MC_CMD_GET_LOOPBACK_MODES_OUT_V2_LEN)];
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_LOOPBACK_MODES_IN_LEN,
+		MC_CMD_GET_LOOPBACK_MODES_OUT_V2_LEN);
 	efx_qword_t mask;
 	efx_qword_t modes;
 	efx_rc_t rc;
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_GET_LOOPBACK_MODES;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_GET_LOOPBACK_MODES_IN_LEN;

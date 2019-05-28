@@ -1218,6 +1218,72 @@ i40e_notify_vf_link_status(struct rte_eth_dev *dev, struct i40e_pf_vf *vf)
 			I40E_SUCCESS, (uint8_t *)&event, sizeof(event));
 }
 
+/**
+ * i40e_vc_notify_vf_reset
+ * @vf: pointer to the VF structure
+ *
+ * indicate a pending reset to the given VF
+ **/
+static void
+i40e_vc_notify_vf_reset(struct i40e_pf_vf *vf)
+{
+	struct i40e_hw *hw = I40E_PF_TO_HW(vf->pf);
+	struct virtchnl_pf_event pfe;
+	int abs_vf_id;
+	uint16_t vf_id = vf->vf_idx;
+
+	abs_vf_id = vf_id + hw->func_caps.vf_base_id;
+	pfe.event = VIRTCHNL_EVENT_RESET_IMPENDING;
+	pfe.severity = PF_EVENT_SEVERITY_CERTAIN_DOOM;
+	i40e_aq_send_msg_to_vf(hw, abs_vf_id, VIRTCHNL_OP_EVENT, 0, (u8 *)&pfe,
+			       sizeof(struct virtchnl_pf_event), NULL);
+}
+
+static int
+i40e_pf_host_process_cmd_request_queues(struct i40e_pf_vf *vf, uint8_t *msg)
+{
+	struct virtchnl_vf_res_request *vfres =
+		(struct virtchnl_vf_res_request *)msg;
+	struct i40e_pf *pf;
+	uint32_t req_pairs = vfres->num_queue_pairs;
+	uint32_t cur_pairs = vf->vsi->nb_used_qps;
+
+	pf = vf->pf;
+
+	if (!rte_is_power_of_2(req_pairs))
+		req_pairs = i40e_align_floor(req_pairs) << 1;
+
+	if (req_pairs == 0) {
+		PMD_DRV_LOG(ERR, "VF %d tried to request 0 queues. Ignoring.\n",
+			    vf->vf_idx);
+	} else if (req_pairs > I40E_MAX_QP_NUM_PER_VF) {
+		PMD_DRV_LOG(ERR,
+			    "VF %d tried to request more than %d queues.\n",
+			    vf->vf_idx,
+			    I40E_MAX_QP_NUM_PER_VF);
+		vfres->num_queue_pairs = I40E_MAX_QP_NUM_PER_VF;
+	} else if (req_pairs > cur_pairs + pf->qp_pool.num_free) {
+		PMD_DRV_LOG(ERR, "VF %d requested %d queues (rounded to %d) "
+			"but only %d available\n",
+			vf->vf_idx,
+			vfres->num_queue_pairs,
+			req_pairs,
+			cur_pairs + pf->qp_pool.num_free);
+		vfres->num_queue_pairs = i40e_align_floor(pf->qp_pool.num_free +
+							  cur_pairs);
+	} else {
+		i40e_vc_notify_vf_reset(vf);
+		vf->vsi->nb_qps = req_pairs;
+		pf->vf_nb_qps = req_pairs;
+		i40e_pf_host_process_cmd_reset_vf(vf);
+
+		return 0;
+	}
+
+	return i40e_pf_host_send_msg_to_vf(vf, VIRTCHNL_OP_REQUEST_QUEUES, 0,
+				(u8 *)vfres, sizeof(*vfres));
+}
+
 void
 i40e_pf_host_handle_vf_msg(struct rte_eth_dev *dev,
 			   uint16_t abs_vf_id, uint32_t opcode,
@@ -1232,6 +1298,7 @@ i40e_pf_host_handle_vf_msg(struct rte_eth_dev *dev,
 	uint16_t vf_id = abs_vf_id - hw->func_caps.vf_base_id;
 	struct rte_pmd_i40e_mb_event_param ret_param;
 	bool b_op = TRUE;
+	int ret;
 
 	if (vf_id > pf->vf_num - 1 || !pf->vfs) {
 		PMD_DRV_LOG(ERR, "invalid argument");
@@ -1243,6 +1310,30 @@ i40e_pf_host_handle_vf_msg(struct rte_eth_dev *dev,
 		PMD_DRV_LOG(ERR, "NO VSI associated with VF found");
 		i40e_pf_host_send_msg_to_vf(vf, opcode,
 			I40E_ERR_NO_AVAILABLE_VSI, NULL, 0);
+		return;
+	}
+
+	/* perform basic checks on the msg */
+	ret = virtchnl_vc_validate_vf_msg(&vf->version, opcode, msg, msglen);
+
+	/* perform additional checks specific to this driver */
+	if (opcode == VIRTCHNL_OP_CONFIG_RSS_KEY) {
+		struct virtchnl_rss_key *vrk = (struct virtchnl_rss_key *)msg;
+
+		if (vrk->key_len != ((I40E_PFQF_HKEY_MAX_INDEX + 1) * 4))
+			ret = VIRTCHNL_ERR_PARAM;
+	} else if (opcode == VIRTCHNL_OP_CONFIG_RSS_LUT) {
+		struct virtchnl_rss_lut *vrl = (struct virtchnl_rss_lut *)msg;
+
+		if (vrl->lut_entries != ((I40E_VFQF_HLUT1_MAX_INDEX + 1) * 4))
+			ret = VIRTCHNL_ERR_PARAM;
+	}
+
+	if (ret) {
+		PMD_DRV_LOG(ERR, "Invalid message from VF %u, opcode %u, len %u",
+			    vf_id, opcode, msglen);
+		i40e_pf_host_send_msg_to_vf(vf, opcode,
+					    I40E_ERR_PARAM, NULL, 0);
 		return;
 	}
 
@@ -1351,6 +1442,11 @@ i40e_pf_host_handle_vf_msg(struct rte_eth_dev *dev,
 		PMD_DRV_LOG(INFO, "OP_CONFIG_RSS_KEY received");
 		i40e_pf_host_process_cmd_set_rss_key(vf, msg, msglen, b_op);
 		break;
+	case VIRTCHNL_OP_REQUEST_QUEUES:
+		PMD_DRV_LOG(INFO, "OP_REQUEST_QUEUES received");
+		i40e_pf_host_process_cmd_request_queues(vf, msg);
+		break;
+
 	/* Don't add command supported below, which will
 	 * return an error code.
 	 */

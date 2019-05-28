@@ -10,6 +10,10 @@
 #include "efx.h"
 #include "efx_regs_mcdi.h"
 
+#if EFSYS_OPT_NAMES
+#include "efx_regs_mcdi_strs.h"
+#endif /* EFSYS_OPT_NAMES */
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -166,11 +170,11 @@ efx_mcdi_mac_spoofing_supported(
 
 
 #if EFSYS_OPT_BIST
-#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+#if EFX_OPTS_EF10()
 extern	__checkReturn		efx_rc_t
 efx_mcdi_bist_enable_offline(
 	__in			efx_nic_t *enp);
-#endif /* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
+#endif /* EFX_OPTS_EF10() */
 extern	__checkReturn		efx_rc_t
 efx_mcdi_bist_start(
 	__in			efx_nic_t *enp,
@@ -215,8 +219,8 @@ extern	__checkReturn	efx_rc_t
 efx_mcdi_phy_module_get_info(
 	__in			efx_nic_t *enp,
 	__in			uint8_t dev_addr,
-	__in			uint8_t offset,
-	__in			uint8_t len,
+	__in			size_t offset,
+	__in			size_t len,
 	__out_bcount(len)	uint8_t *data);
 
 #define	MCDI_IN(_emr, _type, _ofst)					\
@@ -379,6 +383,17 @@ efx_mcdi_phy_module_get_info(
 #define	EFX_MCDI_HAVE_PRIVILEGE(mask, priv)				\
 	(((mask) & (MC_CMD_PRIVILEGE_MASK_IN_GRP_ ## priv)) ==		\
 	(MC_CMD_PRIVILEGE_MASK_IN_GRP_ ## priv))
+
+/*
+ * The buffer size must be a multiple of dword to ensure that MCDI works
+ * properly with Siena based boards (which use on-chip buffer). Also, it
+ * should be at minimum the size of two dwords to allow space for extended
+ * error responses if the request/response buffer sizes are smaller.
+ */
+#define EFX_MCDI_DECLARE_BUF(_name, _in_len, _out_len)			\
+	uint8_t _name[P2ROUNDUP(MAX(MAX(_in_len, _out_len),		\
+				    (2 * sizeof (efx_dword_t))),	\
+				sizeof (efx_dword_t))] = {0}
 
 typedef enum efx_mcdi_feature_id_e {
 	EFX_MCDI_FEATURE_FW_UPDATE = 0,

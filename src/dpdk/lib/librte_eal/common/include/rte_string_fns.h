@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2014 Intel Corporation
+ * Copyright(c) 2010-2019 Intel Corporation
  */
 
 /**
@@ -16,6 +16,9 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <string.h>
+
+#include <rte_common.h>
 
 /**
  * Takes string "string" parameter and splits it at character "delim"
@@ -58,13 +61,26 @@ rte_strlcpy(char *dst, const char *src, size_t size)
 	return (size_t)snprintf(dst, size, "%s", src);
 }
 
+/**
+ * @internal
+ * DPDK-specific version of strlcat for systems without
+ * libc or libbsd copies of the function
+ */
+static inline size_t
+rte_strlcat(char *dst, const char *src, size_t size)
+{
+	size_t l = strnlen(dst, size);
+	if (l < size)
+		return l + rte_strlcpy(&dst[l], src, size - l);
+	return l + strlen(src);
+}
+
 /* pull in a strlcpy function */
-#ifdef RTE_EXEC_ENV_BSDAPP
-#include <string.h>
+#ifdef RTE_EXEC_ENV_FREEBSD
 #ifndef __BSD_VISIBLE /* non-standard functions are hidden */
 #define strlcpy(dst, src, size) rte_strlcpy(dst, src, size)
+#define strlcat(dst, src, size) rte_strlcat(dst, src, size)
 #endif
-
 
 #else /* non-BSD platforms */
 #ifdef RTE_USE_LIBBSD
@@ -72,9 +88,33 @@ rte_strlcpy(char *dst, const char *src, size_t size)
 
 #else /* no BSD header files, create own */
 #define strlcpy(dst, src, size) rte_strlcpy(dst, src, size)
+#define strlcat(dst, src, size) rte_strlcat(dst, src, size)
 
 #endif /* RTE_USE_LIBBSD */
-#endif /* BSDAPP */
+#endif /* FREEBSD */
+
+/**
+ * Copy string src to buffer dst of size dsize.
+ * At most dsize-1 chars will be copied.
+ * Always NUL-terminates, unless (dsize == 0).
+ * Returns number of bytes copied (terminating NUL-byte excluded) on success ;
+ * negative errno on error.
+ *
+ * @param dst
+ *   The destination string.
+ *
+ * @param src
+ *   The input string to be copied.
+ *
+ * @param dsize
+ *   Length in bytes of the destination buffer.
+ *
+ * @return
+ *   The number of bytes copied on success
+ *   -E2BIG if the destination buffer is too small.
+ */
+ssize_t
+rte_strscpy(char *dst, const char *src, size_t dsize);
 
 #ifdef __cplusplus
 }

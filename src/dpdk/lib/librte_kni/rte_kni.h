@@ -22,7 +22,7 @@
 #include <rte_mempool.h>
 #include <rte_ether.h>
 
-#include <exec-env/rte_kni_common.h>
+#include <rte_kni_common.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,7 +68,7 @@ struct rte_kni_conf {
 
 	__extension__
 	uint8_t force_bind : 1; /* Flag to bind kernel thread */
-	char mac_addr[ETHER_ADDR_LEN]; /* MAC address assigned to KNI */
+	uint8_t mac_addr[ETHER_ADDR_LEN]; /* MAC address assigned to KNI */
 	uint16_t mtu;
 };
 
@@ -81,8 +81,12 @@ struct rte_kni_conf {
  *
  * @param max_kni_ifaces
  *  The maximum number of KNI interfaces that can coexist concurrently
+ *
+ * @return
+ *  - 0 indicates success.
+ *  - negative value indicates failure.
  */
-void rte_kni_init(unsigned int max_kni_ifaces);
+int rte_kni_init(unsigned int max_kni_ifaces);
 
 
 /**
@@ -227,6 +231,26 @@ int rte_kni_register_handlers(struct rte_kni *kni, struct rte_kni_ops *ops);
  *   On failure: -1
  */
 int rte_kni_unregister_handlers(struct rte_kni *kni);
+
+/**
+ * Update link carrier state for KNI port.
+ *
+ * Update the linkup/linkdown state of a KNI interface in the kernel.
+ *
+ * @param kni
+ *  pointer to struct rte_kni.
+ * @param linkup
+ *  New link state:
+ *  0 for linkdown.
+ *  > 0 for linkup.
+ *
+ * @return
+ *  On failure: -1
+ *  Previous link state == linkdown: 0
+ *  Previous link state == linkup: 1
+ */
+int __rte_experimental
+rte_kni_update_link(struct rte_kni *kni, unsigned int linkup);
 
 /**
  *  Close KNI device.
