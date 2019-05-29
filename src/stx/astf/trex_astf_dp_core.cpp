@@ -292,8 +292,9 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
         try {
             TopoMngr *topo_mngr = db->get_topo();
             topo_mngr->from_json_str(*topo_buffer);
-            ClientCfgDB *m_cc_db = db->get_client_cfg_db();
-            m_cc_db->load_from_topo(topo_mngr);
+            ClientCfgDB &m_cc_db = m_flow_gen->m_flow_list->m_client_config_info;
+            m_cc_db.load_from_topo(topo_mngr);
+            db->set_client_cfg_db(&m_cc_db);
             //topo_mngr->dump();
         } catch (const TopoError &ex) {
             report_error(profile_id, ex.what());
@@ -399,6 +400,8 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
         report_error(profile_id, "Start of invalid profile state " + std::to_string(get_profile_state(profile_id)));
         return;
     }
+
+    set_profile_state(profile_id, pSTATE_STARTING);
 
     switch (m_state) {
     case STATE_IDLE:

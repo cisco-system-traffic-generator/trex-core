@@ -586,7 +586,6 @@ private:
     // Data duplicated per memory socket
     CAstfDbRO           m_tcp_data[MAX_SOCKETS_SUPPORTED];
 
-    ClientCfgDB         m_client_config_db;
     ClientCfgDB        *m_client_config_info;
     CAstfJsonValidator *m_validator;
     TopoMngr           *m_topo_mngr;
