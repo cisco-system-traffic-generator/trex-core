@@ -4480,6 +4480,10 @@ flow_tcf_encap_neigh_cleanup(struct mlx5_flow_tcf_context *tcf,
 static int
 flow_tcf_collect_vxlan_cb(const struct nlmsghdr *nlh, void *arg)
 {
+// ybrustin: no symbol IFLA_VXLAN_*, func is not used by TRex
+#ifdef TREX_PATCH
+    assert(0);
+#else
 	struct tcf_nlcb_context *ctx = arg;
 	struct nlmsghdr *cmd;
 	struct ifinfomsg *ifm;
@@ -4548,6 +4552,7 @@ flow_tcf_collect_vxlan_cb(const struct nlmsghdr *nlh, void *arg)
 	ifm->ifi_family = AF_UNSPEC;
 	ifm->ifi_index = vxindex;
 	assert(size == cmd->nlmsg_len);
+#endif
 	return 1;
 }
 
@@ -5094,6 +5099,10 @@ static struct tcf_vtep*
 flow_tcf_vtep_create(struct mlx5_flow_tcf_context *tcf,
 		     uint16_t port, struct rte_flow_error *error)
 {
+// ybrustin: no symbol IFLA_VXLAN_*, func is not used by TRex
+#ifdef TREX_PATCH
+    assert(0);
+#else
 	struct tcf_vtep *vtep;
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifm;
@@ -5224,6 +5233,7 @@ clean:
 	return NULL;
 error:
 	rte_free(vtep);
+#endif
 	return NULL;
 }
 
