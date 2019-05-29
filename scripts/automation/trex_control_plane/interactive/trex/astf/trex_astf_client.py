@@ -13,6 +13,7 @@ from ..common.trex_client import TRexClient
 from ..common.trex_events import Event
 from ..common.trex_exceptions import TRexError
 from ..common.trex_types import *
+from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID 
 
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
@@ -89,6 +90,7 @@ class ASTFClient(TRexClient):
             self.STATE_ASTF_PARSE,
             self.STATE_ASTF_BUILD,
             self.STATE_ASTF_CLEANUP]
+        self.astf_profile_state = {'_': 0}
 
 
     def get_mode(self):
@@ -147,10 +149,86 @@ class ASTFClient(TRexClient):
         else:
             return Event('server', 'info', 'Moved to state: %s' % port_state_name)
 
+    def _on_astf_profile_state_chg(self, dynamic_profile, ctx_state, error, epoch):
+
+        if ctx_state < 0 or ctx_state >= len(astf_states):
+            raise TRexError('Unhandled ASTF state: %s' % ctx_state)
+
+        if epoch is None or epoch != self.epoch:
+            return
+
+        self.last_error = error
+        if error and not self.sync_waiting:
+            self.ctx.logger.error('Last command failed: %s' % error)
+
+        # update profile state
+        self.astf_profile_state[dynamic_profile] = ctx_state
+
+        if error:
+            return Event('server', 'error', 'Moved to profile %s state: %s after error: %s' % (dynamic_profile, ctx_state, error))
+        else:
+            return Event('server', 'info', 'Moved to profile %s state: %s' % (dynamic_profile, ctx_state))
+
+
+    def _on_astf_profile_cleared(self, dynamic_profile, error, epoch):
+
+        if epoch is None or epoch != self.epoch:
+            return
+
+        self.last_error = error
+        if error and not self.sync_waiting:
+            self.ctx.logger.error('Last command failed: %s' % error)
+
+        # remove profile
+        self.astf_profile_state.pop(dynamic_profile, None)
+
+        if error:
+            return Event('server', 'error', 'Cant remove profile %s after error: %s' % (dynamic_profile, error))
+        else:
+            return Event('server', 'info', 'Removed profile : %s' % dynamic_profile)
+
 
 ############################     helper     #############################
 ############################     funcs      #############################
 ############################                #############################
+
+    # Check console API ports argument
+
+    def validate_dynamic_profile_input(self, dynamic_profile = DEFAULT_PROFILE_ID, start = False):
+
+        valid_profiles = []
+        ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED]
+        
+        # check dynamic_profile's type
+        if type(dynamic_profile) is not list:
+            profile_list = dynamic_profile.split()
+        else:
+            profile_list = dynamic_profile
+
+        # Check if profile_id is a valid profile name
+        for profile_id in profile_list:
+            if profile_id == ALL_PROFILE_ID:
+               if start == True:
+                   raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
+               else:
+                   valid_profiles =  list(self.astf_profile_state.keys())
+               break
+            else:
+               if profile_id in list(self.astf_profile_state.keys()):
+                   if start == True:
+                       if self.is_dynamic and self.astf_profile_state[profile_id] not in ok_states:
+                           raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
+               else:
+                   if start == True:
+                      self.astf_profile_state[profile_id] = self.STATE_IDLE
+                   else:
+                      raise TRexError("ASTF profile_id %s does not exist." % profile_id)
+
+               if profile_id not in valid_profiles:
+                   valid_profiles.append(profile_id)
+
+        return valid_profiles
+
 
     def apply_port_states(self):
         port_state = self.port_states[self.state]
@@ -160,18 +238,27 @@ class ASTFClient(TRexClient):
 
     def sync(self):
         self.epoch = None
-        rc = self._transmit('sync')
+        params = {'profile_id': "sync"}
+        rc = self._transmit('sync', params)
+
         if not rc:
             raise TRexError(rc.err())
 
         self.state = rc.data()['state']
         self.apply_port_states()
         self.epoch = rc.data()['epoch']
+        if self.is_dynamic:
+            self.astf_profile_state = rc.data()['state_profile']
+        else:
+            self.astf_profile_state[DEFAULT_PROFILE_ID] = self.state
+               
 
-    def wait_for_steady(self):
+    def wait_for_steady(self, dynamic_profile = DEFAULT_PROFILE_ID):
+
         while True:
             self.sync()
-            if self.state not in self.transient_states:
+            state = self.astf_profile_state[dynamic_profile] if self.is_dynamic else self.state
+            if state not in self.transient_states:
                 break
             time.sleep(0.1)
 
@@ -182,23 +269,27 @@ class ASTFClient(TRexClient):
         self.sync()
 
     def _transmit_async(self, rpc_func, ok_states, bad_states = None, **k):
+        profile_id = k['params']['profile_id'] 
         ok_states = listify(ok_states)
         if bad_states is not None:
             bad_states = listify(bad_states)
+
         self.sync()
-        self.wait_for_steady()
+        self.wait_for_steady(profile_id)
         self.inc_epoch()
         self.sync_waiting = True
         try:
             self.last_error = ''
             rc = self._transmit(rpc_func, **k)
-            self.wait_for_steady()
+            self.wait_for_steady(profile_id)
             if not rc:
                 return rc
             while True:
                 self.sync()
-                if self.state in ok_states:
+                state = self.astf_profile_state[profile_id] if self.is_dynamic else self.state
+                if state in ok_states:
                     return RC_OK()
+
                 if self.last_error or (bad_states and self.state in bad_states):
                     error = self.last_error
                     return RC_ERR(error or 'Unknown error')
@@ -224,6 +315,7 @@ class ASTFClient(TRexClient):
                 + :exc:`TRexError`
 
         """
+
         ports = self.get_all_ports()
 
         if restart:
@@ -235,10 +327,10 @@ class ASTFClient(TRexClient):
             with self.ctx.logger.suppress():
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
-                self.stop()
+                self.stop(dynamic_profile = ALL_PROFILE_ID)
                 self.stop_latency()
-                self.clear_profile()
-                self.clear_stats(ports)
+                self.clear_stats(ports, dynamic_profile = ALL_PROFILE_ID)
+                self.clear_profile(dynamic_profile = ALL_PROFILE_ID)
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
@@ -251,7 +343,6 @@ class ASTFClient(TRexClient):
         except TRexError as e:
             self.ctx.logger.post_cmd(False)
             raise
-
 
 
     @client_api('command', True)
@@ -314,13 +405,14 @@ class ASTFClient(TRexClient):
             self.ports[port_id]._clear_handler()
 
 
-    def _upload_fragmented(self, rpc_cmd, upload_string):
+    def _upload_fragmented(self, rpc_cmd, upload_string, dynamic_profile = DEFAULT_PROFILE_ID):
         index_start = 0
         fragment_length = 1000 # first fragment is small, we compare hash before sending the rest
         while len(upload_string) > index_start:
             index_end = index_start + fragment_length
             params = {
                 'handler': self.handler,
+                'profile_id' : dynamic_profile,
                 'fragment': upload_string[index_start:index_end],
                 }
             if index_start == 0:
@@ -342,7 +434,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def load_profile(self, profile, tunables = {}):
+    def load_profile(self, profile, tunables = {}, dynamic_profile = DEFAULT_PROFILE_ID):
         """ Upload ASTF profile to server
 
             :parameters:
@@ -350,7 +442,9 @@ class ASTFClient(TRexClient):
                     Path to profile filename or profile object
 
                 tunables: dict
-                    forward those key-value pairs to the profile file
+                    forward those key-value pairs to the profile file 
+
+                dynamic_profile: string
 
             :raises:
                 + :exc:`TRexError`
@@ -361,11 +455,12 @@ class ASTFClient(TRexClient):
             try:
                 profile = ASTFProfile.load(profile, **tunables)
             except Exception as e:
+                self.astf_profile_state.pop(dynamic_profile, None)
                 raise TRexError('Could not load profile: %s' % e)
         profile_json = profile.to_json_str(pretty = False, sort_keys = True)
 
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
-        rc = self._upload_fragmented('profile_fragment', profile_json)
+        rc = self._upload_fragmented('profile_fragment', profile_json, dynamic_profile = dynamic_profile)
         if not rc:
             self.ctx.logger.post_cmd(False)
             raise TRexError('Could not load profile, error: %s' % rc.err())
@@ -415,20 +510,37 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def clear_profile(self):
-        """ Clear loaded profile """
-        params = {
-            'handler': self.handler
-            }
-        self.ctx.logger.pre_cmd('Clearing loaded profile.')
-        rc = self._transmit('profile_clear', params = params)
-        self.ctx.logger.post_cmd(rc)
-        if not rc:
-            raise TRexError(rc.err())
+    def clear_profile(self, dynamic_profile = DEFAULT_PROFILE_ID):
+        """
+            Clear loaded profile
+
+            :parameters:
+                dynamic_profile: string
+
+            :raises:
+                + :exc:`TRexError`
+        """
+        ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED]
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile)
+
+        for profile_id in profile_list:
+            if self.astf_profile_state[profile_id] in ok_states:
+                params = {
+                    'handler': self.handler,
+                    'profile_id': profile_id
+                }
+                self.ctx.logger.pre_cmd('Clearing loaded profile.')
+
+                rc = self._transmit('profile_clear', params = params)
+                self.ctx.logger.post_cmd(rc)
+                if not rc:
+                    raise TRexError(rc.err())
+            else:
+                self.logger.info(format_text("Cannot remove a profile: %s is not state IDLE and state LOADED.\n" % profile_id, "bold", "magenta"))
 
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, client_mask = 0xffffffff):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, dynamic_profile = DEFAULT_PROFILE_ID, client_mask = 0xffffffff):
         """
             Start the traffic on loaded profile. Procedure is async.
 
@@ -455,12 +567,15 @@ class ASTFClient(TRexClient):
                 client_mask: uint32_t
                     Bitmask of enabled client ports.
 
+                dynamic_profile: string
+
             :raises:
                 + :exc:`TRexError`
         """
 
         params = {
             'handler': self.handler,
+            'profile_id': dynamic_profile,
             'mult': mult,
             'nc': nc,
             'duration': duration,
@@ -468,19 +583,25 @@ class ASTFClient(TRexClient):
             'ipv6': ipv6,
             'client_mask': client_mask,
             }
-        self.ctx.logger.pre_cmd('Starting traffic.')
-        if block:
-            rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED)
-        else:
-            rc = self._transmit('start', params = params)
-        self.ctx.logger.post_cmd(rc)
 
-        if not rc:
-            raise TRexError(rc.err())
+        self.ctx.logger.pre_cmd('Starting traffic.')
+
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile, start = True)
+
+        for profile_id in profile_list:
+
+            if block:
+                rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED)
+            else:
+                rc = self._transmit('start', params = params)
+            self.ctx.logger.post_cmd(rc)
+
+            if not rc:
+                raise TRexError(rc.err())
 
 
     @client_api('command', True)
-    def stop(self, block = True):
+    def stop(self, block = True, dynamic_profile = DEFAULT_PROFILE_ID, is_remove = False):
         """
             Stop the traffic.
 
@@ -488,26 +609,37 @@ class ASTFClient(TRexClient):
                 block: bool
                     Wait for traffic to be stopped (operation is async)
                     Default is True
+                dynamic_profile: string
+                is_remove: bool
+                    Default is False
 
             :raises:
                 + :exc:`TRexError`
         """
-        params = {
-            'handler': self.handler,
-            }
-        self.ctx.logger.pre_cmd('Stopping traffic.')
-        if block:
-            rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
-        else:
-            rc = self._transmit('stop', params = params)
-        self.ctx.logger.post_cmd(rc)
 
-        if not rc:
-            raise TRexError(rc.err())
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile)
+
+        for profile_id in profile_list:
+            params = {
+                'handler': self.handler,
+                'profile_id': profile_id
+                }
+            self.ctx.logger.pre_cmd('Stopping traffic.')
+            if block or is_remove:
+                rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
+            else:
+                rc = self._transmit('stop', params = params)
+            self.ctx.logger.post_cmd(rc)
+
+            if not rc:
+                raise TRexError(rc.err())
+
+            if is_remove:
+                self.clear_profile(dynamic_profile = profile_id)
 
 
     @client_api('command', True)
-    def update(self, mult):
+    def update(self, mult, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Update the rate of running traffic.
 
@@ -516,15 +648,38 @@ class ASTFClient(TRexClient):
                     Multiply total CPS of profile by this value (not relative to current running rate)
                     Default is 1
 
+                dynamic_profile: string
+
+            :raises:
+                + :exc:`TRexError`
+        """
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile)
+
+        for profile_id in profile_list:
+            params = {
+                'handler': self.handler,
+                'profile_id': profile_id,
+                'mult': mult,
+                }
+            self.ctx.logger.pre_cmd('Updating traffic.')
+            rc = self._transmit('update', params = params)
+            self.ctx.logger.post_cmd(rc)
+            if not rc:
+                raise TRexError(rc.err())
+
+
+    @client_api('command', True)
+    def get_profiles(self):
+        """
+            Get profile list from Server.
             :raises:
                 + :exc:`TRexError`
         """
         params = {
             'handler': self.handler,
-            'mult': mult,
             }
-        self.ctx.logger.pre_cmd('Updating traffic.')
-        rc = self._transmit('update', params = params)
+        self.ctx.logger.pre_cmd('Getting profile list.')
+        rc = self._transmit('get_profile_list', params = params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
@@ -551,7 +706,7 @@ class ASTFClient(TRexClient):
 
     # get stats
     @client_api('getter', True)
-    def get_stats(self, ports = None, sync_now = True,skip_zero =True):
+    def get_stats(self, ports = None, sync_now = True, skip_zero = True, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Gets all statistics on given ports, traffic and latency.
 
@@ -561,9 +716,11 @@ class ASTFClient(TRexClient):
                 sync_now: boolean
 
                 skip_zero: boolean
+
+                dynamic_profile: string
         """
         stats = self._get_stats_common(ports, sync_now)
-        stats['traffic'] = self.get_traffic_stats(skip_zero)
+        stats['traffic'] = self.get_traffic_stats(skip_zero, dynamic_profile)
         stats['latency'] = self.get_latency_stats(skip_zero)
 
         return stats
@@ -576,7 +733,8 @@ class ASTFClient(TRexClient):
                     ports = None,
                     clear_global = True,
                     clear_xstats = True,
-                    clear_traffic = True):
+                    clear_traffic = True,
+                    dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Clears statistics in given ports.
 
@@ -588,34 +746,43 @@ class ASTFClient(TRexClient):
                 clear_xstats: boolean
 
                 clear_traffic: boolean
+
+                dynamic_profile: string
         """
-        if clear_traffic:
-            self.clear_traffic_stats()
+
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile)
+
+        for profile_id in profile_list:
+            if clear_traffic:
+               self.clear_traffic_stats(profile_id)
 
         return self._clear_stats_common(ports, clear_global, clear_xstats)
 
 
     @client_api('getter', True)
-    def get_tg_names(self):
+    def get_tg_names(self, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Returns a list of the names of all template groups defined in the current profile.
+
+            :parameters:
+                dynamic_profile: string
 
             :raises:
                 + :exc:`TRexError`
         """
-        return self.traffic_stats.get_tg_names()
+        return self.traffic_stats.get_tg_names(dynamic_profile)
 
 
     @client_api('getter', True)
-    def get_traffic_tg_stats(self, tg_names, skip_zero=True):
+    def get_traffic_tg_stats(self, tg_names, skip_zero=True, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Returns the traffic statistics for the template groups specified in tg_names.
 
             :parameters:
                 tg_names: list or string
                     Contains the names of the template groups for which we want to get traffic statistics.
-
                 skip_zero: boolean
+                dynamic_profile: string
 
             :raises:
                 + :exc:`TRexError`
@@ -623,18 +790,20 @@ class ASTFClient(TRexClient):
                     Can be thrown if tg_names is empty or contains a invalid name.
         """
         validate_type('tg_names', tg_names, (list, basestring))
-        return self.traffic_stats.get_traffic_tg_stats(tg_names, skip_zero)
+        return self.traffic_stats.get_traffic_tg_stats(tg_names, skip_zero, dynamic_profile=dynamic_profile)
 
 
     @client_api('getter', True)
-    def get_traffic_stats(self, skip_zero = True):
+    def get_traffic_stats(self, skip_zero = True, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Returns aggregated traffic statistics.
 
             :parameters:
                 skip_zero: boolean
+
+                dynamic_profile: string
         """
-        return self.traffic_stats.get_stats(skip_zero)
+        return self.traffic_stats.get_stats(skip_zero, dynamic_profile=dynamic_profile)
 
 
     @client_api('getter', True)
@@ -650,11 +819,14 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
-    def clear_traffic_stats(self):
+    def clear_traffic_stats(self, dynamic_profile = DEFAULT_PROFILE_ID):
         """
             Clears traffic statistics.
+
+            :parameters:
+                dynamic_profile: string
         """
-        return self.traffic_stats.clear_stats()
+        return self.traffic_stats.clear_stats(dynamic_profile)
 
 
     @client_api('getter', True)
@@ -879,7 +1051,8 @@ class ASTFClient(TRexClient):
             self,
             'reset',
             self.reset_line.__doc__,
-            parsing_opts.PORT_RESTART)
+            parsing_opts.PORT_RESTART
+            )
 
         opts = parser.parse_args(shlex.split(line))
         self.reset(restart = opts.restart)
@@ -902,24 +1075,30 @@ class ASTFClient(TRexClient):
             parsing_opts.ASTF_LATENCY,
             parsing_opts.ASTF_IPV6,
             parsing_opts.ASTF_CLIENT_CTRL,
+            parsing_opts.ASTF_DYNAMIC_PROFILE_LIST
             )
 
         opts = parser.parse_args(shlex.split(line))
-        self.load_profile(opts.file[0], opts.tunables)
+       
+        profile_list = self.validate_dynamic_profile_input(opts.profiles, start = True)
+        for profile_id in profile_list:
 
-        kw = {}
-        if opts.clients:
-            for client in opts.clients:
-                if client not in self.ports:
-                    raise TRexError('Invalid client interface: %d' % client)
-                if client & 1:
-                    raise TRexError('Following interface is not client: %d' % client)
-            kw['client_mask'] = self._calc_port_mask(opts.clients)
-        elif opts.servers_only:
-            kw['client_mask'] = 0
+            self.load_profile(opts.file[0], opts.tunables, dynamic_profile = profile_id)
+            kw = {}
+            if opts.clients:
+                for client in opts.clients:
+                    if client not in self.ports:
+                        raise TRexError('Invalid client interface: %d' % client)
+                    if client & 1:
+                        raise TRexError('Following interface is not client: %d' % client)
+                kw['client_mask'] = self._calc_port_mask(opts.clients)
+            elif opts.servers_only:
+                kw['client_mask'] = 0
 
-        self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, **kw)
+            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, dynamic_profile = profile_id, **kw)
+
         return True
+
 
     @console_api('stop', 'ASTF', True)
     def stop_line(self, line):
@@ -928,23 +1107,29 @@ class ASTFClient(TRexClient):
         parser = parsing_opts.gen_parser(
             self,
             'stop',
-            self.stop_line.__doc__)
+            self.stop_line.__doc__,
+            parsing_opts.ASTF_DYNAMIC_PROFILE_DEFAULT_LIST,
+            parsing_opts.REMOVE
+            )
 
         opts = parser.parse_args(shlex.split(line))
-        self.stop(False)
+        self.stop(False, dynamic_profile = opts.profiles, is_remove = opts.remove)
+       
 
     @console_api('update', 'ASTF', True)
     def update_line(self, line):
-        '''update traffic multiplier'''
+        '''u traffic multiplier'''
 
         parser = parsing_opts.gen_parser(
             self,
             'update',
             self.update_line.__doc__,
-            parsing_opts.MULTIPLIER_NUM)
+            parsing_opts.MULTIPLIER_NUM,
+            parsing_opts.ASTF_DYNAMIC_PROFILE_DEFAULT_LIST
+            )
 
         opts = parser.parse_args(shlex.split(line))
-        self.update(opts.mult)
+        self.update(opts.mult, dynamic_profile = opts.profiles)
 
 
     @staticmethod
@@ -1077,14 +1262,17 @@ class ASTFClient(TRexClient):
     @console_api('stats', 'common', True)
     def show_stats_line (self, line):
         '''Show various statistics\n'''
+
         # define a parser
         parser = parsing_opts.gen_parser(
             self,
             'stats',
             self.show_stats_line.__doc__,
             parsing_opts.PORT_LIST,
-            parsing_opts.ASTF_STATS_GROUP)
+            parsing_opts.ASTF_STATS_GROUP,
+            parsing_opts.ASTF_PROFILE_STATS)
 
+        profile_list = list(self.astf_profile_state.keys())
         opts = parser.parse_args(shlex.split(line))
         if not opts:
             return
@@ -1118,10 +1306,14 @@ class ASTFClient(TRexClient):
             self._show_mbuf_util()
 
         elif opts.stats == 'astf':
-            self._show_traffic_stats(False)
+            profile_list = self.validate_dynamic_profile_input(dynamic_profile=opts.pfname)
+            for profile_id in profile_list:
+                self._show_traffic_stats(False, dynamic_profile = profile_id)
 
         elif opts.stats == 'astf_inc_zero':
-            self._show_traffic_stats(True)
+            profile_list = self.validate_dynamic_profile_input(dynamic_profile=opts.pfname)
+            for profile_id in profile_list:
+                self._show_traffic_stats(True, dynamic_profile = profile_id)
 
         elif opts.stats == 'latency':
             self._show_latency_stats()
@@ -1143,7 +1335,8 @@ class ASTFClient(TRexClient):
         parser = parsing_opts.gen_parser(
             self,
             'template_group',
-            self.template_group_line.__doc__)
+            self.template_group_line.__doc__
+            )
 
         def template_group_add_parsers(subparsers, cmd, help = '', **k):
             return subparsers.add_parser(cmd, description = help, help = help, **k)
@@ -1154,32 +1347,38 @@ class ASTFClient(TRexClient):
 
         names_parser.add_arg_list(parsing_opts.TG_NAME_START)
         names_parser.add_arg_list(parsing_opts.TG_NAME_AMOUNT)
+        names_parser.add_arg_list(parsing_opts.ASTF_DYNAMIC_PROFILE_LIST)
         stats_parser.add_arg_list(parsing_opts.TG_STATS)
+        stats_parser.add_arg_list(parsing_opts.ASTF_DYNAMIC_PROFILE_LIST)
 
         opts = parser.parse_args(shlex.split(line))
 
         if not opts:
             return
 
-        if opts.command == 'names':
-            self.traffic_stats._show_tg_names(start=opts.start, amount=opts.amount)
-        elif opts.command == 'stats':
-            try:
-                self.get_tg_names()
-                tgid = self.traffic_stats._translate_names_to_ids(opts.name)
-                self._show_traffic_stats(include_zero_lines=False, tgid = tgid[0])
-            except ASTFErrorBadTG:
-                print(format_text("Template group name %s doesn't exist!" % opts.name, 'bold'))
-        else:
-            raise TRexError('Unhandled command: %s' % opts.command)
+        dynamic_profile = opts.profiles
+        profile_list = self.validate_dynamic_profile_input(dynamic_profile)
+
+        for profile_id in profile_list:
+            if opts.command == 'names':
+                self.traffic_stats._show_tg_names(start=opts.start, amount=opts.amount, dynamic_profile = profile_id)
+            elif opts.command == 'stats':
+                try:
+                    self.get_tg_names(profile_id)
+                    tgid = self.traffic_stats._translate_names_to_ids(opts.name, dynamic_profile = profile_id)
+                    self._show_traffic_stats(include_zero_lines=False, tgid = tgid[0], dynamic_profile = profile_id)
+                except ASTFErrorBadTG:
+                    print(format_text("Template group name %s doesn't exist!" % opts.name, 'bold'))
+            else:
+                raise TRexError('Unhandled command: %s' % opts.command)
 
 
-    def _get_num_of_tgids(self):
-        return self.traffic_stats._get_num_of_tgids()
+    def _get_num_of_tgids(self, dynamic_profile = DEFAULT_PROFILE_ID):
+        return self.traffic_stats._get_num_of_tgids(dynamic_profile)
 
 
-    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0):
-        table = self.traffic_stats.to_table(include_zero_lines, tgid)
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, dynamic_profile = DEFAULT_PROFILE_ID):
+        table = self.traffic_stats.to_table(include_zero_lines, tgid, dynamic_profile)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
 
@@ -1197,4 +1396,40 @@ class ASTFClient(TRexClient):
         table = self.latency_stats.counters_to_table()
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
+
+    def _show_profiles_states(self, buffer = sys.stdout):
+
+        table = text_tables.TRexTextTable()
+        table.set_cols_align(["c"] + ["c"])
+        table.set_cols_width([20]  + [20])
+        table.header(["ID", "State"])
+
+        profile_list = list(self.astf_profile_state.keys())
+        for profile_id in profile_list:
+            profile_state = self.astf_profile_state[profile_id]
+            state = "Unknown" if profile_state is None else astf_states[profile_state]
+            table.add_row([
+                profile_id,
+                state
+                ])
+
+        return table
+
+    @console_api('profiles', 'ASTF', True, True)
+    def profiles_line(self, line):
+        '''Get loaded to profiles information'''
+        parser = parsing_opts.gen_parser(self,
+                                         "profiles",
+                                         self.profiles_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        if not opts:
+            return opts
+
+        table = self._show_profiles_states() 
+
+        if not table:
+            self.logger.info(format_text("No profiles found with desired filter.\n", "bold", "magenta"))
+
+        text_tables.print_table_with_header(table, header = 'Profile states')
 

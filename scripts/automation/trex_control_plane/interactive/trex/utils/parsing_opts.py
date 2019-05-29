@@ -5,7 +5,7 @@ from .text_opts import format_text
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
-from ..common.trex_types import PortProfileID
+from ..common.trex_types import PortProfileID, DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsoleError
 from ..common.trex_psv import PSV_ACQUIRED
 
@@ -71,6 +71,10 @@ dynamic_profile_help = """A list of profiles on which to apply the command.
                           Profile expression is used as <port id>.<profile id>.
                           Default profile id is \"_\" when not specified.
                        """
+astf_dynamic_profile_help = """A list of profiles on which to apply the command.
+                            Default profile id is \"_\" when not specified.
+                            """
+
 
 # decodes multiplier
 # if allow_update - no +/- is allowed
@@ -465,6 +469,24 @@ class OPTIONS_DB_ARGS:
          'default': None,
          'type': str})
 
+    ASTF_DYNAMIC_PROFILE_LIST = ArgumentPack(
+        ['--pid'],
+        {"nargs": 1,
+         'dest':'profiles',
+         'metavar': 'PROFILE',
+         'type': str,
+         'help': astf_dynamic_profile_help,
+         'default': [DEFAULT_PROFILE_ID]})
+
+    ASTF_DYNAMIC_PROFILE_DEFAULT_LIST = ArgumentPack(
+        ['--pid'],
+        {"nargs": '+',
+         'dest':'profiles',
+         'metavar': 'PROFILE',
+         'type': str,
+         'help': astf_dynamic_profile_help,
+         'default': [DEFAULT_PROFILE_ID]})
+
     ASTF_NC = ArgumentPack(
         ['--nc'],
         {'help': 'Faster flow termination at the end of the test, see --nc in the manual',
@@ -590,15 +612,6 @@ class OPTIONS_DB_ARGS:
          "dest": "all_ports",
          'help': "Set this flag to apply the command on all available ports",
          'default': False})
-
-
-    ALL_PROFILES = ArgumentPack(
-        ['-a'],
-        {"action": "store_true",
-         "dest": "all_profiles",
-         'help': "Set this flag to apply the command on all available dynamic profiles",
-         'default': False})
-
 
     DURATION = ArgumentPack(
         ['-d'],
@@ -812,6 +825,15 @@ class OPTIONS_DB_ARGS:
          'const': 'astf_inc_zero',
          'help': "Fetch ASTF counters, including lines with zero values"})
 
+    ASTF_PROFILE_STATS = ArgumentPack(
+        ['--pid'],
+        {"nargs": 1,
+         'dest':'pfname',
+         'metavar': 'PROFILE',
+         'type': str,
+         'default': DEFAULT_PROFILE_ID,
+         'help': "ASTF Profile ID: When using --pid option, Should use with -a or --za option"})
+
     STREAMS_MASK = ArgumentPack(
         ['-i', '--id'],
         {"nargs": '+',
@@ -1021,15 +1043,6 @@ class OPTIONS_DB_GROUPS:
         ],
         {'required': False})
 
-    # advanced options
-    PROFILE_LIST_WITH_ALL = ArgumentGroup(
-        MUTEX,
-        [
-            PROFILE_LIST,
-            ALL_PROFILES
-        ],
-        {'required': False})
-
     VLAN_CFG = ArgumentGroup(
         MUTEX,
         [
@@ -1182,7 +1195,7 @@ class CCmdArgParser(argparse.ArgumentParser):
         raise ValueError(message)
 
     def has_ports_cfg (self, opts):
-        return hasattr(opts, "all_ports") or hasattr(opts, "ports") or hasattr(opts, "all_profiles")
+        return hasattr(opts, "all_ports") or hasattr(opts, "ports")
 
     def parse_args(self, args=None, namespace=None, default_ports=None, verify_acquired=False, allow_empty=True):
         try:
@@ -1198,10 +1211,6 @@ class CCmdArgParser(argparse.ArgumentParser):
             # explicit -a means ALL ports
             if (getattr(opts, "all_ports", None) == True):
                 opts.ports = self.client.get_all_ports()
-
-            # explicit -a means ALL profiles
-            elif (getattr(opts, "all_profiles", None) == True):
-                opts.ports = self.client.get_profiles_with_state("all")
 
             # default ports
             elif (getattr(opts, "ports", None) == []):

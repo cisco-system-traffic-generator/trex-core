@@ -161,6 +161,8 @@ class ServerEventsIDs(object):
     EVENT_PROFILE_ERROR         = 17
 
     EVENT_ASTF_STATE_CHG = 50
+    EVENT_ASTF_PROFILE_STATE_CHG = 60
+    EVENT_ASTF_PROFILE_CLEARED   = 61
 
     EVENT_SERVER_STOPPED = 100
 
@@ -506,6 +508,23 @@ class TRexSubscriber():
             self.ctx.event_handler.on_event('astf state changed', state, error, epoch)
 
 
+        # ASTF profile state changed
+        elif event_id == ServerEventsIDs.EVENT_ASTF_PROFILE_STATE_CHG:
+            profile_id = data['profile_id']
+            state = data['state']
+            error = data.get('error', '')
+            epoch = data.get('epoch')
+            self.ctx.event_handler.on_event('astf profile state changed', profile_id, state, error, epoch)
+
+
+        # ASTF profile state changed
+        elif event_id == ServerEventsIDs.EVENT_ASTF_PROFILE_CLEARED:
+            profile_id = data['profile_id']
+            error = data.get('error', '')
+            epoch = data.get('epoch')
+            self.ctx.event_handler.on_event('astf profile cleared', profile_id, error, epoch)
+
+
         # server stopped
         elif event_id == ServerEventsIDs.EVENT_SERVER_STOPPED:
             cause = data['cause']
@@ -516,7 +535,6 @@ class TRexSubscriber():
         # unhandled
         else:
             print('Unhandled event %d' % event_id)
-
 
 
 
