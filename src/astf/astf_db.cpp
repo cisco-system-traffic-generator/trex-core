@@ -923,8 +923,9 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
 }
 
 ClientCfgDB  *CAstfDB::get_client_cfg_db() {
+    static ClientCfgDB g_dummy;
     if (m_client_config_info==0) {
-        return  &m_client_config_db;
+        return  &g_dummy;
     }else{
         return m_client_config_info;
     }

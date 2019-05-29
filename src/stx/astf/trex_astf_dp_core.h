@@ -78,7 +78,8 @@ protected:
     enum profile_state_e {
         pSTATE_FREE,    // by create or delete_tcp_batch
         pSTATE_LOADED,  // by create_tcp_batch or stop_transmit
-        pSTATE_ACTIVE,  // by start_transmit
+        pSTATE_STARTING,// by start_transmit
+        pSTATE_ACTIVE,  // by start_profile_ctx
         pSTATE_WAIT     // by stop_transmit
     };
 
