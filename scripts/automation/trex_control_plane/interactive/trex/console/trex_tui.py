@@ -267,6 +267,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.max_lines = TrexTUI.MIN_ROWS - 16 # 16 is size of panels below and above
         self.num_lines = 0
         self.tgid = 0
+        self.is_sum = True if self.client.is_dynamic else False
 
         self.key_actions = OrderedDict()
 
@@ -282,10 +283,10 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
 
         buf = StringIO()
         try:
-            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
         except ASTFErrorBadTG:
             self.tgid = 0
-            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
         buf.seek(0)
         out_lines = buf.readlines()
         self.num_lines = len(out_lines)
