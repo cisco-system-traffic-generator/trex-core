@@ -260,8 +260,8 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.remove_streams([s1_id], ports = [0]) # get rid of burst
         self.c.start(ports = [0])
 
-        self.c.update_streams(port = 0, mult = '1kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
-        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 1200)
+        self.c.update_streams(port = 0, mult = '10kpps', stream_ids = [s3_id, s4_id]) # latency is not affected
+        self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 10200)
 
         self.c.update_streams(port = 0, mult = '100pps', stream_ids = [s3_id])
         self.c.pause_streams(port = 0, stream_ids = [s3_id])
