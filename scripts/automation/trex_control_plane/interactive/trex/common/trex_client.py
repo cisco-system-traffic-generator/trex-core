@@ -38,8 +38,6 @@ from .services.trex_service_arp import ServiceARP
 from .services.trex_service_ipv6 import ServiceICMPv6, ServiceIPv6Scan
 from .stats.trex_ns import CNsStats
 
-
-
 from scapy.layers.l2 import Ether, Packet
 from scapy.layers.inet import IP, UDP
 from scapy.utils import RawPcapWriter
@@ -170,6 +168,8 @@ class TRexClient(object):
         self.ctx.event_handler.register_event_handler("port attr chg", self._on_port_attr_chg)
 
         self.ctx.event_handler.register_event_handler("astf state changed", self._on_astf_state_chg)
+        self.ctx.event_handler.register_event_handler("astf profile state changed", self._on_astf_profile_state_chg)
+        self.ctx.event_handler.register_event_handler("astf profile cleared", self._on_astf_profile_cleared)
 
         self.ctx.event_handler.register_event_handler("global stats update", lambda *args, **kwargs: None)
 
@@ -352,6 +352,14 @@ class TRexClient(object):
 
 
     def _on_astf_state_chg(self, ctx_state, error, epoch):
+        raise NotImplementedError()
+
+
+    def _on_astf_profile_state_chg(self, profile_id, ctx_state, error, epoch):
+        raise NotImplementedError()
+
+
+    def _on_astf_profile_cleared(self, profile_id, error, epoch):
         raise NotImplementedError()
 
 
@@ -3184,7 +3192,6 @@ class TRexClient(object):
                                          parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split())
-
         self.clear_stats(opts.ports)
 
         return RC_OK()
