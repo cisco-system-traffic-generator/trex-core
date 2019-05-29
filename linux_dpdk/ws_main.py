@@ -122,6 +122,7 @@ def options(opt):
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
+    opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
 
     co = opt.option_groups['configure options']
@@ -837,7 +838,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
-
                  'filter_ntacc.c',
                  'rte_eth_ntacc.c',
                  'nt_compat.c',
@@ -852,41 +852,47 @@ libmnl_src = SrcGroup(
         'attr.c',
     ]);
 
-mlx5_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx5',
-                src_list=[
+mlx5_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx5',
+    src_list = [
+        'mlx5.c',
+        'mlx5_devx_cmds.c',
+        'mlx5_ethdev.c',
+        'mlx5_flow.c',
+        'mlx5_flow_dv.c',
+        'mlx5_flow_tcf.c',
+        'mlx5_flow_verbs.c',
+        'mlx5_glue.c',
+        'mlx5_mac.c',
+        'mlx5_mp.c',
+        'mlx5_mr.c',
+        'mlx5_nl.c',
+        'mlx5_rss.c',
+        'mlx5_rxmode.c',
+        'mlx5_rxq.c',
+        'mlx5_rxtx.c',
+        'mlx5_rxtx_vec.c',
+        'mlx5_stats.c',
+        'mlx5_trigger.c',
+        'mlx5_txq.c',
+        'mlx5_vlan.c',
+    ]);
 
-                 'mlx5.c',
-                 'mlx5_ethdev.c',
-                 'mlx5_flow.c',
-                 'mlx5_glue.c',
-                 'mlx5_mr.c',
-                 'mlx5_mac.c',
-                 'mlx5_nl.c',
-                 'mlx5_rxmode.c',
-                 'mlx5_rxtx.c',
-                 'mlx5_stats.c',
-                 'mlx5_txq.c',
-                 'mlx5_rss.c',
-                 'mlx5_rxq.c',
-                 'mlx5_rxtx_vec.c',
-                 'mlx5_trigger.c',
-                 'mlx5_vlan.c',
-
-            ]);
-
-mlx4_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx4',
-                src_list=[
-                 'mlx4.c',
-                 'mlx4_ethdev.c',
-                 'mlx4_flow.c',
-                 'mlx4_glue.c',
-                 'mlx4_intr.c',
-                 'mlx4_mr.c',
-                 'mlx4_rxq.c',
-                 'mlx4_rxtx.c',
-                 'mlx4_txq.c',
-                 'mlx4_utils.c',
-            ]);
+mlx4_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx4',
+    src_list = [
+        'mlx4.c',
+        'mlx4_ethdev.c',
+        'mlx4_flow.c',
+        'mlx4_glue.c',
+        'mlx4_intr.c',
+        'mlx4_mp.c',
+        'mlx4_mr.c',
+        'mlx4_rxq.c',
+        'mlx4_rxtx.c',
+        'mlx4_txq.c',
+        'mlx4_utils.c',
+    ]);
 
 if march == 'x86_64':
     bp_dpdk = SrcGroups([
@@ -1454,6 +1460,8 @@ def post_build(bld):
     print("*** generating softlinks ***")
     exec_p ="../scripts/"
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         install_single_system(bld, exec_p, obj);
 
 
@@ -1511,6 +1519,8 @@ def build(bld):
             bld.env.mlx5_kw  = {}
 
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         build_type(bld,obj);
 
 
