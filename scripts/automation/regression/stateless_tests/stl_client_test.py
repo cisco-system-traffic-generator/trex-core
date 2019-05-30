@@ -838,7 +838,7 @@ class STLClient_Test(CStlGeneral_Test):
                                packet = self.pkt,
                                mode = STLTXCont(percentage = self.percentage),
 #                               flow_stats = STLFlowLatencyStats(pg_id = index))
-                               flow_stats = STLFlowLatencyStats(pg_id = index + self.tx_port + 5))
+                               flow_stats = STLFlowLatencyStats(pg_id = random.randint(10,100) + num_profiles * index))
                 self.c.add_streams([stream], ports = tx_profile)
                 self.c.start(ports = tx_profile_list)
 
