@@ -119,118 +119,6 @@ void TrexAstf::shutdown() {
     send_msg_to_rx(new TrexRxQuit());
 }
 
-void TrexAstf::parse(string profile_id) {
-    if (is_another_profile_busy(profile_id)) {
-        add_cmd_in_wait_list(profile_id, CMD_PARSE);
-        return;
-    } else {
-        del_cmd_in_wait_list(profile_id);
-    }
-
-    string *prof = profile_needs_parsing(profile_id) ? &(get_profile_by_id(profile_id)->m_profile_buffer) : nullptr;
-    string *topo = topo_needs_parsing() ? &m_topo_buffer : nullptr;
-    assert(prof||topo);
-
-    profile_change_state(profile_id, STATE_PARSE);
-
-    uint32_t profile_index = get_profile_index_by_id(profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(profile_index, prof, topo);
-    send_message_to_dp(0, msg);
-}
-
-void TrexAstf::build(string profile_id) {
-    if (is_another_profile_busy(profile_id)) {
-        add_cmd_in_wait_list(profile_id, CMD_BUILD);
-        return;
-    } else {
-        del_cmd_in_wait_list(profile_id);
-    }
-
-    profile_change_state(profile_id, STATE_BUILD);
-
-    double factor          = get_profile_by_id(profile_id)->m_factor;
-    uint32_t profile_index = get_profile_index_by_id(profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(profile_index, factor);
-    send_message_to_all_dp(msg);
-}
-
-void TrexAstf::transmit(string profile_id) {
-    uint32_t profile_index = get_profile_index_by_id(profile_id);
-
-    /* Resize the statistics vector depending on the number of template groups */
-    CSTTCp* lpstt = get_sttcp_by_id(profile_id);
-    lpstt->Resize(CAstfDB::instance(profile_index)->get_num_of_tg_ids());
-
-    if ( m_lat_with_traffic ) {
-        CAstfDB *db = CAstfDB::instance(profile_index);
-        lat_start_params_t args;
-
-        try {
-            if ( !db->get_latency_info(args.client_ip.v4,
-                                       args.server_ip.v4,
-                                       args.dual_ip) ) {
-                throw TrexException("No valid ip range for latency");
-            }
-
-            args.cps = m_latency_pps;
-            args.ports_mask = 0xffffffff;
-            start_transmit_latency(args);
-        } catch (const TrexException &ex) {
-            get_profile_by_id(profile_id)->m_error = ex.what();
-            cleanup(profile_id);
-            return;
-        }
-    }
-
-    if (!is_another_profile_transmitting(profile_id)) {
-        set_barrier(0.5);
-    }
-
-    profile_change_state(profile_id, STATE_TX);
-
-    double duration = get_profile_by_id(profile_id)->m_duration;
-    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(profile_index, duration);
-
-    send_message_to_all_dp(msg);
-}
-
-
-void TrexAstf::cleanup(string profile_id) {
-    if (is_another_profile_busy(profile_id)) {
-        add_cmd_in_wait_list(profile_id, CMD_CLEANUP);
-        return;
-    } else {
-        del_cmd_in_wait_list(profile_id);
-    }
-
-    profile_change_state(profile_id, STATE_CLEANUP);
-    get_profile_by_id(profile_id)->m_profile_stopping = true;
-
-    if (m_lat_with_traffic && (m_l_state==STATE_L_WORK)) {
-        m_latency_pps = 0;
-        m_lat_with_traffic = false;
-        stop_transmit_latency();
-    }
-
-    uint32_t profile_index = get_profile_index_by_id(profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(profile_index);
-    send_message_to_all_dp(msg);
-}
-
-void TrexAstf::profile_clear(string profile_id){
-    profile_check_whitelist_states(profile_id, {STATE_IDLE, STATE_LOADED});
-    if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
-        profile_init(profile_id);
-        return;
-    }
-
-    profile_change_state(profile_id, STATE_DELETE);
-
-    uint32_t profile_index = get_profile_index_by_id(profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(profile_index);
-    send_message_to_dp(0, msg);
-}
-
 bool TrexAstf::is_trans_state() {
     return m_state == STATE_PARSE || m_state == STATE_BUILD || m_state == STATE_CLEANUP;
 }
@@ -296,60 +184,12 @@ void TrexAstf::update_astf_state() {
     }
 }
 
-void TrexAstf::publish_astf_state(string profile_id) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    if (mprof->m_profile_state == STATE_DELETE) {
-        return;
-    }
-
-    /* Publish the state change of each profile */
-    Json::Value data;
-    data["profile_id"] = profile_id;
-    data["state"] = mprof->m_profile_state;
-    data["epoch"] = m_epoch;
-    if ( is_error(profile_id) ) {
-        data["error"] = mprof->m_error;
-    }
-
-    get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_PROFILE_STATE_CHG, data);
-
-
-    /* Publish the state change of all profiles */
-    int old_state = m_state;
-
-    update_astf_state();
-    if (old_state == m_state) {
-        mprof->m_error = "";
-        return;
-    }
-
-    data.clear();
-    data["state"] = m_state;
-    data["epoch"] = m_epoch;
-    if ( is_error(profile_id) && !is_trans_state() ) {
-        data["error"] = mprof->m_error;
-    }
-
-    mprof->m_error = "";
-
-    get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_STATE_CHG, data);
-}
-
-void TrexAstf::publish_astf_profile_clear(string profile_id) {
-     Json::Value data;
-     data["profile_id"] = profile_id;
-     data["epoch"] = m_epoch;
-
-     get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_PROFILE_CLEARED, data);
-}
-
 void TrexAstf::get_profiles_status(Json::Value &result) {
     vector<string> profile_id_list = get_profile_id_list();
     Json::Value get_profiles_status_json = Json::objectValue;
 
     for (auto profile_id : profile_id_list) {
-        state_e j = get_profile_state_by_id(profile_id);
+        state_e j = get_profile(profile_id)->get_profile_state();
         stringstream ss;
         ss << profile_id;
         get_profiles_status_json[ss.str()] = j;
@@ -358,77 +198,13 @@ void TrexAstf::get_profiles_status(Json::Value &result) {
     result = get_profiles_status_json;
 }
 
-void TrexAstf::all_dp_cores_finished(uint32_t profile_index) {
-    string profile_id = get_profile_id_by_index(profile_index);
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    switch ( mprof->m_profile_state ) {
-        case STATE_PARSE:
-            if ( is_error(profile_id) || mprof->m_profile_stopping ) {
-                profile_change_state(profile_id, STATE_LOADED);
-                del_cmd_in_wait_list(profile_id);
-                run_cmd_in_wait_list();
-            } else {
-                mprof->m_profile_parsed = true;
-                m_topo_parsed = true;
-                build(profile_id);
-            }
-            break;
-        case STATE_BUILD:
-            if ( is_error(profile_id) || mprof->m_profile_stopping ) {
-                del_cmd_in_wait_list(profile_id);
-                cleanup(profile_id);
-            } else {
-                transmit(profile_id);
-                run_cmd_in_wait_list();
-            }
-            break;
-        case STATE_TX:
-            cleanup(profile_id);
-            break;
-        case STATE_CLEANUP:
-            profile_change_state(profile_id, STATE_LOADED);
-            run_cmd_in_wait_list();
-            break;
-        case STATE_DELETE:
-            delete_profile(profile_id);
-            publish_astf_profile_clear(profile_id);
-            break;
-        default:
-            printf("DP cores should not report in state: %s", m_states_names[mprof->m_profile_state].c_str());
-            exit(1);
-    }
+void TrexAstf::dp_core_finished(int thread_id, uint32_t dp_profile_id) {
+    get_profile(get_profile_id(dp_profile_id))->dp_core_finished();
 }
 
-void TrexAstf::dp_core_finished(int thread_id, uint32_t profile_index) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(get_profile_id_by_index(profile_index));
-
-    mprof->m_active_cores--;
-    if ( mprof->m_active_cores == 0 ) {
-        all_dp_cores_finished(profile_index);
-    } else {
-        assert(mprof->m_active_cores>0);
-    }
+void TrexAstf::dp_core_error(int thread_id, uint32_t dp_profile_id, const string &err) {
+    get_profile(get_profile_id(dp_profile_id))->dp_core_error(err);
 }
-
-void TrexAstf::dp_core_error(int thread_id, uint32_t profile_index, const string &err) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(get_profile_id_by_index(profile_index));
-
-    switch ( mprof->m_profile_state ) {
-        case STATE_PARSE:
-            mprof->m_error = err;
-            break;
-        case STATE_BUILD:
-            mprof->m_error = err;
-            break;
-        default:
-            printf("DP core should not report error in state: %s\n", m_states_names[mprof->m_profile_state].c_str());
-            printf("Error is: %s\n", err.c_str());
-            exit(1);
-    }
-    dp_core_finished(thread_id, profile_index);
-}
-
 
 TrexDpCore* TrexAstf::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) {
     return new TrexAstfDpCore(thread_id, core);
@@ -518,8 +294,9 @@ bool TrexAstf::is_state_build() {
     return m_state == STATE_BUILD;
 }
 
-void TrexAstf::start_transmit(string profile_id, const start_params_t &args) {
-    profile_check_whitelist_states(profile_id, {STATE_LOADED});
+void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &args) {
+    TrexAstfPerProfile* pid = get_profile(profile_id);
+    pid->profile_check_whitelist_states({STATE_LOADED});
 
     if ( args.latency_pps ) {
         if (m_l_state != STATE_L_IDLE) {
@@ -529,74 +306,64 @@ void TrexAstf::start_transmit(string profile_id, const start_params_t &args) {
         m_lat_with_traffic = true;
     }
 
-    TrexAstfPerProfile* mprof  = get_profile_by_id(profile_id);
-    mprof->m_factor            = args.mult;
-    mprof->m_duration          = args.duration;
-    mprof->m_nc_flow_close     = args.nc;
+    pid->set_factor(args.mult);
+    pid->set_duration(args.duration);
+    pid->set_nc_flow_close(args.nc);
 
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.setNoCleanFlowClose(args.nc);
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
-    if ( profile_needs_parsing(profile_id) || topo_needs_parsing() ) {
-        parse(profile_id);
+    if ( pid->profile_needs_parsing() || topo_needs_parsing() ) {
+        pid->parse();
     } else {
-        build(profile_id);
+        pid->build();
     }
 }
 
-void TrexAstf::stop_transmit(string profile_id) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
+void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
+    TrexAstfPerProfile* pid = get_profile(profile_id);
 
-    /* check already stopping */
-    if (mprof->m_profile_stopping) {
+    /* check already stopping or not transmitting */
+    if (pid->get_profile_stopping() || pid->get_profile_state() != STATE_TX) {
         return;
     }
 
-    /* check cmd in waiting list */
-    cmd_wait_e cmd = get_cmd_in_wait_list(profile_id);
-    if (cmd != AMOUNT_OF_CMDS) {
-        if (cmd != CMD_STOP) {
-            del_cmd_in_wait_list(profile_id);
-            profile_change_state(profile_id, STATE_LOADED);
-        }
-        return;
-    }
+    pid->set_profile_stopping(true);
+    m_opts->preview.setNoCleanFlowClose(pid->get_nc_flow_close());
 
-    /* check state */
-    state_e state = get_profile_state_by_id(profile_id);
-    if (state == STATE_IDLE || state == STATE_LOADED) {
-        return;
-    } else if (state == STATE_TX && is_another_profile_busy(profile_id)) {
-        add_cmd_in_wait_list(profile_id, CMD_STOP);
-        return;
-    } else {
-        del_cmd_in_wait_list(profile_id);
-    }
-
-    mprof->m_profile_stopping = true;
-    m_opts->preview.setNoCleanFlowClose(mprof->m_nc_flow_close);
-
-    if ( state == STATE_TX ) {
-        uint32_t profile_index = get_profile_index_by_id(profile_id);
-        TrexCpToDpMsgBase *msg = new TrexAstfDpStop(profile_index);
-        send_message_to_all_dp(msg);
-    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id());
+    send_message_to_all_dp(msg);
 }
 
-void TrexAstf::update_rate(string profile_id, double mult) {
-    profile_check_whitelist_states(profile_id, {STATE_TX});
+void TrexAstf::profile_clear(cp_profile_id_t profile_id){
+    TrexAstfPerProfile* pid = get_profile(profile_id);
+    pid->profile_check_whitelist_states({STATE_IDLE, STATE_LOADED});
+
+    if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
+        pid->profile_init();
+        return;
+    }
+
+    pid->profile_change_state(STATE_DELETE);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(pid->get_dp_profile_id());
+    send_message_to_dp(0, msg);
+}
+
+void TrexAstf::update_rate(cp_profile_id_t profile_id, double mult) {
+    TrexAstfPerProfile* pid = get_profile(profile_id);
+    pid->profile_check_whitelist_states({STATE_TX});
 
     // time interval for opening new flow will be multiplied by old_new_ratio
     // new mult higher => time is shorter
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-    double old_new_ratio = mprof->m_factor / mult;
+    double old_new_ratio = pid->get_factor() / mult;
     if ( std::isnan(old_new_ratio) || std::isinf(old_new_ratio) ) {
         throw TrexException("Ratio between current rate and new one is invalid.");
     }
 
-    mprof->m_factor = mult;
-    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdate(mprof->m_profile_index, old_new_ratio);
+    pid->set_factor(mult);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdate(pid->get_dp_profile_id(), old_new_ratio);
     send_message_to_all_dp(msg);
 }
 
@@ -645,6 +412,37 @@ void TrexAstf::get_latency_stats(Json::Value & obj) {
     assert(parsingSuccessful==true);
 }
 
+string TrexAstf::handle_start_latency(int32_t dp_profile_id) {
+    if ( m_lat_with_traffic ) {
+        CAstfDB *db = CAstfDB::instance(dp_profile_id);
+        lat_start_params_t args;
+
+        try {
+            if ( !db->get_latency_info(args.client_ip.v4,
+                                       args.server_ip.v4,
+                                       args.dual_ip) ) {
+                throw TrexException("No valid ip range for latency");
+            }
+
+            args.cps = m_latency_pps;
+            args.ports_mask = 0xffffffff;
+            start_transmit_latency(args);
+        } catch (const TrexException &ex) {
+            return ex.what();
+        }
+    }
+
+    return "";
+}
+
+void TrexAstf::handle_stop_latency() {
+    if (m_lat_with_traffic && m_l_state == STATE_L_WORK) {
+        m_latency_pps = 0;
+        m_lat_with_traffic = false;
+        stop_transmit_latency();
+    }
+}
+
 void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
     if ( clone ) {
@@ -669,59 +467,24 @@ void TrexAstf::inc_epoch() {
     m_epoch++;
 }
 
-void TrexAstf::run_cmd_in_wait_list()
-{
-    /* Execute the first one in command waiting list */
-    if (!m_cmd_wait_list.empty()) {
-        string id = m_cmd_wait_list.begin()->first;
-        cmd_wait_e cmd = m_cmd_wait_list.begin()->second;
-        del_cmd_in_wait_list(id);
-        if (cmd == CMD_PARSE) {
-            parse(id);
-        } else if (cmd == CMD_BUILD) {
-            build(id);
-        } else if (cmd == CMD_STOP) {
-            stop_transmit(id);
-        } else if (cmd == CMD_CLEANUP) {
-            cleanup(id);
-        }
-    }
-}
+void TrexAstf::publish_astf_state(string err) {
+    /* Publish the state change of all profiles */
+    int old_state = m_state;
 
-void TrexAstf::add_cmd_in_wait_list(string profile_id, cmd_wait_e cmd)
-{
-    for (auto i = m_cmd_wait_list.begin(); i != m_cmd_wait_list.end(); i++) {
-        if (i->first == profile_id) {
-            if (i->second == cmd) {
-                return;
-            }
-            m_cmd_wait_list.erase(i);
-            break;
-        }
+    update_astf_state();
+    if (old_state == m_state) {
+        return;
     }
-    m_cmd_wait_list.push_back(make_pair(profile_id, cmd));
-}
 
-void TrexAstf::del_cmd_in_wait_list(string profile_id)
-{
-    for (auto i = m_cmd_wait_list.begin(); i != m_cmd_wait_list.end(); i++) {
-        if (i->first == profile_id) {
-            m_cmd_wait_list.erase(i);
-            break;
-        }
+    Json::Value data;
+    data["state"] = m_state;
+    data["epoch"] = m_epoch;
+    if ( err != "" && !is_trans_state() ) {
+        data["error"] = err;
     }
-}
 
-TrexAstf::cmd_wait_e TrexAstf::get_cmd_in_wait_list(string profile_id)
-{
-    for (auto i = m_cmd_wait_list.begin(); i != m_cmd_wait_list.end(); i++) {
-        if (i->first == profile_id) {
-            return i->second;
-        }
-    }
-    return AMOUNT_OF_CMDS;
+    get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_STATE_CHG, data);
 }
-
 
 /***********************************************************
  * TrexAstfProfile
@@ -730,9 +493,9 @@ TrexAstfProfile::TrexAstfProfile() {
     m_states_names = {"Idle", "Loaded profile", "Parsing profile", "Setup traffic", "Transmitting", "Cleanup traffic", "Delete profile"};
     assert(m_states_names.size()==AMOUNT_OF_STATES);
 
-    m_profile_last_index = 0;
+    m_dp_profile_last_id = 0;
     /* Create default profile for backward compatibility */
-    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_profile_last_index++);
+    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_dp_profile_last_id++);
     m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
                           DEFAULT_ASTF_PROFILE_ID, m_instance));
 }
@@ -743,17 +506,17 @@ TrexAstfProfile::~TrexAstfProfile() {
     }
 }
 
-void TrexAstfProfile::add_profile(string profile_id) {
+void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
     if (is_valid_profile(profile_id)) {
         return;
     }
 
-    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_profile_last_index++);
+    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_dp_profile_last_id++, profile_id);
     m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
                           profile_id, m_instance));
 
     int i;
-    CSTTCp* lpstt = m_instance->m_stt_cp;
+    CSTTCp* lpstt = m_instance->get_stt_cp();
     if (!lpstt->m_init){
         CFlowGenList *m_fl = get_platform_api().get_fl();
         CFlowGenListPerThread* lpt;
@@ -777,8 +540,7 @@ void TrexAstfProfile::add_profile(string profile_id) {
     }
 }
 
-bool TrexAstfProfile::delete_profile(string profile_id)
-{
+bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
     if (is_valid_profile(profile_id)) {
         delete m_profile_list.find(profile_id)->second;
         m_profile_list.erase(profile_id);
@@ -788,7 +550,7 @@ bool TrexAstfProfile::delete_profile(string profile_id)
     return false;
 }
 
-bool TrexAstfProfile::is_valid_profile(string profile_id) {
+bool TrexAstfProfile::is_valid_profile(cp_profile_id_t profile_id) {
     return m_profile_list.count(profile_id) ? true : false;
 }
 
@@ -796,7 +558,7 @@ uint32_t TrexAstfProfile::get_num_profiles() {
     return m_profile_list.size();
 }
 
-TrexAstfPerProfile* TrexAstfProfile::get_profile_by_id(string profile_id) {
+TrexAstfPerProfile* TrexAstfProfile::get_profile(cp_profile_id_t profile_id) {
     if (is_valid_profile(profile_id)) {
         return m_profile_list[profile_id];
     }
@@ -805,18 +567,10 @@ TrexAstfPerProfile* TrexAstfProfile::get_profile_by_id(string profile_id) {
     }
 }
 
-uint32_t TrexAstfProfile::get_profile_index_by_id(string profile_id) {
-    return get_profile_by_id(profile_id)->m_profile_index;
-}
-
-TrexAstfProfile::state_e TrexAstfProfile::get_profile_state_by_id(string profile_id) {
-    return get_profile_by_id(profile_id)->m_profile_state;
-}
-
-string TrexAstfProfile::get_profile_id_by_index(uint32_t profile_index)
+cp_profile_id_t TrexAstfProfile::get_profile_id(uint32_t dp_profile_id)
 {
     for (auto mprofile : m_profile_list) {
-        if (mprofile.second->m_profile_index == profile_index) {
+        if (mprofile.second->get_dp_profile_id() == dp_profile_id) {
             return mprofile.first;
         }
     }
@@ -824,13 +578,8 @@ string TrexAstfProfile::get_profile_id_by_index(uint32_t profile_index)
     return "";
 }
 
-CSTTCp* TrexAstfProfile::get_sttcp_by_id(string profile_id) {
-    return is_valid_profile(profile_id) ? get_profile_by_id(profile_id)->m_stt_cp : 0;
-}
-
-vector<string> TrexAstfProfile::get_profile_id_list()
-{
-    vector<string> profile_id_list;
+vector<string> TrexAstfProfile::get_profile_id_list() {
+    vector<cp_profile_id_t> profile_id_list;
 
     for (auto mprofile : m_profile_list) {
         profile_id_list.push_back(mprofile.first);
@@ -839,38 +588,88 @@ vector<string> TrexAstfProfile::get_profile_id_list()
     return profile_id_list;
 }
 
-vector<TrexAstfProfile::state_e> TrexAstfProfile::get_profile_state_list()
-{
+vector<TrexAstfProfile::state_e> TrexAstfProfile::get_profile_state_list() {
     vector<state_e> profile_state_list;
 
     for (auto mprofile : m_profile_list) {
-        profile_state_list.push_back(mprofile.second->m_profile_state);
+        profile_state_list.push_back(mprofile.second->get_profile_state());
     }
 
     return profile_state_list;
 }
 
-vector<CSTTCp *> TrexAstfProfile::get_sttcp_list()
-{
+vector<CSTTCp *> TrexAstfProfile::get_sttcp_list() {
     vector<CSTTCp *> sttcp_list;
 
     for (auto mprofile : m_profile_list) {
-        sttcp_list.push_back(mprofile.second->m_stt_cp);
+        sttcp_list.push_back(mprofile.second->get_stt_cp());
     }
 
     return sttcp_list;
 }
 
-bool TrexAstfProfile::profile_needs_parsing(string profile_id) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    return mprof->m_profile_hash.size() && !(mprof->m_profile_parsed) && (mprof->m_profile_state != STATE_PARSE);
+bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id) {
+    for (auto id : get_profile_id_list()) {
+        if (id == profile_id) {
+            continue;
+        }
+        if (get_profile(id)->get_profile_state() == STATE_TX) {
+            return true;
+        }
+    }
+    return false;
 }
 
-trex_astf_hash_e TrexAstfProfile::profile_cmp_hash(string profile_id, const string &hash) {
-    for (auto mprofile : m_profile_list) {
+bool TrexAstfProfile::is_another_profile_busy(cp_profile_id_t profile_id) {
+    for (auto id : get_profile_id_list()) {
+        if (id == profile_id) {
+            continue;
+        }
+        TrexAstfPerProfile* pid = get_profile(id);
+        if (pid->get_profile_state() == STATE_PARSE || pid->get_profile_state() == STATE_BUILD ||
+            pid->get_profile_stopping() == true) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+/***********************************************************
+ * TrexAstfPerProfile
+ ***********************************************************/
+TrexAstfPerProfile::TrexAstfPerProfile(uint32_t dp_profile_id,
+                                       cp_profile_id_t cp_profile_id) {
+    m_dp_profile_id = dp_profile_id;
+    m_cp_profile_id = cp_profile_id;
+
+    m_profile_state = STATE_IDLE;
+    m_profile_buffer = "";
+    m_profile_hash = "";
+    m_profile_parsed = false;
+    m_profile_stopping = false;
+
+    m_active_cores = 0;
+    m_duration = 0.0;
+    m_factor = 1.0;
+    m_error = "";
+
+    m_stt_cp = new CSTTCp();
+    m_stt_cp->Create(dp_profile_id);
+
+    m_astf_obj = get_astf_object();
+}
+
+TrexAstfPerProfile::~TrexAstfPerProfile() {
+    m_stt_cp->Delete();
+    delete m_stt_cp;
+    m_stt_cp=0;
+}
+
+trex_astf_hash_e TrexAstfPerProfile::profile_cmp_hash(const string &hash) {
+    for (auto mprofile : m_astf_obj->get_profile_list()) {
         if (mprofile.second->m_profile_hash == hash) {
-            if (mprofile.first == profile_id) {
+            if (mprofile.second->m_dp_profile_id == m_dp_profile_id) {
                 return HASH_ON_SAME_PROFILE;
             }
             else {
@@ -882,123 +681,226 @@ trex_astf_hash_e TrexAstfProfile::profile_cmp_hash(string profile_id, const stri
     return HASH_OK;
 }
 
-void TrexAstfProfile::profile_init(string profile_id){
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    profile_check_whitelist_states(profile_id, {STATE_IDLE, STATE_LOADED});
-    if ( mprof->m_profile_state == STATE_LOADED ) {
-        del_cmd_in_wait_list(profile_id);
-        profile_change_state(profile_id, STATE_IDLE);
+void TrexAstfPerProfile::profile_init() {
+    profile_check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    if ( m_profile_state == STATE_LOADED ) {
+        profile_change_state(STATE_IDLE);
     }
-    mprof->m_profile_buffer.clear();
-    mprof->m_profile_hash.clear();
-    mprof->m_profile_parsed = false;
+    m_profile_buffer.clear();
+    m_profile_hash.clear();
+    m_profile_parsed = false;
 }
 
-void TrexAstfProfile::profile_append(string profile_id, const string &fragment) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    profile_check_whitelist_states(profile_id, {STATE_IDLE});
-    mprof->m_profile_buffer += fragment;
+void TrexAstfPerProfile::profile_append(const string &fragment) {
+    profile_check_whitelist_states({STATE_IDLE});
+    m_profile_buffer += fragment;
 }
 
-void TrexAstfProfile::profile_set_loaded(string profile_id) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-
-    profile_check_whitelist_states(profile_id, {STATE_IDLE});
-    profile_change_state(profile_id, STATE_LOADED);
-    mprof->m_profile_hash = md5(mprof->m_profile_buffer);
+void TrexAstfPerProfile::profile_set_loaded() {
+    profile_check_whitelist_states({STATE_IDLE});
+    profile_change_state(STATE_LOADED);
+    m_profile_hash = md5(m_profile_buffer);
 }
 
-void TrexAstfProfile::profile_change_state(string profile_id, state_e new_state) {
-    TrexAstfPerProfile* mprof = get_profile_by_id(profile_id);
-    mprof->m_profile_state = new_state;
+void TrexAstfPerProfile::profile_change_state(state_e new_state) {
+    m_profile_state = new_state;
 
     switch ( new_state ) {
         case STATE_IDLE:
-            mprof->m_active_cores = 0;
+            m_active_cores = 0;
             break;
         case STATE_LOADED:
-            mprof->m_profile_stopping = false;
-            mprof->m_active_cores = 0;
+            m_profile_stopping = false;
+            m_active_cores = 0;
             break;
         case STATE_PARSE:
-            mprof->m_active_cores = 1;
+            m_active_cores = 1;
             break;
         case STATE_BUILD:
-            mprof->m_active_cores = get_platform_api().get_dp_core_count();
+            m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_TX:
-            mprof->m_active_cores = get_platform_api().get_dp_core_count();
+            m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_CLEANUP:
-            mprof->m_active_cores = get_platform_api().get_dp_core_count();
+            m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_DELETE:
-            mprof->m_active_cores = 1;
+            m_active_cores = 1;
             break;
         case AMOUNT_OF_STATES:
             assert(0);
     }
 
-    publish_astf_state(profile_id);
+    publish_astf_profile_state();
+    m_astf_obj->publish_astf_state(m_error);
+    m_error = "";
 }
 
-void TrexAstfProfile::profile_check_whitelist_states(string profile_id, const states_t &whitelist) {
-    state_e profile_state = get_profile_state_by_id(profile_id);
-
+void TrexAstfPerProfile::profile_check_whitelist_states(const states_t &whitelist) {
     assert(whitelist.size());
     for ( auto &state : whitelist ) {
-        if ( profile_state == state ) {
+        if ( m_profile_state == state ) {
             return;
         }
     }
 
-    string err = "Invalid state: " + m_states_names[profile_state] + ", should be";
+    string err = "Invalid state: " + m_astf_obj->m_states_names[m_profile_state] + ", should be";
     if ( whitelist.size() > 1 ) {
         err += " one of following";
     }
     bool first = true;
     for ( auto &state : whitelist ) {
         if ( first ) {
-            err += ": " + m_states_names[state];
+            err += ": " + m_astf_obj->m_states_names[state];
             first = false;
         } else {
-            err += "," + m_states_names[state];
+            err += "," + m_astf_obj->m_states_names[state];
         }
     }
     throw TrexException(err);
 }
 
-bool TrexAstfProfile::is_profile_state_build(string profile_id) {
-    return get_profile_state_by_id(profile_id) == STATE_BUILD;
+bool TrexAstfPerProfile::is_profile_state_build() {
+    return m_profile_state == STATE_BUILD;
 }
 
-bool TrexAstfProfile::is_another_profile_transmitting(string profile_id)
-{
-    for (auto id : get_profile_id_list()) {
-        if (id == profile_id) {
-            continue;
-        }
-        if (get_profile_state_by_id(id) == STATE_TX) {
-            return true;
-        }
-    }
-    return false;
+bool TrexAstfPerProfile::profile_needs_parsing() {
+    return m_profile_hash.size() && !(m_profile_parsed) && (m_profile_state != STATE_PARSE);
 }
 
-bool TrexAstfProfile::is_another_profile_busy(string profile_id)
-{
-    for (auto id : get_profile_id_list()) {
-        if (id == profile_id) {
-            continue;
-        }
-        TrexAstfPerProfile* mprof = get_profile_by_id(id);
-        if (mprof->m_profile_state == STATE_PARSE || mprof->m_profile_state == STATE_BUILD ||
-            mprof->m_profile_stopping == true) {
-            return true;
-        }
+void TrexAstfPerProfile::parse() {
+    string *prof = profile_needs_parsing() ? &(m_profile_buffer) : nullptr;
+    string *topo = m_astf_obj->topo_needs_parsing() ? m_astf_obj->get_topo_buffer() : nullptr;
+    assert(prof||topo);
+
+    profile_change_state(STATE_PARSE);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo);
+    m_astf_obj->send_message_to_dp(0, msg);
+}
+
+void TrexAstfPerProfile::build() {
+    profile_change_state(STATE_BUILD);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor);
+    m_astf_obj->send_message_to_all_dp(msg);
+}
+
+void TrexAstfPerProfile::transmit() {
+    /* Resize the statistics vector depending on the number of template groups */
+    CSTTCp* lpstt = m_stt_cp;
+    lpstt->Resize(CAstfDB::instance(m_dp_profile_id)->get_num_of_tg_ids());
+
+    string err = m_astf_obj->handle_start_latency(m_dp_profile_id);
+    if (err != "") {
+        m_error = err;
+        cleanup();
+        return;
     }
-    return false;
+
+    if (!m_astf_obj->is_another_profile_transmitting(m_cp_profile_id)) {
+        m_astf_obj->set_barrier(0.5);
+    }
+
+    profile_change_state(STATE_TX);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration);
+
+    m_astf_obj->send_message_to_all_dp(msg);
+}
+
+void TrexAstfPerProfile::cleanup() {
+    profile_change_state(STATE_CLEANUP);
+    m_profile_stopping = true;
+
+    m_astf_obj->handle_stop_latency();
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id);
+    m_astf_obj->send_message_to_all_dp(msg);
+}
+
+void TrexAstfPerProfile::all_dp_cores_finished() {
+    switch ( m_profile_state ) {
+        case STATE_PARSE:
+            if ( is_error() || m_profile_stopping ) {
+                profile_change_state(STATE_LOADED);
+            } else {
+                m_profile_parsed = true;
+                m_astf_obj->set_topo_parsed(true);
+                build();
+            }
+            break;
+        case STATE_BUILD:
+            if ( is_error() || m_profile_stopping ) {
+                cleanup();
+            } else {
+                transmit();
+            }
+            break;
+        case STATE_TX:
+            cleanup();
+            break;
+        case STATE_CLEANUP:
+            profile_change_state(STATE_LOADED);
+            break;
+        case STATE_DELETE:
+            publish_astf_profile_clear();
+            m_astf_obj->delete_profile(m_cp_profile_id);
+            break;
+        default:
+            printf("DP cores should not report in state: %s", m_astf_obj->m_states_names[m_profile_state].c_str());
+            exit(1);
+    }
+}
+
+void TrexAstfPerProfile::dp_core_finished() {
+    m_active_cores--;
+    if ( m_active_cores == 0 ) {
+        all_dp_cores_finished();
+    } else {
+        assert(m_active_cores>0);
+    }
+}
+
+void TrexAstfPerProfile::dp_core_error(const string &err) {
+    switch ( m_profile_state ) {
+        case STATE_PARSE:
+            m_error = err;
+            break;
+        case STATE_BUILD:
+            m_error = err;
+            break;
+        default:
+            printf("DP core should not report error in state: %s\n", m_astf_obj->m_states_names[m_profile_state].c_str());
+            printf("Error is: %s\n", err.c_str());
+            exit(1);
+    }
+    dp_core_finished();
+}
+
+void TrexAstfPerProfile::publish_astf_profile_state() {
+    if (m_profile_state == STATE_DELETE) {
+        return;
+    }
+
+    /* Publish the state change of each profile */
+    Json::Value data;
+    data["profile_id"] = m_cp_profile_id;
+    data["state"] = m_profile_state;
+    data["epoch"] = m_astf_obj->get_epoch();
+    if ( is_error() ) {
+        data["error"] = m_error;
+    }
+
+    m_astf_obj->get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_PROFILE_STATE_CHG, data);
+}
+
+void TrexAstfPerProfile::publish_astf_profile_clear() {
+    Json::Value data;
+    data["profile_id"] = m_cp_profile_id;
+    data["epoch"] = m_astf_obj->get_epoch();
+
+    m_astf_obj->get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_PROFILE_CLEARED, data);
 }
 
