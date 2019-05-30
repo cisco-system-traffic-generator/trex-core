@@ -71,9 +71,9 @@ dynamic_profile_help = """A list of profiles on which to apply the command.
                           Profile expression is used as <port id>.<profile id>.
                           Default profile id is \"_\" when not specified.
                        """
-astf_dynamic_profile_help = """A list of profiles on which to apply the command.
-                            Default profile id is \"_\" when not specified.
-                            """
+astf_profile_help = """A list of profiles on which to apply the command.
+                       Default profile id is \"_\" when not specified.
+                    """
 
 
 # decodes multiplier
@@ -469,22 +469,22 @@ class OPTIONS_DB_ARGS:
          'default': None,
          'type': str})
 
-    ASTF_DYNAMIC_PROFILE_LIST = ArgumentPack(
+    ASTF_PROFILE_LIST = ArgumentPack(
         ['--pid'],
         {"nargs": 1,
          'dest':'profiles',
          'metavar': 'PROFILE',
          'type': str,
-         'help': astf_dynamic_profile_help,
+         'help': astf_profile_help,
          'default': [DEFAULT_PROFILE_ID]})
 
-    ASTF_DYNAMIC_PROFILE_DEFAULT_LIST = ArgumentPack(
+    ASTF_PROFILE_DEFAULT_LIST = ArgumentPack(
         ['--pid'],
         {"nargs": '+',
          'dest':'profiles',
          'metavar': 'PROFILE',
          'type': str,
-         'help': astf_dynamic_profile_help,
+         'help': astf_profile_help,
          'default': [DEFAULT_PROFILE_ID]})
 
     ASTF_NC = ArgumentPack(

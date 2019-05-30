@@ -355,11 +355,11 @@ class TRexClient(object):
         raise NotImplementedError()
 
 
-    def _on_astf_profile_state_chg(self, dynamic_profile, ctx_state, error, epoch):
+    def _on_astf_profile_state_chg(self, profile_id, ctx_state, error, epoch):
         raise NotImplementedError()
 
 
-    def _on_astf_profile_cleared(self, dynamic_profile, error, epoch):
+    def _on_astf_profile_cleared(self, profile_id, error, epoch):
         raise NotImplementedError()
 
 
@@ -3190,10 +3190,10 @@ class TRexClient(object):
                                          "clear",
                                          self.clear_stats_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.ASTF_DYNAMIC_PROFILE_DEFAULT_LIST)
+                                         parsing_opts.ASTF_PROFILE_DEFAULT_LIST)
 
         opts = parser.parse_args(line.split())
-        self.clear_stats(opts.ports, dynamic_profile = opts.profiles)
+        self.clear_stats(opts.ports, pid_input = opts.profiles)
 
         return RC_OK()
 
