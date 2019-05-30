@@ -827,6 +827,7 @@ class STLClient_Test(CStlGeneral_Test):
             num_profiles = 100
             tx_profile_list = []
             tx_all_profile = str(self.tx_port) + str(".*")
+            pg_id_list = []
 
             while profile_id <= num_profiles:
                 tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
@@ -834,18 +835,20 @@ class STLClient_Test(CStlGeneral_Test):
                 profile_id = profile_id + 1
 
             for index, tx_profile in enumerate(tx_profile_list):
+
+                index_pg_id = random.randint(1,num_profiles) + num_profiles * index
+                pg_id_list.append(index_pg_id)
+
                 stream = STLStream(name = 'latency',
                                packet = self.pkt,
                                mode = STLTXCont(percentage = self.percentage),
-#                               flow_stats = STLFlowLatencyStats(pg_id = index))
-                               flow_stats = STLFlowLatencyStats(pg_id = random.randint(10,100) + num_profiles * index))
+                               flow_stats = STLFlowLatencyStats(pg_id = index_pg_id))
                 self.c.add_streams([stream], ports = tx_profile)
-                self.c.start(ports = tx_profile_list)
+                self.c.start(ports = tx_profile)
 
-            for i in range(100):
-                for tx_profile in tx_profile_list:
-                    self.c.pause(tx_profile)
-                    self.c.resume(tx_profile)
+            for tx_profile in tx_profile_list:
+                self.c.pause(tx_profile)
+                self.c.resume(tx_profile)
 
             for i in range(100):
                 self.c.pause(tx_all_profile)
@@ -854,7 +857,7 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.stop()
 
         except STLError as e:
-            assert False , '{0}'.format(e)
+            assert False , '{}'.format(pg_id_list)
 
         finally:
             self.cleanup()
