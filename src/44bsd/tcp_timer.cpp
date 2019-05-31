@@ -239,7 +239,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
              * correspondent TCP to respond.
              */
             INC_STAT(pctx, tg_id, tcps_keepprobe);
-            tcp_respond(pctx,tp, 
+            tcp_respond(pctx,tp,
                 tp->rcv_nxt, tp->snd_una - 1, 0);
             tp->t_timer[TCPT_KEEP] = ctx->tcp_keepintvl;
         } else
