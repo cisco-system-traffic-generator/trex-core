@@ -14,8 +14,6 @@ class CAstfTrafficStats(object):
 
     def reset(self):
         self.is_init = False
-        self.profile_epoch = -1
-        self.tg_names = []
         self._ref = {}
         self.tg_names_dict = {}
 
@@ -43,13 +41,18 @@ class CAstfTrafficStats(object):
         self.is_init = True
 
 
+    def _clear_tg_name(self, pid_input = DEFAULT_PROFILE_ID):
+        if pid_input in self.tg_names_dict.keys():
+            self.tg_names_dict.pop(pid_input)
+
+
     def _epoch_changed(self, new_epoch, pid_input = DEFAULT_PROFILE_ID):
         self._ref.clear()
-        del self.tg_names[:]
         if pid_input in self.tg_names_dict.keys():
             self.tg_names_dict.pop(pid_input)
         tg_info = {'epoch' : new_epoch, 'is_init' : False}  
-        self.tg_names_dict[pid_input] = tg_info 
+        self.tg_names_dict[pid_input] = tg_info
+
 
     def _translate_names_to_ids(self, tg_names, pid_input = DEFAULT_PROFILE_ID):
         list_of_tg_names = listify(tg_names)
@@ -60,7 +63,7 @@ class CAstfTrafficStats(object):
             if tg_name not in self.tg_names_dict[pid_input]['tg_names']:
                 raise ASTFErrorBadTG("Template name %s  isn't defined in this profile" % tg_name)
             else:
-                tg_ids.append(self.tg_names_dict[pid_input]['tg_names'][tg_name])
+                tg_ids.append(self.tg_names_dict[pid_input]['tg_names_dic'][tg_name])
         return tg_ids
 
 
@@ -70,7 +73,7 @@ class CAstfTrafficStats(object):
         return dict([(k['name'], v) for k, v in zip(self._desc, section_list) if should_skip(skip_zero, k, v)])
 
 
-    def _process_stats(self, stats, skip_zero):
+    def _process_stats(self, stats, skip_zero, pid_input = DEFAULT_PROFILE_ID):
         processed_stats = {}
         
         del stats['epoch']
@@ -80,7 +83,7 @@ class CAstfTrafficStats(object):
             del tg_id_data['epoch']
             del tg_id_data['name']
             assert tg_id_int != 0
-            processed_stats[self.tg_names[tg_id_int-1]] = tg_id_data
+            processed_stats[self.tg_names_dict[pid_input]['tg_names'][tg_id_int-1]] = tg_id_data
         # Translate counters ids to names
         for tg_name in processed_stats.keys():
             for section in self.sections:
@@ -111,14 +114,14 @@ class CAstfTrafficStats(object):
         if profile_id in list(self.tg_names_dict.keys()):
             tg_info = self.tg_names_dict[profile_id]
 
-        self.profile_epoch = tg_info['epoch']
+        pid_epoch = tg_info['epoch']
 
         params = {}
         params['profile_id'] = profile_id
 
-        if self.profile_epoch >= 0 and tg_info['is_init'] == True:
+        if pid_epoch >= 0 and tg_info['is_init'] == True:
             params['initialized'] = True
-            params['epoch'] = self.profile_epoch
+            params['epoch'] = pid_epoch
         else:
             params['initialized'] = False
 
@@ -129,34 +132,36 @@ class CAstfTrafficStats(object):
         server_epoch = rc.data()['epoch']
 
         # Update template group name and id
-        if self.profile_epoch != server_epoch or tg_info['is_init'] == False:
+        if pid_epoch != server_epoch or tg_info['is_init'] == False:
+
             self._epoch_changed(server_epoch, pid_input = profile_id)
             tg_info = {}
+            tg_names_dic = {}
+
             tg_info['epoch'] = server_epoch
             tg_info['is_init'] = True
-            tg_names_dic = {}
-            self.tg_names = rc.data()['tg_names']
-            for tgid, name in enumerate(self.tg_names):
+            tg_names = rc.data()['tg_names']
+            tg_info['tg_names'] = tg_names
+            for tgid, name in enumerate(tg_names):
                 tg_names_dic[name] = tgid+1
-            tg_info['tg_names'] = tg_names_dic
+            tg_info['tg_names_dic'] = tg_names_dic
 
         self.tg_names_dict[profile_id] = tg_info
 
-
     def _get_traffic_tg_stats(self, tg_ids, pid_input = DEFAULT_PROFILE_ID):
 
-        self.profile_epoch = self.tg_names_dict[pid_input]['epoch']        
-        assert self.profile_epoch >= 0
+        pid_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1 
+        assert pid_epoch >= 0
         stats = {}
         while tg_ids:
             size = min(len(tg_ids),self.MAX_TGIDS_ALLOWED_AT_ONCE)
-            params = {'tg_ids': tg_ids[:size], 'epoch': self.profile_epoch, 'profile_id': pid_input}
+            params = {'tg_ids': tg_ids[:size], 'epoch': pid_epoch, 'profile_id': pid_input}
             rc = self.rpc.transmit('get_tg_id_stats', params=params)
            
             if not rc:
                 raise TRexError(rc.err())
             server_epoch = rc.data()['epoch']
-            if self.profile_epoch != server_epoch:
+            if pid_epoch != server_epoch:
                 self._epoch_changed(server_epoch, pid_input = pid_input)
                 return False, {}
             del tg_ids[:size]
@@ -170,7 +175,8 @@ class CAstfTrafficStats(object):
         rc = self.rpc.transmit('get_counter_values', params = params)
         if not rc:
             raise TRexError(rc.err())
-        ref_epoch = pid_input in self.tg_names_dict.keys() and self.tg_names_dict[pid_input]['epoch'] or self.profile_epoch
+        ref_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1
+        
         data_epoch = rc.data()['epoch']
         if data_epoch != ref_epoch:
             self._epoch_changed(data_epoch, pid_input = pid_input)
@@ -190,19 +196,19 @@ class CAstfTrafficStats(object):
 
     def get_tg_names(self, pid_input = DEFAULT_PROFILE_ID):
         self._get_tg_names(pid_input)
-        return self.tg_names
+        return self.tg_names_dict[pid_input]['tg_names']
 
 
     def _get_num_of_tgids(self, pid_input = DEFAULT_PROFILE_ID):
         self._get_tg_names(pid_input)
-        return len(self.tg_names)
+        return len(self.tg_names_dict[pid_input]['tg_names'])
 
 
     def get_traffic_tg_stats(self, tg_names, skip_zero=True, for_table=False, pid_input = DEFAULT_PROFILE_ID):
         self._init_desc_and_ref(pid_input)
         self._get_tg_names(pid_input)
-        self.profile_epoch = self.tg_names_dict[pid_input]['epoch']
-        assert self.profile_epoch >= 0
+        pid_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1
+        assert pid_epoch >= 0
         tg_ids = self._translate_names_to_ids(tg_names, pid_input)
         success, traffic_stats = self._get_traffic_tg_stats(tg_ids, pid_input = pid_input)
         while not success:
@@ -211,7 +217,7 @@ class CAstfTrafficStats(object):
             success, traffic_stats = self._get_traffic_tg_stats(tg_ids, pid_input = pid_input)
         if for_table:
             return self._process_stats_for_table(traffic_stats)
-        return self._process_stats(traffic_stats, skip_zero)
+        return self._process_stats(traffic_stats, skip_zero, pid_input = pid_input)
 
 
     def is_traffic_stats_error(self, stats):
@@ -245,7 +251,7 @@ class CAstfTrafficStats(object):
 
     def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID):
         self._get_tg_names(pid_input)
-        num_of_tgids = len(self.tg_names)
+        num_of_tgids = len(self.tg_names_dict[pid_input]['tg_names'])
         title = ""
         data = {}
         if tgid == 0:
@@ -255,7 +261,7 @@ class CAstfTrafficStats(object):
             if not 1 <= tgid <= num_of_tgids:
                 raise ASTFErrorBadTG('Invalid tgid in to_table')
             else:
-                name = self.tg_names[tgid-1]
+                name = self.tg_names_dict[pid_input]['tg_names'][tgid-1]
                 title = 'Profile ID : ' + pid_input + '. Template Group Name: ' + name + '. Number of template groups = ' + str(num_of_tgids)
                 data = self.get_traffic_tg_stats(tg_names = name, for_table=True, pid_input = pid_input)
         sec_count = len(self.sections)
@@ -285,7 +291,7 @@ class CAstfTrafficStats(object):
         return stats_table
 
 
-    def _show_tg_names(self, start, amount, pid_input = None):
+    def _show_tg_names(self, start, amount, pid_input = DEFAULT_PROFILE_ID):
         tg_names = self.get_tg_names(pid_input)
         names = tg_names[start : start+amount]
         if not tg_names:

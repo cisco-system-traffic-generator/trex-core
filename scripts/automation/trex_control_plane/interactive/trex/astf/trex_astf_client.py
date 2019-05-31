@@ -179,8 +179,9 @@ class ASTFClient(TRexClient):
         if error and not self.sync_waiting:
             self.ctx.logger.error('Last command failed: %s' % error)
 
-        # remove profile
+        # remove profile and template group name
         self.astf_profile_state.pop(profile_id, None)
+        self.traffic_stats._clear_tg_name(profile_id) 
 
         if error:
             return Event('server', 'error', 'Can\'t remove profile %s after error: %s' % (profile_id, error))
@@ -337,7 +338,6 @@ class ASTFClient(TRexClient):
                 self.remove_rx_queue(ports)
                 self.remove_all_captures()
                 self._for_each_port('stop_capture_port', ports)
-
             self.ctx.logger.post_cmd(RC_OK())
 
         except TRexError as e:
@@ -1084,7 +1084,7 @@ class ASTFClient(TRexClient):
 
     @console_api('start', 'ASTF', True)
     def start_line(self, line):
-        '''start traffic command'''
+        '''Start traffic command'''
 
         parser = parsing_opts.gen_parser(
             self,
@@ -1125,7 +1125,7 @@ class ASTFClient(TRexClient):
 
     @console_api('stop', 'ASTF', True)
     def stop_line(self, line):
-        '''stop traffic command'''
+        '''Stop traffic command'''
 
         parser = parsing_opts.gen_parser(
             self,
@@ -1141,7 +1141,7 @@ class ASTFClient(TRexClient):
 
     @console_api('update', 'ASTF', True)
     def update_line(self, line):
-        '''u traffic multiplier'''
+        '''Update traffic multiplier'''
 
         parser = parsing_opts.gen_parser(
             self,
