@@ -41,6 +41,8 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
     m_flow_gen->Create_tcp_ctx();
+    m_active_profile_cnt = 0;
+    m_profile_states.clear();
 }
 
 TrexAstfDpCore::~TrexAstfDpCore() {
@@ -93,6 +95,14 @@ static void dp_core_on_profile_stop_event(void *core, profile_id_t profile_id) {
 void TrexAstfDpCore::set_profile_stop_event(profile_id_t profile_id) {
     m_flow_gen->m_c_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
     m_flow_gen->m_s_tcp->set_profile_cb(profile_id, this, &dp_core_on_profile_stop_event);
+}
+
+void TrexAstfDpCore::clear_profile_stop_event_all() {
+    for (auto it: m_profile_states) {
+        profile_id_t profile_id = it.first;
+        m_flow_gen->m_c_tcp->set_profile_cb(profile_id, nullptr, nullptr);
+        m_flow_gen->m_s_tcp->set_profile_cb(profile_id, nullptr, nullptr);
+    }
 }
 
 void TrexAstfDpCore::add_profile_duration(profile_id_t profile_id, double duration) {
@@ -264,6 +274,8 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
 
     if ((active_profile_cnt() == 0) || m_flow_gen->is_terminated_by_master()) {
         m_state = STATE_STOPPING;
+        clear_profile_stop_event_all();
+
         add_global_duration(0.0001); // trigger exit from node scheduler
         return;
     }

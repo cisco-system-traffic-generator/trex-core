@@ -127,9 +127,11 @@ protected:
         return m_profile_stop_id;
     }
 
+    void set_profile_stop_event(profile_id_t profile_id);
+    void clear_profile_stop_event_all();
+
 public:
     void on_profile_stop_event(profile_id_t profile_id);
-    void set_profile_stop_event(profile_id_t profile_id);
 };
 
 #endif /* __TREX_ASTF_DP_CORE_H__ */

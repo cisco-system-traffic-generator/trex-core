@@ -895,6 +895,7 @@ public:
         if (m_flow_cnt == 0 && !is_active()) {
             if (m_on_stopped_cb) {
                 m_on_stopped_cb(m_cb_data, m_profile_id);
+                m_on_stopped_cb = nullptr;
             }
         }
     }
