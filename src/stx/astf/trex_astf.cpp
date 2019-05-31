@@ -330,7 +330,8 @@ void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
     }
 
     pid->set_profile_stopping(true);
-    m_opts->preview.setNoCleanFlowClose(pid->get_nc_flow_close());
+    // TODO: apply nc_flow_close per each profile after changing DP code
+    m_opts->preview.setNoCleanFlowClose(true);
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id());
     send_message_to_all_dp(msg);
@@ -816,7 +817,7 @@ void TrexAstfPerProfile::cleanup() {
 
     m_astf_obj->handle_stop_latency();
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id, false);
     m_astf_obj->send_message_to_all_dp(msg);
 }
 
