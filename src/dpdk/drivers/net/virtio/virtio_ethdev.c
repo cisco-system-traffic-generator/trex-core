@@ -2383,10 +2383,8 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	}
 	tso_mask = (1ULL << VIRTIO_NET_F_HOST_TSO4) |
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
-#ifndef TREX_PATCH
 	if ((host_features & tso_mask) == tso_mask)
 		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
-#endif
 }
 
 /*

@@ -108,6 +108,7 @@ void CTRexExtendedDriverMlnx4::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
+
 CTRexExtendedDriverVirtio::CTRexExtendedDriverVirtio() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
@@ -121,10 +122,14 @@ void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg) {
     }
 }
 
-
 bool CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
+
+bool CTRexExtendedDriverVirtio::is_support_for_rx_scatter_gather(){
+    return false;
+}
+
 
 CTRexExtendedDriverVmxnet3::CTRexExtendedDriverVmxnet3() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
