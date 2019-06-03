@@ -1046,6 +1046,7 @@ public:
         return m_profiles[profile_id];
     }
     CPerProfileCtx* get_first_profile_ctx() {
+        assert(m_profiles.size() != 0);
         return m_profiles.begin()->second;
     }
     void create_profile_ctx(profile_id_t profile_id) {

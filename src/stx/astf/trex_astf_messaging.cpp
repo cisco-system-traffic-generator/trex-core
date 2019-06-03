@@ -113,7 +113,7 @@ TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone() {
  ************************/
 TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp(profile_id_t profile_id, bool do_remove) {
     m_profile_id = profile_id;
-    m_do_remove = do_remove; 
+    m_do_remove = do_remove;
 }
 
 bool TrexAstfDpDeleteTcp::handle(TrexDpCore *dp_core) {
