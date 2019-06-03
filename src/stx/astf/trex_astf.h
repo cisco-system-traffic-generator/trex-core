@@ -66,7 +66,8 @@ class TrexAstfPerProfile : public AstfProfileState {
 public:
     typedef std::vector<state_e> states_t;
 
-    TrexAstfPerProfile(uint32_t dp_profile_id=0,
+    TrexAstfPerProfile(TrexAstf* astf_obj,
+                       uint32_t dp_profile_id=0,
                        cp_profile_id_t cp_profile_id=DEFAULT_ASTF_PROFILE_ID);
     ~TrexAstfPerProfile();
 
@@ -181,9 +182,11 @@ public:
     bool is_another_profile_transmitting(cp_profile_id_t profile_id);
     bool is_another_profile_busy(cp_profile_id_t profile_id);
 
+protected:
+    std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
+
 private:
     uint32_t m_dp_profile_last_id;
-    std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
 };
 
 

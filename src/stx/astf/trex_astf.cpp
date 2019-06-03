@@ -85,6 +85,11 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_fl = api.get_fl();
 
     m_rx = rx;
+
+    /* Create default profile for backward compatibility */
+    TrexAstfPerProfile* instance = new TrexAstfPerProfile(this);
+    m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
+                          DEFAULT_ASTF_PROFILE_ID, instance));
 }
 
 
@@ -495,10 +500,6 @@ TrexAstfProfile::TrexAstfProfile() {
     assert(m_states_names.size()==AMOUNT_OF_STATES);
 
     m_dp_profile_last_id = 0;
-    /* Create default profile for backward compatibility */
-    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_dp_profile_last_id++);
-    m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
-                          DEFAULT_ASTF_PROFILE_ID, m_instance));
 }
 
 TrexAstfProfile::~TrexAstfProfile() {
@@ -512,12 +513,14 @@ void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
         return;
     }
 
-    TrexAstfPerProfile* m_instance = new TrexAstfPerProfile(m_dp_profile_last_id++, profile_id);
+    TrexAstfPerProfile* instance = new TrexAstfPerProfile(get_astf_object(),
+                                                          ++m_dp_profile_last_id,
+                                                          profile_id);
     m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
-                          profile_id, m_instance));
+                          profile_id, instance));
 
     int i;
-    CSTTCp* lpstt = m_instance->get_stt_cp();
+    CSTTCp* lpstt = instance->get_stt_cp();
     if (!lpstt->m_init){
         CFlowGenList *m_fl = get_platform_api().get_fl();
         CFlowGenListPerThread* lpt;
@@ -639,7 +642,7 @@ bool TrexAstfProfile::is_another_profile_busy(cp_profile_id_t profile_id) {
 /***********************************************************
  * TrexAstfPerProfile
  ***********************************************************/
-TrexAstfPerProfile::TrexAstfPerProfile(uint32_t dp_profile_id,
+TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj, uint32_t dp_profile_id,
                                        cp_profile_id_t cp_profile_id) {
     m_dp_profile_id = dp_profile_id;
     m_cp_profile_id = cp_profile_id;
@@ -658,7 +661,7 @@ TrexAstfPerProfile::TrexAstfPerProfile(uint32_t dp_profile_id,
     m_stt_cp = new CSTTCp();
     m_stt_cp->Create(dp_profile_id);
 
-    m_astf_obj = get_astf_object();
+    m_astf_obj = astf_obj;
 }
 
 TrexAstfPerProfile::~TrexAstfPerProfile() {
