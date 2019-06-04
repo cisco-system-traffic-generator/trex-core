@@ -287,18 +287,17 @@ int utl_rte_pktmbuf_verify(struct rte_mbuf *m){
     uint32_t pkt_len=0;
     uint16_t nb_seg=0;
     struct rte_mbuf *o=m;
-    int ret = 0;
     while (m) {
         uint16_t seg_len=m->data_len;
         nb_seg++;
         if (seg_len==0) {
             printf(" SEG has zero data \n");
-            ret = -1;
+            return(-1);
         }
         pkt_len+=seg_len;
-        if (rte_pktmbuf_mtod(m, char *)==0){
+        if (rte_pktmbuf_mtod(m,char *)==0){
             printf(" SEG has pointer zero \n");
-            ret = -1;
+            return(-1);
         }
         m = m->next;
         if (m==NULL) {
@@ -306,14 +305,14 @@ int utl_rte_pktmbuf_verify(struct rte_mbuf *m){
         }
     }
     if (pkt_len != o->pkt_len){
-        printf(" total packets length is not valid: pkt_len: %u, sum of data_len: %u\n", o->pkt_len, pkt_len);
-        ret = -1;
+        printf(" total packets length is not valid \n");
+        return(-1);
     }
     if (nb_seg != o->nb_segs){
-        printf(" #seg is not valid, written in mbuf: %u, actual count: %u\n", o->nb_segs, nb_seg);
-        ret = -1;
+        printf(" #seg is not valid \n");
+        return(-1);
     }
-    return ret;
+    return(0);
 }
 
 

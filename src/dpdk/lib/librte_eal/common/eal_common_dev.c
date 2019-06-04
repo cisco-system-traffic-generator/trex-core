@@ -19,10 +19,8 @@
 #include <rte_log.h>
 #include <rte_spinlock.h>
 #include <rte_malloc.h>
-#include <rte_string_fns.h>
 
 #include "eal_private.h"
-#include "hotplug_mp.h"
 
 /**
  * The device event callback description.
@@ -76,222 +74,142 @@ static int cmp_dev_name(const struct rte_device *dev, const void *_name)
 	return strcmp(dev->name, name);
 }
 
-int
-rte_dev_is_probed(const struct rte_device *dev)
+int rte_eal_dev_attach(const char *name, const char *devargs)
 {
-	/* The field driver should be set only when the probe is successful. */
-	return dev->driver != NULL;
-}
+	struct rte_bus *bus;
 
-/* helper function to build devargs, caller should free the memory */
-static int
-build_devargs(const char *busname, const char *devname,
-	      const char *drvargs, char **devargs)
-{
-	int length;
-
-	length = snprintf(NULL, 0, "%s:%s,%s", busname, devname, drvargs);
-	if (length < 0)
-		return -EINVAL;
-
-	*devargs = malloc(length + 1);
-	if (*devargs == NULL)
-		return -ENOMEM;
-
-	length = snprintf(*devargs, length + 1, "%s:%s,%s",
-			busname, devname, drvargs);
-	if (length < 0) {
-		free(*devargs);
+	if (name == NULL || devargs == NULL) {
+		RTE_LOG(ERR, EAL, "Invalid device or arguments provided\n");
 		return -EINVAL;
 	}
 
-	return 0;
+	bus = rte_bus_find_by_device_name(name);
+	if (bus == NULL) {
+		RTE_LOG(ERR, EAL, "Unable to find a bus for the device '%s'\n",
+			name);
+		return -EINVAL;
+	}
+	if (strcmp(bus->name, "pci") == 0 || strcmp(bus->name, "vdev") == 0)
+		return rte_eal_hotplug_add(bus->name, name, devargs);
+
+	RTE_LOG(ERR, EAL,
+		"Device attach is only supported for PCI and vdev devices.\n");
+
+	return -ENOTSUP;
 }
 
-int
-rte_eal_hotplug_add(const char *busname, const char *devname,
-		    const char *drvargs)
+int rte_eal_dev_detach(struct rte_device *dev)
 {
-
-	char *devargs;
+	struct rte_bus *bus;
 	int ret;
 
-	ret = build_devargs(busname, devname, drvargs, &devargs);
-	if (ret != 0)
-		return ret;
+	if (dev == NULL) {
+		RTE_LOG(ERR, EAL, "Invalid device provided.\n");
+		return -EINVAL;
+	}
 
-	ret = rte_dev_probe(devargs);
-	free(devargs);
+	bus = rte_bus_find_by_device(dev);
+	if (bus == NULL) {
+		RTE_LOG(ERR, EAL, "Cannot find bus for device (%s)\n",
+			dev->name);
+		return -EINVAL;
+	}
 
+	if (bus->unplug == NULL) {
+		RTE_LOG(ERR, EAL, "Bus function not supported\n");
+		return -ENOTSUP;
+	}
+
+	ret = bus->unplug(dev);
+	if (ret)
+		RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n",
+			dev->name);
 	return ret;
 }
 
-/* probe device at local process. */
-int
-local_dev_probe(const char *devargs, struct rte_device **new_dev)
+int __rte_experimental rte_eal_hotplug_add(const char *busname, const char *devname,
+			const char *devargs)
 {
+	struct rte_bus *bus;
 	struct rte_device *dev;
 	struct rte_devargs *da;
 	int ret;
 
-	*new_dev = NULL;
+	bus = rte_bus_find_by_name(busname);
+	if (bus == NULL) {
+		RTE_LOG(ERR, EAL, "Cannot find bus (%s)\n", busname);
+		return -ENOENT;
+	}
+
+	if (bus->plug == NULL) {
+		RTE_LOG(ERR, EAL, "Function plug not supported by bus (%s)\n",
+			bus->name);
+		return -ENOTSUP;
+	}
+
 	da = calloc(1, sizeof(*da));
 	if (da == NULL)
 		return -ENOMEM;
 
-	ret = rte_devargs_parse(da, devargs);
+	ret = rte_devargs_parsef(da, "%s:%s,%s",
+				 busname, devname, devargs);
 	if (ret)
 		goto err_devarg;
 
-	if (da->bus->plug == NULL) {
-		RTE_LOG(ERR, EAL, "Function plug not supported by bus (%s)\n",
-			da->bus->name);
-		ret = -ENOTSUP;
-		goto err_devarg;
-	}
-
-	ret = rte_devargs_insert(&da);
+	ret = rte_devargs_insert(da);
 	if (ret)
 		goto err_devarg;
 
-	/* the rte_devargs will be referenced in the matching rte_device */
-	ret = da->bus->scan();
+	ret = bus->scan();
 	if (ret)
 		goto err_devarg;
 
-	dev = da->bus->find_device(NULL, cmp_dev_name, da->name);
+	dev = bus->find_device(NULL, cmp_dev_name, devname);
 	if (dev == NULL) {
 		RTE_LOG(ERR, EAL, "Cannot find device (%s)\n",
-			da->name);
+			devname);
 		ret = -ENODEV;
 		goto err_devarg;
 	}
-	/* Since there is a matching device, it is now its responsibility
-	 * to manage the devargs we've just inserted. From this point
-	 * those devargs shouldn't be removed manually anymore.
-	 */
 
-	ret = dev->bus->plug(dev);
-	if (ret && !rte_dev_is_probed(dev)) { /* if hasn't ever succeeded */
-		RTE_LOG(ERR, EAL, "Driver cannot attach the device (%s)\n",
-			dev->name);
-		return ret;
+	if (dev->driver != NULL) {
+		RTE_LOG(ERR, EAL, "Device is already plugged\n");
+		return -EEXIST;
 	}
 
-	*new_dev = dev;
-	return ret;
+	ret = bus->plug(dev);
+	if (ret) {
+		RTE_LOG(ERR, EAL, "Driver cannot attach the device (%s)\n",
+			dev->name);
+		goto err_devarg;
+	}
+	return 0;
 
 err_devarg:
-	if (rte_devargs_remove(da) != 0) {
+	if (rte_devargs_remove(busname, devname)) {
 		free(da->args);
 		free(da);
 	}
 	return ret;
 }
 
-int
-rte_dev_probe(const char *devargs)
-{
-	struct eal_dev_mp_req req;
-	struct rte_device *dev;
-	int ret;
-
-	memset(&req, 0, sizeof(req));
-	req.t = EAL_DEV_REQ_TYPE_ATTACH;
-	strlcpy(req.devargs, devargs, EAL_DEV_MP_DEV_ARGS_MAX_LEN);
-
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
-		/**
-		 * If in secondary process, just send IPC request to
-		 * primary process.
-		 */
-		ret = eal_dev_hotplug_request_to_primary(&req);
-		if (ret != 0) {
-			RTE_LOG(ERR, EAL,
-				"Failed to send hotplug request to primary\n");
-			return -ENOMSG;
-		}
-		if (req.result != 0)
-			RTE_LOG(ERR, EAL,
-				"Failed to hotplug add device\n");
-		return req.result;
-	}
-
-	/* attach a shared device from primary start from here: */
-
-	/* primary attach the new device itself. */
-	ret = local_dev_probe(devargs, &dev);
-
-	if (ret != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to attach device on primary process\n");
-
-		/**
-		 * it is possible that secondary process failed to attached a
-		 * device that primary process have during initialization,
-		 * so for -EEXIST case, we still need to sync with secondary
-		 * process.
-		 */
-		if (ret != -EEXIST)
-			return ret;
-	}
-
-	/* primary send attach sync request to secondary. */
-	ret = eal_dev_hotplug_request_to_secondary(&req);
-
-	/* if any communication error, we need to rollback. */
-	if (ret != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to send hotplug add request to secondary\n");
-		ret = -ENOMSG;
-		goto rollback;
-	}
-
-	/**
-	 * if any secondary failed to attach, we need to consider if rollback
-	 * is necessary.
-	 */
-	if (req.result != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to attach device on secondary process\n");
-		ret = req.result;
-
-		/* for -EEXIST, we don't need to rollback. */
-		if (ret == -EEXIST)
-			return ret;
-		goto rollback;
-	}
-
-	return 0;
-
-rollback:
-	req.t = EAL_DEV_REQ_TYPE_ATTACH_ROLLBACK;
-
-	/* primary send rollback request to secondary. */
-	if (eal_dev_hotplug_request_to_secondary(&req) != 0)
-		RTE_LOG(WARNING, EAL,
-			"Failed to rollback device attach on secondary."
-			"Devices in secondary may not sync with primary\n");
-
-	/* primary rollback itself. */
-	if (local_dev_remove(dev) != 0)
-		RTE_LOG(WARNING, EAL,
-			"Failed to rollback device attach on primary."
-			"Devices in secondary may not sync with primary\n");
-
-	return ret;
-}
-
-int
+int __rte_experimental
 rte_eal_hotplug_remove(const char *busname, const char *devname)
 {
-	struct rte_device *dev;
 	struct rte_bus *bus;
+	struct rte_device *dev;
+	int ret;
 
 	bus = rte_bus_find_by_name(busname);
 	if (bus == NULL) {
 		RTE_LOG(ERR, EAL, "Cannot find bus (%s)\n", busname);
 		return -ENOENT;
+	}
+
+	if (bus->unplug == NULL) {
+		RTE_LOG(ERR, EAL, "Function unplug not supported by bus (%s)\n",
+			bus->name);
+		return -ENOTSUP;
 	}
 
 	dev = bus->find_device(NULL, cmp_dev_name, devname);
@@ -300,125 +218,16 @@ rte_eal_hotplug_remove(const char *busname, const char *devname)
 		return -EINVAL;
 	}
 
-	return rte_dev_remove(dev);
-}
-
-/* remove device at local process. */
-int
-local_dev_remove(struct rte_device *dev)
-{
-	int ret;
-
-	if (dev->bus->unplug == NULL) {
-		RTE_LOG(ERR, EAL, "Function unplug not supported by bus (%s)\n",
-			dev->bus->name);
-		return -ENOTSUP;
-	}
-
-	ret = dev->bus->unplug(dev);
-	if (ret) {
-		RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n",
-			dev->name);
-		return ret;
-	}
-
-	return 0;
-}
-
-int
-rte_dev_remove(struct rte_device *dev)
-{
-	struct eal_dev_mp_req req;
-	char *devargs;
-	int ret;
-
-	if (!rte_dev_is_probed(dev)) {
-		RTE_LOG(ERR, EAL, "Device is not probed\n");
+	if (dev->driver == NULL) {
+		RTE_LOG(ERR, EAL, "Device is already unplugged\n");
 		return -ENOENT;
 	}
 
-	ret = build_devargs(dev->bus->name, dev->name, "", &devargs);
-	if (ret != 0)
-		return ret;
-
-	memset(&req, 0, sizeof(req));
-	req.t = EAL_DEV_REQ_TYPE_DETACH;
-	strlcpy(req.devargs, devargs, EAL_DEV_MP_DEV_ARGS_MAX_LEN);
-	free(devargs);
-
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
-		/**
-		 * If in secondary process, just send IPC request to
-		 * primary process.
-		 */
-		ret = eal_dev_hotplug_request_to_primary(&req);
-		if (ret != 0) {
-			RTE_LOG(ERR, EAL,
-				"Failed to send hotplug request to primary\n");
-			return -ENOMSG;
-		}
-		if (req.result != 0)
-			RTE_LOG(ERR, EAL,
-				"Failed to hotplug remove device\n");
-		return req.result;
-	}
-
-	/* detach a device from primary start from here: */
-
-	/* primary send detach sync request to secondary */
-	ret = eal_dev_hotplug_request_to_secondary(&req);
-
-	/**
-	 * if communication error, we need to rollback, because it is possible
-	 * part of the secondary processes still detached it successfully.
-	 */
-	if (ret != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to send device detach request to secondary\n");
-		ret = -ENOMSG;
-		goto rollback;
-	}
-
-	/**
-	 * if any secondary failed to detach, we need to consider if rollback
-	 * is necessary.
-	 */
-	if (req.result != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to detach device on secondary process\n");
-		ret = req.result;
-		/**
-		 * if -ENOENT, we don't need to rollback, since devices is
-		 * already detached on secondary process.
-		 */
-		if (ret != -ENOENT)
-			goto rollback;
-	}
-
-	/* primary detach the device itself. */
-	ret = local_dev_remove(dev);
-
-	/* if primary failed, still need to consider if rollback is necessary */
-	if (ret != 0) {
-		RTE_LOG(ERR, EAL,
-			"Failed to detach device on primary process\n");
-		/* if -ENOENT, we don't need to rollback */
-		if (ret == -ENOENT)
-			return ret;
-		goto rollback;
-	}
-
-	return 0;
-
-rollback:
-	req.t = EAL_DEV_REQ_TYPE_DETACH_ROLLBACK;
-
-	/* primary send rollback request to secondary. */
-	if (eal_dev_hotplug_request_to_secondary(&req) != 0)
-		RTE_LOG(WARNING, EAL,
-			"Failed to rollback device detach on secondary."
-			"Devices in secondary may not sync with primary\n");
-
+	ret = bus->unplug(dev);
+	if (ret)
+		RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n",
+			dev->name);
+	rte_devargs_remove(busname, devname);
 	return ret;
 }
 
@@ -533,9 +342,8 @@ rte_dev_event_callback_unregister(const char *device_name,
 	return ret;
 }
 
-void __rte_experimental
-rte_dev_event_callback_process(const char *device_name,
-			       enum rte_dev_event_type event)
+void
+dev_callback_process(char *device_name, enum rte_dev_event_type event)
 {
 	struct dev_event_callback *cb_lst;
 
@@ -755,38 +563,4 @@ out:
 	free(bus_str);
 	free(cls_str);
 	return it->device;
-}
-
-int
-rte_dev_dma_map(struct rte_device *dev, void *addr, uint64_t iova,
-		size_t len)
-{
-	if (dev->bus->dma_map == NULL || len == 0) {
-		rte_errno = ENOTSUP;
-		return -1;
-	}
-	/* Memory must be registered through rte_extmem_* APIs */
-	if (rte_mem_virt2memseg_list(addr) == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	return dev->bus->dma_map(dev, addr, iova, len);
-}
-
-int
-rte_dev_dma_unmap(struct rte_device *dev, void *addr, uint64_t iova,
-		  size_t len)
-{
-	if (dev->bus->dma_unmap == NULL || len == 0) {
-		rte_errno = ENOTSUP;
-		return -1;
-	}
-	/* Memory must be registered through rte_extmem_* APIs */
-	if (rte_mem_virt2memseg_list(addr) == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	return dev->bus->dma_unmap(dev, addr, iova, len);
 }

@@ -41,7 +41,7 @@ enum rte_lcore_role_t {
 };
 
 /**
- * The type of process in a linux, multi-process setup
+ * The type of process in a linuxapp, multi-process setup
  */
 enum rte_proc_type_t {
 	RTE_PROC_AUTO = -1,   /* allow auto-detection of primary/secondary */
@@ -174,6 +174,9 @@ int rte_eal_iopl_init(void);
 int rte_eal_init(int argc, char **argv);
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
  * Clean up the Environment Abstraction Layer (EAL)
  *
  * This function must be called to release any internal resources that EAL has
@@ -184,7 +187,7 @@ int rte_eal_init(int argc, char **argv);
  * @return 0 Successfully released all internal EAL resources
  * @return -EFAULT There was an error in releasing all resources.
  */
-int rte_eal_cleanup(void);
+int __rte_experimental rte_eal_cleanup(void);
 
 /**
  * Check if a primary process is currently alive
@@ -225,13 +228,6 @@ struct rte_mp_reply {
  *
  * As we create  socket channel for primary/secondary communication, use
  * this function typedef to register action for coming messages.
- *
- * @note When handling IPC request callbacks, the reply must be sent even in
- *   cases of error handling. Simply returning success or failure will *not*
- *   send a response to the requestor.
- *   Implementation of error signalling mechanism is up to the application.
- *
- * @note No memory allocations should take place inside the callback.
  */
 typedef int (*rte_mp_t)(const struct rte_mp_msg *msg, const void *peer);
 
@@ -241,13 +237,6 @@ typedef int (*rte_mp_t)(const struct rte_mp_msg *msg, const void *peer);
  * As we create socket channel for primary/secondary communication, use
  * this function typedef to register action for coming responses to asynchronous
  * requests.
- *
- * @note When handling IPC request callbacks, the reply must be sent even in
- *   cases of error handling. Simply returning success or failure will *not*
- *   send a response to the requestor.
- *   Implementation of error signalling mechanism is up to the application.
- *
- * @note No memory allocations should take place inside the callback.
  */
 typedef int (*rte_mp_async_reply_t)(const struct rte_mp_msg *request,
 		const struct rte_mp_reply *reply);
@@ -298,7 +287,7 @@ rte_mp_action_unregister(const char *name);
  *
  * Send a message to the peer process.
  *
- * This function will send a message which will be responded by the action
+ * This function will send a message which will be responsed by the action
  * identified by name in the peer process.
  *
  * @param msg
@@ -322,15 +311,12 @@ rte_mp_sendmsg(struct rte_mp_msg *msg);
  *
  * @note The caller is responsible to free reply->replies.
  *
- * @note This API must not be used inside memory-related or IPC callbacks, and
- *   no memory allocations should take place inside such callback.
- *
  * @param req
  *   The req argument contains the customized request message.
  *
  * @param reply
  *   The reply argument will be for storing all the replied messages;
- *   the caller is responsible for free reply->msgs.
+ *   the caller is responsible for free reply->replies.
  *
  * @param ts
  *   The ts argument specifies how long we can wait for the peer(s) to reply.
@@ -378,11 +364,6 @@ rte_mp_request_async(struct rte_mp_msg *req, const struct timespec *ts,
  * This function will send a reply message in response to a request message
  * received previously.
  *
- * @note When handling IPC request callbacks, the reply must be sent even in
- *   cases of error handling. Simply returning success or failure will *not*
- *   send a response to the requestor.
- *   Implementation of error signalling mechanism is up to the application.
- *
  * @param msg
  *   The msg argument contains the customized message.
  *
@@ -395,15 +376,6 @@ rte_mp_request_async(struct rte_mp_msg *req, const struct timespec *ts,
  */
 int __rte_experimental
 rte_mp_reply(struct rte_mp_msg *msg, const char *peer);
-
-/**
- * Register all mp action callbacks for hotplug.
- *
- * @return
- *   0 on success, negative on error.
- */
-int __rte_experimental
-rte_mp_dev_hotplug_init(void);
 
 /**
  * Usage function typedef used by the application usage function.
@@ -443,7 +415,7 @@ rte_set_application_usage_hook(rte_usage_hook_t usage_func);
 #define RTE_EAL_TAILQ_RWLOCK         (&rte_eal_get_configuration()->mem_config->qlock)
 
 /**
- * macro to get the multiple lock of mempool shared by multiple-instance
+ * macro to get the multiple lock of mempool shared by mutiple-instance
  */
 #define RTE_EAL_MEMPOOL_RWLOCK            (&rte_eal_get_configuration()->mem_config->mplock)
 
@@ -525,15 +497,6 @@ enum rte_iova_mode rte_eal_iova_mode(void);
  */
 const char *
 rte_eal_mbuf_user_pool_ops(void);
-
-/**
- * Get the runtime directory of DPDK
- *
- * @return
- *  The runtime directory path of DPDK
- */
-const char *
-rte_eal_get_runtime_dir(void);
 
 #ifdef __cplusplus
 }

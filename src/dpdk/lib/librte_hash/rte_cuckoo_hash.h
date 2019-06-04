@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2016 Intel Corporation
- * Copyright(c) 2018 Arm Limited
  */
 
 /* rte_cuckoo_hash.h
@@ -27,17 +26,6 @@
 } while (0)
 #else
 #define RETURN_IF_TRUE(cond, retval)
-#endif
-
-#if defined(RTE_LIBRTE_HASH_DEBUG)
-#define ERR_IF_TRUE(cond, fmt, args...) do { \
-	if (cond) { \
-		RTE_LOG(ERR, HASH, fmt, ##args); \
-		return; \
-	} \
-} while (0)
-#else
-#define ERR_IF_TRUE(cond, fmt, args...)
 #endif
 
 #include <rte_hash_crc.h>
@@ -116,6 +104,8 @@ const rte_hash_cmp_eq_t cmp_jump_table[NUM_KEY_CMP_CASES] = {
 
 #define LCORE_CACHE_SIZE		64
 
+#define RTE_HASH_MAX_PUSHES             100
+
 #define RTE_HASH_BFS_QUEUE_MAX_LEN       1000
 
 #define RTE_XABORT_CUCKOO_PATH_INVALIDED 0x4
@@ -135,25 +125,25 @@ struct rte_hash_key {
 	};
 	/* Variable key size */
 	char key[0];
-};
+} __attribute__((aligned(KEY_ALIGNMENT)));
 
 /* All different signature compare functions */
 enum rte_hash_sig_compare_function {
 	RTE_HASH_COMPARE_SCALAR = 0,
 	RTE_HASH_COMPARE_SSE,
-	RTE_HASH_COMPARE_NEON,
+	RTE_HASH_COMPARE_AVX2,
 	RTE_HASH_COMPARE_NUM
 };
 
 /** Bucket structure */
 struct rte_hash_bucket {
-	uint16_t sig_current[RTE_HASH_BUCKET_ENTRIES];
+	hash_sig_t sig_current[RTE_HASH_BUCKET_ENTRIES];
 
 	uint32_t key_idx[RTE_HASH_BUCKET_ENTRIES];
 
-	uint8_t flag[RTE_HASH_BUCKET_ENTRIES];
+	hash_sig_t sig_alt[RTE_HASH_BUCKET_ENTRIES];
 
-	void *next;
+	uint8_t flag[RTE_HASH_BUCKET_ENTRIES];
 } __rte_cache_aligned;
 
 /** A hash table structure. */
@@ -174,23 +164,10 @@ struct rte_hash {
 	/**< Length of hash key. */
 	uint8_t hw_trans_mem_support;
 	/**< If hardware transactional memory is used. */
-	uint8_t use_local_cache;
-	/**< If multi-writer support is enabled, use local cache
-	 * to allocate key-store slots.
-	 */
+	uint8_t multi_writer_support;
+	/**< If multi-writer support is enabled. */
 	uint8_t readwrite_concur_support;
 	/**< If read-write concurrency support is enabled */
-	uint8_t ext_table_support;     /**< Enable extendable bucket table */
-	uint8_t no_free_on_del;
-	/**< If key index should be freed on calling rte_hash_del_xxx APIs.
-	 * If this is set, rte_hash_free_key_with_position must be called to
-	 * free the key index associated with the deleted entry.
-	 * This flag is enabled by default.
-	 */
-	uint8_t readwrite_concur_lf_support;
-	/**< If read-write concurrency lock free support is enabled */
-	uint8_t writer_takes_lock;
-	/**< Indicates if the writer threads need to take lock */
 	rte_hash_function hash_func;    /**< Function used to calculate hash. */
 	uint32_t hash_func_init_val;    /**< Init value used by hash_func. */
 	rte_hash_cmp_eq_t rte_hash_custom_cmp_eq;
@@ -209,22 +186,10 @@ struct rte_hash {
 	 * to the key table.
 	 */
 	rte_rwlock_t *readwrite_lock; /**< Read-write lock thread-safety. */
-	struct rte_hash_bucket *buckets_ext; /**< Extra buckets array */
-	struct rte_ring *free_ext_bkts; /**< Ring of indexes of free buckets */
-	/* Stores index of an empty ext bkt to be recycled on calling
-	 * rte_hash_del_xxx APIs. When lock free read-write concurrency is
-	 * enabled, an empty ext bkt cannot be put into free list immediately
-	 * (as readers might be using it still). Hence freeing of the ext bkt
-	 * is piggy-backed to freeing of the key index.
-	 */
-	uint32_t *ext_bkt_to_free;
-	uint32_t *tbl_chng_cnt;
-	/**< Indicates if the hash table changed from last read. */
 } __rte_cache_aligned;
 
 struct queue_node {
 	struct rte_hash_bucket *bkt; /* Current bucket on the bfs search */
-	uint32_t cur_bkt_idx;
 
 	struct queue_node *prev;     /* Parent(bucket) in search path */
 	int prev_slot;               /* Parent(slot) in search path */

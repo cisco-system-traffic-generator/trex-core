@@ -24,7 +24,6 @@ extern "C" {
 
 #include <rte_common.h>
 #include <rte_config.h>
-#include <rte_compat.h>
 
 struct rte_log_dynamic_type;
 
@@ -37,7 +36,7 @@ struct rte_logs {
 	struct rte_log_dynamic_type *dynamic_types;
 };
 
-/** Global log information */
+/** Global log informations */
 extern struct rte_logs rte_logs;
 
 /* SDK log type */
@@ -227,7 +226,6 @@ int rte_log_register(const char *name);
  *    - >=0: the newly registered log type
  *    - <0: rte_log_register() error value
  */
-__rte_experimental
 int rte_log_register_type_and_pick_level(const char *name, uint32_t level_def);
 
 /**

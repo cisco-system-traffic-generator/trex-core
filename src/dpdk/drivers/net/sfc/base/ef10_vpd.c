@@ -10,7 +10,7 @@
 
 #if EFSYS_OPT_VPD
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 #include "ef10_tlv_layout.h"
 
@@ -25,7 +25,9 @@ ef10_vpd_init(
 	efx_rc_t rc;
 
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_PROBE);
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if (enp->en_nic_cfg.enc_vpd_is_global) {
 		tag = TLV_TAG_GLOBAL_STATIC_VPD;
@@ -80,7 +82,9 @@ ef10_vpd_size(
 {
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/*
 	 * This function returns the total size the user should allocate
@@ -112,7 +116,9 @@ ef10_vpd_read(
 	uint32_t tag;
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if (enp->en_nic_cfg.enc_vpd_is_global) {
 		tag = TLV_TAG_GLOBAL_DYNAMIC_VPD;
@@ -166,7 +172,9 @@ ef10_vpd_verify(
 	unsigned int dcont;
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/*
 	 * Strictly you could take the view that dynamic vpd is optional.
@@ -286,7 +294,9 @@ ef10_vpd_get(
 	uint8_t length;
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/* Attempt to satisfy the request from svpd first */
 	if (enp->en_arch.ef10.ena_svpd_length > 0) {
@@ -331,7 +341,9 @@ ef10_vpd_set(
 {
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/* If the provided (tag,keyword) exists in svpd, then it is readonly */
 	if (enp->en_arch.ef10.ena_svpd_length > 0) {
@@ -383,7 +395,9 @@ ef10_vpd_write(
 	uint32_t tag;
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if (enp->en_nic_cfg.enc_vpd_is_global) {
 		tag = TLV_TAG_GLOBAL_DYNAMIC_VPD;
@@ -418,7 +432,9 @@ fail1:
 ef10_vpd_fini(
 	__in			efx_nic_t *enp)
 {
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if (enp->en_arch.ef10.ena_svpd_length > 0) {
 		EFSYS_KMEM_FREE(enp->en_esip, enp->en_arch.ef10.ena_svpd_length,
@@ -429,6 +445,6 @@ ef10_vpd_fini(
 	}
 }
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 #endif	/* EFSYS_OPT_VPD */

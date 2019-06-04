@@ -58,17 +58,10 @@ struct rte_eth_dev *rte_eth_dev_attach_secondary(const char *name);
 
 /**
  * @internal
- * Notify RTE_ETH_EVENT_DESTROY and release the specified ethdev port.
- *
- * The following PMD-managed data fields will be freed:
- *   - dev_private
- *   - mac_addrs
- *   - hash_mac_addrs
- * If one of these fields should not be freed,
- * it must be reset to NULL by the PMD, typically in dev_close method.
+ * Release the specified ethdev port.
  *
  * @param eth_dev
- * Device to be detached.
+ * The *eth_dev* pointer is the address of the *rte_eth_dev* structure.
  * @return
  *   - 0 on success, negative on error
  */
@@ -317,7 +310,7 @@ typedef int (*ethdev_uninit_t)(struct rte_eth_dev *ethdev);
  * @warning
  * @b EXPERIMENTAL: this API may change without prior notice.
  *
- * PMD helper function for cleaning up the resources of a ethdev port on it's
+ * PMD helper function for cleaing up the resources of a ethdev port on it's
  * destruction.
  *
  * @param ethdev
@@ -330,6 +323,32 @@ typedef int (*ethdev_uninit_t)(struct rte_eth_dev *ethdev);
  */
 int __rte_experimental
 rte_eth_dev_destroy(struct rte_eth_dev *ethdev, ethdev_uninit_t ethdev_uninit);
+
+/**
+ * PMD helper function to check if keeping CRC is requested
+ *
+ * @note
+ * When CRC_STRIP offload flag is removed and default behavior switch to
+ * strip CRC, as planned, this helper function is not that useful and will be
+ * removed. In PMDs this function will be replaced with check:
+ *   if (offloads & DEV_RX_OFFLOAD_KEEP_CRC)
+ *
+ * @param rx_offloads
+ *   offload bits to be applied
+ *
+ * @return
+ *   Return positive if keeping CRC is requested,
+ *   zero if stripping CRC is requested
+ */
+static inline int
+rte_eth_dev_must_keep_crc(uint64_t rx_offloads)
+{
+	if (rx_offloads & DEV_RX_OFFLOAD_CRC_STRIP)
+		return 0;
+
+	/* no KEEP_CRC or CRC_STRIP offload flags means keep CRC */
+	return 1;
+}
 
 #ifdef __cplusplus
 }

@@ -29,11 +29,7 @@ endif::backend-docbook[]
 == Release 2.57 ==
 
 * STL 
-** Dynamic add/remove multiple profiles feature see link:trex_stateless.html#dynamic_multiple_profiles[dynamic]
-
-* Upgrade to DPDK v19.05
-** Breaking changes to Mellanox setups - need newer OFED (v4.6)
-** RX mbufs in Virtio were increased from 2K to 9K due to DPDK bug: link:https://bugs.dpdk.org/show_bug.cgi?id=290[bug link]
+** Dynamic add/remove multiple profiles feature see link:trex_stateless.html#dynamic_multiple_profiles[dynamic]  
 
 == Release 2.56 ==
 

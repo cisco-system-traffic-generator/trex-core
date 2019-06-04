@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright(c) 2015-2019 Intel Corporation
+# Copyright(c) 2015 Intel Corporation
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
@@ -7,12 +7,11 @@ include $(RTE_SDK)/mk/rte.vars.mk
 LIB = librte_cryptodev.a
 
 # library version
-LIBABIVER := 7
+LIBABIVER := 4
 
 # build flags
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
-CFLAGS += -DALLOW_EXPERIMENTAL_API
 LDLIBS += -lrte_eal -lrte_mempool -lrte_ring -lrte_mbuf
 LDLIBS += -lrte_kvargs
 

@@ -16,7 +16,6 @@
 #include <sys/io.h>
 #endif
 
-#include <rte_string_fns.h>
 #include <rte_log.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
@@ -269,7 +268,7 @@ pci_uio_alloc_resource(struct rte_pci_device *dev,
 		goto error;
 	}
 
-	strlcpy((*uio_res)->path, devname, sizeof((*uio_res)->path));
+	snprintf((*uio_res)->path, sizeof((*uio_res)->path), "%s", devname);
 	memcpy(&(*uio_res)->pci_addr, &dev->addr, sizeof((*uio_res)->pci_addr));
 
 	return 0;
@@ -297,7 +296,7 @@ pci_uio_map_resource_by_index(struct rte_pci_device *dev, int res_idx,
 	maps = uio_res->maps;
 
 	/* allocate memory to keep path */
-	maps[map_idx].path = rte_malloc(NULL, sizeof(devname), 0);
+	maps[map_idx].path = rte_malloc(NULL, strlen(devname) + 1, 0);
 	if (maps[map_idx].path == NULL) {
 		RTE_LOG(ERR, EAL, "Cannot allocate memory for path: %s\n",
 				strerror(errno));

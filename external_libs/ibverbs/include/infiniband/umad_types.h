@@ -41,8 +41,14 @@
 #include <infiniband/umad.h>
 
 #ifdef __cplusplus
-extern "C" {
-#endif
+#  define BEGIN_C_DECLS extern "C" {
+#  define END_C_DECLS   }
+#else				/* !__cplusplus */
+#  define BEGIN_C_DECLS
+#  define END_C_DECLS
+#endif				/* __cplusplus */
+
+BEGIN_C_DECLS
 
 #define UMAD_BASE_VERSION		1
 #define UMAD_QKEY			0x80010000
@@ -207,7 +213,5 @@ umad_class_resp_time(struct umad_class_port_info *cpi)
 			 & UMAD_CLASS_RESP_TIME_MASK);
 }
 
-#ifdef __cplusplus
-}
-#endif
+END_C_DECLS
 #endif				/* _UMAD_TYPES_H */

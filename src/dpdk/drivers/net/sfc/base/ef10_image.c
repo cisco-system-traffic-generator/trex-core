@@ -577,8 +577,7 @@ fail1:
 
 	__checkReturn	efx_rc_t
 efx_build_signed_image_write_buffer(
-	__out_bcount(buffer_size)
-			uint8_t			*bufferp,
+	__out		uint8_t			*bufferp,
 	__in		uint32_t		buffer_size,
 	__in		efx_image_info_t	*infop,
 	__out		efx_image_header_t	**headerpp)
@@ -705,7 +704,7 @@ efx_build_signed_image_write_buffer(
 	 * results in the layout used for the data chunks and chunk headers.
 	 */
 	/* END CSTYLED */
-	memset(bufferp, 0xFF, buffer_size);
+	memset(bufferp, buffer_size, 0xFF);
 
 	EFX_STATIC_ASSERT(sizeof (chunk_hdr) == SIGNED_IMAGE_CHUNK_HDR_LEN);
 	memset(&chunk_hdr, 0, SIGNED_IMAGE_CHUNK_HDR_LEN);

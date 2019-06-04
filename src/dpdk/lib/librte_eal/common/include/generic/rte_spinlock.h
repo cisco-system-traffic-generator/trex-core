@@ -61,14 +61,9 @@ rte_spinlock_lock(rte_spinlock_t *sl);
 static inline void
 rte_spinlock_lock(rte_spinlock_t *sl)
 {
-	int exp = 0;
-
-	while (!__atomic_compare_exchange_n(&sl->locked, &exp, 1, 0,
-				__ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-		while (__atomic_load_n(&sl->locked, __ATOMIC_RELAXED))
+	while (__sync_lock_test_and_set(&sl->locked, 1))
+		while(sl->locked)
 			rte_pause();
-		exp = 0;
-	}
 }
 #endif
 
@@ -85,7 +80,7 @@ rte_spinlock_unlock (rte_spinlock_t *sl);
 static inline void
 rte_spinlock_unlock (rte_spinlock_t *sl)
 {
-	__atomic_store_n(&sl->locked, 0, __ATOMIC_RELEASE);
+	__sync_lock_release(&sl->locked);
 }
 #endif
 
@@ -104,10 +99,7 @@ rte_spinlock_trylock (rte_spinlock_t *sl);
 static inline int
 rte_spinlock_trylock (rte_spinlock_t *sl)
 {
-	int exp = 0;
-	return __atomic_compare_exchange_n(&sl->locked, &exp, 1,
-				0, /* disallow spurious failure */
-				__ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+	return __sync_lock_test_and_set(&sl->locked,1) == 0;
 }
 #endif
 
@@ -121,7 +113,7 @@ rte_spinlock_trylock (rte_spinlock_t *sl)
  */
 static inline int rte_spinlock_is_locked (rte_spinlock_t *sl)
 {
-	return __atomic_load_n(&sl->locked, __ATOMIC_ACQUIRE);
+	return sl->locked;
 }
 
 /**

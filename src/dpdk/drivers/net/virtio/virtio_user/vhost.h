@@ -2,8 +2,8 @@
  * Copyright(c) 2010-2016 Intel Corporation
  */
 
-#ifndef _VIRTIO_USER_VHOST_H
-#define _VIRTIO_USER_VHOST_H
+#ifndef _VHOST_NET_USER_H
+#define _VHOST_NET_USER_H
 
 #include <stdint.h>
 #include <linux/types.h>
@@ -88,7 +88,7 @@ struct virtio_user_backend_ops {
 			 int enable);
 };
 
-extern struct virtio_user_backend_ops virtio_ops_user;
-extern struct virtio_user_backend_ops virtio_ops_kernel;
+struct virtio_user_backend_ops ops_user;
+struct virtio_user_backend_ops ops_kernel;
 
 #endif

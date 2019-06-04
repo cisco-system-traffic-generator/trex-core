@@ -406,7 +406,7 @@ pdump_server(const struct rte_mp_msg *mp_msg, const void *peer)
 }
 
 int
-rte_pdump_init(void)
+rte_pdump_init(const char *path __rte_unused)
 {
 	return rte_mp_action_register(PDUMP_MP, pdump_server);
 }
@@ -501,15 +501,15 @@ pdump_prepare_client_request(char *device, uint16_t queue,
 	req->flags = flags;
 	req->op = operation;
 	if ((operation & ENABLE) != 0) {
-		strlcpy(req->data.en_v1.device, device,
-			sizeof(req->data.en_v1.device));
+		snprintf(req->data.en_v1.device,
+			 sizeof(req->data.en_v1.device), "%s", device);
 		req->data.en_v1.queue = queue;
 		req->data.en_v1.ring = ring;
 		req->data.en_v1.mp = mp;
 		req->data.en_v1.filter = filter;
 	} else {
-		strlcpy(req->data.dis_v1.device, device,
-			sizeof(req->data.dis_v1.device));
+		snprintf(req->data.dis_v1.device,
+			 sizeof(req->data.dis_v1.device), "%s", device);
 		req->data.dis_v1.queue = queue;
 		req->data.dis_v1.ring = NULL;
 		req->data.dis_v1.mp = NULL;
@@ -615,4 +615,11 @@ rte_pdump_disable_by_deviceid(char *device_id, uint16_t queue,
 						DISABLE, NULL, NULL, NULL);
 
 	return ret;
+}
+
+int
+rte_pdump_set_socket_dir(const char *path __rte_unused,
+			 enum rte_pdump_socktype type __rte_unused)
+{
+	return 0;
 }

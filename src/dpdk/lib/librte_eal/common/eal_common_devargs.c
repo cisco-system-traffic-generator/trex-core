@@ -4,6 +4,9 @@
 
 /* This file manages the list of devices and their arguments, as given
  * by the user at startup
+ *
+ * Code here should not call rte_log since the EAL environment
+ * may not be initialized.
  */
 
 #include <stdio.h>
@@ -25,8 +28,38 @@
 TAILQ_HEAD(rte_devargs_list, rte_devargs);
 
 /** Global list of user devices */
-static struct rte_devargs_list devargs_list =
+struct rte_devargs_list devargs_list =
 	TAILQ_HEAD_INITIALIZER(devargs_list);
+
+int
+rte_eal_parse_devargs_str(const char *devargs_str,
+			char **drvname, char **drvargs)
+{
+	char *sep;
+
+	if ((devargs_str) == NULL || (drvname) == NULL || (drvargs == NULL))
+		return -1;
+
+	*drvname = strdup(devargs_str);
+	if (*drvname == NULL)
+		return -1;
+
+	/* set the first ',' to '\0' to split name and arguments */
+	sep = strchr(*drvname, ',');
+	if (sep != NULL) {
+		sep[0] = '\0';
+		*drvargs = strdup(sep + 1);
+	} else {
+		*drvargs = strdup("");
+	}
+
+	if (*drvargs == NULL) {
+		free(*drvname);
+		*drvname = NULL;
+		return -1;
+	}
+	return 0;
+}
 
 static size_t
 devargs_layer_count(const char *s)
@@ -174,6 +207,7 @@ bus_name_cmp(const struct rte_bus *bus, const void *name)
 	return strncmp(bus->name, name, strlen(bus->name));
 }
 
+__rte_experimental
 int
 rte_devargs_parse(struct rte_devargs *da, const char *dev)
 {
@@ -229,13 +263,13 @@ rte_devargs_parse(struct rte_devargs *da, const char *dev)
 	return 0;
 }
 
+__rte_experimental
 int
 rte_devargs_parsef(struct rte_devargs *da, const char *format, ...)
 {
 	va_list ap;
 	size_t len;
 	char *dev;
-	int ret;
 
 	if (da == NULL)
 		return -EINVAL;
@@ -254,49 +288,23 @@ rte_devargs_parsef(struct rte_devargs *da, const char *format, ...)
 	vsnprintf(dev, len + 1, format, ap);
 	va_end(ap);
 
-	ret = rte_devargs_parse(da, dev);
-
-	free(dev);
-	return ret;
+	return rte_devargs_parse(da, dev);
 }
 
-int
-rte_devargs_insert(struct rte_devargs **da)
+int __rte_experimental
+rte_devargs_insert(struct rte_devargs *da)
 {
-	struct rte_devargs *listed_da;
-	void *tmp;
+	int ret;
 
-	if (*da == NULL || (*da)->bus == NULL)
-		return -1;
-
-	TAILQ_FOREACH_SAFE(listed_da, &devargs_list, next, tmp) {
-		if (listed_da == *da)
-			/* devargs already in the list */
-			return 0;
-		if (strcmp(listed_da->bus->name, (*da)->bus->name) == 0 &&
-				strcmp(listed_da->name, (*da)->name) == 0) {
-			/* device already in devargs list, must be updated */
-			listed_da->type = (*da)->type;
-			listed_da->policy = (*da)->policy;
-			free(listed_da->args);
-			listed_da->args = (*da)->args;
-			listed_da->bus = (*da)->bus;
-			listed_da->cls = (*da)->cls;
-			listed_da->bus_str = (*da)->bus_str;
-			listed_da->cls_str = (*da)->cls_str;
-			listed_da->data = (*da)->data;
-			/* replace provided devargs with found one */
-			free(*da);
-			*da = listed_da;
-			return 0;
-		}
-	}
-	/* new device in the list */
-	TAILQ_INSERT_TAIL(&devargs_list, *da, next);
+	ret = rte_devargs_remove(da->bus->name, da->name);
+	if (ret < 0)
+		return ret;
+	TAILQ_INSERT_TAIL(&devargs_list, da, next);
 	return 0;
 }
 
 /* store a whitelist parameter for later parsing */
+__rte_experimental
 int
 rte_devargs_add(enum rte_devtype devtype, const char *devargs_str)
 {
@@ -333,18 +341,15 @@ fail:
 	return -1;
 }
 
-int
-rte_devargs_remove(struct rte_devargs *devargs)
+int __rte_experimental
+rte_devargs_remove(const char *busname, const char *devname)
 {
 	struct rte_devargs *d;
 	void *tmp;
 
-	if (devargs == NULL || devargs->bus == NULL)
-		return -1;
-
 	TAILQ_FOREACH_SAFE(d, &devargs_list, next, tmp) {
-		if (strcmp(d->bus->name, devargs->bus->name) == 0 &&
-		    strcmp(d->name, devargs->name) == 0) {
+		if (strcmp(d->bus->name, busname) == 0 &&
+		    strcmp(d->name, devname) == 0) {
 			TAILQ_REMOVE(&devargs_list, d, next);
 			free(d->args);
 			free(d);
@@ -355,6 +360,7 @@ rte_devargs_remove(struct rte_devargs *devargs)
 }
 
 /* count the number of devices of a specified type */
+__rte_experimental
 unsigned int
 rte_devargs_type_count(enum rte_devtype devtype)
 {
@@ -370,6 +376,7 @@ rte_devargs_type_count(enum rte_devtype devtype)
 }
 
 /* dump the user devices on the console */
+__rte_experimental
 void
 rte_devargs_dump(FILE *f)
 {
@@ -384,6 +391,7 @@ rte_devargs_dump(FILE *f)
 }
 
 /* bus-aware rte_devargs iterator. */
+__rte_experimental
 struct rte_devargs *
 rte_devargs_next(const char *busname, const struct rte_devargs *start)
 {

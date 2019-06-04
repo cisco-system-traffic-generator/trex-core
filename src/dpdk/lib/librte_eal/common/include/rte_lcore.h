@@ -23,18 +23,10 @@ extern "C" {
 #define LCORE_ID_ANY     UINT32_MAX       /**< Any lcore. */
 
 #if defined(__linux__)
-typedef	cpu_set_t rte_cpuset_t;
-#define RTE_CPU_AND(dst, src1, src2) CPU_AND(dst, src1, src2)
+	typedef	cpu_set_t rte_cpuset_t;
 #elif defined(__FreeBSD__)
 #include <pthread_np.h>
-typedef cpuset_t rte_cpuset_t;
-#define RTE_CPU_AND(dst, src1, src2) do \
-{ \
-	cpuset_t tmp; \
-	CPU_COPY(src1, &tmp); \
-	CPU_AND(&tmp, src2); \
-	CPU_COPY(&tmp, dst); \
-} while (0)
+	typedef cpuset_t rte_cpuset_t;
 #endif
 
 /**
@@ -149,7 +141,7 @@ unsigned rte_socket_id(void);
  * @return
  *   the number of physical sockets as recognized by EAL
  */
-unsigned int
+unsigned int __rte_experimental
 rte_socket_count(void);
 
 /**
@@ -166,7 +158,7 @@ rte_socket_count(void);
  *   - physical socket id as recognized by EAL
  *   - -1 on error, with errno set to EINVAL
  */
-int
+int __rte_experimental
 rte_socket_id_by_idx(unsigned int idx);
 
 /**
@@ -288,9 +280,8 @@ int rte_thread_setname(pthread_t id, const char *name);
  * Create a control thread.
  *
  * Wrapper to pthread_create(), pthread_setname_np() and
- * pthread_setaffinity_np(). The affinity of the new thread is based
- * on the CPU affinity retrieved at the time rte_eal_init() was called,
- * the dataplane and service lcores are then excluded.
+ * pthread_setaffinity_np(). The dataplane and service lcores are
+ * excluded from the affinity of the new thread.
  *
  * @param thread
  *   Filled with the thread id of the new created thread.
@@ -306,7 +297,7 @@ int rte_thread_setname(pthread_t id, const char *name);
  *   On success, returns 0; on error, it returns a negative value
  *   corresponding to the error number.
  */
-int
+__rte_experimental int
 rte_ctrl_thread_create(pthread_t *thread, const char *name,
 		const pthread_attr_t *attr,
 		void *(*start_routine)(void *), void *arg);

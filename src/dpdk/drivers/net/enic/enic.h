@@ -25,6 +25,8 @@
 #define DRV_DESCRIPTION		"Cisco VIC Ethernet NIC Poll-mode Driver"
 #define DRV_COPYRIGHT		"Copyright 2008-2015 Cisco Systems, Inc"
 
+#define ENIC_MAX_MAC_ADDR	64
+
 #define VLAN_ETH_HLEN           18
 
 #define ENICPMD_SETTING(enic, f) ((enic->config.flags & VENETF_##f) ? 1 : 0)
@@ -36,9 +38,6 @@
 #define ENIC_PAGE_SIZE          4096
 #define PAGE_ROUND_UP(x) \
 	((((unsigned long)(x)) + ENIC_PAGE_SIZE-1) & (~(ENIC_PAGE_SIZE-1)))
-
-/* must be >= VNIC_COUNTER_DMA_MIN_PERIOD */
-#define VNIC_FLOW_COUNTER_UPDATE_MSECS 500
 
 #define ENICPMD_VFIO_PATH          "/dev/vfio/vfio"
 /*#define ENIC_DESC_COUNT_MAKE_ODD (x) do{if ((~(x)) & 1) { (x)--; } }while(0)*/
@@ -76,8 +75,8 @@ struct enic_fdir {
 	u32 modes;
 	u32 types_mask;
 	void (*copy_fltr_fn)(struct filter_v2 *filt,
-			     const struct rte_eth_fdir_input *input,
-			     const struct rte_eth_fdir_masks *masks);
+			     struct rte_eth_fdir_input *input,
+			     struct rte_eth_fdir_masks *masks);
 };
 
 struct enic_soft_stats {
@@ -95,7 +94,6 @@ struct rte_flow {
 	LIST_ENTRY(rte_flow) next;
 	u16 enic_filter_id;
 	struct filter_v2 enic_filter;
-	int counter_idx; /* NIC allocated counter index (-1 = invalid) */
 };
 
 /* Per-instance private data structure */
@@ -106,11 +104,6 @@ struct enic {
 	struct vnic_dev_bar bar0;
 	struct vnic_dev *vdev;
 
-	/*
-	 * mbuf_initializer contains 64 bits of mbuf rearm_data, used by
-	 * the avx2 handler at this time.
-	 */
-	uint64_t mbuf_initializer;
 	unsigned int port_id;
 	bool overlay_offload;
 	struct rte_eth_dev *rte_dev;
@@ -133,7 +126,6 @@ struct enic {
 	u8 filter_actions; /* HW supported actions */
 	bool vxlan;
 	bool disable_overlay; /* devargs disable_overlay=1 */
-	uint8_t enable_avx2_rx;  /* devargs enable-avx2-rx=1 */
 	bool nic_cfg_chk;     /* NIC_CFG_CHK available */
 	bool udp_rss_weak;    /* Bodega style UDP RSS */
 	uint8_t ig_vlan_rewrite_mode; /* devargs ig-vlan-rewrite */
@@ -173,7 +165,6 @@ struct enic {
 	rte_spinlock_t mtu_lock;
 
 	LIST_HEAD(enic_flows, rte_flow) flows;
-	int max_flow_counter;
 	rte_spinlock_t flows_lock;
 
 	/* RSS */
@@ -194,17 +185,13 @@ struct enic {
 	uint64_t tx_offload_capa; /* DEV_TX_OFFLOAD flags */
 	uint64_t tx_queue_offload_capa; /* DEV_TX_OFFLOAD flags */
 	uint64_t tx_offload_mask; /* PKT_TX flags accepted */
-
-	/* Multicast MAC addresses added to the NIC */
-	uint32_t mc_count;
-	struct ether_addr mc_addrs[ENIC_MULTICAST_PERFECT_FILTERS];
 };
 
 /* Compute ethdev's max packet size from MTU */
 static inline uint32_t enic_mtu_to_max_rx_pktlen(uint32_t mtu)
 {
-	/* ethdev max size includes eth whereas NIC MTU does not */
-	return mtu + ETHER_HDR_LEN;
+	/* ethdev max size includes eth and crc whereas NIC MTU does not */
+	return mtu + ETHER_HDR_LEN + ETHER_CRC_LEN;
 }
 
 /* Get the CQ index from a Start of Packet(SOP) RQ index */
@@ -339,8 +326,11 @@ uint16_t enic_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
 int enic_set_mtu(struct enic *enic, uint16_t new_mtu);
 int enic_link_update(struct enic *enic);
-bool enic_use_vector_rx_handler(struct enic *enic);
 void enic_fdir_info(struct enic *enic);
 void enic_fdir_info_get(struct enic *enic, struct rte_eth_fdir_info *stats);
+void copy_fltr_v1(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
+		  struct rte_eth_fdir_masks *masks);
+void copy_fltr_v2(struct filter_v2 *fltr, struct rte_eth_fdir_input *input,
+		  struct rte_eth_fdir_masks *masks);
 extern const struct rte_flow_ops enic_flow_ops;
 #endif /* _ENIC_H_ */

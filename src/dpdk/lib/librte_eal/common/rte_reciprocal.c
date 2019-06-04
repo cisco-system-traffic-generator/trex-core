@@ -41,13 +41,28 @@
 
 #include "rte_reciprocal.h"
 
+/* find largest set bit.
+ * portable and slow but does not matter for this usage.
+ */
+static inline int fls(uint32_t x)
+{
+	int b;
+
+	for (b = 31; b >= 0; --b) {
+		if (x & (1u << b))
+			return b + 1;
+	}
+
+	return 0;
+}
+
 struct rte_reciprocal rte_reciprocal_value(uint32_t d)
 {
 	struct rte_reciprocal R;
 	uint64_t m;
 	int l;
 
-	l = rte_fls_u32(d - 1);
+	l = fls(d - 1);
 	m = ((1ULL << 32) * ((1ULL << l) - d));
 	m /= d;
 

@@ -39,8 +39,14 @@
 #include <infiniband/umad_types.h>
 
 #ifdef __cplusplus
-extern "C" {
-#endif
+#  define BEGIN_C_DECLS extern "C" {
+#  define END_C_DECLS   }
+#else				/* !__cplusplus */
+#  define BEGIN_C_DECLS
+#  define END_C_DECLS
+#endif				/* __cplusplus */
+
+BEGIN_C_DECLS
 
 /* SA specific methods */
 enum {
@@ -126,21 +132,6 @@ enum {
 };
 
 /*
- * Shared by SA MCMemberRecord, PathRecord, and MultiPathRecord
- */
-enum {
-	UMAD_SA_SELECTOR_GREATER_THAN	= 0,
-	UMAD_SA_SELECTOR_LESS_THAN	= 1,
-	UMAD_SA_SELECTOR_EXACTLY	= 2,
-	UMAD_SA_SELECTOR_LARGEST_AVAIL	= 3,	/* rate & MTU */
-	UMAD_SA_SELECTOR_SMALLEST_AVAIL = 3	/* packet lifetime */
-};
-
-#define UMAD_SA_SELECTOR_SHIFT		6
-#define UMAD_SA_RATE_MTU_PKT_LIFE_MASK	0x3f
-#define UMAD_SA_SELECTOR_MASK		0x3
-
-/*
  *  sm_key is not aligned on an 8-byte boundary, so is defined as a byte array
  */
 struct umad_sa_packet {
@@ -153,20 +144,5 @@ struct umad_sa_packet {
 	uint8_t 		data[UMAD_LEN_SA_DATA]; /* network-byte order */
 };
 
-static inline uint8_t
-umad_sa_get_rate_mtu_or_life(uint8_t rate_mtu_or_life)
-{
-	return (rate_mtu_or_life & UMAD_SA_RATE_MTU_PKT_LIFE_MASK);
-}
-
-static inline uint8_t
-umad_sa_set_rate_mtu_or_life(uint8_t selector, uint8_t rate_mtu_or_life)
-{
-	return (((selector & UMAD_SA_SELECTOR_MASK) << UMAD_SA_SELECTOR_SHIFT) |
-		(rate_mtu_or_life & UMAD_SA_RATE_MTU_PKT_LIFE_MASK));
-}
-
-#ifdef __cplusplus
-}
-#endif
+END_C_DECLS
 #endif				/* _UMAD_SA_H */

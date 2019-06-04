@@ -17,10 +17,6 @@
  * from client code (and do not reappear in merges from other branches).
  */
 
-/* Check family options for EF10 architecture controllers. */
-#define	EFX_OPTS_EF10()	\
-	(EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
-
 #ifdef EFSYS_OPT_FALCON
 # error "FALCON is obsolete and is not supported."
 #endif
@@ -34,8 +30,9 @@
 
 #if EFSYS_OPT_CHECK_REG
 /* Verify chip implements accessed registers */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "CHECK_REG requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "CHECK_REG requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_CHECK_REG */
 
@@ -48,15 +45,17 @@
 
 #if EFSYS_OPT_DIAG
 /* Support diagnostic hardware tests */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "DIAG requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "DIAG requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_DIAG */
 
 #if EFSYS_OPT_EV_PREFETCH
 /* Support optimized EVQ data access */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "EV_PREFETCH requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "EV_PREFETCH requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_EV_PREFETCH */
 
@@ -66,21 +65,23 @@
 
 #if EFSYS_OPT_FILTER
 /* Support hardware packet filters */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "FILTER requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "FILTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_FILTER */
 
-#if EFX_OPTS_EF10()
+#if (EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
 # if !EFSYS_OPT_FILTER
-#  error "EF10 arch requires FILTER"
+#  error "HUNTINGTON or MEDFORD or MEDFORD2 requires FILTER"
 # endif
-#endif /* EFX_OPTS_EF10() */
+#endif /* EFSYS_OPT_HUNTINGTON */
 
 #if EFSYS_OPT_LOOPBACK
 /* Support hardware loopback modes */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "LOOPBACK requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "LOOPBACK requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_LOOPBACK */
 
@@ -94,21 +95,24 @@
 
 #if EFSYS_OPT_MAC_STATS
 /* Support MAC statistics */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "MAC_STATS requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "MAC_STATS requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_MAC_STATS */
 
 #if EFSYS_OPT_MCDI
 /* Support management controller messages */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "MCDI requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "MCDI requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_MCDI */
 
-#if (EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
+#if (EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
 # if !EFSYS_OPT_MCDI
-#  error "EF10 arch or SIENA requires MCDI"
+#  error "SIENA or HUNTINGTON or MEDFORD or MEDFORD2 requires MCDI"
 # endif
 #endif
 
@@ -148,15 +152,17 @@
 
 #if EFSYS_OPT_MON_STATS
 /* Support monitor statistics (voltage/temperature) */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "MON_STATS requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "MON_STATS requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_MON_STATS */
 
 #if EFSYS_OPT_MON_MCDI
 /* Support Monitor via mcdi */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "MON_MCDI requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "MON_MCDI requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_MON_MCDI*/
 
@@ -170,8 +176,9 @@
 
 #if EFSYS_OPT_NVRAM
 /* Support non volatile configuration */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "NVRAM requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "NVRAM requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_NVRAM */
 
@@ -211,8 +218,9 @@
 
 #if EFSYS_OPT_PHY_LED_CONTROL
 /* Support for PHY LED control */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "PHY_LED_CONTROL requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "PHY_LED_CONTROL requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_PHY_LED_CONTROL */
 
@@ -257,8 +265,9 @@
 
 #if EFSYS_OPT_QSTATS
 /* Support EVQ/RXQ/TXQ statistics */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "QSTATS requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "QSTATS requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_QSTATS */
 
@@ -268,15 +277,17 @@
 
 #if EFSYS_OPT_RX_SCALE
 /* Support receive scaling (RSS) */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "RX_SCALE requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "RX_SCALE requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_RX_SCALE */
 
 #if EFSYS_OPT_RX_SCATTER
 /* Support receive scatter DMA */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "RX_SCATTER requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "RX_SCATTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_RX_SCATTER */
 
@@ -286,8 +297,9 @@
 
 #if EFSYS_OPT_VPD
 /* Support PCI Vital Product Data (VPD) */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "VPD requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "VPD requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_VPD */
 
@@ -301,8 +313,9 @@
 
 #if EFSYS_OPT_BIST
 /* Support BIST */
-# if !(EFX_OPTS_EF10() || EFSYS_OPT_SIENA)
-#  error "BIST requires EF10 arch or SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || \
+	EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "BIST requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif /* EFSYS_OPT_BIST */
 
@@ -325,8 +338,8 @@
 
 #if EFSYS_OPT_RX_PACKED_STREAM
 /* Support packed stream mode */
-# if !EFX_OPTS_EF10()
-#  error "PACKED_STREAM requires EF10 arch"
+# if !(EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
+#  error "PACKED_STREAM requires HUNTINGTON or MEDFORD or MEDFORD2"
 # endif
 #endif
 

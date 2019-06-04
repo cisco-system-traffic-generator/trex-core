@@ -27,11 +27,10 @@
 #include <rte_ethdev_driver.h>
 #include <rte_common.h>
 
+#include "mlx5_utils.h"
 #include "mlx5.h"
 #include "mlx5_autoconf.h"
 #include "mlx5_glue.h"
-#include "mlx5_rxtx.h"
-#include "mlx5_utils.h"
 
 /**
  * DPDK callback to configure a VLAN filter.
@@ -49,7 +48,7 @@
 int
 mlx5_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	unsigned int i;
 
 	DRV_LOG(DEBUG, "port %u %s VLAN filter ID %" PRIu16,
@@ -103,7 +102,7 @@ out:
 void
 mlx5_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct mlx5_rxq_data *rxq = (*priv->rxqs)[queue];
 	struct mlx5_rxq_ctrl *rxq_ctrl =
 		container_of(rxq, struct mlx5_rxq_ctrl, rxq);
@@ -161,7 +160,7 @@ mlx5_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 int
 mlx5_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	unsigned int i;
 
 	if (mask & ETH_VLAN_STRIP_MASK) {

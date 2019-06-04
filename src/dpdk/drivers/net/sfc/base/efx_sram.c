@@ -25,8 +25,10 @@ efx_sram_buf_tbl_set(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_NIC);
 
-#if EFX_OPTS_EF10()
-	if (EFX_FAMILY_IS_EF10(enp)) {
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+	if (enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2) {
 		/*
 		 * FIXME: the efx_sram_buf_tbl_*() functionality needs to be
 		 * pulled inside the Falcon/Siena queue create/destroy code,
@@ -38,7 +40,7 @@ efx_sram_buf_tbl_set(
 
 		return (0);
 	}
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	if (stop >= EFX_BUF_TBL_SIZE) {
 		rc = EFBIG;
@@ -146,8 +148,10 @@ efx_sram_buf_tbl_clear(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_NIC);
 
-#if EFX_OPTS_EF10()
-	if (EFX_FAMILY_IS_EF10(enp)) {
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+	if (enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2) {
 		/*
 		 * FIXME: the efx_sram_buf_tbl_*() functionality needs to be
 		 * pulled inside the Falcon/Siena queue create/destroy code,
@@ -159,7 +163,7 @@ efx_sram_buf_tbl_clear(
 
 		return;
 	}
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	EFSYS_ASSERT3U(stop, <, EFX_BUF_TBL_SIZE);
 

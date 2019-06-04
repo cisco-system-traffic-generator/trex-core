@@ -341,8 +341,7 @@ int CreateHashModeHash(struct rte_eth_rss_conf *rss_conf,
     int n = snprintf(thash_config, THASH_CONFIG_LEN, ";algorithm=toeplitz");
     if (rss_conf->rss_key && rss_conf->rss_key_len) {
       n += snprintf(&thash_config[n], THASH_CONFIG_LEN-n, ";key=0x");
-      uint8_t i;
-      for (i = 0; i < rss_conf->rss_key_len; i++) {
+      for (uint8_t i = 0; i < rss_conf->rss_key_len; i++) {
         n += snprintf(&thash_config[n], THASH_CONFIG_LEN-n, "%02x", rss_conf->rss_key[i]);
       }
     }

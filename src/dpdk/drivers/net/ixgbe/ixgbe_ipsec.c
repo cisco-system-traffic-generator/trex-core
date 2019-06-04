@@ -364,7 +364,6 @@ ixgbe_crypto_create_session(void *device,
 			conf->crypto_xform->aead.algo !=
 					RTE_CRYPTO_AEAD_AES_GCM) {
 		PMD_DRV_LOG(ERR, "Unsupported crypto transformation mode\n");
-		rte_mempool_put(mempool, (void *)ic_session);
 		return -ENOTSUP;
 	}
 	aead_xform = &conf->crypto_xform->aead;
@@ -374,7 +373,6 @@ ixgbe_crypto_create_session(void *device,
 			ic_session->op = IXGBE_OP_AUTHENTICATED_DECRYPTION;
 		} else {
 			PMD_DRV_LOG(ERR, "IPsec decryption not enabled\n");
-			rte_mempool_put(mempool, (void *)ic_session);
 			return -ENOTSUP;
 		}
 	} else {
@@ -382,7 +380,6 @@ ixgbe_crypto_create_session(void *device,
 			ic_session->op = IXGBE_OP_AUTHENTICATED_ENCRYPTION;
 		} else {
 			PMD_DRV_LOG(ERR, "IPsec encryption not enabled\n");
-			rte_mempool_put(mempool, (void *)ic_session);
 			return -ENOTSUP;
 		}
 	}
@@ -398,7 +395,6 @@ ixgbe_crypto_create_session(void *device,
 	if (ic_session->op == IXGBE_OP_AUTHENTICATED_ENCRYPTION) {
 		if (ixgbe_crypto_add_sa(ic_session)) {
 			PMD_DRV_LOG(ERR, "Failed to add SA\n");
-			rte_mempool_put(mempool, (void *)ic_session);
 			return -EPERM;
 		}
 	}
@@ -613,7 +609,7 @@ ixgbe_crypto_enable_ipsec(struct rte_eth_dev *dev)
 		PMD_DRV_LOG(ERR, "RSC and IPsec not supported");
 		return -1;
 	}
-	if (rx_offloads & DEV_RX_OFFLOAD_KEEP_CRC) {
+	if (rte_eth_dev_must_keep_crc(rx_offloads)) {
 		PMD_DRV_LOG(ERR, "HW CRC strip needs to be enabled for IPsec");
 		return -1;
 	}

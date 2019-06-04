@@ -13,9 +13,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <rte_string_fns.h>
-#include <rte_eal_memconfig.h>
-
 #include "vhost.h"
 #include "virtio_user_dev.h"
 #include "../virtio_ethdev.h"
@@ -44,25 +41,14 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	struct vhost_vring_file file;
 	struct vhost_vring_state state;
 	struct vring *vring = &dev->vrings[queue_sel];
-	struct vring_packed *pq_vring = &dev->packed_vrings[queue_sel];
 	struct vhost_vring_addr addr = {
 		.index = queue_sel,
+		.desc_user_addr = (uint64_t)(uintptr_t)vring->desc,
+		.avail_user_addr = (uint64_t)(uintptr_t)vring->avail,
+		.used_user_addr = (uint64_t)(uintptr_t)vring->used,
 		.log_guest_addr = 0,
 		.flags = 0, /* disable log */
 	};
-
-	if (dev->features & (1ULL << VIRTIO_F_RING_PACKED)) {
-		addr.desc_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->desc;
-		addr.avail_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->driver;
-		addr.used_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->device;
-	} else {
-		addr.desc_user_addr = (uint64_t)(uintptr_t)vring->desc;
-		addr.avail_user_addr = (uint64_t)(uintptr_t)vring->avail;
-		addr.used_user_addr = (uint64_t)(uintptr_t)vring->used;
-	}
 
 	state.index = queue_sel;
 	state.num = vring->num;
@@ -70,8 +56,6 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 
 	state.index = queue_sel;
 	state.num = 0; /* no reservation */
-	if (dev->features & (1ULL << VIRTIO_F_RING_PACKED))
-		state.num |= (1 << 15);
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_BASE, &state);
 
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_ADDR, &addr);
@@ -125,28 +109,16 @@ is_vhost_user_by_type(const char *path)
 int
 virtio_user_start_device(struct virtio_user_dev *dev)
 {
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	uint64_t features;
 	int ret;
 
-	/*
-	 * XXX workaround!
-	 *
-	 * We need to make sure that the locks will be
-	 * taken in the correct order to avoid deadlocks.
-	 *
-	 * Before releasing this lock, this thread should
-	 * not trigger any memory hotplug events.
-	 *
-	 * This is a temporary workaround, and should be
-	 * replaced when we get proper supports from the
-	 * memory subsystem in the future.
-	 */
-	rte_rwlock_read_lock(&mcfg->memory_hotplug_lock);
 	pthread_mutex_lock(&dev->mutex);
 
 	if (is_vhost_user_by_type(dev->path) && dev->vhostfd < 0)
 		goto error;
+
+	/* Do not check return as already done in init, or reset in stop */
+	dev->ops->send_request(dev, VHOST_USER_SET_OWNER, NULL);
 
 	/* Step 0: tell vhost to create queues */
 	if (virtio_user_queue_setup(dev, virtio_user_create_queue) < 0)
@@ -180,46 +152,31 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 
 	dev->started = true;
 	pthread_mutex_unlock(&dev->mutex);
-	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
 
 	return 0;
 error:
 	pthread_mutex_unlock(&dev->mutex);
-	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
 	/* TODO: free resource here or caller to check */
 	return -1;
 }
 
 int virtio_user_stop_device(struct virtio_user_dev *dev)
 {
-	struct vhost_vring_state state;
 	uint32_t i;
-	int error = 0;
 
 	pthread_mutex_lock(&dev->mutex);
-	if (!dev->started)
-		goto out;
-
 	for (i = 0; i < dev->max_queue_pairs; ++i)
 		dev->ops->enable_qp(dev, i, 0);
 
-	/* Stop the backend. */
-	for (i = 0; i < dev->max_queue_pairs * 2; ++i) {
-		state.index = i;
-		if (dev->ops->send_request(dev, VHOST_USER_GET_VRING_BASE,
-					   &state) < 0) {
-			PMD_DRV_LOG(ERR, "get_vring_base failed, index=%u\n",
-				    i);
-			error = -1;
-			goto out;
-		}
+	if (dev->ops->send_request(dev, VHOST_USER_RESET_OWNER, NULL) < 0) {
+		PMD_DRV_LOG(INFO, "Failed to reset the device\n");
+		pthread_mutex_unlock(&dev->mutex);
+		return -1;
 	}
-
 	dev->started = false;
-out:
 	pthread_mutex_unlock(&dev->mutex);
 
-	return error;
+	return 0;
 }
 
 static inline void
@@ -325,13 +282,7 @@ virtio_user_mem_event_cb(enum rte_mem_event type __rte_unused,
 						 void *arg)
 {
 	struct virtio_user_dev *dev = arg;
-	struct rte_memseg_list *msl;
 	uint16_t i;
-
-	/* ignore externally allocated memory */
-	msl = rte_mem_virt2memseg_list(addr);
-	if (msl->external)
-		return;
 
 	pthread_mutex_lock(&dev->mutex);
 
@@ -368,12 +319,12 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 			PMD_DRV_LOG(ERR, "Server mode doesn't support vhost-kernel!");
 			return -1;
 		}
-		dev->ops = &virtio_ops_user;
+		dev->ops = &ops_user;
 	} else {
 		if (is_vhost_user_by_type(dev->path)) {
-			dev->ops = &virtio_ops_user;
+			dev->ops = &ops_user;
 		} else {
-			dev->ops = &virtio_ops_kernel;
+			dev->ops = &ops_kernel;
 
 			dev->vhostfds = malloc(dev->max_queue_pairs *
 					       sizeof(int));
@@ -421,24 +372,21 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 	 1ULL << VIRTIO_NET_F_GUEST_TSO4	|	\
 	 1ULL << VIRTIO_NET_F_GUEST_TSO6	|	\
 	 1ULL << VIRTIO_F_IN_ORDER		|	\
-	 1ULL << VIRTIO_F_VERSION_1		|	\
-	 1ULL << VIRTIO_F_RING_PACKED)
+	 1ULL << VIRTIO_F_VERSION_1)
 
 int
 virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		     int cq, int queue_size, const char *mac, char **ifname,
-		     int server, int mrg_rxbuf, int in_order, int packed_vq)
+		     int mrg_rxbuf, int in_order)
 {
 	pthread_mutex_init(&dev->mutex, NULL);
-	strlcpy(dev->path, path, PATH_MAX);
+	snprintf(dev->path, PATH_MAX, "%s", path);
 	dev->started = 0;
 	dev->max_queue_pairs = queues;
 	dev->queue_pairs = 1; /* mq disabled by default */
 	dev->queue_size = queue_size;
-	dev->is_server = server;
 	dev->mac_specified = 0;
-	dev->frontend_features = 0;
-	dev->unsupported_features = ~VIRTIO_USER_SUPPORTED_FEATURES;
+	dev->unsupported_features = 0;
 	parse_mac(dev, mac);
 
 	if (*ifname) {
@@ -474,28 +422,37 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features = VIRTIO_USER_SUPPORTED_FEATURES;
 	}
 
-	if (!mrg_rxbuf)
+	if (!mrg_rxbuf) {
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_MRG_RXBUF);
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MRG_RXBUF);
+	}
 
-	if (!in_order)
+	if (!in_order) {
+		dev->device_features &= ~(1ull << VIRTIO_F_IN_ORDER);
 		dev->unsupported_features |= (1ull << VIRTIO_F_IN_ORDER);
+	}
 
-	if (!packed_vq)
-		dev->unsupported_features |= (1ull << VIRTIO_F_RING_PACKED);
-
-	if (dev->mac_specified)
-		dev->frontend_features |= (1ull << VIRTIO_NET_F_MAC);
-	else
+	if (dev->mac_specified) {
+		dev->device_features |= (1ull << VIRTIO_NET_F_MAC);
+	} else {
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_MAC);
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MAC);
+	}
 
 	if (cq) {
 		/* device does not really need to know anything about CQ,
 		 * so if necessary, we just claim to support CQ
 		 */
-		dev->frontend_features |= (1ull << VIRTIO_NET_F_CTRL_VQ);
+		dev->device_features |= (1ull << VIRTIO_NET_F_CTRL_VQ);
 	} else {
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_VQ);
+		/* Also disable features depends on VIRTIO_NET_F_CTRL_VQ */
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_RX);
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_VLAN);
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_GUEST_ANNOUNCE);
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_MQ);
+		dev->device_features &= ~(1ull << VIRTIO_NET_F_CTRL_MAC_ADDR);
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_VQ);
-		/* Also disable features that depend on VIRTIO_NET_F_CTRL_VQ */
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_RX);
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_CTRL_VLAN);
 		dev->unsupported_features |=
@@ -507,14 +464,10 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 
 	/* The backend will not report this feature, we add it explicitly */
 	if (is_vhost_user_by_type(dev->path))
-		dev->frontend_features |= (1ull << VIRTIO_NET_F_STATUS);
+		dev->device_features |= (1ull << VIRTIO_NET_F_STATUS);
 
-	/*
-	 * Device features =
-	 *     (frontend_features | backend_features) & ~unsupported_features;
-	 */
-	dev->device_features |= dev->frontend_features;
-	dev->device_features &= ~dev->unsupported_features;
+	dev->device_features &= VIRTIO_USER_SUPPORTED_FEATURES;
+	dev->unsupported_features |= ~VIRTIO_USER_SUPPORTED_FEATURES;
 
 	if (rte_mem_event_callback_register(VIRTIO_USER_MEM_EVENT_CLB_NAME,
 				virtio_user_mem_event_cb, dev)) {
@@ -577,11 +530,13 @@ virtio_user_handle_mq(struct virtio_user_dev *dev, uint16_t q_pairs)
 	/* Server mode can't enable queue pairs if vhostfd is invalid,
 	 * always return 0 in this case.
 	 */
-	if (!dev->is_server || dev->vhostfd >= 0) {
+	if (dev->vhostfd >= 0) {
 		for (i = 0; i < q_pairs; ++i)
 			ret |= dev->ops->enable_qp(dev, i, 1);
 		for (i = q_pairs; i < dev->max_queue_pairs; ++i)
 			ret |= dev->ops->enable_qp(dev, i, 0);
+	} else if (!dev->is_server) {
+		ret = ~0;
 	}
 	dev->queue_pairs = q_pairs;
 
@@ -626,90 +581,6 @@ virtio_user_handle_ctrl_msg(struct virtio_user_dev *dev, struct vring *vring,
 	return n_descs;
 }
 
-static inline int
-desc_is_avail(struct vring_packed_desc *desc, bool wrap_counter)
-{
-	uint16_t flags = desc->flags;
-
-	return wrap_counter == !!(flags & VRING_PACKED_DESC_F_AVAIL) &&
-		wrap_counter != !!(flags & VRING_PACKED_DESC_F_USED);
-}
-
-static uint32_t
-virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
-				   struct vring_packed *vring,
-				   uint16_t idx_hdr)
-{
-	struct virtio_net_ctrl_hdr *hdr;
-	virtio_net_ctrl_ack status = ~0;
-	uint16_t idx_data, idx_status;
-	/* initialize to one, header is first */
-	uint32_t n_descs = 1;
-
-	/* locate desc for header, data, and status */
-	idx_data = idx_hdr + 1;
-	if (idx_data >= dev->queue_size)
-		idx_data -= dev->queue_size;
-
-	n_descs++;
-
-	idx_status = idx_data;
-	while (vring->desc[idx_status].flags & VRING_DESC_F_NEXT) {
-		idx_status++;
-		if (idx_status >= dev->queue_size)
-			idx_status -= dev->queue_size;
-		n_descs++;
-	}
-
-	hdr = (void *)(uintptr_t)vring->desc[idx_hdr].addr;
-	if (hdr->class == VIRTIO_NET_CTRL_MQ &&
-	    hdr->cmd == VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET) {
-		uint16_t queues;
-
-		queues = *(uint16_t *)(uintptr_t)
-				vring->desc[idx_data].addr;
-		status = virtio_user_handle_mq(dev, queues);
-	}
-
-	/* Update status */
-	*(virtio_net_ctrl_ack *)(uintptr_t)
-		vring->desc[idx_status].addr = status;
-
-	/* Update used descriptor */
-	vring->desc[idx_hdr].id = vring->desc[idx_status].id;
-	vring->desc[idx_hdr].len = sizeof(status);
-
-	return n_descs;
-}
-
-void
-virtio_user_handle_cq_packed(struct virtio_user_dev *dev, uint16_t queue_idx)
-{
-	struct virtio_user_queue *vq = &dev->packed_queues[queue_idx];
-	struct vring_packed *vring = &dev->packed_vrings[queue_idx];
-	uint16_t n_descs, flags;
-
-	while (desc_is_avail(&vring->desc[vq->used_idx],
-			     vq->used_wrap_counter)) {
-
-		n_descs = virtio_user_handle_ctrl_msg_packed(dev, vring,
-				vq->used_idx);
-
-		flags = VRING_DESC_F_WRITE;
-		if (vq->used_wrap_counter)
-			flags |= VRING_PACKED_DESC_F_AVAIL_USED;
-
-		rte_smp_wmb();
-		vring->desc[vq->used_idx].flags = flags;
-
-		vq->used_idx += n_descs;
-		if (vq->used_idx >= dev->queue_size) {
-			vq->used_idx -= dev->queue_size;
-			vq->used_wrap_counter ^= 1;
-		}
-	}
-}
-
 void
 virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 {
@@ -727,7 +598,7 @@ virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 
 		/* Update used ring */
 		uep = &vring->used->ring[avail_idx];
-		uep->id = desc_idx;
+		uep->id = avail_idx;
 		uep->len = n_descs;
 
 		vring->used->idx++;

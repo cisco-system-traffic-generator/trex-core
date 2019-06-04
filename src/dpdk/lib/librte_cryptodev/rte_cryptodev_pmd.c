@@ -2,7 +2,6 @@
  * Copyright(c) 2017 Intel Corporation
  */
 
-#include <rte_string_fns.h>
 #include <rte_malloc.h>
 
 #include "rte_cryptodev_pmd.h"
@@ -17,7 +16,7 @@ rte_cryptodev_pmd_parse_name_arg(const char *key __rte_unused,
 	struct rte_cryptodev_pmd_init_params *params = extra_args;
 	int n;
 
-	n = strlcpy(params->name, value, RTE_CRYPTODEV_NAME_MAX_LEN);
+	n = snprintf(params->name, RTE_CRYPTODEV_NAME_MAX_LEN, "%s", value);
 	if (n >= RTE_CRYPTODEV_NAME_MAX_LEN)
 		return -EINVAL;
 
@@ -94,20 +93,24 @@ rte_cryptodev_pmd_create(const char *name,
 	struct rte_cryptodev *cryptodev;
 
 	if (params->name[0] != '\0') {
-		CDEV_LOG_INFO("User specified device name = %s\n", params->name);
+		CDEV_LOG_INFO("[%s] User specified device name = %s\n",
+				device->driver->name, params->name);
 		name = params->name;
 	}
 
-	CDEV_LOG_INFO("Creating cryptodev %s\n", name);
+	CDEV_LOG_INFO("[%s] - Creating cryptodev %s\n",
+			device->driver->name, name);
 
-	CDEV_LOG_INFO("Initialisation parameters - name: %s,"
+	CDEV_LOG_INFO("[%s] - Initialisation parameters - name: %s,"
 			"socket id: %d, max queue pairs: %u",
-			name, params->socket_id, params->max_nb_queue_pairs);
+			device->driver->name, name,
+			params->socket_id, params->max_nb_queue_pairs);
 
 	/* allocate device structure */
 	cryptodev = rte_cryptodev_pmd_allocate(name, params->socket_id);
 	if (cryptodev == NULL) {
-		CDEV_LOG_ERR("Failed to allocate crypto device for %s", name);
+		CDEV_LOG_ERR("[%s] Failed to allocate crypto device for %s",
+				device->driver->name, name);
 		return NULL;
 	}
 
@@ -120,8 +123,9 @@ rte_cryptodev_pmd_create(const char *name,
 						params->socket_id);
 
 		if (cryptodev->data->dev_private == NULL) {
-			CDEV_LOG_ERR("Cannot allocate memory for cryptodev %s"
-					" private data", name);
+			CDEV_LOG_ERR("[%s] Cannot allocate memory for "
+					"cryptodev %s private data",
+					device->driver->name, name);
 
 			rte_cryptodev_pmd_release_device(cryptodev);
 			return NULL;
@@ -141,7 +145,9 @@ rte_cryptodev_pmd_destroy(struct rte_cryptodev *cryptodev)
 {
 	int retval;
 
-	CDEV_LOG_INFO("Closing crypto device %s", cryptodev->device->name);
+	CDEV_LOG_INFO("[%s] Closing crypto device %s",
+			cryptodev->device->driver->name,
+			cryptodev->device->name);
 
 	/* free crypto device */
 	retval = rte_cryptodev_pmd_release_device(cryptodev);

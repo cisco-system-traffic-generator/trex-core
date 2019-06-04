@@ -2,7 +2,6 @@
  * Copyright(c) 2010-2014 Intel Corporation
  */
 
-#include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -24,7 +23,6 @@
 #include "eal_memalloc.h"
 #include "eal_private.h"
 #include "eal_internal_cfg.h"
-#include "malloc_heap.h"
 
 /*
  * Try to mmap *size bytes in /dev/zero. If it is successful, return the
@@ -39,24 +37,6 @@
 static void *next_baseaddr;
 static uint64_t system_page_sz;
 
-#ifdef RTE_ARCH_64
-/*
- * Linux kernel uses a really high address as starting address for serving
- * mmaps calls. If there exists addressing limitations and IOVA mode is VA,
- * this starting address is likely too high for those devices. However, it
- * is possible to use a lower address in the process virtual address space
- * as with 64 bits there is a lot of available space.
- *
- * Current known limitations are 39 or 40 bits. Setting the starting address
- * at 4GB implies there are 508GB or 1020GB for mapping the available
- * hugepages. This is likely enough for most systems, although a device with
- * addressing limitations should call rte_mem_check_dma_mask for ensuring all
- * memory is within supported range.
- */
-static uint64_t baseaddr = 0x100000000;
-#endif
-
-#define MAX_MMAP_WITH_DEFINED_ADDR_TRIES 5
 void *
 eal_get_virtual_area(void *requested_addr, size_t *size,
 		size_t page_sz, int flags, int mmap_flags)
@@ -64,7 +44,6 @@ eal_get_virtual_area(void *requested_addr, size_t *size,
 	bool addr_is_hint, allow_shrink, unmap, no_align;
 	uint64_t map_sz;
 	void *mapped_addr, *aligned_addr;
-	uint8_t try = 0;
 
 	if (system_page_sz == 0)
 		system_page_sz = sysconf(_SC_PAGESIZE);
@@ -81,11 +60,6 @@ eal_get_virtual_area(void *requested_addr, size_t *size,
 			rte_eal_process_type() == RTE_PROC_PRIMARY)
 		next_baseaddr = (void *) internal_config.base_virtaddr;
 
-#ifdef RTE_ARCH_64
-	if (next_baseaddr == NULL && internal_config.base_virtaddr == 0 &&
-			rte_eal_process_type() == RTE_PROC_PRIMARY)
-		next_baseaddr = (void *) baseaddr;
-#endif
 	if (requested_addr == NULL && next_baseaddr != NULL) {
 		requested_addr = next_baseaddr;
 		requested_addr = RTE_PTR_ALIGN(requested_addr, page_sz);
@@ -117,20 +91,7 @@ eal_get_virtual_area(void *requested_addr, size_t *size,
 				mmap_flags, -1, 0);
 		if (mapped_addr == MAP_FAILED && allow_shrink)
 			*size -= page_sz;
-
-		if (mapped_addr != MAP_FAILED && addr_is_hint &&
-		    mapped_addr != requested_addr) {
-			try++;
-			next_baseaddr = RTE_PTR_ADD(next_baseaddr, page_sz);
-			if (try <= MAX_MMAP_WITH_DEFINED_ADDR_TRIES) {
-				/* hint was not used. Try with another offset */
-				munmap(mapped_addr, map_sz);
-				mapped_addr = MAP_FAILED;
-				requested_addr = next_baseaddr;
-			}
-		}
-	} while ((allow_shrink || addr_is_hint) &&
-		 mapped_addr == MAP_FAILED && *size > 0);
+	} while (allow_shrink && mapped_addr == MAP_FAILED && *size > 0);
 
 	/* align resulting address - if map failed, we will ignore the value
 	 * anyway, so no need to add additional checks.
@@ -210,7 +171,7 @@ virt2memseg(const void *addr, const struct rte_memseg_list *msl)
 
 	/* a memseg list was specified, check if it's the right one */
 	start = msl->base_va;
-	end = RTE_PTR_ADD(start, msl->len);
+	end = RTE_PTR_ADD(start, (size_t)msl->page_sz * msl->memseg_arr.len);
 
 	if (addr < start || addr >= end)
 		return NULL;
@@ -233,7 +194,8 @@ virt2memseg_list(const void *addr)
 		msl = &mcfg->memsegs[msl_idx];
 
 		start = msl->base_va;
-		end = RTE_PTR_ADD(start, msl->len);
+		end = RTE_PTR_ADD(start,
+				(size_t)msl->page_sz * msl->memseg_arr.len);
 		if (addr >= start && addr < end)
 			break;
 	}
@@ -311,9 +273,6 @@ physmem_size(const struct rte_memseg_list *msl, void *arg)
 {
 	uint64_t *total_len = arg;
 
-	if (msl->external)
-		return 0;
-
 	*total_len += msl->memseg_arr.count * msl->page_sz;
 
 	return 0;
@@ -335,7 +294,7 @@ dump_memseg(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
 		void *arg)
 {
 	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	int msl_idx, ms_idx, fd;
+	int msl_idx, ms_idx;
 	FILE *f = arg;
 
 	msl_idx = msl - mcfg->memsegs;
@@ -346,11 +305,10 @@ dump_memseg(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
 	if (ms_idx < 0)
 		return -1;
 
-	fd = eal_memalloc_get_seg_fd(msl_idx, ms_idx);
 	fprintf(f, "Segment %i-%i: IOVA:0x%"PRIx64", len:%zu, "
 			"virt:%p, socket_id:%"PRId32", "
 			"hugepage_sz:%"PRIu64", nchannel:%"PRIx32", "
-			"nrank:%"PRIx32" fd:%i\n",
+			"nrank:%"PRIx32"\n",
 			msl_idx, ms_idx,
 			ms->iova,
 			ms->len,
@@ -358,8 +316,7 @@ dump_memseg(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
 			ms->socket_id,
 			ms->hugepage_sz,
 			ms->nchannel,
-			ms->nrank,
-			fd);
+			ms->nrank);
 
 	return 0;
 }
@@ -424,97 +381,6 @@ void
 rte_dump_physmem_layout(FILE *f)
 {
 	rte_memseg_walk(dump_memseg, f);
-}
-
-static int
-check_iova(const struct rte_memseg_list *msl __rte_unused,
-		const struct rte_memseg *ms, void *arg)
-{
-	uint64_t *mask = arg;
-	rte_iova_t iova;
-
-	/* higher address within segment */
-	iova = (ms->iova + ms->len) - 1;
-	if (!(iova & *mask))
-		return 0;
-
-	RTE_LOG(DEBUG, EAL, "memseg iova %"PRIx64", len %zx, out of range\n",
-			    ms->iova, ms->len);
-
-	RTE_LOG(DEBUG, EAL, "\tusing dma mask %"PRIx64"\n", *mask);
-	return 1;
-}
-
-#define MAX_DMA_MASK_BITS 63
-
-/* check memseg iovas are within the required range based on dma mask */
-static int __rte_experimental
-check_dma_mask(uint8_t maskbits, bool thread_unsafe)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	uint64_t mask;
-	int ret;
-
-	/* Sanity check. We only check width can be managed with 64 bits
-	 * variables. Indeed any higher value is likely wrong. */
-	if (maskbits > MAX_DMA_MASK_BITS) {
-		RTE_LOG(ERR, EAL, "wrong dma mask size %u (Max: %u)\n",
-				   maskbits, MAX_DMA_MASK_BITS);
-		return -1;
-	}
-
-	/* create dma mask */
-	mask = ~((1ULL << maskbits) - 1);
-
-	if (thread_unsafe)
-		ret = rte_memseg_walk_thread_unsafe(check_iova, &mask);
-	else
-		ret = rte_memseg_walk(check_iova, &mask);
-
-	if (ret)
-		/*
-		 * Dma mask precludes hugepage usage.
-		 * This device can not be used and we do not need to keep
-		 * the dma mask.
-		 */
-		return 1;
-
-	/*
-	 * we need to keep the more restricted maskbit for checking
-	 * potential dynamic memory allocation in the future.
-	 */
-	mcfg->dma_maskbits = mcfg->dma_maskbits == 0 ? maskbits :
-			     RTE_MIN(mcfg->dma_maskbits, maskbits);
-
-	return 0;
-}
-
-int __rte_experimental
-rte_mem_check_dma_mask(uint8_t maskbits)
-{
-	return check_dma_mask(maskbits, false);
-}
-
-int __rte_experimental
-rte_mem_check_dma_mask_thread_unsafe(uint8_t maskbits)
-{
-	return check_dma_mask(maskbits, true);
-}
-
-/*
- * Set dma mask to use when memory initialization is done.
- *
- * This function should ONLY be used by code executed before the memory
- * initialization. PMDs should use rte_mem_check_dma_mask if addressing
- * limitations by the device.
- */
-void __rte_experimental
-rte_mem_set_dma_mask(uint8_t maskbits)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-
-	mcfg->dma_maskbits = mcfg->dma_maskbits == 0 ? maskbits :
-			     RTE_MIN(mcfg->dma_maskbits, maskbits);
 }
 
 /* return the number of memory channels */
@@ -680,235 +546,6 @@ rte_memseg_list_walk(rte_memseg_list_walk_t func, void *arg)
 	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
 
 	return ret;
-}
-
-int __rte_experimental
-rte_memseg_get_fd_thread_unsafe(const struct rte_memseg *ms)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct rte_memseg_list *msl;
-	struct rte_fbarray *arr;
-	int msl_idx, seg_idx, ret;
-
-	if (ms == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	msl = rte_mem_virt2memseg_list(ms->addr);
-	if (msl == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-	arr = &msl->memseg_arr;
-
-	msl_idx = msl - mcfg->memsegs;
-	seg_idx = rte_fbarray_find_idx(arr, ms);
-
-	if (!rte_fbarray_is_used(arr, seg_idx)) {
-		rte_errno = ENOENT;
-		return -1;
-	}
-
-	/* segment fd API is not supported for external segments */
-	if (msl->external) {
-		rte_errno = ENOTSUP;
-		return -1;
-	}
-
-	ret = eal_memalloc_get_seg_fd(msl_idx, seg_idx);
-	if (ret < 0) {
-		rte_errno = -ret;
-		ret = -1;
-	}
-	return ret;
-}
-
-int __rte_experimental
-rte_memseg_get_fd(const struct rte_memseg *ms)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	int ret;
-
-	rte_rwlock_read_lock(&mcfg->memory_hotplug_lock);
-	ret = rte_memseg_get_fd_thread_unsafe(ms);
-	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
-
-	return ret;
-}
-
-int __rte_experimental
-rte_memseg_get_fd_offset_thread_unsafe(const struct rte_memseg *ms,
-		size_t *offset)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct rte_memseg_list *msl;
-	struct rte_fbarray *arr;
-	int msl_idx, seg_idx, ret;
-
-	if (ms == NULL || offset == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	msl = rte_mem_virt2memseg_list(ms->addr);
-	if (msl == NULL) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-	arr = &msl->memseg_arr;
-
-	msl_idx = msl - mcfg->memsegs;
-	seg_idx = rte_fbarray_find_idx(arr, ms);
-
-	if (!rte_fbarray_is_used(arr, seg_idx)) {
-		rte_errno = ENOENT;
-		return -1;
-	}
-
-	/* segment fd API is not supported for external segments */
-	if (msl->external) {
-		rte_errno = ENOTSUP;
-		return -1;
-	}
-
-	ret = eal_memalloc_get_seg_fd_offset(msl_idx, seg_idx, offset);
-	if (ret < 0) {
-		rte_errno = -ret;
-		ret = -1;
-	}
-	return ret;
-}
-
-int __rte_experimental
-rte_memseg_get_fd_offset(const struct rte_memseg *ms, size_t *offset)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	int ret;
-
-	rte_rwlock_read_lock(&mcfg->memory_hotplug_lock);
-	ret = rte_memseg_get_fd_offset_thread_unsafe(ms, offset);
-	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
-
-	return ret;
-}
-
-int __rte_experimental
-rte_extmem_register(void *va_addr, size_t len, rte_iova_t iova_addrs[],
-		unsigned int n_pages, size_t page_sz)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	unsigned int socket_id, n;
-	int ret = 0;
-
-	if (va_addr == NULL || page_sz == 0 || len == 0 ||
-			!rte_is_power_of_2(page_sz) ||
-			RTE_ALIGN(len, page_sz) != len ||
-			((len / page_sz) != n_pages && iova_addrs != NULL) ||
-			!rte_is_aligned(va_addr, page_sz)) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-	rte_rwlock_write_lock(&mcfg->memory_hotplug_lock);
-
-	/* make sure the segment doesn't already exist */
-	if (malloc_heap_find_external_seg(va_addr, len) != NULL) {
-		rte_errno = EEXIST;
-		ret = -1;
-		goto unlock;
-	}
-
-	/* get next available socket ID */
-	socket_id = mcfg->next_socket_id;
-	if (socket_id > INT32_MAX) {
-		RTE_LOG(ERR, EAL, "Cannot assign new socket ID's\n");
-		rte_errno = ENOSPC;
-		ret = -1;
-		goto unlock;
-	}
-
-	/* we can create a new memseg */
-	n = len / page_sz;
-	if (malloc_heap_create_external_seg(va_addr, iova_addrs, n,
-			page_sz, "extmem", socket_id) == NULL) {
-		ret = -1;
-		goto unlock;
-	}
-
-	/* memseg list successfully created - increment next socket ID */
-	mcfg->next_socket_id++;
-unlock:
-	rte_rwlock_write_unlock(&mcfg->memory_hotplug_lock);
-	return ret;
-}
-
-int __rte_experimental
-rte_extmem_unregister(void *va_addr, size_t len)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct rte_memseg_list *msl;
-	int ret = 0;
-
-	if (va_addr == NULL || len == 0) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-	rte_rwlock_write_lock(&mcfg->memory_hotplug_lock);
-
-	/* find our segment */
-	msl = malloc_heap_find_external_seg(va_addr, len);
-	if (msl == NULL) {
-		rte_errno = ENOENT;
-		ret = -1;
-		goto unlock;
-	}
-
-	ret = malloc_heap_destroy_external_seg(msl);
-unlock:
-	rte_rwlock_write_unlock(&mcfg->memory_hotplug_lock);
-	return ret;
-}
-
-static int
-sync_memory(void *va_addr, size_t len, bool attach)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct rte_memseg_list *msl;
-	int ret = 0;
-
-	if (va_addr == NULL || len == 0) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-	rte_rwlock_write_lock(&mcfg->memory_hotplug_lock);
-
-	/* find our segment */
-	msl = malloc_heap_find_external_seg(va_addr, len);
-	if (msl == NULL) {
-		rte_errno = ENOENT;
-		ret = -1;
-		goto unlock;
-	}
-	if (attach)
-		ret = rte_fbarray_attach(&msl->memseg_arr);
-	else
-		ret = rte_fbarray_detach(&msl->memseg_arr);
-
-unlock:
-	rte_rwlock_write_unlock(&mcfg->memory_hotplug_lock);
-	return ret;
-}
-
-int __rte_experimental
-rte_extmem_attach(void *va_addr, size_t len)
-{
-	return sync_memory(va_addr, len, true);
-}
-
-int __rte_experimental
-rte_extmem_detach(void *va_addr, size_t len)
-{
-	return sync_memory(va_addr, len, false);
 }
 
 /* init memory subsystem */

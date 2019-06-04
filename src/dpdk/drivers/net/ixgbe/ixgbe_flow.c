@@ -363,17 +363,6 @@ cons_parse_ntuple_filter(const struct rte_flow_attr *attr,
 				item, "Not supported by ntuple filter");
 			return -rte_errno;
 		}
-		if ((ipv4_mask->hdr.src_addr != 0 &&
-			ipv4_mask->hdr.src_addr != UINT32_MAX) ||
-			(ipv4_mask->hdr.dst_addr != 0 &&
-			ipv4_mask->hdr.dst_addr != UINT32_MAX) ||
-			(ipv4_mask->hdr.next_proto_id != UINT8_MAX &&
-			ipv4_mask->hdr.next_proto_id != 0)) {
-			rte_flow_error_set(error,
-				EINVAL, RTE_FLOW_ERROR_TYPE_ITEM,
-				item, "Not supported by ntuple filter");
-			return -rte_errno;
-		}
 
 		filter->dst_ip_mask = ipv4_mask->hdr.dst_addr;
 		filter->src_ip_mask = ipv4_mask->hdr.src_addr;
@@ -443,15 +432,6 @@ cons_parse_ntuple_filter(const struct rte_flow_attr *attr,
 				item, "Not supported by ntuple filter");
 			return -rte_errno;
 		}
-		if ((tcp_mask->hdr.src_port != 0 &&
-			tcp_mask->hdr.src_port != UINT16_MAX) ||
-			(tcp_mask->hdr.dst_port != 0 &&
-			tcp_mask->hdr.dst_port != UINT16_MAX)) {
-			rte_flow_error_set(error,
-				EINVAL, RTE_FLOW_ERROR_TYPE_ITEM,
-				item, "Not supported by ntuple filter");
-			return -rte_errno;
-		}
 
 		filter->dst_port_mask  = tcp_mask->hdr.dst_port;
 		filter->src_port_mask  = tcp_mask->hdr.src_port;
@@ -484,15 +464,6 @@ cons_parse_ntuple_filter(const struct rte_flow_attr *attr,
 				sizeof(struct rte_eth_ntuple_filter));
 			rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_ITEM,
-				item, "Not supported by ntuple filter");
-			return -rte_errno;
-		}
-		if ((udp_mask->hdr.src_port != 0 &&
-			udp_mask->hdr.src_port != UINT16_MAX) ||
-			(udp_mask->hdr.dst_port != 0 &&
-			udp_mask->hdr.dst_port != UINT16_MAX)) {
-			rte_flow_error_set(error,
-				EINVAL, RTE_FLOW_ERROR_TYPE_ITEM,
 				item, "Not supported by ntuple filter");
 			return -rte_errno;
 		}

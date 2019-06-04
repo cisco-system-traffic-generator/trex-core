@@ -97,7 +97,7 @@ int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE 
 }
 
 bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-    enum {
+    enum { // start of xstats array
         rx_good_packets,
         tx_good_packets,
         rx_good_bytes,
@@ -108,32 +108,29 @@ bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if, CPhyEthI
         rx_mbuf_allocation_errors,
         COUNT
     };
-
-    enum {
-        rx_wqe_err,
-        rx_port_unicast_packets,
+    enum { // end of xstats array
         rx_port_unicast_bytes,
-        tx_port_unicast_packets,
-        tx_port_unicast_bytes,
-        rx_port_multicast_packets,
         rx_port_multicast_bytes,
-        tx_port_multicast_packets,
-        tx_port_multicast_bytes,
-        rx_port_broadcast_packets,
         rx_port_broadcast_bytes,
-        tx_port_broadcast_packets,
+        rx_port_unicast_packets,
+        rx_port_multicast_packets,
+        rx_port_broadcast_packets,
+        tx_port_unicast_bytes,
+        tx_port_multicast_bytes,
         tx_port_broadcast_bytes,
-        tx_packets_phy,
-        rx_packets_phy,
+        tx_port_unicast_packets,
+        tx_port_multicast_packets,
+        tx_port_broadcast_packets,
+        rx_wqe_err,
         rx_crc_errors_phy,
-        tx_bytes_phy,
-        rx_bytes_phy,
         rx_in_range_len_errors_phy,
         rx_symbol_err_phy,
-        rx_discards_phy,
-        tx_discards_phy,
         tx_errors_phy,
         rx_out_of_buffer,
+        tx_packets_phy,
+        rx_packets_phy,
+        tx_bytes_phy,
+        rx_bytes_phy,
         XCOUNT
     };
 

@@ -37,8 +37,14 @@
 #include <infiniband/umad_types.h>
 
 #ifdef __cplusplus
-extern "C" {
-#endif
+#  define BEGIN_C_DECLS extern "C" {
+#  define END_C_DECLS   }
+#else				/* !__cplusplus */
+#  define BEGIN_C_DECLS
+#  define END_C_DECLS
+#endif				/* __cplusplus */
+
+BEGIN_C_DECLS
 
 /* Communication management attributes */
 enum {
@@ -57,7 +63,5 @@ enum {
 	UMAD_CM_ATTR_SPR		= 0x001C,
 };
 
-#ifdef __cplusplus
-}
-#endif
+END_C_DECLS
 #endif				/* _UMAD_CM_H */
