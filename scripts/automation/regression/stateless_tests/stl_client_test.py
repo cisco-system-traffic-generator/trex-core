@@ -859,7 +859,7 @@ class STLClient_Test(CStlGeneral_Test):
 
         try:
             profile_id = 1
-            num_profiles = 100
+            num_profiles = 20
             tx_profile_list = []
             tx_all_profile = str(self.tx_port) + str(".*")
 
@@ -871,7 +871,7 @@ class STLClient_Test(CStlGeneral_Test):
             for index, tx_profile in enumerate(tx_profile_list):
                 stream = STLStream(name = 'latency',
                                packet = self.pkt,
-                               mode = STLTXCont(percentage = self.percentage),
+                               mode = STLTXCont(pps = 1),
                                flow_stats = STLFlowLatencyStats(pg_id = index + self.tx_port))
                 self.c.add_streams([stream], ports = tx_profile)
                 self.c.start(ports = tx_profile)
@@ -880,7 +880,7 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.pause(tx_profile)
                 self.c.resume(tx_profile)
 
-            for i in range(100):
+            for i in range(20):
                 self.c.pause(tx_all_profile)
                 self.c.resume(tx_all_profile)
 
