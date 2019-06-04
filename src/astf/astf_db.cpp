@@ -553,12 +553,16 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     std::string err_str;
     const char* ip_start_str;
     const char* ip_end_str;
+    std::string s;
+
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
-        ip_start_str = ip_gen_list[i]["ip_start"].asString().c_str();
-        ip_end_str = ip_gen_list[i]["ip_end"].asString().c_str();
+        s = ip_gen_list[i]["ip_start"].asString();
+        ip_start_str = s.c_str();
         ip_start = ip_from_str(ip_start_str);
+        s = ip_gen_list[i]["ip_end"].asString();
+        ip_end_str = s.c_str();
         ip_end = ip_from_str(ip_end_str);
         if (ip_end < ip_start) {
             err_str = std::string("IP start: ") + ip_start_str + " is bigger than IP end: " + ip_end_str;
@@ -912,22 +916,27 @@ bool CAstfDB::get_latency_info(uint32_t & src_ipv4,
                                uint32_t & dual_port_mask){
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+    std::string s;
 
     if (ip_gen_list.size()<2){
         return(false);
     }
     int i;
     uint32_t valid=0;
+
     for (i=0; i<2; i++) {
         Json::Value g=ip_gen_list[i];
 
         if (g["dir"] == "c") {
-            dual_port_mask = ip_from_str(g["ip_offset"].asString().c_str());
-            src_ipv4 = ip_from_str(g["ip_start"].asString().c_str());
+            s = g["ip_offset"].asString();
+            dual_port_mask = ip_from_str(s.c_str());
+            s = g["ip_start"].asString();
+            src_ipv4 = ip_from_str(s.c_str());
             valid|=1;
         }
         if (g["dir"] == "s") {
-            dst_ipv4 = ip_from_str(g["ip_start"].asString().c_str());
+            s= g["ip_start"].asString();
+            dst_ipv4 = ip_from_str(s.c_str());
             valid|=2;
         }
     }
@@ -950,12 +959,16 @@ void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     pool.m_udp_aging_sec=0;
     pool.m_is_bundling=false;
     pool.m_per_core_distro =false;
+    std::string s;
 
     for (int i = 0; i < ip_gen_list.size(); i++) {
         Json::Value g=ip_gen_list[i];
-        uint32_t ip_start = ip_from_str(g["ip_start"].asString().c_str());
-        uint32_t ip_end = ip_from_str(g["ip_end"].asString().c_str());
-        uint32_t mask = ip_from_str(g["ip_offset"].asString().c_str());
+        s = g["ip_start"].asString();
+        uint32_t ip_start = ip_from_str(s.c_str());
+        s = g["ip_end"].asString();
+        uint32_t ip_end = ip_from_str(s.c_str());
+        s = g["ip_offset"].asString();
+        uint32_t mask = ip_from_str(s.c_str());
 
         /* backward compatible */
         if (g["per_core_distribution"] != Json::nullValue){
@@ -1030,21 +1043,25 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     uint32_t last_c_idx=0;
     uint32_t last_s_idx=0;
     std::vector<uint32_t> gen_idx_trans;
+    std::string s;
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
         IP_DIST_t dist;
         poolinfo.m_per_core_distro =false;
-        poolinfo.m_ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-        poolinfo.m_ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
-        if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "seq", 3)) {
+        s = ip_gen_list[i]["ip_start"].asString();
+        poolinfo.m_ip_start = ip_from_str(s.c_str());
+        s = ip_gen_list[i]["ip_end"].asString();
+        poolinfo.m_ip_end = ip_from_str(s.c_str());
+        s = ip_gen_list[i]["distribution"].asString();
+        if (! strncmp(s.c_str(), "seq", 3)) {
             dist = cdSEQ_DIST;
-        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "rand", 4)) {
+        } else if (! strncmp(s.c_str(), "rand", 4)) {
             dist = cdRANDOM_DIST;
-        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "normal", 6)) {
+        } else if (! strncmp(s.c_str(), "normal", 6)) {
             dist = cdNORMAL_DIST;
         } else {
-            fprintf(stderr, "wrong distribution string %s in json\n", ip_gen_list[i]["distribution"].asString().c_str());
+            fprintf(stderr, "wrong distribution string %s in json\n", s.c_str());
             my_lock.unlock();
             return((CAstfTemplatesRW *)0);
         }
@@ -1056,7 +1073,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         }
 
         poolinfo.m_dist =  dist;
-        poolinfo.m_dual_interface_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
+        s= ip_gen_list[i]["ip_offset"].asString();
+        poolinfo.m_dual_interface_mask = ip_from_str(s.c_str());
         if (poolinfo.m_per_core_distro) {
             split_ips_v2(max_threads, rss_thread_id,rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(),dual_port_id, poolinfo, portion);
         }else{
@@ -1414,16 +1432,20 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     bool client_set = false;
     bool server_set = false;
+     std::string s;
 
     for (int i = 0; i < ip_gen_list.size(); i++) {
         if ((ip_gen_list[i]["dir"] == "c") && ! client_set) {
             client_set = true;
-            lat.m_c_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-            lat.m_dual_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
+            s = ip_gen_list[i]["ip_start"].asString();
+            lat.m_c_ip = ip_from_str(s.c_str());
+            s = ip_gen_list[i]["ip_offset"].asString();
+            lat.m_dual_mask = ip_from_str(s.c_str());
         }
         if ((ip_gen_list[i]["dir"] == "s") && ! server_set) {
             server_set = true;
-            lat.m_s_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+            s = ip_gen_list[i]["ip_start"].asString();
+            lat.m_s_ip = ip_from_str(s.c_str());
         }
 
         if (server_set && client_set)
