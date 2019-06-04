@@ -14,6 +14,8 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         setup = CTRexScenario.setup_name
         if setup in ['trex11', 'trex16']:
             self.skip('not enough memory for this test')
+        if setup in ['trex12']:
+            self.weak = True
 
     def ip_gen(self, client_base, server_base, client_ips, server_ips):
         assert client_ips>0
@@ -60,6 +62,9 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                 for templates in (1, 1<<8, 1<<12):
                     if self.weak and templates > 1<<8:
                         continue
+                    if self.weak:
+                      if (client_ips > (1<<8)) and (server_ips >(1<<8)) :
+                            continue;
 
                     params = {
                         'client_ips': client_ips,
