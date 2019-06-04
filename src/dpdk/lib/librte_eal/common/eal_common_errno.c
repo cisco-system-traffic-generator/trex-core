@@ -2,6 +2,9 @@
  * Copyright(c) 2010-2014 Intel Corporation
  */
 
+/* Use XSI-compliant portable version of strerror_r() */
+#undef _GNU_SOURCE
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,7 +21,7 @@ const char *
 rte_strerror(int errnum)
 {
 	/* BSD puts a colon in the "unknown error" messages, Linux doesn't */
-#ifdef RTE_EXEC_ENV_BSDAPP
+#ifdef RTE_EXEC_ENV_FREEBSD
 	static const char *sep = ":";
 #else
 	static const char *sep = "";

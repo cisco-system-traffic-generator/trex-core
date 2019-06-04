@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2014 Intel Corporation
+ * Copyright(c) 2010-2019 Intel Corporation
  */
 
 #ifndef _RTE_COMMON_H_
@@ -23,6 +23,9 @@ extern "C" {
 #include <limits.h>
 
 #include <rte_config.h>
+
+/* OS specific include */
+#include <rte_os.h>
 
 #ifndef typeof
 #define typeof __typeof__
@@ -68,6 +71,11 @@ typedef uint16_t unaligned_uint16_t;
 /******* Macro to mark functions and fields scheduled for removal *****/
 #define __rte_deprecated	__attribute__((__deprecated__))
 
+/**
+ * Mark a function or variable to a weak reference.
+ */
+#define __rte_weak __attribute__((__weak__))
+
 /*********** Macros to eliminate unused variable warnings ********/
 
 /**
@@ -98,8 +106,10 @@ typedef uint16_t unaligned_uint16_t;
  *   Priority number must be above 100.
  *   Lowest number is the first to run.
  */
+#ifndef RTE_INIT_PRIO /* Allow to override from EAL */
 #define RTE_INIT_PRIO(func, prio) \
 static void __attribute__((constructor(RTE_PRIO(prio)), used)) func(void)
+#endif
 
 /**
  * Run function before main() with low priority.
@@ -121,8 +131,10 @@ static void __attribute__((constructor(RTE_PRIO(prio)), used)) func(void)
  *   Priority number must be above 100.
  *   Lowest number is the last to run.
  */
+#ifndef RTE_FINI_PRIO /* Allow to override from EAL */
 #define RTE_FINI_PRIO(func, prio) \
 static void __attribute__((destructor(RTE_PRIO(prio)), used)) func(void)
+#endif
 
 /**
  * Run after main() with high priority.
@@ -163,6 +175,12 @@ static void __attribute__((destructor(RTE_PRIO(prio)), used)) func(void)
  * ptr1 is greater than ptr2.
  */
 #define RTE_PTR_DIFF(ptr1, ptr2) ((uintptr_t)(ptr1) - (uintptr_t)(ptr2))
+
+/**
+ * Workaround to cast a const field of a structure to non-const type.
+ */
+#define RTE_CAST_FIELD(var, field, type) \
+	(*(type *)((uintptr_t)(var) + offsetof(typeof(*(var)), field)))
 
 /*********** Macros/static functions for doing alignment ********/
 
@@ -238,6 +256,18 @@ static void __attribute__((destructor(RTE_PRIO(prio)), used)) func(void)
 	((v / ((typeof(v))(mul))) * (typeof(v))(mul))
 
 /**
+ * Macro to align value to the nearest multiple of the given value.
+ * The resultant value might be greater than or less than the first parameter
+ * whichever difference is the lowest.
+ */
+#define RTE_ALIGN_MUL_NEAR(v, mul)				\
+	({							\
+		typeof(v) ceil = RTE_ALIGN_MUL_CEIL(v, mul);	\
+		typeof(v) floor = RTE_ALIGN_MUL_FLOOR(v, mul);	\
+		(ceil - v) > (v - floor) ? floor : ceil;	\
+	})
+
+/**
  * Checks if a pointer is aligned to a given power-of-two value
  *
  * @param ptr
@@ -259,16 +289,7 @@ rte_is_aligned(void *ptr, unsigned align)
 /**
  * Triggers an error at compilation time if the condition is true.
  */
-#ifndef __OPTIMIZE__
 #define RTE_BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
-#else
-extern int RTE_BUILD_BUG_ON_detected_error;
-#define RTE_BUILD_BUG_ON(condition) do {             \
-	((void)sizeof(char[1 - 2*!!(condition)]));   \
-	if (condition)                               \
-		RTE_BUILD_BUG_ON_detected_error = 1; \
-} while(0)
-#endif
 
 /**
  * Combines 32b inputs most significant set bits into the least
@@ -338,7 +359,7 @@ rte_is_power_of_2(uint32_t n)
  * Aligns input parameter to the next power of 2
  *
  * @param x
- *   The integer value to algin
+ *   The integer value to align
  *
  * @return
  *   Input parameter aligned to the next power of 2
@@ -356,7 +377,7 @@ rte_align32pow2(uint32_t x)
  * Aligns input parameter to the previous power of 2
  *
  * @param x
- *   The integer value to algin
+ *   The integer value to align
  *
  * @return
  *   Input parameter aligned to the previous power of 2
@@ -446,6 +467,30 @@ rte_bsf32(uint32_t v)
 }
 
 /**
+ * Searches the input parameter for the least significant set bit
+ * (starting from zero). Safe version (checks for input parameter being zero).
+ *
+ * @warning ``pos`` must be a valid pointer. It is not checked!
+ *
+ * @param v
+ *     The input parameter.
+ * @param pos
+ *     If ``v`` was not 0, this value will contain position of least significant
+ *     bit within the input parameter.
+ * @return
+ *     Returns 0 if ``v`` was 0, otherwise returns 1.
+ */
+static inline int
+rte_bsf32_safe(uint64_t v, uint32_t *pos)
+{
+	if (v == 0)
+		return 0;
+
+	*pos = rte_bsf32(v);
+	return 1;
+}
+
+/**
  * Return the rounded-up log2 of a integer.
  *
  * @param v
@@ -460,6 +505,101 @@ rte_log2_u32(uint32_t v)
 		return 0;
 	v = rte_align32pow2(v);
 	return rte_bsf32(v);
+}
+
+
+/**
+ * Return the last (most-significant) bit set.
+ *
+ * @note The last (most significant) bit is at position 32.
+ * @note rte_fls_u32(0) = 0, rte_fls_u32(1) = 1, rte_fls_u32(0x80000000) = 32
+ *
+ * @param x
+ *     The input parameter.
+ * @return
+ *     The last (most-significant) bit set, or 0 if the input is 0.
+ */
+static inline int
+rte_fls_u32(uint32_t x)
+{
+	return (x == 0) ? 0 : 32 - __builtin_clz(x);
+}
+
+/**
+ * Searches the input parameter for the least significant set bit
+ * (starting from zero).
+ * If a least significant 1 bit is found, its bit index is returned.
+ * If the content of the input parameter is zero, then the content of the return
+ * value is undefined.
+ * @param v
+ *     input parameter, should not be zero.
+ * @return
+ *     least significant set bit in the input parameter.
+ */
+static inline int
+rte_bsf64(uint64_t v)
+{
+	return (uint32_t)__builtin_ctzll(v);
+}
+
+/**
+ * Searches the input parameter for the least significant set bit
+ * (starting from zero). Safe version (checks for input parameter being zero).
+ *
+ * @warning ``pos`` must be a valid pointer. It is not checked!
+ *
+ * @param v
+ *     The input parameter.
+ * @param pos
+ *     If ``v`` was not 0, this value will contain position of least significant
+ *     bit within the input parameter.
+ * @return
+ *     Returns 0 if ``v`` was 0, otherwise returns 1.
+ */
+static inline int
+rte_bsf64_safe(uint64_t v, uint32_t *pos)
+{
+	if (v == 0)
+		return 0;
+
+	*pos = rte_bsf64(v);
+	return 1;
+}
+
+/**
+ * Return the last (most-significant) bit set.
+ *
+ * @note The last (most significant) bit is at position 64.
+ * @note rte_fls_u64(0) = 0, rte_fls_u64(1) = 1,
+ *       rte_fls_u64(0x8000000000000000) = 64
+ *
+ * @param x
+ *     The input parameter.
+ * @return
+ *     The last (most-significant) bit set, or 0 if the input is 0.
+ */
+static inline int
+rte_fls_u64(uint64_t x)
+{
+	return (x == 0) ? 0 : 64 - __builtin_clzll(x);
+}
+
+/**
+ * Return the rounded-up log2 of a 64-bit integer.
+ *
+ * @param v
+ *     The input parameter.
+ * @return
+ *     The rounded-up log2 of the input, or 0 if the input is 0.
+ */
+static inline uint32_t
+rte_log2_u64(uint64_t v)
+{
+	if (v == 0)
+		return 0;
+	v = rte_align64pow2(v);
+	/* we checked for v being 0 already, so no undefined behavior */
+	return rte_bsf64(v);
 }
 
 #ifndef offsetof

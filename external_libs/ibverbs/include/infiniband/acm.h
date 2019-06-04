@@ -33,6 +33,10 @@
 #include <infiniband/verbs.h>
 #include <infiniband/sa.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define ACM_VERSION             1
 
 #define ACM_OP_MASK             0x0F
@@ -64,6 +68,10 @@
  * inbound and outbound primary and alternate data paths), plus CM data.
  */
 #define ACM_MSG_DATA_LENGTH     (ACM_MSG_EP_LENGTH * 8)
+
+#define src_out     data[0]
+#define src_index   data[1]
+#define dst_index   data[2]
 
 struct acm_hdr {
 	uint8_t                 version;
@@ -126,12 +134,13 @@ struct acm_perf_msg {
 };
 
 /*
- * Endpoint query messages are sent/received in network byte order. 
+ * Endpoint query messages are sent/received in network byte order.
  */
 struct acm_ep_config_data {
 	uint64_t                dev_guid;
 	uint8_t                 port_num;
-	uint8_t                 rsvd[3];
+	uint8_t			phys_port_cnt;
+	uint8_t                 rsvd[2];
 	uint16_t                pkey;
 	uint16_t                addr_cnt;
 	uint8_t                 prov_name[ACM_MAX_PROV_NAME];
@@ -152,5 +161,9 @@ struct acm_msg {
 		struct acm_ep_config_data ep_data[0];
 	};
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ACM_H */

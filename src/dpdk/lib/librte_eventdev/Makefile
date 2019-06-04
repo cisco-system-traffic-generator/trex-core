@@ -8,13 +8,13 @@ include $(RTE_SDK)/mk/rte.vars.mk
 LIB = librte_eventdev.a
 
 # library version
-LIBABIVER := 5
+LIBABIVER := 6
 
 # build flags
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
-ifeq ($(CONFIG_RTE_EXEC_ENV_LINUXAPP),y)
+ifeq ($(CONFIG_RTE_EXEC_ENV_LINUX),y)
 CFLAGS += -DLINUX
 else
 CFLAGS += -DBSD
@@ -28,6 +28,7 @@ SRCS-y += rte_event_ring.c
 SRCS-y += rte_event_eth_rx_adapter.c
 SRCS-y += rte_event_timer_adapter.c
 SRCS-y += rte_event_crypto_adapter.c
+SRCS-y += rte_event_eth_tx_adapter.c
 
 # export include files
 SYMLINK-y-include += rte_eventdev.h
@@ -39,6 +40,7 @@ SYMLINK-y-include += rte_event_eth_rx_adapter.h
 SYMLINK-y-include += rte_event_timer_adapter.h
 SYMLINK-y-include += rte_event_timer_adapter_pmd.h
 SYMLINK-y-include += rte_event_crypto_adapter.h
+SYMLINK-y-include += rte_event_eth_tx_adapter.h
 
 # versioning export map
 EXPORT_MAP := rte_eventdev_version.map

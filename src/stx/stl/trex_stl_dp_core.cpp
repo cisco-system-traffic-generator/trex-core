@@ -362,7 +362,7 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             assert(m_lat);
             fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
 
-            if (RTE_MBUF_INDIRECT(m->next)) {
+            if (RTE_MBUF_CLONED(m->next)) {
                 // Variable length field engine case
                 rte_mbuf_t *m_indirect = m->next;
                 utl_rte_pktmbuf_chain_to_indirect(m, m_indirect, m_lat);

@@ -10,7 +10,7 @@
 #include "rte_security_driver.h"
 
 struct rte_security_session *
-__rte_experimental rte_security_session_create(struct rte_security_ctx *instance,
+rte_security_session_create(struct rte_security_ctx *instance,
 			    struct rte_security_session_conf *conf,
 			    struct rte_mempool *mp)
 {
@@ -42,7 +42,7 @@ rte_security_session_update(struct rte_security_ctx *instance,
 	return instance->ops->session_update(instance->device, sess, conf);
 }
 
-unsigned int __rte_experimental
+unsigned int
 rte_security_session_get_size(struct rte_security_ctx *instance)
 {
 	RTE_FUNC_PTR_OR_ERR_RET(*instance->ops->session_get_size, 0);
@@ -58,7 +58,7 @@ rte_security_session_stats_get(struct rte_security_ctx *instance,
 	return instance->ops->session_stats_get(instance->device, sess, stats);
 }
 
-int __rte_experimental
+int
 rte_security_session_destroy(struct rte_security_ctx *instance,
 			     struct rte_security_session *sess)
 {
@@ -76,7 +76,7 @@ rte_security_session_destroy(struct rte_security_ctx *instance,
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
 			      struct rte_security_session *sess,
 			      struct rte_mbuf *m, void *params)
@@ -98,14 +98,14 @@ rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md)
 	return userdata;
 }
 
-const struct rte_security_capability * __rte_experimental
+const struct rte_security_capability *
 rte_security_capabilities_get(struct rte_security_ctx *instance)
 {
 	RTE_FUNC_PTR_OR_ERR_RET(*instance->ops->capabilities_get, NULL);
 	return instance->ops->capabilities_get(instance->device);
 }
 
-const struct rte_security_capability * __rte_experimental
+const struct rte_security_capability *
 rte_security_capability_get(struct rte_security_ctx *instance,
 			    struct rte_security_capability_idx *idx)
 {
@@ -130,6 +130,10 @@ rte_security_capability_get(struct rte_security_ctx *instance,
 							idx->ipsec.mode &&
 					capability->ipsec.direction ==
 							idx->ipsec.direction)
+					return capability;
+			} else if (idx->protocol == RTE_SECURITY_PROTOCOL_PDCP) {
+				if (capability->pdcp.domain ==
+							idx->pdcp.domain)
 					return capability;
 			}
 		}

@@ -67,6 +67,8 @@ void check_offloads(const struct rte_eth_dev_info *dev_info, const struct rte_et
         {"SECURITY",         DEV_TX_OFFLOAD_SECURITY},
         {"UDP_TNL_TSO",      DEV_TX_OFFLOAD_UDP_TNL_TSO},
         {"IP_TNL_TSO",       DEV_TX_OFFLOAD_IP_TNL_TSO},
+        {"OUTER_UDP_CKSUM",  DEV_TX_OFFLOAD_OUTER_UDP_CKSUM},
+        {"MATCH_METADATA",   DEV_TX_OFFLOAD_MATCH_METADATA},
     };
 
     success &= _check_offloads(dev_info->tx_offload_capa, m_port_conf->txmode.offloads, offload_names, "TX");
@@ -86,10 +88,12 @@ void check_offloads(const struct rte_eth_dev_info *dev_info, const struct rte_et
         {"VLAN_FILTER",      DEV_RX_OFFLOAD_VLAN_FILTER},
         {"VLAN_EXTEND",      DEV_RX_OFFLOAD_VLAN_EXTEND},
         {"JUMBO_FRAME",      DEV_RX_OFFLOAD_JUMBO_FRAME},
-        {"CRC_STRIP",        DEV_RX_OFFLOAD_CRC_STRIP},
         {"SCATTER",          DEV_RX_OFFLOAD_SCATTER},
         {"TIMESTAMP",        DEV_RX_OFFLOAD_TIMESTAMP},
         {"SECURITY",         DEV_RX_OFFLOAD_SECURITY},
+        {"KEEP_CRC",         DEV_RX_OFFLOAD_KEEP_CRC},
+        {"SCTP_CKSUM",       DEV_RX_OFFLOAD_SCTP_CKSUM},
+        {"OUTER_UDP_CKSUM",  DEV_RX_OFFLOAD_OUTER_UDP_CKSUM},
     };
 
     success &= _check_offloads(dev_info->rx_offload_capa, m_port_conf->rxmode.offloads, offload_names, "RX");

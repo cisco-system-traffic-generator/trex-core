@@ -14,12 +14,7 @@
 #include "sfc_debug.h"
 #include "sfc_tx.h"
 #include "sfc_ev.h"
-
-/** Standard TSO header length */
-#define SFC_TSOH_STD_LEN        256
-
-/** The number of TSO option descriptors that precede the packet descriptors */
-#define SFC_TSO_OPDESCS_IDX_SHIFT	2
+#include "sfc_tso.h"
 
 int
 sfc_efx_tso_alloc_tsoh_objs(struct sfc_efx_tx_sw_desc *sw_ring,
@@ -57,13 +52,14 @@ sfc_efx_tso_free_tsoh_objs(struct sfc_efx_tx_sw_desc *sw_ring,
 	}
 }
 
-static void
-sfc_efx_tso_prepare_header(struct sfc_efx_txq *txq, struct rte_mbuf **in_seg,
-			   size_t *in_off, unsigned int idx, size_t bytes_left)
+unsigned int
+sfc_tso_prepare_header(uint8_t *tsoh, size_t header_len,
+		       struct rte_mbuf **in_seg, size_t *in_off)
 {
 	struct rte_mbuf *m = *in_seg;
 	size_t bytes_to_copy = 0;
-	uint8_t *tsoh = txq->sw_ring[idx & txq->ptr_mask].tsoh;
+	size_t bytes_left = header_len;
+	unsigned int segments_copied = 0;
 
 	do {
 		bytes_to_copy = MIN(bytes_left, m->data_len);
@@ -77,16 +73,20 @@ sfc_efx_tso_prepare_header(struct sfc_efx_txq *txq, struct rte_mbuf **in_seg,
 		if (bytes_left > 0) {
 			m = m->next;
 			SFC_ASSERT(m != NULL);
+			segments_copied++;
 		}
 	} while (bytes_left > 0);
 
 	if (bytes_to_copy == m->data_len) {
 		*in_seg = m->next;
 		*in_off = 0;
+		segments_copied++;
 	} else {
 		*in_seg = m;
 		*in_off = bytes_to_copy;
 	}
+
+	return segments_copied;
 }
 
 int
@@ -97,27 +97,14 @@ sfc_efx_tso_do(struct sfc_efx_txq *txq, unsigned int idx,
 	uint8_t *tsoh;
 	const struct tcp_hdr *th;
 	efsys_dma_addr_t header_paddr;
-	uint16_t packet_id;
+	uint16_t packet_id = 0;
 	uint32_t sent_seq;
 	struct rte_mbuf *m = *in_seg;
 	size_t nh_off = m->l2_len; /* IP header offset */
 	size_t tcph_off = m->l2_len + m->l3_len; /* TCP header offset */
 	size_t header_len = m->l2_len + m->l3_len + m->l4_len;
-	const efx_nic_cfg_t *encp = efx_nic_cfg_get(txq->evq->sa->nic);
 
-	idx += SFC_TSO_OPDESCS_IDX_SHIFT;
-
-	/* Packets which have too big headers should be discarded */
-	if (unlikely(header_len > SFC_TSOH_STD_LEN))
-		return EMSGSIZE;
-
-	/*
-	 * The TCP header must start at most 208 bytes into the frame.
-	 * If it starts later than this then the NIC won't realise
-	 * it's a TCP packet and TSO edits won't be applied
-	 */
-	if (unlikely(tcph_off > encp->enc_tx_tso_tcp_header_offset_limit))
-		return EMSGSIZE;
+	idx += SFC_EF10_TSO_OPT_DESCS_NUM;
 
 	header_paddr = rte_pktmbuf_iova(m);
 
@@ -129,9 +116,17 @@ sfc_efx_tso_do(struct sfc_efx_txq *txq, unsigned int idx,
 	 * limitations on address boundaries crossing by DMA descriptor data.
 	 */
 	if (m->data_len < header_len) {
-		sfc_efx_tso_prepare_header(txq, in_seg, in_off, idx,
-					   header_len);
+		/*
+		 * Discard a packet if header linearization is needed but
+		 * the header is too big.
+		 * Duplicate Tx prepare check here to avoid spoil of
+		 * memory if Tx prepare is skipped.
+		 */
+		if (unlikely(header_len > SFC_TSOH_STD_LEN))
+			return EMSGSIZE;
+
 		tsoh = txq->sw_ring[idx & txq->ptr_mask].tsoh;
+		sfc_tso_prepare_header(tsoh, header_len, in_seg, in_off);
 
 		header_paddr = rte_malloc_virt2iova((void *)tsoh);
 	} else {
@@ -145,18 +140,14 @@ sfc_efx_tso_do(struct sfc_efx_txq *txq, unsigned int idx,
 		tsoh = rte_pktmbuf_mtod(m, uint8_t *);
 	}
 
-	/* Handle IP header */
-	if (m->ol_flags & PKT_TX_IPV4) {
-		const struct ipv4_hdr *iphe4;
-
-		iphe4 = (const struct ipv4_hdr *)(tsoh + nh_off);
-		rte_memcpy(&packet_id, &iphe4->packet_id, sizeof(uint16_t));
-		packet_id = rte_be_to_cpu_16(packet_id);
-	} else if (m->ol_flags & PKT_TX_IPV6) {
-		packet_id = 0;
-	} else {
-		return EINVAL;
-	}
+	/*
+	 * Handle IP header. Tx prepare has debug-only checks that offload flags
+	 * are correctly filled in in TSO mbuf. Use zero IPID if there is no
+	 * IPv4 flag. If the packet is still IPv4, HW will simply start from
+	 * zero IPID.
+	 */
+	if (m->ol_flags & PKT_TX_IPV4)
+		packet_id = sfc_tso_ip4_get_ipid(tsoh, nh_off);
 
 	/* Handle TCP header */
 	th = (const struct tcp_hdr *)(tsoh + tcph_off);

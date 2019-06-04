@@ -60,8 +60,14 @@
 /* Maximum Packet headers size (L2+L3+L4) for TSO. */
 #define MLX5_MAX_TSO_HEADER 192
 
-/* Default minimum number of Tx queues for vectorized Tx. */
-#define MLX5_VPMD_MIN_TXQS 4
+/* Default maximum number of Tx queues for vectorized Tx. */
+#if defined(RTE_ARCH_ARM64)
+#define MLX5_VPMD_MAX_TXQS 8
+#define MLX5_VPMD_MAX_TXQS_BLUEFIELD 16
+#else
+#define MLX5_VPMD_MAX_TXQS 4
+#define MLX5_VPMD_MAX_TXQS_BLUEFIELD MLX5_VPMD_MAX_TXQS
+#endif
 
 /* Threshold of buffer replenishment for vectorized Rx. */
 #define MLX5_VPMD_RXQ_RPLNSH_THRESH(n) \
@@ -85,16 +91,6 @@
 
 /* Timeout in seconds to get a valid link status. */
 #define MLX5_LINK_STATUS_TIMEOUT 10
-
-/* Reserved address space for UAR mapping. */
-#define MLX5_UAR_SIZE (1ULL << (sizeof(uintptr_t) * 4))
-
-/* Offset of reserved UAR address space to hugepage memory. Offset is used here
- * to minimize possibility of address next to hugepage being used by other code
- * in either primary or secondary process, failing to map TX UAR would make TX
- * packets invisible to HW.
- */
-#define MLX5_UAR_OFFSET (1ULL << (sizeof(uintptr_t) * 4))
 
 /* Maximum number of UAR pages used by a port,
  * These are the size and mask for an array of mutexes used to synchronize
