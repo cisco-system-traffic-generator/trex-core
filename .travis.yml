@@ -1,8 +1,11 @@
+if: commit_message =~ test_this_on_travis
+
 env:
   global:
     - SHA=$TRAVIS_PULL_REQUEST_SHA
     - PR_NUM=$TRAVIS_PULL_REQUEST
     - IS_LAST=False
+
 jobs:
   include:
     - stage: 1st check
@@ -10,40 +13,35 @@ jobs:
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script:
-        - python3 -u travis_files/wait_for_results.py
+      script: python3 -u travis_files/wait_for_results.py
 
     - stage: 2nd check
       language: python
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script:
-        - python3 -u travis_files/wait_for_results.py
+      script: python3 -u travis_files/wait_for_results.py
 
     - stage: 3rd check
       language: python
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script:
-        - python3 -u travis_files/wait_for_results.py
+      script: python3 -u travis_files/wait_for_results.py
 
     - stage: 4th check
       language: python
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script:
-        - python3 -u travis_files/wait_for_results.py
+      script: python3 -u travis_files/wait_for_results.py
 
     - stage: 5th check
       language: python
       python: "3.6"
       cache: pip
       install: pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-      script:
-        - python3 -u travis_files/wait_for_results.py
+      script: python3 -u travis_files/wait_for_results.py
 
     - stage: 6th check
       language: python
