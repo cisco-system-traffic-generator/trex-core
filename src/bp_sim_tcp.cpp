@@ -219,14 +219,13 @@ uint16_t get_client_side_vlan(CVirtualIF * _ifs);
 #endif
 void CFlowGenListPerThread::generate_flow(bool &done){
 
+  done = false;
   if ( m_c_tcp->is_open_flow_enabled()==false ){
        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
        return;
   }
 
-    done=false;
-
-    CAstfTemplatesRW * c_rw = m_c_tcp->m_template_rw;
+  CAstfTemplatesRW * c_rw = m_c_tcp->m_template_rw;
 
     /* choose template index */
     uint16_t template_id = c_rw->do_schedule_template();

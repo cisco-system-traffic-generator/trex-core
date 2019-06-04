@@ -229,6 +229,7 @@ void CCPortLatency::reset_seq(){
 }
 
 void CCPortLatency::reset(){
+    fflush(stdout);
     m_rx_seq    =m_tx_seq;
     m_pad       = 0;
     m_tx_pkt_err=0;
