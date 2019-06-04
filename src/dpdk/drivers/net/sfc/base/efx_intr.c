@@ -75,7 +75,7 @@ static const efx_intr_ops_t	__efx_intr_siena_ops = {
 };
 #endif	/* EFSYS_OPT_SIENA */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 static const efx_intr_ops_t	__efx_intr_ef10_ops = {
 	ef10_intr_init,			/* eio_init */
 	ef10_intr_enable,		/* eio_enable */
@@ -87,13 +87,13 @@ static const efx_intr_ops_t	__efx_intr_ef10_ops = {
 	ef10_intr_fatal,		/* eio_fatal */
 	ef10_intr_fini,			/* eio_fini */
 };
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn	efx_rc_t
 efx_intr_init(
 	__in		efx_nic_t *enp,
 	__in		efx_intr_type_t type,
-	__in_opt	efsys_mem_t *esmp)
+	__in		efsys_mem_t *esmp)
 {
 	efx_intr_t *eip = &(enp->en_intr);
 	const efx_intr_ops_t *eiop;

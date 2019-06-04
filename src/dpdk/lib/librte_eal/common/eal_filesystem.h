@@ -25,12 +25,9 @@
 int
 eal_create_runtime_dir(void);
 
-int
-eal_clean_runtime_dir(void);
-
-/** Function to return hugefile prefix that's currently set up */
+/* returns runtime dir */
 const char *
-eal_get_hugefile_prefix(void);
+eal_get_runtime_dir(void);
 
 #define RUNTIME_CONFIG_FNAME "config"
 static inline const char *
@@ -38,7 +35,7 @@ eal_runtime_config_path(void)
 {
 	static char buffer[PATH_MAX]; /* static so auto-zeroed */
 
-	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", rte_eal_get_runtime_dir(),
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", eal_get_runtime_dir(),
 			RUNTIME_CONFIG_FNAME);
 	return buffer;
 }
@@ -50,7 +47,7 @@ eal_mp_socket_path(void)
 {
 	static char buffer[PATH_MAX]; /* static so auto-zeroed */
 
-	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", rte_eal_get_runtime_dir(),
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", eal_get_runtime_dir(),
 			MP_SOCKET_FNAME);
 	return buffer;
 }
@@ -58,8 +55,7 @@ eal_mp_socket_path(void)
 #define FBARRAY_NAME_FMT "%s/fbarray_%s"
 static inline const char *
 eal_get_fbarray_path(char *buffer, size_t buflen, const char *name) {
-	snprintf(buffer, buflen, FBARRAY_NAME_FMT, rte_eal_get_runtime_dir(),
-			name);
+	snprintf(buffer, buflen, FBARRAY_NAME_FMT, eal_get_runtime_dir(), name);
 	return buffer;
 }
 
@@ -70,7 +66,7 @@ eal_hugepage_info_path(void)
 {
 	static char buffer[PATH_MAX]; /* static so auto-zeroed */
 
-	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", rte_eal_get_runtime_dir(),
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", eal_get_runtime_dir(),
 			HUGEPAGE_INFO_FNAME);
 	return buffer;
 }
@@ -82,7 +78,7 @@ eal_hugepage_data_path(void)
 {
 	static char buffer[PATH_MAX]; /* static so auto-zeroed */
 
-	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", rte_eal_get_runtime_dir(),
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%s", eal_get_runtime_dir(),
 			HUGEPAGE_DATA_FNAME);
 	return buffer;
 }
@@ -93,7 +89,18 @@ static inline const char *
 eal_get_hugefile_path(char *buffer, size_t buflen, const char *hugedir, int f_id)
 {
 	snprintf(buffer, buflen, HUGEFILE_FMT, hugedir,
-			eal_get_hugefile_prefix(), f_id);
+			internal_config.hugefile_prefix, f_id);
+	buffer[buflen - 1] = '\0';
+	return buffer;
+}
+
+/** String format for hugepage map lock files. */
+#define HUGEFILE_LOCK_FMT "%s/map_%d.lock"
+static inline const char *
+eal_get_hugefile_lock_path(char *buffer, size_t buflen, int f_id)
+{
+	snprintf(buffer, buflen, HUGEFILE_LOCK_FMT, eal_get_runtime_dir(),
+			f_id);
 	buffer[buflen - 1] = '\0';
 	return buffer;
 }

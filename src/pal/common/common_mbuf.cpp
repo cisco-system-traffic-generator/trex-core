@@ -27,7 +27,7 @@ utl_rte_pktmbuf_dump(const struct rte_mbuf *m) {
 #else
                        (int)m->refcnt_atomic.cnt);
 #endif
-                if (RTE_MBUF_CLONED(m)) {
+                if (RTE_MBUF_INDIRECT(m)) {
 #ifdef TREX_SIM
                     struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
 #else

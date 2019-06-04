@@ -16,7 +16,6 @@
 #include <rte_memory.h>
 #include <rte_log.h>
 
-#include "eal_internal_cfg.h"
 #include "eal_private.h"
 #include "eal_thread.h"
 
@@ -164,14 +163,15 @@ static void *rte_thread_init(void *arg)
 	return start_routine(routine_arg);
 }
 
-int
+__rte_experimental int
 rte_ctrl_thread_create(pthread_t *thread, const char *name,
 		const pthread_attr_t *attr,
 		void *(*start_routine)(void *), void *arg)
 {
-	rte_cpuset_t *cpuset = &internal_config.ctrl_cpuset;
 	struct rte_thread_ctrl_params *params;
-	int ret;
+	unsigned int lcore_id;
+	rte_cpuset_t cpuset;
+	int cpu_found, ret;
 
 	params = malloc(sizeof(*params));
 	if (!params)
@@ -195,8 +195,21 @@ rte_ctrl_thread_create(pthread_t *thread, const char *name,
 				"Cannot set name for ctrl thread\n");
 	}
 
-	ret = pthread_setaffinity_np(*thread, sizeof(*cpuset), cpuset);
-	if (ret)
+	cpu_found = 0;
+	CPU_ZERO(&cpuset);
+	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+		if (eal_cpu_detected(lcore_id) &&
+				rte_lcore_has_role(lcore_id, ROLE_OFF)) {
+			CPU_SET(lcore_id, &cpuset);
+			cpu_found = 1;
+		}
+	}
+	/* if no detected cpu is off, use master core */
+	if (!cpu_found)
+		CPU_SET(rte_get_master_lcore(), &cpuset);
+
+	ret = pthread_setaffinity_np(*thread, sizeof(cpuset), &cpuset);
+	if (ret < 0)
 		goto fail;
 
 	ret = pthread_barrier_wait(&params->configured);

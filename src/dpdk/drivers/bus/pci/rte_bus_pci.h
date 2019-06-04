@@ -62,12 +62,10 @@ struct rte_pci_device {
 	struct rte_mem_resource mem_resource[PCI_MAX_RESOURCE];
 					    /**< PCI Memory Resource */
 	struct rte_intr_handle intr_handle; /**< Interrupt handle */
-	struct rte_pci_driver *driver;      /**< PCI driver used in probing */
+	struct rte_pci_driver *driver;      /**< Associated driver */
 	uint16_t max_vfs;                   /**< sriov enable if not zero */
 	enum rte_kernel_driver kdrv;        /**< Kernel driver passthrough */
 	char name[PCI_PRI_STR_SIZE+1];      /**< PCI location (ASCII) */
-	struct rte_intr_handle vfio_req_intr_handle;
-				/**< Handler of VFIO request interrupt */
 };
 
 /**
@@ -114,44 +112,6 @@ typedef int (pci_probe_t)(struct rte_pci_driver *, struct rte_pci_device *);
 typedef int (pci_remove_t)(struct rte_pci_device *);
 
 /**
- * Driver-specific DMA mapping. After a successful call the device
- * will be able to read/write from/to this segment.
- *
- * @param dev
- *   Pointer to the PCI device.
- * @param addr
- *   Starting virtual address of memory to be mapped.
- * @param iova
- *   Starting IOVA address of memory to be mapped.
- * @param len
- *   Length of memory segment being mapped.
- * @return
- *   - 0 On success.
- *   - Negative value and rte_errno is set otherwise.
- */
-typedef int (pci_dma_map_t)(struct rte_pci_device *dev, void *addr,
-			    uint64_t iova, size_t len);
-
-/**
- * Driver-specific DMA un-mapping. After a successful call the device
- * will not be able to read/write from/to this segment.
- *
- * @param dev
- *   Pointer to the PCI device.
- * @param addr
- *   Starting virtual address of memory to be unmapped.
- * @param iova
- *   Starting IOVA address of memory to be unmapped.
- * @param len
- *   Length of memory segment being unmapped.
- * @return
- *   - 0 On success.
- *   - Negative value and rte_errno is set otherwise.
- */
-typedef int (pci_dma_unmap_t)(struct rte_pci_device *dev, void *addr,
-			      uint64_t iova, size_t len);
-
-/**
  * A structure describing a PCI driver.
  */
 struct rte_pci_driver {
@@ -160,10 +120,8 @@ struct rte_pci_driver {
 	struct rte_pci_bus *bus;           /**< PCI bus reference. */
 	pci_probe_t *probe;                /**< Device Probe function. */
 	pci_remove_t *remove;              /**< Device Remove function. */
-	pci_dma_map_t *dma_map;		   /**< device dma map function. */
-	pci_dma_unmap_t *dma_unmap;	   /**< device dma unmap function. */
 	const struct rte_pci_id *id_table; /**< ID table, NULL terminated. */
-	uint32_t drv_flags;                /**< Flags RTE_PCI_DRV_*. */
+	uint32_t drv_flags;                /**< Flags contolling handling of device. */
 };
 
 /**
@@ -179,8 +137,6 @@ struct rte_pci_bus {
 #define RTE_PCI_DRV_NEED_MAPPING 0x0001
 /** Device needs PCI BAR mapping with enabled write combining (wc) */
 #define RTE_PCI_DRV_WC_ACTIVATE 0x0002
-/** Device already probed can be probed again to check for new ports. */
-#define RTE_PCI_DRV_PROBE_AGAIN 0x0004
 /** Device driver supports link state interrupt */
 #define RTE_PCI_DRV_INTR_LSC	0x0008
 /** Device driver supports device removal interrupt */
@@ -263,8 +219,6 @@ void rte_pci_unregister(struct rte_pci_driver *driver);
  *   The length of the data buffer.
  * @param offset
  *   The offset into PCI config space
- * @return
- *  Number of bytes read on success, negative on error.
  */
 int rte_pci_read_config(const struct rte_pci_device *device,
 		void *buf, size_t len, off_t offset);

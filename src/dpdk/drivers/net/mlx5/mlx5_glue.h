@@ -23,18 +23,12 @@
 #define MLX5_GLUE_VERSION ""
 #endif
 
-#ifndef HAVE_IBV_DEVICE_COUNTERS_SET_V42
+#ifndef HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
 struct ibv_counter_set;
 struct ibv_counter_set_data;
 struct ibv_counter_set_description;
 struct ibv_counter_set_init_attr;
 struct ibv_query_counter_set_attr;
-#endif
-
-#ifndef HAVE_IBV_DEVICE_COUNTERS_SET_V45
-struct ibv_counters;
-struct ibv_counters_init_attr;
-struct ibv_counter_attach_attr;
 #endif
 
 #ifndef HAVE_IBV_DEVICE_TUNNEL_SUPPORT
@@ -43,29 +37,6 @@ struct mlx5dv_qp_init_attr;
 
 #ifndef HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT
 struct mlx5dv_wq_init_attr;
-#endif
-
-#ifndef HAVE_IBV_FLOW_DV_SUPPORT
-struct mlx5dv_flow_matcher;
-struct mlx5dv_flow_matcher_attr;
-struct mlx5dv_flow_action_attr;
-struct mlx5dv_flow_match_parameters;
-struct ibv_flow_action;
-enum mlx5dv_flow_action_packet_reformat_type { packet_reformat_type = 0, };
-enum mlx5dv_flow_table_type { flow_table_type = 0, };
-#endif
-
-#ifndef HAVE_IBV_FLOW_DEVX_COUNTERS
-#define MLX5DV_FLOW_ACTION_COUNTERS_DEVX 0
-#endif
-
-#ifndef HAVE_IBV_DEVX_OBJ
-struct mlx5dv_devx_obj;
-#endif
-
-#ifndef HAVE_MLX5DV_DR
-enum  mlx5dv_dr_domain_type { unused, };
-struct mlx5dv_dr_domain;
 #endif
 
 /* LIB_GLUE_VERSION must be updated every time this structure is modified. */
@@ -107,7 +78,6 @@ struct mlx5_glue {
 	struct ibv_flow *(*create_flow)(struct ibv_qp *qp,
 					struct ibv_flow_attr *flow);
 	int (*destroy_flow)(struct ibv_flow *flow_id);
-	int (*destroy_flow_action)(void *action);
 	struct ibv_qp *(*create_qp)(struct ibv_pd *pd,
 				    struct ibv_qp_init_attr *qp_init_attr);
 	struct ibv_qp *(*create_qp_ex)
@@ -129,30 +99,11 @@ struct mlx5_glue {
 		 struct ibv_counter_set_description *cs_desc);
 	int (*query_counter_set)(struct ibv_query_counter_set_attr *query_attr,
 				 struct ibv_counter_set_data *cs_data);
-	struct ibv_counters *(*create_counters)
-		(struct ibv_context *context,
-		 struct ibv_counters_init_attr *init_attr);
-	int (*destroy_counters)(struct ibv_counters *counters);
-	int (*attach_counters)(struct ibv_counters *counters,
-			       struct ibv_counter_attach_attr *attr,
-			       struct ibv_flow *flow);
-	int (*query_counters)(struct ibv_counters *counters,
-			      uint64_t *counters_value,
-			      uint32_t ncounters,
-			      uint32_t flags);
 	void (*ack_async_event)(struct ibv_async_event *event);
 	int (*get_async_event)(struct ibv_context *context,
 			       struct ibv_async_event *event);
 	const char *(*port_state_str)(enum ibv_port_state port_state);
 	struct ibv_cq *(*cq_ex_to_cq)(struct ibv_cq_ex *cq);
-	void *(*dr_create_flow_action_dest_flow_tbl)(void *tbl);
-	void *(*dr_create_flow_action_dest_vport)(void *domain, uint32_t vport);
-	void *(*dr_create_flow_action_drop)();
-	void *(*dr_create_flow_tbl)(void *domain, uint32_t level);
-	int (*dr_destroy_flow_tbl)(void *tbl);
-	void *(*dr_create_domain)(struct ibv_context *ctx,
-				  enum mlx5dv_dr_domain_type domain);
-	int (*dr_destroy_domain)(void *domain);
 	struct ibv_cq_ex *(*dv_create_cq)
 		(struct ibv_context *context,
 		 struct ibv_cq_init_attr_ex *cq_attr,
@@ -171,42 +122,6 @@ struct mlx5_glue {
 		(struct ibv_context *context,
 		 struct ibv_qp_init_attr_ex *qp_init_attr_ex,
 		 struct mlx5dv_qp_init_attr *dv_qp_init_attr);
-	void *(*dv_create_flow_matcher)
-		(struct ibv_context *context,
-		 struct mlx5dv_flow_matcher_attr *matcher_attr,
-		 void *tbl);
-	void *(*dv_create_flow)(void *matcher, void *match_value,
-			  size_t num_actions, void *actions[]);
-	void *(*dv_create_flow_action_counter)(void *obj, uint32_t  offset);
-	void *(*dv_create_flow_action_dest_ibv_qp)(void *qp);
-	void *(*dv_create_flow_action_modify_header)
-		(struct ibv_context *ctx, enum mlx5dv_flow_table_type ft_type,
-		 void *domain, uint64_t flags, size_t actions_sz,
-		 uint64_t actions[]);
-	void *(*dv_create_flow_action_packet_reformat)
-		(struct ibv_context *ctx,
-		 enum mlx5dv_flow_action_packet_reformat_type reformat_type,
-		 enum mlx5dv_flow_table_type ft_type,
-		 struct mlx5dv_dr_domain *domain,
-		 uint32_t flags, size_t data_sz, void *data);
-	void *(*dv_create_flow_action_tag)(uint32_t tag);
-	int (*dv_destroy_flow)(void *flow);
-	int (*dv_destroy_flow_matcher)(void *matcher);
-	struct ibv_context *(*dv_open_device)(struct ibv_device *device);
-	struct mlx5dv_devx_obj *(*devx_obj_create)
-					(struct ibv_context *ctx,
-					 const void *in, size_t inlen,
-					 void *out, size_t outlen);
-	int (*devx_obj_destroy)(struct mlx5dv_devx_obj *obj);
-	int (*devx_obj_query)(struct mlx5dv_devx_obj *obj,
-			      const void *in, size_t inlen,
-			      void *out, size_t outlen);
-	int (*devx_obj_modify)(struct mlx5dv_devx_obj *obj,
-			       const void *in, size_t inlen,
-			       void *out, size_t outlen);
-	int (*devx_general_cmd)(struct ibv_context *context,
-				const void *in, size_t inlen,
-				void *out, size_t outlen);
 };
 
 const struct mlx5_glue *mlx5_glue;

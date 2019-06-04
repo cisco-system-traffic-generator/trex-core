@@ -1,6 +1,35 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2018
- */
+/*******************************************************************************
+
+Copyright (c) 2001-2015, Intel Corporation
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+ 3. Neither the name of the Intel Corporation nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+***************************************************************************/
 
 #include "ixgbe_type.h"
 #include "ixgbe_82599.h"
@@ -58,6 +87,9 @@ void ixgbe_init_mac_link_ops_82599(struct ixgbe_hw *hw)
 		mac->ops.setup_mac_link = ixgbe_setup_mac_link_82599;
 		mac->ops.set_rate_select_speed =
 					       ixgbe_set_hard_rate_select_speed;
+		if (ixgbe_get_media_type(hw) == ixgbe_media_type_fiber_fixed)
+			mac->ops.set_rate_select_speed =
+					       ixgbe_set_soft_rate_select_speed;
 	} else {
 		if ((ixgbe_get_media_type(hw) == ixgbe_media_type_backplane) &&
 		     (hw->phy.smart_speed == ixgbe_smart_speed_auto ||
@@ -392,8 +424,6 @@ s32 ixgbe_get_link_capabilities_82599(struct ixgbe_hw *hw,
 	/* Check if 1G SFP module. */
 	if (hw->phy.sfp_type == ixgbe_sfp_type_1g_cu_core0 ||
 	    hw->phy.sfp_type == ixgbe_sfp_type_1g_cu_core1 ||
-	    hw->phy.sfp_type == ixgbe_sfp_type_1g_lha_core0 ||
-	    hw->phy.sfp_type == ixgbe_sfp_type_1g_lha_core1 ||
 	    hw->phy.sfp_type == ixgbe_sfp_type_1g_lx_core0 ||
 	    hw->phy.sfp_type == ixgbe_sfp_type_1g_lx_core1 ||
 	    hw->phy.sfp_type == ixgbe_sfp_type_1g_sx_core0 ||
@@ -531,8 +561,15 @@ enum ixgbe_media_type ixgbe_get_media_type_82599(struct ixgbe_hw *hw)
 	case IXGBE_DEV_ID_82599_T3_LOM:
 		media_type = ixgbe_media_type_copper;
 		break;
+	case IXGBE_DEV_ID_82599_LS:
+		media_type = ixgbe_media_type_fiber_lco;
+		break;
 	case IXGBE_DEV_ID_82599_QSFP_SF_QP:
 		media_type = ixgbe_media_type_fiber_qsfp;
+		break;
+	case IXGBE_DEV_ID_82599_BYPASS:
+		media_type = ixgbe_media_type_fiber_fixed;
+		hw->phy.multispeed_fiber = true;
 		break;
 	default:
 		media_type = ixgbe_media_type_unknown;

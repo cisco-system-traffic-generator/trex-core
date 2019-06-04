@@ -7,7 +7,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include <rte_string_fns.h>
 #include <rte_common.h>
 
 #include "rte_cfgfile.h"
@@ -114,8 +113,9 @@ _add_entry(struct rte_cfgfile_section *section, const char *entryname,
 	struct rte_cfgfile_entry *curr_entry =
 					&section->entries[section->num_entries];
 
-	strlcpy(curr_entry->name, entryname, sizeof(curr_entry->name));
-	strlcpy(curr_entry->value, entryvalue, sizeof(curr_entry->value));
+	snprintf(curr_entry->name, sizeof(curr_entry->name), "%s", entryname);
+	snprintf(curr_entry->value,
+				sizeof(curr_entry->value), "%s", entryvalue);
 	section->num_entries++;
 
 	return 0;
@@ -224,11 +224,10 @@ rte_cfgfile_load_with_params(const char *filename, int flags,
 			_strip(split[1], strlen(split[1]));
 			char *end = memchr(split[1], '\\', strlen(split[1]));
 
-			size_t split_len = strlen(split[1]) + 1;
 			while (end != NULL) {
 				if (*(end+1) == params->comment_character) {
 					*end = '\0';
-					strlcat(split[1], end+1, split_len);
+					strcat(split[1], end+1);
 				} else
 					end++;
 				end = memchr(end, '\\', strlen(end));
@@ -342,8 +341,8 @@ rte_cfgfile_add_section(struct rte_cfgfile *cfg, const char *sectionname)
 		cfg->allocated_sections += CFG_ALLOC_SECTION_BATCH;
 	}
 
-	strlcpy(cfg->sections[cfg->num_sections].name, sectionname,
-		sizeof(cfg->sections[0].name));
+	snprintf(cfg->sections[cfg->num_sections].name,
+			sizeof(cfg->sections[0].name), "%s", sectionname);
 	cfg->sections[cfg->num_sections].num_entries = 0;
 	cfg->num_sections++;
 
@@ -393,8 +392,9 @@ int rte_cfgfile_set_entry(struct rte_cfgfile *cfg, const char *sectionname,
 
 	for (i = 0; i < curr_section->num_entries; i++)
 		if (!strcmp(curr_section->entries[i].name, entryname)) {
-			strlcpy(curr_section->entries[i].value, entryvalue,
-				sizeof(curr_section->entries[i].value));
+			snprintf(curr_section->entries[i].value,
+					sizeof(curr_section->entries[i].value),
+							"%s", entryvalue);
 			return 0;
 		}
 	printf("Error - entry name doesn't exist\n");
@@ -468,7 +468,8 @@ rte_cfgfile_sections(struct rte_cfgfile *cfg, char *sections[],
 	int i;
 
 	for (i = 0; i < cfg->num_sections && i < max_sections; i++)
-		strlcpy(sections[i], cfg->sections[i].name, CFG_NAME_LEN);
+		snprintf(sections[i], CFG_NAME_LEN, "%s",
+		cfg->sections[i].name);
 
 	return i;
 }
@@ -498,7 +499,7 @@ rte_cfgfile_section_num_entries_by_index(struct rte_cfgfile *cfg,
 
 	const struct rte_cfgfile_section *sect = &(cfg->sections[index]);
 
-	strlcpy(sectionname, sect->name, CFG_NAME_LEN);
+	snprintf(sectionname, CFG_NAME_LEN, "%s", sect->name);
 	return sect->num_entries;
 }
 int
@@ -525,7 +526,7 @@ rte_cfgfile_section_entries_by_index(struct rte_cfgfile *cfg, int index,
 	if (index < 0 || index >= cfg->num_sections)
 		return -1;
 	sect = &cfg->sections[index];
-	strlcpy(sectionname, sect->name, CFG_NAME_LEN);
+	snprintf(sectionname, CFG_NAME_LEN, "%s", sect->name);
 	for (i = 0; i < max_entries && i < sect->num_entries; i++)
 		entries[i] = sect->entries[i];
 	return i;

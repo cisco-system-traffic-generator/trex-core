@@ -1094,6 +1094,7 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   
   dev_info->rx_offload_capa = DEV_RX_OFFLOAD_JUMBO_FRAME |
                               DEV_RX_OFFLOAD_TIMESTAMP   |
+                              DEV_RX_OFFLOAD_CRC_STRIP |
                               DEV_RX_OFFLOAD_KEEP_CRC |
                               DEV_RX_OFFLOAD_SCATTER;
 

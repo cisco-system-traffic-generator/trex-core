@@ -22,7 +22,6 @@
 /* HW offload capabilities of vectorized Tx. */
 #define MLX5_VEC_TX_OFFLOAD_CAP \
 	(MLX5_VEC_TX_CKSUM_OFFLOAD_CAP | \
-	 DEV_TX_OFFLOAD_MATCH_METADATA | \
 	 DEV_TX_OFFLOAD_MULTI_SEGS)
 
 /*
@@ -102,22 +101,7 @@ mlx5_rx_replenish_bulk_mbuf(struct mlx5_rxq_data *rxq, uint16_t n)
 		return;
 	}
 	for (i = 0; i < n; ++i) {
-		void *buf_addr;
-
-		/*
-		 * Load the virtual address for Rx WQE. non-x86 processors
-		 * (mostly RISC such as ARM and Power) are more vulnerable to
-		 * load stall. For x86, reducing the number of instructions
-		 * seems to matter most.
-		 */
-#ifdef RTE_ARCH_X86_64
-		buf_addr = elts[i]->buf_addr;
-		assert(buf_addr == rte_mbuf_buf_addr(elts[i], rxq->mp));
-#else
-		buf_addr = rte_mbuf_buf_addr(elts[i], rxq->mp);
-		assert(buf_addr == elts[i]->buf_addr);
-#endif
-		wq[i].addr = rte_cpu_to_be_64((uintptr_t)buf_addr +
+		wq[i].addr = rte_cpu_to_be_64((uintptr_t)elts[i]->buf_addr +
 					      RTE_PKTMBUF_HEADROOM);
 		/* If there's only one MR, no need to replace LKey in WQE. */
 		if (unlikely(mlx5_mr_btree_len(&rxq->mr_ctrl.cache_bh) > 1))

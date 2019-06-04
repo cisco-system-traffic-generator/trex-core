@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <libgen.h>
 
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
@@ -522,29 +523,12 @@ static void enic_prep_wq_for_simple_tx(struct enic *enic, uint16_t queue_idx)
 	}
 }
 
-/*
- * The 'strong' version is in enic_rxtx_vec_avx2.c. This weak version is used
- * used when that file is not compiled.
- */
-__rte_weak bool
-enic_use_vector_rx_handler(__rte_unused struct enic *enic)
-{
-	return false;
-}
-
 static void pick_rx_handler(struct enic *enic)
 {
 	struct rte_eth_dev *eth_dev;
 
-	/*
-	 * Preference order:
-	 * 1. The vectorized handler if possible and requested.
-	 * 2. The non-scatter, simplified handler if scatter Rx is not used.
-	 * 3. The default handler as a fallback.
-	 */
+	/* Use the non-scatter, simplified RX handler if possible. */
 	eth_dev = enic->rte_dev;
-	if (enic_use_vector_rx_handler(enic))
-		return;
 	if (enic->rq_count > 0 && enic->rq[0].data_queue_enable == 0) {
 		PMD_INIT_LOG(DEBUG, " use the non-scatter Rx handler");
 		eth_dev->rx_pkt_burst = &enic_noscatter_recv_pkts;
@@ -559,25 +543,6 @@ int enic_enable(struct enic *enic)
 	unsigned int index;
 	int err;
 	struct rte_eth_dev *eth_dev = enic->rte_dev;
-	uint64_t simple_tx_offloads;
-	uintptr_t p;
-
-	if (enic->enable_avx2_rx) {
-		struct rte_mbuf mb_def = { .buf_addr = 0 };
-
-		/*
-		 * mbuf_initializer contains const-after-init fields of
-		 * receive mbufs (i.e. 64 bits of fields from rearm_data).
-		 * It is currently used by the vectorized handler.
-		 */
-		mb_def.nb_segs = 1;
-		mb_def.data_off = RTE_PKTMBUF_HEADROOM;
-		mb_def.port = enic->port_id;
-		rte_mbuf_refcnt_set(&mb_def, 1);
-		rte_compiler_barrier();
-		p = (uintptr_t)&mb_def.rearm_data;
-		enic->mbuf_initializer = *(uint64_t *)p;
-	}
 
 	eth_dev->data->dev_link.link_speed = vnic_dev_port_speed(enic->vdev);
 	eth_dev->data->dev_link.link_duplex = ETH_LINK_FULL_DUPLEX;
@@ -616,17 +581,10 @@ int enic_enable(struct enic *enic)
 	}
 
 	/*
-	 * Use the simple TX handler if possible. Only checksum offloads
-	 * and vlan insertion are supported.
+	 * Use the simple TX handler if possible. All offloads must be
+	 * disabled.
 	 */
-	simple_tx_offloads = enic->tx_offload_capa &
-		(DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-		 DEV_TX_OFFLOAD_VLAN_INSERT |
-		 DEV_TX_OFFLOAD_IPV4_CKSUM |
-		 DEV_TX_OFFLOAD_UDP_CKSUM |
-		 DEV_TX_OFFLOAD_TCP_CKSUM);
-	if ((eth_dev->data->dev_conf.txmode.offloads &
-	     ~simple_tx_offloads) == 0) {
+	if (eth_dev->data->dev_conf.txmode.offloads == 0) {
 		PMD_INIT_LOG(DEBUG, " use the simple tx handler");
 		eth_dev->tx_pkt_burst = &enic_simple_xmit_pkts;
 		for (index = 0; index < enic->wq_count; index++)
@@ -1387,10 +1345,12 @@ int enic_get_link_status(struct enic *enic)
 
 static void enic_dev_deinit(struct enic *enic)
 {
+	struct rte_eth_dev *eth_dev = enic->rte_dev;
+
 	/* stop link status checking */
 	vnic_dev_notify_unset(enic->vdev);
 
-	/* mac_addrs is freed by rte_eth_dev_release_port() */
+	rte_free(eth_dev->data->mac_addrs);
 	rte_free(enic->cq);
 	rte_free(enic->intr);
 	rte_free(enic->rq);
@@ -1675,9 +1635,8 @@ static int enic_dev_init(struct enic *enic)
 	/* Get the supported filters */
 	enic_fdir_info(enic);
 
-	eth_dev->data->mac_addrs = rte_zmalloc("enic_mac_addr",
-					sizeof(struct ether_addr) *
-					ENIC_UNICAST_PERFECT_FILTERS, 0);
+	eth_dev->data->mac_addrs = rte_zmalloc("enic_mac_addr", ETH_ALEN
+						* ENIC_MAX_MAC_ADDR, 0);
 	if (!eth_dev->data->mac_addrs) {
 		dev_err(enic, "mac addr storage alloc failed, aborting.\n");
 		return -1;
@@ -1689,25 +1648,11 @@ static int enic_dev_init(struct enic *enic)
 
 	LIST_INIT(&enic->flows);
 	rte_spinlock_init(&enic->flows_lock);
-	enic->max_flow_counter = -1;
 
 	/* set up link status checking */
 	vnic_dev_notify_set(enic->vdev, -1); /* No Intr for notify */
 
 	enic->overlay_offload = false;
-	if (enic->disable_overlay && enic->vxlan) {
-		/*
-		 * Explicitly disable overlay offload as the setting is
-		 * sticky, and resetting vNIC does not disable it.
-		 */
-		if (vnic_dev_overlay_offload_ctrl(enic->vdev,
-						  OVERLAY_FEATURE_VXLAN,
-						  OVERLAY_OFFLOAD_DISABLE)) {
-			dev_err(enic, "failed to disable overlay offload\n");
-		} else {
-			dev_info(enic, "Overlay offload is disabled\n");
-		}
-	}
 	if (!enic->disable_overlay && enic->vxlan &&
 	    /* 'VXLAN feature' enables VXLAN, NVGRE, and GENEVE. */
 	    vnic_dev_overlay_offload_ctrl(enic->vdev,
@@ -1717,21 +1662,16 @@ static int enic_dev_init(struct enic *enic)
 			DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
 			DEV_TX_OFFLOAD_GENEVE_TNL_TSO |
 			DEV_TX_OFFLOAD_VXLAN_TNL_TSO;
+		/*
+		 * Do not add PKT_TX_OUTER_{IPV4,IPV6} as they are not
+		 * 'offload' flags (i.e. not part of PKT_TX_OFFLOAD_MASK).
+		 */
 		enic->tx_offload_mask |=
-			PKT_TX_OUTER_IPV6 |
-			PKT_TX_OUTER_IPV4 |
 			PKT_TX_OUTER_IP_CKSUM |
 			PKT_TX_TUNNEL_MASK;
 		enic->overlay_offload = true;
-		dev_info(enic, "Overlay offload is enabled\n");
-	}
-	/*
-	 * Reset the vxlan port if HW vxlan parsing is available. It
-	 * is always enabled regardless of overlay offload
-	 * enable/disable.
-	 */
-	if (enic->vxlan) {
 		enic->vxlan_port = ENIC_DEFAULT_VXLAN_PORT;
+		dev_info(enic, "Overlay offload is enabled\n");
 		/*
 		 * Reset the vxlan port to the default, as the NIC firmware
 		 * does not reset it automatically and keeps the old setting.
@@ -1777,20 +1717,14 @@ int enic_probe(struct enic *enic)
 		enic_free_consistent);
 
 	/*
-	 * Allocate the consistent memory for stats and counters upfront so
-	 * both primary and secondary processes can access them.
+	 * Allocate the consistent memory for stats upfront so both primary and
+	 * secondary processes can dump stats.
 	 */
 	err = vnic_dev_alloc_stats_mem(enic->vdev);
 	if (err) {
 		dev_err(enic, "Failed to allocate cmd memory, aborting\n");
 		goto err_out_unregister;
 	}
-	err = vnic_dev_alloc_counter_mem(enic->vdev);
-	if (err) {
-		dev_err(enic, "Failed to allocate counter memory, aborting\n");
-		goto err_out_unregister;
-	}
-
 	/* Issue device open to get device in known state */
 	err = enic_dev_open(enic);
 	if (err) {

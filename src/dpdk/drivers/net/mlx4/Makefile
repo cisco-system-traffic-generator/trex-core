@@ -14,18 +14,17 @@ LIB_GLUE_VERSION = 18.02.0
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_ethdev.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_flow.c
-ifneq ($(CONFIG_RTE_IBVERBS_LINK_DLOPEN),y)
+ifneq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_glue.c
 endif
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_intr.c
-SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_mp.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_mr.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_rxq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_rxtx.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_txq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_utils.c
 
-ifeq ($(CONFIG_RTE_IBVERBS_LINK_DLOPEN),y)
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
 INSTALL-$(CONFIG_RTE_LIBRTE_MLX4_PMD)-lib += $(LIB_GLUE)
 endif
 
@@ -39,13 +38,11 @@ CFLAGS += -D_DEFAULT_SOURCE
 CFLAGS += -D_XOPEN_SOURCE=600
 CFLAGS += $(WERROR_FLAGS)
 CFLAGS += -DALLOW_EXPERIMENTAL_API
-ifeq ($(CONFIG_RTE_IBVERBS_LINK_DLOPEN),y)
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
 CFLAGS += -DMLX4_GLUE='"$(LIB_GLUE)"'
 CFLAGS += -DMLX4_GLUE_VERSION='"$(LIB_GLUE_VERSION)"'
 CFLAGS_mlx4_glue.o += -fPIC
 LDLIBS += -ldl
-else ifeq ($(CONFIG_RTE_IBVERBS_LINK_STATIC),y)
-LDLIBS += $(shell $(RTE_SDK)/buildtools/options-ibverbs-static.sh)
 else
 LDLIBS += -libverbs -lmlx4
 endif
@@ -89,16 +86,6 @@ mlx4_autoconf.h.new: $(RTE_SDK)/buildtools/auto-config-h.sh
 	$Q $(RM) -f -- '$@'
 	$Q : > '$@'
 	$Q sh -- '$<' '$@' \
-		HAVE_IBV_MLX4_BUF_ALLOCATORS \
-		infiniband/mlx4dv.h \
-		enum MLX4DV_SET_CTX_ATTR_BUF_ALLOCATORS \
-		$(AUTOCONF_OUTPUT)
-	$Q sh -- '$<' '$@' \
-		HAVE_IBV_MLX4_UAR_MMAP_OFFSET \
-		infiniband/mlx4dv.h \
-		enum MLX4DV_QP_MASK_UAR_MMAP_OFFSET \
-		$(AUTOCONF_OUTPUT)
-	$Q sh -- '$<' '$@' \
 		HAVE_IBV_MLX4_WQE_LSO_SEG \
 		infiniband/mlx4dv.h \
 		type 'struct mlx4_wqe_lso_seg' \
@@ -116,7 +103,7 @@ $(SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD):.c=.o): mlx4_autoconf.h
 # Generate dependency plug-in for rdma-core when the PMD must not be linked
 # directly, so that applications do not inherit this dependency.
 
-ifeq ($(CONFIG_RTE_IBVERBS_LINK_DLOPEN),y)
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
 
 $(LIB): $(LIB_GLUE)
 

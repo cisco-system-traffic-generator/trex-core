@@ -54,36 +54,9 @@ virtqueue_detach_unused(struct virtqueue *vq)
 	return NULL;
 }
 
-/* Flush used descs */
-static void
-virtqueue_rxvq_flush_packed(struct virtqueue *vq)
-{
-	struct vq_desc_extra *dxp;
-	uint16_t i;
-
-	struct vring_packed_desc *descs = vq->vq_packed.ring.desc;
-	int cnt = 0;
-
-	i = vq->vq_used_cons_idx;
-	while (desc_is_used(&descs[i], vq) && cnt++ < vq->vq_nentries) {
-		dxp = &vq->vq_descx[descs[i].id];
-		if (dxp->cookie != NULL) {
-			rte_pktmbuf_free(dxp->cookie);
-			dxp->cookie = NULL;
-		}
-		vq->vq_free_cnt++;
-		vq->vq_used_cons_idx++;
-		if (vq->vq_used_cons_idx >= vq->vq_nentries) {
-			vq->vq_used_cons_idx -= vq->vq_nentries;
-			vq->vq_packed.used_wrap_counter ^= 1;
-		}
-		i = vq->vq_used_cons_idx;
-	}
-}
-
 /* Flush the elements in the used ring. */
-static void
-virtqueue_rxvq_flush_split(struct virtqueue *vq)
+void
+virtqueue_rxvq_flush(struct virtqueue *vq)
 {
 	struct virtnet_rx *rxq = &vq->rxq;
 	struct virtio_hw *hw = vq->hw;
@@ -96,7 +69,7 @@ virtqueue_rxvq_flush_split(struct virtqueue *vq)
 
 	for (i = 0; i < nb_used; i++) {
 		used_idx = vq->vq_used_cons_idx & (vq->vq_nentries - 1);
-		uep = &vq->vq_split.ring.used->ring[used_idx];
+		uep = &vq->vq_ring.used->ring[used_idx];
 		if (hw->use_simple_rx) {
 			desc_idx = used_idx;
 			rte_pktmbuf_free(vq->sw_ring[desc_idx]);
@@ -128,16 +101,4 @@ virtqueue_rxvq_flush_split(struct virtqueue *vq)
 				virtqueue_notify(vq);
 		}
 	}
-}
-
-/* Flush the elements in the used ring. */
-void
-virtqueue_rxvq_flush(struct virtqueue *vq)
-{
-	struct virtio_hw *hw = vq->hw;
-
-	if (vtpci_packed_queue(hw))
-		virtqueue_rxvq_flush_packed(vq);
-	else
-		virtqueue_rxvq_flush_split(vq);
 }

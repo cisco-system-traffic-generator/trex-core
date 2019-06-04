@@ -39,7 +39,7 @@ static const efx_mac_ops_t	__efx_mac_siena_ops = {
 };
 #endif	/* EFSYS_OPT_SIENA */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 static const efx_mac_ops_t	__efx_mac_ef10_ops = {
 	ef10_mac_poll,				/* emo_poll */
 	ef10_mac_up,				/* emo_up */
@@ -62,7 +62,7 @@ static const efx_mac_ops_t	__efx_mac_ef10_ops = {
 	ef10_mac_stats_update			/* emo_stats_update */
 #endif	/* EFSYS_OPT_MAC_STATS */
 };
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn			efx_rc_t
 efx_mac_pdu_set(

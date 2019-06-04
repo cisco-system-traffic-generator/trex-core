@@ -11,39 +11,6 @@
 extern "C" {
 #endif
 
-#define	EF10_EVQ_MAXNEVS	32768
-#define	EF10_EVQ_MINNEVS	512
-
-#define	EF10_RXQ_MAXNDESCS	4096
-#define	EF10_RXQ_MINNDESCS	512
-
-#define	EF10_TXQ_MINNDESCS	512
-
-#define	EF10_EVQ_DESC_SIZE	(sizeof (efx_qword_t))
-#define	EF10_RXQ_DESC_SIZE	(sizeof (efx_qword_t))
-#define	EF10_TXQ_DESC_SIZE	(sizeof (efx_qword_t))
-
-/* Number of hardware EVQ buffers (for compile-time resource dimensions) */
-#define	EF10_EVQ_MAXNBUFS	(64)
-
-/* Maximum independent of EFX_BUG35388_WORKAROUND. */
-#define	EF10_TXQ_MAXNBUFS	8
-
-#if EFSYS_OPT_HUNTINGTON
-# if (EF10_EVQ_MAXNBUFS < HUNT_EVQ_MAXNBUFS)
-#  error "EF10_EVQ_MAXNBUFS too small"
-# endif
-#endif /* EFSYS_OPT_HUNTINGTON */
-#if EFSYS_OPT_MEDFORD
-# if (EF10_EVQ_MAXNBUFS < MEDFORD_EVQ_MAXNBUFS)
-#  error "EF10_EVQ_MAXNBUFS too small"
-# endif
-#endif /* EFSYS_OPT_MEDFORD */
-#if EFSYS_OPT_MEDFORD2
-# if (EF10_EVQ_MAXNBUFS < MEDFORD2_EVQ_MAXNBUFS)
-#  error "EF10_EVQ_MAXNBUFS too small"
-# endif
-#endif /* EFSYS_OPT_MEDFORD2 */
 
 /* Number of hardware PIO buffers (for compile-time resource dimensions) */
 #define	EF10_MAX_PIOBUF_NBUFS	(16)
@@ -221,14 +188,6 @@ ef10_nic_reset(
 
 extern	__checkReturn	efx_rc_t
 ef10_nic_init(
-	__in		efx_nic_t *enp);
-
-extern	__checkReturn	boolean_t
-ef10_nic_hw_unavailable(
-	__in		efx_nic_t *enp);
-
-extern			void
-ef10_nic_set_hw_unavailable(
 	__in		efx_nic_t *enp);
 
 #if EFSYS_OPT_DIAG
@@ -494,7 +453,7 @@ ef10_nvram_partn_write(
 	__in			efx_nic_t *enp,
 	__in			uint32_t partn,
 	__in			unsigned int offset,
-	__in_bcount(size)	caddr_t data,
+	__out_bcount(size)	caddr_t data,
 	__in			size_t size);
 
 extern	__checkReturn		efx_rc_t
@@ -518,21 +477,17 @@ ef10_nvram_partn_set_version(
 
 extern	__checkReturn		efx_rc_t
 ef10_nvram_buffer_validate(
+	__in			efx_nic_t *enp,
 	__in			uint32_t partn,
 	__in_bcount(buffer_size)
 				caddr_t bufferp,
 	__in			size_t buffer_size);
 
-extern			void
-ef10_nvram_buffer_init(
-	__out_bcount(buffer_size)
-				caddr_t bufferp,
-	__in			size_t buffer_size);
-
 extern	__checkReturn		efx_rc_t
 ef10_nvram_buffer_create(
-	__in			uint32_t partn_type,
-	__out_bcount(buffer_size)
+	__in			efx_nic_t *enp,
+	__in			uint16_t partn_type,
+	__in_bcount(buffer_size)
 				caddr_t bufferp,
 	__in			size_t buffer_size);
 
@@ -561,26 +516,15 @@ ef10_nvram_buffer_find_item(
 	__out			uint32_t *lengthp);
 
 extern	__checkReturn		efx_rc_t
-ef10_nvram_buffer_peek_item(
-	__in_bcount(buffer_size)
-				caddr_t bufferp,
-	__in			size_t buffer_size,
-	__in			uint32_t offset,
-	__out			uint32_t *tagp,
-	__out			uint32_t *lengthp,
-	__out			uint32_t *value_offsetp);
-
-extern	__checkReturn		efx_rc_t
 ef10_nvram_buffer_get_item(
 	__in_bcount(buffer_size)
 				caddr_t bufferp,
 	__in			size_t buffer_size,
 	__in			uint32_t offset,
 	__in			uint32_t length,
-	__out			uint32_t *tagp,
-	__out_bcount_part(value_max_size, *lengthp)
-				caddr_t valuep,
-	__in			size_t value_max_size,
+	__out_bcount_part(item_max_size, *lengthp)
+				caddr_t itemp,
+	__in			size_t item_max_size,
 	__out			uint32_t *lengthp);
 
 extern	__checkReturn		efx_rc_t
@@ -589,19 +533,7 @@ ef10_nvram_buffer_insert_item(
 				caddr_t bufferp,
 	__in			size_t buffer_size,
 	__in			uint32_t offset,
-	__in			uint32_t tag,
-	__in_bcount(length)	caddr_t valuep,
-	__in			uint32_t length,
-	__out			uint32_t *lengthp);
-
-extern	__checkReturn		efx_rc_t
-ef10_nvram_buffer_modify_item(
-	__in_bcount(buffer_size)
-				caddr_t bufferp,
-	__in			size_t buffer_size,
-	__in			uint32_t offset,
-	__in			uint32_t tag,
-	__in_bcount(length)	caddr_t valuep,
+	__in_bcount(length)	caddr_t keyp,
 	__in			uint32_t length,
 	__out			uint32_t *lengthp);
 
@@ -626,7 +558,10 @@ ef10_nvram_buffer_finish(
 /* PHY */
 
 typedef struct ef10_link_state_s {
-	efx_phy_link_state_t	epls;
+	uint32_t		els_adv_cap_mask;
+	uint32_t		els_lp_cap_mask;
+	unsigned int		els_fcntl;
+	efx_link_mode_t		els_link_mode;
 #if EFSYS_OPT_LOOPBACK
 	efx_loopback_type_t	els_loopback;
 #endif
@@ -661,11 +596,6 @@ extern	__checkReturn	efx_rc_t
 ef10_phy_oui_get(
 	__in		efx_nic_t *enp,
 	__out		uint32_t *ouip);
-
-extern	__checkReturn	efx_rc_t
-ef10_phy_link_state_get(
-	__in		efx_nic_t *enp,
-	__out		efx_phy_link_state_t *eplsp);
 
 #if EFSYS_OPT_PHY_STATS
 
@@ -1045,7 +975,7 @@ ef10_rx_qcreate(
 	__in		unsigned int index,
 	__in		unsigned int label,
 	__in		efx_rxq_type_t type,
-	__in_opt	const union efx_rxq_type_data_u *type_data,
+	__in		const union efx_rxq_type_data_u *type_data,
 	__in		efsys_mem_t *esmp,
 	__in		size_t ndescs,
 	__in		uint32_t id,
@@ -1198,12 +1128,11 @@ extern	__checkReturn	efx_rc_t
 efx_mcdi_get_port_modes(
 	__in		efx_nic_t *enp,
 	__out		uint32_t *modesp,
-	__out_opt	uint32_t *current_modep,
-	__out_opt	uint32_t *default_modep);
+	__out_opt	uint32_t *current_modep);
 
 extern	__checkReturn	efx_rc_t
 ef10_nic_get_port_mode_bandwidth(
-	__in		efx_nic_t *enp,
+	__in		uint32_t port_mode,
 	__out		uint32_t *bandwidth_mbpsp);
 
 extern	__checkReturn	efx_rc_t

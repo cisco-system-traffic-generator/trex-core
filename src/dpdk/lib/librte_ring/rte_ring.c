@@ -78,7 +78,7 @@ rte_ring_init(struct rte_ring *r, const char *name, unsigned count,
 
 	/* init the ring structure */
 	memset(r, 0, sizeof(*r));
-	ret = strlcpy(r->name, name, sizeof(r->name));
+	ret = snprintf(r->name, sizeof(r->name), "%s", name);
 	if (ret < 0 || ret >= (int)sizeof(r->name))
 		return -ENAMETOOLONG;
 	r->flags = flags;
@@ -189,8 +189,7 @@ rte_ring_free(struct rte_ring *r)
 	 * therefore, there is no memzone to free.
 	 */
 	if (r->memzone == NULL) {
-		RTE_LOG(ERR, RING,
-			"Cannot free ring, not created with rte_ring_create()\n");
+		RTE_LOG(ERR, RING, "Cannot free ring (not created with rte_ring_create()");
 		return;
 	}
 

@@ -427,7 +427,7 @@ typedef int (*rte_mempool_dequeue_t)(struct rte_mempool *mp,
  * @warning
  * @b EXPERIMENTAL: this API may change without prior notice.
  *
- * Dequeue a number of contiguous object blocks from the external pool.
+ * Dequeue a number of contiquous object blocks from the external pool.
  */
 typedef int (*rte_mempool_dequeue_contig_blocks_t)(struct rte_mempool *mp,
 		 void **first_obj_table, unsigned int n);
@@ -832,9 +832,10 @@ int rte_mempool_register_ops(const struct rte_mempool_ops *ops);
  * Note that the rte_mempool_register_ops fails silently here when
  * more than RTE_MEMPOOL_MAX_OPS_IDX is registered.
  */
-#define MEMPOOL_REGISTER_OPS(ops)				\
-	RTE_INIT(mp_hdlr_init_##ops)				\
-	{							\
+#define MEMPOOL_REGISTER_OPS(ops)					\
+	void mp_hdlr_init_##ops(void);					\
+	void __attribute__((constructor, used)) mp_hdlr_init_##ops(void)\
+	{								\
 		rte_mempool_register_ops(&ops);			\
 	}
 
@@ -1363,7 +1364,7 @@ __mempool_generic_get(struct rte_mempool *mp, void **obj_table,
 			&cache->objs[cache->len], req);
 		if (unlikely(ret < 0)) {
 			/*
-			 * In the off chance that we are buffer constrained,
+			 * In the offchance that we are buffer constrained,
 			 * where we are not able to allocate cache + n, go to
 			 * the ring directly. If that fails, we are truly out of
 			 * buffers.

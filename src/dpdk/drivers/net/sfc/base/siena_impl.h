@@ -9,6 +9,7 @@
 
 #include "efx.h"
 #include "efx_regs.h"
+#include "efx_mcdi.h"
 #include "siena_flash.h"
 
 #ifdef	__cplusplus
@@ -22,20 +23,6 @@ extern "C" {
 #define	EFX_RXQ_DC_SIZE 3 /* 64 descriptors */
 #endif
 #define	EFX_TXQ_DC_NDESCS(_dcsize)	(8 << (_dcsize))
-#define	EFX_RXQ_DC_NDESCS(_dcsize)	(8 << (_dcsize))
-
-#define	SIENA_EVQ_MAXNEVS	32768
-#define	SIENA_EVQ_MINNEVS	512
-
-#define	SIENA_TXQ_MAXNDESCS	4096
-#define	SIENA_TXQ_MINNDESCS	512
-
-#define	SIENA_RXQ_MAXNDESCS	4096
-#define	SIENA_RXQ_MINNDESCS	512
-
-#define	SIENA_EVQ_DESC_SIZE	(sizeof (efx_qword_t))
-#define	SIENA_RXQ_DESC_SIZE	(sizeof (efx_qword_t))
-#define	SIENA_TXQ_DESC_SIZE	(sizeof (efx_qword_t))
 
 #define	SIENA_NVRAM_CHUNK 0x80
 

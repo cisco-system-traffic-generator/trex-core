@@ -47,15 +47,31 @@ enum sfc_txq_state_bit {
 };
 
 /**
- * Transmit queue control primary process-only information.
- * Not used on datapath.
+ * Transmit queue control information. Not used on datapath.
+ * Allocated on the socket specified on the queue setup.
  */
 struct sfc_txq {
+	unsigned int			state;
 	unsigned int			hw_index;
 	struct sfc_evq			*evq;
 	efsys_mem_t			mem;
+	struct sfc_dp_txq		*dp;
 	efx_txq_t			*common;
+	unsigned int			free_thresh;
+	uint64_t			offloads;
 };
+
+static inline unsigned int
+sfc_txq_sw_index_by_hw_index(unsigned int hw_index)
+{
+	return hw_index;
+}
+
+static inline unsigned int
+sfc_txq_sw_index(const struct sfc_txq *txq)
+{
+	return sfc_txq_sw_index_by_hw_index(txq->hw_index);
+}
 
 struct sfc_txq *sfc_txq_by_dp_txq(const struct sfc_dp_txq *dp_txq);
 
@@ -93,16 +109,11 @@ sfc_efx_txq_by_dp_txq(struct sfc_dp_txq *dp_txq)
 }
 
 struct sfc_txq_info {
-	unsigned int		state;
 	unsigned int		entries;
-	struct sfc_dp_txq	*dp;
+	struct sfc_txq		*txq;
 	boolean_t		deferred_start;
 	boolean_t		deferred_started;
-	unsigned int		free_thresh;
-	uint64_t		offloads;
 };
-
-struct sfc_txq_info *sfc_txq_info_by_dp_txq(const struct sfc_dp_txq *dp_txq);
 
 int sfc_tx_configure(struct sfc_adapter *sa);
 void sfc_tx_close(struct sfc_adapter *sa);
@@ -112,7 +123,7 @@ int sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 		 const struct rte_eth_txconf *tx_conf);
 void sfc_tx_qfini(struct sfc_adapter *sa, unsigned int sw_index);
 
-void sfc_tx_qflush_done(struct sfc_txq_info *txq_info);
+void sfc_tx_qflush_done(struct sfc_txq *txq);
 int sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index);
 void sfc_tx_qstop(struct sfc_adapter *sa, unsigned int sw_index);
 int sfc_tx_start(struct sfc_adapter *sa);

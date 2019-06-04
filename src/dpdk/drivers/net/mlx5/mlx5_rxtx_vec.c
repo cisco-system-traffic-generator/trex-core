@@ -40,8 +40,7 @@
 #endif
 
 /**
- * Count the number of packets having same ol_flags and same metadata (if
- * PKT_TX_METADATA is set in ol_flags), and calculate cs_flags.
+ * Count the number of packets having same ol_flags and calculate cs_flags.
  *
  * @param pkts
  *   Pointer to array of packets.
@@ -49,45 +48,26 @@
  *   Number of packets.
  * @param cs_flags
  *   Pointer of flags to be returned.
- * @param metadata
- *   Pointer of metadata to be returned.
- * @param txq_offloads
- *   Offloads enabled on Tx queue
  *
  * @return
- *   Number of packets having same ol_flags and metadata, if relevant.
+ *   Number of packets having same ol_flags.
  */
 static inline unsigned int
-txq_calc_offload(struct rte_mbuf **pkts, uint16_t pkts_n, uint8_t *cs_flags,
-		 rte_be32_t *metadata, const uint64_t txq_offloads)
+txq_calc_offload(struct rte_mbuf **pkts, uint16_t pkts_n, uint8_t *cs_flags)
 {
 	unsigned int pos;
-	const uint64_t cksum_ol_mask =
+	const uint64_t ol_mask =
 		PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM |
 		PKT_TX_UDP_CKSUM | PKT_TX_TUNNEL_GRE |
 		PKT_TX_TUNNEL_VXLAN | PKT_TX_OUTER_IP_CKSUM;
-	rte_be32_t p0_metadata, pn_metadata;
 
 	if (!pkts_n)
 		return 0;
-	p0_metadata = pkts[0]->ol_flags & PKT_TX_METADATA ?
-			pkts[0]->tx_metadata : 0;
-	/* Count the number of packets having same offload parameters. */
-	for (pos = 1; pos < pkts_n; ++pos) {
-		/* Check if packet has same checksum flags. */
-		if ((txq_offloads & MLX5_VEC_TX_CKSUM_OFFLOAD_CAP) &&
-		    ((pkts[pos]->ol_flags ^ pkts[0]->ol_flags) & cksum_ol_mask))
+	/* Count the number of packets having same ol_flags. */
+	for (pos = 1; pos < pkts_n; ++pos)
+		if ((pkts[pos]->ol_flags ^ pkts[0]->ol_flags) & ol_mask)
 			break;
-		/* Check if packet has same metadata. */
-		if (txq_offloads & DEV_TX_OFFLOAD_MATCH_METADATA) {
-			pn_metadata = pkts[pos]->ol_flags & PKT_TX_METADATA ?
-					pkts[pos]->tx_metadata : 0;
-			if (pn_metadata != p0_metadata)
-				break;
-		}
-	}
 	*cs_flags = txq_ol_cksum_to_cs(pkts[0]);
-	*metadata = p0_metadata;
 	return pos;
 }
 
@@ -116,7 +96,7 @@ mlx5_tx_burst_raw_vec(void *dpdk_txq, struct rte_mbuf **pkts,
 		uint16_t ret;
 
 		n = RTE_MIN((uint16_t)(pkts_n - nb_tx), MLX5_VPMD_TX_MAX_BURST);
-		ret = txq_burst_v(txq, &pkts[nb_tx], n, 0, 0);
+		ret = txq_burst_v(txq, &pkts[nb_tx], n, 0);
 		nb_tx += ret;
 		if (!ret)
 			break;
@@ -147,7 +127,6 @@ mlx5_tx_burst_vec(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		uint8_t cs_flags = 0;
 		uint16_t n;
 		uint16_t ret;
-		rte_be32_t metadata = 0;
 
 		/* Transmit multi-seg packets in the head of pkts list. */
 		if ((txq->offloads & DEV_TX_OFFLOAD_MULTI_SEGS) &&
@@ -158,12 +137,9 @@ mlx5_tx_burst_vec(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		n = RTE_MIN((uint16_t)(pkts_n - nb_tx), MLX5_VPMD_TX_MAX_BURST);
 		if (txq->offloads & DEV_TX_OFFLOAD_MULTI_SEGS)
 			n = txq_count_contig_single_seg(&pkts[nb_tx], n);
-		if (txq->offloads & (MLX5_VEC_TX_CKSUM_OFFLOAD_CAP |
-				     DEV_TX_OFFLOAD_MATCH_METADATA))
-			n = txq_calc_offload(&pkts[nb_tx], n,
-					     &cs_flags, &metadata,
-					     txq->offloads);
-		ret = txq_burst_v(txq, &pkts[nb_tx], n, cs_flags, metadata);
+		if (txq->offloads & MLX5_VEC_TX_CKSUM_OFFLOAD_CAP)
+			n = txq_calc_offload(&pkts[nb_tx], n, &cs_flags);
+		ret = txq_burst_v(txq, &pkts[nb_tx], n, cs_flags);
 		nb_tx += ret;
 		if (!ret)
 			break;
@@ -273,11 +249,11 @@ mlx5_check_raw_vec_tx_support(struct rte_eth_dev *dev)
 int __attribute__((cold))
 mlx5_check_vec_tx_support(struct rte_eth_dev *dev)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	uint64_t offloads = dev->data->dev_conf.txmode.offloads;
 
 	if (!priv->config.tx_vec_en ||
-	    priv->txqs_n > (unsigned int)priv->config.txqs_vec ||
+	    priv->txqs_n > MLX5_VPMD_MIN_TXQS ||
 	    priv->config.mps != MLX5_MPW_ENHANCED ||
 	    offloads & ~MLX5_VEC_TX_OFFLOAD_CAP)
 		return -ENOTSUP;
@@ -318,7 +294,7 @@ mlx5_rxq_check_vec_support(struct mlx5_rxq_data *rxq)
 int __attribute__((cold))
 mlx5_check_vec_rx_support(struct rte_eth_dev *dev)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	uint16_t i;
 
 	if (!priv->config.rx_vec_en)

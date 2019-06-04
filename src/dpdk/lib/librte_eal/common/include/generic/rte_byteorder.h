@@ -15,7 +15,7 @@
  */
 
 #include <stdint.h>
-#ifdef RTE_EXEC_ENV_FREEBSD
+#ifdef RTE_EXEC_ENV_BSDAPP
 #include <sys/endian.h>
 #else
 #include <endian.h>

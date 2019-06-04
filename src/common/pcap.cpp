@@ -28,25 +28,25 @@ static uint32_t MAGIC_NUM_DONT_FLIP = 0xa1b2c3d4;
 
 LibPCapReader::LibPCapReader()
 {
-    m_is_open = false;
-    m_last_time = 0;
-    m_is_valid = false;
+	m_is_open = false;
+	m_last_time = 0;
+	m_is_valid = false;
     m_file_handler = NULL;
-    m_is_flip = false;
+	m_is_flip = false;
 }
 
 LibPCapReader::~LibPCapReader()
 {
-    if (m_is_open && m_file_handler) {
+	if (m_is_open && m_file_handler) {
         fclose(m_file_handler);
-    }
+	}
 }
 
 void LibPCapReader::Rewind() {
-    if (m_is_open && m_file_handler) {
-        rewind(m_file_handler);
-        this->init();
-    }
+   if (m_is_open && m_file_handler) {
+       rewind(m_file_handler);
+       this->init();
+   }
 }
 
 /**
@@ -156,7 +156,7 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
    }
    if (pkt_header.caplen > READER_MAX_PACKET_SIZE) {
        /* cannot read this packet */
-       printf("WARNING: packet is too big (%dB), max allowed is %dB. Stopping to read current pcap\n", pkt_header.caplen, READER_MAX_PACKET_SIZE);
+       //printf("ERROR packet is too big, bigger than %d \n",READER_MAX_PACKET_SIZE);
        return false;
    }
 

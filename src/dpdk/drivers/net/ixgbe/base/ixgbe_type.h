@@ -1,6 +1,35 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2018
- */
+/*******************************************************************************
+
+Copyright (c) 2001-2015, Intel Corporation
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+ 3. Neither the name of the Intel Corporation nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+***************************************************************************/
 
 #ifndef _IXGBE_TYPE_H_
 #define _IXGBE_TYPE_H_
@@ -17,8 +46,8 @@
  *
  * - IXGBE_ERROR_POLLING
  * This category is for errors related to polling/timeout issues and should be
- * used in any case where the timeout occurred, or a failure to obtain a lock,
- * or failure to receive data within the time limit.
+ * used in any case where the timeout occured, or a failure to obtain a lock, or
+ * failure to receive data within the time limit.
  *
  * - IXGBE_ERROR_CAUTION
  * This category should be used for reporting issues that may be the cause of
@@ -93,9 +122,12 @@
 #define IXGBE_DEV_ID_82599_T3_LOM		0x151C
 #define IXGBE_DEV_ID_82599_VF			0x10ED
 #define IXGBE_DEV_ID_82599_VF_HV		0x152E
+#define IXGBE_DEV_ID_82599_LS			0x154F
+#define IXGBE_DEV_ID_82599_BYPASS		0x155D
 #define IXGBE_DEV_ID_X540T			0x1528
 #define IXGBE_DEV_ID_X540_VF			0x1515
 #define IXGBE_DEV_ID_X540_VF_HV			0x1530
+#define IXGBE_DEV_ID_X540_BYPASS		0x155C
 #define IXGBE_DEV_ID_X540T1			0x1560
 #define IXGBE_DEV_ID_X550T			0x1563
 #define IXGBE_DEV_ID_X550T1			0x15D1
@@ -850,10 +882,6 @@ struct ixgbe_dmac_config {
 #define IXGBE_RTTDQSEL		0x04904
 #define IXGBE_RTTDT1C		0x04908
 #define IXGBE_RTTDT1S		0x0490C
-#define IXGBE_RTTQCNCR		0x08B00
-#define IXGBE_RTTQCNTG		0x04A90
-#define IXGBE_RTTBCNRD		0x0498C
-#define IXGBE_RTTQCNRR		0x0498C
 #define IXGBE_RTTDTECC		0x04990
 #define IXGBE_RTTDTECC_NO_BCN	0x00000100
 
@@ -864,7 +892,6 @@ struct ixgbe_dmac_config {
 #define IXGBE_RTTBCNRC_RF_INT_MASK \
 	(IXGBE_RTTBCNRC_RF_DEC_MASK << IXGBE_RTTBCNRC_RF_INT_SHIFT)
 #define IXGBE_RTTBCNRM	0x04980
-#define IXGBE_RTTQCNRM	0x04980
 
 /* BCN (for DCB) Registers */
 #define IXGBE_RTTBCNRS	0x04988
@@ -1072,9 +1099,6 @@ struct ixgbe_dmac_config {
 #define IXGBE_FWSM_MODE_MASK	0xE
 #define IXGBE_FWSM_TS_ENABLED	0x1
 #define IXGBE_FWSM_FW_MODE_PT	0x4
-#define IXGBE_FWSM_FW_NVM_RECOVERY_MODE (1 << 5)
-#define IXGBE_FWSM_EXT_ERR_IND_MASK 0x01F80000
-#define IXGBE_FWSM_FW_VAL_BIT	(1 << 15)
 
 /* ARC Subsystem registers */
 #define IXGBE_HICR		0x15F00
@@ -3724,8 +3748,6 @@ enum ixgbe_sfp_type {
 	ixgbe_sfp_type_1g_sx_core1 = 12,
 	ixgbe_sfp_type_1g_lx_core0 = 13,
 	ixgbe_sfp_type_1g_lx_core1 = 14,
-	ixgbe_sfp_type_1g_lha_core0 = 15,
-	ixgbe_sfp_type_1g_lha_core1 = 16,
 	ixgbe_sfp_type_not_present = 0xFFFE,
 	ixgbe_sfp_type_unknown = 0xFFFF
 };
@@ -3733,7 +3755,9 @@ enum ixgbe_sfp_type {
 enum ixgbe_media_type {
 	ixgbe_media_type_unknown = 0,
 	ixgbe_media_type_fiber,
+	ixgbe_media_type_fiber_fixed,
 	ixgbe_media_type_fiber_qsfp,
+	ixgbe_media_type_fiber_lco,
 	ixgbe_media_type_copper,
 	ixgbe_media_type_backplane,
 	ixgbe_media_type_cx4,
@@ -4026,7 +4050,6 @@ struct ixgbe_mac_operations {
 	void (*enable_mdd)(struct ixgbe_hw *hw);
 	void (*mdd_event)(struct ixgbe_hw *hw, u32 *vf_bitmap);
 	void (*restore_mdd_vf)(struct ixgbe_hw *hw, u32 vf);
-	bool (*fw_recovery_mode)(struct ixgbe_hw *hw);
 };
 
 struct ixgbe_phy_operations {

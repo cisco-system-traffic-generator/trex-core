@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2010-2018 Intel Corporation
  */
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,8 +15,6 @@
 #include <rte_esp.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
-#include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
 
 #include "rte_table_action.h"
 
@@ -107,31 +106,39 @@ mtr_cfg_check(struct rte_table_action_mtr_config *mtr)
 	return 0;
 }
 
+#define MBUF_SCHED_QUEUE_TC_COLOR(queue, tc, color)        \
+	((uint16_t)((((uint64_t)(queue)) & 0x3) |          \
+	((((uint64_t)(tc)) & 0x3) << 2) |                  \
+	((((uint64_t)(color)) & 0x3) << 4)))
+
+#define MBUF_SCHED_COLOR(sched, color)                     \
+	(((sched) & (~0x30LLU)) | ((color) << 4))
+
 struct mtr_trtcm_data {
 	struct rte_meter_trtcm trtcm;
-	uint64_t stats[RTE_COLORS];
+	uint64_t stats[e_RTE_METER_COLORS];
 } __attribute__((__packed__));
 
 #define MTR_TRTCM_DATA_METER_PROFILE_ID_GET(data)          \
-	(((data)->stats[RTE_COLOR_GREEN] & 0xF8LLU) >> 3)
+	(((data)->stats[e_RTE_METER_GREEN] & 0xF8LLU) >> 3)
 
 static void
 mtr_trtcm_data_meter_profile_id_set(struct mtr_trtcm_data *data,
 	uint32_t profile_id)
 {
-	data->stats[RTE_COLOR_GREEN] &= ~0xF8LLU;
-	data->stats[RTE_COLOR_GREEN] |= (profile_id % 32) << 3;
+	data->stats[e_RTE_METER_GREEN] &= ~0xF8LLU;
+	data->stats[e_RTE_METER_GREEN] |= (profile_id % 32) << 3;
 }
 
 #define MTR_TRTCM_DATA_POLICER_ACTION_DROP_GET(data, color)\
 	(((data)->stats[(color)] & 4LLU) >> 2)
 
 #define MTR_TRTCM_DATA_POLICER_ACTION_COLOR_GET(data, color)\
-	((enum rte_color)((data)->stats[(color)] & 3LLU))
+	((enum rte_meter_color)((data)->stats[(color)] & 3LLU))
 
 static void
 mtr_trtcm_data_policer_action_set(struct mtr_trtcm_data *data,
-	enum rte_color color,
+	enum rte_meter_color color,
 	enum rte_table_action_policer action)
 {
 	if (action == RTE_TABLE_ACTION_POLICER_DROP) {
@@ -144,14 +151,14 @@ mtr_trtcm_data_policer_action_set(struct mtr_trtcm_data *data,
 
 static uint64_t
 mtr_trtcm_data_stats_get(struct mtr_trtcm_data *data,
-	enum rte_color color)
+	enum rte_meter_color color)
 {
 	return data->stats[color] >> 8;
 }
 
 static void
 mtr_trtcm_data_stats_reset(struct mtr_trtcm_data *data,
-	enum rte_color color)
+	enum rte_meter_color color)
 {
 	data->stats[color] &= 0xFFLU;
 }
@@ -166,9 +173,9 @@ mtr_data_size(struct rte_table_action_mtr_config *mtr)
 }
 
 struct dscp_table_entry_data {
-	enum rte_color color;
+	enum rte_meter_color color;
 	uint16_t tc;
-	uint16_t tc_queue;
+	uint16_t queue_tc_color;
 };
 
 struct dscp_table_data {
@@ -287,16 +294,16 @@ mtr_apply(struct mtr_trtcm_data *data,
 
 		/* Policer actions */
 		mtr_trtcm_data_policer_action_set(data_tc,
-			RTE_COLOR_GREEN,
-			p_tc->policer[RTE_COLOR_GREEN]);
+			e_RTE_METER_GREEN,
+			p_tc->policer[e_RTE_METER_GREEN]);
 
 		mtr_trtcm_data_policer_action_set(data_tc,
-			RTE_COLOR_YELLOW,
-			p_tc->policer[RTE_COLOR_YELLOW]);
+			e_RTE_METER_YELLOW,
+			p_tc->policer[e_RTE_METER_YELLOW]);
 
 		mtr_trtcm_data_policer_action_set(data_tc,
-			RTE_COLOR_RED,
-			p_tc->policer[RTE_COLOR_RED]);
+			e_RTE_METER_RED,
+			p_tc->policer[e_RTE_METER_RED]);
 	}
 
 	return 0;
@@ -311,15 +318,17 @@ pkt_work_mtr(struct rte_mbuf *mbuf,
 	uint32_t dscp,
 	uint16_t total_length)
 {
-	uint64_t drop_mask;
+	uint64_t drop_mask, sched;
+	uint64_t *sched_ptr = (uint64_t *) &mbuf->hash.sched;
 	struct dscp_table_entry_data *dscp_entry = &dscp_table->entry[dscp];
-	enum rte_color color_in, color_meter, color_policer;
+	enum rte_meter_color color_in, color_meter, color_policer;
 	uint32_t tc, mp_id;
 
 	tc = dscp_entry->tc;
 	color_in = dscp_entry->color;
 	data += tc;
 	mp_id = MTR_TRTCM_DATA_METER_PROFILE_ID_GET(data);
+	sched = *sched_ptr;
 
 	/* Meter */
 	color_meter = rte_meter_trtcm_color_aware_check(
@@ -336,7 +345,7 @@ pkt_work_mtr(struct rte_mbuf *mbuf,
 	drop_mask = MTR_TRTCM_DATA_POLICER_ACTION_DROP_GET(data, color_meter);
 	color_policer =
 		MTR_TRTCM_DATA_POLICER_ACTION_COLOR_GET(data, color_meter);
-	rte_mbuf_sched_color_set(mbuf, (uint8_t)color_policer);
+	*sched_ptr = MBUF_SCHED_COLOR(sched, color_policer);
 
 	return drop_mask;
 }
@@ -358,8 +367,9 @@ tm_cfg_check(struct rte_table_action_tm_config *tm)
 }
 
 struct tm_data {
-	uint32_t queue_id;
-	uint32_t reserved;
+	uint16_t queue_tc_color;
+	uint16_t subport;
+	uint32_t pipe;
 } __attribute__((__packed__));
 
 static int
@@ -386,9 +396,9 @@ tm_apply(struct tm_data *data,
 		return status;
 
 	/* Apply */
-	data->queue_id = p->subport_id <<
-				(__builtin_ctz(cfg->n_pipes_per_subport) + 4) |
-				p->pipe_id << 4;
+	data->queue_tc_color = 0;
+	data->subport = (uint16_t) p->subport_id;
+	data->pipe = p->pipe_id;
 
 	return 0;
 }
@@ -400,11 +410,12 @@ pkt_work_tm(struct rte_mbuf *mbuf,
 	uint32_t dscp)
 {
 	struct dscp_table_entry_data *dscp_entry = &dscp_table->entry[dscp];
-	uint32_t queue_id = data->queue_id |
-				(dscp_entry->tc << 2) |
-				dscp_entry->tc_queue;
-	rte_mbuf_sched_set(mbuf, queue_id, dscp_entry->tc,
-				(uint8_t)dscp_entry->color);
+	struct tm_data *sched_ptr = (struct tm_data *) &mbuf->hash.sched;
+	struct tm_data sched;
+
+	sched = *data;
+	sched.queue_tc_color = dscp_entry->queue_tc_color;
+	*sched_ptr = sched;
 }
 
 /**
@@ -419,8 +430,6 @@ encap_valid(enum rte_table_action_encap_type encap)
 	case RTE_TABLE_ACTION_ENCAP_QINQ:
 	case RTE_TABLE_ACTION_ENCAP_MPLS:
 	case RTE_TABLE_ACTION_ENCAP_PPPOE:
-	case RTE_TABLE_ACTION_ENCAP_VXLAN:
-	case RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE:
 		return 1;
 	default:
 		return 0;
@@ -473,6 +482,8 @@ struct encap_mpls_data {
 	uint32_t mpls_count;
 } __attribute__((__packed__));
 
+#define ETHER_TYPE_PPPOE_SESSION                           0x8864
+
 #define PPP_PROTOCOL_IP                                    0x0021
 
 struct pppoe_ppp_hdr {
@@ -484,45 +495,6 @@ struct pppoe_ppp_hdr {
 
 struct encap_pppoe_data {
 	struct ether_hdr ether;
-	struct pppoe_ppp_hdr pppoe_ppp;
-} __attribute__((__packed__));
-
-#define IP_PROTO_UDP                                       17
-
-struct encap_vxlan_ipv4_data {
-	struct ether_hdr ether;
-	struct ipv4_hdr ipv4;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
-
-struct encap_vxlan_ipv4_vlan_data {
-	struct ether_hdr ether;
-	struct vlan_hdr vlan;
-	struct ipv4_hdr ipv4;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
-
-struct encap_vxlan_ipv6_data {
-	struct ether_hdr ether;
-	struct ipv6_hdr ipv6;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
-
-struct encap_vxlan_ipv6_vlan_data {
-	struct ether_hdr ether;
-	struct vlan_hdr vlan;
-	struct ipv6_hdr ipv6;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
-
-struct encap_qinq_pppoe_data {
-	struct ether_hdr ether;
-	struct vlan_hdr svlan;
-	struct vlan_hdr cvlan;
 	struct pppoe_ppp_hdr pppoe_ppp;
 } __attribute__((__packed__));
 
@@ -544,21 +516,6 @@ encap_data_size(struct rte_table_action_encap_config *encap)
 
 	case 1LLU << RTE_TABLE_ACTION_ENCAP_PPPOE:
 		return sizeof(struct encap_pppoe_data);
-
-	case 1LLU << RTE_TABLE_ACTION_ENCAP_VXLAN:
-		if (encap->vxlan.ip_version)
-			if (encap->vxlan.vlan)
-				return sizeof(struct encap_vxlan_ipv4_vlan_data);
-			else
-				return sizeof(struct encap_vxlan_ipv4_data);
-		else
-			if (encap->vxlan.vlan)
-				return sizeof(struct encap_vxlan_ipv6_vlan_data);
-			else
-				return sizeof(struct encap_vxlan_ipv6_data);
-
-	case 1LLU << RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE:
-			return sizeof(struct encap_qinq_pppoe_data);
 
 	default:
 		return 0;
@@ -591,12 +548,6 @@ encap_apply_check(struct rte_table_action_encap_params *p,
 		return 0;
 
 	case RTE_TABLE_ACTION_ENCAP_PPPOE:
-		return 0;
-
-	case RTE_TABLE_ACTION_ENCAP_VXLAN:
-		return 0;
-
-	case RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE:
 		return 0;
 
 	default:
@@ -677,38 +628,6 @@ encap_qinq_apply(void *data,
 }
 
 static int
-encap_qinq_pppoe_apply(void *data,
-	struct rte_table_action_encap_params *p)
-{
-	struct encap_qinq_pppoe_data *d = data;
-
-	/* Ethernet */
-	ether_addr_copy(&p->qinq.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->qinq.ether.sa, &d->ether.s_addr);
-	d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
-
-	/* SVLAN */
-	d->svlan.vlan_tci = rte_htons(VLAN(p->qinq.svlan.pcp,
-		p->qinq.svlan.dei,
-		p->qinq.svlan.vid));
-	d->svlan.eth_proto = rte_htons(ETHER_TYPE_VLAN);
-
-	/* CVLAN */
-	d->cvlan.vlan_tci = rte_htons(VLAN(p->qinq.cvlan.pcp,
-		p->qinq.cvlan.dei,
-		p->qinq.cvlan.vid));
-	d->cvlan.eth_proto = rte_htons(ETHER_TYPE_PPPOE_SESSION);
-
-	/* PPPoE and PPP*/
-	d->pppoe_ppp.ver_type_code = rte_htons(0x1100);
-	d->pppoe_ppp.session_id = rte_htons(p->qinq_pppoe.pppoe.session_id);
-	d->pppoe_ppp.length = 0; /* not pre-computed */
-	d->pppoe_ppp.protocol = rte_htons(PPP_PROTOCOL_IP);
-
-	return 0;
-}
-
-static int
 encap_mpls_apply(void *data,
 	struct rte_table_action_encap_params *p)
 {
@@ -760,168 +679,6 @@ encap_pppoe_apply(void *data,
 }
 
 static int
-encap_vxlan_apply(void *data,
-	struct rte_table_action_encap_params *p,
-	struct rte_table_action_encap_config *cfg)
-{
-	if ((p->vxlan.vxlan.vni > 0xFFFFFF) ||
-		(cfg->vxlan.ip_version && (p->vxlan.ipv4.dscp > 0x3F)) ||
-		(!cfg->vxlan.ip_version && (p->vxlan.ipv6.flow_label > 0xFFFFF)) ||
-		(!cfg->vxlan.ip_version && (p->vxlan.ipv6.dscp > 0x3F)) ||
-		(cfg->vxlan.vlan && (p->vxlan.vlan.vid > 0xFFF)))
-		return -1;
-
-	if (cfg->vxlan.ip_version)
-		if (cfg->vxlan.vlan) {
-			struct encap_vxlan_ipv4_vlan_data *d = data;
-
-			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
-
-			/* VLAN */
-			d->vlan.vlan_tci = rte_htons(VLAN(p->vxlan.vlan.pcp,
-				p->vxlan.vlan.dei,
-				p->vxlan.vlan.vid));
-			d->vlan.eth_proto = rte_htons(ETHER_TYPE_IPv4);
-
-			/* IPv4*/
-			d->ipv4.version_ihl = 0x45;
-			d->ipv4.type_of_service = p->vxlan.ipv4.dscp << 2;
-			d->ipv4.total_length = 0; /* not pre-computed */
-			d->ipv4.packet_id = 0;
-			d->ipv4.fragment_offset = 0;
-			d->ipv4.time_to_live = p->vxlan.ipv4.ttl;
-			d->ipv4.next_proto_id = IP_PROTO_UDP;
-			d->ipv4.hdr_checksum = 0;
-			d->ipv4.src_addr = rte_htonl(p->vxlan.ipv4.sa);
-			d->ipv4.dst_addr = rte_htonl(p->vxlan.ipv4.da);
-
-			d->ipv4.hdr_checksum = rte_ipv4_cksum(&d->ipv4);
-
-			/* UDP */
-			d->udp.src_port = rte_htons(p->vxlan.udp.sp);
-			d->udp.dst_port = rte_htons(p->vxlan.udp.dp);
-			d->udp.dgram_len = 0; /* not pre-computed */
-			d->udp.dgram_cksum = 0;
-
-			/* VXLAN */
-			d->vxlan.vx_flags = rte_htonl(0x08000000);
-			d->vxlan.vx_vni = rte_htonl(p->vxlan.vxlan.vni << 8);
-
-			return 0;
-		} else {
-			struct encap_vxlan_ipv4_data *d = data;
-
-			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_IPv4);
-
-			/* IPv4*/
-			d->ipv4.version_ihl = 0x45;
-			d->ipv4.type_of_service = p->vxlan.ipv4.dscp << 2;
-			d->ipv4.total_length = 0; /* not pre-computed */
-			d->ipv4.packet_id = 0;
-			d->ipv4.fragment_offset = 0;
-			d->ipv4.time_to_live = p->vxlan.ipv4.ttl;
-			d->ipv4.next_proto_id = IP_PROTO_UDP;
-			d->ipv4.hdr_checksum = 0;
-			d->ipv4.src_addr = rte_htonl(p->vxlan.ipv4.sa);
-			d->ipv4.dst_addr = rte_htonl(p->vxlan.ipv4.da);
-
-			d->ipv4.hdr_checksum = rte_ipv4_cksum(&d->ipv4);
-
-			/* UDP */
-			d->udp.src_port = rte_htons(p->vxlan.udp.sp);
-			d->udp.dst_port = rte_htons(p->vxlan.udp.dp);
-			d->udp.dgram_len = 0; /* not pre-computed */
-			d->udp.dgram_cksum = 0;
-
-			/* VXLAN */
-			d->vxlan.vx_flags = rte_htonl(0x08000000);
-			d->vxlan.vx_vni = rte_htonl(p->vxlan.vxlan.vni << 8);
-
-			return 0;
-		}
-	else
-		if (cfg->vxlan.vlan) {
-			struct encap_vxlan_ipv6_vlan_data *d = data;
-
-			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
-
-			/* VLAN */
-			d->vlan.vlan_tci = rte_htons(VLAN(p->vxlan.vlan.pcp,
-				p->vxlan.vlan.dei,
-				p->vxlan.vlan.vid));
-			d->vlan.eth_proto = rte_htons(ETHER_TYPE_IPv6);
-
-			/* IPv6*/
-			d->ipv6.vtc_flow = rte_htonl((6 << 28) |
-				(p->vxlan.ipv6.dscp << 22) |
-				p->vxlan.ipv6.flow_label);
-			d->ipv6.payload_len = 0; /* not pre-computed */
-			d->ipv6.proto = IP_PROTO_UDP;
-			d->ipv6.hop_limits = p->vxlan.ipv6.hop_limit;
-			memcpy(d->ipv6.src_addr,
-				p->vxlan.ipv6.sa,
-				sizeof(p->vxlan.ipv6.sa));
-			memcpy(d->ipv6.dst_addr,
-				p->vxlan.ipv6.da,
-				sizeof(p->vxlan.ipv6.da));
-
-			/* UDP */
-			d->udp.src_port = rte_htons(p->vxlan.udp.sp);
-			d->udp.dst_port = rte_htons(p->vxlan.udp.dp);
-			d->udp.dgram_len = 0; /* not pre-computed */
-			d->udp.dgram_cksum = 0;
-
-			/* VXLAN */
-			d->vxlan.vx_flags = rte_htonl(0x08000000);
-			d->vxlan.vx_vni = rte_htonl(p->vxlan.vxlan.vni << 8);
-
-			return 0;
-		} else {
-			struct encap_vxlan_ipv6_data *d = data;
-
-			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_IPv6);
-
-			/* IPv6*/
-			d->ipv6.vtc_flow = rte_htonl((6 << 28) |
-				(p->vxlan.ipv6.dscp << 22) |
-				p->vxlan.ipv6.flow_label);
-			d->ipv6.payload_len = 0; /* not pre-computed */
-			d->ipv6.proto = IP_PROTO_UDP;
-			d->ipv6.hop_limits = p->vxlan.ipv6.hop_limit;
-			memcpy(d->ipv6.src_addr,
-				p->vxlan.ipv6.sa,
-				sizeof(p->vxlan.ipv6.sa));
-			memcpy(d->ipv6.dst_addr,
-				p->vxlan.ipv6.da,
-				sizeof(p->vxlan.ipv6.da));
-
-			/* UDP */
-			d->udp.src_port = rte_htons(p->vxlan.udp.sp);
-			d->udp.dst_port = rte_htons(p->vxlan.udp.dp);
-			d->udp.dgram_len = 0; /* not pre-computed */
-			d->udp.dgram_cksum = 0;
-
-			/* VXLAN */
-			d->vxlan.vx_flags = rte_htonl(0x08000000);
-			d->vxlan.vx_vni = rte_htonl(p->vxlan.vxlan.vni << 8);
-
-			return 0;
-		}
-}
-
-static int
 encap_apply(void *data,
 	struct rte_table_action_encap_params *p,
 	struct rte_table_action_encap_config *cfg,
@@ -950,32 +707,9 @@ encap_apply(void *data,
 	case RTE_TABLE_ACTION_ENCAP_PPPOE:
 		return encap_pppoe_apply(data, p);
 
-	case RTE_TABLE_ACTION_ENCAP_VXLAN:
-		return encap_vxlan_apply(data, p, cfg);
-
-	case RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE:
-		return encap_qinq_pppoe_apply(data, p);
-
 	default:
 		return -EINVAL;
 	}
-}
-
-static __rte_always_inline uint16_t
-encap_vxlan_ipv4_checksum_update(uint16_t cksum0,
-	uint16_t total_length)
-{
-	int32_t cksum1;
-
-	cksum1 = cksum0;
-	cksum1 = ~cksum1 & 0xFFFF;
-
-	/* Add total length (one's complement logic) */
-	cksum1 += total_length;
-	cksum1 = (cksum1 & 0xFFFF) + (cksum1 >> 16);
-	cksum1 = (cksum1 & 0xFFFF) + (cksum1 >> 16);
-
-	return (uint16_t)(~cksum1);
 }
 
 static __rte_always_inline void *
@@ -983,118 +717,6 @@ encap(void *dst, const void *src, size_t n)
 {
 	dst = ((uint8_t *) dst) - n;
 	return rte_memcpy(dst, src, n);
-}
-
-static __rte_always_inline void
-pkt_work_encap_vxlan_ipv4(struct rte_mbuf *mbuf,
-	struct encap_vxlan_ipv4_data *vxlan_tbl,
-	struct rte_table_action_encap_config *cfg)
-{
-	uint32_t ether_offset = cfg->vxlan.data_offset;
-	void *ether = RTE_MBUF_METADATA_UINT32_PTR(mbuf, ether_offset);
-	struct encap_vxlan_ipv4_data *vxlan_pkt;
-	uint16_t ether_length, ipv4_total_length, ipv4_hdr_cksum, udp_length;
-
-	ether_length = (uint16_t)mbuf->pkt_len;
-	ipv4_total_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr) +
-		sizeof(struct ipv4_hdr));
-	ipv4_hdr_cksum = encap_vxlan_ipv4_checksum_update(vxlan_tbl->ipv4.hdr_checksum,
-		rte_htons(ipv4_total_length));
-	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-
-	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
-	vxlan_pkt->ipv4.total_length = rte_htons(ipv4_total_length);
-	vxlan_pkt->ipv4.hdr_checksum = ipv4_hdr_cksum;
-	vxlan_pkt->udp.dgram_len = rte_htons(udp_length);
-
-	mbuf->data_off = ether_offset - (sizeof(struct rte_mbuf) + sizeof(*vxlan_pkt));
-	mbuf->pkt_len = mbuf->data_len = ether_length + sizeof(*vxlan_pkt);
-}
-
-static __rte_always_inline void
-pkt_work_encap_vxlan_ipv4_vlan(struct rte_mbuf *mbuf,
-	struct encap_vxlan_ipv4_vlan_data *vxlan_tbl,
-	struct rte_table_action_encap_config *cfg)
-{
-	uint32_t ether_offset = cfg->vxlan.data_offset;
-	void *ether = RTE_MBUF_METADATA_UINT32_PTR(mbuf, ether_offset);
-	struct encap_vxlan_ipv4_vlan_data *vxlan_pkt;
-	uint16_t ether_length, ipv4_total_length, ipv4_hdr_cksum, udp_length;
-
-	ether_length = (uint16_t)mbuf->pkt_len;
-	ipv4_total_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr) +
-		sizeof(struct ipv4_hdr));
-	ipv4_hdr_cksum = encap_vxlan_ipv4_checksum_update(vxlan_tbl->ipv4.hdr_checksum,
-		rte_htons(ipv4_total_length));
-	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-
-	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
-	vxlan_pkt->ipv4.total_length = rte_htons(ipv4_total_length);
-	vxlan_pkt->ipv4.hdr_checksum = ipv4_hdr_cksum;
-	vxlan_pkt->udp.dgram_len = rte_htons(udp_length);
-
-	mbuf->data_off = ether_offset - (sizeof(struct rte_mbuf) + sizeof(*vxlan_pkt));
-	mbuf->pkt_len = mbuf->data_len = ether_length + sizeof(*vxlan_pkt);
-}
-
-static __rte_always_inline void
-pkt_work_encap_vxlan_ipv6(struct rte_mbuf *mbuf,
-	struct encap_vxlan_ipv6_data *vxlan_tbl,
-	struct rte_table_action_encap_config *cfg)
-{
-	uint32_t ether_offset = cfg->vxlan.data_offset;
-	void *ether = RTE_MBUF_METADATA_UINT32_PTR(mbuf, ether_offset);
-	struct encap_vxlan_ipv6_data *vxlan_pkt;
-	uint16_t ether_length, ipv6_payload_length, udp_length;
-
-	ether_length = (uint16_t)mbuf->pkt_len;
-	ipv6_payload_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-
-	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
-	vxlan_pkt->ipv6.payload_len = rte_htons(ipv6_payload_length);
-	vxlan_pkt->udp.dgram_len = rte_htons(udp_length);
-
-	mbuf->data_off = ether_offset - (sizeof(struct rte_mbuf) + sizeof(*vxlan_pkt));
-	mbuf->pkt_len = mbuf->data_len = ether_length + sizeof(*vxlan_pkt);
-}
-
-static __rte_always_inline void
-pkt_work_encap_vxlan_ipv6_vlan(struct rte_mbuf *mbuf,
-	struct encap_vxlan_ipv6_vlan_data *vxlan_tbl,
-	struct rte_table_action_encap_config *cfg)
-{
-	uint32_t ether_offset = cfg->vxlan.data_offset;
-	void *ether = RTE_MBUF_METADATA_UINT32_PTR(mbuf, ether_offset);
-	struct encap_vxlan_ipv6_vlan_data *vxlan_pkt;
-	uint16_t ether_length, ipv6_payload_length, udp_length;
-
-	ether_length = (uint16_t)mbuf->pkt_len;
-	ipv6_payload_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
-
-	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
-	vxlan_pkt->ipv6.payload_len = rte_htons(ipv6_payload_length);
-	vxlan_pkt->udp.dgram_len = rte_htons(udp_length);
-
-	mbuf->data_off = ether_offset - (sizeof(struct rte_mbuf) + sizeof(*vxlan_pkt));
-	mbuf->pkt_len = mbuf->data_len = ether_length + sizeof(*vxlan_pkt);
 }
 
 static __rte_always_inline void
@@ -1152,32 +774,6 @@ pkt_work_encap(struct rte_mbuf *mbuf,
 		mbuf->pkt_len = mbuf->data_len = total_length +
 			sizeof(struct encap_pppoe_data);
 		break;
-	}
-
-	case 1LLU << RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE:
-	{
-		struct encap_qinq_pppoe_data *qinq_pppoe =
-			encap(ip, data, sizeof(struct encap_qinq_pppoe_data));
-		qinq_pppoe->pppoe_ppp.length = rte_htons(total_length + 2);
-		mbuf->data_off = ip_offset - (sizeof(struct rte_mbuf) +
-			sizeof(struct encap_qinq_pppoe_data));
-		mbuf->pkt_len = mbuf->data_len = total_length +
-			sizeof(struct encap_qinq_pppoe_data);
-		break;
-	}
-
-	case 1LLU << RTE_TABLE_ACTION_ENCAP_VXLAN:
-	{
-		if (cfg->vxlan.ip_version)
-			if (cfg->vxlan.vlan)
-				pkt_work_encap_vxlan_ipv4_vlan(mbuf, data, cfg);
-			else
-				pkt_work_encap_vxlan_ipv4(mbuf, data, cfg);
-		else
-			if (cfg->vxlan.vlan)
-				pkt_work_encap_vxlan_ipv6_vlan(mbuf, data, cfg);
-			else
-				pkt_work_encap_vxlan_ipv6(mbuf, data, cfg);
 	}
 
 	default:
@@ -1623,561 +1219,6 @@ pkt_work_time(struct time_data *data,
 	data->time = time;
 }
 
-
-/**
- * RTE_TABLE_ACTION_CRYPTO
- */
-
-#define CRYPTO_OP_MASK_CIPHER	0x1
-#define CRYPTO_OP_MASK_AUTH	0x2
-#define CRYPTO_OP_MASK_AEAD	0x4
-
-struct crypto_op_sym_iv_aad {
-	struct rte_crypto_op op;
-	struct rte_crypto_sym_op sym_op;
-	union {
-		struct {
-			uint8_t cipher_iv[
-				RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX];
-			uint8_t auth_iv[
-				RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX];
-		} cipher_auth;
-
-		struct {
-			uint8_t iv[RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX];
-			uint8_t aad[RTE_TABLE_ACTION_SYM_CRYPTO_AAD_SIZE_MAX];
-		} aead_iv_aad;
-
-	} iv_aad;
-};
-
-struct sym_crypto_data {
-
-	union {
-		struct {
-
-			/** Length of cipher iv. */
-			uint16_t cipher_iv_len;
-
-			/** Offset from start of IP header to the cipher iv. */
-			uint16_t cipher_iv_data_offset;
-
-			/** Length of cipher iv to be updated in the mbuf. */
-			uint16_t cipher_iv_update_len;
-
-			/** Offset from start of IP header to the auth iv. */
-			uint16_t auth_iv_data_offset;
-
-			/** Length of auth iv in the mbuf. */
-			uint16_t auth_iv_len;
-
-			/** Length of auth iv to be updated in the mbuf. */
-			uint16_t auth_iv_update_len;
-
-		} cipher_auth;
-		struct {
-
-			/** Length of iv. */
-			uint16_t iv_len;
-
-			/** Offset from start of IP header to the aead iv. */
-			uint16_t iv_data_offset;
-
-			/** Length of iv to be updated in the mbuf. */
-			uint16_t iv_update_len;
-
-			/** Length of aad */
-			uint16_t aad_len;
-
-			/** Offset from start of IP header to the aad. */
-			uint16_t aad_data_offset;
-
-			/** Length of aad to updated in the mbuf. */
-			uint16_t aad_update_len;
-
-		} aead;
-	};
-
-	/** Offset from start of IP header to the data. */
-	uint16_t data_offset;
-
-	/** Digest length. */
-	uint16_t digest_len;
-
-	/** block size */
-	uint16_t block_size;
-
-	/** Mask of crypto operation */
-	uint16_t op_mask;
-
-	/** Session pointer. */
-	struct rte_cryptodev_sym_session *session;
-
-	/** Direction of crypto, encrypt or decrypt */
-	uint16_t direction;
-
-	/** Private data size to store cipher iv / aad. */
-	uint8_t iv_aad_data[32];
-
-} __attribute__((__packed__));
-
-static int
-sym_crypto_cfg_check(struct rte_table_action_sym_crypto_config *cfg)
-{
-	if (!rte_cryptodev_pmd_is_valid_dev(cfg->cryptodev_id))
-		return -EINVAL;
-	if (cfg->mp_create == NULL || cfg->mp_init == NULL)
-		return -EINVAL;
-
-	return 0;
-}
-
-static int
-get_block_size(const struct rte_crypto_sym_xform *xform, uint8_t cdev_id)
-{
-	struct rte_cryptodev_info dev_info;
-	const struct rte_cryptodev_capabilities *cap;
-	uint32_t i;
-
-	rte_cryptodev_info_get(cdev_id, &dev_info);
-
-	for (i = 0; dev_info.capabilities[i].op != RTE_CRYPTO_OP_TYPE_UNDEFINED;
-			i++) {
-		cap = &dev_info.capabilities[i];
-
-		if (cap->sym.xform_type != xform->type)
-			continue;
-
-		if ((xform->type == RTE_CRYPTO_SYM_XFORM_CIPHER) &&
-				(cap->sym.cipher.algo == xform->cipher.algo))
-			return cap->sym.cipher.block_size;
-
-		if ((xform->type == RTE_CRYPTO_SYM_XFORM_AEAD) &&
-				(cap->sym.aead.algo == xform->aead.algo))
-			return cap->sym.aead.block_size;
-
-		if (xform->type == RTE_CRYPTO_SYM_XFORM_NOT_SPECIFIED)
-			break;
-	}
-
-	return -1;
-}
-
-static int
-sym_crypto_apply(struct sym_crypto_data *data,
-	struct rte_table_action_sym_crypto_config *cfg,
-	struct rte_table_action_sym_crypto_params *p)
-{
-	const struct rte_crypto_cipher_xform *cipher_xform = NULL;
-	const struct rte_crypto_auth_xform *auth_xform = NULL;
-	const struct rte_crypto_aead_xform *aead_xform = NULL;
-	struct rte_crypto_sym_xform *xform = p->xform;
-	struct rte_cryptodev_sym_session *session;
-	int ret;
-
-	memset(data, 0, sizeof(*data));
-
-	while (xform) {
-		if (xform->type == RTE_CRYPTO_SYM_XFORM_CIPHER) {
-			cipher_xform = &xform->cipher;
-
-			if (cipher_xform->iv.length >
-				RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX)
-				return -ENOMEM;
-			if (cipher_xform->iv.offset !=
-					RTE_TABLE_ACTION_SYM_CRYPTO_IV_OFFSET)
-				return -EINVAL;
-
-			ret = get_block_size(xform, cfg->cryptodev_id);
-			if (ret < 0)
-				return -1;
-			data->block_size = (uint16_t)ret;
-			data->op_mask |= CRYPTO_OP_MASK_CIPHER;
-
-			data->cipher_auth.cipher_iv_len =
-					cipher_xform->iv.length;
-			data->cipher_auth.cipher_iv_data_offset = (uint16_t)
-					p->cipher_auth.cipher_iv_update.offset;
-			data->cipher_auth.cipher_iv_update_len = (uint16_t)
-					p->cipher_auth.cipher_iv_update.length;
-
-			rte_memcpy(data->iv_aad_data,
-					p->cipher_auth.cipher_iv.val,
-					p->cipher_auth.cipher_iv.length);
-
-			data->direction = cipher_xform->op;
-
-		} else if (xform->type == RTE_CRYPTO_SYM_XFORM_AUTH) {
-			auth_xform = &xform->auth;
-			if (auth_xform->iv.length >
-				RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX)
-				return -ENOMEM;
-			data->op_mask |= CRYPTO_OP_MASK_AUTH;
-
-			data->cipher_auth.auth_iv_len = auth_xform->iv.length;
-			data->cipher_auth.auth_iv_data_offset = (uint16_t)
-					p->cipher_auth.auth_iv_update.offset;
-			data->cipher_auth.auth_iv_update_len = (uint16_t)
-					p->cipher_auth.auth_iv_update.length;
-			data->digest_len = auth_xform->digest_length;
-
-			data->direction = (auth_xform->op ==
-					RTE_CRYPTO_AUTH_OP_GENERATE) ?
-					RTE_CRYPTO_CIPHER_OP_ENCRYPT :
-					RTE_CRYPTO_CIPHER_OP_DECRYPT;
-
-		} else if (xform->type == RTE_CRYPTO_SYM_XFORM_AEAD) {
-			aead_xform = &xform->aead;
-
-			if ((aead_xform->iv.length >
-				RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX) || (
-				aead_xform->aad_length >
-				RTE_TABLE_ACTION_SYM_CRYPTO_AAD_SIZE_MAX))
-				return -EINVAL;
-			if (aead_xform->iv.offset !=
-					RTE_TABLE_ACTION_SYM_CRYPTO_IV_OFFSET)
-				return -EINVAL;
-
-			ret = get_block_size(xform, cfg->cryptodev_id);
-			if (ret < 0)
-				return -1;
-			data->block_size = (uint16_t)ret;
-			data->op_mask |= CRYPTO_OP_MASK_AEAD;
-
-			data->digest_len = aead_xform->digest_length;
-			data->aead.iv_len = aead_xform->iv.length;
-			data->aead.aad_len = aead_xform->aad_length;
-
-			data->aead.iv_data_offset = (uint16_t)
-					p->aead.iv_update.offset;
-			data->aead.iv_update_len = (uint16_t)
-					p->aead.iv_update.length;
-			data->aead.aad_data_offset = (uint16_t)
-					p->aead.aad_update.offset;
-			data->aead.aad_update_len = (uint16_t)
-					p->aead.aad_update.length;
-
-			rte_memcpy(data->iv_aad_data,
-					p->aead.iv.val,
-					p->aead.iv.length);
-
-			rte_memcpy(data->iv_aad_data + p->aead.iv.length,
-					p->aead.aad.val,
-					p->aead.aad.length);
-
-			data->direction = (aead_xform->op ==
-					RTE_CRYPTO_AEAD_OP_ENCRYPT) ?
-					RTE_CRYPTO_CIPHER_OP_ENCRYPT :
-					RTE_CRYPTO_CIPHER_OP_DECRYPT;
-		} else
-			return -EINVAL;
-
-		xform = xform->next;
-	}
-
-	if (auth_xform && auth_xform->iv.length) {
-		if (cipher_xform) {
-			if (auth_xform->iv.offset !=
-					RTE_TABLE_ACTION_SYM_CRYPTO_IV_OFFSET +
-					cipher_xform->iv.length)
-				return -EINVAL;
-
-			rte_memcpy(data->iv_aad_data + cipher_xform->iv.length,
-					p->cipher_auth.auth_iv.val,
-					p->cipher_auth.auth_iv.length);
-		} else {
-			rte_memcpy(data->iv_aad_data,
-					p->cipher_auth.auth_iv.val,
-					p->cipher_auth.auth_iv.length);
-		}
-	}
-
-	session = rte_cryptodev_sym_session_create(cfg->mp_create);
-	if (!session)
-		return -ENOMEM;
-
-	ret = rte_cryptodev_sym_session_init(cfg->cryptodev_id, session,
-			p->xform, cfg->mp_init);
-	if (ret < 0) {
-		rte_cryptodev_sym_session_free(session);
-		return ret;
-	}
-
-	data->data_offset = (uint16_t)p->data_offset;
-	data->session = session;
-
-	return 0;
-}
-
-static __rte_always_inline uint64_t
-pkt_work_sym_crypto(struct rte_mbuf *mbuf, struct sym_crypto_data *data,
-		struct rte_table_action_sym_crypto_config *cfg,
-		uint16_t ip_offset)
-{
-	struct crypto_op_sym_iv_aad *crypto_op = (struct crypto_op_sym_iv_aad *)
-			RTE_MBUF_METADATA_UINT8_PTR(mbuf, cfg->op_offset);
-	struct rte_crypto_op *op = &crypto_op->op;
-	struct rte_crypto_sym_op *sym = op->sym;
-	uint32_t pkt_offset = sizeof(*mbuf) + mbuf->data_off;
-	uint32_t payload_len = pkt_offset + mbuf->data_len - data->data_offset;
-
-	op->type = RTE_CRYPTO_OP_TYPE_SYMMETRIC;
-	op->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
-	op->phys_addr = mbuf->buf_iova + cfg->op_offset - sizeof(*mbuf);
-	op->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
-	sym->m_src = mbuf;
-	sym->m_dst = NULL;
-	sym->session = data->session;
-
-	/** pad the packet */
-	if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT) {
-		uint32_t append_len = RTE_ALIGN_CEIL(payload_len,
-				data->block_size) - payload_len;
-
-		if (unlikely(rte_pktmbuf_append(mbuf, append_len +
-				data->digest_len) == NULL))
-			return 1;
-
-		payload_len += append_len;
-	} else
-		payload_len -= data->digest_len;
-
-	if (data->op_mask & CRYPTO_OP_MASK_CIPHER) {
-		/** prepare cipher op */
-		uint8_t *iv = crypto_op->iv_aad.cipher_auth.cipher_iv;
-
-		sym->cipher.data.length = payload_len;
-		sym->cipher.data.offset = data->data_offset - pkt_offset;
-
-		if (data->cipher_auth.cipher_iv_update_len) {
-			uint8_t *pkt_iv = RTE_MBUF_METADATA_UINT8_PTR(mbuf,
-				data->cipher_auth.cipher_iv_data_offset
-				+ ip_offset);
-
-			/** For encryption, update the pkt iv field, otherwise
-			 *  update the iv_aad_field
-			 **/
-			if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT)
-				rte_memcpy(pkt_iv, data->iv_aad_data,
-					data->cipher_auth.cipher_iv_update_len);
-			else
-				rte_memcpy(data->iv_aad_data, pkt_iv,
-					data->cipher_auth.cipher_iv_update_len);
-		}
-
-		/** write iv */
-		rte_memcpy(iv, data->iv_aad_data,
-				data->cipher_auth.cipher_iv_len);
-	}
-
-	if (data->op_mask & CRYPTO_OP_MASK_AUTH) {
-		/** authentication always start from IP header. */
-		sym->auth.data.offset = ip_offset - pkt_offset;
-		sym->auth.data.length = mbuf->data_len - sym->auth.data.offset -
-				data->digest_len;
-		sym->auth.digest.data = rte_pktmbuf_mtod_offset(mbuf,
-				uint8_t *, rte_pktmbuf_pkt_len(mbuf) -
-				data->digest_len);
-		sym->auth.digest.phys_addr = rte_pktmbuf_iova_offset(mbuf,
-				rte_pktmbuf_pkt_len(mbuf) - data->digest_len);
-
-		if (data->cipher_auth.auth_iv_update_len) {
-			uint8_t *pkt_iv = RTE_MBUF_METADATA_UINT8_PTR(mbuf,
-					data->cipher_auth.auth_iv_data_offset
-					+ ip_offset);
-			uint8_t *data_iv = data->iv_aad_data +
-					data->cipher_auth.cipher_iv_len;
-
-			if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT)
-				rte_memcpy(pkt_iv, data_iv,
-					data->cipher_auth.auth_iv_update_len);
-			else
-				rte_memcpy(data_iv, pkt_iv,
-					data->cipher_auth.auth_iv_update_len);
-		}
-
-		if (data->cipher_auth.auth_iv_len) {
-			/** prepare cipher op */
-			uint8_t *iv = crypto_op->iv_aad.cipher_auth.auth_iv;
-
-			rte_memcpy(iv, data->iv_aad_data +
-					data->cipher_auth.cipher_iv_len,
-					data->cipher_auth.auth_iv_len);
-		}
-	}
-
-	if (data->op_mask & CRYPTO_OP_MASK_AEAD) {
-		uint8_t *iv = crypto_op->iv_aad.aead_iv_aad.iv;
-		uint8_t *aad = crypto_op->iv_aad.aead_iv_aad.aad;
-
-		sym->aead.aad.data = aad;
-		sym->aead.aad.phys_addr = rte_pktmbuf_iova_offset(mbuf,
-				aad - rte_pktmbuf_mtod(mbuf, uint8_t *));
-		sym->aead.digest.data = rte_pktmbuf_mtod_offset(mbuf,
-				uint8_t *, rte_pktmbuf_pkt_len(mbuf) -
-				data->digest_len);
-		sym->aead.digest.phys_addr = rte_pktmbuf_iova_offset(mbuf,
-				rte_pktmbuf_pkt_len(mbuf) - data->digest_len);
-		sym->aead.data.offset = data->data_offset - pkt_offset;
-		sym->aead.data.length = payload_len;
-
-		if (data->aead.iv_update_len) {
-			uint8_t *pkt_iv = RTE_MBUF_METADATA_UINT8_PTR(mbuf,
-					data->aead.iv_data_offset + ip_offset);
-			uint8_t *data_iv = data->iv_aad_data;
-
-			if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT)
-				rte_memcpy(pkt_iv, data_iv,
-						data->aead.iv_update_len);
-			else
-				rte_memcpy(data_iv, pkt_iv,
-					data->aead.iv_update_len);
-		}
-
-		rte_memcpy(iv, data->iv_aad_data, data->aead.iv_len);
-
-		if (data->aead.aad_update_len) {
-			uint8_t *pkt_aad = RTE_MBUF_METADATA_UINT8_PTR(mbuf,
-					data->aead.aad_data_offset + ip_offset);
-			uint8_t *data_aad = data->iv_aad_data +
-					data->aead.iv_len;
-
-			if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT)
-				rte_memcpy(pkt_aad, data_aad,
-						data->aead.iv_update_len);
-			else
-				rte_memcpy(data_aad, pkt_aad,
-					data->aead.iv_update_len);
-		}
-
-		rte_memcpy(aad, data->iv_aad_data + data->aead.iv_len,
-					data->aead.aad_len);
-	}
-
-	return 0;
-}
-
-/**
- * RTE_TABLE_ACTION_TAG
- */
-struct tag_data {
-	uint32_t tag;
-} __attribute__((__packed__));
-
-static int
-tag_apply(struct tag_data *data,
-	struct rte_table_action_tag_params *p)
-{
-	data->tag = p->tag;
-	return 0;
-}
-
-static __rte_always_inline void
-pkt_work_tag(struct rte_mbuf *mbuf,
-	struct tag_data *data)
-{
-	mbuf->hash.fdir.hi = data->tag;
-	mbuf->ol_flags |= PKT_RX_FDIR | PKT_RX_FDIR_ID;
-}
-
-static __rte_always_inline void
-pkt4_work_tag(struct rte_mbuf *mbuf0,
-	struct rte_mbuf *mbuf1,
-	struct rte_mbuf *mbuf2,
-	struct rte_mbuf *mbuf3,
-	struct tag_data *data0,
-	struct tag_data *data1,
-	struct tag_data *data2,
-	struct tag_data *data3)
-{
-	mbuf0->hash.fdir.hi = data0->tag;
-	mbuf1->hash.fdir.hi = data1->tag;
-	mbuf2->hash.fdir.hi = data2->tag;
-	mbuf3->hash.fdir.hi = data3->tag;
-
-	mbuf0->ol_flags |= PKT_RX_FDIR | PKT_RX_FDIR_ID;
-	mbuf1->ol_flags |= PKT_RX_FDIR | PKT_RX_FDIR_ID;
-	mbuf2->ol_flags |= PKT_RX_FDIR | PKT_RX_FDIR_ID;
-	mbuf3->ol_flags |= PKT_RX_FDIR | PKT_RX_FDIR_ID;
-}
-
-/**
- * RTE_TABLE_ACTION_DECAP
- */
-struct decap_data {
-	uint16_t n;
-} __attribute__((__packed__));
-
-static int
-decap_apply(struct decap_data *data,
-	struct rte_table_action_decap_params *p)
-{
-	data->n = p->n;
-	return 0;
-}
-
-static __rte_always_inline void
-pkt_work_decap(struct rte_mbuf *mbuf,
-	struct decap_data *data)
-{
-	uint16_t data_off = mbuf->data_off;
-	uint16_t data_len = mbuf->data_len;
-	uint32_t pkt_len = mbuf->pkt_len;
-	uint16_t n = data->n;
-
-	mbuf->data_off = data_off + n;
-	mbuf->data_len = data_len - n;
-	mbuf->pkt_len = pkt_len - n;
-}
-
-static __rte_always_inline void
-pkt4_work_decap(struct rte_mbuf *mbuf0,
-	struct rte_mbuf *mbuf1,
-	struct rte_mbuf *mbuf2,
-	struct rte_mbuf *mbuf3,
-	struct decap_data *data0,
-	struct decap_data *data1,
-	struct decap_data *data2,
-	struct decap_data *data3)
-{
-	uint16_t data_off0 = mbuf0->data_off;
-	uint16_t data_len0 = mbuf0->data_len;
-	uint32_t pkt_len0 = mbuf0->pkt_len;
-
-	uint16_t data_off1 = mbuf1->data_off;
-	uint16_t data_len1 = mbuf1->data_len;
-	uint32_t pkt_len1 = mbuf1->pkt_len;
-
-	uint16_t data_off2 = mbuf2->data_off;
-	uint16_t data_len2 = mbuf2->data_len;
-	uint32_t pkt_len2 = mbuf2->pkt_len;
-
-	uint16_t data_off3 = mbuf3->data_off;
-	uint16_t data_len3 = mbuf3->data_len;
-	uint32_t pkt_len3 = mbuf3->pkt_len;
-
-	uint16_t n0 = data0->n;
-	uint16_t n1 = data1->n;
-	uint16_t n2 = data2->n;
-	uint16_t n3 = data3->n;
-
-	mbuf0->data_off = data_off0 + n0;
-	mbuf0->data_len = data_len0 - n0;
-	mbuf0->pkt_len = pkt_len0 - n0;
-
-	mbuf1->data_off = data_off1 + n1;
-	mbuf1->data_len = data_len1 - n1;
-	mbuf1->pkt_len = pkt_len1 - n1;
-
-	mbuf2->data_off = data_off2 + n2;
-	mbuf2->data_len = data_len2 - n2;
-	mbuf2->pkt_len = pkt_len2 - n2;
-
-	mbuf3->data_off = data_off3 + n3;
-	mbuf3->data_len = data_len3 - n3;
-	mbuf3->pkt_len = pkt_len3 - n3;
-}
-
 /**
  * Action profile
  */
@@ -2194,9 +1235,6 @@ action_valid(enum rte_table_action_type action)
 	case RTE_TABLE_ACTION_TTL:
 	case RTE_TABLE_ACTION_STATS:
 	case RTE_TABLE_ACTION_TIME:
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-	case RTE_TABLE_ACTION_TAG:
-	case RTE_TABLE_ACTION_DECAP:
 		return 1;
 	default:
 		return 0;
@@ -2216,7 +1254,6 @@ struct ap_config {
 	struct rte_table_action_nat_config nat;
 	struct rte_table_action_ttl_config ttl;
 	struct rte_table_action_stats_config stats;
-	struct rte_table_action_sym_crypto_config sym_crypto;
 };
 
 static size_t
@@ -2237,8 +1274,6 @@ action_cfg_size(enum rte_table_action_type action)
 		return sizeof(struct rte_table_action_ttl_config);
 	case RTE_TABLE_ACTION_STATS:
 		return sizeof(struct rte_table_action_stats_config);
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-		return sizeof(struct rte_table_action_sym_crypto_config);
 	default:
 		return 0;
 	}
@@ -2270,8 +1305,6 @@ action_cfg_get(struct ap_config *ap_config,
 	case RTE_TABLE_ACTION_STATS:
 		return &ap_config->stats;
 
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-		return &ap_config->sym_crypto;
 	default:
 		return NULL;
 	}
@@ -2327,15 +1360,6 @@ action_data_size(enum rte_table_action_type action,
 
 	case RTE_TABLE_ACTION_TIME:
 		return sizeof(struct time_data);
-
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-		return (sizeof(struct sym_crypto_data));
-
-	case RTE_TABLE_ACTION_TAG:
-		return sizeof(struct tag_data);
-
-	case RTE_TABLE_ACTION_DECAP:
-		return sizeof(struct decap_data);
 
 	default:
 		return 0;
@@ -2434,10 +1458,6 @@ rte_table_action_profile_action_register(struct rte_table_action_profile *profil
 
 	case RTE_TABLE_ACTION_STATS:
 		status = stats_cfg_check(action_config);
-		break;
-
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-		status = sym_crypto_cfg_check(action_config);
 		break;
 
 	default:
@@ -2589,19 +1609,6 @@ rte_table_action_apply(struct rte_table_action *action,
 		return time_apply(action_data,
 			action_params);
 
-	case RTE_TABLE_ACTION_SYM_CRYPTO:
-		return sym_crypto_apply(action_data,
-				&action->cfg.sym_crypto,
-				action_params);
-
-	case RTE_TABLE_ACTION_TAG:
-		return tag_apply(action_data,
-			action_params);
-
-	case RTE_TABLE_ACTION_DECAP:
-		return decap_apply(action_data,
-			action_params);
-
 	default:
 		return -EINVAL;
 	}
@@ -2627,13 +1634,17 @@ rte_table_action_dscp_table_update(struct rte_table_action *action,
 			&action->dscp_table.entry[i];
 		struct rte_table_action_dscp_table_entry *entry =
 			&table->entry[i];
+		uint16_t queue_tc_color =
+			MBUF_SCHED_QUEUE_TC_COLOR(entry->tc_queue_id,
+				entry->tc_id,
+				entry->color);
 
 		if ((dscp_mask & (1LLU << i)) == 0)
 			continue;
 
 		data->color = entry->color;
 		data->tc = entry->tc_id;
-		data->tc_queue = entry->tc_queue_id;
+		data->queue_tc_color = queue_tc_color;
 	}
 
 	return 0;
@@ -2731,14 +1742,14 @@ rte_table_action_meter_read(struct rte_table_action *action,
 			if ((tc_mask & (1 << i)) == 0)
 				continue;
 
-			dst->n_packets[RTE_COLOR_GREEN] =
-				mtr_trtcm_data_stats_get(src, RTE_COLOR_GREEN);
+			dst->n_packets[e_RTE_METER_GREEN] =
+				mtr_trtcm_data_stats_get(src, e_RTE_METER_GREEN);
 
-			dst->n_packets[RTE_COLOR_YELLOW] =
-				mtr_trtcm_data_stats_get(src, RTE_COLOR_YELLOW);
+			dst->n_packets[e_RTE_METER_YELLOW] =
+				mtr_trtcm_data_stats_get(src, e_RTE_METER_YELLOW);
 
-			dst->n_packets[RTE_COLOR_RED] =
-				mtr_trtcm_data_stats_get(src, RTE_COLOR_RED);
+			dst->n_packets[e_RTE_METER_RED] =
+				mtr_trtcm_data_stats_get(src, e_RTE_METER_RED);
 
 			dst->n_packets_valid = 1;
 			dst->n_bytes_valid = 0;
@@ -2755,9 +1766,9 @@ rte_table_action_meter_read(struct rte_table_action *action,
 			if ((tc_mask & (1 << i)) == 0)
 				continue;
 
-			mtr_trtcm_data_stats_reset(src, RTE_COLOR_GREEN);
-			mtr_trtcm_data_stats_reset(src, RTE_COLOR_YELLOW);
-			mtr_trtcm_data_stats_reset(src, RTE_COLOR_RED);
+			mtr_trtcm_data_stats_reset(src, e_RTE_METER_GREEN);
+			mtr_trtcm_data_stats_reset(src, e_RTE_METER_YELLOW);
+			mtr_trtcm_data_stats_reset(src, e_RTE_METER_RED);
 		}
 
 
@@ -2850,25 +1861,6 @@ rte_table_action_time_read(struct rte_table_action *action,
 	return 0;
 }
 
-struct rte_cryptodev_sym_session *
-rte_table_action_crypto_sym_session_get(struct rte_table_action *action,
-	void *data)
-{
-	struct sym_crypto_data *sym_crypto_data;
-
-	/* Check input arguments */
-	if ((action == NULL) ||
-		((action->cfg.action_mask &
-		(1LLU << RTE_TABLE_ACTION_SYM_CRYPTO)) == 0) ||
-		(data == NULL))
-		return NULL;
-
-	sym_crypto_data = action_data_get(data, action,
-			RTE_TABLE_ACTION_SYM_CRYPTO);
-
-	return sym_crypto_data->session;
-}
-
 static __rte_always_inline uint64_t
 pkt_work(struct rte_mbuf *mbuf,
 	struct rte_pipeline_table_entry *table_entry,
@@ -2928,14 +1920,6 @@ pkt_work(struct rte_mbuf *mbuf,
 			dscp);
 	}
 
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_DECAP)) {
-		void *data = action_data_get(table_entry,
-			action,
-			RTE_TABLE_ACTION_DECAP);
-
-		pkt_work_decap(mbuf, data);
-	}
-
 	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_ENCAP)) {
 		void *data =
 			action_data_get(table_entry, action, RTE_TABLE_ACTION_ENCAP);
@@ -2980,22 +1964,6 @@ pkt_work(struct rte_mbuf *mbuf,
 			action_data_get(table_entry, action, RTE_TABLE_ACTION_TIME);
 
 		pkt_work_time(data, time);
-	}
-
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_SYM_CRYPTO)) {
-		void *data = action_data_get(table_entry, action,
-				RTE_TABLE_ACTION_SYM_CRYPTO);
-
-		drop_mask |= pkt_work_sym_crypto(mbuf, data, &cfg->sym_crypto,
-				ip_offset);
-	}
-
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_TAG)) {
-		void *data = action_data_get(table_entry,
-			action,
-			RTE_TABLE_ACTION_TAG);
-
-		pkt_work_tag(mbuf, data);
 	}
 
 	return drop_mask;
@@ -3169,24 +2137,6 @@ pkt4_work(struct rte_mbuf **mbufs,
 			dscp3);
 	}
 
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_DECAP)) {
-		void *data0 = action_data_get(table_entry0,
-			action,
-			RTE_TABLE_ACTION_DECAP);
-		void *data1 = action_data_get(table_entry1,
-			action,
-			RTE_TABLE_ACTION_DECAP);
-		void *data2 = action_data_get(table_entry2,
-			action,
-			RTE_TABLE_ACTION_DECAP);
-		void *data3 = action_data_get(table_entry3,
-			action,
-			RTE_TABLE_ACTION_DECAP);
-
-		pkt4_work_decap(mbuf0, mbuf1, mbuf2, mbuf3,
-			data0, data1, data2, data3);
-	}
-
 	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_ENCAP)) {
 		void *data0 =
 			action_data_get(table_entry0, action, RTE_TABLE_ACTION_ENCAP);
@@ -3302,44 +2252,6 @@ pkt4_work(struct rte_mbuf **mbufs,
 		pkt_work_time(data1, time);
 		pkt_work_time(data2, time);
 		pkt_work_time(data3, time);
-	}
-
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_SYM_CRYPTO)) {
-		void *data0 = action_data_get(table_entry0, action,
-				RTE_TABLE_ACTION_SYM_CRYPTO);
-		void *data1 = action_data_get(table_entry1, action,
-				RTE_TABLE_ACTION_SYM_CRYPTO);
-		void *data2 = action_data_get(table_entry2, action,
-				RTE_TABLE_ACTION_SYM_CRYPTO);
-		void *data3 = action_data_get(table_entry3, action,
-				RTE_TABLE_ACTION_SYM_CRYPTO);
-
-		drop_mask0 |= pkt_work_sym_crypto(mbuf0, data0, &cfg->sym_crypto,
-				ip_offset);
-		drop_mask1 |= pkt_work_sym_crypto(mbuf1, data1, &cfg->sym_crypto,
-				ip_offset);
-		drop_mask2 |= pkt_work_sym_crypto(mbuf2, data2, &cfg->sym_crypto,
-				ip_offset);
-		drop_mask3 |= pkt_work_sym_crypto(mbuf3, data3, &cfg->sym_crypto,
-				ip_offset);
-	}
-
-	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_TAG)) {
-		void *data0 = action_data_get(table_entry0,
-			action,
-			RTE_TABLE_ACTION_TAG);
-		void *data1 = action_data_get(table_entry1,
-			action,
-			RTE_TABLE_ACTION_TAG);
-		void *data2 = action_data_get(table_entry2,
-			action,
-			RTE_TABLE_ACTION_TAG);
-		void *data3 = action_data_get(table_entry3,
-			action,
-			RTE_TABLE_ACTION_TAG);
-
-		pkt4_work_tag(mbuf0, mbuf1, mbuf2, mbuf3,
-			data0, data1, data2, data3);
 	}
 
 	return drop_mask0 |

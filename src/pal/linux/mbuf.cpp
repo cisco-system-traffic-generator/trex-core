@@ -165,7 +165,7 @@ void rte_pktmbuf_free_seg(rte_mbuf_t *m) {
          *  - free attached mbuf segment
          */
 
-        if (RTE_MBUF_CLONED(m)) {
+        if (RTE_MBUF_INDIRECT(m)) {
             struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
             rte_pktmbuf_detach(m);
             if (rte_mbuf_refcnt_update(md, -1) == 0)

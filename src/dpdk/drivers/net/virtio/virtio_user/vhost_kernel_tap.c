@@ -16,56 +16,21 @@
 
 #include "vhost_kernel_tap.h"
 #include "../virtio_logs.h"
-#include "../virtio_pci.h"
-
-static int
-vhost_kernel_tap_set_offload(int fd, uint64_t features)
-{
-	unsigned int offload = 0;
-
-	if (features & (1ULL << VIRTIO_NET_F_GUEST_CSUM)) {
-		offload |= TUN_F_CSUM;
-		if (features & (1ULL << VIRTIO_NET_F_GUEST_TSO4))
-			offload |= TUN_F_TSO4;
-		if (features & (1ULL << VIRTIO_NET_F_GUEST_TSO6))
-			offload |= TUN_F_TSO6;
-		if (features & ((1ULL << VIRTIO_NET_F_GUEST_TSO4) |
-			(1ULL << VIRTIO_NET_F_GUEST_TSO6)) &&
-			(features & (1ULL << VIRTIO_NET_F_GUEST_ECN)))
-			offload |= TUN_F_TSO_ECN;
-		if (features & (1ULL << VIRTIO_NET_F_GUEST_UFO))
-			offload |= TUN_F_UFO;
-	}
-
-	if (offload != 0) {
-		/* Check if our kernel supports TUNSETOFFLOAD */
-		if (ioctl(fd, TUNSETOFFLOAD, 0) != 0 && errno == EINVAL) {
-			PMD_DRV_LOG(ERR, "Kernel does't support TUNSETOFFLOAD\n");
-			return -ENOTSUP;
-		}
-
-		if (ioctl(fd, TUNSETOFFLOAD, offload) != 0) {
-			offload &= ~TUN_F_UFO;
-			if (ioctl(fd, TUNSETOFFLOAD, offload) != 0) {
-				PMD_DRV_LOG(ERR, "TUNSETOFFLOAD ioctl() failed: %s\n",
-					strerror(errno));
-				return -1;
-			}
-		}
-	}
-
-	return 0;
-}
 
 int
 vhost_kernel_open_tap(char **p_ifname, int hdr_size, int req_mq,
-			 const char *mac, uint64_t features)
+			 const char *mac)
 {
 	unsigned int tap_features;
-	char *tap_name = NULL;
 	int sndbuf = INT_MAX;
 	struct ifreq ifr;
 	int tapfd;
+	unsigned int offload =
+			TUN_F_CSUM |
+			TUN_F_TSO4 |
+			TUN_F_TSO6 |
+			TUN_F_TSO_ECN |
+			TUN_F_UFO;
 
 	/* TODO:
 	 * 1. verify we can get/set vnet_hdr_len, tap_probe_vnet_hdr_len
@@ -113,12 +78,6 @@ vhost_kernel_open_tap(char **p_ifname, int hdr_size, int req_mq,
 		goto error;
 	}
 
-	tap_name = strdup(ifr.ifr_name);
-	if (!tap_name) {
-		PMD_DRV_LOG(ERR, "strdup ifname failed: %s", strerror(errno));
-		goto error;
-	}
-
 	fcntl(tapfd, F_SETFL, O_NONBLOCK);
 
 	if (ioctl(tapfd, TUNSETVNETHDRSZ, &hdr_size) < 0) {
@@ -131,7 +90,13 @@ vhost_kernel_open_tap(char **p_ifname, int hdr_size, int req_mq,
 		goto error;
 	}
 
-	vhost_kernel_tap_set_offload(tapfd, features);
+	/* TODO: before set the offload capabilities, we'd better (1) check
+	 * negotiated features to see if necessary to offload; (2) query tap
+	 * to see if it supports the offload capabilities.
+	 */
+	if (ioctl(tapfd, TUNSETOFFLOAD, offload) != 0)
+		PMD_DRV_LOG(ERR, "TUNSETOFFLOAD ioctl() failed: %s",
+			   strerror(errno));
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
@@ -141,12 +106,11 @@ vhost_kernel_open_tap(char **p_ifname, int hdr_size, int req_mq,
 		goto error;
 	}
 
-	free(*p_ifname);
-	*p_ifname = tap_name;
+	if (!(*p_ifname))
+		*p_ifname = strdup(ifr.ifr_name);
 
 	return tapfd;
 error:
-	free(tap_name);
 	close(tapfd);
 	return -1;
 }

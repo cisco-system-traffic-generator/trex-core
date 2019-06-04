@@ -59,7 +59,7 @@
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_get_ifname(const struct mlx4_priv *priv, char (*ifname)[IF_NAMESIZE])
+mlx4_get_ifname(const struct priv *priv, char (*ifname)[IF_NAMESIZE])
 {
 	DIR *dir;
 	struct dirent *dent;
@@ -146,7 +146,7 @@ try_dev_id:
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 static int
-mlx4_ifreq(const struct mlx4_priv *priv, int req, struct ifreq *ifr)
+mlx4_ifreq(const struct priv *priv, int req, struct ifreq *ifr)
 {
 	int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 	int ret;
@@ -176,7 +176,7 @@ mlx4_ifreq(const struct mlx4_priv *priv, int req, struct ifreq *ifr)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[ETHER_ADDR_LEN])
+mlx4_get_mac(struct priv *priv, uint8_t (*mac)[ETHER_ADDR_LEN])
 {
 	struct ifreq request;
 	int ret = mlx4_ifreq(priv, SIOCGIFHWADDR, &request);
@@ -199,7 +199,7 @@ mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[ETHER_ADDR_LEN])
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_mtu_get(struct mlx4_priv *priv, uint16_t *mtu)
+mlx4_mtu_get(struct priv *priv, uint16_t *mtu)
 {
 	struct ifreq request;
 	int ret = mlx4_ifreq(priv, SIOCGIFMTU, &request);
@@ -224,7 +224,7 @@ mlx4_mtu_get(struct mlx4_priv *priv, uint16_t *mtu)
 int
 mlx4_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct ifreq request = { .ifr_mtu = mtu, };
 	int ret = mlx4_ifreq(priv, SIOCSIFMTU, &request);
 
@@ -248,7 +248,7 @@ mlx4_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 static int
-mlx4_set_flags(struct mlx4_priv *priv, unsigned int keep, unsigned int flags)
+mlx4_set_flags(struct priv *priv, unsigned int keep, unsigned int flags)
 {
 	struct ifreq request;
 	int ret = mlx4_ifreq(priv, SIOCGIFFLAGS, &request);
@@ -272,7 +272,7 @@ mlx4_set_flags(struct mlx4_priv *priv, unsigned int keep, unsigned int flags)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 static int
-mlx4_dev_set_link(struct mlx4_priv *priv, int up)
+mlx4_dev_set_link(struct priv *priv, int up)
 {
 	int err;
 
@@ -300,7 +300,7 @@ mlx4_dev_set_link(struct mlx4_priv *priv, int up)
 int
 mlx4_dev_set_link_down(struct rte_eth_dev *dev)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 
 	return mlx4_dev_set_link(priv, 0);
 }
@@ -317,7 +317,7 @@ mlx4_dev_set_link_down(struct rte_eth_dev *dev)
 int
 mlx4_dev_set_link_up(struct rte_eth_dev *dev)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 
 	return mlx4_dev_set_link(priv, 1);
 }
@@ -345,7 +345,7 @@ enum rxmode_toggle {
 static void
 mlx4_rxmode_toggle(struct rte_eth_dev *dev, enum rxmode_toggle toggle)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	const char *mode;
 	struct rte_flow_error error;
 
@@ -360,8 +360,6 @@ mlx4_rxmode_toggle(struct rte_eth_dev *dev, enum rxmode_toggle toggle)
 		mode = "all multicast";
 		dev->data->all_multicast = toggle & 1;
 		break;
-	default:
-		mode = "undefined";
 	}
 	if (!mlx4_flow_sync(priv, &error))
 		return;
@@ -430,10 +428,10 @@ mlx4_allmulticast_disable(struct rte_eth_dev *dev)
 void
 mlx4_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct rte_flow_error error;
 
-	if (index >= RTE_DIM(priv->mac) - priv->mac_mc) {
+	if (index >= RTE_DIM(priv->mac)) {
 		rte_errno = EINVAL;
 		return;
 	}
@@ -466,12 +464,12 @@ int
 mlx4_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac_addr,
 		  uint32_t index, uint32_t vmdq)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct rte_flow_error error;
 	int ret;
 
 	(void)vmdq;
-	if (index >= RTE_DIM(priv->mac) - priv->mac_mc) {
+	if (index >= RTE_DIM(priv->mac)) {
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
@@ -483,63 +481,6 @@ mlx4_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac_addr,
 	      " at index %d (code %d, \"%s\"),"
 	      " flow error type %d, cause %p, message: %s",
 	      index, rte_errno, strerror(rte_errno), error.type, error.cause,
-	      error.message ? error.message : "(unspecified)");
-	return ret;
-}
-
-/**
- * DPDK callback to configure multicast addresses.
- *
- * @param dev
- *   Pointer to Ethernet device structure.
- * @param list
- *   List of MAC addresses to register.
- * @param num
- *   Number of entries in list.
- *
- * @return
- *   0 on success, negative errno value otherwise and rte_errno is set.
- */
-int
-mlx4_set_mc_addr_list(struct rte_eth_dev *dev, struct ether_addr *list,
-		      uint32_t num)
-{
-	struct mlx4_priv *priv = dev->data->dev_private;
-	struct rte_flow_error error;
-	int ret;
-
-	if (num > RTE_DIM(priv->mac)) {
-		rte_errno = EINVAL;
-		return -rte_errno;
-	}
-	/*
-	 * Make sure there is enough room to increase the number of
-	 * multicast entries without overwriting standard entries.
-	 */
-	if (num > priv->mac_mc) {
-		unsigned int i;
-
-		for (i = RTE_DIM(priv->mac) - num;
-		     i != RTE_DIM(priv->mac) - priv->mac_mc;
-		     ++i)
-			if (!is_zero_ether_addr(&priv->mac[i])) {
-				rte_errno = EBUSY;
-				return -rte_errno;
-			}
-	} else if (num < priv->mac_mc) {
-		/* Clear unused entries. */
-		memset(priv->mac + RTE_DIM(priv->mac) - priv->mac_mc,
-		       0,
-		       sizeof(priv->mac[0]) * (priv->mac_mc - num));
-	}
-	memcpy(priv->mac + RTE_DIM(priv->mac) - num, list, sizeof(*list) * num);
-	priv->mac_mc = num;
-	ret = mlx4_flow_sync(priv, &error);
-	if (!ret)
-		return 0;
-	ERROR("failed to synchronize flow rules after modifying MC list,"
-	      " (code %d, \"%s\"), flow error type %d, cause %p, message: %s",
-	      rte_errno, strerror(rte_errno), error.type, error.cause,
 	      error.message ? error.message : "(unspecified)");
 	return ret;
 }
@@ -560,7 +501,7 @@ mlx4_set_mc_addr_list(struct rte_eth_dev *dev, struct ether_addr *list,
 int
 mlx4_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct rte_flow_error error;
 	unsigned int vidx = vlan_id / 64;
 	unsigned int vbit = vlan_id % 64;
@@ -614,7 +555,7 @@ mlx4_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 void
 mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	unsigned int max;
 	char ifname[IF_NAMESIZE];
 
@@ -647,32 +588,6 @@ mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 			ETH_LINK_SPEED_40G |
 			ETH_LINK_SPEED_56G;
 	info->flow_type_rss_offloads = mlx4_conv_rss_types(priv, 0, 1);
-}
-
-/**
- * Get firmware version of a device.
- *
- * @param dev
- *   Ethernet device port.
- * @param fw_ver
- *   String output allocated by caller.
- * @param fw_size
- *   Size of the output string, including terminating null byte.
- *
- * @return
- *   0 on success, or the size of the non truncated string if too big.
- */
-int mlx4_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size)
-{
-	struct mlx4_priv *priv = dev->data->dev_private;
-	struct ibv_device_attr *attr = &priv->device_attr;
-	size_t size = strnlen(attr->fw_ver, sizeof(attr->fw_ver)) + 1;
-
-	if (fw_size < size)
-		return size;
-	if (fw_ver != NULL)
-		strlcpy(fw_ver, attr->fw_ver, fw_size);
-	return 0;
 }
 
 /**
@@ -771,7 +686,7 @@ mlx4_stats_reset(struct rte_eth_dev *dev)
 int
 mlx4_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 {
-	const struct mlx4_priv *priv = dev->data->dev_private;
+	const struct priv *priv = dev->data->dev_private;
 	struct ethtool_cmd edata = {
 		.cmd = ETHTOOL_GSET,
 	};
@@ -824,7 +739,7 @@ mlx4_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 int
 mlx4_flow_ctrl_get(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct ifreq ifr;
 	struct ethtool_pauseparam ethpause = {
 		.cmd = ETHTOOL_GPAUSEPARAM,
@@ -868,7 +783,7 @@ out:
 int
 mlx4_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	struct ifreq ifr;
 	struct ethtool_pauseparam ethpause = {
 		.cmd = ETHTOOL_SPAUSEPARAM,
@@ -936,7 +851,7 @@ mlx4_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN,
 		RTE_PTYPE_UNKNOWN
 	};
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 
 	if (dev->rx_pkt_burst == mlx4_rx_burst) {
 		if (priv->hw_csum_l2tun)
@@ -960,7 +875,7 @@ int
 mlx4_is_removed(struct rte_eth_dev *dev)
 {
 	struct ibv_device_attr device_attr;
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 
 	if (mlx4_glue->query_device(priv->ctx, &device_attr) == EIO)
 		return 1;

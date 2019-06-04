@@ -11,6 +11,7 @@
 #include <rte_tailq.h>
 #include <rte_common.h>
 #include <rte_ethdev_driver.h>
+#include <rte_eth_ctrl.h>
 #include <rte_ether.h>
 #include <rte_flow.h>
 #include <rte_flow_driver.h>
@@ -1240,10 +1241,10 @@ sfc_flow_parse_queue(struct sfc_adapter *sa,
 {
 	struct sfc_rxq *rxq;
 
-	if (queue->index >= sfc_sa2shared(sa)->rxq_count)
+	if (queue->index >= sa->rxq_count)
 		return -EINVAL;
 
-	rxq = &sa->rxq_ctrl[queue->index];
+	rxq = sa->rxq_info[queue->index].rxq;
 	flow->spec.template.efs_dmaq_id = (uint16_t)rxq->hw_index;
 
 	return 0;
@@ -1254,8 +1255,7 @@ sfc_flow_parse_rss(struct sfc_adapter *sa,
 		   const struct rte_flow_action_rss *action_rss,
 		   struct rte_flow *flow)
 {
-	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	struct sfc_rss *rss = &sas->rss;
+	struct sfc_rss *rss = &sa->rss;
 	unsigned int rxq_sw_index;
 	struct sfc_rxq *rxq;
 	unsigned int rxq_hw_index_min;
@@ -1268,18 +1268,18 @@ sfc_flow_parse_rss(struct sfc_adapter *sa,
 	if (action_rss->queue_num == 0)
 		return -EINVAL;
 
-	rxq_sw_index = sfc_sa2shared(sa)->rxq_count - 1;
-	rxq = &sa->rxq_ctrl[rxq_sw_index];
+	rxq_sw_index = sa->rxq_count - 1;
+	rxq = sa->rxq_info[rxq_sw_index].rxq;
 	rxq_hw_index_min = rxq->hw_index;
 	rxq_hw_index_max = 0;
 
 	for (i = 0; i < action_rss->queue_num; ++i) {
 		rxq_sw_index = action_rss->queue[i];
 
-		if (rxq_sw_index >= sfc_sa2shared(sa)->rxq_count)
+		if (rxq_sw_index >= sa->rxq_count)
 			return -EINVAL;
 
-		rxq = &sa->rxq_ctrl[rxq_sw_index];
+		rxq = sa->rxq_info[rxq_sw_index].rxq;
 
 		if (rxq->hw_index < rxq_hw_index_min)
 			rxq_hw_index_min = rxq->hw_index;
@@ -1344,7 +1344,7 @@ sfc_flow_parse_rss(struct sfc_adapter *sa,
 	for (i = 0; i < RTE_DIM(sfc_rss_conf->rss_tbl); ++i) {
 		unsigned int nb_queues = action_rss->queue_num;
 		unsigned int rxq_sw_index = action_rss->queue[i % nb_queues];
-		struct sfc_rxq *rxq = &sa->rxq_ctrl[rxq_sw_index];
+		struct sfc_rxq *rxq = sa->rxq_info[rxq_sw_index].rxq;
 
 		sfc_rss_conf->rss_tbl[i] = rxq->hw_index - rxq_hw_index_min;
 	}
@@ -1400,8 +1400,7 @@ static int
 sfc_flow_filter_insert(struct sfc_adapter *sa,
 		       struct rte_flow *flow)
 {
-	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	struct sfc_rss *rss = &sas->rss;
+	struct sfc_rss *rss = &sa->rss;
 	struct sfc_flow_rss *flow_rss = &flow->rss_conf;
 	uint32_t efs_rss_context = EFX_RSS_CONTEXT_DEFAULT;
 	unsigned int i;
@@ -1528,7 +1527,7 @@ sfc_flow_parse_actions(struct sfc_adapter *sa,
 		       struct rte_flow_error *error)
 {
 	int rc;
-	const unsigned int dp_rx_features = sa->priv.dp_rx->features;
+	const unsigned int dp_rx_features = sa->dp_rx->features;
 	uint32_t actions_set = 0;
 	const uint32_t fate_actions_mask = (1UL << RTE_FLOW_ACTION_TYPE_QUEUE) |
 					   (1UL << RTE_FLOW_ACTION_TYPE_RSS) |
@@ -2253,7 +2252,7 @@ sfc_flow_parse(struct rte_eth_dev *dev,
 	       struct rte_flow *flow,
 	       struct rte_flow_error *error)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_adapter *sa = dev->data->dev_private;
 	int rc;
 
 	rc = sfc_flow_parse_attr(attr, flow, error);
@@ -2299,7 +2298,7 @@ sfc_flow_create(struct rte_eth_dev *dev,
 		const struct rte_flow_action actions[],
 		struct rte_flow_error *error)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_adapter *sa = dev->data->dev_private;
 	struct rte_flow *flow = NULL;
 	int rc;
 
@@ -2372,7 +2371,7 @@ sfc_flow_destroy(struct rte_eth_dev *dev,
 		 struct rte_flow *flow,
 		 struct rte_flow_error *error)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_adapter *sa = dev->data->dev_private;
 	struct rte_flow *flow_ptr;
 	int rc = EINVAL;
 
@@ -2401,7 +2400,7 @@ static int
 sfc_flow_flush(struct rte_eth_dev *dev,
 	       struct rte_flow_error *error)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_adapter *sa = dev->data->dev_private;
 	struct rte_flow *flow;
 	int rc = 0;
 	int ret = 0;
@@ -2423,7 +2422,8 @@ static int
 sfc_flow_isolate(struct rte_eth_dev *dev, int enable,
 		 struct rte_flow_error *error)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_adapter *sa = dev->data->dev_private;
+	struct sfc_port *port = &sa->port;
 	int ret = 0;
 
 	sfc_adapter_lock(sa);
@@ -2433,7 +2433,7 @@ sfc_flow_isolate(struct rte_eth_dev *dev, int enable,
 				   NULL, "please close the port first");
 		ret = -rte_errno;
 	} else {
-		sfc_sa2shared(sa)->isolated = (enable) ? B_TRUE : B_FALSE;
+		port->isolated = (enable) ? B_TRUE : B_FALSE;
 	}
 	sfc_adapter_unlock(sa);
 

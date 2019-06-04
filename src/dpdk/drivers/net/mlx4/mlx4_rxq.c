@@ -87,7 +87,7 @@ mlx4_rss_hash_key_default[MLX4_RSS_HASH_KEY_SIZE] = {
  *   Pointer to RSS context on success, NULL otherwise and rte_errno is set.
  */
 struct mlx4_rss *
-mlx4_rss_get(struct mlx4_priv *priv, uint64_t fields,
+mlx4_rss_get(struct priv *priv, uint64_t fields,
 	     const uint8_t key[MLX4_RSS_HASH_KEY_SIZE],
 	     uint16_t queues, const uint16_t queue_id[])
 {
@@ -175,8 +175,7 @@ mlx4_rss_attach(struct mlx4_rss *rss)
 	}
 
 	struct ibv_wq *ind_tbl[rss->queues];
-	struct mlx4_priv *priv = rss->priv;
-	struct rte_eth_dev *dev = ETH_DEV(priv);
+	struct priv *priv = rss->priv;
 	const char *msg;
 	unsigned int i = 0;
 	int ret;
@@ -190,8 +189,8 @@ mlx4_rss_attach(struct mlx4_rss *rss)
 		uint16_t id = rss->queue_id[i];
 		struct rxq *rxq = NULL;
 
-		if (id < dev->data->nb_rx_queues)
-			rxq = dev->data->rx_queues[id];
+		if (id < priv->dev->data->nb_rx_queues)
+			rxq = priv->dev->data->rx_queues[id];
 		if (!rxq) {
 			ret = EINVAL;
 			msg = "RSS target queue is not configured";
@@ -270,7 +269,7 @@ error:
 		rss->ind = NULL;
 	}
 	while (i--)
-		mlx4_rxq_detach(dev->data->rx_queues[rss->queue_id[i]]);
+		mlx4_rxq_detach(priv->dev->data->rx_queues[rss->queue_id[i]]);
 	ERROR("mlx4: %s", msg);
 	--rss->usecnt;
 	rte_errno = ret;
@@ -291,8 +290,7 @@ error:
 void
 mlx4_rss_detach(struct mlx4_rss *rss)
 {
-	struct mlx4_priv *priv = rss->priv;
-	struct rte_eth_dev *dev = ETH_DEV(priv);
+	struct priv *priv = rss->priv;
 	unsigned int i;
 
 	assert(rss->refcnt);
@@ -305,7 +303,7 @@ mlx4_rss_detach(struct mlx4_rss *rss)
 	claim_zero(mlx4_glue->destroy_rwq_ind_table(rss->ind));
 	rss->ind = NULL;
 	for (i = 0; i != rss->queues; ++i)
-		mlx4_rxq_detach(dev->data->rx_queues[rss->queue_id[i]]);
+		mlx4_rxq_detach(priv->dev->data->rx_queues[rss->queue_id[i]]);
 }
 
 /**
@@ -329,9 +327,9 @@ mlx4_rss_detach(struct mlx4_rss *rss)
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_rss_init(struct mlx4_priv *priv)
+mlx4_rss_init(struct priv *priv)
 {
-	struct rte_eth_dev *dev = ETH_DEV(priv);
+	struct rte_eth_dev *dev = priv->dev;
 	uint8_t log2_range = rte_log2_u32(dev->data->nb_rx_queues);
 	uint32_t wq_num_prev = 0;
 	const char *msg;
@@ -340,7 +338,7 @@ mlx4_rss_init(struct mlx4_priv *priv)
 
 	if (priv->rss_init)
 		return 0;
-	if (ETH_DEV(priv)->data->nb_rx_queues > priv->hw_rss_max_qps) {
+	if (priv->dev->data->nb_rx_queues > priv->hw_rss_max_qps) {
 		ERROR("RSS does not support more than %d queues",
 		      priv->hw_rss_max_qps);
 		rte_errno = EINVAL;
@@ -358,8 +356,8 @@ mlx4_rss_init(struct mlx4_priv *priv)
 		rte_errno = ret;
 		return -ret;
 	}
-	for (i = 0; i != ETH_DEV(priv)->data->nb_rx_queues; ++i) {
-		struct rxq *rxq = ETH_DEV(priv)->data->rx_queues[i];
+	for (i = 0; i != priv->dev->data->nb_rx_queues; ++i) {
+		struct rxq *rxq = priv->dev->data->rx_queues[i];
 		struct ibv_cq *cq;
 		struct ibv_wq *wq;
 		uint32_t wq_num;
@@ -434,7 +432,7 @@ error:
 	ERROR("cannot initialize common RSS resources (queue %u): %s: %s",
 	      i, msg, strerror(ret));
 	while (i--) {
-		struct rxq *rxq = ETH_DEV(priv)->data->rx_queues[i];
+		struct rxq *rxq = priv->dev->data->rx_queues[i];
 
 		if (rxq)
 			mlx4_rxq_detach(rxq);
@@ -453,14 +451,14 @@ error:
  *   Pointer to private structure.
  */
 void
-mlx4_rss_deinit(struct mlx4_priv *priv)
+mlx4_rss_deinit(struct priv *priv)
 {
 	unsigned int i;
 
 	if (!priv->rss_init)
 		return;
-	for (i = 0; i != ETH_DEV(priv)->data->nb_rx_queues; ++i) {
-		struct rxq *rxq = ETH_DEV(priv)->data->rx_queues[i];
+	for (i = 0; i != priv->dev->data->nb_rx_queues; ++i) {
+		struct rxq *rxq = priv->dev->data->rx_queues[i];
 
 		if (rxq) {
 			assert(rxq->usecnt == 1);
@@ -495,8 +493,8 @@ mlx4_rxq_attach(struct rxq *rxq)
 		return 0;
 	}
 
-	struct mlx4_priv *priv = rxq->priv;
-	struct rte_eth_dev *dev = ETH_DEV(priv);
+	struct priv *priv = rxq->priv;
+	struct rte_eth_dev *dev = priv->dev;
 	const uint32_t elts_n = 1 << rxq->elts_n;
 	const uint32_t sges_n = 1 << rxq->sges_n;
 	struct rte_mbuf *(*elts)[elts_n] = rxq->elts;
@@ -513,8 +511,6 @@ mlx4_rxq_attach(struct rxq *rxq)
 	int ret;
 
 	assert(rte_is_power_of_2(elts_n));
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_RX_QUEUE;
-	priv->verbs_alloc_ctx.obj = rxq;
 	cq = mlx4_glue->create_cq(priv->ctx, elts_n / sges_n, NULL,
 				  rxq->channel, 0);
 	if (!cq) {
@@ -565,7 +561,7 @@ mlx4_rxq_attach(struct rxq *rxq)
 	}
 	/* Pre-register Rx mempool. */
 	DEBUG("port %u Rx queue %u registering mp %s having %u chunks",
-	      ETH_DEV(priv)->data->port_id, rxq->stats.idx,
+	      priv->dev->data->port_id, rxq->stats.idx,
 	      rxq->mp->name, rxq->mp->nb_mem_chunks);
 	mlx4_mr_update_mp(dev, &rxq->mr_ctrl, rxq->mp);
 	wqes = (volatile struct mlx4_wqe_data_seg (*)[])
@@ -622,7 +618,6 @@ mlx4_rxq_attach(struct rxq *rxq)
 	rxq->rq_ci = elts_n / sges_n;
 	rte_wmb();
 	*rxq->rq_db = rte_cpu_to_be_32(rxq->rq_ci);
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_NONE;
 	return 0;
 error:
 	if (wq)
@@ -633,7 +628,6 @@ error:
 	rte_errno = ret;
 	ERROR("error while attaching Rx queue %p: %s: %s",
 	      (void *)rxq, msg, strerror(ret));
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_NONE;
 	return -ret;
 }
 
@@ -681,9 +675,10 @@ mlx4_rxq_detach(struct rxq *rxq)
  *   Supported Tx offloads.
  */
 uint64_t
-mlx4_get_rx_queue_offloads(struct mlx4_priv *priv)
+mlx4_get_rx_queue_offloads(struct priv *priv)
 {
 	uint64_t offloads = DEV_RX_OFFLOAD_SCATTER |
+			    DEV_RX_OFFLOAD_CRC_STRIP |
 			    DEV_RX_OFFLOAD_KEEP_CRC |
 			    DEV_RX_OFFLOAD_JUMBO_FRAME;
 
@@ -702,7 +697,7 @@ mlx4_get_rx_queue_offloads(struct mlx4_priv *priv)
  *   Supported Rx offloads.
  */
 uint64_t
-mlx4_get_rx_port_offloads(struct mlx4_priv *priv)
+mlx4_get_rx_port_offloads(struct priv *priv)
 {
 	uint64_t offloads = DEV_RX_OFFLOAD_VLAN_FILTER;
 
@@ -734,7 +729,7 @@ mlx4_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		    unsigned int socket, const struct rte_eth_rxconf *conf,
 		    struct rte_mempool *mp)
 {
-	struct mlx4_priv *priv = dev->data->dev_private;
+	struct priv *priv = dev->data->dev_private;
 	uint32_t mb_len = rte_pktmbuf_data_room_size(mp);
 	struct rte_mbuf *(*elts)[rte_align32pow2(desc)];
 	struct rxq *rxq;
@@ -785,7 +780,7 @@ mlx4_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	}
 	/* By default, FCS (CRC) is stripped by hardware. */
 	crc_present = 0;
-	if (offloads & DEV_RX_OFFLOAD_KEEP_CRC) {
+	if (rte_eth_dev_must_keep_crc(offloads)) {
 		if (priv->hw_fcs_strip) {
 			crc_present = 1;
 		} else {
@@ -917,17 +912,17 @@ void
 mlx4_rx_queue_release(void *dpdk_rxq)
 {
 	struct rxq *rxq = (struct rxq *)dpdk_rxq;
-	struct mlx4_priv *priv;
+	struct priv *priv;
 	unsigned int i;
 
 	if (rxq == NULL)
 		return;
 	priv = rxq->priv;
-	for (i = 0; i != ETH_DEV(priv)->data->nb_rx_queues; ++i)
-		if (ETH_DEV(priv)->data->rx_queues[i] == rxq) {
+	for (i = 0; i != priv->dev->data->nb_rx_queues; ++i)
+		if (priv->dev->data->rx_queues[i] == rxq) {
 			DEBUG("%p: removing Rx queue %p from list",
-			      (void *)ETH_DEV(priv), (void *)rxq);
-			ETH_DEV(priv)->data->rx_queues[i] = NULL;
+			      (void *)priv->dev, (void *)rxq);
+			priv->dev->data->rx_queues[i] = NULL;
 			break;
 		}
 	assert(!rxq->cq);

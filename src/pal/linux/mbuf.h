@@ -33,7 +33,7 @@ typedef struct rte_mbuf  rte_mbuf_t;
 
 #define IND_ATTACHED_MBUF    (1ULL << 62) /**< Indirect attached mbuf */
 #define PKT_TX_VLAN_PKT      (1ULL << 57) /**< TX packet is a 802.1q VLAN packet. */
-#define RTE_MBUF_CLONED(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
+#define RTE_MBUF_INDIRECT(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
 #define RTE_MBUF_TO_BADDR(mb)       (((struct rte_mbuf *)(mb)) + 1)
 #define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
 

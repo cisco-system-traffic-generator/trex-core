@@ -15,7 +15,6 @@ extern "C" {
 /**
  * GRE Header
  */
-__extension__
 struct gre_hdr {
 #if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
 	uint16_t res2:4; /**< Reserved */

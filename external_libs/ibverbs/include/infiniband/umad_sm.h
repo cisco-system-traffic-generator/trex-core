@@ -41,8 +41,14 @@
 #include <infiniband/umad_types.h>
 
 #ifdef __cplusplus
-extern "C" {
-#endif
+#  define BEGIN_C_DECLS extern "C" {
+#  define END_C_DECLS   }
+#else				/* !__cplusplus */
+#  define BEGIN_C_DECLS
+#  define END_C_DECLS
+#endif				/* __cplusplus */
+
+BEGIN_C_DECLS
 
 enum {
 	UMAD_SMP_DIRECTION		= 0x8000,
@@ -118,7 +124,5 @@ struct umad_smp {
 	uint8_t  return_path[UMAD_SMP_MAX_HOPS];
 };
 
-#ifdef __cplusplus
-}
-#endif
+END_C_DECLS
 #endif				/* _UMAD_SM_H */

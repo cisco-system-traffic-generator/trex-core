@@ -13,7 +13,6 @@
  */
 
 #include <stdint.h>
-#include <rte_compat.h>
 #include <rte_debug.h>
 #include <rte_atomic.h>
 
@@ -159,21 +158,11 @@ rte_delay_ms(unsigned ms)
 void rte_delay_us_block(unsigned int us);
 
 /**
- * Delay function that uses system sleep.
- * Does not block the CPU core.
- *
- * @param us
- *   Number of microseconds to wait.
- */
-void __rte_experimental
-rte_delay_us_sleep(unsigned int us);
-
-/**
  * Replace rte_delay_us with user defined function.
  *
  * @param userfunc
  *   User function which replaces rte_delay_us. rte_delay_us_block restores
- *   builtin block delay function.
+ *   buildin block delay function.
  */
 void rte_delay_us_callback_register(void(*userfunc)(unsigned int));
 

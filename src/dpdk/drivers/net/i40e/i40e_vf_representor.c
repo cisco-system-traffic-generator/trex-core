@@ -48,7 +48,6 @@ i40e_vf_representor_dev_infos_get(struct rte_eth_dev *ethdev,
 		DEV_RX_OFFLOAD_UDP_CKSUM |
 		DEV_RX_OFFLOAD_TCP_CKSUM;
 	dev_info->tx_offload_capa =
-		DEV_TX_OFFLOAD_MULTI_SEGS  |
 		DEV_TX_OFFLOAD_VLAN_INSERT |
 		DEV_TX_OFFLOAD_QINQ_INSERT |
 		DEV_TX_OFFLOAD_IPV4_CKSUM |
@@ -420,7 +419,7 @@ i40e_vf_representor_vlan_pvid_set(struct rte_eth_dev *ethdev, uint16_t vlan_id,
 		representor->vf_id, vlan_id);
 }
 
-static const struct eth_dev_ops i40e_representor_dev_ops = {
+struct eth_dev_ops i40e_representor_dev_ops = {
 	.dev_infos_get        = i40e_vf_representor_dev_infos_get,
 
 	.dev_start            = i40e_vf_representor_dev_start,
@@ -487,6 +486,9 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 	if (representor->vf_id >= pf->vf_num)
 		return -ENODEV;
 
+	/** representor shares the same driver as it's PF device */
+	ethdev->device->driver = representor->adapter->eth_dev->device->driver;
+
 	/* Set representor device ops */
 	ethdev->dev_ops = &i40e_representor_dev_ops;
 
@@ -504,7 +506,6 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 	}
 
 	ethdev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
-	ethdev->data->representor_id = representor->vf_id;
 
 	/* Setting the number queues allocated to the VF */
 	ethdev->data->nb_rx_queues = vf->vsi->nb_qps;
@@ -524,10 +525,7 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 }
 
 int
-i40e_vf_representor_uninit(struct rte_eth_dev *ethdev)
+i40e_vf_representor_uninit(struct rte_eth_dev *ethdev __rte_unused)
 {
-	/* mac_addrs must not be freed because part of i40e_pf_vf */
-	ethdev->data->mac_addrs = NULL;
-
 	return 0;
 }
