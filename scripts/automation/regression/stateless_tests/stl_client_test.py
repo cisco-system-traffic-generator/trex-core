@@ -858,10 +858,13 @@ class STLClient_Test(CStlGeneral_Test):
     def test_latency_pause_resume_dynamic_profile (self):
 
         try:
+            print("")
+            self.c.show_stats_line("-l")
             profile_id = 1
-            num_profiles = 20
+            num_profiles = 100
             tx_profile_list = []
             tx_all_profile = str(self.tx_port) + str(".*")
+            tx_dict = {}
 
             while profile_id <= num_profiles:
                 tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
@@ -869,10 +872,11 @@ class STLClient_Test(CStlGeneral_Test):
                 profile_id = profile_id + 1
 
             for index, tx_profile in enumerate(tx_profile_list):
+                tx_dict[index] = tx_profile
                 stream = STLStream(name = 'latency',
                                packet = self.pkt,
-                               mode = STLTXCont(pps = 1),
-                               flow_stats = STLFlowLatencyStats(pg_id = index + self.tx_port))
+                               mode = STLTXCont(pps = 5),
+                               flow_stats = STLFlowLatencyStats(pg_id = index))
                 self.c.add_streams([stream], ports = tx_profile)
                 self.c.start(ports = tx_profile)
 
@@ -880,15 +884,16 @@ class STLClient_Test(CStlGeneral_Test):
                 self.c.pause(tx_profile)
                 self.c.resume(tx_profile)
 
-            for i in range(20):
+            for i in range(num_profiles):
                 self.c.pause(tx_all_profile)
                 self.c.resume(tx_all_profile)
 
             self.c.stop()
 
         except STLError as e:
-            assert False , '{0}'.format(e)
+            assert False , '{}'.format(tx_dict)
 
         finally:
+            print(tx_dict)
             self.cleanup()
 
