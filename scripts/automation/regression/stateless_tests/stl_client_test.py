@@ -858,7 +858,7 @@ class STLClient_Test(CStlGeneral_Test):
     def test_latency_pause_resume_dynamic_profile (self):
 
         try:
-            print("")
+            print("check pre-existing pg_ids")
             self.c.show_stats_line("-l")
             profile_id = 1
             num_profiles = 100
@@ -871,8 +871,11 @@ class STLClient_Test(CStlGeneral_Test):
                 tx_profile_list.append(tx_profile_name)
                 profile_id = profile_id + 1
 
+            print("added")
             for index, tx_profile in enumerate(tx_profile_list):
                 tx_dict[index] = tx_profile
+                print("  index : %s" %index)
+                print("  tx_profile : %s\n" %tx_profile)
                 stream = STLStream(name = 'latency',
                                packet = self.pkt,
                                mode = STLTXCont(pps = 5),
