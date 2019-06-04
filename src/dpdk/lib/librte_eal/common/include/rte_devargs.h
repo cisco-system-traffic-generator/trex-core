@@ -67,36 +67,6 @@ struct rte_devargs {
 };
 
 /**
- * @deprecated
- * Parse a devargs string.
- *
- * For PCI devices, the format of arguments string is "PCI_ADDR" or
- * "PCI_ADDR,key=val,key2=val2,...". Examples: "08:00.1", "0000:5:00.0",
- * "04:00.0,arg=val".
- *
- * For virtual devices, the format of arguments string is "DRIVER_NAME*"
- * or "DRIVER_NAME*,key=val,key2=val2,...". Examples: "net_ring",
- * "net_ring0", "net_pmdAnything,arg=0:arg2=1".
- *
- * The function parses the arguments string to get driver name and driver
- * arguments.
- *
- * @param devargs_str
- *   The arguments as given by the user.
- * @param drvname
- *   The pointer to the string to store parsed driver name.
- * @param drvargs
- *   The pointer to the string to store parsed driver arguments.
- *
- * @return
- *   - 0 on success
- *   - A negative value on error
- */
-__rte_deprecated
-int rte_eal_parse_devargs_str(const char *devargs_str,
-				char **drvname, char **drvargs);
-
-/**
  * Parse a device string.
  *
  * Verify that a bus is capable of handling the device passed
@@ -128,7 +98,6 @@ int rte_eal_parse_devargs_str(const char *devargs_str,
  *   - 0 on success.
  *   - Negative errno on error.
  */
-__rte_experimental
 int
 rte_devargs_parse(struct rte_devargs *da, const char *dev);
 
@@ -165,7 +134,6 @@ rte_devargs_parse(struct rte_devargs *da, const char *dev);
  *   - 0 on success.
  *   - Negative errno on error.
  */
-__rte_experimental
 int
 rte_devargs_parsef(struct rte_devargs *da,
 		   const char *format, ...)
@@ -176,6 +144,8 @@ __attribute__((format(printf, 2, 0)));
  *
  * @param da
  *  The devargs structure to insert.
+ *  If a devargs for the same device is already inserted,
+ *  it will be updated and returned. It means *da pointer can change.
  *
  * @return
  *   - 0 on success
@@ -183,7 +153,7 @@ __attribute__((format(printf, 2, 0)));
  */
 __rte_experimental
 int
-rte_devargs_insert(struct rte_devargs *da);
+rte_devargs_insert(struct rte_devargs **da);
 
 /**
  * Add a device to the user device list
@@ -198,36 +168,15 @@ rte_devargs_insert(struct rte_devargs *da);
  *   - 0 on success
  *   - A negative value on error
  */
-__rte_experimental
 int rte_devargs_add(enum rte_devtype devtype, const char *devargs_str);
-
-/**
- * @deprecated
- * Add a device to the user device list
- * See rte_devargs_parse() for details.
- *
- * @param devtype
- *   The type of the device.
- * @param devargs_str
- *   The arguments as given by the user.
- *
- * @return
- *   - 0 on success
- *   - A negative value on error
- */
-__rte_deprecated
-int rte_eal_devargs_add(enum rte_devtype devtype, const char *devargs_str);
 
 /**
  * Remove a device from the user device list.
  * Its resources are freed.
  * If the devargs cannot be found, nothing happens.
  *
- * @param busname
- *   bus name of the devargs to remove.
- *
- * @param devname
- *   device name of the devargs to remove.
+ * @param devargs
+ *   The instance or a copy of devargs to remove.
  *
  * @return
  *   0 on success.
@@ -235,8 +184,7 @@ int rte_eal_devargs_add(enum rte_devtype devtype, const char *devargs_str);
  *   >0 if the devargs was not within the user device list.
  */
 __rte_experimental
-int rte_devargs_remove(const char *busname,
-		       const char *devname);
+int rte_devargs_remove(struct rte_devargs *devargs);
 
 /**
  * Count the number of user devices of a specified type
@@ -247,42 +195,16 @@ int rte_devargs_remove(const char *busname,
  * @return
  *   The number of devices.
  */
-__rte_experimental
 unsigned int
 rte_devargs_type_count(enum rte_devtype devtype);
 
 /**
- * @deprecated
- * Count the number of user devices of a specified type
- *
- * @param devtype
- *   The type of the devices to counted.
- *
- * @return
- *   The number of devices.
- */
-__rte_deprecated
-unsigned int
-rte_eal_devargs_type_count(enum rte_devtype devtype);
-
-/**
  * This function dumps the list of user device and their arguments.
  *
  * @param f
  *   A pointer to a file for output
  */
-__rte_experimental
 void rte_devargs_dump(FILE *f);
-
-/**
- * @deprecated
- * This function dumps the list of user device and their arguments.
- *
- * @param f
- *   A pointer to a file for output
- */
-__rte_deprecated
-void rte_eal_devargs_dump(FILE *f);
 
 /**
  * Find next rte_devargs matching the provided bus name.
@@ -300,7 +222,6 @@ void rte_eal_devargs_dump(FILE *f);
  *   Next rte_devargs entry matching the requested bus,
  *   NULL if there is none.
  */
-__rte_experimental
 struct rte_devargs *
 rte_devargs_next(const char *busname, const struct rte_devargs *start);
 

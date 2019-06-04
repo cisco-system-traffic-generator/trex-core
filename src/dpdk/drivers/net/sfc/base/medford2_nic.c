@@ -15,25 +15,15 @@ medford2_nic_get_required_pcie_bandwidth(
 	__in		efx_nic_t *enp,
 	__out		uint32_t *bandwidth_mbpsp)
 {
-	uint32_t port_modes;
-	uint32_t current_mode;
 	uint32_t bandwidth;
 	efx_rc_t rc;
 
 	/* FIXME: support new Medford2 dynamic port modes */
 
-	if ((rc = efx_mcdi_get_port_modes(enp, &port_modes,
-				    &current_mode)) != 0) {
-		/* No port mode info available. */
-		bandwidth = 0;
-		goto out;
-	}
-
-	if ((rc = ef10_nic_get_port_mode_bandwidth(current_mode,
+	if ((rc = ef10_nic_get_port_mode_bandwidth(enp,
 						    &bandwidth)) != 0)
 		goto fail1;
 
-out:
 	*bandwidth_mbpsp = bandwidth;
 
 	return (0);
@@ -96,6 +86,9 @@ medford2_board_cfg(
 	else
 		goto fail1;
 
+	/* Checksums for TSO sends should always be correct on Medford2. */
+	encp->enc_bug61297_workaround = B_FALSE;
+
 	/* Get clock frequencies (in MHz). */
 	if ((rc = efx_mcdi_get_clock(enp, &sysclk, &dpcpu_clk)) != 0)
 		goto fail2;
@@ -107,6 +100,10 @@ medford2_board_cfg(
 	encp->enc_evq_timer_quantum_ns = 1536000UL / dpcpu_clk; /* 1536 cycles */
 	encp->enc_evq_timer_max_us = (encp->enc_evq_timer_quantum_ns <<
 		    FRF_CZ_TC_TIMER_VAL_WIDTH) / 1000;
+
+	encp->enc_ev_desc_size = EF10_EVQ_DESC_SIZE;
+	encp->enc_rx_desc_size = EF10_RXQ_DESC_SIZE;
+	encp->enc_tx_desc_size = EF10_TXQ_DESC_SIZE;
 
 	/* Alignment for receive packet DMA buffers */
 	encp->enc_rx_buf_align_start = 1;
@@ -121,12 +118,19 @@ medford2_board_cfg(
 	}
 	encp->enc_rx_buf_align_end = end_padding;
 
+	encp->enc_evq_max_nevs = EF10_EVQ_MAXNEVS;
+	encp->enc_evq_min_nevs = EF10_EVQ_MINNEVS;
+
+	encp->enc_rxq_max_ndescs = EF10_RXQ_MAXNDESCS;
+	encp->enc_rxq_min_ndescs = EF10_RXQ_MINNDESCS;
+
 	/*
 	 * The maximum supported transmit queue size is 2048. TXQs with 4096
 	 * descriptors are not supported as the top bit is used for vfifo
 	 * stuffing.
 	 */
-	encp->enc_txq_max_ndescs = 2048;
+	encp->enc_txq_max_ndescs = MEDFORD2_TXQ_MAXNDESCS;
+	encp->enc_txq_min_ndescs = EF10_TXQ_MINNDESCS;
 
 	EFX_STATIC_ASSERT(MEDFORD2_PIOBUF_NBUFS <= EF10_MAX_PIOBUF_NBUFS);
 	encp->enc_piobuf_limit = MEDFORD2_PIOBUF_NBUFS;

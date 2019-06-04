@@ -174,43 +174,79 @@ rte_pktmbuf_pool_create(const char *name, unsigned int n,
 void
 rte_mbuf_sanity_check(const struct rte_mbuf *m, int is_header)
 {
+	const char *reason;
+
+	if (rte_mbuf_check(m, is_header, &reason))
+		rte_panic("%s\n", reason);
+}
+
+__rte_experimental
+int rte_mbuf_check(const struct rte_mbuf *m, int is_header,
+		   const char **reason)
+{
 	unsigned int nb_segs, pkt_len;
 
-	if (m == NULL)
-		rte_panic("mbuf is NULL\n");
+	if (m == NULL) {
+		*reason = "mbuf is NULL";
+		return -1;
+	}
 
 	/* generic checks */
-	if (m->pool == NULL)
-		rte_panic("bad mbuf pool\n");
-	if (m->buf_iova == 0)
-		rte_panic("bad IO addr\n");
-	if (m->buf_addr == NULL)
-		rte_panic("bad virt addr\n");
+	if (m->pool == NULL) {
+		*reason = "bad mbuf pool";
+		return -1;
+	}
+	if (m->buf_iova == 0) {
+		*reason = "bad IO addr";
+		return -1;
+	}
+	if (m->buf_addr == NULL) {
+		*reason = "bad virt addr";
+		return -1;
+	}
 
 	uint16_t cnt = rte_mbuf_refcnt_read(m);
-	if ((cnt == 0) || (cnt == UINT16_MAX))
-		rte_panic("bad ref cnt\n");
+	if ((cnt == 0) || (cnt == UINT16_MAX)) {
+		*reason = "bad ref cnt";
+		return -1;
+	}
 
 	/* nothing to check for sub-segments */
 	if (is_header == 0)
-		return;
+		return 0;
 
 	/* data_len is supposed to be not more than pkt_len */
-	if (m->data_len > m->pkt_len)
-		rte_panic("bad data_len\n");
+	if (m->data_len > m->pkt_len) {
+		*reason = "bad data_len";
+		return -1;
+	}
 
 	nb_segs = m->nb_segs;
 	pkt_len = m->pkt_len;
 
 	do {
+		if (m->data_off > m->buf_len) {
+			*reason = "data offset too big in mbuf segment";
+			return -1;
+		}
+		if (m->data_off + m->data_len > m->buf_len) {
+			*reason = "data length too big in mbuf segment";
+			return -1;
+		}
 		nb_segs -= 1;
 		pkt_len -= m->data_len;
 	} while ((m = m->next) != NULL);
 
-	if (nb_segs)
-		rte_panic("bad nb_segs\n");
-	if (pkt_len)
-		rte_panic("bad pkt_len\n");
+	if (nb_segs) {
+		*reason = "bad nb_segs";
+		return -1;
+	}
+	if (pkt_len) {
+		*reason = "bad pkt_len";
+		return -1;
+	}
+
+	return 0;
 }
 
 /* dump a mbuf on console */
@@ -299,11 +335,19 @@ const char *rte_get_rx_ol_flag_name(uint64_t mask)
 	case PKT_RX_VLAN_STRIPPED: return "PKT_RX_VLAN_STRIPPED";
 	case PKT_RX_IEEE1588_PTP: return "PKT_RX_IEEE1588_PTP";
 	case PKT_RX_IEEE1588_TMST: return "PKT_RX_IEEE1588_TMST";
+	case PKT_RX_FDIR_ID: return "PKT_RX_FDIR_ID";
+	case PKT_RX_FDIR_FLX: return "PKT_RX_FDIR_FLX";
 	case PKT_RX_QINQ_STRIPPED: return "PKT_RX_QINQ_STRIPPED";
+	case PKT_RX_QINQ: return "PKT_RX_QINQ";
 	case PKT_RX_LRO: return "PKT_RX_LRO";
 	case PKT_RX_TIMESTAMP: return "PKT_RX_TIMESTAMP";
 	case PKT_RX_SEC_OFFLOAD: return "PKT_RX_SEC_OFFLOAD";
 	case PKT_RX_SEC_OFFLOAD_FAILED: return "PKT_RX_SEC_OFFLOAD_FAILED";
+	case PKT_RX_OUTER_L4_CKSUM_BAD: return "PKT_RX_OUTER_L4_CKSUM_BAD";
+	case PKT_RX_OUTER_L4_CKSUM_GOOD: return "PKT_RX_OUTER_L4_CKSUM_GOOD";
+	case PKT_RX_OUTER_L4_CKSUM_INVALID:
+		return "PKT_RX_OUTER_L4_CKSUM_INVALID";
+
 	default: return NULL;
 	}
 }
@@ -336,12 +380,21 @@ rte_get_rx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
 		{ PKT_RX_VLAN_STRIPPED, PKT_RX_VLAN_STRIPPED, NULL },
 		{ PKT_RX_IEEE1588_PTP, PKT_RX_IEEE1588_PTP, NULL },
 		{ PKT_RX_IEEE1588_TMST, PKT_RX_IEEE1588_TMST, NULL },
+		{ PKT_RX_FDIR_ID, PKT_RX_FDIR_ID, NULL },
+		{ PKT_RX_FDIR_FLX, PKT_RX_FDIR_FLX, NULL },
 		{ PKT_RX_QINQ_STRIPPED, PKT_RX_QINQ_STRIPPED, NULL },
 		{ PKT_RX_LRO, PKT_RX_LRO, NULL },
 		{ PKT_RX_TIMESTAMP, PKT_RX_TIMESTAMP, NULL },
 		{ PKT_RX_SEC_OFFLOAD, PKT_RX_SEC_OFFLOAD, NULL },
 		{ PKT_RX_SEC_OFFLOAD_FAILED, PKT_RX_SEC_OFFLOAD_FAILED, NULL },
 		{ PKT_RX_QINQ, PKT_RX_QINQ, NULL },
+		{ PKT_RX_OUTER_L4_CKSUM_BAD, PKT_RX_OUTER_L4_CKSUM_MASK, NULL },
+		{ PKT_RX_OUTER_L4_CKSUM_GOOD, PKT_RX_OUTER_L4_CKSUM_MASK,
+		  NULL },
+		{ PKT_RX_OUTER_L4_CKSUM_INVALID, PKT_RX_OUTER_L4_CKSUM_MASK,
+		  NULL },
+		{ PKT_RX_OUTER_L4_CKSUM_UNKNOWN, PKT_RX_OUTER_L4_CKSUM_MASK,
+		  "PKT_RX_OUTER_L4_CKSUM_UNKNOWN" },
 	};
 	const char *name;
 	unsigned int i;
@@ -376,7 +429,7 @@ rte_get_rx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
 const char *rte_get_tx_ol_flag_name(uint64_t mask)
 {
 	switch (mask) {
-	case PKT_TX_VLAN_PKT: return "PKT_TX_VLAN_PKT";
+	case PKT_TX_VLAN: return "PKT_TX_VLAN";
 	case PKT_TX_IP_CKSUM: return "PKT_TX_IP_CKSUM";
 	case PKT_TX_TCP_CKSUM: return "PKT_TX_TCP_CKSUM";
 	case PKT_TX_SCTP_CKSUM: return "PKT_TX_SCTP_CKSUM";
@@ -396,8 +449,12 @@ const char *rte_get_tx_ol_flag_name(uint64_t mask)
 	case PKT_TX_TUNNEL_VXLAN_GPE: return "PKT_TX_TUNNEL_VXLAN_GPE";
 	case PKT_TX_TUNNEL_IP: return "PKT_TX_TUNNEL_IP";
 	case PKT_TX_TUNNEL_UDP: return "PKT_TX_TUNNEL_UDP";
+	case PKT_TX_QINQ: return "PKT_TX_QINQ";
 	case PKT_TX_MACSEC: return "PKT_TX_MACSEC";
 	case PKT_TX_SEC_OFFLOAD: return "PKT_TX_SEC_OFFLOAD";
+	case PKT_TX_UDP_SEG: return "PKT_TX_UDP_SEG";
+	case PKT_TX_OUTER_UDP_CKSUM: return "PKT_TX_OUTER_UDP_CKSUM";
+	case PKT_TX_METADATA: return "PKT_TX_METADATA";
 	default: return NULL;
 	}
 }
@@ -407,7 +464,7 @@ int
 rte_get_tx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
 {
 	const struct flag_mask tx_flags[] = {
-		{ PKT_TX_VLAN_PKT, PKT_TX_VLAN_PKT, NULL },
+		{ PKT_TX_VLAN, PKT_TX_VLAN, NULL },
 		{ PKT_TX_IP_CKSUM, PKT_TX_IP_CKSUM, NULL },
 		{ PKT_TX_TCP_CKSUM, PKT_TX_L4_MASK, NULL },
 		{ PKT_TX_SCTP_CKSUM, PKT_TX_L4_MASK, NULL },
@@ -420,24 +477,20 @@ rte_get_tx_ol_flag_list(uint64_t mask, char *buf, size_t buflen)
 		{ PKT_TX_OUTER_IP_CKSUM, PKT_TX_OUTER_IP_CKSUM, NULL },
 		{ PKT_TX_OUTER_IPV4, PKT_TX_OUTER_IPV4, NULL },
 		{ PKT_TX_OUTER_IPV6, PKT_TX_OUTER_IPV6, NULL },
-		{ PKT_TX_TUNNEL_VXLAN, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_GRE, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_IPIP, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_GENEVE, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_MPLSINUDP, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_VXLAN_GPE, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_IP, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
-		{ PKT_TX_TUNNEL_UDP, PKT_TX_TUNNEL_MASK,
-		  "PKT_TX_TUNNEL_NONE" },
+		{ PKT_TX_TUNNEL_VXLAN, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_GRE, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_IPIP, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_GENEVE, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_MPLSINUDP, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_VXLAN_GPE, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_IP, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_TUNNEL_UDP, PKT_TX_TUNNEL_MASK, NULL },
+		{ PKT_TX_QINQ, PKT_TX_QINQ, NULL },
 		{ PKT_TX_MACSEC, PKT_TX_MACSEC, NULL },
 		{ PKT_TX_SEC_OFFLOAD, PKT_TX_SEC_OFFLOAD, NULL },
+		{ PKT_TX_UDP_SEG, PKT_TX_UDP_SEG, NULL },
+		{ PKT_TX_OUTER_UDP_CKSUM, PKT_TX_OUTER_UDP_CKSUM, NULL },
+		{ PKT_TX_METADATA, PKT_TX_METADATA, NULL },
 	};
 	const char *name;
 	unsigned int i;

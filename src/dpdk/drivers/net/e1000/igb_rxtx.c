@@ -50,6 +50,10 @@
 #endif
 /* Bit Mask to indicate what bits required for building TX context */
 #define IGB_TX_OFFLOAD_MASK (			 \
+		PKT_TX_OUTER_IPV6 |	 \
+		PKT_TX_OUTER_IPV4 |	 \
+		PKT_TX_IPV6 |		 \
+		PKT_TX_IPV4 |		 \
 		PKT_TX_VLAN_PKT |		 \
 		PKT_TX_IP_CKSUM |		 \
 		PKT_TX_L4_MASK |		 \
@@ -1452,10 +1456,10 @@ igb_reset_tx_queue(struct igb_tx_queue *txq, struct rte_eth_dev *dev)
 uint64_t
 igb_get_tx_port_offloads_capa(struct rte_eth_dev *dev)
 {
-	uint64_t rx_offload_capa;
+	uint64_t tx_offload_capa;
 
 	RTE_SET_USED(dev);
-	rx_offload_capa = DEV_TX_OFFLOAD_VLAN_INSERT |
+	tx_offload_capa = DEV_TX_OFFLOAD_VLAN_INSERT |
 			  DEV_TX_OFFLOAD_IPV4_CKSUM  |
 			  DEV_TX_OFFLOAD_UDP_CKSUM   |
 			  DEV_TX_OFFLOAD_TCP_CKSUM   |
@@ -1463,17 +1467,17 @@ igb_get_tx_port_offloads_capa(struct rte_eth_dev *dev)
 			  DEV_TX_OFFLOAD_TCP_TSO     |
 			  DEV_TX_OFFLOAD_MULTI_SEGS;
 
-	return rx_offload_capa;
+	return tx_offload_capa;
 }
 
 uint64_t
 igb_get_tx_queue_offloads_capa(struct rte_eth_dev *dev)
 {
-	uint64_t rx_queue_offload_capa;
+	uint64_t tx_queue_offload_capa;
 
-	rx_queue_offload_capa = igb_get_tx_port_offloads_capa(dev);
+	tx_queue_offload_capa = igb_get_tx_port_offloads_capa(dev);
 
-	return rx_queue_offload_capa;
+	return tx_queue_offload_capa;
 }
 
 int
@@ -1638,7 +1642,6 @@ igb_get_rx_port_offloads_capa(struct rte_eth_dev *dev)
 			  DEV_RX_OFFLOAD_UDP_CKSUM   |
 			  DEV_RX_OFFLOAD_TCP_CKSUM   |
 			  DEV_RX_OFFLOAD_JUMBO_FRAME |
-			  DEV_RX_OFFLOAD_CRC_STRIP   |
 			  DEV_RX_OFFLOAD_KEEP_CRC    |
 			  DEV_RX_OFFLOAD_SCATTER;
 
@@ -1721,7 +1724,7 @@ eth_igb_rx_queue_setup(struct rte_eth_dev *dev,
 	rxq->reg_idx = (uint16_t)((RTE_ETH_DEV_SRIOV(dev).active == 0) ?
 		queue_idx : RTE_ETH_DEV_SRIOV(dev).def_pool_q_idx + queue_idx);
 	rxq->port_id = dev->data->port_id;
-	if (rte_eth_dev_must_keep_crc(dev->data->dev_conf.rxmode.offloads))
+	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)
 		rxq->crc_len = ETHER_CRC_LEN;
 	else
 		rxq->crc_len = 0;
@@ -2374,7 +2377,7 @@ eth_igb_rx_init(struct rte_eth_dev *dev)
 		 * Reset crc_len in case it was changed after queue setup by a
 		 *  call to configure
 		 */
-		if (rte_eth_dev_must_keep_crc(dev->data->dev_conf.rxmode.offloads))
+		if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)
 			rxq->crc_len = ETHER_CRC_LEN;
 		else
 			rxq->crc_len = 0;
@@ -2506,7 +2509,7 @@ eth_igb_rx_init(struct rte_eth_dev *dev)
 	E1000_WRITE_REG(hw, E1000_RXCSUM, rxcsum);
 
 	/* Setup the Receive Control Register. */
-	if (rte_eth_dev_must_keep_crc(dev->data->dev_conf.rxmode.offloads)) {
+	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC) {
 		rctl &= ~E1000_RCTL_SECRC; /* Do not Strip Ethernet CRC. */
 
 		/* clear STRCRC bit in all queues */
@@ -2852,11 +2855,17 @@ igb_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 }
 
 int
-igb_rss_conf_init(struct igb_rte_flow_rss_conf *out,
+igb_rss_conf_init(struct rte_eth_dev *dev,
+		  struct igb_rte_flow_rss_conf *out,
 		  const struct rte_flow_action_rss *in)
 {
+	struct e1000_hw *hw = E1000_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+
 	if (in->key_len > RTE_DIM(out->key) ||
-	    in->queue_num > RTE_DIM(out->queue))
+	    ((hw->mac.type == e1000_82576) &&
+	     (in->queue_num > IGB_MAX_RX_QUEUE_NUM_82576)) ||
+	    ((hw->mac.type != e1000_82576) &&
+	     (in->queue_num > IGB_MAX_RX_QUEUE_NUM)))
 		return -EINVAL;
 	out->conf = (struct rte_flow_action_rss){
 		.func = in->func,
@@ -2945,7 +2954,7 @@ igb_config_rss_filter(struct rte_eth_dev *dev,
 		rss_conf.rss_key = rss_intel_key; /* Default hash key */
 	igb_hw_rss_hash_set(hw, &rss_conf);
 
-	if (igb_rss_conf_init(&filter_info->rss_info, &conf->conf))
+	if (igb_rss_conf_init(dev, &filter_info->rss_info, &conf->conf))
 		return -EINVAL;
 
 	return 0;

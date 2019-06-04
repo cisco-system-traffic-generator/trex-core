@@ -3,7 +3,7 @@
  */
 #include <stdint.h>
 
-#ifdef RTE_EXEC_ENV_LINUXAPP
+#ifdef RTE_EXEC_ENV_LINUX
  #include <dirent.h>
  #include <fcntl.h>
 #endif
@@ -166,12 +166,6 @@ legacy_set_status(struct virtio_hw *hw, uint8_t status)
 	rte_pci_ioport_write(VTPCI_IO(hw), &status, 1, VIRTIO_PCI_STATUS);
 }
 
-static void
-legacy_reset(struct virtio_hw *hw)
-{
-	legacy_set_status(hw, VIRTIO_CONFIG_STATUS_RESET);
-}
-
 static uint8_t
 legacy_get_isr(struct virtio_hw *hw)
 {
@@ -250,7 +244,6 @@ legacy_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 const struct virtio_pci_ops legacy_ops = {
 	.read_dev_cfg	= legacy_read_dev_config,
 	.write_dev_cfg	= legacy_write_dev_config,
-	.reset		= legacy_reset,
 	.get_status	= legacy_get_status,
 	.set_status	= legacy_set_status,
 	.get_features	= legacy_get_features,
@@ -337,13 +330,6 @@ static void
 modern_set_status(struct virtio_hw *hw, uint8_t status)
 {
 	rte_write8(status, &hw->common_cfg->device_status);
-}
-
-static void
-modern_reset(struct virtio_hw *hw)
-{
-	modern_set_status(hw, VIRTIO_CONFIG_STATUS_RESET);
-	modern_get_status(hw);
 }
 
 static uint8_t
@@ -438,7 +424,6 @@ modern_notify_queue(struct virtio_hw *hw __rte_unused, struct virtqueue *vq)
 const struct virtio_pci_ops modern_ops = {
 	.read_dev_cfg	= modern_read_dev_config,
 	.write_dev_cfg	= modern_write_dev_config,
-	.reset		= modern_reset,
 	.get_status	= modern_get_status,
 	.set_status	= modern_set_status,
 	.get_features	= modern_get_features,
@@ -567,16 +552,18 @@ virtio_read_caps(struct rte_pci_device *dev, struct virtio_hw *hw)
 	}
 
 	ret = rte_pci_read_config(dev, &pos, 1, PCI_CAPABILITY_LIST);
-	if (ret < 0) {
-		PMD_INIT_LOG(DEBUG, "failed to read pci capability list");
+	if (ret != 1) {
+		PMD_INIT_LOG(DEBUG,
+			     "failed to read pci capability list, ret %d", ret);
 		return -1;
 	}
 
 	while (pos) {
-		ret = rte_pci_read_config(dev, &cap, sizeof(cap), pos);
-		if (ret < 0) {
-			PMD_INIT_LOG(ERR,
-				"failed to read pci cap at pos: %x", pos);
+		ret = rte_pci_read_config(dev, &cap, 2, pos);
+		if (ret != 2) {
+			PMD_INIT_LOG(DEBUG,
+				     "failed to read pci cap at pos: %x ret %d",
+				     pos, ret);
 			break;
 		}
 
@@ -586,7 +573,16 @@ virtio_read_caps(struct rte_pci_device *dev, struct virtio_hw *hw)
 			 * 1st byte is cap ID; 2nd byte is the position of next
 			 * cap; next two bytes are the flags.
 			 */
-			uint16_t flags = ((uint16_t *)&cap)[1];
+			uint16_t flags;
+
+			ret = rte_pci_read_config(dev, &flags, sizeof(flags),
+					pos + 2);
+			if (ret != sizeof(flags)) {
+				PMD_INIT_LOG(DEBUG,
+					     "failed to read pci cap at pos:"
+					     " %x ret %d", pos + 2, ret);
+				break;
+			}
 
 			if (flags & PCI_MSIX_ENABLE)
 				hw->use_msix = VIRTIO_MSIX_ENABLED;
@@ -601,6 +597,14 @@ virtio_read_caps(struct rte_pci_device *dev, struct virtio_hw *hw)
 			goto next;
 		}
 
+		ret = rte_pci_read_config(dev, &cap, sizeof(cap), pos);
+		if (ret != sizeof(cap)) {
+			PMD_INIT_LOG(DEBUG,
+				     "failed to read pci cap at pos: %x ret %d",
+				     pos, ret);
+			break;
+		}
+
 		PMD_INIT_LOG(DEBUG,
 			"[%2x] cfg type: %u, bar: %u, offset: %04x, len: %u",
 			pos, cap.cfg_type, cap.bar, cap.offset, cap.length);
@@ -610,9 +614,15 @@ virtio_read_caps(struct rte_pci_device *dev, struct virtio_hw *hw)
 			hw->common_cfg = get_cfg_addr(dev, &cap);
 			break;
 		case VIRTIO_PCI_CAP_NOTIFY_CFG:
-			rte_pci_read_config(dev, &hw->notify_off_multiplier,
+			ret = rte_pci_read_config(dev,
+					&hw->notify_off_multiplier,
 					4, pos + sizeof(cap));
-			hw->notify_base = get_cfg_addr(dev, &cap);
+			if (ret != 4)
+				PMD_INIT_LOG(DEBUG,
+					"failed to read notify_off_multiplier, ret %d",
+					ret);
+			else
+				hw->notify_base = get_cfg_addr(dev, &cap);
 			break;
 		case VIRTIO_PCI_CAP_DEVICE_CFG:
 			hw->dev_cfg = get_cfg_addr(dev, &cap);
@@ -689,25 +699,37 @@ enum virtio_msix_status
 vtpci_msix_detect(struct rte_pci_device *dev)
 {
 	uint8_t pos;
-	struct virtio_pci_cap cap;
 	int ret;
 
 	ret = rte_pci_read_config(dev, &pos, 1, PCI_CAPABILITY_LIST);
-	if (ret < 0) {
-		PMD_INIT_LOG(DEBUG, "failed to read pci capability list");
+	if (ret != 1) {
+		PMD_INIT_LOG(DEBUG,
+			     "failed to read pci capability list, ret %d", ret);
 		return VIRTIO_MSIX_NONE;
 	}
 
 	while (pos) {
-		ret = rte_pci_read_config(dev, &cap, sizeof(cap), pos);
-		if (ret < 0) {
-			PMD_INIT_LOG(ERR,
-				"failed to read pci cap at pos: %x", pos);
+		uint8_t cap[2];
+
+		ret = rte_pci_read_config(dev, cap, sizeof(cap), pos);
+		if (ret != sizeof(cap)) {
+			PMD_INIT_LOG(DEBUG,
+				     "failed to read pci cap at pos: %x ret %d",
+				     pos, ret);
 			break;
 		}
 
-		if (cap.cap_vndr == PCI_CAP_ID_MSIX) {
-			uint16_t flags = ((uint16_t *)&cap)[1];
+		if (cap[0] == PCI_CAP_ID_MSIX) {
+			uint16_t flags;
+
+			ret = rte_pci_read_config(dev, &flags, sizeof(flags),
+					pos + sizeof(cap));
+			if (ret != sizeof(flags)) {
+				PMD_INIT_LOG(DEBUG,
+					     "failed to read pci cap at pos:"
+					     " %x ret %d", pos + 2, ret);
+				break;
+			}
 
 			if (flags & PCI_MSIX_ENABLE)
 				return VIRTIO_MSIX_ENABLED;
@@ -715,7 +737,7 @@ vtpci_msix_detect(struct rte_pci_device *dev)
 				return VIRTIO_MSIX_DISABLED;
 		}
 
-		pos = cap.cap_next;
+		pos = cap[1];
 	}
 
 	return VIRTIO_MSIX_NONE;

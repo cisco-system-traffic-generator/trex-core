@@ -108,6 +108,7 @@ void CTRexExtendedDriverMlnx4::update_configuration(port_cfg_t * cfg) {
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 }
 
+
 CTRexExtendedDriverVirtio::CTRexExtendedDriverVirtio() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
@@ -121,10 +122,14 @@ void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg) {
     }
 }
 
-
 bool CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
+
+bool CTRexExtendedDriverVirtio::is_support_for_rx_scatter_gather(){
+    return false;
+}
+
 
 CTRexExtendedDriverVmxnet3::CTRexExtendedDriverVmxnet3() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
@@ -151,7 +156,7 @@ void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     // We configure hardware not to strip CRC. Then DPDK driver removes the CRC.
     // If configuring "hardware" to remove CRC, due to bug in ESXI e1000 emulation, we got packets with CRC.
-    cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
+    //cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
     // E1000 does not claim as supporting multi-segment send.
     cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }
@@ -164,7 +169,6 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
     if ( get_is_tcp_mode() ) {
         cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_TCP_LRO;
     }
-    cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
 }
 
 CTRexExtendedDriverAfPacket::CTRexExtendedDriverAfPacket(){

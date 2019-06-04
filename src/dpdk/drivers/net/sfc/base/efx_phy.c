@@ -15,6 +15,7 @@ static const efx_phy_ops_t	__efx_phy_siena_ops = {
 	siena_phy_reconfigure,		/* epo_reconfigure */
 	siena_phy_verify,		/* epo_verify */
 	siena_phy_oui_get,		/* epo_oui_get */
+	NULL,				/* epo_link_state_get */
 #if EFSYS_OPT_PHY_STATS
 	siena_phy_stats_update,		/* epo_stats_update */
 #endif	/* EFSYS_OPT_PHY_STATS */
@@ -27,13 +28,14 @@ static const efx_phy_ops_t	__efx_phy_siena_ops = {
 };
 #endif	/* EFSYS_OPT_SIENA */
 
-#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+#if EFX_OPTS_EF10()
 static const efx_phy_ops_t	__efx_phy_ef10_ops = {
 	ef10_phy_power,			/* epo_power */
 	NULL,				/* epo_reset */
 	ef10_phy_reconfigure,		/* epo_reconfigure */
 	ef10_phy_verify,		/* epo_verify */
 	ef10_phy_oui_get,		/* epo_oui_get */
+	ef10_phy_link_state_get,	/* epo_link_state_get */
 #if EFSYS_OPT_PHY_STATS
 	ef10_phy_stats_update,		/* epo_stats_update */
 #endif	/* EFSYS_OPT_PHY_STATS */
@@ -44,7 +46,7 @@ static const efx_phy_ops_t	__efx_phy_ef10_ops = {
 	ef10_bist_stop,			/* epo_bist_stop */
 #endif	/* EFSYS_OPT_BIST */
 };
-#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
+#endif	/* EFX_OPTS_EF10() */
 
 	__checkReturn	efx_rc_t
 efx_phy_probe(
@@ -286,8 +288,8 @@ efx_phy_media_type_get(
 efx_phy_module_get_info(
 	__in			efx_nic_t *enp,
 	__in			uint8_t dev_addr,
-	__in			uint8_t offset,
-	__in			uint8_t len,
+	__in			size_t offset,
+	__in			size_t len,
 	__out_bcount(len)	uint8_t *data)
 {
 	efx_rc_t rc;
@@ -295,13 +297,65 @@ efx_phy_module_get_info(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT(data != NULL);
 
-	if ((uint32_t)offset + len > 0xff) {
+	if ((offset > EFX_PHY_MEDIA_INFO_MAX_OFFSET) ||
+	    ((offset + len) > EFX_PHY_MEDIA_INFO_MAX_OFFSET)) {
 		rc = EINVAL;
 		goto fail1;
 	}
 
 	if ((rc = efx_mcdi_phy_module_get_info(enp, dev_addr,
 	    offset, len, data)) != 0)
+		goto fail2;
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn		efx_rc_t
+efx_phy_fec_type_get(
+	__in		efx_nic_t *enp,
+	__out		efx_phy_fec_type_t *typep)
+{
+	efx_rc_t rc;
+	efx_phy_link_state_t epls;
+
+	if ((rc = efx_phy_link_state_get(enp, &epls)) != 0)
+		goto fail1;
+
+	*typep = epls.epls_fec;
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn		efx_rc_t
+efx_phy_link_state_get(
+	__in		efx_nic_t *enp,
+	__out		efx_phy_link_state_t *eplsp)
+{
+	efx_port_t *epp = &(enp->en_port);
+	const efx_phy_ops_t *epop = epp->ep_epop;
+	efx_rc_t rc;
+
+	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_PROBE);
+
+	if (epop->epo_link_state_get == NULL) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	if ((rc = epop->epo_link_state_get(enp, eplsp)) != 0)
 		goto fail2;
 
 	return (0);

@@ -120,13 +120,15 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 		return NULL;
 	}
 
-	if ((socket_id != SOCKET_ID_ANY) &&
-	    (socket_id >= RTE_MAX_NUMA_NODES || socket_id < 0)) {
+	if ((socket_id != SOCKET_ID_ANY) && socket_id < 0) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
 
-	if (!rte_eal_has_hugepages())
+	/* only set socket to SOCKET_ID_ANY if we aren't allocating for an
+	 * external heap.
+	 */
+	if (!rte_eal_has_hugepages() && socket_id < RTE_MAX_NUMA_NODES)
 		socket_id = SOCKET_ID_ANY;
 
 	contig = (flags & RTE_MEMZONE_IOVA_CONTIG) != 0;
@@ -169,7 +171,7 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 		return NULL;
 	}
 
-	snprintf(mz->name, sizeof(mz->name), "%s", name);
+	strlcpy(mz->name, name, sizeof(mz->name));
 	mz->iova = rte_malloc_virt2iova(mz_addr);
 	mz->addr = mz_addr;
 	mz->len = requested_len == 0 ?
@@ -363,6 +365,7 @@ int
 rte_eal_memzone_init(void)
 {
 	struct rte_mem_config *mcfg;
+	int ret = 0;
 
 	/* get pointer to global configuration */
 	mcfg = rte_eal_get_configuration()->mem_config;
@@ -373,17 +376,16 @@ rte_eal_memzone_init(void)
 			rte_fbarray_init(&mcfg->memzones, "memzone",
 			RTE_MAX_MEMZONE, sizeof(struct rte_memzone))) {
 		RTE_LOG(ERR, EAL, "Cannot allocate memzone list\n");
-		return -1;
+		ret = -1;
 	} else if (rte_eal_process_type() == RTE_PROC_SECONDARY &&
 			rte_fbarray_attach(&mcfg->memzones)) {
 		RTE_LOG(ERR, EAL, "Cannot attach to memzone list\n");
-		rte_rwlock_write_unlock(&mcfg->mlock);
-		return -1;
+		ret = -1;
 	}
 
 	rte_rwlock_write_unlock(&mcfg->mlock);
 
-	return 0;
+	return ret;
 }
 
 /* Walk all reserved memory zones */

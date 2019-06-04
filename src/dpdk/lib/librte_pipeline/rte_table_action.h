@@ -93,6 +93,15 @@ enum rte_table_action_type {
 
 	/** Timestamp. */
 	RTE_TABLE_ACTION_TIME,
+
+	/** Crypto. */
+	RTE_TABLE_ACTION_SYM_CRYPTO,
+
+	/** Tag. */
+	RTE_TABLE_ACTION_TAG,
+
+	/** Packet decapsulations. */
+	RTE_TABLE_ACTION_DECAP,
 };
 
 /** Common action configuration (per table action profile). */
@@ -193,7 +202,7 @@ struct rte_table_action_dscp_table_entry {
 	/** Packet color. Used by the meter action as the packet input color
 	 * for the color aware mode of the traffic metering algorithm.
 	 */
-	enum rte_meter_color color;
+	enum rte_color color;
 };
 
 /** DSCP translation table. */
@@ -250,7 +259,7 @@ struct rte_table_action_mtr_tc_params {
 	uint32_t meter_profile_id;
 
 	/** Policer actions. */
-	enum rte_table_action_policer policer[e_RTE_METER_COLORS];
+	enum rte_table_action_policer policer[RTE_COLORS];
 };
 
 /** Meter action statistics counters per traffic class. */
@@ -259,13 +268,13 @@ struct rte_table_action_mtr_counters_tc {
 	 * and before the policer actions are executed. Only valid when
 	 * *n_packets_valid* is non-zero.
 	 */
-	uint64_t n_packets[e_RTE_METER_COLORS];
+	uint64_t n_packets[RTE_COLORS];
 
 	/** Number of packet bytes per color at the output of the traffic
 	 * metering and before the policer actions are executed. Only valid when
 	 * *n_bytes_valid* is non-zero.
 	 */
-	uint64_t n_bytes[e_RTE_METER_COLORS];
+	uint64_t n_bytes[RTE_COLORS];
 
 	/** When non-zero, the *n_packets* field is valid. */
 	int n_packets_valid;
@@ -366,6 +375,14 @@ enum rte_table_action_encap_type {
 
 	/** IP -> { Ether | PPPoE | PPP | IP } */
 	RTE_TABLE_ACTION_ENCAP_PPPOE,
+
+	/** Ether -> { Ether | IP | UDP | VXLAN | Ether }
+	 * Ether -> { Ether | VLAN | IP | UDP | VXLAN | Ether }
+	 */
+	RTE_TABLE_ACTION_ENCAP_VXLAN,
+
+	/** IP -> { Ether | S-VLAN | C-VLAN | PPPoE | PPP | IP } */
+	RTE_TABLE_ACTION_ENCAP_QINQ_PPPOE,
 };
 
 /** Pre-computed Ethernet header fields for encapsulation action. */
@@ -391,6 +408,34 @@ struct rte_table_action_mpls_hdr {
 /** Pre-computed PPPoE header fields for encapsulation action. */
 struct rte_table_action_pppoe_hdr {
 	uint16_t session_id; /**< Session ID. */
+};
+
+/** Pre-computed IPv4 header fields for encapsulation action. */
+struct rte_table_action_ipv4_header {
+	uint32_t sa; /**< Source address. */
+	uint32_t da; /**< Destination address. */
+	uint8_t dscp; /**< DiffServ Code Point (DSCP). */
+	uint8_t ttl; /**< Time To Live (TTL). */
+};
+
+/** Pre-computed IPv6 header fields for encapsulation action. */
+struct rte_table_action_ipv6_header {
+	uint8_t sa[16]; /**< Source address. */
+	uint8_t da[16]; /**< Destination address. */
+	uint32_t flow_label; /**< Flow label. */
+	uint8_t dscp; /**< DiffServ Code Point (DSCP). */
+	uint8_t hop_limit; /**< Hop Limit (HL). */
+};
+
+/** Pre-computed UDP header fields for encapsulation action. */
+struct rte_table_action_udp_header {
+	uint16_t sp; /**< Source port. */
+	uint16_t dp; /**< Destination port. */
+};
+
+/** Pre-computed VXLAN header fields for encapsulation action. */
+struct rte_table_action_vxlan_hdr {
+	uint32_t vni; /**< VXLAN Network Identifier (VNI). */
 };
 
 /** Ether encap parameters. */
@@ -437,6 +482,21 @@ struct rte_table_action_encap_pppoe_params {
 	struct rte_table_action_pppoe_hdr pppoe; /**< PPPoE/PPP headers. */
 };
 
+/** VXLAN encap parameters. */
+struct rte_table_action_encap_vxlan_params {
+	struct rte_table_action_ether_hdr ether; /**< Ethernet header. */
+	struct rte_table_action_vlan_hdr vlan; /**< VLAN header. */
+
+	RTE_STD_C11
+	union {
+		struct rte_table_action_ipv4_header ipv4; /**< IPv4 header. */
+		struct rte_table_action_ipv6_header ipv6; /**< IPv6 header. */
+	};
+
+	struct rte_table_action_udp_header udp; /**< UDP header. */
+	struct rte_table_action_vxlan_hdr vxlan; /**< VXLAN header. */
+};
+
 /** Encap action configuration (per table action profile). */
 struct rte_table_action_encap_config {
 	/** Bit mask defining the set of packet encapsulations enabled for the
@@ -446,6 +506,40 @@ struct rte_table_action_encap_config {
 	 * @see enum rte_table_action_encap_type
 	 */
 	uint64_t encap_mask;
+
+	/** Encapsulation type specific configuration. */
+	RTE_STD_C11
+	union {
+		struct {
+			/** Input packet to be encapsulated: offset within the
+			 * input packet buffer to the start of the Ethernet
+			 * frame to be encapsulated. Offset 0 points to the
+			 * first byte of the MBUF structure.
+			 */
+			uint32_t data_offset;
+
+			/** Encapsulation header: non-zero when encapsulation
+			 * header includes a VLAN tag, zero otherwise.
+			 */
+			int vlan;
+
+			/** Encapsulation header: IP version of the IP header
+			 * within the encapsulation header. Non-zero for IPv4,
+			 * zero for IPv6.
+			 */
+			int ip_version;
+		} vxlan; /**< VXLAN specific configuration. */
+	};
+};
+
+/** QinQ_PPPoE encap parameters. */
+struct rte_table_encap_ether_qinq_pppoe {
+
+	/** Only valid when *type* is set to QinQ. */
+	struct rte_table_action_ether_hdr ether;
+	struct rte_table_action_vlan_hdr svlan; /**< Service VLAN header. */
+	struct rte_table_action_vlan_hdr cvlan; /**< Customer VLAN header. */
+	struct rte_table_action_pppoe_hdr pppoe; /**< PPPoE/PPP headers. */
 };
 
 /** Encap action parameters (per table rule). */
@@ -469,6 +563,12 @@ struct rte_table_action_encap_params {
 
 		/** Only valid when *type* is set to PPPoE. */
 		struct rte_table_action_encap_pppoe_params pppoe;
+
+		/** Only valid when *type* is set to VXLAN. */
+		struct rte_table_action_encap_vxlan_params vxlan;
+
+		/** Only valid when *type* is set to QinQ_PPPoE. */
+		struct rte_table_encap_ether_qinq_pppoe qinq_pppoe;
 	};
 };
 
@@ -603,6 +703,111 @@ struct rte_table_action_stats_counters {
 struct rte_table_action_time_params {
 	/** Initial timestamp value. Typically set to current time. */
 	uint64_t time;
+};
+
+/**
+ * RTE_TABLE_ACTION_CRYPTO
+ */
+#ifndef RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX
+#define RTE_TABLE_ACTION_SYM_CRYPTO_IV_SIZE_MAX		(16)
+#endif
+
+#ifndef RTE_TABLE_ACTION_SYM_CRYPTO_AAD_SIZE_MAX
+#define RTE_TABLE_ACTION_SYM_CRYPTO_AAD_SIZE_MAX	(16)
+#endif
+
+#ifndef RTE_TABLE_ACTION_SYM_CRYPTO_IV_OFFSET
+#define RTE_TABLE_ACTION_SYM_CRYPTO_IV_OFFSET				\
+	(sizeof(struct rte_crypto_op) + sizeof(struct rte_crypto_sym_op))
+#endif
+
+/** Common action structure to store the data's value, length, and offset */
+struct rte_table_action_vlo {
+	uint8_t *val;
+	uint32_t length;
+	uint32_t offset;
+};
+
+/** Symmetric crypto action configuration (per table action profile). */
+struct rte_table_action_sym_crypto_config {
+	/** Target Cryptodev ID. */
+	uint8_t cryptodev_id;
+
+	/**
+	 * Offset to rte_crypto_op structure within the input packet buffer.
+	 * Offset 0 points to the first byte of the MBUF structure.
+	 */
+	uint32_t op_offset;
+
+	/** The mempool for creating cryptodev sessions. */
+	struct rte_mempool *mp_create;
+
+	/** The mempool for initializing cryptodev sessions. */
+	struct rte_mempool *mp_init;
+};
+
+/** Symmetric Crypto action parameters (per table rule). */
+struct rte_table_action_sym_crypto_params {
+
+	/** Xform pointer contains all relevant information */
+	struct rte_crypto_sym_xform *xform;
+
+	/**
+	 * Offset within the input packet buffer to the first byte of data
+	 * to be processed by the crypto unit. Offset 0 points to the first
+	 * byte of the MBUF structure.
+	 */
+	uint32_t data_offset;
+
+	union {
+		struct {
+			/** Cipher iv data. */
+			struct rte_table_action_vlo cipher_iv;
+
+			/** Cipher iv data. */
+			struct rte_table_action_vlo cipher_iv_update;
+
+			/** Auth iv data. */
+			struct rte_table_action_vlo auth_iv;
+
+			/** Auth iv data. */
+			struct rte_table_action_vlo auth_iv_update;
+
+		} cipher_auth;
+
+		struct {
+			/** AEAD AAD data. */
+			struct rte_table_action_vlo aad;
+
+			/** AEAD iv data. */
+			struct rte_table_action_vlo iv;
+
+			/** AEAD AAD data. */
+			struct rte_table_action_vlo aad_update;
+
+			/** AEAD iv data. */
+			struct rte_table_action_vlo iv_update;
+
+		} aead;
+	};
+};
+
+/**
+ * RTE_TABLE_ACTION_TAG
+ */
+/** Tag action parameters (per table rule). */
+struct rte_table_action_tag_params {
+	/** Tag to be attached to the input packet. */
+	uint32_t tag;
+};
+
+/**
+ * RTE_TABLE_ACTION_DECAP
+ */
+/** Decap action parameters (per table rule). */
+struct rte_table_action_decap_params {
+	/** Number of bytes to be removed from the start of the packet. */
+	uint16_t n;
 };
 
 /**
@@ -897,6 +1102,20 @@ int __rte_experimental
 rte_table_action_time_read(struct rte_table_action *action,
 	void *data,
 	uint64_t *timestamp);
+
+/**
+ * Table action cryptodev symmetric session get.
+ *
+ * @param[in] action
+ *   Handle to table action object (needs to be valid).
+ * @param[in] data
+ *   Data byte array (typically table rule data) with sym crypto action.
+ * @return
+ *   The pointer to the session on success, NULL otherwise.
+ */
+struct rte_cryptodev_sym_session *__rte_experimental
+rte_table_action_crypto_sym_session_get(struct rte_table_action *action,
+	void *data);
 
 #ifdef __cplusplus
 }

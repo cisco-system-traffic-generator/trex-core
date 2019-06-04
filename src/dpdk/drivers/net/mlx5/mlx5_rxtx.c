@@ -417,20 +417,17 @@ mlx5_tx_descriptor_status(void *tx_queue, uint16_t offset)
 }
 
 /**
- * DPDK callback to check the status of a rx descriptor.
+ * Internal function to compute the number of used descriptors in an RX queue
  *
- * @param rx_queue
- *   The rx queue.
- * @param[in] offset
- *   The index of the descriptor in the ring.
+ * @param rxq
+ *   The Rx queue.
  *
  * @return
- *   The status of the tx descriptor.
+ *   The number of used rx descriptor.
  */
-int
-mlx5_rx_descriptor_status(void *rx_queue, uint16_t offset)
+static uint32_t
+rx_queue_count(struct mlx5_rxq_data *rxq)
 {
-	struct mlx5_rxq_data *rxq = rx_queue;
 	struct rxq_zip *zip = &rxq->zip;
 	volatile struct mlx5_cqe *cqe;
 	const unsigned int cqe_n = (1 << rxq->cqe_n);
@@ -461,9 +458,70 @@ mlx5_rx_descriptor_status(void *rx_queue, uint16_t offset)
 		cqe = &(*rxq->cqes)[cq_ci & cqe_cnt];
 	}
 	used = RTE_MIN(used, (1U << rxq->elts_n) - 1);
-	if (offset < used)
+	return used;
+}
+
+/**
+ * DPDK callback to check the status of a rx descriptor.
+ *
+ * @param rx_queue
+ *   The Rx queue.
+ * @param[in] offset
+ *   The index of the descriptor in the ring.
+ *
+ * @return
+ *   The status of the tx descriptor.
+ */
+int
+mlx5_rx_descriptor_status(void *rx_queue, uint16_t offset)
+{
+	struct mlx5_rxq_data *rxq = rx_queue;
+	struct mlx5_rxq_ctrl *rxq_ctrl =
+			container_of(rxq, struct mlx5_rxq_ctrl, rxq);
+	struct rte_eth_dev *dev = ETH_DEV(rxq_ctrl->priv);
+
+	if (dev->rx_pkt_burst != mlx5_rx_burst) {
+		rte_errno = ENOTSUP;
+		return -rte_errno;
+	}
+	if (offset >= (1 << rxq->elts_n)) {
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	if (offset < rx_queue_count(rxq))
 		return RTE_ETH_RX_DESC_DONE;
 	return RTE_ETH_RX_DESC_AVAIL;
+}
+
+/**
+ * DPDK callback to get the number of used descriptors in a RX queue
+ *
+ * @param dev
+ *   Pointer to the device structure.
+ *
+ * @param rx_queue_id
+ *   The Rx queue.
+ *
+ * @return
+ *   The number of used rx descriptor.
+ *   -EINVAL if the queue is invalid
+ */
+uint32_t
+mlx5_rx_queue_count(struct rte_eth_dev *dev, uint16_t rx_queue_id)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_rxq_data *rxq;
+
+	if (dev->rx_pkt_burst != mlx5_rx_burst) {
+		rte_errno = ENOTSUP;
+		return -rte_errno;
+	}
+	rxq = (*priv->rxqs)[rx_queue_id];
+	if (!rxq) {
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	return rx_queue_count(rxq);
 }
 
 /**
@@ -523,6 +581,7 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		uint8_t tso = txq->tso_en && (buf->ol_flags & PKT_TX_TCP_SEG);
 		uint32_t swp_offsets = 0;
 		uint8_t swp_types = 0;
+		rte_be32_t metadata;
 		uint16_t tso_segsz = 0;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		uint32_t total_length = 0;
@@ -566,6 +625,9 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		cs_flags = txq_ol_cksum_to_cs(buf);
 		txq_mbuf_to_swp(txq, buf, (uint8_t *)&swp_offsets, &swp_types);
 		raw = ((uint8_t *)(uintptr_t)wqe) + 2 * MLX5_WQE_DWORD_SIZE;
+		/* Copy metadata from mbuf if valid */
+		metadata = buf->ol_flags & PKT_TX_METADATA ? buf->tx_metadata :
+							     0;
 		/* Replace the Ethernet type by the VLAN if necessary. */
 		if (buf->ol_flags & PKT_TX_VLAN_PKT) {
 			uint32_t vlan = rte_cpu_to_be_32(0x81000000 |
@@ -631,7 +693,8 @@ pkt_inline:
 						   RTE_CACHE_LINE_SIZE);
 			copy_b = (addr_end > addr) ?
 				 RTE_MIN((addr_end - addr), length) : 0;
-			if (copy_b && ((end - (uintptr_t)raw) > copy_b)) {
+			if (copy_b && ((end - (uintptr_t)raw) >
+				       (copy_b + sizeof(inl)))) {
 				/*
 				 * One Dseg remains in the current WQE.  To
 				 * keep the computation positive, it is
@@ -781,7 +844,7 @@ next_pkt:
 				swp_offsets,
 				cs_flags | (swp_types << 8) |
 				(rte_cpu_to_be_16(tso_segsz) << 16),
-				0,
+				metadata,
 				(ehdr << 16) | rte_cpu_to_be_16(tso_header_sz),
 			};
 		} else {
@@ -795,7 +858,7 @@ next_pkt:
 			wqe->eseg = (rte_v128u32_t){
 				swp_offsets,
 				cs_flags | (swp_types << 8),
-				0,
+				metadata,
 				(ehdr << 16) | rte_cpu_to_be_16(pkt_inline_sz),
 			};
 		}
@@ -861,7 +924,7 @@ mlx5_mpw_new(struct mlx5_txq_data *txq, struct mlx5_mpw *mpw, uint32_t length)
 	mpw->wqe->eseg.inline_hdr_sz = 0;
 	mpw->wqe->eseg.rsvd0 = 0;
 	mpw->wqe->eseg.rsvd1 = 0;
-	mpw->wqe->eseg.rsvd2 = 0;
+	mpw->wqe->eseg.flow_table_metadata = 0;
 	mpw->wqe->ctrl[0] = rte_cpu_to_be_32((MLX5_OPC_MOD_MPW << 24) |
 					     (txq->wqe_ci << 8) |
 					     MLX5_OPCODE_TSO);
@@ -948,6 +1011,7 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		uint32_t length;
 		unsigned int segs_n = buf->nb_segs;
 		uint32_t cs_flags;
+		rte_be32_t metadata;
 
 		/*
 		 * Make sure there is enough room to store this packet and
@@ -964,6 +1028,9 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		max_elts -= segs_n;
 		--pkts_n;
 		cs_flags = txq_ol_cksum_to_cs(buf);
+		/* Copy metadata from mbuf if valid */
+		metadata = buf->ol_flags & PKT_TX_METADATA ? buf->tx_metadata :
+							     0;
 		/* Retrieve packet information. */
 		length = PKT_LEN(buf);
 		assert(length);
@@ -971,6 +1038,7 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		if ((mpw.state == MLX5_MPW_STATE_OPENED) &&
 		    ((mpw.len != length) ||
 		     (segs_n != 1) ||
+		     (mpw.wqe->eseg.flow_table_metadata != metadata) ||
 		     (mpw.wqe->eseg.cs_flags != cs_flags)))
 			mlx5_mpw_close(txq, &mpw);
 		if (mpw.state == MLX5_MPW_STATE_CLOSED) {
@@ -984,6 +1052,7 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			max_wqe -= 2;
 			mlx5_mpw_new(txq, &mpw, length);
 			mpw.wqe->eseg.cs_flags = cs_flags;
+			mpw.wqe->eseg.flow_table_metadata = metadata;
 		}
 		/* Multi-segment packets must be alone in their MPW. */
 		assert((segs_n == 1) || (mpw.pkts_n == 0));
@@ -1082,7 +1151,7 @@ mlx5_mpw_inline_new(struct mlx5_txq_data *txq, struct mlx5_mpw *mpw,
 	mpw->wqe->eseg.cs_flags = 0;
 	mpw->wqe->eseg.rsvd0 = 0;
 	mpw->wqe->eseg.rsvd1 = 0;
-	mpw->wqe->eseg.rsvd2 = 0;
+	mpw->wqe->eseg.flow_table_metadata = 0;
 	inl = (struct mlx5_wqe_inl_small *)
 		(((uintptr_t)mpw->wqe) + 2 * MLX5_WQE_DWORD_SIZE);
 	mpw->data.raw = (uint8_t *)&inl->raw;
@@ -1172,6 +1241,7 @@ mlx5_tx_burst_mpw_inline(void *dpdk_txq, struct rte_mbuf **pkts,
 		uint32_t length;
 		unsigned int segs_n = buf->nb_segs;
 		uint8_t cs_flags;
+		rte_be32_t metadata;
 
 		/*
 		 * Make sure there is enough room to store this packet and
@@ -1193,18 +1263,23 @@ mlx5_tx_burst_mpw_inline(void *dpdk_txq, struct rte_mbuf **pkts,
 		 */
 		max_wqe = (1u << txq->wqe_n) - (txq->wqe_ci - txq->wqe_pi);
 		cs_flags = txq_ol_cksum_to_cs(buf);
+		/* Copy metadata from mbuf if valid */
+		metadata = buf->ol_flags & PKT_TX_METADATA ? buf->tx_metadata :
+							     0;
 		/* Retrieve packet information. */
 		length = PKT_LEN(buf);
 		/* Start new session if packet differs. */
 		if (mpw.state == MLX5_MPW_STATE_OPENED) {
 			if ((mpw.len != length) ||
 			    (segs_n != 1) ||
+			    (mpw.wqe->eseg.flow_table_metadata != metadata) ||
 			    (mpw.wqe->eseg.cs_flags != cs_flags))
 				mlx5_mpw_close(txq, &mpw);
 		} else if (mpw.state == MLX5_MPW_INL_STATE_OPENED) {
 			if ((mpw.len != length) ||
 			    (segs_n != 1) ||
 			    (length > inline_room) ||
+			    (mpw.wqe->eseg.flow_table_metadata != metadata) ||
 			    (mpw.wqe->eseg.cs_flags != cs_flags)) {
 				mlx5_mpw_inline_close(txq, &mpw);
 				inline_room =
@@ -1224,12 +1299,14 @@ mlx5_tx_burst_mpw_inline(void *dpdk_txq, struct rte_mbuf **pkts,
 				max_wqe -= 2;
 				mlx5_mpw_new(txq, &mpw, length);
 				mpw.wqe->eseg.cs_flags = cs_flags;
+				mpw.wqe->eseg.flow_table_metadata = metadata;
 			} else {
 				if (unlikely(max_wqe < wqe_inl_n))
 					break;
 				max_wqe -= wqe_inl_n;
 				mlx5_mpw_inline_new(txq, &mpw, length);
 				mpw.wqe->eseg.cs_flags = cs_flags;
+				mpw.wqe->eseg.flow_table_metadata = metadata;
 			}
 		}
 		/* Multi-segment packets must be alone in their MPW. */
@@ -1461,6 +1538,7 @@ txq_burst_empw(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 		unsigned int do_inline = 0; /* Whether inline is possible. */
 		uint32_t length;
 		uint8_t cs_flags;
+		rte_be32_t metadata;
 
 		/* Multi-segmented packet is handled in slow-path outside. */
 		assert(NB_SEGS(buf) == 1);
@@ -1468,6 +1546,9 @@ txq_burst_empw(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 		if (max_elts - j == 0)
 			break;
 		cs_flags = txq_ol_cksum_to_cs(buf);
+		/* Copy metadata from mbuf if valid */
+		metadata = buf->ol_flags & PKT_TX_METADATA ? buf->tx_metadata :
+							     0;
 		/* Retrieve packet information. */
 		length = PKT_LEN(buf);
 		/* Start new session if:
@@ -1482,6 +1563,7 @@ txq_burst_empw(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 			    (length <= txq->inline_max_packet_sz &&
 			     inl_pad + sizeof(inl_hdr) + length >
 			     mpw_room) ||
+			     (mpw.wqe->eseg.flow_table_metadata != metadata) ||
 			    (mpw.wqe->eseg.cs_flags != cs_flags))
 				max_wqe -= mlx5_empw_close(txq, &mpw);
 		}
@@ -1505,6 +1587,7 @@ txq_burst_empw(struct mlx5_txq_data *txq, struct rte_mbuf **pkts,
 				    sizeof(inl_hdr) + length <= mpw_room &&
 				    !txq->mpw_hdr_dseg;
 			mpw.wqe->eseg.cs_flags = cs_flags;
+			mpw.wqe->eseg.flow_table_metadata = metadata;
 		} else {
 			/* Evaluate whether the next packet can be inlined.
 			 * Inlininig is possible when:
@@ -2097,7 +2180,7 @@ mlx5_rx_burst_mprq(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	const unsigned int wq_mask = (1 << rxq->elts_n) - 1;
 	volatile struct mlx5_cqe *cqe = &(*rxq->cqes)[rxq->cq_ci & cq_mask];
 	unsigned int i = 0;
-	uint16_t rq_ci = rxq->rq_ci;
+	uint32_t rq_ci = rxq->rq_ci;
 	uint16_t consumed_strd = rxq->consumed_strd;
 	struct mlx5_mprq_buf *buf = (*rxq->mprq_bufs)[rq_ci & wq_mask];
 
@@ -2290,6 +2373,7 @@ removed_tx_burst(void *dpdk_txq __rte_unused,
 		 struct rte_mbuf **pkts __rte_unused,
 		 uint16_t pkts_n __rte_unused)
 {
+	rte_mb();
 	return 0;
 }
 
@@ -2314,6 +2398,7 @@ removed_rx_burst(void *dpdk_txq __rte_unused,
 		 struct rte_mbuf **pkts __rte_unused,
 		 uint16_t pkts_n __rte_unused)
 {
+	rte_mb();
 	return 0;
 }
 
@@ -2324,7 +2409,7 @@ removed_rx_burst(void *dpdk_txq __rte_unused,
  * (e.g.  mlx5_rxtx_vec_sse.c for x86).
  */
 
-uint16_t __attribute__((weak))
+__rte_weak uint16_t
 mlx5_tx_burst_raw_vec(void *dpdk_txq __rte_unused,
 		      struct rte_mbuf **pkts __rte_unused,
 		      uint16_t pkts_n __rte_unused)
@@ -2332,7 +2417,7 @@ mlx5_tx_burst_raw_vec(void *dpdk_txq __rte_unused,
 	return 0;
 }
 
-uint16_t __attribute__((weak))
+__rte_weak uint16_t
 mlx5_tx_burst_vec(void *dpdk_txq __rte_unused,
 		  struct rte_mbuf **pkts __rte_unused,
 		  uint16_t pkts_n __rte_unused)
@@ -2340,7 +2425,7 @@ mlx5_tx_burst_vec(void *dpdk_txq __rte_unused,
 	return 0;
 }
 
-uint16_t __attribute__((weak))
+__rte_weak uint16_t
 mlx5_rx_burst_vec(void *dpdk_txq __rte_unused,
 		  struct rte_mbuf **pkts __rte_unused,
 		  uint16_t pkts_n __rte_unused)
@@ -2348,25 +2433,25 @@ mlx5_rx_burst_vec(void *dpdk_txq __rte_unused,
 	return 0;
 }
 
-int __attribute__((weak))
+__rte_weak int
 mlx5_check_raw_vec_tx_support(struct rte_eth_dev *dev __rte_unused)
 {
 	return -ENOTSUP;
 }
 
-int __attribute__((weak))
+__rte_weak int
 mlx5_check_vec_tx_support(struct rte_eth_dev *dev __rte_unused)
 {
 	return -ENOTSUP;
 }
 
-int __attribute__((weak))
+__rte_weak int
 mlx5_rxq_check_vec_support(struct mlx5_rxq_data *rxq __rte_unused)
 {
 	return -ENOTSUP;
 }
 
-int __attribute__((weak))
+__rte_weak int
 mlx5_check_vec_rx_support(struct rte_eth_dev *dev __rte_unused)
 {
 	return -ENOTSUP;

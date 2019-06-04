@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 
+#include <rte_string_fns.h>
 #include <rte_byteorder.h>
 #include <rte_log.h>
 #include <rte_debug.h>
@@ -35,22 +36,20 @@
 #include "rte_eventdev.h"
 #include "rte_eventdev_pmd.h"
 
-struct rte_eventdev rte_event_devices[RTE_EVENT_MAX_DEVS];
+static struct rte_eventdev rte_event_devices[RTE_EVENT_MAX_DEVS];
 
-struct rte_eventdev *rte_eventdevs = &rte_event_devices[0];
+struct rte_eventdev *rte_eventdevs = rte_event_devices;
 
 static struct rte_eventdev_global eventdev_globals = {
 	.nb_devs		= 0
 };
-
-struct rte_eventdev_global *rte_eventdev_globals = &eventdev_globals;
 
 /* Event dev north bound API implementation */
 
 uint8_t
 rte_event_dev_count(void)
 {
-	return rte_eventdev_globals->nb_devs;
+	return eventdev_globals.nb_devs;
 }
 
 int
@@ -62,7 +61,7 @@ rte_event_dev_get_dev_id(const char *name)
 	if (!name)
 		return -EINVAL;
 
-	for (i = 0; i < rte_eventdev_globals->nb_devs; i++) {
+	for (i = 0; i < eventdev_globals.nb_devs; i++) {
 		cmp = (strncmp(rte_event_devices[i].data->name, name,
 				RTE_EVENTDEV_NAME_MAX_LEN) == 0) ||
 			(rte_event_devices[i].dev ? (strncmp(
@@ -109,7 +108,7 @@ rte_event_dev_info_get(uint8_t dev_id, struct rte_event_dev_info *dev_info)
 }
 
 int
-rte_event_eth_rx_adapter_caps_get(uint8_t dev_id, uint8_t eth_port_id,
+rte_event_eth_rx_adapter_caps_get(uint8_t dev_id, uint16_t eth_port_id,
 				uint32_t *caps)
 {
 	struct rte_eventdev *dev;
@@ -130,7 +129,7 @@ rte_event_eth_rx_adapter_caps_get(uint8_t dev_id, uint8_t eth_port_id,
 				: 0;
 }
 
-int __rte_experimental
+int
 rte_event_timer_adapter_caps_get(uint8_t dev_id, uint32_t *caps)
 {
 	struct rte_eventdev *dev;
@@ -152,7 +151,7 @@ rte_event_timer_adapter_caps_get(uint8_t dev_id, uint32_t *caps)
 				: 0;
 }
 
-int __rte_experimental
+int
 rte_event_crypto_adapter_caps_get(uint8_t dev_id, uint8_t cdev_id,
 				  uint32_t *caps)
 {
@@ -173,6 +172,31 @@ rte_event_crypto_adapter_caps_get(uint8_t dev_id, uint8_t cdev_id,
 	return dev->dev_ops->crypto_adapter_caps_get ?
 		(*dev->dev_ops->crypto_adapter_caps_get)
 		(dev, cdev, caps) : -ENOTSUP;
+}
+
+int
+rte_event_eth_tx_adapter_caps_get(uint8_t dev_id, uint16_t eth_port_id,
+				uint32_t *caps)
+{
+	struct rte_eventdev *dev;
+	struct rte_eth_dev *eth_dev;
+
+	RTE_EVENTDEV_VALID_DEVID_OR_ERR_RET(dev_id, -EINVAL);
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(eth_port_id, -EINVAL);
+
+	dev = &rte_eventdevs[dev_id];
+	eth_dev = &rte_eth_devices[eth_port_id];
+
+	if (caps == NULL)
+		return -EINVAL;
+
+	*caps = 0;
+
+	return dev->dev_ops->eth_tx_adapter_caps_get ?
+			(*dev->dev_ops->eth_tx_adapter_caps_get)(dev,
+								eth_dev,
+								caps)
+			: 0;
 }
 
 static inline int
@@ -869,7 +893,7 @@ rte_event_port_link(uint8_t dev_id, uint8_t port_id,
 	dev = &rte_eventdevs[dev_id];
 
 	if (*dev->dev_ops->port_link == NULL) {
-		RTE_PMD_DEBUG_TRACE("Function not supported\n");
+		RTE_EDEV_LOG_ERR("Function not supported\n");
 		rte_errno = -ENOTSUP;
 		return 0;
 	}
@@ -928,7 +952,7 @@ rte_event_port_unlink(uint8_t dev_id, uint8_t port_id,
 	dev = &rte_eventdevs[dev_id];
 
 	if (*dev->dev_ops->port_unlink == NULL) {
-		RTE_PMD_DEBUG_TRACE("Function not supported\n");
+		RTE_EDEV_LOG_ERR("Function not supported");
 		rte_errno = -ENOTSUP;
 		return 0;
 	}
@@ -978,6 +1002,28 @@ rte_event_port_unlink(uint8_t dev_id, uint8_t port_id,
 		links_map[queues[i]] = EVENT_QUEUE_SERVICE_PRIORITY_INVALID;
 
 	return diag;
+}
+
+int
+rte_event_port_unlinks_in_progress(uint8_t dev_id, uint8_t port_id)
+{
+	struct rte_eventdev *dev;
+
+	RTE_EVENTDEV_VALID_DEVID_OR_ERR_RET(dev_id, -EINVAL);
+	dev = &rte_eventdevs[dev_id];
+	if (!is_valid_port(dev, port_id)) {
+		RTE_EDEV_LOG_ERR("Invalid port_id=%" PRIu8, port_id);
+		return -EINVAL;
+	}
+
+	/* Return 0 if the PMD does not implement unlinks in progress.
+	 * This allows PMDs which handle unlink synchronously to not implement
+	 * this function at all.
+	 */
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->port_unlinks_in_progress, 0);
+
+	return (*dev->dev_ops->port_unlinks_in_progress)(dev,
+			dev->data->ports[port_id]);
 }
 
 int
@@ -1275,6 +1321,15 @@ rte_eventdev_find_free_device_index(void)
 	return RTE_EVENT_MAX_DEVS;
 }
 
+static uint16_t
+rte_event_tx_adapter_enqueue(__rte_unused void *port,
+			__rte_unused struct rte_event ev[],
+			__rte_unused uint16_t nb_events)
+{
+	rte_errno = ENOTSUP;
+	return 0;
+}
+
 struct rte_eventdev *
 rte_event_pmd_allocate(const char *name, int socket_id)
 {
@@ -1295,6 +1350,8 @@ rte_event_pmd_allocate(const char *name, int socket_id)
 
 	eventdev = &rte_eventdevs[dev_id];
 
+	eventdev->txa_enqueue = rte_event_tx_adapter_enqueue;
+
 	if (eventdev->data == NULL) {
 		struct rte_eventdev_data *eventdev_data = NULL;
 
@@ -1306,8 +1363,7 @@ rte_event_pmd_allocate(const char *name, int socket_id)
 
 		eventdev->data = eventdev_data;
 
-		snprintf(eventdev->data->name, RTE_EVENTDEV_NAME_MAX_LEN,
-				"%s", name);
+		strlcpy(eventdev->data->name, name, RTE_EVENTDEV_NAME_MAX_LEN);
 
 		eventdev->data->dev_id = dev_id;
 		eventdev->data->socket_id = socket_id;

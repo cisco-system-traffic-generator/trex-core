@@ -30,9 +30,11 @@ struct rte_memseg_list {
 		uint64_t addr_64;
 		/**< Makes sure addr is always 64-bits */
 	};
-	int socket_id; /**< Socket ID for all memsegs in this list. */
 	uint64_t page_sz; /**< Page size for all memsegs in this list. */
+	int socket_id; /**< Socket ID for all memsegs in this list. */
 	volatile uint32_t version; /**< version number for multiprocess sync. */
+	size_t len; /**< Length of memory area covered by this memseg list. */
+	unsigned int external; /**< 1 if this list points to external memory */
 	struct rte_fbarray memseg_arr;
 };
 
@@ -70,13 +72,23 @@ struct rte_mem_config {
 
 	struct rte_tailq_head tailq_head[RTE_MAX_TAILQ]; /**< Tailqs for objects */
 
-	/* Heaps of Malloc per socket */
-	struct malloc_heap malloc_heaps[RTE_MAX_NUMA_NODES];
+	/* Heaps of Malloc */
+	struct malloc_heap malloc_heaps[RTE_MAX_HEAPS];
+
+	/* next socket ID for external malloc heap */
+	int next_socket_id;
 
 	/* address of mem_config in primary process. used to map shared config into
 	 * exact same address the primary process maps it.
 	 */
 	uint64_t mem_cfg_addr;
+
+	/* legacy mem and single file segments options are shared */
+	uint32_t legacy_mem;
+	uint32_t single_file_segments;
+
+	/* keeps the more restricted dma mask */
+	uint8_t dma_maskbits;
 } __attribute__((__packed__));
 
 

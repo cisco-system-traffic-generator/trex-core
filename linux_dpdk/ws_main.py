@@ -122,6 +122,7 @@ def options(opt):
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
+    opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
 
     co = opt.option_groups['configure options']
@@ -628,7 +629,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/enic/base/vnic_dev.c',
                  'drivers/net/enic/base/vnic_intr.c',
                  'drivers/net/enic/base/vnic_rq.c',
-                 'drivers/net/enic/base/vnic_rss.c',
                  'drivers/net/enic/base/vnic_wq.c',
                  'drivers/net/enic/enic_clsf.c',
                  'drivers/net/enic/enic_flow.c',
@@ -701,7 +701,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
                  'lib/librte_eal/common/arch/x86/rte_cycles.c',
-                 'lib/librte_eal/common/arch/x86/rte_memcpy.c',
                  ])
 
 
@@ -722,13 +721,15 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  '../dpdk_funcs.c',
                  'drivers/bus/pci/pci_common.c',
                  'drivers/bus/pci/pci_common_uio.c',
+                 'drivers/bus/pci/pci_params.c',
                  'drivers/bus/pci/linux/pci.c',
                  'drivers/bus/pci/linux/pci_uio.c',
                  'drivers/bus/pci/linux/pci_vfio.c',
                  'drivers/bus/vdev/vdev.c',
+                 'drivers/bus/vdev/vdev_params.c',
 
                  'drivers/mempool/ring/rte_mempool_ring.c',
-                 'drivers/mempool/stack/rte_mempool_stack.c',
+                 #'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
 
 
                  # drivers
@@ -794,27 +795,30 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
 
+                 'lib/librte_eal/common/hotplug_mp.c',
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
                  'lib/librte_eal/common/malloc_mp.c',
                  'lib/librte_eal/common/rte_keepalive.c',
                  'lib/librte_eal/common/rte_malloc.c',
+                 'lib/librte_eal/common/rte_option.c',
                  'lib/librte_eal/common/rte_service.c',
-                 'lib/librte_eal/linuxapp/eal/eal.c',
-                 'lib/librte_eal/linuxapp/eal/eal_alarm.c',
-                 'lib/librte_eal/linuxapp/eal/eal_debug.c',
-                 'lib/librte_eal/linuxapp/eal/eal_hugepage_info.c',
-                 'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
-                 'lib/librte_eal/linuxapp/eal/eal_lcore.c',
-                 'lib/librte_eal/linuxapp/eal/eal_log.c',
-                 'lib/librte_eal/linuxapp/eal/eal_memalloc.c',
-                 'lib/librte_eal/linuxapp/eal/eal_memory.c',
-                 'lib/librte_eal/linuxapp/eal/eal_thread.c',
-                 'lib/librte_eal/linuxapp/eal/eal_timer.c',
-                 'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
-                 'lib/librte_eal/linuxapp/eal/eal_vfio.c',
+                 'lib/librte_eal/linux/eal/eal.c',
+                 'lib/librte_eal/linux/eal/eal_alarm.c',
+                 'lib/librte_eal/linux/eal/eal_debug.c',
+                 'lib/librte_eal/linux/eal/eal_hugepage_info.c',
+                 'lib/librte_eal/linux/eal/eal_interrupts.c',
+                 'lib/librte_eal/linux/eal/eal_lcore.c',
+                 'lib/librte_eal/linux/eal/eal_log.c',
+                 'lib/librte_eal/linux/eal/eal_memalloc.c',
+                 'lib/librte_eal/linux/eal/eal_memory.c',
+                 'lib/librte_eal/linux/eal/eal_thread.c',
+                 'lib/librte_eal/linux/eal/eal_timer.c',
+                 'lib/librte_eal/linux/eal/eal_vfio_mp_sync.c',
+                 'lib/librte_eal/linux/eal/eal_vfio.c',
                  'lib/librte_ethdev/rte_ethdev.c',
                  'lib/librte_ethdev/rte_flow.c',
+                 'lib/librte_ethdev/ethdev_private.c',
                  'lib/librte_ethdev/ethdev_profile.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
@@ -834,7 +838,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
-
                  'filter_ntacc.c',
                  'rte_eth_ntacc.c',
                  'nt_compat.c',
@@ -849,43 +852,47 @@ libmnl_src = SrcGroup(
         'attr.c',
     ]);
 
-mlx5_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx5',
-                src_list=[
+mlx5_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx5',
+    src_list = [
+        'mlx5.c',
+        'mlx5_devx_cmds.c',
+        'mlx5_ethdev.c',
+        'mlx5_flow.c',
+        'mlx5_flow_dv.c',
+        'mlx5_flow_tcf.c',
+        'mlx5_flow_verbs.c',
+        'mlx5_glue.c',
+        'mlx5_mac.c',
+        'mlx5_mp.c',
+        'mlx5_mr.c',
+        'mlx5_nl.c',
+        'mlx5_rss.c',
+        'mlx5_rxmode.c',
+        'mlx5_rxq.c',
+        'mlx5_rxtx.c',
+        'mlx5_rxtx_vec.c',
+        'mlx5_stats.c',
+        'mlx5_trigger.c',
+        'mlx5_txq.c',
+        'mlx5_vlan.c',
+    ]);
 
-                 'mlx5.c',
-                 'mlx5_ethdev.c',
-                 'mlx5_flow.c',
-                 'mlx5_glue.c',
-                 'mlx5_mr.c',
-                 'mlx5_mac.c',
-                 'mlx5_nl.c',
-                 'mlx5_nl_flow.c',
-                 'mlx5_rxmode.c',
-                 'mlx5_rxtx.c',
-                 'mlx5_socket.c',
-                 'mlx5_stats.c',
-                 'mlx5_txq.c',
-                 'mlx5_rss.c',
-                 'mlx5_rxq.c',
-                 'mlx5_rxtx_vec.c',
-                 'mlx5_trigger.c',
-                 'mlx5_vlan.c',
-
-            ]);
-
-mlx4_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/mlx4',
-                src_list=[
-                 'mlx4.c',
-                 'mlx4_ethdev.c',
-                 'mlx4_flow.c',
-                 'mlx4_glue.c',
-                 'mlx4_intr.c',
-                 'mlx4_mr.c',
-                 'mlx4_rxq.c',
-                 'mlx4_rxtx.c',
-                 'mlx4_txq.c',
-                 'mlx4_utils.c',
-            ]);
+mlx4_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx4',
+    src_list = [
+        'mlx4.c',
+        'mlx4_ethdev.c',
+        'mlx4_flow.c',
+        'mlx4_glue.c',
+        'mlx4_intr.c',
+        'mlx4_mp.c',
+        'mlx4_mr.c',
+        'mlx4_rxq.c',
+        'mlx4_rxtx.c',
+        'mlx4_txq.c',
+        'mlx4_utils.c',
+    ]);
 
 if march == 'x86_64':
     bp_dpdk = SrcGroups([
@@ -1039,7 +1046,7 @@ dpdk_includes_path_aarch64 ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1808_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk1905_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
@@ -1072,15 +1079,16 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_eal/common/include/arch/
 
                         ../src/dpdk/lib/librte_eal/common/include/generic/
-                        ../src/dpdk/lib/librte_eal/linuxapp/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
+                        ../src/dpdk/lib/librte_eal/linux/
+                        ../src/dpdk/lib/librte_eal/linux/eal/
+                        ../src/dpdk/lib/librte_eal/linux/eal/include/
+                        ../src/dpdk/lib/librte_eal/linux/eal/include/exec-env/
                         ../src/dpdk/lib/librte_ethdev/
                         ../src/dpdk/lib/librte_hash/
                         ../src/dpdk/lib/librte_kvargs/
                         ../src/dpdk/lib/librte_mbuf/
                         ../src/dpdk/lib/librte_mempool/
+                        ../src/dpdk/lib/librte_meter/
                         ../src/dpdk/lib/librte_net/
                         ../src/dpdk/lib/librte_pci/
                         ../src/dpdk/lib/librte_port/
@@ -1122,9 +1130,9 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march != 'aarch64':
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1808_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
 else:
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1808_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
@@ -1452,6 +1460,8 @@ def post_build(bld):
     print("*** generating softlinks ***")
     exec_p ="../scripts/"
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         install_single_system(bld, exec_p, obj);
 
 
@@ -1509,6 +1519,8 @@ def build(bld):
             bld.env.mlx5_kw  = {}
 
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         build_type(bld,obj);
 
 

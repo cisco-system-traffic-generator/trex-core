@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#include <rte_string_fns.h>
 #include <rte_common.h>
 #include <rte_interrupts.h>
 #include <rte_byteorder.h>
@@ -68,12 +69,16 @@
 #define E1000_VET_VET_EXT            0xFFFF0000
 #define E1000_VET_VET_EXT_SHIFT      16
 
+/* MSI-X other interrupt vector */
+#define IGB_MSIX_OTHER_INTR_VEC      0
+
 static int  eth_igb_configure(struct rte_eth_dev *dev);
 static int  eth_igb_start(struct rte_eth_dev *dev);
 static void eth_igb_stop(struct rte_eth_dev *dev);
 static int  eth_igb_dev_set_link_up(struct rte_eth_dev *dev);
 static int  eth_igb_dev_set_link_down(struct rte_eth_dev *dev);
 static void eth_igb_close(struct rte_eth_dev *dev);
+static int eth_igb_reset(struct rte_eth_dev *dev);
 static void eth_igb_promiscuous_enable(struct rte_eth_dev *dev);
 static void eth_igb_promiscuous_disable(struct rte_eth_dev *dev);
 static void eth_igb_allmulticast_enable(struct rte_eth_dev *dev);
@@ -137,7 +142,7 @@ static void igb_vlan_hw_extend_disable(struct rte_eth_dev *dev);
 static int eth_igb_led_on(struct rte_eth_dev *dev);
 static int eth_igb_led_off(struct rte_eth_dev *dev);
 
-static void igb_intr_disable(struct e1000_hw *hw);
+static void igb_intr_disable(struct rte_eth_dev *dev);
 static int  igb_get_rx_buffer_size(struct e1000_hw *hw);
 static int eth_igb_rar_set(struct rte_eth_dev *dev,
 			   struct ether_addr *mac_addr,
@@ -351,6 +356,7 @@ static const struct eth_dev_ops eth_igb_ops = {
 	.dev_set_link_up      = eth_igb_dev_set_link_up,
 	.dev_set_link_down    = eth_igb_dev_set_link_down,
 	.dev_close            = eth_igb_close,
+	.dev_reset            = eth_igb_reset,
 	.promiscuous_enable   = eth_igb_promiscuous_enable,
 	.promiscuous_disable  = eth_igb_promiscuous_disable,
 	.allmulticast_enable  = eth_igb_allmulticast_enable,
@@ -536,14 +542,31 @@ igb_intr_enable(struct rte_eth_dev *dev)
 		E1000_DEV_PRIVATE_TO_INTR(dev->data->dev_private);
 	struct e1000_hw *hw =
 		E1000_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+
+	if (rte_intr_allow_others(intr_handle) &&
+		dev->data->dev_conf.intr_conf.lsc != 0) {
+		E1000_WRITE_REG(hw, E1000_EIMS, 1 << IGB_MSIX_OTHER_INTR_VEC);
+	}
 
 	E1000_WRITE_REG(hw, E1000_IMS, intr->mask);
 	E1000_WRITE_FLUSH(hw);
 }
 
 static void
-igb_intr_disable(struct e1000_hw *hw)
+igb_intr_disable(struct rte_eth_dev *dev)
 {
+	struct e1000_hw *hw =
+		E1000_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+
+	if (rte_intr_allow_others(intr_handle) &&
+		dev->data->dev_conf.intr_conf.lsc != 0) {
+		E1000_WRITE_REG(hw, E1000_EIMC, 1 << IGB_MSIX_OTHER_INTR_VEC);
+	}
+
 	E1000_WRITE_REG(hw, E1000_IMC, ~0);
 	E1000_WRITE_FLUSH(hw);
 }
@@ -915,9 +938,6 @@ eth_igb_dev_uninit(struct rte_eth_dev *eth_dev)
 	/* Reset any pending lock */
 	igb_reset_swfw_lock(hw);
 
-	rte_free(eth_dev->data->mac_addrs);
-	eth_dev->data->mac_addrs = NULL;
-
 	/* uninitialize PF if max_vfs not zero */
 	igb_pf_host_uninit(eth_dev);
 
@@ -1070,9 +1090,6 @@ eth_igbvf_dev_uninit(struct rte_eth_dev *eth_dev)
 	eth_dev->dev_ops = NULL;
 	eth_dev->rx_pkt_burst = NULL;
 	eth_dev->tx_pkt_burst = NULL;
-
-	rte_free(eth_dev->data->mac_addrs);
-	eth_dev->data->mac_addrs = NULL;
 
 	/* disable uio intr before callback unregister */
 	rte_intr_disable(&pci_dev->intr_handle);
@@ -1490,7 +1507,7 @@ eth_igb_stop(struct rte_eth_dev *dev)
 
 	eth_igb_rxtx_control(dev, false);
 
-	igb_intr_disable(hw);
+	igb_intr_disable(dev);
 
 	/* disable intr eventfd mapping */
 	rte_intr_disable(intr_handle);
@@ -1592,6 +1609,33 @@ eth_igb_close(struct rte_eth_dev *dev)
 	memset(&link, 0, sizeof(link));
 	rte_eth_linkstatus_set(dev, &link);
 }
+
+/*
+ * Reset PF device.
+ */
+static int
+eth_igb_reset(struct rte_eth_dev *dev)
+{
+	int ret;
+
+	/* When a DPDK PMD PF begin to reset PF port, it should notify all
+	 * its VF to make them align with it. The detailed notification
+	 * mechanism is PMD specific and is currently not implemented.
+	 * To avoid unexpected behavior in VF, currently reset of PF with
+	 * SR-IOV activation is not supported. It might be supported later.
+	 */
+	if (dev->data->sriov.active)
+		return -ENOTSUP;
+
+	ret = eth_igb_dev_uninit(dev);
+	if (ret)
+		return ret;
+
+	ret = eth_igb_dev_init(dev);
+
+	return ret;
+}
+
 
 static int
 igb_get_rx_buffer_size(struct e1000_hw *hw)
@@ -1861,8 +1905,8 @@ static int eth_igb_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 	/* Note: limit checked in rte_eth_xstats_names() */
 
 	for (i = 0; i < IGB_NB_XSTATS; i++) {
-		snprintf(xstats_names[i].name, sizeof(xstats_names[i].name),
-			 "%s", rte_igb_stats_strings[i].name);
+		strlcpy(xstats_names[i].name, rte_igb_stats_strings[i].name,
+			sizeof(xstats_names[i].name));
 	}
 
 	return IGB_NB_XSTATS;
@@ -1879,9 +1923,9 @@ static int eth_igb_xstats_get_names_by_id(struct rte_eth_dev *dev,
 			return IGB_NB_XSTATS;
 
 		for (i = 0; i < IGB_NB_XSTATS; i++)
-			snprintf(xstats_names[i].name,
-					sizeof(xstats_names[i].name),
-					"%s", rte_igb_stats_strings[i].name);
+			strlcpy(xstats_names[i].name,
+				rte_igb_stats_strings[i].name,
+				sizeof(xstats_names[i].name));
 
 		return IGB_NB_XSTATS;
 
@@ -2028,9 +2072,9 @@ static int eth_igbvf_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 
 	if (xstats_names != NULL)
 		for (i = 0; i < IGBVF_NB_XSTATS; i++) {
-			snprintf(xstats_names[i].name,
-				sizeof(xstats_names[i].name), "%s",
-				rte_igbvf_stats_strings[i].name);
+			strlcpy(xstats_names[i].name,
+				rte_igbvf_stats_strings[i].name,
+				sizeof(xstats_names[i].name));
 		}
 	return IGBVF_NB_XSTATS;
 }
@@ -2240,6 +2284,10 @@ eth_igb_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->speed_capa = ETH_LINK_SPEED_10M_HD | ETH_LINK_SPEED_10M |
 			ETH_LINK_SPEED_100M_HD | ETH_LINK_SPEED_100M |
 			ETH_LINK_SPEED_1G;
+
+	dev_info->max_mtu = dev_info->max_rx_pktlen - E1000_ETH_OVERHEAD;
+	dev_info->min_mtu = ETHER_MIN_MTU;
+
 }
 
 static const uint32_t *
@@ -2745,12 +2793,15 @@ static int eth_igb_rxq_interrupt_setup(struct rte_eth_dev *dev)
 	uint32_t mask, regval;
 	struct e1000_hw *hw =
 		E1000_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	int misc_shift = rte_intr_allow_others(intr_handle) ? 1 : 0;
 	struct rte_eth_dev_info dev_info;
 
 	memset(&dev_info, 0, sizeof(dev_info));
 	eth_igb_infos_get(dev, &dev_info);
 
-	mask = 0xFFFFFFFF >> (32 - dev_info.max_rx_queues);
+	mask = (0xFFFFFFFF >> (32 - dev_info.max_rx_queues)) << misc_shift;
 	regval = E1000_READ_REG(hw, E1000_EIMS);
 	E1000_WRITE_REG(hw, E1000_EIMS, regval | mask);
 
@@ -2777,7 +2828,7 @@ eth_igb_interrupt_get_status(struct rte_eth_dev *dev)
 	struct e1000_interrupt *intr =
 		E1000_DEV_PRIVATE_TO_INTR(dev->data->dev_private);
 
-	igb_intr_disable(hw);
+	igb_intr_disable(dev);
 
 	/* read-on-clear nic registers here */
 	icr = E1000_READ_REG(hw, E1000_ICR);
@@ -3197,14 +3248,14 @@ igbvf_dev_configure(struct rte_eth_dev *dev)
 	 * Keep the persistent behavior the same as Host PF
 	 */
 #ifndef RTE_LIBRTE_E1000_PF_DISABLE_STRIP_CRC
-	if (rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
+	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC) {
 		PMD_INIT_LOG(NOTICE, "VF can't disable HW CRC Strip");
-		conf->rxmode.offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
+		conf->rxmode.offloads &= ~DEV_RX_OFFLOAD_KEEP_CRC;
 	}
 #else
-	if (!rte_eth_dev_must_keep_crc(conf->rxmode.offloads)) {
+	if (!(conf->rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)) {
 		PMD_INIT_LOG(NOTICE, "VF can't enable HW CRC Strip");
-		conf->rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
+		conf->rxmode.offloads |= DEV_RX_OFFLOAD_KEEP_CRC;
 	}
 #endif
 
@@ -4420,8 +4471,7 @@ eth_igb_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 	uint32_t rctl;
 	struct e1000_hw *hw;
 	struct rte_eth_dev_info dev_info;
-	uint32_t frame_size = mtu + (ETHER_HDR_LEN + ETHER_CRC_LEN +
-				     VLAN_TAG_SIZE);
+	uint32_t frame_size = mtu + E1000_ETH_OVERHEAD;
 
 	hw = E1000_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
@@ -5560,13 +5610,17 @@ eth_igb_configure_msix_intr(struct rte_eth_dev *dev)
 					E1000_GPIE_NSICR);
 		intr_mask = RTE_LEN2MASK(intr_handle->nb_efd, uint32_t) <<
 			misc_shift;
+
+		if (dev->data->dev_conf.intr_conf.lsc != 0)
+			intr_mask |= (1 << IGB_MSIX_OTHER_INTR_VEC);
+
 		regval = E1000_READ_REG(hw, E1000_EIAC);
 		E1000_WRITE_REG(hw, E1000_EIAC, regval | intr_mask);
 
 		/* enable msix_other interrupt */
 		regval = E1000_READ_REG(hw, E1000_EIMS);
 		E1000_WRITE_REG(hw, E1000_EIMS, regval | intr_mask);
-		tmpval = (dev->data->nb_rx_queues | E1000_IVAR_VALID) << 8;
+		tmpval = (IGB_MSIX_OTHER_INTR_VEC | E1000_IVAR_VALID) << 8;
 		E1000_WRITE_REG(hw, E1000_IVAR_MISC, tmpval);
 	}
 
@@ -5575,6 +5629,10 @@ eth_igb_configure_msix_intr(struct rte_eth_dev *dev)
 	 */
 	intr_mask = RTE_LEN2MASK(intr_handle->nb_efd, uint32_t) <<
 		misc_shift;
+
+	if (dev->data->dev_conf.intr_conf.lsc != 0)
+		intr_mask |= (1 << IGB_MSIX_OTHER_INTR_VEC);
+
 	regval = E1000_READ_REG(hw, E1000_EIAM);
 	E1000_WRITE_REG(hw, E1000_EIAM, regval | intr_mask);
 

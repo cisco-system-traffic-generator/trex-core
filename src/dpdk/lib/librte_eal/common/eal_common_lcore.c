@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
-#include <dirent.h>
 
 #include <rte_errno.h>
 #include <rte_log.h>
@@ -115,14 +114,14 @@ rte_eal_cpu_init(void)
 	return 0;
 }
 
-unsigned int __rte_experimental
+unsigned int
 rte_socket_count(void)
 {
 	const struct rte_config *config = rte_eal_get_configuration();
 	return config->numa_node_count;
 }
 
-int __rte_experimental
+int
 rte_socket_id_by_idx(unsigned int idx)
 {
 	const struct rte_config *config = rte_eal_get_configuration();

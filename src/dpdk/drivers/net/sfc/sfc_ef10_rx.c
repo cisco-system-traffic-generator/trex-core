@@ -57,12 +57,13 @@ struct sfc_ef10_rxq {
 #define SFC_EF10_RXQ_EXCEPTION		0x4
 #define SFC_EF10_RXQ_RSS_HASH		0x8
 	unsigned int			ptr_mask;
-	unsigned int			prepared;
+	unsigned int			pending;
 	unsigned int			completed;
 	unsigned int			evq_read_ptr;
 	efx_qword_t			*evq_hw_ring;
 	struct sfc_ef10_rx_sw_desc	*sw_ring;
 	uint64_t			rearm_data;
+	struct rte_mbuf			*scatter_pkt;
 	uint16_t			prefix_size;
 
 	/* Used on refill */
@@ -133,6 +134,8 @@ sfc_ef10_rx_qrefill(struct sfc_ef10_rxq *rxq)
 			struct sfc_ef10_rx_sw_desc *rxd;
 			rte_iova_t phys_addr;
 
+			MBUF_RAW_ALLOC_CHECK(m);
+
 			SFC_ASSERT((id & ~ptr_mask) == 0);
 			rxd = &rxq->sw_ring[id];
 			rxd->mbuf = m;
@@ -184,21 +187,26 @@ sfc_ef10_rx_prefetch_next(struct sfc_ef10_rxq *rxq, unsigned int next_id)
 	}
 }
 
-static uint16_t
-sfc_ef10_rx_prepared(struct sfc_ef10_rxq *rxq, struct rte_mbuf **rx_pkts,
-		     uint16_t nb_pkts)
+static struct rte_mbuf **
+sfc_ef10_rx_pending(struct sfc_ef10_rxq *rxq, struct rte_mbuf **rx_pkts,
+		    uint16_t nb_pkts)
 {
-	uint16_t n_rx_pkts = RTE_MIN(nb_pkts, rxq->prepared);
-	unsigned int completed = rxq->completed;
-	unsigned int i;
+	uint16_t n_rx_pkts = RTE_MIN(nb_pkts, rxq->pending - rxq->completed);
 
-	rxq->prepared -= n_rx_pkts;
-	rxq->completed = completed + n_rx_pkts;
+	SFC_ASSERT(rxq->pending == rxq->completed || rxq->scatter_pkt == NULL);
 
-	for (i = 0; i < n_rx_pkts; ++i, ++completed)
-		rx_pkts[i] = rxq->sw_ring[completed & rxq->ptr_mask].mbuf;
+	if (n_rx_pkts != 0) {
+		unsigned int completed = rxq->completed;
 
-	return n_rx_pkts;
+		rxq->completed = completed + n_rx_pkts;
+
+		do {
+			*rx_pkts++ =
+				rxq->sw_ring[completed++ & rxq->ptr_mask].mbuf;
+		} while (completed != rxq->completed);
+	}
+
+	return rx_pkts;
 }
 
 static uint16_t
@@ -213,47 +221,80 @@ sfc_ef10_rx_pseudo_hdr_get_hash(const uint8_t *pseudo_hdr)
 	return rte_le_to_cpu_32(*(const uint32_t *)pseudo_hdr);
 }
 
-static uint16_t
+static struct rte_mbuf **
 sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
-			  struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
+			  struct rte_mbuf **rx_pkts,
+			  struct rte_mbuf ** const rx_pkts_end)
 {
 	const unsigned int ptr_mask = rxq->ptr_mask;
-	unsigned int completed = rxq->completed;
+	unsigned int pending = rxq->pending;
 	unsigned int ready;
 	struct sfc_ef10_rx_sw_desc *rxd;
 	struct rte_mbuf *m;
 	struct rte_mbuf *m0;
-	uint16_t n_rx_pkts;
 	const uint8_t *pseudo_hdr;
-	uint16_t pkt_len;
+	uint16_t seg_len;
 
-	ready = (EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_DSC_PTR_LBITS) - completed) &
+	ready = (EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_DSC_PTR_LBITS) - pending) &
 		EFX_MASK32(ESF_DZ_RX_DSC_PTR_LBITS);
-	SFC_ASSERT(ready > 0);
+
+	if (ready == 0) {
+		/* Rx abort - it was no enough descriptors for Rx packet */
+		rte_pktmbuf_free(rxq->scatter_pkt);
+		rxq->scatter_pkt = NULL;
+		return rx_pkts;
+	}
+
+	rxq->pending = pending + ready;
 
 	if (rx_ev.eq_u64[0] &
 	    rte_cpu_to_le_64((1ull << ESF_DZ_RX_ECC_ERR_LBN) |
 			     (1ull << ESF_DZ_RX_ECRC_ERR_LBN))) {
-		SFC_ASSERT(rxq->prepared == 0);
-		rxq->completed += ready;
-		while (ready-- > 0) {
-			rxd = &rxq->sw_ring[completed++ & ptr_mask];
-			rte_mempool_put(rxq->refill_mb_pool, rxd->mbuf);
-		}
-		return 0;
+		SFC_ASSERT(rxq->completed == pending);
+		do {
+			rxd = &rxq->sw_ring[pending++ & ptr_mask];
+			rte_mbuf_raw_free(rxd->mbuf);
+		} while (pending != rxq->pending);
+		rxq->completed = pending;
+		return rx_pkts;
 	}
 
-	n_rx_pkts = RTE_MIN(ready, nb_pkts);
-	rxq->prepared = ready - n_rx_pkts;
-	rxq->completed += n_rx_pkts;
+	/* If scattered packet is in progress */
+	if (rxq->scatter_pkt != NULL) {
+		/* Events for scattered packet frags are not merged */
+		SFC_ASSERT(ready == 1);
+		SFC_ASSERT(rxq->completed == pending);
 
-	rxd = &rxq->sw_ring[completed++ & ptr_mask];
+		/* There is no pseudo-header in scatter segments. */
+		seg_len = EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_BYTES);
 
-	sfc_ef10_rx_prefetch_next(rxq, completed & ptr_mask);
+		rxd = &rxq->sw_ring[pending++ & ptr_mask];
+		m = rxd->mbuf;
+
+		MBUF_RAW_ALLOC_CHECK(m);
+
+		m->data_off = RTE_PKTMBUF_HEADROOM;
+		rte_pktmbuf_data_len(m) = seg_len;
+		rte_pktmbuf_pkt_len(m) = seg_len;
+
+		rxq->scatter_pkt->nb_segs++;
+		rte_pktmbuf_pkt_len(rxq->scatter_pkt) += seg_len;
+		rte_pktmbuf_lastseg(rxq->scatter_pkt)->next = m;
+
+		if (~rx_ev.eq_u64[0] &
+		    rte_cpu_to_le_64(1ull << ESF_DZ_RX_CONT_LBN)) {
+			*rx_pkts++ = rxq->scatter_pkt;
+			rxq->scatter_pkt = NULL;
+		}
+		rxq->completed = pending;
+		return rx_pkts;
+	}
+
+	rxd = &rxq->sw_ring[pending++ & ptr_mask];
+
+	sfc_ef10_rx_prefetch_next(rxq, pending & ptr_mask);
 
 	m = rxd->mbuf;
-
-	*rx_pkts++ = m;
 
 	RTE_BUILD_BUG_ON(sizeof(m->rearm_data[0]) != sizeof(rxq->rearm_data));
 	m->rearm_data[0] = rxq->rearm_data;
@@ -275,27 +316,40 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 	m->hash.rss = sfc_ef10_rx_pseudo_hdr_get_hash(pseudo_hdr);
 
 	if (ready == 1)
-		pkt_len = EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_BYTES) -
+		seg_len = EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_BYTES) -
 			rxq->prefix_size;
 	else
-		pkt_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
-	SFC_ASSERT(pkt_len > 0);
-	rte_pktmbuf_data_len(m) = pkt_len;
-	rte_pktmbuf_pkt_len(m) = pkt_len;
+		seg_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
+	SFC_ASSERT(seg_len > 0);
+	rte_pktmbuf_data_len(m) = seg_len;
+	rte_pktmbuf_pkt_len(m) = seg_len;
 
 	SFC_ASSERT(m->next == NULL);
 
+	if (~rx_ev.eq_u64[0] & rte_cpu_to_le_64(1ull << ESF_DZ_RX_CONT_LBN)) {
+		*rx_pkts++ = m;
+		rxq->completed = pending;
+	} else {
+		/* Events with CONT bit are not merged */
+		SFC_ASSERT(ready == 1);
+		rxq->scatter_pkt = m;
+		rxq->completed = pending;
+		return rx_pkts;
+	}
+
 	/* Remember mbuf to copy offload flags and packet type from */
 	m0 = m;
-	for (--ready; ready > 0; --ready) {
-		rxd = &rxq->sw_ring[completed++ & ptr_mask];
+	while (pending != rxq->pending) {
+		rxd = &rxq->sw_ring[pending++ & ptr_mask];
 
-		sfc_ef10_rx_prefetch_next(rxq, completed & ptr_mask);
+		sfc_ef10_rx_prefetch_next(rxq, pending & ptr_mask);
 
 		m = rxd->mbuf;
 
-		if (ready > rxq->prepared)
+		if (rx_pkts != rx_pkts_end) {
 			*rx_pkts++ = m;
+			rxq->completed = pending;
+		}
 
 		RTE_BUILD_BUG_ON(sizeof(m->rearm_data[0]) !=
 				 sizeof(rxq->rearm_data));
@@ -315,15 +369,15 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 		 */
 		m->hash.rss = sfc_ef10_rx_pseudo_hdr_get_hash(pseudo_hdr);
 
-		pkt_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
-		SFC_ASSERT(pkt_len > 0);
-		rte_pktmbuf_data_len(m) = pkt_len;
-		rte_pktmbuf_pkt_len(m) = pkt_len;
+		seg_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
+		SFC_ASSERT(seg_len > 0);
+		rte_pktmbuf_data_len(m) = seg_len;
+		rte_pktmbuf_pkt_len(m) = seg_len;
 
 		SFC_ASSERT(m->next == NULL);
 	}
 
-	return n_rx_pkts;
+	return rx_pkts;
 }
 
 static bool
@@ -355,26 +409,25 @@ static uint16_t
 sfc_ef10_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_ef10_rxq *rxq = sfc_ef10_rxq_by_dp_rxq(rx_queue);
+	struct rte_mbuf ** const rx_pkts_end = &rx_pkts[nb_pkts];
 	unsigned int evq_old_read_ptr;
-	uint16_t n_rx_pkts;
 	efx_qword_t rx_ev;
+
+	rx_pkts = sfc_ef10_rx_pending(rxq, rx_pkts, nb_pkts);
 
 	if (unlikely(rxq->flags &
 		     (SFC_EF10_RXQ_NOT_RUNNING | SFC_EF10_RXQ_EXCEPTION)))
-		return 0;
-
-	n_rx_pkts = sfc_ef10_rx_prepared(rxq, rx_pkts, nb_pkts);
+		goto done;
 
 	evq_old_read_ptr = rxq->evq_read_ptr;
-	while (n_rx_pkts != nb_pkts && sfc_ef10_rx_get_event(rxq, &rx_ev)) {
+	while (rx_pkts != rx_pkts_end && sfc_ef10_rx_get_event(rxq, &rx_ev)) {
 		/*
 		 * DROP_EVENT is an internal to the NIC, software should
 		 * never see it and, therefore, may ignore it.
 		 */
 
-		n_rx_pkts += sfc_ef10_rx_process_event(rxq, rx_ev,
-						       rx_pkts + n_rx_pkts,
-						       nb_pkts - n_rx_pkts);
+		rx_pkts = sfc_ef10_rx_process_event(rxq, rx_ev,
+						    rx_pkts, rx_pkts_end);
 	}
 
 	sfc_ef10_ev_qclear(rxq->evq_hw_ring, rxq->ptr_mask, evq_old_read_ptr,
@@ -383,7 +436,8 @@ sfc_ef10_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	/* It is not a problem if we refill in the case of exception */
 	sfc_ef10_rx_qrefill(rxq);
 
-	return n_rx_pkts;
+done:
+	return nb_pkts - (rx_pkts_end - rx_pkts);
 }
 
 const uint32_t *
@@ -446,21 +500,53 @@ sfc_ef10_supported_ptypes_get(uint32_t tunnel_encaps)
 
 static sfc_dp_rx_qdesc_npending_t sfc_ef10_rx_qdesc_npending;
 static unsigned int
-sfc_ef10_rx_qdesc_npending(__rte_unused struct sfc_dp_rxq *dp_rxq)
+sfc_ef10_rx_qdesc_npending(struct sfc_dp_rxq *dp_rxq)
 {
+	struct sfc_ef10_rxq *rxq = sfc_ef10_rxq_by_dp_rxq(dp_rxq);
+	efx_qword_t rx_ev;
+	const unsigned int evq_old_read_ptr = rxq->evq_read_ptr;
+	unsigned int pending = rxq->pending;
+	unsigned int ready;
+
+	if (unlikely(rxq->flags &
+		     (SFC_EF10_RXQ_NOT_RUNNING | SFC_EF10_RXQ_EXCEPTION)))
+		goto done;
+
+	while (sfc_ef10_rx_get_event(rxq, &rx_ev)) {
+		ready = (EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_DSC_PTR_LBITS) -
+			 pending) &
+			EFX_MASK32(ESF_DZ_RX_DSC_PTR_LBITS);
+		pending += ready;
+	}
+
 	/*
-	 * Correct implementation requires EvQ polling and events
-	 * processing (keeping all ready mbufs in prepared).
+	 * The function does not process events, so return event queue read
+	 * pointer to the original position to allow the events that were
+	 * read to be processed later
 	 */
-	return -ENOTSUP;
+	rxq->evq_read_ptr = evq_old_read_ptr;
+
+done:
+	return pending - rxq->completed;
 }
 
 static sfc_dp_rx_qdesc_status_t sfc_ef10_rx_qdesc_status;
 static int
-sfc_ef10_rx_qdesc_status(__rte_unused struct sfc_dp_rxq *dp_rxq,
-			 __rte_unused uint16_t offset)
+sfc_ef10_rx_qdesc_status(struct sfc_dp_rxq *dp_rxq, uint16_t offset)
 {
-	return -ENOTSUP;
+	struct sfc_ef10_rxq *rxq = sfc_ef10_rxq_by_dp_rxq(dp_rxq);
+	unsigned int npending = sfc_ef10_rx_qdesc_npending(dp_rxq);
+
+	if (unlikely(offset > rxq->ptr_mask))
+		return -EINVAL;
+
+	if (offset < npending)
+		return RTE_ETH_RX_DESC_DONE;
+
+	if (offset < (rxq->added - rxq->completed))
+		return RTE_ETH_RX_DESC_AVAIL;
+
+	return RTE_ETH_RX_DESC_UNAVAIL;
 }
 
 
@@ -480,6 +566,7 @@ sfc_ef10_rx_get_dev_info(struct rte_eth_dev_info *dev_info)
 static sfc_dp_rx_qsize_up_rings_t sfc_ef10_rx_qsize_up_rings;
 static int
 sfc_ef10_rx_qsize_up_rings(uint16_t nb_rx_desc,
+			   struct sfc_dp_rx_hw_limits *limits,
 			   __rte_unused struct rte_mempool *mb_pool,
 			   unsigned int *rxq_entries,
 			   unsigned int *evq_entries,
@@ -489,8 +576,8 @@ sfc_ef10_rx_qsize_up_rings(uint16_t nb_rx_desc,
 	 * rte_ethdev API guarantees that the number meets min, max and
 	 * alignment requirements.
 	 */
-	if (nb_rx_desc <= EFX_RXQ_MINNDESCS)
-		*rxq_entries = EFX_RXQ_MINNDESCS;
+	if (nb_rx_desc <= limits->rxq_min_entries)
+		*rxq_entries = limits->rxq_min_entries;
 	else
 		*rxq_entries = rte_align32pow2(nb_rx_desc);
 
@@ -594,8 +681,9 @@ sfc_ef10_rx_qstart(struct sfc_dp_rxq *dp_rxq, unsigned int evq_read_ptr)
 {
 	struct sfc_ef10_rxq *rxq = sfc_ef10_rxq_by_dp_rxq(dp_rxq);
 
-	rxq->prepared = 0;
-	rxq->completed = rxq->added = 0;
+	SFC_ASSERT(rxq->completed == 0);
+	SFC_ASSERT(rxq->pending == 0);
+	SFC_ASSERT(rxq->added == 0);
 
 	sfc_ef10_rx_qrefill(rxq);
 
@@ -642,11 +730,16 @@ sfc_ef10_rx_qpurge(struct sfc_dp_rxq *dp_rxq)
 	unsigned int i;
 	struct sfc_ef10_rx_sw_desc *rxd;
 
+	rte_pktmbuf_free(rxq->scatter_pkt);
+	rxq->scatter_pkt = NULL;
+
 	for (i = rxq->completed; i != rxq->added; ++i) {
 		rxd = &rxq->sw_ring[i & rxq->ptr_mask];
-		rte_mempool_put(rxq->refill_mb_pool, rxd->mbuf);
+		rte_mbuf_raw_free(rxd->mbuf);
 		rxd->mbuf = NULL;
 	}
+
+	rxq->completed = rxq->pending = rxq->added = 0;
 
 	rxq->flags &= ~SFC_EF10_RXQ_STARTED;
 }
@@ -657,7 +750,8 @@ struct sfc_dp_rx sfc_ef10_rx = {
 		.type		= SFC_DP_RX,
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF10,
 	},
-	.features		= SFC_DP_RX_FEAT_MULTI_PROCESS |
+	.features		= SFC_DP_RX_FEAT_SCATTER |
+				  SFC_DP_RX_FEAT_MULTI_PROCESS |
 				  SFC_DP_RX_FEAT_TUNNELS |
 				  SFC_DP_RX_FEAT_CHECKSUM,
 	.get_dev_info		= sfc_ef10_rx_get_dev_info,

@@ -113,6 +113,7 @@ struct virtnet_ctl;
 
 #define VIRTIO_F_VERSION_1		32
 #define VIRTIO_F_IOMMU_PLATFORM	33
+#define VIRTIO_F_RING_PACKED		34
 
 /*
  * Some VirtIO feature bits (currently bits 28 through 31) are
@@ -127,6 +128,12 @@ struct virtnet_ctl;
  * in the same order in which they have been made available.
  */
 #define VIRTIO_F_IN_ORDER 35
+
+/*
+ * This feature indicates that memory accesses by the driver and the device
+ * are ordered in a way described by the platform.
+ */
+#define VIRTIO_F_ORDER_PLATFORM 36
 
 /* The Guest publishes the used index for which it expects an interrupt
  * at the end of the avail ring. Host should ignore the avail->flags field. */
@@ -204,7 +211,6 @@ struct virtio_pci_ops {
 			     void *dst, int len);
 	void (*write_dev_cfg)(struct virtio_hw *hw, size_t offset,
 			      const void *src, int len);
-	void (*reset)(struct virtio_hw *hw);
 
 	uint8_t (*get_status)(struct virtio_hw *hw);
 	void    (*set_status)(struct virtio_hw *hw, uint8_t status);
@@ -232,7 +238,7 @@ struct virtio_hw {
 	uint64_t    req_guest_features;
 	uint64_t    guest_features;
 	uint32_t    max_queue_pairs;
-	uint16_t    started;
+	bool        started;
 	uint16_t	max_mtu;
 	uint16_t    vtnet_hdr_size;
 	uint8_t	    vlan_strip;
@@ -241,6 +247,7 @@ struct virtio_hw {
 	uint8_t     use_simple_rx;
 	uint8_t     use_inorder_rx;
 	uint8_t     use_inorder_tx;
+	uint8_t     weak_barriers;
 	bool        has_tx_offload;
 	bool        has_rx_offload;
 	uint16_t    port_id;
@@ -258,6 +265,7 @@ struct virtio_hw {
 	 */
 	rte_spinlock_t state_lock;
 	struct rte_mbuf **inject_pkts;
+	bool        opened;
 
 	struct virtqueue **vqs;
 };
@@ -312,6 +320,12 @@ static inline int
 vtpci_with_feature(struct virtio_hw *hw, uint64_t bit)
 {
 	return (hw->guest_features & (1ULL << bit)) != 0;
+}
+
+static inline int
+vtpci_packed_queue(struct virtio_hw *hw)
+{
+	return vtpci_with_feature(hw, VIRTIO_F_RING_PACKED);
 }
 
 /*

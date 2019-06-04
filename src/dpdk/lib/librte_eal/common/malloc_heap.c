@@ -29,6 +29,10 @@
 #include "malloc_heap.h"
 #include "malloc_mp.h"
 
+/* start external socket ID's at a very high number */
+#define CONST_MAX(a, b) (a > b ? a : b) /* RTE_MAX is not a constant */
+#define EXTERNAL_HEAP_MIN_SOCKET_ID (CONST_MAX((1 << 8), RTE_MAX_NUMA_NODES))
+
 static unsigned
 check_hugepage_sz(unsigned flags, uint64_t hugepage_sz)
 {
@@ -66,6 +70,21 @@ check_hugepage_sz(unsigned flags, uint64_t hugepage_sz)
 	return check_flag & flags;
 }
 
+int
+malloc_socket_to_heap_id(unsigned int socket_id)
+{
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
+	int i;
+
+	for (i = 0; i < RTE_MAX_HEAPS; i++) {
+		struct malloc_heap *heap = &mcfg->malloc_heaps[i];
+
+		if (heap->socket_id == socket_id)
+			return i;
+	}
+	return -1;
+}
+
 /*
  * Expand the heap with a memory area.
  */
@@ -75,7 +94,7 @@ malloc_heap_add_memory(struct malloc_heap *heap, struct rte_memseg_list *msl,
 {
 	struct malloc_elem *elem = start;
 
-	malloc_elem_init(elem, heap, msl, len);
+	malloc_elem_init(elem, heap, msl, len, elem, len);
 
 	malloc_elem_insert(elem);
 
@@ -93,9 +112,17 @@ malloc_add_seg(const struct rte_memseg_list *msl,
 	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	struct rte_memseg_list *found_msl;
 	struct malloc_heap *heap;
-	int msl_idx;
+	int msl_idx, heap_idx;
 
-	heap = &mcfg->malloc_heaps[msl->socket_id];
+	if (msl->external)
+		return 0;
+
+	heap_idx = malloc_socket_to_heap_id(msl->socket_id);
+	if (heap_idx < 0) {
+		RTE_LOG(ERR, EAL, "Memseg list has invalid socket id\n");
+		return -1;
+	}
+	heap = &mcfg->malloc_heaps[heap_idx];
 
 	/* msl is const, so find it */
 	msl_idx = msl - mcfg->memsegs;
@@ -165,7 +192,9 @@ find_biggest_element(struct malloc_heap *heap, size_t *size,
 		for (elem = LIST_FIRST(&heap->free_head[idx]);
 				!!elem; elem = LIST_NEXT(elem, free_list)) {
 			size_t cur_size;
-			if (!check_hugepage_sz(flags, elem->msl->page_sz))
+			if ((flags & RTE_MEMZONE_SIZE_HINT_ONLY) == 0 &&
+					!check_hugepage_sz(flags,
+						elem->msl->page_sz))
 				continue;
 			if (contig) {
 				cur_size =
@@ -259,6 +288,7 @@ alloc_pages_on_heap(struct malloc_heap *heap, uint64_t pg_sz, size_t elt_size,
 		int socket, unsigned int flags, size_t align, size_t bound,
 		bool contig, struct rte_memseg **ms, int n_segs)
 {
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	struct rte_memseg_list *msl;
 	struct malloc_elem *elem = NULL;
 	size_t alloc_sz;
@@ -287,6 +317,46 @@ alloc_pages_on_heap(struct malloc_heap *heap, uint64_t pg_sz, size_t elt_size,
 	/* check if we wanted contiguous memory but didn't get it */
 	if (contig && !eal_memalloc_is_contig(msl, map_addr, alloc_sz)) {
 		RTE_LOG(DEBUG, EAL, "%s(): couldn't allocate physically contiguous space\n",
+				__func__);
+		goto fail;
+	}
+
+	/*
+	 * Once we have all the memseg lists configured, if there is a dma mask
+	 * set, check iova addresses are not out of range. Otherwise the device
+	 * setting the dma mask could have problems with the mapped memory.
+	 *
+	 * There are two situations when this can happen:
+	 *	1) memory initialization
+	 *	2) dynamic memory allocation
+	 *
+	 * For 1), an error when checking dma mask implies app can not be
+	 * executed. For 2) implies the new memory can not be added.
+	 */
+	if (mcfg->dma_maskbits &&
+	    rte_mem_check_dma_mask_thread_unsafe(mcfg->dma_maskbits)) {
+		/*
+		 * Currently this can only happen if IOMMU is enabled
+		 * and the address width supported by the IOMMU hw is
+		 * not enough for using the memory mapped IOVAs.
+		 *
+		 * If IOVA is VA, advice to try with '--iova-mode pa'
+		 * which could solve some situations when IOVA VA is not
+		 * really needed.
+		 */
+		RTE_LOG(ERR, EAL,
+			"%s(): couldn't allocate memory due to IOVA exceeding limits of current DMA mask\n",
+			__func__);
+
+		/*
+		 * If IOVA is VA and it is possible to run with IOVA PA,
+		 * because user is root, give and advice for solving the
+		 * problem.
+		 */
+		if ((rte_eal_iova_mode() == RTE_IOVA_VA) &&
+		     rte_eal_using_phys_addrs())
+			RTE_LOG(ERR, EAL,
+				"%s(): Please try initializing EAL with --iova-mode=pa parameter\n",
 				__func__);
 		goto fail;
 	}
@@ -326,11 +396,9 @@ try_expand_heap_primary(struct malloc_heap *heap, uint64_t pg_sz,
 
 	/* we can't know in advance how many pages we'll need, so we malloc */
 	ms = malloc(sizeof(*ms) * n_segs);
-
-	memset(ms, 0, sizeof(*ms) * n_segs);
-
 	if (ms == NULL)
 		return -1;
+	memset(ms, 0, sizeof(*ms) * n_segs);
 
 	elem = alloc_pages_on_heap(heap, pg_sz, elt_size, socket, flags, align,
 			bound, contig, ms, n_segs);
@@ -560,12 +628,14 @@ alloc_more_mem_on_socket(struct malloc_heap *heap, size_t size, int socket,
 
 /* this will try lower page sizes first */
 static void *
-heap_alloc_on_socket(const char *type, size_t size, int socket,
-		unsigned int flags, size_t align, size_t bound, bool contig)
+malloc_heap_alloc_on_heap_id(const char *type, size_t size,
+		unsigned int heap_id, unsigned int flags, size_t align,
+		size_t bound, bool contig)
 {
 	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct malloc_heap *heap = &mcfg->malloc_heaps[socket];
+	struct malloc_heap *heap = &mcfg->malloc_heaps[heap_id];
 	unsigned int size_flags = flags & ~RTE_MEMZONE_SIZE_HINT_ONLY;
+	int socket_id;
 	void *ret;
 
 	rte_spinlock_lock(&(heap->lock));
@@ -583,12 +653,28 @@ heap_alloc_on_socket(const char *type, size_t size, int socket,
 	 * we may still be able to allocate memory from appropriate page sizes,
 	 * we just need to request more memory first.
 	 */
+
+	socket_id = rte_socket_id_by_idx(heap_id);
+	/*
+	 * if socket ID is negative, we cannot find a socket ID for this heap -
+	 * which means it's an external heap. those can have unexpected page
+	 * sizes, so if the user asked to allocate from there - assume user
+	 * knows what they're doing, and allow allocating from there with any
+	 * page size flags.
+	 */
+	if (socket_id < 0)
+		size_flags |= RTE_MEMZONE_SIZE_HINT_ONLY;
+
 	ret = heap_alloc(heap, type, size, size_flags, align, bound, contig);
 	if (ret != NULL)
 		goto alloc_unlock;
 
-	if (!alloc_more_mem_on_socket(heap, size, socket, flags, align, bound,
-			contig)) {
+	/* if socket ID is invalid, this is an external heap */
+	if (socket_id < 0)
+		goto alloc_unlock;
+
+	if (!alloc_more_mem_on_socket(heap, size, socket_id, flags, align,
+			bound, contig)) {
 		ret = heap_alloc(heap, type, size, flags, align, bound, contig);
 
 		/* this should have succeeded */
@@ -604,14 +690,14 @@ void *
 malloc_heap_alloc(const char *type, size_t size, int socket_arg,
 		unsigned int flags, size_t align, size_t bound, bool contig)
 {
-	int socket, i, cur_socket;
+	int socket, heap_id, i;
 	void *ret;
 
 	/* return NULL if size is 0 or alignment is not power-of-2 */
 	if (size == 0 || (align && !rte_is_power_of_2(align)))
 		return NULL;
 
-	if (!rte_eal_has_hugepages())
+	if (!rte_eal_has_hugepages() && socket_arg < RTE_MAX_NUMA_NODES)
 		socket_arg = SOCKET_ID_ANY;
 
 	if (socket_arg == SOCKET_ID_ANY)
@@ -619,22 +705,25 @@ malloc_heap_alloc(const char *type, size_t size, int socket_arg,
 	else
 		socket = socket_arg;
 
-	/* Check socket parameter */
-	if (socket >= RTE_MAX_NUMA_NODES)
+	/* turn socket ID into heap ID */
+	heap_id = malloc_socket_to_heap_id(socket);
+	/* if heap id is negative, socket ID was invalid */
+	if (heap_id < 0)
 		return NULL;
 
-	ret = heap_alloc_on_socket(type, size, socket, flags, align, bound,
-			contig);
+	ret = malloc_heap_alloc_on_heap_id(type, size, heap_id, flags, align,
+			bound, contig);
 	if (ret != NULL || socket_arg != SOCKET_ID_ANY)
 		return ret;
 
-	/* try other heaps */
+	/* try other heaps. we are only iterating through native DPDK sockets,
+	 * so external heaps won't be included.
+	 */
 	for (i = 0; i < (int) rte_socket_count(); i++) {
-		cur_socket = rte_socket_id_by_idx(i);
-		if (cur_socket == socket)
+		if (i == heap_id)
 			continue;
-		ret = heap_alloc_on_socket(type, size, cur_socket, flags,
-				align, bound, contig);
+		ret = malloc_heap_alloc_on_heap_id(type, size, i, flags, align,
+				bound, contig);
 		if (ret != NULL)
 			return ret;
 	}
@@ -642,11 +731,11 @@ malloc_heap_alloc(const char *type, size_t size, int socket_arg,
 }
 
 static void *
-heap_alloc_biggest_on_socket(const char *type, int socket, unsigned int flags,
-		size_t align, bool contig)
+heap_alloc_biggest_on_heap_id(const char *type, unsigned int heap_id,
+		unsigned int flags, size_t align, bool contig)
 {
 	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	struct malloc_heap *heap = &mcfg->malloc_heaps[socket];
+	struct malloc_heap *heap = &mcfg->malloc_heaps[heap_id];
 	void *ret;
 
 	rte_spinlock_lock(&(heap->lock));
@@ -664,7 +753,7 @@ void *
 malloc_heap_alloc_biggest(const char *type, int socket_arg, unsigned int flags,
 		size_t align, bool contig)
 {
-	int socket, i, cur_socket;
+	int socket, i, cur_socket, heap_id;
 	void *ret;
 
 	/* return NULL if align is not power-of-2 */
@@ -679,11 +768,13 @@ malloc_heap_alloc_biggest(const char *type, int socket_arg, unsigned int flags,
 	else
 		socket = socket_arg;
 
-	/* Check socket parameter */
-	if (socket >= RTE_MAX_NUMA_NODES)
+	/* turn socket ID into heap ID */
+	heap_id = malloc_socket_to_heap_id(socket);
+	/* if heap id is negative, socket ID was invalid */
+	if (heap_id < 0)
 		return NULL;
 
-	ret = heap_alloc_biggest_on_socket(type, socket, flags, align,
+	ret = heap_alloc_biggest_on_heap_id(type, heap_id, flags, align,
 			contig);
 	if (ret != NULL || socket_arg != SOCKET_ID_ANY)
 		return ret;
@@ -693,8 +784,8 @@ malloc_heap_alloc_biggest(const char *type, int socket_arg, unsigned int flags,
 		cur_socket = rte_socket_id_by_idx(i);
 		if (cur_socket == socket)
 			continue;
-		ret = heap_alloc_biggest_on_socket(type, cur_socket, flags,
-				align, contig);
+		ret = heap_alloc_biggest_on_heap_id(type, i, flags, align,
+				contig);
 		if (ret != NULL)
 			return ret;
 	}
@@ -756,12 +847,21 @@ malloc_heap_free(struct malloc_elem *elem)
 	/* anything after this is a bonus */
 	ret = 0;
 
-	/* ...of which we can't avail if we are in legacy mode */
-	if (internal_config.legacy_mem)
+	/* ...of which we can't avail if we are in legacy mode, or if this is an
+	 * externally allocated segment.
+	 */
+	if (internal_config.legacy_mem || (msl->external > 0))
 		goto free_unlock;
 
 	/* check if we can free any memory back to the system */
 	if (elem->size < page_sz)
+		goto free_unlock;
+
+	/* if user requested to match allocations, the sizes must match - if not,
+	 * we will defer freeing these hugepages until the entire original allocation
+	 * can be freed
+	 */
+	if (internal_config.match_allocations && elem->size != elem->orig_size)
 		goto free_unlock;
 
 	/* probably, but let's make sure, as we may not be using up full page */
@@ -914,7 +1014,7 @@ malloc_heap_resize(struct malloc_elem *elem, size_t size)
 }
 
 /*
- * Function to retrieve data for heap on given socket
+ * Function to retrieve data for a given heap
  */
 int
 malloc_heap_get_stats(struct malloc_heap *heap,
@@ -952,7 +1052,7 @@ malloc_heap_get_stats(struct malloc_heap *heap,
 }
 
 /*
- * Function to retrieve data for heap on given socket
+ * Function to retrieve data for a given heap
  */
 void
 malloc_heap_dump(struct malloc_heap *heap, FILE *f)
@@ -973,10 +1073,274 @@ malloc_heap_dump(struct malloc_heap *heap, FILE *f)
 	rte_spinlock_unlock(&heap->lock);
 }
 
+static int
+destroy_elem(struct malloc_elem *elem, size_t len)
+{
+	struct malloc_heap *heap = elem->heap;
+
+	/* notify all subscribers that a memory area is going to be removed */
+	eal_memalloc_mem_event_notify(RTE_MEM_EVENT_FREE, elem, len);
+
+	/* this element can be removed */
+	malloc_elem_free_list_remove(elem);
+	malloc_elem_hide_region(elem, elem, len);
+
+	heap->total_size -= len;
+
+	memset(elem, 0, sizeof(*elem));
+
+	return 0;
+}
+
+struct rte_memseg_list *
+malloc_heap_create_external_seg(void *va_addr, rte_iova_t iova_addrs[],
+		unsigned int n_pages, size_t page_sz, const char *seg_name,
+		unsigned int socket_id)
+{
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
+	char fbarray_name[RTE_FBARRAY_NAME_LEN];
+	struct rte_memseg_list *msl = NULL;
+	struct rte_fbarray *arr;
+	size_t seg_len = n_pages * page_sz;
+	unsigned int i;
+
+	/* first, find a free memseg list */
+	for (i = 0; i < RTE_MAX_MEMSEG_LISTS; i++) {
+		struct rte_memseg_list *tmp = &mcfg->memsegs[i];
+		if (tmp->base_va == NULL) {
+			msl = tmp;
+			break;
+		}
+	}
+	if (msl == NULL) {
+		RTE_LOG(ERR, EAL, "Couldn't find empty memseg list\n");
+		rte_errno = ENOSPC;
+		return NULL;
+	}
+
+	snprintf(fbarray_name, sizeof(fbarray_name) - 1, "%s_%p",
+			seg_name, va_addr);
+
+	/* create the backing fbarray */
+	if (rte_fbarray_init(&msl->memseg_arr, fbarray_name, n_pages,
+			sizeof(struct rte_memseg)) < 0) {
+		RTE_LOG(ERR, EAL, "Couldn't create fbarray backing the memseg list\n");
+		return NULL;
+	}
+	arr = &msl->memseg_arr;
+
+	/* fbarray created, fill it up */
+	for (i = 0; i < n_pages; i++) {
+		struct rte_memseg *ms;
+
+		rte_fbarray_set_used(arr, i);
+		ms = rte_fbarray_get(arr, i);
+		ms->addr = RTE_PTR_ADD(va_addr, i * page_sz);
+		ms->iova = iova_addrs == NULL ? RTE_BAD_IOVA : iova_addrs[i];
+		ms->hugepage_sz = page_sz;
+		ms->len = page_sz;
+		ms->nchannel = rte_memory_get_nchannel();
+		ms->nrank = rte_memory_get_nrank();
+		ms->socket_id = socket_id;
+	}
+
+	/* set up the memseg list */
+	msl->base_va = va_addr;
+	msl->page_sz = page_sz;
+	msl->socket_id = socket_id;
+	msl->len = seg_len;
+	msl->version = 0;
+	msl->external = 1;
+
+	return msl;
+}
+
+struct extseg_walk_arg {
+	void *va_addr;
+	size_t len;
+	struct rte_memseg_list *msl;
+};
+
+static int
+extseg_walk(const struct rte_memseg_list *msl, void *arg)
+{
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
+	struct extseg_walk_arg *wa = arg;
+
+	if (msl->base_va == wa->va_addr && msl->len == wa->len) {
+		unsigned int found_idx;
+
+		/* msl is const */
+		found_idx = msl - mcfg->memsegs;
+		wa->msl = &mcfg->memsegs[found_idx];
+		return 1;
+	}
+	return 0;
+}
+
+struct rte_memseg_list *
+malloc_heap_find_external_seg(void *va_addr, size_t len)
+{
+	struct extseg_walk_arg wa;
+	int res;
+
+	wa.va_addr = va_addr;
+	wa.len = len;
+
+	res = rte_memseg_list_walk_thread_unsafe(extseg_walk, &wa);
+
+	if (res != 1) {
+		/* 0 means nothing was found, -1 shouldn't happen */
+		if (res == 0)
+			rte_errno = ENOENT;
+		return NULL;
+	}
+	return wa.msl;
+}
+
+int
+malloc_heap_destroy_external_seg(struct rte_memseg_list *msl)
+{
+	/* destroy the fbarray backing this memory */
+	if (rte_fbarray_destroy(&msl->memseg_arr) < 0)
+		return -1;
+
+	/* reset the memseg list */
+	memset(msl, 0, sizeof(*msl));
+
+	return 0;
+}
+
+int
+malloc_heap_add_external_memory(struct malloc_heap *heap,
+		struct rte_memseg_list *msl)
+{
+	/* erase contents of new memory */
+	memset(msl->base_va, 0, msl->len);
+
+	/* now, add newly minted memory to the malloc heap */
+	malloc_heap_add_memory(heap, msl, msl->base_va, msl->len);
+
+	heap->total_size += msl->len;
+
+	/* all done! */
+	RTE_LOG(DEBUG, EAL, "Added segment for heap %s starting at %p\n",
+			heap->name, msl->base_va);
+
+	/* notify all subscribers that a new memory area has been added */
+	eal_memalloc_mem_event_notify(RTE_MEM_EVENT_ALLOC,
+			msl->base_va, msl->len);
+
+	return 0;
+}
+
+int
+malloc_heap_remove_external_memory(struct malloc_heap *heap, void *va_addr,
+		size_t len)
+{
+	struct malloc_elem *elem = heap->first;
+
+	/* find element with specified va address */
+	while (elem != NULL && elem != va_addr) {
+		elem = elem->next;
+		/* stop if we've blown past our VA */
+		if (elem > (struct malloc_elem *)va_addr) {
+			rte_errno = ENOENT;
+			return -1;
+		}
+	}
+	/* check if element was found */
+	if (elem == NULL || elem->msl->len != len) {
+		rte_errno = ENOENT;
+		return -1;
+	}
+	/* if element's size is not equal to segment len, segment is busy */
+	if (elem->state == ELEM_BUSY || elem->size != len) {
+		rte_errno = EBUSY;
+		return -1;
+	}
+	return destroy_elem(elem, len);
+}
+
+int
+malloc_heap_create(struct malloc_heap *heap, const char *heap_name)
+{
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
+	uint32_t next_socket_id = mcfg->next_socket_id;
+
+	/* prevent overflow. did you really create 2 billion heaps??? */
+	if (next_socket_id > INT32_MAX) {
+		RTE_LOG(ERR, EAL, "Cannot assign new socket ID's\n");
+		rte_errno = ENOSPC;
+		return -1;
+	}
+
+	/* initialize empty heap */
+	heap->alloc_count = 0;
+	heap->first = NULL;
+	heap->last = NULL;
+	LIST_INIT(heap->free_head);
+	rte_spinlock_init(&heap->lock);
+	heap->total_size = 0;
+	heap->socket_id = next_socket_id;
+
+	/* we hold a global mem hotplug writelock, so it's safe to increment */
+	mcfg->next_socket_id++;
+
+	/* set up name */
+	strlcpy(heap->name, heap_name, RTE_HEAP_NAME_MAX_LEN);
+	return 0;
+}
+
+int
+malloc_heap_destroy(struct malloc_heap *heap)
+{
+	if (heap->alloc_count != 0) {
+		RTE_LOG(ERR, EAL, "Heap is still in use\n");
+		rte_errno = EBUSY;
+		return -1;
+	}
+	if (heap->first != NULL || heap->last != NULL) {
+		RTE_LOG(ERR, EAL, "Heap still contains memory segments\n");
+		rte_errno = EBUSY;
+		return -1;
+	}
+	if (heap->total_size != 0)
+		RTE_LOG(ERR, EAL, "Total size not zero, heap is likely corrupt\n");
+
+	/* after this, the lock will be dropped */
+	memset(heap, 0, sizeof(*heap));
+
+	return 0;
+}
+
 int
 rte_eal_malloc_heap_init(void)
 {
 	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
+	unsigned int i;
+
+	if (internal_config.match_allocations) {
+		RTE_LOG(DEBUG, EAL, "Hugepages will be freed exactly as allocated.\n");
+	}
+
+	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
+		/* assign min socket ID to external heaps */
+		mcfg->next_socket_id = EXTERNAL_HEAP_MIN_SOCKET_ID;
+
+		/* assign names to default DPDK heaps */
+		for (i = 0; i < rte_socket_count(); i++) {
+			struct malloc_heap *heap = &mcfg->malloc_heaps[i];
+			char heap_name[RTE_HEAP_NAME_MAX_LEN];
+			int socket_id = rte_socket_id_by_idx(i);
+
+			snprintf(heap_name, sizeof(heap_name) - 1,
+					"socket_%i", socket_id);
+			strlcpy(heap->name, heap_name, RTE_HEAP_NAME_MAX_LEN);
+			heap->socket_id = socket_id;
+		}
+	}
+
 
 	if (register_mp_requests()) {
 		RTE_LOG(ERR, EAL, "Couldn't register malloc multiprocess actions\n");

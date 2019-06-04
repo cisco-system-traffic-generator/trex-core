@@ -18,11 +18,10 @@ siena_nic_get_partn_mask(
 	__out			unsigned int *maskp)
 {
 	efx_mcdi_req_t req;
-	uint8_t payload[MAX(MC_CMD_NVRAM_TYPES_IN_LEN,
-			    MC_CMD_NVRAM_TYPES_OUT_LEN)];
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_NVRAM_TYPES_IN_LEN,
+		MC_CMD_NVRAM_TYPES_OUT_LEN);
 	efx_rc_t rc;
 
-	(void) memset(payload, 0, sizeof (payload));
 	req.emr_cmd = MC_CMD_NVRAM_TYPES;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_NVRAM_TYPES_IN_LEN;
@@ -105,6 +104,10 @@ siena_board_cfg(
 	encp->enc_evq_timer_max_us = (encp->enc_evq_timer_quantum_ns <<
 		FRF_CZ_TC_TIMER_VAL_WIDTH) / 1000;
 
+	encp->enc_ev_desc_size = SIENA_EVQ_DESC_SIZE;
+	encp->enc_rx_desc_size = SIENA_RXQ_DESC_SIZE;
+	encp->enc_tx_desc_size = SIENA_TXQ_DESC_SIZE;
+
 	/* When hash header insertion is enabled, Siena inserts 16 bytes */
 	encp->enc_rx_prefix_size = 16;
 
@@ -115,6 +118,7 @@ siena_board_cfg(
 	/* Alignment for WPTR updates */
 	encp->enc_rx_push_align = 1;
 
+#if EFSYS_OPT_RX_SCALE
 	/* There is one RSS context per function */
 	encp->enc_rx_scale_max_exclusive_contexts = 1;
 
@@ -129,6 +133,7 @@ siena_board_cfg(
 
 	/* There is no support for additional RSS modes */
 	encp->enc_rx_scale_additional_modes_supported = B_FALSE;
+#endif /* EFSYS_OPT_RX_SCALE */
 
 	encp->enc_tx_dma_desc_size_max = EFX_MASK32(FSF_AZ_TX_KER_BYTE_COUNT);
 	/* Fragments must not span 4k boundaries. */
@@ -148,7 +153,14 @@ siena_board_cfg(
 	encp->enc_rxq_limit = MIN(EFX_RXQ_LIMIT_TARGET, nrxq);
 	encp->enc_txq_limit = MIN(EFX_TXQ_LIMIT_TARGET, ntxq);
 
-	encp->enc_txq_max_ndescs = 4096;
+	encp->enc_evq_max_nevs = SIENA_EVQ_MAXNEVS;
+	encp->enc_evq_min_nevs = SIENA_EVQ_MINNEVS;
+
+	encp->enc_rxq_max_ndescs = EF10_RXQ_MAXNDESCS;
+	encp->enc_rxq_min_ndescs = EF10_RXQ_MINNDESCS;
+
+	encp->enc_txq_max_ndescs = SIENA_TXQ_MAXNDESCS;
+	encp->enc_txq_min_ndescs = SIENA_TXQ_MINNDESCS;
 
 	encp->enc_buftbl_limit = SIENA_SRAM_ROWS -
 	    (encp->enc_txq_limit * EFX_TXQ_DC_NDESCS(EFX_TXQ_DC_SIZE)) -

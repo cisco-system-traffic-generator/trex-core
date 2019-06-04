@@ -18,8 +18,8 @@
 #include <stdint.h>
 
 #include <rte_arp.h>
+#include <rte_common.h>
 #include <rte_ether.h>
-#include <rte_eth_ctrl.h>
 #include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_sctp.h>
@@ -413,6 +413,14 @@ enum rte_flow_item_type {
 	 * See struct rte_flow_item_mark.
 	 */
 	RTE_FLOW_ITEM_TYPE_MARK,
+
+	/**
+	 * [META]
+	 *
+	 * Matches a metadata value specified in mbuf metadata field.
+	 * See struct rte_flow_item_meta.
+	 */
+	RTE_FLOW_ITEM_TYPE_META,
 };
 
 /**
@@ -1156,6 +1164,22 @@ rte_flow_item_icmp6_nd_opt_tla_eth_mask = {
 #endif
 
 /**
+ * RTE_FLOW_ITEM_TYPE_META.
+ *
+ * Matches a specified metadata value.
+ */
+struct rte_flow_item_meta {
+	rte_be32_t data;
+};
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_META. */
+#ifndef __cplusplus
+static const struct rte_flow_item_meta rte_flow_item_meta_mask = {
+	.data = RTE_BE32(UINT32_MAX),
+};
+#endif
+
+/**
  * @warning
  * @b EXPERIMENTAL: this structure may change without prior notice
  *
@@ -1505,6 +1529,127 @@ enum rte_flow_action_type {
 	 * error.
 	 */
 	RTE_FLOW_ACTION_TYPE_NVGRE_DECAP,
+
+	/**
+	 * Add outer header whose template is provided in its data buffer
+	 *
+	 * See struct rte_flow_action_raw_encap.
+	 */
+	RTE_FLOW_ACTION_TYPE_RAW_ENCAP,
+
+	/**
+	 * Remove outer header whose template is provided in its data buffer.
+	 *
+	 * See struct rte_flow_action_raw_decap
+	 */
+	RTE_FLOW_ACTION_TYPE_RAW_DECAP,
+
+	/**
+	 * Modify IPv4 source address in the outermost IPv4 header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_IPV4,
+	 * then the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_ipv4.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC,
+
+	/**
+	 * Modify IPv4 destination address in the outermost IPv4 header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_IPV4,
+	 * then the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_ipv4.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_IPV4_DST,
+
+	/**
+	 * Modify IPv6 source address in the outermost IPv6 header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_IPV6,
+	 * then the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_ipv6.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_IPV6_SRC,
+
+	/**
+	 * Modify IPv6 destination address in the outermost IPv6 header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_IPV6,
+	 * then the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_ipv6.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_IPV6_DST,
+
+	/**
+	 * Modify source port number in the outermost TCP/UDP header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_TCP
+	 * or RTE_FLOW_ITEM_TYPE_UDP, then the PMD should return a
+	 * RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_tp.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_TP_SRC,
+
+	/**
+	 * Modify destination port number in the outermost TCP/UDP header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_TCP
+	 * or RTE_FLOW_ITEM_TYPE_UDP, then the PMD should return a
+	 * RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_tp.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_TP_DST,
+
+	/**
+	 * Swap the source and destination MAC addresses in the outermost
+	 * Ethernet header.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_ETH,
+	 * then the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * No associated configuration structure.
+	 */
+	RTE_FLOW_ACTION_TYPE_MAC_SWAP,
+
+	/**
+	 * Decrease TTL value directly
+	 *
+	 * No associated configuration structure.
+	 */
+	RTE_FLOW_ACTION_TYPE_DEC_TTL,
+
+	/**
+	 * Set TTL value
+	 *
+	 * See struct rte_flow_action_set_ttl
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_TTL,
+
+	/**
+	 * Set source MAC address from matched flow.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_ETH,
+	 * the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_mac.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_MAC_SRC,
+
+	/**
+	 * Set destination MAC address from matched flow.
+	 *
+	 * If flow pattern does not define a valid RTE_FLOW_ITEM_TYPE_ETH,
+	 * the PMD should return a RTE_FLOW_ERROR_TYPE_ACTION error.
+	 *
+	 * See struct rte_flow_action_set_mac.
+	 */
+	RTE_FLOW_ACTION_TYPE_SET_MAC_DST,
 };
 
 /**
@@ -1590,6 +1735,16 @@ struct rte_flow_query_count {
 	uint32_t reserved:29; /**< Reserved, must be zero [in, out]. */
 	uint64_t hits; /**< Number of hits for this rule [out]. */
 	uint64_t bytes; /**< Number of bytes through this rule [out]. */
+};
+
+/**
+ * Hash function types.
+ */
+enum rte_eth_hash_function {
+	RTE_ETH_HASH_FUNCTION_DEFAULT = 0,
+	RTE_ETH_HASH_FUNCTION_TOEPLITZ, /**< Toeplitz */
+	RTE_ETH_HASH_FUNCTION_SIMPLE_XOR, /**< Simple XOR */
+	RTE_ETH_HASH_FUNCTION_MAX,
 };
 
 /**
@@ -1868,6 +2023,114 @@ struct rte_flow_action_nvgre_encap {
 	struct rte_flow_item *definition;
 };
 
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * RTE_FLOW_ACTION_TYPE_RAW_ENCAP
+ *
+ * Raw tunnel end-point encapsulation data definition.
+ *
+ * The data holds the headers definitions to be applied on the packet.
+ * The data must start with ETH header up to the tunnel item header itself.
+ * When used right after RAW_DECAP (for decapsulating L3 tunnel type for
+ * example MPLSoGRE) the data will just hold layer 2 header.
+ *
+ * The preserve parameter holds which bits in the packet the PMD is not allowed
+ * to change, this parameter can also be NULL and then the PMD is allowed
+ * to update any field.
+ *
+ * size holds the number of bytes in @p data and @p preserve.
+ */
+struct rte_flow_action_raw_encap {
+	uint8_t *data; /**< Encapsulation data. */
+	uint8_t *preserve; /**< Bit-mask of @p data to preserve on output. */
+	size_t size; /**< Size of @p data and @p preserve. */
+};
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * RTE_FLOW_ACTION_TYPE_RAW_DECAP
+ *
+ * Raw tunnel end-point decapsulation data definition.
+ *
+ * The data holds the headers definitions to be removed from the packet.
+ * The data must start with ETH header up to the tunnel item header itself.
+ * When used right before RAW_DECAP (for encapsulating L3 tunnel type for
+ * example MPLSoGRE) the data will just hold layer 2 header.
+ *
+ * size holds the number of bytes in @p data.
+ */
+struct rte_flow_action_raw_decap {
+	uint8_t *data; /**< Encapsulation data. */
+	size_t size; /**< Size of @p data and @p preserve. */
+};
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC
+ * RTE_FLOW_ACTION_TYPE_SET_IPV4_DST
+ *
+ * Allows modification of IPv4 source (RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC)
+ * and destination address (RTE_FLOW_ACTION_TYPE_SET_IPV4_DST) in the
+ * specified outermost IPv4 header.
+ */
+struct rte_flow_action_set_ipv4 {
+	rte_be32_t ipv4_addr;
+};
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * RTE_FLOW_ACTION_TYPE_SET_IPV6_SRC
+ * RTE_FLOW_ACTION_TYPE_SET_IPV6_DST
+ *
+ * Allows modification of IPv6 source (RTE_FLOW_ACTION_TYPE_SET_IPV6_SRC)
+ * and destination address (RTE_FLOW_ACTION_TYPE_SET_IPV6_DST) in the
+ * specified outermost IPv6 header.
+ */
+struct rte_flow_action_set_ipv6 {
+	uint8_t ipv6_addr[16];
+};
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * RTE_FLOW_ACTION_TYPE_SET_TP_SRC
+ * RTE_FLOW_ACTION_TYPE_SET_TP_DST
+ *
+ * Allows modification of source (RTE_FLOW_ACTION_TYPE_SET_TP_SRC)
+ * and destination (RTE_FLOW_ACTION_TYPE_SET_TP_DST) port numbers
+ * in the specified outermost TCP/UDP header.
+ */
+struct rte_flow_action_set_tp {
+	rte_be16_t port;
+};
+
+/**
+ * RTE_FLOW_ACTION_TYPE_SET_TTL
+ *
+ * Set the TTL value directly for IPv4 or IPv6
+ */
+struct rte_flow_action_set_ttl {
+	uint8_t ttl_value;
+};
+
+/**
+ * RTE_FLOW_ACTION_TYPE_SET_MAC
+ *
+ * Set MAC address from the matched flow
+ */
+struct rte_flow_action_set_mac {
+	uint8_t mac_addr[ETHER_ADDR_LEN];
+};
+
 /*
  * Definition of a single action.
  *
@@ -1929,6 +2192,175 @@ struct rte_flow_error {
 	enum rte_flow_error_type type; /**< Cause field and error types. */
 	const void *cause; /**< Object responsible for the error. */
 	const char *message; /**< Human-readable error message. */
+};
+
+/**
+ * Complete flow rule description.
+ *
+ * This object type is used when converting a flow rule description.
+ *
+ * @see RTE_FLOW_CONV_OP_RULE
+ * @see rte_flow_conv()
+ */
+RTE_STD_C11
+struct rte_flow_conv_rule {
+	union {
+		const struct rte_flow_attr *attr_ro; /**< RO attributes. */
+		struct rte_flow_attr *attr; /**< Attributes. */
+	};
+	union {
+		const struct rte_flow_item *pattern_ro; /**< RO pattern. */
+		struct rte_flow_item *pattern; /**< Pattern items. */
+	};
+	union {
+		const struct rte_flow_action *actions_ro; /**< RO actions. */
+		struct rte_flow_action *actions; /**< List of actions. */
+	};
+};
+
+/**
+ * Conversion operations for flow API objects.
+ *
+ * @see rte_flow_conv()
+ */
+enum rte_flow_conv_op {
+	/**
+	 * No operation to perform.
+	 *
+	 * rte_flow_conv() simply returns 0.
+	 */
+	RTE_FLOW_CONV_OP_NONE,
+
+	/**
+	 * Convert attributes structure.
+	 *
+	 * This is a basic copy of an attributes structure.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_attr * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_attr * @endcode
+	 */
+	RTE_FLOW_CONV_OP_ATTR,
+
+	/**
+	 * Convert a single item.
+	 *
+	 * Duplicates @p spec, @p last and @p mask but not outside objects.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_item * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_item * @endcode
+	 */
+	RTE_FLOW_CONV_OP_ITEM,
+
+	/**
+	 * Convert a single action.
+	 *
+	 * Duplicates @p conf but not outside objects.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_action * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_action * @endcode
+	 */
+	RTE_FLOW_CONV_OP_ACTION,
+
+	/**
+	 * Convert an entire pattern.
+	 *
+	 * Duplicates all pattern items at once with the same constraints as
+	 * RTE_FLOW_CONV_OP_ITEM.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_item * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_item * @endcode
+	 */
+	RTE_FLOW_CONV_OP_PATTERN,
+
+	/**
+	 * Convert a list of actions.
+	 *
+	 * Duplicates the entire list of actions at once with the same
+	 * constraints as RTE_FLOW_CONV_OP_ACTION.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_action * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_action * @endcode
+	 */
+	RTE_FLOW_CONV_OP_ACTIONS,
+
+	/**
+	 * Convert a complete flow rule description.
+	 *
+	 * Comprises attributes, pattern and actions together at once with
+	 * the usual constraints.
+	 *
+	 * - @p src type:
+	 *   @code const struct rte_flow_conv_rule * @endcode
+	 * - @p dst type:
+	 *   @code struct rte_flow_conv_rule * @endcode
+	 */
+	RTE_FLOW_CONV_OP_RULE,
+
+	/**
+	 * Convert item type to its name string.
+	 *
+	 * Writes a NUL-terminated string to @p dst. Like snprintf(), the
+	 * returned value excludes the terminator which is always written
+	 * nonetheless.
+	 *
+	 * - @p src type:
+	 *   @code (const void *)enum rte_flow_item_type @endcode
+	 * - @p dst type:
+	 *   @code char * @endcode
+	 **/
+	RTE_FLOW_CONV_OP_ITEM_NAME,
+
+	/**
+	 * Convert action type to its name string.
+	 *
+	 * Writes a NUL-terminated string to @p dst. Like snprintf(), the
+	 * returned value excludes the terminator which is always written
+	 * nonetheless.
+	 *
+	 * - @p src type:
+	 *   @code (const void *)enum rte_flow_action_type @endcode
+	 * - @p dst type:
+	 *   @code char * @endcode
+	 **/
+	RTE_FLOW_CONV_OP_ACTION_NAME,
+
+	/**
+	 * Convert item type to pointer to item name.
+	 *
+	 * Retrieves item name pointer from its type. The string itself is
+	 * not copied; instead, a unique pointer to an internal static
+	 * constant storage is written to @p dst.
+	 *
+	 * - @p src type:
+	 *   @code (const void *)enum rte_flow_item_type @endcode
+	 * - @p dst type:
+	 *   @code const char ** @endcode
+	 */
+	RTE_FLOW_CONV_OP_ITEM_NAME_PTR,
+
+	/**
+	 * Convert action type to pointer to action name.
+	 *
+	 * Retrieves action name pointer from its type. The string itself is
+	 * not copied; instead, a unique pointer to an internal static
+	 * constant storage is written to @p dst.
+	 *
+	 * - @p src type:
+	 *   @code (const void *)enum rte_flow_action_type @endcode
+	 * - @p dst type:
+	 *   @code const char ** @endcode
+	 */
+	RTE_FLOW_CONV_OP_ACTION_NAME_PTR,
 };
 
 /**
@@ -2162,10 +2594,8 @@ rte_flow_error_set(struct rte_flow_error *error,
 		   const char *message);
 
 /**
- * Generic flow representation.
- *
- * This form is sufficient to describe an rte_flow independently from any
- * PMD implementation and allows for replayability and identification.
+ * @deprecated
+ * @see rte_flow_copy()
  */
 struct rte_flow_desc {
 	size_t size; /**< Allocated space including data[]. */
@@ -2176,7 +2606,13 @@ struct rte_flow_desc {
 };
 
 /**
+ * @deprecated
  * Copy an rte_flow rule description.
+ *
+ * This interface is kept for compatibility with older applications but is
+ * implemented as a wrapper to rte_flow_conv(). It is deprecated due to its
+ * lack of flexibility and reliance on a type unusable with C++ programs
+ * (struct rte_flow_desc).
  *
  * @param[in] fd
  *   Flow rule description.
@@ -2195,11 +2631,60 @@ struct rte_flow_desc {
  *   If len is lower than the size of the flow, the number of bytes that would
  *   have been written to desc had it been sufficient. Nothing is written.
  */
+__rte_deprecated
 size_t
 rte_flow_copy(struct rte_flow_desc *fd, size_t len,
 	      const struct rte_flow_attr *attr,
 	      const struct rte_flow_item *items,
 	      const struct rte_flow_action *actions);
+
+/**
+ * Flow object conversion helper.
+ *
+ * This function performs conversion of various flow API objects to a
+ * pre-allocated destination buffer. See enum rte_flow_conv_op for possible
+ * operations and details about each of them.
+ *
+ * Since destination buffer must be large enough, it works in a manner
+ * reminiscent of snprintf():
+ *
+ * - If @p size is 0, @p dst may be a NULL pointer, otherwise @p dst must be
+ *   non-NULL.
+ * - If positive, the returned value represents the number of bytes needed
+ *   to store the conversion of @p src to @p dst according to @p op
+ *   regardless of the @p size parameter.
+ * - Since no more than @p size bytes can be written to @p dst, output is
+ *   truncated and may be inconsistent when the returned value is larger
+ *   than that.
+ * - In case of conversion error, a negative error code is returned and
+ *   @p dst contents are unspecified.
+ *
+ * @param op
+ *   Operation to perform, related to the object type of @p dst.
+ * @param[out] dst
+ *   Destination buffer address. Must be suitably aligned by the caller.
+ * @param size
+ *   Destination buffer size in bytes.
+ * @param[in] src
+ *   Source object to copy. Depending on @p op, its type may differ from
+ *   that of @p dst.
+ * @param[out] error
+ *   Perform verbose error reporting if not NULL. Initialized in case of
+ *   error only.
+ *
+ * @return
+ *   The number of bytes required to convert @p src to @p dst on success, a
+ *   negative errno value otherwise and rte_errno is set.
+ *
+ * @see rte_flow_conv_op
+ */
+__rte_experimental
+int
+rte_flow_conv(enum rte_flow_conv_op op,
+	      void *dst,
+	      size_t size,
+	      const void *src,
+	      struct rte_flow_error *error);
 
 #ifdef __cplusplus
 }
