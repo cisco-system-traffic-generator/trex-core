@@ -126,10 +126,6 @@ bool CTRexExtendedDriverVirtio::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
     return get_extended_stats_fixed(_if, stats, 4, 4);
 }
 
-bool CTRexExtendedDriverVirtio::is_support_for_rx_scatter_gather(){
-    return false;
-}
-
 
 CTRexExtendedDriverVmxnet3::CTRexExtendedDriverVmxnet3() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
