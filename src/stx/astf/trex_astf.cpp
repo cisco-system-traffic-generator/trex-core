@@ -473,7 +473,7 @@ void TrexAstf::inc_epoch() {
     m_epoch++;
 }
 
-void TrexAstf::publish_astf_state(string err) {
+void TrexAstf::publish_astf_state(string &err) {
     /* Publish the state change of all profiles */
     int old_state = m_state;
 
@@ -485,8 +485,8 @@ void TrexAstf::publish_astf_state(string err) {
     Json::Value data;
     data["state"] = m_state;
     data["epoch"] = m_epoch;
-    if ( err != "" && !is_trans_state() ) {
-        data["error"] = err;
+    if ( !err.empty() && !is_trans_state() ) {
+        data["error"] = err.c_str();
     }
 
     get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_STATE_CHG, data);
@@ -642,7 +642,8 @@ bool TrexAstfProfile::is_another_profile_busy(cp_profile_id_t profile_id) {
 /***********************************************************
  * TrexAstfPerProfile
  ***********************************************************/
-TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj, uint32_t dp_profile_id,
+TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj,
+                                       uint32_t dp_profile_id,
                                        cp_profile_id_t cp_profile_id) {
     m_dp_profile_id = dp_profile_id;
     m_cp_profile_id = cp_profile_id;

@@ -103,6 +103,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdateLatency, "update_latency");
 
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfTotalCountersValues, "get_total_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGNames, "get_tg_names");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGStats, "get_tg_id_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
@@ -463,10 +464,11 @@ TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &resul
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
-    if (!get_astf_object()->is_valid_profile(profile_id)) {
+    TrexAstf *stx = get_astf_object();
+    if (!stx->is_valid_profile(profile_id)) {
         generate_execute_err(result, "Invalid profile : " + profile_id);
     }
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
             lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
@@ -492,9 +494,55 @@ TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &resul
 }
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTotalCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *stx = get_astf_object();
+    vector<CSTTCp *> sttcp_list = stx->get_sttcp_list();
+    Json::Value temp;
+
+    for (auto lpstt : sttcp_list) {
+        if (lpstt->m_init) {
+            temp.clear();
+            lpstt->m_dtbl.dump_values("counter vals", false, temp);
+
+            /* Member : client, server */
+            for (auto i : temp.getMemberNames()) {
+                if (!temp[i].isObject()) {
+                    continue;
+                }
+                if (!result["result"].isMember(i)) {
+                    result["result"][i] = Json::objectValue;
+                }
+
+                /* Member : counters id */
+                for (auto j : temp[i].getMemberNames()) {
+                    if (!result["result"][i].isMember(j)) {
+                        result["result"][i][j] = 0;
+                    }
+                    if (temp[i][j].isInt64()) {
+                        result["result"][i][j] = result["result"][i][j].asInt64() +
+                                                 temp[i][j].asInt64();
+                    } else {
+                        result["result"][i][j] = result["result"][i][j].asDouble() +
+                                                 temp[i][j].asDouble();
+                    }
+                }
+            }
+        } else {
+            generate_execute_err(result, "Statistics are not initialized yet");
+        }
+    }
+
+    result["result"]["name"] = "counter vals";
+    result["result"]["epoch"] = stx->get_epoch();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
-    if (!get_astf_object()->is_valid_profile(profile_id)) {
+    TrexAstf *stx = get_astf_object();
+    if (!stx->is_valid_profile(profile_id)) {
         generate_execute_err(result, "Invalid profile : " + profile_id);
     }
     bool initialized = parse_bool(params, "initialized", result);
@@ -502,7 +550,7 @@ TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     if (initialized) {
         epoch = parse_uint64(params, "epoch", result);
     }
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
         if (!pid->is_profile_state_build()) {
@@ -643,6 +691,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfGetTrafficDist(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTotalCountersValues(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGNames(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGStats(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
