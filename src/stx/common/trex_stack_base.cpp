@@ -799,6 +799,7 @@ string CNodeBase::mac_str_to_mac_buf(const std::string & mac){
         return(s);
     }
     assert(0);
+    return("");
 }
 
 std::string CNodeBase::get_src_mac_as_str(){
