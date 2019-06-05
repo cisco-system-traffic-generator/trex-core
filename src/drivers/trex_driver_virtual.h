@@ -56,8 +56,6 @@ public:
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
 
     virtual void update_configuration(port_cfg_t * cfg);
-    virtual bool is_support_for_rx_scatter_gather();
-
 };
 
 class CTRexExtendedDriverVmxnet3 : public CTRexExtendedDriverVirtBase {
