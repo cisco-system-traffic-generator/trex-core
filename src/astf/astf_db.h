@@ -373,22 +373,21 @@ class CAstfDB  : public CTRexDummyCommand  {
  public:
     // make the class singelton
     static CAstfDB *instance(profile_id_t profile_id = 0) {
-        if (m_pInstances.find(profile_id) == m_pInstances.end()) {
-            m_pInstances[profile_id] = new CAstfDB();
-            m_pInstances[profile_id]->m_json_initiated = false;
+        if (m_instances.find(profile_id) == m_instances.end()) {
+            CAstfDB& new_inst = m_instances[profile_id];
+            new_inst.m_json_initiated = false;
         }
-        return m_pInstances[profile_id];
+        return &m_instances[profile_id];
     }
 
     static void free_instance(profile_id_t profile_id = 0){
-        if (m_pInstances.find(profile_id) != m_pInstances.end()){
-            delete m_pInstances[profile_id];
-            m_pInstances.erase(profile_id);
+        if (m_instances.find(profile_id) != m_instances.end()){
+            m_instances.erase(profile_id);
         }
     }
 
     static bool has_instance(profile_id_t profile_id = 0) {
-        return m_pInstances.find(profile_id) != m_pInstances.end();
+        return m_instances.find(profile_id) != m_instances.end();
     }
 
     TopoMngr* get_topo() {
@@ -574,7 +573,7 @@ private:
 
  private:
     bool m_json_initiated;
-    static std::unordered_map<profile_id_t, CAstfDB*> m_pInstances;
+    static std::unordered_map<profile_id_t, CAstfDB> m_instances;
     Json::Value  m_val;
     Json::Value  m_buffers;
 
