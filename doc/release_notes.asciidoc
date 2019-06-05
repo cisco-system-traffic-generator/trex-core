@@ -30,10 +30,13 @@ endif::backend-docbook[]
 
 * STL 
 ** Dynamic add/remove multiple profiles feature see link:trex_stateless.html#dynamic_multiple_profiles[dynamic]
-
+** Support FlowState with value_list
+** Update API minor version 
 * Upgrade to DPDK v19.05
-** Breaking changes to Mellanox setups - need newer OFED (v4.6)
-** RX mbufs in Virtio were increased from 2K to 9K due to DPDK bug: link:https://bugs.dpdk.org/show_bug.cgi?id=290[bug link]
+** Breaking changes to Mellanox setups - need newer OFED (v4.6) see appendix for more detail 
+* ASTF 
+** fix throttle of new flows in case of congestion 
+** Support 64bit variables
 
 == Release 2.56 ==
 
