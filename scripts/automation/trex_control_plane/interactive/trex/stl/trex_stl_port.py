@@ -87,6 +87,10 @@ class STLPort(Port):
             del self.profile_stream_list[profile_id]
             del self.profile_state_list[profile_id]
         else:
+            if profile_id in self.profile_state_list:
+                del self.profile_state_list[profile_id]
+            if profile_id in self.profile_stream_list:
+                del self.profile_stream_list[profile_id]
             stream_ids = []
         #return None if not found
         return stream_ids
@@ -922,6 +926,9 @@ class STLPort(Port):
 
         profile_state = self.profile_state_list.get(profile_id)
         if not profile_state:
+            return self.ok()
+
+        if profile_state == self.STATE_IDLE:
             return self.ok()
 
         params = {"handler": self.handler,
