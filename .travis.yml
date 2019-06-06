@@ -2,6 +2,7 @@ if: commit_message =~ test_this_on_travis
 
 env:
   global:
+    - BUILD_ID=$TRAVIS_BUILD_ID
     - SHA=$TRAVIS_PULL_REQUEST_SHA
     - PR_NUM=$TRAVIS_PULL_REQUEST
     - IS_LAST=False

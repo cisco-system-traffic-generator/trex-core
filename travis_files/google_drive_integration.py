@@ -59,7 +59,7 @@ class GoogleDriveService:
         else:
             sys.exit('ERROR download file: %s with id: %s' % (file_id, file_name))
 
-    def find_file_id(self, sha):
+    def find_file_id(self, sha, started_time):
         """
         Looking for the commit id in google drive
         :param sha: the commit id to look for.
@@ -71,6 +71,6 @@ class GoogleDriveService:
         # looking for the file with that sha(file format: pr,sha,date,passed.html)
 
         for file in files:
-            if sha in file['name']:
+            if sha in file['name'] and started_time in file['name']:
                 return file
         return False
