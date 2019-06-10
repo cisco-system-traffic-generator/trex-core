@@ -838,7 +838,7 @@ class OPTIONS_DB_ARGS:
          'dest':'pfname',
          'metavar': 'PROFILE',
          'type': str,
-         'default': DEFAULT_PROFILE_ID,
+         'default': None,
          'help': "ASTF Profile ID: When using --pid option, Should use with -a or --za option"})
 
     STREAMS_MASK = ArgumentPack(

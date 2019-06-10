@@ -13,7 +13,7 @@ from ..common.trex_client import TRexClient
 from ..common.trex_events import Event
 from ..common.trex_exceptions import TRexError
 from ..common.trex_types import *
-from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID 
+from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
@@ -209,24 +209,24 @@ class ASTFClient(TRexClient):
         # Check if profile_id is a valid profile name
         for profile_id in profile_list:
             if profile_id == ALL_PROFILE_ID:
-               if start == True:
-                   raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
-               else:
-                   valid_pids =  list(self.astf_profile_state.keys())
-               break
+                if start == True:
+                    raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
+                else:
+                    valid_pids =  list(self.astf_profile_state.keys())
+                break
             else:
-               if profile_id in list(self.astf_profile_state.keys()):
-                   if start == True:
-                       if self.is_dynamic and self.astf_profile_state[profile_id] not in ok_states:
-                           raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
-               else:
-                   if start == True:
-                      self.astf_profile_state[profile_id] = self.STATE_IDLE
-                   else:
-                      raise TRexError("ASTF profile_id %s does not exist." % profile_id)
+                if profile_id in list(self.astf_profile_state.keys()):
+                    if start == True:
+                        if self.is_dynamic and self.astf_profile_state[profile_id] not in ok_states:
+                            raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
+                else:
+                    if start == True:
+                        self.astf_profile_state[profile_id] = self.STATE_IDLE
+                    else:
+                        raise TRexError("ASTF profile_id %s does not exist." % profile_id)
 
-               if profile_id not in valid_pids:
-                   valid_pids.append(profile_id)
+                if profile_id not in valid_pids:
+                    valid_pids.append(profile_id)
 
         return valid_pids
 
@@ -714,7 +714,7 @@ class ASTFClient(TRexClient):
 
     # get stats
     @client_api('getter', True)
-    def get_stats(self, ports = None, sync_now = True, skip_zero = True, pid_input = DEFAULT_PROFILE_ID):
+    def get_stats(self, ports = None, sync_now = True, skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         """
             Gets all statistics on given ports, traffic and latency.
 
@@ -727,9 +727,13 @@ class ASTFClient(TRexClient):
 
                 pid_input: string
                     Input profile ID
+
+                is_sum: boolean
+                    Get total counter values
+
         """
         stats = self._get_stats_common(ports, sync_now)
-        stats['traffic'] = self.get_traffic_stats(skip_zero, pid_input)
+        stats['traffic'] = self.get_traffic_stats(skip_zero, pid_input, is_sum = is_sum)
         stats['latency'] = self.get_latency_stats(skip_zero)
 
         return stats
@@ -811,7 +815,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
-    def get_traffic_stats(self, skip_zero = True, pid_input = DEFAULT_PROFILE_ID):
+    def get_traffic_stats(self, skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         """
             Returns aggregated traffic statistics.
 
@@ -821,8 +825,11 @@ class ASTFClient(TRexClient):
                 pid_input: string
                     Input profile ID
 
+                is_sum: boolean
+                    Get total counter values
+
         """
-        return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input)
+        return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum)
 
 
     @client_api('getter', True)
@@ -1306,6 +1313,13 @@ class ASTFClient(TRexClient):
             self._show_port_stats(opts.ports)
             return
 
+        if self.is_dynamic == True and opts.pfname == None:
+            is_sum = True
+            valid_pids = self.validate_profile_id_input(pid_input = DEFAULT_PROFILE_ID)
+        else:
+            is_sum = False
+            valid_pids = self.validate_profile_id_input(pid_input = opts.pfname)
+
         # decode which stats to show
         if opts.stats == 'global':
             self._show_global_stats()
@@ -1329,14 +1343,12 @@ class ASTFClient(TRexClient):
             self._show_mbuf_util()
 
         elif opts.stats == 'astf':
-            valid_pids = self.validate_profile_id_input(pid_input = opts.pfname)
             for profile_id in valid_pids:
-                self._show_traffic_stats(False, pid_input = profile_id)
+                self._show_traffic_stats(False, pid_input = profile_id, is_sum = is_sum)
 
         elif opts.stats == 'astf_inc_zero':
-            valid_pids = self.validate_profile_id_input(pid_input = opts.pfname)
             for profile_id in valid_pids:
-                self._show_traffic_stats(True, pid_input = profile_id)
+                self._show_traffic_stats(True, pid_input = profile_id, is_sum = is_sum)
 
         elif opts.stats == 'latency':
             self._show_latency_stats()
@@ -1400,8 +1412,8 @@ class ASTFClient(TRexClient):
         return self.traffic_stats._get_num_of_tgids(pid_input)
 
 
-    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID):
-        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input)
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
 

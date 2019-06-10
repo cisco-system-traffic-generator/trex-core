@@ -169,12 +169,16 @@ class CAstfTrafficStats(object):
         return True, stats
 
 
-    def _get_stats_values(self, relative = True, pid_input = DEFAULT_PROFILE_ID):
+    def _get_stats_values(self, relative = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         self._init_desc_and_ref(pid_input)
         params = {'profile_id' : pid_input}
-        rc = self.rpc.transmit('get_counter_values', params = params)
+        if is_sum:
+            rc = self.rpc.transmit('get_total_counter_values', params = params)
+        else:
+            rc = self.rpc.transmit('get_counter_values', params = params)
         if not rc:
             raise TRexError(rc.err())
+
         ref_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1
         
         data_epoch = rc.data()['epoch']
@@ -235,8 +239,8 @@ class CAstfTrafficStats(object):
         return (errs, data)
 
 
-    def get_stats(self,skip_zero = True, pid_input = DEFAULT_PROFILE_ID):
-        vals = self._get_stats_values(pid_input = pid_input)
+    def get_stats(self,skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        vals = self._get_stats_values(pid_input = pid_input, is_sum = is_sum)
         data = {}
         for section in self.sections:
             data[section] = self._build_dict_vals_without_zero(vals[section], skip_zero)
@@ -249,14 +253,17 @@ class CAstfTrafficStats(object):
             self._ref[section] = data[section]
 
 
-    def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID):
+    def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         self._get_tg_names(pid_input)
         num_of_tgids = len(self.tg_names_dict[pid_input]['tg_names'])
         title = ""
         data = {}
         if tgid == 0:
-            data = self._get_stats_values(pid_input = pid_input)
-            title = 'Traffic stats summary. Profile ID : ' + pid_input + '. Number of template groups = ' + str(num_of_tgids)
+            data = self._get_stats_values(pid_input = pid_input, is_sum = is_sum)
+            if is_sum:
+                title = 'Traffic stats summary.'
+            else:
+                title = 'Traffic stats of Profile ID : ' + pid_input + '. Number of template groups = ' + str(num_of_tgids)
         else:
             if not 1 <= tgid <= num_of_tgids:
                 raise ASTFErrorBadTG('Invalid tgid in to_table')
