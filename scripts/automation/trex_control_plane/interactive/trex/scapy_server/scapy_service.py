@@ -966,9 +966,9 @@ class Scapy_service(Scapy_service_api):
         if param_id == "pkt_offset":
             if self._is_int(val):
                 return int(val)
-            elif val == "Ether.src":
-                return 0
             elif val == "Ether.dst":
+                return 0
+            elif val == "Ether.src":
                 return 6
             elif val == "Ether.type":
                 return 12
