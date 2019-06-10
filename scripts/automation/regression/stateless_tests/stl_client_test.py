@@ -43,7 +43,9 @@ class STLClient_Test(CStlGeneral_Test):
         self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
         self.c.connect()
-        self.c.reset(ports = [self.tx_port, self.rx_port])
+#        self.c.reset(ports = [self.tx_port, self.rx_port])
+        for tx_port, rx_port in CTRexScenario.ports_map['map'].items():
+            self.c.reset(ports = [tx_port, rx_port])
 
         port_info = self.c.get_port_info(ports = self.rx_port)[0]
 
@@ -65,7 +67,9 @@ class STLClient_Test(CStlGeneral_Test):
         
     def cleanup (self):
         self.c.remove_all_captures()
-        self.c.reset(ports = [self.tx_port, self.rx_port])
+#        self.c.reset(ports = [self.tx_port, self.rx_port])
+        for tx_port, rx_port in CTRexScenario.ports_map['map'].items():
+            self.c.reset(ports = [tx_port, rx_port])
         
             
     @classmethod
@@ -858,26 +862,18 @@ class STLClient_Test(CStlGeneral_Test):
     def test_latency_pause_resume_dynamic_profile (self):
 
         try:
-            print("\n1) Check pre-existing pg_ids")
-            self.c.show_stats_line("-l")
-
             profile_id = 1
             num_profiles = 100
             tx_profile_list = []
             tx_all_profile = str(self.tx_port) + str(".*")
-            tx_dict = {}
 
             while profile_id <= num_profiles:
                 tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
                 tx_profile_list.append(tx_profile_name)
                 profile_id = profile_id + 1
 
-            print("\n2) Add streams (make sure pg_ids do not overlap")
             for index, tx_profile in enumerate(tx_profile_list):
                 pg_index = index * num_profiles + self.tx_port
-                tx_dict[pg_index] = tx_profile
-                print("  pg_index : %s" %pg_index)
-                print("  tx_profile : %s\n" %tx_profile)
                 stream = STLStream(name = 'latency',
                                packet = self.pkt,
                                mode = STLTXCont(pps = 5),
@@ -896,9 +892,8 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.stop()
 
         except STLError as e:
-            assert False , '{}'.format(tx_dict)
+            assert False , '{0}'.format(e)
 
         finally:
-            print(tx_dict)
             self.cleanup()
 
