@@ -904,13 +904,20 @@ class STLPort(Port):
     def has_rx_enabled (self):
         return self.has_rx_streams
 
+    # return True if profile has any stream configured with RX stats
+    def has_profile_rx_enabled (self, profile_id):
+        streams = [self.streams[stream_id] for stream_id in self.profile_stream_list.get(profile_id) if self.streams.get(stream_id)]
+        return any([stream.has_flow_stats() for stream in streams])
 
-    # return true if rx_delay_ms has passed since the last port stop
-    def has_rx_delay_expired (self, rx_delay_ms):
-        assert(self.has_rx_enabled())
+    def is_profile_active(self, profile_id):
+        return self.profile_state_list.get(profile_id) in (self.STATE_TX, self.STATE_PAUSE, self.STATE_PCAP_TX, self.STATE_ASTF_PARSE, self.STATE_ASTF_BUILD, self.STATE_ASTF_CLEANUP)
+
+    # return true if rx_delay_ms has passed since the last profile stop
+    def has_rx_delay_expired (self, profile_id, rx_delay_ms):
+        assert(self.has_profile_rx_enabled(profile_id))
 
         # if active - it's not safe to remove RX filters
-        if self.is_active():
+        if self.is_profile_active(profile_id):
             return False
 
         # either no timestamp present or time has already passed
@@ -919,7 +926,7 @@ class STLPort(Port):
 
     @writeable
     def remove_rx_filters (self, profile_id = DEFAULT_PROFILE_ID):
-        assert(self.has_rx_enabled())
+        assert(self.has_profile_rx_enabled(profile_id))
 
         if self.state == self.STATE_IDLE:
             return self.ok()

@@ -227,25 +227,18 @@ class STLClient(TRexClient):
     @validate_port_input("ports")
     def _remove_rx_filters (self, ports, rx_delay_ms):
 
-        rx_profiles = []
-        port_id_list = parse_ports_from_profiles(ports)
-
-        # get the enabled RX ports
-        rx_ports = [port_id for port_id in port_id_list if self.ports[port_id].has_rx_enabled()]
+        # get the enabled RX profiles
+        rx_ports = [p for p in ports if self.ports[p.port_id].has_profile_rx_enabled(p.profile_id)]
 
         if not rx_ports:
             return RC_OK()
 
-        # block while any RX configured port has not yet have it's delay expired
-        while any([not self.ports[port_id].has_rx_delay_expired(rx_delay_ms) for port_id in rx_ports]):
+        # block while any RX configured profile has not yet have it's delay expired
+        while any([not self.ports[p.port_id].has_rx_delay_expired(p.profile_id, rx_delay_ms) for p in rx_ports]):
             time.sleep(0.01)
 
-        for port in ports:
-            if int(port) in rx_ports:
-                rx_profiles.append(port)
-
         # remove RX filters
-        return self._for_each_port('remove_rx_filters', rx_profiles)
+        return self._for_each_port('remove_rx_filters', rx_ports)
 
     # Check console API ports argument
     def validate_profile_input(self, input_profiles):
