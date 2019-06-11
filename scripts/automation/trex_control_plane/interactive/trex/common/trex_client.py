@@ -3189,11 +3189,10 @@ class TRexClient(object):
         parser = parsing_opts.gen_parser(self,
                                          "clear",
                                          self.clear_stats_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.ASTF_PROFILE_DEFAULT_LIST)
+                                         parsing_opts.PORT_LIST_WITH_ALL)
 
         opts = parser.parse_args(line.split())
-        self.clear_stats(opts.ports, pid_input = opts.profiles)
+        self.clear_stats(opts.ports)
 
         return RC_OK()
 
