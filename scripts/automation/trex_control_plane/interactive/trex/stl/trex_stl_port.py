@@ -902,7 +902,7 @@ class STLPort(Port):
 
     # return True if profile has any stream configured with RX stats
     def has_profile_rx_enabled (self, profile_id):
-        streams = [self.streams[stream_id] for stream_id in self.profile_stream_list.get(profile_id) if self.streams.get(stream_id)]
+        streams = [self.streams[stream_id] for stream_id in self.profile_stream_list.get(profile_id, []) if self.streams.get(stream_id)]
         return any([stream.has_flow_stats() for stream in streams])
 
     def is_profile_active(self, profile_id):
