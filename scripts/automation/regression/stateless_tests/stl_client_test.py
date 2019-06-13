@@ -812,8 +812,9 @@ class STLClient_Test(CStlGeneral_Test):
                     stats[self.tx_port]['ipackets'],
                     stats[self.rx_port]['ipackets'],
                     )
+                # it is not burst so it could be not accurate 
                 for param in check_params:
-                    assert get_error_in_percentage(golden, param) < 0.05, 'golden: %s, got: %s' % (golden, param)
+                    assert get_error_in_percentage(golden, param) < 0.10, 'golden: %s, got: %s' % (golden, param)
 
                 self.c.remove_all_streams(ports = profile_list)
 
