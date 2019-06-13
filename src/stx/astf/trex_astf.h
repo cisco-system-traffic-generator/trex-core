@@ -23,21 +23,29 @@ limitations under the License.
 
 #include <stdint.h>
 #include <vector>
+#include <map>
 
 #include "common/trex_stx.h"
 #include "trex_astf_defs.h"
+#include "stt_cp.h"
 
 class TrexAstfPort;
 class CSyncBarrier;
 class CRxAstfCore;
+class TrexAstf;
 
 typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
+typedef std::string cp_profile_id_t;
 
-/**
- * TRex adavanced stateful interactive object
- * 
- */
-class TrexAstf : public TrexSTX {
+const std::string DEFAULT_ASTF_PROFILE_ID = "_";
+
+typedef enum trex_astf_hash {
+    HASH_OK,
+    HASH_ON_SAME_PROFILE,
+    HASH_ON_OTHER_PROFILE,
+} trex_astf_hash_e;
+
+class AstfProfileState {
 public:
     enum state_e {
         STATE_IDLE,
@@ -46,16 +54,152 @@ public:
         STATE_BUILD, // by DP cores, not cancelable
         STATE_TX,
         STATE_CLEANUP, // by DP cores, not cancelable
+        STATE_DELETE,  // by DP core 0, not cancelable
         AMOUNT_OF_STATES,
     };
+};
 
+/***********************************************************
+ * TRex ASTF each profile in interactive
+ ***********************************************************/
+class TrexAstfPerProfile : public AstfProfileState {
+public:
+    typedef std::vector<state_e> states_t;
+
+    TrexAstfPerProfile(TrexAstf* astf_obj,
+                       uint32_t dp_profile_id=0,
+                       cp_profile_id_t cp_profile_id=DEFAULT_ASTF_PROFILE_ID);
+    ~TrexAstfPerProfile();
+
+    /**
+     * Profile-related:
+     * cmp - compare hash to loaded profile, true = matches (heavy profile will not be uploaded twice)
+     * init - clears profile JSON string (if any)
+     * append - appends fragment to profile JSON string
+     * loaded - move state from idle to loaded
+     */
+    trex_astf_hash_e profile_cmp_hash(const std::string &hash);
+    void profile_init();
+    void profile_append(const std::string &fragment);
+    void profile_set_loaded();
+
+    /**
+     * Handle profile status
+     */
+    void profile_change_state(state_e new_state);
+    void profile_check_whitelist_states(const states_t &whitelist);
+    bool is_profile_state_build();
+
+    bool profile_needs_parsing();
+    bool is_error() {
+        return m_error.size() > 0;
+    }
+
+    /*
+     * involved message between CP and DP
+     */
+    void parse();
+    void build();
+    void transmit();
+    void cleanup();
+    void all_dp_cores_finished();
+    void dp_core_finished();
+    void dp_core_error(const std::string &err);
+
+    /*
+     * publish event for each profile
+     */
+    void publish_astf_profile_state();
+    void publish_astf_profile_clear();
+
+    /*
+     * For private variables
+     */
+    int32_t get_dp_profile_id() { return m_dp_profile_id; }
+    state_e get_profile_state() { return m_profile_state; }
+    bool    get_profile_stopping() { return m_profile_stopping; }
+    bool    get_nc_flow_close() { return m_nc_flow_close; }
+    double  get_duration() { return m_duration; }
+    double  get_factor() { return m_factor; }
+    CSTTCp* get_stt_cp() { return m_stt_cp; }
+
+    void    set_profile_stopping(bool stopping) { m_profile_stopping = stopping; }
+    void    set_nc_flow_close(bool nc) { m_nc_flow_close = nc; }
+    void    set_duration(double duration) { m_duration = duration; }
+    void    set_factor(double mult) { m_factor = mult; }
+
+private:
+    state_e         m_profile_state;
+    std::string     m_profile_buffer;
+    std::string     m_profile_hash;
+    bool            m_profile_parsed;
+    bool            m_profile_stopping;
+
+    int16_t         m_active_cores;
+    bool            m_nc_flow_close;
+    double          m_duration;
+    double          m_factor;
+    std::string     m_error;
+
+    int32_t         m_dp_profile_id;
+    cp_profile_id_t m_cp_profile_id;
+
+    CSTTCp*         m_stt_cp;
+    TrexAstf*       m_astf_obj;
+};
+
+
+/***********************************************************
+ * TRex ASTF dynamic multiple profiles in interactive
+ ***********************************************************/
+class TrexAstfProfile : public AstfProfileState {
+public:
+    typedef std::vector<state_e> states_t;
+
+    TrexAstfProfile();
+    ~TrexAstfProfile();
+
+    /**
+     * Handle dynamic multiple profiles
+     */
+    void add_profile(cp_profile_id_t profile_id);
+    bool delete_profile(cp_profile_id_t profile_id);
+    bool is_valid_profile(cp_profile_id_t profile_id);
+    uint32_t get_num_profiles();
+    std::unordered_map<std::string, TrexAstfPerProfile *> get_profile_list() {
+        return m_profile_list;
+    }
+
+    TrexAstfPerProfile* get_profile(cp_profile_id_t profile_id);
+    cp_profile_id_t get_profile_id(uint32_t dp_profile_id);
+
+    std::vector<std::string> get_profile_id_list();
+    std::vector<state_e>     get_profile_state_list();
+    std::vector<CSTTCp *>    get_sttcp_list();
+
+    std::vector<std::string> m_states_names;
+
+    bool is_another_profile_transmitting(cp_profile_id_t profile_id);
+    bool is_another_profile_busy(cp_profile_id_t profile_id);
+
+protected:
+    std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
+
+private:
+    uint32_t m_dp_profile_last_id;
+};
+
+
+/***********************************************************
+ * TRex adavanced stateful interactive object
+ ***********************************************************/
+class TrexAstf : public TrexAstfProfile, public TrexSTX {
+public:
     enum state_latency_e {
         STATE_L_IDLE,
         STATE_L_WORK,
         AMOUNT_OF_L_STATES,
     };
-
-    typedef std::vector<state_e> states_t;
 
     /** 
      * create ASTF object 
@@ -68,16 +212,14 @@ public:
      * 
      */
     void launch_control_plane();
-    
-    
+
     /**
      * shutdown ASTF
      * 
      */
     void shutdown();
 
-    void all_dp_cores_finished();
-    void dp_core_finished(int thread_id);
+    void dp_core_finished(int thread_id, uint32_t dp_profile_id);
 
     /**
      * async data sent for ASTF
@@ -115,18 +257,6 @@ public:
     void release_context();
 
     /**
-     * Profile-related:
-     * cmp - compare hash to loaded profile, true = matches (heavy profile will not be uploaded twice)
-     * clear - clears profile JSON string (if any)
-     * append - appends fragment to profile JSON string
-     * loaded - move state from idle to loaded
-     */
-    bool profile_cmp_hash(const std::string &hash);
-    void profile_clear();
-    void profile_append(const std::string &fragment);
-    void profile_set_loaded();
-
-    /**
      * Topology-related:
      * cmp - compare hash to loaded topo, true = matches (heavy topo will not be uploaded twice)
      * clear - clears topo JSON string (if any)
@@ -143,20 +273,26 @@ public:
      * Stats Related
      */
     bool is_state_build();
+
     /**
      * Start transmit
      */
-    void start_transmit(const start_params_t &args);
+    void start_transmit(cp_profile_id_t profile_id, const start_params_t &args);
 
     /**
      * Stop transmit
      */
-    void stop_transmit();
+    void stop_transmit(cp_profile_id_t profile_id);
+
+    /**
+     * Clear profile
+     */
+    void profile_clear(cp_profile_id_t profile_id);
 
     /**
      * Update traffic rate
      */
-    void update_rate(double mult);
+    void update_rate(cp_profile_id_t profile_id, double mult);
 
     TrexOwner& get_owner() {
         return m_owner;
@@ -183,11 +319,21 @@ public:
      */
     void update_latency_rate(double mult);
 
+    /**
+     * start latency traffic if latency option is available
+     */
+    std::string handle_start_latency(int32_t dp_profile_id);
+
+    /**
+     * stop latency traffic if latency option is available
+     */
+    void handle_stop_latency();
+
     CSyncBarrier* get_barrier() {
         return m_sync_b;
     }
 
-    void dp_core_error(int thread_id, const std::string &err);
+    void dp_core_error(int thread_id, uint32_t dp_profile_id, const std::string &err);
 
     state_e get_state() {
         return m_state;
@@ -204,26 +350,27 @@ public:
         return((CRxAstfCore *)m_rx);
     }
 
-    bool profile_needs_parsing();
     bool topo_needs_parsing();
 
-protected:
-    // message to DP involved:
-    void parse();
-    void build();
-    void transmit();
-    void cleanup();
-    bool is_trans_state();
+    /**
+     * update_astf_state          : update state for all profiles
+     * publish_astf_state         : publish state for all profiles
+     * get_profiles_status        : get JSON value list for all profiles id
+     */
+    void update_astf_state();
+    void publish_astf_state(std::string &err);
+    void get_profiles_status(Json::Value &result);
 
-    bool is_error() {
-        return m_error.size() > 0;
-    }
-
-    void change_state(state_e new_state);
     void set_barrier(double timeout_sec);
     void send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone = false);
     void send_message_to_all_dp(TrexCpToDpMsgBase *msg);
+    bool is_trans_state();
 
+    std::string* get_topo_buffer() { return &m_topo_buffer; }
+    void         set_topo_parsed(bool topo) { m_topo_parsed = topo; }
+
+protected:
+    void change_state(state_e new_state);
     void check_whitelist_states(const states_t &whitelist);
     //void check_blacklist_states(const states_t &blacklist);
 
@@ -235,21 +382,14 @@ protected:
 
     TrexOwner       m_owner;
     state_e         m_state;
-    int16_t         m_active_cores;
-    std::vector<std::string> m_states_names;
     CSyncBarrier   *m_sync_b;
     CFlowGenList   *m_fl;
     CParserOption  *m_opts;
-    std::string     m_error;
-    std::string     m_profile_buffer;
-    std::string     m_profile_hash;
-    bool            m_profile_parsed;
     std::string     m_topo_buffer;
     std::string     m_topo_hash;
     bool            m_topo_parsed;
     uint64_t        m_epoch;
 };
-
 
 static inline TrexAstf * get_astf_object() {
     return (TrexAstf *)get_stx();

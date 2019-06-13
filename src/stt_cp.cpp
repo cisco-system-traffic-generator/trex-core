@@ -23,7 +23,7 @@ limitations under the License.
 
 
 
-bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec) {
+bool CSTTCpPerTGIDPerDir::Create(uint32_t stt_id, uint32_t time_msec) {
     clear_aggregated_counters();
     create_clm_counters();
     m_tx_bw_l7.start(time_msec);
@@ -31,6 +31,7 @@ bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec) {
     m_rx_bw_l7.start(time_msec);
     m_tx_pps.start(time_msec);
     m_rx_pps.start(time_msec);
+    m_stt_id = stt_id;
     return(true);
 }
 
@@ -52,11 +53,11 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         uint64_t *base_tcp;
         uint64_t *base_udp;
         if (is_sum) {
-            base_tcp = (uint64_t *)&lpctx->get_tcpstat()->m_sts;
-            base_udp = (uint64_t *)&lpctx->get_udpstat()->m_sts;
+            base_tcp = (uint64_t *)&lpctx->get_tcpstat(m_stt_id)->m_sts;
+            base_udp = (uint64_t *)&lpctx->get_udpstat(m_stt_id)->m_sts;
         } else {
-            base_tcp = (uint64_t *)&lpctx->get_tcpstat()->m_sts_tg_id[tg_id];
-            base_udp = (uint64_t *)&lpctx->get_udpstat()->m_sts_tg_id[tg_id];
+            base_tcp = (uint64_t *)&lpctx->get_tcpstat(m_stt_id)->m_sts_tg_id[tg_id];
+            base_udp = (uint64_t *)&lpctx->get_udpstat(m_stt_id)->m_sts_tg_id[tg_id];
         }
         CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
         CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
@@ -367,17 +368,18 @@ void CSTTCp::Init(bool first_time){
     const char * names[]={"client","server"};
     for (int i = 0; i < TCP_CS_NUM; i++) {
         for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
-            m_sts_per_tg_id[i][tg_id]->Create(time_msec);
+            m_sts_per_tg_id[i][tg_id]->Create(m_stt_id, time_msec);
             m_sts_per_tg_id[i][tg_id]->m_clm.set_name(names[i]);
         }
         if (first_time) {
-            m_sts[i].Create(time_msec);
+            m_sts[i].Create(m_stt_id, time_msec);
             m_sts[i].m_clm.set_name(names[i]);
         }
     }
 }
 
-void CSTTCp::Create(uint16_t num_of_tg_ids, bool first_time){
+void CSTTCp::Create(uint32_t stt_id, uint16_t num_of_tg_ids, bool first_time){
+    m_stt_id = stt_id;
     m_num_of_tg_ids = num_of_tg_ids;
     if (first_time) {
         m_init = false;
@@ -486,7 +488,7 @@ void CSTTCp::Resize(uint16_t new_num_of_tg_ids) {
 
     Delete(false);
 
-    Create(new_num_of_tg_ids, false);
+    Create(m_stt_id, new_num_of_tg_ids, false);
 
     for (int i = 0 ; i < TCP_CS_NUM; i++) {
         for (auto &ctx : m_sts[i].m_tcp_ctx) {
