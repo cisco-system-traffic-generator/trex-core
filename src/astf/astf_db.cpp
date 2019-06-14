@@ -35,8 +35,8 @@ inline std::string methodName(const std::string& prettyFunction)
 
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
-// make the class singleton
-std::unordered_map<profile_id_t, CAstfDB> CAstfDB::m_instances;
+// make the class singelton
+CAstfDB* CAstfDB::m_pInstance = NULL;
 
 
 CAstfDB::CAstfDB(){
@@ -48,7 +48,6 @@ CAstfDB::CAstfDB(){
         exit(-1);
     }
     m_topo_mngr = new TopoMngr();
-    m_factor = -1.0;
 }
 
 
@@ -58,10 +57,6 @@ CAstfDB::~CAstfDB(){
         delete m_validator;
     }
     delete m_topo_mngr;
-    for (auto it : m_smart_gen) {
-        delete it.second;
-    }
-    m_smart_gen.clear();
 }
 
 
@@ -72,12 +67,9 @@ bool CAstfDB::validate_profile(Json::Value profile,std::string & err){
 
 
 
-double CAstfDB::cps_factor(double cps){
-    if (m_factor > 0.0) {
-        return ( m_factor*cps );
-    } else {
-        return ( CGlobalInfo::m_options.m_factor*cps );
-    }
+static double cps_factor(double cps){
+    return ( CGlobalInfo::m_options.m_factor*cps );
+
 }
 
 void CTcpTuneables::dump(FILE *fd) {
@@ -138,19 +130,6 @@ void CTcpDataAssocTranslation::clear() {
     }
     m_map.clear();
     m_vec.clear();
-}
-
-void CTcpDataAssocTranslation::enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
-    for (CTcpDataAssocTransHelp& trans_help : m_vec) {
-        if (trans_help.m_params.m_stream == is_stream) {
-            ports.push_back(trans_help.m_params.m_port);
-        }
-    }
-    for (assoc_map_it_t it = m_map.begin(); it != m_map.end(); it++) {
-        if (it->first.m_stream == is_stream) {
-            ports.push_back(it->first.m_port);
-        }
-    }
 }
 
 bool CAstfDB::start_profile_no_buffer(Json::Value msg){
@@ -922,7 +901,7 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
     return true;
 }
 
-ClientCfgDB  *CAstfDB::get_client_cfg_db() {
+ClientCfgDB  *CAstfDB::get_client_db() {
     static ClientCfgDB g_dummy;
     if (m_client_config_info==0) {
         return  &g_dummy;
@@ -1050,9 +1029,6 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     // json data should not be accessed by multiple threads in parallel
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
 
-    if (g_gen == nullptr) {
-        g_gen = get_smart_gen(thread_id);
-    }
     g_gen->Create(0, thread_id);
 
     uint16_t rss_thread_id, rss_thread_max;
@@ -1108,7 +1084,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         if (ip_gen_list[i]["dir"] == "c") {
             gen_idx_trans.push_back(last_c_idx);
             last_c_idx++;
-            ClientCfgDB  * cdb=get_client_cfg_db();
+            ClientCfgDB  * cdb=get_client_db();
             g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, *cdb, 0, 0);
         } else {
             gen_idx_trans.push_back(last_s_idx);
@@ -1167,7 +1143,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         CTcpTuneables *s_tuneable;
         CTcpTuneables *c_tuneable = new CTcpTuneables();
         assert(c_tuneable);
-        s_tuneable = get_s_tune(index);
+        assert(CAstfDB::m_pInstance);
+        s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
         assert(s_tuneable);
 
         if (!read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"])){
@@ -1480,35 +1457,27 @@ const std::vector<std::string>& CAstfDB::get_tg_names() {
     return m_tg_names;
 }
 
-void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id) {
+void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen) {
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
-    if (g_gen == nullptr) {
-        remove_smart_gen(thread_id);
-    }
-    else {
-        g_gen->Delete();
-    }
-    /* to clear only when there is no thread generator */
-    if (m_smart_gen.size() == 0) {
-        for ( auto &rw_db : m_rw_db) {
-            if ( !rw_db ) {
-                continue;
-            }
-            rw_db->Delete();
-            delete rw_db;
+    for ( auto &rw_db : m_rw_db) {
+        if ( !rw_db ) {
+            continue;
         }
-        m_rw_db.clear();
-        for (auto &s_tuneables : m_s_tuneables) {
-            delete s_tuneables;
-        }
-        m_s_tuneables.clear();
-        m_prog_lens.clear();
+        rw_db->Delete();
+        delete rw_db;
+    }
+    m_rw_db.clear();
+    for (auto &s_tuneables : m_s_tuneables) {
+        delete s_tuneables;
+    }
+    m_s_tuneables.clear();
+    m_prog_lens.clear();
 
-        for (auto &tcp_data : m_tcp_data) {
-            tcp_data.Delete();
-        }
-        m_json_initiated = false;
+    for (auto &tcp_data : m_tcp_data) {
+        tcp_data.Delete();
     }
+    g_gen->Delete();
+    m_json_initiated = false;
     my_lock.unlock();
 }
 
