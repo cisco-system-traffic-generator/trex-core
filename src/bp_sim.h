@@ -601,35 +601,6 @@ public:
 };
 
 
-struct CGenNodeCommand : public CGenNodeBase  {
-
-public:
-    TrexCpToDpMsgBase  *m_cmd;
-
-    uint8_t             m_pad_end[104];
-
-    /* CACHE_LINE */
-    uint64_t            m_pad3[8];
-
-public:
-    void free_command();
-
-} __rte_cache_aligned;;
-
-
-class CPerProfileCtx;
-
-struct CGenNodeTXFIF : public CGenNodeBase {
-public:
-    CPerProfileCtx *    m_pctx;
-
-    uint8_t             m_pad_end[104];
-
-    /* CACHE_LINE */
-    uint64_t            m_pad3[8];
-} __rte_cache_aligned;;
-
-
 struct CGenNode : public CGenNodeBase  {
 
 public:
@@ -3103,8 +3074,10 @@ private:
 
 public:
     /* TCP stack memory */
-    CTcpPerThreadCtx      *         m_c_tcp;        /* active tcp client ctx */
-    CTcpPerThreadCtx      *         m_s_tcp;        /* active tcp server ctx */
+    CTcpPerThreadCtx      *         m_c_tcp;
+    CTcpCtxCb             *         m_c_tcp_io;
+    CTcpPerThreadCtx      *         m_s_tcp;
+    CTcpCtxCb             *         m_s_tcp_io;
     bool                            m_tcp_terminate;
     bool                            m_sched_accurate;
     uint32_t                        m_tcp_terminate_cnt;
@@ -3114,15 +3087,14 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    void load_tcp_profile(profile_id_t profile_id = 0, bool is_first = true);
-    void unload_tcp_profile(profile_id_t profile_id = 0, bool is_last = true);
-    void remove_tcp_profile(profile_id_t profile_id);
+    void load_tcp_profile();
+    void unload_tcp_profile();
     void Delete_tcp_ctx();
 
-    void generate_flow(bool &done, CPerProfileCtx * pctx);
+    void generate_flow(bool &done);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
-    void handle_tx_fif(CGenNodeTXFIF * node,bool on_terminate);
+    void handle_tx_fif(CGenNode * node,bool on_terminate);
     void handle_tw(CGenNode * node,bool on_terminate);
     uint16_t handle_rx_pkts(bool is_idle);
 
@@ -3392,10 +3364,8 @@ class CRXCoreIgnoreStat {
     uint64_t m_tot_bytes;
 };
 
-static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
-static_assert(sizeof(CGenNodeTXFIF) == sizeof(CGenNode), "sizeof(CGenNodeTXFIF) != sizeof(CGenNode)" );
 
 static inline void rte_pause_or_delay_lowend() {
     if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {

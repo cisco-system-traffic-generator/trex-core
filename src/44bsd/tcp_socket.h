@@ -374,7 +374,6 @@ typedef std::vector<CEmulAppCmd> tcp_app_cmd_list_t;
 
 class CTcpFlow;
 class CUdpFlow;
-class CPerProfileCtx;
 class CTcpPerThreadCtx;
 
 /* Api from application to TCP */
@@ -393,11 +392,11 @@ public:
 
     virtual uint32_t rx_drain(CTcpFlow * flow)=0;
 
-    virtual void tx_tcp_output(CPerProfileCtx * pctx,
+    virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,
                                CTcpFlow *         flow)=0;
 
 public:
-    virtual void disconnect(CPerProfileCtx * pctx,
+    virtual void disconnect(CTcpPerThreadCtx * ctx,
                             CTcpFlow *         flow)=0;
 
 public:
@@ -553,7 +552,7 @@ public:
 
     CEmulApp() {
         m_flow = (CTcpFlow *)0;
-        m_pctx =(CPerProfileCtx *)0;
+        m_ctx =(CTcpPerThreadCtx *)0;
         m_api=(CEmulAppApi *)0;
         m_program =(CEmulAppProgram *)0;
         m_flags=0;
@@ -720,19 +719,15 @@ public:
         m_program = prog;
     }
 
-    void set_flow_ctx(CPerProfileCtx *  pctx,
+    void set_flow_ctx(CTcpPerThreadCtx *  ctx,
                       CTcpFlow *          flow){
-        m_pctx = pctx;
+        m_ctx = ctx;
         m_flow = flow;
     }
-#ifdef  TREX_SIM
-    void set_flow_ctx(CTcpPerThreadCtx *  ctx,
-                      CTcpFlow *          flow);
-#endif
 
-    void set_udp_flow_ctx(CPerProfileCtx *  pctx,
+    void set_udp_flow_ctx(CTcpPerThreadCtx *  ctx,
                           CUdpFlow *          flow){
-        m_pctx = pctx;
+        m_ctx = ctx;
         m_flow = (CTcpFlow*)flow;
     }
 
@@ -836,7 +831,7 @@ private:
 private:
     /* cache line 0 */
     CTcpFlow *              m_flow;
-    CPerProfileCtx *        m_pctx;
+    CTcpPerThreadCtx *      m_ctx;
     CEmulAppApi *           m_api; 
 
     CEmulTxQueue            m_q;
