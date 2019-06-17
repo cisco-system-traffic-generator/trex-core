@@ -712,6 +712,9 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
         printf("ERROR  can't create flow table \n");
         return(false);
     }
+
+    create_profile_ctx(0);  // create default profile
+
     return(true);
 }
 

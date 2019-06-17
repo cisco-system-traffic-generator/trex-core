@@ -885,6 +885,7 @@ public:
     ~CPerProfileCtx() {
         if (m_sch_rampup != nullptr) {
             delete m_sch_rampup;
+            m_sch_rampup = nullptr;
         }
     }
     void activate() { m_stopped = false; }
@@ -1040,22 +1041,31 @@ public:
 #define FALLBACK_PROFILE_CTX(ctx)   ((ctx)->get_first_profile_ctx())
 #define DEFAULT_PROFILE_CTX(ctx)    ((ctx)->get_profile_ctx(0))
     CPerProfileCtx* get_profile_ctx(profile_id_t profile_id) {
-        if (!is_profile_ctx(profile_id)) {
-            create_profile_ctx(profile_id);
+#ifdef TREX_SIM
+        if (profile_id == 0 && !is_profile_ctx(0)) {
+            create_profile_ctx(0);  // default profile need to be static in simulator.
         }
-        return m_profiles[profile_id];
+#endif
+        return m_profiles.at(profile_id);
     }
     CPerProfileCtx* get_first_profile_ctx() {
         assert(m_profiles.size() != 0);
         return m_profiles.begin()->second;
     }
     void create_profile_ctx(profile_id_t profile_id) {
+        CPerProfileCtx* pctx;
+
         if (is_profile_ctx(profile_id)) {
-            delete m_profiles[profile_id];
+            pctx = m_profiles[profile_id];
+            pctx->~CPerProfileCtx();
+            new(pctx) CPerProfileCtx();
         }
-        m_profiles[profile_id] = new CPerProfileCtx();
-        m_profiles[profile_id]->m_ctx = this;
-        m_profiles[profile_id]->m_profile_id = profile_id;
+        else {
+            pctx = new CPerProfileCtx();
+            m_profiles[profile_id] = pctx;
+        }
+        pctx->m_ctx = this;
+        pctx->m_profile_id = profile_id;
     }
     void remove_profile_ctx(profile_id_t profile_id) {
         if (is_profile_ctx(profile_id)) {
@@ -1064,6 +1074,8 @@ public:
         }
     }
 
+    /* per profile context access by profile_id */
+public:
     int profile_flow_cnt(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
 
     void set_stop_id(profile_id_t profile_id, uint32_t stop_id) {
