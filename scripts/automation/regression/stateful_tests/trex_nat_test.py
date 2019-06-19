@@ -155,8 +155,8 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         nat_stats = self.router.get_nat_stats()
         print(nat_stats)
 
-        self.assert_gt(nat_stats['total_active_trans'], 5000, 'total active translations is not high enough')
-        self.assert_gt(nat_stats['dynamic_active_trans'], 5000, 'total dynamic active translations is not high enough')
+        self.assert_gt(nat_stats['total_active_trans'], 3, 'total active translations is not high enough')
+        self.assert_gt(nat_stats['dynamic_active_trans'], 3, 'total dynamic active translations is not high enough')
         self.assertEqual(nat_stats['static_active_trans'], 0, "NAT statistics nat_stats['static_active_trans'] should be zero")
         self.assert_gt(nat_stats['num_of_hits'], 50000, 'total nat hits is not high enough')
 
