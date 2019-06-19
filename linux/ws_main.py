@@ -23,8 +23,8 @@ march = os.uname()[4]
 REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
 
-GCC6_DIR = '/usr/local/gcc-6.2/bin'
-GCC7_DIR = '/usr/local/gcc-7.2/bin'
+GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
+GCC7_DIRS = ['/usr/local/gcc-7.2/bin', '/opt/rh/devtoolset-7/root/usr/bin']
 
 
 class SrcGroup:
@@ -109,9 +109,9 @@ def configure(conf):
         conf.env.RPATH = []
 
     if conf.options.gcc6:
-        configure_gcc(conf, GCC6_DIR)
+        configure_gcc(conf, GCC6_DIRS)
     elif conf.options.gcc7:
-        configure_gcc(conf, GCC7_DIR)
+        configure_gcc(conf, GCC7_DIRS)
     else:
         configure_gcc(conf)
 
@@ -126,17 +126,26 @@ def configure(conf):
         
     # handle sanitized process if needed
     configure_sanitized(conf)
-  
-            
 
-def configure_gcc (conf, explicit_path = None):
+
+def search_in_paths(paths):
+    for path in paths:
+        if os.path.exists(path):
+            return path
+
+
+def configure_gcc(conf, explicit_paths = None):
     # use the system path
-    if explicit_path is None:
+    if explicit_paths is None:
         conf.load('g++')
         return
 
-    if not os.path.exists(explicit_path):
-        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+    if type(explicit_paths) is not list:
+        explicit_paths = [explicit_paths]
+
+    explicit_path = search_in_paths(explicit_paths)
+    if not explicit_path:
+        conf.fatal('unable to find GCC in installation dir(s): {0}'.format(explicit_paths))
 
     saved = conf.environ['PATH']
     try:
