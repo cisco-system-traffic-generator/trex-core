@@ -26,7 +26,7 @@ As of writing this is the following release: "Huntington Beach 4.1½" - ntanl_pa
 [source,bash]
 ----
  [bash]>tar xf ntanl_package_3gd-11.0.2-linux.tar.gz
- [bash]>[bash]>cd ntanl_package_3gd_linux_11.0.2
+ [bash]>cd ntanl_package_3gd_linux_11.0.2
  [bash]>sh ./package_install_3gd-11.0.2.sh --noprompt                                                                                                                                                                                                                                                                   
 [ Install documentation ]
 [ Extract and install tools ]
