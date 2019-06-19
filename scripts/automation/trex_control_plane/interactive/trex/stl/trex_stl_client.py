@@ -1178,8 +1178,11 @@ class STLClient(TRexClient):
         # if force - stop any active ports
         if force:
             active_ports = list(set(self.get_active_ports()).intersection(ports))
-            if active_ports:
-                self.stop(active_ports)
+            all_profiles = []
+            for port in active_ports:
+                profile = PortProfileID(str(port) + ".*")
+                all_profiles.append(profile)
+            self.stop(all_profiles)
                 
         # for dual mode check that all are masters
         if is_dual:
