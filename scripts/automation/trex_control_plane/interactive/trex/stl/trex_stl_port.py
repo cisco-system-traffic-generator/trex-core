@@ -108,7 +108,7 @@ class STLPort(Port):
     def __sync_port_state_from_profile (self):
         if self.STATE_PCAP_TX  in self.profile_state_list.values():
             self.state = self.STATE_PCAP_TX
-        if self.STATE_TX in self.profile_state_list.values():
+        elif self.STATE_TX in self.profile_state_list.values():
             self.state = self.STATE_TX
         elif self.STATE_PAUSE in self.profile_state_list.values():
             self.state = self.STATE_PAUSE
@@ -147,10 +147,6 @@ class STLPort(Port):
         for profile_id,state in profile_state.items():
             profile_state = self.__state_from_name_dynamic(state)
             self.__set_profile_state(profile_state, profile_id)
-
-        if self.state is not self.STATE_PCAP_TX:
-            self.__sync_port_state_from_profile()
-
 
 ############################     event      #############################
 ############################     handler    #############################
@@ -218,6 +214,11 @@ class STLPort(Port):
 
         if self.is_dynamic:
             self.state_from_name_dynamic(rc.data()['state_profile'])
+
+        if str(rc.data()['state']) == "PCAP_TX":
+            self.__set_profile_state(self.state, DEFAULT_PROFILE_ID)
+
+        self.__sync_port_state_from_profile()
 
         return self.sync_shared (rc.data())
 
@@ -732,6 +733,8 @@ class STLPort(Port):
             return self.err(rc.err())
 
         self.state = self.STATE_PCAP_TX
+        self.__set_profile_state(self.state, DEFAULT_PROFILE_ID)
+
         return self.ok()
 
 
