@@ -150,6 +150,21 @@ class STLPort(Port):
 
 ############################     event      #############################
 ############################     handler    #############################
+    # for PCAP_TX state
+    def async_event_port_stopped (self):
+        if not self.is_acquired():
+            if self.state == self.STATE_PCAP_TX:
+                self.__set_profile_state(self.STATE_STREAMS, DEFAULT_PROFILE_ID)
+            self.state = self.STATE_STREAMS
+
+    def async_event_port_job_done (self):
+        # until thread is locked - order is important
+        self.tx_stopped_ts = datetime.now()
+        if self.state == self.STATE_PCAP_TX:
+            self.__set_profile_state(self.STATE_STREAMS, DEFAULT_PROFILE_ID)
+        self.state = self.STATE_STREAMS
+
+        self.last_factor_type = None
 
     def async_event_profile_started (self, profile_id):
         if not self.is_acquired():
