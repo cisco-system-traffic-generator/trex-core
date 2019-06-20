@@ -601,7 +601,8 @@ public:
                             
         } else {
             TrexStatelessDpCore *stl_dp_core = (TrexStatelessDpCore *)thread->get_dp_core();
-            stl_dp_core->stop_traffic(get_port_id(), 0, false, 0);
+            int event_id = stl_dp_core->get_port_db(get_port_id())->get_event_id();
+            stl_dp_core->stop_traffic(get_port_id(), 0, false, event_id);
         }
     }
 
