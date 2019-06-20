@@ -216,7 +216,7 @@ class STLPort(Port):
             self.state_from_name_dynamic(rc.data()['state_profile'])
 
         if str(rc.data()['state']) == "PCAP_TX":
-            self.__set_profile_state(self.state, DEFAULT_PROFILE_ID)
+            self.__set_profile_state(self.STATE_PCAP_TX, DEFAULT_PROFILE_ID)
 
         self.__sync_port_state_from_profile()
 
