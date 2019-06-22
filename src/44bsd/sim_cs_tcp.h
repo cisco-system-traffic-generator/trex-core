@@ -374,6 +374,7 @@ public:
     bool                    m_check_counters;
     bool                    m_skip_compare_file;
     uint16_t                m_mss;
+    CTupleGeneratorSmart   *m_gen;
 
 };
 

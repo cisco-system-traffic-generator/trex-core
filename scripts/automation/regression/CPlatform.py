@@ -468,6 +468,13 @@ class CPlatform(object):
             self.toggle_duplicated_intf(action = 'up')
             # self.__toggle_interfaces(dup_ifs)
 
+
+        conf_t_command_set.append('ip nat translation udp-timeout 7')
+        conf_t_command_set.append('ip nat translation dns-timeout 2')
+        conf_t_command_set.append('ip nat translation timeout 60')
+        conf_t_command_set.append('ip nat translation tcp-timeout 60')
+        conf_t_command_set.append('ip nat translation max-entries 2147483647')
+
         for dual_if in self.if_mngr.get_dual_if_list(is_duplicated = False):
             cache.add('IF', "{mode}ip nat inside".format( mode = unconfig_str ), dual_if.client_if.get_name())
             cache.add('IF', "{mode}ip nat outside".format( mode = unconfig_str ), dual_if.server_if.get_name())

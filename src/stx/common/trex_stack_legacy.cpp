@@ -32,7 +32,7 @@ CStackLegacy::CStackLegacy(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) :
     debug("Legacy stack ctor");
 }
 
-CStackLegacy::~CStackLegacy(void) {
+CStackLegacy::~CStackLegacy() {
     debug("Legacy stack dtor");
 }
 
@@ -57,7 +57,7 @@ void CStackLegacy::del_node_internal(const std::string &mac_buf) {
     m_nodes.erase(iter_pair->first);
 }
 
-uint16_t CStackLegacy::get_capa(void) {
+uint16_t CStackLegacy::get_capa() {
     return (FAST_OPS);
 }
 
@@ -74,7 +74,7 @@ void CStackLegacy::handle_pkt(const rte_mbuf_t *m) {
     try {
         RXPktParser parser(m);
         // verify that packet matches the port VLAN config
-        if ( m_port_node->get_vlan() != parser.m_vlan_ids ) {
+        if ( m_port_node->get_vlan_tags() != parser.m_vlan_ids ) {
             return;
         }
         if (parser.m_icmp) {
@@ -191,7 +191,7 @@ void CStackLegacy::handle_arp(RXPktParser &parser) {
     }
 }
 
-bool CStackLegacy::is_grat_active(void) {
+bool CStackLegacy::is_grat_active() {
     return m_port_node->get_src_ip4().size() && !m_port_node->is_loopback() && m_port_node->is_dst_mac_valid();
 }
 
@@ -208,7 +208,7 @@ uint16_t CStackLegacy::handle_tx(uint16_t limit) {
     return sent;
 }
 
-uint16_t CStackLegacy::send_grat_arp(void) {
+uint16_t CStackLegacy::send_grat_arp() {
     uint8_t port_id = m_api->get_port_id();
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_small(CGlobalInfo::m_socket.port_to_socket(port_id));
     assert(m);
@@ -216,7 +216,7 @@ uint16_t CStackLegacy::send_grat_arp(void) {
 
     uint8_t *src_mac = (uint8_t *)m_port_node->get_src_mac().c_str();
     uint32_t sip = PKT_HTONL(*(uint32_t *)m_port_node->get_src_ip4().c_str());
-    const vlan_list_t &vlans = m_port_node->get_vlan();
+    const vlan_list_t &vlans = m_port_node->get_vlan_tags();
 
     switch (vlans.size()) {
     case 0:
@@ -271,9 +271,13 @@ CLegacyNode::~CLegacyNode() {
     debug("Legacy node dtor");
 }
 
-void CLegacyNode::conf_vlan_internal(const vlan_list_t &vlans) {
+void CLegacyNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
     debug("Legacy stack: conf vlan internal");
+    if ( tpids.size() ) {
+        throw TrexException("Current stack does not support custom tpids in VLAN");
+    }
     m_vlan_tags = vlans;
+    m_vlan_tpids = tpids;
 }
 
 void CLegacyNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {

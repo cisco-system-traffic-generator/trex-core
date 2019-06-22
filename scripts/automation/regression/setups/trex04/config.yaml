@@ -33,7 +33,10 @@
 ### Test_misc configuration:
 # expected_bw    - the "golden" bandwidth (in Gbps) results planned on receiving from the test
 
+# uses multi-rx-queue 
+
 trex:
   hostname       : csi-trex-04
-  cores          : 1
+  cores          : 2 
+  astf_cores     : 1
   modes          : [loopback, virt_nics, VM]

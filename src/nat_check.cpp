@@ -89,7 +89,7 @@ bool CNatRxManager::Create(){
 
 void CNatRxManager::Delete(){
     if (m_per_thread) {
-        delete m_per_thread;
+        delete [] m_per_thread;
         m_per_thread=0;
     }
 }

@@ -1,32 +1,10 @@
-/*-
- *   BSD LICENSE
+/* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016-2017 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
  * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef _SFC_H
@@ -36,9 +14,10 @@
 
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_spinlock.h>
+#include <rte_atomic.h>
 
 #include "efx.h"
 
@@ -46,11 +25,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if EFSYS_OPT_RX_SCALE
-/** RSS hash offloads mask */
-#define SFC_RSS_OFFLOADS	(ETH_RSS_IP | ETH_RSS_TCP)
 #endif
 
 /*
@@ -125,7 +99,7 @@ struct sfc_mcdi {
 	efsys_mem_t			mem;
 	enum sfc_mcdi_state		state;
 	efx_mcdi_transport_t		transport;
-	bool				logging;
+	uint32_t			logtype;
 	uint32_t			proxy_handle;
 	efx_rc_t			proxy_result;
 };
@@ -135,6 +109,9 @@ struct sfc_intr {
 	rte_intr_callback_fn		handler;
 	boolean_t			lsc_intr;
 };
+
+struct sfc_rxq;
+struct sfc_txq;
 
 struct sfc_rxq_info;
 struct sfc_txq_info;
@@ -154,9 +131,10 @@ struct sfc_port {
 	 * Flow API isolated mode overrides promisc and allmulti settings;
 	 * they won't be applied if isolated mode is active
 	 */
-	boolean_t			isolated;
 	boolean_t			promisc;
 	boolean_t			allmulti;
+
+	struct ether_addr		default_mac_addr;
 
 	unsigned int			max_mcast_addrs;
 	unsigned int			nb_mcast_addrs;
@@ -173,10 +151,74 @@ struct sfc_port {
 	uint64_t			mac_stats_last_request_timestamp;
 
 	uint32_t		mac_stats_mask[EFX_MAC_STATS_MASK_NPAGES];
+
+	uint64_t			ipackets;
 };
+
+struct sfc_rss_hf_rte_to_efx {
+	uint64_t			rte;
+	efx_rx_hash_type_t		efx;
+};
+
+struct sfc_rss {
+	unsigned int			channels;
+	efx_rx_scale_context_type_t	context_type;
+	efx_rx_hash_support_t		hash_support;
+	efx_rx_hash_alg_t		hash_alg;
+	unsigned int			hf_map_nb_entries;
+	struct sfc_rss_hf_rte_to_efx	*hf_map;
+
+	efx_rx_hash_type_t		hash_types;
+	unsigned int			tbl[EFX_RSS_TBL_SIZE];
+	uint8_t				key[EFX_RSS_KEY_SIZE];
+};
+
+/* Adapter private data shared by primary and secondary processes */
+struct sfc_adapter_shared {
+	unsigned int			rxq_count;
+	struct sfc_rxq_info		*rxq_info;
+
+	unsigned int			txq_count;
+	struct sfc_txq_info		*txq_info;
+
+	struct sfc_rss			rss;
+
+	boolean_t			isolated;
+	uint32_t			tunnel_encaps;
+
+	struct rte_pci_addr		pci_addr;
+	uint16_t			port_id;
+
+	char				*dp_rx_name;
+	char				*dp_tx_name;
+};
+
+/* Adapter process private data */
+struct sfc_adapter_priv {
+	struct sfc_adapter_shared	*shared;
+	const struct sfc_dp_rx		*dp_rx;
+	const struct sfc_dp_tx		*dp_tx;
+	uint32_t			logtype_main;
+};
+
+static inline struct sfc_adapter_priv *
+sfc_adapter_priv_by_eth_dev(struct rte_eth_dev *eth_dev)
+{
+	struct sfc_adapter_priv *sap = eth_dev->process_private;
+
+	SFC_ASSERT(sap != NULL);
+	return sap;
+}
 
 /* Adapter private data */
 struct sfc_adapter {
+	/*
+	 * It must be the first field of the sfc_adapter structure since
+	 * sfc_adapter is the primary process private data (i.e.  process
+	 * private data plus additional primary process specific data).
+	 */
+	struct sfc_adapter_priv		priv;
+
 	/*
 	 * PMD setup and configuration is not thread safe. Since it is not
 	 * performance sensitive, it is better to guarantee thread-safety
@@ -185,16 +227,14 @@ struct sfc_adapter {
 	 */
 	rte_spinlock_t			lock;
 	enum sfc_adapter_state		state;
-	struct rte_pci_addr		pci_addr;
-	uint16_t			port_id;
 	struct rte_eth_dev		*eth_dev;
 	struct rte_kvargs		*kvargs;
-	bool				debug_init;
 	int				socket_id;
 	efsys_bar_t			mem_bar;
 	efx_family_t			family;
 	efx_nic_t			*nic;
 	rte_spinlock_t			nic_lock;
+	rte_atomic32_t			restart_required;
 
 	struct sfc_mcdi			mcdi;
 	struct sfc_intr			intr;
@@ -204,47 +244,76 @@ struct sfc_adapter {
 	unsigned int			rxq_max;
 	unsigned int			txq_max;
 
+	unsigned int			rxq_max_entries;
+	unsigned int			rxq_min_entries;
+
 	unsigned int			txq_max_entries;
+	unsigned int			txq_min_entries;
+
+	unsigned int			evq_max_entries;
+	unsigned int			evq_min_entries;
 
 	uint32_t			evq_flags;
 	unsigned int			evq_count;
 
 	unsigned int			mgmt_evq_index;
+	/*
+	 * The lock is used to serialise management event queue polling
+	 * which can be done from different context. Also the lock
+	 * guarantees that mgmt_evq_running is preserved while the lock
+	 * is held. It is used to serialise polling and start/stop
+	 * operations.
+	 *
+	 * Locks which may be held when the lock is acquired:
+	 *  - adapter lock, when:
+	 *    - device start/stop to change mgmt_evq_running
+	 *    - any control operations in client side MCDI proxy handling to
+	 *	poll management event queue waiting for proxy response
+	 *  - MCDI lock, when:
+	 *    - any control operations in client side MCDI proxy handling to
+	 *	poll management event queue waiting for proxy response
+	 *
+	 * Locks which are acquired with the lock held:
+	 *  - nic_lock, when:
+	 *    - MC event processing on management event queue polling
+	 *	(e.g. MC REBOOT or BADASSERT events)
+	 */
 	rte_spinlock_t			mgmt_evq_lock;
+	bool				mgmt_evq_running;
 	struct sfc_evq			*mgmt_evq;
 
-	unsigned int			rxq_count;
-	struct sfc_rxq_info		*rxq_info;
-
-	unsigned int			txq_count;
-	struct sfc_txq_info		*txq_info;
+	struct sfc_rxq			*rxq_ctrl;
+	struct sfc_txq			*txq_ctrl;
 
 	boolean_t			tso;
+	boolean_t			tso_encap;
 
-	unsigned int			rss_channels;
-
-#if EFSYS_OPT_RX_SCALE
-	efx_rx_scale_context_type_t	rss_support;
-	efx_rx_hash_support_t		hash_support;
-	efx_rx_hash_type_t		rss_hash_types;
-	unsigned int			rss_tbl[EFX_RSS_TBL_SIZE];
-	uint8_t				rss_key[EFX_RSS_KEY_SIZE];
-#endif
-
-	/*
-	 * Shared memory copy of the Rx datapath name to be used by
-	 * the secondary process to find Rx datapath to be used.
-	 */
-	char				*dp_rx_name;
-	const struct sfc_dp_rx		*dp_rx;
-
-	/*
-	 * Shared memory copy of the Tx datapath name to be used by
-	 * the secondary process to find Rx datapath to be used.
-	 */
-	char				*dp_tx_name;
-	const struct sfc_dp_tx		*dp_tx;
+	uint32_t			rxd_wait_timeout_ns;
 };
+
+static inline struct sfc_adapter_shared *
+sfc_adapter_shared_by_eth_dev(struct rte_eth_dev *eth_dev)
+{
+	struct sfc_adapter_shared *sas = eth_dev->data->dev_private;
+
+	return sas;
+}
+
+static inline struct sfc_adapter *
+sfc_adapter_by_eth_dev(struct rte_eth_dev *eth_dev)
+{
+	struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(eth_dev);
+
+	SFC_ASSERT(rte_eal_process_type() == RTE_PROC_PRIMARY);
+
+	return container_of(sap, struct sfc_adapter, priv);
+}
+
+static inline struct sfc_adapter_shared *
+sfc_sa2shared(struct sfc_adapter *sa)
+{
+	return sa->priv.shared;
+}
 
 /*
  * Add wrapper functions to acquire/release lock to be able to remove or
@@ -298,12 +367,18 @@ int sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
 		  size_t len, int socket_id, efsys_mem_t *esmp);
 void sfc_dma_free(const struct sfc_adapter *sa, efsys_mem_t *esmp);
 
+uint32_t sfc_register_logtype(const struct rte_pci_addr *pci_addr,
+			      const char *lt_prefix_str,
+			      uint32_t ll_default);
+
 int sfc_probe(struct sfc_adapter *sa);
 void sfc_unprobe(struct sfc_adapter *sa);
 int sfc_attach(struct sfc_adapter *sa);
 void sfc_detach(struct sfc_adapter *sa);
 int sfc_start(struct sfc_adapter *sa);
 void sfc_stop(struct sfc_adapter *sa);
+
+void sfc_schedule_restart(struct sfc_adapter *sa);
 
 int sfc_mcdi_init(struct sfc_adapter *sa);
 void sfc_mcdi_fini(struct sfc_adapter *sa);

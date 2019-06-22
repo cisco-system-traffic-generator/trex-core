@@ -158,7 +158,7 @@ TEST_F(basic_client_cfg, test1) {
     many_ip.insert(ip1_1);
     many_ip.insert(ip1_2);
 
-    test_db.set_resolved_macs(many_ip);
+    test_db.set_resolved_macs(&many_ip);
 
     ClientCfgBase cfg0;
 
@@ -214,7 +214,7 @@ TEST_F(client_cfg, test2) {
     po->preview.setVMode(3);
     po->preview.setFileWrite(true);
     po->cfg_file = "cap2/dns.yaml";
-    po->out_file = "exp/client_cfg_dns";
+    po->out_file = "client_cfg_dns";
     po->client_cfg_file = "cap2/cluster_example.yaml";
 
     bool res = t1.init();

@@ -18,13 +18,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+#include "publisher/trex_publisher.h"
+
+#include "trex_astf.h"
 #include "trex_astf_port.h"
 
-TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
-    /* nothing for now */
-}
+using namespace std;
 
+TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
+}
 
 TrexAstfPort::~TrexAstfPort() {
-    
 }
+
+void TrexAstfPort::change_state(port_state_e state) {
+    m_port_state = state;
+}
+
+

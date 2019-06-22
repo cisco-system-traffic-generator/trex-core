@@ -252,6 +252,20 @@ TrexStreamsCompiler::allocate_pass(const std::vector<TrexStream *> &streams,
 
 }
 
+void
+TrexStreamsCompiler::validate_core_pinning(const TrexStream *stream, const TrexStream *next) {
+    if ( stream == nullptr || next == nullptr ) {
+        return;
+    }
+    if ( stream->m_core_id_specified || next->m_core_id_specified ) {
+        if (!(stream->m_core_id_specified && next->m_core_id_specified && (stream->m_core_id == next->m_core_id))) {
+            std::stringstream ss;
+            ss << "stream " << stream->m_stream_id << " points at stream " << next->m_stream_id << ", hence they must be pinned to the same core.";
+            err(ss.str());
+        }
+    }
+}
+
 /**
  * on this pass we direct the graph to point to the right nodes
  * 
@@ -271,6 +285,7 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
            on_next_not_found(stream);
         }
 
+        validate_core_pinning(stream, next_node->m_stream);
         node->m_next = next_node;
 
         /* do we have more than one parent ? */
@@ -308,21 +323,24 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
 void
 TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
 
-    /* we encoutred a problem - decode the reason */
+    /* we encountered a problem - decode the reason */
     std::stringstream ss;
 
     /* lookup the next in the stream table */
-    TrexStream *next = get_stateless_obj()->get_port_by_id(stream->m_port_id)->get_stream_by_id(stream->m_next_stream_id);
+    TrexStream *next = get_stateless_obj()->get_port_by_id(stream->m_port_id)->get_stream_by_id(m_profile_id, stream->m_next_stream_id);
 
     if (next == NULL) {
         ss << "stream " << stream->m_stream_id << " is pointing to a non-existent stream " << stream->m_next_stream_id;
 
+    } else if ( !next->m_enabled ) {
+        ss << "stream " << stream->m_stream_id << " is pointing to disabled stream " << stream->m_next_stream_id;
+
     } else if (stream->is_latency_stream() != next->is_latency_stream()) {
 
         if (stream->is_latency_stream()) {
-            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } else {
-            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is now allowed)";
+            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } 
     } else {
         /* unknown problem */
@@ -541,29 +559,12 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
 
     /* check if all are cont. streams */
     bool all_continues = true;
-    int  non_splitable_count = 0;
 
     for (const auto stream : streams) {
-
         if (stream->get_type() != TrexStream::stCONTINUOUS) {
             all_continues = false;
         }
-
-        if (!stream->is_splitable(dp_core_count)) {
-            non_splitable_count++;
-        }
     }
-
-    /* if all streams are not splitable - all should go to core 0 */
-    if (non_splitable_count == streams.size()) {
-        compile_on_single_core(port_id,
-                               streams,
-                               objs,
-                               dp_core_count,
-                               factor,
-                               nodes,
-                               all_continues);
-    } else {
         compile_on_all_cores(port_id,
                              streams,
                              objs,
@@ -571,7 +572,7 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
                              factor,
                              nodes,
                              all_continues);
-    }
+
 }
 
 
@@ -627,39 +628,6 @@ TrexStreamsCompiler::compile_latency_streams(uint8_t                            
                                       objs,
                                       new_id,
                                       new_next_id);
-    }
-}
-
-
-
-/**
- * compile a list of streams on a single core (pinned to core 0)
- * 
- */
-void
-TrexStreamsCompiler::compile_on_single_core(uint8_t                                port_id,
-                                            const std::vector<TrexStream *>        &streams,
-                                            std::vector<TrexStreamsCompiledObj *>  &objs,
-                                            uint8_t                                dp_core_count,
-                                            double                                 factor,
-                                            GraphNodeMap                           &nodes,
-                                            bool                                   all_continues) {
-
-    /* allocate object only for core 0 */
-    TrexStreamsCompiledObj *obj = new TrexStreamsCompiledObj(port_id);
-    obj->m_all_continues = all_continues;
-    objs[0] = obj;
-
-     /* compile all the streams */
-    for (auto const stream : streams) {
-
-        /* skip non-enabled streams */
-        if (!stream->m_enabled) {
-            continue;
-        }
-     
-        /* compile the stream for only one core */
-        compile_stream(stream, factor, 1, objs, nodes);
     }
 }
 
@@ -726,11 +694,16 @@ TrexStreamsCompiler::compile_stream(const TrexStream *stream,
 
     /* can this stream be split to many cores ? */
     if ( (dp_core_count == 1) || (!stream->is_splitable(dp_core_count)) ) {
+        uint8_t core_id = 0;
+        if (stream->m_core_id_specified) {
+            core_id = stream->m_core_id;
+        }
         compile_stream_on_single_core(tmp_stream.get(),
                                       dp_core_count,
                                       objs,
                                       new_id,
-                                      new_next_id);
+                                      new_next_id,
+                                      core_id);
     } else {
         compile_stream_on_all_cores(tmp_stream.get(),
                                     dp_core_count,
@@ -806,7 +779,7 @@ TrexStreamsCompiler::compile_stream_on_all_cores(TrexStream *stream,
 }
 
 /**
- * compile the stream on core 0
+ * compile the stream on core core_id, default core_id is 0
  * 
  */
 void
@@ -814,7 +787,8 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
                                                    uint8_t dp_core_count,
                                                    std::vector<TrexStreamsCompiledObj *> &objs,
                                                    int new_id,
-                                                   int new_next_id) {
+                                                   int new_next_id,
+                                                   uint8_t core_id) {
 
     TrexStream *dp_stream = stream->clone();
 
@@ -827,12 +801,15 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
         dp_stream->m_vm_dp = stream->m_vm_dp->clone();
     }
 
-    /* update core 0 with the real stream */
-    objs[0]->add_compiled_stream(dp_stream);
+    /* update core_id with the real stream */
+    objs[core_id]->add_compiled_stream(dp_stream);
 
 
     /* create dummy streams for the other cores */
-    for (uint8_t i = 1; i < dp_core_count; i++) {
+    for (uint8_t i = 0; i < dp_core_count; i++) {
+        if (core_id == i) {
+            continue;
+        }
         TrexStream *null_dp_stream = stream->clone();
 
         /* fix stream ID */

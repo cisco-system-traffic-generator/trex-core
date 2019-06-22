@@ -1,6 +1,6 @@
 # Example for send pipeline HTTP reqs as one transaction 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

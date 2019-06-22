@@ -1,5 +1,5 @@
 import os
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 class Prof1():

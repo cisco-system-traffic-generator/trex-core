@@ -1,0 +1,21 @@
+
+server     : trex01-10g
+result_acc : 0.5
+flows      : 400000
+
+
+base:
+    ap_ip      : 9.9.12.1
+    ap_mac     : '94:12:12:12:12:01'
+    client_ip  : 9.9.13.1
+    client_mac : '94:13:13:13:13:01'
+
+
+ports:
+    0:
+        clients  : 6
+        dst_ip   : 48.0.0.0
+        dst_port : 2
+
+
+

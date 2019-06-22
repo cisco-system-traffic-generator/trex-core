@@ -343,6 +343,54 @@ trex(service)>
 The *Matched* field indicates how many packets matched the filter.
 
 
+==== Using capture port for faster packet capture / packet injection
+
+Using the packet capture mechanism to inspect packets on TRex client python side typically yields to a transfer rate of about 5000 packets/sec due to the polling nature and the overhead of the RPC protocol.
+
+In order to do faster packet transfer between TRex server and TRex client, as well as improving the injection of packets, the
+capture port feature can be used. It typically runs about 4x faster than the TRex capture.
+
+This feature enables oneTRex server to connect to an already-opened ZeroMQ socket that will
+solely used to send / receive raw packets for a given TRex port. Pushing some data on this socket will translate to a new
+packet sent on the TRex port, while the packets received on the port will sent over the ZeroMQ socket as well.
+
+Optionally, a BPF filter can be also specified to restrict the packets sent from TRex server to the TRex client side.
+
+Here is a usage example that will first send one packet on TRex port 0, and then blocks until one IP packet is received back:
+
+[source,python]
+----
+
+import zmq
+# Bind our ZeroMQ socket so that the TRex server can connect to it
+capture_port = "ipc:///tmp/trex_capture_port"
+zmq_context = zmq.Context()
+zmq_socket = zmq_context.socket(zmq.PAIR)
+zmq_socket.bind(capture_port)
+
+# move port 0 to service mode as we want to start capture port on it
+client.set_service_mode(ports = 0)
+
+# start a trex capture port on port 0 with *BPF* filter for any IP packets
+client.start_capture_port(port = 0, endpoint = capture_port, bpf_filter = 'ip')
+
+# Send one packet (using scapy here)
+zmq_socket.send(bytes(Ether()/IP()/IP()/UDP()))
+
+# Wait until we get an IP packet on TRex port 0 and display it parsed using Scapy
+received_packet = zmq_socket.recv()
+Ether(received_packet).show2()
+
+# Stop capture port
+client.stop_capture_port(port = 0)
+
+# exit service mode on port 0
+client.set_service_mode(ports = 0, enabled = False)
+
+
+----
+
+
 ==== Video tutorials 
 
 ifdef::backend-xhtml11[]

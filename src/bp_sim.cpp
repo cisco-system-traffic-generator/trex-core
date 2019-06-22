@@ -33,6 +33,7 @@ limitations under the License.
 #include <common/basic_utils.h>
 
 #include "trex_stx.h"
+#include "utl_mbuf.h"
 
 /* stateless includes */
 #include "stl/trex_stl_stream_node.h"
@@ -744,7 +745,7 @@ bool CPacketIndication::ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
     IPHeader *ipv4 = (IPHeader *) (pkt->raw+offset);
     IPv6Header *ipv6 = (IPv6Header *) (cbuff+offset);
     uint8_t ipv6_hdrlen = ipv6->getHeaderLength();
-    memset(ipv6,0,ipv6_hdrlen);
+    memset((char *)ipv6,0,ipv6_hdrlen);
     ipv6->setVersion(6);
     if (ipv4->getTotalLength() < ipv4->getHeaderLength()) {
         return(false);
@@ -980,13 +981,9 @@ CFlow * CFlowTableMap::add(const CFlowKey & key ) {
     return (flow);
 }
 
-void CFlowTableMap::remove_all(){
-    if ( m_map.empty() )
-        return;
-    flow_map_iter_t it;
-    for (it= m_map.begin(); it != m_map.end(); ++it) {
-        CFlow *lp = it->second;
-        delete lp;
+void CFlowTableMap::remove_all() {
+    for (auto &it : m_map) {
+        delete it.second;
     }
     m_map.clear();
 }
@@ -2756,7 +2753,7 @@ uint8_t CFlowGenListPerThread::get_memory_socket_id(){
 /* the expected number of flows for TCP mode, this is taken from configuration file and div by threads*/
 uint32_t CFlowGenListPerThread::get_max_active_flows_per_core_tcp(){ 
 
-    double active_flows_per_core = (double)CGlobalInfo::m_memory_cfg.get_each_core_dp_flows()/(double)m_max_threads;
+    double active_flows_per_core = (double)CGlobalInfo::m_memory_cfg.get_each_core_dp_flows();
     /* can't have more than 20M flows per core ..*/
     if (active_flows_per_core>20*1e6) {
         printf("ERROR something went wrong here, more than 20M flows per core does not make sense (%f) \n",active_flows_per_core);
@@ -2781,9 +2778,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_thread_id=thread_id;
 
     m_c_tcp=0;
-    m_c_tcp_io =0;
     m_s_tcp=0;
-    m_s_tcp_io=0;
     m_tcp_terminate=false;
     m_tcp_terminate_cnt=0;
     m_sched_accurate=false;
@@ -2997,8 +2992,6 @@ static void free_map_flow_id_to_node(CGenNode *p){
 
 
 void CFlowGenListPerThread::Delete(){
-    Delete_tcp_batch();
-
     // free all current maps
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
     // free object
@@ -3070,6 +3063,7 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
             /* count before handle - node might be destroyed */
             #ifdef TREX_SIM
             uint8_t port_id = node_sl->get_port_id();
+            uint32_t profile_id = node_sl->get_profile_id();
             update_stl_stats(node_sl);
             #endif
 
@@ -3078,7 +3072,7 @@ inline bool CNodeGenerator::handle_stl_node(CGenNode * node,
 
             #ifdef TREX_SIM
             if (has_limit_reached()) {
-                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, false, 0);
+                ((TrexStatelessDpCore *)thread->m_dp_core)->stop_traffic(port_id, profile_id, false, 0);
             }
             #endif
         }
@@ -3181,7 +3175,7 @@ void tw_on_tick_per_thread_cb(void *userdata,
 
 FORCE_NO_INLINE void CFlowGenListPerThread::handler_defer_job_flush(void){
 
-    /* free the objects letf in TW */
+    /* free the objects left in TW */
     m_tw.detach_all((void *)this,tw_free_node);
 
     /* flush the pending job of free ports */
@@ -3342,7 +3336,7 @@ inline int CNodeGenerator::teardown(CFlowGenListPerThread * thread,
 
 
 
-template<int SCH_MODE,bool ON_TERIMATE>
+template<int SCH_MODE,bool ON_TERIMATE> HOT_FUNC
 inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                                                dsec_t d_time,
                                                CFlowGenListPerThread * thread,
@@ -3651,14 +3645,15 @@ void CNodeGenerator::handle_flow_sync(CGenNode *node, CFlowGenListPerThread *thr
     /* first pop the node */
     m_p_queue.pop();
 
-    /* call all the maintenance required */
-    handle_maintenance(thread);
 
     /* exit in case this is the last node*/
     if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
         thread->free_node(node);
         exit_scheduler = true;
     } else {
+        /* call all the maintenance required */
+        handle_maintenance(thread);
+
         /* schedule for next maintenace */
         node->m_time += SYNC_TIME_OUT;
         m_p_queue.push(node);
@@ -3750,11 +3745,15 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
         break;
 
     case CGenNode::TCP_TX_FIF:
-        thread->handle_tx_fif(node,on_terminate);
+        thread->handle_tx_fif((CGenNodeTXFIF*)node,on_terminate);
         break;
 
     case CGenNode::TCP_TW:
         thread->handle_tw(node,on_terminate);
+        break;
+
+    case CGenNode::STL_RX_FLUSH:
+        thread->handle_stl_rx(node,on_terminate);
         break;
 
     default:
@@ -4054,6 +4053,89 @@ void CFlowGenListPerThread::handle_nat_msg(CGenNodeNatInfo * msg){
     }
 }
 
+void CFlowGenListPerThread::handle_stl_rx(CGenNode * node,
+                                          bool on_terminate){
+
+    double dtime=STL_RX_FLUSH_SEC;
+    int drop=0;
+    m_node_gen.m_p_queue.pop();
+    /* in case the ports are idle for more than time ticks stop */
+    if (m_dp_core->are_all_ports_idle()){
+        if ( m_tcp_terminate_cnt>STL_RX_DELAY_TICKS ) {
+           drop=1;
+        }else{
+           m_tcp_terminate_cnt++;
+        }
+    }else{
+        m_tcp_terminate_cnt=0;
+    }
+    
+    if ( on_terminate ){
+        drop=1;
+    }
+
+    int do_drop=0;
+    if (drop) {
+        /* this is not clean, we want to remove this node only if it the last one 
+         including the SYNC node. so ask the same query +1 */
+        if ( m_node_gen.m_p_queue.size() == (m_non_active_nodes+1) ) {
+            do_drop=1;
+            free_node(node);
+        }
+    }
+
+    if (!do_drop){
+        node->m_time += dtime;
+        m_node_gen.m_p_queue.push(node);
+    }
+    handle_stl_pkts(false);
+}
+
+uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
+    CVirtualIF * v_if=m_node_gen.m_v_if;
+    rte_mbuf_t * rx_pkts[64];
+    int dir;
+    uint16_t cnt;
+    tvpid_t   ports_id[2];
+    uint16_t sum;
+    uint16_t sum_both_dir = 0;
+    get_port_ids(ports_id[0], ports_id[1]);
+
+    for (dir=0; dir<CS_NUM; dir++) {
+        sum=0;
+        while (true) {
+            cnt=v_if->rx_burst(dir,rx_pkts,64);
+            if (cnt==0) {
+                break;
+            }
+            int i;
+            for (i=0; i<(int)cnt;i++) {
+                rte_mbuf_t * m=rx_pkts[i];
+#ifdef _DEBUG
+                if ( CGlobalInfo::m_options.preview.getVMode() ==7 ){
+                    fprintf(stdout,"RX---> dir %d (tid:%d) \n",dir,(int)m_thread_id);
+                    utl_rte_pktmbuf_dump_k12(stdout,m);
+                }
+#endif
+                m_dp_core->rx_handle_packet(dir,m,is_idle,ports_id[dir]);
+            }
+            sum+=cnt;
+            /* support up to 25MPPS per core (for 20usec tick it would be 512 
+               suggested by @jsmoon 
+            */
+            if (sum>512) {
+                break;
+            }
+        }
+        /*if (m_sched_accurate && sum){
+            v_if->flush_tx_queue();
+        }*/
+        sum_both_dir += sum;
+    }
+    return sum_both_dir;
+}
+
+
 
 void   CFlowGenListPerThread::no_memory_error(){
     printf("--------\n");
@@ -4166,7 +4248,7 @@ void CFlowGenList::Delete(){
         delete  CPluginCallback::callback;
         CPluginCallback::callback = NULL;
     }
-    if (get_is_tcp_mode()) {
+    if (m_stt_cp) {
         m_stt_cp->Delete();
         delete m_stt_cp;
         m_stt_cp=0;
@@ -4177,6 +4259,7 @@ void CFlowGenList::Delete(){
 bool CFlowGenList::Create(){
     check_objects_sizes();
     CPluginCallback::callback=  new CPluginCallbackSimple();
+    m_stt_cp =0;
     if (get_is_tcp_mode()) {
       m_stt_cp = new CSTTCp();
       m_stt_cp->Create();
@@ -4220,7 +4303,7 @@ void CFlowGenList::get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &
     m_client_config_info.get_entry_list(ret);
 }
 
-void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo &pretest_result) {
+void CFlowGenList::set_client_config_resolved_macs(CManyIPInfo *pretest_result) {
     m_client_config_info.set_resolved_macs(pretest_result);
 }
 

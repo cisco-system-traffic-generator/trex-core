@@ -11,7 +11,7 @@ Compare  Rx-pkts to TX-pkts assuming ports are loopback
 """
 
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 H_VER = "trex-x v0.1 "
 
@@ -80,7 +80,7 @@ def simple_burst (duration = 10, frame_size = 9000, speed = '1gbps'):
 
     try:
         # turn this on for some information
-        #c.set_verbose("high")
+        #c.set_verbose("debug")
 
         # create two streams
         s1 = STLStream(packet = pkt_dir_0,

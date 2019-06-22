@@ -433,11 +433,11 @@ Since no hardware is used, TRex simulates traffic using a virtual internal netwo
 The following figure describes the virtual "wiring" of the virtual machine to support TRex traffic simulation.
 
 ifdef::backend-docbook[]
-image::images/T-Rex_vm.png[title="TRex virtual connectivity",align="center",width=400, link="images/T-Rex_vm.png"]
+image::images/TRex_vm.png[title="TRex virtual connectivity",align="center",width=400, link="images/TRex_vm.png"]
 endif::backend-docbook[]
 
 ifdef::backend-xhtml11[]
-image::images/T-Rex_vm.png[title="TRex virtual connectivity",align="center",width=900, link="images/T-Rex_vm.png"]
+image::images/TRex_vm.png[title="TRex virtual connectivity",align="center",width=900, link="images/TRex_vm.png"]
 endif::backend-xhtml11[]
 
 

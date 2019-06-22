@@ -77,6 +77,8 @@ class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
+#define HOT_FUNC __attribute__((hot))
+#define COLD_FUNC __attribute__((cold))
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
@@ -519,7 +521,8 @@ public:
         TCP_TX_FIF              =14, /* TCP FIF */
         TCP_TW                  =15,  /* TCP TW -- need to consolidate */
 
-        RX_MSG                  =16  /* message to Rx core */
+        RX_MSG                  =16,  /* message to Rx core */
+        STL_RX_FLUSH            =17,
     };
 
     /* flags MASKS*/
@@ -596,6 +599,35 @@ public:
         }
     }
 };
+
+
+struct CGenNodeCommand : public CGenNodeBase  {
+
+public:
+    TrexCpToDpMsgBase  *m_cmd;
+
+    uint8_t             m_pad_end[104];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
+
+public:
+    void free_command();
+
+} __rte_cache_aligned;;
+
+
+class CPerProfileCtx;
+
+struct CGenNodeTXFIF : public CGenNodeBase {
+public:
+    CPerProfileCtx *    m_pctx;
+
+    uint8_t             m_pad_end[104];
+
+    /* CACHE_LINE */
+    uint64_t            m_pad3[8];
+} __rte_cache_aligned;;
 
 
 struct CGenNode : public CGenNodeBase  {
@@ -875,7 +907,7 @@ public:
         return (false);
     }
 
-} __rte_cache_aligned ;
+} __rte_cache_aligned;
 
 /* run time verification of objects size and offsets
    need to clean this up and derive this objects from base object but require too much refactoring right now
@@ -1056,14 +1088,16 @@ public:
 static inline int fill_pkt(CCapPktRaw  * raw,rte_mbuf_t * m){
     raw->pkt_len = m->pkt_len;
     char *p=raw->raw;
-
-    rte_mbuf_t *m_next;
-
+    uint32_t pkt_len = m->pkt_len;
     while (m != NULL) {
-        m_next = m->next;
-        rte_memcpy(p,m->buf_addr,m->data_len);
-        p+=m->data_len;
-        m = m_next;
+        uint16_t seg_len=m->data_len;
+        rte_memcpy(p,rte_pktmbuf_mtod(m,char *),seg_len);
+        p+=seg_len;
+        pkt_len-=seg_len;
+        m = m->next;
+        if (pkt_len==0) {
+            assert(m==0);
+        }
     }
     return (0);
 }
@@ -2475,7 +2509,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
+    #pragma GCC diagnostic pop
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2499,7 +2536,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
+    #pragma GCC diagnostic pop
     assert(m);
 
     /* append*/
@@ -2519,10 +2559,13 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
 
 inline rte_mbuf_t * CFlowPktInfo::generate_new_mbuf(CGenNode * node){
 
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     
     if ( m_pkt_indication.m_desc.IsPluginEnable() ) {
         return ( on_node_generate_mbuf( node->get_plugin_id(),node,this) );
     }
     return  (do_generate_new_mbuf(node));
+    #pragma GCC diagnostic pop  
 }
 
 
@@ -3038,7 +3081,6 @@ public:
     uint32_t                         m_non_active_nodes; /* the number of non active nodes -> nodes that try to stop somthing */
     uint64_t                         m_cur_flow_id;
     double                           m_cur_time_sec;
-    double                           m_stop_time_sec;
 
     CPreviewMode                     m_preview_mode;
 public:
@@ -3061,32 +3103,37 @@ private:
 
 public:
     /* TCP stack memory */
-    CTcpPerThreadCtx      *         m_c_tcp;
-    CTcpCtxCb             *         m_c_tcp_io;
-    CTcpPerThreadCtx      *         m_s_tcp;
-    CTcpCtxCb             *         m_s_tcp_io;
+    CTcpPerThreadCtx      *         m_c_tcp;        /* active tcp client ctx */
+    CTcpPerThreadCtx      *         m_s_tcp;        /* active tcp server ctx */
     bool                            m_tcp_terminate;
     bool                            m_sched_accurate;
     uint32_t                        m_tcp_terminate_cnt;
-
 private:
     CSyncBarrier *                  m_sync_b;
 public:
     double tcp_get_tw_tick_in_sec();
 
-    bool Create_tcp_batch();
-    void Delete_tcp_batch();
+    void Create_tcp_ctx();
+    void load_tcp_profile(profile_id_t profile_id = 0, bool is_first = true);
+    void unload_tcp_profile(profile_id_t profile_id = 0, bool is_last = true);
+    void remove_tcp_profile(profile_id_t profile_id);
+    void Delete_tcp_ctx();
 
-    void generate_flow(bool &done);
+    void generate_flow(bool &done, CPerProfileCtx * pctx);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
-    void handle_tx_fif(CGenNode * node,bool on_terminate);
+    void handle_tx_fif(CGenNodeTXFIF * node,bool on_terminate);
     void handle_tw(CGenNode * node,bool on_terminate);
+    uint16_t handle_rx_pkts(bool is_idle);
 
+public:
+    /* STL action code */
+    void handle_stl_rx(CGenNode * node,bool on_terminate);
+    uint16_t handle_stl_pkts(bool is_idle);
 
 private:
     uint8_t                 m_cacheline_pad[RTE_CACHE_LINE_SIZE][19]; // improve prefech
-} __rte_cache_aligned ;
+} __rte_cache_aligned;
 
 inline CGenNode * CFlowGenListPerThread::create_node(void){
     CGenNode * res=(CGenNode *)0;
@@ -3135,7 +3182,7 @@ public:
     int load_client_config_file(std::string file_name);
     void set_client_config_tuple_gen_info(CTupleGenYamlInfo * tg);
     void get_client_cfg_ip_list(std::vector<ClientCfgCompactEntry *> &ret);
-    void set_client_config_resolved_macs(CManyIPInfo &pretest_result);
+    void set_client_config_resolved_macs(CManyIPInfo *pretest_result);
     void dump_client_config(FILE *fd);
 
 public:
@@ -3345,8 +3392,10 @@ class CRXCoreIgnoreStat {
     uint64_t m_tot_bytes;
 };
 
+static_assert(sizeof(CGenNodeCommand) == sizeof(CGenNode), "sizeof(CGenNodeCommand) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeNatInfo) == sizeof(CGenNode), "sizeof(CGenNodeNatInfo) != sizeof(CGenNode)" );
 static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNodeLatencyPktInfo) != sizeof(CGenNode)" );
+static_assert(sizeof(CGenNodeTXFIF) == sizeof(CGenNode), "sizeof(CGenNodeTXFIF) != sizeof(CGenNode)" );
 
 static inline void rte_pause_or_delay_lowend() {
     if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {

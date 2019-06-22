@@ -17,6 +17,7 @@ from pprint import pprint
 
 import sys
 import json
+import glob
 
 if sys.version_info > (3,0):
     from io import StringIO
@@ -44,7 +45,20 @@ def compare_dicts_round(d1, d2, precision = 4):
     return json.loads(json.dumps(d1), parse_float = lambda x:round(float(x), precision)) == json.loads(json.dumps(d2), parse_float = lambda x:round(float(x), precision))
 
 
-def compare_caps (output, golden, max_diff_sec = 0.000005):
+def compare_caps(**kw):
+    def get_arg(name, default = None):
+        arg = kw.get(name)
+        if arg is None:
+            if default is not None:
+                return default
+            raise Exception('Provide %s kwarg' % name)
+        return arg
+
+    output = get_arg('output')
+    golden = get_arg('golden')
+    max_diff_sec = get_arg('max_diff_sec', 0.000005)
+    assert output, kw
+    assert golden, kw
     pkts1 = []
     pkts2 = []
     pkts_ts_buckets = defaultdict(list)
@@ -73,10 +87,10 @@ def compare_caps (output, golden, max_diff_sec = 0.000005):
         ts2 = float(pkt2[1][0]) + (float(pkt2[1][1]) / 1e6)
 
         if abs(ts1-ts2) > max_diff_sec: # 5 nsec
-            raise AssertionError("TS error: cap files '{0}', '{1}' differ in cap #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
+            raise AssertionError("TS error: cap files '{0}', '{1}' differ in pkt #{2} - '{3}' vs. '{4}'".format(output, golden, i, ts1, ts2))
 
         if pkt1[0] != pkt2[0]:
-            errmsg = "RAW error: output file '{0}', differs from golden '{1}' in cap #{2}".format(output, golden, i)
+            errmsg = "RAW error: output file '{0}', differs from golden '{1}' in pkt #{2}".format(output, golden, i)
             print(errmsg)
 
             print(format_text("\ndifferent fields for packet #{0}:".format(i), 'underline'))
@@ -111,7 +125,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         self.verify_exists(self.stl_sim)
 
-        self.profiles_path = os.path.join(self.scripts_path, "stl/")
+        self.profiles_path = os.path.join(self.scripts_path, "stl")
+        self.generated_path = os.path.join(self.scripts_path, 'generated')
 
         self.profiles = {}
         self.profiles['imix'] = os.path.join(self.profiles_path, "imix.py")
@@ -157,9 +172,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             user_cmd += " --silent"
 
         if tunables:
-            user_cmd += " -t"
             for k, v in tunables.items():
-                user_cmd += " {0}={1}".format(k, v)
+                user_cmd += " -t {0}={1}".format(k, v)
 
         rc = trex_stl_sim.main(args = shlex.split(user_cmd))
         if obj:
@@ -175,9 +189,8 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
                              silent = False,
                              do_no_remove = False,
                              compare = True,
-                             test_generated = True,
-                             do_no_remove_generated = False,
-                             tunables = None):
+                             tunables = None,
+                             expected = None):
 
         print('\nTesting profile: %s' % profile)
         output_cap = "generated/a.pcap"
@@ -197,51 +210,38 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             #os.system(s)
 
             if compare:
-                compare_caps(output_cap, golden_file)
+                if expected:
+                    compare_caps(output = output_cap, golden = expected)
+                else:
+                    compare_caps(output = output_cap, golden = golden_file)
         finally:
             if not do_no_remove:
                 os.unlink(output_cap)
 
-        if test_generated:
-            try:
-                generated_filename = input_file.replace('.py', '_GENERATED.py').replace('.yaml', '_GENERATED.py')
-                print('Generating %s' % generated_filename)
-                if input_file.endswith('.py'):
-                    profile = STLProfile.load_py(input_file, **(tunables if tunables else {}))
-                elif input_file.endswith('.yaml'):
-                    profile = STLProfile.load_yaml(input_file)
-                
-                profile.dump_to_code(generated_filename)
 
-                if compare:
-                    orig_json = profile.to_json()
-                    gen_json  = STLProfile.load_py(generated_filename).to_json()
-                    if not compare_dicts_round(orig_json, gen_json):
-                        print('Original JSON:')
-                        pprint(orig_json)
-                        print('Generated JSON:')
-                        pprint(gen_json)
-                        raise Exception('Generated file differs from original in JSON.')
+    def test_dependent_vars_params (self):
 
-
-            finally:
-                if not do_no_remove_generated:
-                    if os.path.exists(generated_filename):
-                        os.unlink(generated_filename)
-                    # python 3 does not generate PYC under the same dir
-                    if os.path.exists(generated_filename + 'c'):
-                        os.unlink(generated_filename + 'c')
-
+        profile_name = 'dependent_vars_all.py'
+        options = ['-m 1 -l 50 -c 1', '-m 1 -l 50 -c 2']
+        for op in ('inc', 'dec'):
+            for size in (1, 2):
+                for step in (1, 2):
+                    expected_name = '%s_%s_%s_%s.pcap' % (profile_name.split('.')[0], op, size, step)
+                    tunables = {'size': size, 'step': step, 'op': op}
+                    for option in options:
+                        self.run_py_profile_path(profile_name, options=option, silent=False, compare=True, tunables=tunables, expected= os.path.join('exp', expected_name))
 
     def test_stl_profiles (self):
         p = [
+             ["dependent_field_engine_vars.py", "-m 1 -l 100 -c 2", True],
+             ["split_var_to_cores.py", "-m 1 -l 20 -c 2", True],
              ["udp_1pkt_1mac_override.py","-m 1 -l 50",True],
-             ["syn_attack.py","-m 1 -l 50",True],               
+             ["syn_attack.py","-m 1 -l 50",True],
              ["udp_1pkt_1mac.py","-m 1 -l 50",True],
              ["udp_1pkt_mac.py","-m 1 -l 50",True],
              ["udp_1pkt.py","-m 1 -l 50",True],
              ["udp_1pkt_tuple_gen.py","-m 1 -l 50",True],
-             ["udp_rand_len_9k.py","-m 1 -l 50",True],           
+             ["udp_rand_len_9k.py","-m 1 -l 50",True],
              ["udp_1pkt_mpls.py","-m 1 -l 50",True],
              ["udp_1pkt_mpls_vm.py","-m 1 ",True],
              ["imix.py","-m 1 -l 100",True],
@@ -260,7 +260,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
              ["udp_1pkt_pcap_relative_path.py","-m 1 -l 3",True],
              ["udp_1pkt_tuple_gen_split.py","-m 1 -l 100",True],
              ["udp_1pkt_range_clients_split.py","-m 1 -l 100",True],
-             ["udp_1pkt_vxlan.py","-m 1 -l 17",True, False], # can't generate: no VXLAN in Scapy, only in profile
+             ["udp_1pkt_vxlan.py","-m 1 -l 17",True],
              ["udp_1pkt_ipv6_in_ipv4.py","-m 1 -l 17",True],
              ["udp_1pkt_simple_mac_dst.py","-m 1 -l 1 ",True],
              ["udp_1pkt_simple_mac_src.py","-m 1 -l 1 ",True],
@@ -282,11 +282,37 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         p1 = [ ["udp_1pkt_repeat_random.py","-m 1 -l 50",True] ];
 
         for obj in p:
-            try:
-                test_generated = obj[3]
-            except: # check generated if not said otherwise
-                test_generated = True
-            self.run_py_profile_path (obj[0],obj[1],compare =obj[2], test_generated = test_generated, do_no_remove=True, do_no_remove_generated = False)
+            self.run_py_profile_path(obj[0], obj[1], compare = obj[2], do_no_remove = True)
+
+    def test_generated_profiles(self):
+        exclude_list = [
+            'imix_wlc.py',          # expects tunables
+            'udp_1pkt_vxlan.py',    # uses custom Scapy layer
+            ]
+        exclude_dict = {}.fromkeys(exclude_list)
+        output_file = os.path.join(self.generated_path, 'exported_to_code.py')
+        stl_files = glob.glob(os.path.join(self.profiles_path, '*.py'))
+        hlt_files = glob.glob(os.path.join(self.profiles_path, 'hlt', '*.py'))
+        assert stl_files and hlt_files
+
+        print('\nChecking %s normal profiles and %s hlt profiles' % (len(stl_files), len(hlt_files)))
+
+        for input_file in stl_files + hlt_files:
+            basename = os.path.basename(input_file)
+            if basename in exclude_dict:
+                continue
+
+            profile = STLProfile.load_py(input_file)
+            profile.dump_to_code(output_file)
+            orig_json = profile.to_json()
+            gen_json  = STLProfile.load_py(output_file).to_json()
+
+            if not compare_dicts_round(orig_json, gen_json):
+                print('Original JSON:')
+                pprint(orig_json)
+                print('Generated JSON:')
+                pprint(gen_json)
+                raise Exception('Generated file differs from original (%s) in JSON.' % basename)
 
 
     def test_hlt_profiles (self):
@@ -316,7 +342,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             )
 
         for obj in p:
-            self.run_py_profile_path (obj[0], obj[1], compare =obj[2], do_no_remove=True, do_no_remove_generated = False, tunables = obj[3])
+            self.run_py_profile_path(obj[0], obj[1], compare = obj[2], do_no_remove = True, tunables = obj[3])
 
     # valgrind tests - this runs in multi thread as it safe (no output)
     def test_valgrind_various_profiles (self):
@@ -372,6 +398,20 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             rc = self.run_sim(mc_test, output = None, options = '--test_multi_core -d=1.0001 -m 2kpps', silent = True)
             assert_equal(rc, True)
 
-        return
 
+    def test_udp_1pkt_src_ip_split_core_pinned(self):
+        print("Testing core pinning for udp_1pkt_src_ip_split.py")
+        output_cap = "generated/a.pcap"
+        golden_file = os.path.join('exp', 'udp_1pkt_src_ip_split.pcap')
+
+        try:
+            rc = self.run_sim('stl/udp_1pkt_src_ip_split_core_pinned.py',
+                              output   = output_cap,
+                              options  = '-c 7 -m 1 -l 50 --valgrind', # the number of cores must be bigger than 1, because the stream is pinned on core 1.
+                              silent   = True)
+            assert_equal(rc, True, 'Simulation on udp_1pkt_src_ip_split_core_pinned failed.')
+            compare_caps(output = output_cap, golden = golden_file)
+
+        finally:
+            os.unlink(output_cap)
 

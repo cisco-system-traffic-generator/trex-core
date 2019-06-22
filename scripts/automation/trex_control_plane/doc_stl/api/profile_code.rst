@@ -41,14 +41,14 @@ Example::
 STLProfile class
 ----------------
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLProfile
+.. autoclass:: trex.stl.trex_stl_streams.STLProfile
     :members: 
     :member-order: bysource
 
 STLStream 
 ---------
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLStream
+.. autoclass:: trex.stl.trex_stl_streams.STLStream
     :members: 
     :member-order: bysource
     
@@ -56,27 +56,27 @@ STLStream
 STLStream modes
 ----------------
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLTXMode
+.. autoclass:: trex.stl.trex_stl_streams.STLTXMode
     :members: 
     :member-order: bysource
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLTXCont
+.. autoclass:: trex.stl.trex_stl_streams.STLTXCont
     :members: 
     :member-order: bysource
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLTXSingleBurst
+.. autoclass:: trex.stl.trex_stl_streams.STLTXSingleBurst
     :members: 
     :member-order: bysource
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLTXMultiBurst
+.. autoclass:: trex.stl.trex_stl_streams.STLTXMultiBurst
     :members: 
     :member-order: bysource
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLFlowStats
+.. autoclass:: trex.stl.trex_stl_streams.STLFlowStats
     :members: 
     :member-order: bysource
 
-.. autoclass:: trex_stl_lib.trex_stl_streams.STLFlowLatencyStats
+.. autoclass:: trex.stl.trex_stl_streams.STLFlowLatencyStats
     :members: 
     :member-order: bysource
     

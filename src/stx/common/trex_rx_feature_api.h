@@ -52,6 +52,13 @@ public:
     bool tx_pkt(rte_mbuf_t *m);
     
     /**
+     * sends a packet through the TX queue of another port
+     * 
+     */
+    bool tx_pkt(const std::string &pkt, uint8_t port_id);
+    bool tx_pkt(rte_mbuf_t *m, uint8_t port_id);
+
+    /**
      * returns the port id associated with the port manager
      * 
      */

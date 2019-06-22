@@ -1,5 +1,6 @@
-#!/router/bin/python
+#!/usr/bin/python
 
+import sys
 import zmq
 import json
 import re
@@ -82,8 +83,9 @@ class JsonRpcClient(object):
 
         # API handler provided by the server
         self.api_h = None
-        
-            
+        self.timeout_sec = 1
+
+
     def get_connection_details (self):
         rc = {}
         rc['server'] = self.server
@@ -105,23 +107,21 @@ class JsonRpcClient(object):
 
 
     # pretty print for JSON
-    def pretty_json (self, json_str, use_colors = True):
+    def pretty_json (self, json_str, use_colors = None):
         pretty_str = json.dumps(json.loads(json_str), indent = 4, separators=(',', ': '), sort_keys = True)
 
-        if not use_colors:
-            return pretty_str
+        if use_colors is True or (use_colors is None and sys.stdout.isatty()):
+            try:
+                # int numbers
+                pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*[^.])',r'\1{0}\2{1}'.format(bcolors.BLUE, bcolors.ENDC), pretty_str)
+                # float
+                pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
+                # strings
 
-        try:
-            # int numbers
-            pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*[^.])',r'\1{0}\2{1}'.format(bcolors.BLUE, bcolors.ENDC), pretty_str)
-            # float
-            pretty_str = re.sub(r'([ ]*:[ ]+)(\-?[1-9][0-9]*\.[0-9]+)',r'\1{0}\2{1}'.format(bcolors.MAGENTA, bcolors.ENDC), pretty_str)
-            # strings
-
-            pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
-            pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
-        except :
-            pass
+                pretty_str = re.sub(r'([ ]*:[ ]+)("[^"]*")',r'\1{0}\2{1}'.format(bcolors.RED, bcolors.ENDC), pretty_str)
+                pretty_str = re.sub(r"('[^']*')", r'{0}\1{1}'.format(bcolors.MAGENTA, bcolors.RED), pretty_str)
+            except :
+                pass
 
         return pretty_str
 
@@ -163,7 +163,7 @@ class JsonRpcClient(object):
 
     def handle_async_transmit (self, method_name, params, retry, rc):
         sleep_sec    = 0.3
-        timeout_sec  = 3
+        timeout_sec  = max(self.get_timeout_sec(), 3)
         poll_tries   = int(timeout_sec / sleep_sec)
 
         while not rc and rc.errno() == ErrNo.JSONRPC_V2_ERR_TRY_AGAIN:
@@ -231,7 +231,10 @@ class JsonRpcClient(object):
             response = self.send_raw_msg(buffer, retry = retry)
 
         if not response:
-            return response
+            if isinstance(response, RC):
+                return response
+            else:
+                return RC_ERR('Empty JSON Response!')
         elif self.zipper.is_compressed(response):
             response = self.zipper.decompress(response)
 
@@ -295,8 +298,11 @@ class JsonRpcClient(object):
     # processs a single response from server
     def process_single_response (self, response_json):
 
+        if not response_json:
+            return RC_ERR("Empty JSON Response")
+
         if (response_json.get("jsonrpc") != "2.0"):
-            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
+            return RC_ERR("Malformed JSON Response ({0})".format(str(response_json)))
 
         # error reported by server
         if ("error" in response_json):
@@ -308,7 +314,7 @@ class JsonRpcClient(object):
         
         # if no error there should be a result
         if ("result" not in response_json):
-            return RC_ERR("Malformed Response ({0})".format(str(response_json)))
+            return RC_ERR("Malformed JSON Response ({0})".format(str(response_json)))
 
         return RC_OK(response_json["result"])
 
@@ -326,10 +332,6 @@ class JsonRpcClient(object):
 
 
     def disconnect (self):
-
-        # invalidate the server API handler
-        self.api_h = None
-
         if self.connected:
             self.socket.close(linger = 0)
             self.context.destroy(linger = 0)
@@ -338,6 +340,14 @@ class JsonRpcClient(object):
         else:
             return RC_ERR("Not connected to server")
 
+    def get_timeout_sec(self):
+        return self.timeout_sec
+
+    def get_timeout_msec(self):
+        return int(self.get_timeout_sec() * 1000)
+
+    def set_timeout_sec(self, timeout_sec):
+        self.timeout_sec = timeout_sec
 
     def connect(self, server = None, port = None):
         if self.connected:
@@ -352,13 +362,15 @@ class JsonRpcClient(object):
         self.transport = "tcp://{0}:{1}".format(self.server, self.port)
 
         self.socket = self.context.socket(zmq.REQ)
+        self.socket.setsockopt(zmq.SNDTIMEO, self.get_timeout_msec())
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
+        self.socket.setsockopt(zmq.HEARTBEAT_IVL, 60000)
+        self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, 60000)
+
         try:
             self.socket.connect(self.transport)
         except zmq.error.ZMQError as e:
             return RC_ERR("ZMQ Error: Bad server or port name: " + str(e))
-
-        self.socket.setsockopt(zmq.SNDTIMEO, 10000)
-        self.socket.setsockopt(zmq.RCVTIMEO, 10000)
 
         self.connected = True
 

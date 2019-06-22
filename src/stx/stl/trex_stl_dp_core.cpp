@@ -26,16 +26,17 @@ limitations under the License.
 #include "trex_stl_stream.h"
 #include "trex_stl_streams_compiler.h"
 #include "trex_stl_messaging.h"
-
+#include "flow_stat_parser.h"
 #include "mbuf.h"
+#include "utl_mbuf.h"
 
 
 
 /**
- * a wrapper for service mode 
- * it will move the fast send_node virtual call 
- * to send_node_service_mode which does capturing 
- * 
+ * a wrapper for service mode
+ * it will move the fast send_node virtual call
+ * to send_node_service_mode which does capturing
+ *
  */
 class ServiceModeWrapper : public CVirtualIF {
 public:
@@ -43,44 +44,44 @@ public:
     ServiceModeWrapper() {
         m_wrapped = nullptr;
     }
-    
+
     void set_wrapped_object(CVirtualIF *wrapped) {
         m_wrapped = wrapped;
     }
-    
+
     CVirtualIF *get_wrapped_object() const {
         return m_wrapped;
     }
-    
+
     virtual int close_file(void) {
         return m_wrapped->close_file();
     }
-    
+
     virtual int flush_tx_queue(void) {
         return m_wrapped->flush_tx_queue();
     }
-    
+
     virtual int open_file(std::string file_name) {
         return m_wrapped->open_file(file_name);
     }
-    
+
     /* move to service mode */
     virtual int send_node(CGenNode *node) {
         return m_wrapped->send_node_service_mode(node);
     }
-    
+
     virtual int update_mac_addr_from_global_cfg(pkt_dir_t dir, uint8_t *p) {
         return m_wrapped->update_mac_addr_from_global_cfg(dir, p);
     }
-    
+
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id) {
         return m_wrapped->port_id_to_dir(port_id);
     }
-    
+
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {
         m_wrapped->send_one_pkt(dir, m);
     }
-    
+
     virtual void set_review_mode(CPreviewMode *preview_mode) {
         m_wrapped->set_review_mode(preview_mode);
     }
@@ -88,6 +89,19 @@ public:
     virtual CVirtualIFPerSideStats * get_stats() {
         return m_wrapped->get_stats();
     }
+
+    virtual uint16_t rx_burst(pkt_dir_t dir,
+                              struct rte_mbuf **rx_pkts,
+                              uint16_t nb_pkts){
+        return m_wrapped->rx_burst(dir,rx_pkts,nb_pkts);
+    }
+
+
+    bool redirect_to_rx_core(pkt_dir_t   dir,
+                             rte_mbuf_t * m){
+        return m_wrapped->redirect_to_rx_core(dir,m);
+    }
+
 
 private:
     CVirtualIF *m_wrapped;
@@ -112,7 +126,7 @@ void CGenNodeStateless::cache_mbuf_array_copy(CGenNodeCacheMbuf *obj,
     cache_mbuf_array_set_const_mbuf(obj->m_mbuf_const);
 }
 
-           
+
 rte_mbuf_t ** CGenNodeStateless::cache_mbuf_array_alloc(uint16_t size){
 
     uint32_t buf_size = CGenNodeCacheMbuf::get_object_size(size);
@@ -134,13 +148,13 @@ void CGenNodeStateless::cache_mbuf_array_free(){
     for (i=0; i<(int)m_cache_size; i++) {
         rte_mbuf_t * m=cache_mbuf_array_get((uint16_t)i);
         assert(m);
-        rte_pktmbuf_free(m); 
+        rte_pktmbuf_free(m);
     }
 
     /* free the const */
     rte_mbuf_t * m=cache_mbuf_array_get_const_mbuf() ;
     if (m) {
-        rte_pktmbuf_free(m); 
+        rte_pktmbuf_free(m);
     }
 
     free(m_cache_mbuf);
@@ -240,7 +254,7 @@ void CGenNodeStateless::refresh_vm_bss() {
         if ( vm_s->is_random_seed() ) {
             generate_random_seed();
         }
-        
+
     }
 }
 
@@ -348,7 +362,7 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
             assert(m_lat);
             fsp_head = (struct flow_stat_payload_header *)rte_pktmbuf_append(m_lat, fsp_head_size);
 
-            if (RTE_MBUF_INDIRECT(m->next)) {
+            if (RTE_MBUF_CLONED(m->next)) {
                 // Variable length field engine case
                 rte_mbuf_t *m_indirect = m->next;
                 utl_rte_pktmbuf_chain_to_indirect(m, m_indirect, m_lat);
@@ -501,8 +515,14 @@ void CGenNodeStateless::free_stl_node(){
     free_stl_vm_buf();
 }
 
+TrexStatelessDpPerPort::TrexStatelessDpPerPort() {
+    for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
+            m_rfc2544[i].create();
+        }
+    m_fs_latency.create(m_rfc2544, &m_err_cntrs);
+}
 
-bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
+bool PerPortProfile::update_number_of_active_streams(uint32_t d){
     m_active_streams-=d; /* reduce the number of streams */
     if (m_active_streams == 0) {
         return (true);
@@ -510,32 +530,52 @@ bool TrexStatelessDpPerPort::update_number_of_active_streams(uint32_t d){
     return (false);
 }
 
-bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id){
+bool PerPortProfile::resume_traffic(uint8_t port_id){
 
     /* we are working with continues streams so we must be in transmit mode */
-    assert(m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE);
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING) ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE) );
 
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         //assert(node->is_pause() == true); <- we can't be sure of this with ability to pause specific streams.
-        node->set_pause(false);
+        if (node->is_pause()) {
+            node->set_pause(false);
+            m_paused_streams--;
+        }
     }
-    m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    assert(m_paused_streams < m_active_streams);
+    if (m_state == PerPortProfile::ppSTATE_PAUSE) {
+        m_port->update_paused(-1);
+    }
+    m_state = PerPortProfile::ppSTATE_TRANSMITTING;
     return (true);
 }
 
-bool TrexStatelessDpPerPort::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
+bool TrexStatelessDpPerPort::resume_traffic(uint8_t port_id, uint32_t profile_id){
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->resume_traffic(port_id);
+}
+
+bool PerPortProfile::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING) ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE) );
 
     uint32_t done_count = 0;
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
-            node->set_pause(false);
+            if (node->is_pause()) {
+                node->set_pause(false);
+                m_paused_streams--;
+            }
             done_count++;
             if ( done_count == stream_ids.size() ) {
                 break;
@@ -543,13 +583,28 @@ bool TrexStatelessDpPerPort::resume_streams(uint8_t port_id, stream_ids_t &strea
         }
     }
     // TODO: return feedback if done_count != stream_ids.size()
+    if (m_paused_streams < m_active_streams) {
+        if (m_state == PerPortProfile::ppSTATE_PAUSE) {
+            m_port->update_paused(-1);
+        }
+        m_state = PerPortProfile::ppSTATE_TRANSMITTING;
+    }
     return (true);
 }
 
-bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
+bool TrexStatelessDpPerPort::resume_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->resume_streams(port_id, stream_ids);
+}
+
+bool PerPortProfile::update_traffic(uint8_t port_id, double factor) {
+
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE)) );
 
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node = dp_stream.m_node;
@@ -563,10 +618,19 @@ bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, double factor) {
     return (true);
 }
 
-bool TrexStatelessDpPerPort::update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream) {
+bool TrexStatelessDpPerPort::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->update_traffic(port_id, factor);
+}
+
+bool PerPortProfile::update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream) {
+
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING) ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE) );
 
     uint32_t done_count = 0;
     for (auto dp_stream : m_active_nodes) {
@@ -590,39 +654,83 @@ bool TrexStatelessDpPerPort::update_streams(uint8_t port_id, stream_ipgs_map_t &
     return (true);
 }
 
-bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id){
+bool TrexStatelessDpPerPort::update_streams(uint8_t port_id, uint32_t profile_id, stream_ipgs_map_t &ipg_per_stream) {
+
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->update_streams(port_id, ipg_per_stream);
+}
+
+bool PerPortProfile::pause_traffic(uint8_t port_id){
 
     /* we are working with continues streams so we must be in transmit mode */
-    assert(m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING);
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING) ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE) );
 
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         //assert(node->is_pause() == false); <- we can't be sure of this with ability to pause specific streams.
-        node->set_pause(true);
+        if (!node->is_pause()) {
+            node->set_pause(true);
+            m_paused_streams++;
+        }
     }
-    m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
+    assert(m_paused_streams == m_active_streams);
+    if (m_state == PerPortProfile::ppSTATE_TRANSMITTING) {
+        m_port->update_paused(1);
+    }
+    m_state = PerPortProfile::ppSTATE_PAUSE;
     return (true);
 }
 
-bool TrexStatelessDpPerPort::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
+bool TrexStatelessDpPerPort::pause_traffic(uint8_t port_id, uint32_t profile_id){
 
-    assert( (m_state == TrexStatelessDpPerPort::ppSTATE_TRANSMITTING ||
-            (m_state == TrexStatelessDpPerPort::ppSTATE_PAUSE)) );
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->pause_traffic(port_id);
+}
+
+bool PerPortProfile::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
+
+    assert( (m_state == PerPortProfile::ppSTATE_TRANSMITTING) ||
+            (m_state == PerPortProfile::ppSTATE_PAUSE) );
 
     uint32_t done_count = 0;
     for (auto dp_stream : m_active_nodes) {
         CGenNodeStateless * node = dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( stream_ids.find(node->get_user_stream_id()) != stream_ids.end() ) {
-            node->set_pause(true);
+            if (!node->is_pause()) {
+                node->set_pause(true);
+                m_paused_streams++;
+            }
             done_count++;
             if ( done_count == stream_ids.size() ) {
                 break;
             }
         }
     }
+    if (m_paused_streams == m_active_streams) {
+        if (m_state == PerPortProfile::ppSTATE_TRANSMITTING) {
+            m_port->update_paused(1);
+        }
+        m_state = PerPortProfile::ppSTATE_PAUSE;
+    }
     return (true);
+}
+
+bool TrexStatelessDpPerPort::pause_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
+
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile == NULL)
+        return (false);
+
+    return profile->pause_streams(port_id, stream_ids);
 }
 
 bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
@@ -681,12 +789,12 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
 }
 
 
-bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
-                                          bool     stop_on_id,
-                                          int      event_id){
+bool PerPortProfile::stop_traffic(uint8_t  port_id,
+                                  bool     stop_on_id,
+                                  int      event_id){
 
 
-    if (m_state == TrexStatelessDpPerPort::ppSTATE_IDLE) {
+    if (m_state == PerPortProfile::ppSTATE_IDLE) {
         assert(m_active_streams==0);
         return false;
     }
@@ -699,7 +807,7 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
         }
     }
 
-    for (auto dp_stream : m_active_nodes) {
+    for (auto& dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
         if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
@@ -708,7 +816,41 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
             dp_stream.DeleteOnlyStream();
 
         }else{
-            dp_stream.Delete(m_core);
+            dp_stream.Delete(m_port->m_core);
+        }
+    }
+
+    /* active stream should be zero */
+    assert(m_active_streams==0);
+    m_active_nodes.clear();
+    if (m_state == PerPortProfile::ppSTATE_PAUSE) {
+        m_port->update_paused(-1);
+    }
+    m_state=PerPortProfile::ppSTATE_IDLE;
+    return (true);
+}
+
+bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
+                                          uint32_t profile_id,
+                                          bool     stop_on_id,
+                                          int      event_id){
+
+    /* during PCAP_TX, there is no valid profile_id */
+    if (m_state != TrexStatelessDpPerPort::ppSTATE_PCAP_TX) {
+        PerPortProfile * profile = lookup_profile(profile_id);
+        if (profile == NULL)
+            return (false);
+
+        if (!profile->stop_traffic(port_id, stop_on_id, event_id))
+            return (false);
+
+        remove_profile(profile_id);
+    }
+    /* there could be race of stop after stop */
+    else if ( stop_on_id ) {
+        if (event_id != m_event_id){
+            /* we can't stop it is an old message */
+            return false;
         }
     }
 
@@ -725,40 +867,83 @@ bool TrexStatelessDpPerPort::stop_traffic(uint8_t  port_id,
         m_active_pcap_node = NULL;
     }
 
-    /* active stream should be zero */
-    assert(m_active_streams==0);
-    m_active_nodes.clear();
-    m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
+    if (m_active_profiles == 0) {
+        m_profiles.clear();
+        m_state = TrexStatelessDpPerPort::ppSTATE_IDLE;
+    }
+
     return (true);
 }
 
+PerPortProfile::PerPortProfile(TrexStatelessDpPerPort * port) {
+    m_port = port;
+    m_state = PerPortProfile::ppSTATE_IDLE;
+    m_active_streams = 0;
+    m_paused_streams = 0;
+}
 
 void TrexStatelessDpPerPort::create(CFlowGenListPerThread   *  core){
-    m_core=core;
-    m_state=TrexStatelessDpPerPort::ppSTATE_IDLE;
-    m_active_streams=0;
-    m_active_nodes.clear();
+    m_core = core;
+    m_state = TrexStatelessDpPerPort::ppSTATE_IDLE;
+    m_active_profiles = 0;
+    m_paused_profiles = 0;
+    m_profiles.clear();
     m_active_pcap_node = NULL;
+}
+
+PerPortProfile * TrexStatelessDpPerPort::lookup_profile(uint32_t profile_id) {
+    auto it = m_profiles.find(profile_id);
+    return (it == m_profiles.end() ? NULL: it->second);
+}
+
+PerPortProfile * TrexStatelessDpPerPort::create_profile(uint32_t profile_id) {
+    PerPortProfile * profile = lookup_profile(profile_id);
+    assert(profile == NULL);
+    m_profiles[profile_id] = new PerPortProfile(this);
+    m_active_profiles++;
+    return m_profiles[profile_id];
+}
+
+void TrexStatelessDpPerPort::remove_profile(uint32_t profile_id) {
+    PerPortProfile * profile = lookup_profile(profile_id);
+    if (profile) {
+        delete profile;
+        m_profiles.erase(profile_id);
+        m_active_profiles--;
+    }
+}
+
+void TrexStatelessDpPerPort::update_paused(int cnt) {
+    m_paused_profiles += cnt;
+    if (m_paused_profiles == m_active_profiles) {
+        m_state = TrexStatelessDpPerPort::ppSTATE_PAUSE;
+    }
+    else if (m_paused_profiles < m_active_profiles) {
+        m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    }
 }
 
 
 TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) : TrexDpCore(thread_id, core, STATE_IDLE) {
-  
+
     m_duration        = -1;
     m_is_service_mode = NULL;
     m_wrapper         = new ServiceModeWrapper();
-    
+    m_need_to_rx = false;
+
     m_local_port_offset = 2 * core->getDualPortId();
 
     int i;
     for (i=0; i<NUM_PORTS_PER_CORE; i++) {
         m_ports[i].create(core);
     }
-    
+    m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
+    m_features = NO_FEATURES;
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {
     delete m_wrapper;
+    delete m_parser;
 }
 
 
@@ -768,13 +953,14 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
     assert(cur_node);
     TrexStatelessDpPerPort * lp_port = get_port_db(cur_node->m_port_id);
+    PerPortProfile * profile = lp_port->lookup_profile(cur_node->m_profile_id);
     bool schedule =false;
 
-    bool to_stop_port=false;
+    bool to_stop_profile=false;
 
     if (next_node == NULL) {
         /* there is no next stream , reduce the number of active streams*/
-        to_stop_port = lp_port->update_number_of_active_streams(1);
+        to_stop_profile = profile->update_number_of_active_streams(1);
 
     }else{
         uint8_t state=next_node->get_state();
@@ -786,7 +972,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
             if (cur_node->m_action_counter > 0) {
                 cur_node->m_action_counter--;
                 if (cur_node->m_action_counter==0) {
-                    to_stop_port = lp_port->update_number_of_active_streams(1);
+                    to_stop_profile = profile->update_number_of_active_streams(1);
                 }else{
                     /* refill start info and scedule, no update in active streams  */
                     next_node->refresh();
@@ -799,13 +985,13 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
             }
 
         }else{
-            to_stop_port = lp_port->update_number_of_active_streams(1);
+            to_stop_profile = profile->update_number_of_active_streams(1);
         }
     }
 
-    if ( to_stop_port ) {
+    if ( to_stop_profile ) {
         /* call stop port explictly to move the state */
-        stop_traffic(cur_node->m_port_id,false,0);
+        stop_traffic(cur_node->m_port_id,cur_node->m_profile_id,false,profile->get_event_id());
     }
 
     return ( schedule );
@@ -822,13 +1008,21 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
  */
 void
 TrexStatelessDpCore::start_scheduler() {
-    
+
     /* creates a maintenace job using the scheduler */
     CGenNode * node_sync = m_core->create_node() ;
     node_sync->m_type = CGenNode::FLOW_SYNC;
     node_sync->m_time = m_core->m_cur_time_sec + SYNC_TIME_OUT;
 
     m_core->m_node_gen.add_node(node_sync);
+
+    if ( get_dpdk_mode()->dp_rx_queues() ){
+        // add rx node if needed
+        CGenNode * node_rx = m_core->create_node() ;
+        node_rx->m_type = CGenNode::STL_RX_FLUSH;
+        node_rx->m_time = now_sec(); /* NOW to warm thing up */
+        m_core->m_node_gen.add_node(node_rx);
+    }
 
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
@@ -840,10 +1034,81 @@ TrexStatelessDpCore::start_scheduler() {
 }
 
 
+void TrexStatelessDpCore::_rx_handle_packet(int dir,
+                                           rte_mbuf_t * m,
+                                           bool is_idle,
+                                           bool &drop){
+    /* parse the packet, if it has TOS=1, forward it */
+    //utl_rte_pktmbuf_dump_k12(stdout,m);
+    if (m_is_service_mode){
+        drop=false;
+        return;
+    }
+    drop=true;
+
+    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size= rte_pktmbuf_data_len(m);
+    CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
+
+    if (res != FSTAT_PARSER_E_OK){
+        drop=false;
+        return;
+    }
+
+    uint8_t proto = m_parser->get_protocol();
+    bool tcp_udp=false;
+
+    if ((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)){
+        tcp_udp = true;
+    }
+
+    if (m_parser->is_fs_latency()) {
+        m_ports[dir].m_fs_latency.handle_pkt(m);
+    }
+
+    if ( !tcp_udp && (is_idle==false)){
+        drop=false;
+    }
+
+}
+
+void TrexStatelessDpCore::set_need_to_rx(bool enable){
+    m_need_to_rx = enable;
+}
+
+
+bool TrexStatelessDpCore::rx_for_idle(void){
+    if (m_need_to_rx){
+        return (m_core->handle_stl_pkts(true) > 0?true:false);
+    }else{
+        return(false);
+    }
+}
+
+bool TrexStatelessDpCore::is_hot_state() {
+    return is_feature_set(LATENCY) || is_feature_set(CAPTURE);
+}
+void TrexStatelessDpCore::rx_handle_packet(int dir,
+                                           rte_mbuf_t * m,
+                                           bool is_idle,
+                                           tvpid_t port_id){
+    bool drop;
+    _rx_handle_packet(dir,m,is_idle,drop);
+
+    if (drop) {
+        rte_pktmbuf_free(m);
+    }else{
+        /* redirect to rx core */
+        m_core->m_node_gen.m_v_if->redirect_to_rx_core(dir, m);
+    }
+}
+
+
 /* add per port exit */
 void
 TrexStatelessDpCore::add_port_duration(double duration,
                                        uint8_t port_id,
+                                       uint32_t profile_id,
                                        int event_id){
     if (duration > 0.0) {
         CGenNodeCommand *node = (CGenNodeCommand *)m_core->create_node() ;
@@ -853,7 +1118,7 @@ TrexStatelessDpCore::add_port_duration(double duration,
         /* make sure it will be scheduled after the current node */
         node->m_time = m_core->m_cur_time_sec + duration ;
 
-        TrexStatelessDpStop * cmd=new TrexStatelessDpStop(port_id);
+        TrexStatelessDpStop * cmd=new TrexStatelessDpStop(port_id, profile_id);
 
 
         /* test this */
@@ -906,7 +1171,7 @@ void TrexStatelessDpCore::update_mac_addr(TrexStream * stream,
 }
 
 
-void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream, 
+void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
                                                CGenNodeStateless *node){
 
     uint16_t      cache_size = stream->m_cache_size;
@@ -941,7 +1206,8 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
 
 
 void
-TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
+TrexStatelessDpCore::add_stream(PerPortProfile * profile,
+                                uint32_t profile_id,
                                 TrexStream * stream,
                                 TrexStreamsCompiledObj *comp,
                                 double start_at_ts) {
@@ -949,6 +1215,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     CGenNodeStateless *node = (CGenNodeStateless*)m_core->create_node();
 
     node->m_thread_id = m_thread_id;
+    node->m_profile_id = profile_id;
     node->cache_mbuf_array_init();
     node->m_batch_size=0;
 
@@ -968,7 +1235,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     if ( stream->m_self_start ){
         /* if self start it is in active mode */
         node->m_state =CGenNodeStateless::ss_ACTIVE;
-        lp_port->m_active_streams++;
+        profile->m_active_streams++;
     }else{
         node->m_state =CGenNodeStateless::ss_INACTIVE;
     }
@@ -1129,7 +1396,7 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
     one_stream.m_dp_stream = node->m_ref_stream_info;
     one_stream.m_node =node;
 
-    lp_port->m_active_nodes.push_back(one_stream);
+    profile->m_active_nodes.push_back(one_stream);
 
     /* schedule only if active */
     if (node->m_state == CGenNodeStateless::ss_ACTIVE) {
@@ -1139,30 +1406,36 @@ TrexStatelessDpCore::add_stream(TrexStatelessDpPerPort * lp_port,
 
 void
 TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
+                                   uint32_t profile_id,
                                    double duration,
                                    int event_id,
                                    double start_at_ts) {
 
 
     TrexStatelessDpPerPort * lp_port=get_port_db(obj->get_port_id());
-    lp_port->m_active_streams = 0;
-    lp_port->set_event_id(event_id);
+    PerPortProfile * profile=lp_port->create_profile(profile_id);
+    profile->m_active_streams = 0;
+    profile->set_event_id(event_id);
+
+    double schd_offset = get_dpdk_mode()->dp_rx_queues()?
+        SCHD_OFFSET_DTIME_RX_ENABLED:
+        SCHD_OFFSET_DTIME;
 
     /* update cur time */
     if ( CGlobalInfo::is_realtime() ){
-        m_core->m_cur_time_sec = now_sec() + SCHD_OFFSET_DTIME;
+        m_core->m_cur_time_sec = now_sec() + schd_offset;
     }
 
     /* no nodes in the list */
-    assert(lp_port->m_active_nodes.size()==0);
+    assert(profile->m_active_nodes.size()==0);
 
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
         assert(obj->get_port_id() == single_stream.m_stream->m_port_id);
-        add_stream(lp_port,single_stream.m_stream,obj,start_at_ts);
+        add_stream(profile,profile_id,single_stream.m_stream,obj,start_at_ts);
     }
 
-    uint32_t nodes = lp_port->m_active_nodes.size();
+    uint32_t nodes = profile->m_active_nodes.size();
     /* find next stream */
     assert(nodes == obj->get_objects().size());
 
@@ -1175,17 +1448,18 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
             int stream_id = single_stream.m_stream->m_next_stream_id;
             assert(stream_id<nodes);
             /* point to the next stream , stream_id is fixed */
-            lp_port->m_active_nodes[cnt].m_node->m_next_stream = lp_port->m_active_nodes[stream_id].m_node ;
+            profile->m_active_nodes[cnt].m_node->m_next_stream = profile->m_active_nodes[stream_id].m_node ;
         }
         cnt++;
     }
 
-    lp_port->m_state =TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
+    profile->m_state = PerPortProfile::ppSTATE_TRANSMITTING;
+    lp_port->m_state = TrexStatelessDpPerPort::ppSTATE_TRANSMITTING;
     m_state = TrexStatelessDpCore::STATE_TRANSMITTING;
 
 
     if ( duration > 0.0 ){
-        add_port_duration( duration ,obj->get_port_id(),event_id );
+        add_port_duration( duration ,obj->get_port_id(), profile_id, event_id );
     }
 
 }
@@ -1205,40 +1479,40 @@ bool TrexStatelessDpCore::are_all_ports_idle() {
 
 
 void
-TrexStatelessDpCore::resume_traffic(uint8_t port_id){
+TrexStatelessDpCore::resume_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->resume_traffic(port_id);
+    lp_port->resume_traffic(port_id, profile_id);
 
 }
 
 
 void
-TrexStatelessDpCore::resume_streams(uint8_t port_id, stream_ids_t &stream_ids){
+TrexStatelessDpCore::resume_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->resume_streams(port_id, stream_ids);
+    lp_port->resume_streams(port_id, profile_id, stream_ids);
 
 }
 
 
 void
-TrexStatelessDpCore::pause_traffic(uint8_t port_id){
+TrexStatelessDpCore::pause_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->pause_traffic(port_id);
+    lp_port->pause_traffic(port_id, profile_id);
 
 }
 
 void
-TrexStatelessDpCore::pause_streams(uint8_t port_id, stream_ids_t &stream_ids){
+TrexStatelessDpCore::pause_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->pause_streams(port_id, stream_ids);
+    lp_port->pause_streams(port_id, profile_id, stream_ids);
 
 }
 
-void 
+void
 TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                int event_id,
                                const std::string &pcap_filename,
@@ -1260,6 +1534,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
         TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                               port_id,
+                                                              0,
                                                               event_id,
                                                               false);
         ring->Enqueue((CGenNode *)event_msg);
@@ -1268,30 +1543,31 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
 
 
     if (duration > 0.0) {
-        add_port_duration(duration, port_id, event_id);
+        add_port_duration(duration, port_id, 0, event_id);
     }
 
      m_state = TrexStatelessDpCore::STATE_PCAP_TX;
 }
 
 void
-TrexStatelessDpCore::update_traffic(uint8_t port_id, double factor) {
+TrexStatelessDpCore::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->update_traffic(port_id, factor);
+    lp_port->update_traffic(port_id, profile_id, factor);
 
 }
 
 void
-TrexStatelessDpCore::update_streams(uint8_t port_id, stream_ipgs_map_t &ipg_per_stream) {
+TrexStatelessDpCore::update_streams(uint8_t port_id, uint32_t profile_id, stream_ipgs_map_t &ipg_per_stream) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    lp_port->update_streams(port_id, ipg_per_stream);
+    lp_port->update_streams(port_id, profile_id, ipg_per_stream);
 
 }
 
 void
 TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                  uint32_t profile_id,
                                   bool     stop_on_id,
                                   int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
@@ -1299,7 +1575,7 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
        the scheduler invokes it, it will be free */
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
-    if ( lp_port->stop_traffic(port_id,stop_on_id,event_id) == false){
+    if ( lp_port->stop_traffic(port_id,profile_id,stop_on_id,event_id) == false){
         return;
     }
 
@@ -1309,9 +1585,9 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                           port_id,
-                                                          lp_port->get_event_id());
+                                                          profile_id,
+                                                          event_id);
     ring->Enqueue((CGenNode *)event_msg);
-
 }
 
 
@@ -1322,26 +1598,63 @@ TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
     if (enabled == m_is_service_mode) {
         return;
     }
-    
+
     if (enabled) {
         /* sanity */
         assert(m_core->m_node_gen.m_v_if != m_wrapper);
-        
+
         /* set the wrapper object and make the VIF point to it */
         m_wrapper->set_wrapped_object(m_core->m_node_gen.m_v_if);
         m_core->m_node_gen.m_v_if = m_wrapper;
         m_is_service_mode = true;
-        
+
     } else {
         /* sanity */
         assert(m_core->m_node_gen.m_v_if == m_wrapper);
-        
+
         /* restore the wrapped object and make the VIF point to it */
         m_core->m_node_gen.m_v_if = m_wrapper->get_wrapped_object();
         m_is_service_mode = false;
     }
 }
 
+void
+TrexStatelessDpCore::clear_fs_latency_stats(uint8_t dir) {
+    m_ports[dir].m_fs_latency.reset_stats();
+}
+
+void
+TrexStatelessDpCore::clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type) {
+    m_ports[dir].m_fs_latency.reset_stats_partial(min, max, type);
+}
+
+void
+TrexStatelessDpCore::rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch) {
+    for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
+        for (int hw_id = min; hw_id <= max; hw_id++) {
+            CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];
+
+            if (reset) {
+                // need to stop first, so count will be consistent
+                curr_rfc2544.stop();
+            }
+
+            if (period_switch) {
+                curr_rfc2544.sample_period_end();
+            }
+        }
+    }
+}
+
+void
+TrexStatelessDpCore::rfc2544_reset(int min, int max) {
+    for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
+        for (int hw_id = min; hw_id <= max; hw_id++) {
+            CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];
+            curr_rfc2544.reset();
+        }
+    }
+}
 
 /**
  * PCAP node
@@ -1419,7 +1732,7 @@ bool CGenNodePCAP::create(uint8_t port_id,
 
 /**
  * cleanup for PCAP node
- * 
+ *
  * @author imarom (08-May-16)
  */
 void CGenNodePCAP::destroy() {
@@ -1439,4 +1752,7 @@ void CGenNodePCAP::destroy() {
 
     m_state = PCAP_INVALID;
 }
+
+
+
 

@@ -17,7 +17,12 @@ class CSyntax_Test(functional_general_test.CGeneralFunctional_Test):
             ]
 
         files_with_tabs = []
-        path = os.path.abspath(os.path.join(CTRexScenario.scripts_path, os.path.pardir))
+        scripts = CTRexScenario.scripts_path
+        if os.path.islink(os.path.join(scripts, 'bp-sim-64')):
+            path = os.path.abspath(os.path.join(scripts, os.path.pardir))
+        else:
+            path = os.path.abspath(scripts)
+
         for path, _, files in os.walk(path):
             if is_ignored(path, ignores):
                 continue

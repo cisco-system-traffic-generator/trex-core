@@ -12,16 +12,19 @@ from pprint import pprint
 
 class CTRexTcp_Test(CTRexGeneral_Test):
     """This class defines the tcp test cases of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        CTRexGeneral_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
         CTRexGeneral_Test.setUp(self)
 
         setup= CTRexScenario.setup_name;
         self.skip_test_trex_522 =False;
-        if ( setup in ['trex19','trex07','trex23']) :
+        self.high_latency_skip =False; # napatech has high latency skip the test
+
+        if setup in ['trex19','trex07','trex23']:
             self.skip_test_trex_522 =True;
+
+        if setup in ['trex41']:
+            self.high_latency_skip =True;
 
 
 
@@ -51,7 +54,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
     def check_one_counter (self,c,name,val):
         d=c['all']
-        if not (name in d):
+        if name not in d:
             self.fail('counter %s is not in counters ' %(name) )
         if d[name] != val:
             self.fail('counter %s expect %d  value %d  ' %(name,val,d[name]) )
@@ -113,17 +116,20 @@ class CTRexTcp_Test(CTRexGeneral_Test):
     def get_duration(self):
         return 120
 
-    def get_simple_tests(self):
+    def get_simple_params(self):
         tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
                   {'name': 'udp_pcap.py','is_tcp' :False,'is_udp':True,'default':False}]
         return (tests);
 
-    def get_sfr_tests(self):
+    def get_sfr_params(self):
         tests = [ {'name': 'sfr.py','is_tcp' :True,'is_udp':False,'m':1.0},
                   {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
         return (tests);
 
     def test_tcp_http(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
@@ -133,7 +139,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         bypass = self.get_benchmark_param('bypass_result');
 
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -146,7 +152,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -164,6 +170,9 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 print("BYPASS the counter test for now");
 
     def test_ipv6_tcp_http(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if self.is_virt_nics:
             self.skip('--ipv6 flag does not work correctly in with virtual NICs') # TODO: fix
 
@@ -177,7 +186,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -192,7 +201,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -208,6 +217,9 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
     def test_tcp_sfr(self):
+        if self.high_latency_skip:
+            self.skip('self.high_latency_skip') # TODO: fix
+
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')
@@ -216,7 +228,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_sfr_tests ()
+        tests = self.get_sfr_params()
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -229,7 +241,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -259,7 +271,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_simple_tests () 
+        tests = self.get_simple_params() 
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -273,7 +285,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 astf =True
                 )
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)
@@ -294,7 +306,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
         mult  = self.get_benchmark_param('multiplier')
         bypass = self.get_benchmark_param('bypass_result');
 
-        tests = self.get_sfr_tests ()
+        tests = self.get_sfr_params()
 
         for obj in tests:
             ret = self.trex.start_trex(
@@ -309,7 +321,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 )
     
     
-            trex_res = self.trex.sample_to_run_finish()
+            trex_res = self.trex.sample_until_finish()
     
             print("\nLATEST RESULT OBJECT:")
             print(trex_res)

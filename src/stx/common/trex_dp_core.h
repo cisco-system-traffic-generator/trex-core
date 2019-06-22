@@ -26,9 +26,14 @@ limitations under the License.
 #include <stdint.h>
 #include "msg_manager.h"
 #include "pal_utl.h"
+#include "mbuf.h"
+#include "dpdk_port_map.h"
+
 
 class CFlowGenListPerThread;
 class TrexCpToDpMsgBase;
+
+#define NUM_PORTS_PER_CORE 2
 
 /**
  * DP core abstract class 
@@ -41,7 +46,9 @@ public:
     /* states */
     enum state_e {
         STATE_IDLE,
+        STATE_STARTING,
         STATE_TRANSMITTING,
+        STATE_STOPPING,
         STATE_PCAP_TX,
         STATE_TERMINATE
     };
@@ -77,7 +84,7 @@ public:
      * a barrier for the DP core
      * 
      */
-    void barrier(uint8_t port_id, int event_id);
+    void barrier(uint8_t port_id, uint32_t profile_id, int event_id);
     
 
     /**
@@ -133,16 +140,25 @@ public:
      * return true if a specific port is active
      */
     virtual bool is_port_active(uint8_t port_id) = 0;
+
     
+    virtual void rx_handle_packet(int dir,rte_mbuf_t * m,bool is_idle,
+                                  tvpid_t port_id){
+        assert(0);
+    }
     
 protected:
 
     /**
-     * per impelemtation start scheduler
+     * per implementation start scheduler
      */
     virtual void start_scheduler() = 0;
-    
-    
+
+    /* read from RX  */
+    virtual bool rx_for_idle(void);
+
+    virtual bool is_hot_state();
+
     void idle_state_loop();
     
     /**

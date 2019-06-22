@@ -4,7 +4,7 @@
 # send(req)
 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

@@ -42,7 +42,7 @@ class CTRexAsyncStats(object):
 
     def get(self, field, format=False, suffix=""):
 
-        if not field in self.current:
+        if field not in self.current:
             return "N/A"
 
         if not format:
@@ -51,7 +51,7 @@ class CTRexAsyncStats(object):
             return format_num(self.current[field], suffix)
 
     def get_rel (self, field, format=False, suffix=""):
-        if not field in self.current:
+        if field not in self.current:
             return "N/A"
 
         if not format:
@@ -92,7 +92,7 @@ class CTRexAsyncStatsManager():
 
     def get_port_stats (self, port_id):
 
-        if not str(port_id) in self.port_stats:
+        if str(port_id) not in self.port_stats:
             return None
 
         return self.port_stats[str(port_id)]
@@ -116,7 +116,7 @@ class CTRexAsyncStatsManager():
                 port_id = m.group(2)
                 field_name = m.group(1)
 
-                if not port_id in port_stats:
+                if port_id not in port_stats:
                     port_stats[port_id] = {}
 
                 port_stats[port_id][field_name] = value
@@ -131,7 +131,7 @@ class CTRexAsyncStatsManager():
         # update all ports
         for port_id, data in port_stats.items():
 
-            if not port_id in self.port_stats:
+            if port_id not in self.port_stats:
                 self.port_stats[port_id] = CTRexAsyncStatsPort()
 
             self.port_stats[port_id].update(data)
@@ -152,7 +152,16 @@ class ServerEventsIDs(object):
     EVENT_PORT_RELEASED  = 6
     EVENT_PORT_ERROR     = 7
     EVENT_PORT_ATTR_CHG  = 8
-    
+
+    EVENT_PROFILE_STARTED       = 10
+    EVENT_PROFILE_STOPPED       = 11
+    EVENT_PROFILE_PAUSED        = 12
+    EVENT_PROFILE_RESUMED       = 13
+    EVENT_PROFILE_FINISHED_TX   = 14
+    EVENT_PROFILE_ERROR         = 17
+
+    EVENT_ASTF_STATE_CHG = 50
+
     EVENT_SERVER_STOPPED = 100
 
 
@@ -188,8 +197,10 @@ class TRexSubscriber():
         self.zipped = ZippedMsg()
         
         self.t_state = self.THREAD_STATE_DEAD
-        
-        
+
+        self.timeout_sec = 3
+
+
     # connects the async channel
     def connect (self):
 
@@ -245,15 +256,20 @@ class TRexSubscriber():
         
         
     # return the timeout in seconds for the ZMQ subscriber thread
-    def get_timeout_sec (self):
-        return 3
-        
-        
+    def get_timeout_sec(self):
+        return self.timeout_sec
+
+    def get_timeout_msec(self):
+        return int(self.get_timeout_sec() * 1000)
+
+    def set_timeout_sec(self, timeout_sec):
+        self.timeout_sec = timeout_sec
+
     def _run_safe (self):
         
         # socket must be created on the same thread 
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
-        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_sec() * 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
         self.socket.connect(self.tr)
         
         try:
@@ -316,19 +332,17 @@ class TRexSubscriber():
 
             msg = json.loads(line)
 
-            name = msg['name']
-            data = msg['data']
-            type = msg['type']
+            name     = msg['name']
+            data     = msg['data']
+            msg_type = msg['type']
             baseline = msg.get('baseline', False)
 
             self.raw_snapshot[name] = data
 
-            self.__dispatch(name, type, data, baseline)
+            self.__dispatch(name, msg_type, data, baseline)
 
 
 
-                                  
-        
     def get_stats (self):
         return self.stats
 
@@ -377,39 +391,37 @@ class TRexSubscriber():
 
     def handle_event (self, event_id, data):
 
-
-        if (event_id == ServerEventsIDs.EVENT_PORT_STARTED):
+        if event_id == ServerEventsIDs.EVENT_PORT_STARTED:
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port started", port_id)
 
 
         # port stopped
-        elif (event_id == ServerEventsIDs.EVENT_PORT_STOPPED):
+        elif event_id == ServerEventsIDs.EVENT_PORT_STOPPED:
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port stopped", port_id)
 
 
         # port paused
-        elif (event_id == ServerEventsIDs.EVENT_PORT_PAUSED):
+        elif event_id == ServerEventsIDs.EVENT_PORT_PAUSED:
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port paused", port_id)
 
 
         # port resumed
-        elif (event_id == ServerEventsIDs.EVENT_PORT_RESUMED):
+        elif event_id == ServerEventsIDs.EVENT_PORT_RESUMED:
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port resumed", port_id)
 
 
         # port finished traffic
-        elif (event_id == ServerEventsIDs.EVENT_PORT_JOB_DONE):
+        elif event_id == ServerEventsIDs.EVENT_PORT_JOB_DONE:
             port_id = int(data['port_id'])
             self.ctx.event_handler.on_event("port job done", port_id)
 
 
-
         # port was acquired - maybe stolen...
-        elif (event_id == ServerEventsIDs.EVENT_PORT_ACQUIRED):
+        elif event_id == ServerEventsIDs.EVENT_PORT_ACQUIRED:
             session_id = data['session_id']
 
             port_id = int(data['port_id'])
@@ -421,7 +433,7 @@ class TRexSubscriber():
 
 
         # port was released
-        elif (event_id == ServerEventsIDs.EVENT_PORT_RELEASED):
+        elif event_id == ServerEventsIDs.EVENT_PORT_RELEASED:
             port_id     = int(data['port_id'])
             who         = data['who']
             session_id  = data['session_id']
@@ -430,26 +442,80 @@ class TRexSubscriber():
 
 
         # port error
-        elif (event_id == ServerEventsIDs.EVENT_PORT_ERROR):
+        elif event_id == ServerEventsIDs.EVENT_PORT_ERROR:
             port_id = int(data['port_id'])
 
             self.ctx.event_handler.on_event("port error", port_id)
 
 
         # port attr changed
-        elif (event_id == ServerEventsIDs.EVENT_PORT_ATTR_CHG):
-
+        elif event_id == ServerEventsIDs.EVENT_PORT_ATTR_CHG:
             port_id = int(data['port_id'])
             attr    = data['attr']
 
-            self.ctx.event_handler.on_event("port attr chg", port_id, data)
+            self.ctx.event_handler.on_event("port attr chg", port_id, attr)
+
+
+        # profile started
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_STARTED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile started", port_id, profile_id)
+
+
+        # profile stopeed
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_STOPPED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile stopped", port_id, profile_id)
+
+
+        # profile paused
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_PAUSED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile paused", port_id, profile_id)
+
+
+         # profile resumed
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_RESUMED:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile resumed", port_id, profile_id)
+
+
+        # profile finised tx
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_FINISHED_TX:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile finished tx", port_id, profile_id)
+
+
+        # profile error
+        elif event_id == ServerEventsIDs.EVENT_PROFILE_ERROR:
+            port_id = int(data['port_id'])
+            profile_id = str(data['profile_id'])
+            self.ctx.event_handler.on_event("profile error", port_id, profile_id)
+
+
+        # ASTF state changed
+        elif event_id == ServerEventsIDs.EVENT_ASTF_STATE_CHG:
+            state = data['state']
+            error = data.get('error', '')
+            epoch = data.get('epoch')
+            self.ctx.event_handler.on_event('astf state changed', state, error, epoch)
 
 
         # server stopped
-        elif (event_id == ServerEventsIDs.EVENT_SERVER_STOPPED):
+        elif event_id == ServerEventsIDs.EVENT_SERVER_STOPPED:
             cause = data['cause']
 
             self.ctx.event_handler.on_event("server stopped", cause)
+
+
+        # unhandled
+        else:
+            print('Unhandled event %d' % event_id)
 
 
 

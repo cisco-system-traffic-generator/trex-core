@@ -43,8 +43,10 @@ USERS_ALLOWED_TO_RELEASE = ['hhaim']
 REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
 
-GCC6_DIR = '/usr/local/gcc-6.2/bin'
-GCC7_DIR = '/usr/local/gcc-7.2/bin'
+GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
+GCC7_DIRS = ['/usr/local/gcc-7.2/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+
+MAX_PKG_SIZE = 250 # MB
 
 
 #######################################
@@ -120,6 +122,7 @@ def options(opt):
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
+    opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
 
     co = opt.option_groups['configure options']
@@ -207,7 +210,7 @@ def check_ofed(ctx):
        ctx.end_msg("ERROR, OFED should be installed using '$./mlnxofedinstall --with-mft --with-mstflint --dpdk --upstream-libs' try to reinstall or see manual", 'YELLOW')
        return False
 
-    ctx.end_msg('Found needed version %s' % ofed_ver_show)
+    ctx.end_msg('Found version %s.%s' % (m.group(1), m.group(2)))
     return True
 
 @conf
@@ -228,16 +231,49 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     return (ver >= min_ver, ver, min_ver)
     
-    
+
+@conf
+def get_ld_search_path(ctx):
+    ctx.start_msg('Getting LD search path')
+    cmd = 'ld --verbose'
+    ret, out = getstatusoutput(cmd)
+    if ret != 0:
+        ctx.end_msg('failed', 'YELLOW')
+        ctx.fatal('\nCommand: %s\n\nOutput: %s' % (cmd, out))
+
+    path_arr = []
+    regex_str = '\s*SEARCH_DIR\("=?([^"]+)"\)\s*'
+    regex = re.compile(regex_str)
+    for line in out.splitlines():
+        if line.startswith('SEARCH_DIR'):
+            for elem in line.split(';'):
+                if not elem.strip():
+                    continue
+                m = regex.match(elem)
+                if m is None:
+                    ctx.end_msg('failed', 'YELLOW')
+                    Logs.pprint('NORMAL', '\nCommand: %s\n\nOutput: %s' % (cmd, out))
+                    ctx.fatal('Regex (%s0 does not match output (%s).' % (regex_str, elem))
+                else:
+                    path_arr.append(m.group(1))
+
+    if not path_arr:
+        ctx.end_msg('failed', 'YELLOW')
+        Logs.pprint('NORMAL', '\nCommand: %s\n\nOutput: %s' % (cmd, out))
+        ctx.fatal('Could not find SEARCH_DIR in output')
+
+    ctx.env.LD_SEARCH_PATH = path_arr
+    ctx.end_msg('ok', 'GREEN')
+
 def configure(conf):
 
     if conf.options.gcc6 and conf.options.gcc7:
         conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
 
     if conf.options.gcc6:
-        configure_gcc(conf, GCC6_DIR)
+        configure_gcc(conf, GCC6_DIRS)
     elif conf.options.gcc7:
-        configure_gcc(conf, GCC7_DIR)
+        configure_gcc(conf, GCC7_DIRS)
     else:
         configure_gcc(conf)
 
@@ -253,7 +289,11 @@ def configure(conf):
     conf.env.NO_MLX = no_mlx
     if not no_mlx:
         ofed_ok = conf.check_ofed(mandatory = False)
+        conf.env.OFED_OK = ofed_ok
+        conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
+
         if ofed_ok:
+            conf.get_ld_search_path(mandatory = True)
             conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
         else:
             Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' +
@@ -263,21 +303,30 @@ def configure(conf):
     if with_ntacc:
         ntapi_ok = conf.check_ntapi(mandatory = False)
         if not ntapi_ok:
-          Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
+            Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
                                   'https://www.napatech.com/downloads/')
-          raise Exception("Cannot find libntapi");
+            raise Exception("Cannot find libntapi");
 
-          
 
-def configure_gcc (conf, explicit_path = None):
+def search_in_paths(paths):
+    for path in paths:
+        if os.path.exists(path):
+            return path
+
+
+def configure_gcc(conf, explicit_paths = None):
     # use the system path
-    if explicit_path is None:
+    if explicit_paths is None:
         conf.load('gcc')
         conf.load('g++')
         return
 
-    if not os.path.exists(explicit_path):
-        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+    if type(explicit_paths) is not list:
+        explicit_paths = [explicit_paths]
+
+    explicit_path = search_in_paths(explicit_paths)
+    if not explicit_path:
+        conf.fatal('unable to find GCC in installation dir(s): {0}'.format(explicit_paths))
 
     saved = conf.environ['PATH']
     try:
@@ -343,18 +392,13 @@ main_src = SrcGroup(dir='src',
              'hdrh/hdr_histogram_log.c',
 
              'bp_sim_tcp.cpp',
-             'utl_mbuf.cpp',
-             'utl_dbl_human.cpp',
-             'utl_counter.cpp',
-             'utl_policer.cpp',
              'astf/astf_template_db.cpp',
              'stt_cp.cpp',
              'trex_global.cpp',
+             'trex_modes.cpp',
              'bp_sim.cpp',
              'trex_platform.cpp',
              'flow_stat_parser.cpp',
-             'utl_term_io.cpp',
-             'utl_port_map.cpp',
              'global_io_mode.cpp',
              'main_dpdk.cpp',
              'dpdk_port_map.cpp',
@@ -373,13 +417,11 @@ main_src = SrcGroup(dir='src',
              'timer_wheel_pq.cpp',
              'time_histogram.cpp',
              'os_time.cpp',
-             'utl_cpuu.cpp',
-             'utl_ip.cpp',
-             'utl_yaml.cpp',
              'nat_check.cpp',
              'nat_check_flow_table.cpp',
              'msg_manager.cpp',
              'trex_port_attr.cpp',
+             'dpdk_trex_port_attr.cpp',
              'publisher/trex_publisher.cpp',
              'pal/linux_dpdk/pal_utl.cpp',
              'pal/linux_dpdk/mbuf.cpp',
@@ -388,9 +430,30 @@ main_src = SrcGroup(dir='src',
              'astf/astf_db.cpp',
              'astf/astf_json_validator.cpp',
              'bp_sim_stf.cpp',
-             'utl_sync_barrier.cpp',
              'trex_build_info.cpp',
-             'dpdk_drv_filter.cpp'
+             'dpdk_drv_filter.cpp',
+
+             'drivers/trex_driver_base.cpp',
+             'drivers/trex_driver_i40e.cpp',
+             'drivers/trex_driver_igb.cpp',
+             'drivers/trex_driver_ixgbe.cpp',
+             'drivers/trex_driver_mlx5.cpp',
+             'drivers/trex_driver_ntacc.cpp',
+             'drivers/trex_driver_vic.cpp',
+             'drivers/trex_driver_virtual.cpp',
+
+             'utils/utl_counter.cpp',
+             'utils/utl_cpuu.cpp',
+             'utils/utl_dbl_human.cpp',
+             'utils/utl_ip.cpp',
+             'utils/utl_json.cpp',
+             'utils/utl_mbuf.cpp',
+             'utils/utl_offloads.cpp',
+             'utils/utl_policer.cpp',
+             'utils/utl_port_map.cpp',
+             'utils/utl_sync_barrier.cpp',
+             'utils/utl_term_io.cpp',
+             'utils/utl_yaml.cpp',
              ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -421,6 +484,13 @@ json_src = SrcGroup(dir='external_libs/json',
             'jsoncpp.cpp'
            ])
 
+# MD5 package
+md5_src = SrcGroup(dir='external_libs/md5',
+    src_list=[
+        'md5.cpp'
+    ])
+
+
 # RPC code
 rpc_server_src = SrcGroup(dir='src/rpc-server/',
                           src_list=[
@@ -444,24 +514,27 @@ ef_src = SrcGroup(dir='src/common',
 
 # common code for STL / ASTF / STF
 stx_src = SrcGroup(dir='src/stx/common/',
-                           src_list=['trex_stx.cpp',
-                                     'trex_pkt.cpp',
-                                     'trex_rx_packet_parser.cpp',
-                                     'trex_capture.cpp',
-                                     'trex_port.cpp',
-                                     'trex_dp_port_events.cpp',
-                                     'trex_dp_core.cpp',
-                                     'trex_messaging.cpp',
-                                     
-                                     'trex_rx_core.cpp',
-                                     'trex_rx_port_mngr.cpp',
-                                     'trex_rx_tx.cpp',
-                                     'trex_stack_base.cpp',
-                                     'trex_stack_linux_based.cpp',
-                                     'trex_stack_legacy.cpp',
-                                     
-                                     'trex_rpc_cmds_common.cpp'
-                                     ])
+    src_list=[
+        'trex_capture.cpp',
+        'trex_dp_core.cpp',
+        'trex_dp_port_events.cpp',
+        'trex_latency_counters.cpp',
+        'trex_messaging.cpp',
+        'trex_owner.cpp',
+        'trex_pkt.cpp',
+        'trex_port.cpp',
+        'trex_rpc_cmds_common.cpp',
+        'trex_rx_core.cpp',
+        'trex_rx_packet_parser.cpp',
+        'trex_rx_port_mngr.cpp',
+        'trex_rx_tx.cpp',
+        'trex_stack_base.cpp',
+        'trex_stack_counters.cpp',
+        'trex_stack_legacy.cpp',
+        'trex_rx_rpc_tunnel.cpp',
+        'trex_stack_linux_based.cpp',
+        'trex_stx.cpp',
+    ])
 
 
 # stateful code
@@ -496,17 +569,16 @@ astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
 
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
-                         src_list=['trex_astf.cpp',
-                                   'trex_astf_port.cpp',
-                                   'trex_astf_rpc_cmds.cpp',
-                                   'trex_astf_dp_core.cpp'
-                         ])
+    src_list=[
+        'trex_astf.cpp',
+        'trex_astf_dp_core.cpp',
+        'trex_astf_messaging.cpp',
+        'trex_astf_port.cpp',
+        'trex_astf_rpc_cmds.cpp',
+        'trex_astf_rx_core.cpp',
+        'trex_astf_topo.cpp',
+    ])
 
-# JSON package
-json_src = SrcGroup(dir='external_libs/json',
-                    src_list=[
-                        'jsoncpp.cpp'
-                        ])
 
 yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
         src_list=[
@@ -571,7 +643,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/enic/base/vnic_dev.c',
                  'drivers/net/enic/base/vnic_intr.c',
                  'drivers/net/enic/base/vnic_rq.c',
-                 'drivers/net/enic/base/vnic_rss.c',
                  'drivers/net/enic/base/vnic_wq.c',
                  'drivers/net/enic/enic_clsf.c',
                  'drivers/net/enic/enic_flow.c',
@@ -602,6 +673,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
                  #'drivers/net/ixgbe/ixgbe_ipsec.c',
                  'drivers/net/ixgbe/ixgbe_tm.c',
+                 'drivers/net/ixgbe/ixgbe_vf_representor.c',
                  'drivers/net/ixgbe/rte_pmd_ixgbe.c',
 
                  #i40e
@@ -612,15 +684,16 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/i40e/base/i40e_hmc.c',
                  'drivers/net/i40e/base/i40e_lan_hmc.c',
                  'drivers/net/i40e/base/i40e_nvm.c',
+                 'drivers/net/i40e/i40e_ethdev.c',
                  'drivers/net/i40e/i40e_ethdev_vf.c',
+                 'drivers/net/i40e/i40e_fdir.c',
+                 'drivers/net/i40e/i40e_flow.c',
                  'drivers/net/i40e/i40e_pf.c',
                  'drivers/net/i40e/i40e_rxtx.c',
-                 'drivers/net/i40e/i40e_flow.c',
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
-                 'drivers/net/i40e/i40e_fdir.c',
-                 'drivers/net/i40e/i40e_tm.c',      # add
-                 'drivers/net/i40e/rte_pmd_i40e.c', # add
-                 'drivers/net/i40e/i40e_ethdev.c',
+                 'drivers/net/i40e/i40e_tm.c',
+                 'drivers/net/i40e/i40e_vf_representor.c',
+                 'drivers/net/i40e/rte_pmd_i40e.c',
 
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
@@ -642,7 +715,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
                  'lib/librte_eal/common/arch/x86/rte_cycles.c',
-                 'lib/librte_eal/common/arch/x86/rte_memcpy.c',
                  ])
 
 
@@ -663,13 +735,15 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  '../dpdk_funcs.c',
                  'drivers/bus/pci/pci_common.c',
                  'drivers/bus/pci/pci_common_uio.c',
+                 'drivers/bus/pci/pci_params.c',
                  'drivers/bus/pci/linux/pci.c',
                  'drivers/bus/pci/linux/pci_uio.c',
                  'drivers/bus/pci/linux/pci_vfio.c',
                  'drivers/bus/vdev/vdev.c',
+                 'drivers/bus/vdev/vdev_params.c',
 
                  'drivers/mempool/ring/rte_mempool_ring.c',
-                 'drivers/mempool/stack/rte_mempool_stack.c',
+                 #'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
 
 
                  # drivers
@@ -683,6 +757,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/base/e1000_api.c',
                  'drivers/net/e1000/base/e1000_i210.c',
                  'drivers/net/e1000/base/e1000_ich8lan.c',
+                 'drivers/net/e1000/e1000_logs.c',
                  'drivers/net/e1000/base/e1000_mac.c',
                  'drivers/net/e1000/base/e1000_manage.c',
                  'drivers/net/e1000/base/e1000_mbx.c',
@@ -714,97 +789,124 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_cfgfile/rte_cfgfile.c',
 
                  'lib/librte_eal/common/eal_common_bus.c',
+                 'lib/librte_eal/common/eal_common_class.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
                  'lib/librte_eal/common/eal_common_errno.c',
+                 'lib/librte_eal/common/eal_common_fbarray.c',
                  'lib/librte_eal/common/eal_common_hexdump.c',
                  'lib/librte_eal/common/eal_common_launch.c',
                  'lib/librte_eal/common/eal_common_lcore.c',
                  'lib/librte_eal/common/eal_common_log.c',
+                 'lib/librte_eal/common/eal_common_memalloc.c',
                  'lib/librte_eal/common/eal_common_memory.c',
                  'lib/librte_eal/common/eal_common_memzone.c',
                  'lib/librte_eal/common/eal_common_options.c',
+                 'lib/librte_eal/common/eal_common_proc.c',
                  'lib/librte_eal/common/eal_common_string_fns.c',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
 
+                 'lib/librte_eal/common/hotplug_mp.c',
                  'lib/librte_eal/common/malloc_elem.c',
                  'lib/librte_eal/common/malloc_heap.c',
+                 'lib/librte_eal/common/malloc_mp.c',
                  'lib/librte_eal/common/rte_keepalive.c',
                  'lib/librte_eal/common/rte_malloc.c',
+                 'lib/librte_eal/common/rte_option.c',
                  'lib/librte_eal/common/rte_service.c',
-                 'lib/librte_eal/linuxapp/eal/eal.c',
-                 'lib/librte_eal/linuxapp/eal/eal_alarm.c',
-                 'lib/librte_eal/linuxapp/eal/eal_debug.c',
-                 'lib/librte_eal/linuxapp/eal/eal_hugepage_info.c',
-                 'lib/librte_eal/linuxapp/eal/eal_interrupts.c',
-                 'lib/librte_eal/linuxapp/eal/eal_lcore.c',
-                 'lib/librte_eal/linuxapp/eal/eal_log.c',
-                 'lib/librte_eal/linuxapp/eal/eal_memory.c',
-                 'lib/librte_eal/linuxapp/eal/eal_thread.c',
-                 'lib/librte_eal/linuxapp/eal/eal_timer.c',
-                 'lib/librte_eal/linuxapp/eal/eal_vfio_mp_sync.c',
-                 'lib/librte_eal/linuxapp/eal/eal_vfio.c',
-                 'lib/librte_ether/rte_ethdev.c',
-                 'lib/librte_ether/rte_flow.c',
-                 'lib/librte_ether/ethdev_profile.c',
+                 'lib/librte_eal/linux/eal/eal.c',
+                 'lib/librte_eal/linux/eal/eal_alarm.c',
+                 'lib/librte_eal/linux/eal/eal_debug.c',
+                 'lib/librte_eal/linux/eal/eal_hugepage_info.c',
+                 'lib/librte_eal/linux/eal/eal_interrupts.c',
+                 'lib/librte_eal/linux/eal/eal_lcore.c',
+                 'lib/librte_eal/linux/eal/eal_log.c',
+                 'lib/librte_eal/linux/eal/eal_memalloc.c',
+                 'lib/librte_eal/linux/eal/eal_memory.c',
+                 'lib/librte_eal/linux/eal/eal_thread.c',
+                 'lib/librte_eal/linux/eal/eal_timer.c',
+                 'lib/librte_eal/linux/eal/eal_vfio_mp_sync.c',
+                 'lib/librte_eal/linux/eal/eal_vfio.c',
+                 'lib/librte_ethdev/rte_ethdev.c',
+                 'lib/librte_ethdev/rte_flow.c',
+                 'lib/librte_ethdev/ethdev_private.c',
+                 'lib/librte_ethdev/ethdev_profile.c',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
                  'lib/librte_mbuf/rte_mbuf_ptype.c',
+                 'lib/librte_mbuf/rte_mbuf_pool_ops.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
+                 'lib/librte_mempool/rte_mempool_ops_default.c',
                  'lib/librte_net/rte_net.c',
                  'lib/librte_net/rte_net_crc.c',
-                 'lib/librte_ring/rte_ring.c',
+                 'lib/librte_net/rte_arp.c',
                  'lib/librte_pci/rte_pci.c',
+                 'lib/librte_ring/rte_ring.c',
+                 'lib/librte_timer/rte_timer.c',
             ]);
 
-ntacc_dpdk_src = SrcGroup(dir='src/dpdk',
+ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
-
-                 'drivers/net/ntacc/filter_ntacc.c',
-                 'drivers/net/ntacc/rte_eth_ntacc.c',
-                 'drivers/net/ntacc/nt_compat.c',
+                 'filter_ntacc.c',
+                 'rte_eth_ntacc.c',
+                 'nt_compat.c',
             ]);
 
-mlx5_dpdk_src = SrcGroup(dir='src/dpdk/',
-                src_list=[
+libmnl_src = SrcGroup(
+    dir = 'external_libs/libmnl/src',
+    src_list = [
+        'socket.c',
+        'callback.c',
+        'nlmsg.c',
+        'attr.c',
+    ]);
 
-                 'drivers/net/mlx5/mlx5_mr.c',
-                 'drivers/net/mlx5/mlx5_ethdev.c',
-                 'drivers/net/mlx5/mlx5_mac.c',
-                 'drivers/net/mlx5/mlx5_rxmode.c',
-                 'drivers/net/mlx5/mlx5_rxtx.c',
-                 'drivers/net/mlx5/mlx5_stats.c',
-                 'drivers/net/mlx5/mlx5_txq.c',
-                 'drivers/net/mlx5/mlx5.c',
-                 #'drivers/net/mlx5/mlx5_fdir.c', # remove 
-                 'drivers/net/mlx5/mlx5_flow.c',
-                 'drivers/net/mlx5/mlx5_rss.c',
-                 'drivers/net/mlx5/mlx5_rxq.c',
-                 'drivers/net/mlx5/mlx5_trigger.c',
-                 'drivers/net/mlx5/mlx5_vlan.c',
+mlx5_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx5',
+    src_list = [
+        'mlx5.c',
+        'mlx5_devx_cmds.c',
+        'mlx5_ethdev.c',
+        'mlx5_flow.c',
+        'mlx5_flow_dv.c',
+        'mlx5_flow_tcf.c',
+        'mlx5_flow_verbs.c',
+        'mlx5_glue.c',
+        'mlx5_mac.c',
+        'mlx5_mp.c',
+        'mlx5_mr.c',
+        'mlx5_nl.c',
+        'mlx5_rss.c',
+        'mlx5_rxmode.c',
+        'mlx5_rxq.c',
+        'mlx5_rxtx.c',
+        'mlx5_rxtx_vec.c',
+        'mlx5_stats.c',
+        'mlx5_trigger.c',
+        'mlx5_txq.c',
+        'mlx5_vlan.c',
+    ]);
 
-                 'drivers/net/mlx5/mlx5_rxtx_vec.c',
-                 'drivers/net/mlx5/mlx5_socket.c',
-
-            ]);
-
-mlx4_dpdk_src = SrcGroup(dir='src/dpdk/',
-                src_list=[
-                 'drivers/net/mlx4/mlx4.c',
-                 'drivers/net/mlx4/mlx4_ethdev.c',
-                 'drivers/net/mlx4/mlx4_flow.c',
-                 'drivers/net/mlx4/mlx4_intr.c',
-                 'drivers/net/mlx4/mlx4_mr.c',
-                 'drivers/net/mlx4/mlx4_rxq.c',
-                 'drivers/net/mlx4/mlx4_rxtx.c',
-                 'drivers/net/mlx4/mlx4_txq.c',
-                 'drivers/net/mlx4/mlx4_utils.c',
-            ]);
+mlx4_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/mlx4',
+    src_list = [
+        'mlx4.c',
+        'mlx4_ethdev.c',
+        'mlx4_flow.c',
+        'mlx4_glue.c',
+        'mlx4_intr.c',
+        'mlx4_mp.c',
+        'mlx4_mr.c',
+        'mlx4_rxq.c',
+        'mlx4_rxtx.c',
+        'mlx4_txq.c',
+        'mlx4_utils.c',
+    ]);
 
 if march == 'x86_64':
     bp_dpdk = SrcGroups([
@@ -827,6 +929,9 @@ elif march == 'aarch64':
     # software BPF
     bpf = SrcGroups([bpf_src]);
 
+libmnl =SrcGroups([
+                libmnl_src
+                ]);
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
@@ -842,21 +947,22 @@ mlx4_dpdk =SrcGroups([
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
-                main_src,
-                cmn_src ,
-                net_src ,
-                yaml_src,
-                json_src,
-                rpc_server_src,
+        main_src,
+        cmn_src ,
+        net_src ,
+        yaml_src,
+        json_src,
+        md5_src,
+        rpc_server_src,
+
+        stx_src,
+        stf_src,
+        stateless_src,
+        astf_batch_src,
+        astf_src,
                 
-                stx_src,
-                stf_src,
-                stateless_src,
-                astf_batch_src,
-                astf_src,
-                
-                version_src
-                ]);
+        version_src,
+    ]);
 
 l2fwd_main_src = SrcGroup(dir='src',
         src_list=[
@@ -876,12 +982,15 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-g',
                 '-Wno-format',
                 '-Wno-deprecated-declarations',
+                '-Wno-error=uninitialized',
                 '-DRTE_DPDK',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
-                '-D__STDC_CONSTANT_MACROS'
+                '-D__STDC_CONSTANT_MACROS',
                 #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
                 #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
+                #'-D__DEBUG_FUNC_ENTRY__', # Added by Ido to debug Flow Stats
+                #'-D__TREX_RPC_DEBUG__', # debug RPC dialogue
                ]
 
 
@@ -951,7 +1060,7 @@ dpdk_includes_path_aarch64 ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1711_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk1905_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
@@ -978,27 +1087,27 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/
                         ../src/dpdk/lib/librte_cfgfile/
                         ../src/dpdk/lib/librte_compat/
-                        ../src/dpdk/lib/librte_distributor/
                         ../src/dpdk/lib/librte_eal/
                         ../src/dpdk/lib/librte_eal/common/
                         ../src/dpdk/lib/librte_eal/common/include/
                         ../src/dpdk/lib/librte_eal/common/include/arch/
 
                         ../src/dpdk/lib/librte_eal/common/include/generic/
-                        ../src/dpdk/lib/librte_eal/linuxapp/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/
-                        ../src/dpdk/lib/librte_eal/linuxapp/eal/include/exec-env/
-                        ../src/dpdk/lib/librte_eal/linuxapp/igb_uio/
-                        ../src/dpdk/lib/librte_ether/
+                        ../src/dpdk/lib/librte_eal/linux/
+                        ../src/dpdk/lib/librte_eal/linux/eal/
+                        ../src/dpdk/lib/librte_eal/linux/eal/include/
+                        ../src/dpdk/lib/librte_eal/linux/eal/include/exec-env/
+                        ../src/dpdk/lib/librte_ethdev/
                         ../src/dpdk/lib/librte_hash/
                         ../src/dpdk/lib/librte_kvargs/
                         ../src/dpdk/lib/librte_mbuf/
                         ../src/dpdk/lib/librte_mempool/
-                        ../src/dpdk/lib/librte_ring/
-                        ../src/dpdk/lib/librte_pci/
+                        ../src/dpdk/lib/librte_meter/
                         ../src/dpdk/lib/librte_net/
+                        ../src/dpdk/lib/librte_pci/
                         ../src/dpdk/lib/librte_port/
+                        ../src/dpdk/lib/librte_ring/
+                        ../src/dpdk/lib/librte_timer/
                         ../src/dpdk/
                         
                         ../src/dpdk/drivers/bus/pci/
@@ -1015,38 +1124,41 @@ elif march == 'aarch64':
 
 includes_path = '''
                    ../src/
+                   ../src/drivers/
                    ../src/pal/common/
                    ../src/pal/linux_dpdk/
                    ../src/stx/
                    ../src/stx/common/
+                   ../src/utils/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/
+                   ../external_libs/md5/
                    ../external_libs/bpf/
                    ../external_libs/valijson/include/
                   ''';
 
-
-dpdk_includes_verb_path =''
 
 
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march != 'aarch64':
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1711_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
 else:
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1711_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
         'jsonrpclib-pelix-0.2.5',
         'pyyaml-3.11',
-        'pyzmq-14.5.0',
+        'pyzmq-ctypes',
         'scapy-2.3.1',
         'texttable-0.8.4',
         'simpy-3.0.10',
         'trex-openssl',
+        'dpkt-1.9.1',
+        'repoze'
         ]
 
 rpath_linkage = ['so']
@@ -1134,6 +1246,9 @@ class build_option:
     def get_mlx5_target (self):
         return self.update_executable_name("mlx5");
 
+    def get_libmnl_target (self):
+        return self.update_executable_name("mnl");
+
     def get_mlx4_target (self):
         return self.update_executable_name("mlx4");
 
@@ -1142,6 +1257,9 @@ class build_option:
 
     def get_mlx5so_target (self):
         return self.update_executable_name("libmlx5")+'.so';
+
+    def get_libmnlso_target (self):
+        return self.update_executable_name("libmnl") + '.so';
 
     def get_mlx4so_target (self):
         return self.update_executable_name("libmlx4")+'.so';
@@ -1159,14 +1277,19 @@ class build_option:
             flags += ['-DNDEBUG'];
         else:
             flags += ['-UNDEBUG'];
+
+        flags += ['-std=c11']
+
         return (flags)
 
-    def get_mlx4_flags(self):
+    def get_mlx4_flags(self, bld):
         flags=[]
         if self.isRelease () :
             flags += ['-DNDEBUG'];
         else:
             flags += ['-UNDEBUG'];
+        if bld.env.OFED_OK:
+            flags += ['-DHAVE_IBV_MLX4_WQE_LSO_SEG=1']
         return (flags)
 
     def get_common_flags (self):
@@ -1271,19 +1394,33 @@ def build_prog (bld, build_obj):
       );
 
     if bld.env.NO_MLX == False:
+        if not bld.env.LIB_MNL:
+            bld.shlib(
+                features='c',
+                includes = bld.env.libmnl_path,
+                cflags   = (cflags),
+                source   = libmnl.file_list(top),
+                target   = build_obj.get_libmnl_target()
+            )
+            bld.env.mlx5_use = [build_obj.get_libmnl_target()]
+
         bld.shlib(
           features='c',
-          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          includes = dpdk_includes_path +
+                     bld.env.dpdk_includes_verb_path +
+                     bld.env.libmnl_path,
           cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-            use =['ibverbs','mlx5'],
+          use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
           source   = mlx5_dpdk.file_list(top),
-          target   = build_obj.get_mlx5_target()
+          target   = build_obj.get_mlx5_target(),
+          **bld.env.mlx5_kw
         )
 
         bld.shlib(
         features='c',
-        includes = dpdk_includes_path+dpdk_includes_verb_path,
-        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags() ),
+        includes = dpdk_includes_path +
+                   bld.env.dpdk_includes_verb_path,
+        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
             use =['ibverbs', 'mlx4'],
         source   = mlx4_dpdk.file_list(top),
         target   = build_obj.get_mlx4_target()
@@ -1292,10 +1429,13 @@ def build_prog (bld, build_obj):
     if bld.env.WITH_NTACC == True:
         bld.shlib(
           features='c',
-          includes = dpdk_includes_path+dpdk_includes_verb_path,
+          includes = dpdk_includes_path +
+                     bld.env.dpdk_includes_verb_path,
           cflags   = (cflags + DPDK_FLAGS +
             ['-I/opt/napatech3/include',
-             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"']),
+             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
+             '-DUSE_EXTERNAL_BUFFER',
+             '-DNO_NTACC_TOEPLITZ_SUPPORT']),
           use =['ntapi'],
 
           source   = ntacc_dpdk.file_list(top),
@@ -1334,6 +1474,8 @@ def post_build(bld):
     print("*** generating softlinks ***")
     exec_p ="../scripts/"
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         install_single_system(bld, exec_p, obj);
 
 
@@ -1352,8 +1494,7 @@ def build(bld):
     if bld.env.SANITIZED and bld.cmd == 'build':
         Logs.warn("\n******* building sanitized binaries *******\n")
 
-        
-    global dpdk_includes_verb_path;
+    bld.env.dpdk_includes_verb_path = ''
     bld.add_pre_fun(pre_build)
     bld.add_post_fun(post_build);
 
@@ -1362,21 +1503,38 @@ def build(bld):
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     if bld.env.NO_MLX == False:
-        if bld.env['LIB_IBVERBS']:
+        if bld.env.LIB_IBVERBS:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
+            if not bld.env.LD_SEARCH_PATH:
+                bld.fatal('LD_SEARCH_PATH is empty, run configure')
+            from waflib.Tools.ccroot import SYSTEM_LIB_PATHS
+            SYSTEM_LIB_PATHS.extend(bld.env.LD_SEARCH_PATH)
+
             bld.read_shlib(name='ibverbs')
             bld.read_shlib(name='mlx5')
             bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/'
-            dpdk_includes_verb_path =' \n ../external_libs/ibverbs/include/ \n'
+            bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
             bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
             bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
+        if bld.env.LIB_MNL:
+            Logs.pprint('GREEN', 'Info: Using external libmnl.')
+            bld.env.libmnl_path = ''
+            bld.env.mlx5_use = []
+            bld.env.mlx5_kw = {'lib': 'mnl'}
+        else:
+            Logs.pprint('GREEN', 'Info: Using internal libmnl.')
+            bld.env.libmnl_path=' \n ../external_libs/libmnl/include/ \n'
+            bld.env.mlx5_kw  = {}
+
     for obj in build_types:
+        if bld.options.no_old and obj.is_pie:
+            continue
         build_type(bld,obj);
 
 
@@ -1438,6 +1596,11 @@ def install_single_system (bld, exec_p, build_obj):
                    name = build_obj.get_mlx4so_target(),
                    where = so_path)
 
+    # MNL
+    do_create_link(src   = os.path.realpath(o + build_obj.get_libmnlso_target()),
+                   name  = build_obj.get_libmnlso_target(),
+                   where = so_path)
+
     # BPF
     do_create_link(src   = os.path.realpath(o + build_obj.get_bpfso_target()),
                    name  = build_obj.get_bpfso_target(),
@@ -1452,9 +1615,8 @@ def pre_build(bld):
 
 
 def write_file (file_name,s):
-    f=open(file_name,'w')
-    f.write(s)
-    f.close()
+    with open(file_name,'w') as f:
+        f.write(s)
 
 
 def get_build_num ():
@@ -1558,7 +1720,9 @@ files_list=[
             'daemon_server'
             ];
 
-files_dir=['cap2','avl','cfg','ko','automation', 'external_libs', 'python-lib','stl','exp','astf']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf']
+pkg_exclude = ['*.pyc', '__pycache__']
+pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
 
 class Env(object):
@@ -1617,12 +1781,12 @@ def check_release_permission():
         raise Exception('You are not allowed to release TRex. Please contact Hanoch.')
 
 # build package in parent dir. can provide custom name and folder with --pkg-dir and --pkg-file
-def pkg(self):
+def pkg(bld):
     build_num = get_build_num()
-    pkg_dir = self.options.pkg_dir
+    pkg_dir = bld.options.pkg_dir
     if not pkg_dir:
         pkg_dir = os.pardir
-    pkg_file = self.options.pkg_file
+    pkg_file = bld.options.pkg_file
     if not pkg_file:
         pkg_file = '%s.tar.gz' % build_num
     tmp_path = os.path.join(pkg_dir, '_%s' % pkg_file)
@@ -1631,12 +1795,15 @@ def pkg(self):
 
     # clean old dir if exists
     os.system('rm -rf %s' % build_path)
-    release(self, build_path + '/')
+    release(bld, build_path + '/')
     os.system("cp %s/%s.tar.gz %s" % (build_path, build_num, tmp_path))
     os.system("mv %s %s" % (tmp_path, dst_path))
 
     # clean new dir
     os.system('rm -rf %s' % build_path)
+    pkg_size = int(os.path.getsize(dst_path) / 1e6)
+    if pkg_size > MAX_PKG_SIZE:
+        bld.fatal('Package size is too large: %sMB (max allowed: %sMB)' % (pkg_size, MAX_PKG_SIZE))
 
 
 def release(bld, custom_dir = None):
@@ -1660,11 +1827,16 @@ def release(bld, custom_dir = None):
         dest_file = exec_p +'/'+obj
         os.system("cp %s %s " %(src_file,dest_file));
 
-    for obj in files_dir:
+    exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
+    for obj in pkg_include:
         src_file =  '../scripts/'+obj+'/'
         dest_file = exec_p +'/'+obj+'/'
-        os.system("cp -rv %s %s " %(src_file,dest_file));
+        os.system("rsync -r -v %s %s %s" % (src_file, dest_file, exclude));
         os.system("chmod 755 %s " %(dest_file));
+
+    for obj in pkg_make_dirs:
+        dest_dir = os.path.join(exec_p, obj)
+        os.system('mkdir -p %s' % dest_dir)
 
     # copy .SO objects and resolve symbols
     os.system('cp -rL ../scripts/so {0}'.format(exec_p))
@@ -1672,23 +1844,11 @@ def release(bld, custom_dir = None):
     rel=get_build_num ()
 
     # create client package
-    os.system('mkdir -p %s/trex_client/external_libs' % exec_p)
     for ext_lib in client_external_libs:
         os.system('cp ../scripts/external_libs/%s %s/trex_client/external_libs/ -r' % (ext_lib, exec_p))
     os.system('cp ../scripts/automation/trex_control_plane/stf %s/trex_client/ -r' % exec_p)
     os.system('cp ../scripts/automation/trex_control_plane/interactive/ %s/trex_client/ -r' % exec_p)
 
-    """
-    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p) as f:
-        stl_path_content = f.read()
-    if 'STL_PROFILES_PATH' not in stl_path_content:
-        raise Exception('Could not find STL_PROFILES_PATH in stl/examples/stl_path.py')
-    stl_path_content = re.sub('STL_PROFILES_PATH.*?\n', "STL_PROFILES_PATH = os.path.join(os.pardir, 'profiles')\n", stl_path_content)
-    with open('%s/trex_client/stl/examples/stl_path.py' % exec_p, 'w') as f:
-        f.write(stl_path_content)
-    """
-
-    os.system('mkdir %s/trex_client/interactive/profiles' % exec_p)
     os.system('cp ../scripts/stl %s/trex_client/interactive/profiles/ -r' % exec_p)
 
     shutil.make_archive(os.path.join(exec_p, 'trex_client_%s' % rel), 'gztar', exec_p, 'trex_client')

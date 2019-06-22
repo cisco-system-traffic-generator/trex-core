@@ -41,6 +41,13 @@ include::trex_ga.asciidoc[]
 | 1.6    | Itay Marom (imarom)
 |
 - added API synchronization
+| 1.7    | Mathieu Monney (mamonney)
+|
+- add capture port support
+| 1.8    | Hanoch Haim (hhaim)
+|
+- add astf commands 
+
 |=================
 
 
@@ -65,7 +72,7 @@ In general, we will describe the following:
 
 TRex server transport layer is implemented using ZMQ.
 
-The default configuration is TCP on port 5555, however this is configurable.
+The default configuration is TCP on port 4501, however this is configurable.
 
 {zwsp} +
 The communication model is based on the request-reply ZMQ model:
@@ -155,7 +162,8 @@ This will identify the connection:
 
 image::images/rpc_states.png[title="Port States",align="left",width=150, link="images/rpc_states.png"]
 
-== RPC Commands
+== RPC Commands common
+
 The following RPC commands are supported
 
 === API Synchronization
@@ -517,6 +525,7 @@ Example:
 * *Description* - Queries the server for status
 * *Parameters* -
 ** *port_id* ['int'] - port id to query for owner
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
 * *Result* ['object'] - see below
 
 [source,bash]
@@ -555,6 +564,49 @@ Example:
         "owner": "",
         "speed": 10000,
         "state": "TX"
+    }
+}
+
+'Request':
+
+{
+    "id": "oveilf0n",
+    "jsonrpc": "2.0",
+    "method": "get_port_status",
+    "params": {
+        "api_h": "VGDJwdiY",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": "oveilf0n",
+    "jsonrpc": "2.0",
+    "result": {
+        "attr": {
+            "fc": {
+                "mode": 0
+            },
+            "link": {
+                "up": true
+            },
+            "promiscuous": {
+                "enabled": false
+            }
+        },
+        "max_stream_id": 3,
+        "owner": "",
+        "profile_count": 3,
+        "speed": 10000,
+        "state": "TX",
+        "state_profile": {
+            "_" : "TX",
+            "imix" : "STREAMS",
+            "udp1pkt" : "IDLE"
+        }
     }
 }
 
@@ -644,734 +696,6 @@ Example:
     "jsonrpc": "2.0",
     "result": {}
 }
-----
-
-
-=== Add Stream
-
-* *Name* - 'add_stream'
-* *API Class* - 'core'
-* *Valid States* - 'owned'
-* *Description* - Adds a stream to a port
-* *Parameters* 
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port id associated with this stream
-** *stream_id* ['int'] - stream id associated with the stream object
-** *stream* - object of type xref:stream_obj['stream']
-* *Result* ['object'] - {}
-
-
-The object type 'stream' anchor:stream_obj[]
-
-Add_stream gets a single parameter of type object.
-
-The format of that object is as follows:
-
-.Object type 'stream' 
-[options="header",cols="1,1,3"]
-|=================
-| Field           | Type    | Description 
-| enabled         | boolean | is this stream enabled
-| self_start      | boolean | is this stream triggered by starting injection or triggered by another stream
-| action_count    | uint16_t  | In case it is bigger than zero and next stream is not -1 (set) the number of goto will be limited to this number. Maximum value is 65K. default is zero. Zero means - not limit.
-| random_seed     | uint32_t  | For creating reproducible  tests with random number, each stream can get a seed. this field is optional. In case of zero the seed value won't be taken 
-| flags           | uint16_t |  bit 0 (LSB) : 1 - take the src MAC from the packet instead of config file. bit 1-2 (LSB) how to set the dest MAC ( stCFG_FILE     = 0, stPKT = 1,stARP = 2 )
-| isg             | double  | ['usec'] inter stream gap - delay time in usec until the stream is started
-| next_stream_id  | int     | next stream to start after this stream. -1 means stop after this stream
-| packet          | object  | object of type xref:packet_obj['packet']
-| mode            | object  | object of type xref:mode_obj['mode']
-| vm              | object  | array of objects of type xref:vm_obj['vm']
-| rx_stats        | object  | object of type xref:rx_stats_obj['rx_stats']
-|=================
-
-==== packet
-
-anchor:packet_obj[]
-
-packet contains binary and meta data
-
-.Object type 'packet'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type        | Description
-| binary      | byte array  | binary dump of the packet to be used in the stream as array of bytes
-| meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
-|=================
-
-==== mode
-
-anchor:mode_obj[]
-
-mode object can be 'one' of the following objects:
-
-.Object type 'rate' 
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type        | Description
-| type        | string      | [''pps'',''bps_L1'',''bps_L2'',''percentage''
-| value       | double      |  rate 
-|=================
-
-
-.Object type 'mode - continuous' 
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type        | Description
-| type        | string      | ''continuous''
-| rate        | object      |  rate object
-|=================
-
-
-
-.Object type 'mode - single_burst' 
-[options="header",cols="1,1,3"]
-|=================
-| Field         | Type        | Description
-| type          | string      | ''single_burst''
-| rate          | object      |  rate object
-| total pkts    | int         | total packets in the burst
-|=================
-
-.Object type 'mode - multi_burst' 
-[options="header",cols="1,1,3"]
-|=================
-| Field          | Type        | Description
-| type           | string      | ''multi_burst''
-| rate           | object      |  rate object
-| pkts_per_burst | int         | packets in a single burst
-| ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
-| count          | int         | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
-|=================
-
-==== vm
-
-an Object that include instructions array and properties of the field engine program  anchor:vm_obj[]
-
-.Object type 'packet'
-[options="header",cols="1,1,3"]
-|=================
-| Field        | Type        | Description
-| Instructions | array       | list of instructional objects 
-| split_by_var | string      | name of the field by which to split into threads 
-| Restart      | boolean     | restart the field engine program when stream moving from inactive->active
-|=================
-
-
-Array of VM instruction objects to be used with this stream
-Any element in the array can be one of the following object types:
-
-===== fix_checksum_hw
-
-Fix TCP/UDP and IPv4 headers using hardware assit engine 
-
-.Object type 'vm - fix_checksum_hw'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type        | Description
-| type        | string      | ''fix_checksum_hw''
-| l2_len      | uint16      | len of L2 (e.g. 14 Ether)
-| l3_len      | uint16      | len of l3 header (e.g. 20 for IP)
-| l4_type     | uint16      | the type of L4 header either UDP or TCP ( L4_TYPE_UDP = 11 | L4_TYPE_TCP = 13)
-|=================
-
-===== fix_checksum_ipv4
-
-.Object type 'vm - fix_checksum_ipv4'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type        | Description
-| type        | string      | ''fix_checksum_ipv4''
-| pkt_offset  | uint16      | offset of the field to fix 
-|=================
-
-===== flow_var
-
-.Object type 'vm - flow_var'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type                        | Description
-| type        | string                      | ''flow_var'''
-| name        | string                      | flow var name - this should be a unique identifier
-| size        | [1,2,4,8]                   | size of the flow var in bytes
-| op          | ['inc', 'dec', 'random']    | operation type to perform on the field
-| init_value  | uint64_t as string          | init value for the field
-| min_value   | uint64_t as string          | minimum value for the field
-| max_value   | uint64_t as string          | maximum value for the field
-| value_list  | array of uint64_t as string | fixed list of values instead of init_value, min_value, max_value
-| step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
-|=================
-
-
-===== repetable_random 
-
-Instruction to choose a limited number of random values from a big range  
-The values could be deterministic by providing seed 
-
-.Object type 'vm - flow_var'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type                        | Description
-| type        | string                      | ''flow_var_rand_limit'''
-| name        | string                      | flow var name - this should be a unique identifier
-| size        | [1,2,4,8]                   | size of the var in bytes
-| limit       | uint64_t as string          | the number of values to choose 
-| seed        | uint64_t as string          | seed of the random, in case there is no seed time will be taken
-| min_value   | uint64_t as string          | minimum value for the field
-| max_value   | uint64_t as string          | maximum value for the field
-|=================
-
-
-an example of tuple_flow_var variable
-
-[source,bash]
-----
- size       = 2 
- limit      = 5
- seed       = 0x1234
- min_value  = 0
- max_value  = 10
-----
-
-results could be
-
-[source,bash]
-----
-7 , 8, 1 ,5, 2 ,  7 , 8, 1 ,5, 2, 7 , 8, 1 ,5, 2
-----
-
-
-===== write_flow_var
-
-.Object type 'vm - write_flow_var'
-[options="header",cols="1,1,3"]
-|=================
-| Field         | Type        | Description
-| type          | string      | ''write_flow_var''
-| name          | string      | flow var name to write
-| pkt_offset    | uint16      | offset at the packet to perform the write
-| add_value     | int         | delta to add to the field prior to writing - can be negative
-| is_big_endian | boolean     | should write as big endian or little 
-|=================
-
-===== trim_pkt_size
-
-.Object type 'vm - trim_pkt_size'
-[options="header",cols="1,1,3"]
-|=================
-| Field         | Type        | Description
-| type          | string      | ''trim_pkt_size''
-| name          | string      | flow var name to take the new trim packet size from. The var size should be valid packet size and less than template packet size. see `stl/udp_rand_size.yaml` for an example
-|=================
-
-
-===== tuple_flow_var
-
-.Object type 'vm - tuple_flow_var'
-[options="header",cols="1,1,3"]
-|=================
-| Field       | Type                        | Description
-| type        | string                      | ''tuple_flow_var'''
-| name        | string                      | tuple generator name - this should be a unique identifier name.ip and name.port will be added 
-| ip_min      | uint32_t as string          | ipv4 min ip as uint32_t  e.g.  10.0.0.1
-| ip_max      | uint32_t as string          | ipv4 max ip as uint32_t  e.g.  10.0.1.255
-| port_min    | uint16_t as string          | ipv4 min port as uint16_t e.g. 1025
-| port_max    | uint16_t as string          | ipv4 max port as uint16_t e.g.  65000
-| limit_flows | uint32_t as string          | the number of flows. 0 means we will use all the ip/port min-max range
-| flags       | uint16_t as string          | 1 - unlimited  number of flows. in case the first bit is enabled port_min and port_max is ignored and the maximum number of flows will be generated on those ips
-|=================
-
-an example of tuple_flow_var variable
-
-[source,bash]
-----
- ip_min      = 10.0.0.1
- ip_max      = 10.0.0.5
- port_min    = 1025
- port_max    = 1028
- limit_flows = 10
-----
-
-.Results 
-[options="header",cols="1,1,3"]
-|=================
-| IP          | PORT        | FLOW
-| 10.0.0.1    | 1025        | 1
-| 10.0.0.2    | 1025        | 2
-| 10.0.0.3    | 1025        | 3
-| 10.0.0.4    | 1025        | 4
-| 10.0.0.5    | 1025        | 5
-| 10.0.0.1    | 1026        | 6  << the port is inc here 
-| 10.0.0.2    | 1026        | 7
-| 10.0.0.3    | 1026        | 8
-| 10.0.0.4    | 1026        | 9
-| 10.0.0.5    | 1026        | 10
-| 10.0.0.1    | 1025        | 1  << back to the first flow 
-|=================
-
-The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
-
-===== write_mask_flow_var
-
-.Object type 'vm - write_mask_flow_var'
-[options="header",cols="1,1,3"]
-|=================
-| Field         | Type                        | Description
-| type          | string                      | ''write_mask_flow_var'''
-| name          | string                      |  flow variable name 
-| pkt_offset    | uint16_t as string          |  offset at the packet to perform the write
-| add_value     | int32_t  as string          | delta to add to the field prior to writing - can be negative
-| pkt_cast_size | uint_t as string            | size in bytes only 1,2,4 are valid 
-| mask          | uint32_t as string          | 1 means care e.g. 0xff will write to only 8 LSB bits
-| shift         | int8_t   as string          | Positive will shift left (multiply by x2) negative will shift right (divided by 2)  e.g. 1 will multiply by 2
-| is_big_endian | boolean                     | should write as big endian or little 
-|=================
-
-.Pseudocode 
-[source,bash]
-----
-        uint32_t val=(cast_to_size)rd_from_varible("name"); # read flow-var
-        val+=m_add_value;                                   # add value
-
-        if (m_shift>0) {                                    # shift 
-            val=val<<m_shift;
-        }else{
-            if (m_shift<0) {
-                val=val>>(-m_shift);
-            }
-        }
-
-        pkt_val=rd_from_pkt(pkt_offset)                     # RMW
-        pkt_val = (pkt_val & ~m_mask) | (val & m_mask)
-        wr_to_pkt(pkt_offset,pkt_val)
-----
-
-an example of tuple_flow_var variable
-
-[source,bash]
-----
- name          = "a" (varible 2 byte start 1-10 inc )
- pkt_cast_size = 1 ( cast to uint8_t ) 
- add_value     = 0
- mask          = 0xf0
- shift         = 4
- is_big_endian =1
-----
-
-.Results 
-[options="header",cols="1,1,3"]
-|=================
-| var "a"   | PKT- before write      | PKT post write
-| 1    | 0x03        | 0x13
-| 2    | 0x03        | 0x23
-| 3    | 0x03        | 0x33
-| 4    | 0x03        | 0x43
-| 5    | 0x03        | 0x53
-|=================
-
-The use cases of this instruction is to write to a bit field (valn/mpls)
-
-
-TIP: For more information and examples on VM objects please refer to:
-link:vm_doc.html[VM examples]
-
-==== rx_stats
-
-anchor:rx_stats_obj[]
-
-Describes rx stats for the stream
-
-{zwsp} +
-
-IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
-please also consider the following constraints:
-
-===== Constrains
-* *performance* - this will have performance impact as rx packets will be examined
-* *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
-
-===== The bytes needed for activating rx_stats
-
-* *stream_id* consumes 2 bytes
-* *seq_enabled* consumes 4 bytes
-* *latency_enabled* consumes 4 bytes
-
-so if no seq or latency are enabled 2 bytes will be used.
-
-
-if seq or latency alone are enabled, 6 bytes will be used.
-
-
-if both are enabled then 10 bytes will be used.
-
-
-.Object type 'rx_stats'
-[options="header",cols="1,1,3"]
-|=================
-| Field            | Type        | Description
-| enabled          | boolean     | is rx_stats enabled for this stream
-| stream_id        | int         | stream_id for which to collect rx_stats. + 
-This could be stream_id different from the stream object which contains the rx_stats object.
-| seq_enabled      | boolean     | should write 32 bit sequence
-| latency_enabled  | boolean     | should write 32 bit latency
-|=================
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "method": "add_stream",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 1,
-	"stream_id": 502
-        "stream": {
-            "enabled": true,
-            "isg": 4.3,
-            "mode": {
-                    "rate": {
-                        "type": "pps",
-                        "value": 10
-                    },
-
-                "total_pkts": 5000,
-                "type": "single_burst"
-            },
-            "next_stream_id": -1,
-            "packet": {
-                "binary": [
-                    4,
-                    1,
-                    255
-                ],
-                "meta": ""
-            },
-            "rx_stats": {
-                "enabled": false
-            },
-            "self_start": true,
-        }
-    }
-}
-
-'Response':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-
-----
-
-This request-reply sequence demonstrate a method in which rx_stats are diabled.
-In case rx_stats feature is enabled, rx_object **must include** all rx_stats object fields as described above.
-
-
-=== Remove Stream
-
-* *Name* - 'remove_stream'
-* *API Class* - 'core'
-* *Valid States* - 'owned'
-* *Description* - Removes a stream from a port
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port assosicated with the stream.
-** *stream_id* ['int'] - stream to remove
-
-* *Result* ['object'] - {}
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": 1
-    "jsonrpc": "2.0",
-    "method": "remove_stream",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 1,
-        "stream_id": 502
-    }
-}
-
-
-'Response':
-
-{
-    "id": 1
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-----
-
-=== Get Stream ID List
-* *Name* - 'get_stream_list'
-* *API Class* - 'core'
-* *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - fetch all the assoicated streams for a port
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port to query for registered streams
-
-* *Result* ['array'] - array of 'stream_id'
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "method": "get_stream_list",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 1
-    }
-}
-
-'Response':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "result": [
-        502,
-        18
-    ]
-}
-
-
-----
-
-=== Get Stream
-* *Name* - 'get_stream'
-* *API Class* - 'core'
-* *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - get a specific stream object
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port for the associated stream
-** *stream_id* ['int'] - the requested stream id
-
-* *Result* ['object'] - object xref:stream_obj['stream']
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "method": "get_stream",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 1,
-        "stream_id": 7
-    }
-}
-
-
-'Response':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "result": {
-        "stream": {
-            "enabled": true,
-            "isg": 4.3,
-            "mode": {
-                "pps": 3,
-                "type": "continuous"
-            },
-            "next_stream_id": -1,
-            "packet": {
-                "binary": [
-                    4,
-                    1,
-                    255
-                ],
-                "meta": ""
-            },
-            "self_start": true
-        }
-    }
-}
-
-----
-
-
-=== Remove All Streams
-* *Name* - 'remove_all_streams'
-* *API Class* - 'core'
-* *Valid States* - 'owned'
-* *Description* - remove all streams from a port
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port for the associated stream
-
-* *Result* ['object'] - {}
-
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "method": "remove_all_streams",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 2
-    }
-}
-
-'Response':
-
-{
-    "id": 1,
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-
-----
-
-
-=== Start Traffic
-* *Name* - 'start_traffic'
-* *API Class* - 'core'
-* *Valid States* - 'owned'
-* *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port id on which to start traffic
-** *core_mask* ['uint64'] [*optional*] - a non zero mask to specify which cores will be active during TX, if no value is provided, the value is all bits on (MAX_UINT64)
-
-* *Result* ['object'] - {}
-
-[source,bash]
-----
-
-'Request':
-
-{   
-    "id": "b3llt8hs",
-    "jsonrpc": "2.0",
-    "method": "start_traffic",
-    "params": {
-        "api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 3
-        "core_mask": 0xff
-    }
-
-'Response':
-
-{
-    "id": "b3llt8hs",
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-
-----
-
-=== Stop Traffic
-* *Name* - 'stop_traffic'
-* *API Class* - 'core'
-* *Valid States* - 'active'
-* *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port id on which to stop traffic
-
-* *Result* ['object'] - {}
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "h2fyhni7",
-    "jsonrpc": "2.0",
-    "method": "stop_traffic",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "37JncCHr",
-        "port_id": 3
-    }
-}
-
-'Response':
-
-{
-    "id": "h2fyhni7",
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-
-----
-
-
-=== Remove RX Filters
-* *Name* - 'remove_rx_filters'
-* *API Class* - 'core'
-* *Valid States* - 'owned'
-* *Description* - Post to calling stop, the client should call this function to remove
-                  any RX filters that were attached.
-		  this is because the server cannot know when it is safe to remove those
-		  (after stop some packets might take time to get to arrive - RTT)
-* *Parameters*
-** *handler* ['string'] - unique connection handler
-** *port_id* ['int'] - port id on which to remove all RX filters
-
-* *Result* ['object'] - {}
-
-[source,bash]
-----
-
-'Request':
-
-{
-    "id": "1jwrw9nx",
-    "jsonrpc": "2.0",
-    "method": "remove_rx_filters",
-    "params": {
-	"api_h": "SPhoCDIV",
-        "handler": "ywVlqZa8",
-        "port_id": 3
-    }
-}
-
-'Response':
-
-{
-    "id": "1jwrw9nx",
-    "jsonrpc": "2.0",
-    "result": {}
-}
-
-
 ----
 
 === Get Global Stats
@@ -1749,12 +1073,1546 @@ Request example:
 
 ----
 
+=== Enabling Capture Port
+* *Name* - 'start_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Start Capture port to receive/inject raw packets using a ZeroMQ socket
+* *Parameters* -
+** *port_id* ['int'] - port to enable the capture port
+** *attr* ['object'] - dictionary with attributes, only endpoint is mandatory, see below
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| endpoint   | string | ZeroMQ Socket endpoint to connect to for this port (e.g. ipc:///tmp/my_zmq_socket_pair)
+| bpf_filter | string | (Optional) The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket.
+|=================
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "attr": {
+            "endpoint": "ipc:///tmp/my_zmq_socket_pair",
+            "bpf_filter": "ip"
+        },
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Disabling Capture Port
+* *Name* - 'stop_capture_port'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Stop previously started capture port
+* *Parameters* -
+** *port_id* ['int'] - port to disable the capture port on
+* *Result* ['object'] - {}
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "start_capture_port",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 7
+    }
+}
+
+----
+
+=== Setting Capture Port BPF Filter
+* *Name* - 'set_capture_port_bpf'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Change the BPF filter of the capture port to a new value, can be done while the capture port is active.
+* *Parameters* -
+** *port_id* ['int'] - port on which to change the BPF filter
+* *Result* ['object'] - {}
+
+.Object type 'attr'
+[options="header",cols="1,1,3"]
+|=================
+| Field      | Type   | Description
+| bpf_filter | string | The BPF filter to apply to all received packet before forwarding them to the ZeroMQ socket. If empty or omitted, the filter is disabled.
+|=================
+
+
+Request example:
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "uuopmfln",
+    "jsonrpc": "2.0",
+    "method": "set_capture_port_bpf",
+    "params": {
+        "api_h": "f682qkNJ",
+        "handler": "vGp4EyA5",
+        "port_id": 1,
+        "attr": {
+            "bpf_filter": "ip"
+        }
+    }
+}
+
+----
+
+
+
+== RPC commands STL
+
+In RPC commands, Port ID indicates the port number of interface.
+
+As an optional field, the profile ID allows TRex server to run multiple profiles dynamically on a single port ID.
+The profile ID is used as the identifier of profile on the port.
+
+The string type 'profile_id' anchor:profile_id[]
+
+.String type 'profile_id'
+[options="header",cols="1,3"]
+|=================
+| Expression  | Description
+| "<string>"  | The specified profile id such as "udp1pkt", "imix"
+| "_"         | Underscore means default profile. If profile_id is not specified, it is used as the default between JSON-RPC client and server.
+| "*"         | Asterisk means all profiles in the port
+|=================
+
+=== Add Stream
+
+* *Name* - 'add_stream'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Adds a stream to a port
+* *Parameters* 
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id associated with this profile and stream
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
+** *stream_id* ['int'] - stream id associated with the stream object
+** *stream* - object of type xref:stream_obj['stream']
+* *Result* ['object'] - {}
+
+
+The object type 'stream' anchor:stream_obj[]
+
+Add_stream gets a single parameter of type object.
+
+The format of that object is as follows:
+
+.Object type 'stream' 
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description
+| action_count    | uint32_t  | In case it is bigger than zero and next stream is not -1 (set) the number of goto will be limited to this number. Maximum value is 4G. default is zero. Zero means - not limit.
+| core_id         | int     | Pins the stream to core_id.
+| enabled         | boolean | Is this stream enabled.
+| flags           | uint16_t |  bit 0 (LSB) : 1 - take the src MAC from the packet instead of config file. bit 1-2 (LSB) how to set the dest MAC ( stCFG_FILE     = 0, stPKT = 1,stARP = 2 )
+| isg             | double  | ['usec'] inter stream gap - delay time in usec until the stream is started.
+| mode            | object  | object of type xref:mode_obj['mode']
+| next_stream_id  | int     | Next stream to start after this stream. -1 means stop after this stream.
+| packet          | object  | object of type xref:packet_obj['packet']
+| self_start      | boolean | Is this stream triggered by starting injection or triggered by another stream.
+| start_paused    | boolean | Stream will not be transmitted until un-paused.
+| vm              | object  | array of objects of type xref:vm_obj['vm']
+| flow_stats      | object  | Per stream statistic object. See: STLFlowStats.
+| random_seed     | uint32_t  | For creating reproducible  tests with random number, each stream can get a seed. this field is optional. In case of zero the seed value won't be taken 
+| rx_stats        | object  | object of type xref:rx_stats_obj['rx_stats']
+|=================
+
+==== packet
+
+anchor:packet_obj[]
+
+packet contains binary and meta data
+
+.Object type 'packet'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| binary      | byte array  | binary dump of the packet to be used in the stream as array of bytes
+| meta        | string      | meta data object. opaque to the RPC server. will be passed on queries
+|=================
+
+==== mode
+
+anchor:mode_obj[]
+
+mode object can be 'one' of the following objects:
+
+.Object type 'rate' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | [''pps'',''bps_L1'',''bps_L2'',''percentage''
+| value       | double      |  rate 
+|=================
+
+
+.Object type 'mode - continuous' 
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''continuous''
+| rate        | object      |  rate object
+|=================
+
+
+
+.Object type 'mode - single_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''single_burst''
+| rate          | object      |  rate object
+| total pkts    | uint32_t    | total packets to be sent. It should be bigger than 0.
+|=================
+
+.Object type 'mode - multi_burst' 
+[options="header",cols="1,1,3"]
+|=================
+| Field          | Type        | Description
+| type           | string      | ''multi_burst''
+| rate           | object      |  rate object
+| pkts_per_burst | uint32_t    | number of packets to be sent in a single burst. It should be bigger than 0.
+| ibg            | double      | ['usec'] inter burst gap. delay between bursts in usec
+| count          | uint32_t    | number of bursts. ''0'' means loop forever, ''1'' will fall back to single burst
+|=================
+
+==== vm
+
+an Object that include instructions array and properties of the field engine program  anchor:vm_obj[]
+
+.Object type 'packet'
+[options="header",cols="1,1,3"]
+|=================
+| Field        | Type        | Description
+| Instructions | array       | list of instructional objects 
+| split_by_var | string      | name of the field by which to split into threads 
+| Restart      | boolean     | restart the field engine program when stream moving from inactive->active
+|=================
+
+
+Array of VM instruction objects to be used with this stream
+Any element in the array can be one of the following object types:
+
+===== fix_checksum_hw
+
+Fix TCP/UDP and IPv4 headers using hardware assit engine 
+
+.Object type 'vm - fix_checksum_hw'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''fix_checksum_hw''
+| l2_len      | uint16      | len of L2 (e.g. 14 Ether)
+| l3_len      | uint16      | len of l3 header (e.g. 20 for IP)
+| l4_type     | uint16      | the type of L4 header either UDP or TCP ( L4_TYPE_UDP = 11 | L4_TYPE_TCP = 13)
+|=================
+
+===== fix_checksum_ipv4
+
+.Object type 'vm - fix_checksum_ipv4'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type        | Description
+| type        | string      | ''fix_checksum_ipv4''
+| pkt_offset  | uint16      | offset of the field to fix 
+|=================
+
+===== flow_var
+
+.Object type 'vm - flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type                        | Description
+| type        | string                      | ''flow_var'''
+| name        | string                      | flow var name - this should be a unique identifier
+| size        | [1,2,4,8]                   | size of the flow var in bytes
+| op          | ['inc', 'dec', 'random']    | operation type to perform on the field
+| init_value  | uint64_t as string          | init value for the field
+| min_value   | uint64_t as string          | minimum value for the field
+| max_value   | uint64_t as string          | maximum value for the field
+| value_list  | array of uint64_t as string | fixed list of values instead of init_value, min_value, max_value
+| step        | uint64_t as string          | step, how much to inc or dec. 1 is the default (in case of 'random' this field is not used) 
+|=================
+
+
+===== repetable_random 
+
+Instruction to choose a limited number of random values from a big range  
+The values could be deterministic by providing seed 
+
+.Object type 'vm - flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type                        | Description
+| type        | string                      | ''flow_var_rand_limit'''
+| name        | string                      | flow var name - this should be a unique identifier
+| size        | [1,2,4,8]                   | size of the var in bytes
+| limit       | uint64_t as string          | the number of values to choose 
+| seed        | uint64_t as string          | seed of the random, in case there is no seed time will be taken
+| min_value   | uint64_t as string          | minimum value for the field
+| max_value   | uint64_t as string          | maximum value for the field
+|=================
+
+
+an example of tuple_flow_var variable
+
+[source,bash]
+----
+ size       = 2 
+ limit      = 5
+ seed       = 0x1234
+ min_value  = 0
+ max_value  = 10
+----
+
+results could be
+
+[source,bash]
+----
+7 , 8, 1 ,5, 2 ,  7 , 8, 1 ,5, 2, 7 , 8, 1 ,5, 2
+----
+
+
+===== write_flow_var
+
+.Object type 'vm - write_flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''write_flow_var''
+| name          | string      | flow var name to write
+| pkt_offset    | uint16      | offset at the packet to perform the write
+| add_value     | int         | delta to add to the field prior to writing - can be negative
+| is_big_endian | boolean     | should write as big endian or little 
+|=================
+
+===== trim_pkt_size
+
+.Object type 'vm - trim_pkt_size'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type        | Description
+| type          | string      | ''trim_pkt_size''
+| name          | string      | flow var name to take the new trim packet size from. The var size should be valid packet size and less than template packet size. see `stl/udp_rand_size.yaml` for an example
+|=================
+
+
+===== tuple_flow_var
+
+.Object type 'vm - tuple_flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field       | Type                        | Description
+| type        | string                      | ''tuple_flow_var'''
+| name        | string                      | tuple generator name - this should be a unique identifier name.ip and name.port will be added 
+| ip_min      | uint32_t as string          | ipv4 min ip as uint32_t  e.g.  10.0.0.1
+| ip_max      | uint32_t as string          | ipv4 max ip as uint32_t  e.g.  10.0.1.255
+| port_min    | uint16_t as string          | ipv4 min port as uint16_t e.g. 1025
+| port_max    | uint16_t as string          | ipv4 max port as uint16_t e.g.  65000
+| limit_flows | uint32_t as string          | the number of flows. 0 means we will use all the ip/port min-max range
+| flags       | uint16_t as string          | 1 - unlimited  number of flows. in case the first bit is enabled port_min and port_max is ignored and the maximum number of flows will be generated on those ips
+|=================
+
+an example of tuple_flow_var variable
+
+[source,bash]
+----
+ ip_min      = 10.0.0.1
+ ip_max      = 10.0.0.5
+ port_min    = 1025
+ port_max    = 1028
+ limit_flows = 10
+----
+
+.Results 
+[options="header",cols="1,1,3"]
+|=================
+| IP          | PORT        | FLOW
+| 10.0.0.1    | 1025        | 1
+| 10.0.0.2    | 1025        | 2
+| 10.0.0.3    | 1025        | 3
+| 10.0.0.4    | 1025        | 4
+| 10.0.0.5    | 1025        | 5
+| 10.0.0.1    | 1026        | 6  << the port is inc here 
+| 10.0.0.2    | 1026        | 7
+| 10.0.0.3    | 1026        | 8
+| 10.0.0.4    | 1026        | 9
+| 10.0.0.5    | 1026        | 10
+| 10.0.0.1    | 1025        | 1  << back to the first flow 
+|=================
+
+The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
+
+===== write_mask_flow_var
+
+.Object type 'vm - write_mask_flow_var'
+[options="header",cols="1,1,3"]
+|=================
+| Field         | Type                        | Description
+| type          | string                      | ''write_mask_flow_var'''
+| name          | string                      |  flow variable name 
+| pkt_offset    | uint16_t as string          |  offset at the packet to perform the write
+| add_value     | int32_t  as string          | delta to add to the field prior to writing - can be negative
+| pkt_cast_size | uint_t as string            | size in bytes only 1,2,4 are valid 
+| mask          | uint32_t as string          | 1 means care e.g. 0xff will write to only 8 LSB bits
+| shift         | int8_t   as string          | Positive will shift left (multiply by x2) negative will shift right (divided by 2)  e.g. 1 will multiply by 2
+| is_big_endian | boolean                     | should write as big endian or little 
+|=================
+
+.Pseudocode 
+[source,bash]
+----
+        uint32_t val=(cast_to_size)rd_from_varible("name"); # read flow-var
+        val+=m_add_value;                                   # add value
+
+        if (m_shift>0) {                                    # shift 
+            val=val<<m_shift;
+        }else{
+            if (m_shift<0) {
+                val=val>>(-m_shift);
+            }
+        }
+
+        pkt_val=rd_from_pkt(pkt_offset)                     # RMW
+        pkt_val = (pkt_val & ~m_mask) | (val & m_mask)
+        wr_to_pkt(pkt_offset,pkt_val)
+----
+
+an example of tuple_flow_var variable
+
+[source,bash]
+----
+ name          = "a" (varible 2 byte start 1-10 inc )
+ pkt_cast_size = 1 ( cast to uint8_t ) 
+ add_value     = 0
+ mask          = 0xf0
+ shift         = 4
+ is_big_endian =1
+----
+
+.Results 
+[options="header",cols="1,1,3"]
+|=================
+| var "a"   | PKT- before write      | PKT post write
+| 1    | 0x03        | 0x13
+| 2    | 0x03        | 0x23
+| 3    | 0x03        | 0x33
+| 4    | 0x03        | 0x43
+| 5    | 0x03        | 0x53
+|=================
+
+The use cases of this instruction is to write to a bit field (valn/mpls)
+
+
+TIP: For more information and examples on VM objects please refer to:
+link:vm_doc.html[VM examples]
+
+==== rx_stats
+
+anchor:rx_stats_obj[]
+
+Describes rx stats for the stream
+
+{zwsp} +
+
+IMPORTANT: In case rx_stats is enabled, meta data will be written in the end of the packet.
+please also consider the following constraints:
+
+===== Constrains
+* *performance* - this will have performance impact as rx packets will be examined
+* *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
+
+===== The bytes needed for activating rx_stats
+
+* *stream_id* consumes 2 bytes
+* *seq_enabled* consumes 4 bytes
+* *latency_enabled* consumes 4 bytes
+
+so if no seq or latency are enabled 2 bytes will be used.
+
+
+if seq or latency alone are enabled, 6 bytes will be used.
+
+
+if both are enabled then 10 bytes will be used.
+
+
+.Object type 'rx_stats'
+[options="header",cols="1,1,3"]
+|=================
+| Field            | Type        | Description
+| enabled          | boolean     | is rx_stats enabled for this stream
+| stream_id        | int         | stream_id for which to collect rx_stats. + 
+This could be stream_id different from the stream object which contains the rx_stats object.
+| seq_enabled      | boolean     | should write 32 bit sequence
+| latency_enabled  | boolean     | should write 32 bit latency
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "add_stream",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "stream_id": 502,
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                    "rate": {
+                        "type": "pps",
+                        "value": 10
+                    },
+
+                "total_pkts": 5000,
+                "type": "single_burst"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "rx_stats": {
+                "enabled": false
+            },
+            "self_start": true,
+        }
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "add_stream",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "stream": {
+            "action_count": 0,
+            "core_id": -1,
+            "enabled": true,
+            "flags": 0,
+            "flow_stats": {
+                "enabled": false
+            },
+            "isg": 0.0,
+            "mode": {
+                "rate": {
+                    "type": "pps",
+                    "value": 1.0
+                },
+                "type": "continuous"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": "AAAAAQAAAAAAAgAACABFAAAuAAEAAEAROr0QAAABMAAAAQQBAAwAGn9veHh4eHh4eHh4eHh4eHh4eHh4",
+                "meta": ""
+            },
+            "self_start": true,
+            "start_paused": false,
+            "vm": {
+                "instructions": []
+            }
+        },
+        "stream_id": 18
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+This request-reply sequence demonstrate a method in which rx_stats are diabled.
+In case rx_stats feature is enabled, rx_object **must include** all rx_stats object fields as described above.
+
+
+=== Remove Stream
+
+* *Name* - 'remove_stream'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Removes a stream from a port
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id associated with the profile and stream
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile id'] associated with this stream
+** *stream_id* ['int'] - stream to remove
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "method": "remove_stream",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "stream_id": 502
+    }
+}
+
+'Response':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+'Request':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "method": "remove_stream",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "stream_id": 18
+    }
+}
+
+'Response':
+
+{
+    "id": 1
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+=== Get Profile ID List
+* *Name* - 'get_profile_list'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - fetch all the associated profiles for a port
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id to query for registered profiles
+** *profile_id* ['string'] - xref:profile_id['profile id'] to query for registered profiles
+
+* *Result* ['array'] - array of 'profile_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "get_profile_list",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": [
+        "udp1pkt",
+        "imix"
+    ]
+}
+
+----
+
+=== Get Stream ID List
+* *Name* - 'get_stream_list'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - fetch all the assoicated streams for a port
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port to query for registered profiles
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to query for registered streams
+
+* *Result* ['array'] - array of 'stream_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream_list",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": [
+        502
+    ]
+}
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream_list",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+        "_" : [
+            502
+        ],
+        "udp1pkt" : [
+            18
+        ]
+    }
+}
+
+----
+
+=== Get Stream
+* *Name* - 'get_stream'
+* *API Class* - 'core'
+* *Valid States* - 'unowned', 'owned', 'active'
+* *Description* - get a specific stream object
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
+** *stream_id* ['int'] - the requested stream id
+
+* *Result* ['object'] - object xref:stream_obj['stream']
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_stream",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "stream_id": 7
+    }
+}
+
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+        "stream": {
+            "enabled": true,
+            "isg": 4.3,
+            "mode": {
+                "pps": 3,
+                "type": "continuous"
+            },
+            "next_stream_id": -1,
+            "packet": {
+                "binary": [
+                    4,
+                    1,
+                    255
+                ],
+                "meta": ""
+            },
+            "self_start": true
+        }
+    }
+}
+
+----
+
+=== Get All Streams
+* *Name* - 'get_all_streams'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - get all streams from a port
+* *Parameters*
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
+
+* *Result* ['object'] - {}
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_all_streams",
+    "params": {
+	    "api_h": "SPhoCDIV",
+        "port_id": 1,
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "streams": {
+            "502" : {
+                "enabled": true,
+                "isg": 4.3,
+                "mode": {
+                    "pps": 3,
+                    "type": "continuous"
+                },
+                "next_stream_id": -1,
+                "packet": {
+                    "binary": [
+                        4,
+                        1,
+                        255
+                    ],
+                    "meta": ""
+                },
+                "self_start": true
+            }
+        }
+    }
+}
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "get_all_streams",
+    "params": {
+	    "api_h": "SPhoCDIV",
+        "port_id": 1,
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "profiles": {
+            "_" : {
+                "502" : {
+                    "enabled": true,
+                    "isg": 4.3,
+                    "mode": {
+                        "pps": 3,
+                        "type": "continuous"
+                    },
+                    "next_stream_id": -1,
+                    "packet": {
+                        "binary": [
+                            4,
+                            1,
+                            255
+                        ],
+                        "meta": ""
+                    },
+                    "self_start": true
+                }
+            },
+            "udp1pkt": {
+                "18": {
+                    "action_count": 0,
+                    "core_id": -1,
+                    "enabled": true,
+                    "flags": 0,
+                    "flow_stats": {
+                        "enabled": false
+                    },
+                    "isg": 0.0,
+                    "mode": {
+                        "rate": {
+                            "type": "pps",
+                            "value": 1.0
+                        },
+                        "type": "continuous"
+                    },
+                    "next_stream_id": -1,
+                    "packet": {
+                        "binary": "AAAAAQAAAAAAAgAACABFAAAmAAEAAEAROsUQAAABMAAAAQQBAAwAEmFheHh4eHh4eHh4eA==",
+                        "meta": ""
+                    },
+                    "self_start": true,
+                    "start_paused": false,
+                    "vm": {
+                        "instructions": []
+                    }
+                }
+            }
+        }
+    }
+}
+
+----
+
+=== Remove All Streams
+* *Name* - 'remove_all_streams'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - remove all streams from a port
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port for the associated profile
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] for the associated stream
+
+* *Result* ['object'] - {}
+
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "method": "remove_all_streams",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 2,
+        "profile_id": "udp1pkt",
+    }
+}
+
+'Response':
+
+{
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+
+----
+
+
+=== Start Traffic
+* *Name* - 'start_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Starts the traffic on a specific port. if traffic has already started an error will be returned
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to start traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to start traffic
+** *core_mask* ['uint64'] [*optional*] - a non zero mask to specify which cores will be active during TX, if no value is provided, the value is all bits on (MAX_UINT64)
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{   
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "method": "start_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 3,
+        "core_mask": 0xff
+    }
+}
+
+'Response':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+'Request':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "method": "start_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "core_mask": 18446744073709551615,
+        "duration": -1.0,
+        "force": false,
+        "mul": {
+            "op": "abs",
+            "type": "raw",
+            "value": 1.0
+        },
+        "port_id": 1,
+        "profile_id": "udp1pkt",
+        "start_at_ts": 0
+    }
+}
+
+'Response':
+
+{
+    "id": "b3llt8hs",
+    "jsonrpc": "2.0",
+    "result": {
+        "multiplier": 1.0,
+        "ts": 20395.399607074254
+    }
+}
+
+----
+
+=== Stop Traffic
+* *Name* - 'stop_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Stops the traffic on a specific port. if the port has already started nothing will happen
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to stop traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to stop traffic
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "method": "stop_traffic",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 3
+    }
+}
+
+'Response':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+'Request':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "method": "stop_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 1,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "h2fyhni7",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+=== Update Traffic
+* *Name* - 'update_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Update the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *mul* - object of type xref:mul_obj['mul']
+** *port_id* ['int'] - port id on which to update traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to update traffic
+
+* *Result* ['object'] - {}
+
+The object type 'mul' anchor:mul_obj[]
+
+.Object type mul
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description
+| op              | string  | operation ("abs", "add", "sub")
+| type            | string  | traffic type ("raw", "pps", "bps", "bps_L1", "percentage")
+| value           | double  | value (overrides old one)
+|=================
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "update_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "force": false,
+        "handler": "37JncCHr",
+        "mul": {
+            "op": "abs",
+            "type": "bps",
+            "value": 1000.0
+        },
+        "port_id": 1,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {
+        "multiplier": 1.953125
+    }
+}
+
+----
+
+=== Pause Traffic
+* *Name* - 'pause_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Pause the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to pause traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to pause traffic
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "pause_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 0,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+=== Resume Traffic
+* *Name* - 'resume_traffic'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Resume the traffic on a specific port or profile.
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to resume traffic
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to resume traffic
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "resume_traffic",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+        "port_id": 0,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+----
+
+=== Remove RX Filters
+* *Name* - 'remove_rx_filters'
+* *API Class* - 'core'
+* *Valid States* - 'owned'
+* *Description* - Post to calling stop, the client should call this function to remove
+                  any RX filters that were attached.
+		  this is because the server cannot know when it is safe to remove those
+		  (after stop some packets might take time to get to arrive - RTT)
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *port_id* ['int'] - port id on which to remove all RX filters
+** *profile_id* ['string'] [*optional*] - xref:profile_id['profile'] to remove all RX filters
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "method": "remove_rx_filters",
+    "params": {
+	"api_h": "SPhoCDIV",
+        "handler": "ywVlqZa8",
+        "port_id": 3,
+        "profile_id": "udp1pkt"
+    }
+}
+
+'Response':
+
+{
+    "id": "1jwrw9nx",
+    "jsonrpc": "2.0",
+    "result": {}
+}
+
+
+----
+
+
+== RPC commands ASTF
+
+
+=== Load profile 
+
+* *Name* - 'profile_fragment'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - load ASTF JSON profile in small chunks 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| frag_first      | boolean | true in case this is the first fragment 
+| frag_last       | boolean | true in case this is the last fragment 
+| md5             | string  | come in first message with frag_first=true
+| fragment        | string  | fragment of input JSON string
+|=================
+
+=== Clear profile 
+
+* *Name* - 'profile_clear'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - clear the last loaded profile 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+
+=== Start traffic
+
+* *Name* - 'start'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - start traffic on all ports on the last loaded profile 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| duration        | double  | Stop producing new flows after duration
+| mult            | double  | CPS Multiplier
+| nc              | bool    | If set, will terminate exacly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
+| ipv6            | bool    | convert the profile to ipv6
+| latency         | uint32_t| rate of the latency packets. 0 means disable
+| client_mask     | uint32_t| mask of client ports. bit is 0 => client is disabled.
+|=================
+
+
+=== Stop traffic
+
+* *Name* - 'stop'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Stop the active traffic 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+
+=== Update traffic rate
+
+
+* *Name* - 'update'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Update the multiplier of running traffic
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| mult            | double  | New CPS multiplier (overrides old one)
+|=================
+
+
+=== Get Counter Metadata
+
+* *Name* - 'get_counter_desc'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Get ASTF counters description 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+List of counters descriptions, each have the folowing metadata:
+
+.Counter description
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| id              | uint32_t| counter id
+| name            | string  | the name of the counters 
+| help            | string  | help string 
+| zero            | bool    | show zero counters
+| info            | string  | short string for desribing 
+| real            | bool    | does this counter actually represent some value and not just graphical separator
+| abs             | bool    | absolute (non-relative) counters, should not be cleared by clear stats.
+|=================
+
+=== Get ASTF counters 
+
+* *Name* - 'get_counter_values'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Get ASTF counters description 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+array of id and value
+
+
+=== Start latency streams
+
+* *Name* - 'start_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - start latency ICMP streams in Rx core. used for debug. usualy those stream could start using 'start' command using '-l'
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| mult            | double  | rate of latency packets
+| src_addr        | string  | ipv4 src addr
+| dst_addr        | string  | ipv4 dst addr
+| dual_port_addr  | string  | dual mask ipv4 addr e.g. 1.0.0.0
+| mask            | uint32_t| mask of ports
+|=================
+
+
+=== Stop latency streams
+
+* *Name* - 'stop_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Stop active latency streams
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+
+=== Update latency streams
+
+* *Name* - 'update_latency'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - update latency rate
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+.Parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| mult            | double  | new rate of latency packets
+|=================
+
+=== Get latency stats
+
+* *Name* - 'get_latency_stats'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - get latency statistics (historgram,min,max,jitter)
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['object'] - {}
+
+se link:cp_docs/api/json_fields.html#trex-latecny-v2-field[stf latency]
+
 == Typical Transactions Examples
 the following examples represents common scenarios.
 commands in [...] represents 'meta commands'
 and not real RPC commands such as 'repeat', 'wait' and etc.
 
-=== Init/Boot
+=== Init Boot
 This sequence represents a client implementing the protocol taking ownership
 over the server and preparing to perform work
 
@@ -1767,7 +2625,7 @@ over the server and preparing to perform work
 * *get_stream_list* - for every port, get the list and sync the GUI
 * *get_stream* - for every stream in a port list, get the stream info and sync the GUI
 
-=== Simple Traffic With Adding/Editing Streams
+=== Simple Traffic With Adding Editing Streams
 
 describes a simple scenario where a user wants to
 add or edit one or more streams to one or more ports
@@ -1794,6 +2652,44 @@ Describes the log off from the machine
 * *get_global_stats* ['optional'] - make sure the machine has stopped
 * *remove_all_streams* ['optional'] - if you want to clear all the previous streams - use this
 * *release* - release the ownership over the device
+
+
+== Error codes
+
+Some RPCs will not respond with expected result immediately (for example, configurations in linux_based stack). +
+Instead, they will return one of errors described in this section
+
+Values of used enums are available at: +
+src/rpc-server/trex_rpc_jsonrpc_v2_parser.cpp
+
+=== Try again
+
+response["error"]["code"] == JSONRPC_V2_ERR_TRY_AGAIN
+
+Command can not be executed now, try again later (query of ports status in the middle of config etc.) +
+Same query should be repeated again later (maybe several times)
+
+=== Async WIP
+
+response["error"]["code"] == JSONRPC_V2_ERR_WIP
+
+Command is being processed, results can be queried later by special ticket id, which is available at result["specific_err"]. +
+Command to query async result is: get_async_results
+
+.get_async_results parameters
+[options="header",cols="1,1,3"]
+|=================
+| Field           | Type    | Description 
+| ticket_id       | uint64_t| Ticket ID used to identify the async command being processed.
+|=================
+
+
+=== No results
+
+response["error"]["code"] == JSONRPC_V2_ERR_NO_RESULTS
+
+Something went wrong, results are not available. +
+Should not happen...
 
 
 :numbered!:
@@ -2091,3 +2987,4 @@ Another Example of tuple generator
 
         ]
 ----
+

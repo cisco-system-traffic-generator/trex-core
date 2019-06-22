@@ -71,7 +71,7 @@
       "id": "value_list",
       "name": "List",
       "type": "EXPRESSION",
-      "defaultValue": "[]"
+      "defaultValue": "None"
     },
     {
       "id": "op",

@@ -27,90 +27,12 @@ limitations under the License.
 #include "trex_dp_port_events.h"
 #include "trex_port_attr.h"
 #include "trex_stack_base.h"
-
+#include "trex_owner.h"
+#include "trex_stack_rc.h"
 
 class TrexPktBuffer;
 class TrexCpToDpMsgBase;
 class TrexCpToRxMsgBase;
-
-/**
- * TRex port owner can perform
- * write commands
- * while port is owned - others can
- * do read only commands
- *
- */
-class TrexPortOwner {
-public:
-
-    TrexPortOwner();
-
-    /**
-     * is port free to acquire
-     */
-    bool is_free() {
-        return m_is_free;
-    }
-
-    void release() {
-        m_is_free = true;
-        m_owner_name = "";
-        m_handler = "";
-        m_session_id = 0;
-    }
-
-    bool is_owned_by(const std::string &user) {
-        return ( !m_is_free && (m_owner_name == user) );
-    }
-
-    void own(const std::string &owner_name, uint32_t session_id) {
-
-        /* save user data */
-        m_owner_name = owner_name;
-        m_session_id = session_id;
-
-        /* internal data */
-        m_handler = utl_generate_random_str(m_seed, 8);
-        m_is_free = false;
-    }
-
-    bool verify(const std::string &handler) {
-        return ( (!m_is_free) && (m_handler == handler) );
-    }
-
-    const std::string &get_name() {
-        return (!m_is_free ? m_owner_name : g_unowned_name);
-    }
-
-    const std::string &get_handler() {
-        return (!m_is_free ? m_handler : g_unowned_handler);
-    }
-
-    const uint32_t get_session_id() {
-        return m_session_id;
-    }
-
-private:
-
-    /* is this port owned by someone ? */
-    bool         m_is_free;
-
-    /* user provided info */
-    std::string  m_owner_name;
-
-    /* which session of the user holds this port*/
-    uint32_t     m_session_id;
-
-    /* handler genereated internally */
-    std::string  m_handler;
-
-    /* seed for generating random values */
-    unsigned int m_seed;
-
-    /* just references defaults... */
-    static const std::string g_unowned_name;
-    static const std::string g_unowned_handler;
-};
 
 
 /**
@@ -127,12 +49,16 @@ public:
      * port state
      */
     enum port_state_e {
-        PORT_STATE_DOWN     = 0x1,
-        PORT_STATE_IDLE     = 0x2,
-        PORT_STATE_STREAMS  = 0x4,
-        PORT_STATE_TX       = 0x8,
-        PORT_STATE_PAUSE    = 0x10,
-        PORT_STATE_PCAP_TX  = 0x20,
+        PORT_STATE_DOWN         = 1 << 0,
+        PORT_STATE_IDLE         = 1 << 1,
+        PORT_STATE_STREAMS      = 1 << 2,
+        PORT_STATE_TX           = 1 << 3,
+        PORT_STATE_PAUSE        = 1 << 4,
+        PORT_STATE_PCAP_TX      = 1 << 5,
+        PORT_STATE_ASTF_LOADED  = 1 << 6,
+        PORT_STATE_ASTF_PARSE   = 1 << 7,
+        PORT_STATE_ASTF_BUILD   = 1 << 8,
+        PORT_STATE_ASTF_CLEANUP = 1 << 9,
     };
     
     TrexPort(uint8_t port_id);
@@ -156,11 +82,19 @@ public:
     }
 
 
+    TrexDpPortEvents       m_dp_events;
+
     TrexDpPortEvents & get_dp_events() {
         return m_dp_events;
     }
 
 
+    TrexDpPortEvents & get_dp_events(uint32_t profile_id)
+    {
+        (void) profile_id;
+        return m_dp_events;
+    }
+   
     /**
      * returns the number of DP cores linked to this port
      *
@@ -177,7 +111,7 @@ public:
     uint64_t get_port_speed_bps() const;
 
   
-    TrexPortOwner & get_owner() {
+    TrexOwner & get_owner() {
         return m_owner;
     }
 
@@ -198,6 +132,23 @@ public:
      */
     void stop_rx_queue();
 
+
+    /**
+     * set the port to state of proxyifying traffic between STF TRex and WLC
+     * 
+     * @param
+     *      pair_port_id  - pair port to pass the traffic to
+     *      is_wireless_side - is port connected to STF TRex
+     */
+    void start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map, uint32_t wlc_ip);
+
+    /**
+     * stop proxyifying traffic between STF TRex and WLC
+     * 
+     */
+    void stop_capwap_proxy();
+
+
     /**
      * fetch the RX queue packets from the queue
      * 
@@ -216,7 +167,7 @@ public:
     std::string& get_stack_name(void);
 
     // run pending tasks of stack, need to poll results with ticket
-    uint64_t run_rx_cfg_tasks_async(void);
+    uint64_t run_rx_cfg_tasks_async(bool rpc);
 
     // same as above with ticket 0
     void run_rx_cfg_tasks_initial_async(void);
@@ -227,6 +178,9 @@ public:
     // get results of stack tasks
     // return false if results are deleted
     bool get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results);
+
+    // get extended results  
+    void get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results, TrexStackResultsRC &rc);
 
     // get port node to query ip/mac/vlan etc. info
     void get_port_node(CNodeBase &node);
@@ -249,6 +203,25 @@ public:
      */
     void conf_ipv6_async(bool enabled, const std::string &src_ipv6);
 
+
+    /* move json batch as a command to rx. marshal it to string */
+    void set_name_space_batch_async(const std::string &json_cmds);
+
+    /**
+     * Enable capture port for this port
+     */
+    bool start_capture_port(const std::string&  filter, const std::string& endpoint, std::string &err);
+
+    /**
+     * Disable capture port for this port
+     */
+    bool stop_capture_port(std::string &err);
+
+    /**
+     * Change BPF filter for the capture port
+     */
+    void set_capture_port_bpf_filter(const std::string& filter);
+
     /**
      * configure VLAN
      */
@@ -258,6 +231,11 @@ public:
      * invalidate dst MAC of port
      */
     void invalidate_dst_mac(void);
+
+    /**
+     * is dst MAC of port valid?
+     */
+    bool is_dst_mac_valid(void);
 
     // cancel rx config tasks
     void cancel_rx_cfg_tasks(void);
@@ -327,7 +305,11 @@ public:
     uint16_t get_rx_caps() const {
         return m_rx_caps;
     }
-    
+
+    const std::vector<uint8_t> get_core_id_list () {
+        return m_cores_id_list;
+    }
+
     /**
      * encode stats of the port 
      * to JSON 
@@ -353,11 +335,12 @@ protected:
      */
     bool verify_state(int state, const char *cmd_name, bool should_throw = true) const;
 
+
     /**
      * change the state 
      * to a new state 
      */
-    void change_state(port_state_e new_state);
+    virtual void change_state(port_state_e new_state);
     
     
     /**
@@ -377,12 +360,6 @@ protected:
      */
     uint8_t get_active_cores_count(void);
 
-    
-    const std::vector<uint8_t> get_core_id_list () {
-        return m_cores_id_list;
-    }
-
-    
     /**
      * send message to all cores using duplicate
      *
@@ -402,7 +379,7 @@ protected:
     void send_message_to_rx(TrexCpToRxMsgBase *msg);
 
     // run RX core config tasks with given ticket ID
-    void run_rx_cfg_tasks_internal_async(uint64_t ticket_id);
+    void run_rx_cfg_tasks_internal_async(uint64_t ticket_id,bool rpc);
 
     
     
@@ -415,11 +392,10 @@ protected:
     /* holds the DP cores associated with this port */
     std::vector<uint8_t>   m_cores_id_list;
 
-    TrexDpPortEvents       m_dp_events;
     int                    m_pending_async_stop_event;
     
     /* owner information */
-    TrexPortOwner          m_owner;
+    TrexOwner              m_owner;
 
     
     /* caching some RX info */

@@ -32,7 +32,18 @@ bool CAstfJsonValidator::Create(std::string input_schema_file){
     }
 
     m_schema_adapter = new JsonCppAdapter(m_schema_doc);
-    m_parser.populateSchema(*m_schema_adapter, m_schema);
+    if ( m_schema_adapter == nullptr ) {
+        printf("Could not create instance of JsonCppAdapter\n");
+        return false;
+    }
+
+    try {
+        m_parser.populateSchema(*m_schema_adapter, m_schema);
+    } catch(const std::exception &e) {
+        delete m_schema_adapter;
+        printf("Populate ASTF JSON schema failed. Error:\n%s\n", e.what());
+        return false;
+    }
     return(true);
 }
 
@@ -119,7 +130,7 @@ bool CAstfJsonValidator::validate_program(Json::Value  profile,
     }
 
     /* check buffer size */
-    if ( max_buffer >= profile["buf_list"].size() ) {
+    if ( (max_buffer >= profile["buf_list"].size()) && (profile["buf_list"].size()>0)) {
         std::stringstream ss;
         ss << "Validation failed : max buffer size is " << max_buffer << " bigger than " << profile["buf_list"].size() <<std::endl;
         err = ss.str();

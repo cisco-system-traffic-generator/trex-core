@@ -29,6 +29,8 @@ limitations under the License.
 #include "trex_client_config.h"
 #include "common/basic_utils.h"
 #include "bp_sim.h"
+#include "stx/astf/trex_astf_topo.h"
+
 
 void ClientCfgDirBase::dump(FILE *fd) const {
     if (has_src_mac_addr()) {
@@ -93,15 +95,19 @@ void ClientCfgDirExt::dump(FILE *fd) const {
     }
 }
 
-void ClientCfgDirExt::set_resolved_macs(CManyIPInfo &pretest_result, uint16_t count) {
+void ClientCfgDirExt::set_resolved_macs(CManyIPInfo *pretest_result, uint16_t count) {
     uint16_t vlan = has_vlan() ? m_vlan : 0;
     MacAddress base_mac = m_dst_mac;
     m_resolved_macs.resize(count);
 
     for (int i = 0; i < count; i++) {
         if (need_resolve()) {
+            if ( !pretest_result ) {
+                fprintf(stderr, "Failed resolving ip:%x, vlan:%d - exiting\n", m_next_hop+i, vlan);
+                exit(1);
+            }
             if (has_next_hop()) {
-                if (!pretest_result.lookup(m_next_hop + i, vlan, m_resolved_macs[i])) {
+                if (!pretest_result->lookup(m_next_hop + i, vlan, m_resolved_macs[i])) {
                     fprintf(stderr, "Failed resolving ip:%x, vlan:%d - exiting\n", m_next_hop+i, vlan);
                     exit(1);
                 }
@@ -159,7 +165,7 @@ ClientCfgEntry::dump(FILE *fd) const {
     fprintf(fd, "    count    : %d\n", m_count);
 }
 
-void ClientCfgEntry::set_resolved_macs(CManyIPInfo &pretest_result) {
+void ClientCfgEntry::set_resolved_macs(CManyIPInfo *pretest_result) {
     m_cfg.m_initiator.set_resolved_macs(pretest_result, m_count);
     m_cfg.m_responder.set_resolved_macs(pretest_result, m_count);
 }
@@ -191,6 +197,16 @@ void ClientCfgCompactEntry::fill_from_dir(ClientCfgDirExt cfg, uint8_t port_id) 
     }
 }
 
+ClientCfgDB::ClientCfgDB() {
+    m_cache_group = NULL;
+    m_under_vlan  = false;
+    m_tg = NULL;
+}
+
+ClientCfgDB::~ClientCfgDB() {
+    clear();
+}
+
 void
 ClientCfgDB::dump(FILE *fd) {
     //fprintf(fd, "#**********Client config file start*********\n");
@@ -204,11 +220,13 @@ ClientCfgDB::dump(FILE *fd) {
     //fprintf(fd, "#**********Client config end*********\n");
 }
 
-void ClientCfgDB::set_resolved_macs(CManyIPInfo &pretest_result) {
-    std::map<uint32_t, ClientCfgEntry>::iterator it;
-    for (it = m_groups.begin(); it != m_groups.end(); it++) {
-        ClientCfgEntry &cfg = it->second;
-        cfg.set_resolved_macs(pretest_result);
+void ClientCfgDB::clear() {
+    m_groups.clear();
+}
+
+void ClientCfgDB::set_resolved_macs(CManyIPInfo *pretest_result) {
+    for (auto &iter : m_groups) {
+        iter.second.set_resolved_macs(pretest_result);
     }
 }
 
@@ -218,11 +236,11 @@ void ClientCfgDB::get_entry_list(std::vector<ClientCfgCompactEntry *> &ret) {
 
     for (std::map<uint32_t, ClientCfgEntry>::iterator it = m_groups.begin(); it != m_groups.end(); ++it) {
         ClientCfgEntry &cfg = it->second;
-        if (cfg.m_cfg.m_initiator.need_resolve() || cfg.m_cfg.m_initiator.need_resolve()) {
+        if (cfg.m_cfg.m_initiator.need_resolve() || cfg.m_cfg.m_responder.need_resolve()) {
             assert(m_tg != NULL);
             result = m_tg->find_port(cfg.m_ip_start, cfg.m_ip_end, port);
             if (! result) {
-                fprintf(stderr, "Error in clinet config range %s - %s.\n"
+                fprintf(stderr, "Error in client config range %s - %s.\n"
                         , ip_to_str(cfg.m_ip_start).c_str(), ip_to_str(cfg.m_ip_end).c_str());
                     exit(-1);
             }
@@ -261,7 +279,7 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
     std::stringstream ss;
 
     m_groups.clear();
-    m_cache_group = NULL;
+    m_cache_group = nullptr;
 
     /* wrapper parser */
     YAML::Node root;
@@ -278,10 +296,83 @@ ClientCfgDB::load_yaml_file(const std::string &filename) {
         parse_single_group(parser, groups[i]);
     }
 
-    verify(parser);
+    std::string err = "";
+    verify(err);
+    if ( err.size() ) {
+        parser.parse_err(err);
+    }
 
-    m_is_empty = false;
+}
 
+void ClientCfgDB::load_from_topo(const TopoMngr *topomngr) {
+    const topo_per_port_t &topo_per_port = topomngr->get_topo();
+    std::string err = "";
+
+    m_groups.clear();
+    m_cache_group = nullptr;
+
+    bool rc;
+    uint16_t vlan;
+
+    for (uint8_t trex_port = 0; trex_port < TREX_MAX_PORTS; trex_port+=2) {
+        for (auto &iter_pair : topo_per_port[trex_port]) {
+            const TopoVIF &vif = iter_pair.second;
+            for (auto gw : vif.m_gws) {
+                ClientCfgEntry group;
+
+                rc = utl_ipv4_to_uint32(gw.get_start().c_str(), group.m_ip_start);
+                if ( !rc ) {
+                    build_err("GW has invalid start of IP range: " + gw.get_start());
+                }
+
+                rc = utl_ipv4_to_uint32(gw.get_end().c_str(), group.m_ip_end);
+                if ( !rc ) {
+                    build_err("GW has invalid end of IP range: " + gw.get_end());
+                }
+
+                if ( group.m_ip_start > group.m_ip_end ) {
+                    build_err("GW start of IP range: " + gw.get_start() + " is greater than end: " + gw.get_end());
+                }
+
+                group.m_count = 1;
+
+                ClientCfgDirExt &cdir = group.m_cfg.m_initiator;
+                if ( iter_pair.first ) { // sub_if
+                    uint64_t src_mac;
+                    rc = mac2uint64(vif.get_src_mac(), src_mac);
+                    if ( !rc ) {
+                        build_err("VIF has invalid MAC: " + vif.get_src_mac());
+                    }
+
+                    cdir.set_src_mac_addr(src_mac);
+                    vlan = vif.get_vlan();
+                } else {
+                    vlan = CGlobalInfo::m_options.m_ip_cfg[trex_port].get_vlan();
+                }
+
+                if ( vlan ) {
+                    cdir.set_vlan(vlan);
+                }
+
+                uint64_t dst_mac;
+                rc = mac2uint64(gw.get_dst_mac(), dst_mac);
+                if ( !rc ) {
+                    build_err("GW has invalid MAC: " + gw.get_dst_mac());
+                }
+                cdir.set_dst_mac_addr(dst_mac);
+
+                //group.dump(stdout);
+                m_groups[group.m_ip_start] = group;
+            }
+        }
+    }
+
+    verify(err);
+    if ( err.size() ) {
+        build_err(err);
+    }
+
+    set_resolved_macs(nullptr);
 }
 
 /**
@@ -371,8 +462,7 @@ ClientCfgDB::parse_dir(YAMLParserWrapper &parser, const YAML::Node &node, Client
  * @author imarom (28-Jun-16)
  */
 void
-ClientCfgDB::verify(const YAMLParserWrapper &parser) const {
-    std::stringstream ss;
+ClientCfgDB::verify(std::string &err) const {
     uint32_t monotonic = 0;
 
     /* check that no interval overlaps */
@@ -382,8 +472,8 @@ ClientCfgDB::verify(const YAMLParserWrapper &parser) const {
         const ClientCfgEntry &group = p.second;
 
         if ( (monotonic > 0 ) && (group.m_ip_start <= monotonic) ) {
-            ss << "IP '" << ip_to_str(group.m_ip_start) << "' - '" << ip_to_str(group.m_ip_end) << "' overlaps with other groups";
-            parser.parse_err(ss.str());
+            err = "IP '" + ip_to_str(group.m_ip_start) + "' - '" + ip_to_str(group.m_ip_end) + "' overlaps with other groups";
+            return;
         }
 
         monotonic = group.m_ip_end;

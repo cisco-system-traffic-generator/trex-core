@@ -36,6 +36,7 @@ it maps betwean virtual trex port to dpdk ports (for cases that there is no 1:1 
 #include <stdint.h>
 #include <assert.h>
 #include "utl_port_map.h"
+#include "trex_defs.h"
 
 
 typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/

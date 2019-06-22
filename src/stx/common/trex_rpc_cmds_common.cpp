@@ -64,13 +64,6 @@ TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2,    "api_sync_v2");
 
 
 /**
- * ownership
- */
-TREX_RPC_CMD(TrexRpcCmdAcquire,          "acquire");
-TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");   
-
-
-/**
  * port status
  */
 TREX_RPC_CMD(TrexRpcCmdGetPortStatus,    "get_port_status");
@@ -117,6 +110,15 @@ TREX_RPC_CMD_EXT(TrexRpcCmdConfIPv6,          "conf_ipv6",
     void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
 );
 
+TREX_RPC_CMD_EXT(TrexRpcCmdSetNameSpaceBatch,             "conf_ns_batch",
+    void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);
+);
+
+
+TREX_RPC_CMD(TrexRpcCmdStartCapturePort,      "start_capture_port");
+TREX_RPC_CMD(TrexRpcCmdStopCapturePort,       "stop_capture_port");
+TREX_RPC_CMD(TrexRpcCmdSetCapturePortBPF,     "set_capture_port_bpf");
+
 TREX_RPC_CMD_EXT(TrexRpcCmdSetVLAN,           "set_vlan",
     void validate_vlan(uint16_t vlan, Json::Value &result);
     void process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result);;
@@ -132,7 +134,6 @@ TREX_RPC_CMD(TrexRpcCmdGetOwner,   "get_owner");
 /**
  * service mode & capture
  */
-TREX_RPC_CMD(TrexRpcCmdSetServiceMode, "service");
 
 TREX_RPC_CMD_EXT(TrexRpcCmdCapture,  "capture",
     void parse_cmd_start(const Json::Value &msg, Json::Value &result);
@@ -149,6 +150,7 @@ TREX_RPC_CMD_EXT(TrexRpcCmdCapture,  "capture",
 TREX_RPC_CMD_EXT(TrexRpcCmdSetRxFeature, "set_rx_feature",
     void parse_queue_msg(const Json::Value &msg,  TrexPort *port, Json::Value &result);
     void parse_server_msg(const Json::Value &msg, TrexPort *port, Json::Value &result);
+    void parse_capwap_proxy_msg(const Json::Value &msg, TrexPort *port, Json::Value &result);
 
 );
 
@@ -244,12 +246,22 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     }
 
     res["owner"]         = (port->get_owner().is_free() ? "" : port->get_owner().get_name());
-    res["state"]         = port->get_state_as_string();
+
+    res["state"]     = port->get_state_as_string();
+
+    string profile_id = parse_profile(params, result, "");
+    if ( get_is_stateless() && (profile_id != "") ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        Json::Value state_profile =  Json::objectValue;
+        stl_port->get_state_as_string(profile_id, state_profile);
+        res["state_profile"]     = state_profile;
+    }
+
     res["service"]       = port->is_service_mode_on();
-    
-    /* yes, this is an ugly hack... for now */
-    TrexStatelessPort *stl_port = dynamic_cast<TrexStatelessPort *>(port);
-    if (stl_port) {
+
+    if ( get_is_stateless() ) {
+        TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
+        result["result"]["profile_count"] = stl_port->get_profile_count();
         result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
     }
 
@@ -269,60 +281,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
 
 
-
-/**
- * acquire device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    const std::string  &new_owner  = parse_string(params, "user", result);
-    bool force = parse_bool(params, "force", result);
-    uint32_t session_id = parse_uint32(params, "session_id", result);
-
-    /* if not free and not you and not force - fail */
-    TrexPort *port = get_stx()->get_port_by_id(port_id);
-
-    try {
-        port->acquire(new_owner, session_id, force);
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = port->get_owner().get_handler();
-
-    return (TREX_RPC_CMD_OK);
-}
-
-
-/**
- * release device
- *
- */
-trex_rpc_cmd_rc_e
-TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
-
-    uint8_t port_id = parse_port(params, result);
-
-    TrexPort *port = get_stx()->get_port_by_id(port_id);
-
-    try {
-        port->release();
-    } catch (const TrexException &ex) {
-        generate_execute_err(result, ex.what());
-    }
-
-    result["result"] = Json::objectValue;
-
-    return (TREX_RPC_CMD_OK);
-}
-
-
-
-/**
+/*
  * ping command
  */
 trex_rpc_cmd_rc_e
@@ -446,6 +405,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["dp_core_count"] = api.get_dp_core_count();
     section["dp_core_count_per_port"] = api.get_dp_core_count() / (api.get_port_count() / 2);
     section["core_type"] = get_cpu_model();
+    section["is_multiqueue_mode"] = get_dpdk_mode()->dp_rx_queues() ? true : false;
 
     /* ports */
     const stx_port_map_t &stx_port_map = get_stx()->get_port_map();
@@ -459,11 +419,13 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         uint16_t rx_count_num;
         uint16_t rx_caps;
         uint16_t ip_id_base;
-        
+        std::vector<std::pair<uint8_t, uint8_t>> cores_id_list;
+
         /* query the port info through the platform API */
         api.get_port_info(i, port_info);
+        api.port_id_to_cores(i, cores_id_list);
 
-        get_platform_api().getPortAttrObj(i)->get_supported_speeds(supp_speeds);
+        api.getPortAttrObj(i)->get_supported_speeds(supp_speeds);
         Json::Value port_json;
 
         port_json["index"]   = i;
@@ -494,11 +456,16 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port_json["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
         port_json["is_link_supported"]  = api.getPortAttrObj(i)->is_link_change_supported();
         port_json["is_prom_supported"]  = api.getPortAttrObj(i)->is_prom_change_supported();
+        port_json["is_vxlan_supported"] = api.getPortAttrObj(i)->is_vxlan_fs_supported();
         port_json["is_virtual"]         = api.getPortAttrObj(i)->is_virtual();
         
         port_json["supp_speeds"] = Json::arrayValue;
         for (int speed_id=0; speed_id<supp_speeds.size(); speed_id++) {
             port_json["supp_speeds"].append(supp_speeds[speed_id]);
+        }
+        port_json["cores"] = Json::arrayValue;
+        for (auto &pair : cores_id_list) {
+            port_json["cores"].append(pair.first);
         }
         section["ports"].append(port_json);
 
@@ -550,7 +517,7 @@ TrexRpcCmdShutdown::_run(const Json::Value &params, Json::Value &result) {
 
     /* verify every port is either free or owned by the issuer */
     for (auto &port : get_stx()->get_port_map()) {
-        TrexPortOwner &owner = port.second->get_owner();
+        TrexOwner &owner = port.second->get_owner();
         if ( (!owner.is_free()) && (!owner.is_owned_by(user)) && !force) {
             stringstream ss;
             ss << "port " << int(port.first) << " is owned by '" << owner.get_name() << "' - specify 'force' for override";
@@ -644,6 +611,25 @@ TrexRpcCmdSetPortAttr::_run(const Json::Value &params, Json::Value &result) {
         else if (name == "flow_ctrl_mode") {
             int mode = parse_int(attr[name], "mode", result);
             ret = get_platform_api().getPortAttrObj(port_id)->set_flow_ctrl(mode);
+        }
+
+        else if (name == "vxlan_fs") {
+            if ( !get_is_stateless() ) {
+                generate_execute_err(result, "VXLAN flow stats are relevant only to stateless mode");
+            }
+            const Json::Value &vxlan_fs_ports_json = parse_array(attr, name, result);
+            vxlan_fs_ports_t vxlan_fs_ports;
+            for (auto vxlan_fs_port_json : vxlan_fs_ports_json) {
+                uint64_t vxlan_fs_port = vxlan_fs_port_json.asUInt64();
+                if ( vxlan_fs_port == 0 ) {
+                    generate_execute_err(result, "VXLAN UDP port can't be zero (DPDK error)");
+                }
+                if ( vxlan_fs_port > UINT16_MAX ) {
+                    generate_execute_err(result, "VXLAN UDP port must be 16bit, got: " + to_string(vxlan_fs_port));
+                }
+                vxlan_fs_ports.insert(vxlan_fs_port);
+            }
+            ret = get_platform_api().getPortAttrObj(port_id)->set_vxlan_fs(vxlan_fs_ports);
         }
 
         /* unknown attribute */
@@ -780,12 +766,14 @@ TrexRpcCmdSetRxFeature::_run(const Json::Value &params, Json::Value &result) {
     TrexPort *port  = get_stx()->get_port_by_id(port_id);
 
     /* decide which feature is being set */
-    const string type = parse_choice(params, "type", {"queue", "server"}, result);
+    const string type = parse_choice(params, "type", {"queue", "server", "capwap_proxy"}, result);
 
     if (type == "queue") {
         parse_queue_msg(params, port, result);
     } else if (type == "server") {
         parse_server_msg(params, port, result);
+    } else if (type == "capwap_proxy") {
+        parse_capwap_proxy_msg(params, port, result);
     } else {
         assert(0);
     }
@@ -831,6 +819,34 @@ TrexRpcCmdSetRxFeature::parse_queue_msg(const Json::Value &msg, TrexPort *port, 
 
 void 
 TrexRpcCmdSetRxFeature::parse_server_msg(const Json::Value &msg, TrexPort *port, Json::Value &result) {
+}
+
+/**
+ * set capwap proxy on pair of ports (one for wireless side, another for wired)
+ * 
+ */
+void
+TrexRpcCmdSetRxFeature::parse_capwap_proxy_msg(const Json::Value &msg, TrexPort *port, Json::Value &result) {
+    bool enabled = parse_bool(msg, "enabled", result);
+
+    try {
+        if (enabled) {
+            if (!port->is_service_mode_on()) {
+                throw TrexException("Service mode must be enabled on port " + std::to_string(port->get_port_id()) + " for CAPWAP proxy");
+            }
+            uint8_t pair_port_id = parse_byte(msg, "pair_port_id", result);
+            bool is_wireless_side = parse_bool(msg, "is_wireless_side", result);
+            const Json::Value &capwap_map = parse_object(msg, "capwap_map", result);
+            uint32_t wlc_ip = parse_uint32(msg, "wlc_ip", result, 0);
+            port->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
+
+        } else {
+            port->stop_capwap_proxy();
+        }
+
+    } catch (TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
 }
 
 
@@ -895,7 +911,7 @@ TrexRpcCmdSetL2::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -956,7 +972,7 @@ TrexRpcCmdSetVLAN::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1054,7 +1070,7 @@ TrexRpcCmdSetL3::_run(const Json::Value &params, Json::Value &result) {
         }
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1116,7 +1132,7 @@ TrexRpcCmdConfIPv6::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    uint64_t ticket_id = port->run_rx_cfg_tasks_async();
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(false);
     process_results(ticket_id, params, result);
 
     return (TREX_RPC_CMD_OK);
@@ -1144,6 +1160,148 @@ void TrexRpcCmdConfIPv6::process_results(uint64_t ticket_id, const Json::Value &
     result["result"] = Json::objectValue;
 }
 
+
+
+/**
+ * configures a port in L3 mode
+ * 
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetNameSpaceBatch::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    verify_fast_stack(params, result, port_id);  /* no block required */
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    if ( port->is_rx_running_cfg_tasks() ) {
+        generate_execute_err(result, "Interface is in the middle of configuration");
+    }
+
+    const string json_cmds  = parse_string(params, "batch", result);
+
+    try {
+        port->set_name_space_batch_async(json_cmds);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    /* create ticket id */
+    uint64_t ticket_id = port->run_rx_cfg_tasks_async(true);
+
+    async_ticket_task_t task;
+    task.result_func = bind(&TrexRpcCmdSetNameSpaceBatch::process_results, this, ticket_id, params, _1);
+    task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+    get_stx()->add_task_by_ticket(ticket_id, task);
+
+    /* return the ticket id */
+    result["result"]["ticket_id"] = ticket_id;
+    return (TREX_RPC_CMD_OK);
+}
+
+void TrexRpcCmdSetNameSpaceBatch::process_results(uint64_t ticket_id, const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    /* get extended info */
+    TrexStackResultsRC rc;
+    stack_result_t results;
+    get_stx()->get_port_by_id(port_id)->get_rx_cfg_tasks_results_ext(ticket_id, results, rc);
+    if ( !rc.m_in_progress ) {
+        generate_async_no_results(result, "Could not find name space results, probably timeout on aging.");
+    }
+
+    if ( !results.is_ready ) {
+        async_ticket_task_t task;
+        task.result_func = bind(&TrexRpcCmdSetNameSpaceBatch::process_results, this, ticket_id, params, _1);
+        task.cancel_func = bind(&TrexPort::cancel_rx_cfg_tasks, get_stx()->get_port_by_id(port_id));
+        get_stx()->add_task_by_ticket(ticket_id, task);
+        result["result"]["ticket_id"] = ticket_id; /* didn't finished */
+        result["result"]["total_cmds"] = rc.m_total_cmds; /* return stats for completion */
+        result["result"]["exec_cmds"] = rc.m_total_exec_cmds;
+        result["result"]["errs_cmds"] = rc.m_total_errs_cmds;
+    } else {
+        result["result"] = results.m_results;
+    }
+}
+
+
+
+
+
+ /**
++ * Start capture port
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdStartCapturePort::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+    const std::string filter  = parse_string(params, "bpf_filter", result, "");
+
+    /* compile BPF to verify */
+    if (filter.size() > 0 && !bpf_verify(filter.c_str())) {
+        generate_parse_err(result, "BPF filter: '" + filter + "' is not a valid pattern");
+    }
+
+    const std::string endpoint  = parse_string(params, "endpoint", result);
+    if (endpoint.size() < 5) {
+        std::stringstream ss;
+        ss << "invalid endpoint '" << endpoint << "'";
+        generate_parse_err(result, ss.str());
+    }
+
+    std::string err = "Unknown error";
+    bool res = port->start_capture_port(filter, endpoint, err);
+    if (!res) {
+        generate_execute_err(result, "Could not enable capture port on port " + std::to_string(port_id) + ": " + err);
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+/**
+ * Stop capture port
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdStopCapturePort::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    std::string err = "Unknown error";
+    bool res = port->stop_capture_port(err);
+    if (!res) {
+        generate_execute_err(result, "Could not disable capture port on port " + std::to_string(port_id) + ": " + err);
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
+
+/**
+ * Set capture port BPF Filter
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetCapturePortBPF::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+
+    const std::string filter  = parse_string(params, "bpf_filter", result, "");
+
+    /* compile BPF to verify */
+    if (filter.size() > 0 && !bpf_verify(filter.c_str())) {
+        generate_parse_err(result, "BPF filter: '" + filter + "' is not a valid pattern");
+    }
+
+    TrexPort *port = get_stx()->get_port_by_id(port_id);
+
+    port->set_capture_port_bpf_filter(filter);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+}
 
 /**
  * capture command tree
@@ -1201,6 +1359,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     filter.set_bpf_filter(filter_str);
     
     set<uint8_t> ports;
+    set<uint8_t> rx_ports;
     
     /* populate the filter */
     for (int i = 0; i < tx_json.size(); i++) {
@@ -1217,6 +1376,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         
         filter.add_rx(rx_port);
         ports.insert(rx_port);
+        rx_ports.insert(rx_port);
     }
     
     /* check that all ports are under service mode */
@@ -1249,6 +1409,9 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         generate_execute_err(result, ex.what());
     }
     
+    if (get_is_stateless() && get_dpdk_mode()->dp_rx_queues()) {
+        get_stx()->set_capture_feature(rx_ports);
+    }
 }
 
 /**
@@ -1279,7 +1442,9 @@ TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-   
+    if (get_is_stateless() && get_dpdk_mode()->dp_rx_queues()) {
+        get_stx()->unset_capture_feature();
+    }
 }
 
 /**
@@ -1391,7 +1556,7 @@ TrexRpcCmdCapture::parse_cmd_remove(const Json::Value &params, Json::Value &resu
 trex_rpc_cmd_rc_e
 TrexRpcCmdTXPkts::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
- 
+
     TrexPort *port = get_stx()->get_port_by_id(port_id);
 
     if ( port->is_rx_running_cfg_tasks() ) {
@@ -1487,7 +1652,6 @@ TrexRpcCmdGetAsyncResults::_run(const Json::Value &params, Json::Value &result) 
     }
 
     task.result_func(result);
-
     return (TREX_RPC_CMD_OK);
 }
 
@@ -1519,9 +1683,6 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdAPISync(this));
     m_cmds.push_back(new TrexRpcCmdAPISyncV2(this));
     
-    m_cmds.push_back(new TrexRpcCmdAcquire(this));
-    m_cmds.push_back(new TrexRpcCmdRelease(this));
-        
     m_cmds.push_back(new TrexRpcCmdGetPortStatus(this));
         
     m_cmds.push_back(new TrexRpcCmdPing(this));
@@ -1529,6 +1690,7 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdSetL2(this));
     m_cmds.push_back(new TrexRpcCmdSetL3(this));
     m_cmds.push_back(new TrexRpcCmdConfIPv6(this));
+    m_cmds.push_back(new TrexRpcCmdSetNameSpaceBatch(this));
     m_cmds.push_back(new TrexRpcCmdSetVLAN(this));
     
     m_cmds.push_back(new TrexRpcPublishNow(this));
@@ -1549,7 +1711,11 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdSetRxFeature(this));
     m_cmds.push_back(new TrexRpcCmdGetAsyncResults(this));
     m_cmds.push_back(new TrexRpcCmdCancelAsyncTask(this));
-    
+
+    m_cmds.push_back(new TrexRpcCmdStartCapturePort(this));
+    m_cmds.push_back(new TrexRpcCmdStopCapturePort(this));
+    m_cmds.push_back(new TrexRpcCmdSetCapturePortBPF(this));
+ 
 }
 
 

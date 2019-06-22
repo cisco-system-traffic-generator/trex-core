@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef _VMXNET3_ETHDEV_H_
@@ -62,6 +33,10 @@
 	ETH_RSS_NONFRAG_IPV4_TCP | \
 	ETH_RSS_IPV6 | \
 	ETH_RSS_NONFRAG_IPV6_TCP)
+
+#define VMXNET3_V4_RSS_MASK ( \
+	ETH_RSS_NONFRAG_IPV4_UDP | \
+	ETH_RSS_NONFRAG_IPV6_UDP)
 
 /* RSS configuration structure - shared with device through GPA */
 typedef struct VMXNET3_RSSConf {
@@ -116,6 +91,7 @@ struct vmxnet3_hw {
 
 	uint64_t              queueDescPA;
 	uint16_t              queue_desc_len;
+	uint16_t              mtu;
 
 	VMXNET3_RSSConf       *rss_conf;
 	uint64_t              rss_confPA;
@@ -126,12 +102,17 @@ struct vmxnet3_hw {
 #define VMXNET3_VFT_TABLE_SIZE     (VMXNET3_VFT_SIZE * sizeof(uint32_t))
 	UPT1_TxStats	      saved_tx_stats[VMXNET3_MAX_TX_QUEUES];
 	UPT1_RxStats	      saved_rx_stats[VMXNET3_MAX_RX_QUEUES];
+
+	UPT1_TxStats          snapshot_tx_stats[VMXNET3_MAX_TX_QUEUES];
+	UPT1_RxStats          snapshot_rx_stats[VMXNET3_MAX_RX_QUEUES];
 };
 
+#define VMXNET3_REV_4		3		/* Vmxnet3 Rev. 4 */
 #define VMXNET3_REV_3		2		/* Vmxnet3 Rev. 3 */
 #define VMXNET3_REV_2		1		/* Vmxnet3 Rev. 2 */
 #define VMXNET3_REV_1		0		/* Vmxnet3 Rev. 1 */
 
+#define VMXNET3_VERSION_GE_4(hw) ((hw)->version >= VMXNET3_REV_4 + 1)
 #define VMXNET3_VERSION_GE_3(hw) ((hw)->version >= VMXNET3_REV_3 + 1)
 #define VMXNET3_VERSION_GE_2(hw) ((hw)->version >= VMXNET3_REV_2 + 1)
 
@@ -186,6 +167,8 @@ void vmxnet3_dev_clear_queues(struct rte_eth_dev *dev);
 
 void vmxnet3_dev_rx_queue_release(void *rxq);
 void vmxnet3_dev_tx_queue_release(void *txq);
+
+int vmxnet3_v4_rss_configure(struct rte_eth_dev *dev);
 
 int  vmxnet3_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t rx_queue_id,
 				uint16_t nb_rx_desc, unsigned int socket_id,

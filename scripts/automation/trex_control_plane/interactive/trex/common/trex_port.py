@@ -1,13 +1,16 @@
 
 from collections import namedtuple, OrderedDict
 from datetime import datetime
+import copy
 import base64
 import threading
+import time
 
 from ..utils.constants import FLOW_CTRL_DICT_REVERSED
 from ..utils.text_tables import Tableable, TRexTextTable
 from ..utils.text_opts import *
 from .trex_types import *
+from .trex_exceptions import *
 from .stats.trex_port_stats import PortStats, PortXStats
 
 
@@ -54,23 +57,50 @@ def owned(func):
 
     return func_wrapper
 
+class PortAttr(object):
+    def __init__(self):
+        self.__attr = {}
+        self.__lock = threading.RLock()
+
+    def update(self, attr):
+        with self.__lock:
+            self.__attr.update(attr)
+
+    def get(self):
+        with self.__lock:
+            return dict(self.__attr)
+
+    def get_param(self, *path):
+        with self.__lock:
+            ret = self.__attr
+            for key in path:
+                if key not in ret:
+                    raise TRexError('Port attribute with path "%s" does not exist!' % ', '.join(path))
+                ret = ret[key]
+            return copy.deepcopy(ret)
 
 # describes a single port
 class Port(object):
-    STATE_DOWN         = 0
-    STATE_IDLE         = 1
-    STATE_STREAMS      = 2
-    STATE_TX           = 3
-    STATE_PAUSE        = 4
-    STATE_PCAP_TX      = 5
+    (STATE_IDLE,
+    STATE_STREAMS,
+    STATE_TX,
+    STATE_PAUSE,
+    STATE_PCAP_TX,
+    STATE_ASTF_LOADED,
+    STATE_ASTF_PARSE,
+    STATE_ASTF_BUILD,
+    STATE_ASTF_CLEANUP) = range(9)
 
 
-    STATES_MAP = {STATE_DOWN:        "DOWN",
-                  STATE_IDLE:        "IDLE",
-                  STATE_STREAMS:     "IDLE",
-                  STATE_TX:          "TRANSMITTING",
-                  STATE_PAUSE:       "PAUSE",
-                  STATE_PCAP_TX :    "TRANSMITTING"}
+    STATES_MAP = {STATE_IDLE:         'IDLE',
+                  STATE_STREAMS:      'IDLE',
+                  STATE_TX:           'TRANSMITTING',
+                  STATE_PAUSE:        'PAUSE',
+                  STATE_PCAP_TX :     'TRANSMITTING',
+                  STATE_ASTF_LOADED:  'LOADED',
+                  STATE_ASTF_PARSE:   'PARSING',
+                  STATE_ASTF_BUILD:   'BUILDING',
+                  STATE_ASTF_CLEANUP: 'CLEANUP'}
 
 
     def __init__ (self, ctx, port_id, rpc, info):
@@ -79,11 +109,14 @@ class Port(object):
 
         self.state          = self.STATE_IDLE
         self.service_mode   = False
-        
-        self.handler        = None
+
+        self.handler        = ''
         self.rpc            = rpc
         self.transmit       = rpc.transmit
         self.transmit_batch = rpc.transmit_batch
+        self.ticket_id      = None
+        self.last_async_results      = None
+
 
         self.info = dict(info)
 
@@ -96,10 +129,9 @@ class Port(object):
 
         self.owner = ''
         self.last_factor_type = None
-        
-        self._attr = {}
-        self.attr_lock = threading.Lock()
-        
+
+        self.__attr = PortAttr()
+        self.synced = False
 
     def err(self, msg):
         return RC_ERR("Port {0} : *** {1}".format(self.port_id, msg))
@@ -108,38 +140,40 @@ class Port(object):
     def ok(self, data = ""):
         return RC_OK(data)
 
+    def is_sync(self):
+        return self.synced
 
     def get_speed_bps (self):
         return (self.get_speed_gbps() * 1000 * 1000 * 1000)
 
 
     def get_speed_gbps (self):
-        return self._attr['speed']
+        return self.__attr.get_param('speed')
 
 
     def is_acquired(self):
-        return (self.handler != None)
+        return (self.handler != '')
 
 
     def is_up (self):
-        return self._attr['link']['up']
+        return self.__attr.get_param('link', 'up')
 
 
     def is_active(self):
-        return (self.state == self.STATE_TX ) or (self.state == self.STATE_PAUSE) or (self.state == self.STATE_PCAP_TX)
+        return self.state in (self.STATE_TX, self.STATE_PAUSE, self.STATE_PCAP_TX, self.STATE_ASTF_PARSE, self.STATE_ASTF_BUILD, self.STATE_ASTF_CLEANUP)
 
 
     def is_transmitting (self):
-        return (self.state == self.STATE_TX) or (self.state == self.STATE_PCAP_TX)
+        return self.state in (self.STATE_TX, self.STATE_PCAP_TX)
 
 
     def is_paused (self):
-        return (self.state == self.STATE_PAUSE)
+        return self.state == self.STATE_PAUSE
 
 
     def is_writeable (self):
         # operations on port can be done on state idle or state streams
-        return ((self.state == self.STATE_IDLE) or (self.state == self.STATE_STREAMS))
+        return self.state in (self.STATE_IDLE, self.STATE_STREAMS, self.STATE_ASTF_LOADED)
 
 
     def is_virtual(self):
@@ -153,53 +187,15 @@ class Port(object):
             return self.owner
 
 
-    # take the port
-    def acquire(self, force = False):
-        params = {"port_id":     self.port_id,
-                  "user":        self.ctx.username,
-                  "session_id":  self.ctx.session_id,
-                  "force":       force}
+    def _set_handler(self, handler):
+        self.handler = handler
 
-        rc = self.transmit("acquire", params)
-        if not rc:
-            return self.err(rc.err())
+    def _clear_handler(self):
+        self.handler = ''
+        self.owner = ''
 
-        self.handler = rc.data()
-
-        return self.ok()
-
-
-    # release the port
-    def release(self):
-        params = {"port_id": self.port_id,
-                  "handler": self.handler}
-
-        rc = self.transmit("release", params)
-        
-        if rc.good():
-
-            self.handler = None
-            self.owner = ''
-
-            return self.ok()
-        else:
-            return self.err(rc.err())
-
-
-    def sync(self):
-
-        params = {"port_id": self.port_id, 'block': False}
-
-        rc = self.transmit("get_port_status", params)
-        if rc.bad():
-            return self.err(rc.err())
-
-        # sync the port
-        port_state = rc.data()['state']
-
-        if port_state == "DOWN":
-            self.state = self.STATE_DOWN
-        elif port_state == "IDLE":
+    def state_from_name(self, port_state):
+        if port_state == "IDLE":
             self.state = self.STATE_IDLE
         elif port_state == "STREAMS":
             self.state = self.STATE_STREAMS
@@ -209,23 +205,160 @@ class Port(object):
             self.state = self.STATE_PAUSE
         elif port_state == "PCAP_TX":
             self.state = self.STATE_PCAP_TX
+        elif port_state == 'ASTF_LOADED':
+            self.state = self.STATE_ASTF_LOADED
+        elif port_state == 'ASTF_PARSE':
+            self.state = self.STATE_ASTF_PARSE
+        elif port_state == 'ASTF_BUILD':
+            self.state = self.STATE_ASTF_BUILD
+        elif port_state == 'ASTF_CLEANUP':
+            self.state = self.STATE_ASTF_CLEANUP
         else:
             raise Exception("port {0}: bad state received from server '{1}'".format(self.port_id, port_state))
 
-        self.owner = rc.data()['owner']
-        
-        # for stateless (hack)
-        if 'max_stream_id' in rc.data():
-            self.next_available_id = int(rc.data()['max_stream_id']) + 1
+    def sync_shared (self,data):
+        # sync the port
+        self.state_from_name(data['state'])
 
-        self.status = rc.data()
-        
+        self.owner = data['owner']
+
+        # for stateless (hack)
+        if 'max_stream_id' in data:
+            self.next_available_id = int(data['max_stream_id']) + 1
+
+        self.status = data
+
         # replace the attributes in a thread safe manner
-        self.set_ts_attr(rc.data()['attr'])
-        
-        self.service_mode = rc.data()['service']
-        
+        self.update_ts_attr(data['attr'])
+
+        self.service_mode = data['service']
+
+        self.synced = True
         return self.ok()
+
+    def sync(self):
+
+        params = {"port_id": self.port_id, 'block': False}
+
+        rc = self.transmit("get_port_status", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync_shared (rc.data())
+
+
+    @writeable
+    def set_namespace_start (self, json_str_commands):
+        
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "batch":          json_str_commands,
+                  "block"  :        False}
+
+        rc = self.transmit("conf_ns_batch", params)
+        if rc.bad():
+           return self.err(rc.err())
+
+        if rc.data() is None:
+            return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
+
+        if not ('ticket_id' in rc.data()):
+            return self.err(' this command should return ticket_id')
+
+        self.ticket_id =  rc.data()['ticket_id']
+
+        return self.ok(rc.data())
+
+    def _cancel_async_task (self):
+
+        if self.ticket_id is None:
+            return self.err(' there is no active batch command ')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "ticket_id":      self.ticket_id,
+                  }
+        rc = self.transmit("cancel_async_task", params)
+        self.ticket_id = None
+
+
+    @writeable
+    def is_async_results_ready (self):
+           if not self.is_service_mode_on():
+               return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+           if self.ticket_id is None and self.last_async_results is not None:
+               return True
+
+           params = {"handler":        self.handler,
+                     "port_id":        self.port_id,
+                     "ticket_id":      self.ticket_id,
+                     }
+
+           rc = self.transmit("get_async_results", params)
+           if rc.bad():
+              self.ticket_id = None
+              return self.err(rc.err())
+
+           if rc.data() is None:
+              return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
+
+           if "ticket_id" in rc.data():
+               return False
+           else:
+               self.ticket_id = None
+               self.last_async_results = rc.data()
+               return True
+
+    @writeable
+    def get_async_results (self, timeout = None, cb = None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
+
+        # check if there is last results in cache 
+        if self.ticket_id is None:
+            if self.last_async_results:
+               r=self.last_async_results
+               self.last_async_results = None
+               return r
+            else:
+               return self.err(' there is no active batch command ')
+
+
+        while True:
+
+            params = {"handler":        self.handler,
+                      "port_id":        self.port_id,
+                      "ticket_id":      self.ticket_id,
+                      }
+    
+            rc = self.transmit("get_async_results", params)
+            if rc.bad():
+               self.ticket_id = None
+               return self.err(rc.err())
+
+            if rc.data() is None:
+                return self.err(' This command is not supported with current configuration, you should have stack: linux_based in trex_cfg.yaml ')
+
+            if not ("ticket_id" in rc.data()):
+                #  data is ready 
+                self.ticket_id = None
+                break;
+
+            if cb is not None and hasattr(cb, '__call__'):
+                 cb(rc.data());
+
+            time.sleep(1);
+            if timeout != None:
+                 timeout -= 1
+                 if timeout<0:
+                     self._cancel_async_task ()
+                     return self.err(' timeout wating for data ')
+
+        return  rc.data()
+
 
      
     @writeable
@@ -342,32 +475,33 @@ class Port(object):
             pkts[i]['binary'] = base64.b64decode(pkts[i]['binary'])
             
         return RC_OK(pkts)
-        
-        
- 
+
+
     @owned
     def set_attr (self, **kwargs):
-        
+
         json_attr = {}
-        
+
         if kwargs.get('promiscuous') is not None:
-            json_attr['promiscuous'] = {'enabled': kwargs.get('promiscuous')}
+            json_attr['promiscuous'] = {'enabled': kwargs['promiscuous']}
 
         if kwargs.get('multicast') is not None:
-            json_attr['multicast'] = {'enabled': kwargs.get('multicast')}
+            json_attr['multicast'] = {'enabled': kwargs['multicast']}
 
         if kwargs.get('link_status') is not None:
-            json_attr['link_status'] = {'up': kwargs.get('link_status')}
-        
+            json_attr['link_status'] = {'up': kwargs['link_status']}
+
         if kwargs.get('led_status') is not None:
-            json_attr['led_status'] = {'on': kwargs.get('led_status')}
-        
+            json_attr['led_status'] = {'on': kwargs['led_status']}
+
         if kwargs.get('flow_ctrl_mode') is not None:
-            json_attr['flow_ctrl_mode'] = {'mode': kwargs.get('flow_ctrl_mode')}
+            json_attr['flow_ctrl_mode'] = {'mode': kwargs['flow_ctrl_mode']}
 
         if kwargs.get('rx_filter_mode') is not None:
-            json_attr['rx_filter_mode'] = {'mode': kwargs.get('rx_filter_mode')}
+            json_attr['rx_filter_mode'] = {'mode': kwargs['rx_filter_mode']}
 
+        if kwargs.get('vxlan_fs') is not None:
+            json_attr['vxlan_fs'] = kwargs['vxlan_fs']
 
         params = {"handler": self.handler,
                   "port_id": self.port_id,
@@ -380,7 +514,53 @@ class Port(object):
         # update the dictionary from the server explicitly
         return self.sync()
 
+
+    @owned
+    def start_capture_port (self, endpoint, bpf_filter=None):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for start capture port. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "bpf_filter":     bpf_filter if bpf_filter is not None else "",
+                  "endpoint":       endpoint}
+
+        rc = self.transmit("start_capture_port", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+
+
+    @owned
+    def stop_capture_port (self):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for stop capture port. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id}
+
+        rc = self.transmit("stop_capture_port", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
     
+    @owned
+    def set_capture_port_bpf_filter (self, bpf_filter):
+        if not self.is_service_mode_on():
+            return self.err('port service mode must be enabled for changing capture port BPF filter. Please enable service mode')
+
+        params = {"handler":        self.handler,
+                  "port_id":        self.port_id,
+                  "bpf_filter":     bpf_filter if bpf_filter is not None else ""}
+
+        rc = self.transmit("set_capture_port_bpf", params)
+        if rc.bad():
+            return self.err(rc.err())
+
+        return self.sync()
+
     def push_packets (self, pkts, force, ipg_usec):
         params = {'port_id'   : self.port_id,
                   'pkts'      : pkts,
@@ -416,6 +596,8 @@ class Port(object):
         # sync the status
         if sync:
             self.sync()
+        elif not self.is_sync():
+            return {}
 
         # get a copy of the current attribute set (safe against manipulation)
         attr = self.get_ts_attr()
@@ -444,6 +626,11 @@ class Port(object):
         else:
             info['mult'] = "N/A"
 
+        if 'vxlan_fs' in attr:
+            info['vxlan_fs'] = fit_arr(attr['vxlan_fs'], 20) or '-'
+        else:
+            info['vxlan_fs'] = 'N/A'
+
         if 'description' not in info:
             info['description'] = "N/A"
 
@@ -466,6 +653,11 @@ class Port(object):
             info['link_change_supported'] = 'yes' if info['is_link_supported'] else 'no'
         else:
             info['link_change_supported'] = 'N/A'
+
+        if 'is_vxlan_supported' in info:
+            info['is_vxlan_supported'] = 'yes' if info['is_vxlan_supported'] else 'no'
+        else:
+            info['is_vxlan_supported'] = 'N/A'
 
         if 'is_virtual' in info:
             info['is_virtual'] = 'yes' if info['is_virtual'] else 'no'
@@ -553,17 +745,21 @@ class Port(object):
         return self.STATES_MAP.get(self.state, "Unknown")
 
 
-    def get_layer_cfg (self):
-        return self._attr['layer_cfg']
-     
+    def get_layer_cfg(self):
+        return self.__attr.get_param('layer_cfg')
+
 
     def get_vlan_cfg (self):
-        return self._attr['vlan']['tags']
+        return self.__attr.get_param('vlan', 'tags')
 
 
     def is_l3_mode (self):
         return self.get_layer_cfg()['ipv4']['state'] != 'none'
-        
+
+    def has_ipv6(self):
+        cfg = self.get_layer_cfg()
+        return 'ipv6' in cfg and cfg['ipv6']['enabled']
+
 
     def is_resolved (self):
         # for L3
@@ -582,12 +778,13 @@ class Port(object):
         return self.info['is_prom_supported']
 
     def is_prom_enabled(self):
-        with self.attr_lock:
-            return self._attr['promiscuous']['enabled']
+        return self.__attr.get_param('promiscuous', 'enabled')
 
     def is_mult_enabled(self):
-        with self.attr_lock:
-            return self._attr['multicast']['enabled']
+        return self.__attr.get_param('multicast', 'enabled')
+
+    def get_port_cores(self):
+        return self.info.get('cores')
 
 
     ################# stats handler ######################
@@ -611,6 +808,7 @@ class Port(object):
                            ("promiscuous",     info['prom']),
                            ("multicast",       info['mult']),
                            ("flow ctrl",       info['fc']),
+                           ("vxlan fs",        info['vxlan_fs']),
                            ("--", ""),
 
                            ("layer mode",      format_text(info['layer_mode'], 'green' if info['layer_mode'] == 'IPv4' else 'magenta')),
@@ -660,16 +858,12 @@ class Port(object):
     
     # get in a thread safe manner a duplication of attributes
     def get_ts_attr (self):
-        with self.attr_lock:
-            return dict(self._attr)
-        
+        return self.__attr.get()
 
-    # set in a thread safe manner a new dict of attributes
-    def set_ts_attr (self, new_attr):
-        with self.attr_lock:
-            self._attr = new_attr
-    
-        
+    # update in a thread safe manner a dict of attributes
+    def update_ts_attr (self, new_attr):
+        self.__attr.update(new_attr)
+
   ################# events handler ######################
     def async_event_port_job_done (self):
         # until thread is locked - order is important
@@ -683,16 +877,19 @@ class Port(object):
         
         # get a thread safe duplicate
         cur_attr = self.get_ts_attr()
-        
+
+        if not cur_attr:
+            return
+
         # check if anything changed
         if new_attr == cur_attr:
-            return None
-            
+            return
+
         # generate before
         before = self.get_formatted_info(sync = False)
         
         # update
-        self.set_ts_attr(new_attr)
+        self.update_ts_attr(new_attr)
         
         # generate after
         after = self.get_formatted_info(sync = False)
@@ -729,7 +926,7 @@ class Port(object):
 
 
     def async_event_port_acquired (self, who):
-        self.handler = None
+        self.handler = ''
         self.owner = who
 
 

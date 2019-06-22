@@ -16,6 +16,7 @@ from ..trex_vlan import VLAN
 from ..trex_types import listify
 
 from scapy.layers.l2 import Ether, ARP, Dot1Q, Dot1AD
+from scapy.layers.inet import IP
 
 from collections import defaultdict
 
@@ -63,17 +64,23 @@ class ServiceARP(Service):
         ARP service - generate ARP requests
     '''
 
-    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, timeout_sec = 3, verbose_level = Service.ERROR):
+    def __init__ (self, ctx, dst_ip, src_ip = '0.0.0.0', vlan = None, src_mac = None, timeout_sec = 3,  verbose_level = Service.ERROR,fmt=None,trigger_pkt=None):
         
         # init the base object
         super(ServiceARP, self).__init__(verbose_level)
 
-        self.src_mac     = ctx.get_src_mac()
         self.src_ip      = src_ip
         self.dst_ip      = dst_ip
         self.vlan        = VLAN(vlan)
         self.timeout_sec = timeout_sec
-        
+        self.fmt         = fmt
+        self.trigger_pkt = trigger_pkt
+
+        if src_mac != None:
+            self.src_mac = src_mac
+        else:
+            self.src_mac     = ctx.get_src_mac()
+
         self.record = None
         
         
@@ -86,18 +93,21 @@ class ServiceARP(Service):
             Will execute ARP request
         '''
         
-        self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
+        if self.trigger_pkt != None:
+            self.log("ARP: ---> sending provided trigger packet from {0} -> {1}".format(self.trigger_pkt[IP].src, self.trigger_pkt[IP].dst))
+            pipe.async_tx_pkt(self.trigger_pkt)
 
+        else:
+            self.log("ARP: ---> who has '{0}' ? tell '{1}' ".format(self.dst_ip, self.src_ip))
+            pkt = Ether(dst="ff:ff:ff:ff:ff:ff",src=self.src_mac)/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
         
-        pkt = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(psrc  = self.src_ip, pdst = self.dst_ip, hwsrc = self.src_mac)
+            # add VLAN to the packet if needed
+            self.vlan.embed(pkt, self.fmt)
         
-        # add VLAN to the packet if needed
-        self.vlan.embed(pkt)
+            # send the ARP request
+            pipe.async_tx_pkt(pkt)
         
-        # send the ARP request
-        pipe.async_tx_pkt(pkt)
-        
-        # wait for RX packet
+            # wait for RX packet
         pkts = yield pipe.async_wait_for_pkt(time_sec = self.timeout_sec)
         if not pkts:
             self.log("ARP: <--- timeout for '{0}'".format(self.dst_ip))
@@ -106,8 +116,8 @@ class ServiceARP(Service):
             
         # parse record
         response = Ether(pkts[0]['pkt'])
-        self.record = ARPRecord(self.src_ip, self.dst_ip, response)
 
+        self.record = ARPRecord(self.src_ip, self.dst_ip, response)
         self.log("ARP: <--- '{0} is at '{1}'".format(self.record.dst_ip, self.record.dst_mac))
         
 
@@ -135,4 +145,4 @@ class ARPRecord(object):
         else:
             return "Failed to receive ARP response from {0}".format(self.dst_ip)
 
-  
+

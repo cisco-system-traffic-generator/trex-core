@@ -1,33 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2015-2016 Intel Corporation. All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2015-2016 Intel Corporation
  */
 
 #include <inttypes.h>
@@ -41,8 +13,12 @@
 
 struct rte_keepalive {
 	/** Core Liveness. */
-	enum rte_keepalive_state __rte_cache_aligned state_flags[
-		RTE_KEEPALIVE_MAXCORES];
+	struct {
+		/*
+		 * Each element must be cache aligned to prevent false sharing.
+		 */
+		enum rte_keepalive_state core_state __rte_cache_aligned;
+	} live_data[RTE_KEEPALIVE_MAXCORES];
 
 	/** Last-seen-alive timestamps */
 	uint64_t last_alive[RTE_KEEPALIVE_MAXCORES];
@@ -95,19 +71,22 @@ rte_keepalive_dispatch_pings(__rte_unused void *ptr_timer,
 		if (keepcfg->active_cores[idx_core] == 0)
 			continue;
 
-		switch (keepcfg->state_flags[idx_core]) {
+		switch (keepcfg->live_data[idx_core].core_state) {
 		case RTE_KA_STATE_UNUSED:
 			break;
 		case RTE_KA_STATE_ALIVE: /* Alive */
-			keepcfg->state_flags[idx_core] = RTE_KA_STATE_MISSING;
+			keepcfg->live_data[idx_core].core_state =
+			    RTE_KA_STATE_MISSING;
 			keepcfg->last_alive[idx_core] = rte_rdtsc();
 			break;
 		case RTE_KA_STATE_MISSING: /* MIA */
 			print_trace("Core MIA. ", keepcfg, idx_core);
-			keepcfg->state_flags[idx_core] = RTE_KA_STATE_DEAD;
+			keepcfg->live_data[idx_core].core_state =
+			    RTE_KA_STATE_DEAD;
 			break;
 		case RTE_KA_STATE_DEAD: /* Dead */
-			keepcfg->state_flags[idx_core] = RTE_KA_STATE_GONE;
+			keepcfg->live_data[idx_core].core_state =
+			    RTE_KA_STATE_GONE;
 			print_trace("Core died. ", keepcfg, idx_core);
 			if (keepcfg->callback)
 				keepcfg->callback(
@@ -118,7 +97,8 @@ rte_keepalive_dispatch_pings(__rte_unused void *ptr_timer,
 		case RTE_KA_STATE_GONE: /* Buried */
 			break;
 		case RTE_KA_STATE_DOZING: /* Core going idle */
-			keepcfg->state_flags[idx_core] = RTE_KA_STATE_SLEEP;
+			keepcfg->live_data[idx_core].core_state =
+			    RTE_KA_STATE_SLEEP;
 			keepcfg->last_alive[idx_core] = rte_rdtsc();
 			break;
 		case RTE_KA_STATE_SLEEP: /* Idled core */
@@ -128,7 +108,7 @@ rte_keepalive_dispatch_pings(__rte_unused void *ptr_timer,
 			keepcfg->relay_callback(
 				keepcfg->relay_callback_data,
 				idx_core,
-				keepcfg->state_flags[idx_core],
+				keepcfg->live_data[idx_core].core_state,
 				keepcfg->last_alive[idx_core]
 				);
 	}
@@ -172,11 +152,11 @@ rte_keepalive_register_core(struct rte_keepalive *keepcfg, const int id_core)
 void
 rte_keepalive_mark_alive(struct rte_keepalive *keepcfg)
 {
-	keepcfg->state_flags[rte_lcore_id()] = RTE_KA_STATE_ALIVE;
+	keepcfg->live_data[rte_lcore_id()].core_state = RTE_KA_STATE_ALIVE;
 }
 
 void
 rte_keepalive_mark_sleep(struct rte_keepalive *keepcfg)
 {
-	keepcfg->state_flags[rte_lcore_id()] = RTE_KA_STATE_DOZING;
+	keepcfg->live_data[rte_lcore_id()].core_state = RTE_KA_STATE_DOZING;
 }

@@ -1,15 +1,11 @@
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
-import imp
 import time
-import json
 from pprint import pprint
 import argparse
 
 import os
-
-SRC_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # IMIX test
 # it maps the ports to sides
@@ -18,7 +14,7 @@ SRC_PATH = os.path.dirname(os.path.abspath(__file__))
 # at a certain rate for some time
 # finally it checks that all packets arrived
 def imix_test (server):
-    
+
 
     # create client
     c = STLClient(server = server)
@@ -39,7 +35,7 @@ def imix_test (server):
         print "Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1)
 
         # load IMIX profile
-        profile_file = os.path.join(SRC_PATH, 'imix_profile.py')
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'imix.py')
         profile1 = STLProfile.load_py(profile_file, direction=0)
         profile2 = STLProfile.load_py(profile_file, direction=1)
         stream1 = profile1.get_streams()
@@ -55,52 +51,52 @@ def imix_test (server):
 
         c.start(ports = (dir_0 + dir_1), mult = "100kpps", total = True)
 
-        while True:
-            for rate in range(200,3100,10):
-    
-                # choose rate and start traffic for 10 seconds on 5 mpps
-                #mult = "30%"
-                my_mult = ("%dkpps"%rate)
-                print "Injecting {0} <--> {1} on total rate of '{2}' ".format(dir_0, dir_1, my_mult)
-                c.clear_stats()
+        for rate in range(200,3100,10):
 
-        
-                c.update(ports = (dir_0 + dir_1), mult = my_mult)
+            # choose rate and start traffic for 10 seconds on 5 mpps
+            #mult = "30%"
+            my_mult = ("%dkpps"%rate)
+            print "Injecting {0} <--> {1} on total rate of '{2}' ".format(dir_0, dir_1, my_mult)
+            c.clear_stats()
 
-                #time.sleep(1);
-                
-                # block until done
-                #c.wait_on_traffic(ports = (dir_0 + dir_1))
-        
-                # read the stats after the test
-                stats = c.get_stats()
-        
-                # use this for debug info on all the stats
-                pprint(stats)
-        
-                # sum dir 0
-                dir_0_opackets = sum([stats[i]["opackets"] for i in dir_0])
-                dir_0_ipackets = sum([stats[i]["ipackets"] for i in dir_0])
-        
-                # sum dir 1
-                dir_1_opackets = sum([stats[i]["opackets"] for i in dir_1])
-                dir_1_ipackets = sum([stats[i]["ipackets"] for i in dir_1])
-        
-        
-                lost_0 = dir_0_opackets - dir_1_ipackets
-                lost_1 = dir_1_opackets - dir_0_ipackets
-        
-                print "\nPackets injected from {0}: {1:,}".format(dir_0, dir_0_opackets)
-                print "Packets injected from {0}: {1:,}".format(dir_1, dir_1_opackets)
-        
-                print "\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_1, lost_0)
-                print "packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_0, lost_1)
-        
-                if (lost_0 <= 0) and (lost_1 <= 0): # less or equal because we might have incoming arps etc.
-                    passed = True
-                else:
-                    passed = False
-    
+
+            c.update(ports = (dir_0 + dir_1), mult = my_mult)
+
+            #time.sleep(1);
+
+            # block until done
+            #c.wait_on_traffic(ports = (dir_0 + dir_1))
+
+            # read the stats after the test
+            stats = c.get_stats()
+
+            # use this for debug info on all the stats
+            pprint(stats)
+
+            # sum dir 0
+            dir_0_opackets = sum([stats[i]["opackets"] for i in dir_0])
+            dir_0_ipackets = sum([stats[i]["ipackets"] for i in dir_0])
+
+            # sum dir 1
+            dir_1_opackets = sum([stats[i]["opackets"] for i in dir_1])
+            dir_1_ipackets = sum([stats[i]["ipackets"] for i in dir_1])
+
+
+            lost_0 = dir_0_opackets - dir_1_ipackets
+            lost_1 = dir_1_opackets - dir_0_ipackets
+
+            print "\nPackets injected from {0}: {1:,}".format(dir_0, dir_0_opackets)
+            print "Packets injected from {0}: {1:,}".format(dir_1, dir_1_opackets)
+
+            print "\npackets lost from {0} --> {1}:   {2:,} pkts".format(dir_0, dir_1, lost_0)
+            print "packets lost from {0} --> {1}:   {2:,} pkts".format(dir_1, dir_0, lost_1)
+
+            if (lost_0 <= 0) and (lost_1 <= 0): # less or equal because we might have incoming arps etc.
+                passed = True
+            else:
+                passed = False
+                break
+
 
     except STLError as e:
         passed = False

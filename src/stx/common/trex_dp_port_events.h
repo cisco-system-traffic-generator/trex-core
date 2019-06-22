@@ -103,7 +103,7 @@ public:
     /**
      * return when all DP cores have responsed on a barrier
      */
-    void barrier();
+    void barrier(uint32_t profile_id = 0);
 
     /**
      * a core has reached the event 

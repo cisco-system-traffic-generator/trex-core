@@ -1408,7 +1408,7 @@ TEST_F(basic_vm, vm6) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm6.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm6.pcap");
     assert(lpWriter);
 
 
@@ -1432,7 +1432,7 @@ TEST_F(basic_vm, vm6) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm6.pcap","exp/udp_64B_vm6-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm6.pcap","exp/udp_64B_vm6-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1568,7 +1568,7 @@ TEST_F(basic_vm, vm7) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm7.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm7.pcap");
     assert(lpWriter);
 
 
@@ -1591,7 +1591,7 @@ TEST_F(basic_vm, vm7) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm7.pcap","exp/udp_64B_vm7-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm7.pcap","exp/udp_64B_vm7-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1643,7 +1643,7 @@ TEST_F(basic_vm, vm_mask1) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask1.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask1.pcap");
     assert(lpWriter);
 
 
@@ -1666,7 +1666,7 @@ TEST_F(basic_vm, vm_mask1) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask1.pcap","exp/udp_64B_vm_mask1-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask1.pcap","exp/udp_64B_vm_mask1-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1697,7 +1697,7 @@ TEST_F(basic_vm, vm_mask2) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask2.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask2.pcap");
     assert(lpWriter);
 
 
@@ -1720,7 +1720,7 @@ TEST_F(basic_vm, vm_mask2) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask2.pcap","exp/udp_64B_vm_mask2-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask2.pcap","exp/udp_64B_vm_mask2-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1750,7 +1750,7 @@ TEST_F(basic_vm, vm_mask3) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask3.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask3.pcap");
     assert(lpWriter);
 
 
@@ -1773,7 +1773,7 @@ TEST_F(basic_vm, vm_mask3) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask3.pcap","exp/udp_64B_vm_mask3-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask3.pcap","exp/udp_64B_vm_mask3-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1803,7 +1803,7 @@ TEST_F(basic_vm, vm_mask4) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask4.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask4.pcap");
     assert(lpWriter);
 
 
@@ -1826,7 +1826,7 @@ TEST_F(basic_vm, vm_mask4) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask4.pcap","exp/udp_64B_vm_mask4-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask4.pcap","exp/udp_64B_vm_mask4-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1856,7 +1856,7 @@ TEST_F(basic_vm, vm_mask5) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask5.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask5.pcap");
     assert(lpWriter);
 
 
@@ -1879,7 +1879,7 @@ TEST_F(basic_vm, vm_mask5) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask5.pcap","exp/udp_64B_vm_mask5-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask5.pcap","exp/udp_64B_vm_mask5-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1910,7 +1910,7 @@ TEST_F(basic_vm, vm_mask6) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask6.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask6.pcap");
     assert(lpWriter);
 
 
@@ -1933,7 +1933,7 @@ TEST_F(basic_vm, vm_mask6) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask6.pcap","exp/udp_64B_vm_mask6-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask6.pcap","exp/udp_64B_vm_mask6-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -1965,7 +1965,7 @@ TEST_F(basic_vm, vm_mask6_list) {
     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm_mask6.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm_mask6.pcap");
     assert(lpWriter);
 
 
@@ -1988,7 +1988,7 @@ TEST_F(basic_vm, vm_mask6_list) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm_mask6.pcap","exp/udp_64B_vm_mask6-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm_mask6.pcap","exp/udp_64B_vm_mask6-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -2035,7 +2035,7 @@ TEST_F(basic_vm, vm8) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm8.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm8.pcap");
     assert(lpWriter);
 
 
@@ -2058,7 +2058,7 @@ TEST_F(basic_vm, vm8) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm8.pcap","exp/udp_64B_vm8-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm8.pcap","exp/udp_64B_vm8-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -2113,7 +2113,7 @@ TEST_F(basic_vm, vm9) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm9.pcap");
     assert(lpWriter);
 
 
@@ -2136,7 +2136,7 @@ TEST_F(basic_vm, vm9) {
 
     CErfCmp cmp;
 
-    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -2168,7 +2168,7 @@ TEST_F(basic_vm, vm10) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/udp_64B_vm9.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/udp_64B_vm9.pcap");
     assert(lpWriter);
 
 
@@ -2193,7 +2193,7 @@ TEST_F(basic_vm, vm10) {
     CErfCmp cmp;
     delete  lpDpVm;
 
-    bool res1=cmp.compare("exp/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
+    bool res1=cmp.compare("generated/udp_64B_vm9.pcap","exp/udp_64B_vm9-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -2269,7 +2269,7 @@ TEST_F(basic_vm, vm_syn_attack) {
 
 
 
-    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"exp/stl_syn_attack.pcap");
+    CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)"generated/stl_syn_attack.pcap");
     assert(lpWriter);
 
 
@@ -2294,7 +2294,7 @@ TEST_F(basic_vm, vm_syn_attack) {
     CErfCmp cmp;
     delete  lpDpVm;
 
-    bool res1=cmp.compare("exp/stl_syn_attack.pcap","exp/stl_syn_attack-ex.pcap");
+    bool res1=cmp.compare("generated/stl_syn_attack.pcap","exp/stl_syn_attack-ex.pcap");
     EXPECT_EQ(1, res1?1:0);
 }
 
@@ -2319,7 +2319,7 @@ void run_vm_program( StreamVm & vm,
 
     vm.Dump(stdout);
 
-    std::string out_file_full ="exp/"+out_file_name +".pcap";
+    std::string out_file_full ="generated/"+out_file_name +".pcap";
     std::string out_file_ex_full ="exp/"+out_file_name +"-ex.pcap";
 
     CFileWriterBase * lpWriter=CCapWriterFactory::CreateWriter(LIBPCAP,(char *)out_file_full.c_str());
@@ -2552,6 +2552,7 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 class basic_stl  : public trexStlTest {
  protected:
   virtual void SetUp() {
+      set_op_debug_mode(OP_MODE_STL);
   }
   virtual void TearDown() {
   }
@@ -2717,8 +2718,8 @@ public:
 
         char buf[100];
         char buf_ex[100];
-        sprintf(buf,"%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),0);
-        sprintf(buf_ex,"%s-%d-ex.erf",CGlobalInfo::m_options.out_file.c_str(),0);
+        sprintf(buf,"generated/%s-%d.erf",CGlobalInfo::m_options.out_file.c_str(),0);
+        sprintf(buf_ex,"exp/%s-%d-ex.erf",CGlobalInfo::m_options.out_file.c_str(),0);
 
 
         /* add stream to the queue */
@@ -2806,14 +2807,15 @@ public:
     virtual void call_after_run(CBasicStl * m_obj){
     };
     uint8_t m_port_id;
+    uint32_t m_profile_id;
 };
 
 
 
 void CBBStartPause0::call_after_init(CBasicStl * m_obj){
 
-    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id);
-    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id);
+    TrexStatelessDpPause * lpPauseCmd = new TrexStatelessDpPause(m_port_id, m_profile_id);
+    TrexStatelessDpResume * lpResumeCmd1 = new TrexStatelessDpResume(m_port_id, m_profile_id);
 
     m_obj->m_msg_queue.add_command(m_core,lpPauseCmd, 4.99); /* command in delay of 4.99 sec */
     m_obj->m_msg_queue.add_command(m_core,lpResumeCmd1, 6.99);/* command in delay of 6.99 sec */
@@ -2829,11 +2831,12 @@ TEST_F(basic_stl, basic_pause_resume0) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_basic_pause_resume0";
+    po->out_file ="stl_basic_pause_resume0";
 
      TrexStreamsCompiler compile;
 
      uint8_t port_id=0;
+     uint32_t profile_id=0x12345678;
 
      std::vector<TrexStream *> streams;
 
@@ -2857,13 +2860,14 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
      std::vector<TrexStreamsCompiledObj *> objs;
      assert(compile.compile(port_id, streams, objs));
-     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, 0, objs[0], 9.99 /*sec */ );
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 0, objs[0], 9.99 /*sec */ );
 
      t1.m_msg_queue.add_msg(lpStartCmd);
 
 
      CBBStartPause0 sink;
      sink.m_port_id = port_id;
+     sink.m_profile_id = profile_id;
      t1.m_sink =  &sink;
 
      bool res=t1.init();
@@ -2875,6 +2879,122 @@ TEST_F(basic_stl, basic_pause_resume0) {
 
 
 //////////////////////////////////////////////////////////////
+
+
+class CBBStartStopDelay3: public CBasicStlSink {
+public:
+
+    virtual void call_after_init(CBasicStl * m_obj);
+    virtual void call_after_run(CBasicStl * m_obj){
+    };
+    uint8_t m_port_id;
+    uint32_t m_profile_id;
+};
+
+
+
+void CBBStartStopDelay3::call_after_init(CBasicStl * m_obj){
+
+    TrexStatelessDpStop * lpStopCmd = new TrexStatelessDpStop(m_port_id, m_profile_id);
+    TrexStatelessDpStop * lpStopCmd1 = new TrexStatelessDpStop(m_port_id, m_profile_id);
+
+
+    TrexStreamsCompiler compile;
+
+    uint8_t port_id=0;
+    uint32_t profile_id=m_profile_id+1;
+
+    std::vector<TrexStream *> streams;
+
+    TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+    stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
+
+
+    stream1->m_enabled = true;
+    stream1->m_self_start = true;
+    stream1->m_port_id= port_id;
+
+
+    CPcapLoader pcap;
+    pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+    pcap.update_ip_src(0x10000002);
+    pcap.clone_packet_into_stream(stream1);
+
+    streams.push_back(stream1);
+
+    // stream - clean
+    std::vector<TrexStreamsCompiledObj *>objs;
+    assert(compile.compile(port_id, streams, objs));
+    TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 1, objs[0], 10.0 /*sec */ );
+
+
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd, 5.0); /* command in delay of 5 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStopCmd1, 7.0);/* command in delay of 7 sec */
+    m_obj->m_msg_queue.add_command(m_core,lpStartCmd, 3.5);/* command in delay of 3.5 sec */
+
+    delete stream1 ;
+
+
+}
+
+
+
+/* start/stop/stop back to back */
+TEST_F(basic_stl, single_pkt_bb_start_stop_delay3) {
+
+    CBasicStl t1;
+    CParserOption * po =&CGlobalInfo::m_options;
+    po->preview.setVMode(7);
+    po->preview.setFileWrite(true);
+    po->out_file ="stl_bb_start_stop_delay3";
+
+     TrexStreamsCompiler compile;
+
+     uint8_t port_id=0;
+     uint32_t profile_id=1;
+
+     std::vector<TrexStream *> streams;
+
+     TrexStream * stream1 = new TrexStream(TrexStream::stCONTINUOUS,0,0);
+     stream1->set_rate(TrexStreamRate::RATE_PPS, 1.0);
+
+
+     stream1->m_enabled = true;
+     stream1->m_self_start = true;
+     stream1->m_port_id= port_id;
+
+
+     CPcapLoader pcap;
+     pcap.load_pcap_file("cap2/udp_64B.pcap",0);
+     pcap.update_ip_src(0x10000001);
+     pcap.clone_packet_into_stream(stream1);
+
+     streams.push_back(stream1);
+
+     // stream - clean
+     std::vector<TrexStreamsCompiledObj *>objs;
+     assert(compile.compile(port_id, streams, objs));
+     TrexStatelessDpStart *lpStartCmd = new TrexStatelessDpStart(port_id, profile_id, 0, objs[0], 10.0 /*sec */ );
+
+     t1.m_msg_queue.add_msg(lpStartCmd);
+
+
+     CBBStartStopDelay3 sink;
+     sink.m_port_id = port_id;
+     sink.m_profile_id = profile_id;
+     t1.m_sink =  &sink;
+
+     bool res=t1.init();
+
+     delete stream1 ;
+
+     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
+}
+
+
+
+
+
 
 
 class CBBStartStopDelay2: public CBasicStlSink {
@@ -2940,7 +3060,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay2) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_bb_start_stop_delay2";
+    po->out_file ="stl_bb_start_stop_delay2";
 
      TrexStreamsCompiler compile;
 
@@ -3018,7 +3138,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop_delay1) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_bb_start_stop_delay1";
+    po->out_file ="stl_bb_start_stop_delay1";
 
      TrexStreamsCompiler compile;
 
@@ -3069,7 +3189,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop3) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_bb_start_stop3";
+    po->out_file ="stl_bb_start_stop3";
 
      TrexStreamsCompiler compile;
 
@@ -3120,7 +3240,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop2) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_bb_start_stop2";
+    po->out_file ="stl_bb_start_stop2";
 
      TrexStreamsCompiler compile;
 
@@ -3173,7 +3293,7 @@ TEST_F(basic_stl, single_pkt_bb_start_stop) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_bb_start_stop";
+    po->out_file ="stl_bb_start_stop";
 
      TrexStreamsCompiler compile;
 
@@ -3224,7 +3344,7 @@ TEST_F(basic_stl, simple_prog4) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_simple_prog4";
+    po->out_file ="stl_simple_prog4";
 
      TrexStreamsCompiler compile;
 
@@ -3306,7 +3426,7 @@ TEST_F(basic_stl, simple_prog3) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_simple_prog3";
+    po->out_file ="stl_simple_prog3";
 
      TrexStreamsCompiler compile;
 
@@ -3373,7 +3493,7 @@ TEST_F(basic_stl, simple_prog2) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_simple_prog2";
+    po->out_file ="stl_simple_prog2";
 
      TrexStreamsCompiler compile;
 
@@ -3433,7 +3553,7 @@ TEST_F(basic_stl, simple_prog1) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_simple_prog1";
+    po->out_file ="stl_simple_prog1";
 
      TrexStreamsCompiler compile;
 
@@ -3494,7 +3614,7 @@ TEST_F(basic_stl, single_pkt_burst1) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_single_pkt_burst1";
+    po->out_file ="stl_single_pkt_burst1";
 
      TrexStreamsCompiler compile;
 
@@ -3538,7 +3658,7 @@ TEST_F(basic_stl, single_pkt) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_single_stream";
+    po->out_file ="stl_single_stream";
 
      TrexStreamsCompiler compile;
 
@@ -3632,28 +3752,28 @@ TEST_F(basic_stl, single_pkt_mac0) {
 
     test_mac_replace(false,
                      TrexStream::stCFG_FILE,
-                     "exp/stl_single_stream_mac0");
+                     "stl_single_stream_mac0");
 }
 
 TEST_F(basic_stl, single_pkt_mac11) {
 
     test_mac_replace(true,
                      TrexStream::stPKT,
-                     "exp/stl_single_stream_mac11");
+                     "stl_single_stream_mac11");
 }
 
 TEST_F(basic_stl, single_pkt_mac10) {
 
     test_mac_replace(false,
                      TrexStream::stPKT,
-                     "exp/stl_single_stream_mac01");
+                     "stl_single_stream_mac01");
 }
 
 TEST_F(basic_stl, single_pkt_mac01) {
 
     test_mac_replace(true,
                      TrexStream::stCFG_FILE,
-                     "exp/stl_single_stream_mac10");
+                     "stl_single_stream_mac10");
 }
 
 
@@ -3663,7 +3783,7 @@ TEST_F(basic_stl, multi_pkt1) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_multi_pkt1";
+    po->out_file ="stl_multi_pkt1";
 
      TrexStreamsCompiler compile;
 
@@ -3797,7 +3917,7 @@ void CEnableVm::run(bool full_packet,double duration=10.0,uint16_t cache=0){
 TEST_F(basic_stl, vm_enable_cache_10) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable0_cache_10";
+    vm_test.m_out_file = "stl_vm_enable0_cache_10";
     vm_test.m_input_packet = "cap2/udp_64B.pcap";
     vm_test.run(true,10.0,100);
 }
@@ -3805,7 +3925,7 @@ TEST_F(basic_stl, vm_enable_cache_10) {
 TEST_F(basic_stl, vm_enable_cache_500) {
     /* multi mbuf cache */
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable1_cache_500";
+    vm_test.m_out_file = "stl_vm_enable1_cache_500";
     vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false,20.0,19);
 }
@@ -3814,7 +3934,7 @@ TEST_F(basic_stl, vm_enable_cache_500) {
 TEST_F(basic_stl, vm_enable0) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable0";
+    vm_test.m_out_file = "stl_vm_enable0";
     vm_test.m_input_packet = "cap2/udp_64B.pcap";
     vm_test.run(true);
 }
@@ -3824,7 +3944,7 @@ TEST_F(basic_stl, vm_enable0) {
 TEST_F(basic_stl, vm_enable0_flow_stat) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable0_flow_stat";
+    vm_test.m_out_file = "stl_vm_enable0_flow_stat";
     vm_test.m_input_packet = "cap2/udp_64B.pcap";
     vm_test.m_pg_id = 5;
     vm_test.run(true);
@@ -3834,7 +3954,7 @@ TEST_F(basic_stl, vm_enable0_flow_stat) {
 TEST_F(basic_stl, vm_enable1) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable1";
+    vm_test.m_out_file = "stl_vm_enable1";
     vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.run(false);
 }
@@ -3844,7 +3964,7 @@ TEST_F(basic_stl, vm_enable1) {
 TEST_F(basic_stl, vm_enable1_flow_stat) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable1_flow_stat";
+    vm_test.m_out_file = "stl_vm_enable1_flow_stat";
     vm_test.m_input_packet = "stl/udp_594B_no_crc.pcap";
     vm_test.m_pg_id = 5;
     vm_test.run(false);
@@ -3854,7 +3974,7 @@ TEST_F(basic_stl, vm_enable1_flow_stat) {
 TEST_F(basic_stl, vm_enable2) {
 
     CEnableVm vm_test;
-    vm_test.m_out_file = "exp/stl_vm_enable2";
+    vm_test.m_out_file = "stl_vm_enable2";
     vm_test.m_input_packet = "cap2/udp_64B.pcap";
     vm_test.run(true,50.0);
 }
@@ -3869,7 +3989,7 @@ TEST_F(basic_stl, multi_pkt2) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_multi_pkt2";
+    po->out_file ="stl_multi_pkt2";
 
      TrexStreamsCompiler compile;
 
@@ -3927,7 +4047,7 @@ TEST_F(basic_stl, multi_burst1) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/stl_multi_burst1";
+    po->out_file ="stl_multi_burst1";
 
      TrexStreamsCompiler compile;
 
@@ -4237,7 +4357,7 @@ TEST_F(basic_stl, dp_stop_event) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/ignore";
+    po->out_file ="ignore";
 
     TrexStreamsCompiler compile;
 
@@ -4524,7 +4644,7 @@ private:
 
 TEST_F(basic_stl, vm_split_flow_var_inc) {
 
-    VmSplitTest split("exp/stl_vm_split_flow_var_inc.erf");
+    VmSplitTest split("stl_vm_split_flow_var_inc.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_single_burst(1000);
@@ -4537,7 +4657,7 @@ TEST_F(basic_stl, vm_split_flow_var_inc) {
 
 TEST_F(basic_stl, vm_split_flow_var_small_range) {
     /* small range */
-    VmSplitTest split("exp/stl_vm_split_flow_var_small_range.erf");
+    VmSplitTest split("stl_vm_split_flow_var_small_range.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_single_burst(1000);
@@ -4551,7 +4671,7 @@ TEST_F(basic_stl, vm_split_flow_var_small_range) {
 }
 
 TEST_F(basic_stl, vm_split_flow_var_big_range) {
-    VmSplitTest split("exp/stl_vm_split_flow_var_big_range.erf");
+    VmSplitTest split("stl_vm_split_flow_var_big_range.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_single_burst(1000);
@@ -4566,7 +4686,7 @@ TEST_F(basic_stl, vm_split_flow_var_big_range) {
 }
 
 TEST_F(basic_stl, vm_split_client_var) {
-     VmSplitTest split("exp/stl_vm_split_client_var.erf");
+     VmSplitTest split("stl_vm_split_client_var.erf");
 
     TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
     stream.set_single_burst(1000);
@@ -4586,7 +4706,7 @@ TEST_F(basic_stl, pcap_remote_basic) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/pcap_remote_basic";
+    po->out_file ="pcap_remote_basic";
 
     TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
                                                               0,
@@ -4610,7 +4730,7 @@ TEST_F(basic_stl, pcap_remote_loop) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/pcap_remote_loop";
+    po->out_file ="pcap_remote_loop";
 
     TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
                                                               0,
@@ -4633,7 +4753,7 @@ TEST_F(basic_stl, pcap_remote_duration) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/pcap_remote_duration";
+    po->out_file ="pcap_remote_duration";
 
     TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
                                                               0,
@@ -4656,7 +4776,7 @@ TEST_F(basic_stl, pcap_remote_dual) {
     CParserOption * po =&CGlobalInfo::m_options;
     po->preview.setVMode(7);
     po->preview.setFileWrite(true);
-    po->out_file ="exp/pcap_remote_dual";
+    po->out_file ="pcap_remote_dual";
 
     TrexCpToDpMsgBase *push_msg = new TrexStatelessDpPushPCAP(0,
                                                               0,
@@ -4693,6 +4813,7 @@ TEST_F(flow_stat_pkt_parse, parser) {
 class flow_stat  : public trexStlTest {
     protected:
      virtual void SetUp() {
+         set_op_debug_mode(OP_MODE_STL);
      }
      virtual void TearDown() {
      }
@@ -4703,6 +4824,8 @@ class flow_stat  : public trexStlTest {
 static const uint8_t TEST_L4_PROTO = IPPROTO_TCP;
 
 TEST_F(flow_stat, add_del_stream) {
+    return;
+    
     uint8_t test_pkt[] = {
         // ether header
         0x74, 0xa2, 0xe6, 0xd5, 0x39, 0x25,
@@ -4739,20 +4862,20 @@ TEST_F(flow_stat, add_del_stream) {
 
     try {
         CFlowStatRuleMgr::instance()->del_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_NO_STREAMS_EXIST);
     }
 
     try {
         CFlowStatRuleMgr::instance()->add_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_BAD_RULE_TYPE);
     }
 
     stream.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
     try {
         CFlowStatRuleMgr::instance()->add_stream(&stream);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
     }
 
@@ -4768,7 +4891,7 @@ TEST_F(flow_stat, add_del_stream) {
     stream3.m_pkt.len = sizeof(test_pkt);
     try {
         ret = CFlowStatRuleMgr::instance()->add_stream(&stream3);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DUP_PG_ID);
     }
 
@@ -4787,7 +4910,7 @@ TEST_F(flow_stat, add_del_stream) {
     assert (ret == 0);
     try {
         CFlowStatRuleMgr::instance()->del_stream(&stream2);
-    } catch (TrexFStatEx e) {
+    } catch (TrexFStatEx &e) {
         assert(e.type() == TrexException::T_FLOW_STAT_DEL_NON_EXIST);
     }
 
@@ -4814,6 +4937,7 @@ class flow_stat_lat  : public trexStlTest {
 
 // test different cases of the function utl_rte_pktmbuf_get_last_bytes
 TEST_F(flow_stat_lat, pkt_decode) {
+    return;
     uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
     struct flow_stat_payload_header fsp_head;
     fsp_head.magic = 0xab;

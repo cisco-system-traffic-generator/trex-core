@@ -24,6 +24,7 @@ limitations under the License.
 
 #include <common/closehash.h>
 #include "flow_stat_parser.h"
+#include "dpdk_port_map.h"
 
 
 typedef uint64_t flow_key_t; 
@@ -141,7 +142,6 @@ public:
 typedef CHashEntry<flow_key_t> flow_hash_ent_t;
 typedef CCloseHash<flow_key_t> flow_hash_t;
 
-
 class CTcpPerThreadCtx ;
 class CTcpFlow;
 class CUdpFlow;
@@ -215,16 +215,17 @@ public:
                         CFlowKeyTuple      & tuple,
                         CFlowKeyFullTuple  & ftuple,
                         bool rx_l4_check,
-                        tcp_rx_pkt_action_t & action);
+                        tcp_rx_pkt_action_t & action,
+                        tvpid_t port_id=0);
 
-      bool rx_handle_packet_tcp(CTcpPerThreadCtx * ctx,
-                                struct rte_mbuf * mbuf,
-                                flow_hash_ent_t * lpflow,
-                                CSimplePacketParser & parser,
-                                CFlowKeyTuple & tuple,
-                                CFlowKeyFullTuple & ftuple,
-                                uint32_t  hash
-                                );
+      bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
+                                        struct rte_mbuf * mbuf,
+                                        flow_hash_ent_t * lpflow,
+                                        CSimplePacketParser & parser,
+                                        CFlowKeyTuple & tuple,
+                                        CFlowKeyFullTuple & ftuple,
+                                        uint32_t  hash
+                                        );
 
       void process_udp_packet(CTcpPerThreadCtx * ctx,
                               CUdpFlow *  flow,
@@ -233,17 +234,19 @@ public:
                               CFlowKeyFullTuple &ftuple);
 
 
-      bool rx_handle_packet_udp(CTcpPerThreadCtx * ctx,
-                                struct rte_mbuf * mbuf,
-                                flow_hash_ent_t * lpflow,
-                                CSimplePacketParser & parser,
-                                CFlowKeyTuple & tuple,
-                                CFlowKeyFullTuple & ftuple,
-                                uint32_t  hash
-                                );
+      bool rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
+                                        struct rte_mbuf * mbuf,
+                                        flow_hash_ent_t * lpflow,
+                                        CSimplePacketParser & parser,
+                                        CFlowKeyTuple & tuple,
+                                        CFlowKeyFullTuple & ftuple,
+                                        uint32_t  hash
+                                        );
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
-                            struct rte_mbuf * mbuf);
+                            struct rte_mbuf * mbuf,
+                            bool is_idle,
+                            tvpid_t port_id=0);
 
       /* insert new flow - usualy client */
       bool insert_new_flow(CFlowBase *  flow,
@@ -287,42 +290,50 @@ public:
       }
 public:
 
-    void        generate_rst_pkt(CTcpPerThreadCtx * ctx,
-                                 uint32_t src,
-                                 uint32_t dst,
-                                 uint16_t src_port,
-                                 uint16_t dst_port,
-                                 uint16_t vlan,
-                                 bool is_ipv6,
-                                 TCPHeader    * lpTcp,
-                                 uint8_t *   pkt,
-                                 IPv6Header *    ipv6,
-                                 CFlowKeyFullTuple &ftuple);
+    void generate_rst_pkt(CPerProfileCtx * pctx,
+                      uint32_t src,
+                      uint32_t dst,
+                      uint16_t src_port,
+                      uint16_t dst_port,
+                      uint16_t vlan,
+                      bool is_ipv6,
+                      TCPHeader    * lpTcp,
+                      uint8_t *   pkt,
+                      IPv6Header *    ipv6,
+                      CFlowKeyFullTuple &ftuple);
 
 
-      CTcpFlow * alloc_flow(CTcpPerThreadCtx * ctx,
-                            uint32_t src,
-                            uint32_t dst,
-                            uint16_t src_port,
-                            uint16_t dst_port,
-                            uint16_t vlan,
-                            bool is_ipv6);
+    CTcpFlow * alloc_flow(CPerProfileCtx * pctx,
+                          uint32_t src,
+                          uint32_t dst,
+                          uint16_t src_port,
+                          uint16_t dst_port,
+                          uint16_t vlan,
+                          bool is_ipv6,
+                          uint16_t tg_id=0);
 
-      CUdpFlow * alloc_flow_udp(CTcpPerThreadCtx * ctx,
-                                uint32_t src,
-                                uint32_t dst,
-                                uint16_t src_port,
-                                uint16_t dst_port,
-                                uint16_t vlan,
-                                bool is_ipv6,
-                                bool client);
+    CUdpFlow * alloc_flow_udp(CPerProfileCtx * pctx,
+                              uint32_t src,
+                              uint32_t dst,
+                              uint16_t src_port,
+                              uint16_t dst_port,
+                              uint16_t vlan,
+                              bool is_ipv6,
+                              bool client,
+                              uint16_t tg_id=0);
 
-      
 
-      void       free_flow(CFlowBase * flow);            
-      void       set_debug(bool enable){
-          m_verbose = enable;
-      }
+    void free_flow(CFlowBase * flow);
+
+    void set_debug(bool enable){
+        m_verbose = enable;
+    }
+public:
+    void terminate_all_flows();
+    void terminate_flow(CTcpPerThreadCtx * ctx,
+                        CFlowBase  * flow,
+                        bool remove_from_ft);
+
 
 private:
     void redirect_to_rx_core(CTcpPerThreadCtx * ctx,
@@ -333,7 +344,7 @@ private:
                                                           struct rte_mbuf * mbuf);
 
 
-private: 
+private:
     void reset_stats();
 public:
       CSttFlowTableStats m_sts;
@@ -345,7 +356,6 @@ private:
 
     CEmulAppApi    *   m_tcp_api;
     CEmulAppApi    *   m_udp_api;
-
 };
 
 

@@ -24,8 +24,6 @@ limitations under the License.
 #include "trex_rpc_cmd_api.h"
 #include "trex_rpc_cmds_table.h"
 
-#include <json/json.h>
-
 #include <iostream>
 
 /**
@@ -77,7 +75,17 @@ public:
     virtual void _execute(Json::Value &response) {
         Json::Value result;
 
+        #ifdef __TREX_RPC_DEBUG__
+            printf("Received RPC: %s\n", m_cmd->get_name().c_str());
+            Json::FastWriter writer;
+            printf("Params: %s", writer.write(m_params).c_str());
+        #endif
+
         trex_rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
+
+        #ifdef __TREX_RPC_DEBUG__
+            printf("Response: %s\n", writer.write(result).c_str());
+        #endif
 
         switch (rc) {
         case TREX_RPC_CMD_OK:
@@ -86,7 +94,7 @@ public:
 
         case TREX_RPC_CMD_PARSE_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_INVALID_PARAMS;
-            response["error"]["message"]       = "Bad paramters for method";
+            response["error"]["message"]       = "Bad parameters for method";
             response["error"]["specific_err"]  = result["specific_err"];
             break;
 
@@ -105,7 +113,7 @@ public:
         case TREX_RPC_CMD_TRY_AGAIN_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_TRY_AGAIN;
             response["error"]["message"]       = "Try again later";
-            if ( result["specific_err"].size() ) {
+            if ( result["specific_err"].asString().size() ) {
                 response["error"]["specific_err"]  = result["specific_err"];
             }
             break;
@@ -119,7 +127,7 @@ public:
         case TREX_RPC_CMD_ASYNC_NO_RESULTS_ERR:
             response["error"]["code"]          = JSONRPC_V2_ERR_NO_RESULTS;
             response["error"]["message"]       = "No results for request";
-            if ( result["specific_err"].size() ) {
+            if ( result["specific_err"].asString().size() ) {
                 response["error"]["specific_err"]  = result["specific_err"];
             }
             break;
@@ -202,30 +210,42 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
 
     Json::Value msg_id = request["id"];
 
-    /* check version */
-    if (request["jsonrpc"] != "2.0") {
-        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Invalid JSONRPC Version"));
+    if ( msg_id == Json::Value::null ) {
+        commands.push_back(new JsonRpcError(Json::Value::null, JSONRPC_V2_ERR_INVALID_REQ, "Missing 'id' field", true));
         return;
     }
 
-    /* check method name */
-    std::string method_name = request["method"].asString();
-    if (method_name == "") {
-        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Missing Method Name"));
-        return;
-    }
+    try {
+        /* check version */
+        if (request["jsonrpc"] != "2.0") {
+            commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Invalid JSONRPC Version"));
+            return;
+        }
 
-    /* lookup the method in the DB */
-    TrexRpcCommand * rpc_cmd = TrexRpcCommandsTable::get_instance().lookup(method_name);
-    if (!rpc_cmd) {
+        /* check method name */
+        std::string method_name = request["method"].asString();
+        if (method_name == "") {
+            commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, "Missing Method Name"));
+            return;
+        }
+
+        /* lookup the method in the DB */
+        TrexRpcCommand * rpc_cmd = TrexRpcCommandsTable::get_instance().lookup(method_name);
+        if (!rpc_cmd) {
+            std::stringstream err;
+            err << "Method " << method_name << " not registered";
+            commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, err.str()));
+            return;
+        }
+
+        /* create a method object */
+        commands.push_back(new JsonRpcMethod(msg_id, rpc_cmd, request["params"]));
+
+    } catch (const Json::LogicError &ex) {
         std::stringstream err;
-        err << "Method " << method_name << " not registered";
-        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_METHOD_NOT_FOUND, err.str()));
-        return;
+        err << "Error in JSON request: " << ex.what();
+        commands.push_back(new JsonRpcError(msg_id, JSONRPC_V2_ERR_INVALID_REQ, err.str()));
     }
-
-    /* create a method object */
-    commands.push_back(new JsonRpcMethod(msg_id, rpc_cmd, request["params"]));
 }
 
 /**

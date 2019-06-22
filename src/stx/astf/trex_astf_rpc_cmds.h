@@ -34,7 +34,6 @@ limitations under the License.
  */
 class TrexRpcCmdsASTF : public TrexRpcComponent {
 public:
-    
     TrexRpcCmdsASTF();
 };
 

@@ -24,6 +24,16 @@ limitations under the License.
 #include "utl_sync_barrier.h"
 
 
+TrexDpCoreAstfBatch::TrexDpCoreAstfBatch(uint32_t thread_id, CFlowGenListPerThread *core) :
+        TrexDpCore(thread_id, core, STATE_TRANSMITTING) {
+    m_core->Create_tcp_ctx();
+}
+
+TrexDpCoreAstfBatch::~TrexDpCoreAstfBatch(void) {
+    m_core->Delete_tcp_ctx();
+}
+
+
 void 
 TrexDpCoreAstfBatch::start_astf() {
     dsec_t d_time_flow;
@@ -46,12 +56,14 @@ TrexDpCoreAstfBatch::start_astf() {
         }
     }
 
-    if ( !m_core->Create_tcp_batch() ) {
-        fprintf(stderr," ERROR in tcp object creation \n");
+    try {
+        m_core->load_tcp_profile();
+    } catch (const TrexException &ex) {
+        std::cerr << "ERROR in ASTF object creation: " << ex.what();
         return;
     }
 
-    d_time_flow = m_core->m_c_tcp->m_fif_d_time; /* set by Create_tcp function */
+    d_time_flow = m_core->m_c_tcp->get_fif_d_time(0); /* set by Create_tcp function */
 
     double d_phase= 0.01 + (double)m_core->m_thread_id * d_time_flow / (double)m_core->m_max_threads;
 
@@ -79,17 +91,16 @@ TrexDpCoreAstfBatch::start_astf() {
 
     dsec_t c_stop_sec = now + d_phase + m_core->m_yaml_info.m_duration_sec;
 
-    m_core->m_stop_time_sec = c_stop_sec;
-
     m_core->m_cur_time_sec = now;
 
     CGenNode *node=0;
 
     if (!disable_client){
-        node = m_core->create_node();
-        node->m_type = CGenNode::TCP_TX_FIF;
-        node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
-        m_core->m_node_gen.add_node(node);
+        CGenNodeTXFIF *tx_node = (CGenNodeTXFIF*)m_core->create_node();
+        tx_node->m_type = CGenNode::TCP_TX_FIF;
+        tx_node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
+        tx_node->m_pctx = DEFAULT_PROFILE_CTX(m_core->m_c_tcp);
+        m_core->m_node_gen.add_node((CGenNode*)tx_node);
     }
 
     node = m_core->create_node() ;
@@ -134,6 +145,17 @@ TrexDpCoreAstfBatch::start_astf() {
         m_core->m_stats.dump(stdout);
     }
     m_core->m_node_gen.close_file(m_core);
+
+    m_core->m_c_tcp->cleanup_flows();
+    m_core->m_s_tcp->cleanup_flows();
+
+#ifdef TREX_SIM
+   /* this is only for simulator, for calling this in ASTF there is a need to make sure all cores stopped 
+      in ASTF interactive we have state machine for testing this 
+      for now keeping this for simulation valgrind testing here
+    */
+    m_core->unload_tcp_profile();
+#endif
 }
 
 

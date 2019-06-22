@@ -68,7 +68,7 @@ class GlobalStats(AbstractStats):
                              ("connection", "{host}, Port {port}".format(host = conn_info['server'], port = conn_info['sync_port'])),
                              ("version", "{ver}".format(ver = server_version_fmt)),
 
-                             ("cpu_util.", "{0}% @ {2} cores ({3} per port) {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
+                             ("cpu_util.", "{0}% @ {2} cores ({3} per dual port) {1}".format( format_threshold(round_float(self.get("m_cpu_util")), [85, 100], [0, 85]),
                                                                                          self.get_trend_gui("m_cpu_util", use_raw = True),
                                                                                          server_info.get('dp_core_count'),
                                                                                          server_info.get('dp_core_count_per_port'),
@@ -78,8 +78,8 @@ class GlobalStats(AbstractStats):
                                                                        self.get("m_rx_core_pps", format = True, suffix = "pkt/sec"),
                                                                        self.get_trend_gui("m_rx_cpu_util", use_raw = True),)),
 
-                             ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self.client.conn.async.monitor.get_cpu_util()), [85, 100], [0, 85]),
-                                                                 format_num(self.client.conn.async.monitor.get_bps() / 8.0, suffix = "B/sec"))),
+                             ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self.client.conn.async_.monitor.get_cpu_util()), [85, 100], [0, 85]),
+                                                                 format_num(self.client.conn.async_.monitor.get_bps() / 8.0, suffix = "B/sec"))),
                             ])
 
         stats_data_right = OrderedDict([
@@ -237,7 +237,7 @@ class UtilStats(AbstractStats):
                 # decode active ports for core
                 if ports == [-1, -1]:
                     interfaces = "(IDLE)"
-                elif not -1 in ports:
+                elif -1 not in ports:
                     interfaces = "({:},{:})".format(ports[0], ports[1])
                 else:
                     interfaces = "({:})".format(ports[0] if ports[0] != -1 else ports[1])

@@ -1,6 +1,6 @@
 # MIX templates + pcap files 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 udp_req = b'GET'

@@ -44,7 +44,7 @@ class Scapy_wrapper:
             scapy_method = eval("self.scapy_master."+req['method'])
             arg_num_for_method = len(inspect.getargspec(scapy_method)[0])
             if (arg_num_for_method>1) :
-                if not ('params' in req.keys()):
+                if 'params' not in req.keys():
                     raise InvalidRequest(req_id)
                 params_len = len(req['params'])+1 # +1 because "self" is considered parameter in args for method
                 if not (params_len==arg_num_for_method):
@@ -90,8 +90,10 @@ class Scapy_wrapper:
         except Exception as e:
             if hasattr(e,'message'):
                 response = self.create_error_response(-32098,'Scapy Server: '+str(e.message),req_id)
+            elif (is_python(3)):
+                response = self.create_error_response(-32096,'Scapy Server: '+str(e),req_id)
             else:
-                response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)            
+                response = self.create_error_response(-32096,'Scapy Server: Unknown Error',req_id)
         finally:
             return response
 
@@ -130,7 +132,9 @@ class Scapy_server():
         try:
             while True:
                 try:
-                    message = self.socket.recv_string()
+                    message = self.socket.recv()
+                    message = message.decode()
+
                     self.logger.info('Received Message: %s' % message)
                 except zmq.ZMQError as e:
                     if e.errno != errno.EINTR:
@@ -163,7 +167,7 @@ class Scapy_server():
                         json_response = json.dumps(self.scapy_wrapper.error_handler(e,req_id))
 
                 #  Send reply back to client
-                    self.socket.send_string(json_response)
+                    self.socket.send(json_response.encode('utf-8'))
                     if (method == 'shut_down'):
                         break
 

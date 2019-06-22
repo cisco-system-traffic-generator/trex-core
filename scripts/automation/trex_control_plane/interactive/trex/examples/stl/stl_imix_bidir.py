@@ -1,5 +1,5 @@
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 import imp
 import time
@@ -8,8 +8,6 @@ from pprint import pprint
 import argparse
 
 import os
-
-SRC_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # IMIX test
 # it maps the ports to sides
@@ -39,7 +37,7 @@ def imix_test (server):
         print "Mapped ports to sides {0} <--> {1}".format(dir_0, dir_1)
 
         # load IMIX profile
-        profile_file = os.path.join(SRC_PATH, 'imix_profile.py')
+        profile_file = os.path.join(stl_path.STL_PROFILES_PATH, 'imix.py')
         profile1 = STLProfile.load_py(profile_file, direction=0)
         profile2 = STLProfile.load_py(profile_file, direction=1)
         stream1 = profile1.get_streams()

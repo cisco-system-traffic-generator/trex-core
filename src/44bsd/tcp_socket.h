@@ -168,8 +168,11 @@ public:
     void Dump(FILE *fd);
     void Free(){
         if (m_mbuf) {
+            /*  
+            can't work with ASTF interactive see https://trex-tgn.cisco.com/youtrack/issue/trex-537
             rte_mbuf_set_as_core_multi(m_mbuf);
             assert(rte_mbuf_refcnt_read(m_mbuf)==1);
+            */
             rte_pktmbuf_free(m_mbuf);
             m_mbuf=0;
         }
@@ -312,7 +315,7 @@ struct CEmulAppCmdDelayRnd {
 //tcSET_VAR
 struct CEmulAppCmdSetVar {
     uint8_t     m_var_id; /* 2 vars*/
-    uint32_t    m_val;
+    uint64_t    m_val;
 };
 
 //tcJMPNZ
@@ -371,6 +374,7 @@ typedef std::vector<CEmulAppCmd> tcp_app_cmd_list_t;
 
 class CTcpFlow;
 class CUdpFlow;
+class CPerProfileCtx;
 class CTcpPerThreadCtx;
 
 /* Api from application to TCP */
@@ -389,11 +393,11 @@ public:
 
     virtual uint32_t rx_drain(CTcpFlow * flow)=0;
 
-    virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,
+    virtual void tx_tcp_output(CPerProfileCtx * pctx,
                                CTcpFlow *         flow)=0;
 
 public:
-    virtual void disconnect(CTcpPerThreadCtx * ctx,
+    virtual void disconnect(CPerProfileCtx * pctx,
                             CTcpFlow *         flow)=0;
 
 public:
@@ -549,7 +553,7 @@ public:
 
     CEmulApp() {
         m_flow = (CTcpFlow *)0;
-        m_ctx =(CTcpPerThreadCtx *)0;
+        m_pctx =(CPerProfileCtx *)0;
         m_api=(CEmulAppApi *)0;
         m_program =(CEmulAppProgram *)0;
         m_flags=0;
@@ -716,15 +720,19 @@ public:
         m_program = prog;
     }
 
-    void set_flow_ctx(CTcpPerThreadCtx *  ctx,
+    void set_flow_ctx(CPerProfileCtx *  pctx,
                       CTcpFlow *          flow){
-        m_ctx = ctx;
+        m_pctx = pctx;
         m_flow = flow;
     }
+#ifdef  TREX_SIM
+    void set_flow_ctx(CTcpPerThreadCtx *  ctx,
+                      CTcpFlow *          flow);
+#endif
 
-    void set_udp_flow_ctx(CTcpPerThreadCtx *  ctx,
+    void set_udp_flow_ctx(CPerProfileCtx *  pctx,
                           CUdpFlow *          flow){
-        m_ctx = ctx;
+        m_pctx = pctx;
         m_flow = (CTcpFlow*)flow;
     }
 
@@ -828,7 +836,7 @@ private:
 private:
     /* cache line 0 */
     CTcpFlow *              m_flow;
-    CTcpPerThreadCtx *      m_ctx;
+    CPerProfileCtx *        m_pctx;
     CEmulAppApi *           m_api; 
 
     CEmulTxQueue            m_q;
@@ -849,7 +857,7 @@ private:
     CHTimerObj              m_timer;
 
     /* cache line 3 */
-    uint32_t                m_vars[apVAR_NUM_SIZE];
+    uint64_t                m_vars[apVAR_NUM_SIZE];
 };
 
 

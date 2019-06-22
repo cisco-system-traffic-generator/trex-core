@@ -13,8 +13,7 @@ ifndef::backend-docbook[]
 include::trex_ga.asciidoc[]
 
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
-:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
-
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
 
 
 == TRex release notes ==
@@ -27,1108 +26,246 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.57 ==
+
+* STL 
+** Dynamic add/remove multiple profiles feature see link:trex_stateless.html#dynamic_multiple_profiles[dynamic]
+** Support FlowState with value_list
+** Update API minor version 
+* Upgrade to DPDK v19.05
+** Breaking changes to Mellanox setups - need newer OFED (v4.6) see appendix for more detail 
+* ASTF 
+** fix throttle of new flows in case of congestion 
+** Support 64bit variables
+
+== Release 2.56 ==
+
+* fix basic crash with GUI due to multi profile support link:https://github.com/cisco-system-traffic-generator/trex-core/issues/221[github-221]
+
+== Release 2.55 ==
+
+Minor version
+
+=== Fixed issues: ===
+
+* fix support ```--unbind-unused-ports``` 
+* fix astf maximum number of flows link:https://github.com/cisco-system-traffic-generator/trex-core/issues/223[github-223]
+
+
+== Release 2.54 ==
+
+* STL 
+** Multi-Rx queue support flow stats/latency using software
+** Supporting dynamic add/remove multiple profiles (major change). It is the first phase contributed by Ericsson
+** Push API: add the ability to take the src/dst MAC from the pcap file
+* Napatech: Added support for new NICs 
+* Support 1GB huge page 
+* Add support ```--unbind-unused-ports``` to dpdk_setup_ports.py 
+
+=== Fixed issues: ===
+
+* Do not invalidate dest MAC in case of L2 mode (CSIT)
+* Fix Mellanox ASTF UDP drop see link:https://trex-tgn.cisco.com/youtrack/issue/trex-522[trex-522]
+* Virtual interfaces: Ability to fix TCP/UDP using software (default)
+* ZMQ move to v4.3.1 to fix heartbeat bug
+* mlx5: Support dot1q add/remove 
+* Packet captured twice in ASTF
+* Fix DHCP service example (REQ was sent with unicast)
+
+== Release 2.53 ==
+
+* Fix STL Console issue 
+
+== Release 2.52 ==
+
+* ASTF 
+** Add per template group counters see  link:trex_astf.html#_tutorial_template_group[template_group]
+* Update documentation for Topology module
+* Namespace: Fix multicast performance issue 
+
+== Release 2.51 ==
+
+* Minor fixes for namespaces feature 
+
+
+== Release 2.50 ==
+
+* STL/ASTF
+** L2 emulation (IPv4,IPv6,Dot1q,QinQ) API using Linux network namespace. This works for STL and ASTF see link:trex_stateless.html#linux_network_namespace[name space] for more info
+* Maximum of 24 ports (instead of 16)
+* STL, supports VxLAN hardware counters for XL710/X710
+** Stream config. +
+(Add flow stats "magic" to inner layers of VXLAN stream)
++
+----
+pkt = Ether()/IP()/UDP(dport=4789)/VXLAN()/Ether()/IP()/...
+stream = STLStream(
+        packet = STLPktBuilder(pkt = pkt),
+        flow_stats = STLFlowStats(pg_id = id, vxlan = True))
+----
+
+** TRex port config. +
+(TRex will look for flow stats magic in layers after VXLAN for one ore more given UDP ports)
++
+----
+trex> portattr --vxlan 4789 4777
+----
+
+** Use-cases. +
+(TRex &#8596; Network &#8596; TRex):
+
+*** Network strips VXLAN: +
+Need to configure stream (vxlan = True)
+
+*** Network adds VXLAN: +
+Need to configure TRex port (portattr --vxlan ...)
+
+*** Network replaces VXLAN (strips current and adds new): +
+Need to configure both stream and TRex port
+
+
+
+== Release 2.49 ==
+
+* STL  
+** Add support for more than one DP core in software mode see link:trex_appendix_software_mode.html[software mode]
+** Add support for Field Engine dependent variables link:trex_stateless.html#_tutorial_field_engine_dependent_variables[dependent_variables]
+* ASTF interactive - add support for topology link:trex_astf.html#_interactive_mode[interactive_mode]
+* ZMQ: enable hearbeat. This is good for situations that the client and server are remote (e.g. The server at the lab and client GUI at DC)  and a firewall betwean them drop the connection after a long time without keepalive. Another side feature is the ability to set the time-out of the connection for remote connection.
+
+== Release 2.48 ==
+
+* ASTF interactive vlan dynamic change fix (vlan per port was configured only from trex_cfg.yaml)
+* STL mode with old GUI fix.
+
+== Release 2.47 ==
+
+* ASTF: supports interactive framework like STL. common features are:
+** L2 emulation (arp/ipv6/l3/ping/vlan/scan6 etc)
+** Port management  (e.g. link attribute)
+** Network namespace
+** Capture/service mode 
+** Plugin services 
+** Console/TUI/API
+** Not supported yet: cluster mode 
+* The ASTF batch mode is planned to be deprecated 
+
+.Start ASTF in interactive mode
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf
+-------------------
+
+.Console
+[source,bash]
+-------------------
+./trex-console -s [server-ip]
+-----------------
+
+
+.From Console
+[source,bash]
+-------------------
+trex>start -f astf/http_simple.py -m 1000 -d 1000 -l 1000
+trex>tui
+trex>[press] t/l for astf statistics and latency 
+trex>stop
+------------------
+ 
+* An updated manual with the new features  link:trex_astf.html[astf]
+* ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
+* ASTF RPC spec for developers is here link:trex_rpc_server_spec.html#_rpc_commands_astf[rpc]
+* STL: add stream pinning to core see link:trex_stateless.html#_tutorial_core_pinning[core_pinning]
+* ASTF/STL Linux network namespace emulation stacks see link:trex_manual.html#_emulation_stacks[emulation]
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-540[trex-540]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-538[trex-538]
+
+== Release 2.46 ==
+
+* ASTF: add per_core_distribution field see  link:cp_astf_docs/_modules/trex/astf/trex_astf_profile.html#ASTFIPGenDist[per_core_distribution]
+* Extend astf-sim to replay pcap file for STF mode link:https://github.com/cisco-system-traffic-generator/trex-core/issues/156[github-256] 
+* Amazon DPDK ENA driver fix
+* Stateless GUI can build  trex_cfg.yaml file 
+* Support Python ZMQ 32bit binding for x86-32bit platforms 
+* fix scapy igmp3 for python-3
+* eWLC plugin for AP scale tests
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-536[trex-536]
+* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/150[github-150]
+* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/123[github-123]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-192[trex-192]
+
+
+== Release 2.45 ==
+
+* Upgrade to DPDK 18.08
+* Latency dummy stream does not consume pgid
+* Server/Python client use the same C-ZMQ share object.
+* Simplified Python ZMQ binding 
+* Speedup service mode using server side ZMQ IPC 
+
+== Release 2.44 ==
+
+* Upgrade to DPDK 18.05
+* Stateless: allow "start" when port is unresolved and all streams have explicit dest MAC.
+* mlx5 can compile with Ubuntu distro  
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-533[trex-533]
+
+
+== Release 2.43 ==
+
+* Client Python library consolidation STL/ASTF
+** New code should use:
++
+----
+from trex.stl.api import *
+----
+
+** For backward compatability old code still works:
++
+----
+from trex_stl_lib.api import *
+----
+
+** Interactive ASTF connects to the console, sending traffic/collecting stats via new lib is WIP.
+* Mellanox with OFED 4.3.1 offers newer FW with significantly better RX speed (due to faster dropping). +
+Bidirectional 64B packets RX is \~132MPPS from 2 ports (compared to ~38MPPS with older OFED/FW)
+
+
+* TODO: describe FE instruction "list"
+
+=== Fixed issues: ===
+
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-531[trex-531]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-532[trex-532]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-510[trex-510]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-528[trex-528]
+* link:https://trex-tgn.cisco.com/youtrack/issue/trex-529[trex-529]
+
+
 == Release 2.41 ==
 
 * ASTF
 ** Add support for non-blocking `send`, for better eflow performance (30Gb/sec per one flow) see http_eflow2.py profile
 ** Fix TCP fast recovery. dupack counter wasn't cleard
 * minor bug fixes 
-      
-== Release 2.40 ==
 
-* Search for Python2/3 in start-up scripts
-* Add Amazon ENA DPDK driver - there are reports that the performance is not that good. 
-* Fix STL Console history issue 
-* ARM compilation issue fix (BPF)
-* Add ASTF example profiles (e.g elephant flow) 
+== Release 2.41 ==
 
-=== Fixed issues: ===
+* ASTF
+** Add support for non-blocking `send`, for better eflow performance (30Gb/sec per one flow) see http_eflow2.py profile
+** Fix TCP fast recovery. dupack counter wasn't cleard
+* minor bug fixes 
 
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-526[trex-526]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-525[trex-525]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-524[trex-524]
 
-
-== Release 2.39 ==
-
-* ASTF multi-core support see link:trex_astf.html#_multi_core_support[astf] can reach 200gb/sec with TCP/UDP stack 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
-
-
-== Release 2.38 ==
-
-* Dummy port support. (more info in link:trex_manual.html#_dummy_ports[manual]) +
-They can solve 2 issues:
-** Odd number of interfaces (e.g. single port)
-** Performance degradation when adjacent interfaces belong to different NUMAs.
-* Advance Stateful (ASTF)
-** Support L7 emulation on top of UDP (e.g. DNS/RTP Video)
-** Faster script to convert to JSON (Scapy->dpkt)
-* Napatech benchmark on UCS240 link:trex_appendix_napatech.html#_performance_benchmark[napatech_benchmark]
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-500[trex-500]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-521[trex-521]
-
-
-== Release 2.37 ==
-
-* Low footprint support. Resource require with this mode 1 thread and ~500MB RAM. More info in link:trex_manual.html#_low_end_machines[manual]
-* Option to work with Linux interfaces (raw socket mode,--vdev/af_packet). More info in link:trex_manual.html#_linux_interfaces[manual]
-
-Example
-[source,bash]
-----
- - port_limit    : 2
-   version       : 2
-   low_end       : true                 #<1>
-   interfaces    : ["veth0", "veth1"]   #<2>
-   port_info     :  # set eh mac addr
-                 - ip         : 1.1.1.1
-                   default_gw : 2.2.2.2
-                 - ip         : 2.2.2.2
-                   default_gw : 1.1.1.1
-----
-<1> low footprint
-<2> Linux interfaces 
-
-
-* Above options introduced for supporting Cisco VIRL and Cisco IOx.
-* Docker hub image for simple tutorials using veth/low footprint link:trex_vm_manual.html[Docker]
-* ARM build support (works with virio for now)
-* ASTF, simulator can have `-e` option to debug the emulation layer 
-
-== Release 2.36 ==
-
-* ASTF  
-** Remove ASTFTCPInfo object from the profile (*NOT* backward compatible)
-** Add support for scheduler.rampup_sec tunable 
-** Add support for scheduler.accurate tunable - accurate traffic generation for low rates(<20gbps) important for ASA 
-** Add --lro-disable CLI 
-** Add profiles that are Spirent compatible 
-* ASTF/STF - add promiscuous mode using "--prom"  CLI 
-* Support CX-3 Mellanox cards
-* Update Napatech driver 
-* STL
-** HLTAPI bug fixes 
-** fix XL710 VF counters crash 
-** Add IPV6 ND service 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-278[trex-278]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-514[trex-514]
-
-
-== Release 2.35 ==
-
-* ASTF L7 emulation enhancements. 
-** Ability to control the L7 application with more commands (e.g. random delay in the server,elephant flow, syn-ack-rst flow) see link:trex_astf.html#_tutorial_l7_emulation_fin_ack_fin_ack[l7-emulation-example] and link:cp_astf_docs/api/profile_code.html#astfprogram-class[l7-program]
-** Ability to limit the total number of generated flows using `limit` directive. For example, to create a limited number of elephant flows.
-** profile-tunable: ability to tune the profile using key-val input see link: trex_astf.html#_tutorial_profile_cli_tunable[l7-cli-tunable]
-** Refactor the code for ASTF interactive support
-** Fix TCP crash in case of corrupted packet 
-* Napatech support for DPDK 17.11 
-* Stateless, Fix ipv6.scan6 crash in case of "ff02::1" addr (VPP use case)
- 
-== Release 2.34 ==
-
-* Mellanox Cx-4/5
-** Fix stability issue link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507]
-** Workaround to link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
-* Stateless 
-** Add support for update/pause/resume per stream-id see link:trex_stateless.html#_per_stream_operations[per stream operation]
-** Fix core pinning with latency stream. link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
-* Advance Stateful - add client cluster mode support 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-428[trex-428]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507] thanks to Mellanox DPDK team 
-
-== Release 2.33 ==
-
-* Upgrade to DPDK 17.11 
-** Better XXV710 support 
-** Mellanox CX-4/CX-5 big performance improvement (CX-5, Tx=149MPPS/Rx=120MPPS at 64B).
-** A small degradation in XL710 Stateless performance 
-
-WARNING: For Mellanox CX-5/4 there is a need to upgrade the distro to CentOs 7.4 and OFED to 4.2.1. This new OFED version does *not* work with older TRex versions see link:trex_manual.html#ofed_upgrade[ofed upgrade procedure]
-
-=== Known issues: ===
-
-* Mellanox CX-4/CX-5 stability issues see link:https://trex-tgn.cisco.com/youtrack/issue/trex-507[trex-507]
-
-
-== Release 2.32 ==
-
-* Advance Stateful (ASTF)
-** Tunables support. Tunables is a mechanism to tune the behavior of ASTF traffic profile see here link:trex_astf.html#tunable_tcp_mss[tunables]
-** Cisco VIC support TSO now 
-* Support gcc 7.x/6.x and sanitizer 
-* Stateless
-** Improve performance (mbuf-refcnt locality) 
-
-== Release 2.31 ==
-
-* Stateless
-** Console - added option to save loaded streams as Python profile (stream command from the Console)
-** Console - ability to load JSON/YAML from start command (e.g. `start -f stl/gui_example.yaml -m 100kpps --port 0`)
-* TCP some performance improvements (up to 5MPPS/core)
-** Tune TCP timers for traffic generation case (e.g. 2MSL/keepalive is shorter)
-** Add support to RFC6928 (add support for initwnd and set it by default to 10). A way to tune all the TCP parameters (including this one) will be given from the traffic profile.
-** Protect TRex ASTF resource (e.g. overflow in active flows)
-** General hardening  
-** Support client or server mode see link:trex_astf.html#_client_server_only_mode[client_server_only_mode]
-* Refactor the code to support ASTF in interactive mode (both STL and STF will work with the same RPC framework)
-* Increase the TX queue for all drivers by default - less probability for queue_full in high rates
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-495[trex-495]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-491[trex-491]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-486[trex-486]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-492[trex-492]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-485[trex-485]
-
-== Release 2.30 ==
-
-* Advance Stateful (ASTF) with scalable TCP support 
-** Support all SFR profile with TCP flows 
-** Mellanox driver issue workaround see here link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
-** Hardening
-** Add full simulation support using `./astf-sim --full`  see here link:trex_astf.html[ASTF mode] 
-* Wireless AP/Station emulation plugin for WLC testing. 
-** Improve performance considerably
-** Update documentation link:trex_stateless_wlc_bench.html[WLC] 
-* Support Napatech NIC (100Gb@64B line-rate)
-* Stateless 
-** Full Stream object are return from the client
-** Old YAML profile support was removed
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-483[trex-483]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-480[trex-480]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-472[trex-472]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-475[trex-475]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-461[trex-461]
-
-
-== Release 2.29 ==
-
-* Preliminary version with Advance Stateful (ASTF) with scalable TCP support see here link:trex_astf.html[ASTF mode]
-* Wireless AP/Station emulation plugin for WLC testing see link:trex_stateless_wlc_bench.html[WLC] 
-
-
-* General 
-** IPv4 software checksum was wrong for 0.01% of the cases - found by link:https://wiki.fd.io/view/CSIT[CSIT group]
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-469[trex-469]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-464[trex-464]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-463[trex-463]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-462[trex-462]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-460[trex-460]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-457[trex-457]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-435[trex-435]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-453[trex-453]
-
-
-== Release 2.28 ==
-
-* Cisco FirePOWER/ASA Stateful friendly 
-** Fix TCP/UDP by default in case DPDK driver support it (--checksum-offload is deprecated, new switch to disable this) 
-** start client source port is random- better distribution to queues 
-** Stateful performance degradation 5-9% due to checksum offload
-
-* Stateless
-** Add capture mode information in JSON
-** Fix behaviour of clear_flow_stats and clear_latency_stats args in stateless clear_stats API 
-** BPF-JIT filter support for traffic capture 
-** services are using BPF filter for better performance 
-** Report 0 rate immediately after stopping the flow stat stream
-** Fix HLTAPI per-stream stats (keys of line utilization in pg_id stats got removed)
-** Add openssl share object for DTLS/CAPWAP services
-
-* General 
-** Fix dpdk_setup_ports.py fails with Python 3 
-** Fix latency in case cluster configuration 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-451[trex-451]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-447[trex-447]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-439[trex-439]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-446[trex-446]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-445[trex-445]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-443[trex-443]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-440[trex-440]
-
-
-== Release 2.27 ==
-
-* Support 802.1Q and 802.1AD (QinQ) for Stateless services and port config   
-  see link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.set_l3_mode[l3 configuration with vlan]
-  and  link:{github_stl_examples_path}/stl_multiple_arps.py[stl_ndr_bench_tool.py example]
-* Remove async RPC flow-stats support. Only new sync RPC API is supported from this version. The implication is that only new GUI version (>v3.2 will work)
-** refactor Python client side and fix some multi-user crash/bugs  
-
-WARNING: Only GUI with version greater than v3. 2 will work with this version
-
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-432[trex-432]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-431[trex-431]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-427[trex-427]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-376[trex-376]
-
-
-== Release 2.26 ==
-
-* get_pgid RPC command - change the JSON format. v2.25 client will not work with v2.26 server. Done for better JSON compatibility 
-
-== Release 2.25 ==
-
-* Added new stateless Python API, link:cp_stl_docs/api/client_code.html#get-pgid-stats["get_pgid_stats"].
-New API brings flow statistics and latency info for given list
-of packet group IDs by doing synchronous call to the server. This is opposed to the old API "get_stats" which brings
-information saved in the client, and updated every 0.5 second by asynchronous message from the server. This way,
-we can scale the number of pgids and the client can consume only the information it really needs, when it needs it, so statistics for more flows can
-be supported. **Notice** that in some future release, pgid info will not be supported using the old "get_stats" any more.
-Example for using the new API can be found in link:{github_stl_examples_path}/stl_flow_latency_stats.py[stl_flow_latency_stats.py]
-
-WARNING: In some future release, per stream statistics will not be reported using the old `get_stats` API due to scale issue, please move to the new API 
-
-* Fix mlx5 driver crash/corruption  (bug exits from version v2.18)
-* Fix Python client race condition in case of fast connect/disconnect
-* Remove Enum from Python packages for Python 3.5 backward compatibility
-* Preliminary RFC 2544 example link:{github_stl_examples_path}/stl_ndr_bench_tool.py[stl_ndr_bench_tool.py]
-
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-420[trex-420]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-405[trex-405]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-415[trex-415]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-416[trex-416]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-413[trex-413]
-
-
-
-== Release 2.24 ==
-
-* Add support for Mellanox CX-3 VF 
-* Better way to map DPDK ports to TRex ports 
-
-[source,python]
-----
-
-* In order
-  interfaces    : ["03:00.0","03:00.1","82:00.0","82:00.1"]   
-
-* Out order 
-  interfaces    : ["03:00.1","03:00.0","82:00.1","82:00.0"]   
-
-* Out order 
-  interfaces    : ["03:00.1","82:00.0"]   
-
-*  CX3 example : each PCI has 2 ports /1 is sub interface 
-  interfaces    : ["03:00.0/1","03:00.0/0"]   
-----
-
-* L2 emulation plugins framework see here link:trex_stateless.html#_services[services framework] example for DHCP/ARP/ICMP
-* 2K mbuf in Rx side --> less memory is needed 
-* Fix Docker uid issue
-* Better errors in case of slow RTC network
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-449[trex-449]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-448[trex-448]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-413[trex-413]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-408[trex-408]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-398[trex-398]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-372[trex-372]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-402[trex-402]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-400[trex-400]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-371[trex-371]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-397[trex-397]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-393[trex-393]
-
-
-== Release 2.23 ==
-
-* Support up to 1023 per stream statistics ids in software mode and with mlx5 driver 
-* Service mode works better with multi-user
-* i40e - disable LLDP 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-381[trex-381]
-
-
-== Release 2.22 ==
-
-* hotfix for software mode 
-
-== Release 2.21 ==
-
-* New command line arguments. `--no-hw-flow-stat`, and `--software`, for changing behavior of stateless
-per stream flow statistics and latency features. See detail link:trex_manual.html#_command_line_options[here].
-* Support for QinQ packets in stateless per port statistics (if using new `--software` command line arg).
-* Support for all types of VIC cards (including ones will old firmware), using `--software`. Since we do not
-  have all cards in our lab, we could not test all of them. Will be glad for feedback on this (good or bad).
-* GUI  : packet builder scapy server fix for cases of packets with variable length fields (e.g. DNS)
-* ConnectX-4/5 support VF mode 
-* Stateless STLVmFlowVarRepeatableRandom instruction - fix typo, add another instruction with the right name
-* Support vfio-pci in case it exists in the kernel (instead of igb_uio) to support Docker container without the need to compile the kernel module
-* Capture TRex internal generated packets  (e.g. ARP/Ping) 
-* Support older Linux distribution for Python Client code (ZMQ share object can be loaded on older machine)
-* Performance trend report information is taken from ElasticSearch instead of Google analytics
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-370[trex-370]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-373[trex-373]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-375[trex-375]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-377[trex-377]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-378[trex-378]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-369[trex-369]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-368[trex-368]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-366[trex-366]
-
-
-== Release 2.20 ==
-
-* hotfix release add mlx-dpdk share objects to the package 
-
-== Release 2.19 ==
-
-* mlx5 dpdk driver works only with OFED 4.0 (OFED 3.4 will not be supported)
-** ConnectX-5 should work now 
-* VirtualBox with E1000 (Our Tutorial OVA) get latency packets correctly
-* fix NAT randomization mode
-* Ability to build without mlx5-dpdk driver using ./configure `--no-mlx`
-* RX thread CPU% is not 100% all the time from this version 
-* Better handling of latency packets (case of fast start/stop)
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-295[trex-295]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-364[trex-364]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-361[trex-361]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-361[trex-361]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-362[trex-362]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-360[trex-360]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-359[trex-359]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-358[trex-358]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-354[trex-354]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-350[trex-350]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-355[trex-355]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-352[trex-352]
-
-
-WARNING: you must upgrade to OFED 4.0 even with ConnectX-4 cards 
-
-== Release 2.18 ==
-
-* DPDK 17.02 
-** Should supports ConnectX-5 but has an OFED issue see link:https://trex-tgn.cisco.com/youtrack/issue/trex-353[trex-353]
-** ixgbe SR-IOV works 
-* Ability to add VLAN per direction link:trex_manual.html#_vlan_dot1q_support[vlan_dot1q_support]
-* Stateless packet capture - ability to capture tx side  
-* mlx5 dpdk driver is share object. Reduce image OFED libs dependency
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-344[trex-344]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-269[trex-269]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-339[trex-339]
-
-== Release 2.17 ==
-
-* hotfix release 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-342[trex-342]
-
-
-== Release 2.16 ==
-
-* IPv6 console basic support (link:trex_stateless.html#_ipv6_nd_client[ipv6]):
-** scan6 function to search for IPv6-enabled neighbors
-** ping can be used with IPv6 addresses to ping nearby devices
-* Stateless Rx capturing mode support link:trex_stateless.html#_packet_capturing[capturing] 
-* Stateless support functional testing / send packet /expect RX packet etc link:trex_stateless.html#_functional_tutorials[functional]
-
-=== Video Tutorials (Beta) : ===
-Our first video tutorial on YouTube:
-
-ifdef::backend-xhtml11[]
-++++++++++++++++++
-
-<iframe width="420" height="315"
-allowfullscreen="allowfullscreen"
-src="https://www.youtube.com/embed/Vsb0A4RNGz0">
-</iframe>
-++++++++++++++++++
-endif::backend-xhtml11[]
-
-The Tutorial shows a little bit of our new packet capture ability
-which was released on v2.16
-
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-258[trex-258]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-337[trex-337]
-
-== Release 2.15 ==
-
-* XL710/X710 VF (SR-IOV) mode works better 
-* 599 VF mode is *not* supported 
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-333[trex-333]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-331[trex-331]
-
-
-== Release 2.14 ==
-
-* Another performance improvement in Stateful case with high active flows. There is less burstiness 
-* Scapy server - warning in case of permissions errors 
-* Maximum supported ports are 16 (instead of 12)
-* ConnectX-4 DPDK driver is based on 16.11 (from 16.07) - better performance is some cases
-* Early support for Intel XL710/X710/599 VF support link:trex_manual.html#_configure_linux_to_use_vf_on_intel_x710_and_82599_nics[sr_iov]
-* Fix Cluster mode breakage (v2.12-v2.13)
-* Stateless GUI v3.0 works with this version
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-319[trex-319]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-322[trex-322]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-326[trex-326]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-330[trex-330]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-329[trex-329]
-
-
-== Release 2.13 ==
-
-* Significantly improve performance and scale for stateful case with high active flows (70%-300% better)  see here link:trex_manual.html#_more_active_flows[More active flows]
-* Stateful with low active repeatable flows - an optimization was removed, for example `cap2/imix_fast_1g.yaml`. users that want to get this in high performance are adviced to move to Stateles mode. Removing this support improved the common case.
-* Support NAT without IPv4.option and UDP flows- for ASA  link:https://trex-tgn.cisco.com/youtrack/issue/trex-274[trex-274]
-* Scapy server is restart automatically - for future Stateless GUI link:https://trex-tgn.cisco.com/youtrack/issue/trex-291[trex-291]
-* Add minimum ipg for remote pcap link:https://trex-tgn.cisco.com/youtrack/issue/trex-281[trex-281]
-* Console port commands works on VIC and ConnectX-4
-* RPC API version is 3.0 - New stateless GUI is required
-
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-317[trex-317]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-282[trex-282]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-190[trex-190]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-279[trex-279]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-313[trex-313]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-312[trex-312]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-310[trex-310]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-191[trex-191]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-306[trex-306]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-234[trex-234]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-308[trex-308]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-283[trex-283]
-
-
-== Release 2.12 ==
-
-* Improve support for Mellanox ConnectX-4 cards (100/50/25GbE) 
-** Only CentOs/RedHat 7.2 and up is supported due to OFED issues
-** Improve 64Byte Stateleess performance 
-* Cisco VIC is fully supported 
-* Stateless L2/L3 configuration mode for ports - link:trex_stateless.html#_port_layer_mode_configuration[Port Layer Mode Configuration]
-* Stateless neighboring protocols infra and first protocols support/Python API - link:trex_stateless.html#_neighboring_protocols[Neighboring Protocols]
-* Stateful - ARP support for Client clustering mode (a.k.a APIC-EM) see here link:trex_manual.html#_client_clustering_configuration[Client Clustering]
-* Added Stateless performance trend document link:trex_analytics.html[trex performance trend]
-
-
-[IMPORTANT]
-=====================================
-Change of behavior - trex config file (/trex/cfg.yaml) should include a distinct MAC address or distinct IP address. 
-Not setting the port information :
-  before v2.12  :  src MAC addr == 00:00:00:01:00:00 
-  v2.12 and up  :  src MAC addr == HW MAC address 
-===========================
-
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-257[trex-257]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-265[trex-265]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-280[trex-280]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-277[trex-277]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-278[trex-278]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
-
-
-== Release 2.11 ==
-
-* Early support for Mellanox ConnectX-4 cards (100/50/25GbE) - based on contributions from Mellanox DPDK team see here for more info link:trex_manual.html#_mellanox_connectx_4_support[Mellanox ConnectX-4 Support]
-* Add support for Cisco VIC 1300 series adapter (40GbE)-  based on Cisco VIC DPDK team see link:trex_manual.html#_cisco_vic_support[Cisco VIC Support]
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-268[trex-268]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-267[trex-267]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-195[trex-195]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-271[trex-271]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-255[trex-255]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-249[trex-249]
-
-
-== Release 2.10 ==
-
-* Added support for IP based configuration files (As opposed to MAC based used until now), with the ability of TRex to send
-ARP requests for default gateway, and gratitues ARP for its own addresses.
-See link:trex_manual.html#_configuration_yaml_parameter_of_cfg_option[here] and link:trex_config_guide.html[here] for details.
-* Added commands/API to Stateless client/console:
-** Getting extended counters of port for improved debug purposes. See example: link:trex_stateless.html#_stats[stats]
-** Changing of port attributes and getting async feedback on the changed status. See example: link:trex_stateless.html#_portattr[portattr]
-* For developers - added/updated RPC commands (which can be used for GUI etc.):
-** Getting system info added new options, for example description of interface: link:trex_rpc_server_spec.html#_get_system_info[get_system_info]
-** Setting port attributes added new options: link:trex_rpc_server_spec.html#_setting_port_attributes[set_port_attr]
-** Getting xstats names (can be polled once and then combined with updated values): link:trex_rpc_server_spec.html#_get_xstat_names[get_port_xstats_names]
-** Getting xstats values: link:trex_rpc_server_spec.html#_get_xstat_values[get_port_xstats_values]
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-253[trex-253]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-212[trex-212]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-251[trex-251]
-
-== Release 2.09 ==
-
-* Stateless, split to core algorithm is more accurate and simple see link:trex_stateless.html#_tutorial_field_engine_split_to_core[split_to_core] 
-* Add repeatable random instruction see an example link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl/udp_1pkt_repeat_random.py[stl/udp_1pkt_repeat_random.py] link:cp_stl_docs/api/field_engine.html#stlvmflowvarrepetablerandom[repetable_random] and link:trex_rpc_server_spec.html#_repetable_random[repetable_random_spec]
-* Add TCP/UDP checksum fix instruction see an example link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl/syn_attack_fix_cs_hw.py[stl/syn_attack_fix_cs_hw.py] link:cp_stl_docs/api/field_engine.html#stlvmfixchecksumhw[fix checksum] and link:trex_rpc_server_spec.html#_fix_checksum_hw[fix_checksum_hw_spec]
-* Improve Stateless Field Engine (FE) performance
-* Support dual mode for push pcap/remote Python API. see here link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_remote[push_remote] and link:cp_stl_docs/api/client_code.html#trex_stl_lib.trex_stl_client.STLClient.push_pcap[push_pcap] Using this feature pcap can be splited to client/server ports
-* Add infra for L2 emulation support 
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-243[trex-243] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-247[trex-247] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-244[trex-244] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-249[trex-249] 
-
-== Release 2.08  ==
-
-* Scapy JSON-RPC server for GUI packet crafting, see  link:trex_scapy_rpc_server.html[trex_scapy_rpc_server]
-* Client.start Python API supports Core mask  - significantly improve the Stateless performance. link:cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.start[start API],  and link:trex_stateless.html#_core_masking_per_interface[core_masking]
-* Upgrade the ./dpdk_setup_ports.py script. It simplifies the way to create first time *optimized* config file (/etc/trex_cfg.yaml). More info at the manual: link:trex_manual.html#_script_for_creating_config_file[Script for creating config file]
-
-[source,bash]
-----
-[bash]>sudo ./dpdk_setup_ports.py -t            # show the list of ports
-[bash]>sudo ./dpdk_setup_ports.py -l            # return DPDK interfaces to Linux (if there is proper Linux driver)
-[bash]>sudo ./dpdk_setup_ports.py -i            # interactive creation of config file
-[bash]>sudo ./dpdk_setup_ports.py -c 03:00.0 03:00.1 -o /etc/trex_cfg.yaml # create optimum /etc/trex_cfg.yaml file
-----
-
-* Preliminary Cisco VIC support. Advanced Stateless/Stateful functionality is still not supported.
-* Enforce latest firmware for XL710/X710 (5.04)
-* Add a way to stop/close NICS at TRex termination (link would be down) `-close-at-end`
-* IPv6 XL710 ICMP packets are supported now
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-240[trex-240] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-242[trex-242]
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-246[trex-246] 
-
-== Release 2.07  ==
-
-* DPDK 16.07 
-* ASYNC ZMQ is compressed by default. It improves response time see link:http://trex-tgn.cisco.com/youtrack/issue/trex-232[trex-232] 
-** You will need to update the GUI
-* Support Ubuntu 16.01 - Stateful serverr is Python 3.0 and Python 3.5 for ZMQ library 
-* XL710/X710 low latency was improved -  see link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
-* Support graceful shutdown command 
-* Console -  support L1 BPS  using `-m 10bpsl1` see link:http://trex-tgn.cisco.com/youtrack/issue/trex-230[trex-230] 
-* Improve TUI refresh time 
-* Support IPV6 latency streams (support is available for all interface types except 82599) see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[IPV6 latency]
-
-[IMPORTANT]
-=====================================
-For XL710/X710 there is a need to upgrade the firmware to 5.04 (or later)
-=====================================
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-223[trex-223] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-226[trex-226] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-224[trex-224] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-235[trex-235] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-236[trex-236] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-238[trex-238] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-233[trex-233] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-231[trex-231] 
-
-
-== Release 2.06  ==
-
-* Support APIC-EM scale Stateful VLAN/IP/MAC mapping.
-* TCP SYN Randomization learning support for advanced ASA stateful testing - link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
-* Advanced to latest DPDK 16.07RC3 - fix some XL710 driver performance issues
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-229[trex-229] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-227[trex-227] 
-
-
-== Release 2.05  ==
-
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-221[trex-221] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-220[trex-220] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-219[trex-219] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-218[trex-218] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-217[trex-217] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-216[trex-216] 
-
-
-== Release 2.04  ==
-
-* Watchdog support
-* Ability to export core file 
-* Optimized the case of Latency stream, Field Engine and 9K template packets 
-
-=== Fixed issues: ===
-
-* XL710/X710 present high latency with 9K packets  link:http://trex-tgn.cisco.com/youtrack/issue/trex-214[trex-214] 
-* The latency seq number gets out of sync link:http://trex-tgn.cisco.com/youtrack/issue/trex-215[trex-215]
-* Port/Latency stats should be with FCS  link:http://trex-tgn.cisco.com/youtrack/issue/trex-213[trex-213]
-* Stateless Unicode is not accepted for multiplier API see  link:https://github.com/cisco-system-traffic-generator/trex-core/issues/15[github-issue15]
-
-
-== Release 2.03  ==
-
-* More accurate stateless latency/more TUI support
-* Speedup DPDK XL710 fdir driver
-
-=== Fixed issues: ===
-
-* Disconnect issue link:http://trex-tgn.cisco.com/youtrack/issue/trex-210[trex-210]
-
-
-== Release 2.02  ==
-
-* The python latency statistic is compatible to JSON for easy manipulation 
-* Add latency minimum value Python API taken from histogram 
-
-=== Fixed issues: ===
-
-* Fix corruption of mbuf in case of with high rate latency stream. 
-
-== Release 2.01  ==
-
-* First release of latency/jitter per stream see link:trex_stateless.html#_tutorial_per_stream_latency_jitter_packet_errors[here] 
-* Ability to send server side pcap file - unlimited pcap file size see link:/cp_stl_docs/_modules/trex_stl_lib/trex_stl_client.html#STLClient.push_remote[here] and link:trex_stateless.html#_pcap_based_traffic_tutorials[PCAP tutorial]
-* Significatly improve performance for both Stateful and Stateless - in some cases up to x2 due to Scheduler/CPU utilization rewrite 
-* CPU utilization estimation is done differently 
-* Ability to significatly improve performance for Stateless profile with Field engine (up to x5, 22MPPS) see link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
-* Add documentation index link:index.html[index]
-* Fix documentation Table of Content javascript 
-* Update Stateless presentation link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[Statelss presenation]
-* Stateful Python server API - Add support for iterator of remote file for Stateful GUI
-
-=== Fixed issues: ===
-
-* Performance issue, link:http://trex-tgn.cisco.com/youtrack/issue/trex-207[trex-207]
-* Sporadic timeout on wait_on_traffic() API see link:http://trex-tgn.cisco.com/youtrack/issue/trex-209[trex-209] 
-
-== Release 2.00  ==
-
-* Console 
-** Support partial port acquire using new CLI switch `-a ACQUIRE` (first phase)
-** Add tx/rx graphs 
-* Python API: add an API for reading events as warning/errors
-* HLTAPI support for per stream stats  
-* support VALN mode for per stream stats for 82599 using `--vlan` switch at server invocation
-* A peek into TRex stateless GUI version for evaluation still without many features like packet builder, advance packet builder, per stream stats link:https://www.dropbox.com/s/vs9gojtdc5ewv05/setupCiscoTrex1.96-SNAPSHOT.exe?dl=0[TRex Stateless GUI Download]
-** Only pcap file packet builder is supported in this version 
-
-image::images/trex_stl_gui.png[title="TRex Stateless GUI",align="left",width=600, link="images/trex_stl_gui.png"]
-
-=== Fixed issues: ===
-
-* X710/XL710 per stream hardware stats 
-** link:http://trex-tgn.cisco.com/youtrack/issue/trex-199[trex-199]
-** Fix issue of RX bytes 
-** Fix issue with mbuf leak
-* Packet Memory shortage fix link:http://trex-tgn.cisco.com/youtrack/issue/trex-197[trex-197]
-* Python Examples - move all examples to be 16.0.0.x/48.0.0.x for some refactor 
-
-
-== Release 1.99  ==
-
-
-* The Client package includes Console/examples 
-* Client API verification mechanism. The client should match the server version range 
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]
-* Python2/Python3 client API hardening 
-* Per stream statistics in software hardening - add support for wait on rx packets
-
-
-== Release 1.98  ==
-
-* Minor Console issue 
-* [red]*Image is broken* see link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]  
-
-== Release 1.97  ==
-
-* Support pyATS with Python 3/32bit
-* Per stream statistic supported by software for I350/82559/VXNET3 
-* [red]*Image is broken* see link:http://trex-tgn.cisco.com/youtrack/issue/trex-193[trex-193]  
-
-== Release 1.96  ==
-
-* Support pyATS/32bit/Python2.x for TCL 
-* Traffic profile direction/port directive works see link:draft_trex_stateless.html#_tutorial_advance_traffic_profile[here]
-* Documentation 
-** Add Python API documentation link:cp_stl_docs/index.html[here]
-** Add pyATS2.0 support link:cp_stl_docs/index.html[here]
-** Update per stream statistic documentation see link:draft_trex_stateless.html#_tutorial_per_stream_statistics[per stream statistic] 
-** Update HLTAPI arguments link:draft_trex_stateless.html#_hlt_supported_arguments_a_id_altapi_support_a[HLTAPI] 
-
-=== Fixed issues: ===
-
-* Per stream statistic - Fix High speed of start/stop of  giving zero in statistics
-* Fix E1000 DPDK driver prints with ESXi
-
-
-== Release 1.95  ==
-
-* TUI support per stream stats (press s to get to this window)
-* per stream statistic API examples 
-* Add Python API automatic documentation scripts 
-* Fix issue with a packet smaller than 64 bytes
-
-=== Known issue 
-
-* High speed of start/stop of per stream stats give zero in statistics
- 
-
-== Release 1.94  ==
-
-* Fix Python API stop/sync issue. Now TX counters are synced in case of stop API 
-* Improve performance of Python API, ~2000 cycles/sec of load/start/stop
-* Add per stream Tx/Rx statistics for XL710/X710 NICS work in flow-director hardware
-
-[source,python]
-----
-class STLS1(object):
-
-    def get_streams (self, direction = 0):
-        return [STLStream(packet = 
-                          STLPktBuilder(
-                          pkt ="stl/yaml/udp_64B_no_crc.pcap"), 
-                          mode = STLTXCont(pps=10),
-                          rx_stats = STLRxStats(user_id = 7))   <1> 
-               ]
-----
-<1> Configure this stream to be count on all RX ports as user_id=7
-
-* Add HTLAPI full example (examples `examples/hlt_udp_simple.py`)
-* Add user manual draft for Stateless functionality link:draft_trex_stateless.html[here]
-
-
-== Release 1.93  ==
-
-* Support port attribute API and Console command.  See `$portattr -a --prom`
-* Support random seed per Stream attribute - see specification for more info
-* Add more sample/profiles (stl/hlt) from real use cases
-* Enhance Field Engine with new instructions
-* TUI now shows L1 and L2 bandwidth. Console support L1 and L2 and %%
-* Stream rate can be configured with PPS/bps_L1/bps_L2/port_percentage 
-* Update Stateless JSON-RPC specification  
-* HLT fixes and support split_by variable 
-* First phase of per stream rx/tx statistic - XL710/X710 hardware support
-
-=== Fixed issues: ===
-
-* Fix some typo in Python API stl/example folder 
-* Fix Field Engine IPv4 checksum issue with big packet size  
-* Fix Field Engine issue with random variables 
-* Fix `streams -a` crash 
-* Fix X710 issue. Now return speed of 10gb instead of 40gb for Stateless port speed 
-
-
-== Release 1.92  ==
-
-** Stream can set static Source/Destination MAC-Address as oppose to the default (TRex port from /etc/trex_config.yaml)
-
-[source,python]
-----
-def create_stream (self):
- base_pkt =  Ether(src="00:00:dd:dd:00:01")/IP()/UDP() 
- pad = max(0, size - len(base_pkt)) * 'x'
-----
-
-** Stream support action_count. Loop of streams can end after action_count number. The push command uses this new feature to import pcap to streams and stop after x iteration. 
-
-[source,python]
-----
-STLStream(  self_start = False, 
-            name   ='S2',
-            packet = STLPktBuilder(pkt = base_pkt2/pad),
-            mode = STLTXSingleBurst( pps = 10, total_pkts = 3 ),
-            action_count = 2, # loop 2 times 
-            next    = 'S0' 
-           )
-----
-
-** Support new Field-Engine instructions (variable with step and write with mask). See new sample folder and specification for more info
-
-[source,python]
-----
-def create_stream (self):
-
-    # 2 MPLS label the internal with  s=1 (last one)
-    pkt =  Ether()/MPLS(label=17,cos=1,s=0,ttl=255)/MPLS(label=0,cos=1,s=1,ttl=12)/IP()/UDP()/('x'*20)
-
-    vm = CTRexScRaw( [ STLVmFlowVar(name="mlabel", min_value=1, max_value=2000, size=2, op="inc"), 
-                       STLVmWrMaskFlowVar(fv_name="mlabel", pkt_offset= "MPLS:1.label",pkt_cast_size=4, mask=0xFFFFF000,shift=12) # write mask
-                      ]
-                   )
-----
-
-[source,python]
-----
- vm = CTRexScRaw( [ STLVmFlowVar(name="mac_src", min_value=1, max_value=30, size=1, op="dec",step=7), # step 
-                STLVmWrFlowVar(fv_name="mac_src", pkt_offset= 11) 
-               ]
-            )
-----
-
-** More profile samples (native/hlt)
-
-
-== Release 1.91  ==
-
-* Convert Stateless traffic profile to Scapy see `stl/*.py` sample folder
-* Add HLTAPI tests and profile `stl/hlt/*.py`
-* Fix simulator path issue fix
-* The Stateless python library is not self-contained.  in `automation/trex_control_plane/stl/` library is `automation/trex_control_plane/stl/trex_stl_lib/` (import trex_stl_lib)
-
-How to run the simulator 
-[source,bash]
-----
-./stl-sim -f stl/udp_1pkt_range_clients_split.py -o b.pcap -l 100 -c 2
-----
-
-* Add push command to convert pcap to streams 
-
--------------------
-TRex > push --help
-usage: push [-h] -f FILE [--port PORTS [PORTS ...] | -a] [-d TIME]
-            [-i IPG_USEC] [-s SPEEDUP] [--force]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -f FILE               File path to load
-  --port PORTS [PORTS ...]
-                        A list of ports on which to apply the command
-  -a                    Set this flag to apply the command on all available
-                        ports
-  -d TIME               Set duration time for job.
-  -i IPG_USEC, --ipg IPG_USEC
-                        IPG value in usec between packets. default will be
-                        from the pcap
-  -s SPEEDUP, --speedup SPEEDUP
-                        Factor to accelerate the injection. effectively means
-                        IPG = IPG / SPEEDUP
-  --force               Set if you want to stop active ports before appyling
-                        command.
-TRex >push -f cap2/dns.pcap  --port 0 -i 10  
--------------------
-
-
-
-== Release 1.90  ==
-
-* Missing file in the pkg
-
-== Release 1.89  ==
-
-* Integrate Scapy as a packet builder see `stl/profiles` folder 
-* Improve Python API, samples can be seen link:https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/api/stl/examples[here] 
-* Add Stateless simulator into the package 
-
-Example how to run 
-[source,bash]
-----
-./stl-sim -f stl/profiles/udp_1pkt.py -l 10 -o a.pcap            #<1>
-./stl-sim -f stl/profiles/udp_1pkt_tuple_gen.py -l 20 -o a.pcap  #<2>
-./stl-sim -f stl/profiles/imix.py -l 100 -o a.pcap  --json       #<3>
-----
-<1> Limit the number of packets to 10 
-<2> Tuple generator example 
-<3> imix 
-
-The simulator takes Stateless profile,YAML or Py and output pcap file or json  
-
-* Console can load the new Python profile 
-
-[source,bash]
-----
-TRex > start -f stl/profiles/udp_1pkt.py -a -m 1mbps 
-----
-
-* Basic Python HLTAPI support 
-
-=== Fixed issues: ===
-
-* Dependent streams (e.g. `stl/burst_1000_pkt.yaml`) can be loaded 
-
-== Release 1.88  ==
-
-* Add the Python API to the package 
-* Remove mock support 
-
-== Release 1.87  ==
-
-* Fix some 82599 ierror in case of high rate 
-* First Stateless API examples under api folder (not part of the package)
-
-
-== Release 1.86  ==
-
-* NAT Cisco ASA support 
-** Add support for learning using TCP-ACK field see more here link:trex_manual.html#_nat_support[here] and link:trex_manual.html#_trex_with_asa_5585[here]
-* More stateless support 
-
-== Release 1.85  ==
-
-* Upgrade to DPDK 2.2.0  
-** Some XL710/X710 NIC phy issues solved
-** VMXNET3 driver is optimized 
-** Cisco VIC should be supported, not tested yet
-* Jumbo packet size is supported for 1/10/40 Intel NIC  up to 9K for both stateless and stateful 
-* youTrack is public now, can be seen here link:http://trex-tgn.cisco.com/youtrack[here] 
-* More stateless support 
-** Support random packet size trim instruction - see stl/udp_rand_size_9k.yaml for an example
-** Move Python Regression to trex-core 
-** Add Coverity scripts 
-** Console/Python API can be call from Cisco CEL now (ZMQ Python library is compiled to an old glibc)
-** Add simulator for stateless 
-
-=== Fixed issues: ===
-
-* The infamous DPDK error is not seen in case of a wrong core argument see here link:http://trex-tgn.cisco.com/youtrack/issue/trex-147[trex-147] 
-
-== Release 1.84  ==
-
-* more stateless support
-** Add splitter range support see "split_by_var" in style/imix_1pkt_vm. yaml
-** Add more samples see stl/syn_attack_sample.yaml. Improve random performance 
-** more improvement with TUI window
-
-
-== Release 1.83  ==
-
-* more stateless support
-** Add basic Packet Field engine see stl/imin_1pkt_vm.yaml
-** some improvement with TUI window. Can be run in parallel with --tui option
-
-== Release 1.82  ==
-
-* more stateless support
-** console stats/tui function works now 
-** R/W support. only one client has R/W capability 
-* XL710/X710 support ICMP filter 
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/trex-110[trex-110]
-
-
-== Release 1.81  ==
-
-* more stateless support and fixes 
-** change the JSON-RPC result format 
-* Support for specifying different modes for the packets used for latency measurement. Details link:trex_manual.html#_measure_jitter_latency[here].
-
-=== Fixed issues: ===
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-149[trex-149]
-
-== Release 1.80  ==
-
-* more stateless support
-** All type of streams are supported (Continues/Burst/Multi-burst)
-** Stream can call to other streams
-** start/stop/pause/resume work from the Console
-** -m[rate] is supported for example -m10gbps or -m10kpps from console 
-** update XL710 installation support 
-
-== Release 1.79  ==
-
-* Initial support for stateless 
-** Only continues streams are supported 
-** more info how to enable the interactive shell link:trex_console.html[here]
-
-== Release 1.78  ==
-
-* some clean up in tuple generator 
-* trex stateles console works with trex-mock
-
-=== Fixed issues: ===
-
-Python API fixup see here  
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-126[trex-126] 
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-123[trex-122] 
-
-Check for 64bit Kernel
-
-* link:http://trex-tgn.cisco.com/youtrack/issue/trex-123[trex-123] 
-
-== Release 1.77  ==
-
-* improve tuple generator capability now it is more flexiable see more link:trex_manual.html#_clients_servers_ip_allocation_scheme[here]
-
-== Release 1.76  ==
-
-=== Fixed issues: ===
-
-* minor pcap loader issues  
-* plugin cleanup 
-                 
-
-== Release 1.75  ==
-
-=== fix issues: ===
-
-* First version that works from GitHub/Git - init script are in the output package 
-
-== Release 1.72  ==
-
+== Older release notes ==
+link:release_notes_old.html[link]
 

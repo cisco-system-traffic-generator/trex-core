@@ -10,7 +10,7 @@
 # interfaces    : ["03:00.0","dummy","dummy","03:00.1"]  this way one core is client and another is server 
 
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

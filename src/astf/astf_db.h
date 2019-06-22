@@ -176,19 +176,19 @@ class CTcpServreInfo {
 
  public:
     CTcpServreInfo() {}
-    CTcpServreInfo(CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
+    CTcpServreInfo(CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx) {
         m_prog = prog;
         m_tune = tune;
         m_temp_idx = temp_idx;
     }
     CEmulAppProgram *get_prog() {return m_prog;}
     CTcpTuneables *get_tuneables() {return m_tune;}
-    uint16_t get_temp_idx() {return m_temp_idx;}
+    uint32_t get_temp_idx() {return m_temp_idx;}
 
  private:
     CEmulAppProgram *m_prog;
     CTcpTuneables *m_tune;
-    uint16_t m_temp_idx;
+    uint32_t m_temp_idx;
 };
 
 typedef std::map<CTcpDataAssocParams, CTcpServreInfo*> assoc_map_t;
@@ -217,7 +217,7 @@ inline bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams
 class CTcpDataAssocTransHelp {
     friend class CTcpDataAssocTranslation;
 
-    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx) {
+    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx) {
         m_params = params;
         m_server_info.m_prog = prog;
         m_server_info.m_tune = tune;
@@ -234,10 +234,11 @@ class CTcpDataAssocTranslation {
     friend class CAstfDbRO;
 
     CTcpServreInfo * get_server_info(const CTcpDataAssocParams& params);
-    void insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
-    void insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint16_t temp_idx);
+    void insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
+    void insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
     void dump(FILE *fd);
     void clear();
+    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream);
 
  private:
     assoc_map_t m_map;
@@ -245,7 +246,7 @@ class CTcpDataAssocTranslation {
 };
 
 class CTcpDataFlowInfo {
-    uint16_t m_tcp_win;
+    uint32_t m_tcp_win;
 };
 
 class CTcpTemplateInfo {
@@ -259,11 +260,13 @@ class CTcpTemplateInfo {
     uint16_t            m_dport;
     CEmulAppProgram *    m_client_prog; /* client program per template */
     uint32_t m_num_bytes;
+    uint16_t m_tg_id;                   /* template group id */
 };
 
 typedef enum {
     CJsonData_err_pool_ok,
     CJsonData_err_pool_too_small,
+    CJsonData_err_pool_err,
 } CJsonData_err_type;
 
 class CJsonData_err {
@@ -292,8 +295,8 @@ class CAstfDbRO {
     void dump(FILE *fd);
     void Delete();
     bool is_init() {return (m_init == 2);}
-    uint16_t get_dport(uint16_t temp_id) {return m_templates[temp_id].m_dport;}
-    CEmulAppProgram * get_client_prog(uint16_t temp_id) const {
+    uint16_t get_dport(uint32_t temp_id) {return m_templates[temp_id].m_dport;}
+    CEmulAppProgram * get_client_prog(uint32_t temp_id) const {
         return m_templates[temp_id].m_client_prog;
     }
 
@@ -309,16 +312,26 @@ class CAstfDbRO {
         return (1.0/get_total_cps_per_thread(max_threads));
     }
 
+    uint16_t get_template_tg_id(uint16_t template_id){
+        return m_templates[template_id].m_tg_id;
+    }
+
+    uint16_t get_num_of_tg_ids() {
+        return m_num_of_tg_ids;
+    }
+
     // for tests in simulation
-    void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
-        CTcpDataAssocParams params(port,true);
-        m_assoc_trans.insert_vec(params, prog, tune, 0);
+    void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune);
+
+    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
+        m_assoc_trans.enumerate_server_ports(ports, is_stream);
     }
  private:
     uint8_t                         m_init;
     double                          m_cps_sum;
+    uint16_t                        m_num_of_tg_ids;
     std::vector<CMbufBuffer *>      m_buf_list;
-    std::vector<CEmulAppProgram *>   m_prog_list;
+    std::vector<CEmulAppProgram *>  m_prog_list;
     std::vector<CTcpDataFlowInfo>   m_flow_info;
     std::vector<CTcpTemplateInfo>   m_templates;
     CTcpDataAssocTranslation        m_assoc_trans;
@@ -327,6 +340,7 @@ class CAstfDbRO {
 class CAstfTemplatesRW;
 class CTupleGeneratorSmart;
 class ClientCfgDB;
+class TopoMngr;
 
 class CTcpLatency {
     friend class CAstfDB;
@@ -358,20 +372,29 @@ class CAstfDB  : public CTRexDummyCommand  {
 
  public:
     // make the class singelton
-    static CAstfDB *instance() {
-        if (! m_pInstance) {
-            m_pInstance = new CAstfDB();
-            m_pInstance->m_json_initiated = false;
+    static CAstfDB *instance(profile_id_t profile_id = 0) {
+        if (m_instances.find(profile_id) == m_instances.end()) {
+            CAstfDB& new_inst = m_instances[profile_id];
+            new_inst.m_json_initiated = false;
         }
-        return m_pInstance;
+        return &m_instances[profile_id];
     }
 
-    static void free_instance(){
-        if (m_pInstance){
-            delete m_pInstance;
-            m_pInstance=0;
+    static void free_instance(profile_id_t profile_id = 0){
+        if (m_instances.find(profile_id) != m_instances.end()){
+            m_instances.erase(profile_id);
         }
     }
+
+    static bool has_instance(profile_id_t profile_id = 0) {
+        return m_instances.find(profile_id) != m_instances.end();
+    }
+
+    TopoMngr* get_topo() {
+        assert(m_topo_mngr);
+        return m_topo_mngr;
+    }
+
     CAstfDB();
     virtual ~CAstfDB();
 
@@ -380,7 +403,7 @@ class CAstfDB  : public CTRexDummyCommand  {
     void set_profile_one_msg(Json::Value msg);
 
     /* set profile as one message, if profile message  is small. for interactive mode */
-    bool set_profile_one_msg(std::string msg,std::string & err);
+    bool set_profile_one_msg(const std::string &msg, std::string &err);
 
     /***************************/
     /* split profile to a few steps */
@@ -418,66 +441,74 @@ class CAstfDB  : public CTRexDummyCommand  {
     void set_client_cfg_db(ClientCfgDB * client_config_info){
         m_client_config_info = client_config_info;
     }
+    ClientCfgDB  *get_client_cfg_db();
 
     // called *once* by each core, using socket_id associated with the core 
     // multi-threaded need to be protected / per socket read-only data 
     CAstfDbRO *get_db_ro(uint8_t socket_id);
+    void clear_db_ro(uint8_t socket_id);
     // called by each core once. Allocating memory that will be freed in clear()
     // multi-threaded need to be protected 
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
+    void clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id=0);
     void get_latency_params(CTcpLatency &lat);
     CJsonData_err verify_data(uint16_t max_threads);
     CTcpTuneables *get_s_tune(uint32_t index) {return m_s_tuneables[index];}
 
     /* Update for client cluster mode. Should be deprecated */
     void get_tuple_info(CTupleGenYamlInfo & tuple_info);
+    bool get_latency_info(uint32_t & src_ipv4,
+                          uint32_t & dst_ipv4,
+                          uint32_t & dual_port_mask);
+
+    void get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
+            std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion);
+
+    uint16_t get_num_of_tg_ids() {
+        return m_num_of_tg_ids;
+    }
+    const std::vector<std::string>& get_tg_names();
 
 private:
     bool validate_profile(Json::Value profile,std::string & err);
 
  private:
     CEmulAppProgram * get_server_prog_by_port(uint16_t port, uint8_t socket_id);
-    CEmulAppProgram * get_prog(uint16_t temp_index, int side, uint8_t socket_id);
-    CTcpTuneables * get_tunables(uint16_t temp_index, int side, uint8_t socket_id);
+    CEmulAppProgram * get_prog(uint32_t temp_index, int side, uint8_t socket_id);
+    CTcpTuneables * get_tunables(uint32_t temp_index, int side, uint8_t socket_id);
     float get_expected_cps() {return m_tcp_data[0].m_cps_sum;}
     float get_expected_bps() {return m_exp_bps;}
     bool is_initiated() {return m_json_initiated;}
-    void clear();
     void dump();
-    ClientCfgDB  *get_client_db();
-    std::string get_buf(uint16_t temp_index, uint16_t cmd_index, int side);
-    void convert_from_json(uint8_t socket_id);
-    uint16_t get_buf_index(uint16_t program_index, uint16_t cmd_index);
-    void  get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
+    std::string get_buf(uint32_t temp_index, uint32_t cmd_index, int side);
+    bool convert_from_json(uint8_t socket_id);
+    uint32_t get_buf_index(uint32_t program_index, uint32_t cmd_index);
+    void get_rx_cmd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
-    uint32_t get_delay_ticks(uint16_t program_index, uint16_t cmd_index);
-    void fill_tx_mode(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res);
+    uint32_t get_delay_ticks(uint32_t program_index, uint32_t cmd_index);
+    void fill_tx_mode(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
-    void fill_delay_rnd(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
-    void fill_set_var(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
-    void fill_jmpnz(uint16_t program_index,uint16_t cmd_index,CEmulAppCmd &res);
-    void fill_tx_pkt(uint16_t program_index, 
-                     uint16_t cmd_index,
+    void fill_delay_rnd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_set_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_jmpnz(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_tx_pkt(uint32_t program_index, 
+                     uint32_t cmd_index,
                      uint8_t socket_id,
                      CEmulAppCmd &res);
-    void fill_rx_pkt(uint16_t program_index, 
-                     uint16_t cmd_index,
-                     CEmulAppCmd &res);
+    void fill_rx_pkt(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
-    void fill_keepalive_pkt(uint16_t program_index, 
-                     uint16_t cmd_index,
-                     CEmulAppCmd &res);
+    void fill_keepalive_pkt(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
 
-    tcp_app_cmd_enum_t get_cmd(uint16_t program_index, uint16_t cmd_index);
-    bool get_emul_stream(uint16_t program_index);
+    tcp_app_cmd_enum_t get_cmd(uint32_t program_index, uint32_t cmd_index);
+    bool get_emul_stream(uint32_t program_index);
 
     bool read_tunables(CTcpTuneables *tune, Json::Value json);
     bool convert_bufs(uint8_t socket_id);
     bool convert_progs(uint8_t socket_id);
     bool build_assoc_translation(uint8_t socket_id);
-    void verify_init(uint16_t socket_id);
+    bool verify_init(uint16_t socket_id);
     uint32_t ip_from_str(const char*c_ip);
 
 private:
@@ -542,7 +573,7 @@ private:
 
  private:
     bool m_json_initiated;
-    static CAstfDB *m_pInstance;
+    static std::unordered_map<profile_id_t, CAstfDB> m_instances;
     Json::Value  m_val;
     Json::Value  m_buffers;
 
@@ -552,10 +583,39 @@ private:
     float m_exp_bps; // total expected bit per second for all templates
     std::mutex          m_global_mtx;
     // Data duplicated per memory socket
-    CAstfDbRO            m_tcp_data[MAX_SOCKETS_SUPPORTED];
+    CAstfDbRO           m_tcp_data[MAX_SOCKETS_SUPPORTED];
 
-    ClientCfgDB   *      m_client_config_info;
-    CAstfJsonValidator  * m_validator;
+    ClientCfgDB        *m_client_config_info;
+    CAstfJsonValidator *m_validator;
+    TopoMngr           *m_topo_mngr;
+
+    uint16_t m_num_of_tg_ids;
+    std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
+    starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
+
+    double m_factor; /* initial multiplier factor */
+
+    std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
+public:
+    bool is_smart_gen(uint16_t thread_id) {
+        return (m_smart_gen.find(thread_id) != m_smart_gen.end());
+    }
+    CTupleGeneratorSmart* get_smart_gen(uint16_t thread_id) {
+        if (!is_smart_gen(thread_id)) {
+            m_smart_gen[thread_id] = new CTupleGeneratorSmart();
+        }
+        return m_smart_gen[thread_id];
+    }
+    void remove_smart_gen(uint16_t thread_id) {
+        if (is_smart_gen(thread_id)) {
+            m_smart_gen[thread_id]->Delete();
+            delete m_smart_gen[thread_id];
+            m_smart_gen.erase(thread_id);
+        }
+    }
+
+    void set_factor(double factor) { m_factor = factor; }
+    double cps_factor(double cps);
 };
 
 #endif

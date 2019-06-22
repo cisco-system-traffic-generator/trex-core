@@ -29,7 +29,7 @@ uint32_t            CGlobalInfo::m_nodes_pool_size = 10*1024;
 CParserOption       CGlobalInfo::m_options;
 CGlobalMemory       CGlobalInfo::m_memory_cfg;
 CPlatformSocketInfo CGlobalInfo::m_socket;
-CGlobalInfo::queues_mode CGlobalInfo::m_q_mode = CGlobalInfo::Q_MODE_NORMAL;
+CDpdkMode           CGlobalInfo::m_dpdk_mode;
 
 
 void CGlobalMemory::Dump(FILE *fd){
@@ -133,6 +133,7 @@ void CRteMemPool::dump(FILE *fd) {
     ok &= dump_one(fd, "mbuf_2048", m_mbuf_pool_2048);
     ok &= dump_one(fd, "mbuf_4096", m_mbuf_pool_4096);
     ok &= dump_one(fd, "mbuf_9k", m_mbuf_pool_9k);
+    ok &= dump_one(fd, "global", m_mbuf_global_nodes);
 
     if (! ok) {
         fprintf(fd, "In order to enlarge the amount of allocated mbufs, need to add section like this to config file:\n");

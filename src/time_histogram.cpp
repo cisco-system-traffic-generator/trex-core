@@ -38,6 +38,7 @@ limitations under the License.
 */
 #define HDRH_SIGNIFICANT_DIGITS 3
 
+#include <iostream>
 
 void CTimeHistogram::Reset() {
     m_period_data[0].reset();
@@ -70,6 +71,7 @@ bool CTimeHistogram::Create() {
     }
     Reset();
     m_min_delta =10.0/1000000.0;
+    m_hot_max=10;
     return (true);
 }
 
@@ -83,7 +85,9 @@ bool CTimeHistogram::Add(dsec_t dt) {
 
     period_elem.inc_cnt();
     period_elem.update_sum(dt);
-    period_elem.update_max(dt);
+    if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || (m_win_cnt > 1)){
+        period_elem.update_max(dt);
+    }
 
     // record any value in usec
     hdr_record_value(m_hdrh, (int64_t) (dt*1000000.0));
@@ -223,6 +227,7 @@ void CTimeHistogram::dump_json(std::string name,std::string & json ) {
     json += add_json("high_cnt", m_total_cnt_high);
     json += add_json("cnt", m_total_cnt);
     json+=add_json("s_avg", get_average_latency());
+    json+=add_json("s_max", get_max_latency_last_update());
     int i;
     int j;
     uint32_t base=10;
@@ -276,7 +281,22 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             // take into account the values in current period
             uint64_t short_latency = m_total_cnt - m_total_cnt_high
                 + period_elem.get_cnt() - period_elem.get_high_cnt();
-            json["histogram"]["0"] = Json::Value::UInt64(short_latency);
+            /* Since the incrementation between total_cnt and total_cnt_high is not atomic, short_latency isn't incremental.
+            Therefore we force it to be incremental by taking the maximum. Maximum is calculated this way because there might
+            be overflows. */
+            int64_t difference = short_latency - m_short_latency;
+            if (difference > 0) {
+                m_short_latency = short_latency;
+            }
+            json["histogram"]["0"] = Json::Value::UInt64(m_short_latency);
+        }
+    }
+}
+
+CTimeHistogram CTimeHistogram::operator+= (const CTimeHistogram& in) {
+    for (uint8_t i = 0; i < HISTOGRAM_SIZE_LOG; i++) {
+        for (uint8_t j = 0; j < HISTOGRAM_SIZE; j++) {
+            this->m_hcnt[i][j] += in.m_hcnt[i][j];
         }
         // encode the hdr histogram in compressed base64 format
         rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
@@ -286,4 +306,32 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             json["hdrh"] = Json::Value(hdr);
         }
     }
+    for (uint i = 0; i < HISTOGRAM_QUEUE_SIZE; i++) {
+        this->m_max_ar[i] = std::max(this->m_max_ar[i], in.m_max_ar[i]);
+    }
+    for (uint8_t i = 0 ; i < 2; i++) {
+        this->m_period_data[i] += in.m_period_data[i];
+    }
+    this->m_total_cnt += in.m_total_cnt;
+    this->m_total_cnt_high += in.m_total_cnt_high;
+    uint64_t new_sum = 0;
+    for (uint8_t i = 0; i < 2; i++) {
+        new_sum += this->m_period_data[i].get_sum();
+    }
+    this->m_max_dt = std::max(this->m_max_dt, in.m_max_dt);
+    this->m_win_cnt = in.m_win_cnt;
+    this->m_period = in.m_period;
+    if (this->m_total_cnt != 0) {
+        // low pass filter
+        this->m_average = 0.5 * this->m_average + 0.5 * (new_sum / this->m_total_cnt);
+    }
+    return *this;
+}
+
+std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in) {
+    os << "m_total count << " << in.m_total_cnt << std::endl;
+    os << "m_total_count_high" << in.m_total_cnt_high << std::endl;
+    os << "m_average" << in.m_average << std::endl;
+    // Other things might be added.
+    return os;
 }

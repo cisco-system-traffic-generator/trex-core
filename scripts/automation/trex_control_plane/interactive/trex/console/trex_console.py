@@ -31,7 +31,7 @@ import os
 import sys
 import tty, termios
 from threading import Lock
-from functools import wraps
+from functools import wraps, partial
 import threading
 import atexit
 import tempfile
@@ -57,11 +57,19 @@ from . import trex_tui
 
 __version__ = "3.0"
 
+# readline.write_history_file can fail with IOError in Python2
+def write_history_file(hist_file):
+    hist_end   = readline.get_current_history_length()
+    hist_start = max(0, hist_end - readline.get_history_length())
+    with open(hist_file, 'w') as f:
+        for i in range(hist_start, hist_end):
+            f.write('%s\n' % readline.get_history_item(i + 1))
+
 # console custom logger
 class ConsoleLogger(Logger):
     def __init__ (self):
         Logger.__init__(self)
-        self.prompt_redraw = None
+        self.prompt_redraw = lambda: None
         self.tid = threading.current_thread().ident
 
     def _write (self, msg, newline = True):
@@ -93,23 +101,21 @@ class ConsoleLogger(Logger):
 
 
 class TRexGeneralCmd(cmd.Cmd):
-    def __init__(self):
+    def __init__(self, client_mode):
         cmd.Cmd.__init__(self)
         # configure history behaviour
         self._history_file_dir = "/tmp/trex/console/"
-        self._history_file = self.get_history_file_full_path()
+        self._history_file = self.get_history_file_full_path(client_mode)
         readline.set_history_length(100)
         # load history, if any
         self.load_console_history()
         atexit.register(self.save_console_history)
 
 
-    def get_console_identifier(self):
-        return self.__class__.__name__
-
-    def get_history_file_full_path(self):
-        return "{dir}{filename}.hist".format(dir=self._history_file_dir,
-                                             filename=self.get_console_identifier())
+    def get_history_file_full_path(self, client_mode):
+        return "{dir}{filename}_{mode}.hist".format(dir=self._history_file_dir,
+                                             filename=self.get_console_identifier(),
+                                             mode=client_mode)
 
     def load_console_history(self):
         if os.path.exists(self._history_file):
@@ -128,7 +134,7 @@ class TRexGeneralCmd(cmd.Cmd):
             
         # os.mknod(self._history_file)
         try:
-            readline.write_history_file(self._history_file)
+            write_history_file(self._history_file)
         except BaseException as e:
             print(bold('\nCould not save history file: %s\nError: %s\n' % (self._history_file, e)))
 
@@ -177,7 +183,7 @@ class TRexConsole(TRexGeneralCmd):
         
         self.client = client
 
-        TRexGeneralCmd.__init__(self)
+        TRexGeneralCmd.__init__(self, client.get_mode())
 
         self.tui = trex_tui.TrexTUI(self)
         self.terminal = None
@@ -214,12 +220,26 @@ class TRexConsole(TRexGeneralCmd):
 
         return wrap
 
+    def history_preserver(self, func, line):
+        filename = self._push_history()
+        try:
+            func(line)
+        finally:
+            self._pop_history(filename)
+
 
     def load_client_console_functions (self):
         for cmd_name, cmd_func in self.client.get_console_methods().items():
-            
+
             # register the function and its help
-            setattr(self.__class__, 'do_' + cmd_name, cmd_func)
+            if cmd_func.preserve_history:
+                f = partial(self.history_preserver, cmd_func)
+                f.__doc__ = cmd_func.__doc__
+                f.name    = cmd_func.name
+                f.group   = cmd_func.group
+                setattr(self.__class__, 'do_' + cmd_name, f)
+            else:
+                setattr(self.__class__, 'do_' + cmd_name, cmd_func)
             setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
 
 
@@ -255,9 +275,9 @@ class TRexConsole(TRexGeneralCmd):
 
 
     def get_console_identifier(self):
-        return "{context}_{server}".format(context=get_current_user(),
-                                           server=self.client.get_connection_info()['server'])
-    
+        conn = self.client.get_connection_info()
+        return "%s_%s_%s_%s" % (get_current_user(), conn['server'], conn['sync_port'], conn['async_port'])
+
     def register_main_console_methods(self):
         main_names = set(self.trex_console.get_names()).difference(set(dir(self.__class__)))
         for name in main_names:
@@ -361,15 +381,16 @@ class TRexConsole(TRexGeneralCmd):
 
     # save current history to a temp file
     def _push_history(self):
-        tmp_file = tempfile.mktemp()
-        readline.write_history_file(tmp_file)
+        tmp_file = tempfile.NamedTemporaryFile()
+        write_history_file(tmp_file.name)
         readline.clear_history()
         return tmp_file
 
     # restore history from a temp file
-    def _pop_history(self, filename):
+    def _pop_history(self, tmp_file):
         readline.clear_history()
-        readline.read_history_file(filename)
+        readline.read_history_file(tmp_file.name)
+        tmp_file.close()
 
     def do_debug(self, line):
         '''Internal debugger for development.
@@ -388,30 +409,39 @@ class TRexConsole(TRexGeneralCmd):
             from IPython import embed
 
         except ImportError:
-            self.client.logger.info(format_text("\n*** 'IPython' is required for interactive debugging ***\n", 'bold'))
-            return
+            embed = None
 
-        self.client.logger.info(format_text("\n*** Starting IPython... use 'client' as client object, Ctrl + D to exit ***\n", 'bold'))
+        if not embed:
+            try:
+                import code
+            except ImportError:
+                self.client.logger.info(format_text("\n*** 'IPython' and 'code' library are not available ***\n", 'bold'))
+                return
 
         auto_completer = readline.get_completer()
-        console_h = self._push_history()
+        console_history_file = self._push_history()
         client = self.client
 
+        descr = 'IPython' if embed else "'code' library"
+        self.client.logger.info(format_text("\n*** Starting Python shell (%s)... use 'client' as client object, Ctrl + D to exit ***\n" % descr, 'bold'))
+
         try:
-            cfg = load_default_config()
-            cfg['TerminalInteractiveShell']['confirm_exit'] = False
-            embed(config = cfg, display_banner = False)
-            #InteractiveShellEmbed.clear_instance()
+            if embed:
+                cfg = load_default_config()
+                cfg['TerminalInteractiveShell']['confirm_exit'] = False
+                embed(config = cfg, display_banner = False)
+                #InteractiveShellEmbed.clear_instance()
+            else:
+                ns = {}
+                ns.update(globals())
+                ns.update(locals())
+                code.InteractiveConsole(ns).interact('')
 
         finally:
             readline.set_completer(auto_completer)
-            self._pop_history(console_h)
-            try:
-                os.unlink(console_h)
-            except OSError:
-                pass
+            self._pop_history(console_history_file)
 
-        self.client.logger.info(format_text("\n*** Leaving IPython ***\n"))
+        self.client.logger.info(format_text("\n*** Leaving Python shell ***\n"))
 
 
     def do_history (self, line):
@@ -485,6 +515,7 @@ class TRexConsole(TRexGeneralCmd):
             return TRexConsole.tree_autocomplete(s[l - 1])
 
     complete_push = complete_start
+    complete_hello = complete_start
 
 
     def complete_profile(self, text, line, begidx, endidx):
@@ -535,7 +566,7 @@ class TRexConsole(TRexGeneralCmd):
 
     # quit function
     def do_quit(self, line):
-        '''Exit the client\n'''
+        '''Exit the console\n'''
         return True
 
     
@@ -580,6 +611,9 @@ class TRexConsole(TRexGeneralCmd):
 
          if 'STL' in categories:
              self._help_cmds('Stateless Commands', categories['STL'])
+
+         if 'ASTF' in categories:
+             self._help_cmds('Advanced Stateful Commands', categories['ASTF'])
 
 
     def _help_cmds (self, title, cmds):
@@ -630,19 +664,18 @@ class TRexConsole(TRexGeneralCmd):
 
 
 # run a script of commands
-def run_script_file (self, filename, client):
+def run_script_file(filename, client):
 
-    self.logger.log(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
+    client.logger.info(format_text("\nRunning script file '{0}'...".format(filename), 'bold'))
 
     with open(filename) as f:
         script_lines = f.readlines()
 
+    # register all the commands
     cmd_table = {}
 
-    # register all the commands
-    cmd_table['start'] = client.start_line
-    cmd_table['stop']  = client.stop_line
-    cmd_table['reset'] = client.reset_line
+    for cmd_name, cmd_func in client.get_console_methods().items():
+        cmd_table[cmd_name] = cmd_func
 
     for index, line in enumerate(script_lines, start = 1):
         line = line.strip()
@@ -660,12 +693,13 @@ def run_script_file (self, filename, client):
 
         client.logger.info(format_text("Executing line {0} : '{1}'\n".format(index, line)))
 
-        if not cmd in cmd_table:
-            print("\n*** Error at line {0} : '{1}'\n".format(index, line))
-            client.logger.info(format_text("unknown command '{0}'\n".format(cmd), 'bold'))
+        if cmd not in cmd_table:
+            client.logger.error(format_text("Unknown command '%s', available commands are:\n%s" % (cmd, '\n'.join(sorted(cmd_table.keys()))), 'bold'))
             return False
 
-        cmd_table[cmd](args)
+        rc = cmd_table[cmd](args)
+        if isinstance(rc, RC) and not rc:
+            return False
 
     client.logger.info(format_text("\n[Done]", 'bold'))
 
@@ -826,8 +860,9 @@ def main():
         logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
-
+    acquire_options = {'force': options.force}
     if mode == 'STL':
+        acquire_options['ports'] = options.acquire
         client = STLClient(username = options.user,
                            server = options.server,
                            sync_port = options.port,
@@ -835,6 +870,10 @@ def main():
                            logger = logger,
                            verbose_level = verbose_level)
     elif mode == 'ASTF':
+        if options.acquire:
+            logger.critical('Acquire option is not available in ASTF. Must acquire all ports.')
+            return
+
         client = ASTFClient(username = options.user,
                             server = options.server,
                             sync_port = options.port,
@@ -847,21 +886,19 @@ def main():
         return
 
 
-    # TUI or no acquire will give us READ ONLY mode
     try:
         client.connect()
     except TRexError as e:
         logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
         return
 
-    
+    # TUI or no acquire will give us READ ONLY mode
     if not options.tui and not options.readonly:
         try:
-            # acquire all ports
-            client.acquire(options.acquire, force = options.force)
+            # acquire ports
+            client.acquire(**acquire_options)
         except TRexError as e:
             logger.error("Log:\n" + format_text(e.brief() + "\n", 'bold'))
-            
             logger.error("\n*** Failed to acquire all required ports ***\n")
             return
 

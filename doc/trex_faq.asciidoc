@@ -8,7 +8,7 @@ TRex Frequently Asked Questions
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
-:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/stl/examples
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
 :toclevels: 6
 
 include::trex_ga.asciidoc[]
@@ -70,9 +70,10 @@ by using the following link:trex_manual.html#_memory_section_configuration[confi
 
 Limitations:
 
-1. Performance is limited. For each NIC port pair, you can utilize only one CPU core.
-2. Using vSwitch will limit the maximum PPS to around 1MPPS.
-3. Latency results will not be accurate.
+1. Using vSwitch will limit the maximum PPS to around 1MPPS (DPDK-OVS/VPP can solve this)
+2. Latency results will not be accurate.
+
+* For high performance setup (multi-rx-queue), it is better to add `rx_desc: 4096` in the trexd_cfg.yaml see link:trex_manual.html#_platform_yaml_cfg_argument[platform_yaml_cfg_argument] and link:trex_appendix_software_mode.html[software mode]
           
 ==== Which NICs are supported / Why not all DPDK supported NICs supported by TRex?
 1. We are using specific NIC features. Not all the NICs have the capabilities we need.
@@ -275,19 +276,12 @@ terminate called after throwing an instance of 'std::runtime_error'
  clone + 109
 ----
 
-Try to disable Hypervisor Hyper thread (HT) for TRex threads . two TRex threads can't share cores.
-Moving to 'none' (ESXi) only disable sharing of hyper threading, this mitigates the problem but does not solve it.
-The full solution is to provide pinning of cores *exclusively* to TRex.
-This means making sure on your Hypervisor that *only* TRex VM gets those specific cores and no other guest shares them.
-(we handle Linux processor affinity but cannot handle the Hypervisor affinity)
-If you cannot make sure your cores are pinned to the TRex guest you can run TRex without watchdog:
-
-[source,bash]
-----
-[bash]>sudo ./t-rex-64 -i --no-watchdog
-----
-
-This will hide the problem that some threads do not get reasonable response time, but will allow to work anyway.
+* Set at least 8G RAM +
+If you do not have enough RAM, try using low_end flag: +
+ link:trex_manual.html#_low_end_machines[Low end]
+* Set HT Core sharing of TRex VM to None: +
+image:images/ESXi_core_sharing.png[title="Core sharing"] +
+(...or disable HT and set core affinity so that different VMs do not share cores)
 
 
 ===  Stateful 
@@ -582,6 +576,7 @@ This is because on these card types, we use hardware counters (as opposed to cou
 While this allows for counting of full 40G line rate streams, this does not allow for counting bytes (only packet
 count available), because the hardware on these NICs lacks this support.
 Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
+
 
 
 

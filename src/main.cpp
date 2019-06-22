@@ -44,6 +44,7 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
        OPT_ASTF_SIM_MODE,OPT_ASTF_FULL,
        OPT_ASTF_SIM_ARG,
        OPT_ASTF_EMUL_DEBUG,
+       OPT_NO_CLEAN_FLOW_CLOSE,
 
        /* simulator ASTF */
        OPT_ASTF_SHAPER_RATE,
@@ -92,6 +93,7 @@ static CSimpleOpt::SOption parser_options[] =
     { OPT_PCAP,               "--pcap",       SO_NONE    },
     { OPT_IPV6,               "--ipv6",       SO_NONE    },
     { OPT_SL,                 "--sl",         SO_NONE    },
+    { OPT_NO_CLEAN_FLOW_CLOSE,    "--nc",              SO_NONE    },
     { OPT_ASF,                "--tcp_cfg",    SO_REQ_SEP   },
     { OPT_ASTF_FULL,          "--full",       SO_NONE    },
     { OPT_DP_CORE_COUNT,      "--cores",      SO_REQ_SEP },
@@ -122,6 +124,12 @@ static asrtf_args_t  asrtf_args;
 const char *get_exe_name() {
     return g_exe_name;
 }
+
+static void set_sw_mode(){
+    get_mode()->choose_mode(tdCAP_ONE_QUE);
+    get_mode()->force_software_mode(true);
+}
+
 
 static int usage(){
 
@@ -235,6 +243,10 @@ static int parse_options(int argc,
 
             case OPT_FILE_OUT:
                 po->out_file = args.OptionArg();
+                break;
+
+             case OPT_NO_CLEAN_FLOW_CLOSE :
+                po->preview.setNoCleanFlowClose(true);
                 break;
 
             case OPT_IPV6:
@@ -402,6 +414,7 @@ int main(int argc , char * argv[]){
     }
     set_default_mac_addr();
 
+
     opt_type_e type = (opt_type_e) params["type"];
 
     switch (type) {
@@ -414,14 +427,18 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SF:
         {
             SimStateful sf;
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
+            set_op_mode(OP_MODE_STF);
+            set_sw_mode();
             return sf.run();
         }
 
     case OPT_TYPE_ASF:
         {
             CGlobalInfo::m_options.preview.setFileWrite(true);
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
+            CGlobalInfo::m_options.preview.setChecksumOffloadEnable(true);
+
+            set_op_mode(OP_MODE_ASTF_BATCH);
+            set_sw_mode();
 
             if (asrtf_args.full_sim){
                 SimAstf sf;
@@ -436,7 +453,8 @@ int main(int argc , char * argv[]){
     case OPT_TYPE_SL:
         {
             SimStateless &st = SimStateless::get_instance();
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
+            set_op_mode(OP_MODE_STL);
+            set_sw_mode();
 
             if (params.count("dp_core_count") == 0) {
                 params["dp_core_count"] = 1;

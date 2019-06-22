@@ -8,11 +8,9 @@ from nose.tools import assert_equal
 
 class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNoNat_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # NAT requires device
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # NAT requires device
         super(CTRexNoNat_Test, self).setUp() # launch super test class setUp process
 
     def check_nat_stats (self, nat_stats):
@@ -41,7 +39,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             f = 'cap2/http_simple.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -73,11 +71,9 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
 class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        super(CTRexNat_Test, self).__init__(*args, **kwargs)
-        self.unsupported_modes = ['loopback'] # NAT requires device
 
     def setUp(self):
+        self.unsupported_modes = ['loopback'] # NAT requires device
         super(CTRexNat_Test, self).setUp() # launch super test class setUp process
         # config nat here
         
@@ -125,7 +121,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             f = traffic_file,
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
@@ -159,8 +155,8 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         nat_stats = self.router.get_nat_stats()
         print(nat_stats)
 
-        self.assert_gt(nat_stats['total_active_trans'], 5000, 'total active translations is not high enough')
-        self.assert_gt(nat_stats['dynamic_active_trans'], 5000, 'total dynamic active translations is not high enough')
+        self.assert_gt(nat_stats['total_active_trans'], 3, 'total active translations is not high enough')
+        self.assert_gt(nat_stats['dynamic_active_trans'], 3, 'total dynamic active translations is not high enough')
         self.assertEqual(nat_stats['static_active_trans'], 0, "NAT statistics nat_stats['static_active_trans'] should be zero")
         self.assert_gt(nat_stats['num_of_hits'], 50000, 'total nat hits is not high enough')
 

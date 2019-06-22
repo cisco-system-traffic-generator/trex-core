@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef __INCLUDE_RTE_BITMAP_H__
@@ -66,14 +37,11 @@ extern "C" {
 
 #include <string.h>
 #include <rte_common.h>
+#include <rte_config.h>
 #include <rte_debug.h>
 #include <rte_memory.h>
 #include <rte_branch_prediction.h>
 #include <rte_prefetch.h>
-
-#ifndef RTE_BITMAP_OPTIMIZATIONS
-#define RTE_BITMAP_OPTIMIZATIONS		         1
-#endif
 
 /* Slab */
 #define RTE_BITMAP_SLAB_BIT_SIZE                 64
@@ -116,7 +84,7 @@ __rte_bitmap_index1_inc(struct rte_bitmap *bmp)
 static inline uint64_t
 __rte_bitmap_mask1_get(struct rte_bitmap *bmp)
 {
-	return (~1lu) << bmp->offset1;
+	return (~1llu) << bmp->offset1;
 }
 
 static inline void
@@ -124,43 +92,6 @@ __rte_bitmap_index2_set(struct rte_bitmap *bmp)
 {
 	bmp->index2 = (((bmp->index1 << RTE_BITMAP_SLAB_BIT_SIZE_LOG2) + bmp->offset1) << RTE_BITMAP_CL_SLAB_SIZE_LOG2);
 }
-
-#if RTE_BITMAP_OPTIMIZATIONS
-
-static inline int
-rte_bsf64(uint64_t slab, uint32_t *pos)
-{
-	if (likely(slab == 0)) {
-		return 0;
-	}
-
-	*pos = __builtin_ctzll(slab);
-	return 1;
-}
-
-#else
-
-static inline int
-rte_bsf64(uint64_t slab, uint32_t *pos)
-{
-	uint64_t mask;
-	uint32_t i;
-
-	if (likely(slab == 0)) {
-		return 0;
-	}
-
-	for (i = 0, mask = 1; i < RTE_BITMAP_SLAB_BIT_SIZE; i ++, mask <<= 1) {
-		if (unlikely(slab & mask)) {
-			*pos = i;
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-#endif
 
 static inline uint32_t
 __rte_bitmap_get_memory_footprint(uint32_t n_bits,
@@ -226,12 +157,12 @@ rte_bitmap_get_memory_footprint(uint32_t n_bits) {
 /**
  * Bitmap initialization
  *
- * @param mem_size
- *   Minimum expected size of bitmap.
+ * @param n_bits
+ *   Number of pre-allocated bits in array2.
  * @param mem
  *   Base address of array1 and array2.
- * @param n_bits
- *   Number of pre-allocated bits in array2. Must be non-zero and multiple of 512.
+ * @param mem_size
+ *   Minimum expected size of bitmap.
  * @return
  *   Handle to bitmap instance.
  */
@@ -345,7 +276,7 @@ rte_bitmap_get(struct rte_bitmap *bmp, uint32_t pos)
 	index2 = pos >> RTE_BITMAP_SLAB_BIT_SIZE_LOG2;
 	offset2 = pos & RTE_BITMAP_SLAB_BIT_MASK;
 	slab2 = bmp->array2 + index2;
-	return (*slab2) & (1lu << offset2);
+	return (*slab2) & (1llu << offset2);
 }
 
 /**
@@ -370,8 +301,8 @@ rte_bitmap_set(struct rte_bitmap *bmp, uint32_t pos)
 	slab2 = bmp->array2 + index2;
 	slab1 = bmp->array1 + index1;
 
-	*slab2 |= 1lu << offset2;
-	*slab1 |= 1lu << offset1;
+	*slab2 |= 1llu << offset2;
+	*slab1 |= 1llu << offset1;
 }
 
 /**
@@ -398,7 +329,7 @@ rte_bitmap_set_slab(struct rte_bitmap *bmp, uint32_t pos, uint64_t slab)
 	slab1 = bmp->array1 + index1;
 
 	*slab2 |= slab;
-	*slab1 |= 1lu << offset1;
+	*slab1 |= 1llu << offset1;
 }
 
 static inline uint64_t
@@ -436,7 +367,7 @@ rte_bitmap_clear(struct rte_bitmap *bmp, uint32_t pos)
 	slab2 = bmp->array2 + index2;
 
 	/* Return if array2 slab is not all-zeros */
-	*slab2 &= ~(1lu << offset2);
+	*slab2 &= ~(1llu << offset2);
 	if (*slab2){
 		return;
 	}
@@ -452,7 +383,7 @@ rte_bitmap_clear(struct rte_bitmap *bmp, uint32_t pos)
 	index1 = pos >> (RTE_BITMAP_SLAB_BIT_SIZE_LOG2 + RTE_BITMAP_CL_BIT_SIZE_LOG2);
 	offset1 = (pos >> RTE_BITMAP_CL_BIT_SIZE_LOG2) & RTE_BITMAP_SLAB_BIT_MASK;
 	slab1 = bmp->array1 + index1;
-	*slab1 &= ~(1lu << offset1);
+	*slab1 &= ~(1llu << offset1);
 
 	return;
 }
@@ -467,9 +398,8 @@ __rte_bitmap_scan_search(struct rte_bitmap *bmp)
 	value1 = bmp->array1[bmp->index1];
 	value1 &= __rte_bitmap_mask1_get(bmp);
 
-	if (rte_bsf64(value1, &bmp->offset1)) {
+	if (rte_bsf64_safe(value1, &bmp->offset1))
 		return 1;
-	}
 
 	__rte_bitmap_index1_inc(bmp);
 	bmp->offset1 = 0;
@@ -478,9 +408,8 @@ __rte_bitmap_scan_search(struct rte_bitmap *bmp)
 	for (i = 0; i < bmp->array1_size; i ++, __rte_bitmap_index1_inc(bmp)) {
 		value1 = bmp->array1[bmp->index1];
 
-		if (rte_bsf64(value1, &bmp->offset1)) {
+		if (rte_bsf64_safe(value1, &bmp->offset1))
 			return 1;
-		}
 	}
 
 	return 0;

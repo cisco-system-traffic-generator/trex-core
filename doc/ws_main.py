@@ -610,20 +610,17 @@ def build_cp(bld,dir,root,callback):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         raise NameError("Environment variable 'TREX_CORE_GIT' is not defined.")
     trex_core_docs_path = os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', root, 'index.rst')
-    bld(rule=callback,target = dir)
+    bld(rule=callback, target = dir, always = True)
 
 
 
 
 def create_analytic_report(task):
-    try:
-        import AnalyticsWebReport as analytics
-        if task.generator.bld.options.performance_detailed:
-            analytics.main(verbose = Logs.verbose,detailed_test_stats='yes')
-        else:
-            analytics.main(verbose = Logs.verbose)
-    except Exception as e:
-        raise Exception('Error importing or using AnalyticsWebReport script: %s' % e)
+    import AnalyticsWebReport as analytics
+    if task.generator.bld.options.performance_detailed:
+        analytics.main(verbose = Logs.verbose, detailed_test_stats = True)
+    else:
+        analytics.main(verbose = Logs.verbose)
 
 
 def create_ndr_report(task):
@@ -670,7 +667,7 @@ def build(bld):
 
     bld(rule=my_copy, target='my_chart.js')
 
-    build_cp(bld,'hlt_args.asciidoc','stl/trex_stl_lib', parse_hlt_args)
+    bld(rule=parse_hlt_args, target = 'hlt_args.asciidoc')
 
     bld.add_group() # separator, the documents may require any of the pictures from above
 
@@ -688,7 +685,10 @@ def build(bld):
 
     bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='release_notes.asciidoc waf.css', target='release_notes.html', scan=ascii_doc_scan)
-                
+
+    bld(rule='${ASCIIDOC}  -a stylesheet=${SRC[1].abspath()} -a  icons=true -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+        source='release_notes_old.asciidoc waf.css', target='release_notes_old.html', scan=ascii_doc_scan)
+
     bld(rule='${ASCIIDOC} -a docinfo -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2  -a max-width=55em  -d book   -o ${TGT} ${SRC[0].abspath()}',
         source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.html', scan=ascii_doc_scan)
 
@@ -758,6 +758,8 @@ def build(bld):
         'mellanox',
         'vic',
         'active_flows',
+        'fixing_pcaps',
+        'software_mode',
         ]
     for appendix_name in toc_appendixes:
         src_name = 'trex_appendix_%s.asciidoc waf.css' % appendix_name
@@ -800,7 +802,7 @@ def build(bld):
 
     build_cp(bld,'cp_docs','doc',build_cp_docs)
 
-    #build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
+    build_cp(bld,'cp_stl_docs','doc_stl',build_stl_cp_docs)
 
     build_cp(bld,'cp_astf_docs','doc_astf',build_astf_cp_docs)
 

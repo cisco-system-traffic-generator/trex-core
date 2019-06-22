@@ -70,6 +70,21 @@ public:
     }
 };
 
+/**
+ * ASTF interactive test
+ * 
+ */
+class trexAstfInteractiveTest  : public testing::Test {
+public:
+    trexAstfInteractiveTest() {
+        TrexSTXCfg cfg;
+        set_stx(new TrexAstf(cfg));
+    }
+    ~trexAstfInteractiveTest() {
+        delete get_stx();
+        set_stx(nullptr);
+    }
+};
 
 
 class trexTest  : public trexStfTest {
@@ -105,8 +120,7 @@ public:
             try {
                 fl.load_client_config_file(CGlobalInfo::m_options.client_cfg_file);
                 // The simulator only test MAC address configs, so this parameter is not used
-                CManyIPInfo pretest_result;
-                fl.set_client_config_resolved_macs(pretest_result);
+                fl.set_client_config_resolved_macs(nullptr);
         } catch (const std::runtime_error &e) {
                 std::cout << "\n*** " << e.what() << "\n\n";
                 exit(-1);
@@ -130,8 +144,8 @@ public:
 
             char buf[100];
             char buf_ex[100];
-            sprintf(buf,"%s-%d.erf", CGlobalInfo::m_options.out_file.c_str(), i);
-            sprintf(buf_ex,"%s-%d-ex.erf", CGlobalInfo::m_options.out_file.c_str(), i);
+            sprintf(buf,"generated/%s-%d.erf", CGlobalInfo::m_options.out_file.c_str(), i);
+            sprintf(buf_ex,"exp/%s-%d-ex.erf", CGlobalInfo::m_options.out_file.c_str(), i);
 
             if ( m_req_ports ) {
                 /* generate from first template m_req_ports ports */
@@ -143,7 +157,7 @@ public:
                     ports[i]=lpg->GenerateOneSourcePort();
                 }
             }
-            CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STF;
+            set_op_mode(OP_MODE_STF);
             lpt->start_sim(buf,CGlobalInfo::m_options.preview);
             lpt->m_node_gen.DumpHist(stdout);
             cmp.d_sec = m_time_diff;

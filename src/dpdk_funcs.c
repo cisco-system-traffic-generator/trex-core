@@ -57,15 +57,20 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
 	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_UDP, 0), 0);
 	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_TCP, 0), 0);
     I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 0), 0);
+    I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV4, 0), 0);
+    I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV6, 0), 0);
+    
     switch(mode) {
     case I40E_TREX_INIT_STL:
         // stateless - filter according to IP id or IPv6 identification
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 1), 0x00100000);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_TCP, 1), 0x00100000);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_OTHER, 1), 0x00100000);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV4, 1), 0x00100000);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_UDP, 1),   0x0000000000200000ULL);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_TCP, 1),   0x0000000000200000ULL);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 1), 0x0000000000200000ULL);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV6, 1), 0x0000000000200000ULL);
         break;
     case I40E_TREX_INIT_RCV_ALL:
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 1), 0);
@@ -78,6 +83,9 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP, 1), 0);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP, 0), 0);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP, 1), 0);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV4, 1), 0);
+        I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV6, 1), 0);
+        
         break;
     case I40E_TREX_INIT_STF:
     default:
@@ -97,6 +105,16 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
 	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0, 34), 0x000DFF00);
 	I40E_WRITE_REG(hw, I40E_GLQF_FD_MSK(0,44), 0x000C00FF);
 	I40E_WRITE_FLUSH(hw);
+}
+
+int i40e_trex_get_pf_id(repid_t repid, uint8_t *pf_id) {
+    RTE_ETH_VALID_PORTID_OR_ERR_RET(repid, -EINVAL);
+
+    struct rte_eth_dev *dev;
+    dev = &rte_eth_devices[repid];
+    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+    *pf_id = hw->pf_id;
+    return 0;
 }
 
 // fill stats array with fdir rules match count statistics
@@ -141,9 +159,10 @@ int rte_eth_dev_pci_addr(repid_t repid,char *p,int size){
 
     struct rte_devargs * lp=rte_eth_devices[repid].device->devargs;
     struct rte_pci_addr *pci_addr = NULL;
-    struct rte_eth_dev_info dev_info;
-    rte_eth_dev_info_get(repid, &dev_info);
-    pci_addr = &(dev_info.pci_dev->addr);
+
+    struct rte_eth_dev *dev = &rte_eth_devices[repid];
+    struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+    pci_addr = &(pci_dev->addr);
     if (pci_addr) {
         rte_pci_device_name(pci_addr,p, size);
         return (0);

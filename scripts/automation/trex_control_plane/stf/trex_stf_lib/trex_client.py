@@ -126,6 +126,7 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Idle:
                 raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
+        self.server.force_trex_kill(True)
         raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
     def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
@@ -243,6 +244,11 @@ class CTRexClient(object):
             return True
         else:   # TRex is has been started by another user
             raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
+
+
+    def start_astf(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
+        trex_cmd_options['astf'] = True
+        return self.start_stateless(block_to_success, timeout, user, **trex_cmd_options)
 
 
     def stop_trex (self):

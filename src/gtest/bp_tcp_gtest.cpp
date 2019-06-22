@@ -48,6 +48,9 @@ limitations under the License.
 #include <common/captureFile.h>
 #include <common/sim_event_driven.h>
 #include "44bsd/sim_cs_tcp.h"
+#include "trex_rx_rpc_tunnel.h"
+#include "utl_json.h"
+
 
 
 class gt_tcp_long  : public testing::Test {
@@ -190,9 +193,9 @@ TEST_F(gt_tcp, tst5) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
 
     tst.Delete();
 }
@@ -215,12 +218,12 @@ TEST_F(gt_tcp, tst6) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvdupbyte,20);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvdupbyte,20);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
     tst.Delete();
 
 }
@@ -239,12 +242,12 @@ TEST_F(gt_tcp, tst7) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartdupbyte,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartdupbyte,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,40);
 
     tst.Delete();
 }
@@ -264,12 +267,12 @@ TEST_F(gt_tcp, tst8) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvduppack,2);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvdupbyte,40);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,3);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,3040);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvduppack,2);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvdupbyte,40);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,3);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,3040);
 
     tst.Delete();
 }
@@ -290,13 +293,13 @@ TEST_F(gt_tcp, tst9) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartduppack,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvpartdupbyte,1);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,3);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,61);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartduppack,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvpartdupbyte,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,3);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,61);
     tst.Delete();
 }
 
@@ -321,11 +324,11 @@ TEST_F(gt_tcp, tst10) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
 
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopack,5);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoobyte,100);
-    EXPECT_EQ(tst.m_ctx.m_tcpstat.m_sts.tcps_rcvoopackdrop,1);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopack,5);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoobyte,100);
+    EXPECT_EQ(tst.m_ctx.get_tcpstat()->m_sts.tcps_rcvoopackdrop,1);
     tst.Delete();
 }
 
@@ -346,7 +349,7 @@ TEST_F(gt_tcp, tst11) {
     tst.m_verbose=true;
     tst.add_pkts(in_pkts);
     tst.expect(out_pkts,stdout);
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
     tst.Delete();
 }
 
@@ -382,7 +385,7 @@ TEST_F(gt_tcp, tst12) {
     EXPECT_EQ(tst.m_tcp_res.get_active_blocks(),0);
     EXPECT_EQ(tst.m_flow.m_tcp.rcv_nxt,500+560);
 
-    tst.m_ctx.m_tcpstat.Dump(stdout);
+    tst.m_ctx.get_tcpstat()->Dump(stdout);
     tst.Delete();
 }
 #endif
@@ -688,7 +691,7 @@ TEST_F(gt_tcp, tst17) {
     }
 
 
-    m_ctx.m_tcpstat.Dump(stdout);
+    m_ctx.get_tcpstat()->Dump(stdout);
 
 
     m_flow.Delete();
@@ -737,7 +740,7 @@ TEST_F(gt_tcp, tst18) {
     }
 
 
-    m_ctx.m_tcpstat.Dump(stdout);
+    m_ctx.get_tcpstat()->Dump(stdout);
 
     m_flow.Delete();
     m_ctx.Delete();
@@ -1638,6 +1641,29 @@ TEST_F(gt_tcp, tst40) {
 
     std::string json;
     tbl.dump_as_json("my",json);
+
+    Json::Value  mjson;
+    tbl.dump_meta("my",mjson);
+    Json::StyledWriter writer;
+    std::string s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+    tbl.dump_values("my",
+                     true,
+                     mjson);
+
+    s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+    tbl.dump_values("my",
+                     false,
+                     mjson);
+
+    s=writer.write(mjson);
+    printf("%s \n",s.c_str());
+
+
+
     printf("%s \n",json.c_str());
 }
 
@@ -1693,7 +1719,7 @@ TEST_F(gt_tcp, tst42) {
     ti.ti_seq =0x1000+4000 ;
     tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
 
-    ctx.m_tcpstat.Dump(stdout);
+    ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
 
     flow.Delete();
@@ -1776,7 +1802,7 @@ TEST_F(gt_tcp, tst43) {
     ti.ti_seq =0x1000+4000 ;
     tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
 
-    ctx.m_tcpstat.Dump(stdout);
+    ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
 
     delete prog_s;
@@ -2221,7 +2247,163 @@ TEST_F(gt_tcp, tst61) {
 }
 #endif
 
+double norm2_relativeError(std::vector<double> expected, std::vector<int> received){
+    /* Returns the relative norm 2 distance between the two vectors, meaning
+    || received - expected || / || received ||*/
+    double difference_norm = 0;
+    double received_norm = 0;
+    for (int i = 0; i < received.size(); i++){
+        difference_norm += pow(received[i]-expected[i], 2);
+        received_norm += pow(received[i],2);
+    }
+    difference_norm = sqrt(difference_norm);
+    received_norm = sqrt(received_norm);
+    assert (received_norm != 0);
+    return difference_norm/received_norm;
+}
 
+bool test_KxUNuBin(double ratio, double error_percentage,
+                                int num_of_iterations) {
+    /* Creates a binary distribution with @param rate. The function getRandom
+    should return true with probability @param rate and return false with
+    probability 1 - @param rate. This test checks this, it calls the function
+    getRandom @param num_of_iterations times and checks that the number of times
+    we received true is rate*num_of_iterations +- error_percentage. The function
+    returns true if the test passes and false otherwise.*/
+    assert (ratio != 0);
+    KxuNuBinRand *bin = new KxuNuBinRand(ratio);
+    int trues = 0;
+    int falses = 0;
+
+    for (int i=0; i < num_of_iterations; i++) {
+        if (bin->getRandom()) {
+            trues++;
+        } else {
+            falses++;
+        }
+    }
+    delete bin;
+    std::vector<int> received;
+    received.push_back(trues);
+    received.push_back(falses);
+    assert (trues + falses == num_of_iterations);
+    std::vector<double> expected;
+    expected.push_back(ratio * num_of_iterations);
+    expected.push_back((1-ratio)*num_of_iterations);
+    double relative_error = norm2_relativeError(expected, received);
+    if (100 * relative_error > error_percentage) {
+        std::cout << "The test did not pass. The relative error is: " << 100 * relative_error << "%." << std::endl;
+        return false;
+    }
+    return true;
+}
+
+TEST_F(gt_tcp, tst62) {
+    std::vector<double> dist;
+    for (int i=0; i < 650 ; i++) {
+        dist.push_back(1);
+    }
+
+    KxuLCRand rnd;
+    KxuNuRand *ru = new KxuNuRand(dist, &rnd);
+
+    delete ru;
+    // This used to crash if you would run it with sanitizer, it shouldn't now.
+}
+
+TEST_F(gt_tcp, tst63) {
+    double error_percentage = 2; // set this as the error percentage allowed
+    int num_of_iterations = 10000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> ratios = {0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7,
+                                    0.75, 0.8, 0.9};
+    for (auto& ratio : ratios) {
+        assert (test_KxUNuBin(ratio, error_percentage,num_of_iterations));
+    }
+}
+
+bool test_KxuNuRand(std::vector<double>& distributions, double error_percentage,
+                                                        int num_of_iterations) {
+
+    /* Receives a vector of distributions, from which it builds a non uniform random
+    distribution object. It calls getRandom() on this object, @param num_of_iterations
+    times and tests that the distribution that getRandom returns is equal
+    (up to the error percentage) to the distribution vector received */
+
+    double sum = 0;
+    bool passed = true;
+    int number_of_distributions = distributions.size();
+    for (auto& dist : distributions){
+        sum += dist;
+    }
+
+    KxuLCRand rnd;
+    KxuNuRand *ru = new KxuNuRand(distributions, &rnd);
+
+    std::vector<int> received_distributions(number_of_distributions);
+
+    for (int i = 0; i < num_of_iterations; i++) {
+        received_distributions[ru->getRandom()]++;
+    }
+
+    std::vector<double> expected;
+    for (int i = 0; i < number_of_distributions; i++){
+        expected.push_back((distributions[i] / sum) * num_of_iterations);
+    }
+    double relative_error = norm2_relativeError(expected, received_distributions);
+    if (100 * relative_error > error_percentage) {
+        std::cout << "The test did not pass. The relative error is: " << 100 * relative_error << "%." << std::endl;
+        passed = false;
+    }
+    delete ru;
+    return passed;
+}
+
+TEST_F(gt_tcp, tst64) {
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 10000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = 10; // number of distributions we are testing
+    
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(i);
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+
+}
+
+TEST_F(gt_tcp, tst65) {
+    // Uniform distribution of random size.
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 1000000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = rand() % 1000 ; // number of distributions
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(1);
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+
+}
+
+TEST_F(gt_tcp, tst66) {
+    // 1000 random values in the distribution vector
+    double error_percentage = 3; // error percentage
+    int num_of_iterations = 1000000; /* set this as the amount of times you
+    want the getRandom function to be called. It should be big according to the
+    cental limit theorem. */
+    std::vector<double> distributions; // this vector will hold the distributions
+    int number_of_distributions = 1000; // number of distributions we are testing
+    
+    for (int i = 0; i < number_of_distributions; i++) { 
+        distributions.push_back(rand());
+    }
+    assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
+}
 
 
 TEST_F(gt_tcp, tst70) {
@@ -2797,7 +2979,7 @@ TEST_F(gt_tcp, tst101) {
 
     std::ifstream t("a1.json");
     if (!  t.is_open()) {
-        std::cerr << "Failed openeing json file "  << std::endl;
+        std::cerr << "Failed opening json file "  << std::endl;
         return;
     }
 
@@ -2878,3 +3060,189 @@ TEST_F(gt_tcp, tst202) {
 
 #endif
 
+
+
+
+#if 0
+class CExampleNode;
+
+/* RPC tunnel Object seperate from the node */
+class CRpcTunnelBatchNode : public CRpcTunnelBatch  {
+public:
+    void init(CExampleNode * node);
+    trex_rpc_cmd_rc_e rpc_conf_ip4(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_clear(const Json::Value &params, Json::Value &result);
+    void register_rpc_functions();
+private:
+  CExampleNode * m_node;
+};
+
+void CRpcTunnelBatchNode::init(CExampleNode * node){
+    m_node = node;
+}
+
+void CRpcTunnelBatchNode::register_rpc_functions(){
+    using namespace std::placeholders;
+    register_func("ipv4",std::bind(&CRpcTunnelBatchNode::rpc_conf_ip4, this, _1, _2));
+    register_func("ipv4_clean",std::bind(&CRpcTunnelBatchNode::rpc_clear, this, _1, _2));
+}
+
+
+/* example of RPC tunnel */
+class CExampleNode  {
+public:
+
+    CExampleNode();
+    virtual ~CExampleNode();
+
+    void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
+    void clear_ip4_internal(void);
+    void conf_ip6_internal(bool enabled, const string &ip6_buf);
+    void clear_ip6_internal(void);
+
+public:
+    CRpcTunnelBatchNode * get_rpc_tunnel(){
+        return m_rpc;
+    }
+private:
+    CRpcDispatch  m_rpc_dispatch;
+    CRpcTunnelBatchNode * m_rpc;
+};
+
+
+CExampleNode::CExampleNode(){
+    m_rpc = new CRpcTunnelBatchNode();
+    m_rpc->init(this);
+    m_rpc->register_rpc_functions();
+}
+
+CExampleNode::~CExampleNode(){
+    delete m_rpc;
+}
+
+
+
+trex_rpc_cmd_rc_e CRpcTunnelBatchNode::rpc_conf_ip4(const Json::Value &params, Json::Value &result){
+    printf("rpc_conf_ip4\n");
+    string ipv4   = parse_string(params, "ipv4", result);
+    string ipv4_dg = parse_string(params, "ipv4_dg", result);
+    m_node->conf_ip4_internal(ipv4, ipv4_dg);
+    result = Json::nullValue;
+    return(TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelBatchNode::rpc_clear(const Json::Value &params, Json::Value &result){
+    printf("rpc_clear \n");
+    m_node->clear_ip4_internal();
+    return(TREX_RPC_CMD_OK);
+}
+
+
+
+void CExampleNode::conf_ip4_internal(const string &ip4_buf, 
+                                     const string &gw4_buf){
+    printf("conf_ip4_internal: %s %s \n",ip4_buf.c_str(),gw4_buf.c_str());
+}
+
+void CExampleNode::clear_ip4_internal(void){
+    printf("clear_ipv4 \n");
+}
+
+void CExampleNode::conf_ip6_internal(bool enabled, 
+                                     const string &ip6_buf){
+    printf("conf_ip6_internal: %d %s \n",enabled?1:0,ip6_buf.c_str());
+}
+
+void CExampleNode::clear_ip6_internal(void){
+    printf("clear_ipv4 \n");
+}
+
+
+
+TEST_F(gt_tcp, tst200) {
+    CExampleNode * lp = new CExampleNode();
+    lp->conf_ip4_internal("10.0.0.1","10.0.0.2");
+    lp->clear_ip4_internal();
+    lp->conf_ip6_internal(false,"::10.0.0.1");
+    lp->clear_ip6_internal();
+}
+
+TEST_F(gt_tcp, tst201) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv4";
+    commands[0]["params"]["ipv4"]="10.0.0.10";
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+TEST_F(gt_tcp, tst202) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv5";
+    commands[0]["params"]["ipv4"]="10.0.0.10";
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+TEST_F(gt_tcp, tst203) {
+    CExampleNode * lp = new CExampleNode();
+    Json::Value commands;
+    commands[0]["method"]="ipv4";
+    commands[0]["params"]["ipv4"]=12;
+    commands[0]["params"]["ipv4_dg"]="10.0.0.1";
+    commands[1]["method"]="ipv4";
+    commands[1]["params"]["ipv4"]="10.0.0.20";
+    commands[1]["params"]["ipv4_dg"]="10.0.0.2";
+    dump_json(commands,stdout);
+    Json::Value results;
+
+    lp->get_rpc_tunnel()->run_batch(commands,results);
+    /* NULL --> OK 
+       {
+       "error" :{
+       "message" : string 
+       }
+       "result" : {
+         object 
+        }
+    */
+
+    dump_json(results,stdout);
+}
+
+#endif

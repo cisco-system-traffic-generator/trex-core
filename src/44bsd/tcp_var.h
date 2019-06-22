@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <functional>
 #include "sch_rampup.h"
+#include <algorithm>
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
  *  The Regents of the University of California.  All rights reserved.
@@ -318,6 +319,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
     uint64_t    tcps_keepprobe;     /* keepalive probes sent */
     uint64_t    tcps_keepdrops;     /* connections dropped in keepalive */
+    uint64_t    tcps_testdrops;     /* connections dropped at the end of the test due to --nc  */
 
     uint64_t    tcps_sndrexmitpack; /* data packets retransmitted */
     uint64_t    tcps_sndrexmitbyte; /* data bytes retransmitted */
@@ -362,10 +364,17 @@ struct  tcpstat_int_t {
  */
 struct  tcpstat {
 
-    tcpstat_int_t m_sts;
+    tcpstat_int_t*  m_sts_tg_id;
+    tcpstat_int_t   m_sts;
+    uint16_t        m_num_of_tg_ids;
 public:
+    tcpstat(uint16_t num_of_tg_ids=1);
+    ~tcpstat();
+    void Init(uint16_t num_of_tg_ids);
     void Clear();
+    void ClearPerTGID(uint16_t tg_id);
     void Dump(FILE *fd);
+    void Resize(uint16_t new_num_of_tg_ids);
 };
 
 #define PRU_SLOWTIMO        19  /* 500ms timeout */
@@ -443,6 +452,7 @@ static inline uint32_t tw_time_msec_to_ticks(uint32_t msec){
 
 #include "h_timer.h"
 
+class CPerProfileCtx;
 class CTcpPerThreadCtx ;
 class CAstfDbRO;
 class CTcpTuneables;
@@ -472,7 +482,7 @@ public:
 
     void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 
-    void build_template(CTcpPerThreadCtx * ctx);
+    void build_template(CPerProfileCtx * pctx);
 
     void set_offload_mask(uint8_t flags){
         m_offload_flags=flags;
@@ -508,9 +518,9 @@ private:
         }
     }
 
-    void build_template_ip(CTcpPerThreadCtx * ctx);
-    void build_template_tcp(CTcpPerThreadCtx * ctx);
-    void build_template_udp(CTcpPerThreadCtx * ctx);
+    void build_template_ip(CPerProfileCtx * pctx);
+    void build_template_tcp(CPerProfileCtx * pctx);
+    void build_template_udp(CPerProfileCtx * pctx);
 
 public:
     /* cache line 0 */
@@ -544,7 +554,7 @@ inline bool CFlowTemplate::is_tcp_tso(){
 class CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx);
+    void Create(CPerProfileCtx *pctx, uint16_t tg_id=0);
     void Delete();
 
     void set_tuple(uint32_t src,
@@ -563,7 +573,6 @@ public:
         UNSAFE_CONTAINER_OF_POP
         return (lp2);
     }
-
 
     bool is_udp(){
         return(m_template.m_proto==IPHeader::Protocol::UDP);
@@ -605,8 +614,9 @@ public:
     uint32_t          m_c_idx;
     uint16_t          m_c_pool_idx;
     uint16_t          m_c_template_idx;
+    uint16_t          m_tg_id;
 
-    CTcpPerThreadCtx *m_ctx;
+    CPerProfileCtx   *m_pctx;
     flow_hash_ent_t   m_hash;  /* hash object - 64bit  */
     CEmulApp          m_app;   
     CFlowTemplate     m_template;  /* 128+32 bytes */
@@ -633,20 +643,27 @@ struct  udp_stat_int_t {
 
 struct  CUdpStats {
 
-    udp_stat_int_t m_sts;
+    udp_stat_int_t* m_sts_tg_id;
+    udp_stat_int_t  m_sts;
+    uint16_t        m_num_of_tg_ids;
 public:
+    CUdpStats(uint16_t num_of_tg_ids=1);
+    ~CUdpStats();
+    void Init(uint16_t num_of_tg_ids);
     void Clear();
+    void ClearPerTGID(uint16_t tg_id);
     void Dump(FILE *fd);
+    void Resize(uint16_t new_num_of_tg_ids);
 };
 
 
-#define INC_UDP_STAT(ctx,p) {ctx->m_udpstat.m_sts.p++; }
-#define INC_UDP_STAT_CNT(ctx,p,cnt) {ctx->m_udpstat.m_sts.p += cnt; }
+#define INC_UDP_STAT(ctx, tg_id, p) {ctx->m_udpstat.m_sts.p++; ctx->m_udpstat.m_sts_tg_id[tg_id].p++; }
+#define INC_UDP_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_udpstat.m_sts.p += cnt; ctx->m_udpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 class CUdpFlow : public CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx,bool client);
+    void Create(CPerProfileCtx *pctx, bool client, uint16_t tg_id=0);
     void Delete();
 
     static CUdpFlow * cast_from_hash_obj(flow_hash_ent_t *p){
@@ -712,7 +729,10 @@ public:
 class CTcpFlow : public CFlowBase {
 
 public:
-    void Create(CTcpPerThreadCtx *ctx);
+    void Create(CPerProfileCtx *pctx, uint16_t tg_id = 0);
+#ifdef  TREX_SIM
+    void Create(CTcpPerThreadCtx *ctx, uint16_t tg_id = 0);
+#endif
     void Delete();
 
     void init();
@@ -823,6 +843,7 @@ public:
 class CAstfDbRO;
 class CAstfTemplatesRW;
 class CTcpTuneables;
+class CGenNode;
 
 static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     uint32_t calc =mss*initwnd;
@@ -833,6 +854,54 @@ static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     return((uint16_t)calc);
 }
 
+typedef void (*on_stopped_cb_t)(void *data, profile_id_t profile_id);
+
+class CPerProfileCtx {
+public:
+    profile_id_t        m_profile_id;
+
+    CTcpPerThreadCtx  * m_ctx;
+
+    CAstfFifRampup    * m_sch_rampup; /* rampup for CPS */
+    double              m_fif_d_time;
+
+    CAstfTemplatesRW  * m_template_rw;
+    CAstfDbRO         * m_template_ro;
+
+    struct tcpstat      m_tcpstat; /* tcp statistics */
+    struct CUdpStats    m_udpstat; /* udp statistics */
+
+    uint32_t            m_stop_id;
+
+    int                 m_flow_cnt; /* active flow count */
+
+    on_stopped_cb_t     m_on_stopped_cb;
+    void              * m_cb_data;
+
+private:
+    bool                m_stopped;
+
+public:
+    ~CPerProfileCtx() {
+        if (m_sch_rampup != nullptr) {
+            delete m_sch_rampup;
+            m_sch_rampup = nullptr;
+        }
+    }
+    void activate() { m_stopped = false; }
+    void deactivate() { m_stopped = true; }
+    bool is_active() { return m_stopped == false; }
+
+    void on_flow_close() {
+        if (m_flow_cnt == 0 && !is_active()) {
+            if (m_on_stopped_cb) {
+                m_on_stopped_cb(m_cb_data, m_profile_id);
+                m_on_stopped_cb = nullptr;
+            }
+        }
+    }
+};
+
 class CTcpPerThreadCtx {
 public:
     bool Create(uint32_t size,
@@ -840,7 +909,10 @@ public:
     void Delete();
 
     /* called after init */
-    void call_startup();
+    void call_startup(profile_id_t profile_id = 0);
+
+    /* cleanup m_timer_w from left flows */
+    void cleanup_flows();
 
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
@@ -873,13 +945,10 @@ public:
         return(m_timer_w.is_any_events_left());
     }
 
-    CAstfDbRO *get_template_ro() {return m_template_ro;}
-    CAstfTemplatesRW *get_template_rw() {return m_template_rw;}
-    void set_template_ro(CAstfDbRO *t) {m_template_ro = t;}
-    void set_template_rw(CAstfTemplatesRW *t) {m_template_rw = t;}
     void set_cb(CTcpCtxCb    * cb){
         m_cb=cb;
     }
+    CTcpCtxCb *get_cb() {return m_cb;}
 
     void set_memory_socket(uint8_t socket){
         m_mbuf_socket= socket;
@@ -898,19 +967,21 @@ public:
 
     bool is_open_flow_enabled();
 
+    void reset_tuneables();
     void update_tuneables(CTcpTuneables *tune);
 
     bool is_client_side(void) {
         return (m_ft.is_client_side());
     }
-private:
 
-    void init_sch_rampup();
+    void resize_stats(profile_id_t profile_id = 0);
+
+private:
+    void delete_startup(profile_id_t profile_id);
+
+    void init_sch_rampup(profile_id_t profile_id);
 
 public:
-    CAstfFifRampup  *    m_sch_rampup; /* rampup for CPS */
-    double               m_fif_d_time;
-
     /* TUNABLEs */
     uint32_t  tcp_tx_socket_bsize;
     uint32_t  tcp_rx_socket_bsize;
@@ -936,8 +1007,6 @@ public:
     int tcp_ttl;            /* time to live for TCP segs */
 
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
-    struct      tcpstat m_tcpstat;  /* tcp statistics */
-    struct      CUdpStats m_udpstat; /* udp statistics */
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
     uint32_t    m_tick;
@@ -946,15 +1015,98 @@ public:
     uint8_t     m_disable_new_flow;
     uint8_t     m_pad;
 
-    CAstfTemplatesRW  *  m_template_rw;
-    CAstfDbRO         *  m_template_ro;
-    KxuLCRand         *  m_rand; /* per context */       
+    KxuLCRand         *  m_rand; /* per context */
     CTcpCtxCb         *  m_cb;
     CNATimerWheel        m_timer_w; /* TBD-FIXME one timer , should be pointer */
 
     CFlowTable           m_ft;
     struct  tcpiphdr tcp_saveti;
-         
+
+    /* server port management */
+private:
+    std::unordered_map<uint16_t,CPerProfileCtx*>   m_udp_server_ports;
+    std::unordered_map<uint16_t,CPerProfileCtx*>   m_tcp_server_ports;
+public:
+    void append_server_ports(profile_id_t profile_id);
+    void remove_server_ports(profile_id_t profile_id);
+    CPerProfileCtx * get_profile_by_server_port(uint16_t port, bool stream);
+    void print_server_ports(bool stream);
+
+    /* profile management */
+private:
+    std::unordered_map<profile_id_t, CPerProfileCtx*> m_profiles;
+
+    bool is_profile_ctx(profile_id_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
+public:
+#define FALLBACK_PROFILE_CTX(ctx)   ((ctx)->get_first_profile_ctx())
+#define DEFAULT_PROFILE_CTX(ctx)    ((ctx)->get_profile_ctx(0))
+    CPerProfileCtx* get_profile_ctx(profile_id_t profile_id) {
+#ifdef TREX_SIM
+        if (profile_id == 0 && !is_profile_ctx(0)) {
+            create_profile_ctx(0);  // default profile need to be static in simulator.
+        }
+#endif
+        return m_profiles.at(profile_id);
+    }
+    CPerProfileCtx* get_first_profile_ctx() {
+        assert(m_profiles.size() != 0);
+        return m_profiles.begin()->second;
+    }
+    void create_profile_ctx(profile_id_t profile_id) {
+        CPerProfileCtx* pctx;
+
+        if (is_profile_ctx(profile_id)) {
+            pctx = m_profiles[profile_id];
+            pctx->~CPerProfileCtx();
+            new(pctx) CPerProfileCtx();
+        }
+        else {
+            pctx = new CPerProfileCtx();
+            m_profiles[profile_id] = pctx;
+        }
+        pctx->m_ctx = this;
+        pctx->m_profile_id = profile_id;
+    }
+    void remove_profile_ctx(profile_id_t profile_id) {
+        if (is_profile_ctx(profile_id)) {
+            delete m_profiles[profile_id];
+            m_profiles.erase(profile_id);
+        }
+    }
+
+    /* per profile context access by profile_id */
+public:
+    int profile_flow_cnt(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
+
+    void set_stop_id(profile_id_t profile_id, uint32_t stop_id) {
+        get_profile_ctx(profile_id)->m_stop_id = stop_id;
+    }
+    int get_stop_id(profile_id_t profile_id) {
+        return get_profile_ctx(profile_id)->m_stop_id;
+    }
+
+    void activate_profile_ctx(profile_id_t profile_id) { get_profile_ctx(profile_id)->activate(); }
+    void deactivate_profile_ctx(profile_id_t profile_id) { get_profile_ctx(profile_id)->deactivate(); }
+
+    void set_profile_cb(profile_id_t profile_id, void *cb_data, on_stopped_cb_t cb) {
+        CPerProfileCtx *pctx = get_profile_ctx(profile_id);
+        pctx->m_on_stopped_cb = cb;
+        pctx->m_cb_data = cb_data;
+    }
+
+public:
+    CAstfFifRampup* get_sch_rampup(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_sch_rampup; }
+    void set_sch_rampup(CAstfFifRampup* t, profile_id_t profile_id) { get_profile_ctx(profile_id)->m_sch_rampup = t; }
+    double get_fif_d_time(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_fif_d_time; }
+    void set_fif_d_time(double t, profile_id_t profile_id) { get_profile_ctx(profile_id)->m_fif_d_time = t; }
+
+    CAstfDbRO* get_template_ro(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_template_ro; }
+    CAstfTemplatesRW* get_template_rw(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_template_rw; }
+    void set_template_ro(CAstfDbRO* t, profile_id_t profile_id=0) { get_profile_ctx(profile_id)->m_template_ro = t; }
+    void set_template_rw(CAstfTemplatesRW* t, profile_id_t profile_id) { get_profile_ctx(profile_id)->m_template_rw = t; }
+
+    struct tcpstat* get_tcpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
+    struct CUdpStats* get_udpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_udpstat; }
 };
 
 
@@ -981,19 +1133,33 @@ public:
      m_active_blocks=0;
  }
 
- int pre_tcp_reass(CTcpPerThreadCtx * ctx,
+ int pre_tcp_reass(CPerProfileCtx * pctx,
               struct tcpcb *tp, 
               struct tcpiphdr *ti, 
               struct rte_mbuf *m);
 
- int tcp_reass_no_data(CTcpPerThreadCtx * ctx,
+ int tcp_reass_no_data(CPerProfileCtx * pctx,
                          struct tcpcb *tp);
 
- int tcp_reass(CTcpPerThreadCtx * ctx,
+ int tcp_reass(CPerProfileCtx * pctx,
                           struct tcpcb *tp, 
                           struct tcpiphdr *ti, 
                           struct rte_mbuf *m);
 
+#ifdef  TREX_SIM
+ int pre_tcp_reass(CTcpPerThreadCtx * ctx,
+              struct tcpcb *tp,
+              struct tcpiphdr *ti,
+              struct rte_mbuf *m) { return pre_tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
+
+ int tcp_reass_no_data(CTcpPerThreadCtx * ctx,
+                         struct tcpcb *tp) { return tcp_reass_no_data(DEFAULT_PROFILE_CTX(ctx), tp); }
+
+ int tcp_reass(CTcpPerThreadCtx * ctx,
+                          struct tcpcb *tp,
+                          struct tcpiphdr *ti,
+                          struct rte_mbuf *m) { return tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
+#endif
 
  inline uint8_t   get_active_blocks(void){
      return (m_active_blocks);
@@ -1009,37 +1175,43 @@ private:
 };
 
 
-
-#define INC_STAT(ctx,p) {ctx->m_tcpstat.m_sts.p++; }
-#define INC_STAT_CNT(ctx,p,cnt) {ctx->m_tcpstat.m_sts.p += cnt; }
-
-
-void tcp_fasttimo(CTcpPerThreadCtx * ctx, struct tcpcb *tp);
-void tcp_slowtimo(CTcpPerThreadCtx * ctx, struct tcpcb *tp);
-
-int tcp_listen(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
-
-int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
-struct tcpcb * tcp_usrclosed(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
-struct tcpcb * tcp_disconnect(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
+#define INC_STAT(ctx, tg_id, p) {ctx->m_tcpstat.m_sts.p++; ctx->m_tcpstat.m_sts_tg_id[tg_id].p++; }
+#define INC_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_tcpstat.m_sts.p += cnt; ctx->m_tcpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 
+void tcp_fasttimo(CPerProfileCtx * pctx, struct tcpcb *tp);
+void tcp_slowtimo(CPerProfileCtx * pctx, struct tcpcb *tp);
 
-int  tcp_output(CTcpPerThreadCtx * ctx,struct tcpcb * tp);
-struct tcpcb *  tcp_close(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
-void  tcp_setpersist(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
-void  tcp_respond(CTcpPerThreadCtx * ctx,struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
-int  tcp_mss(CTcpPerThreadCtx * ctx,struct tcpcb *tp, u_int offer);
+int tcp_listen(CPerProfileCtx * pctx,struct tcpcb *tp);
 
-CTcpTuneables * tcp_get_parent_tunable(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
+int tcp_connect(CPerProfileCtx * pctx,struct tcpcb *tp);
+struct tcpcb * tcp_usrclosed(CPerProfileCtx * pctx,struct tcpcb *tp);
+struct tcpcb * tcp_disconnect(CPerProfileCtx * pctx,struct tcpcb *tp);
 
-int tcp_reass(CTcpPerThreadCtx * ctx,
-              struct tcpcb *tp, 
-              struct tcpiphdr *ti, 
+
+
+int  tcp_output(CPerProfileCtx * pctx,struct tcpcb * tp);
+struct tcpcb *  tcp_close(CPerProfileCtx * pctx,struct tcpcb *tp);
+void  tcp_setpersist(CPerProfileCtx * pctx,struct tcpcb *tp);
+void  tcp_respond(CPerProfileCtx * pctx,struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
+int  tcp_mss(CPerProfileCtx * pctx,struct tcpcb *tp, u_int offer);
+
+CTcpTuneables * tcp_get_parent_tunable(CPerProfileCtx * pctx,struct tcpcb *tp);
+
+int tcp_reass(CPerProfileCtx * pctx,
+              struct tcpcb *tp,
+              struct tcpiphdr *ti,
               struct rte_mbuf *m);
+#ifdef  TREX_SIM
+int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
+int tcp_reass(CTcpPerThreadCtx * ctx,
+              struct tcpcb *tp,
+              struct tcpiphdr *ti,
+              struct rte_mbuf *m);
+#endif
 
 
-int tcp_flow_input(CTcpPerThreadCtx * ctx,
+int tcp_flow_input(CPerProfileCtx * pctx,
                    struct tcpcb *tp, 
                    struct rte_mbuf *m,
                    TCPHeader *tcp,
@@ -1047,22 +1219,22 @@ int tcp_flow_input(CTcpPerThreadCtx * ctx,
                    int total_l7_len);
 
 
-void tcp_trace(CTcpPerThreadCtx * ctx,short act, short ostate, struct tcpcb * tp, struct tcpiphdr * ti, TCPHeader * tio, int req);
+void tcp_trace(CPerProfileCtx * pctx,short act, short ostate, struct tcpcb * tp, struct tcpiphdr * ti, TCPHeader * tio, int req);
 
 const char ** tcp_get_tcpstate();
 
 
 void tcp_quench(struct tcpcb *tp);
-void     tcp_xmit_timer(CTcpPerThreadCtx * ctx,struct tcpcb *, int16_t rtt);
+void     tcp_xmit_timer(CPerProfileCtx * pctx,struct tcpcb *, int16_t rtt);
 
 void tcp_canceltimers(struct tcpcb *tp);
 
-int tcp_build_cpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_cpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt);
 
-int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_dpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
@@ -1072,7 +1244,7 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
 
 
 
-struct tcpcb * tcp_drop_now(CTcpPerThreadCtx * ctx,
+struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
                             struct tcpcb *tp, 
                             int res);
 
@@ -1082,23 +1254,23 @@ inline bool tcp_reass_is_exists(struct tcpcb *tp){
     return (tp->m_tpc_reass != ((CTcpReass *)0));
 }
 
-inline void tcp_reass_alloc(CTcpPerThreadCtx * ctx,
+inline void tcp_reass_alloc(CPerProfileCtx * pctx,
                             struct tcpcb *tp){
-    INC_STAT(ctx,tcps_reasalloc);
+    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasalloc);
     tp->m_tpc_reass = new CTcpReass();
 }
 
-inline void tcp_reass_free(CTcpPerThreadCtx * ctx,
+inline void tcp_reass_free(CPerProfileCtx * pctx,
                             struct tcpcb *tp){
-    INC_STAT(ctx,tcps_reasfree);
+    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasfree);
     delete tp->m_tpc_reass;
     tp->m_tpc_reass=(CTcpReass *)0;
 }
 
-inline void tcp_reass_clean(CTcpPerThreadCtx * ctx,
+inline void tcp_reass_clean(CPerProfileCtx * pctx,
                             struct tcpcb *tp){
     if (tcp_reass_is_exists(tp) ){
-        tcp_reass_free(ctx,tp);
+        tcp_reass_free(pctx,tp);
     }
 }
 
@@ -1128,7 +1300,7 @@ public:
 
     /* add bytes to tx queue */
     virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
-        INC_STAT_CNT(flow->m_ctx,tcps_sndbyte,bytes);
+        INC_STAT_CNT(flow->m_pctx, flow->m_tg_id, tcps_sndbyte,bytes);
         flow->m_tcp.m_socket.so_snd.sbappend(bytes);
     }
 
@@ -1140,13 +1312,13 @@ public:
     }
 
 
-    virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,CTcpFlow *         flow){
-        tcp_output(ctx,&flow->m_tcp);
+    virtual void tx_tcp_output(CPerProfileCtx * pctx,CTcpFlow *         flow){
+        tcp_output(pctx,&flow->m_tcp);
     }
 
-    virtual void disconnect(CTcpPerThreadCtx * ctx,
+    virtual void disconnect(CPerProfileCtx * pctx,
                             CTcpFlow *         flow){
-        tcp_disconnect(ctx,&flow->m_tcp);
+        tcp_disconnect(pctx,&flow->m_tcp);
     }
 
 public:
@@ -1190,12 +1362,12 @@ public:
     }
 
 
-    virtual void tx_tcp_output(CTcpPerThreadCtx * ctx,CTcpFlow *         flow){
+    virtual void tx_tcp_output(CPerProfileCtx * pctx,CTcpFlow *         flow){
         assert(0);
     }
 
 public:
-    virtual void disconnect(CTcpPerThreadCtx * ctx,
+    virtual void disconnect(CPerProfileCtx * pctx,
                             CTcpFlow *         flow){
         CUdpFlow *         uflow=(CUdpFlow *)flow;
         uflow->disconnect();
@@ -1220,7 +1392,7 @@ public:
 
 inline void CTcpFlow::on_tick(){
         on_fast_tick();
-        if (m_tick==m_ctx->tcp_slow_fast_ratio) {
+        if (m_tick==m_pctx->m_ctx->tcp_slow_fast_ratio) {
             m_tick=0;
             on_slow_tick();
         }else{

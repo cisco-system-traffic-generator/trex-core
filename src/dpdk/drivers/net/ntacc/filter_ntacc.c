@@ -174,7 +174,9 @@ loop:
   if (pHash->port == internals->port) {
       LIST_REMOVE(pHash, next);
       snprintf(ntpl_buf, 20, "delete=%d", pHash->ntpl_id);
-      DoNtpl(ntpl_buf, NULL, internals);
+      NTACC_LOCK(&internals->configlock);
+      DoNtpl(ntpl_buf, NULL, internals, NULL);
+      NTACC_UNLOCK(&internals->configlock);
       PMD_NTACC_LOG(DEBUG, "Deleting Hash filter: %s\n", ntpl_buf);
       rte_free(pHash);
       goto loop;
@@ -182,20 +184,20 @@ loop:
   }
 }
 
-void DeleteHash(uint64_t rss_hf, uint8_t port, int priority, struct pmd_internals *internals) {
-  char ntpl_buf[21];
-  struct filter_hash_s *pHash;
-
-  LIST_FOREACH(pHash, &internals->filter_hash, next) {
-    if (pHash->rss_hf == rss_hf && pHash->port == port && pHash->priority == priority) {
-      LIST_REMOVE(pHash, next);
-      snprintf(ntpl_buf, 20, "delete=%d", pHash->ntpl_id);
-      DoNtpl(ntpl_buf, NULL, internals);
-      PMD_NTACC_LOG(DEBUG, "Deleting Hash filter: %s\n", ntpl_buf);
-      rte_free(pHash);
-    }
-  }
-}
+//void DeleteHash(uint64_t rss_hf, uint8_t port, int priority, struct pmd_internals *internals) {
+//  char ntpl_buf[21];
+//  struct filter_hash_s *pHash;
+//
+//  LIST_FOREACH(pHash, &internals->filter_hash, next) {
+//    if (pHash->rss_hf == rss_hf && pHash->port == port && pHash->priority == priority) {
+//      LIST_REMOVE(pHash, next);
+//      snprintf(ntpl_buf, 20, "delete=%d", pHash->ntpl_id);
+//      DoNtpl(ntpl_buf, NULL, internals);
+//      PMD_NTACC_LOG(DEBUG, "Deleting Hash filter: %s\n", ntpl_buf);
+//      rte_free(pHash);
+//    }
+//  }
+//}
 
 static void pushHash(uint32_t ntpl_id, uint64_t rss_hf, struct pmd_internals *internals, int priority)
 {
@@ -223,8 +225,8 @@ static int FindHash(uint64_t rss_hf, struct pmd_internals *internals, int priori
 }
 
 #define TMP_BSIZE 200
-#define PRINT_HASH(a,b) { if (PrintHash(a, priority, internals, rss_hf, b) != 0)  return -1; }
-static int PrintHash(const char *str, int priority, struct pmd_internals *internals, uint64_t rss_hf, uint8_t tuple)
+#define PRINT_HASH(a,b, c) { if (PrintHash(a, priority, internals, rss_hf, b, c) != 0)  return -1; }
+static int PrintHash(const char *str, int priority, struct pmd_internals *internals, uint64_t rss_hf, uint8_t tuple, const char *thash_config)
 {
   uint32_t ntplID;
   char tmpBuf[TMP_BSIZE + 1];
@@ -275,24 +277,32 @@ static int PrintHash(const char *str, int priority, struct pmd_internals *intern
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
-  snprintf(tmpBuf, TMP_BSIZE, str, priority, internals->port, internals->tagName, ptrTuple);
+  snprintf(tmpBuf, TMP_BSIZE, str, priority, internals->port, internals->tagName, thash_config, ptrTuple);
 #pragma GCC diagnostic pop
-  if (DoNtpl(tmpBuf, &ntplID, internals) != 0) {
+  NTACC_LOCK(&internals->configlock);
+  if (DoNtpl(tmpBuf, &ntplID, internals, NULL) != 0) {
+    NTACC_UNLOCK(&internals->configlock);
     return -1;
   }
-  rte_spinlock_lock(&internals->lock);
+  NTACC_UNLOCK(&internals->configlock);
+  NTACC_LOCK(&internals->lock);
   pushHash(ntplID, rss_hf, internals, priority);
-  rte_spinlock_unlock(&internals->lock);
+  NTACC_UNLOCK(&internals->lock);
   return 0;
 }
 
 /**
  * Create the hash filter from the DPDK hash function.
  */
-int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct rte_flow *flow, int priority)
+int CreateHashModeHash(struct rte_eth_rss_conf *rss_conf,
+                       struct pmd_internals *internals,
+                       struct rte_flow *flow,
+                       int priority)
 {
+  const uint64_t rss_hf = rss_conf->rss_hf;
+  
   if (rss_hf == 0) {
-    PMD_NTACC_LOG(ERR, "No HASH function is selected. Ignoring hash.\n");
+    PMD_NTACC_LOG(DEBUG, "No HASH function is selected. Ignoring hash.\n");
     return 0;
   }
 
@@ -306,72 +316,50 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
     return -1;
   }
 
-  flow->port = internals->port;
-  flow->rss_hf = rss_hf;
-  flow->priority = priority;
+  if (flow) {
+    flow->port = internals->port;
+    flow->rss_hf = rss_hf;
+    flow->priority = priority;
+  }
 
-  rte_spinlock_lock(&internals->lock);
+  NTACC_LOCK(&internals->lock);
   if (FindHash(rss_hf, internals, priority)) {
     // Hash is already programmed
-    rte_spinlock_unlock(&internals->lock);
+    NTACC_UNLOCK(&internals->lock);
     return 0;
   }
-  rte_spinlock_unlock(&internals->lock);
+  NTACC_UNLOCK(&internals->lock);
 
-  /*****************************/
-  /* Inner UDP hash mode setup */
-  /*****************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_UDP) || (rss_hf & ETH_RSS_INNER_IPV6_UDP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_UDP) && (rss_hf & ETH_RSS_INNER_IPV6_UDP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
+ #define THASH_CONFIG_LEN 120
+  char thash_config[THASH_CONFIG_LEN];
+  thash_config[0] = '\0';
+  if (internals->hash_func == RTE_ETH_HASH_FUNCTION_TOEPLITZ) {
+    if (!(internals->supported_hash_funcs & (1 << RTE_ETH_HASH_FUNCTION_TOEPLITZ))) {
+      PMD_NTACC_LOG(ERR, "Toeplitz hash not supported by this NIC\n");
+      return -1;
     }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=UDP;tag=%s]=%s", 0x15);
-    }
-  }
-  /*****************************/
-  /* Inner TCP hash mode setup */
-  /*****************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_TCP) || (rss_hf & ETH_RSS_INNER_IPV6_TCP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_TCP) && (rss_hf & ETH_RSS_INNER_IPV6_TCP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=TCP;tag=%s]=%s", 0x15);
+    int n = snprintf(thash_config, THASH_CONFIG_LEN, ";algorithm=toeplitz");
+    if (rss_conf->rss_key && rss_conf->rss_key_len) {
+      n += snprintf(&thash_config[n], THASH_CONFIG_LEN-n, ";key=0x");
+      uint8_t i;
+      for (i = 0; i < rss_conf->rss_key_len; i++) {
+        n += snprintf(&thash_config[n], THASH_CONFIG_LEN-n, "%02x", rss_conf->rss_key[i]);
+      }
     }
   }
-  /******************************/
-  /* Inner SCTP hash mode setup */
-  /******************************/
-  if ((rss_hf & ETH_RSS_INNER_IPV4_SCTP) || (rss_hf & ETH_RSS_INNER_IPV6_SCTP)) {
-    if ((rss_hf & ETH_RSS_INNER_IPV4_SCTP) && (rss_hf & ETH_RSS_INNER_IPV6_SCTP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;InnerLayer4Type=SCTP;tag=%s]=%s", 0x15);
-    }
-  }
+
   /*****************************/
   /* Outer UDP hash mode setup */
   /*****************************/
   if ((rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) || (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP)) {
     if ((rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) && (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=UDP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=UDP;tag=%s%s]=%s", 0x05, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=UDP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=UDP;tag=%s%s]=%s", 0x05, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=UDP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=UDP;tag=%s%s]=%s", 0x05, thash_config);
     }
   }
   /*****************************/
@@ -379,13 +367,13 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
   /*****************************/
   if ((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) || (rss_hf & ETH_RSS_NONFRAG_IPV6_TCP)) {
     if ((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) && (rss_hf & ETH_RSS_NONFRAG_IPV6_TCP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=TCP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=TCP;tag=%s%s]=%s", 0x05, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=TCP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=TCP;tag=%s%s]=%s", 0x05, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=TCP;tag=%s]=%s", 0x05);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=TCP;tag=%s%s]=%s", 0x05, thash_config);
     }
   }
   /******************************/
@@ -393,30 +381,13 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
   /******************************/
   if ((rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP) || (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP)) {
     if ((rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP) && (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=SCTP;tag=%s]=%s", 0x06);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;Layer4Type=SCTP;tag=%s%s]=%s", 0x06, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=SCTP;tag=%s]=%s", 0x06);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;Layer4Type=SCTP;tag=%s%s]=%s", 0x06, thash_config);
     }
     else if (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=SCTP;tag=%s]=%s", 0x06);
-    }
-  }
-  /****************************/
-  /* Inner IP hash mode setup */
-  /****************************/
-  if (((rss_hf & ETH_RSS_INNER_IPV4) || (rss_hf & ETH_RSS_INNER_IPV6)) || (rss_hf & ETH_RSS_INNER_IPV4_OTHER) || (rss_hf & ETH_RSS_INNER_IPV6_OTHER)) {
-    if (((rss_hf & ETH_RSS_INNER_IPV4) && (rss_hf & ETH_RSS_INNER_IPV6)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4_OTHER) && (rss_hf & ETH_RSS_INNER_IPV6)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4_OTHER) && (rss_hf & ETH_RSS_INNER_IPV6_OTHER)) ||
-        ((rss_hf & ETH_RSS_INNER_IPV4) && (rss_hf & ETH_RSS_INNER_IPV6_OTHER))) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IP;tag=%s]=%s", 0x12);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV4) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV4;tag=%s]=%s", 0x12);
-    }
-    else if (rss_hf & ETH_RSS_INNER_IPV6) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;InnerLayer3Type=IPV6;tag=%s]=%s", 0x12);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;Layer4Type=SCTP;tag=%s%s]=%s", 0x06, thash_config);
     }
   }
   /****************************/
@@ -427,21 +398,21 @@ int CreateHashModeHash(uint64_t rss_hf, struct pmd_internals *internals, struct 
         ((rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) && (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER)) ||
         ((rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) && (rss_hf & ETH_RSS_IPV6)) ||
         ((rss_hf & ETH_RSS_IPV6) && (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER))) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;tag=%s]=%s", 0x02);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IP;tag=%s%s]=%s", 0x06, thash_config);
     }
     else if ((rss_hf & ETH_RSS_IPV4) || (rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;tag=%s]=%s", 0x02);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV4;tag=%s%s]=%s", 0x06, thash_config);
     }
     else if ((rss_hf & ETH_RSS_IPV6)  || (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER)) {
-      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;tag=%s]=%s", 0x02);
+      PRINT_HASH("Hashmode[priority=%u;port=%u;Layer3Type=IPV6;tag=%s%s]=%s", 0x06, thash_config);
     }
   }
   return 0;
 }
 
-static const char *GetSorted(struct pmd_internals *internals)
+static const char *GetSorted(enum rte_eth_hash_function func)
 {
-  if (internals->symHashMode == SYM_HASH_ENA_PER_PORT) {
+  if (func == RTE_ETH_HASH_FUNCTION_SIMPLE_XOR) {
     return "XOR=true";
   }
   else {
@@ -449,106 +420,97 @@ static const char *GetSorted(struct pmd_internals *internals)
   }
 }
 
-int CreateHash(char *ntpl_buf, uint64_t rss_hf, struct pmd_internals *internals, bool tunnel)
+void CreateHash(char *ntpl_buf, const struct rte_flow_action_rss *rss, struct pmd_internals *internals)
 {
-  if (rss_hf & ETH_RSS_NONFRAG_IPV4_OTHER) {
+  enum rte_eth_hash_function func;
+  bool tunnel = false;
+
+  // Select either sorted or non-sorted hash
+  switch (rss->func)
+  {
+  case RTE_ETH_HASH_FUNCTION_DEFAULT:
+    if (internals->symHashMode == SYM_HASH_ENA_PER_PORT)
+      func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+    else
+      func = RTE_ETH_HASH_FUNCTION_DEFAULT;
+    break;
+  case RTE_ETH_HASH_FUNCTION_SIMPLE_XOR:
+    func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+    break;
+  default:
+    return;
+  }
+
+  // Select either inner tunnel or outer tunnel hash
+  switch (rss->level)
+  {
+  case 0:
+  case 1:
+    tunnel = false;
+    break;
+  case 2:
+    tunnel = true;
+    break;
+  }
+
+  if (rss->types & ETH_RSS_NONFRAG_IPV4_OTHER) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(PROTO, tunnel), GetSorted(func));
+    return;
   }
 
-  if ((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) || (rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP)) {
+  if ((rss->types & ETH_RSS_NONFRAG_IPV4_TCP) || (rss->types & ETH_RSS_NONFRAG_IPV4_UDP) || (rss->types & ETH_RSS_NONFRAG_IPV4_SCTP)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,HashWord8=%s[0]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(PROTO, tunnel), GetSorted(func));
+    return;
   }
 
-  if ((rss_hf & ETH_RSS_IPV4) || (rss_hf & ETH_RSS_FRAG_IPV4)) {
+  if ((rss->types & ETH_RSS_IPV4) || (rss->types & ETH_RSS_FRAG_IPV4)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[12]/32,HashWord4_7=%s[16]/32,%s",
-             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(func));
+    return;
   }
 
-  if (rss_hf & ETH_RSS_NONFRAG_IPV6_OTHER) {
+  if (rss->types & ETH_RSS_NONFRAG_IPV6_OTHER) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(PROTO, tunnel), GetSorted(func));
+    return;
   }
 
-  if ((rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) ||
-      (rss_hf & ETH_RSS_IPV6_TCP_EX)      ||
-      (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) ||
-      (rss_hf & ETH_RSS_IPV6_UDP_EX)      ||
-      (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP)) {
+  if ((rss->types & ETH_RSS_NONFRAG_IPV6_TCP) ||
+      (rss->types & ETH_RSS_IPV6_TCP_EX)      ||
+      (rss->types & ETH_RSS_NONFRAG_IPV6_UDP) ||
+      (rss->types & ETH_RSS_IPV6_UDP_EX)      ||
+      (rss->types & ETH_RSS_NONFRAG_IPV6_SCTP)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,HashWord8=%s[0]/32,HashWordP=%s,%s",
              GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetLayer(LAYER4, tunnel),
-             GetLayer(PROTO, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(PROTO, tunnel), GetSorted(func));
+    return;
   }
 
-  if ((rss_hf & ETH_RSS_IPV6) || (rss_hf & ETH_RSS_FRAG_IPV6) || (rss_hf & ETH_RSS_IPV6_EX)) {
+  if ((rss->types & ETH_RSS_IPV6) || (rss->types & ETH_RSS_FRAG_IPV6) || (rss->types & ETH_RSS_IPV6_EX)) {
     snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
              ";Hash=HashWord0_3=%s[8]/128,HashWord4_7=%s[24]/128,%s",
-             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(internals));
-    return 0;
+             GetLayer(LAYER3, tunnel), GetLayer(LAYER3, tunnel), GetSorted(func));
+    return;
   }
 
   snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, ";Hash=roundrobin");
-  return 0;
 }
 
-#if 0
 /**
  * Get a keyset value from the keyset pool.
  * Used by the keymatcher command
  */
-static int GetKeysetValue(struct pmd_internals *internals)
-{
-  int i;
-
-  if (internals->adapterNo >= 8) {
-    return -1;
-  }
-  pthread_mutex_lock(&internals->shm->mutex);
-  for (i = 0; i < 12; i++) {
-    printf(">>>>>>>>>>>>>>>>>> Get key set adapter: %u - Key %u=%u\n", internals->adapterNo, i, internals->shm->keyset[internals->adapterNo][i]);
-    if (internals->shm->keyset[internals->adapterNo][i] == 0) {
-      internals->shm->keyset[internals->adapterNo][i] = 1;
-      pthread_mutex_unlock(&internals->shm->mutex);
-      return (i + 3);
-    }
-  }
-  pthread_mutex_unlock(&internals->shm->mutex);
-  return -1;
-}
-
-/**
- * Return a keyset value to the keyset pool.
- */
-int ReturnKeysetValue(struct pmd_internals *internals, int value)
-{
-  if (internals->adapterNo >= 8 || value < 3 || value > 15) {
-    return -1;
-  }
-  pthread_mutex_lock(&internals->shm->mutex);
-  internals->shm->keyset[internals->adapterNo][value - 3] = 0;
-  pthread_mutex_unlock(&internals->shm->mutex);
-  return 0;
-}
-#else
-/**
- * Get a keyset value from the keyset pool.
- * Used by the keymatcher command
- */
-static int GetKeysetValue(struct pmd_internals *internals)
+int GetKeysetValue(struct pmd_internals *internals)
 {
   int i;
 
@@ -580,7 +542,6 @@ int ReturnKeysetValue(struct pmd_internals *internals, int value)
   pthread_mutex_unlock(&internals->shm->mutex);
   return 0;
 }
-#endif
 
 /**
  * Create the stream ID part of the NTPL assign command.
@@ -663,10 +624,12 @@ static int SetFilter(int size,
                      const void *specVal,
                      const void *maskVal,
                      const void *lastVal,
-                     struct pmd_internals *internals)
+                     struct pmd_internals *internals,
+                     struct rte_flow_error *error)
 {
   struct filter_values_s *pFilter_values = rte_zmalloc(internals->name, sizeof(struct filter_values_s), 0);
   if (!pFilter_values) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Failed to allocate memory while setting up filter");
     return -1;
   }
   memset(pFilter_values, 0, sizeof(struct filter_values_s));
@@ -739,13 +702,13 @@ static int SetFilter(int size,
     }
     break;
   }
-  rte_spinlock_lock(&internals->lock);
+  NTACC_LOCK(&internals->lock);
   InsertFilterValues(pFilter_values, internals);
-  rte_spinlock_unlock(&internals->lock);
+  NTACC_UNLOCK(&internals->lock);
   return 0;
 }
 
-void DeleteKeyset(int key, struct pmd_internals *internals) {
+void DeleteKeyset(int key, struct pmd_internals *internals, struct rte_flow_error *error) {
   char ntpl_buf[21];
   struct filter_keyset_s *key_set;
 
@@ -753,9 +716,13 @@ void DeleteKeyset(int key, struct pmd_internals *internals) {
     if (key_set->key == key) {
       LIST_REMOVE(key_set, next);
       snprintf(ntpl_buf, 20, "delete=%d", key_set->ntpl_id2);
-      DoNtpl(ntpl_buf, NULL, internals);
+      NTACC_LOCK(&internals->configlock);
+      DoNtpl(ntpl_buf, NULL, internals, error);
+      NTACC_UNLOCK(&internals->configlock);
       snprintf(ntpl_buf, 20, "delete=%d", key_set->ntpl_id1);
-      DoNtpl(ntpl_buf, NULL, internals);
+      NTACC_LOCK(&internals->configlock);
+      DoNtpl(ntpl_buf, NULL, internals, error);
+      NTACC_UNLOCK(&internals->configlock);
       rte_free(key_set);
       return;
     }
@@ -812,7 +779,7 @@ static int FindKeyset(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queue
   If no assign NTPL ID is found then it is the first
   command or optimization cannot be done.
  *******************************************************/
-static uint32_t FindAssignNtplID(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queues, struct pmd_internals *internals)
+static inline uint32_t FindAssignNtplID(uint64_t typeMask, uint8_t *plist_queues, uint8_t nb_queues, struct pmd_internals *internals)
 {
   struct rte_flow *pFlow;
   int match = 0;
@@ -858,6 +825,24 @@ static void DumpFlows(struct pmd_internals *internals)
 }
 #endif
 
+bool IsFilterReuse(struct pmd_internals *internals,
+                   uint64_t typeMask,
+                   uint8_t *plist_queues,
+                   uint8_t nb_queues,
+                   int *key)
+{
+  if (LIST_EMPTY(&internals->filter_keyset)) {
+    *key = 0;
+    return false;
+  }
+
+  *key = FindKeyset(typeMask, plist_queues, nb_queues, internals);
+  if (*key == 0)
+    return false;
+  else
+    return true;
+}
+
 int CreateOptimizedFilter(char *ntpl_buf,
                           struct pmd_internals *internals,
                           struct rte_flow *flow,
@@ -865,11 +850,11 @@ int CreateOptimizedFilter(char *ntpl_buf,
                           uint64_t typeMask,
                           uint8_t *plist_queues,
                           uint8_t nb_queues,
-                          bool *reuse,
-                          struct color_s *pColor)
+                          int key,
+                          struct color_s *pColor,
+                          struct rte_flow_error *error)
 {
   struct filter_values_s *pFilter_values;
-  int key;
   int iRet = 0;
   bool first = true;
   char *filter_buffer1 = NULL;
@@ -877,66 +862,64 @@ int CreateOptimizedFilter(char *ntpl_buf,
   char *filter_buffer3 = NULL;
   int i;
   uint32_t ntplID;
+  bool reuse = true;
 
 #ifdef DUMP_FLOWS
   DumpFlows(internals);
 #endif
 
-  rte_spinlock_lock(&internals->lock);
+  NTACC_LOCK(&internals->lock);
   if (LIST_EMPTY(&internals->filter_values)) {
-    rte_spinlock_unlock(&internals->lock);
+    NTACC_UNLOCK(&internals->lock);
     return 0;
   }
 
-  filter_buffer1 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
-  if (!filter_buffer1) {
-    iRet = -1;
-    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
-    goto Errors;
-  }
-
-  filter_buffer2 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
-  if (!filter_buffer2) {
-    iRet = -1;
-    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
-    goto Errors;
-  }
-
-  filter_buffer3 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
-  if (!filter_buffer3) {
-    iRet = -1;
-    PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
-    goto Errors;
-  }
-
   first = true;
-  if (LIST_EMPTY(&internals->filter_keyset) || ((key = FindKeyset(typeMask, plist_queues, nb_queues, internals)) == 0)) {
+  /*************************************************************/
+  /*          Make the keytype and keydef commands             */
+  /*************************************************************/
+  if (key == 0) {
     struct filter_keyset_s *key_set = rte_zmalloc(internals->name, sizeof(struct filter_keyset_s), 0);
     if (!key_set) {
       iRet = -1;
-      PMD_NTACC_LOG(ERR, "Allocating memory failed\n");
+      rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE, NULL, "Allocating memory failed");
       goto Errors;
     }
+
     key = GetKeysetValue(internals);
     if (key < 0) {
       rte_free(key_set);
       iRet = -1;
-      PMD_NTACC_LOG(ERR, "Internal error: Illegal key set value returned\n");
+      rte_flow_error_set(error, EINVAL, RTE_FLOW_ERROR_TYPE_HANDLE, NULL, "Internal error: Illegal key set value returned");
       goto Errors;
     }
 
     key_set->key = key;
     key_set->typeMask = typeMask;
 
+    filter_buffer2 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
+    if (!filter_buffer2) {
+      iRet = -1;
+      rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE, NULL, "Allocating memory failed");
+      goto Errors;
+    }
+
+    filter_buffer3 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
+    if (!filter_buffer3) {
+      iRet = -1;
+      rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE, NULL, "Allocating memory failed");
+      goto Errors;
+    }
+
     LIST_FOREACH(pFilter_values, &internals->filter_values, next) {
       if (first) {
-        if (pColor->valid) {
+        if (pColor->type == ONE_COLOR) {
           snprintf(filter_buffer3, NTPL_BSIZE,
                    "KeyType[name=KT%u;Access=partial;Bank=0;colorinfo=true;tag=%s]={", key, internals->tagName);
         }
         else {
           snprintf(filter_buffer3, NTPL_BSIZE,
-                  "KeyType[name=KT%u;Access=partial;Bank=0;tag=%s]={", key, internals->tagName);
+                   "KeyType[name=KT%u;Access=partial;Bank=0;tag=%s]={", key, internals->tagName);
         }
         snprintf(filter_buffer2, NTPL_BSIZE,
                  "KeyDef[name=KDEF%u;KeyType=KT%u;tag=%s]=(", key, key, internals->tagName);
@@ -968,14 +951,14 @@ int CreateOptimizedFilter(char *ntpl_buf,
     snprintf(&filter_buffer3[strlen(filter_buffer3)],  NTPL_BSIZE - strlen(filter_buffer3) - 1, "}");
     snprintf(&filter_buffer2[strlen(filter_buffer2)],  NTPL_BSIZE - strlen(filter_buffer2) - 1, ")");
 
-    if (DoNtpl(filter_buffer3, &ntplID, internals)) {
+    if (DoNtpl(filter_buffer3, &ntplID, internals, error)) {
       rte_free(key_set);
       iRet = -1;
       goto Errors;
     }
     key_set->ntpl_id1 = ntplID;
 
-    if (DoNtpl(filter_buffer2, &ntplID, internals)) {
+    if (DoNtpl(filter_buffer2, &ntplID, internals, error)) {
       rte_free(key_set);
       iRet = -1;
       goto Errors;
@@ -988,11 +971,10 @@ int CreateOptimizedFilter(char *ntpl_buf,
     key_set->nb_queues = nb_queues;
     key_set->port = internals->port;
     LIST_INSERT_HEAD(&internals->filter_keyset, key_set, next);
-    *reuse = false;
     flow->assign_ntpl_id = 0;
+    reuse = false;
   }
   else {
-    *reuse = true;
     flow->assign_ntpl_id = FindAssignNtplID(typeMask, plist_queues, nb_queues, internals);
   }
 
@@ -1004,9 +986,22 @@ int CreateOptimizedFilter(char *ntpl_buf,
   flow->key = key;
   flow->typeMask = typeMask;
   first = true;
-  LIST_FOREACH(pFilter_values, &internals->filter_values, next) {
+
+  /*************************************************************/
+  /*                Make the keylist command                   */
+  /*************************************************************/
+  filter_buffer1 = rte_malloc(internals->name, NTPL_BSIZE + 1, 0);
+  if (!filter_buffer1) {
+    iRet = -1;
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE, NULL, "Allocating memory failed");
+    goto Errors;
+  }
+
+  while (!LIST_EMPTY(&internals->filter_values)) {
+    pFilter_values = LIST_FIRST(&internals->filter_values);
+    LIST_REMOVE(pFilter_values, next);
     if (first) {
-      if (pColor->valid) {
+      if (pColor->type == ONE_COLOR) {
         snprintf(filter_buffer1, NTPL_BSIZE,
                  "KeyList[KeySet=%u;KeyType=KT%u;color=%u;tag=%s]=(", key, key, pColor->color, internals->tagName);
       }
@@ -1110,29 +1105,27 @@ int CreateOptimizedFilter(char *ntpl_buf,
   }
   snprintf(&filter_buffer1[strlen(filter_buffer1)], NTPL_BSIZE - strlen(filter_buffer1) - 1, ")");
 
-  // Cleanup filter values
-  while (!LIST_EMPTY(&internals->filter_values)) {
-    pFilter_values = LIST_FIRST(&internals->filter_values);
-    LIST_REMOVE(pFilter_values, next);
-    if (pFilter_values) {
-      rte_free(pFilter_values);
-    }
-  }
-
   // Set keylist filter
-  if (DoNtpl(filter_buffer1, &ntplID, internals)) {
+  if (DoNtpl(filter_buffer1, &ntplID, internals, error)) {
     iRet = -1;
     goto Errors;
   }
   pushNtplID(flow, ntplID);
 
-  if (*fc) strcat(ntpl_buf," and ");
-  *fc = true;
+  if (pFilter_values) {
+    rte_free(pFilter_values);
+  }
 
-  snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "Key(KDEF%u)==%u", key, key);
+  if (!(reuse)) {
+    if (*fc)
+      strcat(ntpl_buf, " and ");
+    *fc = true;
+
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "Key(KDEF%u)==%u", key, key);
+  }
 
 Errors:
-  rte_spinlock_unlock(&internals->lock);
+  NTACC_UNLOCK(&internals->lock);
 
   if (filter_buffer1) {
     rte_free(filter_buffer1);
@@ -1153,11 +1146,17 @@ Errors:
 int SetEthernetFilter(const struct rte_flow_item *item,
                       bool tnl,
                       uint64_t *typeMask,
-                      struct pmd_internals *internals)
+                      struct pmd_internals *internals,
+                      struct rte_flow_error *error)
 {
   const struct rte_flow_item_eth *spec = (const struct rte_flow_item_eth *)item->spec;
   const struct rte_flow_item_eth *mask = (const struct rte_flow_item_eth *)item->mask;
   const struct rte_flow_item_eth *last = (const struct rte_flow_item_eth *)item->last;
+
+  if ((spec || mask || last) && internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Ethernet filter not supported for this adapter");
+    return -1;
+  }
 
   bool singleSetup = true;
   if (spec && NON_ZERO6(spec->src.addr_bytes) && NON_ZERO6(spec->dst.addr_bytes)) {
@@ -1173,7 +1172,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       MAC_ADDRESS_SWAP(spec->src.addr_bytes,(&addr0[6]));
       MAC_ADDRESS_SWAP(mask->dst.addr_bytes,addr1);
       MAC_ADDRESS_SWAP(mask->src.addr_bytes,(&addr1[6]));
-      if (SetFilter(128, 0, 0, tnl, LAYER2, (const void *)addr0, (const void *)addr1, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 0, tnl, LAYER2, (const void *)addr0, (const void *)addr1, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= (ETHER_ADDR_DST | ETHER_ADDR_SRC);
@@ -1185,7 +1184,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       memset(addr, 0, 16 * sizeof(uint8_t));
       MAC_ADDRESS_SWAP(spec->dst.addr_bytes,addr);
       MAC_ADDRESS_SWAP(spec->src.addr_bytes,(&addr[6]));
-      if (SetFilter(128, 0, 0, tnl, LAYER2, (const void *)addr, NULL, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 0, tnl, LAYER2, (const void *)addr, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= (ETHER_ADDR_DST | ETHER_ADDR_SRC);
@@ -1204,7 +1203,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
         const uint64_t *tmp1 = (const uint64_t *)addr1;
         uint64_t vLast = ((*tmp1) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_SRC);
@@ -1219,7 +1218,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
         const uint64_t *tmp1 = (const uint64_t *)addr1;
         uint64_t vMask = ((*tmp1) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_SRC);
@@ -1230,7 +1229,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         MAC_ADDRESS_SWAP(spec->src.addr_bytes,addr);
         const uint64_t *tmp0 = (const uint64_t *)addr;
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 6, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_SRC);
@@ -1247,7 +1246,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
         const uint64_t *tmp1 = (const uint64_t *)addr1;
         uint64_t vLast = ((*tmp1) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_DST);
@@ -1262,7 +1261,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
         const uint64_t *tmp1 = (const uint64_t *)addr1;
         uint64_t vMask = ((*tmp1) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_DST);
@@ -1273,7 +1272,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
         MAC_ADDRESS_SWAP(spec->dst.addr_bytes,addr);
         const uint64_t *tmp0 = (const uint64_t *)addr;
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
-        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(64, 0xFFFFFFFFFFFF0000, 0, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= (ETHER_ADDR_DST);
@@ -1286,7 +1285,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       /* Setup type range filter */
       uint16_t vSpec = rte_bswap16(spec->type);
       uint16_t vLast = rte_bswap16(last->type);
-      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= (ETHER_TYPE);
@@ -1295,7 +1294,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       /* Setup type mask filter */
       uint16_t vSpec = rte_bswap16(spec->type);
       uint16_t vMask = rte_bswap16(mask->type);
-      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= (ETHER_TYPE);
@@ -1303,7 +1302,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
     else {
       /* Setup type simpel filter */
       uint16_t vSpec = rte_bswap16(spec->type);
-      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 12, tnl, LAYER2, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= (ETHER_TYPE);
@@ -1316,7 +1315,13 @@ int SetEthernetFilter(const struct rte_flow_item *item,
  * Setup an IPv4 filter.
  */
 
-int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetIPV4Filter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_ipv4 *spec = (const struct rte_flow_item_ipv4 *)item->spec;
   const struct rte_flow_item_ipv4 *mask = (const struct rte_flow_item_ipv4 *)item->mask;
@@ -1335,9 +1340,14 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only IPv4 flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec && (spec->hdr.version_ihl && spec->hdr.type_of_service)) {
     if (last && (last->hdr.version_ihl || spec->hdr.type_of_service)) {
-      PMD_NTACC_LOG(ERR, "Range is not supported for version_ihl and type_of_service\n");
+      rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM_LAST, NULL, "last not supported for version_ihl and type_of_service");
     }
 
     if (CHECK8(mask, hdr.version_ihl) || CHECK8(mask, hdr.type_of_service)) {
@@ -1345,7 +1355,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       uint16_t vMask;
       vSpec = ((spec->hdr.version_ihl << 8) & 0xFF00) | spec->hdr.type_of_service;
       vMask = ((mask->hdr.version_ihl << 8) & 0xFF00) | mask->hdr.type_of_service;
-      if (SetFilter(16, 0, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_VERSION_IHL | IPV4_TYPE_OF_SERVICE;
@@ -1353,7 +1363,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else {
       uint16_t vSpec;
       vSpec = ((spec->hdr.version_ihl << 8) & 0xFF00) | spec->hdr.type_of_service;
-      if (SetFilter(16, 0, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_VERSION_IHL | IPV4_TYPE_OF_SERVICE;
@@ -1366,7 +1376,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
         uint16_t vLast;
         vSpec = spec->hdr.type_of_service;
         vLast = last->hdr.type_of_service;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, NULL, (void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, NULL, (void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_TYPE_OF_SERVICE;
@@ -1375,7 +1385,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
         uint16_t vMask;
         vSpec = spec->hdr.type_of_service;
         vMask = mask->hdr.type_of_service;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_TYPE_OF_SERVICE;
@@ -1383,7 +1393,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else {
         uint16_t vSpec;
         vSpec = spec->hdr.type_of_service;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_TYPE_OF_SERVICE;
@@ -1392,7 +1402,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
     if (spec && spec->hdr.version_ihl) {
       if (last && last->hdr.version_ihl) {
-        PMD_NTACC_LOG(ERR, "Range is not supported for version_ihl\n");
+        rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM_MASK, NULL, "mask not supported for for version_ihl");
       }
 
       if (CHECK8(mask, hdr.version_ihl)) {
@@ -1400,7 +1410,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
         uint16_t vMask;
         vSpec = (spec->hdr.version_ihl << 8) & 0xFF00;
         vMask = (mask->hdr.version_ihl << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 0, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_VERSION_IHL;
@@ -1408,7 +1418,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else {
         uint16_t vSpec;
         vSpec = (spec->hdr.version_ihl << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 0, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_VERSION_IHL;
@@ -1420,7 +1430,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     if (last && last->hdr.total_length) {
       uint16_t vSpec = rte_bswap16(spec->hdr.total_length);
       uint16_t vLast = rte_bswap16(last->hdr.total_length);
-      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_TOTAL_LENGTH;
@@ -1428,14 +1438,14 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK16(mask, hdr.total_length)) {
       uint16_t vSpec = rte_bswap16(spec->hdr.total_length);
       uint16_t vMask = rte_bswap16(mask->hdr.total_length);
-      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_TOTAL_LENGTH;
     }
     else {
       uint16_t vSpec = rte_bswap16(spec->hdr.total_length);
-      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 2, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_TOTAL_LENGTH;
@@ -1446,7 +1456,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     if (last && last->hdr.packet_id) {
       uint16_t vSpec = rte_bswap16(spec->hdr.packet_id);
       uint16_t vLast = rte_bswap16(last->hdr.packet_id);
-      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_PACKET_ID;
@@ -1454,14 +1464,14 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK16(mask, hdr.packet_id)) {
       uint16_t vSpec = rte_bswap16(spec->hdr.packet_id);
       uint16_t vMask = rte_bswap16(mask->hdr.packet_id);
-      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_PACKET_ID;
     }
     else {
       uint16_t vSpec = rte_bswap16(spec->hdr.packet_id);
-      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_PACKET_ID;
@@ -1472,7 +1482,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     if (last && last->hdr.fragment_offset) {
       uint16_t vSpec = rte_bswap16(spec->hdr.fragment_offset);
       uint16_t vLast = rte_bswap16(last->hdr.fragment_offset);
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_FRAGMENT_OFFSET;
@@ -1480,14 +1490,14 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK16(mask, hdr.fragment_offset)) {
       uint16_t vSpec = rte_bswap16(spec->hdr.fragment_offset);
       uint16_t vMask = rte_bswap16(mask->hdr.fragment_offset);
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_FRAGMENT_OFFSET;
     }
     else {
       uint16_t vSpec = rte_bswap16(spec->hdr.fragment_offset);
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_FRAGMENT_OFFSET;
@@ -1496,7 +1506,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
   if (spec && (spec->hdr.time_to_live && spec->hdr.next_proto_id)) {
     if (last && (last->hdr.time_to_live || last->hdr.next_proto_id)) {
-      PMD_NTACC_LOG(ERR, "Range is not supported for time_to_live and next_proto_id\n");
+      rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM_MASK, NULL, "mask not supported for time_to_live and next_proto_id");
     }
 
     if (CHECK8(mask, hdr.time_to_live) || CHECK8(mask, hdr.next_proto_id)) {
@@ -1504,7 +1514,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       uint16_t vMask;
       vSpec = ((spec->hdr.time_to_live << 8) & 0xFF00) | spec->hdr.next_proto_id;
       vMask = ((mask->hdr.time_to_live << 8) & 0xFF00) | mask->hdr.next_proto_id;
-      if (SetFilter(16, 0, 8, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 8, tnl, LAYER3, (void *)&vSpec, (void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_TIME_TO_LIVE | IPV4_NEXT_PROTO_ID;
@@ -1512,7 +1522,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else {
       uint16_t vSpec;
       vSpec = ((spec->hdr.time_to_live << 8) & 0xFF00) | spec->hdr.next_proto_id;
-      if (SetFilter(16, 0, 8, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 8, tnl, LAYER3, (void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV4_TIME_TO_LIVE | IPV4_NEXT_PROTO_ID;
@@ -1526,7 +1536,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.time_to_live) {
         vSpec = spec->hdr.time_to_live << 8;
         vLast = last->hdr.time_to_live << 8;
-        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_TIME_TO_LIVE;
@@ -1534,13 +1544,13 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK8(mask, hdr.time_to_live)) {
         vSpec = spec->hdr.time_to_live << 8;
         vMask = mask->hdr.time_to_live << 8;
-        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
       }
       else {
         vSpec = spec->hdr.time_to_live << 8;
-        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
       }
@@ -1553,7 +1563,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.next_proto_id) {
         vSpec = spec->hdr.next_proto_id;
         vLast = last->hdr.next_proto_id;
-        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_NEXT_PROTO_ID;
@@ -1561,14 +1571,14 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK8(mask, hdr.next_proto_id)) {
         vSpec = spec->hdr.next_proto_id;
         vMask = mask->hdr.next_proto_id;
-        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_NEXT_PROTO_ID;
       }
       else {
         vSpec = spec->hdr.next_proto_id;
-        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0x00FF, 8, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_NEXT_PROTO_ID;
@@ -1585,7 +1595,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (mask->hdr.src_addr && mask->hdr.dst_addr) {
         uint64_t vSpec = (((uint64_t)rte_bswap32(spec->hdr.src_addr) << 32ULL) & 0xFFFFFFFF00000000ULL) | (uint64_t)rte_bswap32(spec->hdr.dst_addr);
         uint64_t vMask = (((uint64_t)rte_bswap32(mask->hdr.src_addr) << 32ULL) & 0xFFFFFFFF00000000ULL) | (uint64_t)rte_bswap32(mask->hdr.dst_addr);
-        if (SetFilter(64, 0, 12, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(64, 0, 12, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_SRC_ADDR | IPV4_DST_ADDR;
@@ -1596,9 +1606,10 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     }
     else {
       uint64_t vSpec = (((uint64_t)rte_bswap32(spec->hdr.src_addr) << 32ULL) & 0xFFFFFFFF00000000ULL) | (uint64_t)rte_bswap32(spec->hdr.dst_addr);
-      if (SetFilter(64, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(64, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
+      *typeMask |= IPV4_SRC_ADDR | IPV4_DST_ADDR;
       singleSetup = false;
       PRINT_IPV4("SRC", rte_bswap32(spec->hdr.src_addr));
       PRINT_IPV4("DST", rte_bswap32(spec->hdr.dst_addr));
@@ -1609,7 +1620,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.src_addr) {
         uint32_t vSpec = rte_bswap32(spec->hdr.src_addr);
         uint32_t vLast = rte_bswap32(last->hdr.src_addr);
-        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_SRC_ADDR;
@@ -1618,7 +1629,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK32(mask, hdr.src_addr)) {
         uint32_t vSpec = rte_bswap32(spec->hdr.src_addr);
         uint32_t vMask = rte_bswap32(mask->hdr.src_addr);
-        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_SRC_ADDR;
@@ -1626,7 +1637,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       }
       else {
         uint32_t vSpec = rte_bswap32(spec->hdr.src_addr);
-        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(32, 0, 12, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_SRC_ADDR;
@@ -1637,7 +1648,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.dst_addr) {
         uint32_t vSpec = rte_bswap32(spec->hdr.dst_addr);
         uint32_t vLast = rte_bswap32(last->hdr.dst_addr);
-        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_DST_ADDR;
@@ -1646,7 +1657,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK32(mask, hdr.dst_addr)) {
         uint32_t vSpec = rte_bswap32(spec->hdr.dst_addr);
         uint32_t vMask = rte_bswap32(mask->hdr.dst_addr);
-        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_DST_ADDR;
@@ -1654,7 +1665,7 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       }
       else {
         uint32_t vSpec = rte_bswap32(spec->hdr.dst_addr);
-        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(32, 0, 16, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV4_DST_ADDR;
@@ -1662,11 +1673,16 @@ int SetIPV4Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       }
     }
   }
-
   return 0;
 }
 
-int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetIPV6Filter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_ipv6 *spec = (const struct rte_flow_item_ipv6 *)item->spec;
   const struct rte_flow_item_ipv6 *mask = (const struct rte_flow_item_ipv6 *)item->mask;
@@ -1685,11 +1701,16 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only IPv6 flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec && (spec->hdr.vtc_flow)) {
     if (last && (last->hdr.vtc_flow)) {
       uint32_t vSpec = rte_bswap32(spec->hdr.vtc_flow);
       uint32_t vLast = rte_bswap32(last->hdr.vtc_flow);
-      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_VTC_FLOW;
@@ -1697,14 +1718,14 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK32(mask, hdr.vtc_flow)) {
       uint32_t vSpec = rte_bswap32(spec->hdr.vtc_flow);
       uint32_t vMask = rte_bswap32(mask->hdr.vtc_flow);
-      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_VTC_FLOW;
     }
     else {
       uint32_t vSpec = rte_bswap32(spec->hdr.vtc_flow);
-      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_VTC_FLOW;
@@ -1715,7 +1736,7 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     if (last && last->hdr.proto && last->hdr.hop_limits) {
       uint16_t vSpec = ((spec->hdr.proto << 8) & 0xFF00) + spec->hdr.hop_limits;
       uint16_t vLast = ((last->hdr.proto << 8) & 0xFF00) + last->hdr.hop_limits;
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_PROTO | IPV6_HOP_LIMITS;
@@ -1723,14 +1744,14 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK8(mask, hdr.proto) && CHECK8(mask, hdr.hop_limits)) {
       uint16_t vSpec = ((spec->hdr.proto << 8) & 0xFF00) + spec->hdr.hop_limits;
       uint16_t vMask = ((mask->hdr.proto << 8) & 0xFF00) + mask->hdr.hop_limits;
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_PROTO | IPV6_HOP_LIMITS;
     }
     else {
       uint16_t vSpec = ((spec->hdr.proto << 8) & 0xFF00) + spec->hdr.hop_limits;
-      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_PROTO | IPV6_HOP_LIMITS;
@@ -1741,7 +1762,7 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && (last->hdr.proto)) {
         uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
         uint16_t vLast = (last->hdr.proto << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_PROTO;
@@ -1749,14 +1770,14 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK8(mask, hdr.proto)) {
         uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
         uint16_t vMask = (mask->hdr.proto << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_PROTO;
       }
       else {
         uint16_t vSpec = (spec->hdr.proto << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_PROTO;
@@ -1767,7 +1788,7 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && (last->hdr.hop_limits)) {
         uint16_t vSpec = (spec->hdr.hop_limits);
         uint16_t vLast = (last->hdr.hop_limits);
-        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_HOP_LIMITS;
@@ -1775,14 +1796,14 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK8(mask, hdr.hop_limits)) {
         uint16_t vSpec = (spec->hdr.hop_limits);
         uint16_t vMask = (mask->hdr.hop_limits);
-        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_HOP_LIMITS;
       }
       else {
         uint16_t vSpec = (spec->hdr.hop_limits);
-        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 6, tnl, LAYER3, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= IPV6_HOP_LIMITS;
@@ -1792,19 +1813,19 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
   if (spec && NON_ZERO16(spec->hdr.src_addr)) {
     if (last && NON_ZERO16(last->hdr.src_addr)) {
-      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, NULL, (const void *)&last->hdr.src_addr, internals) != 0) {
+      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, NULL, (const void *)&last->hdr.src_addr, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_SRC_ADDR;
     }
     else if (mask && CHECKIPV6(mask->hdr.src_addr)) {
-      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, (const void *)&mask->hdr.src_addr, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, (const void *)&mask->hdr.src_addr, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_SRC_ADDR;
     }
     else {
-      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, NULL, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 8, tnl, LAYER3, (const void *)&spec->hdr.src_addr, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_SRC_ADDR;
@@ -1813,19 +1834,19 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
 
   if (spec && NON_ZERO16(spec->hdr.dst_addr)) {
     if (last && NON_ZERO16(last->hdr.dst_addr)) {
-      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, NULL, (const void *)&last->hdr.dst_addr, internals) != 0) {
+      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, NULL, (const void *)&last->hdr.dst_addr, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_DST_ADDR;
     }
     else if (mask && CHECKIPV6(mask->hdr.dst_addr)) {
-      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, (const void *)&mask->hdr.dst_addr, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, (const void *)&mask->hdr.dst_addr, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_DST_ADDR;
     }
     else {
-      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, NULL, NULL, internals) != 0) {
+      if (SetFilter(128, 0, 24, tnl, LAYER3, (const void *)&spec->hdr.dst_addr, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= IPV6_DST_ADDR;
@@ -1834,14 +1855,22 @@ int SetIPV6Filter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
   return 0;
 }
 
-int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetTCPFilter(char *ntpl_buf,
+                 bool *fc,
+                 const struct rte_flow_item *item,
+                 bool tnl,
+                 uint64_t *typeMask,
+                 struct pmd_internals *internals,
+                 struct rte_flow_error *error)
 {
   const struct rte_flow_item_tcp *spec = (const struct rte_flow_item_tcp *)item->spec;
   const struct rte_flow_item_tcp *mask = (const struct rte_flow_item_tcp *)item->mask;
   const struct rte_flow_item_tcp *last = (const struct rte_flow_item_tcp *)item->last;
   bool singleSetup = true;
 
-  if (*fc) strcat(ntpl_buf," and ");
+  if (*fc)
+    strcat(ntpl_buf, " and ");
+
   *fc = true;
   if (tnl) {
     strcat(&ntpl_buf[strlen(ntpl_buf)], "(InnerLayer4Protocol==TCP)");
@@ -1854,6 +1883,11 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only TCP flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec && spec->hdr.src_port && spec && spec->hdr.dst_port)  {
     if (last && (last->hdr.src_port || last->hdr.dst_port)) {
       singleSetup = true;
@@ -1861,7 +1895,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     else if (CHECK16(mask, hdr.src_port) || CHECK16(mask, hdr.dst_port)) {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
       uint32_t vMask = ((rte_bswap16(mask->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(mask->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= TCP_SRC_PORT | TCP_DST_PORT;
@@ -1869,19 +1903,20 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     }
     else {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= TCP_SRC_PORT | TCP_DST_PORT;
       singleSetup = false;
     }
+
   }
   if (singleSetup) {
     if (spec && spec->hdr.src_port) {
       if (last && last->hdr.src_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vLast = rte_bswap16(last->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_SRC_PORT;
@@ -1889,14 +1924,14 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK16(mask, hdr.src_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vMask = rte_bswap16(mask->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_SRC_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_SRC_PORT;
@@ -1906,7 +1941,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       if (last && last->hdr.dst_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vLast = rte_bswap16(last->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DST_PORT;
@@ -1914,14 +1949,14 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK16(mask, hdr.dst_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vMask = rte_bswap16(mask->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DST_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DST_PORT;
@@ -1931,14 +1966,14 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
 
   if (spec && spec->hdr.data_off && spec->hdr.tcp_flags) {
     if (last && (last->hdr.data_off || last->hdr.tcp_flags)) {
-      PMD_NTACC_LOG(ERR, "Range is not supported for data_off and tcp_flags\n");
+      rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM_LAST, NULL, "last not supported for data_off and tcp_flags");
       return -1;
     }
 
     if (CHECK8(mask, hdr.data_off) || CHECK8(mask, hdr.tcp_flags)) {
       uint16_t vSpec = ((spec->hdr.data_off << 8) & 0xFF00) | spec->hdr.tcp_flags;
       uint16_t vMask = ((mask->hdr.data_off << 8) & 0xFF00) | mask->hdr.tcp_flags;
-      if (SetFilter(16, 0, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= TCP_DATA_OFF | TCP_FLAGS;
@@ -1946,7 +1981,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     }
     else {
       uint16_t vSpec = ((spec->hdr.data_off << 8) & 0xFF00) | spec->hdr.tcp_flags;
-      if (SetFilter(16, 0, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= TCP_DATA_OFF | TCP_FLAGS;
@@ -1957,7 +1992,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       if (last && last->hdr.tcp_flags) {
         uint16_t vSpec = spec->hdr.tcp_flags;
         uint16_t vLast = last->hdr.tcp_flags;
-        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_FLAGS;
@@ -1965,14 +2000,14 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK8(mask, hdr.tcp_flags)) {
         uint16_t vSpec = spec->hdr.tcp_flags;
         uint16_t vMask = mask->hdr.tcp_flags;
-        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_FLAGS;
       }
       else {
         uint16_t vSpec = spec->hdr.tcp_flags;
-        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_FLAGS;
@@ -1982,7 +2017,7 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       if (last && last->hdr.data_off) {
         uint16_t vSpec = ((spec->hdr.data_off << 8) & 0xFF00);
         uint16_t vLast = ((last->hdr.data_off << 8) & 0xFF00);
-        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DATA_OFF;
@@ -1990,14 +2025,14 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK8(mask, hdr.data_off)) {
         uint16_t vSpec = ((spec->hdr.data_off << 8) & 0xFF00);
         uint16_t vMask = ((mask->hdr.data_off << 8) & 0xFF00);
-        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DATA_OFF;
       }
       else {
         uint16_t vSpec = (spec->hdr.data_off << 8) & 0xFF00;
-        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 12, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= TCP_DATA_OFF;
@@ -2007,14 +2042,21 @@ int SetTCPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
   return 0;
 }
 
-int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetUDPFilter(char *ntpl_buf,
+                 bool *fc,
+                 const struct rte_flow_item *item,
+                 bool tnl,
+                 uint64_t *typeMask,
+                 struct pmd_internals *internals,
+                 struct rte_flow_error *error)
 {
   const struct rte_flow_item_udp *spec = (const struct rte_flow_item_udp *)item->spec;
   const struct rte_flow_item_udp *mask = (const struct rte_flow_item_udp *)item->mask;
   const struct rte_flow_item_udp *last = (const struct rte_flow_item_udp *)item->last;
   bool singleSetup = true;
 
-  if (*fc) strcat(ntpl_buf," and ");
+  if (*fc)
+    strcat(ntpl_buf, " and ");
   *fc = true;
   if (tnl) {
     strcat(&ntpl_buf[strlen(ntpl_buf)], "(InnerLayer4Protocol==UDP)");
@@ -2027,6 +2069,11 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only UDP flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec && spec->hdr.src_port && spec->hdr.dst_port) {
     if (last && (last->hdr.src_port || last->hdr.dst_port)) {
       singleSetup = true;
@@ -2034,7 +2081,7 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     else if (CHECK16(mask, hdr.src_port) || CHECK16(mask, hdr.dst_port)) {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
       uint32_t vMask = ((rte_bswap16(mask->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(mask->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= UDP_SRC_PORT | UDP_DST_PORT;
@@ -2042,7 +2089,7 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
     }
     else {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= UDP_SRC_PORT | UDP_DST_PORT;
@@ -2054,7 +2101,7 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       if (last && last->hdr.src_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vLast = rte_bswap16(last->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_SRC_PORT;
@@ -2062,14 +2109,14 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK16(mask, hdr.src_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vMask = rte_bswap16(mask->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_SRC_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_SRC_PORT;
@@ -2079,7 +2126,7 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       if (last && last->hdr.dst_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vLast = rte_bswap16(last->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_DST_PORT;
@@ -2087,25 +2134,30 @@ int SetUDPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, boo
       else if (CHECK16(mask, hdr.dst_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vMask = rte_bswap16(mask->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_DST_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= UDP_DST_PORT;
       }
     }
   }
-
   return 0;
 }
 
-int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetSCTPFilter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_sctp *spec = (const struct rte_flow_item_sctp *)item->spec;
   const struct rte_flow_item_sctp *mask = (const struct rte_flow_item_sctp *)item->mask;
@@ -2125,6 +2177,11 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only SCTP flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec && spec->hdr.src_port && spec->hdr.dst_port) {
     if (last && (last->hdr.src_port || last->hdr.dst_port)) {
       singleSetup = true;
@@ -2132,7 +2189,7 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (CHECK16(mask, hdr.src_port) || CHECK16(mask, hdr.dst_port)) {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
       uint32_t vMask = ((rte_bswap16(mask->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(mask->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= SCTP_SRC_PORT | SCTP_DST_PORT;
@@ -2140,7 +2197,7 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     }
     else {
       uint32_t vSpec = ((rte_bswap16(spec->hdr.src_port) << 16) & 0xFFFF0000) | rte_bswap16(spec->hdr.dst_port);
-      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(32, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= SCTP_SRC_PORT | SCTP_DST_PORT;
@@ -2152,7 +2209,7 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.src_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vLast = rte_bswap16(last->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_SRC_PORT;
@@ -2160,14 +2217,14 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK16(mask, hdr.src_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
         uint16_t vMask = rte_bswap16(mask->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_SRC_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.src_port);
-        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_SRC_PORT;
@@ -2178,7 +2235,7 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.dst_port) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vLast = rte_bswap16(last->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_DST_PORT;
@@ -2186,34 +2243,35 @@ int SetSCTPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (CHECK16(mask, hdr.dst_port)) {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
         uint16_t vMask = rte_bswap16(mask->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_DST_PORT;
       }
       else {
         uint16_t vSpec = rte_bswap16(spec->hdr.dst_port);
-        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0, 2, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= SCTP_DST_PORT;
       }
     }
   }
-
   return 0;
 }
 
-int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetICMPFilter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_icmp *spec = (const struct rte_flow_item_icmp *)item->spec;
   const struct rte_flow_item_icmp *mask = (const struct rte_flow_item_icmp *)item->mask;
   const struct rte_flow_item_icmp *last = (const struct rte_flow_item_icmp *)item->last;
   bool singleSetup = true;
-
-  #ifndef USE_KEY_MATCH
-  (void)typeMask;
-  #endif
 
   if (*fc) strcat(ntpl_buf," and ");
   *fc = true;
@@ -2228,93 +2286,11 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
-#ifndef USE_KEY_MATCH
-  if (spec && spec->hdr.icmp_type && spec->hdr.icmp_code) {
-    if (last && (last->hdr.icmp_type || last->hdr.icmp_code)) {
-      singleSetup = true;
-    }
-    else if (mask && CHECK8(mask, hdr.icmp_type) && CHECK8(mask, hdr.icmp_code)) {
-      if (*fc) strcat(ntpl_buf," and ");
-      *fc = true;
-      snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=0;datatype=bytestr2]=={0x%02X%02X:0x%02X%02X}",
-                    mask->hdr.icmp_type,
-                    mask->hdr.icmp_code,
-                    spec->hdr.icmp_type,
-                    spec->hdr.icmp_code);
-      singleSetup = false;
-    }
-    else if (!mask || (mask && !CHECK8(mask, hdr.icmp_type) && !CHECK8(mask, hdr.icmp_code))) {
-      if (*fc) strcat(ntpl_buf," and ");
-      *fc = true;
-      snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=0;datatype=bytestr2]==0x%02X%02X",
-                    spec->hdr.icmp_type,
-                    spec->hdr.icmp_code);
-      singleSetup = false;
-    }
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only ICMP flow without values supported for this adapter");
+    return -1;
   }
 
-  if (singleSetup) {
-    if (spec && spec->hdr.icmp_type) {
-      if (*fc) strcat(ntpl_buf," and ");
-      *fc = true;
-
-      if (last && last->hdr.icmp_type) {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=0;datatype=bytestr1]==(0x%02x..0x%02X)",
-                      spec->hdr.icmp_type,
-                      last->hdr.icmp_type);
-      }
-      else if (mask && CHECK8(mask, hdr.icmp_type)) {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=0;datatype=bytestr1]=={0x%02x:0x%02X}",
-                      mask->hdr.icmp_type,
-                      spec->hdr.icmp_type);
-      }
-      else {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=0;datatype=bytestr1]==0x%02X",
-                      spec->hdr.icmp_type);
-      }
-    }
-
-    if (spec && spec->hdr.icmp_code) {
-      if (*fc) strcat(ntpl_buf," and ");
-      *fc = true;
-
-      if (last && last->hdr.icmp_code) {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=1;datatype=bytestr1]==(0x%02x..0x%02X)",
-                      spec->hdr.icmp_code,
-                      last->hdr.icmp_code);
-      }
-      else if (mask && CHECK8(mask, hdr.icmp_code)) {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=1;datatype=bytestr1]=={0x%02x:0x%02X}",
-                      mask->hdr.icmp_code,
-                      spec->hdr.icmp_code);
-      }
-      else {
-        snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=1;datatype=bytestr1]==0x%02X",
-                      spec->hdr.icmp_code);
-      }
-    }
-  }
-
-  if (spec && spec->hdr.icmp_ident) {
-    if (*fc) strcat(ntpl_buf," and ");
-    *fc = true;
-
-    if (last && last->hdr.icmp_ident) {
-      snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=4;datatype=bytestr2]==(0x%04x..0x%04X)",
-                    rte_bswap16(spec->hdr.icmp_ident),
-                    rte_bswap16(last->hdr.icmp_ident));
-    }
-    else if (mask && CHECK16(mask, hdr.icmp_ident)) {
-      snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=4;datatype=bytestr2]=={0x%04x:0x%04X}",
-                    rte_bswap16(mask->hdr.icmp_ident),
-                    rte_bswap16(spec->hdr.icmp_ident));
-    }
-    else {
-      snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "data[dynoffset=DynOffIcmpFrame;offset=4;datatype=bytestr2]==0x%04x",
-                    rte_bswap16(spec->hdr.icmp_ident));
-    }
-  }
-#else
   if (spec && spec->hdr.icmp_type && spec->hdr.icmp_code) {
     if (last && (last->hdr.icmp_type || last->hdr.icmp_code)) {
       singleSetup = true;
@@ -2322,7 +2298,7 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (mask && CHECK8(mask, hdr.icmp_type) && CHECK8(mask, hdr.icmp_code)) {
       uint16_t vSpec = ((spec->hdr.icmp_type << 8) & 0xFF00) | spec->hdr.icmp_code;
       uint16_t vMask = ((mask->hdr.icmp_type << 8) & 0xFF00) | mask->hdr.icmp_code;
-      if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= ICMP_TYPE | ICMP_CODE;
@@ -2330,7 +2306,7 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     }
     else if (!mask || (mask && !CHECK8(mask, hdr.icmp_type) && !CHECK8(mask, hdr.icmp_code))) {
       uint16_t vSpec = ((spec->hdr.icmp_type << 8) & 0xFF00) | spec->hdr.icmp_code;
-      if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= ICMP_TYPE | ICMP_CODE;
@@ -2343,7 +2319,7 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.icmp_type) {
         uint16_t vSpec = ((spec->hdr.icmp_type << 8) & 0xFF00);
         uint16_t vLast = ((last->hdr.icmp_type << 8) & 0xFF00);
-        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_TYPE;
@@ -2351,14 +2327,14 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (mask && CHECK8(mask, hdr.icmp_type)) {
         uint16_t vSpec = ((spec->hdr.icmp_type << 8) & 0xFF00);
         uint16_t vMask = ((mask->hdr.icmp_type << 8) & 0xFF00);
-        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_TYPE;
       }
       else {
         uint16_t vSpec = ((spec->hdr.icmp_type << 8) & 0xFF00);
-        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF00, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_TYPE;
@@ -2369,7 +2345,7 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       if (last && last->hdr.icmp_code) {
         uint16_t vSpec = spec->hdr.icmp_code;
         uint16_t vLast = last->hdr.icmp_code;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_CODE;
@@ -2377,14 +2353,14 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
       else if (mask && CHECK8(mask, hdr.icmp_code)) {
         uint16_t vSpec = spec->hdr.icmp_code;
         uint16_t vMask = mask->hdr.icmp_code;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_CODE;
       }
       else {
         uint16_t vSpec = spec->hdr.icmp_code;
-        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+        if (SetFilter(16, 0xFF, 0, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
           return -1;
         }
         *typeMask |= ICMP_CODE;
@@ -2396,7 +2372,7 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     if (last && last->hdr.icmp_ident) {
       uint16_t vSpec = rte_bswap16(spec->hdr.icmp_ident);
       uint16_t vLast = rte_bswap16(last->hdr.icmp_ident);
-      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= ICMP_IDENT;
@@ -2404,30 +2380,34 @@ int SetICMPFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (mask && CHECK16(mask, hdr.icmp_ident)) {
       uint16_t vSpec = rte_bswap16(spec->hdr.icmp_ident);
       uint16_t vMask = rte_bswap16(mask->hdr.icmp_ident);
-      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= ICMP_IDENT;
     }
     else {
       uint16_t vSpec = rte_bswap16(spec->hdr.icmp_ident);
-      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(16, 0, 4, tnl, LAYER4, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= ICMP_IDENT;
     }
   }
-#endif
 
   return 0;
 }
 
-int SetVlanFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetVlanFilter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_vlan *spec = (const struct rte_flow_item_vlan *)item->spec;
   const struct rte_flow_item_vlan *mask = (const struct rte_flow_item_vlan *)item->mask;
   const struct rte_flow_item_vlan *last = (const struct rte_flow_item_vlan *)item->last;
-  bool singleSetup = true;
 
   if (*fc) strcat(ntpl_buf," and ");
   *fc = true;
@@ -2442,85 +2422,46 @@ int SetVlanFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
-  if (spec && spec->tpid && spec->tci) {
-    if (last && (last->tpid || last->tci)) {
-      singleSetup = true;
-    }
-    else if (mask && CHECK16(mask, tpid) && CHECK16(mask, tci)) {
-      uint32_t vSpec = ((rte_bswap16(spec->tpid) << 16) & 0xFFFF0000) | rte_bswap16(spec->tci);
-      uint32_t vMask = ((rte_bswap16(mask->tpid) << 16) & 0xFFFF0000) | rte_bswap16(mask->tci);
-      if (SetFilter(32, 0, 0, tnl, VLAN, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
-        return -1;
-      }
-      *typeMask |= VLAN_TPID | VLAN_TCI;
-      singleSetup = false;
-    }
-    else if (!mask || (mask && !CHECK16(mask, tpid) && !CHECK16(mask, tci))) {
-      uint32_t vSpec = ((rte_bswap16(spec->tpid) << 16) & 0xFFFF0000) | rte_bswap16(spec->tci);
-      if (SetFilter(32, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-        return -1;
-      }
-      *typeMask |= VLAN_TPID | VLAN_TCI;
-      singleSetup = false;
-    }
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only VLAN flow without values supported for this adapter");
+    return -1;
   }
-  if (singleSetup) {
-    if (spec && spec->tpid) {
-      if (last && last->tpid) {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        uint16_t vLast = rte_bswap16(last->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
-      }
-      else if (mask && CHECK16(mask, tpid)) {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        uint16_t vMask = rte_bswap16(mask->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
-      }
-      else {
-        uint16_t vSpec = rte_bswap16(spec->tpid);
-        if (SetFilter(16, 0, 0, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TPID;
-      }
-    }
 
-    if (spec && spec->tci) {
-      if (last && last->tci) {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        uint16_t vLast = rte_bswap16(last->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
+  if (spec && spec->tci) {
+    if (last && last->tci) {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      uint16_t vLast = rte_bswap16(last->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, &vLast, internals, error) != 0) {
+        return -1;
       }
-      else if (mask && CHECK16(mask, tci)) {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        uint16_t vMask = rte_bswap16(mask->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
+      *typeMask |= VLAN_TCI;
+    }
+    else if (mask && CHECK16(mask, tci)) {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      uint16_t vMask = rte_bswap16(mask->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, &vMask, NULL, internals, error) != 0) {
+        return -1;
       }
-      else {
-        uint16_t vSpec = rte_bswap16(spec->tci);
-        if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals) != 0) {
-          return -1;
-        }
-        *typeMask |= VLAN_TCI;
+      *typeMask |= VLAN_TCI;
+    }
+    else {
+      uint16_t vSpec = rte_bswap16(spec->tci);
+      if (SetFilter(16, 0, 2, tnl, VLAN, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
+        return -1;
       }
+      *typeMask |= VLAN_TCI;
     }
   }
   return 0;
 }
 
-int SetMplsFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bool tnl, uint64_t *typeMask, struct pmd_internals *internals)
+int SetMplsFilter(char *ntpl_buf,
+                  bool *fc,
+                  const struct rte_flow_item *item,
+                  bool tnl,
+                  uint64_t *typeMask,
+                  struct pmd_internals *internals,
+                  struct rte_flow_error *error)
 {
   const struct rte_flow_item_mpls *spec = (const struct rte_flow_item_mpls *)item->spec;
   const struct rte_flow_item_mpls *mask = (const struct rte_flow_item_mpls *)item->mask;
@@ -2539,11 +2480,16 @@ int SetMplsFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     return 0;
   }
 
+  if (internals->keyMatcher == 0) {
+    rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL, "Only MPLS flow without values supported for this adapter");
+    return -1;
+  }
+
   if (spec) {
     if (last) {
       uint32_t vSpec = ((spec->label_tc_s[0] << 24) & 0xFF000000) | ((spec->label_tc_s[1] << 16) & 0xFF0000) | ((spec->label_tc_s[2] << 8) & 0xF000);
       uint32_t vLast = ((last->label_tc_s[0] << 24) & 0xFF000000) | ((last->label_tc_s[1] << 16) & 0xFF0000) | ((last->label_tc_s[2] << 8) & 0xF000);
-      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, NULL, (const void *)&vLast, internals) != 0) {
+      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, NULL, (const void *)&vLast, internals, error) != 0) {
         return -1;
       }
       *typeMask |= MPLS_LABEL;
@@ -2551,14 +2497,14 @@ int SetMplsFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, bo
     else if (mask) {
       uint32_t vSpec = ((spec->label_tc_s[0] << 24) & 0xFF000000) | ((spec->label_tc_s[1] << 16) & 0xFF0000) | ((spec->label_tc_s[2] << 8) & 0xF000);
       uint32_t vMask = ((mask->label_tc_s[0] << 24) & 0xFF000000) | ((mask->label_tc_s[1] << 16) & 0xFF0000) | ((mask->label_tc_s[2] << 8) & 0xF000);
-      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, (const void *)&vMask, NULL, internals) != 0) {
+      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, (const void *)&vMask, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= MPLS_LABEL;
     }
     else {
       uint32_t vSpec = ((spec->label_tc_s[0] << 24) & 0xFF000000) | ((spec->label_tc_s[1] << 16) & 0xFF0000) | ((spec->label_tc_s[2] << 8) & 0xF000);
-      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, NULL, NULL, internals) != 0) {
+      if (SetFilter(32, 0xFFFFF000, 0, tnl, MPLS, (const void *)&vSpec, NULL, NULL, internals, error) != 0) {
         return -1;
       }
       *typeMask |= MPLS_LABEL;
@@ -2608,8 +2554,7 @@ int SetTunnelFilter(char *ntpl_buf,
     *typeMask |= VXLAN_TUNNEL;
     break;
   case NVGRE_TUNNEL_TYPE:
-    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
-            "((TunnelType == GREv0 OR TunnelType == GREv1) AND InnerLayer2Protocol != other)");
+    snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,"(TunnelType == NVGRE)");
     *typeMask |= NVGRE_TUNNEL;
     break;
   case IP_IN_IP_TUNNEL_TYPE:
@@ -2620,7 +2565,10 @@ int SetTunnelFilter(char *ntpl_buf,
   return 0;
 }
 
-int SetGreFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uint64_t *typeMask)
+int SetGreFilter(char *ntpl_buf,
+                 bool *fc,
+                 const struct rte_flow_item *item,
+                 uint64_t *typeMask)
 {
   const struct rte_flow_item_gre *spec = (const struct rte_flow_item_gre *)item->spec;
   int type;
@@ -2642,7 +2590,11 @@ int SetGreFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uin
   return SetTunnelFilter(ntpl_buf, fc, type, typeMask);
 }
 
-int SetGtpFilter(char *ntpl_buf, bool *fc, const struct rte_flow_item *item, uint64_t *typeMask, int protocol)
+int SetGtpFilter(char *ntpl_buf,
+                 bool *fc,
+                 const struct rte_flow_item *item,
+                 uint64_t *typeMask,
+                 int protocol)
 {
   const struct rte_flow_item_gtp *spec = (const struct rte_flow_item_gtp *)item->spec;
   int type;

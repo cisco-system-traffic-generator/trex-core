@@ -27,6 +27,7 @@ limitations under the License.
 #include <zmq.h>
 #include <sstream>
 #include <iostream>
+#include <ctime>
 
 #include "trex_watchdog.h"
 
@@ -43,20 +44,49 @@ TrexRpcServerInterface::TrexRpcServerInterface(const TrexRpcServerConfig &cfg, c
     if (m_lock == NULL) {
         m_lock = &m_dummy_lock;
     }
+
+    std::string logfile_name = cfg.get_logfile_name();
+    if ( logfile_name.size() ) {
+        m_logfile.open(logfile_name);
+        if ( !m_logfile.is_open() ) {
+            printf("ERROR: Could not open rpc-log file.\n");
+            printf("Check path correctness and permissions: %s", logfile_name.c_str());
+            exit(1);
+        }
+    }
+
 }
 
 TrexRpcServerInterface::~TrexRpcServerInterface() {
     if (m_is_running) {
         stop();
     }
+
+    if ( m_logfile.is_open() ) {
+        m_logfile.close();
+    }
 }
 
 void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
-    if (!m_is_verbose) {
+    if ( !m_is_verbose && !m_logfile.is_open() ) {
         return;
     }
 
-    std::cout << "[verbose][" << m_name << "] " << msg << "\n";
+    auto t = std::time(nullptr);
+    auto tm = std::localtime(&t);
+    char time_buffer[80];
+    strftime (time_buffer, 80, "%d-%m-%Y %H:%M:%S", tm);
+
+    std::stringstream msg_ss;
+    msg_ss << "[" << time_buffer << "] [" << m_name << "] " << msg << "\n";
+
+    if ( m_is_verbose ) {
+        std::cout << msg_ss.str() << std::flush;
+    }
+    if ( m_logfile.is_open() ) {
+        m_logfile << msg_ss.str();
+        m_logfile.flush();
+    }
 }
 
 void TrexRpcServerInterface::verbose_json(const std::string &msg, const std::string &json_str) {

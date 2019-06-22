@@ -22,6 +22,7 @@
 #define __TREX_RX_CORE_H__
 #include <stdint.h>
 #include <map>
+#include <vector>
 
 #include "stateful_rx_core.h"
 #include "os_time.h"
@@ -29,85 +30,21 @@
 #include "trex_rx_port_mngr.h"
 #include "trex_capture.h"
 #include "trex_rx_tx.h"
+#include "trex_latency_counters.h"
 
 class TrexCpToRxMsgBase;
 
-typedef std::map<uint8_t, RXPortManager> rx_port_mngr_t;
-
-class CCPortLatencyStl {
- public:
-    void reset();
-
- public:
-    rx_per_flow_t m_rx_pg_stat[MAX_FLOW_STATS];
-    rx_per_flow_t m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-};
-
-class CRFC2544Info {
- public:
-    void create();
-    void stop();
-    void reset();
-    void export_data(rfc2544_info_t_ &obj);
-    inline void add_sample(double stime) {
-        m_latency.Add(stime);
-        m_jitter.calc(stime);
-    }
-    inline void sample_period_end() {
-        m_latency.update();
-    }
-    inline uint32_t get_seq() {return m_seq;}
-    inline void set_seq(uint32_t val) {m_seq = val;}
-    inline void inc_seq_err(uint64_t val) {m_seq_err += val;}
-    inline void dec_seq_err() {if (m_seq_err >0) {m_seq_err--;}}
-    inline void inc_seq_err_too_big() {m_seq_err_events_too_big++;}
-    inline void inc_seq_err_too_low() {m_seq_err_events_too_low++;}
-    inline void inc_dup() {m_dup++;}
-    inline void inc_ooo() {m_ooo++;}
-    inline uint16_t get_exp_flow_seq() {return m_exp_flow_seq;}
-    inline void set_exp_flow_seq(uint16_t flow_seq) {m_exp_flow_seq = flow_seq;}
-    inline uint16_t get_prev_flow_seq() {return m_prev_flow_seq;}
-    inline bool no_flow_seq() {return (m_exp_flow_seq == FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ) ? true : false;}
- private:
-    uint32_t m_seq; // expected next seq num
-    CTimeHistogram  m_latency; // latency info
-    CJitter         m_jitter;
-    uint64_t m_seq_err; // How many packet seq num gaps we saw (packets lost or out of order)
-    uint64_t m_seq_err_events_too_big; // How many packet seq num greater than expected events we had
-    uint64_t m_seq_err_events_too_low; // How many packet seq num lower than expected events we had
-    uint64_t m_ooo; // Packets we got with seq num lower than expected (We guess they are out of order)
-    uint64_t m_dup; // Packets we got with same seq num
-    uint16_t m_exp_flow_seq; // flow sequence number we should see in latency header
-    // flow sequence number previously used with this id. We use this to catch packets arriving late from an old flow
-    uint16_t m_prev_flow_seq;
-};
-
-class CRxCoreErrCntrs {
-    friend CRxCore;
-
- public:
-    uint64_t get_bad_header() {return m_bad_header;}
-    uint64_t get_old_flow() {return m_old_flow;}
-    CRxCoreErrCntrs() {
-        reset();
-    }
-    void reset() {
-        m_bad_header = 0;
-        m_old_flow = 0;
-    }
-
- public:
-    uint64_t m_bad_header;
-    uint64_t m_old_flow;
-};
+typedef std::map<uint8_t, RXPortManager*> rx_port_mg_map_t;
+typedef std::vector<RXPortManager*> rx_port_mg_vec_t;
 
 /**
  * RX core
  * 
  */
 class CRxCore : public TrexRxCore {
-    
-    /**
+
+protected:
+        /**
      * core states 
      *  
      * STATE_COLD - will sleep until a packet arrives 
@@ -122,7 +59,9 @@ class CRxCore : public TrexRxCore {
         STATE_QUIT
     };
 
+
  public:
+
      
     CRxCore() {
         m_is_active = false;
@@ -145,13 +84,26 @@ class CRxCore : public TrexRxCore {
 
     
     const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id);
-    
+
+    bool tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id);
+    bool tx_pkt(const std::string &pkt, uint8_t tx_port_id);
+
     /**
      * start RX queueing of packets
      * 
      */
     void start_queue(uint8_t port_id, uint64_t size);
     void stop_queue(uint8_t port_id);
+
+    /**
+     * start proxifying of CAPWAP traffic between WLC and STF TRex
+     * 
+     */
+    bool start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
+    void stop_capwap_proxy(uint8_t port_id);
+
+    /* enable/disable astf fia */
+    void enable_astf_latency_fia(bool enable);
 
     /**
      * enable latency feature for RX packets
@@ -198,22 +150,29 @@ class CRxCore : public TrexRxCore {
         return m_is_active;
     }
 
- private:
+    virtual void handle_astf_latency_pkt(const rte_mbuf_t *m,
+                                         uint8_t port_id);
+
+ protected:
+    uint32_t handle_msg_packets(void);
+    uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing *r);
+
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
 
     bool periodic_check_for_cp_messages();
 
     void tickle();
 
+    virtual int _do_start(void);
     /* states */
     void hot_state_loop();
     void cold_state_loop();
     void init_work_stage();
-    bool work_tick();
-    
+    virtual bool work_tick();
+
     void recalculate_next_state();
     bool is_latency_active();
-    bool is_latency_or_capture_active();
+    bool should_be_hot();
 
     void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
     void handle_work_stage();
@@ -225,33 +184,34 @@ class CRxCore : public TrexRxCore {
     }
 
     void try_rx_queues();
-    
-  
-    
- private:
+
+
+ protected:
     TrexMonitor      m_monitor;
-    uint32_t         m_max_ports;
     uint32_t         m_tx_cores;
     bool             m_capture;
     state_e          m_state;
     CNodeRing       *m_ring_from_cp;
+    CMessagingManager * m_rx_dp;
     CCpuUtlDp        m_cpu_dp_u;
     CCpuUtlCp        m_cpu_cp_u;
 
     dsec_t           m_sync_time_sec;
+    dsec_t           m_sync_time_period;
     dsec_t           m_grat_arp_sec;
-    
+
     uint64_t         m_rx_pkts;
 
     CRxCoreErrCntrs  m_err_cntrs;
     CRFC2544Info     m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
 
-    rx_port_mngr_t   m_rx_port_mngr;
-    
+    rx_port_mg_map_t m_rx_port_mngr_map;
+    rx_port_mg_vec_t m_rx_port_mngr_vec;
+
     CPPSMeasure      m_rx_pps;
     
     TXQueue          m_tx_queue;
-    
+
     /* accessed from control core */
     volatile bool    m_is_active;
 };

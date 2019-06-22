@@ -39,11 +39,12 @@ TrexDpCore::TrexDpCore(uint32_t thread_id, CFlowGenListPerThread *core, state_e 
 
 
 void
-TrexDpCore::barrier(uint8_t port_id, int event_id) {
+TrexDpCore::barrier(uint8_t port_id, uint32_t profile_id, int event_id) {
 
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(m_core->m_thread_id);
     TrexDpToCpMsgBase *event_msg = new TrexDpPortEventMsg(m_core->m_thread_id,
                                                           port_id,
+                                                          profile_id,
                                                           event_id);
     ring->Enqueue((CGenNode *)event_msg);
 }
@@ -74,17 +75,36 @@ TrexDpCore::idle_state_loop() {
             continue;
         }
 
-        /* enter deep sleep only if enough time had passed */
-        if (counter < DEEP_SLEEP_LIMIT) {
-            delay(SHORT_DELAY_MS);
-            counter++;
-        } else {
-            delay(LONG_DELAY_MS);
+        bool had_rx = rx_for_idle();
+        if (had_rx) {
+            counter = 0;
+            continue;
         }
 
+        /* enter deep sleep only if enough time had passed */
+        bool hot = is_hot_state();
+        if (!hot) {
+            if (counter < DEEP_SLEEP_LIMIT) {
+                delay(SHORT_DELAY_MS);
+                counter++;
+            } else {
+                delay(LONG_DELAY_MS);
+            }
+        } else {
+            rte_pause_or_delay_lowend();
+        }
     }
 }
 
+bool
+TrexDpCore::rx_for_idle(void) {
+    return false;
+}
+
+bool
+TrexDpCore::is_hot_state() {
+    return false;
+}
 
 void
 TrexDpCore::start_once() {
@@ -107,12 +127,14 @@ TrexDpCore::start() {
         case STATE_IDLE:
             idle_state_loop();
             break;
-            
+
+        case STATE_STARTING:
         case STATE_TRANSMITTING:
         case STATE_PCAP_TX:
             start_scheduler();
             break;
-            
+
+        case STATE_STOPPING:
         case STATE_TERMINATE:
             return;
         }

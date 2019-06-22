@@ -9,6 +9,7 @@ Each direction has its own IP range
 
 import sys
 import argparse
+import stl_path
 from trex.stl.api import *
 from trex.stl.trex_stl_hltapi import *
 

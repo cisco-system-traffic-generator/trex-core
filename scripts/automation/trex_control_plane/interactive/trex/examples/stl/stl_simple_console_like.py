@@ -1,13 +1,13 @@
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 import time
 
 def simple ():
 
     # create client
-    #verbose_level = LoggerApi.VERBOSE_HIGH
-    c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+    #verbose_level = 'high'
+    c = STLClient(verbose_level = 'error')
     passed = True
     
     try:

@@ -177,7 +177,9 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
     fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
-    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu) \n",m_limit,(ulong)m_size_bytes,(ulong)m_seed,m_min_value,m_max_value);
+    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d, has_previous %d ",m_limit,(ulong)m_size_bytes,(ulong)m_seed, 
+                                    m_min_value,m_max_value, m_is_split_needed, m_has_previous);
+    fprintf(fd, "next_var: %s\n", m_next_var_name.c_str());
 }
 
 void StreamVmInstructionFlowRandLimit::sanity_check(uint32_t ins_id,StreamVm *lp){
@@ -289,7 +291,8 @@ void StreamVmInstructionFlowMan::Dump(FILE *fd){
         break;
     };
 
-    fprintf(fd," (%lu:%lu:%lu:%lu) \n",m_init_value,m_min_value,m_max_value,m_step);
+    fprintf(fd," (%lu:%lu:%lu:%lu:), is_split_needed:%d, has_previous:%d ",m_init_value,m_min_value,m_max_value,m_step,m_is_split_needed, m_has_previous);
+    fprintf(fd, "next_var: %s\n", m_next_var_name.c_str());
 }
 
 
@@ -601,6 +604,8 @@ void StreamVm::build_flow_var_table() {
                     m_pkt_len_data.m_expected_pkt_len = (var.m_ins.m_ins_flowv->m_min_value + var.m_ins.m_ins_flowv->m_max_value) / 2.0;
 
                 }
+                m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_max_value;
+                m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_min_value;
             }
             else {
                 for (int i = 0; i < (int)var.m_ins.m_ins_flowv->m_value_list.size(); i++) {
@@ -610,15 +615,64 @@ void StreamVm::build_flow_var_table() {
                         ss << "instruction id '" << ins_id << "' packet size in value_list " << var.m_ins.m_ins_flowv->m_value_list[i] << " is bigger than packet size " << m_pkt_size << " or smaller than 60";
                         err(ss.str());
                     }
+
+                    if ( 0 == i ) {
+                        m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                    }
+                    else {
+                        if (var.m_ins.m_ins_flowv->m_value_list[i] > m_pkt_len_data.m_max_pkt_len) {
+                            m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        }
+                        else if (var.m_ins.m_ins_flowv->m_value_list[i] < m_pkt_len_data.m_min_pkt_len) {
+                            m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_value_list[i];
+                        }
+                    }
                 }
 
                 /* expected packet size calculation */
                 m_pkt_len_data.m_expected_pkt_len = std::accumulate(var.m_ins.m_ins_flowv->m_value_list.begin(), var.m_ins.m_ins_flowv->m_value_list.end(), 0.0)/var.m_ins.m_ins_flowv->m_value_list.size();
             }
 
-            m_pkt_len_data.m_max_pkt_len = var.m_ins.m_ins_flowv->m_max_value;
-            m_pkt_len_data.m_min_pkt_len = var.m_ins.m_ins_flowv->m_min_value;
+        }
+    }
 
+    // third iteration - verifying that variables with next are ordered as they should
+    for ( int i = 0; i < m_inst_list.size(); i++) {
+        auto inst_type = m_inst_list[i]->get_instruction_type();
+        if (inst_type != StreamVmInstruction::itFLOW_MAN && inst_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
+            continue;
+        }
+        // if we got here then the instruction is a flow variable or flow rand limit
+        std::string next_var_name = "";
+        if (inst_type == StreamVmInstruction::itFLOW_MAN) {
+            StreamVmInstructionFlowMan* inst = dynamic_cast<StreamVmInstructionFlowMan*>(m_inst_list[i]);
+            next_var_name = inst->m_next_var_name;
+        } else if (inst_type == StreamVmInstruction::itFLOW_RAND_LIMIT) {
+            StreamVmInstructionFlowRandLimit* inst = dynamic_cast<StreamVmInstructionFlowRandLimit*>(m_inst_list[i]);
+            next_var_name = inst->m_next_var_name;
+        }
+        if(next_var_name == "") {
+            continue;
+        }
+        // if we got here then it is a flow var or flow rand limit with next
+        if (i == m_inst_list.size() - 1) {
+            err("Last instruction in the list of instructions has next_var");
+        } else {
+            auto next_inst_type = m_inst_list[i+1]->get_instruction_type();
+            if (next_inst_type != StreamVmInstruction::itFLOW_MAN && next_inst_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
+                err ("Next instruction isn't a variable or a repeatable random");
+            } else {
+                StreamVmInstructionVar* next_inst = dynamic_cast<StreamVmInstructionVar*>(m_inst_list[i+1]);
+                if (next_inst->get_var_name() != next_var_name) {
+                    err("Next instruction name does not match next_var");
+                } else {
+                    if (next_inst->need_split()) {
+                        err("A variable that is being pointed at by some other variable must run on a single core.");
+                    }
+                    next_inst->set_has_previous(true);
+                }
+            }
         }
     }
 }
@@ -655,9 +709,16 @@ void StreamVm::build_program(){
     int var_cnt=0;
     clean_max_field_cnt();
     uint32_t ins_id=0;
+    uint32_t skip=0;
 
-    for (auto inst : m_inst_list) {
+
+    for ( int i = m_inst_list.size() - 1; i>=0 ; i-- ){
+        auto inst = m_inst_list[i];
         StreamVmInstruction::instruction_type_t ins_type=inst->get_instruction_type();
+
+        if (ins_type != StreamVmInstruction::itFLOW_MAN && ins_type != StreamVmInstruction::itFLOW_RAND_LIMIT) {
+            skip = 0;
+        }
 
         if (ins_type == StreamVmInstruction::itFIX_HW_CS) {
             StreamVmInstructionFixHwChecksum *lpFix =(StreamVmInstructionFixHwChecksum *)inst;
@@ -815,6 +876,12 @@ void StreamVm::build_program(){
                 fv8.m_seed      = (uint32_t)lpMan->m_seed;
                 fv8.m_min_val = (uint8_t)lpMan->m_min_value;
                 fv8.m_max_val = (uint8_t)lpMan->m_max_value;
+                fv8.m_skip    = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv8);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv8,sizeof(fv8));
             }
 
@@ -826,7 +893,12 @@ void StreamVm::build_program(){
                 fv16.m_seed      = (uint32_t)lpMan->m_seed;
                 fv16.m_min_val   = (uint16_t)lpMan->m_min_value;
                 fv16.m_max_val   = (uint16_t)lpMan->m_max_value;
-
+                fv16.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv16);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv16,sizeof(fv16));
             }
 
@@ -838,7 +910,12 @@ void StreamVm::build_program(){
                 fv32.m_seed      = (uint32_t)lpMan->m_seed;
                 fv32.m_min_val   = (uint32_t)lpMan->m_min_value;
                 fv32.m_max_val   = (uint32_t)lpMan->m_max_value;
-
+                fv32.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv32);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv32,sizeof(fv32));
             }
 
@@ -850,6 +927,12 @@ void StreamVm::build_program(){
                 fv64.m_seed      = (uint32_t)lpMan->m_seed;
                 fv64.m_min_val   = lpMan->m_min_value;
                 fv64.m_max_val   = lpMan->m_max_value;
+                fv64.m_skip      = skip;
+                if ( lpMan->m_has_previous ){
+                    skip += sizeof(fv64);
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(&fv64,sizeof(fv64));
             }
         }
@@ -886,12 +969,17 @@ void StreamVm::build_program(){
                 fv8->m_min_val     = (uint8_t)lpMan->m_min_value;
                 fv8->m_max_val     = (uint8_t)lpMan->m_max_value;
                 fv8->m_step        = (uint8_t)lpMan->m_step;
+                fv8->m_skip        = skip;
                 fv8->m_list_size   = (uint16_t)lpMan->m_value_list.size();
                 fv8->m_list_index  = (uint16_t)lpMan->m_init_value;
                 for (int i = 0; i < (int)lpMan->m_value_list.size(); i++) {
                     fv8->m_val_list[i] = (uint8_t)lpMan->m_value_list[i];
                 }
-
+                if ( lpMan->m_has_previous ){
+                    skip += st_size;
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(fv8, st_size);
                 free(fv8);
             }
@@ -922,12 +1010,17 @@ void StreamVm::build_program(){
                 fv16->m_min_val     = (uint16_t)lpMan->m_min_value;
                 fv16->m_max_val     = (uint16_t)lpMan->m_max_value;
                 fv16->m_step        = (uint16_t)lpMan->m_step;
+                fv16->m_skip        = skip;
                 fv16->m_list_size   = (uint16_t)lpMan->m_value_list.size();
                 fv16->m_list_index  = (uint16_t)lpMan->m_init_value;
                 for (int i = 0; i < (int)lpMan->m_value_list.size(); i++) {
                     fv16->m_val_list[i] = (uint16_t)lpMan->m_value_list[i];
                 }
-
+                if ( lpMan->m_has_previous ){
+                    skip += st_size;
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(fv16, st_size);
                 free(fv16);
             }
@@ -959,12 +1052,17 @@ void StreamVm::build_program(){
                 fv32->m_min_val     = (uint32_t)lpMan->m_min_value;
                 fv32->m_max_val     = (uint32_t)lpMan->m_max_value;
                 fv32->m_step        = (uint32_t)lpMan->m_step;
+                fv32->m_skip        = skip;
                 fv32->m_list_size   = (uint16_t)lpMan->m_value_list.size();
                 fv32->m_list_index  = (uint16_t)lpMan->m_init_value;
                 for (int i = 0; i < (int)lpMan->m_value_list.size(); i++) {
                     fv32->m_val_list[i] = (uint32_t)lpMan->m_value_list[i];
                 }
-
+                if ( lpMan->m_has_previous ){
+                    skip += st_size;
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(fv32, st_size);
                 free(fv32);
             }
@@ -995,12 +1093,17 @@ void StreamVm::build_program(){
                 fv64->m_min_val     = (uint64_t)lpMan->m_min_value;
                 fv64->m_max_val     = (uint64_t)lpMan->m_max_value;
                 fv64->m_step        = (uint64_t)lpMan->m_step;
+                fv64->m_skip        = skip;
                 fv64->m_list_size   = (uint16_t)lpMan->m_value_list.size();
                 fv64->m_list_index  = (uint16_t)lpMan->m_init_value;
                 for (int i = 0; i < (int)lpMan->m_value_list.size(); i++) {
                     fv64->m_val_list[i] = (uint64_t)lpMan->m_value_list[i];
                 }
-
+                if ( lpMan->m_has_previous ){
+                    skip += st_size;
+                } else {
+                    skip = 0;
+                }
                 m_instructions.add_command(fv64, st_size);
                 free(fv64);
             }
@@ -1200,6 +1303,8 @@ void StreamVm::build_program(){
         ins_id++;
     }
 
+    m_instructions.build_instruction_list();
+
 
     if ( var_cnt ==0 ){
         std::stringstream ss;
@@ -1370,12 +1475,21 @@ void StreamDPVmInstructions::clear(){
 
 
 void StreamDPVmInstructions::add_command(void *buffer,uint16_t size){
-    int i;
     uint8_t *p= (uint8_t *)buffer;
-    /* push byte by byte */
-    for (i=0; i<size; i++) {
-        m_inst_list.push_back(*p);
+    std::vector<uint8_t> tmp;
+    // push buffer byte by byte in tmp
+    for ( int i=0; i<size; i++ ) {
+        tmp.push_back(*p);
         p++;
+    }
+    commands.push_back(tmp);
+}
+
+void StreamDPVmInstructions::build_instruction_list() {
+    for (int i = commands.size()-1; i >= 0; i--) {
+        for (int j = 0; j < commands[i].size(); j++) {
+            m_inst_list.push_back(commands[i][j]);
+        }
     }
 }
 
@@ -1751,22 +1865,22 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
 
     case StreamDPVmInstructions::ditRAND_LIMIT8:
         ua.lpv_rl8 =(StreamDPOpFlowRandLimit8 *)p;
-        ua.lpv_rl8->run(flow_var);
+        ua.lpv_rl8->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit8);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT16:
         ua.lpv_rl16 =(StreamDPOpFlowRandLimit16 *)p;
-        ua.lpv_rl16->run(flow_var);
+        ua.lpv_rl16->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit16);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT32:
         ua.lpv_rl32 =(StreamDPOpFlowRandLimit32 *)p;
-        ua.lpv_rl32->run(flow_var);
+        ua.lpv_rl32->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit32);
         break;
     case StreamDPVmInstructions::ditRAND_LIMIT64:
         ua.lpv_rl64 =(StreamDPOpFlowRandLimit64 *)p;
-        ua.lpv_rl64->run(flow_var);
+        ua.lpv_rl64->run(flow_var, &p);
         p+=sizeof(StreamDPOpFlowRandLimit64);
         break;
 

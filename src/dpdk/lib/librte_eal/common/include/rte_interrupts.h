@@ -1,40 +1,12 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef _RTE_INTERRUPTS_H_
 #define _RTE_INTERRUPTS_H_
 
 #include <rte_common.h>
+#include <rte_compat.h>
 
 /**
  * @file
@@ -52,6 +24,13 @@ struct rte_intr_handle;
 
 /** Function to be registered for the specific interrupt */
 typedef void (*rte_intr_callback_fn)(void *cb_arg);
+
+/**
+ * Function to call after a callback is unregistered.
+ * Can be used to close fd and free cb_arg.
+ */
+typedef void (*rte_intr_unregister_callback_fn)(struct rte_intr_handle *intr_handle,
+						void *cb_arg);
 
 #include "rte_eal_interrupts.h"
 
@@ -89,6 +68,30 @@ int rte_intr_callback_register(const struct rte_intr_handle *intr_handle,
  */
 int rte_intr_callback_unregister(const struct rte_intr_handle *intr_handle,
 				rte_intr_callback_fn cb, void *cb_arg);
+
+/**
+ * Unregister the callback according to the specified interrupt handle,
+ * after it's no longer active. Fail if source is not active.
+ *
+ * @param intr_handle
+ *  pointer to the interrupt handle.
+ * @param cb_fn
+ *  callback address.
+ * @param cb_arg
+ *  address of parameter for callback, (void *)-1 means to remove all
+ *  registered which has the same callback address.
+ * @param ucb_fn
+ *  callback to call before cb is unregistered (optional).
+ *  can be used to close fd and free cb_arg.
+ *
+ * @return
+ *  - On success, return the number of callback entities marked for remove.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_intr_callback_unregister_pending(const struct rte_intr_handle *intr_handle,
+				rte_intr_callback_fn cb_fn, void *cb_arg,
+				rte_intr_unregister_callback_fn ucb_fn);
 
 /**
  * It enables the interrupt for the specified handle.

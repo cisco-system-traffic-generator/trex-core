@@ -24,7 +24,7 @@ def minimal_stateful_test(server,csv_file,a_active_flows):
             nc=True
             )
 
-    result = trex_client.sample_to_run_finish()
+    result = trex_client.sample_until_finish()
 
 
     active_flows = result.get_value_list('trex-global.data.m_active_flows')

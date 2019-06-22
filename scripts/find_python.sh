@@ -37,13 +37,13 @@ function find_python3 {
     # try different Python3 paths
     PYTHONS="$@"
     for PYTHON in ${PYTHONS[*]}; do
-        $PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver != 34 and ver != 35)" &> /dev/null
+        $PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 33)" &> /dev/null
         if [ $? -eq 0 ]; then
             return
         fi
     done;
 
-    echo "*** Python3 version does not match, 3.4 or 3.5 is required"
+    echo "*** Python3 version is too old, 3.3 or later is required"
     exit -1
 }
 
@@ -59,13 +59,13 @@ case "$1" in
             [5-9])
                 (find_python2 ${PYTHONS2_LOCAL[*]}) &> /dev/null && find_python2 ${PYTHONS2_LOCAL[*]} && return
                 (find_python3 ${PYTHONS3_LOCAL[*]}) &> /dev/null && find_python3 ${PYTHONS3_LOCAL[*]} && return
-                echo "Python versions 2.7 or 3.4 or 3.5 required"
+                echo "Python versions 2.7 or 3.3 at least required"
                 exit -1
                 ;;
             *)
                 (find_python3 ${PYTHONS3_LOCAL[*]}) &> /dev/null && find_python3 ${PYTHONS3_LOCAL[*]} && return
                 (find_python2 ${PYTHONS2_LOCAL[*]}) &> /dev/null && find_python2 ${PYTHONS2_LOCAL[*]} && return
-                echo "Python versions 2.7 or 3.4 or 3.5 required"
+                echo "Python versions 2.7 or 3.3 at least required"
                 exit -1
                 ;;
         esac
@@ -86,7 +86,7 @@ case "$1" in
                 *) # default is find any
                     (find_python2 ${PYTHONS2[*]}) &> /dev/null && find_python2 ${PYTHONS2[*]} && return
                     (find_python3 ${PYTHONS3[*]}) &> /dev/null && find_python3 ${PYTHONS3[*]} && return
-                    echo "Python versions 2.7 or 3.4 or 3.5 required"
+                    echo "Python versions 2.7 or 3.3 at least required"
                     exit -1
                     ;;
             esac

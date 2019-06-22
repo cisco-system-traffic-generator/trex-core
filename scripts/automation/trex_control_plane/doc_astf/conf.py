@@ -35,7 +35,7 @@ functools.wraps = no_op_wraps
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../astf'))
+sys.path.insert(0, os.path.abspath('../interactive'))
 ## add all external libs path manually
 external_libs_path = os.path.join(os.pardir, os.pardir, os.pardir, "external_libs")
 external_libs_pkgs = [os.path.join(external_libs_path, p) 

@@ -58,6 +58,14 @@ class CTimeHistogramPerPeriodData {
     inline uint64_t get_high_cnt() {return m_cnt_high;}
     inline dsec_t get_max() {return m_max;}
     inline dsec_t get_max_usec() {return m_max * 1000000;}
+    inline CTimeHistogramPerPeriodData operator+= (const CTimeHistogramPerPeriodData& in) {
+        this->m_sum += in.m_sum;
+        this->m_cnt += in.m_cnt;
+        this->m_cnt_high += in.m_cnt_high; // assuming they have the same threshold.
+        this->m_max = std::max(this->m_max, in.m_max);
+        return *this;
+    }
+
 
  private:
     uint64_t m_sum; // Sum of samples
@@ -77,6 +85,9 @@ public:
     void Delete();
     void Reset();
     bool Add(dsec_t dt);
+    void set_hot_max_cnt(uint32_t hot){
+        m_hot_max =hot;
+    }
     void Dump(FILE *fd);
     void DumpWinMax(FILE *fd);
     /* should be called once each sampling period */
@@ -94,6 +105,8 @@ public:
     void dump_json(Json::Value & json, bool add_histogram = true);
     uint64_t get_count() {return m_total_cnt;}
     uint64_t get_high_count() {return m_total_cnt_high;}
+    CTimeHistogram operator+= (const CTimeHistogram& in);
+    friend std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
 private:
     uint32_t get_usec(dsec_t d);
@@ -111,16 +124,20 @@ private:
     // One element collects data for current period, other is saved for sending report.
     // Each period we switch between the two
     CTimeHistogramPerPeriodData m_period_data[2];
-    uint8_t m_period; // 0 or 1 according to m_period_data element we currently use
+    uint64_t m_short_latency;
+    uint8_t  m_period; // 0 or 1 according to m_period_data element we currently use
     uint64_t m_total_cnt;
     uint64_t m_total_cnt_high;
     dsec_t   m_max_dt;  // Total maximum latency
     dsec_t   m_average; /* moving average */
     uint32_t m_win_cnt;
+    uint32_t m_hot_max;
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
     uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE] __rte_cache_aligned ;
     // Hdr histogram instance
     hdr_histogram *m_hdrh;
 };
+
+std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
 #endif

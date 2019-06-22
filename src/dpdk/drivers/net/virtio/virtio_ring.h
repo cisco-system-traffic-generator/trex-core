@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef _VIRTIO_RING_H_
@@ -44,6 +15,15 @@
 #define VRING_DESC_F_WRITE      2
 /* This means the buffer contains a list of buffer descriptors. */
 #define VRING_DESC_F_INDIRECT   4
+
+/* This flag means the descriptor was made available by the driver */
+#define VRING_PACKED_DESC_F_AVAIL	(1 << 7)
+/* This flag means the descriptor was used by the device */
+#define VRING_PACKED_DESC_F_USED	(1 << 15)
+
+/* Frequently used combinations */
+#define VRING_PACKED_DESC_F_AVAIL_USED	(VRING_PACKED_DESC_F_AVAIL | \
+					 VRING_PACKED_DESC_F_USED)
 
 /* The Host uses this in used->flags to advise the Guest: don't kick me
  * when you add a buffer.  It's unreliable, so it's simply an
@@ -81,6 +61,31 @@ struct vring_used {
 	uint16_t flags;
 	volatile uint16_t idx;
 	struct vring_used_elem ring[0];
+};
+
+/* For support of packed virtqueues in Virtio 1.1 the format of descriptors
+ * looks like this.
+ */
+struct vring_packed_desc {
+	uint64_t addr;
+	uint32_t len;
+	uint16_t id;
+	uint16_t flags;
+};
+
+#define RING_EVENT_FLAGS_ENABLE 0x0
+#define RING_EVENT_FLAGS_DISABLE 0x1
+#define RING_EVENT_FLAGS_DESC 0x2
+struct vring_packed_desc_event {
+	uint16_t desc_event_off_wrap;
+	uint16_t desc_event_flags;
+};
+
+struct vring_packed {
+	unsigned int num;
+	struct vring_packed_desc *desc;
+	struct vring_packed_desc_event *driver;
+	struct vring_packed_desc_event *device;
 };
 
 struct vring {
@@ -124,9 +129,17 @@ struct vring {
 #define vring_avail_event(vr) (*(uint16_t *)&(vr)->used->ring[(vr)->num])
 
 static inline size_t
-vring_size(unsigned int num, unsigned long align)
+vring_size(struct virtio_hw *hw, unsigned int num, unsigned long align)
 {
 	size_t size;
+
+	if (vtpci_packed_queue(hw)) {
+		size = num * sizeof(struct vring_packed_desc);
+		size += sizeof(struct vring_packed_desc_event);
+		size = RTE_ALIGN_CEIL(size, align);
+		size += sizeof(struct vring_packed_desc_event);
+		return size;
+	}
 
 	size = num * sizeof(struct vring_desc);
 	size += sizeof(struct vring_avail) + (num * sizeof(uint16_t));
@@ -135,10 +148,9 @@ vring_size(unsigned int num, unsigned long align)
 		(num * sizeof(struct vring_used_elem));
 	return size;
 }
-
 static inline void
-vring_init(struct vring *vr, unsigned int num, uint8_t *p,
-	unsigned long align)
+vring_init_split(struct vring *vr, uint8_t *p, unsigned long align,
+	 unsigned int num)
 {
 	vr->num = num;
 	vr->desc = (struct vring_desc *) p;
@@ -146,6 +158,19 @@ vring_init(struct vring *vr, unsigned int num, uint8_t *p,
 		num * sizeof(struct vring_desc));
 	vr->used = (void *)
 		RTE_ALIGN_CEIL((uintptr_t)(&vr->avail->ring[num]), align);
+}
+
+static inline void
+vring_init_packed(struct vring_packed *vr, uint8_t *p, unsigned long align,
+		 unsigned int num)
+{
+	vr->num = num;
+	vr->desc = (struct vring_packed_desc *)p;
+	vr->driver = (struct vring_packed_desc_event *)(p +
+			vr->num * sizeof(struct vring_packed_desc));
+	vr->device = (struct vring_packed_desc_event *)
+		RTE_ALIGN_CEIL(((uintptr_t)vr->driver +
+				sizeof(struct vring_packed_desc_event)), align);
 }
 
 /*

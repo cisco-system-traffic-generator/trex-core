@@ -7,9 +7,11 @@ import inspect
 import sys
 import time
 import base64
+import random
+import struct
 from collections import OrderedDict, defaultdict
 
-from ..utils.common import get_current_user, list_remove_dup, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_difference, list_intersect, PassiveTimer
+from ..utils.common import *
 from ..utils import parsing_opts, text_tables
 from ..utils.text_opts import format_text, format_num
 from ..utils.text_tables import TRexTextTable
@@ -17,8 +19,10 @@ from ..utils.text_tables import TRexTextTable
 from .trex_events import Event
 from .trex_ctx import TRexCtx
 from .trex_conn import Connection
+from .trex_ns import NSCmds,NSCmd,NSCmdResult
 from .trex_logger import ScreenLogger
 from .trex_types import *
+from .trex_types import PortProfileID
 from .trex_exceptions import *
 from .trex_psv import *
 from .trex_vlan import VLAN
@@ -32,10 +36,14 @@ from .services.trex_service_int import ServiceCtx
 from .services.trex_service_icmp import ServiceICMP
 from .services.trex_service_arp import ServiceARP
 from .services.trex_service_ipv6 import ServiceICMPv6, ServiceIPv6Scan
+from .stats.trex_ns import CNsStats
+
 
 
 from scapy.layers.l2 import Ether, Packet
+from scapy.layers.inet import IP, UDP
 from scapy.utils import RawPcapWriter
+import pprint
 
 
 # imarom: move me to someplace apropriate
@@ -109,6 +117,9 @@ class TRexClient(object):
         # port state checker
         self.psv = PortStateValidator(self)
 
+        # server version check for dynamic port addition
+        self.is_dynamic = False
+
 
     def get_mode (self):
         """
@@ -157,6 +168,8 @@ class TRexClient(object):
 
         self.ctx.event_handler.register_event_handler("port error",    self._on_port_error)
         self.ctx.event_handler.register_event_handler("port attr chg", self._on_port_attr_chg)
+
+        self.ctx.event_handler.register_event_handler("astf state changed", self._on_astf_state_chg)
 
         self.ctx.event_handler.register_event_handler("global stats update", lambda *args, **kwargs: None)
 
@@ -255,7 +268,8 @@ class TRexClient(object):
             self.ports[port_id].async_event_port_job_done()
 
         ev = Event('server', 'info', msg)
-        self.ctx.logger.info(ev)
+        if port_id in self.get_acquired_ports():
+            self.ctx.logger.info(ev)
 
         return ev
 
@@ -320,12 +334,13 @@ class TRexClient(object):
 
 
     def _on_port_attr_chg (self, port_id, attr):
-        if not port_id in self.ports:
+        if port_id not in self.ports:
             return
 
         diff = self.ports[port_id].async_event_port_attr_changed(attr)
+        if not diff:
+            return
 
-            
         msg = "port {0} attributes changed".format(port_id)
         for key, (old_val, new_val) in diff.items():
             msg += '\n  {key}: {old} -> {new}'.format(
@@ -336,6 +351,10 @@ class TRexClient(object):
         return Event('server', 'info', msg)
 
 
+    def _on_astf_state_chg(self, ctx_state, error, epoch):
+        raise NotImplementedError()
+
+
 ############################     private     #############################
 ############################     functions   #############################
 ############################                 #############################
@@ -344,9 +363,8 @@ class TRexClient(object):
     def _transmit(self, method_name, params = None):
         return self.conn.rpc.transmit(method_name, params)
 
-
     # execute 'method' for a port list
-    def _for_each_port (self, method, port_id_list = None, *args, **kwargs):
+    def _for_each_port (self, method, port_list = None, *args, **kwargs):
 
         # specific port params
         pargs = {}
@@ -357,14 +375,21 @@ class TRexClient(object):
 
 
         # handle single port case
-        port_id_list = listify_if_int(port_id_list)
+        if port_list is not None:
+            port_list = listify(port_list)
 
         # none means all
-        port_id_list = port_id_list if port_id_list is not None else self.get_all_ports()
+        port_list = port_list if port_list is not None else self.get_all_ports()
         
         rc = RC()
 
-        for port_id in port_id_list:
+        for port in port_list:
+
+            port_id = int(port)
+            profile_id = None
+            if isinstance(port, PortProfileID):
+                profile_id = port.profile_id
+
             # get port specific
             pkwargs = pargs.get(port_id, {})
             if pkwargs:
@@ -372,8 +397,12 @@ class TRexClient(object):
             else:
                 pkwargs = kwargs
 
+            if profile_id:
+                pkwargs.update({'profile_id': profile_id})
+
             func = getattr(self.ports[port_id], method)
             rc.add(func(*args, **pkwargs))
+
 
         return rc
 
@@ -408,16 +437,24 @@ class TRexClient(object):
         if not rc:
             return rc
 
+        # server version check for dynamic port addition
+        self.is_dynamic = 'get_profile_list' in rc.data()
+
         self.supported_cmds = sorted(rc.data())
 
-        # STX specific code: create ports, clear stats 
-        rc = self._on_connect(self.ctx.system_info)
+        # STX specific code: create ports
+        rc = self._on_connect_create_ports(self.ctx.system_info)
         if not rc:
             return rc
 
+        self.any_port.xstats.get_names(self.any_port)
 
         # sync the ports
         rc = self._for_each_port('sync')
+        if not rc:
+            return rc
+
+        rc = self._on_connect_clear_stats()
         if not rc:
             return rc
 
@@ -425,10 +462,9 @@ class TRexClient(object):
         # mark the event handler as ready to process async updates
         self.ctx.event_handler.enable()
 
-
-        # clear stats to baseline
-        with self.ctx.logger.suppress(verbose = "warning"):
-            self.clear_stats(ports = self.get_all_ports())
+        rc = self._on_connect()
+        if not rc:
+            return rc
 
         return RC_OK()
 
@@ -437,7 +473,11 @@ class TRexClient(object):
     def _disconnect(self, release_ports = True):
         # release any previous acquired ports
         if self.conn.is_connected() and release_ports:
-            self._for_each_port('release', self.get_acquired_ports())
+            with self.ctx.logger.suppress():
+                try:
+                    self.release()
+                except TRexError:
+                    pass
 
         # disconnect the link to the server
         self.conn.disconnect()
@@ -693,7 +733,7 @@ class TRexClient(object):
         return list(self.ports)
 
     
-    @client_api('getter', True)
+    @client_api('getter', False)
     def get_acquired_ports(self):
         """ 
 
@@ -868,7 +908,6 @@ class TRexClient(object):
 
 
             :raises:
-                + :exc:`STLTimeoutError` - in case timeout has expired
                 + :exe:'TRexError'
 
         """
@@ -934,7 +973,13 @@ class TRexClient(object):
 
         # create a PCAP file
         if write_to_file:
-            writer = RawPcapWriter(output, linktype = 1)
+            save_dir = os.path.dirname(output)
+            if not os.path.isdir(save_dir):
+                raise TRexError('Requested path is not a directory: %s' % save_dir)
+            try:
+                writer = RawPcapWriter(output, linktype = 1)
+            except IOError as e:
+                raise TRexError('Could not open file %s: %s' % (output, e))
             writer._write_header(None)
         else:
             # clear the list
@@ -993,9 +1038,19 @@ class TRexClient(object):
     @client_api('getter', False)
     def get_events (self, ev_type_filter = None):
         """
-            returns list of the events recorded
+        returns list of the events recorded
+
+        :parameters:
+
             ev_type_filter: list
                 combination of: 'warning', 'info'
+
+        :return:
+            warning logged events
+
+        :raises:
+          None
+
             
         """
         return self.ctx.event_handler.get_events(ev_type_filter)
@@ -1051,8 +1106,13 @@ class TRexClient(object):
     @client_api('command', True)
     def get_util_stats(self):
         """
-            Get utilization stats:
-            History of TRex CPU utilization per thread (list of lists)
+            Get utilization stats as dictionary with 2 keys: 'cpu' and 'mbuf_stats'.
+
+            TRex CPU utilization and ports per core (list of dictionaries per core)
+            Each dictionary contains two keys:
+            1. 'ports': The ports that the core is using. Idle ports are denoted by -1.
+            2. 'history': List of last 20 utilization values. Each value is calculated as average in interval of second.
+
             MBUFs memory consumption per CPU socket.
 
             :parameters:
@@ -1106,11 +1166,12 @@ class TRexClient(object):
 
             :parameters:
                 level : str
-                    "none"
+                    "none" - be silent no matter what
                     "critical"
-                    "error"
+                    "error" - show only errors (default client mode)
+                    "warning"
                     "info"
-                    "debug"
+                    "debug" - print everything
 
             :raises:
                 None
@@ -1119,6 +1180,29 @@ class TRexClient(object):
         validate_type('level', level, basestring)
 
         self.ctx.logger.set_verbose(level)
+
+
+    @client_api('command', False)
+    def set_timeout(self, timeout_sec):
+        '''
+            Set timeout for connectivity to TRex server. Must be not connected.
+
+            :parameters:
+                timeout_sec : int or float
+                    | Timeout in seconds for sync operations.
+                    | If async data does not arrive for this period, disconnect.
+
+            :raises:
+                + :exc:`TRexError` - in case client is already connected.
+        '''
+
+        validate_type('timeout_sec', timeout_sec, (int, float))
+        if timeout_sec <= 0:
+            raise TRexError('timeout_sec must be positive')
+        if self.is_connected():
+            raise TRexError('Can set timeout only when not connected')
+        self.conn.rpc.set_timeout_sec(timeout_sec)
+        self.conn.async_.set_timeout_sec(timeout_sec)
 
 
     @client_api('command', False)
@@ -1171,35 +1255,6 @@ class TRexClient(object):
         self.ctx.logger.post_cmd(rc)
 
 
-
-    @client_api('command', True)
-    def release (self, ports = None):
-        """
-            Release ports
-
-            :parameters:
-                ports : list
-                    Ports on which to execute the command
-
-            :raises:
-                + :exc:`TRexError`
-
-        """
-
-        ports = ports if ports is not None else self.get_acquired_ports()
-
-        # validate ports
-        ports = self.psv.validate('release', ports, PSV_ACQUIRED)
-
-        self.ctx.logger.pre_cmd("Releasing ports {0}:".format(ports))
-        rc = self._for_each_port('release', ports)
-        self.ctx.logger.post_cmd(rc)
-
-        if not rc:
-            raise TRexError(rc)
-
-            
-
     @client_api('command', True)
     def ping_rpc_server(self):
         """
@@ -1227,13 +1282,206 @@ class TRexClient(object):
 
 
     @client_api('command', True)
+    def set_namespace_start(self, port, ns_cmds):
+        """
+            Start namespace batch operation. 
+            This commands is a batch command that interact with the kernel and could be slow 
+            in case of a big batch. 
+            use wait_for_async_results to block for the response, or  is_async_results_ready to pool if the results is ready. 
+            see see :class:`trex.common.trex_ns.NSCmds` and :class:`trex.common.trex_ns.NSCmdResult`
+
+            Using other Python API while there is an active batch is not recommended::
+
+                    c.set_namespace_start(port=0, ns_cmds)
+                    res = c.wait_for_async_results(port=0);
+
+            :parameters:
+                 port: int
+                    Port ID to set the dest address
+
+                 ns_cmds :  see :class:`trex.common.trex_ns.NSCmds` objects that includes batch commands  
+                    
+            :raises:
+                + :exc:`TRexError`
+        """
+        validate_type('port', port, int)
+        if not isinstance(ns_cmds, NSCmds):
+            raise TRexTypeError('ns_cmds', type(ns_cmds), NSCmds)
+
+        json_rpc = ns_cmds.get_json_str()
+        if len(json_rpc)==0:
+            raise TRexError('commands is empty ')
+
+        self.psv.validate('set_namespace_start', port)
+        self.ctx.logger.pre_cmd("Setting port {0} in with namespace configuration".format(port))
+        rc = self.ports[port].set_namespace_start(json_rpc)
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+        return rc
+
+
+    @client_api('command', True)
+    def wait_for_async_results(self, port, timeout = None, cb = None):
+        """
+            wait for the namespace batch operations to finish, return an a list of batch results 
+            it includes something like that 
+            [None, {'u'error':'some error'},{u'result': {u'nodes': [u'\x00\x01\x02\x03\x04\x05']}}
+
+            None : means that there is no error and command was executed 
+            object: that include 'error' means that there is an error
+            object with  'result'
+
+            :parameters:
+                 port: int
+                    Port ID to set the dest address
+
+                 timeout :  in second, None is unlimited 
+
+                 cb: A callback function that gets an object for calculating progress of a log operation 
+
+                     exec_cmds:  total commands executed 
+                     total_cmds: total commands in the queue
+                     errs_cmds: number of errros in the last operation
+                     ticket_id: ticket id
+
+                     this will print the progress into the screen::
+
+                             def progress_cb(obj):
+                                prog = 100.0*( float(obj['exec_cmds']) / float(obj['total_cmds']))
+                                err = obj['errs_cmds'] 
+                                print("progress {:3.0f}% errors : {}".format(prog,err))
+
+
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """
+
+        validate_type('port', port, int)
+        if timeout is not None:
+            validate_type('timeout', timeout, int)
+
+        self.ctx.logger.pre_cmd("wait_for_async_results".format(port))
+        rc = self.ports[port].get_async_results(timeout , cb)
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc :
+            raise TRexError(rc)
+
+        # check for errors 
+        nc = NSCmdResult(rc)
+
+        if nc.is_any_error():
+            raise TRexError(str(nc.errors()))
+
+        return rc
+
+    @client_api('command', True)
+    def set_namespace(self, port, method, **args):
+        """
+            a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
+            it creates a batch of one command and one result.
+            It is good for slow operations that require blocking (such as get API)
+
+            the function calls:: 
+
+                  c.set_namespace_start(Obj(method, args))
+                  r=c.wait_for_async_results()
+                  return (r)
+
+            usage example::
+
+                  r=set_namespace(port=0,method='get_nodes')
+            
+
+            :parameters:
+
+                 port: int
+                    Port ID to set the dest address
+
+                 method:  string
+                    method name. see NSCmds object for method names 
+
+                 args:  dict 
+                    method args 
+
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """
+
+        cmds = NSCmds()
+
+        func = getattr(cmds, method)
+
+        func(**args)
+
+        self.set_namespace_start(port,cmds)
+        rc = self.wait_for_async_results(port)
+
+        return (rc[0]);
+
+
+
+    @client_api('command', True)
+    def is_async_results_ready(self, port):
+        """
+         return True if the namsspace batch commnand was finished. need to call  wait_for_async_results to get the resutl
+
+         for example::
+
+             while True:
+               if c.is_async_results_ready(0):
+                  res = c.wait_for_async_results(0)
+                  break;
+
+        """
+        validate_type('port', port, int)
+
+        self.ctx.logger.pre_cmd("is_async_results_ready".format(port))
+        rc = self.ports[port].is_async_results_ready() 
+        self.ctx.logger.post_cmd(rc)
+        return rc
+
+
+    @client_api('command', True)
+    def namespace_remove_all (self, ports = None):
+        """ 
+            remove all namespaces from all ports 
+
+            :parameters:
+                ports: list
+                    The port(s) to remove all the namespaces 
+
+
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        # validate ports and state
+        ports = ports if ports is not None else self.get_acquired_ports()
+
+        # validate ports
+        ports = self.psv.validate('namespace_remove_all', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
+
+        cmds=NSCmds()
+        cmds.remove_all();
+
+        for port in ports:
+            self.set_namespace_start(port, cmds)
+            r=self.wait_for_async_results(port)
+    
+
+    @client_api('command', True)
     def set_l2_mode (self, port, dst_mac):
         """
             Sets the port mode to L2
 
             :parameters:
-                 port      - the port to set the source address
-                 dst_mac   - destination MAC
+                 port: int
+                    Port ID to set the dest address
+                 dst_mac: string
+                    Destination MAC
             :raises:
                 + :exc:`TRexError`
         """
@@ -1259,10 +1507,14 @@ class TRexClient(object):
             Sets the port mode to L3
 
             :parameters:
-                 port      - the port to set the source address
-                 src_ipv4  - IPv4 source address for the port
-                 dst_ipv4  - IPv4 destination address
-                 vlan      - VLAN configuration - can be an int or a list up to two ints
+                 port: int
+                    Port ID to set the addresses
+                 src_ipv4: string
+                    IPv4 source address for the port
+                 dst_ipv4: string
+                    IPv4 destination address
+                 vlan: int or list of ints
+                    VLAN configuration
             :raises:
                 + :exc:`TRexError`
         """
@@ -1296,9 +1548,12 @@ class TRexClient(object):
             Configure IPv6 of port.
 
             :parameters:
-                 port      - the port to disable ipv6
-                 enabled   - bool wherever IPv6 should be enabled
-                 src_ipv6  - src IPv6 of port or empty string for auto-address
+                 port: uint8_t
+                    The port to disable ipv6
+                 enabled: bool
+                    Wherever IPv6 should be enabled
+                 src_ipv6: string
+                    Src IPv6 of port or empty string for auto-address
             :raises:
                 + :exc:`TRexError`
         """
@@ -1325,14 +1580,14 @@ class TRexClient(object):
             and periodic gratidious ARP
 
             :parameters:
-                 ports     - the port(s) to set the source address
-            
-                 vlan      - can be either None, int or a list of up to two ints
-                             each value representing a VLAN tag
-                             when two are supplied, provide QinQ tagging.
-                             The first TAG is outer and the second is inner
-                             
-                 
+                ports: list
+                    The port(s) to set the vlan
+
+                vlan: either None, int or a list of up to two ints
+                    each value representing a VLAN tag
+                    when two are supplied, provide QinQ tagging.
+                    The first TAG is outer and the second is inner
+
             :raises:
                 + :exc:`TRexError`
         """
@@ -1364,7 +1619,8 @@ class TRexClient(object):
             Clear any VLAN configuration on the port
 
             :parameters:
-                 ports - on which ports to clear VLAN config
+                 ports: int
+                    On which ports to clear VLAN config
                  
             :raises:
                 + :exc:`TRexError`
@@ -1375,17 +1631,23 @@ class TRexClient(object):
         
          
     @client_api('command', True)
-    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1, vlan = None):
+    def ping_ip (self, src_port, dst_ip, pkt_size = 64, count = 5, interval_sec = 1, vlan = None, **kw):
         """
             Pings an IP address through a port
 
             :parameters:
-                 src_port     - on which port_id to send the ICMP PING request
-                 dst_ip       - which IP to ping
-                 pkt_size     - packet size to use
-                 count        - how many times to ping
-                 interval_sec - how much time to wait between pings
-                 vlan         - one or two VLAN tags o.w it will be taken from the src port configuration
+                 src_port: int
+                    On which port_id to send the ICMP PING request
+                 dst_ip: string
+                    Which IP to ping
+                 pkt_size: int
+                    Packet size to use
+                 count: int
+                    How many times to ping
+                 interval_sec: float
+                    how much time to wait between pings
+                 vlan: int or list of ints
+                    One or two VLAN tags o.w it will be taken from the src port configuration
 
             :returns:
                 List of replies per 'count'
@@ -1438,17 +1700,17 @@ class TRexClient(object):
         
         
         if is_valid_ipv4(dst_ip):
-            return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv4(src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw)
         else:
-            return self._ping_ipv6(src_port, vlan, dst_ip, pkt_size, count, interval_sec)
+            return self._ping_ipv6(src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw)
         
             
          
-    # IPv4 ping           
-    def _ping_ipv4 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
+    # IPv4 ping
+    def _ping_ipv4 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw):
         
         ctx = self.create_service_ctx(port = src_port)
-        ping = ServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan)
+        ping = ServiceICMP(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan, **kw)
         
         records = []
         
@@ -1465,11 +1727,11 @@ class TRexClient(object):
         return records
         
         
-    # IPv6 ping 
-    def _ping_ipv6 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec):
+    # IPv6 ping
+    def _ping_ipv6 (self, src_port, vlan, dst_ip, pkt_size, count, interval_sec, **kw):
         
         ctx = self.create_service_ctx(port = src_port)
-        ping = ServiceICMPv6(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan)
+        ping = ServiceICMPv6(ctx, dst_ip = dst_ip, pkt_size = pkt_size, vlan = vlan, **kw)
         
         records = []
         
@@ -1493,8 +1755,8 @@ class TRexClient(object):
             Sends the server a request for total shutdown
 
             :parameters:
-                force - shutdown server even if some ports are owned by another
-                        user
+                force: bool
+                    Shutdown server even if some ports are owned by another user
 
             :raises:
                 + :exc:`TRexError`
@@ -1522,10 +1784,14 @@ class TRexClient(object):
             unless 'force' is specified
 
             :parameters:
-                pkts       - scapy pkt or a list of scapy pkts
-                ports      - on which ports to push the packets
-                force      - ignore size higer than 1 MB
-                ipg_usec   - IPG in usec
+                pkts: scapy pkt or a list of scapy pkts
+                    Data to send
+                ports: list of ints
+                    On which ports to push the packets
+                force: bool
+                    Ignore size higer than 1 MB
+                ipg_usec: float
+                    IPG in usec
         """
         
         # by default, take acquire ports
@@ -1621,18 +1887,26 @@ class TRexClient(object):
                        link_up = None,
                        led_on = None,
                        flow_ctrl = None,
-                       resolve = True,
-                       multicast = None):
+                       multicast = None,
+                       vxlan_fs = None):
         """
             Set port attributes
 
             :parameters:
-                promiscuous      - True or False
-                link_up          - True or False
-                led_on           - True or False
-                flow_ctrl        - 0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
-                resolve          - if true, in case a destination address is configured as IPv4 try to resolve it
-                multicast        - enable receiving multicast, True or False
+                promiscuous: bool
+                    Promiscuous mode
+                link_up: bool
+                    Link status
+                led_on: bool
+                    LED of port
+                flow_ctrl: int
+                    0: disable all, 1: enable tx side, 2: enable rx side, 3: full enable
+                multicast: bool
+                    Enable receiving multicast
+                vxlan_fs: list
+                    | UDP ports for which HW flow stats will be read from layers after VXLAN
+                    | UDP(<dst_port>)/VXLAN()/Ether()/... <--- NIC will look for flow stats magic here
+                    | Limited only to supported NICs (currently i40e)
             :raises:
                 + :exe:'TRexError'
 
@@ -1648,7 +1922,10 @@ class TRexClient(object):
         validate_type('led_on', led_on, (bool, type(None)))
         validate_type('flow_ctrl', flow_ctrl, (int, type(None)))
         validate_type('multicast', multicast, (bool, type(None)))
-    
+        validate_type('vxlan_fs', vxlan_fs, (list, type(None)))
+
+        if all_none([promiscuous, link_up, led_on, flow_ctrl, multicast, vxlan_fs]):
+            return
 
         self.ctx.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
 
@@ -1658,42 +1935,15 @@ class TRexClient(object):
                                  link_up = link_up,
                                  led_on = led_on,
                                  flow_ctrl = flow_ctrl,
-                                 multicast = multicast)
+                                 multicast = multicast,
+                                 vxlan_fs = vxlan_fs)
 
         self.ctx.logger.post_cmd(rc)
 
         if not rc:
             raise TRexError(rc)
 
-        return
 
-        """
-
-        # common attributes for all ports
-        cmn_attr_dict = {}
-
-        cmn_attr_dict['promiscuous']     = promiscuous
-        cmn_attr_dict['link_status']     = link_up
-        cmn_attr_dict['led_status']      = led_on
-        cmn_attr_dict['flow_ctrl_mode']  = flow_ctrl
-        cmn_attr_dict['multicast']       = multicast
-        
-        # each port starts with a set of the common attributes
-        attr_dict = [dict(cmn_attr_dict) for _ in ports]
-    
-        self.ctx.logger.pre_cmd("Applying attributes on port(s) {0}:".format(ports))
-
-        rc = RC()
-        for port_id, port_attr_dict in zip(ports, attr_dict):
-            rc.add(self.ports[port_id].set_attr(**port_attr_dict))
-
-        self.ctx.logger.post_cmd(rc)
-            
-        if not rc:
-            raise TRexError(rc)
-        """
-      
-        
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True):
         """
@@ -1701,8 +1951,10 @@ class TRexClient(object):
             In service mode ports will respond to ARP, PING and etc.
 
             :parameters:
-                ports          - for which ports to configure service mode on/off
-                enabled        - True for activating service mode, False for disabling
+                ports: list
+                    for which ports to configure service mode on/off
+                enabled: bool
+                    True for activating service mode, False for disabling
             :raises:
                 + :exe:'TRexError'
 
@@ -1722,27 +1974,34 @@ class TRexClient(object):
         
         if not rc:
             raise TRexError(rc)
-          
-              
+
+
     @contextmanager
-    def service_mode (self, ports):
-        self.set_service_mode(ports = ports)
+    def service_mode(self, ports):
+        non_service_ports = list_difference(ports, self.get_service_enabled_ports())
+        if non_service_ports:
+            self.set_service_mode(ports = non_service_ports, enabled = True)
         try:
             yield
         finally:
-            self.set_service_mode(ports = ports, enabled = False)
-        
-        
+            if non_service_ports:
+                self.set_service_mode(ports = non_service_ports, enabled = False)
+
+
     @client_api('command', True)
     def resolve (self, ports = None, retries = 0, verbose = True, vlan = None):
         """
             Resolves ports (ARP resolution)
 
             :parameters:
-                ports          - which ports to resolve
-                retries        - how many times to retry on each port (intervals of 100 milliseconds)
-                verbose        - log for each request the response
-                vlan           - one or two VLAN tags o.w it will be taken from the src port configuration
+                ports: list
+                    List of port IDs to resolve
+                retries: int
+                    How many times to retry on each port (intervals of 100 milliseconds)
+                verbose: bool
+                    Log for each request the response
+                vlan: int or list of ints
+                    One or two VLAN tags o.w it will be taken from the src port configuration
             :raises:
                 + :exe:'TRexError'
 
@@ -1785,13 +2044,17 @@ class TRexClient(object):
             
         
         self.ctx.logger.post_cmd(all([arp.get_record() for arp in arps]))
-        
+
+        failed = []
         for port, arp in zip(ports, arps):
             if arp.get_record():
                 self.ctx.logger.info(format_text("Port {0} - {1}".format(port, arp.get_record()), 'bold'))
             else:
-                self.ctx.logger.info(format_text("Port {0} - *** {1}".format(port, arp.get_record()), 'bold'))
-        
+                failed.append(port)
+
+        if failed:
+            raise TRexError('Could not resolve following ports: %s' % failed)
+
         self.ctx.logger.info('')
      
 
@@ -1805,9 +2068,12 @@ class TRexClient(object):
             Search for IPv6 devices on ports
 
             :parameters:
-                ports          - at which ports to run scan6
-                timeout        - how much time to wait for responses
-                verbose        - log for each request the response
+                ports: list
+                    List of port IDs at which ports to run scan6
+                timeout: float
+                    how much time to wait for responses
+                verbose: bool
+                    log for each request the response
             :return:
                 list of dictionaries per neighbor:
 
@@ -1997,8 +2263,88 @@ class TRexClient(object):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
-        
-                    
+
+    @client_api('command', True)
+    def start_capture_port (self, port, endpoint, bpf_filter = None):
+        """
+            Enable capture port to receive/send raw packets directly on a ZeroMQ
+            Pair socket.
+
+            The ZeroMQ socket should already be bound to the endpoint passed to
+            this function. The TRex server will then connect to this endpoint
+            and start sending all the packets that matches the given BPF filter
+            received on the provided port, on that socket.
+            Any packet sends from the client to the TRex server on that ZeroMQ
+            socket will also be sent as 'raw' packet on the specified port.
+
+            :parameters:
+                port: int
+                    The port to activate the capture port on
+                endpoint: string
+                    The path to the endpoint to use to bind the socket (e.g. ipc:///tmp/my_endpoint)
+                    Should be unique and already bound to a PAIR ZeroMQ socket type.
+                    See ZMQ_PAIR in http://api.zeromq.org/4-0:zmq-socket
+                bpf_filter: string
+                    The BPF filter to use before sending packet on the ZeroMQ socket.
+                    It can be empty for no filter.
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port start', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Starting capture port on port {0} with socket at {1}: ".format(port, endpoint))
+        rc = self.ports[port].start_capture_port(endpoint, bpf_filter)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+    @client_api('command', True)
+    def stop_capture_port (self, port):
+        """
+            Disable capture port
+
+            :parameters:
+                 port: int
+                    The port to stop the capture port on
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port stop', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Stoping capture port on port {0}: ".format(port))
+        rc = self.ports[port].stop_capture_port()
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+    client_api('command', True)
+    def set_capture_port_bpf_filter (self, port, bpf_filter):
+        """
+            Set the BPF filter for the capture port
+
+            :parameters:
+                 port: int
+                    The port to change the filter of the capture port
+                 bpf_filter: string
+                    The new BPF filter (empty disables the filter)
+            :raises:
+                + :exc:`TRexError`
+        """
+
+        self.psv.validate('Capture Port BPF filter set', port, (PSV_ACQUIRED, PSV_SERVICE))
+
+        self.logger.pre_cmd("Setting capture port filter on port {0}: ".format(port))
+        rc = self.ports[port].set_capture_port_bpf_filter(bpf_filter)
+        self.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+
     @client_api('command', True)
     def remove_all_captures (self):
         """
@@ -2043,6 +2389,101 @@ class TRexClient(object):
         return ServiceCtx(self, port)
 
 
+    @client_api('command', True)
+    def map_ports(self, ports = None, read_delay = 0.3, send_pkts = 3):
+        """
+            Get mapping of ports (connectivity)
+
+            :parameters:
+                ports: list
+                    For which ports to apply a queue, default is all acquired ports
+                read_delay: float
+                    Delay in sec between sending packets and looking at received results
+                send_pkts: int
+                    How much packets to send from each port
+            :raises:
+                + :exe:'TRexError'
+
+        """
+        # by default use all acquired ports
+        ports = ports if ports is not None else self.get_acquired_ports()
+        if not ports:
+            raise TRexError('No ports to map, acquire some ports or specify them explicitly.')
+        # validate
+        ports = self.psv.validate('map_ports', ports)
+
+        magic = random.getrandbits(32)
+        bpf = 'udp[8:4]= 0x%x' % magic
+
+        with self.service_mode(ports):
+            rc = self.start_capture(rx_ports = ports, bpf_filter = '{0} or (vlan && {0}) or (vlan && {0})'.format(bpf))
+            capture_id = rc['id']
+            try:
+                base_pkt = Ether() / IP() / UDP(sport=12345,dport=12345) / struct.pack('!I', magic)
+                for port_id in ports:
+                    pkt = base_pkt / struct.pack('!B', port_id)
+                    port = self.get_port(port_id)
+                    vlan = VLAN(port.get_vlan_cfg())
+                    vlan.embed(pkt)
+                    if port.is_l3_mode():
+                        src_ip = port.get_layer_cfg()['ipv4']['src']
+                        pkt[IP].src = src_ip
+                        pkt[IP].dst = src_ip.split('.')[0] + '.255.255.255' # broadcast src ip subnet
+                    else:
+                        pkt[IP].dst = '255.1.1.1' # some address that is not taken
+                    self.push_packets([pkt] * send_pkts, ports = port_id, ipg_usec = 1)
+
+                time.sleep(read_delay)
+
+                captured_pkts = []
+                self.fetch_capture_packets(capture_id, captured_pkts)
+            finally:
+                self.stop_capture(capture_id)
+
+        pkts_map = {}
+        for tx_port in ports:
+            pkts_map[tx_port] = {}
+            for rx_port in ports:
+                pkts_map[tx_port][rx_port] = 0
+
+        for pkt in captured_pkts:
+            scapy_pkt = Ether(pkt['binary'])
+            if UDP not in scapy_pkt:
+                continue
+            udp_payload = bytes(scapy_pkt[UDP].payload)
+            if len(udp_payload) < 5:
+                continue
+            tx_port = struct.unpack('!B', udp_payload[4:5])[0]
+            rx_port = pkt['port']
+            pkts_map[tx_port][rx_port] += 1
+
+        table = {'map': {}, 'bi' : [], 'unknown': []}
+
+        # actual mapping
+        for tx_port in ports:
+            table['map'][tx_port] = None
+            for rx_port in ports:
+                if pkts_map[tx_port][rx_port] * 2 > send_pkts:
+                    table['map'][tx_port] = rx_port
+
+        unmapped = list(ports)
+        while len(unmapped) > 0:
+            port_a = unmapped.pop(0)
+            port_b = table['map'][port_a]
+    
+            # if unknown - add to the unknown list
+            if port_b == None:
+                table['unknown'].append(port_a)
+            # self-loop, due to bug?
+            elif port_a == port_b:
+                continue
+            # bi-directional ports
+            elif (table['map'][port_b] == port_a):
+                unmapped.remove(port_b)
+                table['bi'].append( (port_a, port_b) )
+
+        return table
+
 
 
 ############################   deprecated   #############################
@@ -2056,8 +2497,10 @@ class TRexClient(object):
             The queue is cyclic and will hold last 'size' packets
 
             :parameters:
-                ports          - for which ports to apply a queue
-                size           - size of the queue
+                ports: list
+                    For which ports to apply a queue
+                size: int
+                    size of the queue
             :raises:
                 + :exe:'TRexError'
 
@@ -2086,7 +2529,8 @@ class TRexClient(object):
             Removes RX queue from port(s)
 
             :parameters:
-                ports          - for which ports to remove the RX queue
+                ports: list
+                    for which ports to remove the RX queue
             :raises:
                 + :exe:'TRexError'
 
@@ -2107,32 +2551,10 @@ class TRexClient(object):
 ############################   common    #############################
 ############################  functions  #############################
 
-    def _acquire_common (self, ports = None, force = False):
-      
-        # by default use all ports
-        ports = ports if ports is not None else self.get_all_ports()
-    
-        # validate ports
-        ports = self.psv.validate('acquire', ports)
-    
-        if force:
-            self.ctx.logger.pre_cmd("Force acquiring ports {0}:".format(ports))
-        else:
-            self.ctx.logger.pre_cmd("Acquiring ports {0}:".format(ports))
-    
-        rc = self._for_each_port('acquire', ports, force)
-    
-        self.ctx.logger.post_cmd(rc)
-    
-        if not rc:
-            # cleanup
-            self._for_each_port('release', ports)
-            raise TRexError(rc)
-    
+    def _post_acquire_common(self, ports):
         for port_id in listify_if_int(ports):
             if not self.ports[port_id].is_resolved():
                 self.ctx.logger.info(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
-    
 
 
     def _get_stats_common (self, ports = None, sync_now = True, ext_stats = None):
@@ -2212,9 +2634,46 @@ class TRexClient(object):
             raise TRexError(rc)
 
 
+    @property
+    def any_port(self):
+        for port in self.ports.values():
+            return port
+
+
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @console_api('map', 'common', True)
+    def map_line(self, line):
+        '''Maps ports topology\n'''
+        ports = self.get_acquired_ports()
+
+        ports = self.psv.validate('map', ports)
+        if not ports:
+            raise TRexError('map: ')
+            print("No ports acquired\n")
+            return
+
+
+        with self.logger.supress():
+            table = self.map_ports(ports = ports)
+
+        self.logger.info(format_text('\nAcquired ports topology:\n', 'bold', 'underline'))
+
+        # bi-dir ports
+        self.logger.info(format_text('Bi-directional ports:\n','underline'))
+        for port_a, port_b in table['bi']:
+            self.logger.info("port {0} <--> port {1}".format(port_a, port_b))
+
+        self.logger.info('')
+
+        # unknown ports
+        self.logger.info(format_text('Mapping unknown:\n','underline'))
+        for port in table['unknown']:
+            self.logger.info("port {0}".format(port))
+        self.logger.info('')
+
 
     @console_api('connect', 'common', False)
     def connect_line (self, line):
@@ -2269,55 +2728,6 @@ class TRexClient(object):
         # IP ping
         # source ports maps to ports as a single port
         self.ping_ip(opts.ports[0], opts.ping_ip, opts.pkt_size, opts.count, vlan = opts.vlan)
-
-
-    @console_api('acquire', 'common', True)
-    def acquire_line (self, line):
-        '''Acquire ports\n'''
-
-        # define a parser
-        parser = parsing_opts.gen_parser(self,
-                                         "acquire",
-                                         self.acquire_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.FORCE)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_all_ports())
-
-        # filter out all the already owned ports
-        ports = list_difference(opts.ports, self.get_acquired_ports())
-        if not ports:
-            raise TRexError("acquire - all of port(s) {0} are already acquired".format(opts.ports))
-
-        self.acquire(ports = ports, force = opts.force)
-
-        # show time if success
-        return True
-
-        
-
-    @console_api('release', 'common', True)
-    def release_line (self, line):
-        '''Release ports\n'''
-
-        parser = parsing_opts.gen_parser(self,
-                                         "release",
-                                         self.release_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports())
-
-        ports = list_intersect(opts.ports, self.get_acquired_ports())
-        if not ports:
-            if not opts.ports:
-                raise TRexError("no acquired ports")
-            else:
-                raise TRexError("none of port(s) {0} are acquired".format(opts.ports))
-        
-        self.release(ports = ports)
-
-        # show time if success
-        return True
 
 
     @console_api('l2', 'common', True)
@@ -2443,23 +2853,6 @@ class TRexClient(object):
         return True
 
 
-    @console_api('reset', 'common', True)
-    def reset_line (self, line):
-        '''Reset ports'''
-
-        parser = parsing_opts.gen_parser(self,
-                                         "reset",
-                                         self.reset_line.__doc__,
-                                         parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.PORT_RESTART)
-
-        opts = parser.parse_args(line.split(), default_ports = self.get_acquired_ports(), verify_acquired = True)
-
-        self.reset(ports = opts.ports, restart = opts.restart)
-
-        return True
-
-
     @console_api('pkt', 'common', True)
     def pkt_line (self, line):
         '''Sends a Scapy format packet'''
@@ -2508,6 +2901,173 @@ class TRexClient(object):
         return True
 
 
+    def _ns_add(self,opts):
+
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        MAC=opts.mac
+        cmds.add_node(MAC)
+        cmds.set_ipv4(MAC,opts.src_ipv4,opts.dst_ipv4)
+        if opts.ipv6:
+           cmds.set_ipv6(MAC,True)
+
+        self.set_namespace_start(port, cmds)
+        self.wait_for_async_results(port);
+
+    def _ns_remove (self,opts):
+        port= opts.ports[0]
+        cmds=NSCmds()
+        MAC=opts.mac
+        cmds.remove_node(MAC)
+
+        self.set_namespace_start(port, cmds)
+        self.wait_for_async_results(port);
+
+    def _ns_show_countres (self,opts):
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        cmds.counters_get_meta()
+        cmds.counters_get_values()
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        ns_stat = CNsStats()
+        ns_stat.set_meta_values(r[0]['result']['data'], r[1]['result'][''])
+        ns_stat.dump_stats()
+
+    def _ns_clear_countres(self,opts):
+        port= opts.ports[0]
+
+        cmds=NSCmds()
+        cmds.clear_counters()
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+
+
+    def _ns_show_nodes (self,opts):
+
+        cmds=NSCmds()
+        cmds.get_nodes()
+
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        macs=r[0]['result']['nodes']
+        if len(macs)==0:
+            print("Empty")
+            return;
+        stable = text_tables.TRexTextTable('ns nods')
+        stable.set_cols_align(['c','c'] )
+        stable.set_cols_width([10,17] )
+        stable.set_cols_dtype(['t','t'])
+        stable.header(['node-id','mac'])
+        cnt=0
+        for obj in macs:
+            stable.add_row([cnt,obj])
+            cnt +=1
+            if cnt>20:
+                print(" Limited to only 20 nodes !")
+                break;
+        text_tables.print_table_with_header(stable, untouched_header = stable.title, buffer = sys.stdout)
+
+            
+    def _ns_remove_all (self,opts):
+        self.namespace_remove_all()
+
+
+    def _ns_show_node(self,opts):
+        port = opts.ports[0]
+        MAC =opts.mac
+        cmds=NSCmds()
+        cmds.get_nodes_info([MAC])
+        port= opts.ports[0]
+        self.set_namespace_start(port, cmds)
+        r=self.wait_for_async_results(port);
+        pprint.pprint(r[0]['result'])
+
+
+    @console_api('ns', 'common', True, True)
+    def ns_line(self, line):
+        '''Network namespace '''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'ns',
+            self.ns_line.__doc__)
+
+        def ns_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        add_parser = ns_add_parsers(subparsers, 'add', help = 'add one node')
+        remove_parser = ns_add_parsers(subparsers, 'remove', help = 'remove one node')
+        show_cnt_parser = ns_add_parsers(subparsers, 'show-counters', help = 'show counters')
+        clear_cnt_parser = ns_add_parsers(subparsers, 'clear-counters', help = 'clear counters')
+        show_nodes = ns_add_parsers(subparsers, 'show-nodes', help = 'show nodes')
+        show_node = ns_add_parsers(subparsers, 'show-node', help = 'show nodes')
+        remove_all_parser = ns_add_parsers(subparsers, 'remove-all', help = 'remove all')
+
+
+        add_parser.add_arg_list(
+            parsing_opts.SINGLE_PORT,
+            parsing_opts.NODE_MAC,
+            parsing_opts.SRC_IPV4,
+            parsing_opts.DST_IPV4,
+            parsing_opts.ASTF_IPV6
+            )
+
+        remove_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+           parsing_opts.NODE_MAC,
+          )
+
+        show_node.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+           parsing_opts.NODE_MAC,
+        )
+
+        show_cnt_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+        )
+
+        clear_cnt_parser.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+        )
+
+        show_nodes.add_arg_list(
+           parsing_opts.SINGLE_PORT,
+         )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.command == 'add':
+            self._ns_add(opts);
+            return False
+        elif opts.command == 'remove':
+            self._ns_remove(opts);
+        elif opts.command == 'show-counters' or not opts.command:
+            self._ns_show_countres(opts);
+            return False
+        elif opts.command == 'clear-counters':
+            self._ns_clear_countres(opts);
+            return False
+        elif opts.command == 'show-nodes' :
+            self._ns_show_nodes(opts);
+            return False
+        elif opts.command == 'show-node' :
+            self._ns_show_node(opts);
+            return False
+        elif opts.command == 'remove-all':
+            self._ns_remove_all (opts)
+            return False
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
+
 
     @console_api('portattr', 'common', True)
     def set_port_attr_line (self, line):
@@ -2521,6 +3081,7 @@ class TRexClient(object):
                                          parsing_opts.LINK_STATUS,
                                          parsing_opts.LED_STATUS,
                                          parsing_opts.FLOW_CTRL,
+                                         parsing_opts.VXLAN_FS,
                                          parsing_opts.SUPPORTED,
                                          parsing_opts.MULTICAST)
 
@@ -2539,7 +3100,7 @@ class TRexClient(object):
             return
 
         if opts.supp:
-            info = self.ports[opts.ports[0]].get_formatted_info() # assume for now all ports are same
+            info = self.any_port.get_formatted_info() # assume for now all ports are same
             print('')
             print('Supported attributes for current NICs:')
             print('  Promiscuous:   %s' % info['prom_supported'])
@@ -2547,16 +3108,19 @@ class TRexClient(object):
             print('  Link status:   %s' % info['link_change_supported'])
             print('  LED status:    %s' % info['led_change_supported'])
             print('  Flow control:  %s' % info['fc_supported'])
+            print('  VXLAN FS:      %s' % info['is_vxlan_supported'])
             print('')
         else:
             if not opts.ports:
                 raise TRexError('No acquired ports!')
-            self.set_port_attr(opts.ports,
-                               opts.prom,
-                               opts.link,
-                               opts.led,
-                               opts.flow_ctrl,
-                               multicast = opts.mult)
+            self.set_port_attr(
+                    opts.ports,
+                    opts.prom,
+                    opts.link,
+                    opts.led,
+                    opts.flow_ctrl,
+                    opts.mult,
+                    opts.vxlan_fs)
 
 
 
@@ -2631,7 +3195,7 @@ class TRexClient(object):
         def predicate (x):
             return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'console'
 
-        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(self ,predicate = predicate)}
+        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(self, predicate = predicate)}
 
     ################## private common console functions ##################
     
@@ -2644,8 +3208,11 @@ class TRexClient(object):
 
 
     def _show_port_stats (self, ports, buffer = sys.stdout):
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
 
-        port_stats = [self.ports[port_id].get_port_stats() for port_id in ports]
+        port_stats = [self.ports[port_id].get_port_stats() for port_id in ports[:4]]
 
         # update in a batch
         StatsBatch.update(port_stats, self.conn.rpc)
@@ -2668,7 +3235,11 @@ class TRexClient(object):
 
 
     def _show_port_xstats (self, ports, include_zero_lines):
-        port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports]
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
+
+        port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports[:4]]
 
         # update in a batch
         StatsBatch.update(port_xstats, self.conn.rpc)
@@ -2678,16 +3249,18 @@ class TRexClient(object):
                                     row_filter = lambda row: include_zero_lines or any([v != '0' for v in row]))
         
         # show
-        #table = port_xstats[0].to_table(include_zero_lines)
         text_tables.print_table_with_header(table, table.title)
 
 
     def _show_port_status (self, ports):
+        if not ports:
+            self.logger.warning(format_text('Empty set of ports\n', 'bold'))
+            return
+
         # for each port, fetch port status
-        port_status = [self.ports[port_id].get_port_status() for port_id in ports]
+        port_status = [self.ports[port_id].get_port_status() for port_id in ports[:4]]
 
         # merge
-        #table = TRexTextTable.merge([status.to_table() for status in port_status])
         table = TRexTextTable.merge(port_status)
         text_tables.print_table_with_header(table, table.title)
 

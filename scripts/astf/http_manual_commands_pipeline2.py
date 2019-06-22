@@ -1,6 +1,6 @@
 # Example for sending pipeline of HTTP reqs each req will have an ACK in this case (PUSH for the req)
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

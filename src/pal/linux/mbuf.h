@@ -33,7 +33,7 @@ typedef struct rte_mbuf  rte_mbuf_t;
 
 #define IND_ATTACHED_MBUF    (1ULL << 62) /**< Indirect attached mbuf */
 #define PKT_TX_VLAN_PKT      (1ULL << 57) /**< TX packet is a 802.1q VLAN packet. */
-#define RTE_MBUF_INDIRECT(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
+#define RTE_MBUF_CLONED(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
 #define RTE_MBUF_TO_BADDR(mb)       (((struct rte_mbuf *)(mb)) + 1)
 #define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
 
@@ -139,15 +139,8 @@ inline unsigned rte_mempool_count(rte_mempool_t  *mp){
     return (10);
 }
 
-static inline uint16_t
-rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags){
-    return (0);
-}
-
-static inline uint16_t
-rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags){
-    return(0);
-}
+uint16_t rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags);
+uint16_t rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags);
 
 
 #define PKT_TX_L4_NO_CKSUM   (0ULL << 52) /**< Disable L4 cksum of TX pkt. */
@@ -335,5 +328,6 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
 // has to be after the definition of rte_mbuf and other utility functions
 #include "common_mbuf.h"
 
+void hw_checksum_sim(struct rte_mbuf *m);
 
 #endif

@@ -23,7 +23,7 @@ import pprint
 class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
     def setUp(self):
-        pass
+        self.base_pkt = Ether()/IP()/UDP()/(24 * 'x')
 
     def test_simple_vm1(self):
         raw1 = STLScVmRaw( [ STLVmFlowVar(name="a",min_value="16.0.0.1",max_value="16.0.0.10",init_value="16.0.0.1",size=4,op="inc"),
@@ -47,7 +47,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         print(pkt_builder.get_vm_data())
 
-        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a', 'max_value': 268435466, 'min_value': 268435457, 'init_value': 268435457, 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc', 'split_to_cores': True, 'next_var': None}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
                                                  
 
 
@@ -368,7 +368,7 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         print(pkt_builder.get_vm_data())
 
-        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc'}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc', 'split_to_cores': True, 'next_var': None}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
 
     def test_simple_random_pkt_size_list(self):
 
@@ -404,6 +404,180 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
         assert_equal(d['instructions'][0]['value_list'],[256,64,128,512,4096,8192,1024,2048,9230])
         assert_equal(d['instructions'][2]['pkt_offset'],16)
         assert_equal(d['instructions'][4]['pkt_offset'],38)
+
+
+    def test_next_var_negative(self):
+    
+        try:
+            vm = STLVM()
+            vm.var(name='simple', min_value=1, max_value=3, op='inc', size=4, step=1, next_var='simple')
+        except CTRexPacketBuildException as e:
+            assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name = 'simple', size=2, limit=5, seed = 1, next_var = 'simple')
+        except CTRexPacketBuildException as e:
+            assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLScVmRaw( [ STLVmFlowVar('ip_src', min_value='10.0.0.1', max_value='10.0.0.255',
+                                            size=4, step=1, op='inc', next_var='ip_src')])
+        except CTRexPacketBuildException as e:
+            assert e.message == "Self loops are forbidden."
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='simple', min_value=1, max_value=3, op='random', size=4, next_var='also_simple')
+            vm.var(name='also_simple', min_value=1, max_value=4, op='inc', size=4)
+        except CTRexPacketBuildException as e:
+            assert "If next_var is defined then op can't be random." in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='second')
+            vm.var(name='second', min_value=1, max_value=4, op='inc', size=4, next_var='first')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='second')
+            vm.repeatable_random_var(fv_name='second', size=4, limit=5, next_var='first')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='second')
+            vm.var(name='middle', min_value=1, max_value=4, op='inc', size=4)
+            vm.var(name='second', min_value=1, max_value=4, op='inc', size=4, next_var='first')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert e.message == "Loops are forbidden for dependent variables"
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='third')
+            vm.var(name='second', min_value=1, max_value=4, op='inc', size=4, next_var='third')
+            vm.var(name='third', min_value=1, max_value=4, op='inc', size=4)
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.var(name='first', min_value=1, max_value=4, op='inc', size=4, next_var='third')
+            vm.var(name='second', min_value=1, max_value=4, op='inc', size=4, next_var='third')
+            vm.var(name='third', min_value=1, max_value=4, op='inc', size=4, next_var='first')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name='rep_random', size=2, limit=100, next_var='var2')
+            vm.var(name='var1', min_value=1, max_value=10, op='inc', size=1, next_var='var2')
+            vm.var(name='var2', min_value=1, max_value=10, op='inc', size=1)
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "is pointed by two vars" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+        try:
+            vm = STLVM()
+            vm.repeatable_random_var(fv_name='var', size=2, limit=100, next_var='non_existent')
+            pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm)
+        except CTRexPacketBuildException as e:
+            assert "does not exist" in e.message
+        else:
+            raise Exception('Did not raise exception in test_next_var_negative')
+
+
+    def test_next_var_order(self):
+        vm1 = STLVM()
+        vm1.var(name='ip_src', min_value='10.0.0.1', max_value='10.0.0.255',
+                                        size=4, step=1, op='inc')
+        vm1.write(fv_name='ip_src', pkt_offset='IP.src' )
+        vm1.fix_chksum(offset='IP')
+        vm1.var(name='ip_dst', min_value='8.0.0.1', max_value='8.0.0.10', size=4, op='inc', next_var='ip_src')
+        pkt = STLPktBuilder(pkt=self.base_pkt, vm=vm1)
+        json = pkt.to_json()
+        first_inst = json['vm']['instructions'][0]
+        second_inst = json['vm']['instructions'][1]
+        third_inst = json['vm']['instructions'][2]
+        assert first_inst['type'] == 'flow_var'
+        assert first_inst['name'] == 'ip_dst'
+        assert first_inst['next_var'] == 'ip_src'
+        assert second_inst['type'] == 'flow_var'
+        assert second_inst['name'] == 'ip_src'
+        assert second_inst['split_to_cores'] == False
+        assert third_inst['type'] == 'write_flow_var'
+
+        vm2 = STLVM()
+        vm2.var(name='var1', min_value = ord('a'), max_value = ord('c'), size = 1, step = 1, op = 'inc', next_var = 'var3')
+        vm2.write(fv_name='var1', pkt_offset=42)
+        vm2.var(name='var2', min_value = ord('a'), max_value = ord('b'), size = 1, step = 1, op = 'inc')
+        vm2.write(fv_name='var2', pkt_offset=43)
+        vm2.var(name='var3', min_value = ord('a'), max_value = ord('d'), size = 1, step = 1, op = 'inc')
+        vm2.write(fv_name='var3', pkt_offset=44)
+        pkt2 = STLPktBuilder(pkt=self.base_pkt, vm=vm2)
+        json2 = pkt2.to_json()
+        first_inst_vm2 = json2['vm']['instructions'][0]
+        second_inst_vm2 = json2['vm']['instructions'][1]
+        third_inst_vm2 = json2['vm']['instructions'][2]
+        assert first_inst_vm2['type'] == 'flow_var'
+        assert first_inst_vm2['name'] == 'var1'
+        assert second_inst_vm2['type'] == 'flow_var'
+        assert second_inst_vm2['name'] == 'var3'
+        assert second_inst_vm2['split_to_cores'] == False
+        assert third_inst_vm2['type'] == 'flow_var'
+        assert third_inst_vm2['name'] == 'var2'
+        fourth_inst_vm2  = json2['vm']['instructions'][3]
+        assert fourth_inst_vm2['type'] == 'write_flow_var'
+        assert fourth_inst_vm2['name'] == 'var1'
+
+        vm3 = STLVM()
+        # The order is complicated on purpose.
+        vm3.write(fv_name='var1', pkt_offset=42)
+        vm3.var(name='var1', min_value = ord('a'), max_value = ord('d'), size = 1, step = 1, op = 'inc')
+        vm3.var(name='var3', min_value=0, max_value=200, size=1, step=3, op='inc', next_var='IP')
+        vm3.var(name='IP', min_value='16.0.0.1', max_value='16.0.0.9', size=4, step=2, op='dec')
+        vm3.write(fv_name='var3', pkt_offset=45)
+        vm3.write(fv_name='IP', pkt_offset='IP.src')
+        vm3.repeatable_random_var(fv_name='var2', size=2, limit=500, next_var='var3')
+        vm3.write(fv_name='var2', pkt_offset=43)
+        vm3.fix_chksum()
+        pkt3 = STLPktBuilder(pkt=self.base_pkt, vm=vm3)
+        json3 = pkt3.to_json()
+        inst_types=['flow_var', 'flow_var_rand_limit', 'flow_var', 'flow_var', 'write_flow_var', 'write_flow_var', 'write_flow_var',
+        'write_flow_var']
+        inst_names = ['var1', 'var2', 'var3', 'IP', 'var1', 'var3', 'IP', 'var2']
+        for i in range(len(inst_names)):
+            instruction = json3['vm']['instructions'][i]
+            assert instruction['type'] == inst_types[i]
+            assert instruction['name'] == inst_names[i]
 
     def tearDown(self):
         pass

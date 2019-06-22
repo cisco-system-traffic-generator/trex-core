@@ -19,6 +19,7 @@
   limitations under the License.
 */
 
+#include "bp_sim.h"
 #include "trex_pkt.h"
 #include <assert.h>
 
@@ -44,6 +45,32 @@ void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m) {
     }
 }
 
+
+/**
+ * duplicate MBUF into target port ID pool
+ * 
+ * @param m - MBUF to copy
+ *
+ * @param port_id - mbuf memory pool will be taken from here
+ * 
+ * @return pointer to new mbuf
+ */
+rte_mbuf_t * duplicate_mbuf(const rte_mbuf_t *m, uint8_t port_id) {
+
+    /* allocate */
+    rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(port_id, rte_pktmbuf_pkt_len(m));
+    assert(clone_mbuf);
+
+    /* append data - should always succeed */
+    uint8_t *dest = (uint8_t *)rte_pktmbuf_append(clone_mbuf, rte_pktmbuf_pkt_len(m));
+    assert(dest);
+
+    /* copy data */
+    mbuf_to_buffer(dest, m);
+
+    return clone_mbuf;
+}
+
 /**************************************
  * TRex packet
  * 
@@ -67,6 +94,7 @@ TrexPkt::TrexPkt(const rte_mbuf_t *m, int port, origin_e origin, uint64_t index)
 
 TrexPkt::TrexPkt(const TrexPkt &other) {
     m_size = other.m_size;
+    m_raw = new uint8_t[m_size];
     memcpy(m_raw, other.m_raw, m_size);
     
     m_timestamp = other.m_timestamp;

@@ -228,7 +228,7 @@ TEST_F(RpcTest, test_add_command) {
     EXPECT_EQ(response["jsonrpc"], "2.0");
     EXPECT_EQ(response["error"]["code"], -32602);
 
-    /* bad paramters */
+    /* bad parameters */
     create_request(request, "test_add");
     request["params"]["x"] = 5;
     request["params"]["y"] = "itay";

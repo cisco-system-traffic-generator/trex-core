@@ -8,9 +8,11 @@ import binascii
 import base64
 import inspect
 import copy
+import collections
 
 from scapy.all import *
 
+from ..utils.common import *
 from ..common.trex_types import *
 from ..common.trex_exceptions import TRexError
 
@@ -34,106 +36,6 @@ class CTRexPacketBuildException(Exception):
 
 ################################################################################################
 
-def safe_ord (c):
-    if type(c) is str:
-        return ord(c)
-    elif type(c) is int:
-        return c
-    else:
-        raise TypeError("Cannot convert: {0} of type: {1}".format(c, type(c)))
-
-def _buffer_to_num(str_buffer):
-    validate_type('str_buffer', str_buffer, bytes)
-    res=0
-    for i in str_buffer:
-        res = res << 8
-        res += safe_ord(i)
-    return res
-
-
-def ipv4_str_to_num (ipv4_buffer):
-    validate_type('ipv4_buffer', ipv4_buffer, bytes)
-    assert len(ipv4_buffer)==4, 'Size of ipv4_buffer is not 4'
-    return _buffer_to_num(ipv4_buffer)
-
-def mac_str_to_num (mac_buffer):
-    validate_type('mac_buffer', mac_buffer, bytes)
-    assert len(mac_buffer)==6, 'Size of mac_buffer is not 6'
-    return _buffer_to_num(mac_buffer)
-
-def int2mac(val):
-    mac_arr = []
-    for _ in range(6):
-        val, char = divmod(val, 256)
-        mac_arr.insert(0, '%02x' % char)
-    return ':'.join(mac_arr)
-
-def int2ip(val):
-    ip_arr = []
-    for _ in range(4):
-        val, char = divmod(val, 256)
-        ip_arr.insert(0, '%s' % char)
-    return '.'.join(ip_arr)
-
-def increase_mac(mac_str, val = 1):
-    if ':' in mac_str:
-        mac_str = mac2str(mac_str)
-    mac_val = mac_str_to_num(mac_str)
-    return int2mac((mac_val + val) % (1 << 48))
-
-def increase_ip(ip_str, val = 1):
-    ip_val = ipv4_str_to_num(is_valid_ipv4_ret(ip_str))
-    return int2ip((ip_val + val) % (1 << 32))
-
-# RFC 3513
-def generate_ipv6(mac_str, prefix = 'fe80'):
-    mac_arr = mac_str.split(':')
-    assert len(mac_arr) == 6, 'mac should be in format of 11:22:33:44:55:66, got: %s' % mac_str
-    return '%s::%s' % (prefix, in6_mactoifaceid(mac_str).lower())
-
-# RFC 4291
-def generate_ipv6_solicited_node(ipv6):
-    ipv6_buf = is_valid_ipv6_ret(ipv6)
-    solic_buf = in6_getnsma(ipv6_buf)
-    return inet_ntop(socket.AF_INET6, solic_buf)
-
-# RFC 1972
-# return multicast mac based on ipv6 ff02::1 -> 33:33:00:00:00:01
-def multicast_mac_from_ipv6(ipv6):
-    ipv6_buf = is_valid_ipv6_ret(ipv6)
-    return in6_getnsmac(ipv6_buf)
-
-
-def is_valid_ipv4_ret(ip_addr):
-    """
-    Return buffer in network order
-    """
-    if  type(ip_addr) == bytes and len(ip_addr) == 4:
-        return ip_addr
-
-    if  type(ip_addr)== int:
-        ip_addr = socket.inet_ntoa(struct.pack("!I", ip_addr))
-
-    try:
-        return socket.inet_pton(socket.AF_INET, ip_addr)
-    except AttributeError:  # no inet_pton here, sorry
-        return socket.inet_aton(ip_addr)
-    except socket.error:  # not a valid address
-        raise CTRexPacketBuildException(-10,"Not valid ipv4 format");
-
-
-def is_valid_ipv6_ret(ipv6_addr):
-    """
-    Return buffer in network order
-    """
-    if type(ipv6_addr) == bytes and len(ipv6_addr) == 16:
-        return ipv6_addr
-    try:
-        return socket.inet_pton(socket.AF_INET6, ipv6_addr)
-    except AttributeError:  # no inet_pton here, sorry
-        raise CTRexPacketBuildException(-10, 'No inet_pton function available')
-    except:
-        raise CTRexPacketBuildException(-10, 'Not valid ipv6 format')
 
 class CTRexScriptsBase(object):
     """
@@ -153,7 +55,7 @@ class CTRexScFieldRangeBase(CTRexScriptsBase):
         super(CTRexScFieldRangeBase, self).__init__()
         self.field_name =field_name
         self.field_type =field_type
-        if not self.field_type in CTRexScFieldRangeBase.FILED_TYPES :
+        if self.field_type not in CTRexScFieldRangeBase.FILED_TYPES :
             raise CTRexPacketBuildException(-12, 'Field type should be in %s' % FILED_TYPES);
 
 
@@ -322,12 +224,23 @@ class CTRexVmInsFlowVar(CTRexVmInsBase):
     OPERATIONS =['inc', 'dec', 'random']
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list):
+    def __init__(self, fv_name, size, op, init_value, min_value, max_value,step, value_list, split_to_cores, next_var):
         super(CTRexVmInsFlowVar, self).__init__("flow_var")
-        self.name = fv_name;
+        self.name = fv_name
         validate_type('fv_name', fv_name, basestring)
         self.size = size
         self.op = op
+
+        if next_var is not None:
+            validate_type('next_var', next_var, basestring)
+            if op == 'random':
+                raise CTRexPacketBuildException(-11,"If next_var is defined then op can't be random. Check %s " % fv_name)
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
+        self.next_var = next_var
+
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
 
         if value_list == None:
             self.init_value = init_value
@@ -355,7 +268,7 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
 
     VALID_SIZES =[1, 2, 4, 8]
 
-    def __init__(self, fv_name, size, limit, seed, min_value, max_value):
+    def __init__(self, fv_name, size, limit, seed, min_value, max_value, split_to_cores, next_var):
         super(CTRexVmInsFlowVarRandLimit, self).__init__("flow_var_rand_limit")
         self.name = fv_name;
         validate_type('fv_name', fv_name, basestring)
@@ -371,6 +284,13 @@ class CTRexVmInsFlowVarRandLimit(CTRexVmInsBase):
         self.max_value=max_value
         validate_type('max_value', max_value, int)
         assert max_value >= 0, 'max_value (%s) is negative' % max_value
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
+        if next_var is not None:
+            validate_type('next_var', next_var, [basestring])
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
+        self.next_var = next_var
 
 
 class CTRexVmInsWrFlowVar(CTRexVmInsBase):
@@ -673,19 +593,25 @@ class CTRexVmDescBase(object):
         '''
         return None
 
+    def get_next_var_name(self):
+        '''
+            Virtual function that returns the name of the next variable name if it exists.
+        '''
+        return None
+
     def compile(self,parent):
         '''
           Virtual function to take parent that has function name_to_offset.
         '''
-        pass;
+        pass
 
 
 def valid_fv_size (size):
-    if not (size in CTRexVmInsFlowVar.VALID_SIZES):
+    if size not in CTRexVmInsFlowVar.VALID_SIZES:
         raise CTRexPacketBuildException(-11,("Flow var has invalid size %d ") % size  );
 
 def valid_fv_ops (op):
-    if not (op in CTRexVmInsFlowVar.OPERATIONS):
+    if op not in CTRexVmInsFlowVar.OPERATIONS:
         raise CTRexPacketBuildException(-11,("Flow var has invalid op %s ") % op  );
 
 def get_max_by_size (size):
@@ -748,7 +674,7 @@ def valid_fv_cycle(min_value, max_value, step, op):
 
 class STLVmFlowVar(CTRexVmDescBase):
 
-    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None):
+    def __init__(self, name, init_value=None, min_value=0, max_value=255, size=4, step=1, op="inc", value_list=None, split_to_cores=True, next_var=None):
         """
         Flow variable instruction. Allocates a variable on a stream context. The size argument determines the variable size.
         The operation can be inc, dec, and random. 
@@ -779,6 +705,14 @@ class STLVmFlowVar(CTRexVmDescBase):
 
              value_list  : int
                 List of values instead of init_value, min_value and max_value
+
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
+
+            next_var : string or None
+                In case it isn't None it is the name of the next variable. The next variable will perform its operation only when this variable
+                completes a full wrap around.
 
         .. code-block:: python
 
@@ -819,16 +753,29 @@ class STLVmFlowVar(CTRexVmDescBase):
 
         """
         super(STLVmFlowVar, self).__init__()
-        self.name = name;
+        self.name = name
         validate_type('name', name, basestring)
         self.size =size
         valid_fv_size(size)
         self.op =op
         valid_fv_ops (op)
 
+        if next_var is not None:
+            validate_type('next_var', next_var, [basestring])
+            if op == 'random':
+                raise CTRexPacketBuildException(-11,"If next_var is defined then op can't be random. Check %s " % self.name)
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
+        self.next_var = next_var
+
+        self.previous = None
+
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
+
         self.step = convert_val (step)
         if self.step <= 0:
-            raise CTRexPacketBuildException(-11,("step %d must be more than 0") % (self.step));
+            raise CTRexPacketBuildException(-11,("step %d must be more than 0") % (self.step))
 
         if value_list == None:
             # choose default value for init val
@@ -836,7 +783,7 @@ class STLVmFlowVar(CTRexVmDescBase):
                 init_value = max_value if op == "dec" else min_value
 
             self.init_value = convert_val(init_value)
-            self.min_value  = convert_val(min_value);
+            self.min_value  = convert_val(min_value)
             self.max_value  = convert_val(max_value)
             self.value_list = None
 
@@ -856,14 +803,21 @@ class STLVmFlowVar(CTRexVmDescBase):
             valid_fv_var_sizes(self.size, self.value_list)
 
     def get_obj (self):
-        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list);
+        return CTRexVmInsFlowVar(self.name,self.size,self.op,self.init_value,self.min_value,self.max_value,self.step,self.value_list,
+                                    self.split_to_cores, self.next_var)
 
     def get_var_name(self):
         return [self.name]
 
+    def get_next_var_name(self):
+        return self.next_var
+
+    def get_previous_var_name(self):
+        return self.previous
+
 class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
-    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
+    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None, split_to_cores=True, next_var=None):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
@@ -890,6 +844,14 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
              max_value  : int
                 Max value 
 
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
+
+            next_var : string or None
+                In case it isn't None it is the name of the next variable. The next variable will perform its operation only when this variable
+                completes a full wrap around.
+
 
         .. code-block:: python
 
@@ -910,6 +872,17 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
         self.size =size
         valid_fv_size(size)
         self.limit =limit
+
+        validate_type('split_to_cores', split_to_cores, bool)
+        self.split_to_cores = split_to_cores
+
+        if next_var is not None:
+            validate_type('next_var', next_var, [basestring])
+            if next_var == self.name:
+                raise CTRexPacketBuildException(-11,"Self loops are forbidden.")
+        self.next_var = next_var
+
+        self.previous = None
 
         if seed == None:
             self.seed = random.randint(1, 32000)
@@ -937,21 +910,16 @@ class STLVmFlowVarRepeatableRandom(CTRexVmDescBase):
 
 
     def get_obj (self):
-        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
+        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value, self.split_to_cores, self.next_var);
 
     def get_var_name(self):
         return [self.name]
 
-class STLVmFlowVarRepetableRandom(STLVmFlowVarRepeatableRandom):
+    def get_next_var_name(self):
+        return self.next_var
 
-    def __init__(self, name,  size=4, limit=100, seed=None, min_value=0, max_value=None):
-        super(STLVmFlowVarRepetableRandom, self).__init__(name,  size, limit, seed, min_value, max_value)
-
-    def get_obj (self):
-        return  CTRexVmInsFlowVarRandLimit(self.name, self.size, self.limit, self.seed, self.min_value, self.max_value);
-
-    def get_var_name(self):
-        return [self.name]
+    def get_previous_var_name(self):
+        return self.previous
 
 
 class STLVmFixChecksumHw(CTRexVmDescBase):
@@ -1083,7 +1051,7 @@ class STLVmWrFlowVar(CTRexVmDescBase):
             fv_name : string 
                 Stream variable to write to a packet offset.
 
-            pkt_offset : string or in
+            pkt_offset : string or int
                 Name of the field or offset in bytes from packet start.
 
             offset_fixup : int 
@@ -1114,7 +1082,7 @@ class STLVmWrFlowVar(CTRexVmDescBase):
         """
 
         super(STLVmWrFlowVar, self).__init__()
-        self.name =fv_name
+        self.fv_name =fv_name
         validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
@@ -1125,10 +1093,10 @@ class STLVmWrFlowVar(CTRexVmDescBase):
         validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-            return  CTRexVmInsWrFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
+            return  CTRexVmInsWrFlowVar(self.fv_name,self.pkt_offset+self.offset_fixup,self.add_val,self.is_big)
 
     def compile(self,parent):
         if type(self.pkt_offset)==str:
@@ -1174,7 +1142,7 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
             shift          : uint8_t 
                 How many bits to shift 
 
-            pkt_offset : string or in
+            pkt_offset : string or int
                 the name of the field or offset in byte from packet start.
 
             offset_fixup : int 
@@ -1240,14 +1208,14 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
         """
 
         super(STLVmWrMaskFlowVar, self).__init__()
-        self.name =fv_name
+        self.fv_name =fv_name
         validate_type('fv_name', fv_name, basestring)
         self.offset_fixup =offset_fixup
         validate_type('offset_fixup', offset_fixup, int)
         self.pkt_offset =pkt_offset
         self.pkt_cast_size =pkt_cast_size
         validate_type('pkt_cast_size', pkt_cast_size, int)
-        if not (pkt_cast_size in [1,2,4]):
+        if pkt_cast_size not in [1,2,4]:
             raise CTRexPacketBuildException(-10,"not valid cast size");
 
         self.mask = mask
@@ -1261,10 +1229,10 @@ class STLVmWrMaskFlowVar(CTRexVmDescBase):
         validate_type('is_big', is_big, bool)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-            return  CTRexVmInsWrMaskFlowVar(self.name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
+            return  CTRexVmInsWrMaskFlowVar(self.fv_name,self.pkt_offset+self.offset_fixup,self.pkt_cast_size,self.mask,self.shift,self.add_value,self.is_big)
 
     def compile(self,parent):
         if type(self.pkt_offset)==str:
@@ -1326,14 +1294,14 @@ class STLVmTrimPktSize(CTRexVmDescBase):
         """
 
         super(STLVmTrimPktSize, self).__init__()
-        self.name = fv_name
+        self.fv_name = fv_name
         validate_type('fv_name', fv_name, basestring)
 
     def get_var_ref (self):
-        return self.name
+        return self.fv_name
 
     def get_obj (self):
-        return  CTRexVmInsTrimPktSize(self.name)
+        return  CTRexVmInsTrimPktSize(self.fv_name)
 
 
 
@@ -1784,13 +1752,15 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                 
                 # flow var
                 if instr['type'] == 'flow_var':
-                    vm_obj.var(name      = instr['name'],
-                               op        = instr['op'],
-                               min_value = instr.get('min_value',0),
-                               max_value = instr.get('max_value',0),
-                               value_list = instr.get('value_list',None),
-                               size      = instr['size'],
-                               step      = instr['step'])
+                    vm_obj.var(name             = instr['name'],
+                               op               = instr['op'],
+                               min_value        = instr.get('min_value',0),
+                               max_value        = instr.get('max_value',0),
+                               value_list       = instr.get('value_list',None),
+                               size             = instr['size'],
+                               step             = instr['step'],
+                               split_to_cores   = instr.get('split_to_cores', True),
+                               next_var         = instr.get('next_var', None))
                     
                     
                 # write flow var
@@ -1840,12 +1810,14 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                     
                     
                 elif instr['type'] == 'flow_var_rand_limit':
-                    vm_obj.repeatable_random_var(fv_name       = instr['name'],
-                                                 size          = instr['size'],
-                                                 limit         = instr['limit'],
-                                                 seed          = instr['seed'],
-                                                 min_value     = instr['min_value'],
-                                                 max_value     = instr['max_value'])
+                    vm_obj.repeatable_random_var(fv_name        = instr['name'],
+                                                 size           = instr['size'],
+                                                 limit          = instr['limit'],
+                                                 seed           = instr['seed'],
+                                                 min_value      = instr['min_value'],
+                                                 max_value      = instr['max_value'],
+                                                 split_to_cores = instr.get('split_to_cores', True),
+                                                 next_var       = instr.get('next_var', None))
                         
                     
                 else:
@@ -1867,6 +1839,34 @@ class STLPktBuilder(CTrexPktBuilderInterface):
         
     ####################################################
     # private
+
+    def compute_previous(self, flow_variables):
+        for var_name, var in flow_variables.items():
+            next_var_name = var.get_next_var_name()
+            if next_var_name:
+                next_var = flow_variables[next_var_name]
+                if next_var.get_previous_var_name() and next_var.get_previous_var_name() != var_name:
+                        raise CTRexPacketBuildException(-11,"Variable %s is pointed by two vars." % next_var_name )
+                next_var.previous = var_name
+                next_var.split_to_cores = False
+
+
+    def order_flow_vars(self, flow_variables):
+        ordered_flow_vars = []
+        for var in flow_variables.values():
+            if var.get_previous_var_name() is None: #it means that this var is the head of a chain
+                head = var #start inserting the whole chain in the list
+                while (head.get_next_var_name()):
+                    ordered_flow_vars.append(head)
+                    head = flow_variables[head.get_next_var_name()] # update the head to the next var
+
+                # last var in a chain
+                ordered_flow_vars.append(head)
+
+        if len(flow_variables) != len(ordered_flow_vars):
+            raise CTRexPacketBuildException(-11,"Loops are forbidden for dependent variables")
+
+        return ordered_flow_vars
 
 
     def _get_pcap_file_path (self,pcap_file_name):
@@ -1892,29 +1892,46 @@ class STLPktBuilder(CTrexPktBuilderInterface):
     def _compile_raw (self,obj):
 
         # make sure we have varibles once
-        vars={};
+        vars={}
+        flow_vars = collections.OrderedDict()  #dictionary of flow vars
 
-        # add it add var to dit
+        # add vars to vars dict
         for desc in obj.commands:
             var_names =  desc.get_var_name()
 
             if var_names :
                 for var_name in var_names:
                     if var_name in vars:
-                        raise CTRexPacketBuildException(-11,("Variable %s defined twice ") % (var_name)  );
+                        raise CTRexPacketBuildException(-11,("Variable %s defined twice ") % (var_name)  )
                     else:
                         vars[var_name]=1
 
-        # check that all write exits
+        # check that all write command variables exist
         for desc in obj.commands:
             var_name =  desc.get_var_ref()
             if var_name :
-                if not var_name in vars:
-                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (var_name) );
-            desc.compile(self);
+                if var_name not in vars:
+                    raise CTRexPacketBuildException(-11,("Variable %s does not exist  ") % (var_name) )
 
+        # create dictionary of flow variables
         for desc in obj.commands:
-            self.vm_low_level.add_ins(desc.get_obj());
+            if type(desc) in (STLVmFlowVar,STLVmFlowVarRepeatableRandom):
+                flow_vars[desc.get_var_name()[0]] = desc
+
+        # check that all next_var exist
+        for var_name, var in flow_vars.items():
+            next_var_name = var.get_next_var_name()
+            if next_var_name:
+                if next_var_name not in flow_vars:
+                    raise CTRexPacketBuildException(-11,"Variable %s does not exist  " % next_var_name )
+
+        self.compute_previous(flow_vars)
+        ordered_commands = self.order_flow_vars(flow_vars)
+        ordered_commands += [cmd for cmd in obj.commands if type(cmd) not in (STLVmFlowVar,STLVmFlowVarRepeatableRandom)] 
+
+        for desc in ordered_commands:
+            desc.compile(self)
+            self.vm_low_level.add_ins(desc.get_obj())
 
         #set cache size 
         if obj.cache_size :
@@ -2018,7 +2035,7 @@ class STLVM(STLScVmRaw):
         self.cache_size = cache_size
         
         
-    def var (self, name, min_value, max_value, size, op, step = 1, **k):
+    def var (self, name, min_value, max_value, size, op, step = 1, split_to_cores = True, next_var = None, **k):
         """
         Defines a flow variable.
         Allocates a variable on a stream context. The size argument determines the variable size.
@@ -2044,8 +2061,13 @@ class STLVM(STLScVmRaw):
 
              op    : string 
                 Possible values: "inc", "dec", "random"
+            
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
         """
-        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step, **k))
+        self.add_cmd(STLVmFlowVar(name = name, min_value = min_value, max_value = max_value, size = size, op = op, step = step,
+                                  split_to_cores = split_to_cores, next_var = next_var, **k))
         
         
     def write (self, fv_name, pkt_offset, offset_fixup = 0, add_val = 0, byte_order = 'big'):
@@ -2063,7 +2085,7 @@ class STLVM(STLScVmRaw):
             fv_name : string 
                 Stream variable to write to a packet offset.
 
-            pkt_offset : string or in
+            pkt_offset : string or int
                 Name of the field or offset in bytes from packet start.
 
             offset_fixup : int 
@@ -2213,7 +2235,7 @@ class STLVM(STLScVmRaw):
             fv_name : string 
                 The stream variable name to write to a packet field
 
-            pkt_offset : string or in
+            pkt_offset : string or int
                 the name of the field or offset in byte from packet start.
                 
             pkt_cast_size : uint8_t 
@@ -2246,7 +2268,7 @@ class STLVM(STLScVmRaw):
         
         
         
-    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None):
+    def repeatable_random_var (self, fv_name, size, limit, seed = None, min_value = None, max_value = None, split_to_cores = True, next_var = None):
         """
         Flow variable instruction for repeatable random with limit number of generating numbers. Allocates memory on a stream context. 
         The size argument determines the variable size. Could be 1,2,4 or 8
@@ -2272,15 +2294,25 @@ class STLVM(STLScVmRaw):
 
              max_value  : int
                 Max value 
+            
+            split_to_cores : bool 
+                Default value is True. If the value is True then each core updates the variable by step * num of cores.
+                If split_to_cores = False then each core updates the variable by step.
+
+            next_var : string or None
+                In case it isn't None it is the name of the next variable. The next variable will perform its operation only when this variable
+                completes a full wrap around.
 
         """
         
-        self.add_cmd(STLVmFlowVarRepeatableRandom(name       =  fv_name,
-                                                  size       =  size,
-                                                  limit      =  limit,
-                                                  seed       =  seed,
-                                                  min_value  =  min_value,
-                                                  max_value  =  max_value))
+        self.add_cmd(STLVmFlowVarRepeatableRandom(name          =  fv_name,
+                                                  size          =  size,
+                                                  limit         =  limit,
+                                                  seed          =  seed,
+                                                  min_value     =  min_value,
+                                                  max_value     =  max_value,
+                                                  split_to_cores= split_to_cores,
+                                                  next_var      = next_var))
         
         
         

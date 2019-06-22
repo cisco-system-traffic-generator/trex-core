@@ -1,0 +1,67 @@
+# ip address of TREX server
+server_ip: localhost
+# number of workers
+num_workers: 2
+# log file path
+log_filename: "trex_client_wlc.log"
+
+# base values for ap and client parameters generation
+base_values:
+    ap_ip      : 9.2.0.1
+    ap_mac     : '84:22:12:02:02:01'
+    ap_radio   : '84:24:14:04:04:00'
+    ap_udp     : 10001
+    client_ip  : 9.10.0.1
+    client_mac : '84:30:13:03:03:01'
+
+# TREX ports to work with
+ports:
+    - 0
+    - 1
+
+# CAPWAP protocol parameters and Timers
+# rfc5415
+capwap:
+  # MaxRetransmit
+  # The maximum number of retransmissions for a given CAPWAP packet
+  # before the link layer considers the peer dead.
+  # RFC Default : 5
+  max_retransmit: 5
+
+  # RetransmitInterval
+  # The minimum time, in seconds, in which a non-acknowledged CAPWAP
+  # packet will be retransmitted.
+  # RFC Default : 3
+  retransmit_interval: 0.5
+
+  # EchoInterval
+  # The minimum time, in seconds, between sending Echo Request messages
+  # to the AC with which the WTP has joined.
+  # RFC Default : 30
+  echo_interval: 30
+
+
+  # non RFC parameters
+  specific:
+    # SSIDTimeout
+    # seconds to wait during the phase of configuration updates
+    # for getting a SSID from the WLC
+    # if timeout, rollback the Join Process
+    ssid_timeout: 10
+
+# DTLS protocol Parameters and Timers
+dtls:
+  shutdown_max_retransmit: 5
+  timeout: 7
+
+client:
+  association:
+    # exponential backoff slot time
+    # after n retries, timeout = slot^(n+1) + uniform(-1, 1)
+    slot_time: 2
+    # maximum number of retries before the timeout stops being increased
+    max_retries: 3
+
+# OpenSSL parameters
+openssl:
+  buffer_size: 10000

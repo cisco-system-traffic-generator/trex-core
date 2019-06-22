@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2014 Intel Corporation
  */
 
 #ifndef _VIRTQUEUE_H_
@@ -48,15 +19,40 @@
 struct rte_mbuf;
 
 /*
- * Per virtio_config.h in Linux.
+ * Per virtio_ring.h in Linux.
  *     For virtio_pci on SMP, we don't need to order with respect to MMIO
  *     accesses through relaxed memory I/O windows, so smp_mb() et al are
  *     sufficient.
  *
+ *     For using virtio to talk to real devices (eg. vDPA) we do need real
+ *     barriers.
  */
-#define virtio_mb()	rte_smp_mb()
-#define virtio_rmb()	rte_smp_rmb()
-#define virtio_wmb()	rte_smp_wmb()
+static inline void
+virtio_mb(uint8_t weak_barriers)
+{
+	if (weak_barriers)
+		rte_smp_mb();
+	else
+		rte_mb();
+}
+
+static inline void
+virtio_rmb(uint8_t weak_barriers)
+{
+	if (weak_barriers)
+		rte_smp_rmb();
+	else
+		rte_cio_rmb();
+}
+
+static inline void
+virtio_wmb(uint8_t weak_barriers)
+{
+	if (weak_barriers)
+		rte_smp_wmb();
+	else
+		rte_cio_wmb();
+}
 
 #ifdef RTE_PMD_PACKET_PREFETCH
 #define rte_packet_prefetch(p)  rte_prefetch1(p)
@@ -158,6 +154,17 @@ struct virtio_net_ctrl_mac {
 #define VIRTIO_NET_CTRL_VLAN_ADD 0
 #define VIRTIO_NET_CTRL_VLAN_DEL 1
 
+/*
+ * Control link announce acknowledgement
+ *
+ * The command VIRTIO_NET_CTRL_ANNOUNCE_ACK is used to indicate that
+ * driver has recevied the notification; device would clear the
+ * VIRTIO_NET_S_ANNOUNCE bit in the status field after it receives
+ * this command.
+ */
+#define VIRTIO_NET_CTRL_ANNOUNCE     3
+#define VIRTIO_NET_CTRL_ANNOUNCE_ACK 0
+
 struct virtio_net_ctrl_hdr {
 	uint8_t class;
 	uint8_t cmd;
@@ -179,16 +186,27 @@ struct virtio_pmd_ctrl {
 struct vq_desc_extra {
 	void *cookie;
 	uint16_t ndescs;
+	uint16_t next;
 };
 
 struct virtqueue {
 	struct virtio_hw  *hw; /**< virtio_hw structure pointer. */
-	struct vring vq_ring;  /**< vring keeping desc, used and avail */
-	/**
-	 * Last consumed descriptor in the used table,
-	 * trails vq_ring.used->idx.
-	 */
-	uint16_t vq_used_cons_idx;
+	union {
+		struct {
+			/**< vring keeping desc, used and avail */
+			struct vring ring;
+		} vq_split;
+
+		struct {
+			/**< vring keeping descs and events */
+			struct vring_packed ring;
+			bool used_wrap_counter;
+			uint16_t cached_flags; /**< cached flags for descs */
+			uint16_t event_flags_shadow;
+		} vq_packed;
+	};
+
+	uint16_t vq_used_cons_idx; /**< last consumed descriptor */
 	uint16_t vq_nentries;  /**< vring desc numbers */
 	uint16_t vq_free_cnt;  /**< num of desc available */
 	uint16_t vq_avail_idx; /**< sync until needed */
@@ -226,8 +244,6 @@ struct virtqueue {
 #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MIN        1
 #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MAX        0x8000
 
-#define VIRTIO_NET_CTRL_MAC_ADDR_SET         1
-
 /**
  * This is the first element of the scatter-gather list.  If you don't
  * specify GSO or CSUM features, you can simply ignore the header.
@@ -262,12 +278,36 @@ struct virtio_net_hdr_mrg_rxbuf {
 struct virtio_tx_region {
 	struct virtio_net_hdr_mrg_rxbuf tx_hdr;
 	struct vring_desc tx_indir[VIRTIO_MAX_TX_INDIRECT]
-			   __attribute__((__aligned__(16)));
+		__attribute__((__aligned__(16)));
 };
+
+static inline int
+desc_is_used(struct vring_packed_desc *desc, struct virtqueue *vq)
+{
+	uint16_t used, avail, flags;
+
+	flags = desc->flags;
+	used = !!(flags & VRING_PACKED_DESC_F_USED);
+	avail = !!(flags & VRING_PACKED_DESC_F_AVAIL);
+
+	return avail == used && used == vq->vq_packed.used_wrap_counter;
+}
+
+static inline void
+vring_desc_init_packed(struct virtqueue *vq, int n)
+{
+	int i;
+	for (i = 0; i < n - 1; i++) {
+		vq->vq_packed.ring.desc[i].id = i;
+		vq->vq_descx[i].next = i + 1;
+	}
+	vq->vq_packed.ring.desc[i].id = i;
+	vq->vq_descx[i].next = VQ_RING_DESC_CHAIN_END;
+}
 
 /* Chain all the descriptors in the ring with an END */
 static inline void
-vring_desc_init(struct vring_desc *dp, uint16_t n)
+vring_desc_init_split(struct vring_desc *dp, uint16_t n)
 {
 	uint16_t i;
 
@@ -277,12 +317,59 @@ vring_desc_init(struct vring_desc *dp, uint16_t n)
 }
 
 /**
+ * Tell the backend not to interrupt us. Implementation for packed virtqueues.
+ */
+static inline void
+virtqueue_disable_intr_packed(struct virtqueue *vq)
+{
+	if (vq->vq_packed.event_flags_shadow != RING_EVENT_FLAGS_DISABLE) {
+		vq->vq_packed.event_flags_shadow = RING_EVENT_FLAGS_DISABLE;
+		vq->vq_packed.ring.driver->desc_event_flags =
+			vq->vq_packed.event_flags_shadow;
+	}
+}
+
+/**
+ * Tell the backend not to interrupt us. Implementation for split virtqueues.
+ */
+static inline void
+virtqueue_disable_intr_split(struct virtqueue *vq)
+{
+	vq->vq_split.ring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+}
+
+/**
  * Tell the backend not to interrupt us.
  */
 static inline void
 virtqueue_disable_intr(struct virtqueue *vq)
 {
-	vq->vq_ring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+	if (vtpci_packed_queue(vq->hw))
+		virtqueue_disable_intr_packed(vq);
+	else
+		virtqueue_disable_intr_split(vq);
+}
+
+/**
+ * Tell the backend to interrupt. Implementation for packed virtqueues.
+ */
+static inline void
+virtqueue_enable_intr_packed(struct virtqueue *vq)
+{
+	if (vq->vq_packed.event_flags_shadow == RING_EVENT_FLAGS_DISABLE) {
+		vq->vq_packed.event_flags_shadow = RING_EVENT_FLAGS_ENABLE;
+		vq->vq_packed.ring.driver->desc_event_flags =
+			vq->vq_packed.event_flags_shadow;
+	}
+}
+
+/**
+ * Tell the backend to interrupt. Implementation for split virtqueues.
+ */
+static inline void
+virtqueue_enable_intr_split(struct virtqueue *vq)
+{
+	vq->vq_split.ring.avail->flags &= (~VRING_AVAIL_F_NO_INTERRUPT);
 }
 
 /**
@@ -291,7 +378,10 @@ virtqueue_disable_intr(struct virtqueue *vq)
 static inline void
 virtqueue_enable_intr(struct virtqueue *vq)
 {
-	vq->vq_ring.avail->flags &= (~VRING_AVAIL_F_NO_INTERRUPT);
+	if (vtpci_packed_queue(vq->hw))
+		virtqueue_enable_intr_packed(vq);
+	else
+		virtqueue_enable_intr_split(vq);
 }
 
 /**
@@ -301,10 +391,10 @@ void virtqueue_dump(struct virtqueue *vq);
 /**
  *  Get all mbufs to be freed.
  */
-struct rte_mbuf *virtqueue_detatch_unused(struct virtqueue *vq);
+struct rte_mbuf *virtqueue_detach_unused(struct virtqueue *vq);
 
 /* Flush the elements in the used ring. */
-void virtqueue_flush(struct virtqueue *vq);
+void virtqueue_rxvq_flush(struct virtqueue *vq);
 
 static inline int
 virtqueue_full(const struct virtqueue *vq)
@@ -312,15 +402,30 @@ virtqueue_full(const struct virtqueue *vq)
 	return vq->vq_free_cnt == 0;
 }
 
-#define VIRTQUEUE_NUSED(vq) ((uint16_t)((vq)->vq_ring.used->idx - (vq)->vq_used_cons_idx))
+static inline int
+virtio_get_queue_type(struct virtio_hw *hw, uint16_t vtpci_queue_idx)
+{
+	if (vtpci_queue_idx == hw->max_queue_pairs * 2)
+		return VTNET_CQ;
+	else if (vtpci_queue_idx % 2 == 0)
+		return VTNET_RQ;
+	else
+		return VTNET_TQ;
+}
+
+#define VIRTQUEUE_NUSED(vq) ((uint16_t)((vq)->vq_split.ring.used->idx - \
+					(vq)->vq_used_cons_idx))
 
 void vq_ring_free_chain(struct virtqueue *vq, uint16_t desc_idx);
+void vq_ring_free_chain_packed(struct virtqueue *vq, uint16_t used_idx);
+void vq_ring_free_inorder(struct virtqueue *vq, uint16_t desc_idx,
+			  uint16_t num);
 
 static inline void
 vq_update_avail_idx(struct virtqueue *vq)
 {
-	virtio_wmb();
-	vq->vq_ring.avail->idx = vq->vq_avail_idx;
+	virtio_wmb(vq->hw->weak_barriers);
+	vq->vq_split.ring.avail->idx = vq->vq_avail_idx;
 }
 
 static inline void
@@ -335,41 +440,68 @@ vq_update_avail_ring(struct virtqueue *vq, uint16_t desc_idx)
 	 * descriptor.
 	 */
 	avail_idx = (uint16_t)(vq->vq_avail_idx & (vq->vq_nentries - 1));
-	if (unlikely(vq->vq_ring.avail->ring[avail_idx] != desc_idx))
-		vq->vq_ring.avail->ring[avail_idx] = desc_idx;
+	if (unlikely(vq->vq_split.ring.avail->ring[avail_idx] != desc_idx))
+		vq->vq_split.ring.avail->ring[avail_idx] = desc_idx;
 	vq->vq_avail_idx++;
 }
 
 static inline int
 virtqueue_kick_prepare(struct virtqueue *vq)
 {
-	return !(vq->vq_ring.used->flags & VRING_USED_F_NO_NOTIFY);
+	/*
+	 * Ensure updated avail->idx is visible to vhost before reading
+	 * the used->flags.
+	 */
+	virtio_mb(vq->hw->weak_barriers);
+	return !(vq->vq_split.ring.used->flags & VRING_USED_F_NO_NOTIFY);
 }
 
+static inline int
+virtqueue_kick_prepare_packed(struct virtqueue *vq)
+{
+	uint16_t flags;
+
+	/*
+	 * Ensure updated data is visible to vhost before reading the flags.
+	 */
+	virtio_mb(vq->hw->weak_barriers);
+	flags = vq->vq_packed.ring.device->desc_event_flags;
+
+	return flags != RING_EVENT_FLAGS_DISABLE;
+}
+
+/*
+ * virtqueue_kick_prepare*() or the virtio_wmb() should be called
+ * before this function to be sure that all the data is visible to vhost.
+ */
 static inline void
 virtqueue_notify(struct virtqueue *vq)
 {
-	/*
-	 * Ensure updated avail->idx is visible to host.
-	 * For virtio on IA, the notificaiton is through io port operation
-	 * which is a serialization instruction itself.
-	 */
 	VTPCI_OPS(vq->hw)->notify_queue(vq->hw, vq);
 }
 
 #ifdef RTE_LIBRTE_VIRTIO_DEBUG_DUMP
 #define VIRTQUEUE_DUMP(vq) do { \
 	uint16_t used_idx, nused; \
-	used_idx = (vq)->vq_ring.used->idx; \
+	used_idx = (vq)->vq_split.ring.used->idx; \
 	nused = (uint16_t)(used_idx - (vq)->vq_used_cons_idx); \
+	if (vtpci_packed_queue((vq)->hw)) { \
+		PMD_INIT_LOG(DEBUG, \
+		"VQ: - size=%d; free=%d; used_cons_idx=%d; avail_idx=%d;" \
+		" cached_flags=0x%x; used_wrap_counter=%d", \
+		(vq)->vq_nentries, (vq)->vq_free_cnt, (vq)->vq_used_cons_idx, \
+		(vq)->vq_avail_idx, (vq)->vq_packed.cached_flags, \
+		(vq)->vq_packed.used_wrap_counter); \
+		break; \
+	} \
 	PMD_INIT_LOG(DEBUG, \
 	  "VQ: - size=%d; free=%d; used=%d; desc_head_idx=%d;" \
 	  " avail.idx=%d; used_cons_idx=%d; used.idx=%d;" \
 	  " avail.flags=0x%x; used.flags=0x%x", \
 	  (vq)->vq_nentries, (vq)->vq_free_cnt, nused, \
-	  (vq)->vq_desc_head_idx, (vq)->vq_ring.avail->idx, \
-	  (vq)->vq_used_cons_idx, (vq)->vq_ring.used->idx, \
-	  (vq)->vq_ring.avail->flags, (vq)->vq_ring.used->flags); \
+	  (vq)->vq_desc_head_idx, (vq)->vq_split.ring.avail->idx, \
+	  (vq)->vq_used_cons_idx, (vq)->vq_split.ring.used->idx, \
+	  (vq)->vq_split.ring.avail->flags, (vq)->vq_split.ring.used->flags); \
 } while (0)
 #else
 #define VIRTQUEUE_DUMP(vq) do { } while (0)

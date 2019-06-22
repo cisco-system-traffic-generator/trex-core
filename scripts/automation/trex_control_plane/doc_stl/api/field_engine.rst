@@ -106,7 +106,7 @@ STLScVmRaw class
 
 Aggregate raw instructions objects 
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLScVmRaw
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLScVmRaw
     :members: 
     :member-order: bysource
 
@@ -114,14 +114,14 @@ Aggregate raw instructions objects
 STLVmFlowVar 
 ------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVar
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmFlowVar
     :members: 
     :member-order: bysource
 
 STLVmWrFlowVar
 ---------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmWrFlowVar
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmWrFlowVar
     :members: 
     :member-order: bysource
 
@@ -129,14 +129,14 @@ STLVmWrFlowVar
 STLVmWrMaskFlowVar
 ------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmWrMaskFlowVar
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmWrMaskFlowVar
     :members: 
     :member-order: bysource
 
 STLVmFixChecksumHw
 --------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFixChecksumHw
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmFixChecksumHw
     :members: 
     :member-order: bysource
 
@@ -144,7 +144,7 @@ STLVmFixChecksumHw
 STLVmFixIpv4
 ------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFixIpv4
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmFixIpv4
     :members: 
     :member-order: bysource
  
@@ -152,21 +152,21 @@ STLVmFixIpv4
 STLVmTrimPktSize
 ------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmTrimPktSize
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmTrimPktSize
     :members: 
     :member-order: bysource
 
 STLVmTupleGen
 ------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmTupleGen
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmTupleGen
     :members: 
     :member-order: bysource
 
 STLVmFlowVarRepeatableRandom
 ----------------------------
 
-.. autoclass:: trex_stl_lib.trex_stl_packet_builder_scapy.STLVmFlowVarRepeatableRandom
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmFlowVarRepeatableRandom
     :members: 
     :member-order: bysource
 

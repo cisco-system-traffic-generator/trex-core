@@ -11,10 +11,47 @@ import time
 import threading
 import logging
 import CCustomLogger
+import traceback
 
 # setup the logger
 CCustomLogger.setup_custom_logger('TRexServer')
 logger = logging.getLogger('TRexServer')
+
+def bt_process(tree, level, pid, cmd):
+    logger.info('TRex subprocess level: %s, pid: %s, cmd: %s' % (level, pid, cmd))
+
+    if level > 4:
+        logger.warn('Process tree is too deep (level %s)' % level)
+        return
+
+    gdb_cmd = 'gdb --pid %s --eval bt --batch' % pid
+    output = subprocess.check_output(shlex.split(gdb_cmd), stderr = subprocess.STDOUT, universal_newlines = True)
+    logger.info('BT of subprocess:\n%s' % output)
+
+    for child_pid, child_cmd in tree.get(pid, []):
+        bt_process(tree, level + 1, child_pid, child_cmd)
+
+
+def bt_process_tree(root_pid):
+    root_cmd = None
+    output = subprocess.check_output(shlex.split('ps -u root --format=pid,ppid,command'), universal_newlines = True)
+
+    parents_dict = {}
+    for line in output.splitlines():
+        pid, ppid, cmd = line.strip().split(None, 2)
+        if pid == 'PID':
+            continue
+        pid, ppid = int(pid), int(ppid)
+        if pid == root_pid:
+            root_cmd = cmd
+        if ppid in parents_dict:
+            parents_dict[ppid].append((pid, cmd))
+        else:
+            parents_dict[ppid] = [(pid, cmd)]
+    if not root_cmd:
+        logger.error('Could not find TRex process')
+        return
+    bt_process(parents_dict, 0, root_pid, root_cmd)
 
 
 class AsynchronousTRexSession(threading.Thread):
@@ -77,7 +114,12 @@ class AsynchronousTRexSession(threading.Thread):
             logger.debug("Finished handling a single run of TRex.")
             self.trexObj.zmq_dump   = None
 
-    def join (self, timeout = 5):
+    def join(self, timeout = 5, with_tb = False):
+        if with_tb and self.session.pid:
+            try:
+                bt_process_tree(self.session.pid)
+            except:
+                logger.error('Could not get traceback of TRex processes, error: %s' % traceback.format_exc())
         self.stoprequest.set()
         super(AsynchronousTRexSession, self).join(timeout)
 

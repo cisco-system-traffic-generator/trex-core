@@ -122,7 +122,7 @@ class InteractiveTRexClient(cmd.Cmd):
         try:
             sample_rate = int(sample_rate)
             ret = self.trex.start_trex(**self.run_params)
-            self.trex.sample_to_run_finish(sample_rate)
+            self.trex.sample_until_finish(sample_rate)
             print termstyle.green("*** End of TRex run ***")
         except ValueError as inst:
             print termstyle.magenta("Provided illegal sample rate value. Please try again.\n[", inst,"]")

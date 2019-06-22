@@ -29,6 +29,176 @@
 #include <pthread.h>
 
 
+/*************************************************
+*             Tunnel JSON-RPC for abstract Stack *
+**************************************************/
+
+
+void CRpcTunnelCStackBase::init(CStackBase * obj){
+    m_obj = obj;
+}
+
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_node(const Json::Value &params, Json::Value &result){
+    debug({"rpc_add_node",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    return (m_obj->rpc_add_node(mac));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_node(const Json::Value &params, Json::Value &result){
+    debug({"rpc_remove_node",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    return (m_obj->rpc_remove_node(mac));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlans(const Json::Value &params, Json::Value &result){
+    debug({"rpc_set_vlans",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    const Json::Value &vlans = parse_array(params, "vlans", result);
+
+    if ( vlans.size() > 2 ) {
+        generate_parse_err(result, "Maximal number of stacked VLANs is 2, got: " + to_string(vlans.size()));
+    }
+    vlan_list_t vlan_list;
+
+    for (int i=0; i<vlans.size(); i++) {
+        uint16_t vlan = parse_uint16(vlans, i, result);
+        if ( (vlan == 0) || (vlan > 4095) ) {
+            generate_parse_err(result, "invalid VLAN tag: '" + to_string(vlan) + "'");
+        }
+        vlan_list.push_back(vlan);
+    }
+
+    vlan_list_t tpid_list;
+
+    if ( params["tpids"].isArray() ) {
+        const Json::Value &tpids = parse_array(params, "tpids", result);
+        if ( tpids.size() != vlans.size() ) {
+            generate_parse_err(result, "mismatch between size of vlan tags and pgids");
+        }
+        for (int i=0; i<tpids.size(); i++) {
+            uint16_t tpid = parse_uint16(tpids, i, result);
+            tpid_list.push_back(tpid);
+        }
+    }
+
+    return (m_obj->rpc_set_vlans(mac, vlan_list, tpid_list));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv4(const Json::Value &params, Json::Value &result){
+    debug({"rpc_set_ipv4",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    string ip4_buf = parse_ipv4(params, "ipv4", result);
+    string gw4_buf = parse_ipv4(params, "dg", result);
+
+    return (m_obj->rpc_set_ipv4(mac,ip4_buf,gw4_buf));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params, Json::Value &result){
+    debug({"rpc_clear_ipv4",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    return (m_obj->rpc_clear_ipv4(mac));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv6(const Json::Value &params, Json::Value &result){
+    debug({"rpc_set_ipv6",pretty_json_str(params)});
+    string mac   = parse_string(params, "mac", result);
+    bool enable   = parse_bool(params, "enable", result);
+    string src_ipv6 = "";
+    if ( enable ) {
+        src_ipv6 = parse_string(params, "src_ipv6", result);
+        if ( src_ipv6.size() > 0 ) {
+            src_ipv6 = parse_ipv6(params, "src_ipv6", result);
+        }
+    }
+    return (m_obj->rpc_set_ipv6(mac,enable,src_ipv6));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_all(const Json::Value &params, Json::Value &result){
+    debug({"rpc_remove_all",pretty_json_str(params)});
+    return (m_obj->rpc_remove_all());
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_get_nodes(const Json::Value &params, Json::Value &result){
+    debug({"rpc_get_nodes",pretty_json_str(params)});
+    return (m_obj->rpc_get_nodes(result));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_get_nodes_info(const Json::Value &params, Json::Value &result){
+    debug({"rpc_get_nodes_info",pretty_json_str(params)});
+    if (!params["macs"].isArray()) {
+        generate_parse_err(result, "input should be array of MAC address");
+    }
+    return (m_obj->rpc_get_nodes_info(params["macs"],result));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_get_commands_list(const Json::Value &params, Json::Value &result){
+    debug({"rpc_get_commands_list",pretty_json_str(params)});
+    /* TBD take the list from the registry */
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_counters(const Json::Value &params, Json::Value &result){
+    debug({"rpc_clear_counters",pretty_json_str(params)});
+    return (m_obj->rpc_clear_counters());
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_counters_get_meta(const Json::Value &params, Json::Value &result){
+    debug({"rpc_counters_get_meta",pretty_json_str(params)});
+    return (m_obj->rpc_counters_get_meta(params,result));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_counters_get_value(const Json::Value &params, Json::Value &result){
+    debug({"rpc_counters_get_value",pretty_json_str(params)});
+    bool zeros   = parse_bool(params, "zeros", result);
+    return (m_obj->rpc_counters_get_value(zeros,result));
+}
+
+
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_help(const Json::Value &params, Json::Value &result){
+
+    const string &  mac  =  parse_string(params, "mac", result);
+    const string & ipv4  = parse_string(params, "ipv4", result);
+    const string & ipv4_dg = parse_string(params, "ipv4_dg", result);
+
+    m_obj->rpc_help(mac,ipv4, ipv4_dg);
+
+    result = Json::nullValue;
+    return(TREX_RPC_CMD_OK);
+}
+
+
+void CRpcTunnelCStackBase::update_cmd_count(uint32_t total_exec_commands,
+                                            uint32_t err_exec_commands){
+    m_obj->update_rcp_cmds_count(total_exec_commands,err_exec_commands);
+}
+
+
+void CRpcTunnelCStackBase::register_rpc_functions(){
+    using namespace std::placeholders;
+
+    register_func("add_node",std::bind(&CRpcTunnelCStackBase::rpc_add_node, this, _1, _2));
+    register_func("remove_node",std::bind(&CRpcTunnelCStackBase::rpc_remove_node, this, _1, _2));
+    register_func("set_vlans",std::bind(&CRpcTunnelCStackBase::rpc_set_vlans, this, _1, _2));
+    register_func("set_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv4, this, _1, _2));
+    register_func("clear_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_clear_ipv4, this, _1, _2));
+    register_func("set_ipv6",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv6, this, _1, _2));
+    register_func("remove_all",std::bind(&CRpcTunnelCStackBase::rpc_remove_all, this, _1, _2));
+    register_func("get_nodes",std::bind(&CRpcTunnelCStackBase::rpc_get_nodes, this, _1, _2));
+    register_func("get_nodes_info",std::bind(&CRpcTunnelCStackBase::rpc_get_nodes_info, this, _1, _2));
+    register_func("counters_clear",std::bind(&CRpcTunnelCStackBase::rpc_clear_counters, this, _1, _2));
+    register_func("counters_get_meta",std::bind(&CRpcTunnelCStackBase::rpc_counters_get_meta, this, _1, _2));
+    register_func("counters_get_value",std::bind(&CRpcTunnelCStackBase::rpc_counters_get_value, this, _1, _2));
+    register_func("get_commands",std::bind(&CRpcTunnelCStackBase::rpc_get_commands_list, this, _1, _2));
+
+    /* debug, should be removed */
+    register_func("rpc_help",std::bind(&CRpcTunnelCStackBase::rpc_help, this, _1, _2));
+
+}
+
+                                        
+
 /***************************************
 *             CStackBase               *
 ***************************************/
@@ -38,14 +208,18 @@ CStackBase::CStackBase(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) {
     m_api = api;
     m_ignore_stats = ignore_stats;
     m_is_running_tasks = false;
+    m_rpc_tunnel.init(this);
+    m_rpc_tunnel.register_rpc_functions();
+    m_counters.Create();
 }
 
-CStackBase::~CStackBase(void) {
+CStackBase::~CStackBase() {
     debug("base stack dtor");
     assert(m_nodes.size() == 0);
+    m_counters.Delete();
 }
 
-void CStackBase::add_port_node_async(void) {
+void CStackBase::add_port_node_async() {
     debug("add port node");
     uint8_t port_id = m_api->get_port_id();
     string port_mac((char*)CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.src, 6);
@@ -63,7 +237,7 @@ void CStackBase::attr_to_json(Json::Value &res) {
 
     // VLAN
     res["vlan"]["tags"] = Json::arrayValue;
-    for (auto tag : m_port_node->get_vlan()) {
+    for (auto &tag : m_port_node->get_vlan_tags()) {
         res["vlan"]["tags"].append(tag);
     }
 
@@ -116,7 +290,6 @@ void CStackBase::del_node_async(const string &mac_buf) {
 }
 
 CNodeBase* CStackBase::get_node(const string &mac_buf) {
-    assert(!m_is_running_tasks);
     return get_node_internal(mac_buf);
 }
 
@@ -129,7 +302,7 @@ CNodeBase* CStackBase::get_node_internal(const string &mac_buf) {
     return nullptr;
 }
 
-CNodeBase* CStackBase::get_port_node(void) {
+CNodeBase* CStackBase::get_port_node() {
     assert(m_port_node!=nullptr);
     assert(!m_is_running_tasks);
     return m_port_node;
@@ -180,6 +353,49 @@ void CStackBase::wait_on_tasks(uint64_t ticket_id, stack_result_t &results, doub
     }
 }
 
+
+void CStackBase::_finish_rpc(uint64_t ticket_id){
+    m_rpc_commands.clear();
+    m_results[ticket_id].is_ready = true;
+    m_is_running_tasks = false;
+    rte_rmb();
+}
+
+
+/* this will run the rpc commands list if exits */
+void CStackBase::run_pending_tasks_internal_rpc(uint64_t ticket_id){
+    assert(m_rpc_commands.length()>0);
+
+    debug({"run_pending_tasks_internal_rpc", to_string(ticket_id),m_rpc_commands});
+
+    Json::Reader reader;
+    Json::Value  requests;
+
+
+    /* basic JSON parsing */
+    bool rc = reader.parse(m_rpc_commands, requests, false);
+    if (!rc) {
+        m_results[ticket_id].m_results["error"]="Bad JSON Format";
+        _finish_rpc(ticket_id);
+        return;
+    }
+
+    /* request can be an array of requests */
+    if (!requests.isArray()) {
+        m_results[ticket_id].m_results["error"]="Bad JSON Format";
+        _finish_rpc(ticket_id);
+        return;
+    }
+    m_total_cmds = requests.size();
+    rte_atomic32_init(&m_exec_cmds);
+    rte_atomic32_init(&m_exec_cmds_err);
+    rte_rmb();
+
+    m_rpc_tunnel.run_batch(requests,m_results[ticket_id].m_results);
+    _finish_rpc(ticket_id);
+}
+
+
 void CStackBase::run_pending_tasks_internal(uint64_t ticket_id) {
     if ( m_add_macs_list.size() ) { // add nodes
         CNodeBase *node;
@@ -221,9 +437,10 @@ void CStackBase::run_pending_tasks_internal(uint64_t ticket_id) {
     }
     m_results[ticket_id].is_ready = true;
     m_is_running_tasks = false;
+    rte_rmb();
 }
 
-bool CStackBase::has_pending_tasks(void) {
+bool CStackBase::has_pending_tasks() {
     if ( m_add_macs_list.size() || m_del_macs_list.size() ) {
         return true;
     }
@@ -235,33 +452,69 @@ bool CStackBase::has_pending_tasks(void) {
     return false;
 }
 
-void CStackBase::cancel_pending_tasks(void) {
+
+
+void CStackBase::get_rpc_cmds(TrexStackResultsRC & rc){
+    rte_rmb();
+    rc.m_total_cmds = m_total_cmds;
+    rc.m_total_exec_cmds = rte_atomic32_read(&m_exec_cmds);
+    rc.m_total_errs_cmds = rte_atomic32_read(&m_exec_cmds_err);
+}
+
+
+void CStackBase::update_rcp_cmds_count(uint32_t total_exec_commands,
+                                       uint32_t err_commands){
+    rte_atomic32_set(&m_exec_cmds,total_exec_commands);
+    rte_atomic32_set(&m_exec_cmds_err,err_commands);
+    rte_rmb();
+}
+
+/* run batch of json commands  in async mode, just save the command */
+void CStackBase::conf_name_space_batch_async(const std::string &json){
+    debug({"conf_name_space_batch_async", json});
+    m_rpc_commands = json;
+}
+
+
+void CStackBase::rpc_help(const std::string & mac,const std::string & p1,const std::string & p2){
+    printf(" rpc_help base -- not implemented \n"); 
+}
+
+
+void CStackBase::dummy_rpc_command(string ipv4,string ipv4_dg){
+    printf(" dummy_rpc_command %s %s \n",ipv4.c_str(),ipv4_dg.c_str());
+}
+
+void CStackBase::cancel_pending_tasks() {
     debug("Canceling pending tasks");
     m_add_macs_list.clear();
     m_del_macs_list.clear();
+    m_rpc_commands.clear();
     for (auto &node_pair : m_nodes) {
         node_pair.second->m_tasks.clear();
     }
 }
 
-void CStackBase::cancel_running_tasks(void) {
+void CStackBase::cancel_running_tasks() {
     debug("Canceling running tasks");
     if ( m_is_running_tasks ) {
         pthread_cancel(m_thread_handle);
         m_is_running_tasks = false;
+        rte_rmb();
     }
 }
 
-void CStackBase::run_pending_tasks_async(uint64_t ticket_id) {
+void CStackBase::run_pending_tasks_async(uint64_t ticket_id,bool rpc) {
     debug({"Run pending tasks for ticket", to_string(ticket_id)});
     assert(!m_is_running_tasks);
     clean_old_results(m_results);
-    if ( !has_pending_tasks() ) {
+    if ( !has_pending_tasks() && (rpc==false) ) {
         debug("No pending tasks");
         m_results[ticket_id].is_ready = true;
         return;
     }
     m_is_running_tasks = true;
+    rte_rmb();
     m_results[ticket_id].is_ready = false;
     if ( has_capa(FAST_OPS) ) {
         debug("Running in FG");
@@ -271,8 +524,12 @@ void CStackBase::run_pending_tasks_async(uint64_t ticket_id) {
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(CGlobalInfo::m_socket.get_master_phy_id(), &cpuset);
-
-        thread thrd = thread(&CStackBase::run_pending_tasks_internal, this, ticket_id);
+        thread thrd;
+        if (rpc){
+            thrd = thread(&CStackBase::run_pending_tasks_internal_rpc, this, ticket_id);
+        }else{
+            thrd = thread(&CStackBase::run_pending_tasks_internal, this, ticket_id);
+        }
         m_thread_handle = thrd.native_handle();
         // run with same affinity as master
         pthread_setaffinity_np(m_thread_handle, sizeof(cpu_set_t), &cpuset);
@@ -281,7 +538,7 @@ void CStackBase::run_pending_tasks_async(uint64_t ticket_id) {
     }
 }
 
-void CStackBase::reset_async(void) {
+void CStackBase::reset_async() {
     cancel_running_tasks();
     cancel_pending_tasks();
     if ( m_nodes.size() <= 1 ) {
@@ -294,7 +551,7 @@ void CStackBase::reset_async(void) {
     }
 }
 
-void CStackBase::cleanup_async(void) {
+void CStackBase::cleanup_async() {
     debug("cleanup");
     cancel_running_tasks();
     cancel_pending_tasks();
@@ -304,7 +561,7 @@ void CStackBase::cleanup_async(void) {
     }
 }
 
-bool CStackBase::is_running_tasks(void) {
+bool CStackBase::is_running_tasks() {
     return m_is_running_tasks;
 }
 
@@ -313,10 +570,11 @@ bool CStackBase::is_running_tasks(void) {
 *             CNodeBase                *
 ***************************************/
 
-CNodeBase::CNodeBase() {
+CNodeBase::CNodeBase(){
     m_dst_mac_valid = false;
     m_is_loopback = false;
     m_ip6_enabled = false;
+    m_l2_mode =false;
 }
 
 CNodeBase::~CNodeBase() {}
@@ -330,25 +588,27 @@ void CNodeBase::conf_dst_mac_async(const string &dst_mac) {
     }
 }
 
-void CNodeBase::set_dst_mac_valid_async(void) {
+void CNodeBase::set_dst_mac_valid_async() {
     debug("set dst valid");
     if ( !m_dst_mac_valid ) {
         m_tasks.push_back(bind(&CNodeBase::set_dst_mac_valid_internal, this, true));
     }
 }
 
-void CNodeBase::set_dst_mac_invalid(void) {
-    set_dst_mac_valid_internal(false);
+void CNodeBase::set_dst_mac_invalid() {
+    if ( get_l2_mode()==false ){
+        set_dst_mac_valid_internal(false);
+    }
 }
 
-void CNodeBase::set_is_loopback_async(void) {
+void CNodeBase::set_is_loopback_async() {
     debug("set is loop");
     if ( !m_is_loopback ) {
         m_tasks.push_back(bind(&CNodeBase::set_is_loopback_internal, this, true));
     }
 }
 
-void CNodeBase::set_not_loopback(void) {
+void CNodeBase::set_not_loopback() {
     debug("set no loop");
     set_is_loopback_internal(false);
 }
@@ -356,7 +616,8 @@ void CNodeBase::set_not_loopback(void) {
 void CNodeBase::conf_vlan_async(const vlan_list_t &vlans) {
     debug("conf vlan");
     if ( vlans != m_vlan_tags ) {
-        m_tasks.push_back(bind(&CNodeBase::conf_vlan_internal, this, vlans));
+        vlan_list_t tpids_dummy;
+        m_tasks.push_back(bind(&CNodeBase::conf_vlan_internal, this, vlans, tpids_dummy));
     }
 }
 
@@ -369,12 +630,13 @@ void CNodeBase::conf_ip4_async(const string &ip4_buf, const string &gw4_buf) {
     }
 }
 
-void CNodeBase::clear_ip4_async(void) {
+void CNodeBase::clear_ip4_async() {
     debug("clear ip4");
     if ( m_ip4.size() || m_gw4.size() ) {
         m_tasks.push_back(bind(&CNodeBase::clear_ip4_internal, this));
     }
 }
+
 
 void CNodeBase::conf_ip6_async(bool enabled, const string &ip6_buf) {
     assert(ip6_buf.size()==16 || ip6_buf.size()==0);
@@ -384,10 +646,95 @@ void CNodeBase::conf_ip6_async(bool enabled, const string &ip6_buf) {
     }
 }
 
-void CNodeBase::clear_ip6_async(void) {
+void CNodeBase::clear_ip6_async() {
     debug("clear ip6");
     if ( m_ip6_enabled || m_ip6.size() ) {
         m_tasks.push_back(bind(&CNodeBase::clear_ip6_internal, this));
+    }
+}
+
+
+void CNodeBase::to_json_node(Json::Value &cfg){
+
+        // MAC
+    cfg["ether"]["src"] = utl_macaddr_to_str((uint8_t *)get_src_mac().data());
+
+    // VLAN
+    cfg["vlan"]["tags"] = Json::arrayValue;
+    for (auto &tag : get_vlan_tags()) {
+        cfg["vlan"]["tags"].append(tag);
+    }
+    cfg["vlan"]["tpids"] = Json::arrayValue;
+    for (auto &tpid : get_vlan_tpids()) {
+        cfg["vlan"]["tpids"].append(tpid);
+    }
+
+    // IPv4
+    if ( get_src_ip4().size() ) {
+        char buf[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, get_src_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["src"] = buf;
+        inet_ntop(AF_INET, get_dst_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["dst"] = buf;
+    } else {
+        cfg["ipv4"]["state"] = "none";
+    }
+
+    if ( is_ip6_enabled() ) {
+        cfg["ipv6"]["enabled"] = true;
+        string ipv6_src = get_src_ip6();
+        if ( ipv6_src.size() ) {
+            char buf[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipv6_src.c_str(), buf, INET6_ADDRSTRLEN);
+            ipv6_src = buf;
+        }
+        cfg["ipv6"]["src"] = ipv6_src;
+    } else {
+        cfg["ipv6"]["enabled"] = false;
+    }
+}
+
+
+void CNodeBase::to_json(Json::Value &cfg){
+
+        // MAC
+    cfg["ether"]["src"] = utl_macaddr_to_str((uint8_t *)get_src_mac().data());
+    cfg["ether"]["dst"] = utl_macaddr_to_str((uint8_t *)get_dst_mac().data());
+    cfg["ether"]["state"] = is_dst_mac_valid() ? "configured" : "unconfigured";
+
+    // VLAN
+    cfg["vlan"]["tags"] = Json::arrayValue;
+    for (auto &tag : get_vlan_tags()) {
+        cfg["vlan"]["tags"].append(tag);
+    }
+
+    // IPv4
+    if ( get_src_ip4().size() ) {
+        char buf[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, get_src_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["src"] = buf;
+        inet_ntop(AF_INET, get_dst_ip4().c_str(), buf, INET_ADDRSTRLEN);
+        cfg["ipv4"]["dst"] = buf;
+        if ( is_dst_mac_valid() ) {
+            cfg["ipv4"]["state"] = "resolved";
+        } else {
+            cfg["ipv4"]["state"] = "unresolved";
+        }
+    } else {
+        cfg["ipv4"]["state"] = "none";
+    }
+
+    if ( is_ip6_enabled() ) {
+        cfg["ipv6"]["enabled"] = true;
+        string ipv6_src = get_src_ip6();
+        if ( ipv6_src.size() ) {
+            char buf[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipv6_src.c_str(), buf, INET6_ADDRSTRLEN);
+            ipv6_src = buf;
+        }
+        cfg["ipv6"]["src"] = ipv6_src;
+    } else {
+        cfg["ipv6"]["enabled"] = false;
     }
 }
 
@@ -407,7 +754,7 @@ void CNodeBase::conf_dst_mac_internal(const string &dst_mac) {
     m_dst_mac = dst_mac;
 }
 
-void CNodeBase::conf_vlan_internal(const vlan_list_t &vlans) {
+void CNodeBase::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
     throw TrexException("VLAN is not supported with current stack");
 }
 
@@ -415,7 +762,7 @@ void CNodeBase::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) 
     throw TrexException("IPv4 is not supported with current stack");
 }
 
-void CNodeBase::clear_ip4_internal(void) {
+void CNodeBase::clear_ip4_internal() {
     m_ip4.clear();
     m_gw4.clear();
 }
@@ -424,45 +771,66 @@ void CNodeBase::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     throw TrexException("IPv6 is not supported with current stack");
 }
 
-void CNodeBase::clear_ip6_internal(void) {
+
+void CNodeBase::clear_ip6_internal() {
     m_ip6_enabled = false;
     m_ip6.clear();
 }
 
 // getters
-bool CNodeBase::is_dst_mac_valid(void) {
+bool CNodeBase::is_dst_mac_valid() {
     return m_dst_mac_valid;
 }
 
-bool CNodeBase::is_loopback(void) {
+bool CNodeBase::is_loopback() {
     return m_is_loopback;
 }
 
-bool CNodeBase::is_ip6_enabled(void) {
+bool CNodeBase::is_ip6_enabled() {
     return m_ip6_enabled;
 }
 
-const string &CNodeBase::get_src_mac(void) {
+
+string CNodeBase::mac_str_to_mac_buf(const std::string & mac){
+    char mac_buf[6];
+    if ( utl_str_to_macaddr(mac, (uint8_t*)mac_buf) ){
+        string s;
+        s.assign(mac_buf,6);
+        return(s);
+    }
+    assert(0);
+    return("");
+}
+
+std::string CNodeBase::get_src_mac_as_str(){
+    return ( utl_macaddr_to_str((uint8_t *)get_src_mac().data()) );
+}
+
+const string &CNodeBase::get_src_mac() {
     return m_src_mac;
 }
 
-const string &CNodeBase::get_dst_mac(void) {
+const string &CNodeBase::get_dst_mac() {
     return m_dst_mac;
 }
 
-const vlan_list_t &CNodeBase::get_vlan(void) {
+const vlan_list_t &CNodeBase::get_vlan_tags() {
     return m_vlan_tags;
 }
 
-const string &CNodeBase::get_src_ip4(void) {
+const vlan_list_t &CNodeBase::get_vlan_tpids() {
+    return m_vlan_tpids;
+}
+
+const string &CNodeBase::get_src_ip4() {
     return m_ip4;
 }
 
-const string &CNodeBase::get_dst_ip4(void) {
+const string &CNodeBase::get_dst_ip4() {
     return m_gw4;
 }
 
-const string &CNodeBase::get_src_ip6(void) {
+const string &CNodeBase::get_src_ip6() {
     return m_ip6;
 }
 
@@ -473,13 +841,13 @@ const string &CNodeBase::get_src_ip6(void) {
 
 // print with -v 7
 void debug(const string &msg) {
-    if ( CGlobalInfo::m_options.preview.getVMode() > 6 ) {
+    if ( CGlobalInfo::m_options.preview.getVMode() > 3 ) {
         cout << msg << endl;
     }
 }
 
 void debug(const initializer_list<const string> &msg_list) {
-    if ( CGlobalInfo::m_options.preview.getVMode() > 6 ) {
+    if ( CGlobalInfo::m_options.preview.getVMode() > 3 ) {
         for (auto &msg : msg_list) {
             printf("%s ", msg.c_str());
         }

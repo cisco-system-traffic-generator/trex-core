@@ -106,15 +106,25 @@ class CLatencyManager ;
 // per port
 class CCPortLatency {
 public:
-    bool Create(CLatencyManager * parent,
-                uint8_t id,
+    bool Create(uint8_t id,
                 uint16_t offset,
                 uint16_t l4_offset,
                 uint16_t pkt_size,
-                CCPortLatency * rx_port
+                CCPortLatency * rx_port,
+                CLatencyPktMode * pkt_mode,
+                CNatRxManager *   nat_manager
                 );
     void Delete();
     void reset();
+    void reset_seq();
+    void set_epoc(uint8_t epoc){
+        m_epoc = epoc;
+    }
+
+    void set_enable_none_latency_processing(bool enable){
+        m_handle_none_latency =enable;
+    }
+    
     bool can_send_packet(int direction){
         // in icmp_reply mode, can send response from server, only after we got the relevant request
         // if we got request, we are sure to have NAT translation in place already.
@@ -177,12 +187,12 @@ public:
     uint16_t get_icmp_rx_seq() {return m_icmp_rx_seq;}
 
     // Check if packet contains latency data
-    static inline bool IsLatencyPkt(uint8_t *p) {
+    static inline bool IsLatencyPkt(uint8_t *p,uint8_t epoc) {
         if (! p)
             return false;
 
         latency_header * h=(latency_header *)(p);
-        if ( (h->magic & 0xffffff00) != LATENCY_MAGIC ){
+        if ( (h->magic & 0xffffff00) != LATENCY_MAGIC+(epoc<<8) ){
             return false;
         }
 
@@ -194,7 +204,8 @@ private:
 
 
 private:
-     CLatencyManager * m_parent;
+     CLatencyPktMode * m_pkt_mode;
+     CNatRxManager *   m_nat_manager;
      CCPortLatency *   m_rx_port; /* corespond rx port  */
      bool              m_nat_learn;
      bool              m_nat_can_send;
@@ -215,6 +226,8 @@ private:
      // ICMP seq num of last request we got
      uint16_t m_icmp_rx_seq;
      uint16_t pad1[1];
+     bool     m_handle_none_latency;
+     uint8_t  m_epoc;
 
 public:
      uint64_t m_tx_pkt_ok;

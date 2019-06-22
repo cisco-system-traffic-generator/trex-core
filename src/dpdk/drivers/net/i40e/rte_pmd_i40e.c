@@ -1,36 +1,8 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2017 Intel Corporation
  */
 
+#include <rte_string_fns.h>
 #include <rte_malloc.h>
 #include <rte_tailq.h>
 
@@ -367,7 +339,7 @@ i40e_vsi_set_tx_loopback(struct i40e_vsi *vsi, uint8_t on)
 	hw = I40E_VSI_TO_HW(vsi);
 
 	/* Use the FW API if FW >= v5.0 */
-	if (hw->aq.fw_maj_ver < 5) {
+	if (hw->aq.fw_maj_ver < 5 && hw->mac.type != I40E_MAC_X722) {
 		PMD_INIT_LOG(ERR, "FW < v5.0, cannot enable loopback");
 		return -ENOTSUP;
 	}
@@ -595,6 +567,49 @@ rte_pmd_i40e_set_vf_mac_addr(uint16_t port, uint16_t vf_id,
 		if (i40e_vsi_delete_mac(vsi, &f->mac_info.mac_addr)
 				!= I40E_SUCCESS)
 			PMD_DRV_LOG(WARNING, "Delete MAC failed");
+
+	return 0;
+}
+
+static const struct ether_addr null_mac_addr;
+
+int
+rte_pmd_i40e_remove_vf_mac_addr(uint16_t port, uint16_t vf_id,
+	struct ether_addr *mac_addr)
+{
+	struct rte_eth_dev *dev;
+	struct i40e_pf_vf *vf;
+	struct i40e_vsi *vsi;
+	struct i40e_pf *pf;
+
+	if (i40e_validate_mac_addr((u8 *)mac_addr) != I40E_SUCCESS)
+		return -EINVAL;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port, -ENODEV);
+
+	dev = &rte_eth_devices[port];
+
+	if (!is_i40e_supported(dev))
+		return -ENOTSUP;
+
+	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+
+	if (vf_id >= pf->vf_num || !pf->vfs)
+		return -EINVAL;
+
+	vf = &pf->vfs[vf_id];
+	vsi = vf->vsi;
+	if (!vsi) {
+		PMD_DRV_LOG(ERR, "Invalid VSI.");
+		return -EINVAL;
+	}
+
+	if (is_same_ether_addr(mac_addr, &vf->mac_addr))
+		/* Reset the mac with NULL address */
+		ether_addr_copy(&null_mac_addr, &vf->mac_addr);
+
+	/* Remove the mac */
+	i40e_vsi_delete_mac(vsi, mac_addr);
 
 	return 0;
 }
@@ -1525,7 +1540,14 @@ i40e_check_profile_info(uint16_t port, uint8_t *profile_info_sec)
 	struct rte_pmd_i40e_profile_info *pinfo, *p;
 	uint32_t i;
 	int ret;
+	static const uint32_t group_mask = 0x00ff0000;
 
+	pinfo = (struct rte_pmd_i40e_profile_info *)(profile_info_sec +
+			     sizeof(struct i40e_profile_section_header));
+	if (pinfo->track_id == 0) {
+		PMD_DRV_LOG(INFO, "Read-only profile.");
+		return 0;
+	}
 	buff = rte_zmalloc("pinfo_list",
 			   (I40E_PROFILE_INFO_SIZE * I40E_MAX_PROFILE_NUM + 4),
 			   0);
@@ -1544,14 +1566,36 @@ i40e_check_profile_info(uint16_t port, uint8_t *profile_info_sec)
 		return -1;
 	}
 	p_list = (struct rte_pmd_i40e_profile_list *)buff;
-	pinfo = (struct rte_pmd_i40e_profile_info *)(profile_info_sec +
-			     sizeof(struct i40e_profile_section_header));
 	for (i = 0; i < p_list->p_count; i++) {
 		p = &p_list->p_info[i];
 		if (pinfo->track_id == p->track_id) {
 			PMD_DRV_LOG(INFO, "Profile exists.");
 			rte_free(buff);
 			return 1;
+		}
+	}
+	/* profile with group id 0xff is compatible with any other profile */
+	if ((pinfo->track_id & group_mask) == group_mask) {
+		rte_free(buff);
+		return 0;
+	}
+	for (i = 0; i < p_list->p_count; i++) {
+		p = &p_list->p_info[i];
+		if ((p->track_id & group_mask) == 0) {
+			PMD_DRV_LOG(INFO, "Profile of the group 0 exists.");
+			rte_free(buff);
+			return 2;
+		}
+	}
+	for (i = 0; i < p_list->p_count; i++) {
+		p = &p_list->p_info[i];
+		if ((p->track_id & group_mask) == group_mask)
+			continue;
+		if ((pinfo->track_id & group_mask) !=
+		    (p->track_id & group_mask)) {
+			PMD_DRV_LOG(INFO, "Profile of different group exists.");
+			rte_free(buff);
+			return 3;
 		}
 	}
 
@@ -1573,6 +1617,7 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 	uint8_t *profile_info_sec;
 	int is_exist;
 	enum i40e_status_code status = I40E_SUCCESS;
+	static const uint32_t type_mask = 0xff000000;
 
 	if (op != RTE_PMD_I40E_PKG_OP_WR_ADD &&
 		op != RTE_PMD_I40E_PKG_OP_WR_ONLY &&
@@ -1609,8 +1654,6 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 		return -EINVAL;
 	}
 
-	i40e_update_customized_info(dev, buff, size);
-
 	/* Find metadata segment */
 	metadata_seg_hdr = i40e_find_segment_in_package(SEGMENT_TYPE_METADATA,
 							pkg_hdr);
@@ -1623,6 +1666,10 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 		PMD_DRV_LOG(ERR, "Invalid track_id");
 		return -EINVAL;
 	}
+
+	/* force read-only track_id for type 0 */
+	if ((track_id & type_mask) == 0)
+		track_id = 0;
 
 	/* Find profile segment */
 	profile_seg_hdr = i40e_find_segment_in_package(SEGMENT_TYPE_I40E,
@@ -1657,12 +1704,18 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 
 	if (op == RTE_PMD_I40E_PKG_OP_WR_ADD) {
 		if (is_exist) {
-			PMD_DRV_LOG(ERR, "Profile already exists.");
+			if (is_exist == 1)
+				PMD_DRV_LOG(ERR, "Profile already exists.");
+			else if (is_exist == 2)
+				PMD_DRV_LOG(ERR, "Profile of group 0 already exists.");
+			else if (is_exist == 3)
+				PMD_DRV_LOG(ERR, "Profile of different group already exists");
+			i40e_update_customized_info(dev, buff, size, op);
 			rte_free(profile_info_sec);
 			return -EEXIST;
 		}
 	} else if (op == RTE_PMD_I40E_PKG_OP_WR_DEL) {
-		if (!is_exist) {
+		if (is_exist != 1) {
 			PMD_DRV_LOG(ERR, "Profile does not exist.");
 			rte_free(profile_info_sec);
 			return -EACCES;
@@ -1704,6 +1757,10 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 				PMD_DRV_LOG(ERR, "Failed to delete profile from info list.");
 		}
 	}
+
+	if (op == RTE_PMD_I40E_PKG_OP_WR_ADD ||
+	    op == RTE_PMD_I40E_PKG_OP_WR_DEL)
+		i40e_update_customized_info(dev, buff, size, op);
 
 	rte_free(profile_info_sec);
 	return status;
@@ -1927,8 +1984,8 @@ int rte_pmd_i40e_get_ddp_info(uint8_t *pkg_buff, uint32_t pkg_size,
 		tlv = (struct i40e_profile_tlv_section_record *)&proto[1];
 		for (i = j = 0; i < nb_rec; j++) {
 			pinfo[j].proto_id = tlv->data[0];
-			snprintf(pinfo[j].name, I40E_DDP_NAME_SIZE, "%s",
-				 (const char *)&tlv->data[1]);
+			strlcpy(pinfo[j].name, (const char *)&tlv->data[1],
+				I40E_DDP_NAME_SIZE);
 			i += tlv->len;
 			tlv = &tlv[tlv->len];
 		}
@@ -2082,7 +2139,8 @@ static int check_invalid_pkt_type(uint32_t pkt_type)
 	    l2 != RTE_PTYPE_L2_ETHER_LLDP &&
 	    l2 != RTE_PTYPE_L2_ETHER_NSH &&
 	    l2 != RTE_PTYPE_L2_ETHER_VLAN &&
-	    l2 != RTE_PTYPE_L2_ETHER_QINQ)
+	    l2 != RTE_PTYPE_L2_ETHER_QINQ &&
+	    l2 != RTE_PTYPE_L2_ETHER_PPPOE)
 		return -1;
 
 	if (l3 &&
@@ -2111,7 +2169,8 @@ static int check_invalid_pkt_type(uint32_t pkt_type)
 	    tnl != RTE_PTYPE_TUNNEL_GENEVE &&
 	    tnl != RTE_PTYPE_TUNNEL_GRENAT &&
 	    tnl != RTE_PTYPE_TUNNEL_GTPC &&
-	    tnl != RTE_PTYPE_TUNNEL_GTPU)
+	    tnl != RTE_PTYPE_TUNNEL_GTPU &&
+	    tnl != RTE_PTYPE_TUNNEL_L2TP)
 		return -1;
 
 	if (il2 &&
@@ -2760,12 +2819,22 @@ i40e_queue_region_dcb_configure(struct i40e_hw *hw,
 	struct i40e_dcbx_config *old_cfg = &hw->local_dcbx_config;
 	int32_t ret = -EINVAL;
 	uint16_t i, j, prio_index, region_index;
-	uint8_t tc_map, tc_bw, bw_lf;
+	uint8_t tc_map, tc_bw, bw_lf, dcb_flag = 0;
 
 	if (!info->queue_region_number) {
 		PMD_DRV_LOG(ERR, "No queue region been set before");
 		return ret;
 	}
+
+	for (i = 0; i < info->queue_region_number; i++) {
+		if (info->region[i].user_priority_num) {
+			dcb_flag = 1;
+			break;
+		}
+	}
+
+	if (dcb_flag == 0)
+		return 0;
 
 	dcb_cfg = &dcb_cfg_local;
 	memset(dcb_cfg, 0, sizeof(struct i40e_dcbx_config));
@@ -2845,22 +2914,23 @@ i40e_flush_queue_region_all_conf(struct rte_eth_dev *dev,
 		return 0;
 	}
 
-	info->queue_region_number = 1;
-	info->region[0].queue_num = main_vsi->nb_used_qps;
-	info->region[0].queue_start_index = 0;
+	if (info->queue_region_number) {
+		info->queue_region_number = 1;
+		info->region[0].queue_num = main_vsi->nb_used_qps;
+		info->region[0].queue_start_index = 0;
 
-	ret = i40e_vsi_update_queue_region_mapping(hw, pf);
-	if (ret != I40E_SUCCESS)
-		PMD_DRV_LOG(INFO, "Failed to flush queue region mapping.");
+		ret = i40e_vsi_update_queue_region_mapping(hw, pf);
+		if (ret != I40E_SUCCESS)
+			PMD_DRV_LOG(INFO, "Failed to flush queue region mapping.");
 
-	ret = i40e_dcb_init_configure(dev, TRUE);
-	if (ret != I40E_SUCCESS) {
-		PMD_DRV_LOG(INFO, "Failed to flush dcb.");
-		pf->flags &= ~I40E_FLAG_DCB;
+		ret = i40e_dcb_init_configure(dev, TRUE);
+		if (ret != I40E_SUCCESS) {
+			PMD_DRV_LOG(INFO, "Failed to flush dcb.");
+			pf->flags &= ~I40E_FLAG_DCB;
+		}
+
+		i40e_init_queue_region_conf(dev);
 	}
-
-	i40e_init_queue_region_conf(dev);
-
 	return 0;
 }
 
@@ -2984,4 +3054,150 @@ int rte_pmd_i40e_flow_add_del_packet_template(
 	filter_conf.action.flex_off = conf->action.flex_off;
 
 	return i40e_flow_add_del_fdir_filter(dev, &filter_conf, add);
+}
+
+int
+rte_pmd_i40e_inset_get(uint16_t port, uint8_t pctype,
+		       struct rte_pmd_i40e_inset *inset,
+		       enum rte_pmd_i40e_inset_type inset_type)
+{
+	struct rte_eth_dev *dev;
+	struct i40e_hw *hw;
+	uint64_t inset_reg;
+	uint32_t mask_reg[2];
+	int i;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port, -ENODEV);
+
+	dev = &rte_eth_devices[port];
+
+	if (!is_i40e_supported(dev))
+		return -ENOTSUP;
+
+	if (pctype > 63)
+		return -EINVAL;
+
+	hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	memset(inset, 0, sizeof(struct rte_pmd_i40e_inset));
+
+	switch (inset_type) {
+	case INSET_HASH:
+		/* Get input set */
+		inset_reg =
+			i40e_read_rx_ctl(hw, I40E_GLQF_HASH_INSET(1, pctype));
+		inset_reg <<= I40E_32_BIT_WIDTH;
+		inset_reg |=
+			i40e_read_rx_ctl(hw, I40E_GLQF_HASH_INSET(0, pctype));
+		/* Get field mask */
+		mask_reg[0] =
+			i40e_read_rx_ctl(hw, I40E_GLQF_HASH_MSK(0, pctype));
+		mask_reg[1] =
+			i40e_read_rx_ctl(hw, I40E_GLQF_HASH_MSK(1, pctype));
+		break;
+	case INSET_FDIR:
+		inset_reg =
+			i40e_read_rx_ctl(hw, I40E_PRTQF_FD_INSET(pctype, 1));
+		inset_reg <<= I40E_32_BIT_WIDTH;
+		inset_reg |=
+			i40e_read_rx_ctl(hw, I40E_PRTQF_FD_INSET(pctype, 0));
+		mask_reg[0] =
+			i40e_read_rx_ctl(hw, I40E_GLQF_FD_MSK(0, pctype));
+		mask_reg[1] =
+			i40e_read_rx_ctl(hw, I40E_GLQF_FD_MSK(1, pctype));
+		break;
+	case INSET_FDIR_FLX:
+		inset_reg =
+			i40e_read_rx_ctl(hw, I40E_PRTQF_FD_FLXINSET(pctype));
+		mask_reg[0] =
+			i40e_read_rx_ctl(hw, I40E_PRTQF_FD_MSK(pctype, 0));
+		mask_reg[1] =
+			i40e_read_rx_ctl(hw, I40E_PRTQF_FD_MSK(pctype, 1));
+		break;
+	default:
+		PMD_DRV_LOG(ERR, "Unsupported input set type.");
+		return -EINVAL;
+	}
+
+	inset->inset = inset_reg;
+
+	for (i = 0; i < 2; i++) {
+		inset->mask[i].field_idx = ((mask_reg[i] >> 16) & 0x3F);
+		inset->mask[i].mask = mask_reg[i] & 0xFFFF;
+	}
+
+	return 0;
+}
+
+int
+rte_pmd_i40e_inset_set(uint16_t port, uint8_t pctype,
+		       struct rte_pmd_i40e_inset *inset,
+		       enum rte_pmd_i40e_inset_type inset_type)
+{
+	struct rte_eth_dev *dev;
+	struct i40e_hw *hw;
+	struct i40e_pf *pf;
+	uint64_t inset_reg;
+	uint32_t mask_reg[2];
+	int i;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port, -ENODEV);
+
+	dev = &rte_eth_devices[port];
+
+	if (!is_i40e_supported(dev))
+		return -ENOTSUP;
+
+	if (pctype > 63)
+		return -EINVAL;
+
+	hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+
+	if (pf->support_multi_driver) {
+		PMD_DRV_LOG(ERR, "Input set configuration is not supported.");
+		return -ENOTSUP;
+	}
+
+	inset_reg = inset->inset;
+	for (i = 0; i < 2; i++)
+		mask_reg[i] = (inset->mask[i].field_idx << 16) |
+			inset->mask[i].mask;
+
+	switch (inset_type) {
+	case INSET_HASH:
+		i40e_check_write_global_reg(hw, I40E_GLQF_HASH_INSET(0, pctype),
+					    (uint32_t)(inset_reg & UINT32_MAX));
+		i40e_check_write_global_reg(hw, I40E_GLQF_HASH_INSET(1, pctype),
+					    (uint32_t)((inset_reg >>
+					     I40E_32_BIT_WIDTH) & UINT32_MAX));
+		for (i = 0; i < 2; i++)
+			i40e_check_write_global_reg(hw,
+						  I40E_GLQF_HASH_MSK(i, pctype),
+						  mask_reg[i]);
+		break;
+	case INSET_FDIR:
+		i40e_check_write_reg(hw, I40E_PRTQF_FD_INSET(pctype, 0),
+				     (uint32_t)(inset_reg & UINT32_MAX));
+		i40e_check_write_reg(hw, I40E_PRTQF_FD_INSET(pctype, 1),
+				     (uint32_t)((inset_reg >>
+					      I40E_32_BIT_WIDTH) & UINT32_MAX));
+		for (i = 0; i < 2; i++)
+			i40e_check_write_global_reg(hw,
+						    I40E_GLQF_FD_MSK(i, pctype),
+						    mask_reg[i]);
+		break;
+	case INSET_FDIR_FLX:
+		i40e_check_write_reg(hw, I40E_PRTQF_FD_FLXINSET(pctype),
+				     (uint32_t)(inset_reg & UINT32_MAX));
+		for (i = 0; i < 2; i++)
+			i40e_check_write_reg(hw, I40E_PRTQF_FD_MSK(pctype, i),
+					     mask_reg[i]);
+		break;
+	default:
+		PMD_DRV_LOG(ERR, "Unsupported input set type.");
+		return -EINVAL;
+	}
+
+	I40E_WRITE_FLUSH(hw);
+	return 0;
 }

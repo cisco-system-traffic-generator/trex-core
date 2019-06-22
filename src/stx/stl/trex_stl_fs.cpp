@@ -157,10 +157,8 @@ void CFlowStatUserIdInfo::reset_hw_id() {
     FUNC_ENTRY;
 
     m_hw_id = HW_ID_INIT;
-    for (int i = 0; i < TREX_MAX_PORTS; i++) {
-        memset(&m_rx_cntr[i], 0, sizeof(m_rx_cntr[0]));
-        memset(&m_tx_cntr[i], 0, sizeof(m_tx_cntr[0]));
-    }
+    memset(m_rx_cntr, 0, sizeof(m_rx_cntr[0]) * TREX_MAX_PORTS);
+    memset(m_tx_cntr, 0, sizeof(m_tx_cntr[0]) * TREX_MAX_PORTS);
 }
 
 void CFlowStatUserIdInfo::update_vals(const rx_per_flow_t val, tx_per_flow_with_rate_t & to_update
@@ -538,11 +536,8 @@ void CFlowStatRuleMgr::create() {
     m_cap = cap;
     m_ip_id_reserve_base = ip_id_base;
 
-    if ((CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_ONE_QUEUE)
-        || (CGlobalInfo::get_queues_mode() == CGlobalInfo::Q_MODE_RSS)) {
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         set_mode(FLOW_STAT_MODE_PASS_ALL);
-        m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-        m_parser_pl = new CPassAllParser;
     } else {
         m_parser_ipid = m_api->get_flow_stat_parser();
         m_parser_pl = m_api->get_flow_stat_parser();
@@ -559,13 +554,21 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
 #endif
     CFlowStatParser_err_t ret = parser->parse(stream->m_pkt.binary, stream->m_pkt.len);
 
-    if (ret != FSTAT_PARSER_E_OK) {
-        // if we could not parse the packet, but no stat count needed, it is probably OK.
-        if (stream->m_rx_check.m_enabled) {
-            throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
-        } else {
-            return 0;
-        }
+    // if we could not parse the packet, but no stat count needed, it is probably OK.
+    if ( ret != FSTAT_PARSER_E_OK && stream->need_flow_stats() ) {
+        throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+
+    if ( !stream->m_rx_check.m_vxlan_skip ) {
+        return 0;
+    }
+
+    uint16_t vxlan_skip = parser->get_vxlan_payload_offset(stream->m_pkt.binary, stream->m_pkt.len);
+
+    ret = parser->parse(stream->m_pkt.binary + vxlan_skip, stream->m_pkt.len - vxlan_skip);
+
+    if ( ret != FSTAT_PARSER_E_OK ) {
+        throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
     }
 
     return 0;
@@ -597,7 +600,7 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     stream_dump(stream);
 #endif
 
-    if (! stream->m_rx_check.m_enabled) {
+    if ( !stream->need_flow_stats() ) {
         return 0;
     }
 
@@ -636,6 +639,9 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
+        if ( stream->m_rx_check.m_vxlan_skip ) {
+            throw TrexFStatEx("VXLAN skip is not supported for latency stream", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_MODE);
+        }
         uint16_t payload_len;
         // compile_stream throws exception if something goes wrong
         compile_stream(stream, m_parser_pl);
@@ -699,7 +705,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
     stream_dump(stream);
 #endif
 
-    if (! stream->m_rx_check.m_enabled) {
+    if ( !stream->need_flow_stats() ) {
         return 0;
     }
 
@@ -815,10 +821,10 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
     }
 
     // first handle streams that do not need rx stat
-    if (! stream->m_rx_check.m_enabled) {
+    if ( !stream->need_flow_stats() ) {
         try {
             compile_stream(stream, m_parser_ipid);
-        } catch (TrexFStatEx) {
+        } catch (TrexFStatEx&) {
             // If no statistics needed, and we can't parse the stream, that's OK.
             DEBUG_PRINT("  No rx check needed. Compilation failed - return 0\n");
             return 0;
@@ -955,7 +961,11 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
 
-        send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        if (get_dpdk_mode()->dp_rx_queues()) {
+            get_stateless_obj()->set_latency_feature();
+        } else {
+            send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
+        }
 
         //also good time to zero global counters
         memset(m_rx_cant_count_err, 0, sizeof(m_rx_cant_count_err));
@@ -1008,7 +1018,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 
     int ret = -1;
 
-    if (! stream->m_rx_check.m_enabled) {
+    if ( !stream->need_flow_stats() ) {
         return -1;
     }
 
@@ -1070,9 +1080,12 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
         DEBUG_PRINT("  Sending stop message to rx\n");
-        send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+        if (get_dpdk_mode()->dp_rx_queues()) {
+            get_stateless_obj()->unset_latency_feature();
+        } else {
+            send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+        }
     }
-
     return ret;
 }
 
@@ -1106,7 +1119,7 @@ int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
         delete m_parser_ipid;
         delete m_parser_pl;
         m_parser_ipid = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-        m_parser_pl = new CPassAllParser;
+        m_parser_pl = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
         break;
     case FLOW_STAT_MODE_NORMAL:
         delete m_parser_ipid;

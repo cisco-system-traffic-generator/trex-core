@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2010-2016 Intel Corporation
  */
 
 #include <stdio.h>
@@ -44,7 +15,7 @@
 #include <rte_debug.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 #include <rte_memcpy.h>
 #include <rte_malloc.h>
 #include <rte_random.h>
@@ -119,6 +90,8 @@ void ixgbe_pf_host_init(struct rte_eth_dev *eth_dev)
 	if (*vfinfo == NULL)
 		rte_panic("Cannot allocate memory for private VF data\n");
 
+	rte_eth_switch_domain_alloc(&(*vfinfo)->switch_domain_id);
+
 	memset(mirror_info, 0, sizeof(struct ixgbe_mirror_info));
 	memset(uta_info, 0, sizeof(struct ixgbe_uta_info));
 	hw->mac.mc_filter_type = 0;
@@ -151,10 +124,9 @@ void ixgbe_pf_host_uninit(struct rte_eth_dev *eth_dev)
 {
 	struct ixgbe_vf_info **vfinfo;
 	uint16_t vf_num;
+	int ret;
 
 	PMD_INIT_FUNC_TRACE();
-
-	vfinfo = IXGBE_DEV_PRIVATE_TO_P_VFDATA(eth_dev->data->dev_private);
 
 	RTE_ETH_DEV_SRIOV(eth_dev).active = 0;
 	RTE_ETH_DEV_SRIOV(eth_dev).nb_q_per_pool = 0;
@@ -164,6 +136,14 @@ void ixgbe_pf_host_uninit(struct rte_eth_dev *eth_dev)
 	vf_num = dev_num_vf(eth_dev);
 	if (vf_num == 0)
 		return;
+
+	vfinfo = IXGBE_DEV_PRIVATE_TO_P_VFDATA(eth_dev->data->dev_private);
+	if (*vfinfo == NULL)
+		return;
+
+	ret = rte_eth_switch_domain_free((*vfinfo)->switch_domain_id);
+	if (ret)
+		PMD_INIT_LOG(WARNING, "failed to free switch domain: %d", ret);
 
 	rte_free(*vfinfo);
 	*vfinfo = NULL;
@@ -273,7 +253,7 @@ int ixgbe_pf_host_configure(struct rte_eth_dev *eth_dev)
 
 	gpie = IXGBE_READ_REG(hw, IXGBE_GPIE);
 	gpie &= ~IXGBE_GPIE_VTMODE_MASK;
-	gpie |= IXGBE_GPIE_MSIX_MODE;
+	gpie |= IXGBE_GPIE_MSIX_MODE | IXGBE_GPIE_PBA_SUPPORT;
 
 	switch (RTE_ETH_DEV_SRIOV(eth_dev).active) {
 	case ETH_64_POOLS:
@@ -358,10 +338,7 @@ set_rx_mode(struct rte_eth_dev *dev)
 
 	IXGBE_WRITE_REG(hw, IXGBE_FCTRL, fctrl);
 
-	if (dev->data->dev_conf.rxmode.hw_vlan_strip)
-		ixgbe_vlan_hw_strip_enable_all(dev);
-	else
-		ixgbe_vlan_hw_strip_disable_all(dev);
+	ixgbe_vlan_hw_strip_config(dev);
 }
 
 static inline void
@@ -374,7 +351,7 @@ ixgbe_vf_reset_event(struct rte_eth_dev *dev, uint16_t vf)
 	int rar_entry = hw->mac.num_rar_entries - (vf + 1);
 	uint32_t vmolr = IXGBE_READ_REG(hw, IXGBE_VMOLR(vf));
 
-	vmolr |= (IXGBE_VMOLR_ROPE | IXGBE_VMOLR_ROMPE |
+	vmolr |= (IXGBE_VMOLR_ROPE |
 			IXGBE_VMOLR_BAM | IXGBE_VMOLR_AUPE);
 	IXGBE_WRITE_REG(hw, IXGBE_VMOLR(vf), vmolr);
 
@@ -428,23 +405,6 @@ ixgbe_vf_reset_msg(struct rte_eth_dev *dev, uint16_t vf)
 	IXGBE_WRITE_REG(hw, IXGBE_VMECM(reg_offset), reg);
 
 	ixgbe_vf_reset_event(dev, vf);
-}
-
-static int
-ixgbe_enable_vf_mc_promisc(struct rte_eth_dev *dev, uint32_t vf)
-{
-	struct ixgbe_hw *hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	uint32_t vmolr;
-
-	vmolr = IXGBE_READ_REG(hw, IXGBE_VMOLR(vf));
-
-	RTE_LOG(INFO, PMD, "VF %u: enabling multicast promiscuous\n", vf);
-
-	vmolr |= IXGBE_VMOLR_MPE;
-
-	IXGBE_WRITE_REG(hw, IXGBE_VMOLR(vf), vmolr);
-
-	return 0;
 }
 
 static int
@@ -526,6 +486,7 @@ ixgbe_vf_set_multicast(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 	const uint32_t IXGBE_MTA_BIT_MASK = (0x1 << IXGBE_MTA_BIT_SHIFT) - 1;
 	uint32_t reg_val;
 	int i;
+	u32 vmolr = IXGBE_READ_REG(hw, IXGBE_VMOLR(vf));
 
 	/* Disable multicast promiscuous first */
 	ixgbe_disable_vf_mc_promisc(dev, vf);
@@ -539,6 +500,12 @@ ixgbe_vf_set_multicast(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 		vfinfo->vf_mc_hashes[i] = hash_list[i];
 	}
 
+	if (nb_entries == 0) {
+		vmolr &= ~IXGBE_VMOLR_ROMPE;
+		IXGBE_WRITE_REG(hw, IXGBE_VMOLR(vf), vmolr);
+		return 0;
+	}
+
 	for (i = 0; i < vfinfo->num_vf_mc_hashes; i++) {
 		mta_idx = (vfinfo->vf_mc_hashes[i] >> IXGBE_MTA_BIT_SHIFT)
 				& IXGBE_MTA_INDEX_MASK;
@@ -547,6 +514,9 @@ ixgbe_vf_set_multicast(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 		reg_val |= (1 << mta_shift);
 		IXGBE_WRITE_REG(hw, IXGBE_MTA(mta_idx), reg_val);
 	}
+
+	vmolr |= IXGBE_VMOLR_ROMPE;
+	IXGBE_WRITE_REG(hw, IXGBE_VMOLR(vf), vmolr);
 
 	return 0;
 }
@@ -609,6 +579,7 @@ ixgbe_negotiate_vf_api(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 	case ixgbe_mbox_api_10:
 	case ixgbe_mbox_api_11:
 	case ixgbe_mbox_api_12:
+	case ixgbe_mbox_api_13:
 		vfinfo[vf].api_version = (uint8_t)api_version;
 		return 0;
 	default:
@@ -711,19 +682,70 @@ ixgbe_set_vf_mc_promisc(struct rte_eth_dev *dev, uint32_t vf, uint32_t *msgbuf)
 {
 	struct ixgbe_vf_info *vfinfo =
 		*(IXGBE_DEV_PRIVATE_TO_P_VFDATA(dev->data->dev_private));
-	bool enable = !!msgbuf[1];	/* msgbuf contains the flag to enable */
+	struct ixgbe_hw *hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	int xcast_mode = msgbuf[1];	/* msgbuf contains the flag to enable */
+	u32 vmolr, fctrl, disable, enable;
 
 	switch (vfinfo[vf].api_version) {
 	case ixgbe_mbox_api_12:
+		/* promisc introduced in 1.3 version */
+		if (xcast_mode == IXGBEVF_XCAST_MODE_PROMISC)
+			return -EOPNOTSUPP;
+		break;
+		/* Fall threw */
+	case ixgbe_mbox_api_13:
 		break;
 	default:
 		return -1;
 	}
 
-	if (enable)
-		return ixgbe_enable_vf_mc_promisc(dev, vf);
-	else
-		return ixgbe_disable_vf_mc_promisc(dev, vf);
+	if (vfinfo[vf].xcast_mode == xcast_mode)
+		goto out;
+
+	switch (xcast_mode) {
+	case IXGBEVF_XCAST_MODE_NONE:
+		disable = IXGBE_VMOLR_BAM | IXGBE_VMOLR_ROMPE |
+			  IXGBE_VMOLR_MPE | IXGBE_VMOLR_UPE | IXGBE_VMOLR_VPE;
+		enable = 0;
+		break;
+	case IXGBEVF_XCAST_MODE_MULTI:
+		disable = IXGBE_VMOLR_MPE | IXGBE_VMOLR_UPE | IXGBE_VMOLR_VPE;
+		enable = IXGBE_VMOLR_BAM | IXGBE_VMOLR_ROMPE;
+		break;
+	case IXGBEVF_XCAST_MODE_ALLMULTI:
+		disable = IXGBE_VMOLR_UPE | IXGBE_VMOLR_VPE;
+		enable = IXGBE_VMOLR_BAM | IXGBE_VMOLR_ROMPE | IXGBE_VMOLR_MPE;
+		break;
+	case IXGBEVF_XCAST_MODE_PROMISC:
+		if (hw->mac.type <= ixgbe_mac_82599EB)
+			return -1;
+
+		fctrl = IXGBE_READ_REG(hw, IXGBE_FCTRL);
+		if (!(fctrl & IXGBE_FCTRL_UPE)) {
+			/* VF promisc requires PF in promisc */
+			RTE_LOG(ERR, PMD,
+			       "Enabling VF promisc requires PF in promisc\n");
+			return -1;
+		}
+
+		disable = 0;
+		enable = IXGBE_VMOLR_BAM | IXGBE_VMOLR_ROMPE |
+			 IXGBE_VMOLR_MPE | IXGBE_VMOLR_UPE | IXGBE_VMOLR_VPE;
+		break;
+	default:
+		return -1;
+	}
+
+	vmolr = IXGBE_READ_REG(hw, IXGBE_VMOLR(vf));
+	vmolr &= ~disable;
+	vmolr |= enable;
+	IXGBE_WRITE_REG(hw, IXGBE_VMOLR(vf), vmolr);
+	vfinfo[vf].xcast_mode = xcast_mode;
+
+out:
+	msgbuf[1] = xcast_mode;
+
+	return 0;
 }
 
 static int
@@ -768,7 +790,7 @@ ixgbe_rcv_msg_from_vf(struct rte_eth_dev *dev, uint16_t vf)
 
 		/* notify application about VF reset */
 		_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX,
-					      NULL, &ret_param);
+					      &ret_param);
 		return ret;
 	}
 
@@ -780,7 +802,7 @@ ixgbe_rcv_msg_from_vf(struct rte_eth_dev *dev, uint16_t vf)
 	 * if ret_param.retval > 1, do nothing and send NAK to VF
 	 */
 	_rte_eth_dev_callback_process(dev, RTE_ETH_EVENT_VF_MBOX,
-				      NULL, &ret_param);
+				      &ret_param);
 
 	retval = ret_param.retval;
 

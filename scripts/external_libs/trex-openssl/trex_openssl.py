@@ -5,12 +5,30 @@ Designed to work with OpenSSL v1.1.0f
 '''
 
 
-from ctypes import CDLL, c_void_p, CFUNCTYPE, c_int, c_buffer, sizeof, byref, c_char_p, c_ulong, c_long
+from ctypes import CDLL, PyDLL, c_void_p, CFUNCTYPE, c_int, c_buffer, sizeof, byref, c_char_p, c_ulong, c_long, Structure, cast, pointer, addressof, POINTER
 import os
+import platform
+import sys
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))
-libcrypto = CDLL(os.path.join(cur_dir, 'libcrypto.so.1.1'))
-libssl    = CDLL(os.path.join(cur_dir, 'libssl.so.1.1'))
+
+if platform.uname()[0] == "Darwin":
+    lib_crypto_name = 'libcrypto.1.1.dylib'
+    lib_ssl_name = 'libssl.1.1.dylib'
+    lib_c_name = "libc.dylib"
+else:
+    lib_crypto_name = 'libcrypto.so.1.1'
+    lib_ssl_name = 'libssl.so.1.1'
+    lib_c_name = "libc.so.6"
+
+try:
+    libcrypto = CDLL(lib_crypto_name)
+    libssl    = CDLL(lib_ssl_name)
+except OSError:
+    # use local
+    libcrypto = CDLL(os.path.join(cur_dir, lib_crypto_name))
+    libssl    = CDLL(os.path.join(cur_dir, lib_ssl_name))
+libc = CDLL(lib_c_name)
 
 
 ###################
@@ -43,6 +61,7 @@ libssl.SSL_read.argtypes = [c_void_p, c_void_p, c_int]
 libssl.SSL_set_bio.argtypes = [c_void_p, c_void_p, c_void_p]
 libssl.SSL_set_connect_state.argtypes = [c_void_p]
 libssl.SSL_set_info_callback.argtypes = [c_void_p, c_void_p]
+libssl.SSL_set_msg_callback.argtypes = [c_void_p, c_void_p]
 libssl.SSL_shutdown.argtypes = [c_void_p]
 libssl.SSL_state_string.argtypes = [c_void_p]
 libssl.SSL_state_string.restype = c_char_p
@@ -52,7 +71,27 @@ libssl.SSL_use_certificate.argtypes = [c_void_p, c_void_p]
 libssl.SSL_use_certificate_file.argtypes = [c_void_p, c_char_p, c_int]
 libssl.SSL_use_PrivateKey_file.argtypes = [c_void_p, c_char_p, c_int]
 libssl.SSL_write.argtypes = [c_void_p, c_void_p, c_int]
+libssl.SSL_ctrl.argtypes = [c_void_p, c_int, c_long, c_void_p]
+libssl.SSL_get_state.argtypes = [c_void_p]
+libssl.ASN1_INTEGER_free.argtypes = [c_void_p]
+libssl.ASN1_INTEGER_new.argtypes = []
+libssl.ASN1_INTEGER_new.restype = c_void_p
+libssl.ASN1_INTEGER_set.argtypes = [c_void_p, c_int]
+libssl.ASN1_STRING_set_default_mask_asc.argtypes = [c_char_p]
 
+class ssl_timeval(Structure):
+    _fields_ = [("tv_sec", c_long), ("tv_usec", c_long)]
+
+def DTLSv1_handle_timeout(ssl):
+    libssl.SSL_ctrl(ssl, SSL_CONST.DTLS_CTRL_HANDLE_TIMEOUT, 0, 0)
+libssl.DTLSv1_handle_timeout = DTLSv1_handle_timeout
+
+def DTLSv1_get_timeout(ssl):
+    v = ssl_timeval(0, 0)
+    pv = pointer(v)
+    libssl.SSL_ctrl(ssl, SSL_CONST.DTLS_CTRL_GET_TIMEOUT, 0, cast(pv, c_void_p))
+    return v
+libssl.DTLSv1_get_timeout = DTLSv1_get_timeout
 
 ######################
 # libcrypto C methods
@@ -62,6 +101,8 @@ libcrypto.BIO_ctrl_pending.argtypes = [c_void_p]
 libcrypto.BIO_ctrl_wpending.argtypes = [c_void_p]
 libcrypto.BIO_new.argtypes = [c_void_p]
 libcrypto.BIO_new.restype = c_void_p
+libcrypto.BIO_new_fp.argtypes = [c_void_p, c_int]
+libcrypto.BIO_new_fp.restype = c_void_p
 libcrypto.BIO_read.argtypes = [c_void_p, c_void_p, c_int]
 libcrypto.BIO_s_mem.restype = c_void_p
 libcrypto.BIO_test_flags.argtypes = [c_void_p, c_int]
@@ -83,6 +124,8 @@ libcrypto.PEM_write_bio_X509.argtypes = [c_void_p, c_void_p]
 libcrypto.RSA_free.argtypes = [c_void_p]
 libcrypto.RSA_generate_key_ex.argtypes = [c_void_p, c_int, c_void_p, c_void_p]
 libcrypto.RSA_new.restype = c_void_p
+libcrypto.PEM_read_RSAPrivateKey.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
+libcrypto.PEM_read_RSAPrivateKey.restype = c_void_p
 libcrypto.X509_NAME_add_entry_by_txt.argtypes = [c_void_p, c_char_p, c_int, c_char_p, c_int, c_int, c_int]
 libcrypto.X509_NAME_free.argtypes = [c_void_p]
 libcrypto.X509_NAME_new.restype = c_void_p
@@ -100,6 +143,73 @@ libcrypto.X509_set_version.argtypes = [c_void_p, c_long]
 libcrypto.X509_sign.argtypes = [c_void_p, c_void_p, c_void_p]
 libcrypto.X509_time_adj_ex.argtypes = [c_void_p, c_int, c_long, c_void_p]
 libcrypto.X509_time_adj_ex.restype = c_void_p
+libcrypto.X509_print_fp.argtypes = [c_void_p, c_void_p]
+libcrypto.X509_set_serialNumber.argtypes = [c_void_p, c_void_p]
+libcrypto.PEM_write_bio_X509.argtypes = [c_void_p, c_void_p]
+
+def PEM_write_bio_X509_to_file(x509, file):
+    fopen = libc.fopen
+    fopen.argtypes = c_char_p, c_char_p,
+    fopen.restype = c_void_p
+
+    fclose = libc.fclose
+    fclose.argtypes = c_void_p,
+    fclose.restype = c_int
+
+    fp = fopen(file, b'wb')
+
+    outbio = libcrypto.BIO_new_fp(fp, 0)
+    ret = libcrypto.PEM_write_bio_X509(outbio, x509)
+    fclose(fp)
+    return ret
+
+libcrypto.PEM_write_bio_X509_to_file = PEM_write_bio_X509_to_file
+
+def helper_libcrypto_PEM_read_RSAPrivateKey(f):
+    rsa_ptr = POINTER(c_void_p)()
+    fopen = libc.fopen
+    fopen.argtypes = [c_char_p, c_char_p]
+    fopen.restype = c_void_p
+
+    fclose = libc.fclose
+    fclose.argtypes = [c_void_p]
+    fclose.restype = c_int
+    if sys.version_info >= (3, 0):
+        fp = fopen(bytes(f, 'utf-8'), b'rb')
+    else:
+        fp = fopen(f, b'rb')
+    if not fp:
+        return None
+    addr_rsa = addressof(rsa_ptr)
+    ret = libcrypto.PEM_read_RSAPrivateKey(fp, addr_rsa, None, None)
+    fclose(fp)
+    return rsa_ptr
+libcrypto.PEM_read_RSAPrivateKey_helper = helper_libcrypto_PEM_read_RSAPrivateKey
+
+def helper_libcrypto_X509_print_fp(x509, file):
+    fopen = libc.fopen
+    fopen.argtypes = c_char_p, c_char_p,
+    fopen.restype = c_void_p
+
+    fclose = libc.fclose
+    fclose.argtypes = c_void_p,
+    fclose.restype = c_int
+    fp = fopen(file, b'wb')
+    if not fp:
+        return -1
+    ret = libcrypto.X509_print_fp(fp, x509)
+    fclose(fp)
+    return ret
+libcrypto.X509_print_fp_helper = helper_libcrypto_X509_print_fp
+
+def X509_set_serialNumber_helper(x509, serial):
+    
+    aserial=libssl.ASN1_INTEGER_new()
+    libssl.ASN1_INTEGER_set(aserial, serial)
+    ret = libcrypto.X509_set_serialNumber(x509, aserial)
+    libssl.ASN1_INTEGER_free(aserial)
+    return ret
+libcrypto.X509_set_serialNumber_helper = X509_set_serialNumber_helper
 
 
 ##################
@@ -139,6 +249,9 @@ class SSL_CONST:
     SSL_CB_CONNECT_EXIT    = SSL_ST_CONNECT | SSL_CB_EXIT
     SSL_CB_HANDSHAKE_START = 0x10
     SSL_CB_HANDSHAKE_DONE  = 0x20
+
+    DTLS_CTRL_GET_TIMEOUT    = 73
+    DTLS_CTRL_HANDLE_TIMEOUT = 74
 
     BIO_FLAGS_READ         = 0x01
     BIO_FLAGS_WRITE        = 0x02

@@ -22,7 +22,7 @@ limitations under the License.
 #include "sim_cs_tcp.h"
 #include <astf/astf_db.h>
 #include <astf/astf_template_db.h>
-
+#include "trex_global.h"
 #include "stt_cp.h"
 
 #define CLIENT_SIDE_PORT        1025
@@ -194,6 +194,7 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
     if (tp->m_flow->m_template.m_src_port==CLIENT_SIDE_PORT) {
         dir=0;
     }
+    hw_checksum_sim(m);
     rte_mbuf_t *m_rx= utl_rte_convert_tx_rx_mbuf(m);
 
     m_p->on_tx(dir,m_rx);
@@ -296,7 +297,8 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_check_counters=false;
     m_skip_compare_file=false;
     m_mss=0;
-    m_drop_rnd = NULL;
+    m_drop_rnd = nullptr;
+    m_gen = nullptr;
 
     m_rtt_sec =0.05; /* 50msec */
     m_drop_ratio =0.0;
@@ -317,10 +319,14 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_c_ctx.Create(100,true);
     m_c_ctx.tcp_iss=0x12121212; /* for testing start from the same value */
     m_c_ctx.set_cb(&m_io_debug);
+    m_c_ctx.set_offload_dev_flags(OFFLOAD_TX_CHKSUM|OFFLOAD_RX_CHKSUM);
 
     m_s_ctx.Create(100,false);
     m_s_ctx.tcp_iss=0x21212121; /* for testing start from the same value */
     m_s_ctx.set_cb(&m_io_debug);
+    m_s_ctx.set_offload_dev_flags(OFFLOAD_TX_CHKSUM|OFFLOAD_RX_CHKSUM);
+
+
 
     int i;
     for (i=0; i<2; i++) {
@@ -333,6 +339,7 @@ bool CClientServerTcp::Create(std::string out_dir,
 void CClientServerTcp::set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *s_tune) {
     m_tcp_data_ro.set_test_assoc_table(port, prog, s_tune);
     m_s_ctx.set_template_ro(&m_tcp_data_ro);
+    /* We work under the assumption that when you call this we don't need to resize. */
 }
 
 void CClientServerTcp::on_tx(int dir,
@@ -533,7 +540,7 @@ void CClientServerTcp::on_rx(int dir,
         m_c_pcap.write_pcap_mbuf(m,t);
     }
 
-    ctx->m_ft.rx_handle_packet(ctx,m);
+    ctx->m_ft.rx_handle_packet(ctx,m,false,0);
 }
 
 
@@ -545,7 +552,11 @@ void CClientServerTcp::Delete(){
         delete m_drop_rnd;
     }
     delete m_reorder_rnd;
-
+    if ( CAstfDB::has_instance() ) {
+        CAstfDB::instance()->clear_db_ro_rw(m_gen);
+        CAstfDB::free_instance();
+    }
+    delete m_gen;
 }
 
 
@@ -564,7 +575,7 @@ int CClientServerTcp::test2(){
 
     uint32_t tx_num_bytes=100*1024;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,false);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,false);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(1025);
@@ -613,8 +624,12 @@ int CClientServerTcp::test2(){
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(&m_c_ctx,c_flow);
-    app_c->set_debug_id(1);
+    app_c->set_debug_id(0);
     c_flow->set_app(app_c);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app_c->set_log_enable(true);
+    }
+
 
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
@@ -630,21 +645,21 @@ int CClientServerTcp::test2(){
     m_sim.run_sim();
 
     printf(" C counters \n");
-    m_c_ctx.m_tcpstat.Dump(stdout);
+    m_c_ctx.get_tcpstat()->Dump(stdout);
     m_c_ctx.m_ft.dump(stdout);
     printf(" S counters \n");
-    m_s_ctx.m_tcpstat.Dump(stdout);
+    m_s_ctx.get_tcpstat()->Dump(stdout);
     m_s_ctx.m_ft.dump(stdout);
 
 
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte,4024);
-    //EXPECT_EQ(m_c_ctx.m_tcpstat.m_sts.tcps_connects,1);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte,4024);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte,4024);
+    //EXPECT_EQ(m_c_ctx.get_tcpstat()->m_sts.tcps_connects,1);
 
 
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,4024);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_accepts,1);
-    //EXPECT_EQ(m_s_ctx.m_tcpstat.m_sts.tcps_preddat,m_s_ctx.m_tcpstat.m_sts.tcps_rcvpack-1);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,4024);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_accepts,1);
+    //EXPECT_EQ(m_s_ctx.get_tcpstat()->m_sts.tcps_preddat,m_s_ctx.get_tcpstat()->m_sts.tcps_rcvpack-1);
 
 
     //app.m_write_buf.Delete();
@@ -1053,7 +1068,7 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
     m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_ip(0x10000001);
     c_tuple.set_port(1025);
@@ -1118,27 +1133,27 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     #define TX_BYTES 249
     #define RX_BYTES 32768
 
-    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte,
-                                         (int)m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
-                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte,
-                                         (int)m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte,
+    printf(" [%d %d] [%d %d] [%d %d] \n",(int)m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte,
+                                         (int)m_c_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte,
+                                         (int)m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte,
                                          (int)TX_BYTES,
                                          (int)RX_BYTES );
 
     if (m_check_counters){
-        if (m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte>0 && 
-            m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte>0) {
-            if ( (m_c_ctx.m_tcpstat.m_sts.tcps_drops ==0) && 
-                 (m_s_ctx.m_tcpstat.m_sts.tcps_drops ==0) ){
+        if (m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte>0 &&
+            m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte>0) {
+            if ( (m_c_ctx.get_tcpstat()->m_sts.tcps_drops ==0) &&
+                 (m_s_ctx.get_tcpstat()->m_sts.tcps_drops ==0) ){
                             /* flow wasn't initiated due to drop of SYN too many times */
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_sndbyte==TX_BYTES);
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvbyte==RX_BYTES);
-            assert(m_c_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==TX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_sndbyte==TX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvbyte==RX_BYTES);
+            assert(m_c_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte==TX_BYTES);
 
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvackbyte==RX_BYTES);
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_sndbyte==RX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvackbyte==RX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_sndbyte==RX_BYTES);
 
-            assert(m_s_ctx.m_tcpstat.m_sts.tcps_rcvbyte==TX_BYTES);
+            assert(m_s_ctx.get_tcpstat()->m_sts.tcps_rcvbyte==TX_BYTES);
             }
         }
     }
@@ -1163,14 +1178,15 @@ int CClientServerTcp::fill_from_file() {
     CTcpFlow *c_flow;
     CEmulApp *app_c;
 
+    m_gen = new CTupleGeneratorSmart();
 
 
     CAstfDbRO * ro_db=CAstfDB::instance()->get_db_ro(0);
+    CAstfTemplatesRW * rw_db=CAstfDB::instance()->get_db_template_rw(0, m_gen,0,1,0);
+    CAstfDB::instance()->clear_db_ro_rw(m_gen);
+    ro_db=CAstfDB::instance()->get_db_ro(0);
+    rw_db=CAstfDB::instance()->get_db_template_rw(0, m_gen,0,1,0);
 
-    CTupleGeneratorSmart g_gen;
-
-
-    CAstfTemplatesRW * rw_db=CAstfDB::instance()->get_db_template_rw(0, &g_gen,0,1,0);
 
 
     m_c_ctx.update_tuneables(rw_db->get_c_tuneables());
@@ -1183,7 +1199,10 @@ int CClientServerTcp::fill_from_file() {
         dst_port+=1;
     }
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(&m_c_ctx,0x10000001,0x30000001,src_port,dst_port,m_vlan,false);
+    uint16_t temp_index = 0;
+    uint16_t tg_id = ro_db->get_template_tg_id(temp_index);
+
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,src_port,dst_port,m_vlan,false, tg_id);
 
     CFlowKeyTuple c_tuple;
     c_tuple.set_ip(0x10000001);
@@ -1200,7 +1219,6 @@ int CClientServerTcp::fill_from_file() {
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
     app_c = &c_flow->m_app;
 
-    uint16_t temp_index = 0;
     prog_c = ro_db->get_client_prog(temp_index);
     if (prog_c->is_stream() == false) {
         printf(" \n");
@@ -1213,6 +1231,7 @@ int CClientServerTcp::fill_from_file() {
     // c_flow->set_c_tcp_info(rw_db, temp_index);
     // s_flow->set_c_tcp_info(rw_db, temp_index);
     m_s_ctx.set_template_ro(ro_db);
+    m_s_ctx.resize_stats();
 
     if (m_debug) {
         CTcpServreInfo * s_info = ro_db->get_server_info_by_port(dst_port,true);
@@ -1224,8 +1243,12 @@ int CClientServerTcp::fill_from_file() {
     app_c->set_program(prog_c);
     app_c->set_bh_api(&m_tcp_bh_api_impl_c);
     app_c->set_flow_ctx(&m_c_ctx,c_flow);
-    app_c->set_debug_id(1);
+    app_c->set_debug_id(0);
     c_flow->set_app(app_c);
+    if (CGlobalInfo::m_options.preview.getEmulDebug() ){
+        app_c->set_log_enable(true);
+    }
+
 
     m_s_ctx.m_ft.set_tcp_api(&m_tcp_bh_api_impl_s);
 

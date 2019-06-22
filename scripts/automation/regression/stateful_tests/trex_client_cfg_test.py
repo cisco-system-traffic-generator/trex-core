@@ -11,8 +11,6 @@ from nose.tools import nottest
 # If resolve will fail, TRex will exit with exit code != 0
 class CTRexClientCfg_Test(CTRexNbarBase):
     """This class defines the IMIX testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        CTRexNbarBase.__init__(self, *args, **kwargs)
 
     def setUp(self):
         if CTRexScenario.setup_name == 'kiwi02':
@@ -41,7 +39,7 @@ class CTRexClientCfg_Test(CTRexNbarBase):
             client_cfg = 'automation/regression/cfg/client_cfg.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
         self.check_general_scenario_results(trex_res, check_latency = False) # no latency with client config
@@ -68,7 +66,7 @@ class CTRexClientCfg_Test(CTRexNbarBase):
             limit_ports = 4,
             client_cfg = 'automation/regression/cfg/client_cfg_vlan.yaml')
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
         print("\nLATEST RESULT OBJECT:")
         print(trex_res)
         self.check_general_scenario_results(trex_res, check_latency = False) # no latency with client config

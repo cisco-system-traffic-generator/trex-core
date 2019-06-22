@@ -340,7 +340,7 @@ protected:
      * verify ownership
      * 
      */
-    void verify_ownership(const Json::Value &params, Json::Value &result);
+    virtual void verify_ownership(const Json::Value &params, Json::Value &result);
 
     /**
      * verify that current stack supports blocking operation if command blocks
@@ -401,6 +401,10 @@ protected:
         check_field_type(parent, param, FIELD_TYPE_STR, result);
         return parent[param].asString();
     }
+
+    std::string  parse_ipv4(const Json::Value &parent, const std::string &param, Json::Value &result);
+
+    std::string  parse_ipv6(const Json::Value &parent, const std::string &param, Json::Value &result);
 
     template<typename T> const Json::Value & parse_object(const Json::Value &parent, const T &param, Json::Value &result) {
         check_field_type(parent, param, FIELD_TYPE_OBJ, result);
@@ -512,6 +516,9 @@ protected:
 
     /* shortcut for parsing port id */
     uint8_t parse_port(const Json::Value &params, Json::Value &result);
+
+    /* shortcut for parsing profile id */
+    std::string parse_profile(const Json::Value &params, Json::Value &result, std::string default_value = "_" );
 
     /**
      * parse a field from choices 

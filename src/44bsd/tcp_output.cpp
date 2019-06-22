@@ -161,14 +161,14 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
 /**
  * build control packet without data
  * 
- * @param ctx
+ * @param pctx
  * @param tp
  * @param tcphlen
  * @param pkt
  * 
  * @return 
  */
-static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
+static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
                                   struct tcpcb *tp,
                                   uint16_t tcphlen,
@@ -178,7 +178,7 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
     m=tp->pktmbuf_alloc(len);
     pkt.m_buf=m;
     if (m==0) {
-        INC_STAT(ctx,tcps_nombuf);
+        INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_nombuf);
         /* drop the packet */
         return(-1);
     }
@@ -193,14 +193,14 @@ static inline int _tcp_build_cpkt(CTcpPerThreadCtx * ctx,
     return(0);
 }
 
-int tcp_build_cpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_cpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt){
     assert(tp->m_flow);
     CFlowTemplate *ftp=&tp->m_flow->m_template;
 
-   int res=_tcp_build_cpkt(ctx,ftp,tp,tcphlen,pkt);
+   int res=_tcp_build_cpkt(pctx,ftp,tp,tcphlen,pkt);
    if (res==0){
        tcp_pkt_update_len(ftp,tp,pkt,0,tcphlen) ;
    }
@@ -231,7 +231,7 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
 /**
  * build packet from socket buffer 
  * 
- * @param ctx
+ * @param pctx
  * @param tp
  * @param offset
  * @param dlen
@@ -240,7 +240,7 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
  * 
  * @return 
  */
-static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
+static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
                                   struct tcpcb *tp,
                                   uint32_t offset, 
@@ -248,7 +248,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
                                   uint16_t tcphlen, 
                                   CTcpPkt &pkt){
 
-    int res=_tcp_build_cpkt(ctx,ftp,tp,tcphlen,pkt);
+    int res=_tcp_build_cpkt(pctx,ftp,tp,tcphlen,pkt);
     if (res<0) {
         return(res);
     }
@@ -267,6 +267,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
         /* get blocks from socket buffer */
         CBufMbufRef  rb;
         lptxs->get_by_offset(&tp->m_socket,offset,rb);
+        assert(rb.get_mbuf_size()>0);
 
         rte_mbuf_t   * mn=rb.m_mbuf;
         if (rb.m_type==MO_CONST) {
@@ -280,7 +281,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
                 /* need to allocate indirect */
                 rte_mbuf_t   * mi=tp->pktmbuf_alloc_small();
                 if (mi==0) {
-                    INC_STAT(ctx,tcps_nombuf);
+                    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_nombuf);
                     rte_pktmbuf_free(m);
                     return(-1);
                 }
@@ -314,7 +315,7 @@ static inline int tcp_build_dpkt_(CTcpPerThreadCtx * ctx,
 
 /* len : if TSO==true, it is the TSO packet size (before segmentation), 
          else it is the packet size */
-int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
+int tcp_build_dpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
@@ -323,7 +324,7 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
     assert(tp->m_flow);
     CFlowTemplate *ftp=&tp->m_flow->m_template;
 
-    int res = tcp_build_dpkt_(ctx,ftp,tp,offset,dlen,tcphlen,pkt);
+    int res = tcp_build_dpkt_(pctx,ftp,tp,offset,dlen,tcphlen,pkt);
     if (res==0){
         tcp_pkt_update_len(ftp,tp,pkt,dlen,tcphlen) ;
     }
@@ -344,16 +345,17 @@ int tcp_build_dpkt(CTcpPerThreadCtx * ctx,
  * In any case the ack and sequence number of the transmitted
  * segment are as specified by the parameters.
  */
-void tcp_respond(CTcpPerThreadCtx * ctx,
+void tcp_respond(CPerProfileCtx * pctx,
             struct tcpcb *tp, 
             tcp_seq ack, 
             tcp_seq seq, 
             int flags){
     assert(tp);
     uint32_t win = sbspace(&tp->m_socket.so_rcv);
+    CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
     CTcpPkt pkt;
-    if (tcp_build_cpkt(ctx,tp,TCP_HEADER_LEN,pkt)!=0){
+    if (tcp_build_cpkt(pctx,tp,TCP_HEADER_LEN,pkt)!=0){
         return;
     }
     TCPHeader * ti=pkt.lpTcp;
@@ -372,7 +374,7 @@ void tcp_respond(CTcpPerThreadCtx * ctx,
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */
-int tcp_output(CTcpPerThreadCtx * ctx,struct tcpcb *tp) {
+int tcp_output(CPerProfileCtx * pctx,struct tcpcb *tp) {
 
     struct tcp_socket *so = &tp->m_socket;
     int32_t len ;
@@ -381,6 +383,7 @@ int tcp_output(CTcpPerThreadCtx * ctx,struct tcpcb *tp) {
     u_char opt[MAX_TCPOPTLEN];
     unsigned optlen, hdrlen;
     int idle, sendalot;
+    CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
     /*
      * Determine length of data that should be transmitted,
@@ -557,7 +560,7 @@ again:
     if (so->so_snd.sb_cc && tp->t_timer[TCPT_REXMT] == 0 &&
         tp->t_timer[TCPT_PERSIST] == 0) {
         tp->t_rxtshift = 0;
-        tcp_setpersist(ctx,tp);
+        tcp_setpersist(pctx,tp);
     }
 
     /*
@@ -587,7 +590,7 @@ send:
 
             opt[0] = TCPOPT_MAXSEG;
             opt[1] = 4;
-            mss = bsd_htons((u_short) tcp_mss(ctx,tp, 0));
+            mss = bsd_htons((u_short) tcp_mss(pctx,tp, 0));
             *(uint16_t*)(opt + 2)=mss;
             optlen = 4;
      
@@ -653,18 +656,19 @@ send:
      * be transmitted, and initialize the header from
      * the template for sends on this connection.
      */
+    uint16_t tg_id = tp->m_flow->m_tg_id; 
     if (len) {
         if (tp->t_force && len == 1){
-            INC_STAT(ctx,tcps_sndprobe);
+            INC_STAT(pctx, tg_id, tcps_sndprobe);
         } else if (SEQ_LT(tp->snd_nxt, tp->snd_max)) {
-            INC_STAT(ctx,tcps_sndrexmitpack);
-            INC_STAT_CNT(ctx,tcps_sndrexmitbyte,len);
+            INC_STAT(pctx, tg_id, tcps_sndrexmitpack);
+            INC_STAT_CNT(pctx, tg_id, tcps_sndrexmitbyte,len);
         } else {
-            INC_STAT(ctx,tcps_sndpack);
-            INC_STAT_CNT(ctx,tcps_sndbyte_ok,len); /* better to be handle by application layer */
+            INC_STAT(pctx, tg_id, tcps_sndpack);
+            INC_STAT_CNT(pctx, tg_id, tcps_sndbyte_ok,len); /* better to be handle by application layer */
         }
 
-        if (tcp_build_dpkt(ctx,tp,off,len,hdrlen,pkt)!=0){
+        if (tcp_build_dpkt(pctx,tp,off,len,hdrlen,pkt)!=0){
             error = ENOBUFS;
             goto out;
         }
@@ -680,16 +684,16 @@ send:
             flags |= TH_PUSH;
     } else {
         if (tp->t_flags & TF_ACKNOW){
-            INC_STAT(ctx,tcps_sndacks);
+            INC_STAT(pctx, tg_id, tcps_sndacks);
         } else if (flags & (TH_SYN|TH_FIN|TH_RST)){
-            INC_STAT(ctx,tcps_sndctrl);
+            INC_STAT(pctx, tg_id, tcps_sndctrl);
         } else if (SEQ_GT(tp->snd_up, tp->snd_una)){
-            INC_STAT(ctx,tcps_sndurg);
+            INC_STAT(pctx, tg_id, tcps_sndurg);
         } else{
-            INC_STAT(ctx,tcps_sndwinup);
+            INC_STAT(pctx, tg_id, tcps_sndwinup);
         }
 
-        if ( tcp_build_cpkt(ctx,tp,hdrlen,pkt)!=0){
+        if ( tcp_build_cpkt(pctx,tp,hdrlen,pkt)!=0){
             error = ENOBUFS;
             goto out;
         }
@@ -786,7 +790,7 @@ send:
             if (tp->t_rtt == 0) {
                 tp->t_rtt = 1;
                 tp->t_rtseq = startseq;
-                INC_STAT(ctx,tcps_segstimed);
+                INC_STAT(pctx, tg_id, tcps_segstimed);
             }
         }
 
@@ -814,7 +818,7 @@ send:
      * Trace.
      */
     if (so->so_options & US_SO_DEBUG){
-        tcp_trace(ctx,TA_OUTPUT, tp->t_state, tp, (struct tcpiphdr *)0, ti,len);
+        tcp_trace(pctx,TA_OUTPUT, tp->t_state, tp, (struct tcpiphdr *)0, ti,len);
     }
 
     error = ctx->m_cb->on_tx(ctx,tp,pkt.m_buf);
@@ -832,7 +836,7 @@ out:
         }
         return (error);
     }
-    INC_STAT(ctx,tcps_sndtotal);
+    INC_STAT(pctx, tg_id, tcps_sndtotal);
 
     /*
      * Data sent (as far as we can tell).
@@ -849,7 +853,7 @@ out:
     return (0);
 }
 
-void tcp_setpersist(CTcpPerThreadCtx * ctx,
+void tcp_setpersist(CPerProfileCtx * pctx,
                     struct tcpcb *tp){
     int16_t t = ((tp->t_srtt >> 2) + tp->t_rttvar) >> 1;
 

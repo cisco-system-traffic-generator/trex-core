@@ -9,8 +9,6 @@ import outer_packages
 
 
 class CGeneralPktBld_Test(object): 
-    def __init__(self):
-        pass
 
     @staticmethod
     def print_packet(pkt_obj):

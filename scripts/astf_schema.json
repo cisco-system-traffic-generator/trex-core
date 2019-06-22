@@ -25,6 +25,9 @@
         
         "s_glob_info" : {
             "$ref": "#/definitions/glob_info_t"
+        },
+        "tg_names": {
+            "$ref": "#/definitions/tg_names_t"
         }
     },
     
@@ -36,8 +39,7 @@
                   "type": "array",
                   "items": {
                        "type": "string"
-                   },
-                   "minItems": 1
+                   }
               },
 
               "ip_gen_dist_list_t" : {
@@ -75,7 +77,8 @@
                  "type": "object",
                  "properties": {
                         "program_index": {
-                             "type" : "integer"
+                             "type" : "integer",
+                             "minimum" : 0
                          },
                          "assoc" : {
                              "type" : "array",
@@ -83,7 +86,8 @@
                                    "type": "object",
                                    "properties": {
                                         "port": {
-                                            "type" : "integer"
+                                            "type" : "integer",
+                                            "minimum" : 0
                                           }
                                    }, // for now
                                    "required": ["port"]
@@ -97,10 +101,12 @@
                  "type": "object",
                  "properties": {
                         "program_index": {
-                             "type" : "integer"
+                             "type" : "integer",
+                             "minimum" : 0
                          },
                         "port": {
-                             "type" : "integer"
+                             "type" : "integer",
+                             "minimum": 0
                          },
 
                         "glob_info" : {
@@ -108,10 +114,12 @@
                         },
                         
                         "cps": {
-                             "type" : "number" 
+                             "type" : "number",
+                             "minimum" : 0.5
                          },
                         "limit": {
-                             "type" : "integer"
+                             "type" : "integer",
+                             "minimum": 0
                          },
                         "cluster": {
                              "type" : "object"
@@ -125,7 +133,8 @@
                                    "type" : "object",
                                    "properties": {
                                         "index": {
-                                           "type" : "integer"
+                                           "type" : "integer",
+                                           "minimum": 0
                                         }
                                     },
                                     "required": ["index"]
@@ -135,7 +144,8 @@
                                    "type" : "object",
                                    "properties": {
                                         "index": {
-                                           "type" : "integer"
+                                           "type" : "integer",
+                                           "minimum": 0
                                         }
                                     },
                                     "required": ["index"]
@@ -156,6 +166,9 @@
 
                  "client_template" : {
                     "$ref": "#/definitions/client_template_t" 
+                  },
+                  "tg_id": {
+                      "type" : "integer"
                   }
                 },
                "required": ["server_template","client_template"]
@@ -168,6 +181,13 @@
                        "$ref": "#/definitions/template_t"     
                    },
                    "minItems": 1
+           },
+
+           "tg_names_t" : {
+               "type": "array",
+               "items": {
+                    "type": "string"
+                }
            },
 
 
@@ -199,7 +219,8 @@
                       },
 
                       "min_bytes" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 0
                       },
 
                       "clear" : {
@@ -219,7 +240,8 @@
                       },
 
                       "msec" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 0
                       }   
                 },
                 "required": ["name","msec"]
@@ -235,7 +257,8 @@
                       },
 
                       "min_pkts" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 1
                       },
 
                       "clear" : {
@@ -281,7 +304,8 @@
                       },
 
                      "usec" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 1
                       }
                 },
                 "required": ["name","usec"]
@@ -296,11 +320,13 @@
                       },
 
                      "min_usec" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 0
                       },
 
                      "max_usec" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 1
                       }
                 },
                 "required": ["name","min_usec","max_usec"]
@@ -319,7 +345,8 @@
                       },
 
                      "val" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 0
                       }
                 },
                 "required": ["name","id","val"]
@@ -353,7 +380,8 @@
                       },
 
                      "flags" : {
-                          "type" : "integer"
+                          "type" : "integer",
+                          "minimum": 0
                       }
                 },
                 "required": ["name","flags"]

@@ -25,6 +25,7 @@ limitations under the License.
 #include "utl_yaml.h"
 #include "bp_sim.h"
 #include "tuple_gen.h"
+#include "trex_exception.h"
 
 static bool _enough_ips(uint32_t total_ip,
                        double active_flows,
@@ -158,7 +159,13 @@ void CClientPool::configure_client(uint32_t indx){
         lp->set_inc_port(m_rss_thread_max);
         lp->set_sport_reverse_lsb(true,m_reta_mask);
     }
+
+    #ifndef TREX_SIM
+    /* trex-522 workaround */
+    lp->reserve_src_port(4791);
+    #endif
 }
+
 
 
 /**
@@ -181,10 +188,7 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         /* lookup for the right group of clients */
         ClientCfgEntry *group = client_info.lookup(ip);
         if (!group) {
-            std::stringstream ss;
-            ss << "client configuration error: could not map IP '" << ip_to_str(ip) << "' to a group\n";
-            std::cout << ss.str();
-            exit(-1);
+            throw TrexException("Client configuration error - no group containing IP: " + ip_to_str(ip));
         }
 
         ClientCfgBase info;
@@ -417,6 +421,7 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     fi.m_number_of_clients_per_gb = 0;
     fi.m_min_clients = 0;
     fi.m_is_bundling = false;
+    fi.m_per_core_distro =false;
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
@@ -454,6 +459,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
+        s_pool.m_per_core_distro =false;
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     } else {
@@ -532,3 +538,25 @@ void split_ips(uint32_t thread_id,
     portion.m_ip_start  = poolinfo.get_ip_start()  + thread_id*chunks + dual_if_mask;
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
+
+
+/* split in way that each core will get continues range of ip's */
+
+void split_ips_v2( uint32_t total_threads, 
+                   uint32_t rss_thread_id,
+                   uint32_t rss_max_threads,
+                   uint32_t max_dual_ports, 
+                   uint32_t dual_port_id,
+                   CTupleGenPoolYaml& poolinfo,
+                   CIpPortion & portion){
+
+    uint32_t chunks = poolinfo.getTotalIps()/total_threads;
+
+    assert(chunks>0);
+
+    uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
+
+    portion.m_ip_start  = poolinfo.get_ip_start()  + (rss_thread_id+rss_max_threads*dual_port_id)*chunks + dual_if_mask;
+    portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
+}
+

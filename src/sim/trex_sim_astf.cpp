@@ -118,6 +118,7 @@ void   CCoreEthIFTcpSim::write_pkt_to_file(uint8_t dir,
     m_raw->time_sec  = t_c.m_time_sec;
     uint8_t p_id = (uint8_t)dir;
     m_raw->setInterface(p_id);
+    
     int rc = write_pkt(m_raw);
     assert(rc == 0);
 }
@@ -160,6 +161,7 @@ int CCoreEthIFTcpSim::send_node(CGenNode *node){
      rte_mbuf_t   *m  = node_tcp->mbuf;
      pkt_dir_t    dir = node_tcp->dir;
      double       time = node_tcp->sim_time;
+     hw_checksum_sim(m);
 
      if (dir==0) {
          write_pkt_to_file(dir,m,time);
@@ -199,7 +201,7 @@ static void dump_tcp_counters(CTcpPerThreadCtx  *      c_ctx,
 static int load_list_of_cap_files(CParserOption * op,
                                   asrtf_args_t * args){
     /* set TCP mode */
-    op->m_op_mode = CParserOption::OP_MODE_ASTF_BATCH;
+    set_op_mode(OP_MODE_ASTF_BATCH);
 
     CFlowGenList fl;
     fl.Create();
@@ -209,8 +211,7 @@ static int load_list_of_cap_files(CParserOption * op,
         try {
             fl.load_client_config_file(op->client_cfg_file);
             // The simulator only test MAC address configs, so this parameter is not used
-            CManyIPInfo pretest_result;
-            fl.set_client_config_resolved_macs(pretest_result);
+            fl.set_client_config_resolved_macs(nullptr);
         } catch (const std::runtime_error &e) {
             std::cout << "\n*** " << e.what() << "\n\n";
             exit(-1);
@@ -256,7 +257,7 @@ static int load_list_of_cap_files(CParserOption * op,
                       args->dump_json);
                                       
     uint32_t stop=    os_get_time_msec();
-    printf(" d time = %ul %ul \n",stop-start,os_get_time_freq());
+    printf(" took time: %umsec (freq: %u) \n", stop-start, os_get_time_freq());
 
     lpt->Delete();
     fl.Delete();
@@ -272,7 +273,7 @@ int SimAstf::run() {
     STXSimGuard guard(new TrexAstfBatch(TrexSTXCfg(), nullptr));
     
     try {
-        return load_list_of_cap_files(&CGlobalInfo::m_options,args);
+        return load_list_of_cap_files(&CGlobalInfo::m_options, args);
     } catch (const std::runtime_error &e) {
         std::cout << "\n*** " << e.what() << "\n\n";
         exit(-1);
@@ -281,7 +282,7 @@ int SimAstf::run() {
 
 
 
-int SimAstfSimple::run(){
+int SimAstfSimple::run() {
     CParserOption * po=&CGlobalInfo::m_options;
     bool rc = CAstfDB::instance()->parse_file(CGlobalInfo::m_options.astf_cfg_file);
     assert(rc);

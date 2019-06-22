@@ -90,7 +90,8 @@ class HASH_ENV{
 }
 */
 
-typedef void (*close_hash_on_detach_cb_t)(void *userdata,void  *obh);
+typedef void (*close_hash_on_detach_cb_t)(void *userdata, void *obh);
+typedef bool (*close_hash_predicate_cb_t)(void *pdata, void *obh);
 
 
 template<class KEY>
@@ -124,6 +125,7 @@ public:
 
      /* iterate all, detach and call the callback */
     void detach_all(void *userdata,close_hash_on_detach_cb_t cb);
+    int detach_if(void *userdata,close_hash_on_detach_cb_t cb, void *pdata, close_hash_predicate_cb_t p);
 
 
     uint32_t get_hash_size(){
@@ -293,6 +295,32 @@ void CCloseHash<KEY>::detach_all(void *userdata,
             cb(userdata,(void *)obj);
         }
     }
+}
+
+
+template<class KEY>
+int CCloseHash<KEY>::detach_if(void *userdata,
+                                 close_hash_on_detach_cb_t cb, void *pdata, close_hash_predicate_cb_t p){
+    int detach_cnt = 0;
+
+    for(int i=0;i<m_size;i++){
+        CCloseHashRec * lpRec= &m_tbl[i];
+        TCGenDListIterator iter(lpRec->m_list);
+        hashEntry_t *lp;
+        int f_itr=0;
+        for (;(lp=(hashEntry_t *)iter.node());){
+            iter++;
+            if (p(pdata, lp)){
+                lp->detach();
+                m_numEntries--;
+                cb(userdata,(void *)lp);
+                detach_cnt++;
+            }
+            f_itr++;
+        }
+    }
+
+    return detach_cnt;
 }
 
 

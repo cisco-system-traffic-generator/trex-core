@@ -34,7 +34,7 @@
 
 trex:
   hostname       : csi-trex-25
-  cores          : 2
+  cores          : 1
   modes          : ['1G']
 
 router:

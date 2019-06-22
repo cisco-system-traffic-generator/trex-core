@@ -115,67 +115,24 @@ class STLPerformance_Test(CStlGeneral_Test):
         self.c = CTRexScenario.stl_trex
         self.c.connect()
         self.c.reset()
+        cur_dir = os.path.dirname(__file__)
+        self.profiles_dir = os.path.join(cur_dir, 'profiles')
 
-        
 
     def tearDown (self):
         CStlGeneral_Test.tearDown(self)
 
 
     def build_perf_profile_vm (self, pkt_size, cache_size = None):
-        size = pkt_size - 4; # HW will add 4 bytes ethernet FCS
-        src_ip = '16.0.0.1'
-        dst_ip = '48.0.0.1'
-
-        base_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=12,sport=1025)
-        pad = max(0, size - len(base_pkt)) * 'x'
-                             
-        vm = STLScVmRaw( [   STLVmFlowVar ( "ip_src",  min_value="10.0.0.1", max_value="10.0.0.255", size=4, step=1,op="inc"),
-                             STLVmWrFlowVar (fv_name="ip_src", pkt_offset= "IP.src" ),
-                             STLVmFixIpv4(offset = "IP")
-                         ],
-                         cache_size = cache_size
-                        );
-
-        pkt = STLPktBuilder(pkt = base_pkt/pad, vm = vm)
-        return STLStream(packet = pkt, mode = STLTXCont())
+        f = os.path.join(self.profiles_dir, 'vm.py')
+        p = STLProfile().load(f, pkt_size = pkt_size, cache_size = cache_size)
+        return p.get_streams()
 
 
-    def build_perf_profile_syn_attack (self, pkt_size):
-        size = pkt_size - 4; # HW will add 4 bytes ethernet FCS
-
-        # TCP SYN
-        base_pkt  = Ether()/IP(dst="48.0.0.1")/TCP(dport=80,flags="S")
-        pad = max(0, size - len(base_pkt)) * 'x'
-
-        # vm
-        vm = STLScVmRaw( [ STLVmFlowVar(name="ip_src", 
-                                              min_value="16.0.0.0", 
-                                              max_value="18.0.0.254", 
-                                              size=4, op="random"),
-
-                            STLVmFlowVar(name="src_port", 
-                                              min_value=1025, 
-                                              max_value=65000, 
-                                              size=2, op="random"),
-
-                           STLVmWrFlowVar(fv_name="ip_src", pkt_offset= "IP.src" ),
-
-                           STLVmFixIpv4(offset = "IP"), # fix checksum
-
-                           STLVmWrFlowVar(fv_name="src_port", 
-                                                pkt_offset= "TCP.sport") # fix udp len  
-
-                          ]
-                       )
-
-        pkt = STLPktBuilder(pkt = base_pkt,
-                            vm = vm)
-
-        return STLStream(packet = pkt,
-                         random_seed = 0x1234,# can be remove. will give the same random value any run
-                         mode = STLTXCont())
-
+    def build_perf_profile_syn_attack(self, pkt_size):
+        f = os.path.join(self.profiles_dir, 'syn.py')
+        p = STLProfile().load(f, pkt_size = pkt_size)
+        return p.get_streams()
 
 
     # single CPU, VM, no cache, 64 bytes

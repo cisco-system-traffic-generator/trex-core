@@ -31,6 +31,8 @@ void i40e_trex_dump_fdir_regs(struct i40e_hw *hw);
 
 void i40e_trex_fdir_reg_init(uint8_t repid, int mode);
 
+int i40e_trex_get_pf_id(uint8_t repid, uint8_t *pf_id);
+
 int rte_eth_dev_pci_addr(uint8_t repid,char *p,int size);
 
 int rte_eth_fdir_stats_reset(uint8_t repid, uint32_t *stats, uint32_t start, uint32_t len);

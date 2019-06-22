@@ -101,7 +101,7 @@ class EventsHandler(object):
             if a handler is registered for 'event_name' it will be called
             and be passed with *args and **kwargs
         """
-        if not event_name in self.events_handlers:
+        if event_name not in self.events_handlers:
             raise TRexError("TRex Events: unhandled event '{0}'".format(event_name))
 
 

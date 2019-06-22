@@ -89,7 +89,7 @@ def client_api(api_type = 'getter', connected = True):
         return wrap
 
 
-def console_api (name, group, connected = True):
+def console_api (name, group, require_connect = True, preserve_history = False):
     """
         console decorator
 
@@ -100,6 +100,12 @@ def console_api (name, group, connected = True):
 
         group: str
             group name for the console help
+
+        require_connect: bool
+            require client to be connected
+
+        preserve_history: bool
+            preserve readline history
     """
 
     def wrap (f):
@@ -108,21 +114,21 @@ def console_api (name, group, connected = True):
             client = args[0]
 
             # check connection if needed
-            if connected and not client.conn.is_connected():
+            if require_connect and not client.conn.is_connected():
                 client.logger.error(format_text("\n'{0}' cannot be executed in offline mode\n".format(name), 'bold'))
                 return
 
             time1 = time.time()
 
+            rc = None
             try:
                 rc = f(*args)
 
-            except TRexConsoleNoAction:
-                return RC_ERR("no action")
+            except TRexConsoleNoAction as e:
+                return RC_ERR(e)
 
             except TRexConsoleError as e:
-                # the argparser will handle the error
-                return RC_ERR(e.brief())
+                return RC_ERR(e)
 
             except TRexError as e:
                 client.logger.debug('\nAction has failed with the following error:\n')
@@ -137,9 +143,10 @@ def console_api (name, group, connected = True):
 
             return
 
-        wrap2.api_type  = 'console'
-        wrap2.name      = name
-        wrap2.group     = group
+        wrap2.api_type          = 'console'
+        wrap2.name              = name
+        wrap2.group             = group
+        wrap2.preserve_history  = preserve_history
 
         return wrap2
 

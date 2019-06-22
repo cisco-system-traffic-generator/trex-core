@@ -65,6 +65,7 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
 	action[0].conf = &queue;
 	action[1].type = RTE_FLOW_ACTION_TYPE_END;
 
+    int pattern_index = 0;
 	/*
 	 * set the first level of the pattern (eth).
 	 * since in this example we just want to get the
@@ -74,10 +75,11 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
 	memset(&eth_mask, 0, sizeof(struct rte_flow_item_eth));
 	eth_spec.type = 0;
 	eth_mask.type = 0;
-	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
-	pattern[0].spec = &eth_spec;
-	pattern[0].mask = &eth_mask;
+	pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_ETH;
+	pattern[pattern_index].spec = &eth_spec;
+	pattern[pattern_index].mask = &eth_mask;
 
+    pattern_index++;
 	/*
 	 * setting the second level of the pattern (vlan).
 	 * since in this example we just want to get the
@@ -85,18 +87,20 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
 	 */
 	memset(&vlan_spec, 0, sizeof(struct rte_flow_item_vlan));
 	memset(&vlan_mask, 0, sizeof(struct rte_flow_item_vlan));
-	pattern[1].type = RTE_FLOW_ITEM_TYPE_VLAN;
-	pattern[1].spec = &vlan_spec;
-	pattern[1].mask = &vlan_mask;
+	pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_VLAN;
+	pattern[pattern_index].spec = &vlan_spec;
+	pattern[pattern_index].mask = &vlan_mask;
+
+    pattern_index++;
 
     if (ipv6){
         memset(&ipv6_spec, 0, sizeof(struct rte_flow_item_ipv6));
         memset(&ipv6_mask, 0, sizeof(struct rte_flow_item_ipv6));
-        ipv6_spec.hdr.vtc_flow = 0x1<<20;
-        ipv6_mask.hdr.vtc_flow = 0x1<<20;
-        pattern[2].type = RTE_FLOW_ITEM_TYPE_IPV6;
-        pattern[2].spec = &ipv6_spec;
-        pattern[2].mask = &ipv6_mask;
+        ipv6_spec.hdr.vtc_flow = PAL_NTOHL(0x1<<20);
+        ipv6_mask.hdr.vtc_flow = PAL_NTOHL(0x1<<20);
+        pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_IPV6;
+        pattern[pattern_index].spec = &ipv6_spec;
+        pattern[pattern_index].mask = &ipv6_mask;
 
     }else{
         /*
@@ -108,13 +112,14 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
         memset(&ipv4_mask, 0, sizeof(struct rte_flow_item_ipv4));
         ipv4_spec.hdr.type_of_service = 0x1;
         ipv4_mask.hdr.type_of_service = 0x1;
-        pattern[2].type = RTE_FLOW_ITEM_TYPE_IPV4;
-        pattern[2].spec = &ipv4_spec;
-        pattern[2].mask = &ipv4_mask;
+        pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_IPV4;
+        pattern[pattern_index].spec = &ipv4_spec;
+        pattern[pattern_index].mask = &ipv4_mask;
     }
 
+    pattern_index++;
 	/* the final level must be always type end */
-	pattern[3].type = RTE_FLOW_ITEM_TYPE_END;
+	pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_END;
 
 	res = rte_flow_validate(port_id, &attr, pattern, action, error);
 	if (!res)

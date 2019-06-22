@@ -44,68 +44,58 @@ import yaml
 import tempfile
 import shutil
 
-def setUpModule(module):
-    pass
-
-def tearDownModule(module):
-    pass
 
 class CTRexGeneral_Test(unittest.TestCase):
     """This class defines the general stateful testcase of the TRex traffic generator"""
-    def __init__ (self, *args, **kwargs):
-        sys.stdout.flush()
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        if CTRexScenario.is_test_list:
-            return
-        # Point test object to scenario global object
-        self.configuration         = CTRexScenario.configuration
-        self.benchmark             = CTRexScenario.benchmark
-        self.trex                  = CTRexScenario.trex
-        self.stl_trex              = CTRexScenario.stl_trex
-        self.trex_crashed          = CTRexScenario.trex_crashed
-        self.modes                 = CTRexScenario.modes
-        self.GAManager             = None  # Disable GA due to network issues ELK is our database   CTRexScenario.GAManager
-        self.elk                   = CTRexScenario.elk
-        self.no_daemon             = CTRexScenario.no_daemon
-        self.skipping              = False
-        self.fail_reasons          = []
-        if not hasattr(self, 'unsupported_modes'):
-            self.unsupported_modes   = []
-        self.is_loopback           = 'loopback' in self.modes
-        self.is_virt_nics          = 'virt_nics' in self.modes
-        self.is_vf_nics            = 'vf_nics' in self.modes
-        self.is_VM                 = 'VM' in self.modes
-        self.is_lowend             = 'lowend' in self.modes
-        self.is_vdev               = 'vdev' in self.modes
-        self.is_dummy_ports        = 'dummy' in self.modes
-        self.is_linux_stack        = 'linux_stack' in self.modes
+
+    @classmethod
+    def setUpClass(cls):
+        cls.GAManager         = CTRexScenario.GAManager
+        cls.astf_trex         = CTRexScenario.astf_trex
+        cls.benchmark         = CTRexScenario.benchmark
+        cls.configuration     = CTRexScenario.configuration
+        cls.elk               = CTRexScenario.elk
+        cls.modes             = CTRexScenario.modes
+        cls.no_daemon         = CTRexScenario.no_daemon
+        cls.stl_trex          = CTRexScenario.stl_trex
+        cls.trex              = CTRexScenario.trex
+        cls.trex_crashed      = CTRexScenario.trex_crashed
+
+        cls.is_VM             = 'VM' in cls.modes
+        cls.is_dummy_ports    = 'dummy' in cls.modes
+        cls.is_linux_stack    = 'linux_stack' in cls.modes
+        cls.is_loopback       = 'loopback' in cls.modes
+        cls.is_lowend         = 'lowend' in cls.modes
+        cls.is_vdev           = 'vdev' in cls.modes
+        cls.is_vf_nics        = 'vf_nics' in cls.modes
+        cls.is_virt_nics      = 'virt_nics' in cls.modes
 
         if not CTRexScenario.is_init:
-            if self.trex and not self.no_daemon: # stateful
-                CTRexScenario.trex_version = self.trex.get_trex_version()
+            if cls.trex and not cls.no_daemon: # stateful
+                CTRexScenario.trex_version = cls.trex.get_trex_version()
             #update elk const object 
-            if self.elk:
+            if cls.elk:
                 timediff  = timedelta(hours=2) # workaround to get IL timezone
                 date_str  = CTRexScenario.trex_version['Date'].strip()
                 timestamp = datetime.strptime(date_str, '%b %d %Y , %H:%M:%S') - timediff
 
                 img               = CTRexScenario.elk_info['info']['image']
                 img['sha']        = CTRexScenario.trex_version['Git SHA']
-                img['build_time'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                img['build_time'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")
                 img['version']    = CTRexScenario.trex_version['Version']
 
                 setup = CTRexScenario.elk_info['info']['setup']
-                if self.is_loopback :
+                if cls.is_loopback :
                     setup['dut'] = 'loopback' 
                 else:
                     setup['dut'] = 'router' 
 
-                if self.is_VM:
+                if cls.is_VM:
                     setup['baremetal'] = False
                     setup['hypervisor'] = 'ESXi'       #TBD
                 else:
                     setup['baremetal'] = True
-            if not self.is_loopback:
+            if not cls.is_loopback:
                 # initilize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
                 device_cfg           = CDeviceCfg()
@@ -117,7 +107,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                     image_d = CTRexScenario.router.get_running_image_details();
                     running_image = image_d['image']
                     print('Current router image: %s' % running_image)
-                    if self.elk:
+                    if cls.elk:
                         setup['dut'] = image_d.get('model','router');
                         print('Current router model : %s' % setup['dut'])
                     needed_image = device_cfg.get_image_name()
@@ -130,19 +120,19 @@ class CTRexGeneral_Test(unittest.TestCase):
                         CTRexScenario.router.launch_connection(device_cfg)
                         running_image = CTRexScenario.router.get_running_image_details()['image'] # verify image
                         if not CTRexScenario.router.is_image_matches(needed_image):
-                            self.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
+                            cls.fail('Unable to set router image: %s, current image is: %s' % (needed_image, running_image))
                     else:
                         print('Matches needed image: %s' % needed_image)
                     CTRexScenario.router_image = running_image
 
-            if self.modes:
-                print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(self.modes)))
+            if cls.modes:
+                print(termstyle.green('\t!!!\tRunning with modes: %s, not suitable tests will be skipped.\t!!!' % list(cls.modes)))
 
             CTRexScenario.is_init = True
             print(termstyle.green("Done instantiating TRex scenario!\n"))
 
-#           raise RuntimeError('CTRexScenario class is not initialized!')
-        self.router = CTRexScenario.router
+        cls.router            = CTRexScenario.router
+
 
     def get_elk_obj (self):
         obj=trex_scenario.copy_elk_info ()
@@ -455,9 +445,10 @@ class CTRexGeneral_Test(unittest.TestCase):
         self.fail_reasons.append(reason)
 
     # skip running of the test, counts as 'passed' but prints 'skipped'
-    def skip(self, message = 'Unknown reason'):
+    @classmethod
+    def skip(cls, message = 'Unknown reason'):
         print('Skip: %s' % message)
-        self.skipping = True
+        cls.skipping = True
         raise SkipTest(message)
 
     # get name of currently running test
@@ -465,18 +456,23 @@ class CTRexGeneral_Test(unittest.TestCase):
         return self._testMethodName
 
     def setUp(self):
-        test_setup_modes_conflict = self.modes & set(self.unsupported_modes)
-        if test_setup_modes_conflict:
-            self.skip("The test can't run with following modes of given setup: %s " % test_setup_modes_conflict)
-        if not self.stl_trex and not self.trex.is_idle():
+        self.skipping              = False
+        self.fail_reasons          = []
+        if hasattr(self, 'unsupported_modes'):
+            modes_conflict = self.modes & set(self.unsupported_modes)
+            if modes_conflict:
+                self.skip("The test can't run with following modes of given setup: %s " % modes_conflict)
+
+        if not self.stl_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at setUp, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:
             print('')
-            if not self.stl_trex and CTRexScenario.router_cfg['forceCleanConfig']:
-                self.router.load_clean_config()
-            self.router.clear_counters()
-            self.router.clear_packet_drop_stats()
+            if not self.stl_trex and not self.astf_trex:
+                if CTRexScenario.router_cfg['forceCleanConfig']:
+                    self.router.load_clean_config()
+                self.router.clear_counters()
+                self.router.clear_packet_drop_stats()
 
     ########################################################################
     ####                DO NOT ADD TESTS TO THIS FILE                   ####
@@ -487,7 +483,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 #   def test_isInitialized(self):
 #       assert CTRexScenario.is_init == True
     def tearDown(self):
-        if not self.stl_trex and not self.trex.is_idle():
+        if not self.stl_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at tearDown, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.skipping:
@@ -513,3 +509,120 @@ class CTRexGeneral_Test(unittest.TestCase):
 
     def check_for_trex_crash(self):
         pass
+
+    @classmethod
+    def get_per_driver_params(cls):
+        return {
+            'net_af_packet': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
+
+            'net_vmxnet3': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
+
+            'net_ixgbe': {
+                'rate_percent': 30,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 300,
+                'latency_9k_max_latency': 400,
+                'no_vlan': True,
+                'no_ipv6': True,
+            },
+
+            'net_ixgbe_vf': {
+                'rate_percent': 30,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan': True,
+                'no_ipv6': True,
+                'no_vlan_even_in_software_mode': True,
+                'max_pkt_size': 2000, # temporary, until we fix this
+            },
+
+            'net_i40e': {
+                'rate_percent': 80,
+                'rate_percent_soft': 10,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 100,
+                'latency_9k_max_latency': 250,
+            },
+
+            'net_i40e_vf': {
+                'rate_percent': 20,
+                'rate_percent_soft': 1,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 300,
+                'latency_9k_max_latency': 750,
+                'no_vlan_even_in_software_mode': True,
+            },
+
+            'net_e1000_igb': {
+                'rate_percent': 80,
+                'total_pkts': 500,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+            },
+
+            'net_e1000_em': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'no_vlan_even_in_software_mode': True,
+            },
+
+            'net_virtio': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+            },
+
+            'net_mlx5': {
+                'rate_percent': 40,
+                'rate_percent_soft': 0.01 if cls.is_vf_nics else 1,
+                'total_pkts': 1000,
+                'rate_latency': 0.01 if cls.is_vf_nics else 1,
+                'latency_9k_enable': False if cls.is_vf_nics else True,
+                'latency_9k_max_average': 200,
+                'latency_9k_max_latency': 200,
+            },
+
+            'net_enic': {
+                'rate_percent': 1,
+                'total_pkts': 50,
+                'rate_latency': 1,
+                'latency_9k_enable': False,
+                'rx_bytes_fix': True,
+                'no_vlan_even_in_software_mode': True,
+            },
+
+            'net_ntacc': {
+                'rate_percent': 10,
+                'rate_percent_soft': 1,
+                'total_pkts': 1000,
+                'rate_latency': 1,
+                'latency_9k_enable': True,
+                'latency_9k_max_average': 170,
+                'latency_9k_max_latency': 350,
+                'no_vlan': True,
+                'no_ipv6': True,
+            },
+        }
+

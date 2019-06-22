@@ -14,6 +14,7 @@ import imp
 
 from ..common.trex_exceptions import *
 from ..common.trex_types import verify_exclusive_arg, validate_type
+from ..utils.text_opts import format_num
 
 from .trex_stl_packet_builder_interface import CTrexPktBuilderInterface
 from .trex_stl_packet_builder_scapy import *
@@ -87,7 +88,7 @@ class STLTXMode(object):
         elif percentage is not None:
             validate_type('percentage', percentage, [float, int])
             if not (percentage > 0 and percentage <= 100):
-                raise STLArgumentError('percentage', percentage)
+                raise TRexArgumentError('percentage', percentage)
 
             self.fields['rate']['type']  = 'percentage'
             self.fields['rate']['value'] = percentage
@@ -182,7 +183,7 @@ class STLTXSingleBurst(STLTXMode):
 
 
         if not isinstance(total_pkts, int):
-            raise STLArgumentError('total_pkts', total_pkts)
+            raise TRexArgumentError('total_pkts', total_pkts)
 
         super(STLTXSingleBurst, self).__init__(**kwargs)
 
@@ -228,13 +229,13 @@ class STLTXMultiBurst(STLTXMode):
 
 
         if not isinstance(pkts_per_burst, int):
-            raise STLArgumentError('pkts_per_burst', pkts_per_burst)
+            raise TRexArgumentError('pkts_per_burst', pkts_per_burst)
 
         if not isinstance(ibg, (int, float)):
-            raise STLArgumentError('ibg', ibg)
+            raise TRexArgumentError('ibg', ibg)
 
         if not isinstance(count, int):
-            raise STLArgumentError('count', count)
+            raise TRexArgumentError('count', count)
 
         super(STLTXMultiBurst, self).__init__(**kwargs)
 
@@ -252,10 +253,12 @@ STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
 class STLFlowStatsInterface(object):
-    def __init__ (self, pg_id):
-        self.fields = {}
-        self.fields['enabled']         = True
-        self.fields['stream_id']       = pg_id
+    def __init__ (self, pg_id, vxlan):
+        self.fields = {
+            'enabled':      True,
+            'stream_id':    pg_id,
+            'vxlan':        vxlan,
+            }
 
     def to_json (self):
         """ Dump as json"""
@@ -306,8 +309,8 @@ class STLFlowStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id):
-        super(STLFlowStats, self).__init__(pg_id)
+    def __init__(self, pg_id, vxlan = False):
+        super(STLFlowStats, self).__init__(pg_id, vxlan)
         self.fields['rule_type'] = 'stats'
 
 
@@ -322,8 +325,8 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id):
-        super(STLFlowLatencyStats, self).__init__(pg_id)
+    def __init__(self, pg_id, vxlan = False):
+        super(STLFlowLatencyStats, self).__init__(pg_id, vxlan)
         self.fields['rule_type'] = 'latency'
 
 
@@ -363,6 +366,7 @@ class STLStream(object):
                   mac_dst_override_mode = None,    #see  STLStreamDstMAC_xx
                   dummy_stream = False,
                   start_paused = False,
+                  core_id = -1
                   ):
         """ 
         Stream object 
@@ -398,7 +402,7 @@ class STLStream(object):
                   action_count : uint16_t
                         If there is a next stream, number of loops before stopping. Default: 0 (unlimited).
 
-                  random_seed: uint16_t 
+                  random_seed: uint32_t 
                        If given, the seed for this stream will be this value. Useful if you need a deterministic random value.
                         
                   mac_src_override_by_pkt : bool 
@@ -413,6 +417,11 @@ class STLStream(object):
                   start_paused : bool
                         Experimental flag, might be removed in future!
                         Stream will not be transmitted until un-paused.
+
+                  core_id: int
+                        Pins the stream to core_id in case core_id is specified and 0 <= core_id < number of cores.
+                        Default value = -1.
+                        Negative value (default) keeps the current behaviour.
         """
 
 
@@ -426,42 +435,43 @@ class STLStream(object):
         validate_type('self_start', self_start, bool)
         validate_type('isg', isg, (int, float))
         validate_type('stream_id', stream_id, (type(None), int))
-        validate_type('random_seed',random_seed,int);
-        validate_type('dummy_stream', dummy_stream, bool);
-        validate_type('start_paused', start_paused, bool);
+        validate_type('random_seed',random_seed,int)
+        validate_type('dummy_stream', dummy_stream, bool)
+        validate_type('start_paused', start_paused, bool)
+        validate_type('core_id', core_id, int)
 
         if (type(mode) == STLTXCont) and (next != None):
             raise TRexError("Continuous stream cannot have a next stream ID")
 
+        if (type(flow_stats) == STLFlowLatencyStats and core_id >= 0):
+            raise TRexError("Core ID is not supported for latency streams.")
+
         # tag for the stream and next - can be anything
         self.name = name
         self.next = next
-
-        self.mac_src_override_by_pkt = mac_src_override_by_pkt # save for easy construct code from stream object
-        self.mac_dst_override_mode = mac_dst_override_mode
-        self.id = stream_id
+        self.id   = stream_id
 
         # set externally
         self.fields = {}
 
+        if not packet:
+            packet = STLPktBuilder(pkt = Ether()/IP())
+        self.scapy_pkt_builder = packet
+        # packet builder
+        packet.compile()
+
         int_mac_src_override_by_pkt = 0;
         int_mac_dst_override_mode   = 0;
 
-
         if mac_src_override_by_pkt == None:
-            int_mac_src_override_by_pkt=0
-            if packet :
-                if packet.is_default_src_mac ()==False:
-                    int_mac_src_override_by_pkt=1
-
+            if not packet.is_default_src_mac():
+                int_mac_src_override_by_pkt = 1
         else:
             int_mac_src_override_by_pkt = int(mac_src_override_by_pkt);
 
         if mac_dst_override_mode == None:
-            int_mac_dst_override_mode   = 0;
-            if packet :
-                if packet.is_default_dst_mac ()==False:
-                    int_mac_dst_override_mode=STLStreamDstMAC_PKT
+            if not packet.is_default_dst_mac():
+                int_mac_dst_override_mode = STLStreamDstMAC_PKT
         else:
             int_mac_dst_override_mode = int(mac_dst_override_mode);
 
@@ -477,6 +487,7 @@ class STLStream(object):
         self.fields['self_start'] = self_start
         self.fields['start_paused'] = start_paused
         self.fields['isg'] = isg
+        self.fields['core_id'] = core_id
 
         if random_seed !=0 :
             self.fields['random_seed'] = random_seed # optional
@@ -484,14 +495,6 @@ class STLStream(object):
         # mode
         self.fields['mode'] = mode.to_json()
         self.mode_desc      = str(mode)
-
-
-        if not packet:
-            packet = STLPktBuilder(pkt = Ether()/IP())
-
-        self.scapy_pkt_builder = packet
-        # packet builder
-        packet.compile()
 
         # packet and VM
         pkt_json = packet.to_json()
@@ -523,6 +526,9 @@ class STLStream(object):
     def has_custom_mac_addr (self):
         """ Return True if src or dst MAC were set as custom """
         return not self.is_default_mac
+
+    def is_explicit_dst_mac(self):
+        return ((self.fields['flags'] >> 1) & 0x3) == STLStreamDstMAC_PKT
 
     def get_name (self):
         """ Get the stream name """
@@ -661,11 +667,21 @@ class STLStream(object):
             if 'is_big_endian' in inst:
                 inst['byte_order'] = "'big'" if inst['is_big_endian'] else "'little'"
             if inst['type'] == 'flow_var':
+                value_list = inst.get('value_list')
                 if inst['name'] in vm_var_usage and inst['size'] == 4 and self.__is_all_IP(vm_var_usage[inst['name']]):
-                    inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
-                    inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
-                    inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
-                vm_list.append("vm.var(name='{name}', size={size}, op='{op}', init_value={init_value}, min_value={min_value}, max_value={max_value}, step={step})".format(**inst))
+                    if value_list is not None:
+                        inst['value_list'] = ['%s' % ltoa(val) for val in value_list]
+                    else:
+                        inst['init_value'] = "'%s'" % ltoa(inst['init_value'])
+                        inst['min_value'] = "'%s'" % ltoa(inst['min_value'])
+                        inst['max_value'] = "'%s'" % ltoa(inst['max_value'])
+                if inst['next_var']:
+                    inst['next_var'] = "'%s'" % inst['next_var']
+                common_start = "vm.var(name='{name}', op='{op}', step={step}, size={size}, split_to_cores={split_to_cores}, next_var={next_var}, "
+                if value_list is not None:
+                    vm_list.append((common_start + "min_value=None, max_value=None, value_list={value_list})").format(**inst))
+                else:
+                    vm_list.append((common_start + "min_value={min_value}, max_value={max_value}, init_value={init_value})").format(**inst))
             elif inst['type'] == 'write_flow_var':
                 vm_list.append("vm.write(fv_name='{name}', pkt_offset={pkt_offset}, add_val={add_value}, byte_order={byte_order})".format(**inst))
             elif inst['type'] == 'write_mask_flow_var':
@@ -686,7 +702,9 @@ class STLStream(object):
                 inst['ip_max'] = ltoa(inst['ip_max'])
                 vm_list.append("vm.tuple_var(name='{name}', ip_min='{ip_min}', ip_max='{ip_max}', port_min={port_min}, port_max={port_max}, limit_flows={limit_flows}, flags={flags})".format(**inst))
             elif inst['type'] == 'flow_var_rand_limit':
-                vm_list.append("vm.repeatable_random_var(fv_name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value})".format(**inst))
+                if inst['next_var']:
+                    inst['next_var'] = "'%s'" % inst['next_var']
+                vm_list.append("vm.repeatable_random_var(fv_name='{name}', size={size}, limit={limit}, seed={seed}, min_value={min_value}, max_value={max_value}, split_to_cores={split_to_cores}, next_var={next_var})".format(**inst))
             else:
                 raise TRexError('Got unhandled FE instruction type: %s' % inst['type'])
         if 'cache' in self.fields['vm']:
@@ -717,6 +735,8 @@ class STLStream(object):
             stream_params_list.append('action_count = %s' % self.fields['action_count'])
         if 'random_seed' in self.fields:
             stream_params_list.append('random_seed = %s' % self.fields.get('random_seed', 0))
+        if default_STLStream.fields['core_id'] != self.fields['core_id']:
+            stream_params_list.append('core_id = %s' % self.fields['core_id'])
         stream_params_list.append('mac_src_override_by_pkt = %s' % bool(self.fields['flags'] & 1))
         stream_params_list.append('mac_dst_override_mode = %s' % (self.fields['flags'] >> 1 & 3))
         if self.is_dummy():
@@ -830,10 +850,11 @@ class STLStream(object):
                              self_start               = json_data['self_start'],
                              isg                      = json_data['isg'],
                              action_count             = json_data['action_count'],
-                             
+                             core_id                  = json_data.get('core_id', -1),
+
                              stream_id                = json_data.get('stream_id'),
                              random_seed              = json_data.get('random_seed', 0),
-                             
+
                              mac_src_override_by_pkt  = (json_data['flags'] & 0x1) == 0x1,
                              mac_dst_override_mode    = (json_data['flags'] >> 1 & 0x3),
                              dummy_stream             = (json_data['flags'] & 0x8) == 0x8,
@@ -896,7 +917,7 @@ class STLProfile(object):
             streams = [streams]
 
         if not all([isinstance(stream, STLStream) for stream in streams]):
-            raise STLArgumentError('streams', streams, valid_values = STLStream)
+            raise TRexArgumentError('streams', streams, valid_values = STLStream)
 
         self.streams = streams
         self.meta = None
@@ -1000,15 +1021,17 @@ class STLProfile(object):
 
         basedir = os.path.dirname(python_file)
         sys.path.insert(0, basedir)
+        dont_write_bytecode = sys.dont_write_bytecode
 
         try:
             file    = os.path.basename(python_file).split('.')[0]
+            sys.dont_write_bytecode = True
             module = __import__(file, globals(), locals(), [], 0)
             imp.reload(module) # reload the update 
 
             t = STLProfile.get_module_tunables(module)
             #for arg in kwargs:
-            #    if not arg in t:
+            #    if arg not in t:
             #        raise TRexError("Profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
 
             streams = module.register().get_streams(direction = direction,
@@ -1030,6 +1053,7 @@ class STLProfile(object):
 
 
         finally:
+            sys.dont_write_bytecode = dont_write_bytecode
             sys.path.remove(basedir)
 
     
@@ -1042,7 +1066,9 @@ class STLProfile(object):
                    vm = None,
                    packet_hook = None,
                    split_mode = None,
-                   min_ipg_usec = None):
+                   min_ipg_usec = None,
+                   src_mac_pcap = False,
+                   dst_mac_pcap = False):
         """ Convert a pcap file with a number of packets to a list of connected streams.  
 
         packet1->packet2->packet3 etc 
@@ -1075,6 +1101,12 @@ class STLProfile(object):
                   min_ipg_usec   : float
                        Minumum inter packet gap in usec. Used to guard from too small IPGs.
 
+                  src_mac_pcap : bool
+                        Source MAC address will be taken from pcap file if True.
+
+                  dst_mac_pcap : bool
+                        Destination MAC address will be taken from pcap file if True.
+
                  :return: STLProfile
 
         """
@@ -1103,7 +1135,9 @@ class STLProfile(object):
                 return STLProfile.__pkts_to_streams(pkts,
                                                     loop_count,
                                                     vm,
-                                                    packet_hook)
+                                                    packet_hook,
+                                                    src_mac_pcap = src_mac_pcap,
+                                                    dst_mac_pcap = dst_mac_pcap)
             else:
                 pkts_a, pkts_b = PCAPReader(pcap_file).read_all(ipg_usec, min_ipg_usec, speedup, split_mode = split_mode)
                 if not (pkts_a or pkts_b):
@@ -1132,14 +1166,18 @@ class STLProfile(object):
                                                          vm,
                                                          packet_hook,
                                                          start_delay_usec,
-                                                         end_delay_usec = end_time - end_time_a)
+                                                         end_delay_usec = end_time - end_time_a,
+                                                         src_mac_pcap = src_mac_pcap,
+                                                         dst_mac_pcap = dst_mac_pcap)
 
                 profile_b = STLProfile.__pkts_to_streams(pkts_b,
                                                          loop_count,
                                                          vm,
                                                          packet_hook,
                                                          start_delay_usec,
-                                                         end_delay_usec = end_time - end_time_b)
+                                                         end_delay_usec = end_time - end_time_b,
+                                                         src_mac_pcap = src_mac_pcap,
+                                                         dst_mac_pcap = dst_mac_pcap)
                     
                 return profile_a, profile_b
 
@@ -1149,10 +1187,12 @@ class STLProfile(object):
 
 
     @staticmethod
-    def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0):
+    def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0, src_mac_pcap = False, dst_mac_pcap = False):
         streams = []
         if packet_hook:
             pkts = [(packet_hook(cap), meta) for (cap, meta) in pkts]
+
+        stream_dst_mac = STLStreamDstMAC_PKT if dst_mac_pcap else STLStreamDstMAC_CFG_FILE
 
         last_ts = 0
         for i, (cap, ts) in enumerate(pkts, start = 1):
@@ -1170,7 +1210,9 @@ class STLProfile(object):
                                              isg = end_delay_usec,
                                              action_count = loop_count,
                                              dummy_stream = True,
-                                             next = 1))
+                                             next = 1,
+                                             mac_src_override_by_pkt = src_mac_pcap,
+                                             mac_dst_override_mode = stream_dst_mac))
                 else:
                     next = 1
                     action_count = loop_count
@@ -1185,7 +1227,9 @@ class STLProfile(object):
                                          self_start = True,
                                          isg = isg + start_delay_usec,  # usec
                                          action_count = action_count,
-                                         next = next))
+                                         next = next,
+                                         mac_src_override_by_pkt = src_mac_pcap,
+                                         mac_dst_override_mode = stream_dst_mac))
             else:
                 streams.append(STLStream(name = i,
                                          packet = STLPktBuilder(pkt_buffer = cap, vm = vm),
@@ -1193,7 +1237,9 @@ class STLProfile(object):
                                          self_start = False,
                                          isg = isg,  # usec
                                          action_count = action_count,
-                                         next = next))
+                                         next = next,
+                                         mac_src_override_by_pkt = src_mac_pcap,
+                                         mac_dst_override_mode = stream_dst_mac))
 
 
         profile = STLProfile(streams)
@@ -1424,11 +1470,11 @@ class Graph(object):
     # add a connection v1 --> v2
     def add (self, v1, v2):
         # init value for v1
-        if not v1 in self.db:
+        if v1 not in self.db:
             self.db[v1] = set()
 
         # init value for v2
-        if not v2 in self.db:
+        if v2 not in self.db:
             self.db[v2] = set()
 
         # ignore self to self edges
@@ -1455,7 +1501,7 @@ class Graph(object):
             friends = self.db[node]
 
             # node has never been seen - move to color_a
-            if not node in color_a and not node in color_b:
+            if node not in color_a and node not in color_b:
                 self.log("<NEW> {0} --> A".format(node))
                 color_a.add(node)
 

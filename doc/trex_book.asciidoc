@@ -131,7 +131,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 .Supported NICs
 [options="header",cols="1,1,1,1,4",width="90%"]
 |=================
-| Chipset              | Bandwidth  (Gb/sec)  | TSO |LRO  | Example
+| Chipset              | Bandwidth  (Gb/sec)  | LSO  | LRO   | Example    
 | Any Kernel Linux interface |x| x | x | veth,tap,tun,eth0,wireless interface, up to ~1MPPS, one thread. see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
 | Intel I350           | 1   | + | - |Intel 4x1GE 350-T4 NIC
 | Intel 82599          | 0.1/1/2.5/5/10  | + | + |  Cisco part ID:N2XX-AIPCI01 Intel x520-D2, Intel X520 Dual Port 10Gb SFP+ Adapter. X550-T2,x540-T2 for tbase Cisco part ID:UCSC-PCIE-ID10GC 
@@ -154,6 +154,11 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Virtio | paravirtualized    | + | - | KVM
 |=================
 
+[NOTE]
+=====================================
+LSO (Large Send Offload) and LRO (Large Receive Offload) are techniques to increase egress and ingress throughput in high-bandwidth network connections by reducing CPU overheard. These are generally accomplished using multipacket buffering. LSO is also known as TCP segmentation offload (TSO) when applied to TCP, or generic segmentation offload (GSO). See link:https://en.wikipedia.org/wiki/Large_receive_offload[Large Receive Offload] and link:https://en.wikipedia.org/wiki/Large_send_offload(Large Send Offload) on wikipedia for further information.
+=====================================
+
 // in table above, is it correct to list "paravirtualized" as chipset? Also, what is QSFP28? It does not appear on the lined URL. Clarify: is Intel X710 the preferred NIC?
 
 .SFP+ support
@@ -172,6 +177,12 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
  http://www.silicom-usa.com/PE310G4i71L_Quad_Port_Fiber_SFP+_10_Gigabit_Ethernet_PCI_Express_Server_Adapter_49
 =====================================
 // it appears that link:<link> doesn't work in a note, so i changed the wording
+
+
+[NOTE]
+=====================================
+ For Intel XXV710 Cisco NIC, make sure to upgrade cimc to latest at lest v4.0(2f), the firmware of the XXV710 will be upgraded to v6 that can support most of sfps.
+====================================
 
 // clarify above table and note
 
@@ -276,7 +287,7 @@ Supported Linux versions:
 * Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
 * Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
 // clarify "not fully supported"
-* CentOS/RHEL 7.4, 64-bit kernel (not 32-bit) -- This is the only working option for ConnectX-4.
+* CentOS/RHEL 7.4, 64-bit kernel (not 32-bit) (*Recommended*) -- This is the only working option for ConnectX-4.
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
@@ -491,7 +502,7 @@ A script is available to automate the process of tailoring the basic configurati
 
 There are two ways to run the script:
 
-* Interactive mode: Script pormpts you for parameters.
+* Interactive mode: Script prompts you for parameters.
 * Command line mode: Provide all parameters using command line options.
 
 ==== Interactive mode
@@ -601,8 +612,7 @@ Starting from version 2.37, was added feature to run TRex on low-end machines li
 To enable this mode, define low_end argument in platform config file:
 [source,bash]
 ----
-  - port_limit: 2
-    version: 2
+  - version: 2
     interfaces: ['82:00.0', '82:00.1']
     low_end: true
 ...
@@ -679,7 +689,7 @@ Platform config file example:
 ...
 ----
 
-Under the hood it's being replaced with following (this full syntax can also be used, possibly containing another DPDK arguments):
+Under the hood it's being replaced with the following (this full syntax can also be used, possibly containing another DPDK arguments):
 [source,bash]
 ----
   - port_limit: 2
@@ -688,13 +698,81 @@ Under the hood it's being replaced with following (this full syntax can also be 
 ...
 ----
 
+=== Emulation stacks
+
+anchor:stacks[]
+
+One can choose the method of how TRex answers to ping/ARP in interactive modes (STL/ASTF).
+(Starting from version 2.43)
+
+Valid values:
+
+* "legacy" - the default value, TRex uses it's own code to answer pings/ARPs.
+* "linux_based" - ARPs/pings are redirected to Linux interfaces, that deal with them. +
+The Linux interfaces reside in separate network namespace in order to have their own ARP tables and not interfere with the rest of system. +
+It can be extended in future to:
+** Support other protocols that Linux natively supports
+** Many [thousands] emulated clients, while TRex port is behaving as switch connecting all that clients.
+
+Platform config file example:
+[source,bash]
+----
+  - version: 2
+    interfaces: ['82:00.0', '82:00.1']
+    stack: linux_based
+...
+----
+
+.Features of stacks
+[options="header",cols="1,^1,^1",width="50%"]
+|=================
+| Stack: | legacy    | linux_based
+| L2:    | yes       | yes
+| IPv4:  | yes       | yes
+| IPv6:  | [red]*no* | yes
+| VLAN:  | yes       | yes
+| STL:   | fully     | [red]*in service*
+| ASTF:  | fully     | fully
+|=================
+
+WARNING: linux_based stack requires service mode to process RX packets in STL mode
+
+
+Examples of configuration:
+
+Console:
+
+L2, IPv4, VLAN - configured in same way with both stacks.
+
+IPv6:
+
+[source,bash]
+----
+trex>ipv6 --help
+usage: port [-h] -p PORT (--off | --auto | -s SRC_IPV6)
+
+Configures IPv6 of a port
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PORT, --port PORT  source port for the action
+  --off                 Disable IPv6 on port.
+  --auto                Enable IPv6 on port with automatic address.
+  -s SRC_IPV6, --src SRC_IPV6
+                        Enable IPv6 on port with specific address.
+----
+
+API:
+
+see link:cp_stl_docs/api/client_code.html#trex.stl.trex_stl_client.STLClient.conf_ipv6[IPv6 configuration]
+
+
+
 === Dummy ports
 
-(Starting from version 2.38)
+Dummy ports are available to solve 2 issues:
 
-Dummy ports can solve 2 issues:
-
-* Odd number of interfaces. For example, TRex with one interface only.
+* Odd number of interfaces. For example, TRex with only one interface.
 * Performance degradation when adjacent interfaces belong to different NUMAs.
 
 Configuration example:
@@ -718,10 +796,22 @@ Incorrect configuration example:
 
 [NOTE]
 =====================================
-1. Currently GUI does not work with dummy ports. Will update as soon as it will.
+1. Supported in TRex as of v2.38+.
 2. Client (Python API, trex-console) older than v2.38 will not work with dummy ports. Update your client to v2.38 or later.
+3. Dummy ports are available for all TRex modes (stateless, statefull, and ASTF).
 =====================================
 
+Consider the following if using dummy ports for a single interface TRex generator:
+
+|=================
+| Configuration | Mode | Support Status | Comments
+| Single TRex Generator, Single Interface | Stateless | functional | unidirectional
+| | Stateful | semi-functional | will only send unidirectional side of the flows
+| | ASTF | depends on remote | requires bidirectional TCP stack, if remote supports TCP stack, will work, otherwise will not work
+| Two TRex Generators ,Single Interface | Stateless | functional | bidirectional
+| | Stateful | semi-functional | will "work", however flows will not be in sync
+| | ASTF | functional | full TCP stack
+|=================
 
 === Configuring for running with router (or other L3 device) as DUT
 
@@ -802,7 +892,7 @@ zmq publisher at: tcp://*:4500
 <6> Expected number of packets per second (calculated without latency packets).
 <7> Expected number of connections per second (calculated without latency packets).
 <8> Expected number of bits per second (calculated without latency packets).
-<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usualy the TRex number of active flows is much lower than that of the router because the router ages flows slower.
+<9> Number of TRex active "flows". Could be different than the number of router flows, due to aging issues. Usually the TRex number of active flows is much lower than that of the router because the router ages flows slower.
 <10> Total number of TRex flows opened since startup (including active ones, and ones already closed).
 <11> Drop rate.
 
@@ -1895,6 +1985,8 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
        #zmq_rpc_port    : 4501 #optional <15>
        #prefix          : setup1 #optional <6>
        #limit_memory    : 1024 #optional <7>
+       #rx_desc         : 1024 # optional <16>
+       #tx_desc         : 1024 # optional <16>
        c               : 4 #optional <8>
        port_bandwidth_gb : 10 #optional <9>
        port_info       :  # set eh mac addr  mandatory
@@ -1929,7 +2021,8 @@ the result as dest MAC. If no dest_mac given, and no ARP response received, TRex
 gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
 <13> If given (since version 2.18), all traffic on the port will be sent with this VLAN tag.
 <14> Old MAC address format. New format is supported since version v2.09.
-<15>  Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
+<15> Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
+<16> Override the default number of Rx/TX dpdk driver descriptors. For better performance on virtual interfaces better to enlarge these numbers to Rx=4096
 
 [NOTE]
 =========================================================================================
@@ -1938,6 +2031,12 @@ and have mac based configuration, be aware that TRex will not send any
 gratitues ARP and will not answer ARP requests. In this case, you must configure static
 ARP entries pointing to TRex port on your DUT. For an example config, you can look
 xref:trex_config[here].
+=========================================================================================
+
+[NOTE]
+=========================================================================================
+Setups with virtual interfaces (SR-IOV/VMXNET3/virtio) has by default, only 512 ex descriptors per queue, 
+better to enlarge it for multi-rx-queue/high performance setups
 =========================================================================================
 
 To find out which interfaces (NIC ports) can be used, perform the following:
@@ -2068,17 +2167,11 @@ We added configuration to the /etc/trex_cfg.yaml:
 This gave best results: with *\~98 Gb/s* TX BW and c=7, CPU utilization became *~21%*! (40% with c=4)
 
 
-==== Timer Wheeel  section configuration
+==== Timer Wheel section configuration
 
 anchor:timer_w[]
 
-The memory section is optional. It is used when there is a need to tune the amount of memory used by TRex packet manager.
-Default values (from the TRex source code), are usually good for most users. Unless you have some unusual needs, you can
-eliminate this section.
-
-==== Timer Wheel section configuration
-The flow scheduler uses timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values.
-This is an advance configuration, don't use it if you don't know what you are doing. it can be configure in trex_cfg file and trex traffic profile.
+The flow scheduler uses a timer wheel to schedule flows. To tune it for a large number of flows it is possible to change the default values. This is an advanced configuration; don't use it if you don't know what you are doing. It can be configured in the global `trex_cfg.yaml` file and per link:trex_manual.html#_traffic_yaml_f_argument_of_stateful[trex traffic profile].
 
 [source,python]
 ----
@@ -2153,7 +2246,7 @@ Flag that specifies interactive mode. Currently used for stateless (WIP adding a
 *-k <num>*::
    Run ``warm up'' traffic for num seconds before starting the test. This is needed if TRex is connected to switch running
    spanning tree. You want the switch to see traffic from all relevant source MAC addresses before starting to send real
-   data. Traffic sent is the same used for the latency test (-l option) +
+   data. Works only with the latency test (-l option). Traffic sent is the same used for the latency test. +
    Current limitation (holds for TRex version 1.82): does not work properly on VM.
 
 *-l <rate>*::
@@ -2229,7 +2322,7 @@ Use sleeps instead of busy wait in scheduler (less accurate, more power saving)
     You can also use this mode for running TRex on interfaces which manifest themselves as ones supported by TRex, but in reality support less hardware capabilities.
     For example, NICs supported by DPDK e1000_igb driver, but with different HW capabilities than i350. +
     Drawback of this is that because software has to handle all received packets, total rate of RX streams is significantly lower.
-    Currently, this mode is also limited to using only one TX core (and one RX core as usual).
+    Up until *v2.49* (not include) this mode is also limited to using only one TX core (and one RX core as usual). Now it uses multi-queue for RX and TX mainly for scale of virtual interfaces.
 
 *-v <verbosity level>*::
    Show debug info. Value of 1 shows debug info on startup. Value of 3, shows debug info during run at some cases. Might slow down operation.
@@ -2273,5 +2366,11 @@ anchor:ciscovic_support[]
 link:trex_appendix_vic.html[Cisco VIC support]
 
 link:trex_appendix_active_flows.html[More active flows]
+
+link:trex_appendix_fixing_pcaps.html[astf-sim for fixing pcaps]
+
+link:trex_appendix_software_mode.html[software mode]
+
+
 
 

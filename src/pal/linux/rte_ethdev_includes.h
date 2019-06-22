@@ -24,4 +24,7 @@ struct rte_eth_fc_conf {
 struct rte_eth_dev_info {
 };
 
+struct rte_pci_device {
+};
+
 #endif /* __RTE_ETHDEV_INCLUDES_H__ */

@@ -1,6 +1,6 @@
 # Example for create a server that delay the response time in random time delay_rand(min,max) command
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

@@ -1,32 +1,10 @@
-/*-
- *   BSD LICENSE
+/* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016-2017 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
  * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef _SFC_RX_H
@@ -34,7 +12,7 @@
 
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 
 #include "efx.h"
 
@@ -72,31 +50,15 @@ enum sfc_rxq_state_bit {
 };
 
 /**
- * Receive queue control information.
- * Allocated on the socket specified on the queue setup.
+ * Receive queue control primary process-only information.
  */
 struct sfc_rxq {
 	struct sfc_evq		*evq;
 	efx_rxq_t		*common;
 	efsys_mem_t		mem;
 	unsigned int		hw_index;
-	unsigned int		refill_threshold;
-	struct rte_mempool	*refill_mb_pool;
-	struct sfc_dp_rxq	*dp;
-	unsigned int		state;
+	uint16_t		buf_size;
 };
-
-static inline unsigned int
-sfc_rxq_sw_index_by_hw_index(unsigned int hw_index)
-{
-	return hw_index;
-}
-
-static inline unsigned int
-sfc_rxq_sw_index(const struct sfc_rxq *rxq)
-{
-	return sfc_rxq_sw_index_by_hw_index(rxq->hw_index);
-}
 
 struct sfc_rxq *sfc_rxq_by_dp_rxq(const struct sfc_dp_rxq *dp_rxq);
 
@@ -121,6 +83,7 @@ struct sfc_efx_rxq {
 	/* Used on refill */
 	unsigned int			added;
 	unsigned int			pushed;
+	unsigned int			max_fill_level;
 	unsigned int			refill_threshold;
 	uint16_t			buf_size;
 	struct rte_mempool		*refill_mb_pool;
@@ -141,13 +104,19 @@ sfc_efx_rxq_by_dp_rxq(struct sfc_dp_rxq *dp_rxq)
  * Allocated on the same socket as adapter data.
  */
 struct sfc_rxq_info {
+	unsigned int		state;
 	unsigned int		max_entries;
 	unsigned int		entries;
 	efx_rxq_type_t		type;
-	struct sfc_rxq		*rxq;
+	unsigned int		type_flags;
+	struct sfc_dp_rxq	*dp;
 	boolean_t		deferred_start;
 	boolean_t		deferred_started;
+	unsigned int		refill_threshold;
+	struct rte_mempool	*refill_mb_pool;
 };
+
+struct sfc_rxq_info *sfc_rxq_info_by_dp_rxq(const struct sfc_dp_rxq *dp_rxq);
 
 int sfc_rx_configure(struct sfc_adapter *sa);
 void sfc_rx_close(struct sfc_adapter *sa);
@@ -162,17 +131,21 @@ void sfc_rx_qfini(struct sfc_adapter *sa, unsigned int sw_index);
 int sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index);
 void sfc_rx_qstop(struct sfc_adapter *sa, unsigned int sw_index);
 
-void sfc_rx_qflush_done(struct sfc_rxq *rxq);
-void sfc_rx_qflush_failed(struct sfc_rxq *rxq);
+uint64_t sfc_rx_get_dev_offload_caps(struct sfc_adapter *sa);
+uint64_t sfc_rx_get_queue_offload_caps(struct sfc_adapter *sa);
 
-unsigned int sfc_rx_qdesc_npending(struct sfc_adapter *sa,
-				   unsigned int sw_index);
-int sfc_rx_qdesc_done(struct sfc_dp_rxq *dp_rxq, unsigned int offset);
+void sfc_rx_qflush_done(struct sfc_rxq_info *rxq_info);
+void sfc_rx_qflush_failed(struct sfc_rxq_info *rxq_info);
 
-#if EFSYS_OPT_RX_SCALE
-efx_rx_hash_type_t sfc_rte_to_efx_hash_type(uint64_t rss_hf);
-uint64_t sfc_efx_to_rte_hash_type(efx_rx_hash_type_t efx_hash_types);
-#endif
+int sfc_rx_hash_init(struct sfc_adapter *sa);
+void sfc_rx_hash_fini(struct sfc_adapter *sa);
+int sfc_rx_hf_rte_to_efx(struct sfc_adapter *sa, uint64_t rte,
+			 efx_rx_hash_type_t *efx);
+uint64_t sfc_rx_hf_efx_to_rte(struct sfc_rss *rss, efx_rx_hash_type_t efx);
+boolean_t sfc_rx_check_scatter(size_t pdu, size_t rx_buf_size,
+			       uint32_t rx_prefix_size,
+			       boolean_t rx_scatter_enabled,
+			       const char **error);
 
 #ifdef __cplusplus
 }

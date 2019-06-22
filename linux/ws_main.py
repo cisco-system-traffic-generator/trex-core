@@ -23,8 +23,8 @@ march = os.uname()[4]
 REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
 
-GCC6_DIR = '/usr/local/gcc-6.2/bin'
-GCC7_DIR = '/usr/local/gcc-7.2/bin'
+GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
+GCC7_DIRS = ['/usr/local/gcc-7.2/bin', '/opt/rh/devtoolset-7/root/usr/bin']
 
 
 class SrcGroup:
@@ -109,9 +109,9 @@ def configure(conf):
         conf.env.RPATH = []
 
     if conf.options.gcc6:
-        configure_gcc(conf, GCC6_DIR)
+        configure_gcc(conf, GCC6_DIRS)
     elif conf.options.gcc7:
-        configure_gcc(conf, GCC7_DIR)
+        configure_gcc(conf, GCC7_DIRS)
     else:
         configure_gcc(conf)
 
@@ -126,17 +126,26 @@ def configure(conf):
         
     # handle sanitized process if needed
     configure_sanitized(conf)
-  
-            
 
-def configure_gcc (conf, explicit_path = None):
+
+def search_in_paths(paths):
+    for path in paths:
+        if os.path.exists(path):
+            return path
+
+
+def configure_gcc(conf, explicit_paths = None):
     # use the system path
-    if explicit_path is None:
+    if explicit_paths is None:
         conf.load('g++')
         return
 
-    if not os.path.exists(explicit_path):
-        conf.fatal('unable to find specific GCC installtion dir: {0}'.format(explicit_path))
+    if type(explicit_paths) is not list:
+        explicit_paths = [explicit_paths]
+
+    explicit_path = search_in_paths(explicit_paths)
+    if not explicit_path:
+        conf.fatal('unable to find GCC in installation dir(s): {0}'.format(explicit_paths))
 
     saved = conf.environ['PATH']
     try:
@@ -179,6 +188,7 @@ bp_sim_gtest = SrcGroup(dir='src',
              'bp_gtest.cpp',
              'gtest/bp_timer_gtest.cpp',
              'gtest/bp_tcp_gtest.cpp',
+             'gtest/bp_astf_interactive_gtest.cpp',
              'gtest/tuple_gen_test.cpp',
              'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
@@ -200,52 +210,55 @@ main_src = SrcGroup(dir='src',
             '44bsd/sch_rampup.cpp',
             '44bsd/udp.cpp',
 
-            'utl_dbl_human.cpp',
-            'utl_counter.cpp',
-            'utl_policer.cpp',
             'astf/astf_template_db.cpp',
             'stt_cp.cpp',
             'bp_sim_tcp.cpp',
-            'utl_mbuf.cpp',
-             'inet_pton.cpp',
-             'trex_global.cpp',
-             'bp_sim.cpp',
-             'trex_platform.cpp',
-             'bp_sim_stf.cpp',
-             'utl_port_map.cpp',
-             'os_time.cpp',
-             'rx_check.cpp',
-             'tuple_gen.cpp',
-             'platform_cfg.cpp',
-             'utl_yaml.cpp',
-             'tw_cfg.cpp',
-             'rx_check_header.cpp',
-             'nat_check.cpp',
-             'nat_check_flow_table.cpp',
-             'pkt_gen.cpp',
-             'timer_wheel_pq.cpp',
-             'time_histogram.cpp',
-             'utl_cpuu.cpp',
-             'utl_ip.cpp',
-             'msg_manager.cpp',
-             'trex_port_attr.cpp',
-             'publisher/trex_publisher.cpp',
-             'stateful_rx_core.cpp',
-             'flow_stat_parser.cpp',
-             'trex_watchdog.cpp',
-             'trex_client_config.cpp',
-             'pal/linux/pal_utl.cpp',
-             'pal/linux/mbuf.cpp',
-             'pal/common/common_mbuf.cpp',
-             'sim/trex_sim_stateless.cpp',
-             'sim/trex_sim_stateful.cpp',
-             'sim/trex_sim_astf.cpp',
-             'h_timer.cpp',
-             'astf/astf_db.cpp',
-             'astf/astf_json_validator.cpp',
-             'utl_sync_barrier.cpp',
-             'trex_build_info.cpp',
-             ]);
+            'inet_pton.cpp',
+            'trex_global.cpp',
+            'trex_modes.cpp',
+            'bp_sim.cpp',
+            'trex_platform.cpp',
+            'bp_sim_stf.cpp',
+            'os_time.cpp',
+            'rx_check.cpp',
+            'tuple_gen.cpp',
+            'platform_cfg.cpp',
+            'tw_cfg.cpp',
+            'rx_check_header.cpp',
+            'nat_check.cpp',
+            'nat_check_flow_table.cpp',
+            'pkt_gen.cpp',
+            'timer_wheel_pq.cpp',
+            'time_histogram.cpp',
+            'msg_manager.cpp',
+            'trex_port_attr.cpp',
+            'publisher/trex_publisher.cpp',
+            'stateful_rx_core.cpp',
+            'flow_stat_parser.cpp',
+            'trex_watchdog.cpp',
+            'trex_client_config.cpp',
+            'pal/linux/pal_utl.cpp',
+            'pal/linux/mbuf.cpp',
+            'pal/common/common_mbuf.cpp',
+            'sim/trex_sim_stateless.cpp',
+            'sim/trex_sim_stateful.cpp',
+            'sim/trex_sim_astf.cpp',
+            'h_timer.cpp',
+            'astf/astf_db.cpp',
+            'astf/astf_json_validator.cpp',
+            'trex_build_info.cpp',
+
+            'utils/utl_counter.cpp',
+            'utils/utl_cpuu.cpp',
+            'utils/utl_dbl_human.cpp',
+            'utils/utl_ip.cpp',
+            'utils/utl_json.cpp',
+            'utils/utl_mbuf.cpp',
+            'utils/utl_policer.cpp',
+            'utils/utl_port_map.cpp',
+            'utils/utl_sync_barrier.cpp',
+            'utils/utl_yaml.cpp',
+            ]);
 
 cmn_src = SrcGroup(dir='src/common',
     src_list=[ 
@@ -283,15 +296,17 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_port.cpp',
                                      'trex_dp_port_events.cpp',
                                      'trex_dp_core.cpp',
+                                     'trex_latency_counters.cpp',
                                      'trex_messaging.cpp',
-
+                                     'trex_owner.cpp',
                                      'trex_rx_core.cpp',
                                      'trex_rx_port_mngr.cpp',
                                      'trex_rx_tx.cpp',
                                      'trex_stack_base.cpp',
+                                     'trex_stack_counters.cpp',
                                      'trex_stack_linux_based.cpp',
                                      'trex_stack_legacy.cpp',
-
+                                     'trex_rx_rpc_tunnel.cpp',
                                      'trex_rpc_cmds_common.cpp'
                                      ])
 
@@ -325,13 +340,24 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
 astf_batch_src = SrcGroup(dir='src/stx/astf_batch/',
                            src_list=['trex_astf_batch.cpp'])
 
+# MD5 package
+md5_src = SrcGroup(dir='external_libs/md5',
+    src_list=[
+        'md5.cpp'
+    ])
+
+
 # ASTF
 astf_src = SrcGroup(dir='src/stx/astf/',
-                         src_list=['trex_astf.cpp',
-                                   'trex_astf_port.cpp',
-                                   'trex_astf_rpc_cmds.cpp',
-                                   'trex_astf_dp_core.cpp'
-                         ])
+    src_list=[
+        'trex_astf.cpp',
+        'trex_astf_dp_core.cpp',
+        'trex_astf_messaging.cpp',
+        'trex_astf_port.cpp',
+        'trex_astf_rpc_cmds.cpp',
+        'trex_astf_rx_core.cpp',
+        'trex_astf_topo.cpp',
+    ])
 
 
 # RPC code
@@ -405,6 +431,7 @@ bp =SrcGroups([
                 stateless_src,
                 astf_batch_src,
                 astf_src,
+                md5_src,
                 
                 rpc_server_src
                 ]);
@@ -420,6 +447,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 #'-DGLIBCXX_USE_CXX11_ABI=0',
                 '-g',
                 '-Wno-deprecated-declarations',
+                '-Wno-error=uninitialized',
                 '-std=c++0x',
        ];
 
@@ -429,6 +457,7 @@ cxxflags_base =['-DWIN_UCODE_SIM',
 includes_path =''' ../src/pal/linux/
                    ../src/pal/common/
                    ../src/
+                   ../src/utils/
                    
                    ../src/rpc-server/
                    
@@ -437,6 +466,7 @@ includes_path =''' ../src/pal/linux/
                    ../src/stx/common/rx/
                    
                    ../external_libs/json/
+                   ../external_libs/md5/
                    ../external_libs/zmq-'''+ march +'''/include/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/bpf/

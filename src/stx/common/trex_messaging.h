@@ -31,6 +31,7 @@ class CRxCore;
 #include "trex_exception.h"
 #include <rte_atomic.h>
 #include "trex_stack_base.h"
+#include "trex_stack_rc.h"
 
 /**
  * Generic message reply object
@@ -174,9 +175,13 @@ public:
 class TrexDpBarrier : public TrexCpToDpMsgBase {
 public:
 
-    TrexDpBarrier(uint8_t port_id, int event_id) {
+    TrexDpBarrier(uint8_t port_id, uint32_t profile_id, int event_id) {
         m_port_id  = port_id;
+        m_profile_id = profile_id;
         m_event_id = event_id;
+    }
+
+    TrexDpBarrier(uint8_t port_id, int event_id): TrexDpBarrier(port_id, 0, event_id) {
     }
 
     virtual bool handle(TrexDpCore *dp_core);
@@ -185,6 +190,7 @@ public:
 
 private:
     uint8_t   m_port_id;
+    uint32_t  m_profile_id;
     int       m_event_id;
 };
 
@@ -225,9 +231,10 @@ public:
 class TrexDpPortEventMsg : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpPortEventMsg(int thread_id, uint8_t port_id, int event_id, bool status = true) {
+    TrexDpPortEventMsg(int thread_id, uint8_t port_id, uint32_t profile_id, int event_id, bool status = true) {
         m_thread_id     = thread_id;
         m_port_id       = port_id;
+        m_profile_id    = profile_id;
         m_event_id      = event_id;
         m_status        = status;
     }
@@ -242,6 +249,10 @@ public:
         return m_port_id;
     }
 
+    uint8_t get_profile_id() {
+        return m_profile_id;
+    }
+
     int get_event_id() {
         return m_event_id;
     }
@@ -253,8 +264,54 @@ public:
 private:
     int                         m_thread_id;
     uint8_t                     m_port_id;
+    uint32_t                    m_profile_id;
     int                         m_event_id;
     bool                        m_status;
+
+};
+
+
+/**
+ * a message indicating that DP core stopped
+ */
+class TrexDpCoreStopped : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreStopped(int thread_id, profile_id_t profile_id) {
+        m_thread_id = thread_id;
+        m_profile_id = profile_id;
+    }
+
+    TrexDpCoreStopped(int thread_id) : TrexDpCoreStopped(thread_id, 0) {}
+
+    virtual bool handle(void);
+
+private:
+    int m_thread_id;
+    profile_id_t m_profile_id;
+};
+
+/**
+ * a message indicating that DP core encountered error
+ */
+class TrexDpCoreError : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreError(int thread_id, profile_id_t profile_id, const std::string &err) {
+        m_thread_id = thread_id;
+        m_profile_id = profile_id;
+        m_err       = err;
+    }
+
+    TrexDpCoreError(int thread_id, const std::string &err): TrexDpCoreError(thread_id, 0, err) {
+    }
+
+    virtual bool handle(void);
+
+private:
+    int          m_thread_id;
+    profile_id_t m_profile_id;
+    std::string  m_err;
 
 };
 
@@ -373,6 +430,48 @@ public:
 private:
     capture_id_t                   m_capture_id;
     MsgReply<TrexCaptureRCRemove> &m_reply;
+};
+
+
+class TrexRxStartCapwapProxy : public TrexCpToRxMsgBase {
+public:
+    TrexRxStartCapwapProxy(uint8_t port_id,
+                           uint8_t pair_port_id,
+                           bool is_wireless_side,
+                           const Json::Value &capwap_map,
+                           uint32_t wlc_ip,
+                           MsgReply<std::string> &reply) : m_reply(reply) {
+
+        m_port_id = port_id;
+        m_pair_port_id = pair_port_id;
+        m_is_wireless_side = is_wireless_side;
+        m_capwap_map = capwap_map;
+        m_wlc_ip = wlc_ip;
+    }
+
+     bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<std::string>   &m_reply;
+    uint8_t                 m_port_id;
+    uint8_t                 m_pair_port_id;
+    bool                    m_is_wireless_side;
+    Json::Value             m_capwap_map;
+    uint32_t                m_wlc_ip;
+};
+
+
+class TrexRxStopCapwapProxy : public TrexCpToRxMsgBase {
+public:
+    TrexRxStopCapwapProxy(uint8_t port_id, MsgReply<std::string> &reply) : m_reply(reply) {
+        m_port_id = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<std::string>   &m_reply;
+    uint8_t                 m_port_id;
 };
 
 
@@ -502,6 +601,25 @@ private:
     std::string         m_src_ipv6;
 };
 
+
+/**
+ * Configure IPv6 of port
+ */
+class TrexRxConfNsBatch : public TrexCpToRxMsgBase {
+public:
+    TrexRxConfNsBatch(uint8_t port_id, const std::string &json_cmds) {
+        m_port_id       = port_id;
+        m_json_cmds = json_cmds;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    std::string         m_json_cmds;
+};
+
+
 /**
  * Get port node for data
  */
@@ -557,15 +675,35 @@ private:
     MsgReply<bool>     &m_reply;
 };
 
+class TrexRxGetTasksResultsEx : public TrexCpToRxMsgBase {
+public:
+    TrexRxGetTasksResultsEx(uint8_t port_id, uint64_t ticket_id, stack_result_t &results, MsgReply<TrexStackResultsRC> &reply) :
+                    m_results(results), m_reply(reply) {
+        m_port_id       = port_id;
+        m_ticket_id     = ticket_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t             m_port_id;
+    uint64_t            m_ticket_id;
+    stack_result_t     &m_results;
+    MsgReply<TrexStackResultsRC>     &m_reply;
+};
+
+
 class TrexRxRunCfgTasks : public TrexCpToRxMsgBase {
 public:
-    TrexRxRunCfgTasks(uint8_t port_id, uint64_t ticket_id) {
+    TrexRxRunCfgTasks(uint8_t port_id, uint64_t ticket_id,bool rpc) {
         m_port_id = port_id;
         m_ticket_id = ticket_id;
+        m_rpc = rpc;
     }
     virtual bool handle(CRxCore *rx_core);
 private:
     uint8_t                  m_port_id;
+    bool                     m_rpc;
     uint64_t                 m_ticket_id;
 };
 
@@ -660,6 +798,22 @@ private:
     uint8_t           m_port_id;
 };
 
+/**
+ * Is dst MAC valid?
+ */
+class TrexRxIsDstMacValid : public TrexCpToRxMsgBase {
+public:
+
+    TrexRxIsDstMacValid(uint8_t port_id, MsgReply<bool> &reply) : m_reply(reply){
+        m_port_id    = port_id;
+    }
+    
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t          m_port_id;
+    MsgReply<bool>  &m_reply;
+};
 
 /**
  * sends binary pkts through the RX core
@@ -686,6 +840,61 @@ private:
     uint8_t                       m_port_id;
 };
 
+/**
+ * Start capture port
+ */
+class TrexRxStartCapturePort : public TrexCpToRxMsgBase {
+public:
+    TrexRxStartCapturePort(uint8_t port_id, const std::string& filter, const std::string& endpoint, std::string &err, MsgReply<bool> &reply) :
+            m_err(err), m_reply(reply) {
+        m_port_id              = port_id;
+        m_filter               = filter;
+        m_endpoint             = endpoint;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    std::string       m_filter;
+    std::string       m_endpoint;
+    std::string      &m_err;
+    MsgReply<bool>   &m_reply;
+};
+
+/**
+ * Stop capture port
+ */
+class TrexRxStopCapturePort : public TrexCpToRxMsgBase {
+public:
+    TrexRxStopCapturePort(uint8_t port_id, std::string &err, MsgReply<bool> &reply) : m_err(err), m_reply(reply) {
+        m_port_id  = port_id;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    std::string      &m_err;
+    MsgReply<bool>   &m_reply;
+};
+
+/**
+ * Set capture port BPF Filter to a new value
+ */
+class TrexRxSetCapturePortBPF : public TrexCpToRxMsgBase {
+public:
+    TrexRxSetCapturePortBPF(uint8_t port_id, const std::string& filter) {
+        m_port_id              = port_id;
+        m_filter               = filter;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    uint8_t           m_port_id;
+    std::string       m_filter;
+};
 
 #endif /* __TREX_MESSAGING_H__ */
 

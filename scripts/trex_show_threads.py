@@ -37,7 +37,7 @@ def show_threads (pid):
         task = read_task_stats(task_path)
         tasks.append(task)
 
-    tasks = sorted(tasks, key = lambda x: int(x['cpus_allowed_list']))
+    tasks = sorted(tasks, key = lambda x: x['cpus_allowed_list'])
     for task in tasks:
         # name
         print("{:<20}".format(task['name'])),

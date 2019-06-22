@@ -1,8 +1,5 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
-# Only TCP SFR data is here 
-# SFR UDP templates are not here yet (e.g. DNS)
-# 
 
 
 class Prof1():
@@ -40,6 +37,8 @@ class Prof1():
             ASTFCapInfo(file="../avl/delay_10_smtp_0.pcap", cps=1.85),
             ASTFCapInfo(file="../avl/delay_10_smtp_1.pcap", cps=1.85,port=26),
             ASTFCapInfo(file="../avl/delay_10_smtp_2.pcap", cps=1.85,port=27),
+
+            ASTFCapInfo(file="../avl/delay_10_video_call_0.pcap", cps=3),
 
             ASTFCapInfo(file="../avl/delay_10_video_call_rtp_0.pcap", cps=7.4),
 

@@ -10,7 +10,12 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     """This class defines the general stateless testcase of the TRex traffic generator"""
 
     def setUp(self):
-        self.stl_trex = CTRexScenario.stl_trex if CTRexScenario.stl_trex else 'mock'
+        if not self.stl_trex:
+            self.stl_trex = STLClient(username = 'TRexRegression',
+                                      server = self.configuration.trex['trex_name'],
+                                      verbose_level = "debug" if CTRexScenario.json_verbose else "none")
+            CTRexScenario.stl_trex = self.stl_trex
+
         CTRexGeneral_Test.setUp(self)
         # check basic requirements, should be verified at test_connectivity, here only skip test
         if CTRexScenario.stl_init_error:
@@ -25,6 +30,8 @@ class CStlGeneral_Test(CTRexGeneral_Test):
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 self.stl_trex.connect()
+                self.stl_trex.acquire(force = True)
+                self.stl_trex.stop()
                 print('')
                 return True
             except Exception as e:
@@ -40,9 +47,9 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             sys.stdout.write('.')
             sys.stdout.flush()
             try:
-                CTRexScenario.stl_trex.remove_all_captures()
-                CTRexScenario.stl_ports_map = stl_map_ports(self.stl_trex)
-                if self.verify_bidirectional(CTRexScenario.stl_ports_map):
+                self.stl_trex.remove_all_captures()
+                CTRexScenario.ports_map = self.stl_trex.map_ports()
+                if self.verify_bidirectional(CTRexScenario.ports_map):
                     print('')
                     return True
             except Exception as e:
@@ -87,14 +94,8 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         sys.stdout.write('Starting TRex... ')
         start_time = time.time()
         cores = self.configuration.trex.get('trex_cores', 1)
-        if self.is_virt_nics and cores > 1:
-            raise Exception('Number of cores should be 1 with virtual NICs')
         if not CTRexScenario.no_daemon:
             self.trex.start_stateless(c = cores)
-        self.stl_trex = STLClient(username = 'TRexRegression',
-                                  server = self.configuration.trex['trex_name'],
-                                  verbose_level = "debug" if CTRexScenario.json_verbose else "none")
-        CTRexScenario.stl_trex = self.stl_trex
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
@@ -105,28 +106,42 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         setup['nic-ports'] = stl_info['port_count']
         setup['nic-speed'] = str(self.stl_trex.get_port_info(0))
 
+    def get_driver_params(self):
+        c = CTRexScenario.stl_trex
+        driver = c.any_port.get_formatted_info()['driver']
+        return self.get_per_driver_params()[driver]
+
 
 class STLBasic_Test(CStlGeneral_Test):
+    def setUp(self):
+        try:
+            CStlGeneral_Test.setUp(self)
+        except Exception as e:
+            CTRexScenario.stl_init_error = 'First setUp error: %s' % e
+            raise
+
+
     # will run it first explicitly, check connectivity and configure routing
     @nottest
     def test_connectivity(self):
+        print('')
         CTRexScenario.stl_init_error = 'Unknown error'
         if not self.is_loopback:
             try:
                 self.config_dut()
             except Exception as e:
-                print('')
                 CTRexScenario.stl_init_error = 'Could not configure device, err: %s' % e
                 self.fail(CTRexScenario.stl_init_error)
                 return
+            print('Configured DUT')
 
         try:
             self.start_trex()
         except Exception as e:
-            print('')
             CTRexScenario.stl_init_error = 'Could not start stateless TRex, err: %s' % e
             self.fail(CTRexScenario.stl_init_error)
             return
+        print('Started TRex')
 
         if not self.connect():
             CTRexScenario.stl_init_error = 'Client could not connect'
@@ -138,7 +153,7 @@ class STLBasic_Test(CStlGeneral_Test):
             CTRexScenario.stl_init_error = 'Client could not map ports'
             self.fail(CTRexScenario.stl_init_error)
             return
-        print('Got ports mapping: %s' % CTRexScenario.stl_ports_map)
+        print('Got ports mapping: %s' % CTRexScenario.ports_map)
 
         #update elk const object 
         if self.elk:

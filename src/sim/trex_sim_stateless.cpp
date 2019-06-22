@@ -175,7 +175,7 @@ SimStateless::init() {
 
     TrexSTXCfg cfg;
 
-    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr);
+    cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr, "");
     
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
@@ -263,7 +263,8 @@ void
 SimStateless::prepare_dataplane() {
     
     CGlobalInfo::m_options.m_expected_portd = m_port_count;
-    CGlobalInfo::m_options.m_op_mode = CParserOption::OP_MODE_STL;
+    set_op_mode(OP_MODE_STL);
+
 
     m_fl.Create();
     m_fl.generate_p_thread_info(m_dp_core_count);
@@ -368,7 +369,6 @@ SimStateless::show_intro(const std::string &out_filename) {
     std::cout << "------------\n\n";
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(0);
-
     std::cout << "stream count:             " << port->get_stream_count() << "\n";
 
     port->get_port_effective_rate(pps, bps_L1, bps_L2, percentage);

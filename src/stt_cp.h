@@ -33,11 +33,11 @@ limitations under the License.
 #include "utl_counter.h"
 #include "utl_dbl_human.h"
 
-/* TCP Stateful CP object for counters and such */    
+/* TCP Stateful CP object for counters and such */
 
 typedef enum {
-    TCP_CLIENT_SIDE = 0,    
-    TCP_SERVER_SIDE = 1,    
+    TCP_CLIENT_SIDE = 0,
+    TCP_SERVER_SIDE = 1,
     TCP_CS_NUM = 2,
     TCP_CS_INVALID = 255
 } tcp_dir_enum_t;
@@ -45,12 +45,16 @@ typedef enum {
 typedef uint8_t tcp_dir_t;
 
 
-class CSTTCpPerDir {
+class CSTTCpPerTGIDPerDir {
 public:
-    bool Create();
+    bool Create(uint32_t stt_id, uint32_t time_msec);
     void Delete();
-    void update_counters();
+    void update_counters(bool is_sum, uint16_t tg_id=0);
+    void clear_counters();
     void create_clm_counters();
+
+private:
+    void clear_aggregated_counters();
 
 public:
     tcpstat             m_tcp;
@@ -81,24 +85,39 @@ public:
     CGTblClmCounters    m_clm; /* utility for dump */
 
     std::vector<CTcpPerThreadCtx*>  m_tcp_ctx; /* vectors contexts*/
+
+private:
+    uint32_t m_stt_id;
 };
 
 class CSTTCp {
 
 public:
-    void Create();
-    void Delete();
+    void Create(uint32_t stt_id=0, uint16_t num_of_tg_ids=1, bool first_time=true);
+    void Delete(bool last_time=true);
     void Add(tcp_dir_t dir,CTcpPerThreadCtx* ctx);
-    void Init();
+    void Init(bool first_time=true);
     void Update();
     void DumpTable();
     bool dump_json(std::string &json);
+    void clear_counters();
+    void Resize(uint16_t new_num_of_tg_ids);
+    void DumpTGNames(Json::Value &result);
+    void UpdateTGNames(const std::vector<std::string>& tg_names);
+    void DumpTGStats(Json::Value &result, const std::vector<uint16_t>& tg_ids);
+    void UpdateTGStats(const std::vector<uint16_t>& tg_ids);
 
 public:
-    CSTTCpPerDir   m_sts[TCP_CS_NUM];
-    CTblGCounters  m_dtbl;
-    bool           m_init;
+    uint64_t                            m_epoch;
+    std::vector<CSTTCpPerTGIDPerDir*>   m_sts_per_tg_id[TCP_CS_NUM];
+    std::vector<CTblGCounters*>         m_dtbl_per_tg_id;
+    CSTTCpPerTGIDPerDir                 m_sts[TCP_CS_NUM]; // This isn't really per TGID, it's the sum over all TGIDs per client/server
+    CTblGCounters                       m_dtbl;
+    bool                                m_init;
+    uint16_t                            m_num_of_tg_ids;
+    std::vector<std::string>            m_tg_names;
 private:
+    uint32_t m_stt_id;
 
 };
 

@@ -1,6 +1,6 @@
 # Example of elephant flow  using loop of send (in the server side)
 
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 # we can send either Python bytes type as below:

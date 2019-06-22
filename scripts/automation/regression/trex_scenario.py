@@ -24,8 +24,10 @@ class CTRexScenario:
     configuration    = None
     trex             = None
     stl_trex         = None
-    stl_ports_map    = None
+    astf_trex        = None
+    ports_map        = None
     stl_init_error   = None
+    astf_init_error  = None
     router           = None
     router_cfg       = None
     daemon_log_lines = 0
@@ -37,7 +39,7 @@ class CTRexScenario:
     benchmark        = None
     report_dir       = 'reports'
     # logger         = None
-    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': []}
+    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'astf_tests': [], 'wireless_tests': []}
     pkg_updated      = False
     GAManager        = None
     no_daemon        = False
@@ -47,14 +49,15 @@ class CTRexScenario:
     elk              = None
     elk_info         = None
     global_cfg       = None
-    config_dict = None
+    config_dict      = None
+    coverage         = None
 
 def copy_elk_info ():
    assert(CTRexScenario.elk_info)
    d = copy.deepcopy(CTRexScenario.elk_info);
 
    timestamp = datetime.datetime.now() - datetime.timedelta(hours=2); # Jerusalem timeZone, Kibana does not have feature to change timezone 
-   d['timestamp']=timestamp.strftime("%Y-%m-%d %H:%M:%S")
+   d['timestamp'] = timestamp.strftime("%Y/%m/%d %H:%M:%S")
    return(d)
 
 global_cfg = 'cfg/global_regression_cfg.yaml'

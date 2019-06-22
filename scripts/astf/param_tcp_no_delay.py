@@ -1,4 +1,4 @@
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 # disable nagle. will push any packet with PUSH (*NOT* standard it just to simulate Spirent) and will response with ACK imidiatly (standard)
 

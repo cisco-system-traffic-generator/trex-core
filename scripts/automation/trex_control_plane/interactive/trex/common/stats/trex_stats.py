@@ -255,12 +255,12 @@ class AbstractStats(Tableable):
             # deep
             value = src
             for level in field:
-                if not level in value:
+                if level not in value:
                     return default
                 value = value[level]
         else:
             # flat
-            if not field in src:
+            if field not in src:
                 return default
             value = src[field]
 

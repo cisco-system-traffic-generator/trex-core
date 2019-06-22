@@ -1,7 +1,7 @@
 # Example showing how to define stream for latency measurement, and how to parse the latency information
 
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 
 import time
 import pprint

@@ -128,7 +128,7 @@ class ParserInstance(object):
         
     def __getattr__ (self, name):
         
-        if not name in self.fields:
+        if name not in self.fields:
             raise ValueError("field '{0}' is not registered under the parser".format(name))
         
         # multiple gets will hit the cache - no need to parse again
@@ -147,7 +147,7 @@ class ParserInstance(object):
         
     def __setattr__ (self, name, value):
         
-        if not name in self.fields:
+        if name not in self.fields:
             raise ValueError('field {0} is not registered under the parser'.format(name))
         
         # invalidate from the cache as we are writing
@@ -167,7 +167,7 @@ class ParserInstance(object):
         
                                         
     def fix_chksum (self):
-        if not 'ihl' in self.fields:
+        if 'ihl' not in self.fields:
             raise ParserError("'ihl' field must be registered under the parser for checksum fix")
             
         ihl = self.ihl & 0xf

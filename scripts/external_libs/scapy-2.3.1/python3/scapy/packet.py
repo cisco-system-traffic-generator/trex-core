@@ -179,6 +179,32 @@ class Packet(BasePacket, metaclass = Packet_metaclass):
         if self.payload:
             self.payload.dump_offsets()
 
+    def dump_offsets_tree(self, indent = '', base_offset = 0):
+        ct = conf.color_theme
+        print("%s%s %s %s" % (indent,
+                              ct.punct("###["),
+                              ct.layer_name(self.name),
+                              ct.punct("]###")))
+        for f in self.fields_desc:
+            if isinstance(f, ConditionalField) and not f._evalcond(self):
+                continue
+            fvalue = self.getfieldval(f.name)
+            if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and type(fvalue) is list):
+                print('\n%s  %s: %s' % (indent, f.name, base_offset + f._offset))
+                fvalue_gen = SetGen(fvalue, _iterpacket = 0)
+                fvalue_bu = None
+                for fvalue in fvalue_gen:
+                    if fvalue_bu:
+                        fvalue._offset = fvalue_bu._offset + len(fvalue_bu)
+                        print('%s  %s: %s' % (indent, fvalue.name, base_offset + f._offset + fvalue._offset))
+                    fvalue.dump_offsets_tree('    ' + indent, base_offset + f._offset + fvalue._offset)
+                    fvalue_bu = fvalue
+            else:
+                print('%s    %s: %s' % (indent, f.name, base_offset + f._offset))
+        if self.payload:
+            print('---- payload ----')
+            self.payload.dump_offsets_tree(indent, base_offset + self._length)
+
     def getfieldval(self, attr):
         if attr in self.fields:
             return self.fields[attr]
@@ -1119,7 +1145,13 @@ A side effect is that, to obtain "{" and "}" characters, you must use
     def command(self):
         """Returns a string representing the command you have to type to obtain the same packet"""
         f = []
-        for fn,fv in self.fields.items():
+        for field in self.fields_desc:
+            fn = field.name
+            if fn not in self.fields:
+                continue
+            fv = self.fields[fn]
+
+
             fld = self.get_field(fn)
             if isinstance(fv, Packet):
                 fv = fv.command()
@@ -1129,11 +1161,11 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             elif not isinstance(fld, ConditionalField) or fld.cond(self):
                 fv = repr(fv)
             f.append("%s=%s" % (fn, fv))
-        c = "%s(%s)" % (self.__class__.__name__, ", ".join(f))
+        c = "%s(%s)" % (self.__class__.__name__, ",".join(f))
         pc = self.payload.command()
         if pc:
             c += "/"+pc
-        return c                    
+        return c
 
 class NoPayload(Packet):
     def __new__(cls, *args, **kargs):

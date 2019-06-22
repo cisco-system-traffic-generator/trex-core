@@ -1,40 +1,20 @@
-/*-
- *   BSD LICENSE
+/* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
  * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef _SFC_DP_TX_H
 #define _SFC_DP_TX_H
 
-#include <rte_ethdev.h>
+#include <rte_ethdev_driver.h>
 
 #include "sfc_dp.h"
+#include "sfc_debug.h"
+#include "sfc_tso.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +29,12 @@ struct sfc_dp_txq {
 	struct sfc_dp_queue	dpq;
 };
 
+/** Datapath transmit queue descriptor number limitations */
+struct sfc_dp_tx_hw_limits {
+	unsigned int txq_max_entries;
+	unsigned int txq_min_entries;
+};
+
 /**
  * Datapath transmit queue creation information.
  *
@@ -57,10 +43,12 @@ struct sfc_dp_txq {
  * readable.
  */
 struct sfc_dp_tx_qcreate_info {
+	/** Maximum number of pushed Tx descriptors */
+	unsigned int		max_fill_level;
 	/** Minimum number of unused Tx descriptors to do reap */
 	unsigned int		free_thresh;
-	/** Transmit queue configuration flags */
-	unsigned int		flags;
+	/** Offloads enabled on the transmit queue */
+	uint64_t		offloads;
 	/** Tx queue size */
 	unsigned int		txq_entries;
 	/** Maximum size of data in the DMA descriptor */
@@ -75,7 +63,38 @@ struct sfc_dp_tx_qcreate_info {
 	unsigned int		hw_index;
 	/** Virtual address of the memory-mapped BAR to push Tx doorbell */
 	volatile void		*mem_bar;
+	/** VI window size shift */
+	unsigned int		vi_window_shift;
+	/**
+	 * Maximum number of bytes into the packet the TCP header can start for
+	 * the hardware to apply TSO packet edits.
+	 */
+	uint16_t		tso_tcp_header_offset_limit;
 };
+
+/**
+ * Get Tx datapath specific device info.
+ *
+ * @param dev_info		Device info to be adjusted
+ */
+typedef void (sfc_dp_tx_get_dev_info_t)(struct rte_eth_dev_info *dev_info);
+
+/**
+ * Get size of transmit and event queue rings by the number of Tx
+ * descriptors.
+ *
+ * @param nb_tx_desc		Number of Tx descriptors
+ * @param txq_entries		Location for number of Tx ring entries
+ * @param evq_entries		Location for number of event ring entries
+ * @param txq_max_fill_level	Location for maximum Tx ring fill level
+ *
+ * @return 0 or positive errno.
+ */
+typedef int (sfc_dp_tx_qsize_up_rings_t)(uint16_t nb_tx_desc,
+					 struct sfc_dp_tx_hw_limits *limits,
+					 unsigned int *txq_entries,
+					 unsigned int *evq_entries,
+					 unsigned int *txq_max_fill_level);
 
 /**
  * Allocate and initialize datapath transmit queue.
@@ -144,6 +163,9 @@ struct sfc_dp_tx {
 #define SFC_DP_TX_FEAT_MULTI_PROCESS	0x8
 #define SFC_DP_TX_FEAT_MULTI_POOL	0x10
 #define SFC_DP_TX_FEAT_REFCNT		0x20
+#define SFC_DP_TX_FEAT_TSO_ENCAP	0x40
+	sfc_dp_tx_get_dev_info_t	*get_dev_info;
+	sfc_dp_tx_qsize_up_rings_t	*qsize_up_rings;
 	sfc_dp_tx_qcreate_t		*qcreate;
 	sfc_dp_tx_qdestroy_t		*qdestroy;
 	sfc_dp_tx_qstart_t		*qstart;
@@ -151,6 +173,7 @@ struct sfc_dp_tx {
 	sfc_dp_tx_qtx_ev_t		*qtx_ev;
 	sfc_dp_tx_qreap_t		*qreap;
 	sfc_dp_tx_qdesc_status_t	*qdesc_status;
+	eth_tx_prep_t			pkt_prepare;
 	eth_tx_burst_t			pkt_burst;
 };
 
@@ -168,6 +191,89 @@ sfc_dp_find_tx_by_caps(struct sfc_dp_list *head, unsigned int avail_caps)
 	struct sfc_dp *p = sfc_dp_find_by_caps(head, SFC_DP_TX, avail_caps);
 
 	return (p == NULL) ? NULL : container_of(p, struct sfc_dp_tx, dp);
+}
+
+/** Get Tx datapath ops by the datapath TxQ handle */
+const struct sfc_dp_tx *sfc_dp_tx_by_dp_txq(const struct sfc_dp_txq *dp_txq);
+
+static inline int
+sfc_dp_tx_prepare_pkt(struct rte_mbuf *m,
+			   uint32_t tso_tcp_header_offset_limit,
+			   unsigned int max_fill_level,
+			   unsigned int nb_tso_descs,
+			   unsigned int nb_vlan_descs)
+{
+	unsigned int descs_required = m->nb_segs;
+
+#ifdef RTE_LIBRTE_SFC_EFX_DEBUG
+	int ret;
+
+	ret = rte_validate_tx_offload(m);
+	if (ret != 0) {
+		/*
+		 * Negative error code is returned by rte_validate_tx_offload(),
+		 * but positive are used inside net/sfc PMD.
+		 */
+		SFC_ASSERT(ret < 0);
+		return -ret;
+	}
+#endif
+
+	if (m->ol_flags & PKT_TX_TCP_SEG) {
+		unsigned int tcph_off = m->l2_len + m->l3_len;
+		unsigned int header_len;
+
+		switch (m->ol_flags & PKT_TX_TUNNEL_MASK) {
+		case 0:
+			break;
+		case PKT_TX_TUNNEL_VXLAN:
+			/* FALLTHROUGH */
+		case PKT_TX_TUNNEL_GENEVE:
+			if (!(m->ol_flags &
+			      (PKT_TX_OUTER_IPV4 | PKT_TX_OUTER_IPV6)))
+				return EINVAL;
+
+			tcph_off += m->outer_l2_len + m->outer_l3_len;
+		}
+
+		header_len = tcph_off + m->l4_len;
+
+		if (unlikely(tcph_off > tso_tcp_header_offset_limit))
+			return EINVAL;
+
+		descs_required += nb_tso_descs;
+
+		/*
+		 * Extra descriptor that is required when a packet header
+		 * is separated from remaining content of the first segment.
+		 */
+		if (rte_pktmbuf_data_len(m) > header_len) {
+			descs_required++;
+		} else if (rte_pktmbuf_data_len(m) < header_len &&
+			 unlikely(header_len > SFC_TSOH_STD_LEN)) {
+			/*
+			 * Header linearization is required and
+			 * the header is too big to be linearized
+			 */
+			return EINVAL;
+		}
+	}
+
+	/*
+	 * The number of VLAN descriptors is added regardless of requested
+	 * VLAN offload since VLAN is sticky and sending packet without VLAN
+	 * insertion may require VLAN descriptor to reset the sticky to 0.
+	 */
+	descs_required += nb_vlan_descs;
+
+	/*
+	 * Max fill level must be sufficient to hold all required descriptors
+	 * to send the packet entirely.
+	 */
+	if (descs_required > max_fill_level)
+		return ENOBUFS;
+
+	return 0;
 }
 
 extern struct sfc_dp_tx sfc_efx_tx;

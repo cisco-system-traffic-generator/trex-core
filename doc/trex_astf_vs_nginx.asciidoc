@@ -237,7 +237,7 @@ def register():
 $sudo ./t-rex-64 --astf -f astf/nginx_wget.py -m 182000 -c 1 -d 1000
 ----
 
-TRex v2.30 (not yet released) is used in this test. We expect that v2.31 will have the same performance.
+TRex v2.30 was used in this test. We expect that v2.31 will have the same performance.
 
 == Linux kernel TCP memory usage
 

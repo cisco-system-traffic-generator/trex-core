@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
 from trex.console.plugins import *
+from trex.common.trex_exceptions import TRexError
+from trex.utils.common import natural_sorted_key, list_intersect
+from trex.stl.trex_stl_packet_builder_scapy import ipv4_str_to_num, is_valid_ipv4_ret
 
 
 class WLC_Plugin(ConsolePlugin):
@@ -32,6 +35,9 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('--priv', type = is_valid_file,
                 dest = 'ap_privkey',
                 help = 'Private key filename used for DTLS')
+        self.add_argument('--capriv', type = is_valid_file,
+                dest = 'ap_ca_priv',
+                help = 'Private key filename used to sign AP certificate')
         self.add_argument('-i', '--ids', nargs = '+', default = [], action = 'merge',
                 dest = 'ap_ids',
                 help = 'A list of AP ID(s) - Name or MAC or IP')
@@ -59,24 +65,39 @@ class WLC_Plugin(ConsolePlugin):
         self.add_argument('-i', '--ip', type = check_ipv4_addr,
                 dest = 'ap_ip',
                 help = 'Base AP IP')
-        self.add_argument('-u', '--udp', type = int,
-                dest = 'ap_udp',
-                help = 'Base AP UDP port')
-        self.add_argument('-r', '--radio', metavar = 'MAC', type = check_mac_addr,
-                dest = 'ap_radio',
-                help = 'Base AP Radio MAC')
         self.add_argument('--client-mac', metavar = 'MAC', type = check_mac_addr,
                 dest = 'client_mac',
                 help = 'Base client MAC')
         self.add_argument('--client-ip', metavar = 'IP', type = check_ipv4_addr,
                 dest = 'client_ip',
                 help = 'Base client IP')
+        self.add_argument('--wlc-ip', metavar = 'IP', type = check_ipv4_addr,
+                dest = 'wlc_ip',
+                help = 'Wireless controller IP (use 255.255.255.255 for broadcast discovery)')
         self.add_argument('--save', action = 'store_true',
                 dest = 'base_save',
                 help = 'Save "next" AP and Client base values. Will be loaded at start of console.')
         self.add_argument('--load', action = 'store_true',
                 dest = 'base_load',
                 help = 'Load saved AP and Client base values.')
+        self.add_argument('--lan', '--wired', type = int,
+                dest = 'proxy_wired_port',
+                help = 'Wired side of proxy (connected to WLC).')
+        self.add_argument('--wlan', '--wireless', type = int,
+                dest = 'proxy_wireless_port',
+                help = 'Wireless side of proxy (connected to Stateful TRex).')
+        self.add_argument('--dst-mac', metavar = 'MAC', type = check_mac_addr,
+                dest = 'proxy_dest_mac',
+                help = 'Destination MAC of packets (by default will take WLC MAC)')
+        self.add_argument('--filter-wlc-packets', action = 'store_true',
+                dest = 'proxy_filter_wlc_packets',
+                help = 'Do not proxify packets initiated by WLC')
+        self.add_argument('--disable', action = 'store_true',
+                dest = 'proxy_disable',
+                help = 'Disable the proxy on specific port.')
+        self.add_argument('--clear', action = 'store_true',
+                dest = 'proxy_clear',
+                help = 'Remove all proxy configuration on all ports. Ignores errors.')
 
 
     def plugin_unload(self):
@@ -101,7 +122,7 @@ class WLC_Plugin(ConsolePlugin):
         if aps:
             info_arr = [('IP', aps[0].ip_dst), ('Hostname', aps[0].wlc_name.decode('ascii')), ('Image ver', '.'.join(['%s' % c for c in aps[0].wlc_sw_ver]))]
             general_table.add_row([bold('WLC'), ' / '.join(['%s: %s' % (k, v or '?') for k, v in info_arr])])
-        general_table.add_row([bold('Next AP:'), 'LAN MAC: %s / IP: %s / UDP: %s / Radio MAC: %s' % self.ap_manager._gen_ap_params()])
+        general_table.add_row([bold('Next AP:'), 'MAC: %s / IP: %s / WLC IP: %s' % self.ap_manager._gen_ap_params()])
         general_table.add_row([bold('Next Client:'), 'MAC: %s / IP: %s' % self.ap_manager._gen_client_params()])
         self.ap_manager.log(general_table.draw())
 
@@ -117,7 +138,10 @@ class WLC_Plugin(ConsolePlugin):
         categories = ['Port', 'AP(s) info', 'Client(s) info']
         ap_client_info_table.header([bold(c) for c in categories])
         for port_id in sorted(info.keys()):
+            proxy_status = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = False)[port_id]
             port_info = '%s\nBG thread: %s' % (port_id, 'alive' if info[port_id]['bg_thread_alive'] else bold('dead'))
+            if proxy_status and proxy_status['is_active']:
+                port_info += '\nProxy port %s' % proxy_status['pair_port_id']
             ap_arr = []
             client_arr = []
             name_per_num = {}
@@ -148,14 +172,14 @@ class WLC_Plugin(ConsolePlugin):
         self.ap_manager.log('')
 
 
-    def do_create_ap(self, port_list, count, verbose_level, ap_cert, ap_privkey):
+    def do_create_ap(self, port_list, count, verbose_level, ap_cert, ap_privkey, ap_ca_priv):
         '''Create AP(s) on port'''
         if count < 1:
-            raise Exception('Count should be greated than zero')
+            raise TRexError('Count should be greated than zero')
         if not port_list:
-            raise Exception('Please specify TRex ports where to add AP(s)')
+            raise TRexError('Please specify TRex ports where to add AP(s)')
 
-        bu_mac, bu_ip, bu_udp, bu_radio = self.ap_manager._gen_ap_params()
+        bu_mac, bu_ip, _ = self.ap_manager._gen_ap_params()
         init_ports = [port for port in port_list if port not in self.ap_manager.service_ctx]
         ap_names = []
         success = False
@@ -164,7 +188,7 @@ class WLC_Plugin(ConsolePlugin):
             for port in port_list:
                 for _ in range(count):
                     ap_params = self.ap_manager._gen_ap_params()
-                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_priv_file = ap_privkey, rsa_cert_file = ap_cert)
+                    self.ap_manager.create_ap(port, *ap_params, verbose_level = verbose_level, rsa_ca_priv_file = ap_ca_priv, rsa_priv_file = ap_privkey, rsa_cert_file = ap_cert)
                     ap_names.append(ap_params[0])
             assert ap_names
             self.ap_manager.join_aps(ap_names)
@@ -173,7 +197,7 @@ class WLC_Plugin(ConsolePlugin):
             if not success:
                 for name in ap_names: # rollback
                     self.ap_manager.remove_ap(name)
-                self.ap_manager.set_base_values(mac = bu_mac, ip = bu_ip, udp = bu_udp, radio = bu_radio)
+                self.ap_manager.set_base_values(mac = bu_mac, ip = bu_ip)
                 close_ports = [port for port in init_ports if port in self.ap_manager.service_ctx]
                 if close_ports:
                     self.ap_manager.close(close_ports)
@@ -182,7 +206,7 @@ class WLC_Plugin(ConsolePlugin):
     def do_add_client(self, ap_ids, count):
         '''Add client(s) to AP(s)'''
         if count < 1 or count > 200:
-            raise Exception('Count of clients should be within range 1-200')
+            raise TRexError('Count of clients should be within range 1-200')
         ap_ids = ap_ids or self.ap_manager.aps
 
         bu_mac, bu_ip = self.ap_manager._gen_client_params()
@@ -225,7 +249,7 @@ class WLC_Plugin(ConsolePlugin):
                 except:
                     err_ids.add(device_id)
         if err_ids:
-            raise Exception('Invalid IDs: %s' % ', '.join(sorted(err_ids, key = natural_sorted_key)))
+            raise TRexError('Invalid IDs: %s' % ', '.join(sorted(err_ids, key = natural_sorted_key)))
         if not self.ap_manager.bg_client.is_connected():
             self.ap_manager.bg_client.connect()
         for port_id in ports:
@@ -256,9 +280,9 @@ class WLC_Plugin(ConsolePlugin):
         else:
             clients = set([self.ap_manager._get_client_by_id(id) for id in client_ids])
             if len(client_ids) != len(clients):
-                raise Exception('Client IDs should be unique')
+                raise TRexError('Client IDs should be unique')
         if not clients:
-            raise Exception('No clients to start traffic on behalf of them!')
+            raise TRexError('No clients to start traffic on behalf of them!')
         ports = list(set([client.ap.port_id for client in clients]))
 
         # stop ports if needed
@@ -280,7 +304,47 @@ class WLC_Plugin(ConsolePlugin):
 
                 self.ap_manager.add_streams(client, profile.get_streams())
 
-        except STLError as e:
+        except TRexError as e:
+            msg = bold("\nError loading profile '%s'" % file_path)
+            self.ap_manager.log(msg + '\n')
+            self.ap_manager.log(e.brief() + "\n")
+
+        self.trex_client.start(ports = ports, mult = multiplier, force = True, total = total_mult)
+
+        return RC_OK()
+
+    def do_start_ap_traffic(self, ap_ids, file_path, multiplier, tunables, total_mult):
+        '''Start traffic on behalf on AP(s) (e.g. IAPP traffic).'''
+        if not ap_ids:
+            aps = self.ap_manager.aps
+        else:
+            aps = set([self.ap_manager._get_ap_by_id(id) for id in ap_ids])
+            if len(ap_ids) != len(aps):
+                raise TRexError('AP IDs should be unique')
+        if not aps:
+            raise TRexError('No AP to start traffic on behalf of them!')
+        ports = list(set([ap.port_id for ap in aps]))
+
+        # stop ports if needed
+        active_ports = list_intersect(self.trex_client.get_active_ports(), ports)
+        if active_ports:
+            self.trex_client.stop(active_ports)
+
+        # remove all streams
+        self.trex_client.remove_all_streams(ports)
+
+        # pack the profile
+        try:
+            tunables = tunables or {}
+            for ap in aps:
+                profile = STLProfile.load(file_path,
+                                          direction = tunables.get('direction', ap.port_id % 2),
+                                          port_id = ap.port_id,
+                                          **tunables)
+
+                self.ap_manager.add_ap_streams(ap, profile.get_streams())
+
+        except TRexError as e:
             msg = bold("\nError loading profile '%s'" % file_path)
             self.ap_manager.log(msg + '\n')
             self.ap_manager.log(e.brief() + "\n")
@@ -290,10 +354,85 @@ class WLC_Plugin(ConsolePlugin):
         return RC_OK()
 
 
-    def do_base(self, ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load):
+    def do_base(self, ap_mac, ap_ip, client_mac, client_ip, wlc_ip, base_save, base_load):
         '''Set base values of MAC, IP etc. for created AP/Client.\nWill be increased for each new device.'''
-        self.ap_manager.set_base_values(ap_mac, ap_ip, ap_udp, ap_radio, client_mac, client_ip, base_save, base_load)
+        self.ap_manager.set_base_values(ap_mac, ap_ip, client_mac, client_ip, wlc_ip, base_save, base_load)
         self.show_base()
+
+
+    def do_proxy(self, proxy_wired_port, proxy_wireless_port, proxy_dest_mac, proxy_filter_wlc_packets, proxy_disable, proxy_clear):
+        '''Proxify traffic between wireless side (Stateful TRex) and wired side (WLC).'''
+        if proxy_clear:
+            self.ap_manager.disable_proxy_mode(ignore_errors = True)
+        elif any([proxy_wired_port, proxy_wireless_port]):
+            if proxy_wired_port is None:
+                raise TRexError('Must specify wired port')
+            if proxy_wireless_port is None:
+                raise TRexError('Must specify wireless port')
+            if proxy_disable:
+                self.ap_manager.disable_proxy_mode(ports = [proxy_wired_port, proxy_wireless_port])
+            else:
+                if proxy_wireless_port not in self.trex_client.ports:
+                    raise TRexError('Invalid wireless port ID: %s' % proxy_wireless_port)
+                port = self.trex_client.ports[proxy_wireless_port]
+                if not port.is_service_mode_on():
+                    port.set_service_mode(True)
+                self.ap_manager.enable_proxy_mode(proxy_wired_port, proxy_wireless_port, proxy_dest_mac, proxy_filter_wlc_packets)
+        else:
+            counters_dict = {
+                'BPF reject':                   'm_bpf_rejected',
+                'IP convert ERR':               'm_ip_convert_err',
+                'Map not found':                'm_map_not_found',
+                'Not IP pkt':                   'm_not_ip',
+                'Pkt too large':                'm_too_large_pkt',
+                'Pkt too small':                'm_too_small_pkt',
+                'Pkts from WLC':                'm_pkt_from_wlc',
+                'TX ERR':                       'm_tx_err',
+                'TX OK':                        'm_tx_ok',
+                }
+
+            proxy_table = text_tables.Texttable(max_width = 200)
+            categories = ['Port', 'Counters', 'Clients']
+            proxy_table.header([bold(c) for c in categories])
+            proxy_table.set_cols_align(['l'] * len(categories))
+            proxy_table.set_deco(15)
+            for port_id in sorted(self.trex_client.get_acquired_ports()):
+                data = self.ap_manager.get_proxy_stats(ports = [port_id], decode_map = False)[port_id]
+                if not data or not data['is_active']:
+                    continue
+                row = ['ID: %s\n(%s)\nPair: %s' % (port_id, 'WLAN' if data['is_wireless_side'] else 'LAN', data['pair_port_id'])]
+
+                counters_table = text_tables.Texttable()
+                counters_table.set_deco(0)
+                counters_table.set_cols_dtype(['t', 'i'])
+                counters_table.set_cols_align(['l'] * 2)
+                for k in sorted(counters_dict.keys()):
+                    val =  data['counters'][counters_dict[k]]
+                    if val:
+                        counters_table.add_row(['%s:' % k, val])
+                row.append(counters_table.draw())
+
+                clients = ''
+                clients_arr = sorted(data['capwap_map'].keys(), key = natural_sorted_key)
+                if len(clients_arr) > 1:
+                    first_ip_num = ipv4_str_to_num(is_valid_ipv4_ret(clients_arr[0]))
+                    last_ip_num = ipv4_str_to_num(is_valid_ipv4_ret(clients_arr[-1]))
+                    if first_ip_num == last_ip_num - len(clients_arr) + 1: # continuous range of IPs
+                        clients = 'From %s to %s' % (clients_arr[0], clients_arr[-1])
+                    else:
+                        while True:
+                            clients_row = ['%15s' % ip for ip in clients_arr[0:5]]
+                            if not clients_row:
+                                break
+                            clients += ', '.join(clients_row) + '\n'
+                            clients_arr = clients_arr[5:]
+                else:
+                    clients = clients_arr[0]
+                row.append(clients)
+
+                proxy_table.add_row(row)
+            self.ap_manager.log(proxy_table.draw())
+
 
 
 

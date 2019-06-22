@@ -108,7 +108,7 @@ class STLSim(object):
              silent = False,
              tunables = None):
 
-        if not mode in ['none', 'gdb', 'valgrind', 'json', 'yaml', 'pkt', 'native']:
+        if mode not in ['none', 'gdb', 'valgrind', 'json', 'yaml', 'pkt', 'native']:
             raise TRexArgumentError('mode', mode)
 
         # listify
@@ -127,7 +127,7 @@ class STLSim(object):
 
         for input_file in input_files:
             try:
-                if not 'direction' in tunables:
+                if 'direction' not in tunables:
                     tunables['direction'] = self.port_id % 2
 
                 profile = STLProfile.load(input_file, **tunables)
@@ -171,7 +171,7 @@ class STLSim(object):
             next_id = -1
             next = stream.get_next()
             if next:
-                if not next in lookup:
+                if next not in lookup:
                     raise TRexError("stream dependency error - unable to find '{0}'".format(next))
                 next_id = lookup[next]
 
@@ -290,8 +290,8 @@ class STLSim(object):
         print("executing command: '{0}'".format(" ".join(cmd)))
 
         if self.silent:
-            FNULL = open(os.devnull, 'wb')
-            rc = subprocess.call(cmd, stdout=FNULL)
+            with open(os.devnull, 'wb') as FNULL:
+                rc = subprocess.call(cmd, stdout=FNULL)
         else:
             rc = subprocess.call(cmd)
 
@@ -313,7 +313,7 @@ class STLSim(object):
 
 
         if not self.silent:
-            print("Mering cores output to a single pcap file...\n")
+            print("Merging cores output to a single pcap file...\n")
         inputs = ["{0}-{1}".format(self.outfile, index) for index in range(0, self.dp_core_count)]
         pcap.merge_cap_files(inputs, self.outfile, delete_src = True)
 
@@ -347,6 +347,7 @@ def unsigned_int (x):
 
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="stl_sim.py")
+    parser.register('action', 'merge', parsing_opts._MergeAction)
 
     parser.add_argument("-f",
                         dest ="input_file",
@@ -413,6 +414,7 @@ def setParserOptions():
                         help = 'sets tunable for a profile',
                         dest = 'tunables',
                         default = None,
+                        action = 'merge',
                         type = parsing_opts.decode_tunables)
 
     parser.add_argument('-p', '--path',
@@ -465,7 +467,7 @@ def setParserOptions():
 def validate_args (parser, options):
 
     if options.dp_core_index:
-        if not options.dp_core_index in range(0, options.dp_core_count):
+        if options.dp_core_index not in range(0, options.dp_core_count):
             parser.error("DP core index valid range is 0 to {0}".format(options.dp_core_count - 1))
 
     # zero is ok - no limit, but other values must be at least as the number of cores

@@ -5,8 +5,8 @@
 '''
 import stl_path
 
-from trex_stl_lib.api import *
-from trex_stl_lib.services.trex_stl_service_arp import STLServiceARP
+from trex.stl.api import *
+from trex.common.services.trex_service_arp import ServiceARP
 
 
 c = STLClient()
@@ -29,7 +29,7 @@ try:
     ctx = c.create_service_ctx(port = port)
 
     # generate ARP service per client
-    clients = [STLServiceARP(ctx = ctx, dst_ip = cfg['ip'], vlan = cfg['vlan']) for cfg in clients_cfg]
+    clients = [ServiceARP(ctx = ctx, dst_ip = cfg['ip'], vlan = cfg['vlan']) for cfg in clients_cfg]
     
     try:
         # move to service mode

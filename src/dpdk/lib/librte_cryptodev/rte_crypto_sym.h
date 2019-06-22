@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2016-2017 Intel Corporation
+ * Copyright(c) 2016-2019 Intel Corporation
  */
 
 #ifndef _RTE_CRYPTO_SYM_H_
@@ -124,11 +124,6 @@ struct rte_crypto_cipher_xform {
 	 * keymask. As per RFC3711, the keymask should be padded with trailing
 	 * bytes to match the length of the encryption key used.
 	 *
-	 * For AES-XTS mode of operation, two keys must be provided and
-	 * key.data must point to the two keys concatenated together (Key1 ||
-	 * Key2). The cipher key length will contain the total size of both
-	 * keys.
-	 *
 	 * Cipher key length is in bytes. For AES it can be 128 bits (16 bytes),
 	 * 192 bits (24 bytes) or 256 bits (32 bytes).
 	 *
@@ -140,6 +135,8 @@ struct rte_crypto_cipher_xform {
 	 * For the AES-XTS mode of operation:
 	 *  - Two keys must be provided and key.length refers to total length of
 	 *    the two keys.
+	 *  - key.data must point to the two keys concatenated together
+	 *    (key1 || key2).
 	 *  - Each key can be either 128 bits (16 bytes) or 256 bits (32 bytes).
 	 *  - Both keys must have the same size.
 	 **/
@@ -244,6 +241,23 @@ enum rte_crypto_auth_algorithm {
 
 	RTE_CRYPTO_AUTH_ZUC_EIA3,
 	/**< ZUC algorithm in EIA3 mode */
+
+	RTE_CRYPTO_AUTH_SHA3_224,
+	/**< 224 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_224_HMAC,
+	/**< HMAC using 224 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_256,
+	/**< 256 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_256_HMAC,
+	/**< HMAC using 256 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_384,
+	/**< 384 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_384_HMAC,
+	/**< HMAC using 384 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_512,
+	/**< 512 bit SHA3 algorithm. */
+	RTE_CRYPTO_AUTH_SHA3_512_HMAC,
+	/**< HMAC using 512 bit SHA3 algorithm. */
 
 	RTE_CRYPTO_AUTH_LIST_END
 };

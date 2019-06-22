@@ -1161,7 +1161,12 @@ A side effect is that, to obtain "{" and "}" characters, you must use
     def command(self):
         """Returns a string representing the command you have to type to obtain the same packet"""
         f = []
-        for fn,fv in self.fields.items():
+        for field in self.fields_desc:
+            fn = field.name
+            if fn not in self.fields:
+                continue
+            fv = self.fields[fn]
+
             try: # to get rid of "long"
                 if type(fv) is long and int(fv) == fv:
                     fv = int(fv)
@@ -1175,11 +1180,11 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             elif not isinstance(fld, ConditionalField) or fld.cond(self):
                 fv = repr(fv)
             f.append("%s=%s" % (fn, fv))
-        c = "%s(%s)" % (self.__class__.__name__, ", ".join(f))
+        c = "%s(%s)" % (self.__class__.__name__, ",".join(f))
         pc = self.payload.command()
         if pc:
             c += "/"+pc
-        return c                    
+        return c
 
 class NoPayload(Packet):
     def __new__(cls, *args, **kargs):

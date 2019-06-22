@@ -141,7 +141,20 @@ public:
      */
     virtual void slowpath_tick() {}
     
- 
+
+    /**
+     * DP core has finished
+     */
+    virtual void dp_core_finished(int thread_id, uint32_t profile_id);
+
+    /**
+     * DP core encountered error
+     */
+    virtual void dp_core_error(int thread_id, uint32_t profile_id, const std::string &err);
+
+    virtual void set_capture_feature(const std::set<uint8_t>& rx_cores) {};
+
+    virtual void unset_capture_feature() {};
 
     /**
      * fills ignored stats on 'stat'
@@ -193,7 +206,6 @@ public:
         return m_rx;
     }
 
-
     /**
      * check for messages from any core
      * 
@@ -213,6 +225,7 @@ protected:
 
     void check_for_dp_message_from_core(int thread_id);
     void send_msg_to_all_dp(TrexCpToDpMsgBase *msg);
+    void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
     
     /* no copy or assignment */
     TrexSTX(TrexSTX const&)              = delete;  

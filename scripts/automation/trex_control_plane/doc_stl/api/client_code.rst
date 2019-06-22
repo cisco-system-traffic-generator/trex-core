@@ -27,7 +27,7 @@ Console-like example::
 
 Example 1 - Typical Python API::
 
-    c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = LoggerApi.VERBOSE_HIGH)
+    c = STLClient(username = "itay",server = "10.0.0.10", verbose_level = "error")
 
     try:
         # connect to server
@@ -56,11 +56,46 @@ Example 1 - Typical Python API::
         c.disconnect()
 
 
+Example 2 - Dynamic API ::
+
+       #multi profile per port could be run     
+    def dynamic_profile (self):
+
+        port_list = [self.tx_port, self.rx_port]
+        profile_list = ["p1", "p2"]
+        stream_pg_id = 0
+        port = 0
+
+        try:    
+           # start profiles 0.p1 0.p2 (two profiles on all ports) 
+           for profile in profile_list:
+
+                stream_pg_id = stream_pg_id + 1
+                s1 = STLStream(name = 'latency',
+                               packet = self.pkt,
+                               mode = STLTXCont(percentage = self.percentage),
+                               flow_stats = STLFlowLatencyStats(pg_id = stream_pg_id))
+
+                port_profile = str(port)  + "." + str(profile) #e.g 0.p1
+
+                self.c.add_streams([s1], ports = port_profile)
+                self.c.start(ports = port_profile)
+
+
+            # stop all profiles on port 0 using 0.*
+            self.c.stop(ports = str(port)+".*")
+
+        except STLError as e:
+            assert False , '{0}'.format(e)
+        
+
+
 STLClient class
 ---------------
 
 .. autoclass:: trex.stl.trex_stl_client.STLClient
     :members: 
+    :inherited-members:
     :member-order: bysource
     
 
@@ -137,8 +172,7 @@ STLClient snippet
         def simple ():
         
             # create client
-            #verbose_level = LoggerApi.VERBOSE_HIGH  # set to see JSON-RPC commands
-            c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+            c = STLClient(verbose_level = "error")
             passed = True
             
             try:
@@ -187,8 +221,7 @@ Example 4: Load profile from a file::
   def simple ():
 
     # create client
-    #verbose_level = LoggerApi.VERBOSE_HIGH
-    c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR)
+    c = STLClient(verbose_level = "error")
     passed = True
     
     try:

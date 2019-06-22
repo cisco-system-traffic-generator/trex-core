@@ -7,8 +7,8 @@ from time import sleep
 from pprint import pprint
 
 # ext libs
-ext_libs = os.path.join(os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs')
-sys.path.append(os.path.join(ext_libs, 'jsonrpclib-pelix-0.2.5'))
+import stl_path
+sys.path.append(os.path.join(stl_path.EXT_LIBS_PATH, 'jsonrpclib-pelix-0.2.5'))
 import jsonrpclib
 
 def fail(msg):

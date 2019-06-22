@@ -1,0 +1,76 @@
+{
+    "templates": [
+        {
+            "client_template": {
+                "program_index": 0,
+                "cluster": {},
+                "cps": 1,
+                "port": 53,
+                "ip_gen": {
+                    "dist_client": {
+                        "index": 0
+                    },
+                    "dist_server": {
+                        "index": 1
+                    }
+                }
+            },
+            "server_template": {
+                "program_index": 1,
+                "assoc": [
+                    {
+                        "port": 53
+                    }
+                ]
+            }
+        }
+    ],
+    "ip_gen_dist_list": [
+        {
+            "distribution": "seq",
+            "ip_end": "16.0.0.255",
+            "ip_start": "16.0.0.0",
+            "dir": "c",
+            "ip_offset": "1.0.0.0"
+        },
+        {
+            "distribution": "seq",
+            "ip_end": "48.0.255.255",
+            "ip_start": "48.0.0.0",
+            "dir": "s",
+            "ip_offset": "1.0.0.0"
+        }
+    ],
+    "program_list": [
+        {
+            "commands": [
+                {
+                    "name": "tx_msg",
+                    "buf_index": 0
+                },
+                {
+                    "name": "rx_msg",
+                    "min_pkts": 1
+                }
+            ],
+            "stream": false
+        },
+        {
+            "commands": [
+                {
+                    "name": "rx_msg",
+                    "min_pkts": 1
+                },
+                {
+                    "name": "tx_msg",
+                    "buf_index": 1
+                }
+            ],
+            "stream": false
+        }
+    ],
+    "buf_list": [
+        "ACoAAAABAAAAAAAAA3d3dwVjaXNjbwNjb20AAAEAAQ==",
+        "ACqEgAABAAEAAAAAA3d3dwVjaXNjbwNjb20AAAEAAcAMAAEAAQAAAAAABGRkZGQ="
+    ]
+}

@@ -27,7 +27,7 @@ This document will describe the current control plane for TRex, and its scalable
 TRex control plane is based on a JSON RPC transactions between clients and server. +
 Each TRex machine will have a server running on it, closely interacting with TRex (clients do not approach TRex directly). +
 The server version (which runs as either a daemon or a CLI application) is deployed with TRex latest version, written in Python 2.7.
-As future feature, and as multiple T-Rexes might run on the same machine, single server shall serve all T-Rexes running a machine.
+As future feature, and as multiple TRexes might run on the same machine, single server shall serve all TRexes running a machine.
 
 The control plane implementation is using the currently dumped data messaging from TRex's core via ZMQ publisher, running from core #1.
 The server used as a Subscriptor for this data, manipulating the packets, and re-encodes it into JSON-RPC format for clients use. +
@@ -241,7 +241,7 @@ endif::backend-xhtml11[]
     On success (condition has been met), this method returns the latest result object that satisfied the given condition. +
     ON fail, this method will raise `UserWarning` exception.
 
-  - **`sample_to_run_finish(time_between_samples = 5)`** +
+  - **`sample_until_finish(time_between_samples = 5)`** +
     This method automatically sets ongoing sampling of TRex data with sampling rate described by `time_between_samples` until TRex run finished.
 
   - **`get_result_obj()`** +
@@ -504,7 +504,7 @@ print "Before Running, TRex status is: ", trex.get_running_status()
         p = True,
         l = 1000)
 
-    res = trex.sample_to_run_finish(time_between_samples = 10) #<2>
+    res = trex.sample_until_finish(time_between_samples = 10) #<2>
 
     print res #<3>
     val_list = res.get_value_list("trex-global.data", "m_tx_expected_\w+") #<4>

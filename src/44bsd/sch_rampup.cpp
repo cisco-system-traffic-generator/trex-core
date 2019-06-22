@@ -25,11 +25,12 @@ limitations under the License.
 #include <assert.h>
 
 
-CAstfFifRampup::CAstfFifRampup(CTcpPerThreadCtx * ctx,
+CAstfFifRampup::CAstfFifRampup(CPerProfileCtx * pctx,
                    uint16_t           rampup_sec,
                    double             cps){
         /* total ticks */
-        m_ctx=ctx;
+        m_pctx = pctx;
+        m_ctx = pctx->m_ctx;
         m_ticks = (uint32_t)rampup_sec*1000/TICK_MSEC;
         m_rampup_sec =rampup_sec;
         assert(m_ticks>1);
@@ -53,15 +54,15 @@ CAstfFifRampup::~CAstfFifRampup(){
 void CAstfFifRampup::on_timer_update(CAstfTimerFunctorObj *tmr){
 
     double cur_cps = m_cps*(double)m_cur_tick/((double)m_ticks);
-    m_ctx->m_fif_d_time  = 1.0/cur_cps;
+    m_pctx->m_fif_d_time = 1.0/cur_cps;
 
     double max_rampup_sec = (double)m_rampup_sec/4.0;
 
     /* make sure the d time is not bigger than the rampup time (could be in smaller numbers) */
-    if (m_ctx->m_fif_d_time > max_rampup_sec ) {
-        m_ctx->m_fif_d_time = max_rampup_sec;
+    if (m_pctx->m_fif_d_time > max_rampup_sec ) {
+        m_pctx->m_fif_d_time = max_rampup_sec;
     }
-    //printf("tick  %d %d (%f,%f) dtime:%f \n",(int)m_cur_tick,(int)m_ticks,cur_cps,m_cps,m_ctx->m_fif_d_time);
+    //printf("tick  %d %d (%f,%f) dtime:%f \n",(int)m_cur_tick,(int)m_ticks,cur_cps,m_cps,m_pctx->m_fif_d_time);
     if (m_cur_tick == m_ticks) {
         /* stop timer by free */
         delete tmr;

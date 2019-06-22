@@ -1,0 +1,111 @@
+ASTF Simulator for pcap fixing
+==============================
+:quotes.++:
+:numbered:
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+This page describes how astf-sim can be used to solve two following problems:
+
+* Too large packets in pcap
+* Too small time diffs in pcap
+
+== Large packets
+
+Too large packets might cause fragmentation by DUT (smaller than 9KB) or even stop TRex from loading the pcap file (larger than 9KB)
+
+astf-sim tool can help in following way:
+
+* TCP flows will be fragmented (offline)
+* UDP packets will be trimmed
+
+Example of pcap that might get fragmented (by tunneling etc.):
+
+image::images/appendix_pcap_fix_large.png[title="Large TCP packets"]
+
+.Reducing MSS to 1000:
+[source,bash]
+----
+./astf-sim -f cap2/http_get.pcap -o http_get_fixed.pcap --mss 1000
+WARNING: Enabling fix timing implicitly
+RTT is 21.49 msec
+----
+
+After fix:
+
+image::images/appendix_pcap_fix_large_fixed.png[title="Large TCP packets fixed"]
+
+
+== Small time diffs
+
+Sometimes pcap has too small intervals between request and response. +
+For example, by capturing at end-point device or in network with low latency. +
+This is bad for STF behavior, as it sends response according to time written in pcap (not waiting for request to arrive), thus response might reach the DUT earlier.
+
+[NOTE]
+=====================================================================
+Currently, this fix is only for TCP flows.
+=====================================================================
+
+Two improvements that can be applied:
+
+=== Centering the capture point
+
+Change the capture times as if the capture was done in the intermediate device (assuming the RTT is big enough).
+
+Example of pcap capture that was done at client machine:
+
+image::images/appendix_pcap_fix_capture_point.png[title="Capture from client side"]
+
+The response from server (packet #2) has almost the same time as next client packet (#3).
+
+.Shifting times by RTT/4:
+[source,bash]
+----
+> ./astf-sim -f cap2/http_get.pcap -o http_get_fixed.pcap --fix-timing
+RTT is 21.49 msec
+----
+
+image::images/appendix_pcap_fix_capture_point_fixed.png[title="Capture from client side fixed"]
+
+The times are fixed to be like the capture was done in the middle between client and server.
+
+
+=== Enlarging overall RTT.
+
+Sometimes the network is too fast, and previous section is not enough for STF needs. +
+In this case, one can enlarge the RTT (simulate slower network).
+
+image::images/appendix_pcap_fix_low_latency.png[title="Low latency"]
+
+.Fixing as in previous section fails:
+[source,bash]
+----
+> ./astf-sim -f cap2/190_packet.pcap -o 190_packet_fixed.pcap --fix-timing
+RTT is 0.245 msec
+Could not fix timing: RTT is less than 5msec, enlarge the RTT
+----
+
+.Enlarging RTT works:
+[source,bash]
+----
+> ./astf-sim -f cap2/190_packet.pcap -o 190_packet_fixed.pcap --rtt 10
+WARNING: Enabling fix timing implicitly
+RTT is 10.005 msec
+----
+
+Result:
+
+image::images/appendix_pcap_fix_low_latency_fixed.png[title="Low latency fixed"]
+
+
+
+
+
+
+

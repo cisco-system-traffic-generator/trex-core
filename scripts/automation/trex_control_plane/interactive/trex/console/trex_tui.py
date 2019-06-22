@@ -24,6 +24,7 @@ from ..utils.common import list_intersect
 from ..utils import text_tables
 from ..utils.filters import ToggleFilter
 from ..common.trex_exceptions import TRexError
+from ..astf.trex_astf_exceptions import ASTFErrorBadTG
 
 
 class TUIQuit(Exception):
@@ -139,13 +140,14 @@ class TrexTUIDashBoard(TrexTUIPanel):
         if not (set(self.get_showed_ports()) <= set(self.client.get_acquired_ports())):
             return allowed
 
-        # if any/some ports can be resumed
-        if set(self.get_showed_ports()) & set(self.client.get_paused_ports()):
-            allowed['r'] = self.key_actions['r']
+        if self.client.get_mode() == 'STL':
+            # if any/some ports can be resumed
+            if set(self.get_showed_ports()) & set(self.client.get_paused_ports()):
+                allowed['r'] = self.key_actions['r']
 
-        # if any/some ports are transmitting - support those actions
-        if set(self.get_showed_ports()) & set(self.client.get_transmitting_ports()):
-            allowed['p'] = self.key_actions['p']
+            # if any/some ports are transmitting - support those actions
+            if set(self.get_showed_ports()) & set(self.client.get_transmitting_ports()):
+                allowed['p'] = self.key_actions['p']
 
 
         return allowed
@@ -258,6 +260,102 @@ class TrexTUILatencyStats(TrexTUIPanel):
          return ""
 
 
+class TrexTUIAstfTrafficStats(TrexTUIPanel):
+    def __init__(self, mng):
+        super(TrexTUIAstfTrafficStats, self).__init__(mng, "astats")
+        self.start_row = 0
+        self.max_lines = TrexTUI.MIN_ROWS - 16 # 16 is size of panels below and above
+        self.num_lines = 0
+        self.tgid = 0
+
+        self.key_actions = OrderedDict()
+
+        self.key_actions['c'] = {'action': self.action_clear,  'legend': 'clear', 'show': Predicate(lambda : self.tgid == 0)}
+        self.key_actions['Up'] = {'action': self.action_up, 'legend': 'scroll up', 'show': True}
+        self.key_actions['Down'] = {'action': self.action_down, 'legend': 'scroll down', 'show': True}
+        self.key_actions['Left'] = {'action': self.action_left, 'legend': 'previous TG', 'show': True}
+        self.key_actions['Right'] = {'action': self.action_right, 'legend': 'next TG', 'show': True}
+
+
+    def show(self, buffer):
+        self.client._show_global_stats(buffer = buffer)
+
+        buf = StringIO()
+        try:
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
+        except ASTFErrorBadTG:
+            self.tgid = 0
+            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid)
+        buf.seek(0)
+        out_lines = buf.readlines()
+        self.num_lines = len(out_lines)
+        buffer.write(''.join(out_lines[self.start_row:self.start_row+self.max_lines]))
+        buffer.write('\n')
+
+
+    def get_key_actions(self):
+        return self.key_actions
+
+
+    def action_clear(self):
+         self.client.clear_traffic_stats()
+         return ""
+
+    def action_up(self):
+        if self.start_row > self.num_lines:
+            self.start_row = self.num_lines
+        elif self.start_row > 0:
+            self.start_row -= 1
+
+    def action_down(self):
+        if self.start_row < self.num_lines - self.max_lines:
+            self.start_row += 1
+
+
+    def action_left(self):
+        if self.tgid > 0:
+            self.tgid -= 1
+
+
+    def action_right(self):
+        if self.tgid < self.client._get_num_of_tgids():
+            self.tgid += 1
+
+
+# ASTF latency stats
+class TrexTUIAstfLatencyStats(TrexTUIPanel):
+    def __init__ (self, mng):
+        super(TrexTUIAstfLatencyStats, self).__init__(mng, 'lstats')
+        self.key_actions = OrderedDict()
+        self.key_actions['v'] = {'action': self.action_toggle_view, 'legend': self.get_next_view, 'show': True}
+        self.views = [
+            {'name': 'main latency', 'func': self.client._show_latency_stats},
+            {'name': 'histogram', 'func': self.client._show_latency_histogram},
+            {'name': 'counters', 'func': self.client._show_latency_counters},
+            ]
+        self.view_index = 0
+        self.next_view_index = 1
+
+
+    def get_next_view(self):
+        return "view toggle to '%s'" % self.views[self.next_view_index]['name']
+
+
+    def show(self, buffer):
+        self.client._show_global_stats(buffer = buffer)
+        self.views[self.view_index]['func'](buffer = buffer)
+
+
+    def get_key_actions (self):
+        return self.key_actions
+
+
+    def action_toggle_view(self):
+        self.view_index = self.next_view_index
+        self.next_view_index = (1 + self.next_view_index) % len(self.views)
+        return ""
+
+
 # utilization stats
 class TrexTUIUtilizationStats(TrexTUIPanel):
     def __init__ (self, mng):
@@ -337,6 +435,12 @@ class TrexTUIPanelManager():
             self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
             self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
 
+        elif self.client.get_mode() == "ASTF":
+            self.panels['astats'] = TrexTUIAstfTrafficStats(self)
+            self.panels['lstats'] = TrexTUIAstfLatencyStats(self)
+            self.key_actions['t'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
+            self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
+
         # start with dashboard
         self.main_panel = self.panels['dashboard']
 
@@ -350,13 +454,17 @@ class TrexTUIPanelManager():
         self.show_log = False
 
         
-    def generate_legend (self):
+    def generate_legend(self):
 
         self.legend = "\n{:<12}".format("browse:")
 
         for k, v in self.key_actions.items():
             if v['show']:
-                x = "'{0}' - {1}, ".format(k, v['legend'])
+                try:
+                    legend = v['legend']()
+                except TypeError:
+                    legend = v['legend']
+                x = "'{0}' - {1}, ".format(k, legend)
                 if v.get('color'):
                     self.legend += "{:}".format(format_text(x, v.get('color')))
                 else:
@@ -367,7 +475,11 @@ class TrexTUIPanelManager():
 
         for k, v in self.main_panel.get_key_actions().items():
             if v['show']:
-                x = "'{0}' - {1}, ".format(k, v['legend'])
+                try:
+                    legend = v['legend']()
+                except TypeError:
+                    legend = v['legend']
+                x = "'{0}' - {1}, ".format(k, legend)
 
                 if v.get('color'):
                     self.legend += "{:}".format(format_text(x, v.get('color')))
@@ -451,6 +563,11 @@ class TrexTUIPanelManager():
 
     def action_show_sstats (self):
         self.main_panel = self.panels['sstats']
+        self.init(self.show_log)
+        return ""
+
+    def action_show_astats (self):
+        self.main_panel = self.panels['astats']
         self.init(self.show_log)
         return ""
 
@@ -555,6 +672,7 @@ class TrexTUI():
     STATE_LOST_CONT  = 1
     STATE_RECONNECT  = 2
     is_graph = False
+    _ref_cnt = 0
 
     MIN_ROWS = 45
     MIN_COLS = 111
@@ -576,6 +694,14 @@ class TrexTUI():
         self.tui_global_lock = threading.Lock()
         self.pm = TrexTUIPanelManager(self)
         self.sb = ScreenBuffer(self.redraw_handler)
+        TrexTUI._ref_cnt += 1
+
+    def __del__(self):
+        TrexTUI._ref_cnt -= 1
+
+    @classmethod
+    def has_instance(cls):
+        return cls._ref_cnt > 0
 
     def redraw_handler (self, buffer):
         # this is executed by the screen buffer - should be protected against TUI commands
@@ -654,7 +780,6 @@ class TrexTUI():
         if self.state == self.STATE_ACTIVE:
             # if no connectivity - move to lost connecitivty
             if not self.client.is_connected():
-                self.client._invalidate_stats(self.pm.ports)
                 self.state = self.STATE_LOST_CONT
 
 
@@ -863,18 +988,25 @@ class AsyncKeys:
 # Legend engine
 class AsyncKeysEngineLegend:
     def __init__ (self, async):
-        self.async = async
+        self.async_ = async
 
     def get_type (self):
-        return self.async.MODE_LEGEND
+        return self.async_.MODE_LEGEND
 
     def tick (self, seq, pm):
 
         if seq == 'q':
             raise TUIQuit()
 
-        # ignore escapes
         if len(seq) > 1:
+            if seq == '\x1b\x5b\x41': # scroll up
+                pm.handle_key('Up')
+            if seq == '\x1b\x5b\x42': # scroll down
+                pm.handle_key('Down')
+            if seq == '\x1b\x5b\x43': # scroll right
+                pm.handle_key('Right')
+            if seq == '\x1b\x5b\x44': # scroll left
+                pm.handle_key('Left')
             return AsyncKeys.STATUS_NONE
 
         rc = pm.handle_key(seq)
@@ -886,8 +1018,8 @@ class AsyncKeysEngineLegend:
 
 # console engine
 class AsyncKeysEngineConsole:
-    def __init__ (self, async, console, client, save_console_history):
-        self.async = async
+    def __init__ (self, async_, console, client, save_console_history):
+        self.async_ = async_
         self.lines = deque(maxlen = 100)
 
         self.generate_prompt       = console.generate_prompt
@@ -920,7 +1052,7 @@ class AsyncKeysEngineConsole:
         return ' '.join([format_text(cmd, 'bold') for cmd in self.ac.keys()])
 
     def get_type (self):
-        return self.async.MODE_CONSOLE
+        return self.async_.MODE_CONSOLE
 
 
     def handle_escape_char (self, seq):
@@ -1092,7 +1224,7 @@ class AsyncKeysEngineConsole:
         if tokens[0] not in {'start', 'push'}:
             return
 
-        # '-f' with no paramters - no partial and use current dir
+        # '-f' with no parameters - no partial and use current dir
         if tokens[-1] == '-f':
             partial = ''
             d = '.'
@@ -1169,7 +1301,7 @@ class AsyncKeysEngineConsole:
         
         func = self.ac.get(op)
         if func:
-            with self.async.tui_global_lock:
+            with self.async_.tui_global_lock:
                 func_rc = func(param)
 
         # take out the empty line
@@ -1206,6 +1338,8 @@ class AsyncKeysEngineConsole:
                 # errors
                 else:
                     err_msgs = ascii_split(str(func_rc))
+                    if not err_msgs:
+                        err_msgs = ['Unknown error']
                     self.last_status = format_text(clear_formatting(err_msgs[0]), 'red')
                     if len(err_msgs) > 1:
                         self.last_status += " [{0} more errors messages]".format(len(err_msgs) - 1)

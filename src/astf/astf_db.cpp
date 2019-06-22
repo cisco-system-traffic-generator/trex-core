@@ -3,6 +3,7 @@
 */
 
 #include <iostream>
+#include <unordered_set>
 #include <string>
 #include <fstream>
 #include <streambuf>
@@ -19,7 +20,9 @@
 #include "utl_split.h"
 #include "inet_pton.h"
 #include "astf/astf_json_validator.h"
+#include "stx/astf/trex_astf_topo.h"
 
+#define MAX_TG_NAME_LENGTH 20
 
 inline std::string methodName(const std::string& prettyFunction)
 {
@@ -32,38 +35,49 @@ inline std::string methodName(const std::string& prettyFunction)
 
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
-// make the class singelton
-CAstfDB* CAstfDB::m_pInstance = NULL;
+// make the class singleton
+std::unordered_map<profile_id_t, CAstfDB> CAstfDB::m_instances;
 
 
 CAstfDB::CAstfDB(){
     m_client_config_info=0;
     m_validator=0;
     m_validator = new CAstfJsonValidator();
-    if (!m_validator->Create("astf_schema.json")){
+    if (!m_validator->Create("astf_schema.json")) {
+        printf("Could not create ASTF validator using file astf_schema.json\n");
         exit(-1);
     }
+    m_topo_mngr = new TopoMngr();
+    m_factor = -1.0;
 }
 
 
 CAstfDB::~CAstfDB(){
-    if (m_validator){
+    if ( m_validator ) {
         m_validator->Delete();
         delete m_validator;
     }
-    clear();
+    delete m_topo_mngr;
+    for (auto it : m_smart_gen) {
+        delete it.second;
+    }
+    m_smart_gen.clear();
 }
 
 
 bool CAstfDB::validate_profile(Json::Value profile,std::string & err){
-    return (m_validator->validate_profile(profile, err));
+    bool res=m_validator->validate_profile(profile, err);
+    return (res);
 }
 
 
 
-static double cps_factor(double cps){
-    return ( CGlobalInfo::m_options.m_factor*cps );
-
+double CAstfDB::cps_factor(double cps){
+    if (m_factor > 0.0) {
+        return ( m_factor*cps );
+    } else {
+        return ( CGlobalInfo::m_options.m_factor*cps );
+    }
 }
 
 void CTcpTuneables::dump(FILE *fd) {
@@ -105,13 +119,13 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
 }
 
 void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
-                                          , uint16_t temp_idx) {
+                                          , uint32_t temp_idx) {
     CTcpDataAssocTransHelp trans_help(params, prog, tune, temp_idx);
     m_vec.push_back(trans_help);
 }
 
 void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
-                                           , uint16_t temp_idx) {
+                                           , uint32_t temp_idx) {
     CTcpServreInfo *tcp_s_info = new CTcpServreInfo(prog, tune, temp_idx);
     assert(tcp_s_info);
 
@@ -124,6 +138,19 @@ void CTcpDataAssocTranslation::clear() {
     }
     m_map.clear();
     m_vec.clear();
+}
+
+void CTcpDataAssocTranslation::enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
+    for (CTcpDataAssocTransHelp& trans_help : m_vec) {
+        if (trans_help.m_params.m_stream == is_stream) {
+            ports.push_back(trans_help.m_params.m_port);
+        }
+    }
+    for (assoc_map_it_t it = m_map.begin(); it != m_map.end(); it++) {
+        if (it->first.m_stream == is_stream) {
+            ports.push_back(it->first.m_port);
+        }
+    }
 }
 
 bool CAstfDB::start_profile_no_buffer(Json::Value msg){
@@ -202,44 +229,44 @@ void CAstfDB::set_profile_one_msg(Json::Value msg){
     m_val =msg;
 }
 
+bool CAstfDB::set_profile_one_msg(const std::string &msg, std::string & err){
 
-bool CAstfDB::set_profile_one_msg(std::string msg,std::string & err){
 
     Json::Reader reader;
 
     err="";
     bool rc = reader.parse(msg, m_val, false);
+
     if (!rc) {
         std::stringstream ss;
         ss << "Failed parsing json message : " << reader.getFormattedErrorMessages() ;
         err = ss.str();
         return false;
     }
-    return(validate_profile(m_val,err));
+
+    // Disable verification on too large profiles (empiric size of sfr_full.py * 5)
+    if ( msg.size() > 25e6 ) {
+        return true;
+    }
+
+    return validate_profile(m_val, err);
 }
 
 
 bool CAstfDB::parse_file(std::string file) {
-    static bool parsed = false;
-    if (parsed)
-        return true;
-    else
-        parsed = true;
 
-    Json::Reader reader;
     std::ifstream t(file);
-    if (!  t.is_open()) {
-        std::cerr << "Failed openeing json file " << file << std::endl;
-        exit(1);
+    if ( !t.is_open() ) {
+        return false;
     }
 
     std::string msg((std::istreambuf_iterator<char>(t)),
                                     std::istreambuf_iterator<char>());
 
     std::string err;
-    bool rc = set_profile_one_msg(msg,err);
-    if (!rc) {
-        std::cerr << "Failed parsing json file " << file << err << std::endl;
+    bool rc = set_profile_one_msg(msg, err);
+    if ( !rc ) {
+        printf("Parsing ASTF JSON file failed, error:\n%s\n", err.c_str());
         return false;
     }
 
@@ -247,19 +274,26 @@ bool CAstfDB::parse_file(std::string file) {
     return true;
 }
 
-void CAstfDB::convert_from_json(uint8_t socket_id) {
-    convert_bufs(socket_id);
-    convert_progs(socket_id);
+bool CAstfDB::convert_from_json(uint8_t socket_id) {
+    if ( !convert_bufs(socket_id) ) {
+        return false;
+    }
+    if ( !convert_progs(socket_id) ) {
+        return false;
+    }
     m_tcp_data[socket_id].m_init = 1;
-    build_assoc_translation(socket_id);
+    if ( !build_assoc_translation(socket_id) ) {
+        return false;
+    }
     m_tcp_data[socket_id].m_init = 2;
+    return true;
 }
 
 void CAstfDB::dump() {
     std::cout << m_val << std::endl;
 }
 
-uint16_t CAstfDB::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
+uint32_t CAstfDB::get_buf_index(uint32_t program_index, uint32_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -273,7 +307,7 @@ uint16_t CAstfDB::get_buf_index(uint16_t program_index, uint16_t cmd_index) {
     return cmd["buf_index"].asInt();
 }
 
-std::string CAstfDB::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) {
+std::string CAstfDB::get_buf(uint32_t temp_index, uint32_t cmd_index, int side) {
     std::string temp_str;
     Json::Value cmd;
 
@@ -286,7 +320,7 @@ std::string CAstfDB::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) 
         assert(0);
     }
     try {
-        uint16_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
+        uint32_t program_index = m_val["templates"][temp_index][temp_str]["program_index"].asInt();
         cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
@@ -294,14 +328,14 @@ std::string CAstfDB::get_buf(uint16_t temp_index, uint16_t cmd_index, int side) 
 
     assert (cmd["name"] == "tx");
 
-    uint16_t buf_index = cmd["buf_index"].asInt();
+    uint32_t buf_index = cmd["buf_index"].asInt();
     std::string output = m_val["buf_list"][buf_index].asString();
 
     return base64_decode(output);
 }
 
 
-bool CAstfDB::get_emul_stream(uint16_t program_index){
+bool CAstfDB::get_emul_stream(uint32_t program_index){
     Json::Value cmd;
 
     try {
@@ -317,7 +351,7 @@ bool CAstfDB::get_emul_stream(uint16_t program_index){
 }
 
 
-tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) {
+tcp_app_cmd_enum_t CAstfDB::get_cmd(uint32_t program_index, uint32_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -372,7 +406,7 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint16_t program_index, uint16_t cmd_index) 
     return tcNO_CMD;
 }
 
-uint32_t CAstfDB::get_delay_ticks(uint16_t program_index, uint16_t cmd_index) {
+uint32_t CAstfDB::get_delay_ticks(uint32_t program_index, uint32_t cmd_index) {
     Json::Value cmd;
 
     try {
@@ -386,8 +420,8 @@ uint32_t CAstfDB::get_delay_ticks(uint16_t program_index, uint16_t cmd_index) {
     return tw_time_usec_to_ticks(cmd["usec"].asInt());
 }
 
-void CAstfDB::fill_tx_mode(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_tx_mode(uint32_t program_index, 
+                            uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -403,8 +437,8 @@ void CAstfDB::fill_tx_mode(uint16_t program_index,
 }
 
 
-void CAstfDB::fill_delay_rnd(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_delay_rnd(uint32_t program_index, 
+                            uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -420,8 +454,8 @@ void CAstfDB::fill_delay_rnd(uint16_t program_index,
     res.u.m_delay_rnd.m_max_ticks = tw_time_usec_to_ticks(cmd["max_usec"].asUInt());
 }
 
-void CAstfDB::fill_set_var(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_set_var(uint32_t program_index, 
+                            uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -434,11 +468,11 @@ void CAstfDB::fill_set_var(uint16_t program_index,
     assert (cmd["name"] == "set_var");
 
     res.u.m_var.m_var_id = cmd["id"].asUInt();
-    res.u.m_var.m_val    = cmd["val"].asUInt();
+    res.u.m_var.m_val    = cmd["val"].asUInt64();
 }
 
-void CAstfDB::fill_jmpnz(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_jmpnz(uint32_t program_index, 
+                            uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -454,8 +488,8 @@ void CAstfDB::fill_jmpnz(uint16_t program_index,
     res.u.m_jmpnz.m_offset = cmd["offset"].asInt();
 }
 
-void CAstfDB::fill_tx_pkt(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_tx_pkt(uint32_t program_index, 
+                            uint32_t cmd_index,
                             uint8_t socket_id,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -472,8 +506,8 @@ void CAstfDB::fill_tx_pkt(uint16_t program_index,
     res.u.m_tx_pkt.m_buf = m_tcp_data[socket_id].m_buf_list[indx];
 }
 
-void CAstfDB::fill_rx_pkt(uint16_t program_index, 
-                            uint16_t cmd_index,
+void CAstfDB::fill_rx_pkt(uint32_t program_index, 
+                            uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -496,8 +530,8 @@ void CAstfDB::fill_rx_pkt(uint16_t program_index,
     }
 }
 
-void CAstfDB::fill_keepalive_pkt(uint16_t program_index, 
-                                 uint16_t cmd_index,
+void CAstfDB::fill_keepalive_pkt(uint32_t program_index, 
+                                 uint32_t cmd_index,
                                  CEmulAppCmd &res) {
     Json::Value cmd;
 
@@ -513,7 +547,7 @@ void CAstfDB::fill_keepalive_pkt(uint16_t program_index,
 }
 
 
-void CAstfDB::get_rx_cmd(uint16_t program_index, uint16_t cmd_index,CEmulAppCmd &res) {
+void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index,CEmulAppCmd &res) {
     Json::Value cmd;
 
     try {
@@ -538,11 +572,23 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     uint32_t ip_end;
     uint32_t num_ips;
     std::string err_str;
+    const char* ip_start_str;
+    const char* ip_end_str;
+    std::string s;
+
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
-        ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-        ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
+        s = ip_gen_list[i]["ip_start"].asString();
+        ip_start_str = s.c_str();
+        ip_start = ip_from_str(ip_start_str);
+        s = ip_gen_list[i]["ip_end"].asString();
+        ip_end_str = s.c_str();
+        ip_end = ip_from_str(ip_end_str);
+        if (ip_end < ip_start) {
+            err_str = std::string("IP start: ") + ip_start_str + " is bigger than IP end: " + ip_end_str;
+            return CJsonData_err(CJsonData_err_pool_err, err_str);
+        }
         num_ips = ip_end - ip_start + 1;
         if (num_ips < max_threads) {
             err_str = "Pool:(" + ip_gen_list[i]["ip_start"].asString() + "-"
@@ -557,19 +603,35 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     return CJsonData_err(CJsonData_err_pool_ok, "");
 }
 
-void CAstfDB::verify_init(uint16_t socket_id) {
-    if (! m_tcp_data[socket_id].is_init()) {
+bool CAstfDB::verify_init(uint16_t socket_id) {
+    bool success = true;
+    if ( !m_tcp_data[socket_id].is_init() ) {
         // json data should not be accessed by multiple threads in parallel
         std::unique_lock<std::mutex> my_lock(m_global_mtx);
-        if (! m_tcp_data[socket_id].is_init()) {
-            convert_from_json(socket_id);
+        if ( !m_tcp_data[socket_id].is_init() ) {
+            success = convert_from_json(socket_id);
+        }
+        my_lock.unlock();
+    }
+    return success;
+}
+
+void CAstfDB::clear_db_ro(uint8_t socket_id) {
+    if ( m_tcp_data[socket_id].is_init() ) {
+        // json data should not be accessed by multiple threads in parallel
+        std::unique_lock<std::mutex> my_lock(m_global_mtx);
+        if ( m_tcp_data[socket_id].is_init() ) {
+            m_tcp_data[socket_id].Delete();
         }
         my_lock.unlock();
     }
 }
 
 CAstfDbRO *CAstfDB::get_db_ro(uint8_t socket_id) {
-    verify_init(socket_id);
+    if ( !verify_init(socket_id) ) {
+        m_tcp_data[socket_id].Delete();
+        return nullptr;
+    }
 
     return &m_tcp_data[socket_id];
 }
@@ -853,14 +915,14 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
 
     } catch (TrexRpcCommandException &e) {
         printf(" ERROR !!! '%s' \n",e.what());
-        /* TBD need to refactor the code .., should not have exit in this code  */
-        exit(1);
+        /* TBD need a better way to signal this */
+        return(true);
     } 
     
     return true;
 }
 
-ClientCfgDB  *CAstfDB::get_client_db() {
+ClientCfgDB  *CAstfDB::get_client_cfg_db() {
     static ClientCfgDB g_dummy;
     if (m_client_config_info==0) {
         return  &g_dummy;
@@ -869,6 +931,41 @@ ClientCfgDB  *CAstfDB::get_client_db() {
     }
 }
 
+
+bool CAstfDB::get_latency_info(uint32_t & src_ipv4,
+                               uint32_t & dst_ipv4,
+                               uint32_t & dual_port_mask){
+
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+    std::string s;
+
+    if (ip_gen_list.size()<2){
+        return(false);
+    }
+    int i;
+    uint32_t valid=0;
+
+    for (i=0; i<2; i++) {
+        Json::Value g=ip_gen_list[i];
+
+        if (g["dir"] == "c") {
+            s = g["ip_offset"].asString();
+            dual_port_mask = ip_from_str(s.c_str());
+            s = g["ip_start"].asString();
+            src_ipv4 = ip_from_str(s.c_str());
+            valid|=1;
+        }
+        if (g["dir"] == "s") {
+            s= g["ip_start"].asString();
+            dst_ipv4 = ip_from_str(s.c_str());
+            valid|=2;
+        }
+    }
+    if (valid != 3) {
+        return(false);
+    }
+    return(true);
+}
 
 void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
@@ -882,12 +979,24 @@ void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     pool.m_tcp_aging_sec=0;
     pool.m_udp_aging_sec=0;
     pool.m_is_bundling=false;
+    pool.m_per_core_distro =false;
+    std::string s;
 
     for (int i = 0; i < ip_gen_list.size(); i++) {
         Json::Value g=ip_gen_list[i];
-        uint32_t ip_start = ip_from_str(g["ip_start"].asString().c_str());
-        uint32_t ip_end = ip_from_str(g["ip_end"].asString().c_str());
-        uint32_t mask = ip_from_str(g["ip_offset"].asString().c_str());
+        s = g["ip_start"].asString();
+        uint32_t ip_start = ip_from_str(s.c_str());
+        s = g["ip_end"].asString();
+        uint32_t ip_end = ip_from_str(s.c_str());
+        s = g["ip_offset"].asString();
+        uint32_t mask = ip_from_str(s.c_str());
+
+        /* backward compatible */
+        if (g["per_core_distribution"] != Json::nullValue){
+            if (g["per_core_distribution"] == "seq") {
+                pool.m_per_core_distro =true;
+            }
+        }
 
         pool.m_ip_start = ip_start;
         pool.m_ip_end = ip_end;
@@ -905,6 +1014,32 @@ void CAstfDB::get_tuple_info(CTupleGenYamlInfo & tuple_info){
     }
 }
 
+void fill_rss_vals(uint16_t thread_id, uint16_t &rss_thread_id, uint16_t &rss_thread_max) {
+    rss_thread_id =0;
+    rss_thread_max  = CGlobalInfo::m_options.preview.getCores();
+    if ( rss_thread_max > 1 ) {
+        rss_thread_id = thread_id / CGlobalInfo::m_options.get_expected_dual_ports();
+    }
+}
+
+void CAstfDB::get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
+        std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion) {
+
+    CTupleGenPoolYaml poolinfo;
+
+    poolinfo.m_per_core_distro = per_core_dist;
+    poolinfo.m_ip_start = ip_from_str(ip_start.c_str());
+    poolinfo.m_ip_end = ip_from_str(ip_end.c_str());
+    poolinfo.m_dual_interface_mask = ip_from_str(ip_offset.c_str());
+
+    if (poolinfo.m_per_core_distro) {
+        uint16_t rss_thread_id, rss_thread_max;
+        fill_rss_vals(thread_id, rss_thread_id, rss_thread_max);
+        split_ips_v2(max_threads, rss_thread_id, rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(), dual_port_id, poolinfo, portion);
+    }else{
+        split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+    }
+}
 
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                               uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
@@ -915,45 +1050,65 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     // json data should not be accessed by multiple threads in parallel
     std::unique_lock<std::mutex> my_lock(m_global_mtx);
 
+    if (g_gen == nullptr) {
+        g_gen = get_smart_gen(thread_id);
+    }
     g_gen->Create(0, thread_id);
 
-    uint16_t rss_thread_id =0;
-    uint16_t rss_thread_max  = CGlobalInfo::m_options.preview.getCores();
+    uint16_t rss_thread_id, rss_thread_max;
+    fill_rss_vals(thread_id, rss_thread_id, rss_thread_max);
     if ( rss_thread_max > 1 ) {
-        rss_thread_id = ( thread_id / (CGlobalInfo::m_options.get_expected_dual_ports() ));
-        g_gen->set_astf_rss_mode(rss_thread_id,rss_thread_max,CGlobalInfo::m_options.m_reta_mask); /* configure the generator */
+        g_gen->set_astf_rss_mode(rss_thread_id ,rss_thread_max, CGlobalInfo::m_options.m_reta_mask); /* configure the generator */
     }
 
     uint32_t active_flows_per_core;
     CIpPortion  portion;
     CTupleGenPoolYaml poolinfo;
-    uint16_t last_c_idx=0;
-    uint16_t last_s_idx=0;
-    std::vector<uint16_t> gen_idx_trans;
+    uint32_t last_c_idx=0;
+    uint32_t last_s_idx=0;
+    std::vector<uint32_t> gen_idx_trans;
+    std::string s;
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
         IP_DIST_t dist;
-        poolinfo.m_ip_start = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-        poolinfo.m_ip_end = ip_from_str(ip_gen_list[i]["ip_end"].asString().c_str());
-        if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "seq", 3)) {
+        poolinfo.m_per_core_distro =false;
+        s = ip_gen_list[i]["ip_start"].asString();
+        poolinfo.m_ip_start = ip_from_str(s.c_str());
+        s = ip_gen_list[i]["ip_end"].asString();
+        poolinfo.m_ip_end = ip_from_str(s.c_str());
+        s = ip_gen_list[i]["distribution"].asString();
+        if (! strncmp(s.c_str(), "seq", 3)) {
             dist = cdSEQ_DIST;
-        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "rand", 4)) {
+        } else if (! strncmp(s.c_str(), "rand", 4)) {
             dist = cdRANDOM_DIST;
-        } else if (! strncmp(ip_gen_list[i]["distribution"].asString().c_str(), "normal", 6)) {
+        } else if (! strncmp(s.c_str(), "normal", 6)) {
             dist = cdNORMAL_DIST;
         } else {
-            fprintf(stderr, "wrong distribution string %s in json\n", ip_gen_list[i]["distribution"].asString().c_str());
-            exit(1);
+            fprintf(stderr, "wrong distribution string %s in json\n", s.c_str());
+            my_lock.unlock();
+            return((CAstfTemplatesRW *)0);
         }
+
+        if (ip_gen_list[i]["per_core_distribution"] != Json::nullValue){
+            if (ip_gen_list[i]["per_core_distribution"] == "seq") {
+                poolinfo.m_per_core_distro =true;
+            }
+        }
+
         poolinfo.m_dist =  dist;
-        poolinfo.m_dual_interface_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
-        split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+        s= ip_gen_list[i]["ip_offset"].asString();
+        poolinfo.m_dual_interface_mask = ip_from_str(s.c_str());
+        if (poolinfo.m_per_core_distro) {
+            split_ips_v2(max_threads, rss_thread_id,rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(),dual_port_id, poolinfo, portion);
+        }else{
+            split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
+        }
         active_flows_per_core = (portion.m_ip_end - portion.m_ip_start) * 32000;
         if (ip_gen_list[i]["dir"] == "c") {
             gen_idx_trans.push_back(last_c_idx);
             last_c_idx++;
-            ClientCfgDB  * cdb=get_client_db();
+            ClientCfgDB  * cdb=get_client_cfg_db();
             g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, *cdb, 0, 0);
         } else {
             gen_idx_trans.push_back(last_s_idx);
@@ -981,7 +1136,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
     std::vector<double>  dist;
     // loop over all templates
-    for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
+    for (uint32_t index = 0; index < m_val["templates"].size(); index++) {
         CAstfPerTemplateRW *temp_rw = new CAstfPerTemplateRW();
         assert(temp_rw);
 
@@ -1012,11 +1167,13 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         CTcpTuneables *s_tuneable;
         CTcpTuneables *c_tuneable = new CTcpTuneables();
         assert(c_tuneable);
-        assert(CAstfDB::m_pInstance);
-        s_tuneable = CAstfDB::m_pInstance->get_s_tune(index);
+        s_tuneable = get_s_tune(index);
         assert(s_tuneable);
 
-        read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"]);
+        if (!read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"])){
+            my_lock.unlock();
+            return((CAstfTemplatesRW *)0);
+        }
         temp_rw->set_tuneables(c_tuneable, s_tuneable);
 
         ret->add_template(temp_rw);
@@ -1037,7 +1194,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
  * side - 0 - client, 1 - server
  * Return pointer to program
  */
-CEmulAppProgram *CAstfDB::get_prog(uint16_t temp_index, int side, uint8_t socket_id) {
+CEmulAppProgram *CAstfDB::get_prog(uint32_t temp_index, int side, uint8_t socket_id) {
     std::string temp_str;
     uint32_t program_index;
 
@@ -1067,17 +1224,52 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     CTcpTemplateInfo one_template;
     uint32_t num_bytes_in_template=0;
     double template_cps;
+    std::unordered_set<uint16_t> tcp_server_ports;
+    std::unordered_set<uint16_t> udp_server_ports;
 
     assert(m_tcp_data[socket_id].m_init > 0);
+
+    if ( m_val["templates"].size() == 0 ) {
+        return false;
+    }
 
     if (m_val["templates"].size() > 10) {
         is_hash_needed = true;
     }
 
-    for (uint16_t index = 0; index < m_val["templates"].size(); index++) {
+    uint16_t num_of_tg_ids = m_val["tg_names"].size()+1;
+    m_tcp_data[socket_id].m_num_of_tg_ids = num_of_tg_ids; // CAstfDBRo m_num_of_tg_ids updated.
+    m_num_of_tg_ids = num_of_tg_ids; // CAstfDB m_num_of_tg_ids updated.
+    auto tg_names = m_val["tg_names"];
+    m_tg_names.clear(); // To avoid multiple entry.
+    for (uint16_t index = 0; index < num_of_tg_ids - 1; index++) {
+        std::string tg_name = tg_names[index].asString();
+        if (tg_name.length() > MAX_TG_NAME_LENGTH) {
+            throw TrexException("TG name too long. Please limit TG names to " + std::to_string(MAX_TG_NAME_LENGTH) + " characters");
+        }
+        if ( tg_name.size() == 0 ) {
+            throw TrexException("Empty TG name");
+        }
+        m_tg_names.push_back(tg_name);
+    }
+
+    for (uint32_t index = 0; index < m_val["templates"].size(); index++) {
         // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
         bool is_stream = get_emul_stream(m_val["templates"][index]["server_template"]["program_index"].asInt());
+        if (is_stream) {
+            if (tcp_server_ports.find(port) != tcp_server_ports.end()) {
+                // port already seen for tcp
+                throw TrexException("Two servers with port " + std::to_string(port));
+            }
+            tcp_server_ports.insert(port);
+        } else {
+            if (udp_server_ports.find(port) != udp_server_ports.end()) {
+                // port already seen for udp.
+                throw TrexException("Two servers with port " + std::to_string(port));
+            }
+            udp_server_ports.insert(port);
+        }
         CTcpDataAssocParams tcp_params(port,is_stream);
         CEmulAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
@@ -1098,6 +1290,11 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         one_template.m_dport = m_val["templates"][index]["client_template"]["port"].asInt();
         uint32_t c_prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
         uint32_t s_prog_index = m_val["templates"][index]["server_template"]["program_index"].asInt();
+        uint16_t tg_id = m_val["templates"][index]["tg_id"].asInt();
+        if ( tg_id > num_of_tg_ids || tg_id < 0 ) {
+            throw TrexException("TG ID not in range, it should be between 0 and " + std::to_string(num_of_tg_ids));
+        }
+        one_template.m_tg_id = tg_id;
         num_bytes_in_template += m_prog_lens[c_prog_index];
         num_bytes_in_template += m_prog_lens[s_prog_index];
         one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[c_prog_index];
@@ -1120,7 +1317,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
     uint32_t buf_len;
 
     if (m_val["buf_list"].size() == 0)
-        return false;
+        return true;
 
     for (int buf_index = 0; buf_index < m_val["buf_list"].size(); buf_index++) {
         tcp_buf = new CMbufBuffer();
@@ -1139,14 +1336,14 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
 bool CAstfDB::convert_progs(uint8_t socket_id) {
     CEmulAppCmd cmd;
     CEmulAppProgram *prog;
-    uint16_t cmd_index;
+    uint32_t cmd_index;
     tcp_app_cmd_enum_t cmd_type;
     uint32_t prog_len=0;
 
     if (m_val["program_list"].size() == 0)
         return false;
 
-    for (uint16_t program_index = 0; program_index < m_val["program_list"].size(); program_index++) {
+    for (uint32_t program_index = 0; program_index < m_val["program_list"].size(); program_index++) {
         prog = new CEmulAppProgram();
         assert(prog);
         bool is_stream = get_emul_stream(program_index);
@@ -1258,16 +1455,20 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     bool client_set = false;
     bool server_set = false;
+     std::string s;
 
     for (int i = 0; i < ip_gen_list.size(); i++) {
         if ((ip_gen_list[i]["dir"] == "c") && ! client_set) {
             client_set = true;
-            lat.m_c_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
-            lat.m_dual_mask = ip_from_str(ip_gen_list[i]["ip_offset"].asString().c_str());
+            s = ip_gen_list[i]["ip_start"].asString();
+            lat.m_c_ip = ip_from_str(s.c_str());
+            s = ip_gen_list[i]["ip_offset"].asString();
+            lat.m_dual_mask = ip_from_str(s.c_str());
         }
         if ((ip_gen_list[i]["dir"] == "s") && ! server_set) {
             server_set = true;
-            lat.m_s_ip = ip_from_str(ip_gen_list[i]["ip_start"].asString().c_str());
+            s = ip_gen_list[i]["ip_start"].asString();
+            lat.m_s_ip = ip_from_str(s.c_str());
         }
 
         if (server_set && client_set)
@@ -1275,22 +1476,40 @@ void CAstfDB::get_latency_params(CTcpLatency &lat) {
     }
 }
 
-void CAstfDB::clear() {
-    int i;
-    for (i = 0; i < m_rw_db.size(); i++) {
-        CAstfTemplatesRW * lp=m_rw_db[i];
-        lp->Delete();
-        delete lp;
-    }
-    for (i = 0; i < m_s_tuneables.size(); i++) {
-        delete m_s_tuneables[i];
-    }
-    m_s_tuneables.clear();
+const std::vector<std::string>& CAstfDB::get_tg_names() {
+    return m_tg_names;
+}
 
-    for (i=0; i<MAX_SOCKETS_SUPPORTED; i++) {
-        m_tcp_data[i].Delete();
+void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id) {
+    std::unique_lock<std::mutex> my_lock(m_global_mtx);
+    if (g_gen == nullptr) {
+        remove_smart_gen(thread_id);
     }
-    m_json_initiated = false;
+    else {
+        g_gen->Delete();
+    }
+    /* to clear only when there is no thread generator */
+    if (m_smart_gen.size() == 0) {
+        for ( auto &rw_db : m_rw_db) {
+            if ( !rw_db ) {
+                continue;
+            }
+            rw_db->Delete();
+            delete rw_db;
+        }
+        m_rw_db.clear();
+        for (auto &s_tuneables : m_s_tuneables) {
+            delete s_tuneables;
+        }
+        m_s_tuneables.clear();
+        m_prog_lens.clear();
+
+        for (auto &tcp_data : m_tcp_data) {
+            tcp_data.Delete();
+        }
+        m_json_initiated = false;
+    }
+    my_lock.unlock();
 }
 
 CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port,bool stream) {
@@ -1309,6 +1528,9 @@ void CAstfDbRO::dump(FILE *fd) {
 }
 
 void CAstfDbRO::Delete() {
+    if (m_init==0)
+        return;
+
     int i;
     for (i = 0; i < m_buf_list.size(); i++) {
         m_buf_list[i]->Delete();
@@ -1327,9 +1549,15 @@ void CAstfDbRO::Delete() {
     m_templates.clear();
 
     m_assoc_trans.clear();
-    m_init = false;
+    m_init = 0;
+    m_cps_sum=0.0;
 }
 
-
-
-
+void CAstfDbRO::set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
+        CTcpDataAssocParams params(port,true);
+        CTcpTemplateInfo one_template;
+        one_template.m_tg_id = 0;
+        m_assoc_trans.insert_vec(params, prog, tune, 0);
+        m_num_of_tg_ids = 1;
+        m_templates.push_back(one_template);
+    }

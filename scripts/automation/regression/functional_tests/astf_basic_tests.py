@@ -1,9 +1,9 @@
 import os
 from stl_basic_tests import compare_caps
-from trex_astf_lib.trex_astf_client import *   # noqa: ignore=F403
-from trex_astf_lib.trex_astf_exceptions import *   # noqa: ignore=F403
-from trex_astf_lib.cap_handling import *   # noqa: ignore=F403
-from trex_astf_lib.sim import main as sim_main
+from trex.astf.trex_astf_profile import *   # noqa: ignore=F403
+from trex.astf.trex_astf_exceptions import *   # noqa: ignore=F403
+from trex.astf.cap_handling import *   # noqa: ignore=F403
+from trex.astf.sim import main as sim_main
 import functional_general_test
 from nose.plugins.attrib import attr
 
@@ -25,7 +25,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_astf_gold(self,valgrind):
         files = [
-                  "astf/param_ipv6.py",
+                 "astf/param_ipv6.py",
                  "astf/tcp_param_change.py",
                  "astf/param_tcp_rxbufsize.py",
                  "astf/param_tcp_no_timestamp.py",
@@ -46,7 +46,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
                  "astf/http_simple_limit.py",
                  "astf/param_tcp_rxbufsize_pt.py",
                  "astf/param_sch_rampup.py",
-                 "astf/http_manual_commands_pipeline4.py"
+                 "astf/http_manual_commands_pipeline4.py",
                  "astf/udp_pcap.py",
                  "astf/udp_sip.py",
                  "astf/udp1.py",
@@ -67,15 +67,16 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
         ]
         print('')
         for file in files:
+            file="../../"+file;
             base_name = file.split("/")[-1].split(".")[0]
-            output = "../../generated/"+base_name + ".generated.pcap"
-            golden = "functional_tests/golden/" + base_name + ".cap"
+            output = "../../generated/sim_astf-"+base_name + ".pcap"
+            golden = "functional_tests/golden/sim_astf-" + base_name + ".pcap"
             print ("checking {0}".format(file))
             options=None;
             if valgrind:
                 options=["--valgrind"]
             self.run_sim(file, output,options)
-            compare_caps(golden, output, 1)
+            compare_caps(golden = golden, output = output, max_diff_sec = 1)
 
 
     def run_client_config(self,valgrind):
@@ -85,19 +86,22 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
                  "../../astf/cc_http_simple2.yaml"
         ]
 
-        file = "astf/http_simple.py"
+        file = "../../astf/http_simple.py"
+        error = False
 
         for cc_obj in cc:
             base_name = file.split("/")[-1].split(".")[0]
             cc_base_name = cc_obj.split("/")[-1].split(".")[0]
-            output = "../../generated/"+base_name + "_"+ cc_base_name + ".generated.pcap"
-            golden = "functional_tests/golden/" + base_name +"_"+cc_base_name+ ".pcap"
+            output = "../../generated/sim_astf-"+base_name + "_"+ cc_base_name + ".pcap"
+            golden = "functional_tests/golden/sim_astf-" + base_name +"_"+cc_base_name+ ".pcap"
             print ("checking {0} --cc {0}".format(file,cc_obj))
             options=None;
             if valgrind:
                 options=["--valgrind"]
             self.run_sim(file, output,options,cc_obj)
-            compare_caps(golden, output, 1)
+            compare_caps(golden = golden, output = output, max_diff_sec = 1)
+
+
 
         
     def test_astf_cc_caps(self):
@@ -134,7 +138,7 @@ class CAstfPcap_Test(functional_general_test.CGeneralFunctional_Test):
 
     def handle_one_cap(self, cap_file_name):
         profile = """
-from trex_astf_lib.api import ASTFProfile, ASTFCapInfo, ASTFIPGenDist, ASTFIPGen
+from trex.astf.api import ASTFProfile, ASTFCapInfo, ASTFIPGenDist, ASTFIPGen
 class Prof1():
     def __init__(self):
         pass

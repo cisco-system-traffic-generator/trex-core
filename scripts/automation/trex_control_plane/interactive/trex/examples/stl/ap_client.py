@@ -1,3 +1,4 @@
+import stl_path
 from trex.stl.api import *
 from trex.stl.trex_stl_wlc import AP_Manager
 from pprint import pprint
@@ -29,11 +30,8 @@ m = AP_Manager(c)
 try:
     def establish_setup():
         m.set_base_values(
-            name = base_data['ap_name'],
             mac = base_data['ap_mac'],
             ip = base_data['ap_ip'],
-            udp = base_data['ap_udp'],
-            radio = base_data['ap_radio'],
             client_mac = base_data['client_mac'],
             client_ip = base_data['client_ip'],
             )
@@ -41,9 +39,8 @@ try:
         for port_id, port_data in ports_data.items():
             m.init(port_id)
             for i in range(int(sys.argv[2])):
-
                 ap_params = m._gen_ap_params()
-                m.create_ap(port_id, *ap_params)
+                m.create_ap(port_id, *ap_params, rsa_ca_priv_file=base_data['rsa_ca_priv_file'])
                 for _ in range(int(sys.argv[3])):
                     client_params = m._gen_client_params()
                     m.create_client(*client_params, ap_id = ap_params[0])

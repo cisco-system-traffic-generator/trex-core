@@ -20,6 +20,7 @@ limitations under the License.
 #include "c_common.h"
 #include <stdio.h>
 #include <string>
+#include <vector>
 #include <cmath>
 
 /**
@@ -147,11 +148,14 @@ bool utl_is_file_exists (const std::string& name) ;
 
 void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output);
 std::string utl_macaddr_to_str(const uint8_t *macaddr);
-
 bool utl_str_to_macaddr(const std::string &s, uint8_t *mac);
+bool mac2uint64(const std::string &mac_str, uint64_t &mac_num);
+bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac);
 
 std::string utl_generate_random_str(unsigned int &seed, int len);
 std::string utl_generate_random_str(int len);
+
+void split_str_by_delimiter(std::string str, char delim, std::vector<std::string> &tokens);
 
 /**
  * define the coredump size 

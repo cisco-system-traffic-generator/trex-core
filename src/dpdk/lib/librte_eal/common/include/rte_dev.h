@@ -1,34 +1,5 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2014 6WIND S.A.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of 6WIND S.A. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2014 6WIND S.A.
  */
 
 #ifndef _RTE_DEV_H_
@@ -49,68 +20,38 @@ extern "C" {
 #include <stdio.h>
 #include <sys/queue.h>
 
+#include <rte_config.h>
+#include <rte_compat.h>
 #include <rte_log.h>
 
-__attribute__((format(printf, 2, 0)))
-static inline void
-rte_pmd_debug_trace(const char *func_name, const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-
-	char buffer[vsnprintf(NULL, 0, fmt, ap) + 1];
-
-	va_end(ap);
-
-	va_start(ap, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, ap);
-	va_end(ap);
-
-	rte_log(RTE_LOG_ERR, RTE_LOGTYPE_PMD, "%s: %s", func_name, buffer);
-}
-
-/*
- * Enable RTE_PMD_DEBUG_TRACE() when at least one component relying on the
- * RTE_*_RET() macros defined below is compiled in debug mode.
+/**
+ * The device event type.
  */
-#if defined(RTE_LIBRTE_ETHDEV_DEBUG) || \
-	defined(RTE_LIBRTE_CRYPTODEV_DEBUG) || \
-	defined(RTE_LIBRTE_EVENTDEV_DEBUG)
-#define RTE_PMD_DEBUG_TRACE(...) \
-	rte_pmd_debug_trace(__func__, __VA_ARGS__)
-#else
-#define RTE_PMD_DEBUG_TRACE(...) (void)0
-#endif
+enum rte_dev_event_type {
+	RTE_DEV_EVENT_ADD,	/**< device being added */
+	RTE_DEV_EVENT_REMOVE,	/**< device being removed */
+	RTE_DEV_EVENT_MAX	/**< max value of this enum */
+};
 
-/* Macros for checking for restricting functions to primary instance only */
-#define RTE_PROC_PRIMARY_OR_ERR_RET(retval) do { \
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) { \
-		RTE_PMD_DEBUG_TRACE("Cannot run in secondary processes\n"); \
-		return retval; \
-	} \
-} while (0)
+struct rte_dev_event {
+	enum rte_dev_event_type type;	/**< device event type */
+	int subsystem;			/**< subsystem id */
+	char *devname;			/**< device name */
+};
 
-#define RTE_PROC_PRIMARY_OR_RET() do { \
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) { \
-		RTE_PMD_DEBUG_TRACE("Cannot run in secondary processes\n"); \
-		return; \
-	} \
-} while (0)
+typedef void (*rte_dev_event_cb_fn)(const char *device_name,
+					enum rte_dev_event_type event,
+					void *cb_arg);
 
 /* Macros to check for invalid function pointers */
 #define RTE_FUNC_PTR_OR_ERR_RET(func, retval) do { \
-	if ((func) == NULL) { \
-		RTE_PMD_DEBUG_TRACE("Function not supported\n"); \
+	if ((func) == NULL) \
 		return retval; \
-	} \
 } while (0)
 
 #define RTE_FUNC_PTR_OR_RET(func) do { \
-	if ((func) == NULL) { \
-		RTE_PMD_DEBUG_TRACE("Function not supported\n"); \
+	if ((func) == NULL) \
 		return; \
-	} \
 } while (0)
 
 /**
@@ -163,60 +104,59 @@ struct rte_driver {
 struct rte_device {
 	TAILQ_ENTRY(rte_device) next; /**< Next device */
 	const char *name;             /**< Device name */
-	const struct rte_driver *driver;/**< Associated driver */
+	const struct rte_driver *driver; /**< Driver assigned after probing */
+	const struct rte_bus *bus;    /**< Bus handle assigned on scan */
 	int numa_node;                /**< NUMA node connection */
-	struct rte_devargs *devargs;  /**< Device user arguments */
+	struct rte_devargs *devargs;  /**< Arguments for latest probing */
 };
 
 /**
- * Attach a device to a registered driver.
- *
- * @param name
- *   The device name, that refers to a pci device (or some private
- *   way of designating a vdev device). Based on this device name, eal
- *   will identify a driver capable of handling it and pass it to the
- *   driver probing function.
- * @param devargs
- *   Device arguments to be passed to the driver.
- * @return
- *   0 on success, negative on error.
- */
-int rte_eal_dev_attach(const char *name, const char *devargs);
-
-/**
- * Detach a device from its driver.
+ * Query status of a device.
  *
  * @param dev
- *   A pointer to a rte_device structure.
+ *   Generic device pointer.
  * @return
- *   0 on success, negative on error.
+ *   (int)true if already probed successfully, 0 otherwise.
  */
-int rte_eal_dev_detach(struct rte_device *dev);
+int rte_dev_is_probed(const struct rte_device *dev);
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice
- *
  * Hotplug add a given device to a specific bus.
+ *
+ * In multi-process, it will request other processes to add the same device.
+ * A failure, in any process, will rollback the action
  *
  * @param busname
  *   The bus name the device is added to.
  * @param devname
  *   The device name. Based on this device name, eal will identify a driver
  *   capable of handling it and pass it to the driver probing function.
- * @param devargs
+ * @param drvargs
  *   Device arguments to be passed to the driver.
  * @return
  *   0 on success, negative on error.
  */
 int rte_eal_hotplug_add(const char *busname, const char *devname,
-			const char *devargs);
+			const char *drvargs);
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice
+ * Add matching devices.
  *
+ * In multi-process, it will request other processes to add the same device.
+ * A failure, in any process, will rollback the action
+ *
+ * @param devargs
+ *   Device arguments including bus, class and driver properties.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_dev_probe(const char *devargs);
+
+/**
  * Hotplug remove a given device from a specific bus.
+ *
+ * In multi-process, it will request other processes to remove the same device.
+ * A failure, in any process, will rollback the action
  *
  * @param busname
  *   The bus name the device is removed from.
@@ -226,6 +166,19 @@ int rte_eal_hotplug_add(const char *busname, const char *devname,
  *   0 on success, negative on error.
  */
 int rte_eal_hotplug_remove(const char *busname, const char *devname);
+
+/**
+ * Remove one device.
+ *
+ * In multi-process, it will request other processes to remove the same device.
+ * A failure, in any process, will rollback the action
+ *
+ * @param dev
+ *   Data structure of the device to remove.
+ * @return
+ *   0 on success, negative on error.
+ */
+int rte_dev_remove(struct rte_device *dev);
 
 /**
  * Device comparison function.
@@ -289,8 +242,268 @@ __attribute__((used)) = str
 static const char DRV_EXP_TAG(name, kmod_dep_export)[] \
 __attribute__((used)) = str
 
+/**
+ * Iteration context.
+ *
+ * This context carries over the current iteration state.
+ */
+struct rte_dev_iterator {
+	const char *dev_str; /**< device string. */
+	const char *bus_str; /**< bus-related part of device string. */
+	const char *cls_str; /**< class-related part of device string. */
+	struct rte_bus *bus; /**< bus handle. */
+	struct rte_class *cls; /**< class handle. */
+	struct rte_device *device; /**< current position. */
+	void *class_device; /**< additional specialized context. */
+};
+
+/**
+ * Device iteration function.
+ *
+ * Find the next device matching properties passed in parameters.
+ * The function takes an additional ``start`` parameter, that is
+ * used as starting context when relevant.
+ *
+ * The function returns the current element in the iteration.
+ * This return value will potentially be used as a start parameter
+ * in subsequent calls to the function.
+ *
+ * The additional iterator parameter is only there if a specific
+ * implementation needs additional context. It must not be modified by
+ * the iteration function itself.
+ *
+ * @param start
+ *   Starting iteration context.
+ *
+ * @param devstr
+ *   Device description string.
+ *
+ * @param it
+ *   Device iterator.
+ *
+ * @return
+ *   The address of the current element matching the device description
+ *   string.
+ */
+typedef void *(*rte_dev_iterate_t)(const void *start,
+				   const char *devstr,
+				   const struct rte_dev_iterator *it);
+
+/**
+ * Initializes a device iterator.
+ *
+ * This iterator allows accessing a list of devices matching a criteria.
+ * The device matching is made among all buses and classes currently registered,
+ * filtered by the device description given as parameter.
+ *
+ * This function will not allocate any memory. It is safe to stop the
+ * iteration at any moment and let the iterator go out of context.
+ *
+ * @param it
+ *   Device iterator handle.
+ *
+ * @param str
+ *   Device description string.
+ *
+ * @return
+ *   0 on successful initialization.
+ *   <0 on error.
+ */
+__rte_experimental
+int
+rte_dev_iterator_init(struct rte_dev_iterator *it, const char *str);
+
+/**
+ * Iterates on a device iterator.
+ *
+ * Generates a new rte_device handle corresponding to the next element
+ * in the list described in comprehension by the iterator.
+ *
+ * The next object is returned, and the iterator is updated.
+ *
+ * @param it
+ *   Device iterator handle.
+ *
+ * @return
+ *   An rte_device handle if found.
+ *   NULL if an error occurred (rte_errno is set).
+ *   NULL if no device could be found (rte_errno is not set).
+ */
+__rte_experimental
+struct rte_device *
+rte_dev_iterator_next(struct rte_dev_iterator *it);
+
+#define RTE_DEV_FOREACH(dev, devstr, it) \
+	for (rte_dev_iterator_init(it, devstr), \
+	     dev = rte_dev_iterator_next(it); \
+	     dev != NULL; \
+	     dev = rte_dev_iterator_next(it))
+
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * It registers the callback for the specific device.
+ * Multiple callbacks cal be registered at the same time.
+ *
+ * @param device_name
+ *  The device name, that is the param name of the struct rte_device,
+ *  null value means for all devices.
+ * @param cb_fn
+ *  callback address.
+ * @param cb_arg
+ *  address of parameter for callback.
+ *
+ * @return
+ *  - On success, zero.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_callback_register(const char *device_name,
+				rte_dev_event_cb_fn cb_fn,
+				void *cb_arg);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * It unregisters the callback according to the specified device.
+ *
+ * @param device_name
+ *  The device name, that is the param name of the struct rte_device,
+ *  null value means for all devices and their callbacks.
+ * @param cb_fn
+ *  callback address.
+ * @param cb_arg
+ *  address of parameter for callback, (void *)-1 means to remove all
+ *  registered which has the same callback address.
+ *
+ * @return
+ *  - On success, return the number of callback entities removed.
+ *  - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_callback_unregister(const char *device_name,
+				  rte_dev_event_cb_fn cb_fn,
+				  void *cb_arg);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Executes all the user application registered callbacks for
+ * the specific device.
+ *
+ * @param device_name
+ *  The device name.
+ * @param event
+ *  the device event type.
+ */
+void  __rte_experimental
+rte_dev_event_callback_process(const char *device_name,
+			       enum rte_dev_event_type event);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Start the device event monitoring.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_monitor_start(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Stop the device event monitoring.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_event_monitor_stop(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Enable hotplug handling for devices.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_hotplug_handle_enable(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Disable hotplug handling for devices.
+ *
+ * @return
+ *   - On success, zero.
+ *   - On failure, a negative value.
+ */
+int __rte_experimental
+rte_dev_hotplug_handle_disable(void);
+
+/**
+ * Device level DMA map function.
+ * After a successful call, the memory segment will be mapped to the
+ * given device.
+ *
+ * @note: Memory must be registered in advance using rte_extmem_* APIs.
+ *
+ * @param dev
+ *	Device pointer.
+ * @param addr
+ *	Virtual address to map.
+ * @param iova
+ *	IOVA address to map.
+ * @param len
+ *	Length of the memory segment being mapped.
+ *
+ * @return
+ *	0 if mapping was successful.
+ *	Negative value and rte_errno is set otherwise.
+ */
+int __rte_experimental
+rte_dev_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len);
+
+/**
+ * Device level DMA unmap function.
+ * After a successful call, the memory segment will no longer be
+ * accessible by the given device.
+ *
+ * @note: Memory must be registered in advance using rte_extmem_* APIs.
+ *
+ * @param dev
+ *	Device pointer.
+ * @param addr
+ *	Virtual address to unmap.
+ * @param iova
+ *	IOVA address to unmap.
+ * @param len
+ *	Length of the memory segment being mapped.
+ *
+ * @return
+ *	0 if un-mapping was successful.
+ *	Negative value and rte_errno is set otherwise.
+ */
+int __rte_experimental
+rte_dev_dma_unmap(struct rte_device *dev, void *addr, uint64_t iova,
+		  size_t len);
 
 #endif /* _RTE_DEV_H_ */

@@ -443,6 +443,14 @@ public:
     bool is_active(uint8_t port) const {
         return m_global_filter.in_any(port);
     }
+
+    /**
+     * return true if port is being monitored
+     * on rx only
+     */
+    bool is_rx_active(uint8_t port) const {
+        return m_global_filter.in_rx(port);
+    }
     
     /**
      * handle packet on TX side 
@@ -466,7 +474,27 @@ public:
         ulock.unlock();
         
     }
-    
+
+    /* handle ASTF case where packets are in dp core */
+    inline void handle_pkt_rx_dp(const rte_mbuf_t *m, int port) {
+
+        /* fast path */
+        if (likely(!m_global_filter.in_rx(port))) {
+            return;
+        }
+
+        /* TX core always locks */
+        std::unique_lock<std::mutex> ulock(m_lock);
+
+        /* check again the global filter (because of RX fast path might not lock) */
+        if (m_global_filter.in_rx(port)) {
+            handle_pkt_slow_path(m, port, TrexPkt::ORIGIN_RX);
+        }
+
+        ulock.unlock();
+
+    }
+
     /** 
      * handle packet on RX side 
      * RX side might or might not use a lock - depends if there are 

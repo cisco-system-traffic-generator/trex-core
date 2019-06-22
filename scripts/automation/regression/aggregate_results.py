@@ -75,7 +75,7 @@ def add_th_th(key, value):
 # returns <div> with table of tests under given category.
 # category - string with name of category
 # tests - list of tests, derived from aggregated xml report, changed a little to get easily stdout etc.
-# tests_type - stateful or stateless
+# tests_type - stateful, stateless, astf etc.
 # category_info_dir - folder to search for category info file
 # expanded - bool, false = outputs (stdout etc.) of tests are hidden by CSS
 # brief - bool, true = cut some part of tests outputs (useful for errors section with expanded flag)
@@ -283,11 +283,12 @@ if __name__ == '__main__':
             if not len(file_lines):
                 continue # to next file
             for info_line in file_lines:
-                key_value = info_line.split(':', 1)
-                not_trex_keys = ['Server', 'Router', 'User']
-                if key_value[0].strip() in not_trex_keys:
+                key, val = info_line.split(':', 1)
+                key = key.strip()
+                not_trex_keys = ['Router', 'User', 'Modes', 'BUILD_URL']
+                if key in not_trex_keys:
                     continue # to next parameters
-                trex_info_dict[key_value[0].strip()] = key_value[1].strip()
+                trex_info_dict[key] = val.strip()
             break
 
     branch_name = ''
@@ -317,7 +318,7 @@ if __name__ == '__main__':
     else:
         print('Could not find info about commit!')
 
-##### get xmls: report_<setup name>.xml
+##### get list of setups
 
     err = []
     jobs_list = []
@@ -335,15 +336,13 @@ if __name__ == '__main__':
 
 ##### aggregate results to 1 single tree
     aggregated_root = ET.Element('testsuite')
-    test_types = ('functional', 'stateful', 'stateless')
     setups = {}
     for job in jobs_list:
         setups[job] = {}
-        for test_type in test_types:
-            xml_file = '%s/report_%s_%s.xml' % (args.input_dir, job, test_type)
-            if not os.path.exists(xml_file):
-                continue
-            if os.path.basename(xml_file) == os.path.basename(args.output_xmlfile):
+        ##### get xmls: report_<setup name>_<type>.xml
+        for xml_file in glob.glob('%s/report_%s_*.xml' % (args.input_dir, job)):
+            test_type = xml_file.split('_', 2)[-1][:-4]
+            if not test_type:
                 continue
             setups[job][test_type] = []
             print('Processing report: %s.%s' % (job, test_type))
@@ -481,8 +480,8 @@ if __name__ == '__main__':
         category_arr.append(category)
         html_output += '\n<button onclick=tgl_cat("cat_tglr_%s")>%s</button>' % (category_arr[-1], category)
     # Functional buttons
-    if len(functional_tests):
-        html_output += '\n<button onclick=tgl_cat("cat_tglr_%s")>%s</button>' % (FUNCTIONAL_CATEGORY, FUNCTIONAL_CATEGORY)
+    #if len(functional_tests):
+    #    html_output += '\n<button onclick=tgl_cat("cat_tglr_%s")>%s</button>' % (FUNCTIONAL_CATEGORY, FUNCTIONAL_CATEGORY)
 
 # Adding tests
     # Error tests
@@ -493,16 +492,16 @@ if __name__ == '__main__':
     # Setups tests
     for category, tests in setups.items():
         html_output += '<div style="display:none;" id="cat_tglr_%s">' % category
-        if 'stateful' in tests:
-            html_output += add_category_of_tests(category, tests['stateful'], 'stateful', category_info_dir=args.input_dir)
-        if 'stateless' in tests:
-            html_output += add_category_of_tests(category, tests['stateless'], 'stateless', category_info_dir=(None if 'stateful' in tests else args.input_dir))
+        cat_info = args.input_dir
+        for test_type in tests:
+            html_output += add_category_of_tests(category, tests[test_type], test_type, category_info_dir = cat_info)
+            cat_info = None
         html_output += '</div>'
     # Functional tests
-    if len(functional_tests):
-        html_output += '<div style="display:none;" id="cat_tglr_%s">' % FUNCTIONAL_CATEGORY
-        html_output += add_category_of_tests(FUNCTIONAL_CATEGORY, functional_tests.values())
-        html_output += '</div>'
+    #if len(functional_tests):
+    #    html_output += '<div style="display:none;" id="cat_tglr_%s">' % FUNCTIONAL_CATEGORY
+    #    html_output += add_category_of_tests(FUNCTIONAL_CATEGORY, functional_tests.values())
+    #    html_output += '</div>'
 
     html_output += '\n\n<script type="text/javascript">\n    var category_arr = %s\n' % ['cat_tglr_%s' % x for x in category_arr]
     html_output += '''
@@ -591,15 +590,25 @@ if __name__ == '__main__':
             mail_output += '<table class="reference_fail" align=left style="Margin-bottom:10;Margin-right:10;">\n'
         else:
             mail_output += '<table class="reference" align=left style="Margin-bottom:10;Margin-right:10;">\n'
-        mail_output += add_th_th('Setup:', pad_tag(category.replace('.', '/'), 'b'))
-        category_info_file = '%s/report_%s.info' % (args.input_dir, category.replace('.', '_'))
+        category_info_file = '%s/report_%s.info' % (args.input_dir, category)
         if os.path.exists(category_info_file):
             with open(category_info_file) as f:
-                for info_line in f.readlines():
-                    key_value = info_line.split(':', 1)
-                    if key_value[0].strip() in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
-                        continue
-                    mail_output += add_th_td('%s:' % key_value[0].strip(), key_value[1].strip())
+                lines = f.readlines()
+            args_dict = OrderedDict()
+            for info_line in lines:
+                key, val = info_line.split(':', 1)
+                key = key.strip()
+                if not key or key in list(trex_info_dict.keys()) + ['User']: # always 'hhaim', no need to show
+                    continue
+                args_dict[key] = val.strip()
+            build_url = args_dict.get('BUILD_URL')
+            if build_url:
+                del args_dict['BUILD_URL']
+                mail_output += add_th_th('Setup:', pad_tag('<a href=%s>%s</a>' % (build_url, category), 'b'))
+            else:
+                mail_output += add_th_th('Setup:', pad_tag(category, 'b'))
+            for key, val in args_dict.items():
+                mail_output += add_th_td('%s:' % key, val)
         else:
             mail_output += add_th_td('Info:', 'No info')
         mail_output += '</table>\n'

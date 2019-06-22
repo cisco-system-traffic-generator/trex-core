@@ -130,6 +130,39 @@ TrexPort::stop_rx_queue() {
 }
 
 
+void
+TrexPort::start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map, uint32_t wlc_ip) {
+    static MsgReply<std::string> reply;
+    reply.reset();
+
+    TrexRxStartCapwapProxy *msg = new TrexRxStartCapwapProxy(m_port_id, pair_port_id, is_wireless_side, capwap_map, wlc_ip, reply);
+
+    send_message_to_rx(msg);
+
+    const std::string &err = reply.wait_for_reply();
+
+    if ( err.size() ) {
+        throw TrexException(err);
+    }
+}
+
+
+void
+TrexPort::stop_capwap_proxy() {
+    static MsgReply<std::string> reply;
+    reply.reset();
+
+    TrexRxStopCapwapProxy *msg = new TrexRxStopCapwapProxy(m_port_id, reply);
+
+    send_message_to_rx(msg);
+    const std::string &err = reply.wait_for_reply();
+
+    if ( err.size() ) {
+        throw TrexException(err);
+    }
+}
+
+
 const TrexPktBuffer *
 TrexPort::get_rx_queue_pkts() {
     static MsgReply<const TrexPktBuffer *> reply;
@@ -167,6 +200,7 @@ TrexPort::verify_state(int state, const char *cmd_name, bool should_throw) const
     return true;
 }
 
+
 void
 TrexPort::change_state(port_state_e new_state) {
 
@@ -193,23 +227,35 @@ std::string
 TrexPort::get_state_as_string() const {
 
     switch (get_state()) {
-    case PORT_STATE_DOWN:
-        return "DOWN";
+        case PORT_STATE_DOWN:
+            return "DOWN";
 
-    case PORT_STATE_IDLE:
-        return "IDLE";
+        case PORT_STATE_IDLE:
+            return "IDLE";
 
-    case PORT_STATE_STREAMS:
-        return "STREAMS";
+        case PORT_STATE_STREAMS:
+            return "STREAMS";
 
-    case PORT_STATE_TX:
-        return "TX";
+        case PORT_STATE_TX:
+            return "TX";
 
-    case PORT_STATE_PAUSE:
-        return "PAUSE";
+        case PORT_STATE_PAUSE:
+            return "PAUSE";
 
-    case PORT_STATE_PCAP_TX:
-        return "PCAP_TX";
+        case PORT_STATE_PCAP_TX:
+            return "PCAP_TX";
+
+        case PORT_STATE_ASTF_LOADED:
+            return "ASTF_LOADED";
+
+        case PORT_STATE_ASTF_PARSE:
+            return "ASTF_PARSE";
+
+        case PORT_STATE_ASTF_BUILD:
+            return "ASTF_BUILD";
+
+        case PORT_STATE_ASTF_CLEANUP:
+            return "ASTF_CLEANUP";
     }
 
     return "UNKNOWN";
@@ -314,7 +360,7 @@ void TrexPort::get_port_node(CNodeBase &node) {
  */
 void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
     /* not valid under traffic */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l2_mode");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_l2_mode");
 
     uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
     memcpy(dp_dst_mac, dst_mac.c_str(), 6);
@@ -329,7 +375,7 @@ void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
  * 
  */
 void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac) {
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_l3_mode");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_l3_mode");
 
     if ( dst_mac != nullptr ) {
         uint8_t *dp_dst_mac = CGlobalInfo::m_options.m_mac_addr[m_port_id].u.m_mac.dest;
@@ -345,14 +391,71 @@ void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string 
  * 
  */
 void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "conf_ipv6");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "conf_ipv6");
     TrexRxConfIPv6 *msg = new TrexRxConfIPv6(m_port_id, enabled, src_ipv6);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
+
+
+void  TrexPort::set_name_space_batch_async(const std::string &json_cmds){
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "conf_ns_batch");
+    TrexRxConfNsBatch *msg = new TrexRxConfNsBatch(m_port_id, json_cmds);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+
 void TrexPort::invalidate_dst_mac(void) {
     TrexRxInvalidateDstMac *msg = new TrexRxInvalidateDstMac(m_port_id);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+bool TrexPort::is_dst_mac_valid(void) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxIsDstMacValid *msg = new TrexRxIsDstMacValid(m_port_id, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
+}
+
+/**
+ * Start capture port
+ */
+bool TrexPort::start_capture_port (const std::string& filter, const std::string& endpoint, std::string &err) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxStartCapturePort *msg = new TrexRxStartCapturePort(m_port_id, filter, endpoint, err, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
+}
+
+/**
+ * Stop capture port
+ */
+bool TrexPort::stop_capture_port (std::string &err) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexRxStopCapturePort *msg = new TrexRxStopCapturePort(m_port_id, err, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    return reply.wait_for_reply();
+}
+
+/**
+ * Change capture port BPF Filter
+ */
+void
+TrexPort::set_capture_port_bpf_filter (const std::string& filter) {
+    TrexRxSetCapturePortBPF *msg = new TrexRxSetCapturePortBPF(m_port_id, filter);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+}
+
+static void disable_vlan_if_not_needed(CParserOption &opts) {
+    for (auto &port : get_stx()->get_port_map()) {
+        if ( opts.m_ip_cfg[port.first].get_vlan() ) {
+            return;
+        }
+    }
+    opts.preview.set_vlan_mode(CPreviewMode::VLAN_MODE_NONE);
 }
 
 /**
@@ -361,7 +464,23 @@ void TrexPort::invalidate_dst_mac(void) {
  */
 void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
     /* not valid under traffic */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "set_vlan_cfg");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_vlan_cfg");
+
+    if ( get_is_tcp_mode() && get_is_interactive() ) {
+        CParserOption &opts = CGlobalInfo::m_options;
+        switch ( vlan_list.size() ) {
+            case 0:
+                opts.m_ip_cfg[m_port_id].set_vlan(0);
+                disable_vlan_if_not_needed(opts);
+                break;
+            case 1:
+                opts.m_ip_cfg[m_port_id].set_vlan(vlan_list[0]);
+                opts.preview.set_vlan_mode(CPreviewMode::VLAN_MODE_NORMAL);
+                break;
+            default:
+                throw TrexException("Stacked VLANs are not allowed in ASTF mode");
+        }
+    }
 
     TrexRxSetVLAN *msg = new TrexRxSetVLAN(m_port_id, vlan_list);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
@@ -370,20 +489,20 @@ void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
 void TrexPort::run_rx_cfg_tasks_initial_async(void) {
     /* valid at startup of server */
     verify_state(PORT_STATE_IDLE, "run_rx_cfg_tasks_initial");
-    TrexPort::run_rx_cfg_tasks_internal_async(0);
+    TrexPort::run_rx_cfg_tasks_internal_async(0,false);
 }
 
-uint64_t TrexPort::run_rx_cfg_tasks_async(void) {
+uint64_t TrexPort::run_rx_cfg_tasks_async(bool rpc) {
     /* valid at startup of server */
-    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS, "run_rx_cfg_tasks");
+    verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "run_rx_cfg_tasks");
 
     uint64_t ticket_id = get_stx()->get_ticket();
-    TrexPort::run_rx_cfg_tasks_internal_async(ticket_id);
+    TrexPort::run_rx_cfg_tasks_internal_async(ticket_id,rpc);
     return ticket_id;
 }
 
-void TrexPort::run_rx_cfg_tasks_internal_async(uint64_t ticket_id) {
-    TrexRxRunCfgTasks *msg = new TrexRxRunCfgTasks(m_port_id, ticket_id);
+void TrexPort::run_rx_cfg_tasks_internal_async(uint64_t ticket_id,bool rpc) {
+    TrexRxRunCfgTasks *msg = new TrexRxRunCfgTasks(m_port_id, ticket_id,rpc);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
 }
 
@@ -400,6 +519,16 @@ bool TrexPort::is_rx_running_cfg_tasks(void) {
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
     return reply.wait_for_reply();
 }
+
+
+void TrexPort::get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results, TrexStackResultsRC & rc){
+    static MsgReply<TrexStackResultsRC> reply;
+    reply.reset();
+    TrexRxGetTasksResultsEx *msg = new TrexRxGetTasksResultsEx(m_port_id, ticket_id, results, reply);
+    send_message_to_rx( (TrexCpToRxMsgBase *)msg );
+    rc = reply.wait_for_reply();
+}
+
 
 bool TrexPort::get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results) {
     static MsgReply<bool> reply;
@@ -431,17 +560,4 @@ void TrexPort::rx_features_to_json(Json::Value &feat_res) {
 }
 
 
-
-/************* Trex Port Owner **************/
-
-TrexPortOwner::TrexPortOwner() {
-    m_is_free = true;
-    m_session_id = 0;
-
-    /* for handlers random generation */
-    m_seed = time(NULL);
-}
-
-const std::string TrexPortOwner::g_unowned_name = "<FREE>";
-const std::string TrexPortOwner::g_unowned_handler = "";
 

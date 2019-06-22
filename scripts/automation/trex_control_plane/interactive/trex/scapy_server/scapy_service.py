@@ -2,8 +2,9 @@
 import os
 import sys
 
-from ..stl.api import *
-from .. import stl
+
+from trex.stl.api import *
+from trex import stl
 
 import tempfile
 import hashlib
@@ -16,7 +17,7 @@ import re
 from pprint import pprint
 
 # add some layers as an example
-# need to test more 
+# need to test more
 from scapy.layers.dns import *
 from scapy.layers.dhcp import *
 from scapy.layers.ipsec import *
@@ -290,6 +291,26 @@ class Scapy_service_api():
         """
         pass
 
+    def decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw):
+        """ decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw) -> Dictionary
+        Decompiles vm_raw instructions to high level vm instructions
+
+        Parameters
+        ----------
+        pkt_binary_base64 - binary of packet in base64 encoding
+        vm_raw - An object representing compiled VM instructions
+
+        Returns
+        -------
+        - High level VM instructions dictionary
+
+        Raises
+        ------
+        will raise an exception when the Scapy string format is illegal, contains syntax error, contains non-supported
+        instruction, etc.
+        """
+        pass
+
 def is_python(version):
     return version == sys.version_info[0]
 
@@ -437,7 +458,7 @@ class Scapy_service(Scapy_service_api):
         self.all_protocols = self._build_lib()
         self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
         self.version_major = '1'
-        self.version_minor = '01'
+        self.version_minor = '02'
         self.server_v_hashed = self._generate_version_hash(self.version_major,self.version_minor)
         self.protocol_definitions = {} # protocolId -> prococol definition overrides data
         self.field_engine_supported_protocols = {}
@@ -446,6 +467,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_templates_definitions = []
         self.field_engine_instructions_meta = []
         self.field_engine_instruction_expressions = []
+        self.scapy_service_dir = os.path.dirname(os.path.realpath(__file__))
         self._load_definitions_from_json()
         self._load_field_engine_meta_from_json()
         self._vm_instructions = dict([m for m in inspect.getmembers(stl.trex_stl_packet_builder_scapy, inspect.isclass) if m[1].__module__ == 'trex.stl.trex_stl_packet_builder_scapy'])
@@ -453,7 +475,7 @@ class Scapy_service(Scapy_service_api):
     def _load_definitions_from_json(self):
         # load protocol definitions from a json file
         self.protocol_definitions = {}
-        p_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'protocols.json')
+        p_path = os.path.join(self.scapy_service_dir, 'protocols.json')
         print(p_path)
         with open(p_path, 'r') as f:
             protocols = json.load(f)
@@ -466,7 +488,7 @@ class Scapy_service(Scapy_service_api):
         self.field_engine_supported_protocols = {}
         self.field_engine_parameter_meta_definitions = []
         self.field_engine_templates_definitions = []
-        f_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'field_engine.json')
+        f_path = os.path.join(self.scapy_service_dir, 'field_engine.json')
         with open(f_path, 'r') as f:
             metas = json.load(f)
             self.instruction_parameter_meta_definitions = metas["instruction_params_meta"]
@@ -538,7 +560,29 @@ class Scapy_service(Scapy_service_api):
         if type(val) == type({}):
             value_type = val['vtype']
             if value_type == 'EXPRESSION':
-                return eval(val['expr'], scapy.all.__dict__)
+                #python3 strings fix
+                expr = val['expr']
+                if is_python(3) and isinstance(expr, dict):
+                    data_base64 = expr.get('base64')
+                    if data_base64 is not None:
+                        expr = base64.b64decode(data_base64).decode('UTF-8')
+                eval_globals = {}
+                modules = [scapy.all, scapy.layers.dns, scapy.layers.dhcp, scapy.layers.ipsec, scapy.layers.netflow,
+                           scapy.layers.sctp, scapy.layers.tftp, scapy.contrib.mpls, scapy.contrib.igmp,
+                           scapy.contrib.igmpv3]
+                for module in modules:
+                   eval_globals.update(module.__dict__)
+                res = eval(expr, eval_globals)
+                #TCP options fix
+                if is_python(3) and type(res) is list:
+                    for i, t in enumerate(res):
+                        if type(t) is tuple:
+                            lst = list(t)
+                            if len(lst) == 2:
+                                if type(lst[1]) is str:
+                                    lst[1] = str_to_bytes(lst[1])
+                            res[i] = tuple(lst)
+                return res
             elif value_type == 'BYTES':   # bytes payload(ex Raw.load)
                 return generate_bytes(val)
             elif value_type == 'OBJECT':
@@ -683,7 +727,17 @@ class Scapy_service(Scapy_service_api):
                         # generic serialization/deserialization needed for proper packet rebuilding from packet tree,
                         # some classes can not be mapped to json, but we can pass them serialize them
                         # as a python eval expr, value bytes base64, or field machine internal val(m2i)
-                        value = {"vtype": "EXPRESSION", "expr": hvalue}
+                        if issubclass(fieldval.__class__, scapy.packet.Packet):
+                            hvalue = expr = fieldval.command()
+                        elif type(fieldval) == list and all(issubclass(e.__class__, scapy.packet.Packet) for e in fieldval):
+                            if len(fieldval) == 0:
+                                expr = hvalue = str(fieldval)
+                            else:
+                                expr = map(lambda e : e.command(), fieldval)
+                                expr = hvalue = "[" + ", ".join(expr) + "]"
+                        else:
+                            expr = hvalue
+                        value = {"vtype": "EXPRESSION", "expr": expr}
                 if is_python(3) and is_string(fieldval):
                     hvalue = value = fieldval
                 if is_python(2) and is_string(fieldval):
@@ -776,9 +830,14 @@ class Scapy_service(Scapy_service_api):
             self._modify_layer(base_layer, scapy_layer, layer['fields'])
         return scapy_layer
 
+
+    def _all_subclasses(self, cls):
+        return set(cls.__subclasses__()).union(
+            [s for c in cls.__subclasses__() for s in self._all_subclasses(c)])
+
     def _packet_model_to_scapy_packet(self,data):
         layer_classes = {}
-        for layer_class in Packet.__subclasses__():
+        for layer_class in self._all_subclasses(Packet):
             layer_classes[layer_class.__name__] = layer_class
         base_layer = self._parse_packet_dict(data[0], layer_classes, None)
         for i in range(1,len(data),1):
@@ -901,12 +960,15 @@ class Scapy_service(Scapy_service_api):
         return pkt_builder.get_vm_data()
 
     def _sanitize_value(self, param_id, val):
+        if type(val) in [dict, list]:
+            return self._value_from_dict(val)
+
         if param_id == "pkt_offset":
             if self._is_int(val):
                 return int(val)
-            elif val == "Ether.src":
-                return 0
             elif val == "Ether.dst":
+                return 0
+            elif val == "Ether.src":
                 return 6
             elif val == "Ether.type":
                 return 12
@@ -986,17 +1048,19 @@ class Scapy_service(Scapy_service_api):
 
     def _get_templates(self):
         templates = []
-        for root, subdirs, files in os.walk("templates"):
+        templates_dir = os.path.join(self.scapy_service_dir, "templates")
+        for root, subdirs, files in os.walk(templates_dir):
             for file in files:
                 if not file.endswith('.trp'):
                     continue
                 try:
-                    f = os.path.join(root, file)
+                    file_path = os.path.join(root, file)
                     c = None
-                    with open(f, 'r') as templatefile:
+                    with open(file_path, 'r') as templatefile:
                         c = json.loads(templatefile.read())
-                    id = f.replace("templates" + os.path.sep, "", 1)
-                    id = id.split(os.path.sep)
+
+                    relative_file_path = os.path.relpath(file_path, templates_dir)
+                    id = relative_file_path.split(os.path.sep)
                     id[-1] = id[-1].replace(".trp", "", 1)
                     id = "/".join(id)
                     t = {
@@ -1021,8 +1085,9 @@ class Scapy_service(Scapy_service_api):
         f = "templates" + os.path.sep + os.path.sep.join(id) + ".trp"
         if f != f2:
             return ""
+        f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
-            content = base64.b64encode(content_file.read())
+            content = base64.b64encode(str_to_bytes(content_file.read()))
         return content
 
 
@@ -1173,6 +1238,31 @@ class Scapy_service(Scapy_service_api):
             wrpcap(tmpPcap.name, packets)
             pcap_bin = tmpPcap.read()
         return bytes_to_b64(pcap_bin)
+
+    def decompile_vm_raw(self, client_v_handler, pkt_binary_base64, vm_raw):
+        json_data =  {
+            'packet': {
+                'binary': pkt_binary_base64
+            },
+            'vm' : vm_raw
+        }
+        builder = STLPktBuilder.from_json(json_data)
+        res = []
+        for script in builder.vm_scripts:
+            cur_script = {}
+            cur_script['instructions'] = []
+            for var  in script.commands:
+                instruction = {}
+                instruction['id'] = type(var).__name__
+                instruction['parameters'] = var.__dict__
+                cur_script['instructions'].append(instruction)
+
+            if script.cache_size is not None:
+                cur_script['global_parameters'] = {}
+                cur_script['global_parameters']['cache_size'] = script.cache_size
+
+            res = cur_script # only one instruction
+        return res
 
 
 #---------------------------------------------------------------------------

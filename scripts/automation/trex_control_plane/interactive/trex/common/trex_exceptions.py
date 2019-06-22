@@ -5,7 +5,9 @@ import inspect
 from ..utils.text_opts import format_text
 
 # add here any object that needs to be available in the API
-__all__ = ["TRexError", "TRexArgumentError", "TRexTypeError"]
+__all__ = ["TRexError", "TRexArgumentError", "TRexTypeError","TRexTimeoutError","TRexConsoleError","TRexConsoleNoAction"]
+
+
 
 '''
 full_tb - traceback at __init__ of exception

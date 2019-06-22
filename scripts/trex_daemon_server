@@ -18,26 +18,20 @@ if os.getuid() != 0:
     fail('Please run this program as root/with sudo')
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))
-
 server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'server')
 if server_path not in sys.path:
     sys.path.append(server_path)
 
-ext_libs_path = os.path.join(cur_dir, 'external_libs')
-if ext_libs_path not in sys.path:
-    sys.path.append(ext_libs_path)
-
+default_log_path = '/var/log/trex/trex_daemon_server.log'
+daemon_log_path = os.getenv('TREX_DAEMON_LOG', default_log_path)
 if 'start-live' not in sys.argv:
     import CCustomLogger
-    CCustomLogger.setup_daemon_logger('TRexServer', '/var/log/trex/trex_daemon_server.log')
+    CCustomLogger.setup_daemon_logger('TRexServer', daemon_log_path)
 
+import outer_packages
 import trex_server
 import netstat
-
-try:
-    from termstyle import termstyle
-except ImportError:
-    import termstyle
+import termstyle
 
 
 def get_daemon_pid():
@@ -79,7 +73,7 @@ def start_daemon():
                 print(termstyle.green('TRex server daemon is started'))
                 os._exit(0)
             sleep(0.1)
-        fail(termstyle.red('TRex server daemon failed to run'))
+        fail(termstyle.red('TRex server daemon failed to run, look at: /var/log/trex/trex_daemon_server.log'))
     os.setsid()
     pid = os.fork()
     if pid > 0:
@@ -135,10 +129,6 @@ trex_server.trex_parser.add_argument('action', choices=action_funcs.keys(),
                         action='store', help=actions_help)
 trex_server.trex_parser.usage = None
 args = trex_server.trex_parser.parse_args()
-
-daemon_dir = os.path.dirname(os.path.realpath(__file__))
-mkpath('/var/log/trex')
-mkpath('/var/run/trex')
 
 action_funcs[args.action]()
 

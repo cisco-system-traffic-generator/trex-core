@@ -8,9 +8,6 @@ from nose.tools import nottest
 
 class CTRexIMIX_Test(CTRexGeneral_Test):
     """This class defines the IMIX testcase of the TRex traffic generator"""
-    def __init__(self, *args, **kwargs):
-        # super(CTRexIMIX_Test, self).__init__()
-        CTRexGeneral_Test.__init__(self, *args, **kwargs)
 
     def setUp(self):
         super(CTRexIMIX_Test, self).setUp() # launch super test class setUp process
@@ -33,11 +30,11 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 30,   
+            d = 30,
             f = 'cap2/cur_flow.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -71,13 +68,13 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             active_flows = active_flows,
             cfg = config_file_path,
             f = 'cap2/cur_flow.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -105,13 +102,13 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             active_flows = active_flows,
             cfg = config_file_path,
             f = 'cap2/cur_flow_single.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -137,11 +134,11 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             p  = True,
             nc = True,
-            d = 30,   
+            d = 30,
             f = 'cap2/imix_64.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -160,17 +157,20 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
 
         mult = self.get_benchmark_param('multiplier')
         core = self.get_benchmark_param('cores')
+        # check that non-standard zmq pub port works via daemon
+        config_file_path = self.alter_config_file('zmq_pub_port', 4600)
 
         ret = self.trex.start_trex(
             c = core,
             m = mult,
             p  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
+            cfg = config_file_path,
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -202,11 +202,11 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             m = mult,
             e  = True,
             nc = True,
-            d = 60,   
+            d = 60,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResult instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -236,11 +236,11 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             c = core,
             m = mult,
             nc = True,
-            d = 100,   
+            d = 100,
             f = 'automation/regression/cfg/imix_fast_1g.yaml',
             l = 1000)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'
@@ -270,7 +270,7 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
             l = 1000,
             **kwargs)
 
-        trex_res = self.trex.sample_to_run_finish()
+        trex_res = self.trex.sample_until_finish()
 
         # trex_res is a CTRexResults instance- and contains the summary of the test results
         # you may see all the results keys by simply calling here for 'print trex_res.result'

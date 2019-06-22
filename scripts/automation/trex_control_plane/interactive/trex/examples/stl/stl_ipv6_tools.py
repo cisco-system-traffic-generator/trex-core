@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import stl_path
-from trex_stl_lib.api import *
+from trex.stl.api import *
 import sys
 
 '''
@@ -9,7 +9,7 @@ Simple script that demonstrates:
 2) Ping first node in the list
 '''
 
-c = STLClient(verbose_level = LoggerApi.VERBOSE_REGULAR_SYNC)
+c = STLClient(verbose_level = 'info')
 c.connect()
 c.reset()
 c.set_service_mode()

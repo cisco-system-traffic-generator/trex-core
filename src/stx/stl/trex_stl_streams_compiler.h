@@ -32,6 +32,7 @@ limitations under the License.
 class TrexStreamsCompiler;
 class TrexStream;
 class GraphNodeMap;
+class TrexStatelessProfile;
 
 /**
  * a mask object passed to compilation
@@ -132,7 +133,15 @@ public:
     TrexStreamsCompiledObj* clone();
 
     bool is_empty() {
-        return (m_objs.size() == 0);
+        if (m_objs.size() == 0) {
+            return true;
+        }
+        for (auto& obj : m_objs) {
+            if (!obj.m_stream->is_null_stream()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     int size() const {
@@ -152,6 +161,11 @@ private:
 class TrexStreamsCompiler {
 public:
 
+     TrexStreamsCompiler(std::string profile_id = "_") {
+ 
+         m_profile_id = profile_id;
+     }
+     ~TrexStreamsCompiler(){}
     /**
      * compiles a vector of streams to an object passable to the DP
      * 
@@ -200,20 +214,13 @@ private:
     void pre_compile_check(const std::vector<TrexStream *> &streams,
                            GraphNodeMap & nodes);
     void allocate_pass(const std::vector<TrexStream *> &streams, GraphNodeMap *nodes);
+    void validate_core_pinning(const TrexStream *stream, const TrexStream *next);
     void direct_pass(GraphNodeMap *nodes);
     void check_for_unreachable_streams(GraphNodeMap *nodes);
     void check_stream(const TrexStream *stream);
     void on_next_not_found(const TrexStream *stream);
     void add_warning(const std::string &warning);
     void err(const std::string &err);
-
-    void compile_on_single_core(uint8_t                                port_id,
-                                const std::vector<TrexStream *>        &streams,
-                                std::vector<TrexStreamsCompiledObj *>  &objs,
-                                uint8_t                                dp_core_count,
-                                double                                 factor,
-                                GraphNodeMap                           &nodes,
-                                bool                                   all_continues);
 
     void compile_on_all_cores(uint8_t                                port_id,
                               const std::vector<TrexStream *>        &streams,
@@ -234,7 +241,8 @@ private:
                                        uint8_t dp_core_count,
                                        std::vector<TrexStreamsCompiledObj *> &objs,
                                        int new_id,
-                                       int new_next_id);
+                                       int new_next_id,
+                                       uint8_t core_id = 0);
 
     void compile_stream_on_all_cores(TrexStream *stream,
                                      uint8_t dp_core_count,
@@ -244,6 +252,7 @@ private:
 
 
     std::vector<std::string> m_warnings;
+    std::string    m_profile_id;
 };
 
 class TrexStreamsGraph;

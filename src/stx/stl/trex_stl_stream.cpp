@@ -79,18 +79,22 @@ TrexStream::vm_compile() {
 void TrexStream::Dump(FILE *fd){
 
     fprintf(fd,"\n");
-    fprintf(fd,"==> Stream_id    : %lu \n",(ulong)m_stream_id);
+    fprintf(fd,"==> Stream_id    : %lu \n",(ulong)(m_stream_id));
     fprintf(fd," Enabled      : %lu \n",(ulong)(m_enabled?1:0));
     fprintf(fd," Self_start   : %lu \n",(ulong)(m_self_start?1:0));
     fprintf(fd," Start_paused   : %lu \n",(ulong)(m_start_paused?1:0));
-
-    if (m_next_stream_id>=0) {
-        fprintf(fd," Nex_stream_id  : %lu \n",(ulong)m_next_stream_id);
-    }else {
-        fprintf(fd," Nex_stream_id  : %d \n",m_next_stream_id);
+    fprintf(fd," core_id_specified  : %lu \n", (ulong)(m_core_id_specified?1:0));
+    if ( m_core_id_specified ) {
+        fprintf(fd," core_id   : %lu \n", (ulong)(m_core_id));
     }
 
-    fprintf(fd," Port_id      : %lu \n",(ulong)m_port_id);
+    if (m_next_stream_id>=0) {
+        fprintf(fd," Next_stream_id  : %lu \n",(ulong)(m_next_stream_id));
+    }else {
+        fprintf(fd," Next_stream_id  : %d \n",m_next_stream_id);
+    }
+
+    fprintf(fd," Port_id      : %lu \n",(ulong)(m_port_id));
 
     if (m_isg_usec>0.0) {
         fprintf(fd," isg    : %6.2f \n",m_isg_usec);
@@ -147,6 +151,7 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_pkt.len          = 0;
 
     m_rx_check.m_enabled = false;
+    m_rx_check.m_vxlan_skip = false;
 
     m_burst_total_pkts=0; 
     m_num_bursts=1; 
@@ -155,6 +160,7 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_flags=0;
     m_action_count=0;
     m_null_stream = false;
+    m_core_id_specified = false;
 }
 
 TrexStream::~TrexStream() {

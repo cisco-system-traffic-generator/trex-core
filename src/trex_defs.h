@@ -25,7 +25,7 @@ limitations under the License.
 #include <functional>
 #include <json/json.h>
 
-#define TREX_MAX_PORTS 16
+#define TREX_MAX_PORTS 24
 
 #define MAX_SOCKETS_SUPPORTED   (4)
 #define MAX_THREADS_SUPPORTED   (120)
@@ -83,6 +83,7 @@ typedef std::set<uint32_t> stream_ids_t;
 typedef std::unordered_map<uint32_t,double> stream_ipgs_map_t;
 typedef std::unordered_map<uint32_t,double>::const_iterator stream_ipgs_map_it_t;
 typedef std::unordered_map<uint8_t, bool> uint8_to_bool_map_t;
+typedef std::set<int16_t> vxlan_fs_ports_t;
 
 // stack related
 typedef std::function<void(void)> stack_task_t;
@@ -93,6 +94,7 @@ typedef std::vector<uint16_t> vlan_list_t;
 typedef struct {
     bool            is_ready;
     err_per_mac_t   err_per_mac;
+    Json::Value     m_results;    
 } stack_result_t;
 typedef std::map<uint64_t,stack_result_t> stack_result_map_t;
 // end stack related
@@ -106,5 +108,7 @@ typedef struct {
 } async_ticket_task_t;
 typedef std::map<uint64_t,async_ticket_task_t> async_ticket_map_t;
 // end async related
+
+typedef uint32_t profile_id_t;
 
 #endif
