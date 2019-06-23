@@ -1130,6 +1130,7 @@ includes_path = '''
                    ../src/stx/
                    ../src/stx/common/
                    ../src/utils/
+                   ../src/hdrh/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/zmq-''' + march + '''/include/
                    ../external_libs/json/

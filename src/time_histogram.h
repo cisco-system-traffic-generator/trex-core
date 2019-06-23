@@ -30,7 +30,7 @@ limitations under the License.
 #include <json/json.h>
 #include "mbuf.h"
 #include "os_time.h"
-#include "hdr/hdr_histogram.h"
+#include "hdr_histogram.h"
 /* unfortunately hdr_histograh.h pulls in stdbool.h and this causes redefinition
    for true and false in other code. So we have to undefine them here */
 #undef true

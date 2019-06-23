@@ -25,7 +25,8 @@ limitations under the License.
 #include "utl_json.h"
 #include <rte_atomic.h>
 #include "time_histogram.h"
-#include "hdr/hdr_histogram_log.h"
+#include "hdr_histogram_log.h"
+
 
 /* minimum value to track is 1 usec */
 #define HDRH_LOWEST_TRACKABLE_VALUE 1
@@ -290,6 +291,13 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             }
             json["histogram"]["0"] = Json::Value::UInt64(m_short_latency);
         }
+        // encode the hdr histogram in compressed base64 format
+        rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
+        if (rc == 0) {
+            std::string hdr((const char *)hdr_encoded_histogram);
+            free(hdr_encoded_histogram);
+            json["hdrh"] = Json::Value(hdr);
+        }
     }
 }
 
@@ -297,13 +305,6 @@ CTimeHistogram CTimeHistogram::operator+= (const CTimeHistogram& in) {
     for (uint8_t i = 0; i < HISTOGRAM_SIZE_LOG; i++) {
         for (uint8_t j = 0; j < HISTOGRAM_SIZE; j++) {
             this->m_hcnt[i][j] += in.m_hcnt[i][j];
-        }
-        // encode the hdr histogram in compressed base64 format
-        rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
-        if (rc == 0) {
-            std::string hdr((const char *)hdr_encoded_histogram);
-            free(hdr_encoded_histogram);
-            json["hdrh"] = Json::Value(hdr);
         }
     }
     for (uint i = 0; i < HISTOGRAM_QUEUE_SIZE; i++) {
