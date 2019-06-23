@@ -24,6 +24,7 @@ limitations under the License.
 #include <string.h>
 #include "utl_json.h"
 #include <rte_atomic.h>
+#include "trex_global.h"
 #include "time_histogram.h"
 #include "hdr_histogram_log.h"
 
@@ -65,10 +66,12 @@ void CTimeHistogram::Reset() {
 }
 
 bool CTimeHistogram::Create() {
-    int res = hdr_init(HDRH_LOWEST_TRACKABLE_VALUE, HDRH_HIGHEST_TRACKABLE_VALUE,
-                       HDRH_SIGNIFICANT_DIGITS, &m_hdrh);
-    if (res) {
-        return(false);
+    if ( CGlobalInfo::m_options.m_hdrh ) {
+        int res = hdr_init(HDRH_LOWEST_TRACKABLE_VALUE, HDRH_HIGHEST_TRACKABLE_VALUE,
+                        HDRH_SIGNIFICANT_DIGITS, &m_hdrh);
+        if (res) {
+            return(false);
+        }
     }
     Reset();
     m_min_delta =10.0/1000000.0;
@@ -77,8 +80,10 @@ bool CTimeHistogram::Create() {
 }
 
 void CTimeHistogram::Delete() {
-    free(m_hdrh);
-    m_hdrh = 0;
+    if (m_hdrh) {
+        free(m_hdrh);
+        m_hdrh = 0;
+    }
 }
 
 bool CTimeHistogram::Add(dsec_t dt) {
@@ -91,7 +96,9 @@ bool CTimeHistogram::Add(dsec_t dt) {
     }
 
     // record any value in usec
-    hdr_record_value(m_hdrh, (int64_t) (dt*1000000.0));
+    if (m_hdrh) {
+        hdr_record_value(m_hdrh, (int64_t) (dt*1000000.0));
+    }
 
     // values smaller then certain threshold do not get into the histogram
     if (dt < m_min_delta) {
@@ -259,7 +266,6 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
     int i, j, rc;
     uint32_t base=10;
     CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
-    char *hdr_encoded_histogram;
 
     json["total_max"] = get_usec(m_max_dt);
     json["last_max"] = get_usec(period_elem.get_max());
@@ -291,12 +297,16 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
             }
             json["histogram"]["0"] = Json::Value::UInt64(m_short_latency);
         }
-        // encode the hdr histogram in compressed base64 format
-        rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
-        if (rc == 0) {
-            std::string hdr((const char *)hdr_encoded_histogram);
-            free(hdr_encoded_histogram);
-            json["hdrh"] = Json::Value(hdr);
+        if (m_hdrh) {
+            char *hdr_encoded_histogram;
+
+            // encode the hdr histogram in compressed base64 format
+            rc = hdr_log_encode(m_hdrh, &hdr_encoded_histogram);
+            if (rc == 0) {
+                std::string hdr((const char *)hdr_encoded_histogram);
+                free(hdr_encoded_histogram);
+                json["hdrh"] = Json::Value(hdr);
+            }
         }
     }
 }
