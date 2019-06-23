@@ -1,6 +1,8 @@
-//
-// Created by barkerm on 9/09/15.
-//
+/**
+ * hdr_encoding.c
+ * Written by Michael Barker and released to the public domain,
+ * as explained at http://creativecommons.org/publicdomain/zero/1.0/
+ */
 
 #include <errno.h>
 #include <stddef.h>
@@ -11,10 +13,10 @@
 
 int zig_zag_encode_i64(uint8_t* buffer, int64_t signed_value)
 {
+    int bytesWritten;
     int64_t value = signed_value;
 
     value = (value << 1) ^ (value >> 63);
-    int bytesWritten = 0;
     if (value >> 7 == 0)
     {
         buffer[0] = (uint8_t) value;
@@ -235,7 +237,7 @@ static void hdr_base64_encode_block_pad(const uint8_t* input, char* output, size
             break;
 
         default:
-            // No-op
+            /* No-op */
             break;
     }
 }
@@ -256,19 +258,19 @@ void hdr_base64_encode_block(const uint8_t* input, char* output)
 int hdr_base64_encode(
     const uint8_t* input, size_t input_len, char* output, size_t output_len)
 {
+    size_t i, j, remaining;
+
     if (hdr_base64_encoded_len(input_len) != output_len)
     {
         return EINVAL;
     }
 
-    size_t i = 0;
-    size_t j = 0;
-    for (; input_len - i >= 3 && j < output_len; i += 3, j += 4)
+    for (i = 0, j = 0; input_len - i >= 3 && j < output_len; i += 3, j += 4)
     {
         hdr_base64_encode_block(&input[i], &output[j]);
     }
 
-    size_t remaining = input_len - i;
+    remaining = input_len - i;
 
     hdr_base64_encode_block_pad(&input[i], &output[j], remaining);
 

@@ -1,6 +1,8 @@
-//
-// Created by barkerm on 9/09/15.
-//
+/**
+ * hdr_encoding.h
+ * Written by Michael Barker and released to the public domain,
+ * as explained at http://creativecommons.org/publicdomain/zero/1.0/
+ */
 
 #ifndef HDR_ENCODING_H
 #define HDR_ENCODING_H
@@ -74,4 +76,4 @@ int hdr_base64_decode(
 }
 #endif
 
-#endif //HDR_HISTOGRAM_HDR_ENCODING_H
+#endif /* HDR_HISTOGRAM_HDR_ENCODING_H */

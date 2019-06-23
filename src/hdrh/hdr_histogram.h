@@ -43,8 +43,7 @@ extern "C" {
  *
  * Due to the size of the histogram being the result of some reasonably
  * involved math on the input parameters this function it is tricky to stack allocate.
- * The histogram is allocated in a single contigious block so can be delete via free,
- * without any structure specific destructor.
+ * The histogram should be released with hdr_close
  *
  * @param lowest_trackable_value The smallest possible value to be put into the
  * histogram.

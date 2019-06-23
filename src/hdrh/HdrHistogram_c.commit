@@ -1,8 +1,5 @@
-commit 78a61de05a1a82628d6439ecde0f4ef9b5883f43
-Merge: 106bb57 38aa45d
+commit 50f130578320e95f917d6a33d45faedc3500fe1f
 Author: Michael Barker <mikeb01@gmail.com>
-Date:   Tue Mar 20 18:53:55 2018 +1300
+Date:   Sun Jun 16 17:21:48 2019 +1200
 
-    Merge pull request #54 from chrisejones/hdr-writer-reader-phaser-leak-fix
-
-    Hdr writer reader phaser leak fix
+    Update revisions for 0.9.11
