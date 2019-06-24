@@ -191,6 +191,8 @@ class CTcpServreInfo {
     uint32_t m_temp_idx;
 };
 
+class CAstfDB;
+typedef std::unordered_map<profile_id_t, CAstfDB*> astf_db_map_t;
 typedef std::map<CTcpDataAssocParams, CTcpServreInfo*> assoc_map_t;
 typedef std::map<CTcpDataAssocParams, CTcpServreInfo*>::iterator assoc_map_it_t;
 
@@ -372,19 +374,9 @@ class CAstfDB  : public CTRexDummyCommand  {
 
  public:
     // make the class singelton
-    static CAstfDB *instance(profile_id_t profile_id = 0) {
-        if (m_instances.find(profile_id) == m_instances.end()) {
-            CAstfDB& new_inst = m_instances[profile_id];
-            new_inst.m_json_initiated = false;
-        }
-        return &m_instances[profile_id];
-    }
+    static CAstfDB *instance(profile_id_t profile_id = 0);
 
-    static void free_instance(profile_id_t profile_id = 0){
-        if (m_instances.find(profile_id) != m_instances.end()){
-            m_instances.erase(profile_id);
-        }
-    }
+    static void free_instance(profile_id_t profile_id = 0);
 
     static bool has_instance(profile_id_t profile_id = 0) {
         return m_instances.find(profile_id) != m_instances.end();
@@ -573,7 +565,7 @@ private:
 
  private:
     bool m_json_initiated;
-    static std::unordered_map<profile_id_t, CAstfDB> m_instances;
+    static astf_db_map_t m_instances;
     Json::Value  m_val;
     Json::Value  m_buffers;
 
