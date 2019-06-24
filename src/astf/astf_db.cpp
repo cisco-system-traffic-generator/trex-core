@@ -36,7 +36,7 @@ inline std::string methodName(const std::string& prettyFunction)
 #define __METHOD_NAME__ methodName(__PRETTY_FUNCTION__)
 
 // make the class singleton
-std::unordered_map<profile_id_t, CAstfDB> CAstfDB::m_instances;
+astf_db_map_t CAstfDB::m_instances;
 
 
 CAstfDB::CAstfDB(){
@@ -62,6 +62,24 @@ CAstfDB::~CAstfDB(){
         delete it.second;
     }
     m_smart_gen.clear();
+}
+
+
+CAstfDB* CAstfDB::instance(profile_id_t profile_id) {
+    if ( m_instances.find(profile_id) == m_instances.end() ) {
+        CAstfDB *new_inst = new CAstfDB();
+        new_inst->m_json_initiated = false;
+        m_instances[profile_id] = new_inst;
+        return new_inst;
+    }
+    return m_instances[profile_id];
+}
+
+void CAstfDB::free_instance(profile_id_t profile_id) {
+    if ( m_instances.find(profile_id) != m_instances.end() ){
+        delete m_instances[profile_id];
+        m_instances.erase(profile_id);
+    }
 }
 
 
