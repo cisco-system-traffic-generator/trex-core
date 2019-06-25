@@ -3,3 +3,6 @@ Author: Michael Barker <mikeb01@gmail.com>
 Date:   Sun Jun 16 17:21:48 2019 +1200
 
     Update revisions for 0.9.11
+
+    + local patches to fix compile warnings
+    
