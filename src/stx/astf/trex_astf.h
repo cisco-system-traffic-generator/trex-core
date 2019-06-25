@@ -180,7 +180,7 @@ public:
     std::vector<std::string> m_states_names;
 
     bool is_another_profile_transmitting(cp_profile_id_t profile_id);
-    bool is_another_profile_busy(cp_profile_id_t profile_id);
+    bool is_safe_update_stats();
 
 protected:
     std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;

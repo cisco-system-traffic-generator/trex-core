@@ -553,7 +553,7 @@ TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
-        if (!pid->is_profile_state_build()) {
+        if (lpstt->m_update) {
             lpstt->UpdateTGNames(CAstfDB::instance(pid->get_dp_profile_id())->get_tg_names());
         }
         uint64_t server_epoch = lpstt->m_epoch;
@@ -574,7 +574,8 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
     vector<uint16_t> tgids_arr;
     uint64_t epoch = parse_uint64(params, "epoch", result);
     const Json::Value &tgids = parse_array(params, "tg_ids", result);
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstf *stx = get_astf_object();
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     try {
         if (tgids.size() > MAX_TG_ALLOWED_AT_ONCE) {
@@ -596,7 +597,7 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
             uint64_t server_epoch = lpstt->m_epoch;
             result["result"]["epoch"] = server_epoch;
             if (server_epoch == epoch) {
-                if (!pid->is_profile_state_build()) {
+                if (lpstt->m_update) {
                     lpstt->UpdateTGStats(tgids_arr);
                 }
                 lpstt->DumpTGStats(result["result"], tgids_arr);

@@ -47,7 +47,7 @@ typedef uint8_t tcp_dir_t;
 
 class CSTTCpPerTGIDPerDir {
 public:
-    bool Create(uint32_t stt_id, uint32_t time_msec);
+    bool Create(uint32_t time_msec);
     void Delete();
     void update_counters(bool is_sum, uint16_t tg_id=0);
     void clear_counters();
@@ -86,8 +86,7 @@ public:
 
     std::vector<CTcpPerThreadCtx*>  m_tcp_ctx; /* vectors contexts*/
 
-private:
-    uint32_t m_stt_id;
+    std::vector<CPerProfileCtx*>  m_profile_ctx; /* profile context */
 };
 
 class CSTTCp {
@@ -106,6 +105,8 @@ public:
     void UpdateTGNames(const std::vector<std::string>& tg_names);
     void DumpTGStats(Json::Value &result, const std::vector<uint16_t>& tg_ids);
     void UpdateTGStats(const std::vector<uint16_t>& tg_ids);
+    void update_profile_ctx();
+    bool need_profile_ctx_update() { return !m_profile_ctx_updated; }
 
 public:
     uint64_t                            m_epoch;
@@ -114,11 +115,13 @@ public:
     CSTTCpPerTGIDPerDir                 m_sts[TCP_CS_NUM]; // This isn't really per TGID, it's the sum over all TGIDs per client/server
     CTblGCounters                       m_dtbl;
     bool                                m_init;
+    bool                                m_update;
     uint16_t                            m_num_of_tg_ids;
     std::vector<std::string>            m_tg_names;
+
 private:
     uint32_t m_stt_id;
-
+    bool     m_profile_ctx_updated;
 };
 
 
