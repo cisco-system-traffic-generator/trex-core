@@ -66,7 +66,7 @@ class ASTFClient(TRexClient):
                 if None, will use ScreenLogger
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 6}
+        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 7}
 
         TRexClient.__init__(self,
                             api_ver,
