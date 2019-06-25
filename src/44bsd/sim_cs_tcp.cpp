@@ -776,6 +776,7 @@ void CClientServerTcp::dump_counters(){
     stt_cp.m_init=true;
     stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
     stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
+    stt_cp.update_profile_ctx();
     stt_cp.Update();
     stt_cp.DumpTable();
     std::string json;

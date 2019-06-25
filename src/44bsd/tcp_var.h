@@ -1036,8 +1036,8 @@ public:
 private:
     std::unordered_map<profile_id_t, CPerProfileCtx*> m_profiles;
 
-    bool is_profile_ctx(profile_id_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
 public:
+    bool is_profile_ctx(profile_id_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
 #define FALLBACK_PROFILE_CTX(ctx)   ((ctx)->get_first_profile_ctx())
 #define DEFAULT_PROFILE_CTX(ctx)    ((ctx)->get_profile_ctx(0))
     CPerProfileCtx* get_profile_ctx(profile_id_t profile_id) {
