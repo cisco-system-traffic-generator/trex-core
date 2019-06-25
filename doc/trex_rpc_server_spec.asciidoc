@@ -2410,6 +2410,19 @@ The object type 'mul' anchor:mul_obj[]
 
 == RPC commands ASTF
 
+As an optional field, the profile ID allows TRex server to run multiple profiles dynamically in ASTF interactive mode.
+The profile ID is used as the identifier of profile.
+
+The string type 'profile_id' anchor:astf_profile_id[]
+
+.String type 'astf_profile_id'
+[options="header",cols="1,3"]
+|=================
+| Expression  | Description
+| "<string>"  | The specified profile id such as "udp1", "http"
+| "_"         | Underscore means default profile. If profile_id is not specified, it is used as the default between JSON-RPC client and server.
+| "*"         | Asterisk means all profiles
+|=================
 
 === Load profile 
 
@@ -2419,9 +2432,9 @@ The object type 'mul' anchor:mul_obj[]
 * *Description* - load ASTF JSON profile in small chunks 
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
 
 * *Result* ['object'] - {}
-
 
 .Parameters
 [options="header",cols="1,1,3"]
@@ -2433,16 +2446,57 @@ The object type 'mul' anchor:mul_obj[]
 | fragment        | string  | fragment of input JSON string
 |=================
 
-=== Clear profile 
+[source,bash]
+----
 
-* *Name* - 'profile_clear'
-* *API Class* - 'core'
-* *Valid States* - 'active'
-* *Description* - clear the last loaded profile 
-* *Parameters*
-** *handler* ['string'] - unique connection handler
+'Request':
 
-* *Result* ['object'] - {}
+{
+    "id": "h54xyesm",
+    "jsonrpc": "2.0",
+    "method": "profile_fragment",
+    "params": {
+        "api_h": "tJLjtY5D",
+        "profile_id": "udp1",
+        "frag_first": true,
+        "fragment": "{\"buf_list\": [\"R0VUIC8zMzg0IEhUVFAvMS4xDQpIb3N0OiAyMi4wLjAuMw0KQ29ubmVjdGlvbjogS2VlcC1BbGl2ZQ0KVXNlci1BZ2VudDogTW96aWxsYS80LjAgKGNvbXBhdGlibGU7IE1TSUUgNy4wOyBXaW5kb3dzIE5UIDUuMTsgU1YxOyAuTkVUIENMUiAxLjEuNDMyMjsgLk5FVCBDTFIgMi4wLjUwNzI3KQ0KQWNjZXB0OiAqLyoNCkFjY2VwdC1MYW5ndWFnZTogZW4tdXMNCkFjY2VwdC1FbmNvZGluZzogZ3ppcCwgZGVmbGF0ZSwgY29tcHJlc3MNCg0K\", \"SFRUUC8xLjEgMjAwIE9LDQpTZXJ2ZXI6IE1pY3Jvc29mdC1JSVMvNi4wDQpDb250ZW50LVR5cGU6IHRleHQvaHRtbA0KQ29udGVudC1MZW5ndGg6IDMyMDAwDQoNCjxodG1sPjxwcmU+KioqKioqKioqKjwvcHJlPjwvaHRtbD4=\"], \"ip_gen_dist_list\": [{\"dir\": \"c\", \"distribution\": \"seq\", \"ip_end\": \"16.0.0.255\", \"ip_offset\": \"1.0.0.0\", \"ip_start\": \"16.0.0.0\"}, {\"dir\": \"s\", \"distribution\": \"seq\", \"ip_end\": \"48.0.255.255\", \"ip_offset\": \"1.0.0.0\", \"ip_start\": \"48.0.0.0\"}], \"program_list\": [{\"commands\": [{\"buf_index\": 0, \"name\": \"tx_msg\"}, {\"min_pkts\": 1, \"name\": \"rx_msg\"}], \"stream\": false}, {\"commands\": [{\"min_pkts\": 1, \"name\": \"rx_msg\"}, {\"buf_index\": 1, \"name\": \"tx_msg\"}], \"stream\": false}], \"temp",
+        "handler": "vNWxUEPD",
+        "md5": "e7a2a3fcbf583a68c25d2d6405d20416"
+    }
+}
+
+'Response':
+
+{
+    "id": "h54xyesm",
+    "jsonrpc": "2.0",
+    "result": null
+}
+
+'Request':
+
+{
+    "id": "xs28qb4c",
+    "jsonrpc": "2.0",
+    "method": "profile_fragment",
+    "params": {
+        "api_h": "tJLjtY5D",
+        "profile_id": "udp1",
+        "frag_last": true,
+        "fragment": "lates\": [{\"client_template\": {\"cluster\": {}, \"cps\": 1, \"ip_gen\": {\"dist_client\": {\"index\": 0}, \"dist_server\": {\"index\": 1}}, \"port\": 80, \"program_index\": 0}, \"server_template\": {\"assoc\": [{\"port\": 80}], \"program_index\": 1}, \"tg_id\": 0}], \"tg_names\": []}",
+        "handler": "vNWxUEPD"
+    }
+}
+
+'Response':
+
+{
+    "id": "xs28qb4c",
+    "jsonrpc": "2.0",
+    "result": null
+}
+
+----
 
 
 === Start traffic
@@ -2450,9 +2504,10 @@ The object type 'mul' anchor:mul_obj[]
 * *Name* - 'start'
 * *API Class* - 'core'
 * *Valid States* - 'active'
-* *Description* - start traffic on all ports on the last loaded profile 
+* *Description* - start traffic on all ports on the loaded profile for a profile id 
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
 
 * *Result* ['object'] - {}
 
@@ -2468,18 +2523,79 @@ The object type 'mul' anchor:mul_obj[]
 | client_mask     | uint32_t| mask of client ports. bit is 0 => client is disabled.
 |=================
 
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "k2yqolco",
+    "jsonrpc": "2.0",
+    "method": "start",
+    "params": {
+        "api_h": "vupG2csF",
+        "client_mask": 4294967295,
+        "duration": -1.0,
+        "handler": "vupG2csF",
+        "ipv6": false,
+        "latency_pps": 0,
+        "mult": 1,
+        "nc": false,
+        "profile_id": "udp1"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "k2yqolco",
+        "jsonrpc": "2.0",
+        "result": null
+    }
+]
+
+----
 
 === Stop traffic
 
 * *Name* - 'stop'
 * *API Class* - 'core'
 * *Valid States* - 'active'
-* *Description* - Stop the active traffic 
+* *Description* - Stop traffic for a profile id if active state 
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
 
 * *Result* ['object'] - {}
 
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "u3fubgo7",
+    "jsonrpc": "2.0",
+    "method": "stop",
+    "params": {
+        "api_h": "vupG2csF",
+        "handler": "vupG2csF",
+        "profile_id": "udp1"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "u3fubgo7",
+        "jsonrpc": "2.0",
+        "result": null
+    }
+]
+
+----
 
 === Update traffic rate
 
@@ -2490,6 +2606,7 @@ The object type 'mul' anchor:mul_obj[]
 * *Description* - Update the multiplier of running traffic
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
 
 * *Result* ['object'] - {}
 
@@ -2500,6 +2617,111 @@ The object type 'mul' anchor:mul_obj[]
 | mult            | double  | New CPS multiplier (overrides old one)
 |=================
 
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "j7x9r85j",
+    "jsonrpc": "2.0",
+    "method": "update",
+    "params": {
+        "api_h": "vupG2csF",
+        "handler": "vupG2csF",
+        "mult": 2.0,
+        "profile_id": "udp1"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "j7x9r85j",
+        "jsonrpc": "2.0",
+        "result": null
+    }
+]
+
+----
+
+=== Clear profile 
+
+* *Name* - 'profile_clear'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - clear profile on the loaded state 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
+
+* *Result* ['object'] - {}
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "kfk0sq0a",
+    "jsonrpc": "2.0",
+    "method": "profile_clear",
+    "params": {
+        "api_h": "tJLjtY5D",
+        "profile_id": "udp1",
+        "handler": "vNWxUEPD"
+    }
+}
+
+'Response':
+
+{
+    "id": "kfk0sq0a",
+    "jsonrpc": "2.0",
+    "result": null
+}
+
+----
+
+=== Get Profile ID List
+* *Name* - 'get_profile_list'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - fetch all the associated profiles
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+
+* *Result* ['array'] - array of 'profile_id'
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "get_profile_list",
+    "params": {
+        "api_h": "SPhoCDIV",
+        "handler": "37JncCHr",
+    }
+}
+
+'Response':
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "result": [
+        "udp1",
+        "http",
+        "_"
+    ]
+}
+
+----
 
 === Get Counter Metadata
 
@@ -2509,6 +2731,7 @@ The object type 'mul' anchor:mul_obj[]
 * *Description* - Get ASTF counters description 
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
 
 * *Result* ['object'] - {}
 
@@ -2532,7 +2755,21 @@ List of counters descriptions, each have the folowing metadata:
 * *Name* - 'get_counter_values'
 * *API Class* - 'core'
 * *Valid States* - 'active'
-* *Description* - Get ASTF counters description 
+* *Description* - Get ASTF counters 
+* *Parameters*
+** *handler* ['string'] - unique connection handler
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
+
+* *Result* ['object'] - {}
+
+array of id and value
+
+=== Get ASTF total counters 
+
+* *Name* - 'get_total_counter_values'
+* *API Class* - 'core'
+* *Valid States* - 'active'
+* *Description* - Get ASTF total counters for all profiles
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 
@@ -2540,6 +2777,291 @@ List of counters descriptions, each have the folowing metadata:
 
 array of id and value
 
+[source,bash]
+----
+
+'Request':
+{
+    "id": "10lo4ss3",
+    "jsonrpc": "2.0",
+    "method": "get_total_counter_values",
+    "params": {
+        "api_h": "blO17DsZ",
+        "profile_id": "_"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "10lo4ss3",
+        "jsonrpc": "2.0",
+        "result": {
+            "client": {
+                "0": 54,
+                "1": 19,
+                "100": 322656,
+                "12": 235,
+                "14": 117,
+                "15": 200,
+                "16": 464,
+                "17": 346,
+                "19": 48853907,
+                "2": 7209.544362648545,
+                "20": 117,
+                "21": 56088,
+                "22": 27933,
+                "23": 535,
+                "24": 48853255,
+                "26": 48853250,
+                "27": 71147549352,
+                "28": 229,
+                "29": 27933,
+                "3": 7209.544362648545,
+                "30": 112,
+                "31": 48853021,
+                "33": 89,
+                "36": 298,
+                "38": 91,
+                "39": 2,
+                "4": 21148569319.74045,
+                "40": 89,
+                "5": 1815220.2756911516,
+                "6": 1815202.4682634026,
+                "62": 2,
+                "7": 2056.719394397668,
+                "76": 397,
+                "77": 378,
+                "78": 21493,
+                "79": 393,
+                "8": 499,
+                "80": 5432,
+                "81": 184,
+                "82": 190,
+                "88": 3762,
+                "95": 72
+            },
+            "epoch": 0,
+            "name": "counter vals",
+            "server": {
+                "0": 7,
+                "1": 0,
+                "100": 1525448,
+                "13": 535,
+                "14": 117,
+                "15": 528,
+                "16": 1222143,
+                "17": 1221720,
+                "19": 48853868,
+                "2": 21148493487.74251,
+                "20": 48853220,
+                "21": 71147903264,
+                "22": 71147667760,
+                "24": 649,
+                "26": 229,
+                "27": 27933,
+                "28": 48853281,
+                "29": 71147425104,
+                "3": 21148557970.405052,
+                "30": 229,
+                "31": 5,
+                "32": 418,
+                "4": 7209.544362648545,
+                "5": 1815217.5239173174,
+                "50": 2,
+                "6": 1815204.0503431559,
+                "66": 48850418,
+                "7": 2004.9566339859036,
+                "75": 393,
+                "77": 393,
+                "78": 12960,
+                "79": 393,
+                "8": 498,
+                "80": 21493,
+                "81": 393
+            }
+        }
+    }
+]
+
+----
+
+=== Synch with Server
+* *Name* - 'sync'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - Queries the server for status
+* *Parameters* -
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
+* *Result* ['object'] - see below
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "8hkhkoj8",
+    "jsonrpc": "2.0",
+    "method": "sync",
+    "params": {
+        "api_h": "vupG2csF",
+        "profile_id": "*"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "8hkhkoj8",
+        "jsonrpc": "2.0",
+        "result": {
+            "epoch": 0,
+            "state": 4,
+            "state_profile": {
+                "_": 0,
+                "http": 4,
+                "udp1": 4
+            }
+        }
+    }
+]
+
+----
+
+=== Get Template_Group names
+* *Name* - 'get_tg_names'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - get template group names in a profile
+* *Parameters* -
+** *epoch* ['uint64_t'] - epoch count of Client side for each profile
+** *initialized* ['bool'] - init state of Client side for each profile
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
+* *Result* ['object'] - see below
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "bcrgn3w8",
+    "jsonrpc": "2.0",
+    "method": "get_tg_names",
+    "params": {
+        "api_h": "yvGMQ2H4",
+        "epoch": 1,
+        "initialized": true,
+        "profile_id": "tg0"
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "bxx2xpkp",
+        "jsonrpc": "2.0",
+        "result": {
+            "epoch": 1,
+            "tg_names": [
+                "1x",
+                "2x"
+            ]
+        }
+    }
+]
+
+----
+
+=== Get Stats for template group ids
+* *Name* - 'get_tg_id_stats'
+* *API Class* - 'core'
+* *Valid States* - 'all'
+* *Description* - get stats for template group Ids in a profile
+* *Parameters* -
+** *epoch* ['uint64_t'] - epoch count of Client side for each profile
+** *profile_id* ['string'] [*optional*] - xref:astf_profile_id['profile id'] associated with this profile
+** *tg_ids* ['string'] - array of template group Ids
+* *Result* ['object'] - see below
+
+[source,bash]
+----
+
+'Request':
+
+{
+    "id": "dsoxnx1y",
+    "jsonrpc": "2.0",
+    "method": "get_tg_id_stats",
+    "params": {
+        "api_h": "yvGMQ2H4",
+        "epoch": 1,
+        "profile_id": "tg0",
+        "tg_ids": [
+            1
+        ]
+    }
+}
+
+'Response':
+
+[
+    {
+        "id": "dsoxnx1y",
+        "jsonrpc": "2.0",
+        "result": {
+            "1": {
+                "client": {
+                    "0": 0,
+                    "1": 0,
+                    "2": 986.3580727717815,
+                    "3": 986.3580727717815,
+                    "4": 247.8246355847335,
+                    "5": 0.49515968561172485,
+                    "6": 0.2420162409543991,
+                    "7": 209.27547005392645,
+                    "76": 1246,
+                    "77": 1246,
+                    "78": 310254,
+                    "79": 1246,
+                    "8": 100.0,
+                    "80": 77952,
+                    "81": 609,
+                    "82": 637,
+                    "88": 1918,
+                    "99": 4
+                },
+                "epoch": 1,
+                "name": "counters per TGID: 1",
+                "server": {
+                    "0": 0,
+                    "1": 0,
+                    "2": 507.0435072883053,
+                    "3": 507.0435072883053,
+                    "4": 986.3580727717815,
+                    "5": 0.49515968561172485,
+                    "6": 0.49515968561172485,
+                    "7": 188.4999959931013,
+                    "75": 1246,
+                    "77": 1246,
+                    "78": 159488,
+                    "79": 1246,
+                    "8": 100.0,
+                    "80": 310254,
+                    "81": 1246,
+                    "99": 4
+                }
+            },
+            "epoch": 1
+        }
+    }
+]
+
+----
 
 === Start latency streams
 
