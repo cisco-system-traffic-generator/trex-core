@@ -126,7 +126,7 @@ __rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
 
 	/* if length is in odd bytes */
 	if (len == 1)
-		sum += *((const uint8_t *)u16_buf) & rte_be_to_cpu_16(0xff00);
+		sum += *((const uint8_t *)u16_buf);
 
 	return sum;
 }
