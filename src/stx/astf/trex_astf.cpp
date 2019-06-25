@@ -624,18 +624,14 @@ bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id
     return false;
 }
 
-bool TrexAstfProfile::is_another_profile_busy(cp_profile_id_t profile_id) {
+bool TrexAstfProfile::is_safe_update_stats() {
     for (auto id : get_profile_id_list()) {
-        if (id == profile_id) {
-            continue;
-        }
-        TrexAstfPerProfile* pid = get_profile(id);
-        if (pid->get_profile_state() == STATE_PARSE || pid->get_profile_state() == STATE_BUILD ||
-            pid->get_profile_stopping() == true) {
-            return true;
+        state_e state = get_profile(id)->get_profile_state();
+        if (state == STATE_BUILD || state == STATE_CLEANUP) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 
@@ -796,6 +792,9 @@ void TrexAstfPerProfile::transmit() {
     /* Resize the statistics vector depending on the number of template groups */
     CSTTCp* lpstt = m_stt_cp;
     lpstt->Resize(CAstfDB::instance(m_dp_profile_id)->get_num_of_tg_ids());
+    if (m_astf_obj->is_safe_update_stats()) {
+        lpstt->update_profile_ctx();
+    }
 
     string err = m_astf_obj->handle_start_latency(m_dp_profile_id);
     if (err != "") {

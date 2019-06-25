@@ -4230,8 +4230,10 @@ void CGlobalTRex::update_stats(){
 
     bool all_init=true;
     vector<CSTTCp *> sttcp_list;
+    TrexAstf* stx = 0;
     if ( get_is_interactive() && get_is_tcp_mode() ) {
-        sttcp_list = get_astf_object()->get_sttcp_list();
+        stx = get_astf_object();
+        sttcp_list = stx->get_sttcp_list();
     }
     else if ( m_fl.m_stt_cp ) {
         sttcp_list.push_back(m_fl.m_stt_cp);
@@ -4258,6 +4260,9 @@ void CGlobalTRex::update_stats(){
         }
 
         if (lpstt->m_init){
+            if (lpstt->need_profile_ctx_update() && stx && stx->is_safe_update_stats()) {
+                lpstt->update_profile_ctx();
+            }
             lpstt->Update();
         }
     }

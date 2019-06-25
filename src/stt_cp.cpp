@@ -23,7 +23,7 @@ limitations under the License.
 
 
 
-bool CSTTCpPerTGIDPerDir::Create(uint32_t stt_id, uint32_t time_msec) {
+bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec) {
     clear_aggregated_counters();
     create_clm_counters();
     m_tx_bw_l7.start(time_msec);
@@ -31,7 +31,6 @@ bool CSTTCpPerTGIDPerDir::Create(uint32_t stt_id, uint32_t time_msec) {
     m_rx_bw_l7.start(time_msec);
     m_tx_pps.start(time_msec);
     m_rx_pps.start(time_msec);
-    m_stt_id = stt_id;
     return(true);
 }
 
@@ -48,22 +47,26 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
     CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
 
-    for (int i = 0; i < m_tcp_ctx.size(); i++) {
-        CTcpPerThreadCtx* lpctx = m_tcp_ctx[i];
+    for (int i = 0; i < m_profile_ctx.size(); i++) {
+        CPerProfileCtx* pctx = m_profile_ctx[i];
         uint64_t *base_tcp;
         uint64_t *base_udp;
         if (is_sum) {
-            base_tcp = (uint64_t *)&lpctx->get_tcpstat(m_stt_id)->m_sts;
-            base_udp = (uint64_t *)&lpctx->get_udpstat(m_stt_id)->m_sts;
+            base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts;
+            base_udp = (uint64_t *)&pctx->m_udpstat.m_sts;
         } else {
-            base_tcp = (uint64_t *)&lpctx->get_tcpstat(m_stt_id)->m_sts_tg_id[tg_id];
-            base_udp = (uint64_t *)&lpctx->get_udpstat(m_stt_id)->m_sts_tg_id[tg_id];
+            base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts_tg_id[tg_id];
+            base_udp = (uint64_t *)&pctx->m_udpstat.m_sts_tg_id[tg_id];
         }
         CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
         CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
-        CGCountersUtl32 ft_ctx((uint32_t *)&lpctx->m_ft.m_sts,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
         tcp += tcp_ctx;
         udp += udp_ctx;
+    }
+
+    for (int i = 0; i < m_tcp_ctx.size(); i++) {
+        CTcpPerThreadCtx* lpctx = m_tcp_ctx[i];
+        CGCountersUtl32 ft_ctx((uint32_t *)&lpctx->m_ft.m_sts,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
         ft += ft_ctx;
     }
 
@@ -368,11 +371,11 @@ void CSTTCp::Init(bool first_time){
     const char * names[]={"client","server"};
     for (int i = 0; i < TCP_CS_NUM; i++) {
         for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
-            m_sts_per_tg_id[i][tg_id]->Create(m_stt_id, time_msec);
+            m_sts_per_tg_id[i][tg_id]->Create(time_msec);
             m_sts_per_tg_id[i][tg_id]->m_clm.set_name(names[i]);
         }
         if (first_time) {
-            m_sts[i].Create(m_stt_id, time_msec);
+            m_sts[i].Create(time_msec);
             m_sts[i].m_clm.set_name(names[i]);
         }
     }
@@ -383,6 +386,7 @@ void CSTTCp::Create(uint32_t stt_id, uint16_t num_of_tg_ids, bool first_time){
     m_num_of_tg_ids = num_of_tg_ids;
     if (first_time) {
         m_init = false;
+        m_profile_ctx_updated = false;
         m_epoch = 0;
         m_dtbl.set_epoch(m_epoch);
         for (int i = 0; i < TCP_CS_NUM; i++) {
@@ -498,6 +502,33 @@ void CSTTCp::Resize(uint16_t new_num_of_tg_ids) {
         }
     }
 
+    m_profile_ctx_updated = false;
 }
 
+void CSTTCp::update_profile_ctx() {
+    /* clear profile_ctx */
+    for (int i = 0 ; i < TCP_CS_NUM; i++) {
+        m_sts[i].m_profile_ctx.clear();
+        for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
+            m_sts_per_tg_id[i][tg_id]->m_profile_ctx.clear();
+        }
+    }
+
+    /* update profile_ctx */
+    for (int i = 0 ; i < TCP_CS_NUM; i++) {
+        for (auto &ctx : m_sts[i].m_tcp_ctx) {
+            if (!ctx->is_profile_ctx(m_stt_id)) {
+                m_profile_ctx_updated = false;
+                return;
+            }
+            CPerProfileCtx* pctx = ctx->get_profile_ctx(m_stt_id);
+            m_sts[i].m_profile_ctx.push_back(pctx);
+            for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
+                m_sts_per_tg_id[i][tg_id]->m_profile_ctx.push_back(pctx);
+            }
+        }
+    }
+
+    m_profile_ctx_updated = true;
+}
 

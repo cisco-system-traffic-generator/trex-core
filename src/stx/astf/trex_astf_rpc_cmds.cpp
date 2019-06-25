@@ -574,7 +574,8 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
     vector<uint16_t> tgids_arr;
     uint64_t epoch = parse_uint64(params, "epoch", result);
     const Json::Value &tgids = parse_array(params, "tg_ids", result);
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstf *stx = get_astf_object();
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     try {
         if (tgids.size() > MAX_TG_ALLOWED_AT_ONCE) {
@@ -597,6 +598,9 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
             result["result"]["epoch"] = server_epoch;
             if (server_epoch == epoch) {
                 if (!pid->is_profile_state_build()) {
+                    if (lpstt->need_profile_ctx_update() && stx->is_safe_update_stats()) {
+                        lpstt->update_profile_ctx();
+                    }
                     lpstt->UpdateTGStats(tgids_arr);
                 }
                 lpstt->DumpTGStats(result["result"], tgids_arr);
