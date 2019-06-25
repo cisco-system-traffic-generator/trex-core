@@ -2183,6 +2183,105 @@ When using RSS, the number of sockets (available source ports per clients IP) wi
 In other words the reported socket-util is the console should be multiplied by c.
 =====================================================================
 
+=== Dynamic multiple profiles support
+
+TRex can support the multiple profiles dynamically in ASTF interactive mode.
+
+In the console, profile ids can be specified via --pid argument. +
+The expression in TRex console allows --pid <profile id>. +
+For example, start template_groups.py profile with profile id 'template' and http_simple.py profile with profile_id 'http'. +
+In this way, 'template' and 'http' profile can be running simultaneously. +
+On the other hand, if profile id is not specified, it means the default profile_id "_" for backward compatibility.
+
+Most features are managed in profiles except for globally managed global tunables (TCP / IP protocol parameters), topology (multiple target MACs for multiple DUTs), and latency checking.
+Multiple tunnels, topology, and latency are ignored.
+
+*Example*::
+
+[source,bash]
+----
+# start(add) template_groups.py profile (profile_id : default profile "_")
+trex> start -f astf/udp_mix.py
+or
+trex> start -f astf/udp_mix.py --pid _
+
+# start(add) template_groups.py profile (profile_id : template)
+trex> start -f astf/template_groups.py --pid template
+
+# start(add) http_simple.py profile (profile_id : http)
+trex> start -f astf/http_simple.py --pid http
+
+# show all profiles
+trex> profiles 
+Profile States
+
+         ID          |        State         
+---------------------+---------------------
+        http         |       STATE_TX       
+      template       |       STATE_TX       
+         _           |       STATE_TX       
+
+# update traffic rate(profile_id : default profile "_")
+trex> update -m 2
+
+# update traffic rate for template profile
+trex> update --pid template -m 2
+
+# update traffic rate for all profiles "*"
+trex> update --pid * -m 2
+
+# get template_group names (profile_id : template)
+trex> template_group names --pid template
+
+# get stats for template_group names(profile_id : template)
+trex> template_group stats --name 1x --pid template
+
+# get astf stats(profile_id : http)
+trex> stats -a --pid http
+
+# get astf total stats for all profiles
+trex> stats -a
+
+
+# stop default profile "_"
+trex> stop
+
+# stop and remove for template profile, http profile is still running
+trex> stop --pid template --remove
+
+# show all profiles
+trex> profiles 
+Profile States
+
+         ID          |        State         
+---------------------+---------------------
+        http         |       STATE_TX       
+         _           |  STATE_ASTF_LOADED  
+         
+# stop all profiles (asterisk "*")
+trex> stop --pid *
+
+# show all profiles
+trex> profiles 
+Profile States
+
+         ID          |        State         
+---------------------+---------------------
+        http         |  STATE_ASTF_LOADED   
+         _           |  STATE_ASTF_LOADED   
+
+# reset(stop and clear) all profiles, default profile will be IDLE state for backward compatibility
+trex> reset
+
+# show all profiles
+trex> profiles 
+Profile States
+
+         ID          |        State         
+---------------------+---------------------
+         _           |      STATE_IDLE      
+
+----
 
 === Traffic profile reference 
 
