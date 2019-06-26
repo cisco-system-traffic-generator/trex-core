@@ -115,6 +115,7 @@ public:
     CSTTCpPerTGIDPerDir                 m_sts[TCP_CS_NUM]; // This isn't really per TGID, it's the sum over all TGIDs per client/server
     CTblGCounters                       m_dtbl;
     bool                                m_init;
+    bool                                m_update;
     uint16_t                            m_num_of_tg_ids;
     std::vector<std::string>            m_tg_names;
 

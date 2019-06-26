@@ -553,7 +553,7 @@ TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
-        if (!pid->is_profile_state_build()) {
+        if (lpstt->m_update) {
             lpstt->UpdateTGNames(CAstfDB::instance(pid->get_dp_profile_id())->get_tg_names());
         }
         uint64_t server_epoch = lpstt->m_epoch;
@@ -597,10 +597,7 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
             uint64_t server_epoch = lpstt->m_epoch;
             result["result"]["epoch"] = server_epoch;
             if (server_epoch == epoch) {
-                if (!pid->is_profile_state_build()) {
-                    if (lpstt->need_profile_ctx_update() && stx->is_safe_update_stats()) {
-                        lpstt->update_profile_ctx();
-                    }
+                if (lpstt->m_update) {
                     lpstt->UpdateTGStats(tgids_arr);
                 }
                 lpstt->DumpTGStats(result["result"], tgids_arr);

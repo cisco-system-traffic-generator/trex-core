@@ -386,6 +386,7 @@ void CSTTCp::Create(uint32_t stt_id, uint16_t num_of_tg_ids, bool first_time){
     m_num_of_tg_ids = num_of_tg_ids;
     if (first_time) {
         m_init = false;
+        m_update = true;
         m_profile_ctx_updated = false;
         m_epoch = 0;
         m_dtbl.set_epoch(m_epoch);
@@ -410,6 +411,8 @@ void CSTTCp::Create(uint32_t stt_id, uint16_t num_of_tg_ids, bool first_time){
 }
 
 void CSTTCp::Update(){
+    if (!m_update) return;
+
     // Updates the counters only for the sum.
     for (int i = 0; i < TCP_CS_NUM; i++) {
         m_sts[i].update_counters(true);
@@ -448,6 +451,8 @@ void CSTTCp::DumpTGStats(Json::Value &result, const std::vector<uint16_t>& tg_id
 }
 
 void CSTTCp::UpdateTGStats(const std::vector<uint16_t>& tg_ids) {
+    if (!m_update) return;
+
     for (int i = 0; i < TCP_CS_NUM; i++) {
         for (uint16_t tg_id : tg_ids) {
             m_sts_per_tg_id[i][tg_id]->update_counters(false, tg_id);
@@ -530,5 +535,6 @@ void CSTTCp::update_profile_ctx() {
     }
 
     m_profile_ctx_updated = true;
+    m_update = true;
 }
 

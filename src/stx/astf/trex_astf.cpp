@@ -627,7 +627,7 @@ bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id
 bool TrexAstfProfile::is_safe_update_stats() {
     for (auto id : get_profile_id_list()) {
         state_e state = get_profile(id)->get_profile_state();
-        if (state == STATE_BUILD || state == STATE_CLEANUP) {
+        if (state == STATE_BUILD || state == STATE_CLEANUP || state == STATE_DELETE) {
             return false;
         }
     }
@@ -711,6 +711,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = 0;
             break;
         case STATE_LOADED:
+            m_stt_cp->m_update = true;
             m_profile_stopping = false;
             m_active_cores = 0;
             break;
@@ -718,15 +719,21 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = 1;
             break;
         case STATE_BUILD:
+            m_stt_cp->m_update = false;
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_TX:
+            if (m_astf_obj->is_safe_update_stats()) {
+                m_stt_cp->update_profile_ctx();
+            }
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_CLEANUP:
+            m_stt_cp->m_update = false;
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_DELETE:
+            m_stt_cp->m_update = false;
             m_active_cores = 1;
             break;
         case AMOUNT_OF_STATES:
@@ -792,9 +799,6 @@ void TrexAstfPerProfile::transmit() {
     /* Resize the statistics vector depending on the number of template groups */
     CSTTCp* lpstt = m_stt_cp;
     lpstt->Resize(CAstfDB::instance(m_dp_profile_id)->get_num_of_tg_ids());
-    if (m_astf_obj->is_safe_update_stats()) {
-        lpstt->update_profile_ctx();
-    }
 
     string err = m_astf_obj->handle_start_latency(m_dp_profile_id);
     if (err != "") {
