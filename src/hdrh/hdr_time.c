@@ -62,6 +62,10 @@ void hdr_getnow(hdr_timespec* ts)
 
 #elif defined(__linux__) || defined(__CYGWIN__)
 
+/* this part is compiled out for TRex as we do not want to pull in any reference to clock_gettime()
+ * these 2 functions ar eonly used by hdrh-c test code, so it is safe to remove them
+ */
+#if 0
 
 void hdr_gettime(hdr_timespec* t)
 {
@@ -72,7 +76,7 @@ void hdr_getnow(hdr_timespec* t)
 {
     clock_gettime(CLOCK_REALTIME, (struct timespec*)t);
 }
-
+#endif
 #else
 
 #warning "Platform not supported\n"
