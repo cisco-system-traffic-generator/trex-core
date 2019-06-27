@@ -81,7 +81,7 @@ bool CTimeHistogram::Create() {
 
 void CTimeHistogram::Delete() {
     if (m_hdrh) {
-        free(m_hdrh);
+        hdr_close(m_hdrh);
         m_hdrh = 0;
     }
 }
