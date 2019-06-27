@@ -1040,10 +1040,6 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
                                            bool &drop){
     /* parse the packet, if it has TOS=1, forward it */
     //utl_rte_pktmbuf_dump_k12(stdout,m);
-    if (m_is_service_mode){
-        drop=false;
-        return;
-    }
     drop=true;
 
     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
@@ -1051,6 +1047,10 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
     CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
 
     if (res != FSTAT_PARSER_E_OK){
+        if (res == FSTAT_PARSER_E_UNKNOWN_HDR){
+            // try updating latency statistics for unknown ether type packets
+            m_ports[dir].m_fs_latency.handle_pkt(m);
+        }
         drop=false;
         return;
     }
@@ -1064,6 +1064,11 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
 
     if (m_parser->is_fs_latency()) {
         m_ports[dir].m_fs_latency.handle_pkt(m);
+    }
+
+    if (m_is_service_mode){
+        drop=false;
+        return;
     }
 
     if ( !tcp_udp && (is_idle==false)){

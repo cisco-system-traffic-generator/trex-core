@@ -555,7 +555,7 @@ int CFlowStatRuleMgr::compile_stream(const TrexStream * stream, CFlowStatParser 
     CFlowStatParser_err_t ret = parser->parse(stream->m_pkt.binary, stream->m_pkt.len);
 
     // if we could not parse the packet, but no stat count needed, it is probably OK.
-    if ( ret != FSTAT_PARSER_E_OK && stream->need_flow_stats() ) {
+    if ( ret != FSTAT_PARSER_E_OK && stream->need_flow_stats() && get_dpdk_mode()->is_hardware_filter_needed() ) {
         throw TrexFStatEx(parser->get_error_str(ret), TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
     }
 

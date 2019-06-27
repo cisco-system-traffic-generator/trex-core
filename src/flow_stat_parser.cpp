@@ -295,8 +295,8 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
     uint8_t *p_l4 = NULL;
     TCPHeader *p_tcp = NULL;
     if (!m_ipv4 && !m_ipv6) {
-        payload_len = 0;
-        return -1;
+        payload_len = len - ETH_HDR_LEN;
+        return 0;
     }
 
     if (m_ipv4) {
