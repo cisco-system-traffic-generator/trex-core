@@ -4260,8 +4260,10 @@ void CGlobalTRex::update_stats(){
         }
 
         if (lpstt->m_init){
-            if (lpstt->need_profile_ctx_update() && stx && stx->is_safe_update_stats()) {
-                lpstt->update_profile_ctx();
+            if (lpstt->need_profile_ctx_update()) {
+                if (!stx || (stx && stx->is_safe_update_stats())) {
+                    lpstt->update_profile_ctx();
+                }
             }
             lpstt->Update();
         }
