@@ -106,6 +106,13 @@ float CPPSMeasure::add(uint64_t pkts){
         return (0.0);
     }
 
+	/* sanity check */
+	if ( (pkts - m_last_pkts) > (ULLONG_MAX>>1) ) {
+		m_last_time_msec = os_get_time_msec() ;
+		m_last_pkts=pkts;
+		return (0.0);
+	}
+
     uint32_t ctime=os_get_time_msec();
     if ((ctime - m_last_time_msec) <os_get_time_freq() )  {
         return  (m_last_result);
