@@ -72,13 +72,12 @@ limitations under the License.
 /* stateless includes */
 #include "stl/trex_stl_dp_core.h"
 #include "stl/trex_stl_fs.h"
+#include "hot_section.h"
 
 class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
 #define FORCE_INLINE __attribute__((always_inline))
-#define HOT_FUNC __attribute__((hot))
-#define COLD_FUNC __attribute__((cold))
 
 /* reserve both 0xFF and 0xFE , router will -1 FF */
 #define TTL_RESERVE_DUPLICATE 0xff
@@ -2557,7 +2556,7 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
 }
 
 
-inline rte_mbuf_t * CFlowPktInfo::generate_new_mbuf(CGenNode * node){
+inline rte_mbuf_t * HOT_FUNC CFlowPktInfo::generate_new_mbuf(CGenNode * node){
 
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     

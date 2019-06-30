@@ -503,7 +503,7 @@ struct tcpcb *debug_flow;
 
 
 /* assuming we found the flow */
-int tcp_flow_input(CPerProfileCtx * pctx,
+HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
                     struct tcpcb *tp, 
                     struct rte_mbuf *m,
                     TCPHeader *tcp,

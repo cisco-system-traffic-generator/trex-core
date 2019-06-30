@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "hot_section.h"
 
 #ifdef _DEBUG
 #define TCPDEBUG
@@ -580,7 +581,7 @@ public:
 
     void init();
 
-    void check_defer_function(){
+    HOT_FUNC void check_defer_function(){
         check_defer_functions(&m_app);
     }
 
@@ -750,7 +751,7 @@ public:
     inline void on_tick();
 
 
-    bool is_can_close(){
+    HOT_FUNC bool is_can_close(){
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
     }
 

@@ -32,6 +32,7 @@ limitations under the License.
 #include "common/Network/Packet/TcpHeader.h"
 #include "pal_utl.h"
 #include "mbuf.h"
+#include "hot_section.h"
 
 #ifdef RTE_DPDK
 #	include <rte_ip.h>
@@ -228,7 +229,7 @@ struct StreamDPOpFlowRandLimit8 {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss8 *p = (RandMemBss8 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
@@ -254,7 +255,7 @@ struct StreamDPOpFlowRandLimit16 {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss16 *p = (RandMemBss16 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
@@ -281,7 +282,7 @@ struct StreamDPOpFlowRandLimit32 {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss32 *p = (RandMemBss32 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
@@ -307,7 +308,7 @@ struct StreamDPOpFlowRandLimit64 {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run(uint8_t * flow_var, uint8_t **program) {
         RandMemBss64 *p = (RandMemBss64 *)(flow_var + m_flow_offset);
         if (p->m_cnt  == m_limit){
             p->m_seed = m_seed;
@@ -345,7 +346,7 @@ struct StreamDPOpFlowVar8Step {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_inc(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
@@ -362,7 +363,7 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_dec(uint8_t * flow_var, uint8_t **program) {
         uint8_t *p = (flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
@@ -379,7 +380,7 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+    inline void HOT_FUNC run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint8_t *p=(flow_var+m_flow_offset);
         if (m_list_size == 0) {
             *p = m_min_val + (vm_rand16(per_thread_random) % (int)(m_max_val - m_min_val + 1));
@@ -408,7 +409,7 @@ struct StreamDPOpFlowVar16Step {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_inc(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
@@ -425,7 +426,7 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_dec(uint8_t * flow_var, uint8_t **program) {
         uint16_t *p = (uint16_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
@@ -442,7 +443,7 @@ public:
         }
     }
 
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+    inline void HOT_FUNC run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint16_t *p = (uint16_t *)(flow_var+m_flow_offset);
         if (m_list_size == 0) {
             *p = m_min_val + (vm_rand16(per_thread_random) % (int)(m_max_val - m_min_val + 1));
@@ -471,7 +472,7 @@ struct StreamDPOpFlowVar32Step {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_inc(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
@@ -488,7 +489,7 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_dec(uint8_t * flow_var, uint8_t **program) {
         uint32_t *p = (uint32_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
@@ -506,7 +507,7 @@ public:
     }
 
 
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+    inline void HOT_FUNC run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint32_t *p = (uint32_t *)(flow_var+m_flow_offset);
         if (m_list_size == 0) {
             *p = m_min_val + (vm_rand32(per_thread_random) % ((uint64_t)(m_max_val) - m_min_val + 1));
@@ -535,7 +536,7 @@ struct StreamDPOpFlowVar64Step {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void run_inc(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_inc(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (m_max_val - *p) >= m_step ) {
@@ -552,7 +553,7 @@ public:
         }
     }
 
-    inline void run_dec(uint8_t * flow_var, uint8_t **program) {
+    inline void HOT_FUNC run_dec(uint8_t * flow_var, uint8_t **program) {
         uint64_t *p = (uint64_t *)(flow_var + m_flow_offset);
         if (m_list_size == 0) {
             if ( m_skip > 0 && (*p - m_min_val) >= m_step ) {
@@ -570,7 +571,7 @@ public:
     }
 
 
-    inline void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
+    inline HOT_FUNC void run_rand(uint8_t * flow_var,uint32_t *per_thread_random) {
         uint64_t * p=(uint64_t *)(flow_var+m_flow_offset);
 
         if (m_list_size == 0) {
@@ -636,7 +637,7 @@ struct StreamDPOpPktWr16 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+    inline void HOT_FUNC wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint16_t * p_pkt      = (uint16_t*)(pkt_base+m_pkt_offset);
         uint16_t * p_flow_var = (uint16_t*)(flow_var_base+m_offset);
 
@@ -655,7 +656,7 @@ struct StreamDPOpPktWr32 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+    inline void HOT_FUNC wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint32_t * p_pkt      = (uint32_t*)(pkt_base+m_pkt_offset);
         uint32_t * p_flow_var = (uint32_t*)(flow_var_base+m_offset);
         if ( likely(is_big())){
@@ -674,7 +675,7 @@ struct StreamDPOpPktWr64 : public StreamDPOpPktWrBase {
 public:
     void dump(FILE *fd,std::string opt);
 
-    inline void wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
+    inline void HOT_FUNC wr(uint8_t * flow_var_base,uint8_t * pkt_base) {
         uint64_t * p_pkt      = (uint64_t*)(pkt_base+m_pkt_offset);
         uint64_t * p_flow_var = (uint64_t*)(flow_var_base+m_offset);
         if ( likely(is_big())){
@@ -717,7 +718,7 @@ public:
 } __attribute__((packed));
 
 
-static inline uint16_t fast_csum(const void *iph, unsigned int ihl) {
+static inline HOT_FUNC uint16_t fast_csum(const void *iph, unsigned int ihl) {
     const uint16_t *ipv4 = (const uint16_t *)iph;
 
     uint32_t sum = 0;
@@ -738,7 +739,7 @@ struct StreamDPOpIpv4Fix {
     uint16_t  m_offset;
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * pkt_base) {
+    inline void HOT_FUNC run(uint8_t * pkt_base) {
 
         uint8_t *ipv4 = pkt_base + m_offset;
 
@@ -764,7 +765,7 @@ struct StreamDPOpHwCsFix {
 
 public:
     void dump(FILE *fd,std::string opt);
-    void run(uint8_t * pkt_base,rte_mbuf_t   * m){
+    void HOT_FUNC run(uint8_t * pkt_base,rte_mbuf_t   * m){
         IPHeader *      ipv4 = (IPHeader *)(pkt_base+m_l2_len);
         union {
             TCPHeader *     tcp;
@@ -824,7 +825,7 @@ struct StreamDPOpClientsLimit {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var_base) {
+    inline void HOT_FUNC run(uint8_t * flow_var_base) {
         bool of;
 
         StreamDPFlowClient *lp = (StreamDPFlowClient *)(flow_var_base + m_flow_offset);
@@ -868,7 +869,7 @@ struct StreamDPOpClientsUnLimit {
 
 public:
     void dump(FILE *fd,std::string opt);
-    inline void run(uint8_t * flow_var_base) {
+    inline void HOT_FUNC run(uint8_t * flow_var_base) {
         StreamDPFlowClient * lp= (StreamDPFlowClient *)(flow_var_base+m_flow_offset);
         lp->cur_ip++;
         if (lp->cur_ip > m_max_ip ) {
@@ -887,7 +888,7 @@ struct StreamDPOpPktSizeChange  {
     uint8_t  m_op;
     uint8_t  m_flow_offset; /* offset to the flow var */
 
-    inline void run(uint8_t * flow_var_base,uint16_t & new_size) {
+    inline void HOT_FUNC run(uint8_t * flow_var_base,uint16_t & new_size) {
         uint16_t * p_flow_var = (uint16_t*)(flow_var_base+m_flow_offset);
         new_size  = (*p_flow_var);
     }
@@ -977,7 +978,7 @@ public:
                            uint8_t * pkt,
                            uint8_t * & p);
 
-    inline void run(uint32_t * per_thread_random,
+    inline void HOT_FUNC run(uint32_t * per_thread_random,
                     uint32_t program_size,
                     uint8_t * program,  /* program */
                     uint8_t * flow_var, /* flow var */
@@ -1028,7 +1029,7 @@ typedef union  ua_ {
 
 
 
-inline void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
+inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_random,
                                               uint32_t program_size,
                                               uint8_t * program,  /* program */
                                               uint8_t * flow_var, /* flow var */

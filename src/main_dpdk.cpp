@@ -1761,7 +1761,7 @@ void CCoreEthIF::DumpIfStats(FILE *fd){
  * without the noise of retrying 
  */
 
-int CCoreEthIF::send_burst(CCorePerPort * lp_port,
+HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
                            uint16_t len,
                            CVirtualIFPerSideStats  * lp_stats){
 
@@ -1791,7 +1791,7 @@ int CCoreEthIF::send_burst(CCorePerPort * lp_port,
 }
 
 
-int CCoreEthIF::send_pkt(CCorePerPort * lp_port,
+int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          rte_mbuf_t      *m,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
@@ -1861,7 +1861,7 @@ int CCoreEthIFTcp::send_node(CGenNode *node){
 }
 
 
-int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
 # ifdef ERR_CNTRS_TEST
@@ -1954,7 +1954,7 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
     }
 }
 
-uint16_t CCoreEthIFStateless::rx_burst(pkt_dir_t dir,
+HOT_FUNC uint16_t CCoreEthIFStateless::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
     uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
@@ -1962,11 +1962,11 @@ uint16_t CCoreEthIFStateless::rx_burst(pkt_dir_t dir,
 }
 
 
-int CCoreEthIFStateless::send_node(CGenNode *node) {
+HOT_FUNC int CCoreEthIFStateless::send_node(CGenNode *node) {
     return send_node_common<false>(node);
 }
 
-int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
+HOT_FUNC int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
     return send_node_common<true>(node);
 }
 
@@ -1975,7 +1975,7 @@ int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
  * for two compiler evaluation for performance
  *
  */
-template <bool SERVICE_MODE>
+template <bool SERVICE_MODE> HOT_FUNC
 int CCoreEthIFStateless::send_node_common(CGenNode *node) {
     CGenNodeStateless * node_sl = (CGenNodeStateless *) node;
 
@@ -2036,7 +2036,7 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
 
 }
 
-bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
+HOT_FUNC bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
                                      rte_mbuf_t * m){
     bool sent=false;
 
@@ -2068,7 +2068,7 @@ bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
 }
 
 
-int CCoreEthIF::send_node(CGenNode * node) {
+HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
 
 
     CFlowPktInfo *  lp=node->m_pkt_info;

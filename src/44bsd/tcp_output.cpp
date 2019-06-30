@@ -374,7 +374,7 @@ void tcp_respond(CPerProfileCtx * pctx,
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */
-int tcp_output(CPerProfileCtx * pctx,struct tcpcb *tp) {
+HOT_FUNC int tcp_output(CPerProfileCtx * pctx,struct tcpcb *tp) {
 
     struct tcp_socket *so = &tp->m_socket;
     int32_t len ;
