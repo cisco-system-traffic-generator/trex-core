@@ -38,16 +38,33 @@ class GlobalStats(AbstractStats):
         stats = {}
 
         # absolute
-        stats['cpu_util']    = self.get("m_cpu_util")
-        stats['rx_cpu_util'] = self.get("m_rx_cpu_util")
-        stats['bw_per_core'] = self.get("m_bw_per_core")
+        st = [
+            "m_active_flows",
+            "m_active_sockets",
+            "m_bw_per_core",
+            "m_cpu_util",
+            "m_cpu_util_raw",
+            "m_open_flows",
+            "m_platform_factor",
+            "m_rx_bps",
+            "m_rx_core_pps",
+            "m_rx_cpu_util",
+            "m_rx_drop_bps",
+            "m_rx_pps",
+            "m_socket_util",
+            "m_tx_expected_bps",
+            "m_tx_expected_cps",
+            "m_tx_expected_pps",
+            "m_tx_pps",
+            "m_tx_bps",
+            "m_tx_cps",
+            "m_total_servers",
+            "m_total_clients",
+            "m_total_alloc_error"]
 
-        stats['tx_bps'] = self.get("m_tx_bps")
-        stats['tx_pps'] = self.get("m_tx_pps")
+        for obj in st:
+            stats[obj[2:]]=self.get(obj)
 
-        stats['rx_bps'] = self.get("m_rx_bps")
-        stats['rx_pps'] = self.get("m_rx_pps")
-        stats['rx_drop_bps'] = self.get("m_rx_drop_bps")
 
         # relatives
         stats['queue_full'] = self.get_rel("m_total_queue_full")
@@ -80,6 +97,9 @@ class GlobalStats(AbstractStats):
 
                              ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self.client.conn.async_.monitor.get_cpu_util()), [85, 100], [0, 85]),
                                                                  format_num(self.client.conn.async_.monitor.get_bps() / 8.0, suffix = "B/sec"))),
+                             ("total_cps.", "{0} {1}".format( self.get("m_tx_cps", format=True, suffix="cps/sec"),
+                                                              self.get_trend_gui("m_tx_cps"))),
+
                             ])
 
         stats_data_right = OrderedDict([
