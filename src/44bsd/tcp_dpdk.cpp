@@ -22,20 +22,21 @@ limitations under the License.
 #include <stdint.h>
 #include "tcp_dpdk.h"
 #include "bp_sim.h"
+#include "hot_section.h"
 
 
 
 /* allocate 64B byte mbuf  */
-rte_mbuf_t   * tcp_pktmbuf_alloc_small(uint8_t socket){
+HOT_FUNC rte_mbuf_t   * tcp_pktmbuf_alloc_small(uint8_t socket){
     return (CGlobalInfo::pktmbuf_alloc_small(socket));
 }
 
-rte_mbuf_t   * tcp_pktmbuf_alloc(uint8_t socket,uint16_t size){
+HOT_FUNC rte_mbuf_t   * tcp_pktmbuf_alloc(uint8_t socket,uint16_t size){
     return (CGlobalInfo::pktmbuf_alloc(socket,size));
 }
 
 
-rte_mempool_t *  tcp_pktmbuf_get_pool(uint8_t socket,uint16_t size){
+HOT_FUNC rte_mempool_t *  tcp_pktmbuf_get_pool(uint8_t socket,uint16_t size){
     return (CGlobalInfo::pktmbuf_get_pool(socket,size));
 }
 

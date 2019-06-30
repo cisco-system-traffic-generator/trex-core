@@ -74,7 +74,7 @@ void CUdpFlow::init(){
 }
 
 
-void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
+HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
                                           rte_mbuf_t * m,
                                           uint16_t     udp_pyld_bytes,
                                           char *p){
@@ -111,7 +111,7 @@ void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
 }
 
 
-rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
+HOT_FUNC rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
     CFlowTemplate *ftp=&m_template;
     int hlen = ftp->m_offset_l4+UDP_HEADER_LEN;
     rte_mbuf_t * m;

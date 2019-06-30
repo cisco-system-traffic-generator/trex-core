@@ -44,6 +44,7 @@
 #include "h_timer.h"
 #include <stdarg.h>
 #include <stdlib.h>
+#include "hot_section.h"
 
 
 
@@ -746,7 +747,7 @@ public:
 
     void start(bool interrupt);
 
-    void next();
+    HOT_FUNC void next();
 
 public:
 

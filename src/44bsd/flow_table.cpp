@@ -242,7 +242,7 @@ void CFlowTable::terminate_all_flows(){
     m_ft.detach_all(this,on_flow_free_cb);
 }
 
-void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
+HOT_FUNC void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
                               CFlowBase * flow,
                               bool remove_from_ft){
     ctx->m_cb->on_flow_close(ctx,flow);
@@ -252,7 +252,7 @@ void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
     free_flow(flow);
 }
 
-void CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
+void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                                     CTcpFlow *  flow,
                                     struct rte_mbuf * mbuf,
                                     TCPHeader    * lpTcp,
@@ -390,7 +390,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     return(flow);
 }
 
-void CFlowTable::free_flow(CFlowBase * flow){
+HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
     assert(flow);
     flow->m_pctx->m_flow_cnt--;
     flow->m_pctx->on_flow_close();
@@ -753,7 +753,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 }
 
 
-bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
+HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                                   struct rte_mbuf * mbuf,
                                   bool is_idle,
                                   tvpid_t port_id) {

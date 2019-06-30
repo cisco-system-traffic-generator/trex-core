@@ -147,9 +147,9 @@ class CPhyEthIF  {
     CPhyEthIgnoreStats & get_ignore_stats() {
         return m_ignore_stats;
     }
-    virtual void flush_rx_queue(void);
+    virtual void HOT_FUNC flush_rx_queue(void);
 
-    inline void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
+    inline void HOT_FUNC tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
         /* assume that l2_len and l3_len in rte_mbuf updated properly */
         uint16_t csum = 0, csum_start = m->l2_len + m->l3_len;
 
@@ -182,7 +182,7 @@ class CPhyEthIF  {
             }
         }
     }
-    inline void tx_burst_offload_csum(struct rte_mbuf **tx_pkts, uint16_t nb_pkts, uint64_t tx_offload) {
+    inline void HOT_FUNC tx_burst_offload_csum(struct rte_mbuf **tx_pkts, uint16_t nb_pkts, uint64_t tx_offload) {
         uint16_t nb_tx = 0;
 
         for (nb_tx = 0; nb_tx < nb_pkts; nb_tx++) {
@@ -195,7 +195,7 @@ class CPhyEthIF  {
         }
     }
 
-    inline uint16_t tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
+    inline uint16_t HOT_FUNC tx_burst(uint16_t queue_id, struct rte_mbuf **tx_pkts, uint16_t nb_pkts) {
         if (likely( !m_is_dummy )) {
             if (unlikely(m_dev_tx_offload_needed)) {
                 tx_burst_offload_csum(tx_pkts, nb_pkts, m_dev_tx_offload_needed);
@@ -208,7 +208,7 @@ class CPhyEthIF  {
             return nb_pkts;
         }
     }
-    inline uint16_t  rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
+    inline uint16_t  HOT_FUNC rx_burst(uint16_t queue_id, struct rte_mbuf **rx_pkts, uint16_t nb_pkts) {
         if (likely( !m_is_dummy )) {
             return rte_eth_rx_burst(m_repid, queue_id, rx_pkts, nb_pkts);
         } else {

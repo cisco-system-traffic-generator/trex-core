@@ -418,7 +418,7 @@ bool CGenNodeStateless::alloc_flow_stat_mbuf_test_const() {
     return true;
 }
 
-rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
+HOT_FUNC rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
 
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/

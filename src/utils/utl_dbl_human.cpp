@@ -1,6 +1,7 @@
 #include "utl_dbl_human.h"
 #include <stdint.h>
 #include "os_time.h"
+#include <limits.h>
 
 static uint8_t human_tbl[]={
     ' ',

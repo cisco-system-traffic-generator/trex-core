@@ -31,6 +31,7 @@ limitations under the License.
 #include "pal_utl.h"
 #include "trex_platform.h"
 #include "trex_modes.h"
+#include "hot_section.h"
 
 
 
@@ -735,7 +736,7 @@ public:
 class CRteMemPool {
 
 public:
-    inline rte_mbuf_t   * _rte_pktmbuf_alloc(rte_mempool_t * mp ){
+    inline rte_mbuf_t   * HOT_FUNC _rte_pktmbuf_alloc(rte_mempool_t * mp ){
         rte_mbuf_t   * m=rte_pktmbuf_alloc(mp);
         if ( likely(m>0) ) {
             return (m);
@@ -749,7 +750,7 @@ public:
         assert(0);
     }
 
-    inline rte_mempool_t * pktmbuf_get_pool(uint16_t size){
+    inline rte_mempool_t HOT_FUNC * pktmbuf_get_pool(uint16_t size){
 
         rte_mempool_t * p;
 
@@ -773,7 +774,7 @@ public:
     }
 
 
-    inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
+    inline HOT_FUNC rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
 
         rte_mbuf_t        * m;
         if ( size <= _128_MBUF_SIZE) {
@@ -795,7 +796,7 @@ public:
         return (m);
     }
 
-    inline rte_mbuf_t   * pktmbuf_alloc_small(){
+    inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small(){
         return ( _rte_pktmbuf_alloc(m_small_mbuf_pool) );
     }
 
@@ -834,15 +835,15 @@ public:
     /* for simulation */
     static void free_pools();
 
-    static inline rte_mbuf_t   * pktmbuf_alloc_small(socket_id_t socket){
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small(socket_id_t socket){
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-    static inline rte_mbuf_t * pktmbuf_alloc_small_by_port(uint8_t port_id) {
+    static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_small_by_port(uint8_t port_id) {
         return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
     }
 
-    static inline rte_mempool_t * pktmbuf_get_pool(socket_id_t socket,uint16_t size){
+    static inline rte_mempool_t * HOT_FUNC pktmbuf_get_pool(socket_id_t socket,uint16_t size){
         return (m_mem_pool[socket].pktmbuf_get_pool(size));
     }
 
@@ -856,7 +857,7 @@ public:
      *
      * @return
      */
-    static inline rte_mbuf_t   * pktmbuf_alloc(socket_id_t socket,uint16_t size){
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc(socket_id_t socket,uint16_t size){
         if (size<=_64_MBUF_SIZE) {
             return ( pktmbuf_alloc_small(socket));
         }
@@ -864,7 +865,7 @@ public:
     }
 
     
-    static inline rte_mbuf_t   * pktmbuf_alloc_small_local(socket_id_t socket){
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_local(socket_id_t socket){
         rte_mbuf_t *m = pktmbuf_alloc_small(socket);
         if (m) {
             rte_mbuf_set_as_core_local(m);
@@ -873,7 +874,7 @@ public:
     }
     
       
-    static inline rte_mbuf_t   * pktmbuf_alloc_local(socket_id_t socket,uint16_t size) {
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_local(socket_id_t socket,uint16_t size) {
         rte_mbuf_t *m = pktmbuf_alloc(socket, size);
         if (m) {
             rte_mbuf_set_as_core_local(m);
@@ -882,7 +883,7 @@ public:
     }
     
     
-    static inline rte_mbuf_t * pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
+    static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
         socket_id_t socket = m_socket.port_to_socket(port_id);
         if (size<=_64_MBUF_SIZE) {
             return ( pktmbuf_alloc_small(socket));
@@ -923,7 +924,7 @@ public:
         return (m_nodes_pool_size);
     }
 
-    static inline CGenNode * create_node(void){
+    static inline CGenNode * HOT_FUNC create_node(void){
         CGenNode * res;
         if ( unlikely (rte_mempool_get(m_mem_pool[0].m_mbuf_global_nodes, (void **)&res) <0) ){
             rte_exit(EXIT_FAILURE, "can't allocate m_mbuf_global_nodes  objects try to tune the configuration file \n");
@@ -932,7 +933,7 @@ public:
         return (res);
     }
 
-    static inline void free_node(CGenNode *p){
+    static inline void HOT_FUNC free_node(CGenNode *p){
         rte_mempool_put(m_mem_pool[0].m_mbuf_global_nodes, p);
     }
 
