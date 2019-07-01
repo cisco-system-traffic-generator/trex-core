@@ -2421,7 +2421,10 @@ inline bool IsDir(const StatStruct& st) { return S_ISDIR(st.st_mode); }
 #endif
 
 inline const char* StrNCpy(char* dest, const char* src, size_t n) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
   return strncpy(dest, src, n);
+#pragma GCC diagnostic pop
 }
 
 // ChDir(), FReopen(), FDOpen(), Read(), Write(), Close(), and
