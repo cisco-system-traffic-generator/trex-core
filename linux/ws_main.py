@@ -24,7 +24,8 @@ REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
 
 GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
-GCC7_DIRS = ['/usr/local/gcc-7.2/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+GCC8_DIRS = ['/usr/local/gcc-8.3/bin', '/opt/rh/devtoolset-7/root/usr/bin']
 
 
 class SrcGroup:
@@ -88,8 +89,10 @@ def options(opt):
                    help='use GCC 6.2 instead of the machine version')
 
     co.add_option('--gcc7', dest='gcc7', default=False, action='store_true',
-                   help='use GCC 7.2 instead of the machine version')
+                   help='use GCC 7.4 instead of the machine version')
 
+    co.add_option('--gcc8', dest='gcc8', default=False, action='store_true',
+                   help='use GCC 8.3 instead of the machine version')
 
 
 def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
@@ -111,7 +114,11 @@ def configure(conf):
     if conf.options.gcc6:
         configure_gcc(conf, GCC6_DIRS)
     elif conf.options.gcc7:
+        conf.environ['AR']="x86_64-pc-linux-gnu-gcc-ar"
         configure_gcc(conf, GCC7_DIRS)
+    elif conf.options.gcc8:
+        conf.environ['AR']="x86_64-pc-linux-gnu-gcc-ar"
+        configure_gcc(conf, GCC8_DIRS)
     else:
         configure_gcc(conf)
 
