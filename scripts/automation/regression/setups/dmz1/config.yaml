@@ -1,0 +1,5 @@
+trex:
+  hostname       : 81.218.86.50
+  cores          : 6
+  modes          : ['loopback']
+  trex_add_args  : '--x710-reset-threshold 10000000'
