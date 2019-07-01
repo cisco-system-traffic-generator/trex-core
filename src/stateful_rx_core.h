@@ -244,9 +244,9 @@ public:
      uint64_t m_length_error;
      CRXCoreIgnoreStat m_ign_stats;
      CRXCoreIgnoreStat m_ign_stats_prev;
-     CTimeHistogram  m_hist; /* all window */
      CJitter         m_jitter;
-};
+	 CTimeHistogram  m_hist; /* all window */
+} __rte_cache_aligned;
 
 
 class CPortLatencyHWBase {

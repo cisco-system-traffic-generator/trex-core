@@ -3010,7 +3010,6 @@ public:
     CParserOption       m_po;
     CFlowGenList        m_fl;
     bool                m_fl_was_init;
-    volatile uint8_t    m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
     CLatencyManager     m_mg; // statefull RX core
     CTrexGlobalIoMode   m_io_modes;
     CTRexExtendedDriverBase * m_drv;
@@ -3032,7 +3031,9 @@ public:
     TrexSTX              *m_stx;
     CSyncBarrier *        m_sync_barrier;
 
-};
+	/* last */
+	volatile uint8_t    m_signal[BP_MAX_CORES] __rte_cache_aligned ; // Signal to main core when DP thread finished
+} __rte_cache_aligned;
 
 // Before starting, send gratuitous ARP on our addresses, and try to resolve dst MAC addresses.
 void CGlobalTRex::pre_test() {
