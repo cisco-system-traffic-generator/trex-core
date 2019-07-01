@@ -291,7 +291,7 @@ private:
  protected:
     bool                     m_is_dummy;
 
-};
+} ;
 
 // stubs for dummy port
 class CPhyEthIFDummy : public CPhyEthIF {

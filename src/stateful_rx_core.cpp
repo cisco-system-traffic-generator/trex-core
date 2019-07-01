@@ -228,22 +228,6 @@ void CCPortLatency::reset_seq(){
     m_rx_seq=0;
 }
 
-/* 
-
-It seems as a bug in GCC version 7 or higher, it uses move sse2 on unaligned addr that the gcc allocate 
-
-bug:
-https://gcc.gnu.org/bugzilla/show_bug.cgi?id=91043
-
-=> 0x0000000000585763 <+195>:   vmovdqa %ymm0,0x40(%rbx)
-   0x0000000000585768 <+200>:   vmovdqa %ymm0,0x60(%rbx)
-   0x000000000058576d <+205>:   vmovdqa %ymm0,0x80(%rbx)
-   0x0000000000585775 <+213>:   vmovdqa %ymm0,0xa0(%rbx)
-
-*/
-#if defined (__GNUC__) && (defined (__x86_64__) || defined (__i386__))
-__attribute__((noinline,target("no-sse2"))) 
-#endif
 void CCPortLatency::reset(){
     m_rx_seq    =m_tx_seq;
     m_pad       = 0;

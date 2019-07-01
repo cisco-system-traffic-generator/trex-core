@@ -133,10 +133,11 @@ private:
     uint32_t m_win_cnt;
     uint32_t m_hot_max;
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
-    uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE] __rte_cache_aligned ;
+    uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE]  ;
     // Hdr histogram instance
     hdr_histogram *m_hdrh;
-};
+} __rte_cache_aligned;
+
 
 std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
