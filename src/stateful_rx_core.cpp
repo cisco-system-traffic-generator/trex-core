@@ -245,7 +245,6 @@ https://gcc.gnu.org/bugzilla/show_bug.cgi?id=91043
 __attribute__((noinline,target("no-sse2"))) 
 #endif
 void CCPortLatency::reset(){
-    fflush(stdout);
     m_rx_seq    =m_tx_seq;
     m_pad       = 0;
     m_tx_pkt_err=0;
