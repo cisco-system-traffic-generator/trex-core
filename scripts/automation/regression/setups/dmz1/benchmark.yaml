@@ -100,7 +100,7 @@ test_CPU_benchmark:
 #        cpu_util        : 1
 #        bw_per_core     : 1
 
-     - name            : stl/udp_for_benchmarks.py
+      - name            : stl/udp_for_benchmarks.py
         kwargs          : {packet_len: 128}
         cpu_util        : 1
         bw_per_core     : 1
