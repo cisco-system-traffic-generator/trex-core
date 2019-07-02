@@ -81,7 +81,15 @@ public:
             printf("Params: %s", writer.write(m_params).c_str());
         #endif
 
-        trex_rpc_cmd_rc_e rc = m_cmd->run(m_params, result);
+        trex_rpc_cmd_rc_e rc;
+        try {
+            rc = m_cmd->run(m_params, result);
+        } catch (Json::Exception &ex) {
+            response["error"]["code"]          = JSONRPC_V2_ERR_PARSE;
+            response["error"]["message"]       = "Json Error";
+            response["error"]["specific_err"]  = ex.what();
+            return;
+        }
 
         #ifdef __TREX_RPC_DEBUG__
             printf("Response: %s\n", writer.write(result).c_str());
