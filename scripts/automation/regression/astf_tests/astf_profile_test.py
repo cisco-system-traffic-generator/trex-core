@@ -6,6 +6,7 @@ import time
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
 import pprint
 import random
+import string
 import glob
 from nose.tools import assert_raises, nottest
 from functools import wraps
@@ -174,6 +175,31 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     print(w)
 
 
+    @try_few_times
+    def run_astf_profile_dynamic_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, dynamic_profile=None):
+        c = self.astf_trex;
+
+        if ipv6 and self.driver_params.get('no_ipv6', False):
+            return
+
+        c.reset();
+        d = self.get_duration()
+        print('starting profile %s for duration %s' % (profile_name, d))
+        if dynamic_profile:
+            print('dynamic profile %s ' % (dynamic_profile))
+        c.load_profile(self.get_profile_by_name(profile_name),dynamic_profile=dynamic_profile)
+        c.clear_stats(dynamic_profile=dynamic_profile)
+        c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000,dynamic_profile=dynamic_profile)
+        c.wait_on_traffic()
+        stats = c.get_stats(dynamic_profile=dynamic_profile)
+        if check_counters:
+            self.check_counters(stats,is_udp,is_tcp)
+            self.check_latency_stats(stats['latency'])
+            if c.get_warnings():
+                print('\n\n*** test had warnings ****\n\n')
+                for w in c.get_warnings():
+                    print(w)
+
 
     def get_simple_params(self):
         tests = [ {'name': 'http_simple.py','is_tcp' :True,'is_udp':False,'default':True},
@@ -194,6 +220,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         #return 120
         #return 10
 
+    def randomString(self, stringLength=10):
+        """Generate a random string of fixed length """
+        letters = string.ascii_lowercase
+        return ''.join(random.choice(letters) for i in range(stringLength))
+
     def test_astf_prof_simple(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
         tests = self.get_simple_params() 
@@ -204,11 +235,30 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         for o in tests:
             self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True)
 
+    def test_astf_prof_simple_dynamic_profile(self):
+        mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
+        tests = self.get_simple_params() 
+        for o in tests:
+            random_profile = self.randomString()
+            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],dynamic_profile=str(random_profile))
+
+        mult  = self.get_benchmark_param('multiplier',test_name = 'test_ipv6_tcp_http')
+        for o in tests:
+            random_profile = self.randomString()
+            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True,dynamic_profile=str(random_profile))
+
     def test_astf_prof_sfr(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
         tests = self.get_sfr_params() 
         for o in tests:
             self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'])
+
+    def test_astf_prof_sfr_dynamic_profile(self):
+        mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
+        tests = self.get_sfr_params()
+        for o in tests:
+            random_profile = self.randomString()
+            self.run_astf_profile_dynamic_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],dynamic_profile=str(random_profile))
 
     @nottest
     def test_astf_prof_no_crash_sfr(self):
@@ -263,6 +313,46 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             self.duration = duration
 
 
+    def test_astf_prof_profiles_dynamic_profile(self):
+        if self.weak:
+            self.skip('not enough memory for this test')
+
+        profiles = self.get_profiles_from_sample_filter ()
+        duration=self.duration;
+        # skip tests that are too long or not traffic profiles
+        skip_list= ['http_by_l7_percent.py',
+                    'http_simple_split.py',
+                    'http_simple_split_per_core.py',
+                    'http_manual_tunables4.py',
+                    'http_simple_cc.py',
+                    'http_simple_cc1.py',
+                    'nginx.py',
+                    'nginx_wget.py',
+                    'sfr_full.py',
+                    'sfr.py',
+                    'param_mss_err2.py',
+                    'http_simple_rss.py',
+                    'udp_rtp.py',
+                    'http_simple_src_mac.py',
+                    'http_eflow3.py',
+                    'wrapping_it_up_example.py',
+                    'udp_topo.py', # Not traffic profile, but topology
+                    'udp_topo_traffic.py'
+                    ]
+        self.duration=1
+        try:
+            for profile in profiles:
+                fname=os.path.split(profile)[1]
+                if fname in skip_list:
+                    print(" skipping {}".format(fname))
+                    continue;
+                print(" running {}".format(fname))
+                random_profile = self.randomString()
+                self.run_astf_profile_dynamic_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True, dynamic_profile=str(random_profile))
+        finally:
+            self.duration = duration
+
+
     @try_few_times
     def do_latency(self,duration,stop_after=None):
         if self.weak:
@@ -301,12 +391,59 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                   c.stop()
                   break;
 
+    @try_few_times
+    def do_latency_dynamic_profile(self,duration,stop_after=None,dynamic_profile=None):
+        if self.weak:
+           self.skip('not accurate latency')
+        if not self.allow_latency():
+            self.skip('not allowed latency here')
+
+        c = self.astf_trex;
+        # check polling mode 
+        ticks=0;
+        c.reset();
+        profile_name='http_simple.py'
+        print('starting profile %s ' % (profile_name))
+        if dynamic_profile:
+            print('dynamic profile %s ' % (dynamic_profile))
+        c.load_profile(self.get_profile_by_name(profile_name),dynamic_profile=dynamic_profile)
+        c.clear_stats(dynamic_profile=dynamic_profile)
+        c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000,dynamic_profile=dynamic_profile)
+        while c.is_traffic_active():
+            stats = c.get_stats(dynamic_profile=dynamic_profile)
+            lat = stats['latency']
+            print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']))
+            for port_id, port_stats in lat.items():
+                stats_output = 'port_id: %s' % port_id
+                hist = port_stats['hist']
+                stats = port_stats['stats']
+                self.check_latency_for_errors(port_id, stats)
+                for t in ['s_max','s_avg']:
+                    stats_output += ", {}: {:.0f}".format(t, hist[t])
+                    if hist[t] > self.get_max_latency():
+                        self.latency_error = hist[t]
+                print(stats_output)
+            print("")
+            time.sleep(1);
+            ticks += 1
+            if stop_after:
+                if ticks > stop_after:
+                  c.stop(dynamic_profile=dynamic_profile)
+                  break;
 
     def test_astf_prof_latency(self):
         self.do_latency(30,stop_after=None)
 
+    def test_astf_prof_latency_dynamic_profile(self):
+        for index in range(100):
+            self.do_latency_dynamic_profile(3,stop_after=None,dynamic_profile=str(index))
+
     def test_astf_prof_latency_stop(self):
         self.do_latency(20,stop_after=10)
+
+    def test_astf_prof_latency_stop_dynamic_profile(self):
+        for index in range(100):
+            self.do_latency_dynamic_profile(2,stop_after=1,dynamic_profile=str(index))
 
     def test_astf_prof_only_latency(self):
         if self.weak:
@@ -332,6 +469,4 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             if ticks > 10:
                 break;
         c.stop_latency()
-
-
 
