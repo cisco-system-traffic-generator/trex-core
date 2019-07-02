@@ -47,6 +47,7 @@ class STLRX_Test(CStlGeneral_Test):
         self.num_cores = system_info.get('dp_core_count', 'Unknown')
         self.is_multiqueue_mode = system_info.get('is_multiqueue_mode', False)
         self.is_vxlan_supported = system_info['ports'][0]['is_vxlan_supported']
+        self.advanced_per_stream_stats = system_info.get('advanced_per_stream_stats', False)
         mbufs = self.c.get_util_stats()['mbuf_stats']
         # currently in MLX drivers, we use 9k mbufs for RX, so we can't use all of them for TX.
         if self.drv_name == 'net_mlx5':
@@ -424,6 +425,29 @@ class STLRX_Test(CStlGeneral_Test):
         self.c.reset()
         s1 = STLStream(name = 'rx',
                        packet = self.pkt,
+                       flow_stats = STLFlowLatencyStats(pg_id = 5),
+                       mode = STLTXSingleBurst(total_pkts = total_pkts,
+                                               percentage = self.rate_lat
+                       ))
+
+        # add both streams to ports
+        self.c.add_streams([s1], ports = [self.tx_port])
+
+        print("\ninjecting {0} packets on port {1}\n".format(total_pkts, self.tx_port))
+
+        exp = {'pg_id': 5, 'total_pkts': total_pkts, 'pkt_len': s1.get_pkt_len()}
+
+        self.__rx_iteration( [exp] )
+
+    @try_few_times_on_vm
+    def test_raw_pkt_stream(self):
+        if not self.advanced_per_stream_stats or not self.is_multiqueue_mode:
+            self.skip('Skip this for unsupported modes')
+
+        total_pkts = self.total_pkts
+        self.c.reset()
+        s1 = STLStream(name = 'rx',
+                       packet = STLPktBuilder(pkt = Ether(type=0xCCCC)/('x'*50)),
                        flow_stats = STLFlowLatencyStats(pg_id = 5),
                        mode = STLTXSingleBurst(total_pkts = total_pkts,
                                                percentage = self.rate_lat

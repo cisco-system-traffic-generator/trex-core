@@ -406,6 +406,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
     section["dp_core_count_per_port"] = api.get_dp_core_count() / (api.get_port_count() / 2);
     section["core_type"] = get_cpu_model();
     section["is_multiqueue_mode"] = get_dpdk_mode()->dp_rx_queues() ? true : false;
+    section["advanced_per_stream_stats"] = !get_dpdk_mode()->is_hardware_filter_needed();
 
     /* ports */
     const stx_port_map_t &stx_port_map = get_stx()->get_port_map();
