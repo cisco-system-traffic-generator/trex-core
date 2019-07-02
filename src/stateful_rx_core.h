@@ -246,7 +246,7 @@ public:
      CRXCoreIgnoreStat m_ign_stats_prev;
      CJitter         m_jitter;
 	 CTimeHistogram  m_hist; /* all window */
-} __rte_cache_aligned;
+};
 
 
 class CPortLatencyHWBase {

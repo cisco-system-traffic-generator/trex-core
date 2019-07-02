@@ -136,7 +136,7 @@ private:
     uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE]  ;
     // Hdr histogram instance
     hdr_histogram *m_hdrh;
-} __rte_cache_aligned;
+};
 
 
 std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
