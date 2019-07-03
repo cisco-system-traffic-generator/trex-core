@@ -47,7 +47,7 @@ class STLRX_Test(CStlGeneral_Test):
         self.num_cores = system_info.get('dp_core_count', 'Unknown')
         self.is_multiqueue_mode = system_info.get('is_multiqueue_mode', False)
         self.is_vxlan_supported = system_info['ports'][0]['is_vxlan_supported']
-        self.is_virtual = system_info['ports'][0]['is_virtual']
+        self.advanced_per_stream_stats = system_info.get('advanced_per_stream_stats', False)
         mbufs = self.c.get_util_stats()['mbuf_stats']
         # currently in MLX drivers, we use 9k mbufs for RX, so we can't use all of them for TX.
         if self.drv_name == 'net_mlx5':
@@ -441,7 +441,7 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_raw_pkt_stream(self):
-        if not self.is_virtual or not self.is_multiqueue_mode:
+        if not self.advanced_per_stream_stats or not self.is_multiqueue_mode:
             self.skip('Skip this for unsupported modes')
 
         total_pkts = self.total_pkts
