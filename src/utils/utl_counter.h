@@ -397,6 +397,8 @@ public:
         m_epoch = epoch;
     }
 
+    void get_counters_names(std::vector<std::string> *names);
+
 private:
     void verify();
     bool can_skip_zero(int index);
