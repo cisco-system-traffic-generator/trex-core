@@ -283,5 +283,14 @@ void CTblGCounters::verify(){
     }
 }
 
+void CTblGCounters::get_counters_names(std::vector<std::string> *names){
+
+    CGTblClmCounters* lp=m_counters[0];
+    int i;
+    for (i=0; i<lp->get_size(); i++) {
+        CGSimpleBase* lpcnt=lp->get_cnt(i);
+        names->push_back(lpcnt->get_name());
+    }
+}
 
 
