@@ -119,12 +119,12 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     print('Creating random name for the dynamic profile')
                     random_profile = self.randomString()
                     print('Dynamic profile name : %s' % str(random_profile))
-                    self.astf_trex.load_profile(profile, dynamic_profile=str(random_profile))
+                    self.astf_trex.load_profile(profile, pid_input=str(random_profile))
                     print('Load took: %g' % round(time.time() - start_time, 3))
                     start_time = time.time()
-                    self.astf_trex.start(duration = 1, nc = True, dynamic_profile=str(random_profile))
+                    self.astf_trex.start(duration = 1, nc = True, pid_input=str(random_profile))
                     print('Start took: %g' % round(time.time() - start_time, 3))
-                    self.astf_trex.stop(dynamic_profile=str(random_profile))
+                    self.astf_trex.stop(pid_input=str(random_profile))
 
 
     def test_double_start_stop(self):
@@ -143,17 +143,17 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         c = self.astf_trex
         random_profile_1 = self.randomString()
         print('Dynamic profile(1) : %s' % str(random_profile_1))
-        c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'), dynamic_profile=str(random_profile_1))
-        c.start(duration = 20, dynamic_profile=str(random_profile_1))
+        c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'), pid_input=str(random_profile_1))
+        c.start(duration = 20, pid_input=str(random_profile_1))
 
         with assert_raises(TRexError):
             random_profile_2 = self.randomString()
             print('Dynamic profile(2) : %s' % str(random_profile_2))
-            c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'), dynamic_profile=str(random_profile_2))
-            c.start(dynamic_profile=str(random_profile_2))
+            c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'), pid_input=str(random_profile_2))
+            c.start(pid_input=str(random_profile_2))
 
-        c.stop(dynamic_profile=str(random_profile_1))
-        c.stop(dynamic_profile=str(random_profile_2))
+        c.stop(pid_input=str(random_profile_1))
+        c.stop(pid_input=str(random_profile_2))
 
 
     def test_stress_start_stop(self):
@@ -163,15 +163,4 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         for _ in range(99):
             c.start()
             c.stop()
-
-
-    def test_stress_start_stop_dynamic_profile(self):
-        print('')
-        c = self.astf_trex
-        for _ in range(99):
-            random_profile = self.randomString()
-            print('Dynamic profile : %s' % str(random_profile))
-            c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'), dynamic_profile=str(random_profile))
-            c.start(dynamic_profile=str(random_profile))
-            c.stop(dynamic_profile=str(random_profile), is_remove=True)
 

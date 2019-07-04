@@ -176,7 +176,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile_dynamic_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, dynamic_profile=None):
+    def run_astf_profile_dynamic_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, pid_input=None):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
@@ -185,13 +185,13 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         c.reset();
         d = self.get_duration()
         print('starting profile %s for duration %s' % (profile_name, d))
-        if dynamic_profile:
-            print('dynamic profile %s ' % (dynamic_profile))
-        c.load_profile(self.get_profile_by_name(profile_name),dynamic_profile=dynamic_profile)
-        c.clear_stats(dynamic_profile=dynamic_profile)
-        c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000,dynamic_profile=dynamic_profile)
+        if pid_input:
+            print('dynamic profile %s ' % (pid_input))
+        c.load_profile(self.get_profile_by_name(profile_name),pid_input=pid_input)
+        c.clear_stats(pid_input=pid_input)
+        c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000,pid_input=pid_input)
         c.wait_on_traffic()
-        stats = c.get_stats(dynamic_profile=dynamic_profile)
+        stats = c.get_stats(pid_input=pid_input)
         if check_counters:
             self.check_counters(stats,is_udp,is_tcp)
             self.check_latency_stats(stats['latency'])
@@ -240,12 +240,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         tests = self.get_simple_params() 
         for o in tests:
             random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],dynamic_profile=str(random_profile))
+            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],pid_input=str(random_profile))
 
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_ipv6_tcp_http')
         for o in tests:
             random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True,dynamic_profile=str(random_profile))
+            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True,pid_input=str(random_profile))
 
     def test_astf_prof_sfr(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
@@ -258,7 +258,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         tests = self.get_sfr_params()
         for o in tests:
             random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],dynamic_profile=str(random_profile))
+            self.run_astf_profile_dynamic_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],pid_input=str(random_profile))
 
     @nottest
     def test_astf_prof_no_crash_sfr(self):
@@ -348,7 +348,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     continue;
                 print(" running {}".format(fname))
                 random_profile = self.randomString()
-                self.run_astf_profile_dynamic_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True, dynamic_profile=str(random_profile))
+                self.run_astf_profile_dynamic_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True, pid_input=str(random_profile))
         finally:
             self.duration = duration
 
@@ -392,7 +392,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                   break;
 
     @try_few_times
-    def do_latency_dynamic_profile(self,duration,stop_after=None,dynamic_profile=None):
+    def do_latency_dynamic_profile(self,duration,stop_after=None,pid_input=None):
         if self.weak:
            self.skip('not accurate latency')
         if not self.allow_latency():
@@ -404,13 +404,13 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         c.reset();
         profile_name='http_simple.py'
         print('starting profile %s ' % (profile_name))
-        if dynamic_profile:
-            print('dynamic profile %s ' % (dynamic_profile))
-        c.load_profile(self.get_profile_by_name(profile_name),dynamic_profile=dynamic_profile)
-        c.clear_stats(dynamic_profile=dynamic_profile)
-        c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000,dynamic_profile=dynamic_profile)
+        if pid_input:
+            print('dynamic profile %s ' % (pid_input))
+        c.load_profile(self.get_profile_by_name(profile_name),pid_input=pid_input)
+        c.clear_stats(pid_input=pid_input)
+        c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000,pid_input=pid_input)
         while c.is_traffic_active():
-            stats = c.get_stats(dynamic_profile=dynamic_profile)
+            stats = c.get_stats(pid_input=pid_input)
             lat = stats['latency']
             print(" client active flows {},".format(stats['traffic']['client']['m_active_flows']))
             for port_id, port_stats in lat.items():
@@ -428,7 +428,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             ticks += 1
             if stop_after:
                 if ticks > stop_after:
-                  c.stop(dynamic_profile=dynamic_profile)
+                  c.stop(pid_input=pid_input)
                   break;
 
     def test_astf_prof_latency(self):
@@ -436,14 +436,14 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
     def test_astf_prof_latency_dynamic_profile(self):
         for index in range(100):
-            self.do_latency_dynamic_profile(3,stop_after=None,dynamic_profile=str(index))
+            self.do_latency_dynamic_profile(3,stop_after=None,pid_input=str(index))
 
     def test_astf_prof_latency_stop(self):
         self.do_latency(20,stop_after=10)
 
     def test_astf_prof_latency_stop_dynamic_profile(self):
         for index in range(100):
-            self.do_latency_dynamic_profile(2,stop_after=1,dynamic_profile=str(index))
+            self.do_latency_dynamic_profile(2,stop_after=1,pid_input=str(index))
 
     def test_astf_prof_only_latency(self):
         if self.weak:
