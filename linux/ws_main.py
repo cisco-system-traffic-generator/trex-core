@@ -596,8 +596,12 @@ class build_option:
     def get_flags (self, is_sanitized = False):
         flags = self.cxxcomp_flags(cxxflags_base);
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-        
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
         return flags
         
 
@@ -627,8 +631,12 @@ class build_option:
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
         if is_sanitized:
-            base_flags += ['-fsanitize=address', '-fsanitize=leak']
-            
+            base_flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-static-libasan',
+            ]
+
         return base_flags;
 
 
