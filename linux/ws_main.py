@@ -25,7 +25,7 @@ SANITIZE_CC_VERSION = "4.9.0"
 
 GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
-GCC8_DIRS = ['/usr/local/gcc-8.3/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
 
 
 class SrcGroup:
@@ -102,8 +102,8 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     
 def configure(conf):
-    if conf.options.gcc6 and conf.options.gcc7:
-        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+    if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
+        conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
     # start from clean
     if 'RPATH' in os.environ:
