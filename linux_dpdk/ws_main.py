@@ -1337,8 +1337,12 @@ class build_option:
                      ]
 
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-            
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+        ]
+
         return (flags)
 
         
@@ -1348,8 +1352,12 @@ class build_option:
             flags += ['-DNDEBUG'];
 
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-            
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
         # for C no special flags yet
         return (flags)
 
@@ -1360,9 +1368,13 @@ class build_option:
             base_flags += ['-m64']
         base_flags += ['-lrt'];
 
-            
+
         if is_sanitized:
-            base_flags += ['-fsanitize=address', '-fsanitize=leak']
+            base_flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-static-libasan',
+            ]
         return base_flags;
 
 
