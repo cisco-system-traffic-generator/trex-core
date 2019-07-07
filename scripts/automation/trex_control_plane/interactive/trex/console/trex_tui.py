@@ -282,11 +282,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.client._show_global_stats(buffer = buffer)
 
         buf = StringIO()
-        try:
-            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
-        except ASTFErrorBadTG:
-            self.tgid = 0
-            self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
+        self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
         buf.seek(0)
         out_lines = buf.readlines()
         self.num_lines = len(out_lines)
@@ -791,17 +787,22 @@ class TrexTUI():
             if self.client.conn.is_alive():
                 # move to state reconnect
                 self.state = self.STATE_RECONNECT
+            else:
+                self.client.conn.async_.connect()
+
 
 
         # restored connectivity - try to reconnect
         elif self.state == self.STATE_RECONNECT:
 
             try:
+                self.client.disconnect();
                 self.client.connect()
                 self.client.acquire()
                 self.state = self.STATE_ACTIVE
             except TRexError:
                 self.state = self.STATE_LOST_CONT
+                self.client.conn.async_.connect()
 
 
     # logic before printing

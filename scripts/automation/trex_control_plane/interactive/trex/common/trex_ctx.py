@@ -11,7 +11,7 @@ class TRexCtx(object):
         for every object in the session
     """
 
-    def __init__ (self, api_ver, username, server, sync_port, async_port, logger):
+    def __init__ (self, api_ver, username, server, sync_port, async_port, logger,sync_timeout=None,async_timeout=None):
 
         self.api_ver        = api_ver
         self.username       = username
@@ -23,3 +23,7 @@ class TRexCtx(object):
         self.logger         = logger
         self.server_version = None
         self.system_info    = None
+        self.sync_timeout   = sync_timeout
+        self.async_timeout  = async_timeout
+
+
