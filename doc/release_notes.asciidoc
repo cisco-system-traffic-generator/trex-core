@@ -26,6 +26,24 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.58 ==
+
+* ASTF
+** Support multi profile - first version see link:trex_astf.html#_dynamic_multiple_profiles_support[dynamic multiple profiles support]
+* STL 
+** multi-rx: supports flow-stats on any type of packets not just IP/TCP/UDP for multi-rx platforms
+** hdrhistogram: experimental support for more accurate latency histogram link:http://hdrhistogram.org/[HDrHistogram]. Enable it by adding `--hdrh` in the server CLI
+* DMZ 
+** Add a new setup in DMZ for external testing with real hardware 
+
+=== Fixed issues: ===
+
+* STL Push pcap -r works now
+* Alignment issue, gcc 7/8 crash fix 
+* Ability to specify timeout to zmq client - to be more resilient to Firewall that drop the connection 
+* CPS is reported in ASTF mode  
+* Better more deterministic performance 
+
 == Release 2.57 ==
 
 * STL 

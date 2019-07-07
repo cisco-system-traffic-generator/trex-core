@@ -2185,7 +2185,7 @@ In other words the reported socket-util is the console should be multiplied by c
 
 === Dynamic multiple profiles support
 
-TRex can support the multiple profiles dynamically in ASTF interactive mode.
+TRex can support adding/removing multiple profiles dynamically in ASTF interactive mode while traffic is active.+
 
 In the console, profile ids can be specified via --pid argument. +
 The expression in TRex console allows --pid <profile id>. +
