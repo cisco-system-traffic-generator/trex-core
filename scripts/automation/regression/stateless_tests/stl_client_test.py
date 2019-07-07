@@ -1048,7 +1048,7 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_random_dynamic_add_remove (self):
 
-        if  self.drv_name in ['net_e1000_em','et_ntacc']:
+        if  self.drv_name in ['net_e1000_em','net_ntacc']:
             # this test is sensetive and does not work good on E1000
             return;
 
