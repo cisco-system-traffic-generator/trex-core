@@ -215,11 +215,11 @@ class JsonRpcClient(object):
         return rc
 
 
-    def transmit(self, method_name, params = None):
+    def transmit(self, method_name, params = None,retry = 0):
 
-        retry = self.retry
+        max_retry = max(self.retry,retry)
 
-        rc = self.invoke_rpc_method(method_name, params, retry)
+        rc = self.invoke_rpc_method(method_name, params, max_retry)
 
         # handle async/work in progress
         if not rc and rc.errno() in (ErrNo.JSONRPC_V2_ERR_TRY_AGAIN, ErrNo.JSONRPC_V2_ERR_WIP):
