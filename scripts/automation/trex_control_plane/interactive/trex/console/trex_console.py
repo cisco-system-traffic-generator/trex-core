@@ -739,6 +739,11 @@ def setParserOptions():
                         action="store_true", help="Switch ON verbose option. Default is: OFF.",
                         default = False)
 
+    parser.add_argument( "--timeout", 
+                        dest="timeout",
+                        help="timeout for ZMQ connection, the default is 3 sec, higher value will make it more resilient to Firewalls",
+                        default = False,type = int)
+
 
     group = parser.add_mutually_exclusive_group()
 
@@ -832,6 +837,7 @@ def main():
     parser = setParserOptions()
     options = parser.parse_args()
 
+
     if options.xtui:
         options.tui = True
 
@@ -851,6 +857,14 @@ def main():
         verbose_level = "info"
 
 
+    sync_timeout = None
+    async_timeout = None
+
+    if options.timeout:
+        sync_timeout = options.timeout
+        async_timeout = options.timeout
+
+
     logger = ConsoleLogger()
 
     # determine server mode
@@ -868,7 +882,9 @@ def main():
                            sync_port = options.port,
                            async_port = options.pub,
                            logger = logger,
-                           verbose_level = verbose_level)
+                           verbose_level = verbose_level,
+                           sync_timeout = sync_timeout,
+                           async_timeout = async_timeout)
     elif mode == 'ASTF':
         if options.acquire:
             logger.critical('Acquire option is not available in ASTF. Must acquire all ports.')
@@ -879,7 +895,9 @@ def main():
                             sync_port = options.port,
                             async_port = options.pub,
                             logger = logger,
-                            verbose_level = verbose_level)
+                            verbose_level = verbose_level,
+                            sync_timeout = sync_timeout,
+                            async_timeout = async_timeout)
 
     else:
         logger.critical("Unknown server mode: '{0}'".format(mode))

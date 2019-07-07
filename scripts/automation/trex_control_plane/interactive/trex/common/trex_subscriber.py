@@ -200,7 +200,10 @@ class TRexSubscriber():
         
         self.t_state = self.THREAD_STATE_DEAD
 
-        self.timeout_sec = 3
+        self.timeout_sec = 5
+
+        if self.ctx.async_timeout:
+            self.timeout_sec = max(self.ctx.async_timeout,self.ctx.sync_timeout)
 
 
     # connects the async channel
@@ -214,7 +217,10 @@ class TRexSubscriber():
         #  Socket to talk to server
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
-
+        self.socket.setsockopt(zmq.HEARTBEAT_IVL, 5000)
+        self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, 60000)
+        self.socket.setsockopt(zmq.RECONNECT_IVL, 20)
+        self.socket.setsockopt(zmq.RECONNECT_IVL_MAX, 500)
 
         # before running the thread - mark as active    
         self.t_state = self.THREAD_STATE_ACTIVE

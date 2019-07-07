@@ -10,6 +10,7 @@ import struct
 import pprint
 import time
 from threading import Lock
+import os
 
 from .trex_types import RC, RC_OK, RC_ERR
 from .trex_logger import Logger
@@ -83,7 +84,13 @@ class JsonRpcClient(object):
 
         # API handler provided by the server
         self.api_h = None
-        self.timeout_sec = 1
+
+        self.timeout_sec = 3
+
+        if self.ctx.sync_timeout:
+            self.timeout_sec = self.ctx.sync_timeout
+
+        self.retry = 0
 
 
     def get_connection_details (self):
@@ -151,10 +158,31 @@ class JsonRpcClient(object):
         else:
             return id, msg
 
+    def invoke_reconnect (self, retry = 0):
+
+        if self.connected:
+            return RC_OK()
+
+        retry_left = retry
+
+        while True:
+
+            retry_left -= 1
+
+            if retry_left < 0:
+                return RC_ERR("Not connected to server")
+
+            rc = self.reconnect()
+
+            if rc:
+                return(RC_OK())
+
 
     def invoke_rpc_method (self, method_name, params = None, retry = 0):
-        if not self.connected:
-            return RC_ERR("Not connected to server")
+
+        rc = self.invoke_reconnect (retry)
+        if not rc:
+            return rc
 
         id, msg = self.create_jsonrpc_v2(method_name, params, self.api_h)
 
@@ -187,7 +215,9 @@ class JsonRpcClient(object):
         return rc
 
 
-    def transmit(self, method_name, params = None, retry = 0):
+    def transmit(self, method_name, params = None):
+
+        retry = self.retry
 
         rc = self.invoke_rpc_method(method_name, params, retry)
 
@@ -199,8 +229,11 @@ class JsonRpcClient(object):
 
 
     # transmit a batch list
-    def transmit_batch(self, batch_list, retry = 0):
+    def transmit_batch(self, batch_list):
 
+        retry = self.retry
+
+        
         batch = self.create_batch()
 
         for command in batch_list:
@@ -364,8 +397,10 @@ class JsonRpcClient(object):
         self.socket = self.context.socket(zmq.REQ)
         self.socket.setsockopt(zmq.SNDTIMEO, self.get_timeout_msec())
         self.socket.setsockopt(zmq.RCVTIMEO, self.get_timeout_msec())
-        self.socket.setsockopt(zmq.HEARTBEAT_IVL, 60000)
+        self.socket.setsockopt(zmq.HEARTBEAT_IVL, 5000)
         self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, 60000)
+        self.socket.setsockopt(zmq.RECONNECT_IVL, 20)
+        self.socket.setsockopt(zmq.RECONNECT_IVL_MAX, 500)
 
         try:
             self.socket.connect(self.transport)

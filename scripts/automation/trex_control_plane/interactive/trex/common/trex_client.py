@@ -84,7 +84,9 @@ class TRexClient(object):
                  sync_port = 4501,
                  async_port = 4500,
                  verbose_level = "error",
-                 logger = None):
+                 logger = None,
+                 sync_timeout = None,
+                 async_timeout = None):
 
         # logger
         logger = logger if logger is not None else ScreenLogger()
@@ -96,7 +98,9 @@ class TRexClient(object):
                            server,
                            sync_port,
                            async_port,
-                           logger)
+                           logger,
+                           sync_timeout,
+                           async_timeout)
 
         # init objects
         self.ports           = {}

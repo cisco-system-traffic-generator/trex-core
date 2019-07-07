@@ -134,6 +134,7 @@ class Connection(object):
         '''
         self.sigint_on_conn_lost = False
         
+
         
     def is_alive (self):
         '''
@@ -144,7 +145,7 @@ class Connection(object):
 
 
     def is_connected (self):
-        return (self.state[0] == self.CONNECTED)
+        return (self.state[0] == self.CONNECTED and self.rpc.is_connected())
 
 
     def is_marked_for_disconnect (self):
