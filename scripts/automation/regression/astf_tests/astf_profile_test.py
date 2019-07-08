@@ -188,7 +188,6 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if pid_input:
             print('dynamic profile %s ' % (pid_input))
         c.load_profile(self.get_profile_by_name(profile_name),pid_input=pid_input)
-        c.clear_stats(pid_input=pid_input)
         c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000,pid_input=pid_input)
         c.wait_on_traffic()
         stats = c.get_stats(pid_input=pid_input)
