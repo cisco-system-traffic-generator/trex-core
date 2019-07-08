@@ -483,7 +483,7 @@ public:
 
     void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 
-    void build_template(CPerProfileCtx * pctx);
+    void build_template(CPerProfileCtx * pctx,uint16_t  template_idx);
 
     void set_offload_mask(uint8_t flags){
         m_offload_flags=flags;
@@ -519,7 +519,8 @@ private:
         }
     }
 
-    void build_template_ip(CPerProfileCtx * pctx);
+    void build_template_ip(CPerProfileCtx * pctx,
+                           uint16_t  template_idx);
     void build_template_tcp(CPerProfileCtx * pctx);
     void build_template_udp(CPerProfileCtx * pctx);
 
@@ -539,7 +540,6 @@ public:
     uint8_t   m_proto;      /* 6 - TCP ,0x11- UDP */
 
     uint8_t   m_offload_flags;
-
     #define OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
     #define TCP_OFFLOAD_TSO     0x0002      /* DPDK_TSO_CHECK_SUM */
     #define OFFLOAD_RX_CHKSUM   0x0004      /* check RX checksum L4*/
@@ -609,6 +609,7 @@ public:
     }
 
 
+
 public:
     uint8_t           m_c_idx_enable;
     uint8_t           m_pad[3];
@@ -660,6 +661,7 @@ public:
 
 #define INC_UDP_STAT(ctx, tg_id, p) {ctx->m_udpstat.m_sts.p++; ctx->m_udpstat.m_sts_tg_id[tg_id].p++; }
 #define INC_UDP_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_udpstat.m_sts.p += cnt; ctx->m_udpstat.m_sts_tg_id[tg_id].p += cnt; }
+
 
 class CUdpFlow : public CFlowBase {
 

@@ -274,33 +274,39 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
         }
     }
 
-    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable);
+    /* priorty to global */
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || 
+                   c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable) ||
+                   cur->get_c_tune()->is_valid_field(CTcpTuneables::ipv6_enable);
 
-    bool is_udp=cur->is_udp();
+
+    bool is_udp = cur->is_udp();
 
     CFlowBase * c_flow;
     uint16_t tg_id = cur_tmp_ro->get_template_tg_id(template_id);
     if (is_udp) {
         c_flow = m_c_tcp->m_ft.alloc_flow_udp(pctx,
-                                                     tuple.getClient(),
-                                                     tuple.getServer(),
+                                               tuple.getClient(),
+                                               tuple.getServer(),
 
-                                                     tuple.getClientPort(),
-                                                     tuple.getServerPort(),
+                                               tuple.getClientPort(),
+                                               tuple.getServerPort(),
 
-                                                     vlan,
-                                                     is_ipv6,
-                                                     true,
-                                                     tg_id);
+                                               vlan,
+                                               is_ipv6,
+                                               true,
+                                               tg_id,
+                                               template_id);
     }else{
         c_flow = m_c_tcp->m_ft.alloc_flow(pctx,
-                                                     tuple.getClient(),
-                                                     tuple.getServer(),
-                                                     tuple.getClientPort(),
-                                                     tuple.getServerPort(),
-                                                     vlan,
-                                                     is_ipv6,
-                                                     tg_id);
+                                          tuple.getClient(),
+                                          tuple.getServer(),
+                                          tuple.getClientPort(),
+                                          tuple.getServerPort(),
+                                          vlan,
+                                          is_ipv6,
+                                          tg_id,
+                                          template_id);
     }
 
     #ifdef  RSS_DEBUG
@@ -364,6 +370,8 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
         /* start connect */
         app_c->start(false);
         /* in UDP there are case that we need to open and close the flow in the first packet */
+        //udp_flow->set_c_udp_info(cur, template_id);
+
         if (udp_flow->is_can_closed()) {
             m_c_tcp->m_ft.handle_close(m_c_tcp,c_flow,true);
         }

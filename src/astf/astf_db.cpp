@@ -856,6 +856,19 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
             }
         }
 
+        if (tune_json["ip"] != Json::nullValue) {
+            Json::Value json = tune_json["ip"];
+            read_tunable_uint8(tune,json,"tos",CTcpTuneables::ip_tos,tune->m_ip_tos);
+            /* some devices uses the LSB for filter */
+            if (tune->m_ip_tos&0x1) {
+                tune->m_ip_tos &=(~0x1);
+            }
+            read_tunable_uint8(tune,json,"ttl",CTcpTuneables::ip_ttl,tune->m_ip_ttl);
+            /* some devices uses the TTL for filters of low latency  */
+            if (tune->m_ip_ttl>0x7f) {
+                tune->m_ip_ttl = 0x7f;
+            }
+        }
 
         if (tune_json["tcp"] != Json::nullValue) {
             Json::Value json = tune_json["tcp"];
