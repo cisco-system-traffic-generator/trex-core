@@ -148,6 +148,7 @@ class CUdpFlow;
 class CFlowBase;
 class CEmulAppApi;
 class CEmulAppProgram;
+class CTcpTuneables;
 
 #define FT_INC_SCNT(p) {m_sts.m_sts.p += 1; }
 
@@ -310,7 +311,8 @@ public:
                           uint16_t dst_port,
                           uint16_t vlan,
                           bool is_ipv6,
-                          uint16_t tg_id=0);
+                          uint16_t tg_id=0,
+                          uint16_t template_id=0);
 
     CUdpFlow * alloc_flow_udp(CPerProfileCtx * pctx,
                               uint32_t src,
@@ -320,7 +322,8 @@ public:
                               uint16_t vlan,
                               bool is_ipv6,
                               bool client,
-                              uint16_t tg_id=0);
+                              uint16_t tg_id=0,
+                              uint16_t template_id=0);
 
 
     void free_flow(CFlowBase * flow);

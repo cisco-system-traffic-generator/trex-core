@@ -152,6 +152,13 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
             {"name": "tos", "type": [int]},
             {"name": "ttl", "type": [int]}
         ],
+
+       "ipv6": [
+            {"name": "src_msb", "sub_type" : "ipv6_addr" },
+            {"name": "dst_msb", "sub_type" : "ipv6_addr" },
+            {"name": "enable", "type": [int]}
+        ],
+
     }
 
     def __init__(self):

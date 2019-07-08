@@ -103,7 +103,7 @@ public:
     CTcpTuneables               * m_s_tune;
     uint32_t                      m_limit;
     bool                         m_is_udp;
-} __rte_cache_aligned;
+} ;
 
 
 
@@ -148,7 +148,7 @@ private:
     astf_thread_id_t                  m_max_threads;
     CTcpTuneables *                   m_s_tuneables;
     CTcpTuneables *                   m_c_tuneables;
-} __rte_cache_aligned;
+} ;
 
 
 
