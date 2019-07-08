@@ -434,14 +434,14 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def test_astf_prof_latency(self):
         self.do_latency(30,stop_after=None)
 
-    def test_astf_prof_latency_dynamic_profile(self):
+    def __test_astf_prof_latency_dynamic_profile(self):
         for index in range(100):
             self.do_latency_dynamic_profile(3,stop_after=None,pid_input=str(index))
 
     def test_astf_prof_latency_stop(self):
         self.do_latency(20,stop_after=10)
 
-    def test_astf_prof_latency_stop_dynamic_profile(self):
+    def __test_astf_prof_latency_stop_dynamic_profile(self):
         for index in range(100):
             self.do_latency_dynamic_profile(2,stop_after=1,pid_input=str(index))
 
