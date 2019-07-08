@@ -407,7 +407,6 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if pid_input:
             print('dynamic profile %s ' % (pid_input))
         c.load_profile(self.get_profile_by_name(profile_name),pid_input=pid_input)
-        c.clear_stats(pid_input=pid_input)
         c.start(duration = duration,nc= True,mult = 1000,ipv6 = False,latency_pps = 1000,pid_input=pid_input)
         while c.is_traffic_active():
             stats = c.get_stats(pid_input=pid_input)
@@ -434,14 +433,14 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def test_astf_prof_latency(self):
         self.do_latency(30,stop_after=None)
 
-    def __test_astf_prof_latency_dynamic_profile(self):
+    def test_astf_prof_latency_dynamic_profile(self):
         for index in range(100):
             self.do_latency_dynamic_profile(3,stop_after=None,pid_input=str(index))
 
     def test_astf_prof_latency_stop(self):
         self.do_latency(20,stop_after=10)
 
-    def __test_astf_prof_latency_stop_dynamic_profile(self):
+    def test_astf_prof_latency_stop_dynamic_profile(self):
         for index in range(100):
             self.do_latency_dynamic_profile(2,stop_after=1,pid_input=str(index))
 
