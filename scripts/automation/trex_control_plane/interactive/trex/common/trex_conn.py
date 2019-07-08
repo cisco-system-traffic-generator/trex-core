@@ -69,7 +69,7 @@ class Connection(object):
         '''
 
         # first disconnect if already connected
-        if self.is_connected():
+        if self.is_any_connected():
             self.disconnect()
 
         # connect
@@ -142,6 +142,10 @@ class Connection(object):
             the server in the last 3 seconds
         '''
         return ( self.async_.last_data_recv_ts is not None and ((time.time() - self.async_.last_data_recv_ts) <= 3) )
+
+
+    def is_any_connected (self):
+        return ((self.state[0] == self.CONNECTED) or self.rpc.is_connected())
 
 
     def is_connected (self):

@@ -282,12 +282,19 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.client._show_global_stats(buffer = buffer)
 
         buf = StringIO()
-        self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
-        buf.seek(0)
-        out_lines = buf.readlines()
-        self.num_lines = len(out_lines)
-        buffer.write(''.join(out_lines[self.start_row:self.start_row+self.max_lines]))
-        buffer.write('\n')
+        have_into = False
+        try:
+           self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
+           have_into = True
+        except ASTFErrorBadTG:
+           self.tgid = 0
+
+        if have_into:
+          buf.seek(0)
+          out_lines = buf.readlines()
+          self.num_lines = len(out_lines)
+          buffer.write(''.join(out_lines[self.start_row:self.start_row+self.max_lines]))
+          buffer.write('\n')
 
 
     def get_key_actions(self):
@@ -739,6 +746,9 @@ class TrexTUI():
 
         self.state = self.STATE_ACTIVE
 
+        self.time_ts = None 
+
+
         # create print policers
         self.full_redraw = RedrawPolicer(0.5)
         self.keys_redraw = RedrawPolicer(0.05)
@@ -778,17 +788,15 @@ class TrexTUI():
             # if no connectivity - move to lost connecitivty
             if not self.client.is_connected():
                 self.state = self.STATE_LOST_CONT
-
+                self.time_ts = time.time()
 
         # lost connectivity
         elif self.state == self.STATE_LOST_CONT:
             # if the connection is alive (some data is arriving on the async channel)
             # try to reconnect
-            if self.client.conn.is_alive():
+            if (time.time() - self.time_ts) > 5.0:
                 # move to state reconnect
                 self.state = self.STATE_RECONNECT
-            else:
-                self.client.conn.async_.connect()
 
 
 
@@ -796,13 +804,12 @@ class TrexTUI():
         elif self.state == self.STATE_RECONNECT:
 
             try:
-                self.client.disconnect();
                 self.client.connect()
                 self.client.acquire()
                 self.state = self.STATE_ACTIVE
             except TRexError:
                 self.state = self.STATE_LOST_CONT
-                self.client.conn.async_.connect()
+                self.time_ts = time.time()
 
 
     # logic before printing
