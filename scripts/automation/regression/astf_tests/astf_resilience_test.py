@@ -164,3 +164,22 @@ class ASTFResilience_Test(CASTFGeneral_Test):
             c.start()
             c.stop()
 
+    def test_stress_start_stop_dynamic_profile(self):
+        print('')
+        c = self.astf_trex
+ 
+        for n in range(1000):
+            profile_n = self.randomString()
+            port_n = 9000 + n
+            tunables = {'port': port_n}
+            print('Dynamic profile added : %s' % str(profile_n))
+            print('Port added : %s' % str(port_n))
+            c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'http_simple_port_tunable.py'),
+                           tunables=tunables,
+                           pid_input=str(profile_n))
+            c.start(duration = 20, pid_input=str(profile_n))
+
+        c.wait_on_traffic()
+        c.stop(pid_input = "*")
+        c.reset()
+
