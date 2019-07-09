@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+== Release 2.59 ==
+
+* ASTF
+** Support ip.tos/ttl tunables. 
+** Support ipv6 tunable per template 
+
+
 == Release 2.58 ==
 
 * ASTF
