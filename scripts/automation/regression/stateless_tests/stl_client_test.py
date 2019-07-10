@@ -708,64 +708,6 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
-    def test_pause_resume_update_dynamic_profile(self):
-
-        if  self.drv_name == 'net_e1000_em':
-            # this test is sensetive and does not work good on E1000
-            return;
-
-        try:
-            self.c.reset()
-            stream = STLStream(mode = STLTXCont(pps = 250))
-
-            port_id = 0
-            profile_id = 1
-            num_profiles = 100
-            profile_list = []
-            while profile_id <= num_profiles:
-                profile_name = str(port_id) + str(".profile_") + str(profile_id)
-                profile_list.append(profile_name)
-                profile_id = profile_id + 1
-
-            self.c.add_streams(stream, ports = profile_list)
-            self.c.start(ports = profile_list)
-
-            for profile in profile_list:
-                assert self.c.ports[port_id].is_transmitting()
-                self.c.pause(ports = profile)
-
-            assert self.c.ports[port_id].is_paused()
-
-            for profile in profile_list:
-                self.c.resume(ports = profile)
-                assert self.c.ports[port_id].is_transmitting()
-
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 25000)
-
-            for index, profile in enumerate(profile_list):
-                if index % 2 == 0:
-                    self.c.pause(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 12500) # paused stream not transmitting
-            for index, profile in enumerate(profile_list):
-                if index % 2 == 0:
-                    self.c.resume(ports = profile)
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 25000) # resume the paused
-
-            self.c.update(ports = profile_list, mult = '500pps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 50000)
-
-            for index, profile in enumerate(profile_list):
-                if index % 2 == 0:
-                    self.c.update(ports = profile, mult = '1kpps')
-            self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 75000)
-
-        except STLError as e:
-            assert False , '{0}'.format(e)
-
-        finally:
-            self.cleanup()
-
     def test_basic_cont_dynamic_profile (self):
 
         pps = self.pps
@@ -858,44 +800,6 @@ class STLClient_Test(CStlGeneral_Test):
             self.c.wait_on_traffic(ports = [self.tx_port])
             assert not self.c.get_profiles_with_state("transmitting"), 'there should no transmitting profile'
             self.c.remove_all_streams(ports = tx_profile_list)
-
-        except STLError as e:
-            assert False , '{0}'.format(e)
-
-        finally:
-            self.cleanup()
-
-    def test_latency_pause_resume_dynamic_profile (self):
-
-        try:
-            profile_id = 1
-            num_profiles = 100
-            tx_profile_list = []
-            tx_all_profile = str(self.tx_port) + str(".*")
-
-            while profile_id <= num_profiles:
-                tx_profile_name = str(self.tx_port) + str(".profile_") + str(profile_id)
-                tx_profile_list.append(tx_profile_name)
-                profile_id = profile_id + 1
-
-            for index, tx_profile in enumerate(tx_profile_list):
-                pg_index = index * num_profiles + self.tx_port
-                stream = STLStream(name = 'latency',
-                               packet = self.pkt,
-                               mode = STLTXCont(pps = 5),
-                               flow_stats = STLFlowLatencyStats(pg_id = pg_index))
-                self.c.add_streams([stream], ports = tx_profile)
-                self.c.start(ports = tx_profile)
-
-            for tx_profile in tx_profile_list:
-                self.c.pause(tx_profile)
-                self.c.resume(tx_profile)
-
-            for i in range(num_profiles):
-                self.c.pause(tx_all_profile)
-                self.c.resume(tx_all_profile)
-
-            self.c.stop()
 
         except STLError as e:
             assert False , '{0}'.format(e)

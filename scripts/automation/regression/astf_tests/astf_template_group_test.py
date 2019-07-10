@@ -197,38 +197,6 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
                                 stats = stats, cps_list = profile_cps[1])
 
 
-    def test_astf_template_group_general_dynamic_profile(self):
-        profiles_cps_list = []
-        list_of_cps_list = [[1, 2], [random.randint(1, 7), random.randint(1,7)], [1, 1.5, 2, 2.5]]
-
-        for cps_list in list_of_cps_list:
-            num_of_cps = cps_list
-            udp_prof = self.profile_gen(self.udp_http_prog(), cps_list)
-            tcp_prof = self.profile_gen(self.tcp_http_prog(), cps_list)
-            mixed_prof = self.profile_gen_mixed(cps_list)
-            profiles_cps_list.append((udp_prof, num_of_cps))
-            profiles_cps_list.append((tcp_prof, num_of_cps))
-            profiles_cps_list.append((mixed_prof, num_of_cps))
-
-        print('Creating random name for the dynamic profile')
-        random_profile = self.randomString()
-        print('Dynamic profile name : %s' % str(random_profile))
-
-        for profile_cps in profiles_cps_list:
-            self.c.load_profile(profile_cps[0], pid_input=str(random_profile))
-            self.c.clear_stats(pid_input=str(random_profile))
-            self.c.start(duration = 1, mult = 100, pid_input=str(random_profile))
-            self.c.wait_on_traffic()
-            #verify we got the right list of names
-            tg_names_received = self.c.get_tg_names(pid_input=str(random_profile))
-            tg_names_sent = [str(i) for i in range(len(profile_cps[1]))]
-            assert tg_names_received == tg_names_sent
-            stats = self.c.get_traffic_tg_stats(tg_names_received, pid_input=str(random_profile))
-            summary_stats = self.c.get_traffic_stats(pid_input=str(random_profile))
-            self.verify(names = tg_names_received, summary_stats = summary_stats,
-                                stats = stats, cps_list = profile_cps[1])
-
-
     def test_astf_template_group_long(self):
         profile = self.profile_gen(self.udp_http_prog(), [1, 2])
         self.c.load_profile(profile)
@@ -240,25 +208,6 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         assert tg_names_received == tg_names_sent
         stats = self.c.get_traffic_tg_stats(tg_names_received)
         summary_stats = self.c.get_traffic_stats()
-        self.verify(names = tg_names_received, summary_stats = summary_stats,
-                            stats = stats, cps_list = [1, 2])
-
-
-    def test_astf_template_group_long_dynamic_profile(self):
-        profile = self.profile_gen(self.udp_http_prog(), [1, 2])
-        print('Creating random name for the dynamic profile')
-        random_profile = self.randomString()
-        print('Dynamic profile name : %s' % str(random_profile))
-
-        self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
-        self.c.start(duration = 60, mult = 100, pid_input=str(random_profile))
-        self.c.wait_on_traffic()
-        tg_names_received = self.c.get_tg_names(pid_input=str(random_profile))
-        tg_names_sent = ['0', '1']
-        assert tg_names_received == tg_names_sent
-        stats = self.c.get_traffic_tg_stats(tg_names_received, pid_input=str(random_profile))
-        summary_stats = self.c.get_traffic_stats(pid_input=str(random_profile))
         self.verify(names = tg_names_received, summary_stats = summary_stats,
                             stats = stats, cps_list = [1, 2])
 

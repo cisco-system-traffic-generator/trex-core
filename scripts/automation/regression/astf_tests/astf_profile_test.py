@@ -234,30 +234,11 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         for o in tests:
             self.run_astf_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True)
 
-    def test_astf_prof_simple_dynamic_profile(self):
-        mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_http')
-        tests = self.get_simple_params() 
-        for o in tests:
-            random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],pid_input=str(random_profile))
-
-        mult  = self.get_benchmark_param('multiplier',test_name = 'test_ipv6_tcp_http')
-        for o in tests:
-            random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult,o['is_udp'],o['is_tcp'],ipv6=True,pid_input=str(random_profile))
-
     def test_astf_prof_sfr(self):
         mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
         tests = self.get_sfr_params() 
         for o in tests:
             self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'])
-
-    def test_astf_prof_sfr_dynamic_profile(self):
-        mult  = self.get_benchmark_param('multiplier',test_name = 'test_tcp_sfr')
-        tests = self.get_sfr_params()
-        for o in tests:
-            random_profile = self.randomString()
-            self.run_astf_profile_dynamic_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],pid_input=str(random_profile))
 
     @nottest
     def test_astf_prof_no_crash_sfr(self):
@@ -433,14 +414,14 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         self.do_latency(30,stop_after=None)
 
     def test_astf_prof_latency_dynamic_profile(self):
-        for index in range(100):
+        for index in range(5):
             self.do_latency_dynamic_profile(3,stop_after=None,pid_input=str(index))
 
     def test_astf_prof_latency_stop(self):
         self.do_latency(20,stop_after=10)
 
     def test_astf_prof_latency_stop_dynamic_profile(self):
-        for index in range(100):
+        for index in range(5):
             self.do_latency_dynamic_profile(2,stop_after=1,pid_input=str(index))
 
     def test_astf_prof_only_latency(self):
