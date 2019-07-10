@@ -4,12 +4,131 @@ from misc_methods import run_command
 from trex.astf.api import *
 import time
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
+import re
 import pprint
 import random
 import string
 import glob
 from nose.tools import assert_raises, nottest
 from functools import wraps
+
+class DynamicProfileTest:
+
+    def __init__(self,
+                 client, 
+                 min_rand_duration,
+                 max_rand_duration,
+                 min_tick,
+                 max_tick,
+                 duration,
+                 ):
+
+        self.c = client
+        self.min_rand_duration = min_rand_duration 
+        self.max_rand_duration = max_rand_duration
+        self.min_tick = min_tick
+        self.max_tick = max_tick
+        self.duration = duration
+
+    def check_profile_msg(self,msg):
+        m = re.match("Moved to profile (\d+) state: (\d+)", msg)
+        if m:
+            return [int(m.group(1)), int(m.group(2))]
+        else:
+           return None
+
+
+    def run_test (self):
+
+        passed = True
+        c = self.c;
+
+        try:
+
+             # connect to server
+             c.connect()
+
+             # prepare our ports
+             c.reset()
+
+             port_id = 0
+             profile_id = 0
+             tick_action = 0
+             profiles ={}
+             tick = 1
+             max_tick = self.duration
+             stop = False
+
+             c.clear_stats()
+
+             while True:
+
+                 if tick > tick_action and (tick<max_tick):
+                     profile_name = str(profile_id)
+                     port_n = 9000 + profile_id
+                     tunables = {'port': port_n}
+                     duration = random.randrange(self.min_rand_duration,self.max_rand_duration)
+
+                     c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'http_simple_port_tunable.py'),
+                                                 tunables=tunables,
+                                                 pid_input=profile_name)
+                     profiles[profile_id] = 1
+                     print(" {} new profile {} {} {}".format(tick,profile_name,duration,len(profiles)))
+
+                     c.start(duration = duration, pid_input=profile_name)
+                     profile_id += 1
+                     tick_action = tick + random.randrange(self.min_tick,self.max_tick) # next action 
+
+                 time.sleep(1);
+                 tick += 1
+
+
+                 # check events 
+                 while True:
+                    event = c.pop_event ()
+                    if event == None:
+                        break;
+                    else:
+                        profile = self.check_profile_msg(event.msg)
+                        if profile:
+                            (p_id, state) = profile
+                            if p_id is not None and state is 1:
+                                if(profiles[p_id]==5):
+                                    del profiles[p_id]
+                                    print(" {} del profile {} {}".format(tick,p_id,len(profiles)))
+                                    if tick>=max_tick and (len(profiles)==0):
+                                        print("stop");
+                                        stop=True
+                            else:
+                                profiles[p_id] = state
+                 if stop:
+                     break;
+
+             r = c.astf_profile_state.values()
+             assert( max(r) == 1 )
+
+             stats = c.get_stats()
+             diff = stats[1]["ipackets"] - stats[0]["opackets"] 
+             assert(diff<2)
+
+
+        except Exception as e:
+             passed = False
+             print(e)
+
+        finally:
+             c.reset()
+             c.disconnect()
+
+        if c.get_warnings():
+                print("\n\n*** test had warnings ****\n\n")
+                for w in c.get_warnings():
+                    print(w)
+
+        if passed and not c.get_warnings():
+            return True
+        else:
+            return False
 
 
 class ASTFProfile_Test(CASTFGeneral_Test):
@@ -449,3 +568,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                 break;
         c.stop_latency()
 
+    def test_random_add_remove_dynamic_profile (self):
+        if self.weak:
+            self.skip('not enough memory for this test')
+        if not self.allow_latency():
+            self.skip('not allowed latency here')
+
+        test = DynamicProfileTest(self.astf_trex,1,50,1,2,120);
+        test.run_test()
+        

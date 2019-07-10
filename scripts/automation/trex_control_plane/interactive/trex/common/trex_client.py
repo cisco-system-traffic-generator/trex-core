@@ -1042,6 +1042,26 @@ class TRexClient(object):
 
         return output
             
+            
+    @client_api('getter', False)
+    def has_events (self):
+        """
+        returns True in case there are events in the queue
+        :raises:
+         None
+        """
+        return not self.ctx.event_handler.empty ()
+
+
+    @client_api('getter', False)
+    def pop_event (self):
+        """
+        returns event from the head of the queue
+        :raises:
+         None
+        """
+        return self.ctx.event_handler.pop_event()
+
 
     @client_api('getter', False)
     def get_events (self, ev_type_filter = None):

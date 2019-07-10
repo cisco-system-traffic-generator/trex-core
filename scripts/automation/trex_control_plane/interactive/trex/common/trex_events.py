@@ -58,7 +58,22 @@ class EventsHandler(object):
     def is_enabled (self):
         return self.enabled
         
-        
+
+    def empty (self):
+        return  len(self.events)==0
+
+
+    def pop_event (self):
+        """
+            returns a event from the head of 
+            'ev_type_filter' - 'info', 'warning' or a list of them
+        """
+        if not self.empty ():
+            return self.events.pop(0)
+        else:
+            return None
+     
+
     def get_events (self, ev_type_filter = None):
         """
             returns a list of events
