@@ -462,7 +462,8 @@ private:
      CCpuUtlCp               m_cpu_cp_u;
      TrexMonitor             m_monitor;
      CManyIPInfo             m_arp_info; // for grat ARP
-     volatile bool           m_do_stop __rte_cache_aligned ;
+     volatile bool           m_do_stop; 
+     char                    m_false_sharing[128];
 };
 
 #endif

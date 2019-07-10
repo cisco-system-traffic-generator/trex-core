@@ -17,7 +17,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
         pass
 
 
-    def test_nat_learning(self):
+    def _test_nat_learning(self):
         # test initializtion
         if not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
@@ -35,7 +35,7 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             c = core,
             m = mult,
             learn_verify = True,
-            d = 100,   
+            d = 10,   
             f = 'cap2/http_simple.yaml',
             l = 1000)
 
@@ -85,16 +85,16 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     def test_nat_simple_mode1(self):
         self.nat_simple_helper(learn_mode=1, traffic_file='cap2/http_simple.yaml')
 
-    def test_nat_simple_mode2(self):
+    def _test_nat_simple_mode2(self):
         self.nat_simple_helper(learn_mode=2, traffic_file='cap2/http_simple.yaml')
 
-    def test_nat_simple_mode3(self):
+    def _test_nat_simple_mode3(self):
         self.nat_simple_helper(learn_mode=3, traffic_file='cap2/http_simple.yaml')
 
     def test_nat_simple_mode1_udp(self):
         self.nat_simple_helper(learn_mode=1, traffic_file='cap2/dns.yaml')
 
-    def test_nat_simple_mode3_udp(self):
+    def _test_nat_simple_mode3_udp(self):
         self.nat_simple_helper(learn_mode=3, traffic_file='cap2/dns.yaml')
 
     def nat_simple_helper(self, learn_mode=1, traffic_file='cap2/http_simple.yaml'):
@@ -117,7 +117,7 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
             c = core,
             m = mult,
             learn_mode = learn_mode,
-            d = 100,
+            d = 20,
             f = traffic_file,
             l = 1000)
 

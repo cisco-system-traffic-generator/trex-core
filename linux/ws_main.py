@@ -25,7 +25,7 @@ SANITIZE_CC_VERSION = "4.9.0"
 
 GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
-GCC8_DIRS = ['/usr/local/gcc-8.3/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
 
 
 class SrcGroup:
@@ -102,8 +102,8 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     
 def configure(conf):
-    if conf.options.gcc6 and conf.options.gcc7:
-        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+    if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
+        conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
     # start from clean
     if 'RPATH' in os.environ:
@@ -596,8 +596,12 @@ class build_option:
     def get_flags (self, is_sanitized = False):
         flags = self.cxxcomp_flags(cxxflags_base);
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-        
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
         return flags
         
 
@@ -627,8 +631,12 @@ class build_option:
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
 
         if is_sanitized:
-            base_flags += ['-fsanitize=address', '-fsanitize=leak']
-            
+            base_flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-static-libasan',
+            ]
+
         return base_flags;
 
 

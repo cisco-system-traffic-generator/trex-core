@@ -78,6 +78,8 @@ class CTcpTuneables {
         sched_rampup    =  0x4000,
         sched_accurate  =  0x8000,
         tcp_blackhole   =  0x10000,
+        ip_ttl          =  0x20000,
+        ip_tos          =  0x40000,
     };
 
 
@@ -100,6 +102,8 @@ class CTcpTuneables {
         m_tcp_no_delay=0; /* disable nagel */
         m_scheduler_rampup=0;
         m_scheduler_accurate=0;
+        m_ip_ttl=0;
+        m_ip_tos=0;
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -143,6 +147,8 @@ class CTcpTuneables {
     uint8_t  m_tcp_no_delay; /* 1/0 */
     uint8_t  m_scheduler_accurate; /* more accorate  */
     uint16_t m_scheduler_rampup; /* time in sec for rampup*/
+    uint8_t  m_ip_ttl;
+    uint8_t  m_ip_tos;
     
 
  private:

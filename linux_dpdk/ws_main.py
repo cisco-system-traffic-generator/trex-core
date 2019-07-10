@@ -45,7 +45,7 @@ SANITIZE_CC_VERSION = "4.9.0"
 
 GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
-GCC8_DIRS = ['/usr/local/gcc-8.3/bin', '/opt/rh/devtoolset-7/root/usr/bin']
+GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
 
 MAX_PKG_SIZE = 250 # MB
 
@@ -271,8 +271,8 @@ def get_ld_search_path(ctx):
 
 def configure(conf):
 
-    if conf.options.gcc6 and conf.options.gcc7:
-        conf.fatal('--gcc6 and --gcc7 and mutual exclusive')
+    if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
+        conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
     if conf.options.gcc6:
         configure_gcc(conf, GCC6_DIRS)
@@ -1337,8 +1337,12 @@ class build_option:
                      ]
 
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-            
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+        ]
+
         return (flags)
 
         
@@ -1348,8 +1352,12 @@ class build_option:
             flags += ['-DNDEBUG'];
 
         if is_sanitized:
-            flags += ['-fsanitize=address', '-fsanitize=leak', '-fno-omit-frame-pointer']
-            
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
         # for C no special flags yet
         return (flags)
 
@@ -1360,9 +1368,13 @@ class build_option:
             base_flags += ['-m64']
         base_flags += ['-lrt'];
 
-            
+
         if is_sanitized:
-            base_flags += ['-fsanitize=address', '-fsanitize=leak']
+            base_flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-static-libasan',
+            ]
         return base_flags;
 
 

@@ -453,7 +453,7 @@ public:
         mac_align_t m_mac;
         uint8_t     m_data[16];
     } u;
-} __rte_cache_aligned; ;
+} __rte_cache_aligned;
 
 class CPerPortIPCfg {
  public:

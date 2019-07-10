@@ -78,7 +78,10 @@ class STLClient(TRexClient):
                  sync_port = 4501,
                  async_port = 4500,
                  verbose_level = "error",
-                 logger = None):
+                 logger = None,
+                 sync_timeout = None,
+                 async_timeout = None
+                 ):
         """ 
         TRex stateless client
 
@@ -100,6 +103,16 @@ class STLClient(TRexClient):
 
               logger: instance of AbstractLogger
                 if None, will use ScreenLogger
+
+
+              sync_timeout: int 
+                   time in sec for timeout for RPC commands. for local lab keep it as default (3 sec) 
+                   higher number would be more resilient for Firewalls but slower to identify real server crash 
+
+              async_timeout: int 
+                   time in sec for timeout for async notification. for local lab keep it as default (3 sec) 
+                   higher number would be more resilient for Firewalls but slower to identify real server crash 
+
         """
 
         api_ver = {'name': 'STL', 'major': 4, 'minor': 6}
@@ -111,7 +124,9 @@ class STLClient(TRexClient):
                             sync_port,
                             async_port,
                             verbose_level,
-                            logger)
+                            logger,
+                            sync_timeout,
+                            async_timeout)
 
         self.pgid_stats = CPgIdStats(self.conn.rpc)
 

@@ -2185,7 +2185,7 @@ In other words the reported socket-util is the console should be multiplied by c
 
 === Dynamic multiple profiles support
 
-TRex can support the multiple profiles dynamically in ASTF interactive mode.
+TRex can support adding/removing multiple profiles dynamically in ASTF interactive mode while traffic is active.+
 
 In the console, profile ids can be specified via --pid argument. +
 The expression in TRex console allows --pid <profile id>. +
@@ -2293,9 +2293,11 @@ link:cp_astf_docs/index.html[python index]
 [options="header",cols="2,^2,^2,^1,^1,5"]
 |=================
 |  tunable      | min-max|default| per-template |global| Description  
-|   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. 
-|   ipv6.dst_msb    | string |0 |+|+| default IPv6.src MSB address. 
-|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. 
+|   ip.tos    | uint8 |0 |+|+| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs 
+|   ip.ttl    | uint8 |0 |+|+| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs 
+|   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
+|   ipv6.dst_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
+|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used   
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
 |   tcp.rxbufsize   | 1K-1M  |32K |+|+| socket rx buffer size in bytes. 

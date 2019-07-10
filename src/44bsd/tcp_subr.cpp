@@ -307,7 +307,8 @@ void CFlowBase::Delete(){
 void CFlowBase::init(){
         /* build template */
     m_template.set_offload_mask(m_pctx->m_ctx->m_offload_flags);
-    m_template.build_template(m_pctx);
+    
+    m_template.build_template(m_pctx,m_c_template_idx);
 }
 
 void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
@@ -361,6 +362,8 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
     Create(DEFAULT_PROFILE_CTX(ctx), tg_id);
 }
 #endif
+
+
 
 void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
     m_tcp.m_tuneable_flags = 0;
@@ -429,6 +432,7 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
         m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
     }
+
 }
 
 
@@ -836,35 +840,121 @@ CPerProfileCtx * CTcpPerThreadCtx::get_profile_by_server_port(uint16_t port, boo
     return FALLBACK_PROFILE_CTX(this);
 }
 
-static void tcp_template_ipv6_update(IPv6Header *ipv6,
-                              CPerProfileCtx * pctx){
+static void tcp_template_ipv4_update(IPHeader *ipv4,
+                                     CPerProfileCtx * pctx,
+                                     uint16_t  template_id){
+
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
+
+    CAstfTemplatesRW * c_rw = pctx->m_template_rw;
+
+    if (!c_rw){
+        return;
+    }
+    
+    CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
+    CTcpTuneables * ctx_tune;
+    CTcpTuneables * t_tune;
+
+    if (ctx->is_client_side()){
+        t_tune   = cur->get_c_tune();
+        ctx_tune = c_rw->get_c_tuneables();
+    }else{
+        t_tune = cur->get_s_tune();
+        ctx_tune = c_rw->get_s_tuneables();
+    }
+
+    if (!ctx_tune || !t_tune){
+       return;
+    }
+
+    if (ctx_tune->is_empty() && t_tune->is_empty()) {
+        return;
+    }
+
+    if (t_tune->is_valid_field(CTcpTuneables::ip_ttl)) {
+        ipv4->setTimeToLive(t_tune->m_ip_ttl);
+    }else{
+        if (ctx_tune->is_valid_field(CTcpTuneables::ip_ttl)){
+            ipv4->setTimeToLive(ctx_tune->m_ip_ttl);
+        }
+    }
+
+    if (t_tune->is_valid_field(CTcpTuneables::ip_tos)) {
+        ipv4->setTOS(t_tune->m_ip_tos);
+    }else{
+        if (ctx_tune->is_valid_field(CTcpTuneables::ip_tos)){
+            ipv4->setTOS(ctx_tune->m_ip_tos);
+        }
+    }
+}
+
+static void tcp_template_ipv6_update(IPv6Header *ipv6,
+                                     CPerProfileCtx * pctx,
+                                     uint16_t  template_id){
+
+    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+
+    CAstfTemplatesRW * c_rw = pctx->m_template_rw;
+
+    if (!c_rw){
+        return;
+    }
+    CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
+    CTcpTuneables * ctx_tune;
+    CTcpTuneables * t_tune;
+
+    if (ctx->is_client_side()){
+        t_tune   = cur->get_c_tune();
+        ctx_tune = c_rw->get_c_tuneables();
+    }else{
+        t_tune = cur->get_s_tune();
+        ctx_tune = c_rw->get_s_tuneables();
+    }
+
+    if (!ctx_tune || !t_tune){
+       return;
+    }
+
+    if (ctx_tune->is_empty() && t_tune->is_empty()) {
+        return;
+    }
+
+    if (t_tune->is_valid_field(CTcpTuneables::ip_ttl)) {
+        ipv6->setHopLimit(t_tune->m_ip_ttl);
+    }else{
+        if (ctx_tune->is_valid_field(CTcpTuneables::ip_ttl)){
+            ipv6->setHopLimit(ctx_tune->m_ip_ttl);
+        }
+    }
+
+    if (t_tune->is_valid_field(CTcpTuneables::ip_tos)) {
+        ipv6->setTrafficClass(t_tune->m_ip_tos);
+    }else{
+        if (ctx_tune->is_valid_field(CTcpTuneables::ip_tos)){
+            ipv6->setTrafficClass(ctx_tune->m_ip_tos);
+        }
+    }
 
     if (!ctx->is_client_side()){
         /* in case of server side learn from the network */
         return;
     }
 
-    if (!pctx->m_template_rw){
-        return;
-    }
-
-    CTcpTuneables * ctx_tune=pctx->m_template_rw->get_c_tuneables();
-
-    if (!ctx_tune){
-        return;
-    }
-
-    if (ctx_tune->is_empty()) {
-        return;
-    }
-
     if ( ctx_tune->is_valid_field(CTcpTuneables::ipv6_src_addr) ){
         ipv6->setSourceIpv6Raw(ctx_tune->m_ipv6_src);
+    }else{
+        if (t_tune->is_valid_field(CTcpTuneables::ipv6_src_addr)){
+            ipv6->setSourceIpv6Raw(t_tune->m_ipv6_src);
+        }
     }
 
     if ( ctx_tune->is_valid_field(CTcpTuneables::ipv6_dst_addr) ){
         ipv6->setDestIpv6Raw(ctx_tune->m_ipv6_dst);
+    }else{
+        if (t_tune->is_valid_field(CTcpTuneables::ipv6_dst_addr)){
+            ipv6->setDestIpv6Raw(t_tune->m_ipv6_dst);
+        }
     }
 }
 
@@ -898,7 +988,8 @@ void CFlowTemplate::server_update_mac_from_packet(uint8_t *pkt){
     memcpy(m_template_pkt,pkt+6,6);
 }
 
-void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx){
+void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
+                                      uint16_t  template_idx){
 
     const uint8_t default_ipv4_header[] = {
         0x00,0x00,0x00,0x01,0x0,0x0,  // Ethr
@@ -958,6 +1049,7 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx){
         /* set default value */
         IPHeader *lpIpv4=(IPHeader *)(p+m_offset_ip);
         lpIpv4->setTotalLength(20); /* important for PH calculation */
+        tcp_template_ipv4_update(lpIpv4,pctx,template_idx);
         lpIpv4->setDestIp(m_dst_ipv4);
         lpIpv4->setSourceIp(m_src_ipv4);
         lpIpv4->setProtocol(m_proto);
@@ -986,7 +1078,7 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx){
         }
         /* set default value */
         IPv6Header *ipv6=(IPv6Header *)(p+m_offset_ip);
-        tcp_template_ipv6_update(ipv6,pctx);
+        tcp_template_ipv6_update(ipv6,pctx,template_idx);
         ipv6->updateLSBIpv6Dst(m_dst_ipv4);
         ipv6->updateLSBIpv6Src(m_src_ipv4);
         ipv6->setNextHdr(m_proto);
@@ -1047,9 +1139,10 @@ void CFlowTemplate::build_template_udp(CPerProfileCtx * pctx){
 }
 
 
-void CFlowTemplate::build_template(CPerProfileCtx * pctx){
+void CFlowTemplate::build_template(CPerProfileCtx * pctx,
+                                   uint16_t  template_idx){
 
-    build_template_ip(pctx);
+    build_template_ip(pctx,template_idx);
     if (is_tcp()) {
         build_template_tcp(pctx);
     }else{
