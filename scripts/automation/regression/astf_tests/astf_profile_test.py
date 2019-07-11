@@ -44,10 +44,6 @@ class DynamicProfileTest:
         c = self.c;
 
         try:
-
-             # connect to server
-             c.connect()
-
              # prepare our ports
              c.reset()
 
@@ -110,7 +106,6 @@ class DynamicProfileTest:
 
         finally:
             c.reset()
-            c.disconnect()
 
         if c.get_warnings():
             print("\n\n*** test had warnings ****\n\n")
@@ -566,7 +561,6 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if not self.allow_latency():
             self.skip('not allowed latency here')
 
-        #test = DynamicProfileTest(self.astf_trex,1,50,1,2,120);
-        test = DynamicProfileTest(self.astf_trex,1,50,1,2,10);
+        test = DynamicProfileTest(self.astf_trex,1,50,1,2,120);
         test.run_test()
         
