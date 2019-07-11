@@ -30,12 +30,12 @@ class DynamicProfileTest:
         self.max_tick = max_tick
         self.duration = duration
 
-    def check_profile_msg(self,msg):
-        m = re.match("Moved to profile (\d+) state: (\d+)", msg)
+    def is_last_profile_msg(self, msg):
+        m = re.match("Moved to state: Loaded", msg)
         if m:
-            return [int(m.group(1)), int(m.group(2))]
+            return True
         else:
-           return None
+           return False
 
 
     def run_test (self):
@@ -89,18 +89,10 @@ class DynamicProfileTest:
                     if event == None:
                         break;
                     else:
-                        profile = self.check_profile_msg(event.msg)
-                        if profile:
-                            (p_id, state) = profile
-                            if p_id is not None and state is 1:
-                                if(profiles[p_id]==5):
-                                    del profiles[p_id]
-                                    print(" {} del profile {} {}".format(tick,p_id,len(profiles)))
-                                    if tick>=max_tick and (len(profiles)==0):
-                                        print("stop");
-                                        stop=True
-                            else:
-                                profiles[p_id] = state
+                        profile = self.is_last_profile_msg(event.msg)
+                        if profile and tick>=max_tick:
+                            print("stop");
+                            stop=True
                  if stop:
                      break;
 
@@ -113,17 +105,17 @@ class DynamicProfileTest:
 
 
         except Exception as e:
-             passed = False
-             print(e)
+            passed = False
+            print(e)
 
         finally:
-             c.reset()
-             c.disconnect()
+            c.reset()
+            c.disconnect()
 
         if c.get_warnings():
-                print("\n\n*** test had warnings ****\n\n")
-                for w in c.get_warnings():
-                    print(w)
+            print("\n\n*** test had warnings ****\n\n")
+            for w in c.get_warnings():
+                print(w)
 
         if passed and not c.get_warnings():
             return True
@@ -271,18 +263,14 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False):
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
             return
 
-
         c.reset();
         d = self.get_duration()
-        if short_duration:
-            d = self.get_short_duration()
-
         print('starting profile %s for duration %s' % (profile_name, d))
         c.load_profile(self.get_profile_by_name(profile_name))
         c.clear_stats()
@@ -335,15 +323,12 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                 ]
         return (tests);
 
-    def get_short_duration(self):
-        if self.duration:
-            return self.duration
-        return random.randint(10,15 )
-
     def get_duration (self):
         if self.duration:
             return self.duration
-        return random.randint(20, 60)
+        return random.randint(20, 120)
+        #return 120
+        #return 10
 
     def randomString(self, stringLength=10):
         """Generate a random string of fixed length """
@@ -581,6 +566,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         if not self.allow_latency():
             self.skip('not allowed latency here')
 
-        test = DynamicProfileTest(self.astf_trex,1,50,1,2,120);
+        #test = DynamicProfileTest(self.astf_trex,1,50,1,2,120);
+        test = DynamicProfileTest(self.astf_trex,1,50,1,2,10);
         test.run_test()
         
