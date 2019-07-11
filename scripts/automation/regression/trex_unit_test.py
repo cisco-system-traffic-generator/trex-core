@@ -312,6 +312,8 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help="Print server side (TRex and trex_daemon) logs per test.")
         parser.add_option('--kill-running', action="store_true",
                             help="Kills running TRex process on remote server (useful for regression).")
+        parser.add_option('--allow-multi-instance', action="store_true",
+                            help="Allow multiple TRex instance with not kill-running, but only 1 intance can connect via deamon server.")
         parser.add_option('--func', '--functional', action="store_true",
                             dest="functional",
                             help="Run functional tests.")
@@ -375,6 +377,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             return
         self.enabled       = True
         self.kill_running  = options.kill_running
+        self.allow_multi_instance = options.allow_multi_instance
         self.load_image    = options.load_image
         self.clean_config  = False if options.skip_clean_config else True
         self.no_dut_config = options.no_dut_config
@@ -513,8 +516,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         if not self.no_daemon:
             if self.kill_running:
                 client.kill_all_trexes()
-            elif client.get_trex_cmds():
-                print('TRex is already running. Use --kill-running flag to kill it.')
+            elif client.get_trex_cmds() and not self.allow_multi_instance:
+                fatal('TRex is already running. Use --kill-running flag to kill it.')
             try:
                 client.check_server_connectivity()
             except Exception as e:
