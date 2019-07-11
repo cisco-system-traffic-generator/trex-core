@@ -6258,27 +6258,27 @@ int  update_dpdk_args(void){
         SET_ARGS("--file-prefix");
         snprintf(g_prefix_str, sizeof(g_prefix_str), "%s", lpop->prefix.c_str());
         SET_ARGS(g_prefix_str);
+    }
 
-        if ( !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
-            SET_ARGS("--socket-mem");
-            char *mem_str;
-            if (cg->m_limit_memory.length()) {
-                mem_str = (char *)cg->m_limit_memory.c_str();
-            }else{
-                mem_str = (char *)"1024";
-            }
-            int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
-            for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
-                char path[PATH_MAX];
-                snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
-                if (access(path, F_OK) == 0) {
-                    pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
-                } else {
-                    break;
-                }
-            }
-            SET_ARGS(g_socket_mem_str);
+    if ( !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
+        SET_ARGS("--socket-mem");
+        char *mem_str;
+        if (cg->m_limit_memory.length()) {
+            mem_str = (char *)cg->m_limit_memory.c_str();
+        }else{
+            mem_str = (char *)"1024";
         }
+        int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
+        for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
+            char path[PATH_MAX];
+            snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
+            if (access(path, F_OK) == 0) {
+                pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
+            } else {
+                break;
+            }
+        }
+        SET_ARGS(g_socket_mem_str);
     }
 
 
