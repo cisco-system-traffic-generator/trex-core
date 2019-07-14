@@ -64,12 +64,24 @@ TRex supports both Python2 and Python3 pyATS.
   	/auto/pyats/bin/pyats-install --python2
   	/auto/pyats/bin/pyats-install --python3
 
-* setenv TREX_PATH to the trex stateless lib path 
-   	setenv TREX_PATH <your path>/automation/trex_control_plane/interactive/trex/stl
+* Update the path 
 
-* In the script or job file, add the TREX_PATH to sys.path::
+  * Option 1
+         export PYTHONPATH=automation/trex_control_plane/interactive
+         
+         $PYTHON -m [your main] -p $PWD $INPUT_ARGS
+
+  * Option 2
+
+     * setenv TREX_PATH to the trex stateless lib path 
+          setenv TREX_PATH <your path>/automation/trex_control_plane/interactive/
+
+     * In the script or job file, add the TREX_PATH to sys.path::
  
  	import sys, os; sys.path.append(os.environ['TREX_PATH'])
+        
+        
+  * In any case do **not** include a path internal than ../interactive. This could lead to unexpected behavior
 
 * Source trex stateless libs in scripts::
 
@@ -79,7 +91,7 @@ TRex supports both Python2 and Python3 pyATS.
 
 If using trex_client package, import syntax is::
 
-    from trex_client.stl.api import *
+    from trex.stl.api import *
 
 
 API Reference
