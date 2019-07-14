@@ -320,7 +320,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         self.verify_cnt_and_summary(names = tg_names_received, summary_stats = summary_stats, stats = stats)
 
 
-    def test_astf_template_group_edge_cases_dynamic_profile(self):
+    def __test_astf_template_group_edge_cases_dynamic_profile(self):
         ip_gen = self.ip_gen()
         prog_c, prog_s = self.tcp_http_prog()
 
