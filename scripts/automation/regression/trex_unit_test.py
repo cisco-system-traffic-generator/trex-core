@@ -516,7 +516,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         if not self.no_daemon:
             if self.kill_running:
                 client.kill_all_trexes()
-            elif client.get_trex_cmds() and not self.allow_multi_instance:
+            elif (not self.allow_multi_instance) and client.get_trex_cmds():
                 fatal('TRex is already running. Use --kill-running flag to kill it.')
             try:
                 client.check_server_connectivity()
