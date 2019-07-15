@@ -58,8 +58,10 @@ class EventsHandler(object):
     def is_enabled (self):
         return self.enabled
 
+      
     def empty (self):
         return  len(self.events)==0
+
 
     def pop_event (self):
         """
@@ -72,7 +74,6 @@ class EventsHandler(object):
         else:
            return None
 
-        
     def get_events (self, ev_type_filter = None):
         """
             returns a list of events
