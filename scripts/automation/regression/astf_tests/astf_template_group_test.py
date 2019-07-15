@@ -2,6 +2,9 @@ from .astf_general_test import CASTFGeneral_Test, CTRexScenario
 from trex.astf.api import *
 from nose.tools import assert_raises, nottest
 from pprint import pprint
+
+from trex.common.trex_types import ALL_PROFILE_ID
+
 import random
 import string
 
@@ -260,8 +263,8 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         random_profile = self.randomString()
         print('Dynamic profile name : %s' % str(random_profile))
 
+        self.c.reset()
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
         self.c.start(duration = 1, mult = 100, pid_input=str(random_profile))
         self.c.wait_on_traffic()
 
@@ -338,8 +341,8 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         random_profile = self.randomString()
         print('Dynamic profile name : %s' % str(random_profile))
 
+        self.c.reset()
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
         self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
 
@@ -361,7 +364,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         print('Dynamic profile name : %s' % str(random_profile))
 
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
         self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
 
@@ -435,6 +438,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         prog_c, prog_s = self.tcp_http_prog()
         temp_c =  ASTFTCPClientTemplate(port = 80, program = prog_c, ip_gen = ip_gen)
         temp_s =  ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 80))
+        self.c.reset()
 
         with assert_raises(ASTFErrorWrongType):
             template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name = 1)
@@ -458,7 +462,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         random_profile = self.randomString()
         print('Dynamic profile name : %s' % str(random_profile))
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
         self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
         with assert_raises(ASTFErrorBadTG):
@@ -467,7 +471,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='A')
         profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
         self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
         self.c.get_traffic_tg_stats(['A'], pid_input=str(random_profile))
@@ -476,7 +480,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='B')
         profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
         self.c.load_profile(profile, pid_input=str(random_profile))
-        self.c.clear_stats(pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
         self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
         with assert_raises(ASTFErrorBadTG):
