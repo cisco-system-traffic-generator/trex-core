@@ -258,7 +258,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False):
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
@@ -266,6 +266,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
         c.reset();
         d = self.get_duration()
+        if short_duration:
+            d = self.get_short_duration()
+
         print('starting profile %s for duration %s' % (profile_name, d))
         c.load_profile(self.get_profile_by_name(profile_name))
         c.clear_stats()
@@ -318,12 +321,15 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                 ]
         return (tests);
 
+    def get_short_duration(self):
+        if self.duration:
+            return self.duration
+        return random.randint(10,15)
+
     def get_duration (self):
         if self.duration:
             return self.duration
-        return random.randint(20, 120)
-        #return 120
-        #return 10
+        return random.randint(20, 60)
 
     def randomString(self, stringLength=10):
         """Generate a random string of fixed length """
