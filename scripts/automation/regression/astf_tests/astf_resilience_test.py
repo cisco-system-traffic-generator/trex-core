@@ -19,7 +19,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         if setup in ['trex12']:
             self.weak = True
         self.low_memory = self.weak
-        if setup in ['trex41']::
+        if setup in ['trex41']:
             self.low_memory = True # trex-41 uses the memory for the driver and crash
 
 
