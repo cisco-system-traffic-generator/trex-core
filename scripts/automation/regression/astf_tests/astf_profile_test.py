@@ -258,7 +258,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False):
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False,short_duration = False):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
@@ -285,14 +285,18 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile_dynamic_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, pid_input=None):
+    def run_astf_profile_dynamic_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, pid_input=None,short_duration = False):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
             return
 
         c.reset();
+
         d = self.get_duration()
+        if short_duration:
+            self.get_short_duration()
+           
         print('starting profile %s for duration %s' % (profile_name, d))
         if pid_input:
             print('dynamic profile %s ' % (pid_input))
@@ -324,7 +328,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
     def get_short_duration(self):
         if self.duration:
             return self.duration
-        return random.randint(10,15)
+        return random.randint(10, 15)
 
     def get_duration (self):
         if self.duration:
@@ -358,7 +362,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         tests = self.get_sfr_params() 
         for o in tests:
             for i_ipv6 in (True,False):
-                self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'],ipv6=i_ipv6,check_counters=False,nc=True)
+                self.run_astf_profile(o['name'],mult*o['m'],o['is_udp'],o['is_tcp'], ipv6=i_ipv6,check_counters=False, nc=True, short_duration=True)
 
     def get_profiles_from_sample_filter (self):
         profiles_path = os.path.join(CTRexScenario.scripts_path, 'astf/')

@@ -19,8 +19,9 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         if setup in ['trex12']:
             self.weak = True
         self.low_memory = self.weak
-        if setup in ['trex41']:
+        if setup in ['trex41']::
             self.low_memory = True # trex-41 uses the memory for the driver and crash
+
 
     def ip_gen(self, client_base, server_base, client_ips, server_ips):
         assert client_ips>0
@@ -104,8 +105,11 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         for client_ips in (1<<8, 1<<16):
             for server_ips in (1<<8, 1<<16):
                 for templates in (1, 1<<8, 1<<12):
-                    if self.weak and templates > 1<<8:
-                        continue
+                    if self.weak:
+                        if ( (templates > 1<<8) or 
+                             (server_ips > 1<<8 ) or 
+                             (client_ips > 1<<8 ) ):
+                           continue
 
                     params = {
                         'client_ips': client_ips,
@@ -128,6 +132,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     self.astf_trex.start(duration = 1, nc = True, pid_input=str(random_profile))
                     print('Start took: %g' % round(time.time() - start_time, 3))
                     self.astf_trex.stop(pid_input=str(random_profile))
+        self.astf_trex.reset()
 
 
     def test_double_start_stop(self):
@@ -169,12 +174,13 @@ class ASTFResilience_Test(CASTFGeneral_Test):
 
     def test_stress_start_stop_dynamic_profile(self):
         print('')
-
-        if self.low_memory:
-            self.skip('not enough memory for this test')
-
         c = self.astf_trex
-        for n in range(1000):
+
+        profiles =1000
+        if self.low_memory:
+            profiles = 100
+ 
+        for n in range(profiles):
             profile_n = self.randomString()
             port_n = 9000 + n
             tunables = {'port': port_n}
