@@ -18,6 +18,9 @@ class ASTFResilience_Test(CASTFGeneral_Test):
             self.skip('not enough memory for this test')
         if setup in ['trex12']:
             self.weak = True
+        self.low_memory = self.weak
+        if setup in ['trex41']:
+            self.low_memory = True # trex-41 uses the memory for the driver and crash
 
     def ip_gen(self, client_base, server_base, client_ips, server_ips):
         assert client_ips>0
@@ -167,7 +170,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
     def test_stress_start_stop_dynamic_profile(self):
         print('')
 
-        if self.weak:
+        if self.low_memory:
             self.skip('not enough memory for this test')
 
         c = self.astf_trex
