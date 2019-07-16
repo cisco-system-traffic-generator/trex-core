@@ -166,8 +166,11 @@ class ASTFResilience_Test(CASTFGeneral_Test):
 
     def test_stress_start_stop_dynamic_profile(self):
         print('')
+
+        if self.weak:
+            self.skip('not enough memory for this test')
+
         c = self.astf_trex
- 
         for n in range(1000):
             profile_n = self.randomString()
             port_n = 9000 + n
