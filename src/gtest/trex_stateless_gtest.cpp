@@ -19,6 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <algorithm>
 #include <iostream>
 #include <vector>
 #include <inttypes.h>
@@ -4979,4 +4980,87 @@ TEST_F(flow_stat_lat, pkt_decode) {
     assert(memcmp(&fsp_head, fsp_head2, sizeof(struct flow_stat_payload_header)) == 0);
 
     utl_rte_mempool_delete(mp1);
+}
+
+using flow_stat_payload_headers = std::vector<flow_stat_payload_header>;
+
+rfc2544_info_t_ calculate_stats_for_pkts(flow_stat_payload_headers& fs_headers) {
+    // TODO: after further refactoring RXLatency::create should be used
+    //       to initialize RXLatency instance.
+    RXLatency latency_counter;
+
+    // TODO: Creating CRFC2544Info with unpredictable values and then calling
+    //       create() to reset the counters is unfortunate and should be fixed.
+    CRFC2544Info rfc2544_info;
+    rfc2544_info.create();
+
+    CRxCoreErrCntrs error_cntrs;
+
+    latency_counter.m_rcv_all = true;
+    latency_counter.m_rfc2544 = &rfc2544_info;
+    latency_counter.m_err_cntrs = &error_cntrs;
+    latency_counter.m_ip_id_base = 0;
+
+    std::for_each(fs_headers.begin(), fs_headers.end(),
+                  [&latency_counter](flow_stat_payload_header& fsh){
+        latency_counter.update_stats_for_pkt(&fsh, 10, 10);
+    });
+
+    rfc2544_info_t_ results;
+    rfc2544_info.export_data(results);
+    return results;
+}
+
+TEST(latency_stats, no_duplicates) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 4, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 5, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 6, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers);
+    EXPECT_EQ(results.get_dup_cnt(), 0);
+}
+
+TEST(latency_stats, single_duplicate) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0}
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers);
+    EXPECT_EQ(results.get_dup_cnt(), 1);
+}
+
+TEST(latency_stats, simple_duplicates) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0}
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers);
+    EXPECT_EQ(results.get_dup_cnt(), 3);
+}
+
+TEST(latency_stats, interleaved_duplicates) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 4, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers);
+
+    // Packet is counted as duplicate only if its seq number is equal to
+    // seq number of previous packet.
+    EXPECT_EQ(results.get_dup_cnt(), 0);
 }
