@@ -83,21 +83,24 @@ public:
     void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs);
 
     void handle_pkt(const rte_mbuf_t *m);
+    void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
+                              uint32_t pkt_len,
+                              hr_time_t hr_time_now);
 
     Json::Value to_json() const;
-    
+
     void get_stats(rx_per_flow_t *rx_stats,
                    int min,
                    int max,
                    bool reset,
                    TrexPlatformApi::driver_stat_cap_e type);
-    
+
     void reset_stats();
     void reset_stats_partial(int min, int max, TrexPlatformApi::driver_stat_cap_e type);
 
     RXLatency operator+=(const RXLatency& in);
     friend std::ostream& operator<<(std::ostream& os, const RXLatency& in);
-    
+
 private:
     // below functions for both IP v4 and v6, so they need uint32_t id
     bool is_flow_stat_id(uint32_t id) {
@@ -114,7 +117,27 @@ private:
 
     uint16_t get_hw_id(uint16_t id) {
         return (~m_ip_id_base & (uint16_t )id);
-}
+    }
+
+    bool handle_unexpected_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544);
+    void handle_correct_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now);
+    void check_seq_number_and_update_stats(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544);
+    void handle_seq_number_smaller_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq);
+    void handle_seq_number_bigger_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq);
 
 public:
 
