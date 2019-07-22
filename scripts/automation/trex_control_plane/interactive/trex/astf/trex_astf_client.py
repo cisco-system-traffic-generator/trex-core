@@ -230,7 +230,7 @@ class ASTFClient(TRexClient):
             else:
                 if profile_id in list(self.astf_profile_state.keys()):
                     if start == True:
-                        if self.is_dynamic and self.astf_profile_state[profile_id] not in ok_states:
+                        if self.is_dynamic and self.astf_profile_state.get(profile_id) not in ok_states:
                             raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
                 else:
                     if start == True:
@@ -271,7 +271,7 @@ class ASTFClient(TRexClient):
 
         while True:
             self.sync()
-            state = self.astf_profile_state[pid_input] if self.is_dynamic else self.state
+            state = self.astf_profile_state.get(pid_input) if self.is_dynamic else self.state
             if state not in self.transient_states:
                 break
             time.sleep(0.1)
@@ -300,7 +300,7 @@ class ASTFClient(TRexClient):
                 return rc
             while True:
                 self.sync()
-                state = self.astf_profile_state[profile_id] if self.is_dynamic else self.state
+                state = self.astf_profile_state.get(profile_id) if self.is_dynamic else self.state
                 if state in ok_states:
                     return RC_OK()
 
@@ -539,7 +539,7 @@ class ASTFClient(TRexClient):
         valid_pids = self.validate_profile_id_input(pid_input)
 
         for profile_id in valid_pids:
-            if self.astf_profile_state[profile_id] in ok_states:
+            if self.astf_profile_state.get(profile_id) in ok_states:
                 params = {
                     'handler': self.handler,
                     'profile_id': profile_id
@@ -1454,7 +1454,7 @@ class ASTFClient(TRexClient):
 
         profile_list = list(self.astf_profile_state.keys())
         for profile_id in profile_list:
-            profile_state = self.astf_profile_state[profile_id]
+            profile_state = self.astf_profile_state.get(profile_id)
             state = "Unknown" if profile_state is None else astf_states[profile_state]
             table.add_row([
                 profile_id,
