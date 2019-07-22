@@ -50,6 +50,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
+    m_lat_profile_id = 0;
 
     TrexRpcCommandsTable &rpc_table = TrexRpcCommandsTable::get_instance();
 
@@ -309,6 +310,7 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
         }
         m_latency_pps = args.latency_pps;
         m_lat_with_traffic = true;
+        m_lat_profile_id = pid->get_dp_profile_id();
     }
 
     pid->set_factor(args.mult);
@@ -419,7 +421,7 @@ void TrexAstf::get_latency_stats(Json::Value & obj) {
 }
 
 string TrexAstf::handle_start_latency(int32_t dp_profile_id) {
-    if ( m_lat_with_traffic ) {
+    if ( m_lat_profile_id == dp_profile_id && m_lat_with_traffic && m_l_state == STATE_L_IDLE ) {
         CAstfDB *db = CAstfDB::instance(dp_profile_id);
         lat_start_params_t args;
 
@@ -445,6 +447,7 @@ void TrexAstf::handle_stop_latency() {
     if (m_lat_with_traffic && m_l_state == STATE_L_WORK) {
         m_latency_pps = 0;
         m_lat_with_traffic = false;
+        m_lat_profile_id = 0;
         stop_transmit_latency();
     }
 }
