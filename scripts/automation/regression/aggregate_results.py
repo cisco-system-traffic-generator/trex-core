@@ -299,8 +299,9 @@ if __name__ == '__main__':
     trex_last_commit_info = ''
     trex_last_commit_hash = trex_info_dict.get('Git SHA')
     if last_commit_info_file and os.path.exists(last_commit_info_file):
-        with open(last_commit_info_file) as f:
-            trex_last_commit_info = f.read().strip().replace('\n', '<br>\n')
+        with open(last_commit_info_file, 'rb') as f:
+            file_cont =  f.read().decode('utf-8', errors = 'replace')
+        trex_last_commit_info = file_cont.strip().replace('\n', '<br>\n')
     elif trex_last_commit_hash and trex_repo:
         try:
             command = 'git show %s -s' % trex_last_commit_hash
