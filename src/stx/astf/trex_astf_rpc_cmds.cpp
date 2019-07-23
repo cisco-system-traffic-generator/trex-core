@@ -424,11 +424,10 @@ TrexRpcCmdAstfGetLatencyStats::_run(const Json::Value &params, Json::Value &resu
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
-    TrexAstf *stx = get_astf_object();
-    if (!stx->is_valid_profile(profile_id)) {
+    if (!get_astf_object()->is_valid_profile(profile_id)) {
         generate_execute_err(result, "Invalid profile : " + profile_id);
     }
-    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
+    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
 
     auto db = CAstfDB::instance(pid->get_dp_profile_id());
     auto stx = get_astf_object();
