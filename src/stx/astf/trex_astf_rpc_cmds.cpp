@@ -169,8 +169,8 @@ TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
     stringstream ss;
     vector<string> profile_list = stx->get_profile_id_list();
     for ( auto profile_id : profile_list ) {
-        TrexAstfPerProfile *pid = stx->get_profile(profile_id);
         try {
+            TrexAstfPerProfile *pid = stx->get_profile(profile_id);
             if ( pid->profile_needs_parsing() ) {
                 pid->profile_init();
             }
@@ -201,8 +201,10 @@ TrexRpcCmdAstfProfileFragment::_run(const Json::Value &params, Json::Value &resu
     const bool frag_last = parse_bool(params, "frag_last", result, false);
 
     TrexAstf *stx = get_astf_object();
-
     stx->add_profile(profile_id);
+    if (!stx->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
     TrexAstfPerProfile *pid = stx->get_profile(profile_id);
 
     if ( frag_first && !frag_last) {
@@ -422,7 +424,12 @@ TrexRpcCmdAstfGetLatencyStats::_run(const Json::Value &params, Json::Value &resu
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstf *stx = get_astf_object();
+    if (!stx->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
+
     auto db = CAstfDB::instance(pid->get_dp_profile_id());
     auto stx = get_astf_object();
     auto &api = get_platform_api();
@@ -482,7 +489,11 @@ TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result)
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
-    TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
+    TrexAstf *stx = get_astf_object();
+    if (!stx->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
         lpstt->m_dtbl.dump_values("counter vals", false, result["result"]);
@@ -603,12 +614,13 @@ TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     if (!stx->is_valid_profile(profile_id)) {
         generate_execute_err(result, "Invalid profile : " + profile_id);
     }
+    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
+
     bool initialized = parse_bool(params, "initialized", result);
     uint64_t epoch = 0;
     if (initialized) {
         epoch = parse_uint64(params, "epoch", result);
     }
-    TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
         if (lpstt->m_update) {
@@ -633,6 +645,9 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
     uint64_t epoch = parse_uint64(params, "epoch", result);
     const Json::Value &tgids = parse_array(params, "tg_ids", result);
     TrexAstf *stx = get_astf_object();
+    if (!stx->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
     TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     try {
