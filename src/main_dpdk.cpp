@@ -3566,6 +3566,9 @@ void CGlobalTRex::register_signals() {
     sigemptyset(&action.sa_mask);
     sigaddset(&action.sa_mask, SIGINT);
     sigaddset(&action.sa_mask, SIGTERM);
+    sigaddset(&action.sa_mask, SIGSEGV);
+    sigaddset(&action.sa_mask, SIGILL);
+    sigaddset(&action.sa_mask, SIGFPE);
 
     /* no flags */
     action.sa_flags = 0;
@@ -3573,6 +3576,9 @@ void CGlobalTRex::register_signals() {
     /* register */
     sigaction(SIGINT,  &action, NULL);
     sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGSEGV, &action, NULL);
+    sigaction(SIGILL,  &action, NULL);
+    sigaction(SIGFPE,  &action, NULL);
 }
 
 bool CGlobalTRex::Create(){
@@ -6796,6 +6802,15 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
 }
 #endif
 
+static void restore_segfault_handler(int signum) {
+    struct sigaction action;
+
+    action.sa_handler = SIG_DFL;
+    sigemptyset(&action.sa_mask);
+    sigaddset(&action.sa_mask, signum);
+    sigaction(signum, &action, NULL);
+}
+
 /**
  * handle a signal for termination
  *
@@ -6816,6 +6831,18 @@ static void trex_termination_handler(int signum) {
 
     case SIGTERM:
         g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGTERM);
+        break;
+
+    case SIGSEGV:
+    case SIGILL:
+    case SIGFPE:
+        std::string Backtrace(int skip = 1); // @trex_watchdog.cpp
+
+        ss << "Error: signal " << signum << ":";
+        ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
+        std::cout << ss.str() << std::endl;
+
+        restore_segfault_handler(signum);
         break;
 
     default:
