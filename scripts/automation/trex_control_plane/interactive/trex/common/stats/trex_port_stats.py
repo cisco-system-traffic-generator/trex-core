@@ -210,20 +210,15 @@ class PortXStats(AbstractStats):
         self.port_id = port_obj.port_id
         self.names = []
 
-        
-    def get_names(self, all_ports):
-        port = all_ports[0]
-        rc = port.rpc.transmit('get_port_xstats_names', params = {'port_id': port.port_id})
+    @staticmethod
+    def get_names(port_obj):
+        rc = port_obj.rpc.transmit('get_port_xstats_names', params = {'port_id': port_obj.port_id})
         if not rc:
             raise TRexError('Error getting xstat names, Error: %s' % rc.err())
-        self.names = rc.data()['xstats_names']
+        return rc.data()['xstats_names']
 
-        # all ports on a given TRex server have the same list of xstats
-        for port in all_ports[1:]:
-            port.xstats.names = self.names
-        
-        return self.names
-
+    def set_names(self, xstat_names):
+        self.names = xstat_names
 
     def _pre_update(self, snapshot):
         values = snapshot['xstats_values']
