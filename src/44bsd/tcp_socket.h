@@ -811,6 +811,8 @@ private:
 
     void check_rx_pkt_condition();
 
+    inline CEmulAppCmd* next_cmd();
+    CEmulAppCmd* process_cmd_one(CEmulAppCmd * cmd);
     void process_cmd(CEmulAppCmd * cmd);
 
     void run_cmd_delay_rand(htw_ticks_t min_ticks,
