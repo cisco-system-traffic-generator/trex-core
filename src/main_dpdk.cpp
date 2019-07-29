@@ -1906,7 +1906,10 @@ HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeState
     lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
 
     if (hw_id >= MAX_FLOW_STATS) {
-        fsp_head->time_stamp = os_get_hr_tick_64();
+        // TIME EXPERIMENT
+        // fsp_head->time_stamp = os_get_hr_tick_64();
+        fsp_head->time_stamp = get_time_epoch_nanoseconds();
+
         send_pkt_lat(lp_port, mi, lp_stats);
     } else {
         send_pkt(lp_port, mi, lp_stats);
