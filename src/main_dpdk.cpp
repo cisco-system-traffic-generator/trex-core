@@ -3556,30 +3556,6 @@ CGlobalTRex::init_vif_cores() {
 
 static void trex_termination_handler(int signum);
 
-void CGlobalTRex::register_signals() {
-    struct sigaction action;
-
-    /* handler */
-    action.sa_handler = trex_termination_handler;
-
-    /* blocked signals during handling */
-    sigemptyset(&action.sa_mask);
-    sigaddset(&action.sa_mask, SIGINT);
-    sigaddset(&action.sa_mask, SIGTERM);
-    sigaddset(&action.sa_mask, SIGSEGV);
-    sigaddset(&action.sa_mask, SIGILL);
-    sigaddset(&action.sa_mask, SIGFPE);
-
-    /* no flags */
-    action.sa_flags = 0;
-
-    /* register */
-    sigaction(SIGINT,  &action, NULL);
-    sigaction(SIGTERM, &action, NULL);
-    sigaction(SIGSEGV, &action, NULL);
-    sigaction(SIGILL,  &action, NULL);
-    sigaction(SIGFPE,  &action, NULL);
-}
 
 bool CGlobalTRex::Create(){
 
@@ -6802,54 +6778,6 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
 }
 #endif
 
-static void restore_segfault_handler(int signum) {
-    struct sigaction action;
-
-    action.sa_handler = SIG_DFL;
-    sigemptyset(&action.sa_mask);
-    sigaddset(&action.sa_mask, signum);
-    sigaction(signum, &action, NULL);
-}
-
-/**
- * handle a signal for termination
- *
- * @author imarom (7/27/2016)
- *
- * @param signum
- */
-static void trex_termination_handler(int signum) {
-    std::stringstream ss;
-
-    /* be sure that this was given on the main process */
-    assert(rte_eal_process_type() == RTE_PROC_PRIMARY);
-
-    switch (signum) {
-    case SIGINT:
-        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGINT);
-        break;
-
-    case SIGTERM:
-        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGTERM);
-        break;
-
-    case SIGSEGV:
-    case SIGILL:
-    case SIGFPE:
-        std::string Backtrace(int skip = 1); // @trex_watchdog.cpp
-
-        ss << "Error: signal " << signum << ":";
-        ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
-        std::cout << ss.str() << std::endl;
-
-        restore_segfault_handler(signum);
-        break;
-
-    default:
-        assert(0);
-    }
-
-}
 
 /***********************************************************
  * platfrom API object
@@ -7122,3 +7050,76 @@ TrexPlatformApi &get_platform_api() {
 }
 
 
+static void restore_segfault_handler(int signum) {
+    struct sigaction action;
+
+    action.sa_handler = SIG_DFL;
+    sigemptyset(&action.sa_mask);
+    sigaddset(&action.sa_mask, signum);
+    sigaction(signum, &action, NULL);
+}
+
+/**
+ * handle a signal for termination
+ *
+ * @author imarom (7/27/2016)
+ *
+ * @param signum
+ */
+static void trex_termination_handler(int signum) {
+    std::stringstream ss;
+
+    /* be sure that this was given on the main process */
+    assert(rte_eal_process_type() == RTE_PROC_PRIMARY);
+
+    switch (signum) {
+    case SIGINT:
+        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGINT);
+        break;
+
+    case SIGTERM:
+        g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGTERM);
+        break;
+
+    case SIGSEGV:
+    case SIGILL:
+    case SIGFPE:
+        std::string Backtrace(int skip = 1); // @trex_watchdog.cpp
+
+        ss << "Error: signal " << signum << ":";
+        ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
+        std::cout << ss.str() << std::endl;
+
+        restore_segfault_handler(signum);
+        break;
+
+    default:
+        assert(0);
+    }
+
+}
+
+void CGlobalTRex::register_signals() {
+    struct sigaction action;
+
+    /* handler */
+    action.sa_handler = trex_termination_handler;
+
+    /* blocked signals during handling */
+    sigemptyset(&action.sa_mask);
+    sigaddset(&action.sa_mask, SIGINT);
+    sigaddset(&action.sa_mask, SIGTERM);
+    sigaddset(&action.sa_mask, SIGSEGV);
+    sigaddset(&action.sa_mask, SIGILL);
+    sigaddset(&action.sa_mask, SIGFPE);
+
+    /* no flags */
+    action.sa_flags = 0;
+
+    /* register */
+    sigaction(SIGINT,  &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGSEGV, &action, NULL);
+    sigaction(SIGILL,  &action, NULL);
+    sigaction(SIGFPE,  &action, NULL);
+}
