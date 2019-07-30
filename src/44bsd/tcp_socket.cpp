@@ -325,23 +325,6 @@ void CEmulApp::check_rx_pkt_condition(){
 
 */
 void CEmulApp::process_cmd(CEmulAppCmd * cmd){
-    CEmulAppCmd temp_cmd;
-    int process_cnt = 0;
-
-    while(cmd) {
-        // add implicit delay to avoid watchdog
-        if (++process_cnt > 1000) {
-            --m_cmd_index;  // rewind index for next()
-
-            temp_cmd.m_cmd = tcDELAY;
-            temp_cmd.u.m_delay_cmd.m_ticks = 1;
-            cmd = &temp_cmd;
-        }
-        cmd = process_cmd_one(cmd);
-    }
-}
-
-CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
 
     EMUL_LOG(cmd, "CMD [%d] state : %d ,cmd_index [%d] -",m_debug_id,m_state,m_cmd_index);
 
@@ -380,7 +363,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
                 m_cmd_rx_bytes_wm = cmd->u.m_rx_cmd.m_rx_bytes_wm;
                 check_rx_condition();
             }else{
-                return next_cmd();
+                next();
             }
         }
         break;
@@ -403,7 +386,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             /* if already connected defer next */
             if (m_flags&taCONNECTED) {
                 if (get_interrupt()==false) {
-                    return next_cmd();
+                    next();
                 }else{
                     m_flags|=taDO_DPC_NEXT;
                 }
@@ -420,7 +403,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         {
         assert(cmd->u.m_var.m_var_id<apVAR_NUM_SIZE);
         m_vars[cmd->u.m_var.m_var_id]=cmd->u.m_var.m_val;
-        return next_cmd();
+        next();
         }
         break;
 
@@ -436,7 +419,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
                     m_cmd_index=end;
                 }
             }
-            return next_cmd();
+            next();
         }
         break;
 
@@ -444,7 +427,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         {
            m_state=te_NONE;
            m_api->send_pkt((CUdpFlow *)m_flow,cmd->u.m_tx_pkt.m_buf);
-           return next_cmd();
+           next();
         }
         break;
 
@@ -463,7 +446,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
                 m_cmd_rx_bytes_wm = cmd->u.m_rx_pkt.m_rx_pkts;
                 check_rx_pkt_condition();
             }else{
-                return next_cmd();
+                next();
             }
         }
         break;
@@ -472,14 +455,14 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         {
             m_state=te_NONE;
             m_api->set_keepalive((CUdpFlow *)m_flow,cmd->u.m_keepalive.m_keepalive_msec);
-            return next_cmd();
+            next();
         }
         break;
     case tcCLOSE_PKT:
         {
             m_state=te_NONE;
             m_api->disconnect(m_pctx,m_flow);
-            return next_cmd();
+            next();
         }
         break;
     case tcTX_MODE:
@@ -487,7 +470,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             m_state=te_NONE;
             bool none_block=(cmd->u.m_tx_mode.m_flags&CEmulAppCmdTxMode::txcmd_BLOCK_MASK?true:false);
             set_tx_none_blocking(none_block);
-            return next_cmd();
+            next();
         }
         break;
 
@@ -495,12 +478,10 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
     default:
         assert(0);
     }
-
-    return nullptr;
 }
 
 
-CEmulAppCmd* CEmulApp::next_cmd(){
+void CEmulApp::next(){
     m_cmd_index++;
     if (m_cmd_index>m_program->get_size()) {
         /* could be in cases we get data after close of flow */
@@ -508,21 +489,14 @@ CEmulAppCmd* CEmulApp::next_cmd(){
         }else{
             assert(m_flow->is_close_was_called());
         }
-        return nullptr;
+        return;
     }
     if ( m_cmd_index == m_program->get_size() ) {
         tcp_udp_close();
-        return nullptr;
+        return;
     }
-
-    return m_program->get_index(m_cmd_index);
-}
-
-void CEmulApp::next(){
-    CEmulAppCmd * lpcmd=next_cmd();
-    if (lpcmd) {
-        process_cmd(lpcmd);
-    }
+    CEmulAppCmd * lpcmd=m_program->get_index(m_cmd_index);
+    process_cmd(lpcmd);
 }
 
 
