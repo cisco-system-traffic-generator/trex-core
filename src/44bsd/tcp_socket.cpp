@@ -325,8 +325,19 @@ void CEmulApp::check_rx_pkt_condition(){
 
 */
 void CEmulApp::process_cmd(CEmulAppCmd * cmd){
+    CEmulAppCmd temp_cmd;
+    int process_cnt = 0;
+
     while(cmd) {
-       cmd = process_cmd_one(cmd);
+        // add implicit delay to avoid watchdog
+        if (++process_cnt > 1000) {
+            --m_cmd_index;  // rewind index for next()
+
+            temp_cmd.m_cmd = tcDELAY;
+            temp_cmd.u.m_delay_cmd.m_ticks = 1;
+            cmd = &temp_cmd;
+        }
+        cmd = process_cmd_one(cmd);
     }
 }
 
