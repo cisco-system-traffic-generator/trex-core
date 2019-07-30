@@ -1197,8 +1197,9 @@ class STLClient(TRexClient):
             for port in active_ports:
                 profile = PortProfileID(str(port) + ".*")
                 all_profiles.append(profile)
-            self.stop(all_profiles)
-                
+            if all_profiles:
+                self.stop(all_profiles)
+
         # for dual mode check that all are masters
         if is_dual:
             if not pcap_filename.endswith('erf'):
