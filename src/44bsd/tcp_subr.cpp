@@ -770,6 +770,10 @@ void CTcpPerThreadCtx::append_server_ports(profile_id_t profile_id) {
     CAstfDbRO * template_db = pctx->m_template_ro;
     std::vector<uint16_t> server_ports;
 
+    if (!template_db) {
+        return;
+    }
+
     server_ports.clear();
     template_db->enumerate_server_ports(server_ports, true);
     for (auto port: server_ports) {
@@ -792,6 +796,10 @@ void CTcpPerThreadCtx::remove_server_ports(profile_id_t profile_id) {
     CPerProfileCtx * pctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = pctx->m_template_ro;
     std::vector<uint16_t> server_ports;
+
+    if (!template_db) {
+        return;
+    }
 
     server_ports.clear();
     template_db->enumerate_server_ports(server_ports, true);
