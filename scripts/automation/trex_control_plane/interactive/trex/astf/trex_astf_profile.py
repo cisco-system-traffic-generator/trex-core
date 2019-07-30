@@ -1615,6 +1615,13 @@ class ASTFProfile(object):
                     if template.tg_name:
                             template.fields['tg_id'] = len(self.tg_name_to_id) + 1
                             self.tg_name_to_id[template.tg_name] = len(self.tg_name_to_id) + 1
+            server_ports = []
+            for template in self.templates:
+                port = template.fields['server_template'].fields['assoc'].port
+                if port in server_ports:
+                    raise ASTFError("Two server template with port {}".format(port))
+                else:
+                    server_ports.append(port)
 
         if cap_list is not None:
             mode = None
