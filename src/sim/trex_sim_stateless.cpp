@@ -111,12 +111,12 @@ public:
         return true;
     }
 
-    void Delete() {
+    /*virtual void Delete() override {
 
-    }
+    }*/
 
-    void publish_json(const std::string &s) {
-    }
+    /* void publish_json(const std::string &s) override {
+    }*/
 
     virtual ~SimPublisher() {
     }

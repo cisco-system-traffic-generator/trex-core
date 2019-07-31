@@ -61,8 +61,8 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#define	SOLARIS	(defined(sun) && (defined(__SVR4) || defined(__svr4__)))
-#if defined(__hpux) || SOLARIS
+//#define	SOLARIS	(defined(sun) && (defined(__SVR4) || defined(__svr4__)))
+#if defined(__hpux) || (defined(sun) && (defined(__SVR4) || defined(__svr4__)))
 # include <sys/sysmacros.h>
 # include <sys/stream.h>
 # define	mbuf	msgb
@@ -118,7 +118,7 @@
 #endif
 
 #if defined(KERNEL) || defined(_KERNEL)
-# if !defined(__hpux) && !SOLARIS
+#if !defined(__hpux) &&  !(defined(sun) && (defined(__SVR4) || defined(__svr4__)))
 #include <sys/mbuf.h>
 # endif
 #define MINDEX(len, _m, _k) \

@@ -19,7 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <assert.h>
+#include <cassert>
 #include <utility>
 
 #include <json/json.h>
@@ -131,7 +131,7 @@ void TopoMngr::from_json_str(const string &topo_buffer) {
         string src_ipv6 = json_map_get(vif, "src_ipv6", "VIF").asString();
 
         uint16_t vlan = json_map_get(vif, "vlan", "VIF").asUInt();
-        if ( trex_port > 4096 ) {
+        if ( vlan > 4096 ) {
             parse_err("VIF 'vlan' is too large: " + to_string(vlan));
         }
 

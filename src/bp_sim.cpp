@@ -3243,10 +3243,10 @@ inline bool CNodeGenerator::do_work_both(CGenNode * node,
                 m_p_queue.pop();
                 thread->on_flow_tick<ON_TERMINATE>(node);
             }else{
-                if ((type == CGenNode::FLOW_FIF)) {
+                if ( type == CGenNode::FLOW_FIF ) {
                    /* callback to our method */
                     m_p_queue.pop();
-                    if ( ON_TERMINATE == false) {
+                    if ( ON_TERMINATE == false ) {
                         thread->m_cur_time_sec = node->m_time ;
 
                         thread->generate_flows_roundrobin(&done);

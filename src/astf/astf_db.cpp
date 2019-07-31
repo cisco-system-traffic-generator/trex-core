@@ -7,10 +7,10 @@
 #include <string>
 #include <fstream>
 #include <streambuf>
-#include <assert.h>
+#include <cassert>
 #include <json/json.h>
 #include "common/base64.h"
-#include <string.h>
+#include <cstring>
 #include "44bsd/tcp_socket.h"
 #include "tuple_gen.h"
 #include "astf/astf_template_db.h"

@@ -35,10 +35,10 @@ limitations under the License.
 class TrexCpToDpMsgBase;
 class TrexStatelessDpStart;
 class CFlowGenListPerThread;
-class CGenNodeStateless;
+struct CGenNodeStateless;
 class TrexStreamsCompiledObj;
 class TrexStream;
-class CGenNodePCAP;
+struct CGenNodePCAP;
 class ServiceModeWrapper;
 class CFlowStatParser;
 

@@ -23,14 +23,17 @@
 		}
 	],
 	"settings": {
+		
+		"clangd.arguments": [
+			"-background-index",
+			"--compile-commands-dir=linux_dpdk/build_dpdk"
+		],
+		
 		"files.exclude": {
 			"**/__pycache__": true,
 			"**/*.pcap": true,
 			"**/*.pyc": true
 		},
-		"favorites.resources": [
-			"/scratch/hhaim/remote-doc/readme/to_do_list.txt"
-		],
 		"favorites.sortOrder": "DESC"
 	}
 }

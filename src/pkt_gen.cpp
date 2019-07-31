@@ -19,7 +19,7 @@
   limitations under the License.
 */
 
-#include <assert.h>
+#include <cassert>
 #include <netinet/in.h>
 #include <common/Network/Packet/TcpHeader.h>
 #include <common/Network/Packet/UdpHeader.h>
@@ -175,8 +175,8 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         memcpy(p, &vlan_header, sizeof(vlan_header)); p += sizeof(vlan_header);
     }
 
-    struct IPHeader *ip = (IPHeader *)p;
-    struct IPv6Header *ipv6 = (IPv6Header *)p;
+    class IPHeader *ip = (IPHeader *)p;
+    class IPv6Header *ipv6 = (IPv6Header *)p;
     switch(l3_type) {
     case EthernetHeader::Protocol::IP:
         memcpy(p, ip_header, sizeof(ip_header)); p += sizeof(ip_header);
@@ -208,8 +208,8 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
         break;
     }
 
-    struct TCPHeader *tcp = (TCPHeader *)p;
-    struct ICMPHeader *icmp= (ICMPHeader *)p;
+    class TCPHeader *tcp = (TCPHeader *)p;
+    class ICMPHeader *icmp= (ICMPHeader *)p;
     switch (l4_proto) {
     case IPPROTO_ICMP:
         memcpy(p, icmp_header, sizeof(icmp_header)); p += sizeof(icmp_header);

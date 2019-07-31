@@ -21,9 +21,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include "trex_defs.h"
 
 typedef uint8_t socket_id_t;
@@ -34,7 +34,7 @@ typedef uint8_t physical_thread_id_t;
 
 typedef uint8_t virtual_thread_id_t;
 
-class CPlatformCoresYamlInfo;
+struct CPlatformCoresYamlInfo;
 
 /*
 

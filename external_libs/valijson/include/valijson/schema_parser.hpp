@@ -1224,8 +1224,11 @@ private:
         return dependenciesConstraint;
     }
 
+#ifndef __clang__
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
+#endif
+
 
     /**
      * @brief   Make a new EnumConstraint object.
@@ -1251,7 +1254,10 @@ private:
         /// EnumConstraint class.
         return constraint;
     }
+
+#ifndef __clang__
 #pragma GCC pop_options
+#endif
 
     /**
      * @brief   Make a new ItemsConstraint object.
@@ -2108,7 +2114,7 @@ private:
 }  // namespace valijson
 
 #ifdef __clang__
-#  pragma clang diagnostic pop
+#pragma clang diagnostic pop
 #endif
 
 #endif
