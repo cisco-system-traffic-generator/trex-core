@@ -29,7 +29,7 @@ inline T btGetShift(unsigned int stopbit){
 template <class T>
 inline T btGetMask(unsigned int startbit,
 				   unsigned int stopbit){
-    register T shft=btGetShift<T>(stopbit);
+    T shft=btGetShift<T>(stopbit);
     return ((T)( (((1<<(stopbit-startbit+1))-1)<<shft)) );
 }
 
@@ -47,8 +47,8 @@ inline T btGetMaskBitBigE(T a,
     }
     else
     {
-    	register T mask=btGetMask<T>(startbit,stopbit);
-    	register T shift=btGetShift<T>(stopbit);
+    	T mask=btGetMask<T>(startbit,stopbit);
+    	T shift=btGetShift<T>(stopbit);
     	T result;
     	result=((a & mask) >>shift);
     	return(result);
@@ -85,8 +85,8 @@ inline void btSetMaskBitBigE(T & a,
     }
     else
     {
-	    register T mask=btGetMask<T>(startbit,stopbit);
-	    register T shift=btGetShift<T>(stopbit);
+	    T mask=btGetMask<T>(startbit,stopbit);
+	    T shift=btGetShift<T>(stopbit);
 	    a=((a & ~mask) | ( (newval <<shift) & mask ) );
     }
 }

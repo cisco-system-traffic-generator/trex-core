@@ -846,7 +846,7 @@ public:
 class CAstfDbRO;
 class CAstfTemplatesRW;
 class CTcpTuneables;
-class CGenNode;
+struct CGenNode;
 
 static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     uint32_t calc =mss*initwnd;

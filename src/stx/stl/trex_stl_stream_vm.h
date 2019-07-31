@@ -22,10 +22,10 @@ limitations under the License.
 #define __TREX_STL_STREAM_VM_API_H__
 
 #include <string>
-#include <stdint.h>
+#include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include <assert.h>
+#include <cassert>
 
 #include "common/Network/Packet/IPHeader.h"
 #include "common/Network/Packet/UdpHeader.h"
@@ -1337,11 +1337,11 @@ class StreamVmInstructionFlowMan : public StreamVmInstructionVar {
 
 public:
 
-    virtual instruction_type_t get_instruction_type() const {
+    virtual instruction_type_t get_instruction_type() const override {
         return ( StreamVmInstruction::itFLOW_MAN);
     }
 
-    virtual bool need_split() const {
+    virtual bool need_split()  const override {
         /* random does not need split */
         if (likely(m_is_split_needed)) {
             return (m_op != FLOW_VAR_OP_RANDOM);
@@ -1359,7 +1359,7 @@ public:
     }
 
 
-    virtual uint8_t set_bss_init_value(uint8_t *p);
+    virtual uint8_t set_bss_init_value(uint8_t *p) override;
 
 
     /**
@@ -1435,7 +1435,7 @@ public:
         return wa;
     }
     
-    virtual void update(uint64_t phase, uint64_t step_mul) {
+    virtual void update(uint64_t phase, uint64_t step_mul) override {
 
         /* update the init value to be with a phase */
         m_init_value = peek_next(phase);
@@ -1463,11 +1463,11 @@ public:
     }
 
 
-    virtual void Dump(FILE *fd);
+    virtual void Dump(FILE *fd) override;
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
 
-    virtual StreamVmInstruction * clone() {
+    virtual StreamVmInstruction * clone() override {
         if (m_value_list.empty()) {
             return new StreamVmInstructionFlowMan(m_var_name,
                                                   m_size_bytes,
@@ -1559,11 +1559,11 @@ class StreamVmInstructionFlowRandLimit : public StreamVmInstructionVar {
 
 public:
 
-    virtual instruction_type_t get_instruction_type() const {
+    virtual instruction_type_t get_instruction_type() const override {
         return ( StreamVmInstruction::itFLOW_RAND_LIMIT);
     }
 
-    virtual bool need_split() const {
+    virtual bool need_split() const override {
         return m_is_split_needed;
     }
 
@@ -1592,13 +1592,13 @@ public:
         m_has_previous = has_previous;
     }
 
-    virtual void Dump(FILE *fd);
+    virtual void Dump(FILE *fd) override;
 
     void sanity_check(uint32_t ins_id,StreamVm *lp);
 
-    virtual uint8_t set_bss_init_value(uint8_t *p);
+    virtual uint8_t set_bss_init_value(uint8_t *p) override;
 
-    virtual StreamVmInstruction * clone() {
+    virtual StreamVmInstruction * clone() override {
         return new StreamVmInstructionFlowRandLimit(m_var_name,
                                                     m_size_bytes,
                                                     m_limit,
@@ -1610,7 +1610,7 @@ public:
                                                     m_has_previous);
     }
 
-    virtual void update(uint64_t phase, uint64_t step_mul) {
+    virtual void update(uint64_t phase, uint64_t step_mul) override {
 
         /* phase */
         m_seed = m_seed * ( ( (phase + 1) * 514229 )  & 0xFFFFFFFF );
