@@ -26,6 +26,17 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.60 ==
+
+
+* STL
+** Push remote support for src/dst mac override 
+* ASTF
+** move topo to the API 
+** xstat counters per instance 
+** protection against endless loop 
+ 
+* A better output of traceback 
 
 == Release 2.59 ==
 
