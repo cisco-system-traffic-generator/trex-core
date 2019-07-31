@@ -1681,7 +1681,16 @@ bool CGenNodePCAP::create(uint8_t port_id,
     m_flags      = 0;
     m_src_port   = 0;
     m_port_id    = port_id;
-    m_count      = count;
+    m_count      = count & 0x3fffffff;
+    m_ex_flags   = 0;
+
+    if (count & 0x80000000){
+        m_ex_flags |= CGenNodePCAP::efSRC_MAC;
+    }
+    if (count & 0x40000000){
+        m_ex_flags |= CGenNodePCAP::efDST_MAC;
+    }
+
     m_is_dual    = is_dual;
     m_dir        = dir;
     m_min_ipg_sec    = min_ipg_sec;
