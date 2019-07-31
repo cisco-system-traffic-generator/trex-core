@@ -117,7 +117,27 @@ private:
 
     uint16_t get_hw_id(uint16_t id) {
         return (~m_ip_id_base & (uint16_t )id);
-}
+    }
+
+    bool handle_unexpected_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544);
+    void handle_correct_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now);
+    void check_seq_number_and_update_stats(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544);
+    void handle_seq_number_smaller_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq);
+    void handle_seq_number_bigger_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq);
 
 public:
 

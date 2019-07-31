@@ -169,83 +169,127 @@ RXLatency::update_stats_for_pkt(
         flow_stat_payload_header *fsp_head,
         uint32_t pkt_len,
         hr_time_t hr_time_now) {
-    bool good_packet = true;
     uint16_t hw_id = fsp_head->hw_id;
-    CRFC2544Info *curr_rfc2544;
-    if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC) || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
-        good_packet = false;
-        if (!m_rcv_all)
+    if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC)
+            || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
+        if (!m_rcv_all) {
             m_err_cntrs->m_bad_header++;
+        }
     } else {
-        curr_rfc2544 = &m_rfc2544[hw_id];
+        bool good_packet = true;
+        CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
 
         if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
-            // bad flow seq num
-            // Might be the first packet of a new flow, packet from an old flow, or garbage.
-            if (fsp_head->flow_seq == curr_rfc2544->get_prev_flow_seq()) {
-                // packet from previous flow using this hw_id that arrived late
-                good_packet = false;
-                m_err_cntrs->m_old_flow++;
-            } else {
-                if (curr_rfc2544->no_flow_seq()) {
-                    // first packet we see from this flow
-                    good_packet = true;
-                    curr_rfc2544->set_exp_flow_seq(fsp_head->flow_seq);
-                } else {
-                    // garbage packet
-                    good_packet = false;
-                    m_err_cntrs->m_bad_header++;
-                }
-            }
+            good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544);
+        }
+
+        if (good_packet) {
+            handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now);
+        }
+    }
+}
+
+bool
+RXLatency::handle_unexpected_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544) {
+    bool good_packet = true;
+    // bad flow seq num
+    // Might be the first packet of a new flow, packet from an old flow, or garbage.
+    if (fsp_head->flow_seq == curr_rfc2544->get_prev_flow_seq()) {
+        // packet from previous flow using this hw_id that arrived late
+        good_packet = false;
+        m_err_cntrs->m_old_flow++;
+    } else {
+        if (curr_rfc2544->no_flow_seq()) {
+            // first packet we see from this flow
+            curr_rfc2544->set_exp_flow_seq(fsp_head->flow_seq);
+        } else {
+            // garbage packet
+            good_packet = false;
+            m_err_cntrs->m_bad_header++;
         }
     }
 
-    if (good_packet) {
-        uint32_t pkt_seq = fsp_head->seq;
-        uint32_t exp_seq = curr_rfc2544->get_seq();
-        if (unlikely(pkt_seq != exp_seq)) {
-            if (pkt_seq < exp_seq) {
-                if (exp_seq - pkt_seq > 100000) {
-                    // packet loss while we had wrap around
-                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-                    curr_rfc2544->inc_seq_err_too_big();
-                    curr_rfc2544->set_seq(pkt_seq + 1);
-                } else {
-                    if (pkt_seq == (exp_seq - 1)) {
-                        curr_rfc2544->inc_dup();
-                    } else {
-                        curr_rfc2544->inc_ooo();
-                        // We thought it was lost, but it was just out of order
-                        curr_rfc2544->dec_seq_err();
-                    }
-                    curr_rfc2544->inc_seq_err_too_low();
-                }
-            } else {
-                if (unlikely (pkt_seq - exp_seq > 100000)) {
-                    // packet reorder while we had wrap around
-                    if (pkt_seq == (exp_seq - 1)) {
-                        curr_rfc2544->inc_dup();
-                    } else {
-                        curr_rfc2544->inc_ooo();
-                        // We thought it was lost, but it was just out of order
-                        curr_rfc2544->dec_seq_err();
-                    }
-                    curr_rfc2544->inc_seq_err_too_low();
-                } else {
-                // seq > curr_rfc2544->seq. Assuming lost packets
-                    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-                    curr_rfc2544->inc_seq_err_too_big();
-                    curr_rfc2544->set_seq(pkt_seq + 1);
-                }
-            }
+    return good_packet;
+}
+
+void
+RXLatency::handle_correct_flow(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now) {
+    check_seq_number_and_update_stats(fsp_head, curr_rfc2544);
+    uint16_t hw_id = fsp_head->hw_id;
+    m_rx_pg_stat_payload[hw_id].add_pkts(1);
+    m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+    uint64_t d = (hr_time_now - fsp_head->time_stamp );
+    dsec_t ctime = ptime_convert_hr_dsec(d);
+    curr_rfc2544->add_sample(ctime);
+}
+
+void
+RXLatency::check_seq_number_and_update_stats(
+        flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544) {
+    uint32_t pkt_seq = fsp_head->seq;
+    uint32_t exp_seq = curr_rfc2544->get_seq();
+    if (unlikely(pkt_seq != exp_seq)) {
+        if (pkt_seq < exp_seq) {
+            handle_seq_number_smaller_than_expected(
+                curr_rfc2544, pkt_seq, exp_seq);
         } else {
-            curr_rfc2544->set_seq(pkt_seq + 1);
+            handle_seq_number_bigger_than_expected(
+                curr_rfc2544, pkt_seq, exp_seq);
         }
-        m_rx_pg_stat_payload[hw_id].add_pkts(1);
-        m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
-        uint64_t d = (hr_time_now - fsp_head->time_stamp );
-        dsec_t ctime = ptime_convert_hr_dsec(d);
-        curr_rfc2544->add_sample(ctime);
+    } else {
+        curr_rfc2544->set_seq(pkt_seq + 1);
+    }
+}
+
+void
+RXLatency::handle_seq_number_smaller_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq) {
+    if (exp_seq - pkt_seq > 100000) {
+        // packet loss while we had wrap around
+        curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
+        curr_rfc2544->inc_seq_err_too_big();
+        curr_rfc2544->set_seq(pkt_seq + 1);
+    } else {
+        if (pkt_seq == (exp_seq - 1)) {
+            curr_rfc2544->inc_dup();
+        } else {
+            curr_rfc2544->inc_ooo();
+            // We thought it was lost, but it was just out of order
+            curr_rfc2544->dec_seq_err();
+        }
+        curr_rfc2544->inc_seq_err_too_low();
+    }
+}
+
+void
+RXLatency::handle_seq_number_bigger_than_expected(
+        CRFC2544Info *curr_rfc2544,
+        uint32_t &pkt_seq,
+        uint32_t &exp_seq) {
+    if (unlikely (pkt_seq - exp_seq > 100000)) {
+        // packet reorder while we had wrap around
+        if (pkt_seq == (exp_seq - 1)) {
+            curr_rfc2544->inc_dup();
+        } else {
+            curr_rfc2544->inc_ooo();
+            // We thought it was lost, but it was just out of order
+            curr_rfc2544->dec_seq_err();
+        }
+        curr_rfc2544->inc_seq_err_too_low();
+    } else {
+        // seq > curr_rfc2544->seq. Assuming lost packets
+        curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
+        curr_rfc2544->inc_seq_err_too_big();
+        curr_rfc2544->set_seq(pkt_seq + 1);
     }
 }
 

@@ -23,6 +23,7 @@ limitations under the License.
 #include <iostream>
 #include <vector>
 #include <inttypes.h>
+#include <tuple>
 
 #include <common/gtest.h>
 #include <common/basic_utils.h>
@@ -4983,8 +4984,11 @@ TEST_F(flow_stat_lat, pkt_decode) {
 }
 
 using flow_stat_payload_headers = std::vector<flow_stat_payload_header>;
+using stats_for_pkt = std::tuple<rfc2544_info_t_, CRxCoreErrCntrs>;
 
-rfc2544_info_t_ calculate_stats_for_pkts(flow_stat_payload_headers& fs_headers) {
+stats_for_pkt calculate_stats_for_pkts(
+        flow_stat_payload_headers& fs_headers,
+        bool rcv_all = true) {
     // TODO: after further refactoring RXLatency::create should be used
     //       to initialize RXLatency instance.
     RXLatency latency_counter;
@@ -4996,7 +5000,7 @@ rfc2544_info_t_ calculate_stats_for_pkts(flow_stat_payload_headers& fs_headers) 
 
     CRxCoreErrCntrs error_cntrs;
 
-    latency_counter.m_rcv_all = true;
+    latency_counter.m_rcv_all = rcv_all;
     latency_counter.m_rfc2544 = &rfc2544_info;
     latency_counter.m_err_cntrs = &error_cntrs;
     latency_counter.m_ip_id_base = 0;
@@ -5008,7 +5012,7 @@ rfc2544_info_t_ calculate_stats_for_pkts(flow_stat_payload_headers& fs_headers) 
 
     rfc2544_info_t_ results;
     rfc2544_info.export_data(results);
-    return results;
+    return stats_for_pkt(results, error_cntrs);
 }
 
 TEST(latency_stats, no_duplicates) {
@@ -5016,23 +5020,22 @@ TEST(latency_stats, no_duplicates) {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
-        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 4, 0},
-        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 5, 0},
-        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 6, 0},
     };
 
     auto results = calculate_stats_for_pkts(fs_headers);
-    EXPECT_EQ(results.get_dup_cnt(), 0);
+    EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 0);
 }
 
 TEST(latency_stats, single_duplicate) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
-        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0}
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
     };
 
     auto results = calculate_stats_for_pkts(fs_headers);
-    EXPECT_EQ(results.get_dup_cnt(), 1);
+    EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 1);
 }
 
 TEST(latency_stats, simple_duplicates) {
@@ -5041,11 +5044,14 @@ TEST(latency_stats, simple_duplicates) {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
-        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0}
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
     };
 
     auto results = calculate_stats_for_pkts(fs_headers);
-    EXPECT_EQ(results.get_dup_cnt(), 3);
+
+    // Packet is counted as duplicate only if its seq number is equal to
+    // seq number of previous packet.
+    EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 3);
 }
 
 TEST(latency_stats, interleaved_duplicates) {
@@ -5062,5 +5068,54 @@ TEST(latency_stats, interleaved_duplicates) {
 
     // Packet is counted as duplicate only if its seq number is equal to
     // seq number of previous packet.
-    EXPECT_EQ(results.get_dup_cnt(), 0);
+    EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 0);
+}
+
+TEST(latency_stats, no_bad_packets) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers, false);
+    EXPECT_EQ(std::get<1>(results).get_bad_header(), 0);
+}
+
+TEST(latency_stats, incorrect_magic) {
+    constexpr auto bad_magic = decltype(flow_stat_payload_header::magic)(FLOW_STAT_PAYLOAD_MAGIC) + 1;
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {bad_magic, 0, 0, 0, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {bad_magic, 0, 0, 0, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers, false);
+    EXPECT_EQ(std::get<1>(results).get_bad_header(), 2);
+}
+
+TEST(latency_stats, bad_flow) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, MAX_FLOW_STATS_PAYLOAD, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers, false);
+    EXPECT_EQ(std::get<1>(results).get_bad_header(), 1);
+}
+
+TEST(latency_stats, out_of_order) {
+    flow_stat_payload_headers fs_headers = {
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 4, 0},
+    };
+
+    auto results = calculate_stats_for_pkts(fs_headers, false);
+    EXPECT_EQ(std::get<0>(results).get_ooo_cnt(), 1);
+    EXPECT_EQ(std::get<0>(results).get_seq_err_ev_low(), 1);
 }
