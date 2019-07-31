@@ -1136,7 +1136,9 @@ class STLClient(TRexClient):
                      duration = -1,
                      is_dual = False,
                      min_ipg_usec = None,
-                     force  = False):
+                     force  = False,
+                     src_mac_pcap = False,
+                     dst_mac_pcap = False):
         """
             Push a remote server-reachable PCAP file
             the path must be fullpath accessible to the server
@@ -1174,6 +1176,11 @@ class STLClient(TRexClient):
                 force : bool
                     Ignore if port is active
  
+                src_mac_pcap : bool
+                    Source MAC address will be taken from pcap file if True.
+
+                dst_mac_pcap : bool
+                    Destination MAC address will be taken from pcap file if True.
                 
             :raises:
                 + :exc:`TRexError`
@@ -1189,6 +1196,8 @@ class STLClient(TRexClient):
         validate_type('duration', duration, (float, int))
         validate_type('is_dual', is_dual, bool)
         validate_type('min_ipg_usec', min_ipg_usec, (float, int, type(None)))
+        validate_type('src_mac_pcap', src_mac_pcap, bool)
+        validate_type('dst_mac_pcap', dst_mac_pcap, bool)
 
         # if force - stop any active ports
         if force:
@@ -1215,6 +1224,15 @@ class STLClient(TRexClient):
                 if slave not in self.get_acquired_ports():
                     raise TRexError("dual mode: adjacent port {0} must be owned during dual mode".format(slave))
 
+        # overload the count in new version, workaround instead of passing new variable     
+        if count & 0xC0000000:
+            raise TRexError("count is limited to 0x3fff,ffff")
+
+        count = count & 0x3FFFFFFF
+        if src_mac_pcap:
+            count |= 0x80000000
+        if dst_mac_pcap:
+            count |= 0x40000000
 
         self.ctx.logger.pre_cmd("Pushing remote PCAP on port(s) {0}:".format(ports))
         rc = self.__push_remote(pcap_filename, ports, ipg_usec, speedup, count, duration, is_dual, min_ipg_usec)
@@ -1877,8 +1895,6 @@ class STLClient(TRexClient):
             return opts
 
         if opts.remote:
-            if opts.src_mac_pcap or opts.dst_mac_pcap:
-                raise TRexError('Remote push currently does not support --src-mac-pcap/--dst-mac-pcap')
             self.push_remote(opts.file[0],
                              ports          = opts.ports,
                              ipg_usec       = opts.ipg_usec,
@@ -1887,7 +1903,9 @@ class STLClient(TRexClient):
                              count          = opts.count,
                              duration       = opts.duration,
                              force          = opts.force,
-                             is_dual        = opts.dual)
+                             is_dual        = opts.dual,
+                             src_mac_pcap   = opts.src_mac_pcap,
+                             dst_mac_pcap   = opts.dst_mac_pcap)
 
         else:
             self.push_pcap(opts.file[0],

@@ -576,11 +576,28 @@ public:
         /* copy the packet */
         memcpy(p, m_raw_packet->raw, m_raw_packet->getTotalLen());
 
-        /* fix the MAC */
+        char *mac;
         if (get_mbuf_dir() == m_dir) {
-            memcpy(p, m_mac_addr, 12);
+            mac = (char*)m_mac_addr;
         } else {
-            memcpy(p, m_slave_mac_addr, 12);
+            mac = (char*)m_slave_mac_addr;
+        }
+
+        if ( m_ex_flags & CGenNodePCAP::efANY_MAC ){
+            uint8_t f = m_ex_flags & CGenNodePCAP::efANY_MAC;
+
+            if (f == CGenNodePCAP::efDST_MAC){
+                /* replace only src */
+                memcpy(p+6, mac+6, 6);
+
+            }else{
+                if (f == CGenNodePCAP::efSRC_MAC){
+                    /* replace only dest */
+                    memcpy(p, mac, 6);
+                }
+            }
+        }else{ 
+            memcpy(p, mac, 12);
         }
         
 
@@ -643,6 +660,13 @@ private:
         PCAP_MARKED_FOR_FREE
     };
 
+    /* flags */
+    enum {
+        efDST_MAC = 0x1,
+        efSRC_MAC  = 0x2,
+        efANY_MAC  = 0x3
+    };
+
     /* cache line 0 */
     /* important stuff here */
     uint8_t             m_mac_addr[12];
@@ -665,9 +689,11 @@ private:
     uint8_t             m_port_id;
 
     bool                m_is_dual;
+    
+    uint8_t             m_ex_flags;
 
     /* pad to match the size of CGenNode */
-    uint8_t             m_pad_end[11];
+    uint8_t             m_pad_end[10];
 
     /* CACHE_LINE */
     uint64_t            m_pad3[8];
