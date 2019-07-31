@@ -379,6 +379,7 @@ protected:
     state_latency_e m_l_state;
     uint32_t        m_latency_pps;
     bool            m_lat_with_traffic;
+    int32_t         m_lat_profile_id;
 
     TrexOwner       m_owner;
     state_e         m_state;

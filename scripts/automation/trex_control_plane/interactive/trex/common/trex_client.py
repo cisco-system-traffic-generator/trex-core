@@ -459,7 +459,10 @@ class TRexClient(object):
         if not rc:
             return rc
 
-        self.any_port.xstats.get_names(self.any_port)
+        xstat_names = self.any_port.xstats.get_names(self.any_port)
+        # all ports on a given TRex server instance have the same list of xstats
+        for port in self.ports.values():
+            port.xstats.set_names(xstat_names)
 
         # sync the ports
         rc = self._for_each_port('sync')

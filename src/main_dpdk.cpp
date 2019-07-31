@@ -3566,6 +3566,9 @@ void CGlobalTRex::register_signals() {
     sigemptyset(&action.sa_mask);
     sigaddset(&action.sa_mask, SIGINT);
     sigaddset(&action.sa_mask, SIGTERM);
+    sigaddset(&action.sa_mask, SIGSEGV);
+    sigaddset(&action.sa_mask, SIGILL);
+    sigaddset(&action.sa_mask, SIGFPE);
 
     /* no flags */
     action.sa_flags = 0;
@@ -3573,6 +3576,9 @@ void CGlobalTRex::register_signals() {
     /* register */
     sigaction(SIGINT,  &action, NULL);
     sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGSEGV, &action, NULL);
+    sigaction(SIGILL,  &action, NULL);
+    sigaction(SIGFPE,  &action, NULL);
 }
 
 bool CGlobalTRex::Create(){
@@ -6258,7 +6264,9 @@ int  update_dpdk_args(void){
         SET_ARGS("--file-prefix");
         snprintf(g_prefix_str, sizeof(g_prefix_str), "%s", lpop->prefix.c_str());
         SET_ARGS(g_prefix_str);
+    }
 
+    if( lpop->prefix.length() or cg->m_limit_memory.length() ) {
         if ( !CGlobalInfo::m_options.m_is_lowend && !CGlobalInfo::m_options.m_is_vdev ) {
             SET_ARGS("--socket-mem");
             char *mem_str;
@@ -6280,7 +6288,6 @@ int  update_dpdk_args(void){
             SET_ARGS(g_socket_mem_str);
         }
     }
-
 
     if ( lpp->getVMode() > 0  ) {
         printf("DPDK args \n");
@@ -6795,6 +6802,15 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
 }
 #endif
 
+static void restore_segfault_handler(int signum) {
+    struct sigaction action;
+
+    action.sa_handler = SIG_DFL;
+    sigemptyset(&action.sa_mask);
+    sigaddset(&action.sa_mask, signum);
+    sigaction(signum, &action, NULL);
+}
+
 /**
  * handle a signal for termination
  *
@@ -6815,6 +6831,18 @@ static void trex_termination_handler(int signum) {
 
     case SIGTERM:
         g_trex.mark_for_shutdown(CGlobalTRex::SHUTDOWN_SIGTERM);
+        break;
+
+    case SIGSEGV:
+    case SIGILL:
+    case SIGFPE:
+        std::string Backtrace(int skip = 1); // @trex_watchdog.cpp
+
+        ss << "Error: signal " << signum << ":";
+        ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
+        std::cout << ss.str() << std::endl;
+
+        restore_segfault_handler(signum);
         break;
 
     default:

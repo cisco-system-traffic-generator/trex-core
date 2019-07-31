@@ -1,6 +1,6 @@
 # Example of Topology profile
 
-from trex.astf.topo import *
+from trex.astf.api import *
 
 
 def get_topo():
