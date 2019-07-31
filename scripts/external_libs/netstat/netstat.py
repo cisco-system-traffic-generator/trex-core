@@ -26,7 +26,8 @@ def _load():
     ''' Read the table of tcp connections & remove header  '''
     with open(PROC_TCP,'r') as f:
         content = f.readlines()
-        content.pop(0)
+    if content:
+        content.pop(0) # remove the header if exists
     return content
 
 def _hex2dec(s, string = True):
