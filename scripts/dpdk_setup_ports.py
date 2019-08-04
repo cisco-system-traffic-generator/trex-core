@@ -1437,11 +1437,15 @@ To see more detailed info on interfaces (table):
      )
 
     parser.add_argument("-s", "--show", action='store_true',
-                      help=""" show the status """,
+                      help=""" Show the status """,
      )
 
     parser.add_argument("-t", "--table", action='store_true',
-                      help=""" show table with NICs info """,
+                      help=""" Show table with NICs info """,
+     )
+
+    parser.add_argument("-m", "--memory", action='store_true',
+                      help=""" Show memory banks topology (channels per NUMA) """,
      )
 
     parser.add_argument('--version', action='version',
@@ -1479,6 +1483,10 @@ def main ():
 
         if map_driver.args.table:
             dpdk_nic_bind.show_table()
+            return
+
+        if map_driver.args.memory:
+            dpdk_nic_bind.show_memory()
             return
 
         if map_driver.args.dump_pci_desc:
