@@ -253,6 +253,9 @@ class CTcpDataAssocTranslation {
     std::vector<CTcpDataAssocTransHelp> m_vec;
 };
 
+class CTcpDataFlowInfo {
+    uint32_t m_tcp_win;
+};
 
 class CTcpTemplateInfo {
     friend class CAstfDB;
@@ -337,6 +340,7 @@ class CAstfDbRO {
     uint16_t                        m_num_of_tg_ids;
     std::vector<CMbufBuffer *>      m_buf_list;
     std::vector<CEmulAppProgram *>  m_prog_list;
+    std::vector<CTcpDataFlowInfo>   m_flow_info;
     std::vector<CTcpTemplateInfo>   m_templates;
     CTcpDataAssocTranslation        m_assoc_trans;
 };

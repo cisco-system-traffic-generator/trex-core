@@ -14,9 +14,6 @@ linux_dpdk/trex-64.bz2
 linux_dpdk/*.html
 linux_dpdk/cov-int/*
 *.vscode
-*.clangd
-compile_commands.json
-
 
 linux/.waf*
 linux/build*

@@ -21,9 +21,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <cstddef>
-#include <cstdio>
-#include <cstdint>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <vector>
 #include <algorithm>
 #include <map>
@@ -40,7 +40,7 @@ limitations under the License.
 #include <common/Network/Packet/IPHeader.h>
 #include <common/Network/Packet/IPv6Header.h>
 #include <common/Network/Packet/EthernetHeader.h>
-#include <cmath>
+#include <math.h>
 #include <yaml-cpp/yaml.h>
 #include "trex_defs.h"
 #include "utl_ip.h"
@@ -213,8 +213,8 @@ public:
 
 
 
-struct CGenNode;
-struct CFlowYamlInfo;
+class CGenNode;
+class CFlowYamlInfo;
 class CFlowGenListPerThread ;
 
 
@@ -2508,18 +2508,10 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
-
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
-
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
+    #pragma GCC diagnostic pop
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2543,48 +2535,36 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
+    #pragma GCC diagnostic pop
+    assert(m);
 
-  m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), len);
+    /* append*/
+    char *p=rte_pktmbuf_append(m, len);
 
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-  assert(m);
+    BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
 
-  /* append*/
-  char *p = rte_pktmbuf_append(m, len);
+    memcpy(p,m_packet->raw,len);
 
-  BP_ASSERT((((uintptr_t)m_packet->raw) & 0x7f) == 0);
+    update_mbuf(m);
 
-  memcpy(p, m_packet->raw, len);
+    update_pkt_info(p,node);
 
-  update_mbuf(m);
-
-  update_pkt_info(p, node);
-
-  return (m);
+    return(m);
 }
 
 
 inline rte_mbuf_t * HOT_FUNC CFlowPktInfo::generate_new_mbuf(CGenNode * node){
 
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     
-#endif     
-
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     
     if ( m_pkt_indication.m_desc.IsPluginEnable() ) {
         return ( on_node_generate_mbuf( node->get_plugin_id(),node,this) );
     }
     return  (do_generate_new_mbuf(node));
-
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop  
-#endif    
+    #pragma GCC diagnostic pop  
 }
 
 
