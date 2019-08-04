@@ -853,6 +853,83 @@ def show_table(get_macs = True):
             table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
     print(table.draw())
 
+KILO = 1000
+MEGA = 1000000
+GIGA = 1000000000
+TERA = 1000000000000
+MEMORY_SIZE_RE = re.compile('(\d+)\s*(.?)b?$')
+BANK_LOCATOR_RE = re.compile('(node|cpu) (\d+) channel (\d+)')
+def parse_memory_section(section):
+    numa = channel = size = None
+    for line in section.splitlines():
+        line = line.strip().lower()
+        if line.startswith('size:'):
+            res = MEMORY_SIZE_RE.search(line)
+            if not res:
+                return # blank bank
+            size = int(res.group(1))
+            mult = res.group(2)
+            if mult == 'k':
+                size *= KILO
+            elif mult == 'm':
+                size *= MEGA
+            elif mult == 'g':
+                size *= GIGA
+            elif mult == 't':
+                size *= TERA
+            else:
+                assert mult == '', 'Could not understand the size of memory: %s' % line
+            continue
+
+        if line.startswith('bank locator:'):
+            res = BANK_LOCATOR_RE.search(line)
+            if not res:
+                return # unexpected, but don't want to raise Exception
+            numa = int(res.group(2))
+            channel = int(res.group(3))
+
+    if size is not None and numa is not None and channel is not None:
+        return numa, channel, size
+
+def pretty_ram(amount):
+    if amount > TERA:
+        return '%sTB' % (amount // TERA)
+    if amount > GIGA:
+        return '%sGB' % (amount // GIGA)
+    if amount > MEGA:
+        return '%sMB' % (amount // MEGA)
+    if amount > KILO:
+        return '%sKB' % (amount // KILO)
+    if not amount:
+        return ''
+    return '%sB' % amount
+
+def show_memory():
+    print('Warning: results might be inaccurate in Virtual machine')
+    ram_info = subprocess.check_output(shlex.split('dmidecode -t memory'), universal_newlines = True)
+    ram_info_sections = ram_info.strip().lower().split('\n\n')
+
+    found_banks_dict = {}
+    channels = set()
+    for ram_info_section in ram_info_sections:
+        section_data = parse_memory_section(ram_info_section)
+        if not section_data:
+            continue
+        numa, channel, size = section_data
+        channels.add(channel)
+        if numa not in found_banks_dict:
+            found_banks_dict[numa] = {}
+        if channel not in found_banks_dict[numa]:
+            found_banks_dict[numa][channel] = size
+        else:
+            found_banks_dict[numa][channel] += size
+
+    table = texttable.Texttable(max_width=-1)
+    table.header(['NUMA'] + ['Channel %s' % num for num in channels])
+    for numa, channel_data in found_banks_dict.items():
+        table.add_row([numa] + [pretty_ram(channel_data.get(channel, 0)) for channel in channels])
+    print(table.draw())
+
 # dumps pci address and description (user friendly device name)
 def dump_pci_description():
     if not devices:
