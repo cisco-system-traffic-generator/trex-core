@@ -11,12 +11,9 @@ APPNAME='cxx_test'
 import os
 import shutil
 import copy
-import sys
 
 from distutils.version import StrictVersion
 from waflib import Logs
-
-sys.path.insert(0, os.path.abspath('waf-tools'))
 
 top = '../'
 out = 'build'
@@ -30,16 +27,6 @@ GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
 GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
 
-
-clang_flags = [  '-Wno-null-conversion', 
-                 '-Wno-sign-compare', 
-                 '-Wno-strict-aliasing',
-                 '-Wno-address-of-packed-member',
-                 '-Wno-inconsistent-missing-override',
-                 '-Wno-deprecated',
-                 '-Wno-unused-private-field']
-
-gcc_flags = ['-Wall', '-Wno-sign-compare', '-Wno-strict-aliasing']
 
 class SrcGroup:
     ' group of source by directory '
@@ -115,9 +102,6 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     
 def configure(conf):
-    conf.load('compiler_cxx')
-    conf.load('clang_compilation_database',tooldir=['../external_libs/waf-tools'])
-
     if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
         conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
@@ -156,19 +140,11 @@ def search_in_paths(paths):
         if os.path.exists(path):
             return path
 
-def load_compiler(conf):
-    if 'clang' in conf.environ.get('CXX',''):
-        conf.load('clang++')
-    else:   
-        conf.load('g++')
-    return
-
-
 
 def configure_gcc(conf, explicit_paths = None):
     # use the system path
     if explicit_paths is None:
-        load_compiler(conf)
+        conf.load('g++')
         return
 
     if type(explicit_paths) is not list:
@@ -181,7 +157,7 @@ def configure_gcc(conf, explicit_paths = None):
     saved = conf.environ['PATH']
     try:
         conf.environ['PATH'] = explicit_path
-        load_compiler(conf)
+        conf.load('g++')
     finally:
         conf.environ['PATH'] = saved
 
@@ -535,16 +511,6 @@ class build_option:
       self.use = use
       self.flags = flags
       self.rpath = rpath
-      self.env = None
-
-    def set_env(self,env):
-        self.env = env;
-
-    def is_clang(self):
-        if self.env: 
-            if 'clang' in self.env[0]:
-                return True
-        return False        
 
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -602,11 +568,6 @@ class build_option:
 
     def cxxcomp_flags (self,flags):
         result = copy.copy(flags);
-        
-        if self.is_clang():
-           result += clang_flags
-        else:
-           result += gcc_flags
 
         if self.isIntelPlatform():
             if self.is64Platform () :
@@ -679,14 +640,13 @@ class build_option:
         return base_flags;
 
 
-
 build_types = [
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= DEBUG_, is_pie = False,
-                            flags = ['-Werror'],
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
                             rpath = ['so']),
 
                build_option(name = "bp-sim", src = bp, use = [''],debug_mode= RELEASE_, is_pie = False,
-                            flags = ['-Werror'],
+                            flags = ['-Wall', '-Werror', '-Wno-sign-compare', '-Wno-strict-aliasing'],
                             rpath = ['so']),
 
               ]
@@ -696,9 +656,8 @@ def build_prog (bld, build_obj):
     
     # determine if sanitized image should be built
     is_sanitized = bld.env.SANITIZED
-    build_obj.set_env(bld.env.CXX)
     
-    cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11']
+    cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
     linkflags = build_obj.get_link_flags(is_sanitized)
     
         

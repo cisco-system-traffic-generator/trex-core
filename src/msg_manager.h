@@ -67,7 +67,7 @@ cp     <-      -- dp1
 
 */
 
-struct CGenNode ;
+class CGenNode ;
 typedef CTRingSp<CGenNode>  CNodeRing;
 
 /* CP == latency thread

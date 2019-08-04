@@ -76,7 +76,7 @@ bpf_run(bpf_h bpf, const char *buffer, uint32_t len) {
     assert(len > 0);
     
     const struct bpf_insn *fcode = program->bf_insns;
-    return bpf_filter(fcode, (const u_char *)buffer, len, len);
+    return bpf_filter(fcode, buffer, len, len);
 }
 
 #ifdef TREX_USE_BPFJIT
