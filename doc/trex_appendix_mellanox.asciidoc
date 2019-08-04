@@ -306,6 +306,7 @@ for example to change to 50Gb speed
 
 * Check how many DRAM channels are installed. Less than 4 will impose latency and performance issue
 
+.check number of channel 
 [source,bash]
 ----
 [bash]>sudo dmidecode -t memory | grep CHANNEL
@@ -324,7 +325,36 @@ Bank Locator: NODE 0 CHANNEL 3 DIMM 2
 ----
 
 
-* I can reach maximum rate of 50Gb/sec
+.check number of channel installed 
+[source,bash]
+----
+sudo dmidecode -t memory | grep Siz
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+Size: 8192 MB
+Size: No Module Installed
+Size: No Module Installed
+----
+
 
 
 [source,bash]
