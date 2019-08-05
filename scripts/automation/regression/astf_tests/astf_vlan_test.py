@@ -5,7 +5,10 @@ import time
 import pprint
 from nose.tools import assert_raises, nottest
 from scapy.all import *
+import copy
 
+def sortKey(val):
+   return min(val)
 
 class ASTFVLAN_Test(CASTFGeneral_Test):
     ''' Checks for VLAN in latency, traffic, resolve and ping '''
@@ -13,7 +16,9 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
     @classmethod
     def setUpClass(cls):
         CASTFGeneral_Test.setUpClass()
-        cls.tx_port, cls.rx_port = CTRexScenario.ports_map['bi'][0]
+        sort_map = copy.deepcopy(CTRexScenario.ports_map['bi'])
+        sort_map.sort(key=sortKey)
+        cls.tx_port, cls.rx_port = sort_map[0]
         if cls.tx_port > cls.rx_port:
             cls.tx_port, cls.rx_port = cls.rx_port, cls.tx_port
         cls.ports = [cls.tx_port, cls.rx_port]
