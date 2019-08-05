@@ -39,6 +39,25 @@ H_VER_FILE      = "version.h"
 BUILD_NUM_FILE  = "../VERSION"
 USERS_ALLOWED_TO_RELEASE = ['hhaim']
 
+clang_flags = ['-Wno-null-conversion',
+               '-Wno-sign-compare',
+               '-Wno-strict-aliasing',
+               '-Wno-address-of-packed-member',
+               '-Wno-inconsistent-missing-override',
+               '-Wno-deprecated',
+               '-Wno-unused-private-field',
+               '-Wno-unused-value',
+               '-Wno-expansion-to-defined',
+               '-Wno-pointer-sign',
+               '-Wno-macro-redefined']
+
+gcc_flags = ['-Wall',
+             '-Werror',
+             '-Wno-literal-suffix',
+             '-Wno-sign-compare',
+             '-Wno-strict-aliasing']
+
+
 
 REQUIRED_CC_VERSION = "4.7.0"
 SANITIZE_CC_VERSION = "4.9.0"
@@ -271,6 +290,8 @@ def get_ld_search_path(ctx):
 
 def configure(conf):
 
+    conf.load('clang_compilation_database',tooldir=['../external_libs/waf-tools'])
+
     if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
         conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
@@ -322,11 +343,21 @@ def search_in_paths(paths):
             return path
 
 
+def load_compiler(conf):
+    if 'clang' in conf.environ.get('CXX', ''):
+        conf.load('clang++')
+        conf.load('clang')
+    else:
+        conf.load('g++')
+        conf.load('gcc')
+    return
+
+
+
 def configure_gcc(conf, explicit_paths = None):
     # use the system path
     if explicit_paths is None:
-        conf.load('gcc')
-        conf.load('g++')
+        load_compiler(conf)
         return
 
     if type(explicit_paths) is not list:
@@ -339,8 +370,7 @@ def configure_gcc(conf, explicit_paths = None):
     saved = conf.environ['PATH']
     try:
         conf.environ['PATH'] = explicit_path
-        conf.load('gcc')
-        conf.load('g++')
+        load_compiler(conf)
     finally:
         conf.environ['PATH'] = saved 
 
@@ -1185,6 +1215,16 @@ class build_option:
       self.mode     = debug_mode;   ##debug,release
       self.platform = march  # aarch64 or x86_64
       self.is_pie = is_pie
+      self.env = None
+
+    def set_env(self,env):
+        self.env = env;
+
+    def is_clang(self):
+        if self.env: 
+            if 'clang' in self.env[0]:
+                return True
+        return False        
       
     def __str__(self):
        s=self.mode+","+self.platform;
@@ -1326,12 +1366,12 @@ class build_option:
         # support c++ 2011
         flags += ['-std=c++0x']
 
-        flags += ['-Wall',
-                  '-Werror',
-                  '-Wno-literal-suffix',
-                  '-Wno-sign-compare',
-                  '-Wno-strict-aliasing']
-        if self.isIntelPlatform():
+        if self.is_clang():
+            flags += clang_flags
+        else:
+            flags += gcc_flags
+
+        if self.isIntelPlatform() and not self.is_clang():
             flags += [
                       '-Wno-aligned-new'
                      ]
@@ -1347,9 +1387,14 @@ class build_option:
 
         
     def get_c_flags (self, is_sanitized):
+        
         flags = self.get_common_flags()
+        
         if  self.isRelease () :
             flags += ['-DNDEBUG'];
+
+        if self.is_clang():
+           flags += clang_flags
 
         if is_sanitized:
             flags += [
@@ -1401,6 +1446,8 @@ def build_prog (bld, build_obj):
     debug_file_list='';
     #if not build_obj.isRelease ():
     #    debug_file_list +=ef_src.file_list(top)
+    
+    build_obj.set_env(bld.env.CXX)
 
     cflags    = build_obj.get_c_flags(bld.env.SANITIZED)
     cxxflags  = build_obj.get_cxx_flags(bld.env.SANITIZED)

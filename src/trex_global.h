@@ -738,7 +738,7 @@ class CRteMemPool {
 public:
     inline rte_mbuf_t   * HOT_FUNC _rte_pktmbuf_alloc(rte_mempool_t * mp ){
         rte_mbuf_t   * m=rte_pktmbuf_alloc(mp);
-        if ( likely(m>0) ) {
+        if ( likely(m) ) {
             return (m);
         }
         // hack for failure when using lots of 4k mbufs. See TRex-393

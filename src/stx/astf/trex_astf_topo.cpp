@@ -131,8 +131,8 @@ void TopoMngr::from_json_str(const string &topo_buffer) {
         string src_ipv6 = json_map_get(vif, "src_ipv6", "VIF").asString();
 
         uint16_t vlan = json_map_get(vif, "vlan", "VIF").asUInt();
-        if ( trex_port > 4096 ) {
-            parse_err("VIF 'vlan' is too large: " + to_string(vlan));
+        if (vlan > 4096) {
+          parse_err("VIF 'vlan' is too large: " + to_string(vlan));
         }
 
         TopoVIF vif_obj(src_mac, vlan, src_ipv4, src_ipv6);

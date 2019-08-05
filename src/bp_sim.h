@@ -2508,10 +2508,18 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf(CGenNode * node){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t len= m_pkt_indication.get_rw_pkt_size();
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
     m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
-    #pragma GCC diagnostic pop
+
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
     assert(m);
     /* append*/
     char *p=rte_pktmbuf_append(m, len);
@@ -2535,36 +2543,50 @@ inline rte_mbuf_t * CFlowPktInfo::do_generate_new_mbuf_big(CGenNode * node){
     uint16_t len =  m_packet->pkt_len;
 
     /* alloc big buffer to update it*/
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(),  len);
-    #pragma GCC diagnostic pop
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
+    m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), len);
+
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
     assert(m);
 
     /* append*/
-    char *p=rte_pktmbuf_append(m, len);
+    char *p = rte_pktmbuf_append(m, len);
 
-    BP_ASSERT ( (((uintptr_t)m_packet->raw) & 0x7f )== 0) ;
+    BP_ASSERT((((uintptr_t)m_packet->raw) & 0x7f) == 0);
 
-    memcpy(p,m_packet->raw,len);
+    memcpy(p, m_packet->raw, len);
 
     update_mbuf(m);
 
-    update_pkt_info(p,node);
+    update_pkt_info(p, node);
 
-    return(m);
+    return (m);
 }
 
 
 inline rte_mbuf_t * HOT_FUNC CFlowPktInfo::generate_new_mbuf(CGenNode * node){
 
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"     
-    if ( m_pkt_indication.m_desc.IsPluginEnable() ) {
-        return ( on_node_generate_mbuf( node->get_plugin_id(),node,this) );
-    }
-    return  (do_generate_new_mbuf(node));
-    #pragma GCC diagnostic pop  
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
+  if (m_pkt_indication.m_desc.IsPluginEnable()) {
+    return (on_node_generate_mbuf(node->get_plugin_id(), node, this));
+  }
+  return (do_generate_new_mbuf(node));
+
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 
