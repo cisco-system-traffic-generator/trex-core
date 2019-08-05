@@ -342,7 +342,6 @@ int CFlowStatParser::get_payload_len(uint8_t *p, uint16_t len, uint16_t &payload
 
 static const uint16_t TEST_IP_ID = 0xabcd;
 static const uint16_t TEST_IP_ID2 = 0xabcd;
-static const uint8_t TEST_L4_PROTO = IPPROTO_UDP;
 
 
 int CFlowStatParserTest::verify_pkt_one_parser(uint8_t * p, uint16_t pkt_size, uint16_t payload_len, uint32_t ip_id

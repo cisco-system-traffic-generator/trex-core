@@ -1224,8 +1224,10 @@ private:
         return dependenciesConstraint;
     }
 
+#ifndef __clang__
 #pragma GCC push_options
 #pragma GCC optimize ("O0")
+#endif
 
     /**
      * @brief   Make a new EnumConstraint object.

@@ -4959,7 +4959,19 @@ void UnitTest::AddTestPartResult(TestPartResult::Type result_type,
       // the --gtest_catch_exceptions flags are specified.
       DebugBreak();
 #else
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnull-dereference"
+#endif
+
       *static_cast<int*>(NULL) = 1;
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+
 #endif  // GTEST_OS_WINDOWS
     } else if (GTEST_FLAG(throw_on_failure)) {
 #if GTEST_HAS_EXCEPTIONS
