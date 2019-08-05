@@ -14,6 +14,8 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
     def setUpClass(cls):
         CASTFGeneral_Test.setUpClass()
         cls.tx_port, cls.rx_port = CTRexScenario.ports_map['bi'][0]
+        if cls.tx_port > cls.rx_port:
+            cls.tx_port, cls.rx_port = cls.rx_port, cls.tx_port
         cls.ports = [cls.tx_port, cls.rx_port]
         c = CTRexScenario.astf_trex
         tx_port_vlan = c.get_port(cls.tx_port).get_vlan_cfg()
@@ -63,7 +65,6 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
             bpf = 'vlan %s and %s' % (self.vlan, bpf_ip)
         else:
             bpf = bpf_ip
-
         capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets, bpf_filter = bpf)['id']
         debug_capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets)['id']
         return capt_id, debug_capt_id
