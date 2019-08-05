@@ -908,35 +908,8 @@ public:
 
 } __rte_cache_aligned;
 
-/* run time verification of objects size and offsets
-   need to clean this up and derive this objects from base object but require too much refactoring right now
-   hhaim
-*/
-
-#define COMPARE_NODE_OBJECT(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
-                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
-                                            assert(0); \
-                                            }\
-                                            if ( (int)offsetof(struct NODE_NAME,m_type)!=offsetof(struct CGenNodeBase,m_type) ){\
-                                            printf("ERROR offsetof(struct %s,m_type)!=offsetof(struct CGenNodeBase,m_type) \n",#NODE_NAME);\
-                                            assert(0);\
-                                            }\
-                                            if ( (int)offsetof(struct CGenNodeDeferPort,m_time)!=offsetof(struct CGenNodeBase,m_time) ){\
-                                            printf("ERROR offsetof(struct %s,m_time)!=offsetof(struct CGenNodeBase,m_time) \n",#NODE_NAME);\
-                                            assert(0);\
-                                            }
-
-#define COMPARE_NODE_OBJECT_SIZE(NODE_NAME)     if ( sizeof(NODE_NAME) != sizeof(CGenNode)  ) { \
-                                            printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same size \n",#NODE_NAME,sizeof(NODE_NAME),sizeof(CGenNode)); \
-                                            assert(0); \
-                                            }
 
 
-
-inline int check_objects_sizes(void){
-    COMPARE_NODE_OBJECT(CGenNodeDeferPort);
-    return (0);
-}
 
 
 struct CGenNodeCompare
@@ -3419,17 +3392,52 @@ static_assert(sizeof(CGenNodeLatencyPktInfo) == sizeof(CGenNode), "sizeof(CGenNo
 static_assert(sizeof(CGenNodeTXFIF) == sizeof(CGenNode), "sizeof(CGenNodeTXFIF) != sizeof(CGenNode)" );
 
 static inline void rte_pause_or_delay_lowend() {
-    if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
-        delay_sec(LOWEND_LONG_SLEEP_SEC); // sleep for "long" time (highend would rte_pause)
-    } else {
-        rte_pause();
-    }
+  if (unlikely(CGlobalInfo::m_options.m_is_sleepy_scheduler)) {
+    delay_sec(LOWEND_LONG_SLEEP_SEC); // sleep for "long" time (highend would
+                                      // rte_pause)
+  } else {
+    rte_pause();
+  }
 }
 
 static inline void delay_lowend() {
-    if (unlikely( CGlobalInfo::m_options.m_is_sleepy_scheduler )) {
-        delay_sec(LOWEND_SHORT_SLEEP_SEC); // sleep for "short" time (highend would do nothing)
-    }
+  if (unlikely(CGlobalInfo::m_options.m_is_sleepy_scheduler)) {
+    delay_sec(LOWEND_SHORT_SLEEP_SEC); // sleep for "short" time (highend would
+                                       // do nothing)
+  }
+}
+
+/* run time verification of objects size and offsets
+need to clean this up and derive this objects from base object but require too
+much refactoring right now hhaim
+*/
+
+#define COMPARE_NODE_OBJECT(NODE_NAME)                                         \
+  if (sizeof(NODE_NAME) != sizeof(CGenNode)) {                                 \
+    printf("ERROR sizeof(%s) %lu != sizeof(CGenNode) %lu must be the same "    \
+           "size \n",                                                          \
+           #NODE_NAME, sizeof(NODE_NAME), sizeof(CGenNode));                   \
+    assert(0);                                                                 \
+  }                                                                            \
+  if ((int)offsetof(struct NODE_NAME, m_type) !=                               \
+      offsetof(struct CGenNodeBase, m_type)) {                                 \
+    printf("ERROR offsetof(struct %s,m_type)!=offsetof(struct "                \
+           "CGenNodeBase,m_type) \n",                                          \
+           #NODE_NAME);                                                        \
+    assert(0);                                                                 \
+  }                                                                            \
+  if ((int)offsetof(struct CGenNodeDeferPort, m_time) !=                       \
+      offsetof(struct CGenNodeBase, m_time)) {                                 \
+    printf("ERROR offsetof(struct %s,m_time)!=offsetof(struct "                \
+           "CGenNodeBase,m_time) \n",                                          \
+           #NODE_NAME);                                                        \
+    assert(0);                                                                 \
+  }
+
+
+inline int check_objects_sizes(void) {
+  COMPARE_NODE_OBJECT(CGenNodeDeferPort);
+  return (0);
 }
 
 #endif
