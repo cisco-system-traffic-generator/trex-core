@@ -63,10 +63,13 @@ ETHERNET_CLASS = "0200"
 NETWORK_CLASS = "0280"
 NAPATECH_VENDOR_STR = '18f4'
 NAPATECH_VENDOR_NUM = 0x18f4
-PATH = os.getenv('PATH', '')
-needed_path = '.:/bin:/usr/bin:/usr/sbin'
-if needed_path not in PATH:
-    os.environ['PATH'] = '%s:%s' % (PATH, needed_path)
+
+def fix_path():
+    PATH = os.getenv('PATH', '')
+    needed_path = '.:/bin:/usr/bin:/usr/sbin'
+    if needed_path not in PATH:
+        os.environ['PATH'] = '%s:%s' % (PATH, needed_path)
+fix_path()
 
 # global dict ethernet devices present. Dictionary indexed by PCI address.
 # Each device within this is itself a dictionary of device properties
@@ -171,6 +174,12 @@ def check_output(args, stderr=None, **kwargs):
 
 kernel_ver = check_output(['uname', '-r'], universal_newlines = True).strip()
 
+def is_under_hypervisor():
+    cpu_topology_file = '/proc/cpuinfo'
+    if not os.path.exists(cpu_topology_file):
+        raise DpdkSetup('File with CPU topology (%s) does not exist.' % cpu_topology_file)
+    with open(cpu_topology_file) as f:
+        return ' hypervisor ' in f.read()
 
 def find_module(mod):
     '''find the .ko file for kernel module named mod.
@@ -859,7 +868,7 @@ GIGA = 1000000000
 TERA = 1000000000000
 MEMORY_SIZE_RE = re.compile('(\d+)\s*(.?)b?$')
 BANK_LOCATOR_RE = re.compile('(node|cpu) (\d+) channel (\d+)')
-def parse_memory_section(section):
+def parse_memory_section(section, flag_hypervisor):
     numa = channel = size = None
     for line in section.splitlines():
         line = line.strip().lower()
@@ -879,9 +888,12 @@ def parse_memory_section(section):
                 size *= TERA
             else:
                 assert mult == '', 'Could not understand the size of memory: %s' % line
-            continue
+            if flag_hypervisor:
+                numa = '?'
+                channel = '?'
+                break
 
-        if line.startswith('bank locator:'):
+        elif line.startswith('bank locator:'):
             res = BANK_LOCATOR_RE.search(line)
             if not res:
                 return # unexpected, but don't want to raise Exception
@@ -905,14 +917,17 @@ def pretty_ram(amount):
     return '%sB' % amount
 
 def show_memory():
-    print('Warning: results might be inaccurate in Virtual machine')
     ram_info = subprocess.check_output(shlex.split('dmidecode -t memory'), universal_newlines = True)
     ram_info_sections = ram_info.strip().lower().split('\n\n')
 
     found_banks_dict = {}
     channels = set()
+    flag_hypervisor = is_under_hypervisor()
+    if flag_hypervisor:
+        print("Warning: Can't verify memory channels in Virtual machine")
+        print('Warning: In virtual machine TRex performance might be not optimal')
     for ram_info_section in ram_info_sections:
-        section_data = parse_memory_section(ram_info_section)
+        section_data = parse_memory_section(ram_info_section, flag_hypervisor)
         if not section_data:
             continue
         numa, channel, size = section_data
@@ -927,6 +942,9 @@ def show_memory():
     table = texttable.Texttable(max_width=-1)
     table.header(['NUMA'] + ['Channel %s' % num for num in channels])
     for numa, channel_data in found_banks_dict.items():
+        channels_cnt = len(channel_data)
+        if not flag_hypervisor and channels_cnt < 4:
+            print('Warning: NUMA %s has only %s memory channel(s). For optimal TRex performance it should have 4 channels' % (numa, channels_cnt))
         table.add_row([numa] + [pretty_ram(channel_data.get(channel, 0)) for channel in channels])
     print(table.draw())
 
