@@ -355,6 +355,24 @@ Size: No Module Installed
 Size: No Module Installed
 ----
 
+or the new command 
+
+
+[source,bash]
+----
+
+ sudo ./dpdk_setup_ports.py -m
+ Warning: results might be inaccurate in Virtual machine
+ +------+-----------+-----------+-----------+-----------+
+ | NUMA | Channel 0 | Channel 1 | Channel 2 | Channel 3 |
+ +======+===========+===========+===========+===========+
+ | 1    | 4GB       | 4GB       | 4GB       | 4GB       |
+ +------+-----------+-----------+-----------+-----------+
+ | 2    | 4GB       | 4GB       | 4GB       | 4GB       |
+ +------+-----------+-----------+-----------+-----------+
+
+----
+ 
 
 
 [source,bash]
