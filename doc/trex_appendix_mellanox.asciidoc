@@ -362,7 +362,6 @@ or the new command
 ----
 
  sudo ./dpdk_setup_ports.py -m
- Warning: results might be inaccurate in Virtual machine
  +------+-----------+-----------+-----------+-----------+
  | NUMA | Channel 0 | Channel 1 | Channel 2 | Channel 3 |
  +======+===========+===========+===========+===========+
