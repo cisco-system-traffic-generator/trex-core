@@ -93,6 +93,11 @@ class STLRX_Test(CStlGeneral_Test):
         else:
             max_drop_allowed = 0
         self.allow_drop             = per_driver_params[drv_name].get('allow_packets_drop_num', max_drop_allowed)
+        
+        # in case of a real DUT there could be a few packets due to the DUT iteself  
+        if CTRexScenario.setup_name in ['trex14']:
+            self.allow_drop = 5
+
         self.lat_pps = 1000
         self.drops_expected = False
         self.c.reset(ports = [self.tx_port, self.rx_port])
