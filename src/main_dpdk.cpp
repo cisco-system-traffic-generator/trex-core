@@ -6366,8 +6366,13 @@ int main_test(int argc , char * argv[]){
     if (!po->preview.get_is_termio_disabled()) {
         utl_termio_init();
     }
-    
-    
+
+    /* set line buffered mode only if --iom 0 */
+    if (CGlobalInfo::m_options.m_io_mode == 0) {
+        setvbuf(stdout, NULL, _IOLBF, 0);
+    }
+
+
     /* enable core dump if requested */
     if (po->preview.getCoreDumpEnable()) {
         utl_set_coredump_size(-1);
