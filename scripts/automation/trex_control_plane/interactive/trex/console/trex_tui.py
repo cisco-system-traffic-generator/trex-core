@@ -996,8 +996,8 @@ class AsyncKeys:
     
 # Legend engine
 class AsyncKeysEngineLegend:
-    def __init__ (self, async):
-        self.async_ = async
+    def __init__ (self, async_):
+        self.async_ = async_
 
     def get_type (self):
         return self.async_.MODE_LEGEND
