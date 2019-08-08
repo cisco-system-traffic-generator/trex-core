@@ -240,7 +240,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
              */
             INC_STAT(pctx, tg_id, tcps_keepprobe);
             tcp_respond(pctx,tp,
-                tp->rcv_nxt, tp->snd_una - 1, 0);
+                tp->rcv_nxt, tp->snd_una - 1, TH_ACK);
             tp->t_timer[TCPT_KEEP] = ctx->tcp_keepintvl;
         } else
             tp->t_timer[TCPT_KEEP] = ctx->tcp_keepidle;
