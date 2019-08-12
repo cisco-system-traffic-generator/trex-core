@@ -55,7 +55,8 @@ gcc_flags = ['-Wall',
              '-Werror',
              '-Wno-literal-suffix',
              '-Wno-sign-compare',
-             '-Wno-strict-aliasing']
+             '-Wno-strict-aliasing',
+             '-Wno-address-of-packed-member']
 
 
 
