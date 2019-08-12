@@ -67,6 +67,12 @@ TrexRpcCommand::run(const Json::Value &params, Json::Value &result) {
             verify_ownership(params, result);
         }
 
+        if (!params.isObject()){
+          std::stringstream ss;
+          ss << "JSON-RPC2 params should be object in TRex case ";
+          generate_execute_err(result, ss.str());
+        }
+
         /* run the command itself*/
         rc = _run(params, result);
 
@@ -241,7 +247,7 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, int index, field_typ
 
     /* should never get here without parent being array */
     if (!parent.isArray()) {
-        throw TrexRpcException("internal parsing error");
+      generate_parse_err(result, "parent field is missing");
     }
 
     const Json::Value &field = parent[index];
@@ -261,7 +267,7 @@ TrexRpcCommand::check_field_type(const Json::Value &parent, const std::string &n
     
      /* should never get here without parent being object */
     if (!parent.isObject()) {
-        throw TrexRpcException("internal parsing error");
+        generate_parse_err(result, "parent field '" + name + "' is missing");
     }
 
     const Json::Value &field = parent[name];
