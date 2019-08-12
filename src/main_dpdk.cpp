@@ -55,6 +55,7 @@
 #include <rte_ip.h>
 #include <rte_bus_pci.h>
 
+#include "hot_section.h"
 #include "stt_cp.h"
 
 #include "bp_sim.h"
@@ -306,7 +307,7 @@ static CSimpleOpt::SOption parser_options[] =
         SO_END_OF_OPTIONS
     };
 
-static int __attribute__((cold)) usage() {
+static int COLD_FUNC  usage() {
 
     printf(" Usage: t-rex-64 [mode] <options>\n\n");
     printf(" mode is one of:\n");
@@ -546,7 +547,7 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
     return args_set;
 }
 
-static void get_dpdk_drv_params(CTrexDpdkParams &dpdk_p){
+COLD_FUNC static void get_dpdk_drv_params(CTrexDpdkParams &dpdk_p){
     CPlatformYamlInfo *cg = &global_platform_cfg_info;
 
     CTrexDpdkParamsOverride dpdk_over_p;
@@ -586,7 +587,7 @@ static void get_dpdk_drv_params(CTrexDpdkParams &dpdk_p){
 }
 
 
-static rte_mempool_t* get_rx_mem_pool(int socket_id) {
+COLD_FUNC static rte_mempool_t* get_rx_mem_pool(int socket_id) {
     CTrexDpdkParams dpdk_p;
     get_dpdk_drv_params(dpdk_p);
 
@@ -603,7 +604,7 @@ static rte_mempool_t* get_rx_mem_pool(int socket_id) {
 }
 
 
-static int parse_options(int argc, char *argv[], bool first_time ) {
+COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     CSimpleOpt args(argc, argv, parser_options);
 
     CParserOption *po = &CGlobalInfo::m_options;
@@ -1007,7 +1008,7 @@ static int parse_options(int argc, char *argv[], bool first_time ) {
     return 0;
 }
 
-void free_args_copy(int argc, char **argv_copy) {
+COLD_FUNC void free_args_copy(int argc, char **argv_copy) {
     for(int i=0; i<argc; i++) {
         free(argv_copy[i]);
     }
@@ -1060,7 +1061,7 @@ typedef struct cnt_name_ {
 
 #define MY_REG(a) {a,(char *)#a}
 
-void CPhyEthIFStats::Clear() {
+COLD_FUNC void CPhyEthIFStats::Clear() {
     ipackets = 0;
     ibytes = 0;
     f_ipackets = 0;
@@ -1089,20 +1090,20 @@ void CPhyEthIFStats::DumpAll(FILE *fd) {
 }
 
 // dump all non zero counters
-void CPhyEthIFStats::Dump(FILE *fd) {
-    DP_A(opackets);
-    DP_A(obytes);
-    DP_A(f_ipackets);
-    DP_A(f_ibytes);
-    DP_A(ipackets);
-    DP_A(ibytes);
-    DP_A(ierrors);
-    DP_A(oerrors);
-    DP_A(imcasts);
-    DP_A(rx_nombuf);
+COLD_FUNC void CPhyEthIFStats::Dump(FILE *fd) {
+  DP_A(opackets);
+  DP_A(obytes);
+  DP_A(f_ipackets);
+  DP_A(f_ibytes);
+  DP_A(ipackets);
+  DP_A(ibytes);
+  DP_A(ierrors);
+  DP_A(oerrors);
+  DP_A(imcasts);
+  DP_A(rx_nombuf);
 }
 
-void CPhyEthIgnoreStats::dump(FILE *fd) {
+COLD_FUNC void CPhyEthIgnoreStats::dump(FILE *fd) {
     DP_A4(opackets);
     DP_A4(obytes);
     DP_A4(ipackets);
@@ -1140,7 +1141,7 @@ void CPhyEthIF::flush_rx_queue(void){
 }
 
 
-void CPhyEthIF::dump_stats_extended(FILE *fd){
+COLD_FUNC void CPhyEthIF::dump_stats_extended(FILE *fd){
 
     cnt_name_t reg[]={
         MY_REG(IXGBE_GPTC), /* total packet */
@@ -1189,7 +1190,7 @@ void CPhyEthIF::dump_stats_extended(FILE *fd){
     }
 }
 
-void CPhyEthIF::configure(uint16_t nb_rx_queue,
+COLD_FUNC void CPhyEthIF::configure(uint16_t nb_rx_queue,
                           uint16_t nb_tx_queue,
                           const struct rte_eth_conf *eth_conf){
     int ret;
@@ -1226,47 +1227,42 @@ void CPhyEthIF::configure(uint16_t nb_rx_queue,
   will be dropped as queue 0 is disabled
   rx-queue 1 - Latency measurement packets and other features that need software processing will go here.
 */
-void CPhyEthIF::configure_rx_duplicate_rules(){
+COLD_FUNC void CPhyEthIF::configure_rx_duplicate_rules(){
     if ( get_dpdk_mode()->is_hardware_filter_needed() ){
         get_ex_drv()->configure_rx_filter_rules(this);
     }
 }
 
-int CPhyEthIF::set_port_rcv_all(bool is_rcv) {
+COLD_FUNC int CPhyEthIF::set_port_rcv_all(bool is_rcv) {
     if ( get_dpdk_mode()->is_hardware_filter_needed() ){
         get_ex_drv()->set_rcv_all(this, is_rcv);
     }
     return 0;
 }
 
-void CPhyEthIF::stop_rx_drop_queue() {
+COLD_FUNC void CPhyEthIF::stop_rx_drop_queue() {
     CDpdkModeBase * dpdk_mode = get_dpdk_mode();
     if ( dpdk_mode->is_drop_rx_queue_needed() ) {
         get_ex_drv()->stop_queue(this, MAIN_DPDK_DROP_Q);
     }
 }
 
+COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
+                                        uint16_t nb_rx_desc,
+                                        unsigned int socket_id,
+                                        const struct rte_eth_rxconf *rx_conf,
+                                        struct rte_mempool *mb_pool) {
 
-void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
-                               uint16_t nb_rx_desc,
-                               unsigned int socket_id,
-                               const struct rte_eth_rxconf *rx_conf,
-                               struct rte_mempool *mb_pool){
-
-    int ret = rte_eth_rx_queue_setup(m_repid , rx_queue_id,
-                                     nb_rx_desc,
-                                     socket_id,
-                                     rx_conf,
-                                     mb_pool);
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup: "
-                 "err=%d, port=%u\n",
-                 ret, m_repid);
+  int ret = rte_eth_rx_queue_setup(m_repid, rx_queue_id, nb_rx_desc, socket_id,
+                                   rx_conf, mb_pool);
+  if (ret < 0)
+    rte_exit(EXIT_FAILURE,
+             "rte_eth_rx_queue_setup: "
+             "err=%d, port=%u\n",
+             ret, m_repid);
 }
 
-
-
-void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
+COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
                                uint16_t nb_tx_desc,
                                unsigned int socket_id,
                                const struct rte_eth_txconf *tx_conf){
@@ -1283,7 +1279,7 @@ void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
 
 }
 
-void CPhyEthIF::stop(){
+COLD_FUNC void CPhyEthIF::stop(){
     if (CGlobalInfo::m_options.preview.getCloseEnable()) {
         rte_eth_dev_stop(m_repid);
         rte_eth_dev_close(m_repid);
@@ -1292,7 +1288,7 @@ void CPhyEthIF::stop(){
 
 #define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
 
-void CPhyEthIF::start(){
+COLD_FUNC void CPhyEthIF::start(){
 
     const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
 
@@ -1326,29 +1322,32 @@ void CPhyEthIF::start(){
 }
 
 // Disabling flow control on interface
-void CPhyEthIF::disable_flow_control(){
-    int ret;
-    // see trex-64 issue with loopback on the same NIC
-    struct rte_eth_fc_conf fc_conf;
-    memset(&fc_conf,0,sizeof(fc_conf));
-    fc_conf.mode=RTE_FC_NONE;
-    fc_conf.autoneg=1;
-    fc_conf.pause_time=100;
-    int i;
-    for (i=0; i<5; i++) {
-        ret=rte_eth_dev_flow_ctrl_set(m_repid,&fc_conf);
-        if (ret==0) {
-            break;
-        }
-        delay(1000);
+COLD_FUNC void CPhyEthIF::disable_flow_control() {
+  int ret;
+  // see trex-64 issue with loopback on the same NIC
+  struct rte_eth_fc_conf fc_conf;
+  memset(&fc_conf, 0, sizeof(fc_conf));
+  fc_conf.mode = RTE_FC_NONE;
+  fc_conf.autoneg = 1;
+  fc_conf.pause_time = 100;
+  int i;
+  for (i = 0; i < 5; i++) {
+    ret = rte_eth_dev_flow_ctrl_set(m_repid, &fc_conf);
+    if (ret == 0) {
+      break;
     }
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE, "rte_eth_dev_flow_ctrl_set: "
-                 "err=%d, port=%u\n probably link is down. Please check your link activity, or skip flow-control disabling, using: --no-flow-control-change option\n",
-                 ret, m_repid);
+    delay(1000);
+  }
+  if (ret < 0)
+    rte_exit(EXIT_FAILURE,
+             "rte_eth_dev_flow_ctrl_set: "
+             "err=%d, port=%u\n probably link is down. Please check your link "
+             "activity, or skip flow-control disabling, using: "
+             "--no-flow-control-change option\n",
+             ret, m_repid);
 }
 
-int DpdkTRexPortAttr::add_mac(char * mac){
+COLD_FUNC int DpdkTRexPortAttr::add_mac(char * mac){
     struct ether_addr mac_addr;
     for (int i=0; i<6;i++) {
         mac_addr.addr_bytes[i] =mac[i];
@@ -1455,7 +1454,7 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
     DP_A1(o2bspc);
 }
 
-void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
+COLD_FUNC void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     // reading m_stats, so drivers saving prev in m_stats will be updated.
     // Actually, we want m_stats to be cleared
     
@@ -1482,7 +1481,7 @@ void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     }
 }
 
-void CPhyEthIF::dump_stats(FILE *fd){
+COLD_FUNC void CPhyEthIF::dump_stats(FILE *fd){
 
     update_counters();
 
@@ -1494,7 +1493,7 @@ void CPhyEthIF::dump_stats(FILE *fd){
     //printf (" Rx : %.1fMb/sec  \n",m_last_rx_rate);
 }
 
-void CPhyEthIF::stats_clear(){
+COLD_FUNC void CPhyEthIF::stats_clear(){
     rte_eth_stats_reset(m_repid);
     m_stats.Clear();
 }
@@ -1659,7 +1658,7 @@ public:
 };
 
 
-uint16_t get_client_side_vlan(CVirtualIF * _ifs){
+COLD_FUNC uint16_t get_client_side_vlan(CVirtualIF * _ifs){
     CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
     CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
     uint8_t port_id = lp_port->m_port->get_tvpid();
@@ -1668,7 +1667,7 @@ uint16_t get_client_side_vlan(CVirtualIF * _ifs){
 }
 
 
-bool CCoreEthIF::Create(uint8_t             core_id,
+COLD_FUNC bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port,
                         uint8_t             tx_server_queue_id,
@@ -1688,7 +1687,7 @@ bool CCoreEthIF::Create(uint8_t             core_id,
     return (true);
 }
 
-int CCoreEthIF::flush_tx_queue(void){
+COLD_FUNC int CCoreEthIF::flush_tx_queue(void){
     /* flush both sides */
     pkt_dir_t dir;
     for (dir = CLIENT_SIDE; dir < CS_NUM; dir++) {
@@ -1703,7 +1702,7 @@ int CCoreEthIF::flush_tx_queue(void){
     return 0;
 }
 
-void CCoreEthIF::GetCoreCounters(CVirtualIFPerSideStats *stats){
+COLD_FUNC void CCoreEthIF::GetCoreCounters(CVirtualIFPerSideStats *stats){
     stats->Clear();
     pkt_dir_t   dir ;
     for (dir=CLIENT_SIDE; dir<CS_NUM; dir++) {
@@ -1711,7 +1710,7 @@ void CCoreEthIF::GetCoreCounters(CVirtualIFPerSideStats *stats){
     }
 }
 
-void CCoreEthIF::DumpCoreStats(FILE *fd){
+COLD_FUNC void CCoreEthIF::DumpCoreStats(FILE *fd){
     fprintf (fd,"------------------------ \n");
     fprintf (fd," per core stats core id : %d  \n",m_core_id);
     fprintf (fd,"------------------------ \n");
@@ -1721,12 +1720,12 @@ void CCoreEthIF::DumpCoreStats(FILE *fd){
     stats.Dump(stdout);
 }
 
-void CCoreEthIF::DumpIfCfgHeader(FILE *fd){
+COLD_FUNC void CCoreEthIF::DumpIfCfgHeader(FILE *fd){
     fprintf (fd," core, c-port, c-queue, s-port, s-queue, lat-queue\n");
     fprintf (fd," ------------------------------------------\n");
 }
 
-void CCoreEthIF::DumpIfCfg(FILE *fd){
+COLD_FUNC void CCoreEthIF::DumpIfCfg(FILE *fd){
     fprintf (fd," %d   %6u %6u  %6u  %6u %6u  \n",m_core_id,
              m_ports[CLIENT_SIDE].m_port->get_tvpid(),
              m_ports[CLIENT_SIDE].m_tx_queue_id,
@@ -1737,7 +1736,7 @@ void CCoreEthIF::DumpIfCfg(FILE *fd){
 }
 
 
-void CCoreEthIF::DumpIfStats(FILE *fd){
+COLD_FUNC void CCoreEthIF::DumpIfStats(FILE *fd){
 
     fprintf (fd,"------------------------ \n");
     fprintf (fd," per core per if stats id : %d  \n",m_core_id);
@@ -1810,7 +1809,7 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     return (0);
 }
 
-int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPerSideStats *lp_stats) {
+HOT_FUNC int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPerSideStats *lp_stats) {
     // We allow sending only from first core of each port. This is serious internal bug otherwise.
     assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
@@ -1832,7 +1831,7 @@ int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPer
     return ret;
 }
 
-void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
+HOT_FUNC void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
                               rte_mbuf_t      *m){
     CCorePerPort *  lp_port=&m_ports[dir];
     CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
@@ -1842,7 +1841,7 @@ void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
     lp_port->m_len = 0;
 }
 
-uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
+HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
     uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
@@ -1850,7 +1849,7 @@ uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
 }
 
 
-int CCoreEthIFTcp::send_node(CGenNode *node){
+HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     CNodeTcp * node_tcp = (CNodeTcp *) node;
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
@@ -1909,7 +1908,7 @@ HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeState
     return 0;
 }
 
-inline rte_mbuf_t *
+HOT_FUNC inline rte_mbuf_t *
 CCoreEthIFStateless::generate_node_pkt(CGenNodeStateless *node_sl) {
     if (unlikely(node_sl->get_is_slow_path())) {
         return generate_slow_path_node_pkt(node_sl);
@@ -1936,7 +1935,7 @@ CCoreEthIFStateless::generate_node_pkt(CGenNodeStateless *node_sl) {
     return m;
 }
 
-inline int
+HOT_FUNC inline int
 CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
                                       rte_mbuf_t             *m,
                                       CCorePerPort           *lp_port,
@@ -2431,7 +2430,7 @@ private:
 
 };
 
-std::string CGlobalStats::get_field(const char *name, float &f){
+COLD_FUNC std::string CGlobalStats::get_field(const char *name, float &f){
     char buff[200];
     if(f <= -10.0 or f >= 10.0)
         snprintf(buff, sizeof(buff), "\"%s\":%.1f,",name,f);
@@ -2440,13 +2439,13 @@ std::string CGlobalStats::get_field(const char *name, float &f){
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field(const char *name, uint64_t &f){
+COLD_FUNC std::string CGlobalStats::get_field(const char *name, uint64_t &f){
     char buff[200];
     snprintf(buff,  sizeof(buff), "\"%s\":%llu,", name, (unsigned long long)f);
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field_port(int port, const char *name, float &f){
+COLD_FUNC std::string CGlobalStats::get_field_port(int port, const char *name, float &f){
     char buff[200];
     if(f <= -10.0 or f >= 10.0)
         snprintf(buff,  sizeof(buff), "\"%s-%d\":%.1f,", name, port, f);
@@ -2455,14 +2454,14 @@ std::string CGlobalStats::get_field_port(int port, const char *name, float &f){
     return (std::string(buff));
 }
 
-std::string CGlobalStats::get_field_port(int port, const char *name, uint64_t &f){
+COLD_FUNC std::string CGlobalStats::get_field_port(int port, const char *name, uint64_t &f){
     char buff[200];
     snprintf(buff, sizeof(buff), "\"%s-%d\":%llu,",name, port, (unsigned long long)f);
     return (std::string(buff));
 }
 
 
-void CGlobalStats::dump_json(std::string & json, bool baseline){
+COLD_FUNC void CGlobalStats::dump_json(std::string & json, bool baseline){
     /* refactor this to JSON */
 
     json="{\"name\":\"trex-global\",\"type\":0,";
@@ -2541,8 +2540,7 @@ void CGlobalStats::dump_json(std::string & json, bool baseline){
 }
 
 
-void
-CGlobalStats::global_stats_to_json(Json::Value &output) {
+COLD_FUNC void CGlobalStats::global_stats_to_json(Json::Value &output) {
 
     output["m_cpu_util"] = m_cpu_util;
     output["m_cpu_util_raw"] = m_cpu_util_raw;
@@ -2581,31 +2579,28 @@ CGlobalStats::global_stats_to_json(Json::Value &output) {
     output["m_total_nat_learn_error"] = m_total_nat_learn_error;
 }
 
-
-bool CGlobalStats::is_dump_nat(){
-    return( CGlobalInfo::is_learn_mode() && (get_is_tcp_mode()==0) );
+COLD_FUNC bool CGlobalStats::is_dump_nat() {
+  return (CGlobalInfo::is_learn_mode() && (get_is_tcp_mode() == 0));
 }
 
+COLD_FUNC void CGlobalStats::port_stats_to_json(Json::Value &output,
+                                               uint8_t port_id) {
+  CPerPortStats *lp = &m_port[port_id];
 
-void
-CGlobalStats::port_stats_to_json(Json::Value &output, uint8_t port_id) {
-     CPerPortStats *lp = &m_port[port_id];
+  output["opackets"] = lp->opackets;
+  output["obytes"] = lp->obytes;
+  output["ipackets"] = lp->ipackets;
+  output["ibytes"] = lp->ibytes;
+  output["ierrors"] = lp->ierrors;
+  output["oerrors"] = lp->oerrors;
+  output["m_total_tx_bps"] = lp->m_total_tx_bps;
+  output["m_total_tx_pps"] = lp->m_total_tx_pps;
+  output["m_total_rx_bps"] = lp->m_total_rx_bps;
+  output["m_total_rx_pps"] = lp->m_total_rx_pps;
+  output["m_cpu_util"] = lp->m_cpu_util;
+}
 
-     output["opackets"]        = lp->opackets;
-     output["obytes"]          = lp->obytes;
-     output["ipackets"]        = lp->ipackets;
-     output["ibytes"]          = lp->ibytes;
-     output["ierrors"]         = lp->ierrors;
-     output["oerrors"]         = lp->oerrors;
-     output["m_total_tx_bps"]  = lp->m_total_tx_bps;
-     output["m_total_tx_pps"]  = lp->m_total_tx_pps;
-     output["m_total_rx_bps"]  = lp->m_total_rx_bps;
-     output["m_total_rx_pps"]  = lp->m_total_rx_pps;
-     output["m_cpu_util"]      = lp->m_cpu_util;
-}   
-
-
-void CGlobalStats::DumpAllPorts(FILE *fd){
+COLD_FUNC void CGlobalStats::DumpAllPorts(FILE *fd){
 
 
     if ( m_cpu_util > 0.1 ) {
@@ -2689,7 +2684,7 @@ void CGlobalStats::DumpAllPorts(FILE *fd){
 }
 
 
-void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
+COLD_FUNC void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
     int i;
     int port_to_show=m_num_of_ports;
     if (port_to_show>4) {
@@ -2788,8 +2783,6 @@ void CGlobalStats::Dump(FILE *fd,DumpFormat mode){
             fprintf(fd, "\n");
         }/* fields*/
     }
-
-
 }
 
 #define INVALID_TX_QUEUE_ID 0xffff
@@ -3036,7 +3029,7 @@ public:
 } __rte_cache_aligned;
 
 // Before starting, send gratuitous ARP on our addresses, and try to resolve dst MAC addresses.
-void CGlobalTRex::pre_test() {
+COLD_FUNC void CGlobalTRex::pre_test() {
     CTrexDpdkParams dpdk_p;
     get_dpdk_drv_params(dpdk_p);
     CPretest pretest(m_max_ports, dpdk_p.get_total_rx_queues());
@@ -3228,7 +3221,7 @@ void CGlobalTRex::pre_test() {
     }
 }
 
-void CGlobalTRex::apply_pretest_results_to_stack(void) {
+COLD_FUNC void CGlobalTRex::apply_pretest_results_to_stack(void) {
     // wait up to 5 seconds for RX core to be up
     for (int i=0; i<50; i++) {
         if ( m_stx->get_rx()->is_active() ) {
@@ -3300,7 +3293,7 @@ void CGlobalTRex::apply_pretest_results_to_stack(void) {
  * *BEWARE* - this function should be thread safe
  *            as any thread can call assert
  */
-void
+COLD_FUNC void
 CGlobalTRex::abort_gracefully(const std::string &on_stdout,
                               const std::string &on_publisher) {
 
@@ -3328,7 +3321,7 @@ CGlobalTRex::abort_gracefully(const std::string &on_stdout,
 }
 
 
-bool CGlobalTRex::is_all_links_are_up(bool dump){
+COLD_FUNC bool CGlobalTRex::is_all_links_are_up(bool dump){
     bool all_link_are=true;
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -3345,7 +3338,7 @@ bool CGlobalTRex::is_all_links_are_up(bool dump){
     return (all_link_are);
 }
 
-void CGlobalTRex::wait_for_all_cores(){
+COLD_FUNC void CGlobalTRex::wait_for_all_cores(){
 
     // no need to delete rx_msg. Deleted by receiver
     bool all_core_finished = false;
@@ -3374,7 +3367,7 @@ void CGlobalTRex::wait_for_all_cores(){
 }
 
 
-int  CGlobalTRex::device_rx_queue_flush(){
+COLD_FUNC int  CGlobalTRex::device_rx_queue_flush(){
     int i;
     for (i=0; i<m_max_ports; i++) {
         CPhyEthIF * _if=m_ports[i];
@@ -3385,7 +3378,7 @@ int  CGlobalTRex::device_rx_queue_flush(){
 
 
 // init RX core for batch mode (STF, ASTF batch)
-void CGlobalTRex::rx_batch_conf(void) {
+COLD_FUNC void CGlobalTRex::rx_batch_conf(void) {
     int i;
     CLatencyManagerCfg mg_cfg;
     mg_cfg.m_max_ports = m_max_ports;
@@ -3433,7 +3426,7 @@ void CGlobalTRex::rx_batch_conf(void) {
 }
 
 
-void CGlobalTRex::rx_interactive_conf(void) {
+COLD_FUNC void CGlobalTRex::rx_interactive_conf(void) {
     
     if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         /* vm mode, indirect queues  */
@@ -3454,7 +3447,7 @@ void CGlobalTRex::rx_interactive_conf(void) {
 }
 
 
-int  CGlobalTRex::device_start(void){
+COLD_FUNC int  CGlobalTRex::device_start(void){
     int i;
     for (i=0; i<m_max_ports; i++) {
         socket_id_t socket_id = CGlobalInfo::m_socket.port_to_socket((port_id_t)i);
@@ -3515,7 +3508,7 @@ int  CGlobalTRex::device_start(void){
 }
 
 
-void
+COLD_FUNC void
 CGlobalTRex::init_vif_cores() {
     int port_offset = 0;
     uint8_t lat_q_id;
@@ -3557,7 +3550,7 @@ CGlobalTRex::init_vif_cores() {
 static void trex_termination_handler(int signum);
 
 
-bool CGlobalTRex::Create(){
+COLD_FUNC bool CGlobalTRex::Create(){
 
     register_signals();
 
@@ -3634,8 +3627,8 @@ bool CGlobalTRex::Create(){
 
 }
 
-TrexSTXCfg
-CGlobalTRex::get_stx_cfg() {
+COLD_FUNC TrexSTXCfg
+ CGlobalTRex::get_stx_cfg() {
 
     TrexSTXCfg cfg;
     
@@ -3669,7 +3662,7 @@ CGlobalTRex::get_stx_cfg() {
 }
 
 
-void CGlobalTRex::init_stl() {
+COLD_FUNC void CGlobalTRex::init_stl() {
     
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_stl[i + 1];
@@ -3695,7 +3688,7 @@ void CGlobalTRex::init_stl() {
     init_stl_stats();
 }
 
-void CGlobalTRex::init_stl_stats() {
+COLD_FUNC void CGlobalTRex::init_stl_stats() {
     if (get_dpdk_mode()->dp_rx_queues()) {
         std::vector<TrexStatelessDpCore*> dp_core_ptrs;
         for (int thread_id = 0; thread_id < (int)m_fl.m_threads_info.size(); thread_id++) {
@@ -3716,7 +3709,7 @@ void CGlobalTRex::init_astf_vif_rx_queues(){
     }
 }
 
-void CGlobalTRex::init_astf() {
+COLD_FUNC void CGlobalTRex::init_astf() {
         
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
@@ -3732,7 +3725,7 @@ void CGlobalTRex::init_astf() {
 }
 
 
-void CGlobalTRex::init_astf_batch() {
+COLD_FUNC void CGlobalTRex::init_astf_batch() {
     
      for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
@@ -3748,7 +3741,7 @@ void CGlobalTRex::init_astf_batch() {
 }
 
 
-void CGlobalTRex::init_stf() {
+COLD_FUNC void CGlobalTRex::init_stf() {
     CFlowsYamlInfo  pre_yaml_info;
     
     pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
@@ -3774,7 +3767,7 @@ void CGlobalTRex::init_stf() {
 }
 
 
-void CGlobalTRex::Delete(){
+COLD_FUNC void CGlobalTRex::Delete(){
 
     m_zmq_publisher.Delete();
 
@@ -3815,7 +3808,7 @@ static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
 }
 
 
-int  CGlobalTRex::device_prob_init(void){
+COLD_FUNC int  CGlobalTRex::device_prob_init(void){
 
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
@@ -3992,13 +3985,13 @@ int  CGlobalTRex::device_prob_init(void){
     return (0);
 }
 
-int  CGlobalTRex::cores_prob_init(){
+COLD_FUNC int  CGlobalTRex::cores_prob_init(){
     m_max_cores = rte_lcore_count();
     assert(m_max_cores>0);
     return (0);
 }
 
-int  CGlobalTRex::queues_prob_init(){
+COLD_FUNC int  CGlobalTRex::queues_prob_init(){
 
     if (m_max_cores < 2) {
         rte_exit(EXIT_FAILURE, "number of cores should be at least 2 \n");
@@ -4038,21 +4031,21 @@ int  CGlobalTRex::queues_prob_init(){
 }
 
 
-void CGlobalTRex::dump_config(FILE *fd){
+COLD_FUNC void CGlobalTRex::dump_config(FILE *fd){
     fprintf(fd," number of ports         : %u \n",m_max_ports);
     fprintf(fd," max cores for 2 ports   : %u \n",m_cores_to_dual_ports);
     fprintf(fd," tx queues per port      : %u \n",m_max_queues_per_port);
 }
 
 
-void CGlobalTRex::dump_links_status(FILE *fd){
+COLD_FUNC void CGlobalTRex::dump_links_status(FILE *fd){
     for (int i=0; i<m_max_ports; i++) {
         m_ports[i]->get_port_attr()->update_link_status_nowait();
         m_ports[i]->get_port_attr()->dump_link(fd);
     }
 }
 
-uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
+COLD_FUNC uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
 
    if ( !get_dpdk_mode()->is_hardware_filter_needed() ){
        /* not relevant */
@@ -4084,7 +4077,7 @@ uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
     }
 }
 
-uint16_t CGlobalTRex::get_latency_tx_queue_id() {
+COLD_FUNC uint16_t CGlobalTRex::get_latency_tx_queue_id() {
     /* 2 spare tx queues per port 
       X is the number of dual_ports  0--x-1 for DP
 
@@ -4110,7 +4103,7 @@ uint16_t CGlobalTRex::get_latency_tx_queue_id() {
 }
 
 
-bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
+COLD_FUNC bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     for (int i = 0; i < m_max_ports; i++) {
         if ( m_ports[i]->is_dummy() ) {
             continue;
@@ -4124,7 +4117,7 @@ bool CGlobalTRex::lookup_port_by_mac(const uint8_t *mac, uint8_t &port_id) {
     return false;
 }
 
-void CGlobalTRex::dump_post_test_stats(FILE *fd){
+COLD_FUNC void CGlobalTRex::dump_post_test_stats(FILE *fd){
     uint64_t pkt_out=0;
     uint64_t pkt_out_bytes=0;
     uint64_t pkt_in_bytes=0;
@@ -4201,7 +4194,7 @@ void CGlobalTRex::dump_post_test_stats(FILE *fd){
 }
 
 
-void CGlobalTRex::update_stats(){
+COLD_FUNC void CGlobalTRex::update_stats(){
 
     int i;
     for (i=0; i<m_max_ports; i++) {
@@ -4260,12 +4253,12 @@ void CGlobalTRex::update_stats(){
     }
 }
 
-tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
+COLD_FUNC tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
     return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
 }
 
 // read stats. Return read value, and clear.
-tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index, bool is_lat) {
+COLD_FUNC tx_per_flow_t CGlobalTRex::clear_flow_tx_stats(uint8_t port, uint16_t index, bool is_lat) {
     uint8_t port0;
     CFlowGenListPerThread * lpt;
     tx_per_flow_t ret;
@@ -4491,7 +4484,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
     stats.m_tx_expected_bps        = m_expected_bps*pf;
 }
 
-float
+COLD_FUNC float
 CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
     CPhyEthIF * _if = m_ports[port_id];
 
@@ -4511,7 +4504,7 @@ CGlobalTRex::get_cpu_util_per_interface(uint8_t port_id) {
 }
 
 COLD_FUNC
-bool CGlobalTRex::sanity_check(){
+COLD_FUNC bool CGlobalTRex::sanity_check(){
 
     if ( !get_is_interactive() ) {
         CFlowGenListPerThread   * lpt;
@@ -4539,7 +4532,7 @@ bool CGlobalTRex::sanity_check(){
 
 
 /* dump the template info */
-void CGlobalTRex::dump_template_info(std::string & json){
+COLD_FUNC void CGlobalTRex::dump_template_info(std::string & json){
     CFlowGenListPerThread   * lpt = m_fl.m_threads_info[0];
     CFlowsYamlInfo * yaml_info=&lpt->m_yaml_info;
     if ( yaml_info->is_any_template()==false){ 
@@ -4558,7 +4551,7 @@ void CGlobalTRex::dump_template_info(std::string & json){
     json+="]}" ;
 }
 
-void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
+COLD_FUNC void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
 
     sync_threads_stats();
 
@@ -4596,12 +4589,12 @@ void CGlobalTRex::dump_stats(FILE *fd, CGlobalStats::DumpFormat format){
 
 }
 
-void CGlobalTRex::sync_threads_stats() {
+COLD_FUNC void CGlobalTRex::sync_threads_stats() {
     update_stats();
     get_stats(m_stats);
 }
 
-void
+COLD_FUNC void
 CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     std::string json;
 
@@ -4622,13 +4615,12 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
 }
 
 
-void
+COLD_FUNC void
 CGlobalTRex::publish_async_barrier(uint32_t key) {
     m_zmq_publisher.publish_barrier(key);
 }
 
-void
-CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
+COLD_FUNC void CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
     Json::Value data;
     data["port_id"] = port_id;
     TRexPortAttr * _attr = m_ports[port_id]->get_port_attr();
@@ -4639,21 +4631,18 @@ CGlobalTRex:: publish_async_port_attr_changed(uint8_t port_id) {
 }
 
 
-void
-CGlobalTRex::global_stats_to_json(Json::Value &output) {
+COLD_FUNC void CGlobalTRex::global_stats_to_json(Json::Value &output) {
     sync_threads_stats();
     m_stats.global_stats_to_json(output);
 }
 
-void
-CGlobalTRex::port_stats_to_json(Json::Value &output, uint8_t port_id) {
+COLD_FUNC void CGlobalTRex::port_stats_to_json(Json::Value &output, uint8_t port_id) {
     sync_threads_stats();
     m_stats.port_stats_to_json(output, port_id);
 }
 
 
-void
-CGlobalTRex::check_for_ports_link_change() {
+COLD_FUNC void CGlobalTRex::check_for_ports_link_change() {
     
     // update speed, link up/down etc.
     for (int i=0; i<m_max_ports; i++) {
@@ -4665,8 +4654,7 @@ CGlobalTRex::check_for_ports_link_change() {
 
 }
 
-void
-CGlobalTRex::check_for_io() {
+COLD_FUNC void CGlobalTRex::check_for_io() {
     /* is IO allowed ? - if not, get out */
     if (CGlobalInfo::m_options.preview.get_no_keyboard()) {
         return;
@@ -4681,8 +4669,8 @@ CGlobalTRex::check_for_io() {
 }
 
 
-void
-CGlobalTRex::show_panel() {
+COLD_FUNC void
+ CGlobalTRex::show_panel() {
 
     if (m_io_modes.m_g_mode != CTrexGlobalIoMode::gDISABLE ) {
         fprintf(stdout,"\033[2J");
@@ -4791,56 +4779,51 @@ CGlobalTRex::show_panel() {
 
 }
 
+COLD_FUNC void CGlobalTRex::handle_slow_path() {
+  m_stats_cnt++;
 
+  /* sanity checks */
+  sanity_check();
 
-void
-CGlobalTRex::handle_slow_path() {
-    m_stats_cnt++;
+  /* handle port link changes */
+  check_for_ports_link_change();
 
-    /* sanity checks */
-    sanity_check();
-    
-    /* handle port link changes */
-    check_for_ports_link_change();
-    
-    /* keyboard input */
-    check_for_io();
-    
-    /* based on the panel chosen, show it */
-    show_panel();
-    
-    /* publish data */
-    publish_async_data(false);
-    
-    /* provide the STX object a tick (used by implementing objects) */
-    m_stx->slowpath_tick();
+  /* keyboard input */
+  check_for_io();
+
+  /* based on the panel chosen, show it */
+  show_panel();
+
+  /* publish data */
+  publish_async_data(false);
+
+  /* provide the STX object a tick (used by implementing objects) */
+  m_stx->slowpath_tick();
 }
 
+COLD_FUNC void CGlobalTRex::handle_fast_path() {
 
-void
-CGlobalTRex::handle_fast_path() {
+  /* pass fast path tick to the polymorphic object */
+  m_stx->fastpath_tick();
 
-    /* pass fast path tick to the polymorphic object */
-    m_stx->fastpath_tick();
+  /* measure CPU utilization by sampling (we sample 1000 to get an accurate
+   * sampling) */
+  for (int i = 0; i < 1000; i++) {
+    m_fl.UpdateFast();
+    rte_pause();
+  }
 
-    /* measure CPU utilization by sampling (we sample 1000 to get an accurate sampling) */
-    for (int i = 0; i < 1000; i++) {
-        m_fl.UpdateFast();
-        rte_pause();
-    }
-
-    /* in case of batch, when all DP cores are done, mark for shutdown */
-    if ( is_all_dp_cores_finished() ) {
-        mark_for_shutdown(SHUTDOWN_TEST_ENDED);
-    }
+  /* in case of batch, when all DP cores are done, mark for shutdown */
+  if (is_all_dp_cores_finished()) {
+    mark_for_shutdown(SHUTDOWN_TEST_ENDED);
+  }
 }
-
 
 /**
  * shutdown sequence
  *
  */
-void CGlobalTRex::shutdown() {
+COLD_FUNC void CGlobalTRex::shutdown() {
     std::stringstream ss;
 
     assert(is_marked_for_shutdown());
@@ -4878,7 +4861,7 @@ void CGlobalTRex::shutdown() {
 }
 
 
-int CGlobalTRex::run_in_master() {
+COLD_FUNC int CGlobalTRex::run_in_master() {
 
     //rte_thread_setname(pthread_self(), "TRex Control");
 
@@ -4932,7 +4915,7 @@ int CGlobalTRex::run_in_master() {
 
 
 
-int CGlobalTRex::run_in_rx_core(void){
+COLD_FUNC int CGlobalTRex::run_in_rx_core(void){
 
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
@@ -4954,7 +4937,7 @@ int CGlobalTRex::run_in_rx_core(void){
     return (0);
 }
 
-int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
+COLD_FUNC int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     std::stringstream ss;
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
@@ -5000,7 +4983,7 @@ int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
 }
 
 
-int CGlobalTRex::stop_master(){
+COLD_FUNC int CGlobalTRex::stop_master(){
 
     delay(1000);
     fprintf(stdout," ==================\n");
@@ -5073,7 +5056,7 @@ int CGlobalTRex::stop_master(){
 }
 
 
-bool CGlobalTRex::is_all_dp_cores_finished() {
+COLD_FUNC bool CGlobalTRex::is_all_dp_cores_finished() {
     for (int i = 0; i < get_cores_tx(); i++) {
         if (m_signal[i+1]==0) {
             return false;
@@ -5083,7 +5066,7 @@ bool CGlobalTRex::is_all_dp_cores_finished() {
     return true;
 }
 
-bool CGlobalTRex::is_all_cores_finished() {
+COLD_FUNC bool CGlobalTRex::is_all_cores_finished() {
     
     /* DP cores */
     if (!is_all_dp_cores_finished()) {
@@ -5099,7 +5082,7 @@ bool CGlobalTRex::is_all_cores_finished() {
 }
 
 
-int CGlobalTRex::start_master_stateless(){
+COLD_FUNC int CGlobalTRex::start_master_stateless(){
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
         m_signal[i]=0;
@@ -5124,7 +5107,7 @@ int CGlobalTRex::start_master_stateless(){
 }
 
 
-int CGlobalTRex::start_master_astf_common() {
+COLD_FUNC int CGlobalTRex::start_master_astf_common() {
     for (int i = 0; i < BP_MAX_CORES; i++) {
         m_signal[i] = 0;
     }
@@ -5154,7 +5137,7 @@ int CGlobalTRex::start_master_astf_common() {
 }
 
 
-int CGlobalTRex::start_master_astf_batch() {
+COLD_FUNC int CGlobalTRex::start_master_astf_batch() {
 
     std::string json_file_name = "/tmp/astf";
     if (CGlobalInfo::m_options.prefix.size() != 0) {
@@ -5227,13 +5210,13 @@ int CGlobalTRex::start_master_astf_batch() {
 }
 
 
-int CGlobalTRex::start_master_astf() {
+COLD_FUNC int CGlobalTRex::start_master_astf() {
     start_master_astf_common();
     return (0);
 }
 
 
-int CGlobalTRex::start_master_statefull() {
+COLD_FUNC int CGlobalTRex::start_master_statefull() {
     int i;
     for (i=0; i<BP_MAX_CORES; i++) {
         m_signal[i]=0;
@@ -5356,7 +5339,7 @@ const static uint8_t client_rss_key[] = {
 
 
 
-void CPhyEthIF::configure_rss_astf(bool is_client,
+COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
                                    uint16_t numer_of_queues,
                                    uint16_t skip_queue){ 
 
@@ -5409,7 +5392,7 @@ void CPhyEthIF::configure_rss_astf(bool is_client,
 
 
 
-void CPhyEthIF::configure_rss(){
+COLD_FUNC void CPhyEthIF::configure_rss(){
     trex_dpdk_rx_distro_mode_t rss_mode = 
          get_dpdk_mode()->get_rx_distro_mode();
 
@@ -5423,7 +5406,7 @@ void CPhyEthIF::configure_rss(){
     }
 }
 
-void CPhyEthIF::conf_multi_rx() {
+COLD_FUNC void CPhyEthIF::conf_multi_rx() {
     const struct rte_eth_dev_info *dev_info = m_port_attr->get_dev_info();
     uint8_t hash_key_size;
 
@@ -5450,7 +5433,7 @@ void CPhyEthIF::conf_multi_rx() {
     lp_rss->rss_key_len = hash_key_size;
 }
 
-void CPhyEthIF::conf_hardware_astf_rss() {
+COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
 
     const struct rte_eth_dev_info *dev_info = m_port_attr->get_dev_info();
 
@@ -5505,7 +5488,7 @@ void CPhyEthIF::conf_hardware_astf_rss() {
 }
 
 
-void CPhyEthIF::_conf_queues(uint16_t tx_qs,
+COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
                              uint32_t tx_descs,
                              uint16_t rx_qs,
                              rx_que_desc_t & rx_qs_descs,
@@ -5587,7 +5570,7 @@ void CPhyEthIF::_conf_queues(uint16_t tx_qs,
 }
 
 
-void CPhyEthIF::conf_queues(void){
+COLD_FUNC void CPhyEthIF::conf_queues(void){
     CTrexDpdkParams dpdk_p;
     get_dpdk_drv_params(dpdk_p);
 
@@ -5644,7 +5627,7 @@ void CPhyEthIF::conf_queues(void){
  * get extended stats might fail on some drivers (i40e_vf) 
  * so wrap it another a watch 
  */
-bool CPhyEthIF::get_extended_stats() {
+COLD_FUNC bool CPhyEthIF::get_extended_stats() {
     bool rc = get_ex_drv()->get_extended_stats(this, &m_stats);
     if (!rc) {
         m_stats_err_cnt++;
@@ -5658,7 +5641,7 @@ bool CPhyEthIF::get_extended_stats() {
 }
 
 
-void CPhyEthIF::update_counters() {
+COLD_FUNC void CPhyEthIF::update_counters() {
     bool rc = get_extended_stats();
     if (!rc) {
         return;
@@ -5680,7 +5663,7 @@ void CPhyEthIF::update_counters() {
     m_last_rx_pps       =  m_pps_rx.add(m_stats.ipackets);
 }
 
-bool CPhyEthIF::Create(tvpid_t  tvpid,
+COLD_FUNC bool CPhyEthIF::Create(tvpid_t  tvpid,
                        repid_t  repid) {
     m_tvpid      = tvpid;
     m_repid      = repid;
@@ -5724,7 +5707,7 @@ CPhyEthIF::get_core_list() {
 
 }
 
-int CPhyEthIF::reset_hw_flow_stats() {
+COLD_FUNC int CPhyEthIF::reset_hw_flow_stats() {
     if (get_ex_drv()->hw_rx_stat_supported()) {
         get_ex_drv()->reset_rx_stats(this, m_stats.m_fdir_prev_pkts, 0, MAX_FLOW_STATS);
     } else {
@@ -5738,7 +5721,7 @@ int CPhyEthIF::reset_hw_flow_stats() {
 // rx_stats, tx_stats - arrays of len max - min + 1. Returning rx, tx updated absolute values.
 // min, max - minimum, maximum counters range to get
 // reset - If true, need to reset counter value after reading
-int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
+COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     uint32_t diff_pkts[MAX_FLOW_STATS];
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
@@ -5786,7 +5769,7 @@ int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, 
     return 0;
 }
 
-int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
+COLD_FUNC int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
     
     for (int i = min; i <= max; i++) {
@@ -5804,7 +5787,7 @@ int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx
     return 0;
 }
 
-TrexSTX * get_stx() {
+COLD_FUNC TrexSTX * get_stx() {
     return g_trex.m_stx;
 }
 
@@ -5812,14 +5795,14 @@ TrexSTX * get_stx() {
  * handles an abort
  *
  */
-void abort_gracefully(const std::string &on_stdout,
+COLD_FUNC void abort_gracefully(const std::string &on_stdout,
                       const std::string &on_publisher) {
 
     g_trex.abort_gracefully(on_stdout, on_publisher);
 }
 
 
-static int latency_one_lcore(__attribute__((unused)) void *dummy)
+HOT_FUNC static int latency_one_lcore(__attribute__((unused)) void *dummy)
 {
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     physical_thread_id_t  phy_id =rte_lcore_id();
@@ -5842,7 +5825,7 @@ static int latency_one_lcore(__attribute__((unused)) void *dummy)
 
 
 
-static int slave_one_lcore(__attribute__((unused)) void *dummy)
+HOT_FUNC static int slave_one_lcore(__attribute__((unused)) void *dummy)
 {
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     physical_thread_id_t  phy_id =rte_lcore_id();
@@ -5862,7 +5845,7 @@ static int slave_one_lcore(__attribute__((unused)) void *dummy)
 
 
 
-uint32_t get_cores_mask(uint32_t cores,int offset){
+COLD_FUNC uint32_t get_cores_mask(uint32_t cores,int offset){
     int i;
 
     uint32_t res=1;
@@ -5877,19 +5860,19 @@ uint32_t get_cores_mask(uint32_t cores,int offset){
 
 
 static char *g_exe_name;
-const char *get_exe_name() {
+COLD_FUNC const char *get_exe_name() {
     return g_exe_name;
 }
 
 
-int main(int argc , char * argv[]){
+COLD_FUNC int main(int argc , char * argv[]){
     g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
 }
 
 
-int update_global_info_from_platform_file(){
+COLD_FUNC int update_global_info_from_platform_file(){
 
     CPlatformYamlInfo *cg=&global_platform_cfg_info;
     CParserOption *g_opts = &CGlobalInfo::m_options;
@@ -5968,7 +5951,7 @@ int update_global_info_from_platform_file(){
     return (0);
 }
 
-void update_memory_cfg() {
+COLD_FUNC void update_memory_cfg() {
     CPlatformYamlInfo *cg=&global_platform_cfg_info;
 
     /* mul by interface type */
@@ -6002,7 +5985,7 @@ void update_memory_cfg() {
     }
 }
 
-void check_pdev_vdev_dummy() {
+COLD_FUNC void check_pdev_vdev_dummy() {
     bool found_vdev = false;
     bool found_pdev = false;
     uint32_t dev_id = 1e6;
@@ -6061,7 +6044,7 @@ void check_pdev_vdev_dummy() {
 
 }
 
-extern "C" int eal_cpu_detected(unsigned lcore_id);
+ extern "C" COLD_FUNC int eal_cpu_detected(unsigned lcore_id);
 // return mask representing available cores
 int core_mask_calc() {
     uint32_t mask = 0;
@@ -6077,7 +6060,7 @@ int core_mask_calc() {
 }
 
 // Return number of set bits in i
-uint32_t num_set_bits(uint32_t i)
+COLD_FUNC uint32_t num_set_bits(uint32_t i)
 {
     i = i - ((i >> 1) & 0x55555555);
     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
@@ -6085,7 +6068,7 @@ uint32_t num_set_bits(uint32_t i)
 }
 
 // sanity check if the cores we want to use really exist
-int core_mask_sanity(uint32_t wanted_core_mask) {
+COLD_FUNC int core_mask_sanity(uint32_t wanted_core_mask) {
     uint32_t calc_core_mask = core_mask_calc();
     uint32_t wanted_core_num, calc_core_num;
 
@@ -6117,7 +6100,7 @@ int core_mask_sanity(uint32_t wanted_core_mask) {
 }
 
 
-int  update_dpdk_args(void){
+COLD_FUNC int  update_dpdk_args(void){
 
     CPlatformSocketInfo * lpsock=&CGlobalInfo::m_socket;
     CParserOption * lpop= &CGlobalInfo::m_options;
@@ -6277,7 +6260,7 @@ int  update_dpdk_args(void){
 }
 
 
-int sim_load_list_of_cap_files(CParserOption * op){
+COLD_FUNC int sim_load_list_of_cap_files(CParserOption * op){
 
     CFlowGenList fl;
     fl.Create();
@@ -6306,7 +6289,7 @@ int sim_load_list_of_cap_files(CParserOption * op){
     return (0);
 }
 
-void dump_interfaces_info() {
+COLD_FUNC void dump_interfaces_info() {
     printf("Showing interfaces info.\n");
     uint8_t m_max_ports = rte_eth_dev_count();
     struct ether_addr mac_addr;
@@ -6331,7 +6314,7 @@ void dump_interfaces_info() {
 }
 
 
-int learn_image_postfix(char * image_name){
+COLD_FUNC int learn_image_postfix(char * image_name){
 
     char *p = strstr(image_name,TREX_NAME);
     if (p) {
@@ -6340,7 +6323,7 @@ int learn_image_postfix(char * image_name){
     return(0);
 }
 
-int main_test(int argc , char * argv[]){
+COLD_FUNC int main_test(int argc , char * argv[]){
 
     learn_image_postfix(argv[0]);
 
@@ -6605,7 +6588,7 @@ int main_test(int argc , char * argv[]){
     return (0);
 }
 
-void wait_x_sec(int sec) {
+COLD_FUNC void wait_x_sec(int sec) {
     int i;
     printf(" wait %d sec ", sec);
     fflush(stdout);
@@ -6621,7 +6604,7 @@ void wait_x_sec(int sec) {
 #define TCP_UDP_OFFLOAD (DEV_TX_OFFLOAD_IPV4_CKSUM |DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
 
 /* should be called after rte_eal_init() */
-void set_driver() {
+COLD_FUNC void set_driver() {
     uint8_t m_max_ports;
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
@@ -6697,7 +6680,7 @@ void set_driver() {
  map requested ports to rte_eth scan
 
 */
-void reorder_dpdk_ports() {
+COLD_FUNC void reorder_dpdk_ports() {
 
     CTRexPortMapper * lp=CTRexPortMapper::Ins();
 
@@ -6789,37 +6772,32 @@ struct rte_mbuf *  rte_mbuf_convert_to_one_seg(struct rte_mbuf *m){
  * TODO: REMOVE THIS TO A SEPERATE FILE
  *
  **********************************************************/
-int TrexDpdkPlatformApi::get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_xstats_values(uint8_t port_id, xstats_values_t &xstats_values) const {
     return g_trex.m_ports[port_id]->get_port_attr()->get_xstats_values(xstats_values);
 }
 
-int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_xstats_names(uint8_t port_id, xstats_names_t &xstats_names) const {
     return g_trex.m_ports[port_id]->get_port_attr()->get_xstats_names(xstats_names);
 }
 
-void
-TrexDpdkPlatformApi::global_stats_to_json(Json::Value &output) const {
+COLD_FUNC void TrexDpdkPlatformApi::global_stats_to_json(Json::Value &output) const {
     g_trex.global_stats_to_json(output);
 }
 
-void
-TrexDpdkPlatformApi::port_stats_to_json(Json::Value &output, uint8_t port_id) const {
+COLD_FUNC void TrexDpdkPlatformApi::port_stats_to_json(Json::Value &output, uint8_t port_id) const {
     g_trex.port_stats_to_json(output, port_id);
 }
 
-uint32_t
-TrexDpdkPlatformApi::get_port_count() const {
+COLD_FUNC uint32_t TrexDpdkPlatformApi::get_port_count() const {
     return g_trex.m_max_ports;
 }
 
-uint8_t
-TrexDpdkPlatformApi::get_dp_core_count() const {
+COLD_FUNC uint8_t TrexDpdkPlatformApi::get_dp_core_count() const {
     return CGlobalInfo::m_options.get_number_of_dp_cores_needed();
 }
 
 
-void
-TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
+COLD_FUNC void TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uint8_t, uint8_t>> &cores_id_list) const {
 
     CPhyEthIF *lpt = g_trex.m_ports[port_id];
 
@@ -6828,8 +6806,7 @@ TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vector<std::pair<uin
 }
 
 
-void
-TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
+COLD_FUNC void TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
     struct ether_addr rte_mac_addr = {{0}};
 
     if ( g_trex.m_ports[port_id]->is_dummy() ) {
@@ -6850,24 +6827,22 @@ TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
     info.pci_addr = g_trex.m_ports[port_id]->get_port_attr()->get_pci_addr();
 }
 
-void
-TrexDpdkPlatformApi::publish_async_data_now(uint32_t key, bool baseline) const {
-    g_trex.publish_async_data(true, baseline);
-    g_trex.publish_async_barrier(key);
+COLD_FUNC void TrexDpdkPlatformApi::publish_async_data_now(uint32_t key,
+                                                          bool baseline) const {
+  g_trex.publish_async_data(true, baseline);
+  g_trex.publish_async_barrier(key);
 }
 
-void
-TrexDpdkPlatformApi::publish_async_port_attr_changed(uint8_t port_id) const {
+COLD_FUNC void TrexDpdkPlatformApi::publish_async_port_attr_changed(uint8_t port_id) const {
     g_trex.publish_async_port_attr_changed(port_id);
 }
 
-void
-TrexDpdkPlatformApi::get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
+COLD_FUNC void TrexDpdkPlatformApi::get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                              , uint16_t &ip_id_base) const {
     get_ex_drv()->get_rx_stat_capabilities(capabilities, num_counters ,ip_id_base);
 }
 
-int TrexDpdkPlatformApi::get_flow_stats(uint8_t port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset
+COLD_FUNC int TrexDpdkPlatformApi::get_flow_stats(uint8_t port_id, void *rx_stats, void *tx_stats, int min, int max, bool reset
                                         , TrexPlatformApi::driver_stat_cap_e type) const {
     if (g_trex.is_marked_for_shutdown()) {
         return 0;
@@ -6881,24 +6856,24 @@ int TrexDpdkPlatformApi::get_flow_stats(uint8_t port_id, void *rx_stats, void *t
     }
 }
 
-int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset
+COLD_FUNC int TrexDpdkPlatformApi::get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset
                                           , bool period_switch) const {
     return get_stateless_obj()->get_stats()->get_rfc2544_info((rfc2544_info_t *)rfc2544_info, min, max, reset, period_switch);
 }
 
-int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_rx_err_cntrs(void *rx_err_cntrs) const {
     return get_stateless_obj()->get_stats()->get_rx_err_cntrs((CRxCoreErrCntrs *)rx_err_cntrs);
 }
 
-int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
+COLD_FUNC int TrexDpdkPlatformApi::reset_hw_flow_stats(uint8_t port_id) const {
     return g_trex.m_ports[port_id]->reset_hw_flow_stats();
 }
 
-bool TrexDpdkPlatformApi::hw_rx_stat_supported() const {
+COLD_FUNC bool TrexDpdkPlatformApi::hw_rx_stat_supported() const {
     return get_ex_drv()->hw_rx_stat_supported();
 }
 
-int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+COLD_FUNC int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                                , uint8_t ipv6_next_h, uint16_t id) const {
     if (!get_dpdk_mode()->is_hardware_filter_needed()) {
         return 0;
@@ -6908,7 +6883,7 @@ int TrexDpdkPlatformApi::add_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type
     return get_ex_drv()->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_ADD, l3_type, l4_proto, ipv6_next_h, id);
 }
 
-int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
+COLD_FUNC int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                                , uint8_t ipv6_next_h, uint16_t id) const {
     if (!get_dpdk_mode()->is_hardware_filter_needed()) {
         return 0;
@@ -6920,11 +6895,11 @@ int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type
     return get_ex_drv()->add_del_rx_flow_stat_rule(lp, RTE_ETH_FILTER_DELETE, l3_type, l4_proto, ipv6_next_h, id);
 }
 
-int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
     return CFlowStatRuleMgr::instance()->get_active_pgids(result);
 }
 
-int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const {
     uint8_t p1;
     uint8_t p2;
 
@@ -6946,18 +6921,18 @@ int TrexDpdkPlatformApi::get_cpu_util_full(cpu_util_full_t &cpu_util_full) const
     return 0;
 }
 
-int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
     CGlobalInfo::dump_pool_as_json(mbuf_pool);
     return 0;
 }
 
-int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
+COLD_FUNC int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
     g_trex.sync_threads_stats();
     CFlowStatRuleMgr::instance()->dump_json(json, pgids);
     return 0;
 }
 
-CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
+COLD_FUNC CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
     return get_ex_drv()->get_flow_stat_parser();
 }
 
@@ -6965,7 +6940,7 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
     return g_trex.m_ports[port_id]->get_port_attr();
 }
 
-bool DpdkTRexPortAttr::update_link_status_nowait(){
+COLD_FUNC bool DpdkTRexPortAttr::update_link_status_nowait(){
     rte_eth_link new_link;
     bool changed = false;
     rte_eth_link_get_nowait(m_repid, &new_link);
