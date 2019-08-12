@@ -265,12 +265,12 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
 
     /* write the JSON to string and sever on ZMQ */
 
-    if (response.size() == 1) {
-        response = writer.write(response_json[0]);
+    if (index == 1) {
+      response = writer.write(response_json[0]);
     } else {
-        response = writer.write(response_json);
+      response = writer.write(response_json);
     }
-    
+
     verbose_json("Server Replied:  ", response);
 
 }
