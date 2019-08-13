@@ -212,8 +212,9 @@ test_performance_syn_attack_single_cpu:
      cfg:
         mult                    : "90%"
         mpps_per_core_golden    :
-                                  min: 8
+                                  min: 7
                                   max: 13.5
+
 
 
 test_performance_vm_multi_cpus:
