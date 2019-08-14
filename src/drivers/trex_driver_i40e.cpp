@@ -375,10 +375,12 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
 
         if ((((version >> 12) & 0xf) < 5)  || ((((version >> 12) & 0xf) == 5) && ((version >> 4 & 0xff) == 0)
                                                && ((version & 0xf) < 4))) {
-            printf("Error: In this TRex version, X710 firmware must be at least 05.00.04\n");
-            printf("  Please refer to %s for upgrade instructions\n",
-                   "https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_firmware_update_to_xl710_x710");
-            exit(1);
+            printf("Warning: In this TRex version, X710 firmware must be at least 05.00.04\n");
+            printf(
+                "  Please refer to %s for upgrade instructions\n, this might "
+                "be false positive for some new NICS like XXV710 or x722 ",
+                "https://trex-tgn.cisco.com/trex/doc/"
+                "trex_manual.html#_firmware_update_to_xl710_x710");
         }
     }
 
