@@ -282,7 +282,7 @@ class ASTFClient(TRexClient):
             raise TRexError(rc.err())
         self.sync()
 
-    def _transmit_async(self, rpc_func, ok_states, bad_states = None, **k):
+    def _transmit_async(self, rpc_func, ok_states, bad_states = None, is_profile_clear = False, **k):
         profile_id = k['params']['profile_id'] 
         ok_states = listify(ok_states)
         if bad_states is not None:
@@ -301,6 +301,11 @@ class ASTFClient(TRexClient):
             while True:
                 self.sync()
                 state = self.astf_profile_state.get(profile_id) if self.is_dynamic else self.state
+                if is_profile_clear:
+                    if profile_id is not DEFAULT_PROFILE_ID:
+                        if state is None:
+                            return RC_OK()
+
                 if state in ok_states:
                     return RC_OK()
 
@@ -344,7 +349,7 @@ class ASTFClient(TRexClient):
                 self.stop(pid_input = ALL_PROFILE_ID)
                 self.stop_latency()
                 self.clear_stats(ports, pid_input = ALL_PROFILE_ID)
-                self.clear_profile(pid_input = ALL_PROFILE_ID)
+                self.clear_profile(block = True, pid_input = ALL_PROFILE_ID)
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
@@ -524,7 +529,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def clear_profile(self, pid_input = DEFAULT_PROFILE_ID):
+    def clear_profile(self, block = False, pid_input = DEFAULT_PROFILE_ID):
         """
             Clear loaded profile
 
@@ -545,8 +550,10 @@ class ASTFClient(TRexClient):
                     'profile_id': profile_id
                 }
                 self.ctx.logger.pre_cmd('Clearing loaded profile.')
-
-                rc = self._transmit('profile_clear', params = params)
+                if block:
+                    rc = self._transmit_async('profile_clear', params = params, ok_states = self.STATE_IDLE, is_profile_clear = True)
+                else:
+                    rc = self._transmit('profile_clear', params = params)
                 self.ctx.logger.post_cmd(rc)
                 if not rc:
                     raise TRexError(rc.err())

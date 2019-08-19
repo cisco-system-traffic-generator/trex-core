@@ -132,6 +132,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
                     self.astf_trex.start(duration = 1, nc = True, pid_input=str(random_profile))
                     print('Start took: %g' % round(time.time() - start_time, 3))
                     self.astf_trex.stop(pid_input=str(random_profile))
+
         self.astf_trex.reset()
 
 
