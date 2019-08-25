@@ -257,8 +257,7 @@ class CPgIdStats(object):
                         if port in self.ref['flow_stats'][pg_id][field]:
                             try:
                                 rel_val = val - self.ref['flow_stats'][pg_id][field][port]
-                                # -1 likely means all the latency packets were dropped
-                                assert rel_val >= -1, 'Negative pg_id stat value: %s (%s %s %s)' % (rel_val, pg_id, field, port)
+                                assert rel_val >= 0, 'Negative pg_id stat value: %s (%s %s %s)' % (rel_val, pg_id, field, port)
                                 pg_id_val[field][port] = rel_val
                             except TypeError: # might be StatNotAvailable
                                 pass
