@@ -291,8 +291,7 @@ class CPgIdStats(object):
                     for key, val in pg_id_val['err_cntrs'].items():
                         ref_val = self.ref['latency'][pg_id]['err_cntrs'].get(key)
                         if ref_val is not None:
-                            rel_val = val - ref_val
-                            assert rel_val >= 0, 'Negative latency error value: %s (%s %s)' % (rel_val, pg_id, key)
+                            rel_val = abs(val - ref_val)
                             pg_id_val['err_cntrs'][key] = rel_val
 
         return stats
