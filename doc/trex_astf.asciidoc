@@ -1419,6 +1419,22 @@ This example will wait for connect and then will send RST packet to shutdown pee
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 
+.Server Connect() server send the traffic first
+[source,python]
+----
+        prog_c = ASTFProgram()
+        prog_c.recv(len(http_resp))
+
+        prog_s = ASTFProgram()
+        prog_s.connect()
+        prog_s.send(http_resp)
+        prog_s.wait_for_peer_close(); # wait for client to close the socket 
+----
+
+In this example the server send the request first and there should be a connect from the server side 
+else the program won't work. 
+
+
 ==== Tutorial: L7 emulation - server send the first data
 
 When the server is the first to send the data (e.g. citrix,telnet) there is a need to wait for the server to accept the connection.
