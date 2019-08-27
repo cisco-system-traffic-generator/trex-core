@@ -26,8 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 2.60 ==
+== Release 2.61 ==
 
+Minor version 
+
+* ASTF keep-alive packet is with ACK bit on
+* STL 
+** fix Python exception in case of a huge latency packets drop 
+** Support Intel X722 NIC with new firware 
+
+== Release 2.60 ==
 
 * STL
 ** Push remote support for src/dst mac override 
