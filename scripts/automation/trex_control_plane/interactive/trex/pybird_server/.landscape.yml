@@ -1,0 +1,16 @@
+
+strictness: high
+
+requirements:
+  - facsimile/requirements.txt
+
+pep8:
+  full: true
+  options:
+    hang-closing: 1
+    max-line-length: 132
+
+pylint:
+  disable:
+    - too-few-public-methods
+

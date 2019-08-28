@@ -722,18 +722,28 @@ Other network devices
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (wanted_count, socket_id, configured_hugepages))
 
 
-    def run_scapy_server(self):
-        if not pa() or pa().no_scapy_server or not pa().interactive or (not pa().scapy_server and pa().astf):
+    def run_servers(self):
+        ''' Run both scapy & bird server according to pa'''
+        if not pa():
             return
         try:
             master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
         except:
             master_core = 0
-        ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
-        if ret:
-            print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
-            sys.exit(-1)
 
+        if not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf):
+            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
+            if ret:
+                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
+                sys.exit(-1)
+
+        if pa().bird_server:
+            ret = os.system('%s pybird_daemon_server restart' % sys.executable)
+            if ret:
+                print("Could not start bird_server\nIf you don't need it, don't use --bird-server flag.")
+                sys.exit(-1)
+        
+        
 
     # check vdev Linux interfaces status
     # return True if interfaces are vdev
@@ -839,7 +849,7 @@ Other network devices
 
         if self.check_vdev(if_list):
             self.check_trex_running(if_list)
-            self.run_scapy_server()
+            self.run_servers()
             # no need to config hugepages
             return
 
@@ -865,7 +875,6 @@ Other network devices
 
             if 'Mellanox' in self.m_devices[key]['Vendor_str']:
                 Mellanox_cnt += 1
-
 
         if not (pa() and pa().dump_interfaces):
             if (Mellanox_cnt > 0) and ((Mellanox_cnt + dummy_cnt) != len(if_list)):
@@ -901,7 +910,7 @@ Other network devices
         self.check_i40e_binds(if_list)
         self.check_trex_running(if_list)
         self.config_hugepages() # should be after check of running TRex
-        self.run_scapy_server()
+        self.run_servers()
 
         Napatech_cnt=0;
         to_bind_list = []
@@ -1323,6 +1332,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
+    parent_parser.add_argument('--bird-server', dest='bird_server', action = 'store_true', default=False)
     parent_parser.add_argument('--scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
