@@ -81,6 +81,9 @@ def print_table_with_header(texttable_obj, header="", untouched_header="", buffe
     if drawn_table:
         print((drawn_table + "\n"), file=buffer)
 
+def print_colored_line(text, color, buffer = sys.stdout):
+    print(format_text(text, color, 'bold') + "\n", file=buffer)
+
 if __name__ == "__main__":
     pass
 
