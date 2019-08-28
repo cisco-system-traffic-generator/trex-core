@@ -17,6 +17,7 @@ from waflib import Logs
 from waflib.Configure import conf
 from waflib import Build
 import sys
+import compile_bird
 
 from distutils.version import StrictVersion
 
@@ -32,6 +33,7 @@ march = os.uname()[4]
 b_path ="./build/linux_dpdk/"
 
 so_path = '../scripts/so'
+bird_path = '../scripts/bird'
 
 C_VER_FILE      = "version.c"
 H_VER_FILE      = "version.h"
@@ -141,7 +143,8 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
-    opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")
+    opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
+    opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
@@ -312,6 +315,7 @@ def configure(conf):
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
     no_mlx          = conf.options.no_mlx
     with_ntacc      = conf.options.with_ntacc
+    with_bird       = conf.options.with_bird
     with_sanitized  = conf.options.sanitized
     
     configure_sanitized(conf, with_sanitized)
@@ -330,6 +334,8 @@ def configure(conf):
                                   'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
 
     conf.env.WITH_NTACC = with_ntacc
+    conf.env.WITH_BIRD = with_bird
+
     if with_ntacc:
         ntapi_ok = conf.check_ntapi(mandatory = False)
         if not ntapi_ok:
@@ -1320,7 +1326,6 @@ class build_option:
     def get_bpfso_target (self):
         return self.update_executable_name("libbpf") + '.so';
 
-     
     def get_mlx5_flags(self):
         flags=[]
         if self.isRelease () :
@@ -1534,6 +1539,7 @@ def build_prog (bld, build_obj):
 
 
 
+
 def build_type(bld,build_obj):
     build_prog(bld, build_obj);
 
@@ -1542,6 +1548,12 @@ def post_build(bld):
 
     print("*** generating softlinks ***")
     exec_p ="../scripts/"
+
+    if bld.env.WITH_BIRD:
+        bird_links_dir = os.path.realpath(bird_path)
+        compile_bird.create_links(src_dir=bld.out_dir + '/linux_dpdk/bird',
+                                    links_dir=bird_links_dir)
+
     for obj in build_types:
         if bld.options.no_old and obj.is_pie:
             continue
@@ -1601,6 +1613,9 @@ def build(bld):
             bld.env.libmnl_path=' \n ../external_libs/libmnl/include/ \n'
             bld.env.mlx5_kw  = {}
 
+    if bld.env.WITH_BIRD:
+        bld(rule=build_bird, source='compile_bird.py', target='bird');
+
     for obj in build_types:
         if bld.options.no_old and obj.is_pie:
             continue
@@ -1610,6 +1625,9 @@ def build(bld):
 def build_info(bld):
     pass;
 
+def build_bird(task):
+    bird_build_dir = str(task.get_cwd()) + '/linux_dpdk'
+    compile_bird.build_bird(dst = bird_build_dir, is_verbose = Logs.verbose)
 
 def compare_link(link_path, dst_path):
     return os.path.abspath(os.readlink(link_path)) == os.path.abspath(dst_path)
@@ -1621,7 +1639,6 @@ def do_create_link (src, name, where):
         'name'       - link name to be used
         'where'      - where to put the symbolic link
     '''
-
     # verify that source exists
     if os.path.exists(src):
 
@@ -1646,7 +1663,6 @@ def install_single_system (bld, exec_p, build_obj):
     do_create_link(src = os.path.realpath(o + build_obj.get_target()),
                    name = build_obj.get_target(),
                    where = exec_p)
-
 
     # SO libraries below
 
@@ -1674,7 +1690,6 @@ def install_single_system (bld, exec_p, build_obj):
     do_create_link(src   = os.path.realpath(o + build_obj.get_bpfso_target()),
                    name  = build_obj.get_bpfso_target(),
                    where = so_path)
-
 
 
 def pre_build(bld):
@@ -1789,7 +1804,7 @@ files_list=[
             'daemon_server'
             ];
 
-pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf', 'bird']
 pkg_exclude = ['*.pyc', '__pycache__']
 pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
