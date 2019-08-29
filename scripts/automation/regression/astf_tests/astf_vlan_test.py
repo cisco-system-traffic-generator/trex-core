@@ -3,6 +3,8 @@ import os, sys
 from trex.astf.api import *
 import time
 import pprint
+import random
+import string
 from nose.tools import assert_raises, nottest
 from scapy.all import *
 import copy
@@ -95,6 +97,12 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
             c.stop_capture(debug_capture_id)
 
 
+    def randomString(self, stringLength=10):
+        """Generate a random string of fixed length """
+        letters = string.ascii_lowercase
+        return ''.join(random.choice(letters) for i in range(stringLength))
+
+
     def test_latency_vlan(self):
         print('')
         c = self.astf_trex
@@ -175,6 +183,47 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         c.start(mult = 1000, ipv6 = True)
         time.sleep(1)
         c.stop()
+        self.verify_vlan(True, cap_ids, is_ipv4 = False)
+
+    def test_traffic_vlan_dynamic_profile(self):
+        print('')
+        print('Creating random name for the dynamic profile')
+        random_profile = self.randomString()
+        print('Dynamic profile name : %s' % str(random_profile))
+
+        c = self.astf_trex
+        src_ip_start = '123.123.123.1'
+        src_ip_end   = '123.123.123.250'
+        src_ip_bpf   = 'ip src net 123.123.123.0/24'
+        c.load_profile(self.get_profile(src_ip_start, src_ip_end), pid_input=str(random_profile))
+
+        # no VLAN, IPv4
+        cap_ids = self.conf_environment(False, src_ip_bpf)
+        c.start(mult = 1000, pid_input=str(random_profile))
+        time.sleep(1)
+        c.stop(pid_input=str(random_profile))
+        self.verify_vlan(False, cap_ids)
+
+        # with VLAN, IPv4
+        cap_ids = self.conf_environment(True, src_ip_bpf)
+        c.start(mult = 1000, pid_input=str(random_profile))
+        time.sleep(1)
+        c.stop(pid_input=str(random_profile))
+        self.verify_vlan(True, cap_ids)
+
+        src_ip_bpf   = 'ip6 src net ::123.123.123.0/120'
+        # no VLAN, IPv6
+        cap_ids = self.conf_environment(False, src_ip_bpf)
+        c.start(mult = 1000, ipv6 = True, pid_input=str(random_profile))
+        time.sleep(1)
+        c.stop(pid_input=str(random_profile))
+        self.verify_vlan(False, cap_ids, is_ipv4 = False)
+
+        # with VLAN, IPv6
+        cap_ids = self.conf_environment(True, src_ip_bpf)
+        c.start(mult = 1000, ipv6 = True, pid_input=str(random_profile))
+        time.sleep(1)
+        c.stop(pid_input=str(random_profile))
         self.verify_vlan(True, cap_ids, is_ipv4 = False)
 
 

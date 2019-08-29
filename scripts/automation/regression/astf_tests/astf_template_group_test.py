@@ -2,7 +2,11 @@ from .astf_general_test import CASTFGeneral_Test, CTRexScenario
 from trex.astf.api import *
 from nose.tools import assert_raises, nottest
 from pprint import pprint
+
+from trex.common.trex_types import ALL_PROFILE_ID
+
 import random
+import string
 
 # we can send either Python bytes type as below:
 http_req = b'GET /3384 HTTP/1.1\r\nHost: 22.0.0.3\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)\r\nAccept: */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate, compress\r\n\r\n'
@@ -162,6 +166,12 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         self.verify_cps(names, stats, cps_list)
 
 
+    def randomString(self, stringLength=10):
+        """Generate a random string of fixed length """
+        letters = string.ascii_lowercase
+        return ''.join(random.choice(letters) for i in range(stringLength))
+
+
     def test_astf_template_group_general(self):
         profiles_cps_list = []
         list_of_cps_list = [[1, 2], [random.randint(1, 7), random.randint(1,7)], [1, 1.5, 2, 2.5]]
@@ -188,6 +198,7 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
             summary_stats = self.c.get_traffic_stats()
             self.verify(names = tg_names_received, summary_stats = summary_stats,
                                 stats = stats, cps_list = profile_cps[1])
+
 
     def test_astf_template_group_long(self):
         profile = self.profile_gen(self.udp_http_prog(), [1, 2])
@@ -230,6 +241,39 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
 
         summary_stats = self.c.get_traffic_stats()
         stats = self.c.get_traffic_tg_stats(tg_names_received)
+
+        self.verify_cnt_and_summary(names = tg_names_received, summary_stats = summary_stats, stats = stats, load=True)
+
+
+    def test_astf_template_group_load_dynamic_profile(self):
+        LOAD_NUMBER = 1500
+        # generate LOAD_NUMBER templates with the same cps.
+        ip_gen = self.ip_gen()
+        prog_c, prog_s = self.udp_http_prog()
+
+        templates_arr = []
+        for i in range(LOAD_NUMBER):
+            temp_c = ASTFTCPClientTemplate(port = 80 + i, program = prog_c, ip_gen = ip_gen)
+            temp_s = ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 80 + i))
+            template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name = str(i))
+            templates_arr.append(template)
+
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = templates_arr)
+        print('Creating random name for the dynamic profile')
+        random_profile = self.randomString()
+        print('Dynamic profile name : %s' % str(random_profile))
+
+        self.c.reset()
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.start(duration = 1, mult = 100, pid_input=str(random_profile))
+        self.c.wait_on_traffic()
+
+        tg_names_received = self.c.get_tg_names(pid_input=str(random_profile))
+        tg_names_sent = [str(i) for i in range(LOAD_NUMBER)]
+        assert tg_names_received == tg_names_sent
+
+        summary_stats = self.c.get_traffic_stats(pid_input=str(random_profile))
+        stats = self.c.get_traffic_tg_stats(tg_names_received, pid_input=str(random_profile))
 
         self.verify_cnt_and_summary(names = tg_names_received, summary_stats = summary_stats, stats = stats, load=True)
 
@@ -279,6 +323,59 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         self.verify_cnt_and_summary(names = tg_names_received, summary_stats = summary_stats, stats = stats)
 
 
+    def test_astf_template_group_edge_cases_dynamic_profile(self):
+        ip_gen = self.ip_gen()
+        prog_c, prog_s = self.tcp_http_prog()
+
+        temp_c1 = ASTFTCPClientTemplate(port = 80, program = prog_c, ip_gen = ip_gen)
+        temp_s1 = ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 80))
+        template1 = ASTFTemplate(client_template = temp_c1, server_template = temp_s1)
+
+        temp_c2 = ASTFTCPClientTemplate(port = 81, program = prog_c, ip_gen = ip_gen)
+        temp_s2 = ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 81))
+        template2 = ASTFTemplate(client_template = temp_c2, server_template = temp_s2, tg_name = 'A')
+
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = [template1, template2])
+
+        print('Creating random name for the dynamic profile')
+        random_profile = self.randomString()
+        print('Dynamic profile name : %s' % str(random_profile))
+
+        self.c.reset()
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.start(duration = 1, pid_input=str(random_profile))
+        self.c.wait_on_traffic()
+
+        tg_names_received = self.c.get_tg_names(pid_input=str(random_profile))
+        assert tg_names_received == ['A']
+
+        summary_stats = self.c.get_traffic_stats(pid_input=str(random_profile))
+        stats = self.c.get_traffic_tg_stats('A', pid_input=str(random_profile))
+        assert list(stats.keys()) == tg_names_received
+
+        temp_c3 =  ASTFTCPClientTemplate(port = 82, program = prog_c, ip_gen = ip_gen)
+        temp_s3 =  ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 82))
+        template3 = ASTFTemplate(client_template = temp_c3, server_template = temp_s3, tg_name = 'B')
+
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = [template3, template2])
+
+        print('Creating random name for the dynamic profile')
+        random_profile = self.randomString()
+        print('Dynamic profile name : %s' % str(random_profile))
+
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
+        self.c.start(duration = 1, pid_input=str(random_profile))
+        self.c.wait_on_traffic()
+
+        tg_names_received = self.c.get_tg_names(pid_input=str(random_profile))
+        assert tg_names_received == ['B', 'A']
+        summary_stats = self.c.get_traffic_stats(pid_input=str(random_profile))
+        stats = self.c.get_traffic_tg_stats(tg_names_received, pid_input=str(random_profile))
+        assert list(stats.keys()).sort() == tg_names_received.sort()
+        self.verify_cnt_and_summary(names = tg_names_received, summary_stats = summary_stats, stats = stats)
+
+
     def test_astf_template_group_negative(self):
 
         ip_gen = self.ip_gen()
@@ -323,6 +420,68 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
         self.c.load_profile(profile)
         self.c.clear_stats()
         self.c.start(duration = 1)
+        self.c.wait_on_traffic()
+        with assert_raises(ASTFErrorBadTG):
+            # asking for old name, shouldn't be found
+            self.c.get_traffic_tg_stats(['A'])
+        with assert_raises(ASTFError):
+            # empty name not allowed
+            template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='')
+        with assert_raises(ASTFError):
+            #name too long
+            template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name=100*'a')
+
+
+    def test_astf_template_group_negative_dynamic_profile(self):
+
+        ip_gen = self.ip_gen()
+        prog_c, prog_s = self.tcp_http_prog()
+        temp_c =  ASTFTCPClientTemplate(port = 80, program = prog_c, ip_gen = ip_gen)
+        temp_s =  ASTFTCPServerTemplate(program = prog_s, assoc = ASTFAssociationRule(port = 80))
+        self.c.reset()
+
+        with assert_raises(ASTFErrorWrongType):
+            template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name = 1)
+        template = ASTFTemplate(client_template = temp_c, server_template = temp_s)
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
+        with assert_raises(ASTFErrorBadTG):
+            stats = self.c.get_traffic_tg_stats('A')
+        template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='A')
+        with assert_raises(ASTFErrorBadTG):
+            # no profile loaded yet
+            stats = self.c.get_traffic_tg_stats(['A'])
+        with assert_raises(ASTFErrorBadTG):
+            #list can't be empty
+            self.c.get_traffic_tg_stats([])
+        with assert_raises(ASTFErrorBadTG):
+            # name doesn't exists
+            self.c.get_traffic_tg_stats(["name doesn't exist"])
+        template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='A')
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
+        print('Creating random name for the dynamic profile')
+        random_profile = self.randomString()
+        print('Dynamic profile name : %s' % str(random_profile))
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
+        self.c.start(duration = 1, pid_input=str(random_profile))
+        self.c.wait_on_traffic()
+        with assert_raises(ASTFErrorBadTG):
+            self.c.get_traffic_tg_stats(['A', 'B'], pid_input=str(random_profile))
+
+        template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='A')
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
+        self.c.start(duration = 1, pid_input=str(random_profile))
+        self.c.wait_on_traffic()
+        self.c.get_traffic_tg_stats(['A'], pid_input=str(random_profile))
+
+        # now let's change the profile
+        template = ASTFTemplate(client_template = temp_c, server_template = temp_s, tg_name='B')
+        profile = ASTFProfile(default_ip_gen = ip_gen, templates = template)
+        self.c.load_profile(profile, pid_input=str(random_profile))
+        self.c.clear_stats(pid_input=str(ALL_PROFILE_ID))
+        self.c.start(duration = 1, pid_input=str(random_profile))
         self.c.wait_on_traffic()
         with assert_raises(ASTFErrorBadTG):
             # asking for old name, shouldn't be found
