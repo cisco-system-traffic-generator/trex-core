@@ -472,6 +472,7 @@ class ASTFClient(TRexClient):
                 self.astf_profile_state.pop(pid_input, None)
                 raise TRexError('Could not load profile: %s' % e)
         profile_json = profile.to_json_str(pretty = False, sort_keys = True)
+        profile.clear_cache()
 
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
         rc = self._upload_fragmented('profile_fragment', profile_json, pid_input = pid_input)
