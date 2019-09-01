@@ -103,7 +103,7 @@ class TRexClient(object):
                            async_timeout)
 
         # init objects
-        self.ports           = {}
+        self.ports = OrderedDict()
 
         # event handler
         self._register_events()
@@ -497,6 +497,12 @@ class TRexClient(object):
         # disconnect the link to the server
         self.conn.disconnect()
 
+        return RC_OK()
+
+    def _assign_ports(self, port_map):
+        self.ports.clear()
+        for key in sorted(port_map.keys()):
+            self.ports[key] = port_map[key]
         return RC_OK()
 
 
