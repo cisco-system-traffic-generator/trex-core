@@ -150,11 +150,11 @@ class STLClient(TRexClient):
         """
 
         # create ports
-        self.ports.clear()
+        port_map = {}
         for info in system_info['ports']:
             port_id = info['index']
-            self.ports[port_id] = STLPort(self.ctx, port_id, self.conn.rpc, info, self.is_dynamic)
-        return RC_OK()
+            port_map[port_id] = STLPort(self.ctx, port_id, self.conn.rpc, info, self.is_dynamic)
+        return self._assign_ports(port_map)
 
 
     def _on_connect_clear_stats(self):

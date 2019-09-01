@@ -128,11 +128,11 @@ class ASTFClient(TRexClient):
         """
 
         # create ports
-        self.ports.clear()
+        port_map = {}
         for port_info in system_info['ports']:
             port_id = port_info['index']
-            self.ports[port_id] = ASTFPort(self.ctx, port_id, self.conn.rpc, port_info)
-        return RC_OK()
+            port_map[port_id] = ASTFPort(self.ctx, port_id, self.conn.rpc, port_info)
+        return self._assign_ports(port_map)
 
     def _on_connect_clear_stats(self):
         self.traffic_stats.reset()
