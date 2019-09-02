@@ -211,6 +211,7 @@ public:
      * 
      */
     void check_for_dp_messages();
+    bool has_dp_messages();
 
     /**
      *  get ticket for async ops
