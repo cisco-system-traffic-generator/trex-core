@@ -338,6 +338,9 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
 }
 
 void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id) {
+    TrexWatchDog::IOFunction dummy;
+    (void)dummy;
+
     CAstfDB::free_instance(profile_id);
     report_finished(profile_id);
 }

@@ -146,7 +146,10 @@ TrexSTX::check_for_dp_message_from_core(int thread_id) {
         return;
     }
 
-    while ( true ) {
+    /* limit the number of handling messages at once to avoid watchdog timeout,
+     * and give a chance to handle a waiting message by RPC server thread.
+     */
+    for ( int handle_cnt = 0; handle_cnt < 100; handle_cnt++ ) {
         CGenNode * node = NULL;
         if (ring->Dequeue(node) != 0) {
             break;
@@ -181,3 +184,13 @@ TrexSTX::check_for_dp_messages() {
     }
 }
 
+bool
+TrexSTX::has_dp_messages() {
+    for (int i = 0; i < m_dp_core_count; i++) {
+        CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingDpToCp(i);
+        if ( ! ring->isEmpty() ) {
+            return true;
+        }
+    }
+    return false;
+}
