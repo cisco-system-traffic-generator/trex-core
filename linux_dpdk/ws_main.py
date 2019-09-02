@@ -1865,12 +1865,12 @@ def check_release_permission():
         raise Exception('You are not allowed to release TRex. Please contact Hanoch.')
 
 # build package in parent dir. can provide custom name and folder with --pkg-dir and --pkg-file
-def pkg(bld):
+def pkg(ctx):
     build_num = get_build_num()
-    pkg_dir = bld.options.pkg_dir
+    pkg_dir = ctx.options.pkg_dir
     if not pkg_dir:
         pkg_dir = os.pardir
-    pkg_file = bld.options.pkg_file
+    pkg_file = ctx.options.pkg_file
     if not pkg_file:
         pkg_file = '%s.tar.gz' % build_num
     tmp_path = os.path.join(pkg_dir, '_%s' % pkg_file)
@@ -1879,7 +1879,7 @@ def pkg(bld):
 
     # clean old dir if exists
     os.system('rm -rf %s' % build_path)
-    release(bld, build_path + '/')
+    release(ctx, build_path + '/')
     os.system("cp %s/%s.tar.gz %s" % (build_path, build_num, tmp_path))
     os.system("mv %s %s" % (tmp_path, dst_path))
 
@@ -1887,13 +1887,17 @@ def pkg(bld):
     os.system('rm -rf %s' % build_path)
     pkg_size = int(os.path.getsize(dst_path) / 1e6)
     if pkg_size > MAX_PKG_SIZE:
-        bld.fatal('Package size is too large: %sMB (max allowed: %sMB)' % (pkg_size, MAX_PKG_SIZE))
+        ctx.fatal('Package size is too large: %sMB (max allowed: %sMB)' % (pkg_size, MAX_PKG_SIZE))
 
 def fix_pkg_include(bld):
     if bld.env.WITH_BIRD:
         pkg_include.append('bird')
 
-def release(bld, custom_dir = None):
+def release(ctx, custom_dir = None):
+    
+    bld = Build.BuildContext()
+    bld.load_envs()
+
     """ release to local folder  """
     if custom_dir:
         exec_p = custom_dir
@@ -1904,7 +1908,6 @@ def release(bld, custom_dir = None):
     os.system(' mkdir -p '+exec_p);
 
     # get build context to refer the build output dir
-    bld=Build.Context.create_context('build')
     for obj in build_types:
         copy_single_system(bld,exec_p,obj)
         copy_single_system1(bld,exec_p,obj)
@@ -1946,7 +1949,7 @@ def release(bld, custom_dir = None):
     os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
 
 
-def publish(bld, custom_source = None):
+def publish(ctx, custom_source = None):
     check_release_permission()
     exec_p = Env().get_release_path()
     rel=get_build_num ()
@@ -1957,12 +1960,12 @@ def publish(bld, custom_source = None):
     else:
         from_ = exec_p+'/'+release_name;
     os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
-    if not bld.options.private:
+    if not ctx.options.private:
       os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
       os.system("ssh %s 'cd %s;rm latest; ln -P %s latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
 
 
-def publish_ext(bld, custom_source = None):
+def publish_ext(ctx, custom_source = None):
     check_release_permission()
     exec_p = Env().get_release_path()
     rel=get_build_num ()
@@ -1976,7 +1979,7 @@ def publish_ext(bld, custom_source = None):
     print(cmd)
     os.system( cmd )
 
-    if not bld.options.private:
+    if not ctx.options.private:
       os.system("ssh -i %s -l %s %s 'cd %s/release/;rm be_latest; ln -P %s be_latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
       os.system("ssh -i %s -l %s %s 'cd %s/release/;rm latest; ln -P %s latest'  " %(Env().get_trex_ex_web_key(),Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path(),release_name))
 
@@ -1996,7 +1999,7 @@ def publish_both(self):
     publish_ext(self, custom_source = package_file)
 
 # print detailed latest passed regression commit + brief info of 5 commits before it
-def show(bld):
+def show(ctx):
     last_passed_commit_file = Env().get_trex_regression_workspace() + '/reports/last_passed_commit'
     with open(last_passed_commit_file) as f:
         last_passed_commit = f.read().strip()
@@ -2023,7 +2026,7 @@ def show(bld):
     else:
         raise Exception('Error getting commits info with command: %s' % command)
 
-def test (bld):
+def test (ctx):
     r=getstatusoutput("git log --pretty=format:'%H' -n 1")
     if r[0]==0:
         print(r[1])
