@@ -4897,8 +4897,10 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
         m_monitor.disable(30); //assume we will wake up
 
         cp_lock.unlock();
-        delay(FASTPATH_DELAY_MS);
-        slow_path_counter += FASTPATH_DELAY_MS;
+        if (! m_stx->has_dp_messages()) {
+            delay(FASTPATH_DELAY_MS);
+            slow_path_counter += FASTPATH_DELAY_MS;
+        }
         cp_lock.lock();
 
         m_monitor.enable();

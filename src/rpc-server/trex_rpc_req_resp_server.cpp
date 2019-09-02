@@ -249,8 +249,14 @@ void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::s
     for (auto command : commands) {
         Json::Value single_response;
 
+#ifndef TREX_SIM
+        m_monitor.disable();    // to avoid watchdog during lock waiting
+#endif
         /* the command itself should be protected */
         std::unique_lock<std::recursive_mutex> lock(*m_lock);
+#ifndef TREX_SIM
+        m_monitor.enable();
+#endif
         command->execute(single_response);
         lock.unlock();
 
