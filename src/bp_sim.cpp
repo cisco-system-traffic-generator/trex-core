@@ -2792,7 +2792,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     unsigned flow_nodes = CGlobalInfo::m_memory_cfg.get_each_core_dp_flows() ;
     if (get_is_tcp_mode()) {
-        flow_nodes = 1024; /* No need for many nodes, it handles in different ways */
+        flow_nodes = 8192; /* No need for many nodes, it handles in different ways */
     }
 
     bool use_hugepages = CGlobalInfo::m_options.m_is_vdev ? false : true;
