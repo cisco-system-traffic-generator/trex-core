@@ -1804,7 +1804,7 @@ files_list=[
             'daemon_server'
             ];
 
-pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf', 'bird']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf']
 pkg_exclude = ['*.pyc', '__pycache__']
 pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
@@ -1889,6 +1889,9 @@ def pkg(bld):
     if pkg_size > MAX_PKG_SIZE:
         bld.fatal('Package size is too large: %sMB (max allowed: %sMB)' % (pkg_size, MAX_PKG_SIZE))
 
+def fix_pkg_include(bld):
+    if bld.env.WITH_BIRD:
+        pkg_include.append('bird')
 
 def release(bld, custom_dir = None):
     """ release to local folder  """
@@ -1912,6 +1915,7 @@ def release(bld, custom_dir = None):
         os.system("cp %s %s " %(src_file,dest_file));
 
     exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
+    fix_pkg_include(bld)
     for obj in pkg_include:
         src_file =  '../scripts/'+obj+'/'
         dest_file = exec_p +'/'+obj+'/'
