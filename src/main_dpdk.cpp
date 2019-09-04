@@ -4861,61 +4861,6 @@ COLD_FUNC void CGlobalTRex::shutdown() {
 }
 
 
-COLD_FUNC int CGlobalTRex::run_in_master() {
-
-    //rte_thread_setname(pthread_self(), "TRex Control");
-
-    m_stx->launch_control_plane();
-    
-    /* exception and scope safe */
-    std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);
-
-    uint32_t slow_path_counter = 0;
-
-    const int FASTPATH_DELAY_MS = 10;
-    const int SLOWPATH_DELAY_MS = 500;
-
-    m_monitor.create("master", 2);
-    TrexWatchDog::getInstance().register_monitor(&m_monitor);
-
-    TrexWatchDog::getInstance().start();
-
-    if ( get_is_interactive() ) {
-        apply_pretest_results_to_stack();
-    }
-    while (!is_marked_for_shutdown()) {
-
-        /* fast path */
-        handle_fast_path();
-
-        /* slow path */
-        if (slow_path_counter >= SLOWPATH_DELAY_MS) {
-            handle_slow_path();
-            slow_path_counter = 0;
-        }
-
-        m_monitor.disable(30); //assume we will wake up
-
-        cp_lock.unlock();
-        if (! m_stx->has_dp_messages()) {
-            delay(FASTPATH_DELAY_MS);
-            slow_path_counter += FASTPATH_DELAY_MS;
-        }
-        cp_lock.lock();
-
-        m_monitor.enable();
-    }
-
-    /* on exit release the lock */
-    cp_lock.unlock();
-
-    /* shutdown everything gracefully */
-    shutdown();
-
-    return (0);
-}
-
-
 
 COLD_FUNC int CGlobalTRex::run_in_rx_core(void){
 
@@ -7104,4 +7049,58 @@ void CGlobalTRex::register_signals() {
     sigaction(SIGSEGV, &action, NULL);
     sigaction(SIGILL,  &action, NULL);
     sigaction(SIGFPE,  &action, NULL);
+}
+
+COLD_FUNC int CGlobalTRex::run_in_master() {
+
+  // rte_thread_setname(pthread_self(), "TRex Control");
+
+  m_stx->launch_control_plane();
+
+  /* exception and scope safe */
+  std::unique_lock<std::recursive_mutex> cp_lock(m_cp_lock);
+
+  uint32_t slow_path_counter = 0;
+
+  const int FASTPATH_DELAY_MS = 10;
+  const int SLOWPATH_DELAY_MS = 500;
+
+  m_monitor.create("master", 2);
+  TrexWatchDog::getInstance().register_monitor(&m_monitor);
+
+  TrexWatchDog::getInstance().start();
+
+  if (get_is_interactive()) {
+    apply_pretest_results_to_stack();
+  }
+  while (!is_marked_for_shutdown()) {
+
+    /* fast path */
+    handle_fast_path();
+
+    /* slow path */
+    if (slow_path_counter >= SLOWPATH_DELAY_MS) {
+      handle_slow_path();
+      slow_path_counter = 0;
+    }
+
+    m_monitor.disable(30); // assume we will wake up
+
+    cp_lock.unlock();
+    if (!m_stx->has_dp_messages()) {
+      delay(FASTPATH_DELAY_MS);
+      slow_path_counter += FASTPATH_DELAY_MS;
+    }
+    cp_lock.lock();
+
+    m_monitor.enable();
+  }
+
+  /* on exit release the lock */
+  cp_lock.unlock();
+
+  /* shutdown everything gracefully */
+  shutdown();
+
+  return (0);
 }
