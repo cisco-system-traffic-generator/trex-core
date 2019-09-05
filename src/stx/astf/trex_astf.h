@@ -178,12 +178,14 @@ public:
     std::vector<CSTTCp *>    get_sttcp_list();
 
     std::vector<std::string> m_states_names;
+    std::vector<uint32_t>    m_states_cnt;
 
     bool is_another_profile_transmitting(cp_profile_id_t profile_id);
     bool is_safe_update_stats();
 
 protected:
     std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
+    std::unordered_map<uint32_t, cp_profile_id_t> m_profile_id_map;
 
 private:
     uint32_t m_dp_profile_last_id;
