@@ -242,6 +242,7 @@ int DpdkTRexPortAttr::set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) {
                 return ret;
             }
             m_vxlan_fs_ports.erase(it);
+            CGlobalInfo::m_options.m_ip_cfg[m_port_id].set_vxlan_fs(false);
         }
 
         for (auto &vxlan_fs_port : vxlan_fs_ports) { // add new ports
@@ -251,6 +252,7 @@ int DpdkTRexPortAttr::set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) {
                 return ret;
             }
             m_vxlan_fs_ports.insert(vxlan_fs_port);
+            CGlobalInfo::m_options.m_ip_cfg[m_port_id].set_vxlan_fs(true);
         }
     }
 

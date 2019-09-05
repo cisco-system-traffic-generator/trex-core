@@ -461,16 +461,19 @@ class CPerPortIPCfg {
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
     uint32_t get_vlan() {return m_vlan;}
+    bool get_vxlan_fs() {return m_vxlan_fs;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
     void set_vlan(uint16_t val) {m_vlan = val;}
+    void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
 
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
+    bool m_vxlan_fs = false;
 };
 
 

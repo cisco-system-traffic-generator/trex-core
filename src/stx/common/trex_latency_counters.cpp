@@ -141,6 +141,10 @@ RXLatency::handle_pkt(const rte_mbuf_t *m) {
     uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
     CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
+    if ( CGlobalInfo::m_options.m_ip_cfg[0].get_vxlan_fs() ) {
+        uint16_t vxlan_skip = parser.get_vxlan_payload_offset(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
+        ret = parser.parse(rte_pktmbuf_mtod_offset(m, uint8_t *, vxlan_skip), m->pkt_len - vxlan_skip);
+    }
 
     if (m_rcv_all ||  (ret == 0)) {
         uint32_t ip_id = 0;
