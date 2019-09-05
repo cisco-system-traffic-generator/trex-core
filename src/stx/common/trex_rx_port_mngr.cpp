@@ -554,7 +554,7 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
     TrexCaptureMngr::getInstance().handle_pkt_rx(m, m_port_id);
 
     if (is_feature_set(LATENCY)) {
-        m_latency.handle_pkt(m);
+        m_latency.handle_pkt(m, m_port_id);
     }
 
     if (is_feature_set(QUEUE)) {

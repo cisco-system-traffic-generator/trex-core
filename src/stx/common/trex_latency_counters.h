@@ -82,7 +82,7 @@ public:
 
     void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs);
 
-    void handle_pkt(const rte_mbuf_t *m);
+    void handle_pkt(const rte_mbuf_t *m, int port);
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
                               hr_time_t hr_time_now);

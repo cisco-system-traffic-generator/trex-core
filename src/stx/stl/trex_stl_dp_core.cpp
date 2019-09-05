@@ -1049,7 +1049,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
     if (res != FSTAT_PARSER_E_OK){
         if (res == FSTAT_PARSER_E_UNKNOWN_HDR){
             // try updating latency statistics for unknown ether type packets
-            m_ports[dir].m_fs_latency.handle_pkt(m);
+            m_ports[dir].m_fs_latency.handle_pkt(m,0);
         }
         drop=false;
         return;
@@ -1063,7 +1063,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
     }
 
     if (m_parser->is_fs_latency()) {
-        m_ports[dir].m_fs_latency.handle_pkt(m);
+        m_ports[dir].m_fs_latency.handle_pkt(m,0);
     }
 
     if (m_is_service_mode){

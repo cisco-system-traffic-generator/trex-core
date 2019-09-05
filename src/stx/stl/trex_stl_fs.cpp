@@ -639,9 +639,6 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         }
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
-        if ( stream->m_rx_check.m_vxlan_skip ) {
-            throw TrexFStatEx("VXLAN skip is not supported for latency stream", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_MODE);
-        }
         uint16_t payload_len;
         // compile_stream throws exception if something goes wrong
         compile_stream(stream, m_parser_pl);

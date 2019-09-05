@@ -85,6 +85,17 @@ std::string CFlowStatParser::get_error_str(CFlowStatParser_err_t err) {
 }
 
 CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
+    CFlowStatParser_err_t res = _parse(p, len);
+    if (get_vxlan_skip() && (res == FSTAT_PARSER_E_OK)) {
+      uint16_t vxlan_skip = get_vxlan_rx_payload_offset(p,len);
+      if (vxlan_skip) {
+        res = _parse(p + vxlan_skip, len - vxlan_skip);
+      }
+    }
+    return (res);
+}
+
+CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
     int min_len = ETH_HDR_LEN;
     if (len < min_len)
         return FSTAT_PARSER_E_TOO_SHORT;
@@ -163,6 +174,20 @@ uint16_t CFlowStatParser::get_vxlan_payload_offset(uint8_t *pkt, uint16_t len) {
     }
     if ( payload_len < VXLAN_LEN + ETH_HDR_LEN ) {
         throw TrexFStatEx("Packet is too small to have VXLAN tunnel", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
+    }
+    return len - payload_len + VXLAN_LEN;
+}
+
+uint16_t CFlowStatParser::get_vxlan_rx_payload_offset(uint8_t *pkt, uint16_t len) {
+    uint16_t payload_len;
+    if ( get_payload_len(pkt, len, payload_len) < 0 ) {
+        return 0;
+    }
+    if ( m_l4_proto != IPPROTO_UDP ) {
+        return 0;
+    }
+    if ( payload_len < VXLAN_LEN + ETH_HDR_LEN ) {
+        return 0;
     }
     return len - payload_len + VXLAN_LEN;
 }
