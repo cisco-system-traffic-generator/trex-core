@@ -23,7 +23,9 @@ def get_stl_profiles ():
 class DynamicProfileTest:
 
     def __init__(self,
-                 client, 
+                 client,
+                 tx_port,
+                 rx_port,
                  streams,
                  min_rand_duration,
                  max_rand_duration,
@@ -41,6 +43,8 @@ class DynamicProfileTest:
         self.min_tick = min_tick
         self.max_tick = max_tick
         self.duration = duration
+        self.tx_port = tx_port
+        self.rx_port = rx_port
 
     def is_profile_end_msg(self,msg):
         m = re.match("Profile (\d+).profile_(\d+) job done", msg)
@@ -49,14 +53,12 @@ class DynamicProfileTest:
         else:
            return None
 
-    def build_profile_id (self,port_id,profile_id):
-
-       profile_name = "{}.profile_{}".format(port_id,profile_id)
-
+    def build_profile_id(self, port_id, profile_id):
+       profile_name = "{}.profile_{}".format(port_id, profile_id)
        return profile_name
 
 
-    def build_streams (self):
+    def build_streams(self):
         streams_all = []
         packet = (Ether() /
                          IP(src="16.0.0.1",dst="48.0.0.1") /
@@ -70,7 +72,7 @@ class DynamicProfileTest:
 
         return (streams_all)
 
-    def run_test (self):
+    def run_test(self):
 
         passed = True
 
@@ -78,44 +80,43 @@ class DynamicProfileTest:
 
         try:
 
-             # connect to server
-             c.connect()
+            # connect to server
+            c.connect()
 
-             # prepare our ports
-             c.reset(ports = [0])
+            # prepare our ports
+            c.reset(ports = [self.tx_port, self.rx_port])
 
-             port_id = 0
-             profile_id = 0
-             tick_action = 0
-             profiles ={}
-             tick = 1
-             max_tick = self.duration
-             stop = False
+            profile_id = 0
+            tick_action = 0
+            profiles ={}
+            tick = 1
+            max_tick = self.duration
+            stop = False
 
-             c.clear_stats()
+            c.clear_stats()
 
-             c.clear_events();
-
-
-             while True:
-
-                 if tick > tick_action and (tick<max_tick):
-                     profile_name = self.build_profile_id(port_id,profile_id) 
-                     duration = random.randrange(self.min_rand_duration,self.max_rand_duration)
-                     stream_ids = c.add_streams(streams = self.build_streams(), ports = [profile_name])
-                     profiles[profile_id] = 1
-                     print(" {} new profile {} {} {}".format(tick,profile_name,duration,len(profiles)) )
-                     c.start(ports = [profile_name], mult = self.rate, duration = duration)
-                     profile_id += 1
-                     tick_action = tick + random.randrange(self.min_tick,self.max_tick) # next action 
-
-                 time.sleep(1);
-                 tick += 1
+            c.clear_events();
 
 
-                 # check events 
-                 while True:
-                    event = c.pop_event ()
+            while True:
+
+                if tick > tick_action and (tick<max_tick):
+                    profile_name = self.build_profile_id(self.tx_port, profile_id) 
+                    duration = random.randrange(self.min_rand_duration,self.max_rand_duration)
+                    stream_ids = c.add_streams(streams = self.build_streams(), ports = [profile_name])
+                    profiles[profile_id] = 1
+                    print(" {} new profile {} {} {}".format(tick, profile_name, duration,len(profiles)) )
+                    c.start(ports = [profile_name], mult = self.rate, duration = duration)
+                    profile_id += 1
+                    tick_action = tick + random.randrange(self.min_tick,self.max_tick) # next action 
+
+                time.sleep(1);
+                tick += 1
+
+
+                # check events 
+                while True:
+                    event = c.pop_event()
                     if event == None:
                         break;
                     else:
@@ -128,18 +129,22 @@ class DynamicProfileTest:
                             if tick>=max_tick and (len(profiles)==0):
                                 print("stop");
                                 stop=True
-                 if stop:
-                     break;
+                if stop:
+                    break;
 
-             r = c.get_profiles_with_state("active")
-             print(r)
-             assert( len(r) == 0 )
+            r = c.get_profiles_with_state("active")
+            print(r)
+            assert(len(r) == 0)
 
-             stats = c.get_stats()
-             diff = stats[1]["ipackets"] - stats[0]["opackets"] 
-             print(" diff {} ".format(diff))
+            stats = c.get_stats()
 
-             assert(diff<2)
+            dropped_packets = stats[self.tx_port]["opackets"] - stats[self.rx_port]["ipackets"]
+            print('dropped_packets %s ' % dropped_packets)
+            assert dropped_packets < 2
+
+            extra_packets = -dropped_packets
+            print('extra_packets %s ' % extra_packets)
+            assert extra_packets <= 0
 
 
         except STLError as e:
@@ -147,7 +152,7 @@ class DynamicProfileTest:
              print(e)
 
         finally:
-             c.disconnect()
+            c.disconnect()
 
         if c.get_warnings():
                 print("\n\n*** test had warnings ****\n\n")
@@ -1048,20 +1053,20 @@ class STLClient_Test(CStlGeneral_Test):
 
     def test_random_dynamic_add_remove (self):
 
-        if  self.drv_name in ['net_e1000_em','net_ntacc']:
+        if self.drv_name in ['net_e1000_em']:
             # this test is sensetive and does not work good on E1000
             return;
 
-        #if not self.is_loopback:
-        #    self.skip('skipping profile tests for non loopback')
-        #    return
+        if not self.is_loopback:
+           self.skip('skipping profile tests for non loopback')
+           return
 
         if self.is_virt_nics :
             rate = "1kpps"
         else:
             rate = "10kpps"
 
-        test = DynamicProfileTest(self.c,100,1,50,1,2,120,rate);
+        test = DynamicProfileTest(self.c, self.tx_port, self.rx_port, 100,1,50,1,2,120,rate);
 
         test.run_test()
 

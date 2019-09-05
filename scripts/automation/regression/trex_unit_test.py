@@ -648,6 +648,8 @@ if __name__ == "__main__":
         # Run all of the tests or just the selected ones
         if not sum([len(x) for x in CTRexScenario.test_types.values()]):
             for key in CTRexScenario.test_types.keys():
+                if key == 'wireless_tests' and sys.version_info[0] < 3:
+                    continue
                 CTRexScenario.test_types[key].append(key)
 
     nose_argv += sys_args
