@@ -2027,7 +2027,7 @@ To run the traffic profile from console in TRex, use the following command.
 
 [source,bash]
 ----
-trex>start -f stl/simple_3pkt.py -m 10mbps -a 
+trex>start -f stl/simple_3pkt.py -m 10mbps
 ----
 
 ==== Tutorial:  Multi burst streams - action next stream   

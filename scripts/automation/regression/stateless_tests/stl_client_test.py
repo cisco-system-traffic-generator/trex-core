@@ -1060,8 +1060,9 @@ class STLClient_Test(CStlGeneral_Test):
         if not self.is_loopback:
            self.skip('skipping profile tests for non loopback')
            return
-
-        if self.is_virt_nics :
+        if self.is_lowend:
+            rate = "100pps"
+        elif self.is_virt_nics:
             rate = "1kpps"
         else:
             rate = "10kpps"
