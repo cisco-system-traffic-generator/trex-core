@@ -47,12 +47,14 @@ class CFlowStatParser {
     friend class CFlowStatParserTest;
 
     enum CFlowStatParser_flags {
-        FSTAT_PARSER_VLAN_SUPP = 0x1,
-        FSTAT_PARSER_VLAN_NEEDED = 0x2,
-        FSTAT_PARSER_QINQ_SUPP = 0x4,
-        FSTAT_PARSER_MPLS_SUPP = 0x8,
+      FSTAT_PARSER_VLAN_SUPP   = 0x1,
+      FSTAT_PARSER_VLAN_NEEDED = 0x2,
+      FSTAT_PARSER_QINQ_SUPP   = 0x4,
+      FSTAT_PARSER_MPLS_SUPP   = 0x8,
+      FSTAT_PARSER_VXLAN_SKIP  = 0x10
     };
- public:
+
+  public:
     enum CFlowStatParser_mode {
         FLOW_STAT_PARSER_MODE_HW, // all NICs except Intel 82599
         FLOW_STAT_PARSER_MODE_SW, // --software mode and virtual NICs
@@ -65,6 +67,16 @@ class CFlowStatParser {
     std::string get_error_str(CFlowStatParser_err_t err);
     virtual CFlowStatParser_err_t parse(uint8_t *pkt, uint16_t len);
     virtual uint16_t get_vxlan_payload_offset(uint8_t *pkt, uint16_t len);
+    void set_vxlan_skip(bool enable){
+        if (enable) {
+          m_flags |=  FSTAT_PARSER_VXLAN_SKIP;
+        }else{
+          m_flags &= ~FSTAT_PARSER_VXLAN_SKIP;
+        }
+
+    }
+    bool get_vxlan_skip() { return ((m_flags & FSTAT_PARSER_VXLAN_SKIP)?true:false); }
+
     virtual int get_ip_id(uint32_t &ip_id);
     virtual void set_ip_id(uint32_t ip_id);
     virtual void set_tos_to_cpu();
@@ -118,8 +130,11 @@ class CFlowStatParser {
  private:
     char *create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t ttl
                           , uint32_t ip_id, uint16_t flags, int &pkt_size);
+    CFlowStatParser_err_t _parse(uint8_t *p, uint16_t len);
 
- protected:
+    uint16_t get_vxlan_rx_payload_offset(uint8_t *pkt, uint16_t len);
+
+  protected:
     uint8_t *m_start;
     uint16_t m_len;
     IPHeader *m_ipv4;

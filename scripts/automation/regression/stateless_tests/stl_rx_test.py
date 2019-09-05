@@ -1000,14 +1000,6 @@ class STLRX_Test(CStlGeneral_Test):
             raise TRexError('Did not raise exception')
 
         try:
-            self.setup_vxlan_streams(True, [pkt0, True])
-            c.start(ports = self.tx_port)
-        except TRexError as e:
-            assert 'not supported for latency' in str(e), 'Bad message in exception: %s' % e
-        else:
-            raise TRexError('Did not raise exception')
-
-        try:
             bad_pkt = Ether()/IP()/TCP()/('x' * 50)
             self.setup_vxlan_streams(False, [bad_pkt, True])
             c.start(ports = self.tx_port)
