@@ -91,6 +91,9 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     TrexAstfPerProfile* instance = new TrexAstfPerProfile(this);
     m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
                           DEFAULT_ASTF_PROFILE_ID, instance));
+
+    m_profile_id_map[instance->get_dp_profile_id()] = DEFAULT_ASTF_PROFILE_ID;
+    m_states_cnt[instance->get_profile_state()]++;
 }
 
 
@@ -169,10 +172,11 @@ void TrexAstf::change_state(state_e new_state) {
 
 void TrexAstf::update_astf_state() {
     int temp_state = 0;
-    vector<state_e> states = get_profile_state_list();
 
-    for (auto it : states) {
-        temp_state |= (0x01 << it);
+    for (int i = 0; i < m_states_cnt.size(); i++) {
+        if (m_states_cnt[i]) {
+            temp_state |= (0x01 << i);
+        }
     }
 
     if (temp_state & (0x01 << STATE_TX)) {
@@ -501,6 +505,7 @@ void TrexAstf::publish_astf_state(string &err) {
 TrexAstfProfile::TrexAstfProfile() {
     m_states_names = {"Idle", "Loaded profile", "Parsing profile", "Setup traffic", "Transmitting", "Cleanup traffic", "Delete profile"};
     assert(m_states_names.size()==AMOUNT_OF_STATES);
+    m_states_cnt = std::vector<uint32_t> (AMOUNT_OF_STATES);
 
     m_dp_profile_last_id = 0;
 }
@@ -516,11 +521,19 @@ void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
         return;
     }
 
+    uint32_t dp_profile_id;
+    do {
+        dp_profile_id = ++m_dp_profile_last_id;
+    } while (get_profile_id(dp_profile_id) != "");
+
     TrexAstfPerProfile* instance = new TrexAstfPerProfile(get_astf_object(),
-                                                          ++m_dp_profile_last_id,
+                                                          dp_profile_id,
                                                           profile_id);
     m_profile_list.insert(map<string, TrexAstfPerProfile *>::value_type(
                           profile_id, instance));
+
+    m_profile_id_map[instance->get_dp_profile_id()] = profile_id;
+    m_states_cnt[instance->get_profile_state()]++;
 
     int i;
     CSTTCp* lpstt = instance->get_stt_cp();
@@ -549,6 +562,13 @@ void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
 
 bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
     if (is_valid_profile(profile_id)) {
+        auto profile = m_profile_list[profile_id];
+        m_profile_id_map.erase(profile->get_dp_profile_id());
+
+        auto state = profile->get_profile_state();
+        assert(m_states_cnt[state]>0);
+        m_states_cnt[state]--;
+
         delete m_profile_list.find(profile_id)->second;
         m_profile_list.erase(profile_id);
         return true;
@@ -576,10 +596,8 @@ TrexAstfPerProfile* TrexAstfProfile::get_profile(cp_profile_id_t profile_id) {
 
 cp_profile_id_t TrexAstfProfile::get_profile_id(uint32_t dp_profile_id)
 {
-    for (auto mprofile : m_profile_list) {
-        if (mprofile.second->get_dp_profile_id() == dp_profile_id) {
-            return mprofile.first;
-        }
+    if (m_profile_id_map.find(dp_profile_id) != m_profile_id_map.end()) {
+        return m_profile_id_map[dp_profile_id];
     }
 
     return "";
@@ -595,16 +613,6 @@ vector<string> TrexAstfProfile::get_profile_id_list() {
     return profile_id_list;
 }
 
-vector<TrexAstfProfile::state_e> TrexAstfProfile::get_profile_state_list() {
-    vector<state_e> profile_state_list;
-
-    for (auto mprofile : m_profile_list) {
-        profile_state_list.push_back(mprofile.second->get_profile_state());
-    }
-
-    return profile_state_list;
-}
-
 vector<CSTTCp *> TrexAstfProfile::get_sttcp_list() {
     vector<CSTTCp *> sttcp_list;
 
@@ -616,25 +624,20 @@ vector<CSTTCp *> TrexAstfProfile::get_sttcp_list() {
 }
 
 bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id) {
-    for (auto id : get_profile_id_list()) {
-        if (id == profile_id) {
-            continue;
-        }
-        if (get_profile(id)->get_profile_state() == STATE_TX) {
-            return true;
-        }
+    uint32_t cnt = m_states_cnt[STATE_TX];
+    if ((cnt > 0) && get_profile(profile_id)->get_profile_state() == STATE_TX) {
+        cnt--;
     }
-    return false;
+    return cnt ? true : false;
 }
 
 bool TrexAstfProfile::is_safe_update_stats() {
-    for (auto id : get_profile_id_list()) {
-        state_e state = get_profile(id)->get_profile_state();
-        if (state == STATE_BUILD || state == STATE_CLEANUP || state == STATE_DELETE) {
-            return false;
-        }
+    states_t states = { STATE_BUILD, STATE_CLEANUP, STATE_DELETE };
+    uint32_t cnt = 0;
+    for (auto state : states) {
+        cnt += m_states_cnt[state];
     }
-    return true;
+    return cnt ? false : true;
 }
 
 
@@ -707,7 +710,7 @@ void TrexAstfPerProfile::profile_set_loaded() {
 }
 
 void TrexAstfPerProfile::profile_change_state(state_e new_state) {
-    m_profile_state = new_state;
+    auto old_state = m_profile_state;
 
     switch ( new_state ) {
         case STATE_IDLE:
@@ -742,6 +745,10 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
         case AMOUNT_OF_STATES:
             assert(0);
     }
+
+    m_profile_state = new_state;
+    m_astf_obj->m_states_cnt[old_state]--;
+    m_astf_obj->m_states_cnt[new_state]++;
 
     publish_astf_profile_state();
     m_astf_obj->publish_astf_state(m_error);
