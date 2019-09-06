@@ -167,6 +167,20 @@ uint16_t CFlowStatParser::get_vxlan_payload_offset(uint8_t *pkt, uint16_t len) {
     return len - payload_len + VXLAN_LEN;
 }
 
+uint16_t CFlowStatParser::get_vxlan_rx_payload_offset(uint8_t *pkt, uint16_t len) {
+    uint16_t payload_len;
+    if ( get_payload_len(pkt, len, payload_len) < 0 ) {
+        return 0;
+    }
+    if ( m_l4_proto != IPPROTO_UDP ) {
+        return 0;
+    }
+    if ( payload_len < VXLAN_LEN + ETH_HDR_LEN ) {
+        return 0;
+    }
+    return len - payload_len + VXLAN_LEN;
+}
+
 // arg is uint32_t in below two functions because we want same function to work for IPv4 and IPv6
 int CFlowStatParser::get_ip_id(uint32_t &ip_id) {
     if (m_ipv4) {
