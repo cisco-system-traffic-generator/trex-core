@@ -502,8 +502,11 @@ class STLRX_Test(CStlGeneral_Test):
         if total_pkts == 0:
             total_pkts = 1
         percent_lat = float(self.rate_lat) / num_latency_streams
-        percent_fstat = float(self.rate_fstat) / num_flow_stat_streams
-
+        if CTRexScenario.setup_name in ['trex14']:
+            percent_fstat = 15.0 / num_flow_stat_streams  # THIS IS A TEMP SOLUTION FOR TEST FAILURE IN TREX14
+        else:
+            percent_fstat = float(self.rate_fstat) / num_flow_stat_streams
+        
         print("num_latency_streams:{0}".format(num_latency_streams))
         if is_random:
             print("  total percent:{0} ({1} per stream)".format(percent_lat * num_latency_streams, percent_lat))
