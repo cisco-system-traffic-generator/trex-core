@@ -41,6 +41,14 @@ def get_package_sha1():
 def is_updating():
     return CUpdate.thread and CUpdate.thread.is_alive()
 
+def get_update_error():
+    if is_updating():
+        raise Exception("Update still in progress")
+    return CUpdate.error
+
+def _update_error(err):
+    CUpdate.error = str(err)
+
 def _update_trex_process(package_path):
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir)
@@ -50,14 +58,16 @@ def _update_trex_process(package_path):
     if package_path.startswith('http'):
         ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
     else:
+        if not os.path.isfile(package_path):
+            return _update_error('Given path "%s" does not exist!' % package_path)
         ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
     if ret_code:
-        raise Exception('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
+        return _update_error('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
 
     # calculating hash
     ret_code, stdout, stderr = run_command('sha1sum -b %s' % os.path.join(tmp_dir, file_name), timeout = 30)
     if ret_code:
-        raise Exception('Could not calculate hash of package. Result: %s' % [ret_code, stdout, stderr])
+        return _update_error('Could not calculate hash of package. Result: %s' % [ret_code, stdout, stderr])
     package_sha1 = stdout.strip().split()[0]
 
     # clean old unpacked dirs
@@ -69,14 +79,16 @@ def _update_trex_process(package_path):
     # unpacking
     ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 120, cwd = tmp_dir)
     if ret_code:
-        raise Exception('Could not untar the package. %s' % [ret_code, stdout, stderr])
+        return _update_error('Could not untar the package. %s' % [ret_code, stdout, stderr])
+    
     tmp_files = glob(os.path.join(tmp_dir, '*'))
     unpacked_dirs = []
     for tmp_file in tmp_files:
         if os.path.isdir(tmp_file) and not os.path.islink(tmp_file):
             unpacked_dirs.append(tmp_file)
     if len(unpacked_dirs) != 1:
-        raise Exception('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
+        return _update_error('Should be exactly one unpacked directory, got: %s' % unpacked_dirs)
+
     os.chmod(unpacked_dirs[0], 0o777) # allow core dumps to be written
     cur_dir = args.trex_dir
     if os.path.islink(cur_dir) or os.path.isfile(cur_dir):
@@ -96,7 +108,7 @@ def _update_trex_process(package_path):
         if os.path.exists(cur_dir):
             shutil.rmtree(cur_dir)
         shutil.move(bu_dir, cur_dir)
-        raise
+        return _update_error(e)
     finally:
         if os.path.exists(bu_dir):
             shutil.rmtree(bu_dir)
@@ -107,6 +119,7 @@ def update_trex(package_path = 'http://trex-tgn.cisco.com/trex/release/latest'):
         raise Exception('Updating server not allowed')
     if CUpdate.thread and CUpdate.thread.is_alive():
         CUpdate.thread.terminate()
+    CUpdate.error = None
     CUpdate.thread = threading.Thread(target = _update_trex_process, args = [package_path])
     CUpdate.thread.daemon = True
     CUpdate.thread.start()
@@ -159,6 +172,7 @@ def start_master_daemon():
     funcs_by_name['get_package_path'] = get_package_path
     funcs_by_name['get_package_sha1'] = get_package_sha1
     funcs_by_name['is_updating'] = is_updating
+    funcs_by_name['get_update_error'] = get_update_error
     funcs_by_name['update_trex'] = update_trex
     funcs_by_name['save_coredump'] = save_coredump
     # trex_daemon_server
@@ -268,6 +282,7 @@ os.chdir('/')
 class CUpdate:
     info = {}
     thread = None
+    error  = None
 
 if not _check_path_under_current_or_temp(args.trex_dir):
     raise Exception('Only allowed to use path under /tmp or current directory')
