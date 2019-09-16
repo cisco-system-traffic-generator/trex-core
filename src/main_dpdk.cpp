@@ -116,7 +116,7 @@ static inline int get_is_rx_thread_enabled() {
     return ((CGlobalInfo::m_options.is_rx_enabled() || get_is_interactive()) ?1:0);
 }
 
-#define MAX_DPDK_ARGS (30 + TREX_MAX_PORTS * 2)
+#define MAX_DPDK_ARGS 50
 static CPlatformYamlInfo global_platform_cfg_info;
 static int g_dpdk_args_num ;
 static char * g_dpdk_args[MAX_DPDK_ARGS];
@@ -197,6 +197,7 @@ enum {
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
        OPT_SCAPY_SERVER,
+       OPT_BIRD_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
        OPT_TCP_MODE,
@@ -288,9 +289,10 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
-        { OPT_NO_OFED_CHECK,          "--no-ofed-check",   SO_NONE    },
-        { OPT_NO_SCAPY_SERVER,        "--no-scapy-server", SO_NONE    },
-        { OPT_SCAPY_SERVER,           "--scapy-server", SO_NONE    },
+        { OPT_NO_OFED_CHECK,          "--no-ofed-check",    SO_NONE    },
+        { OPT_NO_SCAPY_SERVER,        "--no-scapy-server",  SO_NONE    },
+        { OPT_SCAPY_SERVER,           "--scapy-server",     SO_NONE    },
+        { OPT_BIRD_SERVER,            "--bird-server",      SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
         { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
@@ -897,6 +899,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 po->m_hdrh = true;
                 break;
             case OPT_SCAPY_SERVER:
+                break;
+            case OPT_BIRD_SERVER:
+                po->m_is_bird_enabled = true;
                 break;
             case OPT_QUEUE_DROP:
                 CGlobalInfo::m_options.m_is_queuefull_retry = false;
@@ -2860,6 +2865,7 @@ public:
     
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
+    void run_bird_with_ns();
     void apply_pretest_results_to_stack(void);
     void abort_gracefully(const std::string &on_stdout,
                           const std::string &on_publisher) __attribute__ ((__noreturn__));
@@ -3232,6 +3238,19 @@ COLD_FUNC void CGlobalTRex::pre_test() {
             pif->set_ignore_stats_base(pre_stats);
             // Configure port back to normal mode. Only relevant packets handled by software.
             pif->set_port_rcv_all(false);
+        }
+    }
+}
+
+COLD_FUNC void CGlobalTRex::run_bird_with_ns() {
+    if ( CGlobalInfo::m_options.m_is_bird_enabled ) {
+        auto &ports_map = m_stx->get_port_map();
+        assert(!ports_map.empty());
+        TrexPort *first_port = ports_map.begin()->second;
+        
+        if ( !(first_port->get_stack_caps() & CStackBase::BIRD) ) {
+            std::string stack_name = CGlobalInfo::m_options.m_stack_type;
+            rte_exit(EXIT_FAILURE, "Cannot run Bird on %s stack mode \n", stack_name.c_str());
         }
     }
 }
@@ -7086,8 +7105,9 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
 
   TrexWatchDog::getInstance().start();
 
-  if (get_is_interactive()) {
+  if ( get_is_interactive() ) {
     apply_pretest_results_to_stack();
+    run_bird_with_ns();
   }
   while (!is_marked_for_shutdown()) {
 

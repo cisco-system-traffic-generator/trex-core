@@ -27,6 +27,7 @@ from .trex_exceptions import *
 from .trex_psv import *
 from .trex_vlan import VLAN
 from .trex_api_annotators import client_api, console_api
+from trex.pybird.bird_zmq_client import *
 
 from .stats.trex_stats import StatsBatch
 from .stats.trex_global_stats import GlobalStats, UtilStats
@@ -1464,7 +1465,117 @@ class TRexClient(object):
 
         return (rc[0]);
 
+    @client_api('command', True)
+    def set_bird_node(self, node_port,
+                            mac,
+                            ipv4,
+                            ipv6_enabled,
+                            ipv4_subnet,
+                            ipv6_subnet):
+        """
+            a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
+            it creates a batch of one command and one result.
+            It is good for slow operations that require blocking (such as get API)
 
+            usage example::
+
+                  c.set_bird_node(node_port        = 0,
+                                    mac            = "00:00:00:01:00:07",
+                                    ipv4           = "1.1.2.3",
+                                    default_gw     = "1.1.1.1",
+                                    ipv6_enabled   = True)
+
+            :parameters:
+
+                 node_port: int
+                    port id to set the bird node on.
+
+                 mac: string
+                    mac address for the new bird node. 
+
+                 ipv4: string 
+                    ipv4 address for the new bird node. 
+ 
+                 ipv6_enabled: bool
+                    True/False if ipv6 enabled on the new node. 
+                
+                 ipv4_subnet: int
+                    ipv4 subnet for the new bird node
+
+                 ipv6_subnet: int
+                    ipv6 subnet for the new bird node
+            :raises:
+                + :exc:`TRexError` in case of any error
+        """
+
+        self.set_port_attr(promiscuous=True)
+        self.namespace_remove_all(ports=[node_port])
+
+        cmds = NSCmds()
+        cmds.add_node(mac, is_bird=True)
+        cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, is_bird=True)
+        cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, is_bird=True)
+
+        # start the batch
+        self.set_namespace_start(node_port, cmds)
+        # wait for the results
+        self.wait_for_async_results(node_port)
+    
+    @client_api('command', False)
+    def wait_for_protocols(self, protocols, timeout=60, poll_rate=1):
+        """
+            waiting for all the bird protocols in 'protocols' list. In case bird protocols are still
+            down after 'timeout' seconds, an exception will be raised. 
+
+            usage example::
+
+                wait_for_protocols(['bgp1', 'rip1', 'rip2'])
+            
+
+            :parameters:
+
+                protocols: list 
+                    list of all protocols names the new bird node will be followed by.
+                    notice the names should be exactly as they appear in bird configuration.
+
+                timeout: int
+                    total time waiting for bird protocols.
+
+                poll_rate: int
+                    polling rate for bird protocols check.
+            
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """    
+        pybird_c = PyBirdClient()
+        pybird_c.connect()
+        pybird_c.acquire()
+        pybird_c.check_protocols_up(protocols)
+        pybird_c.disconnect()
+    
+    @client_api('command', True)
+    def set_bird_config(self, config):
+        """
+            send the given bird config into trex.
+
+            usage example::
+                cfg = "here will be your bird.conf string"
+                set_bird_config(cfg)
+            
+
+            :parameters:
+
+                config: string 
+                    string of the "bird.conf" file contet. Includes the routing protocols and routes.
+
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """
+        pybird_c = PyBirdClient()
+        pybird_c.connect()
+        pybird_c.acquire()
+        pybird_c.set_config(config)
+        pybird_c.disconnect()
 
     @client_api('command', True)
     def is_async_results_ready(self, port):

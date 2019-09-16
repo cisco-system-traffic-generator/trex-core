@@ -160,7 +160,8 @@ class CStackBase {
 public:
     enum capa_enum {
         CLIENTS     = 1,
-        FAST_OPS    = 1<<1,
+        FAST_OPS    = 1 << 1,
+        BIRD        = 1 << 2,
     };
 
     CStackBase(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats);
@@ -239,6 +240,11 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
+    virtual trex_rpc_cmd_rc_e rpc_add_bird_node(const std::string & mac){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
     virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
@@ -254,12 +260,22 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
+    virtual trex_rpc_cmd_rc_e rpc_set_ipv4_bird(const std::string & mac,std::string ip4_buf, uint8_t subnet) {
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
     virtual trex_rpc_cmd_rc_e rpc_clear_ipv4(const std::string & mac){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
     virtual trex_rpc_cmd_rc_e rpc_set_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_ipv6_bird(const std::string & mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }

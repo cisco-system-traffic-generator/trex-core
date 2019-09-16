@@ -253,10 +253,10 @@ class Port(object):
         if not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring name-spaces. Please enable service mode')
 
-        params = {"handler":        self.handler,
-                  "port_id":        self.port_id,
-                  "batch":          json_str_commands,
-                  "block"  :        False}
+        params = {"handler" :        self.handler,
+                  "port_id" :        self.port_id,
+                  "batch"   :        json_str_commands,
+                  "block"   :        False}
 
         rc = self.transmit("conf_ns_batch", params)
         if rc.bad():

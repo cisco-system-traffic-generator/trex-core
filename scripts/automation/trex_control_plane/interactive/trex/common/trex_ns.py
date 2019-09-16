@@ -47,21 +47,26 @@ class NSCmds(object):
         return copy.deepcopy(self)
 
     # add commands
-    def add_node(self,mac):
-        ''' add new namespace 
+    def add_node(self,mac, is_bird=False):
+        ''' add new virtual interface and it's namespace
 
             :parameters:
 
             mac: string
                 MAC address in the format of xx:xx:xx:xx:xx:xx
 
+            is_bird: bool
+                True if the new node will be a bird node.
         '''
 
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"}]
                    }
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        self.add_cmd ('add_node',mac=mac)
+        if is_bird:
+            self.add_cmd ('add_node',mac=mac, is_bird=True)
+        else:
+            self.add_cmd ('add_node',mac=mac, is_bird=False)
 
     def remove_node (self,mac):
         ''' remove namespace 
@@ -110,7 +115,7 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd ('set_vlans', mac=mac, vlans=vlans, tpids=tpids)
 
-    def set_ipv4(self,mac,ipv4,dg):
+    def set_ipv4(self, mac, ipv4, dg = None, subnet = None, is_bird = False):
         ''' set or change ipv4 configuration 
 
             :parameters:
@@ -124,15 +129,29 @@ class NSCmds(object):
             dg: string
                 Default gateway
 
+            subnet: int
+                the subnet mask of the ipv4 address.
         '''
 
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"},
                      {"name": "ipv4", 'arg': ipv4, "t": "ip address"},
-                     {"name": "dg", 'arg': dg, "t": "ip address"}]
+                     ]
                      }
+        cmd_args = {'mac': mac, 'ipv4': ipv4}
+        if is_bird:
+            if subnet is None:
+                raise TRexError('Must specify subnet!')
+            ver_args['types'].append({"name": "subnet", 'arg': subnet, "t": int})
+            cmd_args['subnet'] = subnet
+            cmd_args['is_bird'] = True
+        else:
+            if dg is None:
+                raise TRexError('Must specify default gateway!')
+            ver_args['types'].append({"name": "dg", 'arg': dg, "t": "ip address"})
+            cmd_args['dg'] = dg
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        self.add_cmd ('set_ipv4',mac=mac,ipv4=ipv4,dg=dg)
+        self.add_cmd ('set_ipv4', **cmd_args)
 
     def clear_ipv4(self,mac):
         ''' remove ipv4 configuration from the ns
@@ -147,7 +166,7 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd ('clear_ipv4',mac=mac)
 
-    def set_ipv6(self,mac,enable,src_ipv6=None):
+    def set_ipv6(self, mac, enable, src_ipv6=None, subnet=None, is_bird = False):
         ''' set ns ipv6 
 
             :parameters:
@@ -156,24 +175,34 @@ class NSCmds(object):
 
                 src_ipv6: None for auto, or ipv6 addr 
 
+                subnet: int 
+                    represent the subnet mask for ipv6. None as default.
+
         '''
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"},
                      {"name": "enable", 'arg': enable, "t": bool}
                      ]
                      }
+        cmd_params = {"mac": mac, "enable": enable}
+        if is_bird:
+            if subnet is None:
+                raise TRexError('Must specify subnet!')
+            ver_args['types'].append({"name": "subnet", 'arg': subnet, "t": int})
+            cmd_params["subnet"] = subnet
+            cmd_params['is_bird'] = True
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        if src_ipv6 == None:
+        if src_ipv6 is None:
             src_ipv6 = ""
         else:
             if not ArgVerify.verify_ipv6(src_ipv6):
                 raise ASTFErrorBadIp('set_ipv6', '', src_ipv6)
-
-        self.add_cmd ('set_ipv6',mac=mac,enable=enable,src_ipv6=src_ipv6)
+        cmd_params["src_ipv6"] = src_ipv6
+        self.add_cmd ('set_ipv6', **cmd_params)
 
     def remove_all(self):
         ''' remove all namespace nodes '''
-        self.add_cmd ('remove_all')
+        self.add_cmd('remove_all')
 
     def get_nodes(self):
         '''

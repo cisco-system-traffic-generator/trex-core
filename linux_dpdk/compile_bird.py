@@ -11,11 +11,13 @@ import tempfile
 import argparse
 import shutil
 
-BIRD_VER = "2.0.4"
+with open('BIRD_VERSION', 'r') as f:
+    BIRD_VER = f.read()
 
 DEFAULT_CONFIG = """
+router id 1.1.1.100;
 protocol device {
-    scan time 10;
+    scan time 1;
 }"""
 
 # remove /router from path
@@ -95,8 +97,9 @@ def build_bird(dst, is_verbose = False):
     # change executable name
     os.rename('%s/bird' % bird_down_path , '%s/trex_bird' % bird_down_path)
 
-    # change permissions for bird dir
-    os.system('chmod -R 777 %s' % bird_down_path)
+    # change permissions for bird files
+    os.system('chmod 666 %s/bird.conf' % bird_down_path)
+    os.system('chmod 555 %s/trex_bird' % bird_down_path)
 
     # rename bird folder to signify end of compilation
     dst_path = '%s/bird' % dst
@@ -134,10 +137,11 @@ def do_create_link (src, name, where):
 def create_links(src_dir, links_dir):
     if not os.path.exists(links_dir):
         os.makedirs(links_dir)
-    os.system('chmod 777 -R %s' % links_dir)
-    do_create_link(src   = src_dir + '/trex_bird',
+        os.system('chmod -R 777 %s' % links_dir)
+
+    do_create_link(src    = src_dir + '/trex_bird',
                     name  = 'trex_bird',
                     where = links_dir)
-    do_create_link(src   = src_dir + '/bird.conf',
+    do_create_link(src    = src_dir + '/bird.conf',
                     name  = 'bird.conf',
                     where = links_dir)

@@ -404,6 +404,8 @@ protected:
 
     std::string  parse_ipv4(const Json::Value &parent, const std::string &param, Json::Value &result);
 
+    std::string parse_ipv4(const Json::Value &parent,const std::string &param, Json::Value &result, const std::string &def);
+
     std::string  parse_ipv6(const Json::Value &parent, const std::string &param, Json::Value &result);
 
     template<typename T> const Json::Value & parse_object(const Json::Value &parent, const T &param, Json::Value &result) {
