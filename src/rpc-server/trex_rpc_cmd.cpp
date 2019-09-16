@@ -153,6 +153,14 @@ TrexRpcCommand::parse_ipv6(const Json::Value &parent, const std::string &param, 
 }
 
 std::string  
+TrexRpcCommand::parse_ipv4(const Json::Value &parent,const std::string &param, Json::Value &result, const std::string &def){
+    if (parent[param] == Json::Value::null) {
+            return def;
+    }
+    return parse_ipv4(parent, param, result);
+}
+
+std::string  
 TrexRpcCommand::parse_ipv4(const Json::Value &parent,const std::string &param, Json::Value &result){
 
      std::string ipv4 = parse_string(parent, param, result);

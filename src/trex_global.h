@@ -551,6 +551,7 @@ public:
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
+        m_is_bird_enabled     = false;
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
@@ -597,8 +598,9 @@ public:
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;
-    std::string     m_stack_type;
     bool            m_hdrh;        /* enable HDR histograms for latency */
+    bool            m_is_bird_enabled;
+    std::string     m_stack_type;
 
     
     std::string        cfg_file;

@@ -1,7 +1,3 @@
-#from builtins import str
-#from builtins import next
-#from builtins import object
-
 import logging
 import re
 import os
@@ -24,8 +20,6 @@ class PyBird(object):
 
     def __init__(self, socket_file=CTL_PATH, hostname=None, user=None, password=None, config_file=CONF_PATH, bird_cmd=None):
         """Basic pybird setup."""
-        if not os.path.exists(socket_file):
-           raise Exception('Socket file not found: %s' % socket_file)
         if not os.path.exists(config_file):
            raise Exception('Config file not found: %s' % config_file)
         self.socket_file = socket_file
@@ -46,6 +40,12 @@ class PyBird(object):
         self.routes_field_re = re.compile(r'(\d+) imported, (\d+) exported')
         self.log = logging.getLogger(__name__)
 
+    # TODO later, connect and disconnect methods
+    # def connect_to_bird():
+    #     if not os.path.exists(socket_file):
+    #        raise Exception('Socket file not found: %s' % socket_file)
+    #     get_bird_status()  # calling simple cmd for sanity check
+
     def get_config(self):
         """ Return the current BIRD configuration as in bird.conf"""
         self.log.debug("PyBird: getting current config")
@@ -53,8 +53,6 @@ class PyBird(object):
             raise ValueError("config file is not set")
         return self._read_file(self.config_file)
 
-
-    # TODO maybe delete?
     def get_bird_status(self):
         """Get the status of the BIRD instance. Returns a dict with keys:
         - router_id (string)
@@ -68,7 +66,8 @@ class PyBird(object):
 
     def get_protocols_info(self):
         self.log.debug("PyBird: getting current protocols info")
-        data = self._send_query('show protocols all')
+        data = self._send_query('show protocols')
+        '\n'.join([l.strip() for l in data.splitlines()])  # cleanup data spaces
         return self._remove_replay_codes(data)
 
     def set_config(self, data):
@@ -190,57 +189,6 @@ class PyBird(object):
         return self._parse_route_data(data)
 
     # deprecated by get_routes_received
-    def get_peer_prefixes_announced(self, peer_name):
-        """Get prefixes announced by a specific peer, without applying
-        filters - i.e. this includes routes which were not accepted"""
-        clean_peer_name = self._clean_input(peer_name)
-        query = "show route table T_%s all protocol %s" % (
-            clean_peer_name, clean_peer_name)
-        data = self._send_query(query)
-        return self._parse_route_data(data)
-
-    def get_routes_received(self, peer=None):
-        return self.get_peer_prefixes_announced(peer)
-
-    def get_peer_prefixes_exported(self, peer_name):
-        """Get prefixes exported TO a specific peer"""
-        clean_peer_name = self._clean_input(peer_name)
-        query = "show route all table T_%s export %s" % (
-            clean_peer_name, clean_peer_name)
-        data = self._send_query(query)
-        if not self.socket_file:
-            return data
-        return self._parse_route_data(data)
-
-    def get_peer_prefixes_accepted(self, peer_name):
-        """Get prefixes announced by a specific peer, which were also
-        accepted by the filters"""
-        query = "show route all protocol %s" % self._clean_input(peer_name)
-        data = self._send_query(query)
-        return self._parse_route_data(data)
-
-    def get_peer_prefixes_rejected(self, peer_name):
-        announced = self.get_peer_prefixes_announced(peer_name)
-        accepted = self.get_peer_prefixes_accepted(peer_name)
-
-        announced_prefixes = [i['prefix'] for i in announced]
-        accepted_prefixes = [i['prefix'] for i in accepted]
-
-        rejected_prefixes = [
-            item for item in announced_prefixes if item not in accepted_prefixes]
-        rejected_routes = [item for item in announced if item[
-            'prefix'] in rejected_prefixes]
-        return rejected_routes
-
-    def get_prefix_info(self, prefix, peer_name=None):
-        """Get route-info for specified prefix"""
-        query = "show route for %s all" % prefix
-        if peer_name is not None:
-            query += " protocol %s" % peer_name
-        data = self._send_query(query)
-        if not self.socket_file:
-            return data
-        return self._parse_route_data(data)
 
     def _parse_route_data(self, data):
         """Parse a blob like:
@@ -670,12 +618,13 @@ class PyBird(object):
 
     def _send_query(self, query):
         self.log.debug("PyBird: query: %s", query)
-        if self.hostname:
-            return self._remote_query(query)
         try:
-            return self._socket_query(query)
+            if self.hostname:
+                return self._remote_query(query)
+            else:
+                return self._socket_query(query)
         except Exception as e:
-            return 'Configured successfully' + repr(e)
+                raise Exception('Error sending query to bird! detalis:\n' + str(e))
 
     def _remote_query(self, query):
         """
@@ -702,7 +651,6 @@ class PyBird(object):
                             "\n8003",  # No protocols match
                             "\n9001"]  # Parse error
             return any(code in stream for code in finish_codes)
-
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(self.socket_file)
         query += '\n'
@@ -717,7 +665,6 @@ class PyBird(object):
 
         sock.close()
         return ''.join(data_list)
-
 
     def _clean_input(self, inp):
         """Clean the input string of anything not plain alphanumeric chars,

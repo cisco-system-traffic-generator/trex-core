@@ -46,15 +46,19 @@ fi
 cd $(dirname $0)
 export LD_LIBRARY_PATH=$PWD
 
-
-function restore_tty {
-    stty $saveterm
-}
-
 if [ -t 0 ] && [ -t 1 ]; then
     saveterm="$(stty -g)"
-    trap restore_tty EXIT
 fi
+
+function cleanup {
+    if [[ ! -z "$saveterm" ]]; then
+        stty $saveterm
+    fi
+    ./dpdk_setup_ports.py --cleanup-servers --parent="$INPUT_ARGS"
+}
+
+trap cleanup EXIT
+
 
 # if we have a new core run optimized trex
 if [[ "$ARCH" == "aarch64" ]] ; then

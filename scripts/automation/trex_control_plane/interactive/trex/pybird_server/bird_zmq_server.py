@@ -63,7 +63,7 @@ class BirdWrapper:
     def get_config(self, params):
         return self.pybird.get_config()
 
-    def get_protocols_info(self):
+    def get_protocols_info(self, params):
         return self.pybird.get_protocols_info()
 
     def set_config(self ,params):

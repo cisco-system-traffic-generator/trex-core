@@ -731,7 +731,7 @@ Other network devices
         except:
             master_core = 0
 
-        if not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf):
+        if should_scapy_server_run():
             ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
             if ret:
                 print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
@@ -1332,7 +1332,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--dump-interfaces', nargs='*', default=None)
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
-    parent_parser.add_argument('--bird-server', dest='bird_server', action = 'store_true', default=False)
+    parent_parser.add_argument('--bird-server', action = 'store_true', default=False)
     parent_parser.add_argument('--scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
@@ -1404,6 +1404,10 @@ To see more detailed info on interfaces (table):
 
     parser.add_argument("--ce", "--cores-exclude", nargs='*', default=[], dest='create_exclude', metavar='<cores>',
                       help="""Black list of cores to exclude. Make sure there will be enough for each NUMA.""",
+     )
+
+    parser.add_argument("--cleanup-servers", action='store_true',
+                      help="Kill all Python servers (PyBird and Scapy).",
      )
 
     parser.add_argument("--no-ht", default=False, dest='no_ht', action='store_true',
@@ -1478,6 +1482,28 @@ def signal_handler(sig, frame):
     traceback.print_stack(frame)
     sys.exit(1)
 
+def should_scapy_server_run():
+    return not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf)
+
+def kill_scapy():
+    ret = os.system('%s scapy_daemon_server stop' % sys.executable)
+    if ret:
+        print("Could not stop scapy daemon server.")
+        sys.exit(-1)
+
+def kill_pybird():
+        ret = os.system('%s pybird_daemon_server stop' % sys.executable)
+        if ret:
+            print("Could not stop bird daemon server.")
+            sys.exit(-1)
+   
+def cleanup_servers():
+    ''' cleanup scapy and bird servers '''
+    if should_scapy_server_run():
+        kill_scapy()
+    if pa().bird_server:
+        kill_pybird()
+
 
 def main ():
     try:
@@ -1487,6 +1513,10 @@ def main ():
         signal.signal(signal.SIGUSR1, signal_handler)
         process_options ()
 
+        if map_driver.args.cleanup_servers:
+            cleanup_servers()
+            return
+        
         if map_driver.args.show:
             dpdk_nic_bind.show_status()
             return

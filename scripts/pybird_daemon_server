@@ -26,8 +26,6 @@ if ext_libs_path not in sys.path:
 from netstat import netstat
 from termstyle import termstyle
 
-BIRD_PATH = os.path.join(cur_dir, 'bird')
-
 
 def inv(f):
     return lambda *a, **k: not f(*a, **k)
@@ -79,7 +77,6 @@ def run_command(command, timeout = 30, poll_rate = 0.1, cwd = None, is_daemon = 
         if not is_daemon:
             stdout_file.close()
 
-
 def get_pybird_pid():
     pid = None
     for conn in netstat.netstat(with_pid = True, search_local_port = args.port):
@@ -90,53 +87,15 @@ def get_pybird_pid():
             break
     return pid
 
-def get_trex_bird_pid():
-    try:
-        subprocess.check_output(['pgrep', '--version'])
-    except:
-        print('"pgrep" is not installed')
-        return
-    try:
-        return subprocess.check_output(["pgrep", "trex_bird"]).decode().strip()
-    except:
-        return
 
-# faster variant of get_pybird_pid
 def is_pybird_running():
-    for conn in netstat.netstat(with_pid = False, search_local_port = args.port):
-        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
-            return True
-    return False
-
-def is_bird_running():
-    return get_trex_bird_pid() is not None
-
-def start_trex_bird():
-    if is_bird_running():
-        print('Bird is already running')
-        return
-    
-    proc, stdout_file = run_command('sudo ./trex_bird -l', is_daemon = True, cwd = BIRD_PATH)
-    ret = progress(is_bird_running, 'Starting Bird', 'Bird is started', 'Bird failed to run', fail_check = proc.poll)
-    if proc.poll():
-        stdout_file.seek(0)
-        print('Output: %s' % stdout_file.read())
-        stdout_file.close()
-        sys.exit(1)
+    return get_pybird_pid() is not None
 
 def show_daemon_status():
     if is_pybird_running():
         print(termstyle.green('PyBird server is running'))
     else:
         print(termstyle.red('PyBird server is NOT running'))
-    if is_bird_running():
-        print(termstyle.green('Bird is running'))
-    else:
-        print(termstyle.red('Bird is NOT running'))
-
-def start_all():
-    start_trex_bird()
-    start_pybird()
 
 def start_pybird():
     if is_pybird_running():
@@ -144,8 +103,7 @@ def start_pybird():
         return
 
     server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'interactive')
-
-    cmd = 'sudo taskset -c {core} {python} -m trex.pybird_server.bird_zmq_server -p {port} -v'.format(core = args.core, python = sys.executable, port = args.port)
+    cmd = 'sudo taskset -c {core} {python} -m trex.pybird_server.bird_zmq_server -p {port}'.format(core = args.core, python = sys.executable, port = args.port)
     proc, stdout_file = run_command(cmd, is_daemon = True, cwd = server_path)
     ret = progress(is_pybird_running, 'Starting PyBird server', 'PyBird server is started', 'PyBird server failed to run', fail_check = proc.poll)
     if proc.poll():
@@ -154,39 +112,18 @@ def start_pybird():
         stdout_file.close()
         sys.exit(1)
 
-
 def restart_all():
     need_to_sleep = False
     if is_pybird_running():
         need_to_sleep = True
         kill_pybird()
-    if is_bird_running():
-        need_to_sleep = True
-        kill_bird()
     if need_to_sleep:
         time.sleep(0.5)
-    start_all()
-
-
-def kill_bird():
-    pid = get_trex_bird_pid()
-    if not pid:
-        print(termstyle.red('Bird is NOT running'))
-        return True
-    _, out = run_command('kill %s' % pid) # usual kill
-
-    ret = progress(inv(is_bird_running), 'Killing Bird', 'Bird is killed', 'failed', timeout = 15)
-    if not ret:
-        return
-    _, out = run_command('kill -9 %s' % pid) # unconditional kill
-
-    ret = progress(inv(is_bird_running), 'Killing Bird with -9', 'Bird is killed', 'failed', timeout = 15)
-    if ret:
-        fail('Failed to kill Bird, even with -9. Please review manually.\nOutput: %s' % out)
+    start_pybird()
 
 def kill_pybird():
     pid = get_pybird_pid()
-    if not pid:
+    if pid is None:
         print(termstyle.red('PyBird server is NOT running'))
         return True
     run_command('kill %s' % pid) # usual kill
@@ -198,23 +135,18 @@ def kill_pybird():
     if ret:
         fail('Failed to kill PyBird server, even with -9. Please review manually.\nOutput: %s' % out)
 
-def kill_all():
-    kill_pybird()
-    kill_bird()
-
-
 ### Main ###
 
 if __name__ == '__main__':
     actions_help = '''Specify action command to be applied on server.
-        (*) start      : start the application in as a daemon process & Bird process.
-        (*) show       : prompt an updated status of daemon & Bird process (running/ not running).
-        (*) stop       : exit PyBird server daemon process & Bird process.
-        (*) restart    : stop, then start again the application as daemon process & Bird process.
+        (*) start      : start the application in as a daemon process.
+        (*) show       : prompt an updated status of daemon (running/ not running).
+        (*) stop       : exit PyBird server daemon process.
+        (*) restart    : stop, then start again the application as daemon process.
         '''
-    action_funcs = {'start': start_all,
+    action_funcs = {'start': start_pybird,
                     'show': show_daemon_status,
-                    'stop': kill_all,
+                    'stop': kill_pybird,
                     'restart': restart_all,
                     }
     
@@ -222,8 +154,8 @@ if __name__ == '__main__':
         formatter_class = RawTextHelpFormatter,
     )
     
-    parser.add_argument('-p', '--port', type = int, default = 4507,
-            help='Select tcp port on which PyBird server will listen.\nDefault is 4507.')
+    parser.add_argument('-p', '--port', type = int, default = 4509,
+            help='Select tcp port on which PyBird server will listen.\nDefault is 4509.')
     parser.add_argument('-c', '--core', type = int, default = 0,
             help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
     parser.add_argument('action', choices=action_funcs.keys(),

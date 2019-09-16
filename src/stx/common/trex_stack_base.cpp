@@ -42,7 +42,13 @@ void CRpcTunnelCStackBase::init(CStackBase * obj){
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_node(const Json::Value &params, Json::Value &result){
     debug({"rpc_add_node",pretty_json_str(params)});
     string mac   = parse_string(params, "mac", result);
-    return (m_obj->rpc_add_node(mac));
+    bool is_bird = parse_bool(params, "is_bird", result);
+
+    if ( is_bird ) {
+        return (m_obj->rpc_add_bird_node(mac));
+    } else {
+        return (m_obj->rpc_add_node(mac));  
+    }
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_node(const Json::Value &params, Json::Value &result){
@@ -87,11 +93,16 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlans(const Json::Value &params,
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv4(const Json::Value &params, Json::Value &result){
     debug({"rpc_set_ipv4",pretty_json_str(params)});
-    string mac   = parse_string(params, "mac", result);
+    string mac     = parse_string(params, "mac", result);
     string ip4_buf = parse_ipv4(params, "ipv4", result);
-    string gw4_buf = parse_ipv4(params, "dg", result);
-
-    return (m_obj->rpc_set_ipv4(mac,ip4_buf,gw4_buf));
+    bool is_bird   = parse_bool(params, "is_bird", result, false);
+    if ( is_bird ) {
+        uint8_t subnet = parse_int(params, "subnet", result);
+        return m_obj->rpc_set_ipv4_bird(mac, ip4_buf, subnet);
+    } else {
+        string gw4_buf = parse_ipv4(params, "dg", result);
+        return m_obj->rpc_set_ipv4(mac, ip4_buf, gw4_buf);
+    }
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params, Json::Value &result){
@@ -102,8 +113,10 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv6(const Json::Value &params, Json::Value &result){
     debug({"rpc_set_ipv6",pretty_json_str(params)});
-    string mac   = parse_string(params, "mac", result);
-    bool enable   = parse_bool(params, "enable", result);
+    string mac     = parse_string(params, "mac", result);
+    bool enable    = parse_bool(params, "enable", result);
+    bool is_bird   = parse_bool(params, "is_bird", result, false);
+
     string src_ipv6 = "";
     if ( enable ) {
         src_ipv6 = parse_string(params, "src_ipv6", result);
@@ -111,7 +124,12 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv6(const Json::Value &params, 
             src_ipv6 = parse_ipv6(params, "src_ipv6", result);
         }
     }
-    return (m_obj->rpc_set_ipv6(mac,enable,src_ipv6));
+    if ( is_bird ) {
+        uint8_t subnet = parse_int(params, "subnet", result);
+        return m_obj->rpc_set_ipv6_bird(mac, enable, src_ipv6, subnet);
+    } else {
+        return m_obj->rpc_set_ipv6(mac, enable, src_ipv6);
+    }
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_all(const Json::Value &params, Json::Value &result){
@@ -656,7 +674,7 @@ void CNodeBase::clear_ip6_async() {
 
 void CNodeBase::to_json_node(Json::Value &cfg){
 
-        // MAC
+    // MAC
     cfg["ether"]["src"] = utl_macaddr_to_str((uint8_t *)get_src_mac().data());
 
     // VLAN
