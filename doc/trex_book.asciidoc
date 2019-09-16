@@ -6,7 +6,7 @@ TRex
 :revdate: 2017-02-21-a
 :quotes.++:
 :numbered:
-:web_server_url: http://trex-tgn.cisco.com/trex
+:web_server_url: https://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
 :toclevels: 4
 
@@ -283,11 +283,7 @@ NOTE: Purchase the 10Gb/sec SFP+ separately. Cisco would be fine with TRex (but 
 
 Supported Linux versions:
 
-* Fedora 20-23, 64-bit kernel (not 32-bit)
-* Ubuntu 14.04.1 LTS, 64-bit kernel (not 32-bit)
-* Ubuntu 16.xx LTS, 64-bit kernel (not 32-bit) -- Not fully supported.
-// clarify "not fully supported"
-* CentOS/RHEL 7.4, 64-bit kernel (not 32-bit) (*Recommended*) -- This is the only working option for ConnectX-4.
+* CentOS/RHEL 7.6, 64-bit kernel (not 32-bit) (*Recommended*) -- This is the only working option for ConnectX-4.
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
@@ -300,57 +296,6 @@ x86_64
 ----
 
 
-
-==== Download Linux
-
-ISO images for supported Linux releases can be downloaded from:
-
-.Supported Linux ISO image links
-[options="header",cols="1^,2^",width="50%"]
-|======================================
-| Distribution                                                                                                                                | SHA256 Checksum
-| link:http://isoredirect.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1708.iso[CentOS 7.4] (recommended)             |
- http://mirror.centos.org/centos/7/isos/x86_64/sha256sum.txt.asc[CentOS 7.4 checksums]
-| link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-DVD.iso[Fedora 20]           |
- link:http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/20/Fedora/x86_64/iso/Fedora-20-x86_64-CHECKSUM[Fedora 20 CHECKSUM]
-| link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-DVD-x86_64-21.iso[Fedora 21]                |
- link:http://fedora-mirror01.rbc.ru/pub/fedora/linux/releases/21/Server/x86_64/iso/Fedora-Server-21-x86_64-CHECKSUM[Fedora 21 CHECKSUM]
-| link:http://old-releases.ubuntu.com/releases/14.04.1/ubuntu-14.04-desktop-amd64.iso[Ubuntu 14.04.1]                                         |
- http://old-releases.ubuntu.com/releases/14.04.1/SHA256SUMS[Ubuntu 14.04* CHECKSUMs]
-| link:http://releases.ubuntu.com/16.04.1/ubuntu-16.04.1-server-amd64.iso[Ubuntu 16.04.1]                                                     |
- http://releases.ubuntu.com/16.04.1/SHA256SUMS[Ubuntu 16.04* CHECKSUMs]
-|======================================
-
-
-For Fedora downloads...
-
-* Select a mirror close to your location: +
-https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora +
-Choose: "Fedora Linux http" -> releases -> <version number> -> Server -> x86_64 -> iso -> Fedora-Server-DVD-x86_64-<version number>.iso
-
-* Verify that the link:https://en.wikipedia.org/wiki/SHA-2[SHA-256] checksum value of the downloaded file matches the linked checksum values with the `sha256sum` command. Example:
-
-[source,bash]
-----
-[bash]>sha256sum Fedora-18-x86_64-DVD.iso
-91c5f0aca391acf76a047e284144f90d66d3d5f5dcd26b01f368a43236832c03
-----
-
-
-==== Install Linux
-
-Ask your lab admin to install the Linux using CIMC, assign an IP, and set the DNS. Request the sudo or super user password to enable you to ping and SSH.
-
-xref:fedora21_example[Example of installing Fedora 21 Server]
-
-[NOTE]
-=====================================
- * Requirement for using TRex: sudo or root password for the machine.
- * Upgrading the linux Kernel using `yum upgrade` requires building the TRex drivers.
- * In Ubuntu 16, auto-updater is enabled by default. It is recommended to turn it off. Updating kernel requires re-compiling the DPDK .ko file. +
-To disable auto-updater: +
- > sudo apt-get remove unattended-upgrades
-=====================================
 
 ==== Verify Intel NIC installation
 
@@ -383,10 +328,12 @@ Use `ssh` to connect to the TRex machine and execute the commands described belo
 NOTE: Prerequisite: *$TREX_WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (Cisco internal)
 // Clarify the note above and probably should not have the Cisco internal part
 
+NOTE: Only https is supported 
+
 TIP: For easier copy/paste, begin by assigning a temporary local variable to denote the appropriate TRex TREX_WEB_URL:
 [source,bash]
 ----
-[bash]>TREX_WEB_URL=http://<AS PER ABOVE PRE-REQUISITE NOTE>
+[bash]>TREX_WEB_URL=https://<AS PER ABOVE PRE-REQUISITE NOTE>
 ----
 
 Latest (stable) release:
@@ -398,7 +345,6 @@ Latest (stable) release:
 [bash]>wget --no-cache ${TREX_WEB_URL}/release/latest
 [bash]>tar -xzvf latest
 ----
-
 
 Latest (bleeding edge) version:
 [source,bash]
@@ -493,7 +439,7 @@ port_info       :  # Port IPs. Change according to your needs. In case of loopba
             default_gw : 1.1.1.1
 ----
 <1> Edit this line to match the interfaces you are using.
-All NICs must have the same type - do not mix different NIC types in one config file. For more info, see link:http://trex-tgn.cisco.com/youtrack/issue/trex-201[trex-201].
+All NICs must have the same type - do not mix different NIC types in one config file. For more info, see link:https://trex-tgn.cisco.com/youtrack/issue/trex-201[trex-201].
 
 
 === Script for creating config file
