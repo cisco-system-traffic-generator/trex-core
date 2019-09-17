@@ -200,7 +200,7 @@ inline void IPHeader::setDestIp(uint32_t argDestAddress)
 //--------------------------------
 inline bool IPHeader::isMulticast()
 {
-    return((getDestIp() & 0xf0) == 0xe0);
+    return((getDestIp() & 0xf0000000) == 0xe0000000);
 }
 
 inline bool IPHeader::isBroadcast()
