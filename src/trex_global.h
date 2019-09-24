@@ -245,16 +245,6 @@ public:
     }
 
     void set_vlan_mode_verify(uint8_t mode);
-    bool get_mac_ip_overide_enable(){
-        return (btGetMaskBit32(m_flags,30,30) ? true:false);
-    }
-
-    void set_mac_ip_overide_enable(bool enable){
-        btSetMaskBit32(m_flags,30,30,enable?1:0);
-        if (enable) {
-            set_slowpath_features_on(enable);
-        }
-    }
 
     bool get_is_rx_check_enable(){
         return (btGetMaskBit32(m_flags,31,31) ? true:false);
@@ -421,6 +411,17 @@ public:
 
     bool getEmulDebug() {
         return (btGetMaskBit32(m_flags1, 21, 21) ? true : false);
+    }
+
+    uint8_t get_mac_ip_overide_mode() {
+        return btGetMaskBit32(m_flags, 22, 23);
+    }
+
+    void set_mac_ip_overide_mode(uint8_t mode) {
+        btSetMaskBit32(m_flags1, 22, 23, mode);
+        if ( mode ) {
+            set_slowpath_features_on(mode);
+        }
     }
 
 public:

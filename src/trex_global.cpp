@@ -346,7 +346,7 @@ void CParserOption::verify() {
             throw std::runtime_error("--client_cfg_file option can not be combined with specifing VLAN in traffic profile");
         }
 
-        if (preview.get_mac_ip_overide_enable()) {
+        if (preview.get_mac_ip_overide_mode()) {
             throw std::runtime_error("MAC override can not be combined with --client_cfg_file option");
         }
     }

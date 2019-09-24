@@ -444,6 +444,8 @@ struct CFlowYamlInfo {
         m_cap_mode=false;
         m_ipg_sec=0.01;
         m_rtt_sec=0.01;
+        m_multi_flow_was_set = false;
+        m_plugin_id = 0;
     }
 
     std::string     m_name;
@@ -465,6 +467,8 @@ struct CFlowYamlInfo {
     bool            m_cap_mode;
     bool            m_cap_mode_was_set;
     bool            m_limit_was_set;
+    bool            m_multi_flow_was_set;
+    std::vector<pkt_dir_t>  m_flows_dirs;
     CFlowYamlDynamicPyloadPlugin * m_dpPkt; /* plugin */
 
 public:
@@ -1367,6 +1371,13 @@ inline bool CFlowKey::operator ==(const CFlowKey& rhs) const{
 #define BOTH_DIR_FLOW_SE 14
 #define LEARN_MODE_ENABLE 15
 
+#define FLOW_ID_S 16
+#define FLOW_ID_E 31
+
+#define KEEP_DST_IP 0
+#define KEEP_SRC_IP 1
+#define SWAP_FLOW_DIR 2
+
 /***********************************************************/
 
 class CPacketDescriptorPerDir {
@@ -1406,6 +1417,7 @@ public:
 
     inline void Clear(){
         m_flags = 0;
+        m_flags2 = 0;
         m_flow_pkt_num=0;
         m_plugin_id=0;
         m_max_flow_pkts=0;
@@ -1542,11 +1554,11 @@ public:
     }
 
     inline void SetId(uint16_t _id){
-        btSetMaskBit32(m_flags,31,16,_id);
-
+        btSetMaskBit32(m_flags,FLOW_ID_E,FLOW_ID_S,_id);
     }
+
     inline uint16_t getId(){
-        return ( ( uint16_t)btGetMaskBit32(m_flags,31,16));
+        return ( ( uint16_t)btGetMaskBit32(m_flags,FLOW_ID_E,FLOW_ID_S));
     }
 
     inline void SetIsLastPkt(bool is_last){
@@ -1556,6 +1568,30 @@ public:
     /* last packet of couple of flows */
     inline bool IsLastPkt(){
         return (btGetMaskBit32(m_flags,IS_LAST_PKT_S,IS_LAST_PKT_E) ? true:false);
+    }
+
+    inline bool isKeepDstIP() {
+        return btGetMaskBit32(m_flags2, KEEP_DST_IP, KEEP_DST_IP);
+    }
+
+    inline void setKeepDstIP(bool is_valid) {
+        btSetMaskBit32(m_flags2, KEEP_DST_IP, KEEP_DST_IP, is_valid ? 1 : 0);
+    }
+
+    inline bool isKeepSrcIP() {
+        return btGetMaskBit32(m_flags2, KEEP_SRC_IP, KEEP_SRC_IP);
+    }
+
+    inline void setKeepSrcIP(bool is_valid) {
+        btSetMaskBit32(m_flags2, KEEP_SRC_IP, KEEP_SRC_IP, is_valid ? 1 : 0);
+    }
+
+    inline bool isSwapDir() {
+        return btGetMaskBit32(m_flags2, SWAP_FLOW_DIR, SWAP_FLOW_DIR);
+    }
+
+    inline void setSwapDir(bool is_valid) {
+        btSetMaskBit32(m_flags2, SWAP_FLOW_DIR, SWAP_FLOW_DIR, is_valid ? 1 : 0);
     }
 
     // there could be couple of flows per template in case of plugin
@@ -1599,6 +1635,7 @@ public:
 
 private:
     uint32_t    m_flags;
+    uint32_t    m_flags2;
     uint16_t    m_flow_pkt_num; // packet number inside the flow
     uint8_t     m_plugin_id; // packet number inside the flow
     uint8_t     m_pad;
@@ -2081,17 +2118,22 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
             ipv6->updateLSBIpv6Dst(flow_info->client_ip);
         }
 
-    }else{
+    } else {
+
         if ( update_len ){
             ipv4->setTotalLength((ipv4->getTotalLength() + update_len));
         }
 
-        if ( flow_info->is_init_ip_dir  ) {
-            ipv4->setSourceIp(flow_info->client_ip);
-            ipv4->setDestIp(flow_info->server_ip);
-        }else{
-            ipv4->setSourceIp(flow_info->server_ip);
-            ipv4->setDestIp(flow_info->client_ip);
+        bool keep_src_ip = m_pkt_indication.m_desc.isKeepSrcIP();
+        bool keep_dst_ip = m_pkt_indication.m_desc.isKeepDstIP();
+        uint32_t new_ip;
+        if ( likely(!keep_src_ip) ) {
+            new_ip = flow_info->is_init_ip_dir ? flow_info->client_ip : flow_info->server_ip;
+            ipv4->setSourceIp(new_ip);
+        }
+        if ( likely(!keep_dst_ip) ) {
+            new_ip = flow_info->is_init_ip_dir ? flow_info->server_ip : flow_info->client_ip;
+            ipv4->setDestIp(new_ip);
         }
 
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
@@ -2232,9 +2274,9 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             ipv6->updateLSBIpv6Src(node->m_dest_ip);
             ipv6->updateLSBIpv6Dst(node->m_src_ip);
         }
-    }else{
+    } else {
 
-        if ( unlikely ( CGlobalInfo::is_learn_mode()  ) ){
+        if ( unlikely ( CGlobalInfo::is_learn_mode()  ) ) {
             if (m_pkt_indication.m_desc.IsLearn()) {
                 /* might be done twice */
 #ifdef NAT_TRACE_
@@ -2294,31 +2336,37 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
                 if ( m_pkt_indication.m_desc.IsInitSide() ==false ){
                     printf(" %.3f : pkt ==> %x %x:%x \n",now_sec(),node->get_nat_ipv4_addr(),
                            node->get_nat_ipv4_port(),node->m_src_port);
-                }else{
+                } else {
                     printf(" %.3f : pkt ==> init pkt sent \n",now_sec());
                 }
             }
 #endif
 
 
-        }else{
-            if ( ip_dir ==  CLIENT_SIDE  ) {
+        } else {
+            bool keep_src_ip = m_pkt_indication.m_desc.isKeepSrcIP();
+            bool keep_dst_ip = m_pkt_indication.m_desc.isKeepDstIP();
+            uint32_t new_ip;
+            bool is_client_dir = (ip_dir ==  CLIENT_SIDE);
+
+            if ( likely(!keep_src_ip) ) {
+                new_ip = is_client_dir ? node->m_src_ip : node->m_dest_ip;
+                ipv4->updateIpSrc(new_ip);
+            }
+            if ( likely(!keep_dst_ip) ) {
+                new_ip = is_client_dir ? node->m_dest_ip : node->m_src_ip;
+                ipv4->updateIpDst(new_ip);
+            }
+
 #ifdef NAT_TRACE_
-                if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
-                    printf(" %.3f : i %x:%x -> %x \n",now_sec(),node->m_src_ip,node->m_src_port,node->m_dest_ip);
-                }
-#endif
-                ipv4->updateIpSrc(node->m_src_ip);
-                ipv4->updateIpDst(node->m_dest_ip);
-            }else{
-#ifdef NAT_TRACE_
-                if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
+            if (node->m_flags != CGenNode::NODE_FLAGS_LATENCY ) {
+                if ( is_client_dir ) {
+                    printf(" %.3f : i %x:%x -> %x \n", now_sec(), node->m_src_ip, node->m_src_port, node->m_dest_ip);
+                } else {
                     printf(" %.3f : r %x   -> %x:%x  \n",now_sec(),node->m_dest_ip,node->m_src_ip,node->m_src_port);
                 }
-#endif
-                ipv4->updateIpSrc(node->m_dest_ip);
-                ipv4->updateIpDst(node->m_src_ip);
             }
+#endif
         }
 
         if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
@@ -2636,7 +2684,8 @@ public:
     kCapFileErr,
     kPlugInWithLearn,
     kIPOptionNotAllowed,
-    kTCPIpgTooLow
+    kTCPIpgTooLow,
+    kOtherError,
     };
 
     bool Create();
@@ -2650,6 +2699,7 @@ public:
     void RemoveAll();
     void dump_pkt_sizes(void);
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id);
+    enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, CFlowYamlInfo &flow_info);
 
     /* update flow info */
     void update_info(CFlowYamlInfo *  info);
@@ -2724,7 +2774,7 @@ public:
 
     bool            m_one_app_server;
     bool            m_one_app_server_was_set;
-    bool            m_mac_replace_by_ip;
+    uint8_t         m_mac_ip_overide_mode;
 
     CVlanYamlInfo   m_vlan_info;
     CTupleGenYamlInfo m_tuple_gen;
@@ -3331,9 +3381,13 @@ inline  pkt_dir_t CGenNode::cur_pkt_ip_addr_dir(){
 
 /* direction for TCP/UDP port */
 inline  pkt_dir_t CGenNode::cur_pkt_port_addr_dir(){
-    CFlowPktInfo *  lp=m_pkt_info;
-    bool is_init=lp->m_pkt_indication.m_desc.IsInitSide() ;
-    return ( is_init ?CLIENT_SIDE:SERVER_SIDE);
+    CPacketDescriptor &pkt_desc = m_pkt_info->m_pkt_indication.m_desc;
+    bool is_init = pkt_desc.IsInitSide();
+    if ( pkt_desc.isSwapDir() ) {
+        return ( is_init ?SERVER_SIDE:CLIENT_SIDE);
+    } else {
+        return ( is_init ?CLIENT_SIDE:SERVER_SIDE);
+    }
 }
 /* from which interface dir to get out */
 inline  pkt_dir_t CGenNode::cur_interface_dir(){
