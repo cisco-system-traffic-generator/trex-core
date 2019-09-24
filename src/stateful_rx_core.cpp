@@ -887,6 +887,8 @@ void CLatencyManager::handle_rx_msgs(){
     uint8_t threads=CMsgIns::Ins()->get_num_threads();
     int ti;
     for (ti=0; ti<(int)threads; ti++) {
+        rx_dp->getRingCpToDp(ti)->Reschedule();
+
         CNodeRing * r = rx_dp->getRingDpToCp(ti);
         if ( !r->isEmpty() ){
             handle_rx_one_queue((uint8_t)ti,r);

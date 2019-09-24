@@ -473,12 +473,12 @@ bool TrexAstfDpCore::sync_barrier() {
 
 void TrexAstfDpCore::report_finished(profile_id_t profile_id) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreStopped(m_flow_gen->m_thread_id, profile_id);
-    m_ring_to_cp->Enqueue((CGenNode *)msg);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 
 void TrexAstfDpCore::report_error(profile_id_t profile_id, const string &error) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreError(m_flow_gen->m_thread_id, profile_id, error);
-    m_ring_to_cp->Enqueue((CGenNode *)msg);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 
 bool TrexAstfDpCore::rx_for_idle() {

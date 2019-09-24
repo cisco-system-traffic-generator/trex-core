@@ -4157,6 +4157,8 @@ void   CFlowGenListPerThread::no_memory_error(){
 
 
 bool CFlowGenListPerThread::check_msgs_from_rx() {
+    m_ring_to_rx->Reschedule();
+
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return false;
     }
