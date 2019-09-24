@@ -2019,11 +2019,26 @@ CCoreEthIFStateless::generate_slow_path_node_pkt(CGenNodeStateless *node_sl) {
 void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir) {
 
 
-    /* MAC ovverride */
-    if ( unlikely( CGlobalInfo::m_options.preview.get_mac_ip_overide_enable() ) ) {
-        /* client side */
-        if ( node->is_initiator_pkt() ) {
-            *((uint32_t*)(p+6)) = PKT_NTOHL(node->m_src_ip);
+    uint8_t mac_ip_overide_mode = CGlobalInfo::m_options.preview.get_mac_ip_overide_mode();
+    if ( unlikely( mac_ip_overide_mode ) ) {
+        switch ( mac_ip_overide_mode ) {
+            case 1: /* MAC override, only src at client side */
+                /* client side */
+                if ( node->is_initiator_pkt() ) {
+                    *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_src_ip);
+                }
+                break;
+            case 2: /* MAC override, all directions */
+                if ( node->is_initiator_pkt() ) {
+                    *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_src_ip);
+                    *((uint32_t*)(p+2)) = PKT_NTOHL(node->m_dest_ip);
+                } else {
+                    *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_dest_ip);
+                    *((uint32_t*)(p+2)) = PKT_NTOHL(node->m_src_ip);
+                }
+                break;
+            default:
+                assert(0);
         }
     }
 

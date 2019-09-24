@@ -66,7 +66,17 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"cap_mode    : %d \n",m_cap_mode?1:0);
     fprintf(fd,"plugin_id   : %d \n",m_plugin_id);
     fprintf(fd,"one_server  : %d \n",m_one_app_server?1:0);
+    fprintf(fd,"flows_dirs  : [");
+    for (int i = 0; i < m_flows_dirs.size(); i++ ) {
+        if ( i > 0 ) {
+            fprintf(fd, ", ");
+        }
+        fprintf(fd, "%d", m_flows_dirs[i]);
+    }
+    fprintf(fd,"]\n");
     fprintf(fd,"one_server_was_set  : %d \n",m_one_app_server_was_set?1:0);
+    fprintf(fd,"multi_flow_enabled  : %d \n",m_multi_flow_was_set);
+
     if (m_dpPkt) {
         m_dpPkt->Dump(fd);
     }
@@ -198,16 +208,16 @@ void CFlowKey::Dump(FILE *fd){
 void CPacketDescriptor::Dump(FILE *fd){
     fprintf(fd," IsSwapTuple : %d \n",IsSwapTuple()?1:0);
     fprintf(fd," IsSInitDir  : %d \n",IsInitSide()?1:0);
-    fprintf(fd," Isvalid : %d ",IsValidPkt()?1:0);
-    fprintf(fd," IsRtt   : %d ",IsRtt()?1:0);
-    fprintf(fd," IsLearn   : %d ",IsLearn()?1:0);
+    fprintf(fd," Isvalid     : %d \n",IsValidPkt()?1:0);
+    fprintf(fd," IsRtt       : %d \n",IsRtt()?1:0);
+    fprintf(fd," IsLearn     : %d \n",IsLearn()?1:0);
 
     if (IsTcp() ) {
         fprintf(fd," TCP ");
     }else{
         fprintf(fd," UDP ");
     }
-    fprintf(fd," IsLast Pkt   : %d ", IsLastPkt() ?1:0);
+    fprintf(fd," IsLast Pkt   : %d \n", IsLastPkt() ?1:0);
     fprintf(fd," id           : %d \n",getId() );
 
     fprintf(fd," flow_ID      : %d , max_pkts : %u, max_aging: %d sec , pkt_id : %u, init: %d   ( dir:%d  dir_max :%d  ) bid:%d \n",getFlowId(),
@@ -649,6 +659,13 @@ void CPacketIndication::ProcessIpPacket(CPacketParser *parser,
         printf("Error: packet too big. Max supported packet size is %d \n",MAX_PKT_SIZE);
         return;
     }
+
+    uint32_t src_ip = l3.m_ipv4->getSourceIp();
+    bool keep_src_ip = ( src_ip == 0);
+    m_desc.setKeepSrcIP(keep_src_ip);
+
+    bool keep_dst_ip = (l3.m_ipv4->isMulticast() || l3.m_ipv4->isBroadcast());
+    m_desc.setKeepDstIP(keep_dst_ip);
 
     // Set packet length and include padding if needed
     m_packet->pkt_len = l3.m_ipv4->getTotalLength() + getIpOffset();
@@ -1558,20 +1575,27 @@ void CCapFileFlowInfo::update_info(CFlowYamlInfo *  flow_info){
     ft.clear();
 }
 
-
 enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id) {
+    CFlowYamlInfo info;
+    info.m_plugin_id = plugin_id;
+    return load_cap_file(cap_file, _id, info);
+}
+enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::string cap_file, uint16_t _id, CFlowYamlInfo &flow_info) {
     RemoveAll();
 
     fprintf(stdout," -- loading cap file %s \n",cap_file.c_str());
     CPacketParser parser;
     CPacketIndication pkt_indication;
-    CCapReaderBase * lp=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
+    CCapReaderBase * lp_ptr=CCapReaderFactory::CreateReader((char *)cap_file.c_str(),0);
+    unique_ptr<CCapReaderBase> lp(lp_ptr);
 
     if (lp == 0) {
         printf(" ERROR file %s does not exist or not supported \n",(char *)cap_file.c_str());
         return kFileNotExist;
     }
-    bool multi_flow_enable =( (plugin_id!=0)?true:false);
+    bool is_plugin_enabled = (flow_info.m_plugin_id != 0);
+    bool is_multi_flow_enabled = flow_info.m_multi_flow_was_set;
+    bool is_custom_dirs = (flow_info.m_flows_dirs.size() > 0);
 
 
     CFlowTableMap flow;
@@ -1606,8 +1630,8 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
         if ( parser.ProcessPacket(&pkt_indication, &raw_packet) ){
 
             if ( pkt_indication.m_desc.IsValidPkt() ) {
-                pkt_indication.m_desc.SetPluginEnable(multi_flow_enable);
-                pkt_indication.m_desc.SetPluginId(plugin_id);
+                pkt_indication.m_desc.SetPluginEnable(is_plugin_enabled);
+                pkt_indication.m_desc.SetPluginId(flow_info.m_plugin_id);
 
                 pkt_indication.m_desc.SetId(_id);
                 bool is_fif;
@@ -1634,15 +1658,28 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                     lpflow->flow_id = m_total_flows;
                     pkt_indication.m_desc.SetFlowId(lpflow->flow_id);
 
+                    if ( is_custom_dirs && flow_info.m_flows_dirs.size() <= m_total_flows ) {
+                        printf("Specified %d directions, but have more flows.\n", (int)flow_info.m_flows_dirs.size());
+                        return kOtherError;
+                    }
+
                     if (m_total_flows == 0) {
                         /* first flow */
                         first_flow =lpflow;/* save it for single flow support , to signal error */
                         lpflow->is_fif_swap =pkt_indication.m_desc.IsSwapTuple();
                         first_flow_fif_is_swap = pkt_indication.m_desc.IsSwapTuple();
-                        is_init_side = true;
+                        if ( is_custom_dirs ) {
+                            is_init_side = !flow_info.m_flows_dirs[lpflow->flow_id];
+                        } else {
+                            is_init_side = true;
+                        }
                         m_total_flows++;
                     } else {
-                        if ( multi_flow_enable ) {
+                        if ( is_multi_flow_enabled ) {
+                            lpflow->is_fif_swap = pkt_indication.m_desc.IsSwapTuple();
+                            is_init_side = !flow_info.m_flows_dirs[lpflow->flow_id];
+                            m_total_flows++;
+                        } else if ( is_plugin_enabled ) {
                             lpflow->is_fif_swap = pkt_indication.m_desc.IsSwapTuple();
                             /* in respect to the first flow */
                             is_init_side = ((first_flow_fif_is_swap?true:false) == lpflow->is_fif_swap)?true:false;
@@ -1656,20 +1693,29 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                 }else{ /* no FIF */
                     pkt_indication.m_desc.SetFlowId(lpflow->flow_id);
 
-                    if ( multi_flow_enable ==false ){
+                    if ( is_custom_dirs ) {
+                        if ( flow_info.m_flows_dirs[lpflow->flow_id] ) {
+                            is_init_side = ((bool)lpflow->is_fif_swap != pkt_indication.m_desc.IsSwapTuple());
+                        } else {
+                            is_init_side = ((bool)lpflow->is_fif_swap == pkt_indication.m_desc.IsSwapTuple());
+                        }
+                    } else if ( is_plugin_enabled ) {
+                        /* work in respect to first flow */
+                        is_init_side = ((first_flow_fif_is_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
+                    } else {
                         if (lpflow == first_flow) {
                             // add to
                             is_init_side = ((lpflow->is_fif_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                         }else{
-                            //printf(" more than one flow in this cap ignot it !! \n");
+                            //printf(" more than one flow in this cap, ignore it !! \n");
                             m_total_errors++;
                         }
-                    }else{
-                        /* support multi-flow,  */
-
-                        /* work in respect to first flow */
-                        is_init_side = ((first_flow_fif_is_swap?true:false) == pkt_indication.m_desc.IsSwapTuple())?true:false;
                     }
+                }
+                if ( is_custom_dirs ) {
+                    pkt_indication.m_desc.setSwapDir(flow_info.m_flows_dirs[lpflow->flow_id]);
+                } else {
+                    pkt_indication.m_desc.setSwapDir(false);
                 }
             }else{
                 fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
@@ -1725,7 +1771,6 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     parser.Delete();
     //fprintf(stdout," -- finish loading cap file \n");
     //fprintf(stdout,"\n");
-    delete lp;
     if ( m_total_errors > 0 ) {
         parser.m_counter.Dump(stdout);
         fprintf(stderr, " ERORR in one of the cap file, you should have one flow per cap file or valid plugin \n");
@@ -1978,6 +2023,54 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
        fi.m_plugin_id=0;
    }
 
+    if ( node.FindValue("multi_flow_enabled") ){
+        node["multi_flow_enabled"] >> fi.m_multi_flow_was_set;
+    }else{
+        fi.m_multi_flow_was_set = 0;
+    }
+
+    if ( node.FindValue("flows_dirs") ){
+        const YAML::Node& flows_dirs = node["flows_dirs"];
+        if ( flows_dirs.Type() != YAML::NodeType::Sequence ) {
+            fprintf(stderr, " flow_dirs must be array\n");
+            exit(-1);
+        }
+        if ( flows_dirs.size() == 0 ) {
+            fprintf(stderr, " flow_dirs must not be empty (if specified)\n");
+            exit(-1);
+        }
+        uint32_t dir;
+        for(int i=0; i<flows_dirs.size(); i++) {
+            flows_dirs[i] >> dir;
+            if ( dir > 1 ) {
+                fprintf(stderr, " flow_dirs must contain zeroes and ones only\n");
+                exit(-1);
+            }
+            fi.m_flows_dirs.push_back(dir);
+        }
+    }
+
+    if ( fi.m_plugin_id ) {
+        if ( fi.m_multi_flow_was_set ) {
+            fprintf(stderr, " plugin_id and multi_flow_enabled are mutual exclusive\n");
+            exit(-1);
+        }
+        if ( fi.m_flows_dirs.size() ) {
+            fprintf(stderr, " plugin_id and flows_dirs are mutual exclusive\n");
+            exit(-1);
+        }
+    }
+
+    if ( fi.m_multi_flow_was_set && !fi.m_flows_dirs.size() ) {
+        fprintf(stderr, " multi_flow_enabled requires specifying directions for flows by flows_dirs\n");
+        exit(-1);
+    }
+
+    if ( fi.m_flows_dirs.size() && CGlobalInfo::is_learn_mode() ) {
+        fprintf(stderr, " flows_dirs can't work with learn mode.\n");
+        fprintf(stderr, " Contact TRex team if you need it\n");
+        exit(-1);
+    }
 
    fi.m_one_app_server_was_set = false;
    fi.m_one_app_server = false;
@@ -2119,11 +2212,28 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
        node["vlan"] >> flows_info.m_vlan_info;
    }
 
-   if (node.FindValue("mac_override_by_ip")) {
-       node["mac_override_by_ip"] >> flows_info.m_mac_replace_by_ip;
-   }else{
-       flows_info.m_mac_replace_by_ip =false;
-   }
+    if (node.FindValue("mac_override_by_ip")) {
+        const YAML::Node& mac_override_by_ip = node["mac_override_by_ip"];
+        if ( mac_override_by_ip.Type() != YAML::NodeType::Scalar ) {
+            fprintf(stderr, "mac_override_by_ip must be single value");
+            exit(-1);
+        }
+        try {
+            bool val;
+            node["mac_override_by_ip"] >> val; // legacy boolean value
+            flows_info.m_mac_ip_overide_mode = val;
+        } catch ( const YAML::InvalidScalar &e ) {
+            int32_t val;
+            node["mac_override_by_ip"] >> val;
+            if ( val < 0 || val > 2 ) {
+                fprintf(stderr," mac_override_by_ip illegal value: %d\n", val);
+                exit(-1);
+            }
+            flows_info.m_mac_ip_overide_mode = val;
+        }
+    } else {
+        flows_info.m_mac_ip_overide_mode = 0;
+    }
 
    const YAML::Node& cap_info = node["cap_info"];
    for(unsigned i=0;i<cap_info.size();i++) {
@@ -2139,7 +2249,6 @@ void operator >> (const YAML::Node& node, CFlowsYamlInfo & flows_info) {
    if ( node.FindValue("tw") ){
        node["tw"] >> flows_info.m_tw;
    }
-
 }
 
 void CVlanYamlInfo::Dump(FILE *fd){
@@ -2588,11 +2697,11 @@ bool CFlowGeneratorRec::Create(CFlowYamlInfo * info,
     m_policer.set_level(0.0);
     m_policer.set_bucket_size(100.0);
 
-    int res=m_flow_info.load_cap_file(info->m_name.c_str(),_id,m_info->m_plugin_id);
-    if ( res==0 ) {
+    CCapFileFlowInfo::load_cap_file_err res = m_flow_info.load_cap_file(info->m_name.c_str(), _id, *m_info);
+    if ( res == CCapFileFlowInfo::kOK ) {
         fixup_ipg_if_needed();
 
-        if (m_flow_info.is_valid_template_load_time() != 0) {
+        if (m_flow_info.is_valid_template_load_time() != CCapFileFlowInfo::kOK) {
             return (false);
         }
         m_flow_info.update_info(m_info);
@@ -4391,7 +4500,7 @@ int CFlowGenList::load_from_yaml(std::string file_name,
         CGlobalInfo::m_options.m_vlan_port[0] = 0;
         CGlobalInfo::m_options.m_vlan_port[1] = 0;
     }
-    CGlobalInfo::m_options.preview.set_mac_ip_overide_enable(m_yaml_info.m_mac_replace_by_ip);
+    CGlobalInfo::m_options.preview.set_mac_ip_overide_mode(m_yaml_info.m_mac_ip_overide_mode);
 
     if (m_yaml_info.m_ipv6_set == true) {
         // Copy the most significant 96-bits from yaml data
@@ -4511,6 +4620,13 @@ void CFlowGenList::DumpCsv(FILE *fd){
         lp->getFlowStats(&stats);
         stats.Dump(fd);
         sum.Add(stats);
+    }
+    if ( isVerbose(3) ) {
+        for (i=0; i<(int)m_cap_gen.size(); i++) {
+            fprintf(fd, "\nTemplate #%d, extra info:\n", i);
+            CFlowGeneratorRec * lp=m_cap_gen[i];
+            lp->m_info->Dump(fd);
+        }
     }
     fprintf(fd,"\n");
     sum.m_name= "sum";

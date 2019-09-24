@@ -996,28 +996,39 @@ TRex divides the flows evenly between the vlans. This results in an equal amount
 <6> TRex destination port MAC address
 <7> PBR configuration rules
 
-=== Static source MAC address setting
+=== Alternating MAC address by IP
 
-With this feature, TRex replaces the source MAC address with the client IP address.
+With this feature, TRex replaces the MAC address(es) with the IP address.
 
- Note: This feature was requested by the Cisco ISG group.
-
-
-*YAML:*::
-[source,python]
-----
- mac_override_by_ip : true
-----
+ Note: This feature was originally requested by the Cisco ISG group.
 
 .Example
 [source,python]
 ----
-- duration : 0.1
- ..
-  mac_override_by_ip : true <1>
+- duration: 0.1
+  ...
+  mac_override_by_ip: true
 ----
-<1> In this case, the client side MAC address looks like this:
-SRC_MAC = IPV4(IP) + 00:00
+
+There are several modes: +
+
+* *0*, (legacy value: *false*) - Take the MACs from port config/ARP query. This is default mode.
+* *1*, (legacy value: *true*) - Replace only source MACs only in packets sent by client
+* *2* - Replace all MACs in all directions.
+
+==== Version v2.61 and older
+* Only boolean values were accepted (mode 0 and 1)
+* The MAC will consist of 4 IP bytes followed by 2 last bytes of MAC of TRex interface. +
+For example, if interface MAC is AA:BB:CC:DD:EE:FF and IP is 1.2.3.4: +
+Result MAC = 01:02:03:04:EE:FF
+
+==== Version v2.62 and newer
+* Added mode 2 to replace all MACs in all directions.
+* Boolean values are accepted for backward compatibility.
+* The MAC will consist of 2 first bytes of MAC of TRex interface followed by 4 IP bytes. +
+For example, if interface MAC is AA:BB:CC:DD:EE:FF and IP is 1.2.3.4: +
+Result MAC = AA:BB:01:02:03:04
+
 
 === IPv6 support
 
@@ -1868,7 +1879,7 @@ Cpu Utilization : 0.1 %                                                         
 <4> The following two options can set the min ipg in microseconds: (if (pkt_ipg<cap_ipg_min) { pkt_ipg=cap_override_ipg} )
 <5> Value to override (microseconds), as described in note above.
 <6> Enable load balance feature. See xref:trex_load_bal[trex load balance section] for info.
-<7> Enable MAC address replacement by client IP.
+<7> Enable MAC address replacement based on IP. link:trex_manual.html#_static_source_mac_address_setting[Full explanation].
 <8> See tuple generator
 <9> Deprecated. not used
 <10> Deprecated. not used
