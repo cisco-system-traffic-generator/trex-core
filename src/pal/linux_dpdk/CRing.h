@@ -27,6 +27,7 @@ limitations under the License.
 #include <string>
 #include <rte_config.h>
 #include <rte_ring.h>
+#include <queue>
 
 class CRingSp {
 public:
@@ -75,12 +76,47 @@ class CTRingSp : public CRingSp {
 public:
     int Enqueue(T *obj){
         assert(obj);
+        if (!Reschedule()) {
+            return -1;
+        }
         return ( CRingSp::Enqueue((void*)obj) );
     }
 
     int Dequeue(T * & obj){
         return (CRingSp::Dequeue(*((void **)&obj)));
     }
+
+    void Delete(void){
+        while (!m_resched_q.empty()) {
+            T* obj = m_resched_q.front();
+            delete obj;
+            m_resched_q.pop();
+        }
+        CRingSp::Delete();
+    }
+
+    bool Reschedule() {
+        while(!m_resched_q.empty() && !isFull()) {
+            T* obj = m_resched_q.front();
+            CRingSp::Enqueue((void*)obj);
+            m_resched_q.pop();
+        }
+        return m_resched_q.empty();
+    }
+
+    void SecureEnqueue(T *obj, bool use_resched=false) {
+        while (!Reschedule() || isFull()) {
+            if (use_resched) {
+                m_resched_q.push(obj);
+                return;
+            }
+        }
+        CRingSp::Enqueue((void*)obj);
+    }
+
+private:
+    // message rescheduling when rte_ring is full
+    std::queue<T *> m_resched_q;
 };
 
 

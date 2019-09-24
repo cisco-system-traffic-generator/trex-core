@@ -105,6 +105,8 @@ public:
         // doing this inline for performance reasons
 
         /* fast path */
+        m_ring_to_cp->Reschedule();
+
         if ( likely ( m_ring_from_cp->isEmpty() ) ) {
             return false;
         }

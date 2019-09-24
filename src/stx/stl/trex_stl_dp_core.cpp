@@ -1542,7 +1542,7 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                                               0,
                                                               event_id,
                                                               false);
-        ring->Enqueue((CGenNode *)event_msg);
+        ring->SecureEnqueue((CGenNode *)event_msg, true);
         return;
     }
 
@@ -1592,7 +1592,7 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
                                                           port_id,
                                                           profile_id,
                                                           event_id);
-    ring->Enqueue((CGenNode *)event_msg);
+    ring->SecureEnqueue((CGenNode *)event_msg, true);
 }
 
 

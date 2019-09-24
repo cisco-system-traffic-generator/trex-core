@@ -105,7 +105,7 @@ TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
     
     for (int i = 0; i < max_threads; i++) {
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
-        ring->Enqueue((CGenNode*)msg->clone());
+        ring->SecureEnqueue((CGenNode*)msg->clone());
     }
     
     delete msg;
@@ -117,7 +117,7 @@ TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
 void
 TrexSTX::send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
-    ring->Enqueue((CGenNode*)msg->clone());
+    ring->SecureEnqueue((CGenNode*)msg->clone());
     delete msg;
 }
 
@@ -128,7 +128,7 @@ void
 TrexSTX::send_msg_to_rx(TrexCpToRxMsgBase *msg) const {
 
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    ring->Enqueue((CGenNode *)msg);
+    ring->SecureEnqueue((CGenNode *)msg);
 }
 
 
@@ -180,6 +180,9 @@ TrexSTX::check_for_dp_messages() {
 
     /* for all the cores - check for a new message */
     for (int i = 0; i < m_dp_core_count; i++) {
+        CNodeRing *ring_to_dp = CMsgIns::Ins()->getCpDp()->getRingCpToDp(i);
+        ring_to_dp->Reschedule();
+
         check_for_dp_message_from_core(i);
     }
 }
