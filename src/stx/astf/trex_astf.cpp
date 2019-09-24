@@ -459,9 +459,9 @@ void TrexAstf::handle_stop_latency() {
 void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
     if ( clone ) {
-        ring->Enqueue((CGenNode *)msg->clone());
+        ring->SecureEnqueue((CGenNode *)msg->clone(), true);
     } else {
-        ring->Enqueue((CGenNode *)msg);
+        ring->SecureEnqueue((CGenNode *)msg, true);
     }
 }
 

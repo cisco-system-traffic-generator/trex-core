@@ -46,7 +46,7 @@ TrexDpCore::barrier(uint8_t port_id, uint32_t profile_id, int event_id) {
                                                           port_id,
                                                           profile_id,
                                                           event_id);
-    ring->Enqueue((CGenNode *)event_msg);
+    ring->SecureEnqueue((CGenNode *)event_msg, true);
 }
 
 

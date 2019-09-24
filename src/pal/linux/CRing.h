@@ -89,6 +89,14 @@ public:
     int Dequeue(T * & obj){
         return (CRingSp::Dequeue(*((void **)&obj)));
     }
+
+    bool Reschedule() {
+        return true;
+    }
+
+    void SecureEnqueue(T *obj, bool use_resched=false) {
+        CRingSp::Enqueue((void*)obj);
+    }
 };
 
 

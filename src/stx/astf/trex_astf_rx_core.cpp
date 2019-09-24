@@ -203,6 +203,8 @@ bool CRxAstfCore::work_tick(void) {
 uint32_t CRxAstfCore::handle_msg_packets(void) {
     uint32_t pkts = 0;
     for (uint8_t thread_id=0; thread_id<m_tx_cores; thread_id++) {
+        m_rx_dp->getRingCpToDp(thread_id)->Reschedule();
+
         CNodeRing *r = m_rx_dp->getRingDpToCp(thread_id);
         pkts += handle_rx_one_queue(thread_id, r);
     }

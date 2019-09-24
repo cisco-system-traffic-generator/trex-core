@@ -305,7 +305,7 @@ TrexPort::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
 
     /* send the message to the core */
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
-    ring->Enqueue((CGenNode *)msg);
+    ring->SecureEnqueue((CGenNode *)msg, true);
 }
 
 
@@ -314,7 +314,7 @@ TrexPort::send_message_to_rx(TrexCpToRxMsgBase *msg) {
 
     /* send the message to the core */
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    ring->Enqueue((CGenNode *)msg);
+    ring->SecureEnqueue((CGenNode *)msg);
 }
 
 
