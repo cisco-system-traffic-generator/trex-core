@@ -6152,7 +6152,8 @@ COLD_FUNC int  update_dpdk_args(void){
         } else {
             mem_str = "1024";
         }
-        SET_ARGS(mem_str.c_str());
+        snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str.c_str());
+        SET_ARGS(g_socket_mem_str);
     } else {
         dpdk_input_args_t & dif = *port_map.get_dpdk_input_args();
 
