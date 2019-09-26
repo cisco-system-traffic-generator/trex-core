@@ -1038,6 +1038,7 @@ public:
     /* profile management */
 private:
     std::unordered_map<profile_id_t, CPerProfileCtx*> m_profiles;
+    std::unordered_map<profile_id_t, CPerProfileCtx*> m_active_profiles;
 
 public:
     bool is_profile_ctx(profile_id_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
@@ -1047,13 +1048,14 @@ public:
 #ifdef TREX_SIM
         if (profile_id == 0 && !is_profile_ctx(0)) {
             create_profile_ctx(0);  // default profile need to be static in simulator.
+            append_active_profile(0);
         }
 #endif
         return m_profiles.at(profile_id);
     }
     CPerProfileCtx* get_first_profile_ctx() {
-        assert(m_profiles.size() != 0);
-        return m_profiles.begin()->second;
+        assert(m_active_profiles.size() != 0);
+        return m_active_profiles.begin()->second;
     }
     void create_profile_ctx(profile_id_t profile_id) {
         CPerProfileCtx* pctx;
@@ -1074,6 +1076,18 @@ public:
         if (is_profile_ctx(profile_id)) {
             delete m_profiles[profile_id];
             m_profiles.erase(profile_id);
+        }
+    }
+
+    void append_active_profile(profile_id_t profile_id) {
+        if (is_profile_ctx(profile_id)) {
+            m_active_profiles[profile_id] = m_profiles.at(profile_id);
+        }
+    }
+
+    void remove_active_profile(profile_id_t profile_id) {
+        if (is_profile_ctx(profile_id)) {
+            m_active_profiles.erase(profile_id);
         }
     }
 
