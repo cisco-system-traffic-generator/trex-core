@@ -1892,17 +1892,18 @@ Cpu Utilization : 0.1 %                                                         
 see xref:timer_w[Timer Wheel section]
 
 ==== Per template section
-// clarify "per template"
 
 [source,python]
 ----
-     - name: cap2/dns.pcap <1>
-       cps : 10.0          <2>
-       ipg : 10000         <3>
-       rtt : 10000         <4>
-       w   : 1             <5>
-       server_addr : "48.0.0.7"    <6>
-       one_app_server : true       <7>
+     - name: cap2/dns.pcap          <1>
+       cps : 10.0                   <2>
+       ipg : 10000                  <3>
+       rtt : 10000                  <4>
+       w   : 1                      <5>
+       server_addr : "48.0.0.7"     <6>
+       one_app_server : true        <7>
+       multi_flow_enabled: true     <8>
+       flows_dirs: [0, 1]           <9>
 
 ----
 <1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
@@ -1912,6 +1913,10 @@ see xref:timer_w[Timer Wheel section]
 <5> Default value: w=1. This indicates to the IP generator how to generate the flows. If w=2, two flows from the same template will be generated in a burst (more for HTTP that has burst of flows).
 <6> If `one_app_server` is set to true, then all templates will use the same server.
 <7> If the same server address is required, set this value to true.
+<8> New in version v2.62. When set, allows several flows to be present in template. Requires flows_dirs to be configured to specify direction for *each* flow. +
+ Note: IP values from the pool as well as source port will be the same for all flows in the pcap.
+<9> New in version v2.62. Sets direction of flow(s). If set to 0, has no effect. If set to 1, server will initiate the flow (with its IP) towards client with original dest port. +
+ Note: does *not* work with --learn modes.
 
 
 

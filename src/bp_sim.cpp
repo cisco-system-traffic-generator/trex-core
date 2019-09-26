@@ -1773,7 +1773,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     //fprintf(stdout,"\n");
     if ( m_total_errors > 0 ) {
         parser.m_counter.Dump(stdout);
-        fprintf(stderr, " ERORR in one of the cap file, you should have one flow per cap file or valid plugin \n");
+        fprintf(stderr, " ERORR in one of the cap file, you should have one flow per cap file, set valid plugin or multi_flow_enabled flag\n");
         return kCapFileErr;
     }
     return kOK;

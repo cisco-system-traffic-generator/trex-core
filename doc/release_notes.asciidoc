@@ -26,6 +26,18 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.62 ==
+
+* STF
+** Keep Multicast/Broadcast destination IPs upon sending
+** Keep zero source IP upon sending
+** Add multi_flow_enabled and flows_dirs per template options, see link:trex_manual.html#_per_template_section[documentation]
+** Changes to mac_override_by_ip option: (link:trex_manual.html#_alternating_mac_address_by_ip[more info])
+*** Add one more mode to change all MACs in all directions.
+*** Change the offset in MAC where the IP is written: +
+Older versions wrote to upper 4 bytes. +
+From this version on it writes to lower 4 bytes.
+
 == Release 2.61 ==
 
 Minor version 
