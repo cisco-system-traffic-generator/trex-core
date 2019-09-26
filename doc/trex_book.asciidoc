@@ -78,9 +78,8 @@ TRex should work on any COTS x86 server (it can be compiled to ARM but not teste
 Our regression setups uses Cisco UCS hardware for high performance low latency use cases. 
 The following platforms have been tested and are recommended for operating TRex.
 
-Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/tun/physical wireless interfaces). 
+Another option to run TRex for low performance and low footprint (~1MPPS limited by the kernel) is to use the kernel interfaces in raw socket mode (require super user). In this way TRex can run almost on any Linux platform and any Linux interfaces (e.g. veth/tap/physical wireless interfaces. tun interfaces won't work as there is no L2). 
 Docker example is provided link:trex_vm_manual.html#docker[Docker] for more info see xref:low_end[low footprint] and xref:linux_interfaces[Linux interfaces]
-
 
 [NOTE]
 =====================================
