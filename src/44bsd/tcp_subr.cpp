@@ -717,8 +717,6 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
         return(false);
     }
 
-    create_profile_ctx(0);  // create default profile
-
     return(true);
 }
 

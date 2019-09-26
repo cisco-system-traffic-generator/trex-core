@@ -563,6 +563,9 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_c_tcp->set_template_rw(rw, profile_id);
     m_s_tcp->set_template_rw(rw, profile_id);
 
+    m_c_tcp->append_active_profile(profile_id);
+    m_s_tcp->append_active_profile(profile_id);
+
     if (is_first) {
         m_c_tcp->update_tuneables(rw->get_c_tuneables());
         m_s_tcp->update_tuneables(rw->get_s_tuneables());
@@ -580,6 +583,9 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
 
 void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last) {
     m_s_tcp->remove_server_ports(profile_id);
+
+    m_c_tcp->remove_active_profile(profile_id);
+    m_s_tcp->remove_active_profile(profile_id);
 
     if ( CAstfDB::has_instance(profile_id) ) {
         CAstfDB::instance(profile_id)->clear_db_ro_rw(nullptr, m_thread_id);
