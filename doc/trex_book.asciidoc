@@ -324,16 +324,7 @@ Example: 4x 10Gb/sec TRex configuration (see output below):
 
 Use `ssh` to connect to the TRex machine and execute the commands described below.
 
-NOTE: Prerequisite: *$TREX_WEB_URL* is *{web_server_url}* or *{local_web_server_url}* (Cisco internal)
-// Clarify the note above and probably should not have the Cisco internal part
-
-NOTE: Only https is supported 
-
-TIP: For easier copy/paste, begin by assigning a temporary local variable to denote the appropriate TRex TREX_WEB_URL:
-[source,bash]
-----
-[bash]>TREX_WEB_URL=https://<AS PER ABOVE PRE-REQUISITE NOTE>
-----
+NOTE: Only *https* is supported 
 
 Latest (stable) release:
 
@@ -341,20 +332,20 @@ Latest (stable) release:
 ----
 [bash]>mkdir -p /opt/trex
 [bash]>cd /opt/trex
-[bash]>wget --no-cache ${TREX_WEB_URL}/release/latest
+[bash]>wget --no-cache https://trex-tgn.cisco.com/trex/release/latest
 [bash]>tar -xzvf latest
 ----
 
 Latest (bleeding edge) version:
 [source,bash]
 ----
-[bash]>wget --no-cache ${TREX_WEB_URL}/release/be_latest
+[bash]>wget --no-cache https://trex-tgn.cisco.com/trex/release/be_latest
 ----
 
 To obtain a specific version:
 [source,bash]
 ----
-[bash]>wget --no-cache ${TREX_WEB_URL}/release/vX.XX.tar.gz #<1>
+[bash]>wget --no-cache https://trex-tgn.cisco.com/trex/release/vX.XX.tar.gz #<1>
 ----
 <1> where X.XX = major.minor version number as per https://trex-tgn.cisco.com/trex/doc/release_notes.html
 
