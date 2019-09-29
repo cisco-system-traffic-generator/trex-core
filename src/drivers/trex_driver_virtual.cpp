@@ -45,6 +45,8 @@ TRexPortAttr* CTRexExtendedDriverAfPacket::create_port_attr(tvpid_t tvpid, repid
     return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, false);
 }
 
+
+
 CTRexExtendedDriverMlnx4::CTRexExtendedDriverMlnx4() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE | TREX_DRV_CAP_MAC_ADDR_CHG ;
 }
@@ -196,3 +198,23 @@ CTRexExtendedDriverIxgbevf::CTRexExtendedDriverIxgbevf() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
+    
+CTRexExtendedDriverAzure::CTRexExtendedDriverAzure(){
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;;
+}
+
+TRexPortAttr* CTRexExtendedDriverAzure::create_port_attr(tvpid_t tvpid,repid_t repid){
+    return new DpdkTRexPortAttr(tvpid, repid, true, false, true, false, false);
+}
+
+bool CTRexExtendedDriverAzure::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
+    cfg->m_port_conf.rxmode.offloads = 0;
+    // AF Packet does not claim as supporting multi-segment send.
+    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+}

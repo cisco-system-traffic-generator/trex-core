@@ -3841,13 +3841,32 @@ static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
     return (false);
 }
 
+COLD_FUNC void  dump_dpdk_devices(void){
+        printf(" DPDK devices %d : %d \n", rte_eth_dev_count(),
+         rte_eth_dev_count_total());
+        printf("-----\n");  
+        char name[100];
+        int j;
+        for (j=0; j < rte_eth_dev_count_total(); j++){
+            if (rte_eth_dev_get_name_by_port((uint16_t)j,name) == 0) {
+                printf(" %d : vdev %s \n",j,name);
+            }
+        }
+        printf("-----\n");
+}
+
 
 COLD_FUNC int  CGlobalTRex::device_prob_init(void){
 
-    if ( CGlobalInfo::m_options.m_is_vdev ) {
-        m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
-    } else {
-        m_max_ports = port_map.get_max_num_ports();
+    if ( isVerbose(0) ) {
+       dump_dpdk_devices();
+    }
+
+   if (CGlobalInfo::m_options.m_is_vdev) {
+      m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+    }
+    else {
+      m_max_ports = port_map.get_max_num_ports();
     }
 
     if (m_max_ports == 0)
@@ -4017,7 +4036,7 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
 
 
     return (0);
-}
+    }
 
 COLD_FUNC int  CGlobalTRex::cores_prob_init(){
     m_max_cores = rte_lcore_count();
@@ -6230,6 +6249,11 @@ COLD_FUNC int  update_dpdk_args(void){
         }
     }
 
+    /* dpdk extenstion */
+    for (std::string &opts : cg->m_ext_dpdk) {
+        SET_ARGS(opts.c_str());
+    }
+
     if ( lpp->getVMode() > 0  ) {
         printf("DPDK args \n");
         int i;
@@ -6666,6 +6690,30 @@ COLD_FUNC void reorder_dpdk_ports() {
 
     CTRexPortMapper * lp=CTRexPortMapper::Ins();
 
+    CPlatformYamlInfo *cg=&global_platform_cfg_info;
+
+    if ( cg->m_if_list_vdevs.size()  > 0 ) {
+        if ( isVerbose(0) ){
+           printf(" size of interfaces_vdevs %d",cg->m_if_list_vdevs.size());
+        }
+        int if_index = 0;
+        for (std::string &opts : cg->m_if_list_vdevs) {
+            uint16_t port_id;
+            int ret = rte_eth_dev_get_port_by_name((const char *)opts.c_str(), &port_id);
+        	if (ret) {
+                 printf("Failed to find  %s in DPDK vdev ", opts.c_str());
+                 dump_dpdk_devices();
+                 exit(1);
+	        }
+            if ( isVerbose(0) ){
+                printf(" ===>>>found %s %d \n",opts.c_str(),port_id);
+            }
+            lp->set_map(if_index,port_id);
+            if_index++;
+        }
+        return;
+    }
+   
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         uint8_t if_index = 0;
         for (int i=0; i<global_platform_cfg_info.m_if_list.size(); i++) {

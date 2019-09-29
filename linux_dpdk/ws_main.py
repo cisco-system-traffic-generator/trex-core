@@ -760,6 +760,31 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
                  'lib/librte_eal/common/arch/x86/rte_spinlock.c',
                  'lib/librte_eal/common/arch/x86/rte_cycles.c',
+                 'lib/librte_eal/common/arch/x86/rte_hypervisor.c',
+
+                 #failsafe
+
+                 'drivers/net/failsafe/failsafe.c',
+                 'drivers/net/failsafe/failsafe_args.c',
+                 'drivers/net/failsafe/failsafe_eal.c',
+                 'drivers/net/failsafe/failsafe_ops.c',
+                 'drivers/net/failsafe/failsafe_rxtx.c',
+                 'drivers/net/failsafe/failsafe_ether.c',
+                 'drivers/net/failsafe/failsafe_flow.c',
+                 'drivers/net/failsafe/failsafe_intr.c',
+
+                #tap 
+
+                 'drivers/net/tap/rte_eth_tap.c',
+                 'drivers/net/tap/tap_flow.c',
+                 'drivers/net/tap/tap_netlink.c',
+                 'drivers/net/tap/tap_tcmsgs.c',
+                 'drivers/net/tap/tap_bpf_api.c',
+                 'drivers/net/tap/tap_intr.c',
+                 
+                 #vdev_netvsc
+                 'drivers/net/vdev_netvsc/vdev_netvsc.c',
+
                  ])
 
 
@@ -893,6 +918,12 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_pci/rte_pci.c',
                  'lib/librte_ring/rte_ring.c',
                  'lib/librte_timer/rte_timer.c',
+                 'lib/librte_gso/rte_gso.c',
+                 'lib/librte_gso/gso_common.c',
+                 'lib/librte_gso/gso_tcp4.c',
+                 'lib/librte_gso/gso_tunnel_tcp4.c',
+                 'lib/librte_gso/gso_udp4.c',
+
             ]);
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
@@ -1109,6 +1140,9 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
+                        ../src/dpdk/drivers/net/tap/
+                        ../src/dpdk/drivers/net/failsafe/
+                        ../src/dpdk/drivers/net/vdev_netvsc/
                         ../src/dpdk/drivers/net/e1000/
                         ../src/dpdk/drivers/net/e1000/base/
                         ../src/dpdk/drivers/net/enic/
@@ -1144,6 +1178,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_eal/linux/eal/include/exec-env/
                         ../src/dpdk/lib/librte_ethdev/
                         ../src/dpdk/lib/librte_hash/
+                        ../src/dpdk/lib/librte_gso/
                         ../src/dpdk/lib/librte_kvargs/
                         ../src/dpdk/lib/librte_mbuf/
                         ../src/dpdk/lib/librte_mempool/
@@ -1158,6 +1193,8 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/bus/pci/
                         ../src/dpdk/drivers/bus/vdev/
                         ../src/dpdk/drivers/bus/pci/linux/
+                        ../external_libs/dpdk_linux_tap_cross/
+
                     ''';
 
 # Include arch specific folder before generic folders
@@ -1190,9 +1227,9 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march != 'aarch64':
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
 else:
-    DPDK_FLAGS=['-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',

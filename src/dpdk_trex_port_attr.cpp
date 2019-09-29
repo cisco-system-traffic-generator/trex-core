@@ -145,7 +145,7 @@ void DpdkTRexPortAttr::dump_link(FILE *fd){
     fprintf(fd,"link         : ");
     if (m_link.link_status) {
         fprintf(fd," link : Link Up - speed %u Mbps - %s\n",
-                (unsigned) m_link.link_speed,
+                (unsigned) get_link_speed(),
                 (m_link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
                 ("full-duplex") : ("half-duplex\n"));
     } else {
@@ -176,7 +176,7 @@ void DpdkTRexPortAttr::update_device_info(){
         intf_info_st.pci_addr = pci;
         intf_info_st.numa_node = m_dev_info.device->numa_node;
     } else {
-        assert(!ret);
+        //assert(!ret);
         intf_info_st.pci_addr = "N/A";
         intf_info_st.numa_node = -1;
     }
@@ -196,6 +196,9 @@ void DpdkTRexPortAttr::get_supported_speeds(supp_speeds_t &supp_speeds){
 
 void DpdkTRexPortAttr::update_link_status(){
     rte_eth_link_get(m_repid, &m_link);
+    if (m_link.link_speed > ETH_SPEED_NUM_100G ){
+        m_link.link_speed = ETH_SPEED_NUM_100G;
+    }
 }
 
 int DpdkTRexPortAttr::set_promiscuous(bool enable){
