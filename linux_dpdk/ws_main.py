@@ -1798,6 +1798,7 @@ files_list=[
             'doc_process.py',
             'trex_daemon_server',
             'scapy_daemon_server',
+            'pybird_daemon_server',
             'master_daemon.py',
             'astf_schema.json',
             'trex-console',
