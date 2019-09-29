@@ -8,6 +8,7 @@ struct rte_eth_link {
     int link_status;
 };
 
+#define ETH_SPEED_NUM_100G    100000 /**< 100 Gbps */
 
 enum rte_eth_fc_mode {
 };

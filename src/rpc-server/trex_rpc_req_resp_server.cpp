@@ -160,7 +160,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
         }
 
         /* timeout ? */
-        if (errno == EAGAIN) {
+        if (errno == EAGAIN || errno == EINTR) {
             continue;
         }
 
@@ -172,7 +172,8 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
             return false;
         } else {
             /* abnormal error - abort */
-            error("ZMQ unhandled error code: " + std::to_string(errno), true);
+            printf(" ZMQ unhandled error code %d somthing very strange !",errno);
+            //error("ZMQ unhandled error code: " + std::to_string(errno), false);
         }
     }
 

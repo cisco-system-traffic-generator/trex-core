@@ -152,6 +152,9 @@ CTRexExtendedDriverDb::CTRexExtendedDriverDb() {
 
     /* raw socket */
     register_driver(std::string("net_af_packet"), CTRexExtendedDriverAfPacket::create);
+    register_driver(std::string("net_tap"),
+                    CTRexExtendedDriverAfPacket::create);
+    register_driver(std::string("net_failsafe"),CTRexExtendedDriverAzure::create);
 
     m_driver_was_set=false;
     m_dummy_selector_created=false;

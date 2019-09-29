@@ -47,7 +47,7 @@ public:
     virtual bool get_promiscuous() = 0;
     virtual bool get_multicast() = 0;
     virtual void get_hw_src_mac(struct ether_addr *mac_addr) = 0;
-    virtual uint32_t get_link_speed() { return m_link.link_speed; } // L1 Mbps
+    virtual uint32_t get_link_speed() { return m_link.link_speed < ETH_SPEED_NUM_100G? m_link.link_speed: ETH_SPEED_NUM_100G; } // L1 Mbps
     virtual bool is_link_duplex() { return (m_link.link_duplex ? true : false); }
     virtual bool is_link_autoneg() { return (m_link.link_autoneg ? true : false); }
     virtual bool is_link_up() { return (m_link.link_status ? true : false); }

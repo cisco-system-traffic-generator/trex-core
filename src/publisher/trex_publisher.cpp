@@ -117,13 +117,17 @@ TrexPublisher::publish_zipped_json(const std::string &s) {
 
     TrexRpcZip::compress(s, compressed_msg);
     int size = zmq_send (m_publisher, compressed_msg.c_str(), compressed_msg.length(), 0);
-    assert(size == compressed_msg.length());
+    if (size > 0) {
+      assert(size == compressed_msg.length());
+    }
 }
 
 void 
 TrexPublisher::publish_raw_json(const std::string &s) {
      int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
-     assert(size == s.length());
+     if (size > 0) {
+        assert(size == s.length());
+     }
 }
 
 void

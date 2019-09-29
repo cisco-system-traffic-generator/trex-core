@@ -395,12 +395,33 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_if_list.push_back(fi);
     }
 
+    if (node.FindValue("ext_dpdk_opt") ){
+      const YAML::Node &dpdks = node["ext_dpdk_opt"];
 
-    if ( node.FindValue("port_limit") ){
-        node["port_limit"] >> plat_info.m_port_limit;
-        plat_info.m_port_limit_exist=true;
+      for (unsigned i = 0; i < dpdks.size(); i++) {
+        std::string fi;
+        const YAML::Node &node = dpdks;
+        node[i] >> fi;
+        plat_info.m_ext_dpdk.push_back(fi);
+      }
     }
 
+    if (node.FindValue("interfaces_vdevs") ){
+      const YAML::Node &dpdks = node["interfaces_vdevs"];
+
+      for (unsigned i = 0; i < dpdks.size(); i++) {
+        std::string fi;
+        const YAML::Node &node = dpdks;
+        node[i] >> fi;
+        plat_info.m_if_list_vdevs.push_back(fi);
+      }
+    }
+
+
+    if (node.FindValue("port_limit")) {
+      node["port_limit"] >> plat_info.m_port_limit;
+      plat_info.m_port_limit_exist = true;
+    }
 
     plat_info.m_enable_zmq_pub_exist = true;
 
@@ -563,6 +584,22 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd," %s,",m_if_list[i].c_str());
     }
     fprintf(fd,"\n");
+
+    if (m_ext_dpdk.size()) {
+      fprintf(fd, " ext_dpdk  : ");
+      for (i = 0; i < (int)m_ext_dpdk.size(); i++) {
+        fprintf(fd, " %s,", m_ext_dpdk[i].c_str());
+      }
+      fprintf(fd, "\n");
+    }
+
+    if (m_if_list_vdevs.size()) {
+      fprintf(fd, " interfaces_vdevs  : ");
+      for (i = 0; i < (int)m_if_list_vdevs.size(); i++) {
+        fprintf(fd, " %s,", m_if_list_vdevs[i].c_str());
+      }
+      fprintf(fd, "\n");
+    }
 
     if ( m_enable_zmq_pub_exist ){
         fprintf(fd," enable_zmq_pub :  %d \n",m_enable_zmq_pub?1:0);
