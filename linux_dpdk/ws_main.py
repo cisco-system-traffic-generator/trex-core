@@ -1922,7 +1922,7 @@ def release(ctx, custom_dir = None):
     for obj in pkg_include:
         src_file =  '../scripts/'+obj+'/'
         dest_file = exec_p +'/'+obj+'/'
-        os.system("rsync -r -v %s %s %s" % (src_file, dest_file, exclude));
+        os.system("rsync -r -L -v %s %s %s" % (src_file, dest_file, exclude));
         os.system("chmod 755 %s " %(dest_file));
 
     for obj in pkg_make_dirs:
