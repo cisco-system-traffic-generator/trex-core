@@ -377,6 +377,7 @@ TEST_F(RpcTest, get_system_info) {
 
     for (int i = 0; i < ports.size(); i++) {
         EXPECT_TRUE(ports[i]["index"] == i);
+        EXPECT_TRUE(ports[i]["stack"].isString());
         EXPECT_TRUE(ports[i]["driver"].isString());
         EXPECT_TRUE(ports[i]["speed"].isString());
     }

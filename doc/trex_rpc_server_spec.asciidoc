@@ -46,7 +46,10 @@ include::trex_ga.asciidoc[]
 - add capture port support
 | 1.8    | Hanoch Haim (hhaim)
 |
-- add astf commands 
+- add astf commands
+| 1.9    | Egor Blagov (eblagov)
+|
+- add stack name in `get_system_info`
 
 |=================
 
@@ -410,6 +413,7 @@ Example:
 | description         | string   | description of port
 | driver              | string   | driver type
 | numa                | int      | NUMA of port
+| stack               | string   | stack name
 | pci_addr            | string   | PCI address of port
 | hw_macaddr          | string   | HW MAC of port (masked by src_macaddr)
 | src_macaddr         | string   | src MAC of port
