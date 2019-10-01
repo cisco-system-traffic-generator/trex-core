@@ -435,6 +435,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port_json["pci_addr"]     = port_info.pci_addr;
         port_json["numa"]         = port_info.numa_node;
         port_json["hw_mac"]       = utl_macaddr_to_str(port_info.hw_macaddr);
+        port_json["stack"]        = port.second->get_stack_name();
 
         port_json["description"]  = api.getPortAttrObj(i)->get_description();
         
