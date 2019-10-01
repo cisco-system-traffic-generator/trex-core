@@ -30,10 +30,11 @@ astf_states = [
     'STATE_ASTF_PARSE',
     'STATE_ASTF_BUILD',
     'STATE_TX',
-    'STATE_ASTF_CLEANUP']
+    'STATE_ASTF_CLEANUP',
+    'STATE_ASTF_DELETE']
 
 class ASTFClient(TRexClient):
-    port_states = [getattr(ASTFPort, state) for state in astf_states]
+    port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
 
     def __init__(self,
                  username = get_current_user(),
@@ -95,6 +96,7 @@ class ASTFClient(TRexClient):
         self.topo_mngr     = ASTFTopologyManager(self)
         self.sync_waiting = False
         self.last_error = ''
+        self.last_profile_error = {}
         self.epoch = None
         self.state = None
         for index, state in enumerate(astf_states):
@@ -102,7 +104,8 @@ class ASTFClient(TRexClient):
         self.transient_states = [
             self.STATE_ASTF_PARSE,
             self.STATE_ASTF_BUILD,
-            self.STATE_ASTF_CLEANUP]
+            self.STATE_ASTF_CLEANUP,
+            self.STATE_ASTF_DELETE]
         self.astf_profile_state = {'_': 0}
 
 
@@ -141,11 +144,12 @@ class ASTFClient(TRexClient):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
         return RC_OK()
 
+
     def _on_astf_state_chg(self, ctx_state, error, epoch):
         if ctx_state < 0 or ctx_state >= len(astf_states):
             raise TRexError('Unhandled ASTF state: %s' % ctx_state)
 
-        if epoch is None or epoch != self.epoch:
+        if epoch is None or self.epoch is None:
             return
 
         self.last_error = error
@@ -163,16 +167,16 @@ class ASTFClient(TRexClient):
             return Event('server', 'info', 'Moved to state: %s' % port_state_name)
 
     def _on_astf_profile_state_chg(self, profile_id, ctx_state, error, epoch):
-
         if ctx_state < 0 or ctx_state >= len(astf_states):
             raise TRexError('Unhandled ASTF state: %s' % ctx_state)
 
-        if epoch is None or epoch != self.epoch:
+        if epoch is None or self.epoch is None:
             return
 
-        self.last_error = error
-        if error and not self.sync_waiting:
-            self.ctx.logger.error('Last command failed: %s' % error)
+        if error:
+            self.last_profile_error[profile_id] = error
+            if not self.sync_waiting:
+                self.ctx.logger.error('Last profile %s command failed: %s' % (profile_id, error))
 
         # update profile state
         self.astf_profile_state[profile_id] = ctx_state
@@ -184,13 +188,13 @@ class ASTFClient(TRexClient):
 
 
     def _on_astf_profile_cleared(self, profile_id, error, epoch):
-
-        if epoch is None or epoch != self.epoch:
+        if epoch is None or self.epoch is None:
             return
 
-        self.last_error = error
-        if error and not self.sync_waiting:
-            self.ctx.logger.error('Last command failed: %s' % error)
+        if error:
+            self.last_profile_error[profile_id] = error
+            if not self.sync_waiting:
+                self.ctx.logger.error('Last profile %s command failed: %s' % (profile_id, error))
 
         # remove profile and template group name
         self.astf_profile_state.pop(profile_id, None)
@@ -212,34 +216,36 @@ class ASTFClient(TRexClient):
 
         valid_pids = []
         ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED]
-        
+
         # check profile ID's type
         if type(pid_input) is not list:
             profile_list = pid_input.split()
         else:
             profile_list = pid_input
 
+        if ALL_PROFILE_ID in profile_list:
+            if start == True:
+                raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
+            else:
+                self.sync()
+                return list(self.astf_profile_state.keys())
+
+        for profile_id in profile_list:
+            if profile_id not in list(self.astf_profile_state.keys()):
+                self.sync()
+                break
+
         # Check if profile_id is a valid profile name
         for profile_id in profile_list:
-            if profile_id == ALL_PROFILE_ID:
-                if start == True:
-                    raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
-                else:
-                    valid_pids =  list(self.astf_profile_state.keys())
-                break
-            else:
-                if profile_id in list(self.astf_profile_state.keys()):
-                    if start == True:
-                        if self.is_dynamic and self.astf_profile_state.get(profile_id) not in ok_states:
-                            raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
-                else:
-                    if start == True:
-                        self.astf_profile_state[profile_id] = self.STATE_IDLE
-                    else:
-                        raise TRexError("ASTF profile_id %s does not exist." % profile_id)
+            if profile_id not in list(self.astf_profile_state.keys()):
+                raise TRexError("ASTF profile_id %s does not exist." % profile_id)
 
-                if profile_id not in valid_pids:
-                    valid_pids.append(profile_id)
+            if start == True:
+                if self.is_dynamic and self.astf_profile_state.get(profile_id) not in ok_states:
+                    raise TRexError("%s state:Transmitting, should be one of following:Idle, Loaded profile" % profile_id)
+
+            if profile_id not in valid_pids:
+                valid_pids.append(profile_id)
 
         return valid_pids
 
@@ -260,21 +266,33 @@ class ASTFClient(TRexClient):
 
         self.state = rc.data()['state']
         self.apply_port_states()
-        self.epoch = rc.data()['epoch']
         if self.is_dynamic:
             self.astf_profile_state = rc.data()['state_profile']
         else:
             self.astf_profile_state[DEFAULT_PROFILE_ID] = self.state
-               
+        self.epoch = rc.data()['epoch']
 
-    def wait_for_steady(self, pid_input = DEFAULT_PROFILE_ID):
 
+    def wait_for_steady(self, profile_id=None):
+        time_begin = time.time()
         while True:
-            self.sync()
-            state = self.astf_profile_state.get(pid_input) if self.is_dynamic else self.state
+            state = self._get_profile_state(profile_id) if profile_id else self.state
             if state not in self.transient_states:
                 break
-            time.sleep(0.1)
+            if (time.time() - time_begin) > 0.1:
+                self.sync()
+                time_begin = time.time()
+            else:
+                time.sleep(0.001)
+
+    def wait_for_profile_state(self, profile_id, wait_state):
+        time_begin = time.time()
+        while self._get_profile_state(profile_id) != wait_state:
+            if (time.time() - time_begin) > 0.1:
+                self.sync()
+                time_begin = time.time()
+            else:
+                time.sleep(0.001)
 
     def inc_epoch(self):
         rc = self._transmit('inc_epoch', {'handler': self.handler})
@@ -282,37 +300,50 @@ class ASTFClient(TRexClient):
             raise TRexError(rc.err())
         self.sync()
 
-    def _transmit_async(self, rpc_func, ok_states, bad_states = None, is_profile_clear = False, **k):
+    def _set_profile_state(self, profile_id, state):
+        self.astf_profile_state[profile_id] = state
+
+    def _get_profile_state(self, profile_id):
+        return self.astf_profile_state.get(profile_id, self.STATE_IDLE) if self.is_dynamic else self.state
+
+    def _transmit_async(self, rpc_func, ok_states, bad_states = None, ready_state = None, **k):
         profile_id = k['params']['profile_id'] 
         ok_states = listify(ok_states)
         if bad_states is not None:
             bad_states = listify(bad_states)
 
-        self.sync()
-        self.wait_for_steady(profile_id)
-        self.inc_epoch()
+        self.wait_for_steady()
+        if rpc_func is 'start' and self.state is not self.STATE_TX:
+            self.inc_epoch()
+
         self.sync_waiting = True
         try:
-            self.last_error = ''
+            # to prevent from checking with wrong state (e.g. 'start')
+            if ready_state and self._get_profile_state(profile_id) != ready_state:
+                self.wait_for_profile_state(profile_id, ready_state)
+            if bad_states and self._get_profile_state(profile_id) in bad_states:
+                self._set_profile_state(profile_id, self.transient_states[0])
+
             rc = self._transmit(rpc_func, **k)
-            self.wait_for_steady(profile_id)
             if not rc:
                 return rc
-            while True:
-                self.sync()
-                state = self.astf_profile_state.get(profile_id) if self.is_dynamic else self.state
-                if is_profile_clear:
-                    if profile_id is not DEFAULT_PROFILE_ID:
-                        if state is None:
-                            return RC_OK()
+            self.wait_for_steady(profile_id)
 
+            time_begin = time.time()
+            while True:
+                state = self._get_profile_state(profile_id)
                 if state in ok_states:
                     return RC_OK()
 
-                if self.last_error or (bad_states and self.state in bad_states):
-                    error = self.last_error
-                    return RC_ERR(error or 'Unknown error')
-                time.sleep(0.2)
+                if self.last_profile_error.get(profile_id) or (bad_states and state in bad_states):
+                    error = self.last_profile_error.pop(profile_id, None)
+                    return RC_ERR(error or 'Unknown error, state: {} {}'.format(state,profile_id))
+
+                if (time.time() - time_begin) > 0.2:
+                    self.sync() # in case state change lost in async(SUB/PUB) channel
+                    time_begin = time.time()
+                else:
+                    time.sleep(0.001)
         finally:
             self.sync_waiting = False
 
@@ -529,7 +560,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def clear_profile(self, block = False, pid_input = DEFAULT_PROFILE_ID):
+    def clear_profile(self, block = True, pid_input = DEFAULT_PROFILE_ID):
         """
             Clear loaded profile
 
@@ -551,7 +582,7 @@ class ASTFClient(TRexClient):
                 }
                 self.ctx.logger.pre_cmd('Clearing loaded profile.')
                 if block:
-                    rc = self._transmit_async('profile_clear', params = params, ok_states = self.STATE_IDLE, is_profile_clear = True)
+                    rc = self._transmit_async('profile_clear', params = params, ok_states = self.STATE_IDLE)
                 else:
                     rc = self._transmit('profile_clear', params = params)
                 self.ctx.logger.post_cmd(rc)
@@ -614,7 +645,7 @@ class ASTFClient(TRexClient):
         for profile_id in valid_pids:
 
             if block:
-                rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED)
+                rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED, ready_state = self.STATE_ASTF_LOADED)
             else:
                 rc = self._transmit('start', params = params)
             self.ctx.logger.post_cmd(rc)
@@ -662,7 +693,7 @@ class ASTFClient(TRexClient):
                 raise TRexError(rc.err())
 
             if is_remove:
-                self.clear_profile(pid_input = profile_id)
+                self.clear_profile(block = block, pid_input = profile_id)
 
 
     @client_api('command', True)
@@ -1459,7 +1490,8 @@ class ASTFClient(TRexClient):
         table.set_cols_width([20]  + [20])
         table.header(["ID", "State"])
 
-        profile_list = list(self.astf_profile_state.keys())
+        self.sync()
+        profile_list = sorted(self.astf_profile_state.keys())
         for profile_id in profile_list:
             profile_state = self.astf_profile_state.get(profile_id)
             state = "Unknown" if profile_state is None else astf_states[profile_state]
