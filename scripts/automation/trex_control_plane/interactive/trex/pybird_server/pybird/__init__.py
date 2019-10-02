@@ -49,7 +49,7 @@ class PyBird(object):
     def connect(self):
         if not os.path.exists(self.socket_file):
            raise Exception('Socket file not found: %s' % self.socket_file)
-        if self.socket is not None:
+        if self.socket is None:
             self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.socket.connect(self.socket_file)
     

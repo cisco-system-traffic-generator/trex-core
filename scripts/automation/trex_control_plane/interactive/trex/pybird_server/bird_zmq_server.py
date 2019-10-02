@@ -211,7 +211,8 @@ class BirdServer():
         self._close_conn()
 
     def _close_conn(self):
-        self.bird_wrapper.execute('disconnect', [])
+        if self.bird_wrapper:
+            self.bird_wrapper.execute('disconnect', [])
         if self.socket is not None:
             self.socket.close()
         if self.context is not None:

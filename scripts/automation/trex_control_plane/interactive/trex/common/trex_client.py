@@ -1578,6 +1578,7 @@ class TRexClient(object):
         pybird_c.connect()
         pybird_c.acquire()
         pybird_c.check_protocols_up(protocols)
+        pybird_c.release()
         pybird_c.disconnect()
     
     @client_api('command', True)
@@ -1603,6 +1604,7 @@ class TRexClient(object):
         pybird_c.acquire()
         pybird_c.set_config(config)
         pybird_c.release()
+        print("AFTER RELEASE!")
         pybird_c.disconnect()
 
     @client_api('command', True)
