@@ -138,10 +138,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
         debug("Using netns prefix " + m_ns_prefix);
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         if ( CGlobalInfo::m_options.m_is_bird_enabled ) {
-            m_bird_path = get_bird_path();
-            m_bird_ns = m_ns_prefix + "bird-ns";
-            create_bird_ns();
-            run_bird_in_ns();
+            init_bird();
         }
         m_is_initialized = true;
     }
@@ -341,7 +338,7 @@ void CStackLinuxBased::create_bird_ns() {
 
 void CStackLinuxBased::run_bird_in_ns() {
     run_in_ns(" cd " + m_bird_path + "; ./trex_bird -c " + "bird.conf -s " + "bird.ctl", "Error running bird process");
-    popen_with_err("chmod 666 bird/bird.ctl", "cannot change permisson of bird.ctl for PyBird client communication");
+    popen_with_err("chmod 666 bird/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication");
 }
 
 void CStackLinuxBased::run_in_ns(const string &cmd, const string &err) {
@@ -634,6 +631,15 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
 uint16_t CStackLinuxBased::get_capa() {
     return (CLIENTS | BIRD);
 }
+
+void CStackLinuxBased::init_bird() {
+    m_bird_path = get_bird_path();
+    m_bird_ns = m_ns_prefix + "bird-ns";
+    kill_bird_and_ns(); // ensure bird isn't running & bird namespace isn't up
+    create_bird_ns();
+    run_bird_in_ns();
+}
+
 
 /***************************************
 *         CNamespacedIfNode            *

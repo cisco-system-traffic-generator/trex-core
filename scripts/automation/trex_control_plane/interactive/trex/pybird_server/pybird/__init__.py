@@ -9,7 +9,12 @@ from subprocess import Popen, PIPE
 BIRD_PATH = os.path.abspath(os.path.join(__file__ ,"../../../../../../../bird"))  # trex scripts folder 
 CTL_PATH = "%s/bird.ctl" % BIRD_PATH
 CONF_PATH = "%s/bird.conf" % BIRD_PATH 
-
+DEFAULT_CFG = """
+router id 100.100.100.100;
+protocol device {
+    scan time 1;
+}
+"""  
 class PyBird(object):
 
     OK, WELCOME, STATUS_REPORT, ROUTE_DETAIL, TABLE_HEADING, PARSE_ERROR = 0, 1, 13, 1008, 2002, 9001
@@ -22,10 +27,11 @@ class PyBird(object):
         """Basic pybird setup."""
         if not os.path.exists(config_file):
            raise Exception('Config file not found: %s' % config_file)
-        self.socket_file = socket_file
-        self.hostname = hostname
-        self.user = user
-        self.password = password
+        self.socket_file    = socket_file
+        self.socket         = None
+        self.hostname       = hostname
+        self.user           = user
+        self.password       = password
         if not config_file.endswith('.conf'):
             raise ValueError(
                 "config_file: '%s' must ends with .conf" % config_file)
@@ -40,11 +46,17 @@ class PyBird(object):
         self.routes_field_re = re.compile(r'(\d+) imported, (\d+) exported')
         self.log = logging.getLogger(__name__)
 
-    # TODO later, connect and disconnect methods
-    # def connect_to_bird():
-    #     if not os.path.exists(socket_file):
-    #        raise Exception('Socket file not found: %s' % socket_file)
-    #     get_bird_status()  # calling simple cmd for sanity check
+    def connect(self):
+        if not os.path.exists(self.socket_file):
+           raise Exception('Socket file not found: %s' % self.socket_file)
+        if self.socket is not None:
+            self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.socket.connect(self.socket_file)
+    
+    def disconnect(self):
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
 
     def get_config(self):
         """ Return the current BIRD configuration as in bird.conf"""
@@ -75,6 +87,9 @@ class PyBird(object):
         res = self._write_file(data)
         return 'Configured successfully' if '\n0003' in res else res  # Configuration OK code
     
+    def set_empty_config(self):
+        return self.set_config(DEFAULT_CFG)
+
     def check_config(self):
         """ Check the current BIRD configuration. Raise a ValueError in case of bad conf file. """
         query = "configure check"
@@ -651,19 +666,18 @@ class PyBird(object):
                             "\n8003",  # No protocols match
                             "\n9001"]  # Parse error
             return any(code in stream for code in finish_codes)
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(self.socket_file)
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket.connect(self.socket_file)
         query += '\n'
-        sock.send(query.encode())
+        self.socket.send(query.encode())
         data_list, prev_data = [''], None
         while not _is_stream_done(data_list[-1]):
-            data_list.append(sock.recv(self.MAX_DATA_RECV).decode())
+            data_list.append(self.socket.recv(self.MAX_DATA_RECV).decode())
             if data_list[-1] == prev_data:
                 self.log.debug(data_list[-1])
                 raise ValueError("Could not read additional data from BIRD")
             prev_data = data_list[-1]
 
-        sock.close()
         return ''.join(data_list)
 
     def _clean_input(self, inp):

@@ -1508,19 +1508,46 @@ class TRexClient(object):
                 + :exc:`TRexError` in case of any error
         """
 
-        self.set_port_attr(promiscuous=True)
-        self.namespace_remove_all(ports=[node_port])
+        try:
+            res = self.set_namespace(node_port, method='get_nodes_info', macs_list=[mac])
+            res = res['result']['nodes'][0]
+            args = locals()
+            args['is_bird'] = True
+            args['node'] = res
+            if self._is_node_have_same_args(args):
+                return  # bird node exists
+            else:
+                raise Exception('Node with mac addres: "%s" already exists with different parameters!' % mac)
+        except TRexError:
+            # node with mac addres does not exists, create new one
 
-        cmds = NSCmds()
-        cmds.add_node(mac, is_bird=True)
-        cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, is_bird=True)
-        cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, is_bird=True)
+            self.set_port_attr(promiscuous=True)
+            self.namespace_remove_all(ports=[node_port])
 
-        # start the batch
-        self.set_namespace_start(node_port, cmds)
-        # wait for the results
-        self.wait_for_async_results(node_port)
+            cmds = NSCmds()
+            cmds.add_node(mac, is_bird=True)
+            cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, is_bird=True)
+            cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, is_bird=True)
+
+            self.set_namespace_start(node_port, cmds)
+            self.wait_for_async_results(node_port)
     
+    def _is_node_have_same_args(self, args):
+        node = args['node']
+        if node['is_bird'] == args['is_bird']:
+            if 'src' in node['ipv4'].keys() and 'subnet' in node['ipv4'].keys():
+                if node['ipv4']['src'] != args['ipv4'] or node['ipv4']['subnet'] != args['ipv4_subnet']:
+                    return False
+            if node['ipv6']['enabled'] != args['ipv6_enabled']:
+                return False
+            if 'subnet' in node['ipv6'].keys():
+                if node['ipv6']['subnet'] != args['ipv6_subnet']:
+                    return False
+        else:
+            return False
+        return True
+            
+
     @client_api('command', False)
     def wait_for_protocols(self, protocols, timeout=60, poll_rate=1):
         """
@@ -1575,6 +1602,7 @@ class TRexClient(object):
         pybird_c.connect()
         pybird_c.acquire()
         pybird_c.set_config(config)
+        pybird_c.release()
         pybird_c.disconnect()
 
     @client_api('command', True)

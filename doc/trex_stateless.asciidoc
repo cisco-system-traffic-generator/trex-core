@@ -5378,6 +5378,235 @@ Keyboard commands in the TUI window:
 
 link:trex_stateless_bench.html[TRex stateless benchmarks]
 
+=== Bird
+==== Overview
+link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional dynamic IP routing daemon. We integrated it into TRex in order to exploit it's features together with TRex.
+
+==== Topology
+
+Bird process is running in it's own namespace on trex machine. Using veth's to communicate the default namespace and sending data to DUT. Client will use "PyBird Client" in order to send / retrive bird config files (each component described below).
+
+image::images/trex_bird_general_scheme.png[title="TRex-Bird General Scheme",align="left",width={p_width}, link="images/trex_bird_general_scheme.png"]
+
+==== Compilation
+
+Just add "--with-bird" flag to configure command like so:
+[source,bash]
+----
+[bash]> ./b configure --with-bird
+[bash]> ./b build
+----
+
+===== From bird's doc: 
+
+For compiling BIRD you need these programs and libraries:
+
+ - GNU C Compiler (or LLVM Clang)
+ - GNU Make
+ - GNU Bison
+ - GNU M4
+ - Flex
+ - ncurses library
+ - GNU Readline library
+ - libssh library (optional, for RPKI-Router protocol)
+
+[NOTE]
+=====================================================================
+In case of compilation problems, try build with "-v" flag in order to see bird compilation output.
+=====================================================================
+
+==== First Time Running
+
+We will work with this simple configuration:
+
+                                          +------------------------------+
+                                          |                              |
+                                          |   TRex         bird namespace|
+                                          |        (veth) +--------------+
++------------+               (PHY PORT 0) |       1.1.1.3 |              |
+|            |    1.1.1.1       1.1.1.2   |      <--------+              |
+|            | <------------><----------->+               |              |
+|            |                            |               | Bird Process |
+|    DUT     |                            |        (veth) |              |
+|            |    1.1.2.1       1.1.2.1   |       1.1.2.3 |              |
+|            | <------------><----------->+      <--------+              |
+|            |               (PHY PORT 1) |               |              |
++------------+                            |               +--------------+
+                                          |                              |
+                                          +------------------------------+
+
+
+1. Make sure you have configured trex yaml file with "stack: linux_based" (see  link:trex_manual.html#stacks[Linux Stack]) 
+2. Make sure you have configured DUT routing protocols.
+3. Run TRex in "ONE_QUEUE" mode "--software -c 1" and bird flag "--bird-server".
+4. Run python script: `scripts/automation/trex_control_plane/interactive/trex/examples/stl/add_bird_node.py`
+
+The python script will create the 2 veth's and send bird a simple config file with bgp protocol and 2 static routes. You can check if it worked on the DUT side - look for the two new bgp routes.
+
+==== BirdCFGCreator
+
+*Goal*:: Create the final `bird.conf` file with the routing protocols and the routes themselves (as static routes). 
+
+In the constructor you may provide your own cfg file as a string, in case you don't provide one it will use our default cfg contains only "device protocol" scanning new devices every 1 second and a dummy "router id" ip (this is only for bird running for the first time with no aviable interface).
+
+[NOTE]
+=====================================================================
+When supplying bird config file or any data, it must be valid according to link:https://bird.network.cz/?get_doc&v=20&f=bird-3.html[Bird's Documentation]
+=====================================================================
+
+===== Adding Routing Protocols
+According to link:https://bird.network.cz/?get_doc&v=20&f=bird-6.html[Bird's Protocols Documentation] you may add protocols like: 
+
+[source,python]
+----
+bird_cfg = BirdCFGCreator()  # using default cfg
+bgp_data1 = """
+    local 1.1.1.3 as 65000;
+    neighbor 1.1.1.1 as 65000;
+    ipv4 {
+            import all;
+            export all;
+    };
+"""
+bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
+----
+
+===== Adding Routes
+
+Routes are splitting to 2 types: simple and extended. Simple routes are routes with "next_hop" parameter that can be an ip or interface name. Extended are the routes with more complicated "next_hop", examples bellow.
+
+Here is a simple route addition:
+
+[source,python]
+----
+bird_cfg = BirdCFGCreator()  # using default cfg
+bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
+----
+
+And here is an extended route addition:
+
+[source,python]
+----
+bird_cfg = BirdCFGCreator()  # using default cfg
+next_hop = """
+198.51.100.100 {
+                ospf_metric2 = 100;     # Set extended attribute
+                ospf_tag = 2;           # Set extended attribute
+                bfd;                    # BFD-controlled route
+        }
+"""
+bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = next_hop)
+----
+
+===== Creating The Final Configuration
+When you want to create the config file sending it to bird, you can merge everything:
+
+[source,python]
+----
+bird_config = bird_cfg.merge_to_string()
+----
+
+Now you have your final string with all your wanted protocols and routes ready to send to bird using PyBird Client.
+
+==== PyBird Client
+
+*Goal*:: Communicating with PyBird Server located on TRex machine using JSON-RPC over ZMQ.
+
+===== General Flow
+1. connect - connect to server.
+2. acquire - get handler from server.
+3. some commands like: get_config, set_config ...
+4. relase - let go the handler from server.
+5. disconnect - end the session.
+
+===== Commands
+
+Commands in PyBird are divided to: query and commands. In case of using a query like: `get_config` connect will be enough. In case of using a command like: `set_config` you have to connect and acquire.
+
+===== Example
+[source,python]
+----
+b.connect()                 <1>
+b.acquire()                 <2>
+
+b.get_config()              <3>
+b.get_protocols_info()
+
+b.set_empty_config()        <4>
+
+b.release()                 <5>
+b.disconnect()              <6>
+----
+<1> connect to PyBird server, required for every method.
+<2> acquire handler from server, required for command methods.
+<3> using some query methods. 
+<4> setting emtpy config file, command method.
+<5> release the acquired handler.
+<6> disconnect from server.
+
+[NOTE]
+=====================================================================
+PyBird Client will release & disconnect anyway when the object will be destroyed. 
+=====================================================================
+
+==== Tutorial: Simple bird node adding
+*Goal*:: 
+    Demonstrate adding a bird node with multiple variants.
+
+As for now, in order to add a bird node you need to connect and acquire the wanted port/s and set service mode on. Afterwards you can use "set_bird_node" method as follows:
+
+[source,python]
+----
+c = STLClient(verbose_level = 'debug')                 <1>
+my_ports = [0, 1]
+c.connect()
+c.acquire(ports = my_ports)
+c.set_service_mode(ports = my_ports, enabled = True)
+
+# create 2 veth's in bird namespace
+c.set_bird_node(node_port      = 0,                    <2>
+                mac            = "00:00:00:01:00:07",  <3>
+                ipv4           = "1.1.1.3",            <4>
+                ipv6_enabled   = True,                 
+                ipv4_subnet    = 24,
+                ipv6_subnet    = 124)
+
+
+c.wait_for_protocols(['my_bgp1'])                      <5>
+c.disconnect()
+----
+<1> preparation for set_bird_node as described above.
+<2> the port which bird node will be set on.
+<3> the mac addreass for the new bird node, need to be unique.
+<4> the ipv4 for the new node, MUST be on the same subnet with dut interface.
+<5> blocking until bird confirms connection established on "my_bgp1" protocol.
+
+WARNING: In case of adding a bird node with the same parameters - nothing will happen. But in case of adding one with different parameters an exception will be raised - mac addresses are unique.
+
+==== Tutorial: Advanced bird node adding
+*Goal*:: 
+    Demonstrate more advanced way of adding a bird node.
+
+"set_bird_node" method flow is:
+
+1. Check if a bird node with that mac already exists.
+2. Set "promiscuous" mode on.
+3. Remove all the namespaces and nodes from the node_port we want bird to work on.
+4. Create the bird node.
+5. Set ipv4 with a subnet.
+6. Set ipv6 with a subnet.
+7. Send all commands asynchronously.
+8. Wait for the commands to finished.
+
+You may alter the steps as you wish i.e do not set ipv6 at all. Although you must set "promiscuous" mode on. Notice that for each command we added "is_bird" parameter so the call will look like: 
+[source,python]
+----
+...
+cmds.add_node(mac, is_bird=True)
+...
+----
+
+
 === Appendix
 
 ==== Scapy packet examples

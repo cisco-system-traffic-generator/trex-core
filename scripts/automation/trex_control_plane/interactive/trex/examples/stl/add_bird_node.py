@@ -9,12 +9,12 @@ Topology::
                                           |                              |
                                           |   TRex         bird namespace|
                                           |        (veth) +--------------+
-+------------+               (PHY PORT 0) |       1.1.2.3 |              |
++------------+               (PHY PORT 0) |       1.1.1.3 |              |
 |            |    1.1.1.1       1.1.1.2   |      <--------+              |
 |            | <------------><----------->+               |              |
 |            |                            |               | Bird Process |
 |    DUT     |                            |        (veth) |              |
-|            |    1.1.2.1       1.1.2.1   |       1.1.2.4 |              |
+|            |    1.1.2.1       1.1.2.1   |       1.1.2.3 |              |
 |            | <------------><----------->+      <--------+              |
 |            |               (PHY PORT 1) |               |              |
 +------------+                            |               +--------------+
@@ -67,5 +67,6 @@ c.set_bird_node(node_port      = 1,
                 ipv6_enabled   = True,
                 ipv4_subnet    = 24,
                 ipv6_subnet    = 124)
+
 c.wait_for_protocols(['my_bgp1, my_bgp2'])
 c.disconnect()
