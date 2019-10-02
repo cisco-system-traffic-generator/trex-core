@@ -52,7 +52,7 @@ class PyBirdClient():
                 raise Exception('Got from server "{}" type instead of dictionary! content: {}'.format(type(message_parsed), message_parsed))
             if 'error' in message_parsed.keys():
                 print('Error in message: "%s"' % message)
-                raise Exception('Got exception from server! code: {code} message: {message}'.format(message_parsed['error']))
+                raise Exception('Got exception from server! message: {message}'.format(message_parsed['error']))
             if 'id' not in message_parsed.keys():
                 print("Got response with no id, waiting for another one")
             elif message_parsed['id'] != id:
@@ -74,13 +74,16 @@ class PyBirdClient():
     
     def connect(self):
         ''' Connecting to remote zmq Bird server '''
-        self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect("tcp://"+str(self.server_ip_address)+":"+str(self.dest_bird_port))
-        result = self._call_method('connect', [PyBirdClient.CLIENT_VERSION])
-        if result:
-            self.is_connected = True
-        return result
+        if not self.is_connected:
+            self.context = zmq.Context()
+            self.socket = self.context.socket(zmq.REQ)
+            self.socket.connect("tcp://"+str(self.server_ip_address)+":"+str(self.dest_bird_port))
+            result = self._call_method('connect', [PyBirdClient.CLIENT_VERSION])
+            if result:
+                self.is_connected = True
+            return result
+        else:
+            raise Exception("PyBird Client is already connected!")
 
     def acquire(self, force=False):
         ''' Acquire handler for client, must be called only after connect '''
@@ -132,11 +135,15 @@ class PyBirdClient():
 
     def release(self):
         if self.handler is not None:
-            return self._call_method('release', [self.handler])
+            res = self._call_method('release', [self.handler])
+            self.handler = None
+            return res
         else:
             raise ConnectionException("Cannot release, client is not acquired")
 
     def disconnect(self):
+        if self.handler is not None:
+            raise Exception('Client is acquired! run "release" first')
         if self.is_connected:
             return self._call_method('disconnect', [])
         else:
@@ -216,7 +223,6 @@ if __name__=='__main__':
     print("acquire: \n%s" % b.acquire(True))
         
     # print("get_config: \n%s" % b.get_config())
-
     # print("get_protocols_info: \n%s" % b.get_protocols_info())
 
     send_many_routes(b, rand.randint(1e6, 1e6 + 1))
