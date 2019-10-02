@@ -31,6 +31,8 @@ class PyBirdClient():
         self._close_conn()
         
     def _close_conn(self):
+        if self.handler is not None:
+            self.release()
         if self.socket is not None:
             self.socket.close()
         if self.context is not None:
@@ -45,6 +47,9 @@ class PyBirdClient():
             except:
                 print('"Error in parsing response! got: "%s"' % message)
                 break
+            if type(message_parsed) is not dict:
+                print('Error in message: "%s"' % message)
+                raise Exception('Got from server "{}" type instead of dictionary! content: {}'.format(type(message_parsed), message_parsed))
             if 'error' in message_parsed.keys():
                 print('Error in message: "%s"' % message)
                 raise Exception('Got exception from server! code: {code} message: {message}'.format(message_parsed['error']))
@@ -116,10 +121,8 @@ class PyBirdClient():
                 time.sleep(poll_rate)
         raise Exception('timeout passed, protocols "%s" still down in bird' % down_protocols)
         
-
     def set_empty_config(self):
-        min_config = "protocol device {\nscan time 1\n}"
-        self.set_config(min_config)
+        return self._call_method('set_empty_config', [self.handler])
 
     def set_config(self, new_cfg):
         if self.handler:
@@ -127,9 +130,15 @@ class PyBirdClient():
         else:
             raise ConnectionError("Client is not connected to server, please run connect first")
 
+    def release(self):
+        if self.handler is not None:
+            return self._call_method('release', [self.handler])
+        else:
+            raise ConnectionException("Cannot release, client is not acquired")
+
     def disconnect(self):
-        if self.handler:
-            return self._call_method('disconnect', [self.handler])
+        if self.is_connected:
+            return self._call_method('disconnect', [])
         else:
             raise ConnectionException("Cannot disconnect, client is not connected")
         self._close_conn()
@@ -212,7 +221,7 @@ if __name__=='__main__':
 
     send_many_routes(b, rand.randint(1e6, 1e6 + 1))
     print('-' * 50)
-
+    print("release: %s" % b.release() )
     print("disconnect: %s" % b.disconnect() )
     
     # except Exception as e:

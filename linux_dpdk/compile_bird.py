@@ -137,7 +137,7 @@ def do_create_link (src, name, where):
 def create_links(src_dir, links_dir):
     if not os.path.exists(links_dir):
         os.makedirs(links_dir)
-        os.system('chmod -R 777 %s' % links_dir)
+    os.system('chmod -R 777 %s' % links_dir)
 
     do_create_link(src    = src_dir + '/trex_bird',
                     name  = 'trex_bird',

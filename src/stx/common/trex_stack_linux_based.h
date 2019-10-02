@@ -157,6 +157,7 @@ public:
 
 private:
     string mac_str_to_mac_buf(const std::string & mac);
+    void init_bird();
 
 private:
     CNodeBase* add_node_internal(const string &mac_buf);

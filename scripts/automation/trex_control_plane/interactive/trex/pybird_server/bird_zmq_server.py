@@ -29,9 +29,12 @@ class BirdWrapper:
         self.pybird = PyBird()
         self.prev_md5s = LRU_cache(maxlen=5)        # store previous configs like: {'md5_key': bird_cfg_string }
         self._config_fragments = {'md5': None, 'frags': []}
-        self.bird_methods = {'get_config': {'method_ptr': self.get_config, 'is_command': False},
+        self.bird_methods = {   'connect': {'method_ptr': self.connect, 'is_command': False},
+                                'get_config': {'method_ptr': self.get_config, 'is_command': False},
                                 'set_config': {'method_ptr': self.set_config, 'is_command': True},
-                                'get_protocols_info': {'method_ptr': self.get_protocols_info, 'is_command': False}
+                                'set_empty_config': {'method_ptr': self.set_empty_config, 'is_command': True},
+                                'get_protocols_info': {'method_ptr': self.get_protocols_info, 'is_command': False},
+                                'disconnect': {'method_ptr': self.disconnect, 'is_command': False},
                                 }
         try:
             current_cfg = self.pybird.get_config().encode('utf-8')
@@ -60,6 +63,12 @@ class BirdWrapper:
         except ValueError:
             raise ParseException(req_id)
 
+    def connect(self, params):
+        return self.pybird.connect()
+
+    def disconnect(self, params):
+        return self.pybird.disconnect()
+
     def get_config(self, params):
         return self.pybird.get_config()
 
@@ -82,6 +91,9 @@ class BirdWrapper:
             md5 = self._config_fragments['md5']
             return self._set_new_config(all_cfg, md5)
         return 'send_another_frag'  # middle fragment
+
+    def set_empty_config(self, params):
+        return self.pybird.set_empty_config()
 
     def _set_new_config(self, config, md5=None):
         if md5 is None:
@@ -178,13 +190,16 @@ class BirdServer():
         self.socket.bind("tcp://*:"+str(port))
         self.logger.info('Listening on port: %d' % self.port)
         
-        self.connection_methods = {'shut_down': self.shut_down,
+        self.connection_methods    = {'shut_down': self.shut_down,
                                    'connect': self.connect_with_client,
                                    'acquire': self.acquire_client,
+                                   'release': self.release_client,
                                    'disconnect': self.disconnect_client
                                    }
-        self.current_handler = None  # store random 32bit number for current client
-        self.bird_wrapper = BirdWrapper()
+        self.is_connected          = False
+        self.current_handler       = None  # store random 32bit number for current client
+        self.connected_clients     = 0
+        self.bird_wrapper          = BirdWrapper()
 
         try:
             self.IP_address = socket.gethostbyname(socket.gethostname())
@@ -196,6 +211,7 @@ class BirdServer():
         self._close_conn()
 
     def _close_conn(self):
+        self.bird_wrapper.execute('disconnect', [])
         if self.socket is not None:
             self.socket.close()
         if self.context is not None:
@@ -225,6 +241,9 @@ class BirdServer():
 
     def connect_with_client(self, params):
         if params[0] == BirdServer.SERVER_VERSION:
+            self.bird_wrapper.execute('connect', [])
+            self.connected_clients += 1
+            self.is_connected = True
             return 'Connection established'
         else:
             raise DifferentVersions('Server version: "%s", Client version: "%s"' % (
@@ -242,13 +261,23 @@ class BirdServer():
             self.current_handler = rand_32_bit()
         return self.current_handler
 
-    def disconnect_client(self, params):
-        if self.current_handler:
+    def release_client(self, params):
+        if self.current_handler is not None:
             if self.current_handler == params[0]:
                 self.current_handler = None
-                return "Client disconnected successfully"
+                return "Client released successfully"
             else:
-                raise InvalidHandler("Cannot disconnect client, working with another one")
+                raise InvalidHandler('Cannot release client with handler: "%s", working now with: "%s"' % (params[0], self.current_handler))
+        else:
+            raise InvalidHandler("Cannot release client, server is not acquired to client")
+
+
+    def disconnect_client(self, params):
+        if self.is_connected:
+            self.connected_clients -= 1
+            if self.connected_clients == 0:
+                self.bird_wrapper.execute('disconnect', [])
+                self.is_connected = False
         else:
             raise InvalidRequest("Cannot disconnect, client is not connected")
 
