@@ -5485,7 +5485,7 @@ bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
 cfg = bird_cfg.merge_to_string() # build combined configuration 
 c.set_bird_config(config = cfg)  # sending our new config (under the hood there is a PyBird client)
 
-# create 2 veth's in bird namespace, need to move to prom mode to get. You can use the old TRex namespace API this is just a shim to layer 
+# create 2 veth's in bird namespace, need to move to prom mode to get. You can use the old TRex namespace API this is just a shim to layer t
 c.set_bird_node(node_port      = 0,
                 mac            = "00:00:00:01:00:07",
                 ipv4           = "1.1.1.3",
