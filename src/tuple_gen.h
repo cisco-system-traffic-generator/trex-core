@@ -168,7 +168,7 @@ private:
 /*
  * Class that handle the client info
  */
-#define MAX_CLIENTS 1000000
+#define MAX_CLIENTS 50000000
 #define MAX_PORT (64000)
 #define MIN_PORT (1024)
 #define ILLEGAL_PORT (0)
