@@ -5378,25 +5378,42 @@ Keyboard commands in the TUI window:
 
 link:trex_stateless_bench.html[TRex stateless benchmarks]
 
-=== Bird
+=== Bird intgration (Beta)
+
 ==== Overview
-link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional dynamic IP routing daemon. We integrated it into TRex in order to exploit it's features together with TRex and Python automation API.
+link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional dynamic IP routing daemon. It was integrated into TRex to run alongside in order to exploit it's features together with Python automation API. 
 
-image::images/bird_logo.png[title="Bird Logo",200, 200, link="images/bird_logo.png"]
 
-==== Topology
+==== High level Features 
 
-Bird process is running in it's own namespace on trex machine. Using veth's to communicate the default namespace and sending data to DUT. Client will use "PyBird Client" in order to send / retrive bird config files (each component described below).
+* BIRD 2.0 Protocols support link:https://bird.network.cz/?get_doc&f=bird.html&v=20[Bird]
+** Both IPv4 and IPv6 (using kernel veth)
+** BGP (eBGP/iBGP), RPKI (RFC 6480)/RFC 6483
+** OSPF (v2/v3)  RFC 2328/ RFC 5340
+** RIP - RIPv1 (RFC 1058),RIPv2 (RFC 2453), RIPng (RFC 2080), and RIP cryptographic authentication (RFC 4822).
+* Scale of Millions of routes (depends on the protocol scale e.g. BGP) in a few seconds 
+* Integration with Multi-RX software model to supprt dynamic filters for BIRD protocols while keeping high rates of traffic 
+* Can support up to 10K veth (virtual interfaces) each with different QinQ/VLAN configuration 
+
+
+==== Integration Topology
+
+Bird process is running in it's own namespace on trex machine. Using veth's to communicate the default namespace and sending data to DUT. Client will use "PyBird Client" in order to control the BIRD throw ZMQ JSON-RPC2 API (each component described below). BIRD is using the TRex linux namespace feature 
 
 image::images/trex_bird_general_scheme.png[title="TRex-Bird General Scheme",align="left",width={p_width}, link="images/trex_bird_general_scheme.png"]
 
+This image shows 2 veth (one per physical interface) that switched throw TRex 
+
 ==== First Time Running
 
-We will work with this simple configuration:
+Le't start with a simple example, pushing a few BGP routes to ASR1K
 
 image::images/TRex_Bird_General_Scheme_With_ips.png[title="TRex Bird General Scheme With ips",align="left",width={p_width}, link="images/TRex_Bird_General_Scheme_With_ips.png"]
 
 - Configure trex yaml file with "stack: linux_based" (see link:trex_manual.html#stacks[Linux Stack]):
+
+In this configuration the BIRD veth are on the same subnet of TRex ports. There is a need to change the port to promiscuous mode so Physical ports will get the veth packets and forward them to the BIRD daemon 
+The BIRD pps is rather low to achive many routes in a short time 
 
 .linux_based stack configuration
 [source,bash]
@@ -5410,7 +5427,7 @@ image::images/TRex_Bird_General_Scheme_With_ips.png[title="TRex Bird General Sch
 
 - Configure DUT routing protocols:
 
-.ASR1001-01 example
+.ASR1001-01 configuration to enable BGP
 [source,bash]
 ----
 asr1001-01#configure terminal
@@ -5421,14 +5438,71 @@ asr1001-01(config-router)#neighbor 1.1.2.3 remote-as 65000
 asr1001-01(config-router)#end 
 ----
 
-- Run TRex in "ONE_QUEUE" mode and set bird flag on:
+- Run TRex in "ONE_QUEUE" mode and set bird flag on :
 
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -i --bird-server --software -c 1
 ----
 
+The `--bird-server` will load the bird daemon and the ZMQ server 
+
 - In another shell run python script located at: `scripts/automation/trex_control_plane/interactive/trex/examples/stl/add_bird_node.py` (see see link:trex_manual.html#Simple[Simple bird node adding])
+
+.Example
+[source,python]
+----
+
+c = STLClient(verbose_level = 'debug')
+my_ports = [0, 1]
+c.connect()
+c.acquire(ports = my_ports)
+c.set_port_attr(promiscuous=True) # to get the packet back to namespace
+c.set_service_mode(ports = my_ports, enabled = True)  # this is needed for software mode with one QUEUE, going to be replaced with multi-Rx 
+
+bird_cfg = BirdCFGCreator()
+bgp_data1 = """
+    local 1.1.1.3 as 65000;
+    neighbor 1.1.1.1 as 65000;
+    ipv4 {
+            import all;
+            export all;
+    };
+"""
+bgp_data2 = """
+    local 1.1.2.3 as 65000;
+    neighbor 1.1.2.1 as 65000;
+    ipv4 {
+            import all;
+            export all;
+    };
+"""
+
+bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
+bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
+bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
+bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
+cfg = bird_cfg.merge_to_string() # build combined configuration 
+c.set_bird_config(config = cfg)  # sending our new config (under the hood there is a PyBird client)
+
+# create 2 veth's in bird namespace, need to move to prom mode to get. You can use the old TRex namespace API this is just a shim to layer 
+c.set_bird_node(node_port      = 0,
+                mac            = "00:00:00:01:00:07",
+                ipv4           = "1.1.1.3",
+                ipv6_enabled   = True,
+                ipv4_subnet    = 24,
+                ipv6_subnet    = 124)
+
+c.set_bird_node(node_port      = 1,
+                mac            = "00:00:00:01:00:08",
+                ipv4           = "1.1.2.3",
+                ipv6_enabled   = True,
+                ipv4_subnet    = 24,
+                ipv6_subnet    = 124)
+
+c.wait_for_protocols(['my_bgp1, my_bgp2'])
+c.disconnect()
+----
 
 The python script will create the 2 veth's and send bird a simple config file with bgp protocol and 2 static routes. You can check if it worked on the dut side - look for the two new bgp routes:
 
@@ -5460,6 +5534,7 @@ c = STLClient(verbose_level = 'debug')                 <1>
 my_ports = [0, 1]
 c.connect()
 c.acquire(ports = my_ports)
+c.set_port_attr(promiscuous=True) # to get the packet back to namespace
 c.set_service_mode(ports = my_ports, enabled = True)
 
 # create 2 veth's in bird namespace
@@ -5584,6 +5659,7 @@ Now you have your final string with all your wanted protocols and routes ready t
 ===== Commands
 
 Commands in PyBird are divided to: query and commands. In case of using a query like: `get_config` connect will be enough. In case of using a command like: `set_config` you have to connect and acquire.
+The TRex client object hides this object but it is possible to use it directly 
 
 .API Commands
 [format="csv",cols="2^,2^,2^", options="header",width="100%"]
@@ -5624,6 +5700,16 @@ b.disconnect()              <6>
 =====================================================================
 PyBird Client will release & disconnect anyway when the object will be destroyed. But it's not recommended to rely on that.
 =====================================================================
+
+===== PyBird performance numbers 
+
+.BGP 
+[cols="3^,3^,3^", options="header"]
+|=============================
+| Routes       |  time(sec)  | ASR1K CPU% 
+| 10           |   1         | 1 %
+| 1,000,000    | 20          | 100% 70K route/sec
+|=============================
 
 === Appendix
 
