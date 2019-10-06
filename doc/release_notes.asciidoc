@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.64  ==
+
+* Azure DPDK/Failsafe PMD support see link:trex_appendix_azure.html[Azure DPDK support]
+
 == Release 2.63  ==
 
 * Minor bug fixes 
