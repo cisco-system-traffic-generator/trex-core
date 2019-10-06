@@ -151,6 +151,8 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | VMXNET3  | VMware paravirtualized  | + | - |  Connect using VMware vSwitch
 | E1000    | paravirtualized  | + | - | VMware/KVM/VirtualBox
 | Virtio | paravirtualized    | + | - | KVM
+| Amazon ENA | paravirtualized    | + | - | Amazon Cloud
+| MS Failsafe | paravirtualized    | + | - | Azure with DPDK mlx5 support 
 |=================
 
 [NOTE]
@@ -1932,6 +1934,8 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
      - port_limit    : 2    #mandatory <1>
        version       : 2    #mandatory <2>
        interfaces    : ["03:00.0", "03:00.1"]   #mandatory <3>
+       #ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe #<17>
+       #interfaces_vdevs : ['net_failsafe_vsc0','net_failsafe_vsc1'] # use failsafe  #<18>
        #enable_zmq_pub  : true #optional <4>
        #zmq_pub_port    : 4500 #optional <5>
        #zmq_rpc_port    : 4501 #optional <15>
@@ -1975,6 +1979,9 @@ gratitues ARP for each ip will be sent every 120 seconds (Can be changed using -
 <14> Old MAC address format. New format is supported since version v2.09.
 <15> Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
 <16> Override the default number of Rx/TX dpdk driver descriptors. For better performance on virtual interfaces better to enlarge these numbers to Rx=4096
+<17> Advance DPDK options, used by Azure/failsafe driver 
+<18> In case of failsafe choose the right drivers 
+
 
 [NOTE]
 =========================================================================================
@@ -2322,6 +2329,9 @@ link:trex_appendix_active_flows.html[More active flows]
 link:trex_appendix_fixing_pcaps.html[astf-sim for fixing pcaps]
 
 link:trex_appendix_software_mode.html[software mode]
+
+anchor:azure[]
+link:trex_appendix_azure.html[Azure DPDK support]
 
 
 

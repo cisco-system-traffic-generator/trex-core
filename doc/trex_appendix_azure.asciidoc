@@ -1,0 +1,347 @@
+TRex on Azure DPDK 
+==================
+:quotes.++:
+:numbered:
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Abstract
+
+TRex can run on Azure with DPDK support see link:https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk[MS Azure]  +
+The main reason is to speed up the traffic at the cost of CPU pooling. +
+
+This is from the Azure website: 
+`Data Plane Development Kit (DPDK) on Azure offers a faster user-space packet processing framework for performance-intensive applications. This framework bypasses the virtual machine’s kernel network stack.`
+
+In high level there is a need to work with two network interfaces for each application high level interface (PMD) to support fail-safe. The PMD decides which flow to optimized and to redirect to the fast path (Mellanox VF) or slow path (TAP on top Linux NetVSC)
+
+Both DPDK TAP and DPDK MLX5 that used by the failsafe PMD are highly dependent on the kernel version and external library so it is not that simple to make it work. The dependency matrix is complex. Try to follow what worked for us. If something else works for you please send email. 
+ 
+It was tested with TRex v2.64 (the first version that supports failsafe PMD driver)
+
+[IMPORTANT]
+=====================================
+This configuration is not tested in our regression so it could be broken in newer versions of TRex. We hope someone can help with that
+=====================================
+
+== Azure Linux Distro Installation
+
+Azure cloud VMs CentOS Azure-Tuned 7.5.1804 (This is the *only* verified distro)
+
+[IMPORTANT]
+=====================================
+There is no need to install DPDK or any other library specify in Azure document 
+=====================================
+
+[source,bash]
+----
+[bash]]$ cat /etc/redhat-release
+CentOS Linux release 7.5.1804 (Core)
+----
+
+
+== OFED Installation
+
+* Download *OFED 4.6-1.0.1* tar for RHEL 7.6 distro.
+
+follow this link:trex_appendix_mellanox.html[OFED installation]
+
+[IMPORTANT]
+=====================================
+In Azure documentation it is noted that there is **no** need to install it. But you should !
+=====================================
+
+== Network TRex configuration with 3 ports Management and two data-path ports 
+
+You should be able to see the following after distro and OFED was installed
+
+[source,bash]
+----
+[bash]$ ibv_devinfo
+hca_id: mlx5_0
+        transport:                      InfiniBand (0)
+        fw_ver:                         14.24.4558
+        node_guid:                      000d:3aff:fe16:2860
+        sys_image_guid:                 bc83:85fa:f7b1:0001
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4118
+        hw_ver:                         0x80
+        board_id:                       MSF0010110035
+        phys_port_cnt:                  1
+                port:   1
+                        state:                  PORT_ACTIVE (4)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+ 
+hca_id: mlx5_1
+        transport:                      InfiniBand (0)
+        fw_ver:                         14.24.4558
+        node_guid:                      000d:3aff:fe16:20bc
+        sys_image_guid:                 bc83:85fa:f7b1:0001
+        vendor_id:                      0x02c9
+        vendor_part_id:                 4118
+        hw_ver:                         0x80
+        board_id:                       MSF0010110035
+        phys_port_cnt:                  1
+                port:   1
+                        state:                  PORT_ACTIVE (4)
+                        max_mtu:                4096 (5)
+                        active_mtu:             1024 (3)
+                        sm_lid:                 0
+                        port_lid:               0
+                        port_lmc:               0x00
+                        link_layer:             Ethernet
+ 
+[bash]$ ibdev2netdev
+mlx5_0 port 1 ==> eth3 (Up)
+mlx5_1 port 1 ==> eth4 (Up)
+ 
+[[bash]]$ sudo ./dpdk_setup_ports.py -t
++----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
+| ID | NUMA |     PCI      |        MAC        |                      Name                       |  Driver   | Linux IF | Active |
++====+======+==============+===================+=================================================+===========+==========+========+
+| 0  | -1   | 0002:00:02.0 | 00:0d:3a:16:28:60 | MT27710 Family [ConnectX-4 Lx Virtual Function] | mlx5_core | eth3     |        |
++----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
+| 1  | -1   | 0003:00:02.0 | 00:0d:3a:16:20:bc | MT27710 Family [ConnectX-4 Lx Virtual Function] | mlx5_core | eth4     |        |
++----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
+----
+
+
+We have tested it with **mlx5** driver and **not** **mlx4** (CX-3 Mellanox card)
+
+
+.NetVSC interfaces 
+[source,bash]
+----
+
+[bash]$ ifconfig -a
+
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500            
+        inet 10.90.52.101  netmask 255.255.255.0  broadcast 10.90.52.255
+        inet6 fe80::20d:3aff:fe55:626  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:55:06:26  txqueuelen 1000  (Ethernet)
+        RX packets 1071836  bytes 643353805 (613.5 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 1006784  bytes 279824718 (266.8 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.90.23.101  netmask 255.255.255.0  broadcast 10.90.23.255
+        inet6 fe80::f230:73e0:bbd5:5150  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:55:08:d3  txqueuelen 1000  (Ethernet)
+        RX packets 14405974  bytes 1050416181 (1001.7 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 24  bytes 1896 (1.8 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.90.130.101  netmask 255.255.255.0  broadcast 10.90.130.255
+        inet6 fe80::f3a0:fdd:399d:aa0a  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:14:49:d9  txqueuelen 1000  (Ethernet)
+        RX packets 74216776  bytes 4758076483 (4.4 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 21  bytes 1686 (1.6 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth3: flags=6211<UP,BROADCAST,RUNNING,SLAVE,MULTICAST>  mtu 9238
+        ether 00:0d:3a:55:08:d3  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 12  bytes 720 (720.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth4: flags=6211<UP,BROADCAST,RUNNING,SLAVE,MULTICAST>  mtu 9238
+        ether 00:0d:3a:14:49:d9  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 12  bytes 720 (720.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 306775  bytes 70217233 (66.9 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 306775  bytes 70217233 (66.9 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+----
+
+
+*The ports in this example*:
+
+* *eth0*:  management port
+
+* *eth1*/*eth2* : NetVSC will be used throw TAP interfaces 
+
+* *eth3*/*eth4* : Mellanox VF interfaces (high speed)
+
+
+
+== TRex trex_cfg.yaml 
+
+For the aforementioned network configuration this would be the trex_cfg.yaml
+
+[source,bash]
+----
+- port_limit      : 2
+  version         : 2
+  interfaces  : ['0002:00:02.0', '0003:00:02.0'] # the PCI for Mellanox #<1>
+  ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe #<2>
+  interfaces_vdevs : ['net_failsafe_vsc0','net_failsafe_vsc1'] # use failsafe  #<3>
+  port_info       :  # Port IPs. Change to suit your needs. In case of loopback, you can leave as is.
+          - ip         : 10.90.23.101  #<4>
+            default_gw : 10.90.23.202
+          - ip         : 10.90.130.101
+            default_gw : 10.90.130.202
+  platform:
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 0
+          threads: [2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+----
+<1> The normal mlx5 PCI 
+<2> The NetVSC linux interface names (in this example eth1/eth2) - new option from v2.64
+<3> Ask DPDK to use the failsafe interfaces instead of Mellanox  - new option from v2.64
+<4> The IP and route should match your need 
+
+== Routes and Isolation 
+
+It is better to *isolate* the management and data-path networks else you could shoot yourself in leg and shoot someone in the public cloud. 
+
+In case you can't find a way to isolate the networks add a route so the traffic will be forward to the right location (the DUT VM)
+
+.Example for route configuration
+[source,bash]
+----
+$sudo route add -net 16.0.0.0 netmask 255.0.0.0 gw 10.90.130.202
+$sudo route add -net 48.0.0.0 netmask 255.0.0.0 gw 10.90.23.202
+----
+
+* 10.90.130.202/10.90.23.202 is the DUT networks default gateway 16.0.0.0/48.0.0.0 for the TRex profile
+
+== TRex Logs 
+
+[source,bash]
+----
+.sudo ./t-rex-64 -i  -c 1 -v 7
+----
+
+.Valid logs
+[source,bash]
+----
+PDK args 
+ xx  -d  libmlx5-64-debug.so  -d  libmlx4-64-debug.so  -c  0x7  -n  4  --log-level  8  --master-lcore  0  -w  0002:00:02.0  -w  0003:00:02.0  --legacy-mem  --vdev=tvsc0,iface=eth1  --vdev=net_vdev_netvsc1,iface=eth2  
+EAL: Detected 16 lcore(s)
+EAL: Detected 1 NUMA nodes
+EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
+EAL: No available hugepages reported in hugepages-1048576kB
+ EAL: Probing VFIO support...
+EAL: WARNING: cpu flags constant_tsc=yes nonstop_tsc=no -> using unreliable clock cycles !
+EAL: PCI device 0002:00:02.0 on NUMA socket -1
+EAL:   Invalid NUMA socket, default to 0
+EAL:   probe driver: 15b3:1016 net_mlx5
+net_mlx5: mlx5.c:1244: mlx5_dev_spawn(): tunnel offloading disabled due to old OFED/rdma-core version
+net_mlx5: mlx5.c:1256: mlx5_dev_spawn(): MPLS over GRE/UDP tunnel offloading disabled due to old OFED/rdma-core version or firmware configuration
+EAL: PCI device 0003:00:02.0 on NUMA socket -1
+EAL:   Invalid NUMA socket, default to 0
+EAL:   probe driver: 15b3:1016 net_mlx5
+net_mlx5: mlx5.c:1244: mlx5_dev_spawn(): tunnel offloading disabled due to old OFED/rdma-core version
+net_mlx5: mlx5.c:1256: mlx5_dev_spawn(): MPLS over GRE/UDP tunnel offloading disabled due to old OFED/rdma-core version or firmware configuration
+*net_vdev_netvsc: probably using routed NetVSC interface "eth1" (index 3)*
+*net_vdev_netvsc: probably using routed NetVSC interface "eth2" (index 4)*
+                input : [0002:00:02.0, 0003:00:02.0]
+                 dpdk : [0002:00:02.0, 0003:00:02.0]
+             pci_scan : [0002:00:02.0, 0003:00:02.0]
+                  map : [ 0, 1]
+----
+
+.Not valid TAP issues 
+[source,bash]
+----
+
+net_failsafe: sub_device 1 probe failed (File exists)
+eth_dev_tap_create(): Unable to create TAP interface
+eth_dev_tap_create(): TAP Unable to initialize net_tap_vsc0
+EAL: Driver cannot attach the device (net_tap_vsc0)
+EAL: Failed to attach device on primary process
+----
+
+You should see something like this in the log with ```ifconfig -a``` should shows dtap0/dtap1 interfaces 
+
+== Known issues (per v2.64)
+
+* The trex image was build with TAP interfaces support for CentOs kernel (linux headers), it might not work on different distro/os 
+* In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case.
+* Multi core (for example `-c 2`) does not work for some reason. 
+* There is no need to compile or install the DPDK drivers - TRex has it own driver statically linked
+
+== Counters Debug 
+
+How to debug the path taken by failsafe using counters 
+
+[source,bash]
+----
+
+[bash]$ sudo ethtool -S eth3 | grep vport_uni  #mellanox VF
+     rx_vport_unicast_packets: 12749447777
+     rx_vport_unicast_bytes: 1051709357511
+     tx_vport_unicast_packets: 16940152019
+     tx_vport_unicast_bytes: 1381023024927
+[bash]$ sudo ethtool -S eth4 | grep vport_uni #mellanox VF
+     rx_vport_unicast_packets: 12883845064
+     rx_vport_unicast_bytes: 1053057197008
+     tx_vport_unicast_packets: 16831794821
+     tx_vport_unicast_bytes: 1382705644149
+
+[bash]$ ifconfig dtap0
+dtap0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::20d:3aff:fe55:8d3  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:55:08:d3  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 178467  bytes 13238484 (12.6 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+[bash]$ ifconfig dtap1
+dtap1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::20d:3aff:fe14:49d9  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:14:49:d9  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 861889  bytes 57731802 (55.0 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+
+[bash]$ ifconfig eth1
+eth1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.90.23.101  netmask 255.255.255.0  broadcast 10.90.23.255
+        inet6 fe80::f230:73e0:bbd5:5150  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:55:08:d3  txqueuelen 1000  (Ethernet)
+        RX packets 14934836  bytes 1202553104 (1.1 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 24  bytes 1896 (1.8 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+
+[bash]$ ifconfig eth2
+eth2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.90.130.101  netmask 255.255.255.0  broadcast 10.90.130.255
+        inet6 fe80::f3a0:fdd:399d:aa0a  prefixlen 64  scopeid 0x20<link>
+        ether 00:0d:3a:14:49:d9  txqueuelen 1000  (Ethernet)
+        RX packets 75763987  bytes 4874688875 (4.5 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 21  bytes 1686 (1.6 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+----
+
+
+== For developers 
+
+* DPDK TAP interfaces is compiled with CentOS Linux headers to be able to be cross compiled it. If you want to complie it on the machine nativly you will need to replace ```#include <linux_tap/>``` with ```#include <linux/..> 

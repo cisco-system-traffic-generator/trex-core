@@ -760,6 +760,7 @@ def build(bld):
         'active_flows',
         'fixing_pcaps',
         'software_mode',
+        'azure'
         ]
     for appendix_name in toc_appendixes:
         src_name = 'trex_appendix_%s.asciidoc waf.css' % appendix_name
