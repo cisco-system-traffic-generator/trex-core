@@ -172,7 +172,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
             return false;
         } else {
             /* abnormal error - abort */
-            printf(" ZMQ unhandled error code %d somthing very strange !",errno);
+            printf(" ZMQ unhandled error code %d ",errno);
             //error("ZMQ unhandled error code: " + std::to_string(errno), false);
         }
     }

@@ -891,6 +891,8 @@ Other network devices
             for key in if_list:
                 if key == 'dummy':
                     continue
+                if pa().no_ofed_check: # in case of no-ofed don't optimized for Azure 
+                    continue
                 key = self.split_pci_key(key)
                 if 'Virtual' not in self.m_devices[key]['Device_str']:
                     pci_id = self.m_devices[key]['Slot_str']
