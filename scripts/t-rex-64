@@ -61,14 +61,16 @@ trap cleanup EXIT
 
 
 # if we have a new core run optimized trex
-if [[ "$ARCH" == "aarch64" ]] ; then
-    FLAG='evtstrm'
-else
+if [[ "$ARCH" == "x86_64" ]] ; then
     FLAG='avx'
+elif [[ "$ARCH" == "aarch64" ]] ; then
+    FLAG='evtstrm'
+elif [[ "$ARCH" == "ppc64le" ]] ; then
+    FLAG='POWER9'
 fi
 
 
-if  grep -q $FLAG /proc/cpuinfo  ; then
+if grep -q $FLAG /proc/cpuinfo  ; then
     ./_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS
     RESULT=$?
     if [ $RESULT -eq 132 ]; then

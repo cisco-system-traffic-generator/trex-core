@@ -84,11 +84,9 @@ public:
 
     virtual bool sanity_check()=0;
 
-    /* return the core mask */
-    virtual uint64_t get_cores_mask()=0;
-
     /* return the core list */
     virtual void get_cores_list(char *)=0;
+    virtual void get_cores_list_lowend(char *)=0;
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id)=0;
@@ -135,10 +133,10 @@ public:
 
     bool sanity_check();
 
-    /* return the core mask */
-    uint64_t get_cores_mask();
-
+    /* return the core list */
     void get_cores_list(char *);
+    void get_cores_list_lowend(char *);
+
     uint32_t get_cores_count(void);
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
@@ -184,10 +182,9 @@ public:
 
     bool sanity_check();
 
-    /* return the core mask */
-    uint64_t get_cores_mask();
-
+    /* return the core list */
     void get_cores_list(char *);
+    void get_cores_list_lowend(char *);
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id);
@@ -250,10 +247,9 @@ public:
 
     bool sanity_check();
 
-    /* return the core mask */
-    uint64_t get_cores_mask();
-
+    /* return the core list */
     void get_cores_list(char *);
+    void get_cores_list_lowend(char *);
 
     /* virtual thread_id is always from   1..number of threads  virtual  */
     virtual_thread_id_t thread_phy_to_virt(physical_thread_id_t  phy_id);

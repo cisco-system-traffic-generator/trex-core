@@ -11,7 +11,17 @@ import sys
 from zmq.constants import *
 from ctypes import *
 
-cpu_vendor = 'arm' if os.uname()[4] == 'aarch64' else 'intel'
+march = os.uname()[4]
+
+if march == 'aarch64':
+    cpu_vendor = 'arm'
+elif march == 'x86_64' or march == 'i386' or march == 'i686':
+    cpu_vendor = 'intel'
+elif march == 'ppc64le':
+    cpu_vendor = 'ppc'
+else:
+    raise Exception('Unknown CPU architecture: ' + march)
+
 cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))

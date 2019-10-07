@@ -612,7 +612,15 @@ public:
     uint8_t             m_pad_end[104];
 
     /* CACHE_LINE */
+#ifdef __PPC64__
+#ifdef TREX_SIM
     uint64_t            m_pad3[8];
+#else
+    uint64_t            m_pad3[16];
+#endif
+#else
+    uint64_t            m_pad3[8];
+#endif
 
 public:
     void free_command();
@@ -629,7 +637,15 @@ public:
     uint8_t             m_pad_end[104];
 
     /* CACHE_LINE */
+#ifdef __PPC64__
+#ifdef TREX_SIM
     uint64_t            m_pad3[8];
+#else
+    uint64_t            m_pad3[16];
+#endif
+#else
+    uint64_t            m_pad3[8];
+#endif
 } __rte_cache_aligned;;
 
 
