@@ -34,13 +34,13 @@ Azure cloud VMs CentOS Azure-Tuned 7.5.1804 (This is the *only* verified distro)
 .Create a marketplace provided CentOS
 [source,bash]
 ----
-[bash]az vm create --resource-group mygroup --location eastus --name TrexCentOs --size Standard_DS5_v2 --admin-username testing --admin-password example  --nics myNIC1 myNIC2 myNIC3 --image CentOS
+[bash]$az vm create --resource-group mygroup --location eastus --name TrexCentOs --size Standard_DS5_v2 --admin-username testing --admin-password example  --nics myNIC1 myNIC2 myNIC3 --image CentOS
 ----
 
 .Verify it is CentOS with the right version
 [source,bash]
 ----
-[bash]]$ cat /etc/redhat-release
+[bash]$ cat /etc/redhat-release
 CentOS Linux release 7.5.1804 (Core)
 ----
 
@@ -51,18 +51,18 @@ See Microsoft Azure document link:https://docs.microsoft.com/en-us/azure/virtual
 .Add DPDK MLX support
 [source,bash]
 ----
-[bash]sudo yum -y groupinstall "Infiniband Support" -y
-[bash]sudo dracut --add-drivers "mlx4_en mlx4_ib mlx5_ib" -f
-[bash]sudo yum install -y gcc kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel libmnl-devel
+[bash]$sudo yum -y groupinstall "Infiniband Support" -y
+[bash]$sudo dracut --add-drivers "mlx4_en mlx4_ib mlx5_ib" -f
+[bash]$sudo yum install -y gcc kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel libmnl-devel
 ----
 
 .Add huge pages to cmdline & fstab
 [source,bash]
 ----
-[bash]sudo vi /etc/default/grub
+[bash]$sudo vi /etc/default/grub
 # hugepages=4096
-[bash]sudo grub2-mkconfig -o /boot/grub2/grub.cfg
-[bash]sudo vi /etc/fstab
+[bash]$sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+[bash]$sudo vi /etc/fstab
 # nodev /mnt/huge hugetlbfs defaults 0 0
 ----
 
@@ -70,7 +70,7 @@ See Microsoft Azure document link:https://docs.microsoft.com/en-us/azure/virtual
 .Look for Mellanox CX-5/4 NICs 
 [source,bash]
 ----
-]$ lspci | grep Mell
+[bash]$ lspci | grep Mell
 0002:00:02.0 Ethernet controller: Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function] (rev 80)
 0003:00:02.0 Ethernet controller: Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function] (rev 80)
 ----
@@ -78,7 +78,7 @@ See Microsoft Azure document link:https://docs.microsoft.com/en-us/azure/virtual
 .Or Look for Mellanox CX-3 NICs 
 [source,bash]
 ----
-$ lspci | grep Mell
+[bash]$lspci | grep Mell
 0002:00:02.0 Ethernet controller: Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function]
 0003:00:02.0 Ethernet controller: Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function]
 ----
@@ -88,7 +88,7 @@ $ lspci | grep Mell
 [source,bash]
 ----
 
-[bash]$ ifconfig -a
+[bash]$ifconfig -a
 
 eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500            
         inet 10.90.52.101  netmask 255.255.255.0  broadcast 10.90.52.255
@@ -188,8 +188,8 @@ In case you can't find a way to isolate the networks add a route so the traffic 
 .Example for route configuration
 [source,bash]
 ----
-$sudo route add -net 16.0.0.0 netmask 255.0.0.0 gw 10.90.130.202
-$sudo route add -net 48.0.0.0 netmask 255.0.0.0 gw 10.90.23.202
+[bash]$sudo route add -net 16.0.0.0 netmask 255.0.0.0 gw 10.90.130.202
+[bash]$$sudo route add -net 48.0.0.0 netmask 255.0.0.0 gw 10.90.23.202
 ----
 
 * 10.90.130.202/10.90.23.202 is the DUT networks default gateway 16.0.0.0/48.0.0.0 for the TRex profile
@@ -203,7 +203,7 @@ $sudo route add -net 48.0.0.0 netmask 255.0.0.0 gw 10.90.23.202
 
 [source,bash]
 ----
-.sudo ./t-rex-64 -i  -c 1 -v 7 --no-ofed-check
+[bash]$sudo ./t-rex-64 -i  -c 1 -v 7 --no-ofed-check
 ----
 
 .Valid logs
@@ -250,8 +250,7 @@ EAL: Failed to attach device on primary process
 .MLX5 results
 [source,bash]
 ----
-
-sudo ./t-rex-64  -i -c 1  --no-ofed-check
+[bash]$sudo ./t-rex-64  -i -c 1  --no-ofed-check
 
 tui>start -f stl/bench.py -t vm=cached
 ,size=68 -m 2mpps --port 0 1 –force
@@ -290,7 +289,7 @@ ierrors    |            82,491 |            81,817 |           164,308
 .MLX4 results
 [source,bash]
 ----
-[bash]sudo ./t-rex-64  -i -c 1  --no-ofed-check
+[bash]$sudo ./t-rex-64  -i -c 1  --no-ofed-check
 
 tui>start -f stl/bench.py -t vm=cached,size=68 -m 2mpps --port 0 1 –force
 
@@ -333,7 +332,8 @@ You should see something like this in the log with ```ifconfig -a``` should show
 * In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case. ` ZMQ unhandled error code 14`
 * Multi core (for example `-c 2`) does not work for some reason. 
 * There is no need to compile or install the DPDK drivers (only Mellanox as specified above) - TRex has it own DPDK driver statically linked
-* You should change the MTU manualy for both TAP and MLX (`--no-ofed-check` skip this step). TRex by default change the MTU to 9k but not in this case
+* You should change the MTU manualy for both TAP and MLX (`--no-ofed-check` skip this step,TRex by default change the MTU to 9k but not in this case)
+* MLX5/MLX4 has different default/max MTU 
 
 == Counters Debug 
 
@@ -393,7 +393,6 @@ eth2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         TX packets 21  bytes 1686 (1.6 KiB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 ----
-
 
 == For developers 
 
