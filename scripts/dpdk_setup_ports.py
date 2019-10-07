@@ -4,6 +4,10 @@
 
 # hhaim
 import sys
+try:
+    xrange # Python 2
+except NameError:
+    xrange = range # Python 3
 import os
 python_ver = 'python%s' % sys.version_info[0]
 yaml_path = os.path.join('external_libs', 'pyyaml-3.11', python_ver)
@@ -23,8 +27,11 @@ import stat
 import time
 import shutil
 import signal
+import glob
 
 from dpdk_nic_bind import is_napatech
+
+march = os.uname()[4]
 
 # exit code is Important should be
 # -1 : don't continue
@@ -48,7 +55,11 @@ class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
-    MAC_LCORE_NUM = 63 # current bitmask is 64 bit
+
+    if march == 'ppc64le':
+        MAX_LCORE_NUM = 159
+    else:
+        MAX_LCORE_NUM = 63
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
@@ -84,7 +95,7 @@ class ConfigCreator(object):
                         cores[core].remove(lcore)
                     if exclude_lcores and lcore in exclude_lcores:
                         cores[core].remove(lcore)
-                    if lcore > self.MAC_LCORE_NUM:
+                    if lcore > self.MAX_LCORE_NUM:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
@@ -101,8 +112,16 @@ class ConfigCreator(object):
                     raise DpdkSetup("Expected '%s' field in interface dictionary, got: %s" % (mandatory_interface_field, interface))
 
         Device_str = self._verify_devices_same_type(self.interfaces)
-        if '40Gb' in Device_str:
+        if '100Gb' in Device_str:
+            self.speed = 100
+        elif '50Gb' in Device_str:
+            self.speed = 50
+        elif '40Gb' in Device_str:
             self.speed = 40
+        elif '25Gb' in Device_str:
+            self.speed = 25
+        elif '20Gb' in Device_str:
+            self.speed = 20
         else:
             self.speed = 10
 
@@ -161,7 +180,7 @@ class ConfigCreator(object):
             return Device_str
         for interface in interfaces_list:
             if interface['Device_str'] == 'dummy':
-                continue            
+                continue
             if Device_str != interface['Device_str']:
                 raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (Device_str, interface['Device_str']))
         return Device_str
@@ -572,7 +591,8 @@ Other network devices
             raise VFIOBindErr('Could not find file with Kernel boot parameters: %s' % krnl_params_file)
         with open(krnl_params_file) as f:
             krnl_params = f.read()
-        if 'iommu=' not in krnl_params:
+        # IOMMU is always enabled on Power systems
+        if march != 'ppc64le' and 'iommu=' not in krnl_params:
             raise VFIOBindErr('vfio-pci is not an option here')
         if 'vfio_pci' not in dpdk_nic_bind.get_loaded_modules():
             ret = os.system('modprobe vfio_pci')
@@ -946,27 +966,32 @@ Other network devices
                         raise DpdkSetup('Unable to bind interfaces to driver mlx5_core/mlx4_core.')
                 return MLX_EXIT_CODE
             else:
-                # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci
-                if load_igb_uio():
-                    print('Trying to bind to igb_uio ...')
-                    ret = self.do_bind_all('igb_uio', to_bind_list)
-                    if ret:
-                        raise DpdkSetup('Unable to bind interfaces to driver igb_uio.') # module present, loaded, but unable to bind
-                    return
-
-                try:
+                if march == 'ppc64le':
                     print('Trying to bind to vfio-pci ...')
                     self.try_bind_to_vfio_pci(to_bind_list)
                     return
-                except VFIOBindErr as e:
-                    pass
+                else:
+                    # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci
+                    if load_igb_uio():
+                        print('Trying to bind to igb_uio ...')
+                        ret = self.do_bind_all('igb_uio', to_bind_list)
+                        if ret:
+                            raise DpdkSetup('Unable to bind interfaces to driver igb_uio.') # module present, loaded, but unable to bind
+                        return
+
+                    try:
+                        print('Trying to bind to vfio-pci ...')
+                        self.try_bind_to_vfio_pci(to_bind_list)
+                        return
+                    except VFIOBindErr as e:
+                        pass
                     #print(e)
 
-                print('Trying to compile and bind to igb_uio ...')
-                compile_and_load_igb_uio()
-                ret = self.do_bind_all('igb_uio', to_bind_list)
-                if ret:
-                    raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
+                    print('Trying to compile and bind to igb_uio ...')
+                    compile_and_load_igb_uio()
+                    ret = self.do_bind_all('igb_uio', to_bind_list)
+                    if ret:
+                        raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
         elif Mellanox_cnt:
             return MLX_EXIT_CODE
         elif Napatech_cnt:
@@ -1031,30 +1056,46 @@ Other network devices
         return pci_id.split('/')[0]
 
     def _get_cpu_topology(self):
-        cpu_topology_file = '/proc/cpuinfo'
-        # physical processor -> physical core -> logical processing units (threads)
         cpu_topology = OrderedDict()
-        if not os.path.exists(cpu_topology_file):
-            raise DpdkSetup('File with CPU topology (%s) does not exist.' % cpu_topology_file)
-        with open(cpu_topology_file) as f:
-            for lcore in f.read().split('\n\n'):
-                if not lcore:
-                    continue
-                lcore_dict = OrderedDict()
-                for line in lcore.split('\n'):
-                    key, val = line.split(':', 1)
-                    lcore_dict[key.strip()] = val.strip()
-                if 'processor' not in lcore_dict:
-                    continue
-                numa = int(lcore_dict.get('physical id', -1))
-                if numa not in cpu_topology:
-                    cpu_topology[numa] = OrderedDict()
-                core = int(lcore_dict.get('core id', lcore_dict['processor']))
-                if core not in cpu_topology[numa]:
-                    cpu_topology[numa][core] = []
-                cpu_topology[numa][core].append(int(lcore_dict['processor']))
+        base_path = "/sys/devices/system/cpu"
+        cpus = []
+       
+        file_re = re.compile(base_path + '/cpu([0-9]+)$')
+        for cpu_dir in glob.glob('{}/cpu*'.format(base_path)):
+            cpu_obj = file_re.match(cpu_dir)
+            if cpu_obj:
+                cpus.append(int(cpu_obj.group(1)))
+        cpus.sort()
+
+        for cpu in cpus:
+
+            # Find the socket ID of the current CPU
+            try:
+                with open("{}/cpu{}/topology/physical_package_id".format(base_path, cpu)) as f:
+                    socket = int(f.read())
+            except IOError:
+                continue
+            except:
+                break
+            if socket not in cpu_topology:
+                cpu_topology[socket] = OrderedDict()
+
+            # Find the core ID of the current CPU
+            try:
+                with open("{}/cpu{}/topology/core_id".format(base_path, cpu)) as f:
+                   core = int(f.read())
+            except IOError:
+                continue
+            except:
+                break
+            if core not in cpu_topology[socket]:
+                cpu_topology[socket][core] = []
+
+            # Capture the socket/core of the current CPU
+            cpu_topology[socket][core].append(cpu)
+
         if not cpu_topology:
-            raise DpdkSetup('Could not determine CPU topology from %s' % cpu_topology_file)
+            raise DpdkSetup('Could not determine CPU topology from %s' % base_path)
         return cpu_topology
 
     # input: list of different descriptions of interfaces: index, pci, name etc.
