@@ -9,9 +9,11 @@ include::trex_ga.asciidoc[]
 == Abstract
 
 TRex can run on Azure with DPDK support see link:https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk[MS Azure]  +
-The main reason is to speed up the traffic at the cost of CPU pooling. +
+The main reason is to speedup the traffic rate at the cost of CPU pooling. +
 
-This is from the Azure website: 
+This is from the Azure website: +
+
+
 `Data Plane Development Kit (DPDK) on Azure offers a faster user-space packet processing framework for performance-intensive applications. This framework bypasses the virtual machine’s kernel network stack.`
 
 In high level there is a need to work with two network interfaces for each application high level interface (PMD) to support fail-safe. The PMD decides which flow to optimized and to redirect to the fast path (Mellanox VF) or slow path (TAP on top Linux NetVSC)
@@ -29,93 +31,60 @@ This configuration is not tested in our regression so it could be broken in newe
 
 Azure cloud VMs CentOS Azure-Tuned 7.5.1804 (This is the *only* verified distro)
 
-[IMPORTANT]
-=====================================
-There is no need to install DPDK or any other library specify in Azure document 
-=====================================
+.Create a marketplace provided CentOS
+[source,bash]
+----
+[bash]az vm create --resource-group mygroup --location eastus --name TrexCentOs --size Standard_DS5_v2 --admin-username testing --admin-password example  --nics myNIC1 myNIC2 myNIC3 --image CentOS
+----
 
+.Verify it is CentOS with the right version
 [source,bash]
 ----
 [bash]]$ cat /etc/redhat-release
 CentOS Linux release 7.5.1804 (Core)
 ----
 
+== Installing DPDK support 
 
-== OFED Installation
+See Microsoft Azure document link:https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk[setup-dpdk]
 
-* Download *OFED 4.6-1.0.1* tar for RHEL 7.6 distro.
-
-follow this link:trex_appendix_mellanox.html[OFED installation]
-
-[IMPORTANT]
-=====================================
-In Azure documentation it is noted that there is **no** need to install it. But you should !
-=====================================
-
-== Network TRex configuration with 3 ports Management and two data-path ports 
-
-You should be able to see the following after distro and OFED was installed
-
+.Add DPDK MLX support
 [source,bash]
 ----
-[bash]$ ibv_devinfo
-hca_id: mlx5_0
-        transport:                      InfiniBand (0)
-        fw_ver:                         14.24.4558
-        node_guid:                      000d:3aff:fe16:2860
-        sys_image_guid:                 bc83:85fa:f7b1:0001
-        vendor_id:                      0x02c9
-        vendor_part_id:                 4118
-        hw_ver:                         0x80
-        board_id:                       MSF0010110035
-        phys_port_cnt:                  1
-                port:   1
-                        state:                  PORT_ACTIVE (4)
-                        max_mtu:                4096 (5)
-                        active_mtu:             1024 (3)
-                        sm_lid:                 0
-                        port_lid:               0
-                        port_lmc:               0x00
-                        link_layer:             Ethernet
- 
-hca_id: mlx5_1
-        transport:                      InfiniBand (0)
-        fw_ver:                         14.24.4558
-        node_guid:                      000d:3aff:fe16:20bc
-        sys_image_guid:                 bc83:85fa:f7b1:0001
-        vendor_id:                      0x02c9
-        vendor_part_id:                 4118
-        hw_ver:                         0x80
-        board_id:                       MSF0010110035
-        phys_port_cnt:                  1
-                port:   1
-                        state:                  PORT_ACTIVE (4)
-                        max_mtu:                4096 (5)
-                        active_mtu:             1024 (3)
-                        sm_lid:                 0
-                        port_lid:               0
-                        port_lmc:               0x00
-                        link_layer:             Ethernet
- 
-[bash]$ ibdev2netdev
-mlx5_0 port 1 ==> eth3 (Up)
-mlx5_1 port 1 ==> eth4 (Up)
- 
-[[bash]]$ sudo ./dpdk_setup_ports.py -t
-+----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
-| ID | NUMA |     PCI      |        MAC        |                      Name                       |  Driver   | Linux IF | Active |
-+====+======+==============+===================+=================================================+===========+==========+========+
-| 0  | -1   | 0002:00:02.0 | 00:0d:3a:16:28:60 | MT27710 Family [ConnectX-4 Lx Virtual Function] | mlx5_core | eth3     |        |
-+----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
-| 1  | -1   | 0003:00:02.0 | 00:0d:3a:16:20:bc | MT27710 Family [ConnectX-4 Lx Virtual Function] | mlx5_core | eth4     |        |
-+----+------+--------------+-------------------+-------------------------------------------------+-----------+----------+--------+
+[bash]sudo yum -y groupinstall "Infiniband Support" -y
+[bash]sudo dracut --add-drivers "mlx4_en mlx4_ib mlx5_ib" -f
+[bash]sudo yum install -y gcc kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel libmnl-devel
+----
+
+.Add huge pages to cmdline & fstab
+[source,bash]
+----
+[bash]sudo vi /etc/default/grub
+# hugepages=4096
+[bash]sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+[bash]sudo vi /etc/fstab
+# nodev /mnt/huge hugetlbfs defaults 0 0
 ----
 
 
-We have tested it with **mlx5** driver and **not** **mlx4** (CX-3 Mellanox card)
+.Look for Mellanox CX-5/4 NICs 
+[source,bash]
+----
+]$ lspci | grep Mell
+0002:00:02.0 Ethernet controller: Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function] (rev 80)
+0003:00:02.0 Ethernet controller: Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function] (rev 80)
+----
 
+.Or Look for Mellanox CX-3 NICs 
+[source,bash]
+----
+$ lspci | grep Mell
+0002:00:02.0 Ethernet controller: Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function]
+0003:00:02.0 Ethernet controller: Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function]
+----
+ 
 
-.NetVSC interfaces 
+.Look for NetVSC interfaces 
 [source,bash]
 ----
 
@@ -182,7 +151,6 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
 * *eth3*/*eth4* : Mellanox VF interfaces (high speed)
 
 
-
 == TRex trex_cfg.yaml 
 
 For the aforementioned network configuration this would be the trex_cfg.yaml
@@ -192,7 +160,7 @@ For the aforementioned network configuration this would be the trex_cfg.yaml
 - port_limit      : 2
   version         : 2
   interfaces  : ['0002:00:02.0', '0003:00:02.0'] # the PCI for Mellanox #<1>
-  ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe #<2>
+  ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe eth1,eth2 are the  NetVSC #<2>
   interfaces_vdevs : ['net_failsafe_vsc0','net_failsafe_vsc1'] # use failsafe  #<3>
   port_info       :  # Port IPs. Change to suit your needs. In case of loopback, you can leave as is.
           - ip         : 10.90.23.101  #<4>
@@ -213,7 +181,7 @@ For the aforementioned network configuration this would be the trex_cfg.yaml
 
 == Routes and Isolation 
 
-It is better to *isolate* the management and data-path networks else you could shoot yourself in leg and shoot someone in the public cloud. 
+It is better to *isolate* the management and data-path networks else you could shoot yourself in the leg or shoot someone else in the public cloud. 
 
 In case you can't find a way to isolate the networks add a route so the traffic will be forward to the right location (the DUT VM)
 
@@ -228,9 +196,14 @@ $sudo route add -net 48.0.0.0 netmask 255.0.0.0 gw 10.90.23.202
 
 == TRex Logs 
 
+[IMPORTANT]
+=====================================
+`--no-ofed-check` should be added to the command to keep the default mellanox configuration 
+=====================================
+
 [source,bash]
 ----
-.sudo ./t-rex-64 -i  -c 1 -v 7
+.sudo ./t-rex-64 -i  -c 1 -v 7 --no-ofed-check
 ----
 
 .Valid logs
@@ -273,14 +246,94 @@ EAL: Driver cannot attach the device (net_tap_vsc0)
 EAL: Failed to attach device on primary process
 ----
 
-You should see something like this in the log with ```ifconfig -a``` should shows dtap0/dtap1 interfaces 
+
+.MLX5 results
+[source,bash]
+----
+
+sudo ./t-rex-64  -i -c 1  --no-ofed-check
+
+tui>start -f stl/bench.py -t vm=cached
+,size=68 -m 2mpps --port 0 1 –force
+
+   port    |         0         |         1         |       total      
+ -----------+-------------------+-------------------+------------------
+owner      |         azureuser |         azureuser |                  
+link       |                UP |                UP |                  
+state      |      TRANSMITTING |      TRANSMITTING |                  
+speed      |           10 Gb/s |           10 Gb/s |                  
+CPU util.  |            24.39% |            24.39% |                  
+--         |                   |                   |                  
+Tx bps L2  |         1.08 Gbps |         1.08 Gbps |         2.15 Gbps
+Tx bps L1  |         1.39 Gbps |         1.39 Gbps |         2.78 Gbps
+Tx pps     |         1.98 Mpps |         1.98 Mpps |         3.95 Mpps
+Line Util. |           13.92 % |           13.92 % |                  
+---        |                   |                   |                  
+Rx bps     |         1.04 Gbps |         1.04 Gbps |         2.08 Gbps
+Rx pps     |          1.9 Mpps |         1.91 Mpps |         3.82 Mpps
+----       |                   |                   |                  
+opackets   |          23355483 |          23355889 |          46711372
+ipackets   |          22103441 |          22332199 |          44435640
+obytes     |        1588172844 |        1588201156 |        3176374000
+ibytes     |        1503033988 |        1518589532 |        3021623520
+tx-pkts    |       23.36 Mpkts |       23.36 Mpkts |       46.71 Mpkts
+rx-pkts    |        22.1 Mpkts |       22.33 Mpkts |       44.44 Mpkts
+tx-bytes   |           1.59 GB |           1.59 GB |           3.18 GB
+rx-bytes   |            1.5 GB |           1.52 GB |           3.02 GB
+ -----      |                   |                   |                  
+oerrors    |                 0 |                 0 |                 0
+ierrors    |            82,491 |            81,817 |           164,308
+----
+
+ 
+
+.MLX4 results
+[source,bash]
+----
+[bash]sudo ./t-rex-64  -i -c 1  --no-ofed-check
+
+tui>start -f stl/bench.py -t vm=cached,size=68 -m 2mpps --port 0 1 –force
+
+   port    |         0         |         1         |       total      
+-----------+-------------------+-------------------+------------------
+
+owner      |         azureuser |         azureuser |                  
+link       |                UP |                UP |                  
+state      |      TRANSMITTING |      TRANSMITTING |                  
+speed      |           40 Gb/s |           40 Gb/s |                  
+CPU util.  |            21.87% |            21.87% |                  
+--         |                   |                   |                  
+Tx bps L2  |         1.08 Gbps |         1.08 Gbps |         2.17 Gbps
+Tx bps L1  |          1.4 Gbps |          1.4 Gbps |         2.81 Gbps
+Tx pps     |         1.99 Mpps |         1.99 Mpps |         3.98 Mpps
+Line Util. |            3.51 % |            3.51 % |                  
+---        |                   |                   |                   
+Rx bps     |         1.05 Gbps |         1.05 Gbps |         2.09 Gbps
+Rx pps     |         1.92 Mpps |         1.92 Mpps |         3.84 Mpps
+----       |                   |                   |                  
+opackets   |         713574068 |         713578540 |        1427152608
+ipackets   |         687390998 |         687627116 |        1375018114
+obytes     |       48523036624 |       48523340720 |       97046377344
+ibytes     |       46742587864 |       46758643888 |       93501231752
+tx-pkts    |      713.57 Mpkts |      713.58 Mpkts |        1.43 Gpkts
+rx-pkts    |      687.39 Mpkts |      687.63 Mpkts |        1.38 Gpkts
+tx-bytes   |          48.52 GB |          48.52 GB |          97.05 GB
+rx-bytes   |          46.74 GB |          46.76 GB |           93.5 GB
+-----      |                   |                   |                  
+oerrors    |                 0 |                 0 |                 0
+ierrors    |                 0 |                 0 |                 0
+----
+ 
+
+You should see something like this in the log with ```ifconfig -a``` should shows *dtap0*/*dtap1* interfaces 
 
 == Known issues (per v2.64)
 
 * The trex image was build with TAP interfaces support for CentOs kernel (linux headers), it might not work on different distro/os 
-* In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case.
+* In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case. ` ZMQ unhandled error code 14`
 * Multi core (for example `-c 2`) does not work for some reason. 
-* There is no need to compile or install the DPDK drivers - TRex has it own driver statically linked
+* There is no need to compile or install the DPDK drivers (only Mellanox as specified above) - TRex has it own DPDK driver statically linked
+* You should change the MTU manualy for both TAP and MLX (`--no-ofed-check` skip this step). TRex by default change the MTU to 9k but not in this case
 
 == Counters Debug 
 
@@ -345,3 +398,4 @@ eth2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
 == For developers 
 
 * DPDK TAP interfaces is compiled with CentOS Linux headers to be able to be cross compiled it. If you want to complie it on the machine nativly you will need to replace ```#include <linux_tap/>``` with ```#include <linux/..> 
+

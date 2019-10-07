@@ -17,7 +17,7 @@ linux_dpdk/cov-int/*
 trex.code-workspace
 *.clangd
 compile_commands.json
-
+.ccls-cache/*
 linux/.waf*
 linux/build*
 linux/version*
