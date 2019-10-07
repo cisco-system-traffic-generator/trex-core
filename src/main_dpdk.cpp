@@ -104,6 +104,7 @@ extern "C" {
 #include "utl_port_map.h"
 #include "astf/astf_db.h"
 #include "utl_offloads.h"
+#include "trex_defs.h"
 
 #define MAX_PKT_BURST   32
 #define BP_MAX_CORES 48
@@ -120,7 +121,7 @@ static inline int get_is_rx_thread_enabled() {
 static CPlatformYamlInfo global_platform_cfg_info;
 static int g_dpdk_args_num ;
 static char * g_dpdk_args[MAX_DPDK_ARGS];
-static char g_cores_str[100];
+static char g_cores_str[MAX_CORES_LIST_STRLEN];
 static char g_socket_mem_str[200];
 static char g_prefix_str[100];
 static char g_loglevel_str[20];
@@ -5844,21 +5845,6 @@ HOT_FUNC static int slave_one_lcore(__attribute__((unused)) void *dummy)
 }
 
 
-
-COLD_FUNC uint32_t get_cores_mask(uint32_t cores,int offset){
-    int i;
-
-    uint32_t res=1;
-
-    uint32_t mask=(1<<(offset+1));
-    for (i=0; i<(cores-1); i++) {
-        res |= mask ;
-        mask = mask <<1;
-    }
-    return (res);
-}
-
-
 static char *g_exe_name;
 COLD_FUNC const char *get_exe_name() {
     return g_exe_name;
@@ -6156,16 +6142,13 @@ COLD_FUNC int  update_dpdk_args(void){
 
     if ( CGlobalInfo::m_options.m_is_lowend ) { // assign all threads to core 0
         g_cores_str[0] = '(';
-        lpsock->get_cores_list(g_cores_str + 1);
+        lpsock->get_cores_list_lowend(g_cores_str + 1);
         strcat(g_cores_str, ")@0");
         SET_ARGS("--lcores");
         SET_ARGS(g_cores_str);
     } else {
-        snprintf(g_cores_str, sizeof(g_cores_str), "0x%llx" ,(unsigned long long)lpsock->get_cores_mask());
-        if (core_mask_sanity(strtol(g_cores_str, NULL, 16)) < 0) {
-            return -1;
-        }
-        SET_ARGS("-c");
+        lpsock->get_cores_list(g_cores_str);
+        SET_ARGS("-l");
         SET_ARGS(g_cores_str);
     }
 

@@ -481,7 +481,7 @@ includes_path =''' ../src/pal/linux/
                    
                    ../external_libs/json/
                    ../external_libs/md5/
-                   ../external_libs/zmq-'''+ march +'''/include/
+                   ../external_libs/zmq/'''+ march +'''/include/
                    ../external_libs/yaml-cpp/include/
                    ../external_libs/bpf/
                    ../external_libs/valijson/include/

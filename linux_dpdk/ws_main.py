@@ -166,7 +166,7 @@ def options(opt):
 def check_ibverbs_deps(bld):
     if 'LDD' not in bld.env or not len(bld.env['LDD']):
         bld.fatal('Please run configure. Missing key LDD.')
-    cmd = '%s %s/external_libs/ibverbs/libibverbs.so' % (bld.env['LDD'][0], top)
+    cmd = '%s %s/external_libs/ibverbs/%s/libibverbs.so' % (bld.env['LDD'][0], top, march)
     ret, out = getstatusoutput(cmd)
     if ret or not out:
         bld.fatal("Command of checking libraries '%s' failed.\nReturn status: %s\nOutput: %s" % (cmd, ret, out))
@@ -722,23 +722,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ixgbe/rte_pmd_ixgbe.c',
 
                  #i40e
-                 'drivers/net/i40e/base/i40e_adminq.c',
-                 'drivers/net/i40e/base/i40e_common.c',
-                 'drivers/net/i40e/base/i40e_dcb.c',
-                 'drivers/net/i40e/base/i40e_diag.c',
-                 'drivers/net/i40e/base/i40e_hmc.c',
-                 'drivers/net/i40e/base/i40e_lan_hmc.c',
-                 'drivers/net/i40e/base/i40e_nvm.c',
-                 'drivers/net/i40e/i40e_ethdev.c',
-                 'drivers/net/i40e/i40e_ethdev_vf.c',
-                 'drivers/net/i40e/i40e_fdir.c',
-                 'drivers/net/i40e/i40e_flow.c',
-                 'drivers/net/i40e/i40e_pf.c',
-                 'drivers/net/i40e/i40e_rxtx.c',
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
-                 'drivers/net/i40e/i40e_tm.c',
-                 'drivers/net/i40e/i40e_vf_representor.c',
-                 'drivers/net/i40e/rte_pmd_i40e.c',
 
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
@@ -754,7 +738,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ena/ena_ethdev.c',
                  'drivers/net/ena/base/ena_com.c',
                  'drivers/net/ena/base/ena_eth_com.c',
-
 
                  #libs
                  'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
@@ -942,6 +925,27 @@ libmnl_src = SrcGroup(
         'attr.c',
     ]);
 
+i40e_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/i40e',
+    src_list = [
+        'base/i40e_adminq.c',
+        'base/i40e_common.c',
+        'base/i40e_dcb.c',
+        'base/i40e_diag.c',
+        'base/i40e_hmc.c',
+        'base/i40e_lan_hmc.c',
+        'base/i40e_nvm.c',
+        'i40e_ethdev.c',
+        'i40e_ethdev_vf.c',
+        'i40e_fdir.c',
+        'i40e_flow.c',
+        'i40e_pf.c',
+        'i40e_rxtx.c',
+        'i40e_tm.c',
+        'i40e_vf_representor.c',
+        'rte_pmd_i40e.c',
+    ]);
+
 mlx5_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/net/mlx5',
     src_list = [
@@ -987,6 +991,7 @@ mlx4_dpdk_src = SrcGroup(
 if march == 'x86_64':
     bp_dpdk = SrcGroups([
                   dpdk_src,
+                  i40e_dpdk_src,
                   dpdk_src_x86_64
                   ]);
 
@@ -1012,14 +1017,18 @@ libmnl =SrcGroups([
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
                 ]);
-mlx5_dpdk =SrcGroups([
+
+i40e_dpdk =SrcGroups([
+                i40e_dpdk_src
+                ]);
+
+mlx5_x86_64_dpdk =SrcGroups([
                 mlx5_dpdk_src
                 ]);
 
 mlx4_dpdk =SrcGroups([
                 mlx4_dpdk_src
                 ]);
-
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -1036,7 +1045,7 @@ bp =SrcGroups([
         stateless_src,
         astf_batch_src,
         astf_src,
-                
+
         version_src,
     ]);
 
@@ -1214,7 +1223,7 @@ includes_path = '''
                    ../src/utils/
                    ../src/hdrh/
                    ../external_libs/yaml-cpp/include/
-                   ../external_libs/zmq-''' + march + '''/include/
+                   ../external_libs/zmq/''' + march + '''/include/
                    ../external_libs/json/
                    ../external_libs/md5/
                    ../external_libs/bpf/
@@ -1226,9 +1235,9 @@ includes_path = '''
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
-if march != 'aarch64':
+if march == 'x86_64':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
-else:
+elif march == 'aarch64':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
 
 client_external_libs = [
@@ -1244,7 +1253,7 @@ client_external_libs = [
         'repoze'
         ]
 
-rpath_linkage = ['so']
+rpath_linkage = ['so', 'so/' + march]
 
 RELEASE_    = "release"
 DEBUG_      = "debug"
@@ -1515,24 +1524,25 @@ def build_prog (bld, build_obj):
             )
             bld.env.mlx5_use = [build_obj.get_libmnl_target()]
 
-        bld.shlib(
-          features='c',
-          includes = dpdk_includes_path +
-                     bld.env.dpdk_includes_verb_path +
-                     bld.env.libmnl_path,
-          cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-          use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
-          source   = mlx5_dpdk.file_list(top),
-          target   = build_obj.get_mlx5_target(),
-          **bld.env.mlx5_kw
-        )
+        if march == 'x86_64':
+            bld.shlib(
+              features='c',
+              includes = dpdk_includes_path +
+                         bld.env.dpdk_includes_verb_path +
+                         bld.env.libmnl_path,
+              cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+              use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
+              source   = mlx5_x86_64_dpdk.file_list(top),
+              target   = build_obj.get_mlx5_target(),
+              **bld.env.mlx5_kw
+            )
 
         bld.shlib(
         features='c',
         includes = dpdk_includes_path +
                    bld.env.dpdk_includes_verb_path,
         cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
-            use =['ibverbs', 'mlx4'],
+        use      = ['ibverbs', 'mlx4'],
         source   = mlx4_dpdk.file_list(top),
         target   = build_obj.get_mlx4_target()
        )
@@ -1617,7 +1627,7 @@ def build(bld):
     bld.add_post_fun(post_build);
 
     # ZMQ
-    zmq_lib_path='external_libs/zmq-' + march + '/'
+    zmq_lib_path='external_libs/zmq/' + march + '/'
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
     if bld.env.NO_MLX == False:
@@ -1633,8 +1643,8 @@ def build(bld):
             bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
-            ibverbs_lib_path='external_libs/ibverbs/'
-            bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/include/ \n'
+            ibverbs_lib_path='external_libs/ibverbs/' + march
+            bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/' + march + '/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
             bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
             bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])

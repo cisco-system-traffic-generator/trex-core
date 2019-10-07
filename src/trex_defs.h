@@ -30,6 +30,8 @@ limitations under the License.
 #define MAX_SOCKETS_SUPPORTED   (4)
 #define MAX_THREADS_SUPPORTED   (120)
 
+// 64 cores, each two digits, + 63 commas < 192
+#define MAX_CORES_LIST_STRLEN	192
 
 // maximum number of IP ID type flow stats we support. Must be in the form 2^x - 1
 #define MAX_FLOW_STATS 1023

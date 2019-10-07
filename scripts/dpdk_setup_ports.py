@@ -4,6 +4,10 @@
 
 # hhaim
 import sys
+try:
+    xrange # Python 2
+except NameError:
+    xrange = range # Python 3
 import os
 python_ver = 'python%s' % sys.version_info[0]
 yaml_path = os.path.join('external_libs', 'pyyaml-3.11', python_ver)
@@ -48,7 +52,7 @@ class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
-    MAC_LCORE_NUM = 63 # current bitmask is 64 bit
+    MAX_LCORE_NUM = 63 # current bitmask is 64 bit
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
@@ -84,7 +88,7 @@ class ConfigCreator(object):
                         cores[core].remove(lcore)
                     if exclude_lcores and lcore in exclude_lcores:
                         cores[core].remove(lcore)
-                    if lcore > self.MAC_LCORE_NUM:
+                    if lcore > self.MAX_LCORE_NUM:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
@@ -101,8 +105,16 @@ class ConfigCreator(object):
                     raise DpdkSetup("Expected '%s' field in interface dictionary, got: %s" % (mandatory_interface_field, interface))
 
         Device_str = self._verify_devices_same_type(self.interfaces)
-        if '40Gb' in Device_str:
+        if '100Gb' in Device_str:
+            self.speed = 100
+        elif '50Gb' in Device_str:
+            self.speed = 50
+        elif '40Gb' in Device_str:
             self.speed = 40
+        elif '25Gb' in Device_str:
+            self.speed = 25
+        elif '20Gb' in Device_str:
+            self.speed = 20
         else:
             self.speed = 10
 
@@ -161,7 +173,7 @@ class ConfigCreator(object):
             return Device_str
         for interface in interfaces_list:
             if interface['Device_str'] == 'dummy':
-                continue            
+                continue
             if Device_str != interface['Device_str']:
                 raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (Device_str, interface['Device_str']))
         return Device_str
@@ -1031,30 +1043,45 @@ Other network devices
         return pci_id.split('/')[0]
 
     def _get_cpu_topology(self):
-        cpu_topology_file = '/proc/cpuinfo'
-        # physical processor -> physical core -> logical processing units (threads)
         cpu_topology = OrderedDict()
-        if not os.path.exists(cpu_topology_file):
-            raise DpdkSetup('File with CPU topology (%s) does not exist.' % cpu_topology_file)
-        with open(cpu_topology_file) as f:
-            for lcore in f.read().split('\n\n'):
-                if not lcore:
-                    continue
-                lcore_dict = OrderedDict()
-                for line in lcore.split('\n'):
-                    key, val = line.split(':', 1)
-                    lcore_dict[key.strip()] = val.strip()
-                if 'processor' not in lcore_dict:
-                    continue
-                numa = int(lcore_dict.get('physical id', -1))
-                if numa not in cpu_topology:
-                    cpu_topology[numa] = OrderedDict()
-                core = int(lcore_dict.get('core id', lcore_dict['processor']))
-                if core not in cpu_topology[numa]:
-                    cpu_topology[numa][core] = []
-                cpu_topology[numa][core].append(int(lcore_dict['processor']))
+
+        # Find the total number of CPUs (logical cores)
+        base_path = "/sys/devices/system/cpu"
+        fd = open("{}/kernel_max".format(base_path))
+        max_cpus = int(fd.read())
+        fd.close()
+
+        for cpu in xrange(max_cpus + 1):
+
+            # Find the socket ID of the current CPU
+            try:
+                fd = open("{}/cpu{}/topology/physical_package_id".format(base_path, cpu))
+            except IOError:
+                continue
+            except:
+                break
+            socket = int(fd.read())
+            fd.close()
+            if socket not in cpu_topology:
+                cpu_topology[socket] = OrderedDict()
+
+            # Find the core ID of the current CPU
+            try:
+                fd = open("{}/cpu{}/topology/core_id".format(base_path, cpu))
+            except IOError:
+                continue
+            except:
+                break
+            core = int(fd.read())
+            fd.close()
+            if core not in cpu_topology[socket]:
+                cpu_topology[socket][core] = []
+
+            # Capture the socket/core of the current CPU
+            cpu_topology[socket][core].append(cpu)
+
         if not cpu_topology:
-            raise DpdkSetup('Could not determine CPU topology from %s' % cpu_topology_file)
+            raise DpdkSetup('Could not determine CPU topology')
         return cpu_topology
 
     # input: list of different descriptions of interfaces: index, pci, name etc.
