@@ -30,10 +30,11 @@ astf_states = [
     'STATE_ASTF_PARSE',
     'STATE_ASTF_BUILD',
     'STATE_TX',
-    'STATE_ASTF_CLEANUP']
+    'STATE_ASTF_CLEANUP',
+    'STATE_ASTF_DELETE']
 
 class ASTFClient(TRexClient):
-    port_states = [getattr(ASTFPort, state) for state in astf_states]
+    port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
 
     def __init__(self,
                  username = get_current_user(),
@@ -103,7 +104,8 @@ class ASTFClient(TRexClient):
         self.transient_states = [
             self.STATE_ASTF_PARSE,
             self.STATE_ASTF_BUILD,
-            self.STATE_ASTF_CLEANUP]
+            self.STATE_ASTF_CLEANUP,
+            self.STATE_ASTF_DELETE]
         self.astf_profile_state = {'_': 0}
 
 
