@@ -439,7 +439,7 @@ class ASTFProgram(object):
 
     def set_keepalive_msg (self,msec):
         """
-        set_keepalive_msg (sec), set the keepalive timer for UDP flows 
+        set_keepalive_msg (msec), set the keepalive timer for UDP flows 
 
         :parameters:
                   msec  : uint32_t
