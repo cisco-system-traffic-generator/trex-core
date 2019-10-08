@@ -451,7 +451,7 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        self.fields['commands'].append(ASTFCmdRecvMsg(self.total_rcv_bytes))
+        self.fields['commands'].append(ASTFCmdKeepaliveMsg(msec))
 
 
     def recv_msg(self, pkts,clear=False):
