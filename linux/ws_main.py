@@ -498,13 +498,14 @@ PLATFORM_32 = "32"
 PLATFORM_x86 = "x86"
 PLATFORM_x86_64 = "x86_64"
 PLATFORM_aarch64 = "aarch64"
+PLATFORM_ppc64le = "ppc64le"
 
 
 class build_option:
 
     def __init__(self, name, src, debug_mode, is_pie, use = [], flags = [], rpath = []):
       self.mode     = debug_mode;   ##debug,release
-      self.platform = march  # aarch64 or x86_64
+      self.platform = march  # aarch64 or x86_64 or ppc64le
       self.is_pie = is_pie
       self.name = name
       self.src = src
@@ -535,8 +536,11 @@ class build_option:
     def isArmPlatform (self):
         return ( self.platform == PLATFORM_aarch64)
 
+    def isPpcPlatform (self):
+        return ( self.platform == PLATFORM_ppc64le)
+
     def is64Platform (self):
-        return ( self.platform == PLATFORM_x86_64 or self.platform == PLATFORM_aarch64)
+        return ( self.platform == PLATFORM_x86_64 or self.platform == PLATFORM_aarch64 or self.platform == PLATFORM_ppc64le)
 
     def isRelease (self):
         return ( self.mode  == RELEASE_);

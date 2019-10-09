@@ -6153,7 +6153,11 @@ COLD_FUNC int  update_dpdk_args(void){
     }
 
     SET_ARGS("-n");
+#ifdef __PPC64__
+    SET_ARGS("8");
+#else
     SET_ARGS("4");
+#endif
 
     if ( lpp->getVMode() == 0  ) {
         SET_ARGS("--log-level");

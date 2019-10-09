@@ -19,6 +19,8 @@ def _import_server_modules():
         cpu_vendor = 'arm'
     elif march == 'x86_64' or march == 'i386' or march == 'i686':
         cpu_vendor = 'intel'
+    elif march == 'ppc64le':
+        cpu_vendor = 'ppc'
     else:
         assert(cpu_vendor, 'Unknown CPU architecture')
 

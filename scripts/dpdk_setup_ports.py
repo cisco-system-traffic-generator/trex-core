@@ -30,6 +30,8 @@ import signal
 
 from dpdk_nic_bind import is_napatech
 
+march = os.uname()[4]
+
 # exit code is Important should be
 # -1 : don't continue
 # 0  : no errors - no need to load mlx share object
@@ -52,7 +54,11 @@ class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
     _2hex_re = '[\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
-    MAX_LCORE_NUM = 63 # current bitmask is 64 bit
+
+    if march == 'ppc64le':
+        MAX_LCORE_NUM = 159
+    else:
+        MAX_LCORE_NUM = 63
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
@@ -584,7 +590,8 @@ Other network devices
             raise VFIOBindErr('Could not find file with Kernel boot parameters: %s' % krnl_params_file)
         with open(krnl_params_file) as f:
             krnl_params = f.read()
-        if 'iommu=' not in krnl_params:
+        # IOMMU is always enabled on Power systems
+        if march != 'ppc64le' and 'iommu=' not in krnl_params:
             raise VFIOBindErr('vfio-pci is not an option here')
         if 'vfio_pci' not in dpdk_nic_bind.get_loaded_modules():
             ret = os.system('modprobe vfio_pci')
@@ -958,27 +965,32 @@ Other network devices
                         raise DpdkSetup('Unable to bind interfaces to driver mlx5_core/mlx4_core.')
                 return MLX_EXIT_CODE
             else:
-                # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci
-                if load_igb_uio():
-                    print('Trying to bind to igb_uio ...')
-                    ret = self.do_bind_all('igb_uio', to_bind_list)
-                    if ret:
-                        raise DpdkSetup('Unable to bind interfaces to driver igb_uio.') # module present, loaded, but unable to bind
-                    return
-
-                try:
+                if march == 'ppc64le':
                     print('Trying to bind to vfio-pci ...')
                     self.try_bind_to_vfio_pci(to_bind_list)
                     return
-                except VFIOBindErr as e:
-                    pass
+                else:
+                    # if igb_uio is ready, use it as safer choice, afterwards try vfio-pci
+                    if load_igb_uio():
+                        print('Trying to bind to igb_uio ...')
+                        ret = self.do_bind_all('igb_uio', to_bind_list)
+                        if ret:
+                            raise DpdkSetup('Unable to bind interfaces to driver igb_uio.') # module present, loaded, but unable to bind
+                        return
+
+                    try:
+                        print('Trying to bind to vfio-pci ...')
+                        self.try_bind_to_vfio_pci(to_bind_list)
+                        return
+                    except VFIOBindErr as e:
+                        pass
                     #print(e)
 
-                print('Trying to compile and bind to igb_uio ...')
-                compile_and_load_igb_uio()
-                ret = self.do_bind_all('igb_uio', to_bind_list)
-                if ret:
-                    raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
+                    print('Trying to compile and bind to igb_uio ...')
+                    compile_and_load_igb_uio()
+                    ret = self.do_bind_all('igb_uio', to_bind_list)
+                    if ret:
+                        raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
         elif Mellanox_cnt:
             return MLX_EXIT_CODE
         elif Napatech_cnt:

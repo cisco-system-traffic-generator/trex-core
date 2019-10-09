@@ -27,8 +27,13 @@ limitations under the License.
 
 #define TREX_MAX_PORTS 24
 
+#ifdef __PPC64__
+#define MAX_SOCKETS_SUPPORTED   (16)
+#define MAX_THREADS_SUPPORTED   (1536)
+#else
 #define MAX_SOCKETS_SUPPORTED   (4)
 #define MAX_THREADS_SUPPORTED   (120)
+#endif
 
 // 64 cores, each two digits, + 63 commas < 192
 #define MAX_CORES_LIST_STRLEN	192

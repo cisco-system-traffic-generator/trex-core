@@ -2422,12 +2422,13 @@ inline bool IsDir(const StatStruct& st) { return S_ISDIR(st.st_mode); }
 
 inline const char* StrNCpy(char* dest, const char* src, size_t n) {
 
-#if defined(__GNUC__) && (GTEST_GCC_VER_ >= 80300)
+// gcc 8.2.1 supplied with RHEL 8 requires this pragma
+#if defined(__GNUC__) && (GTEST_GCC_VER_ >= 80200)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
   return strncpy(dest, src, n);
-#if defined(__GNUC__) && (GTEST_GCC_VER_ >= 80300)
+#if defined(__GNUC__) && (GTEST_GCC_VER_ >= 80200)
 #pragma GCC diagnostic pop
 #endif
 }

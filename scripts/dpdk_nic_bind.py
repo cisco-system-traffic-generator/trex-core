@@ -58,6 +58,8 @@ sys.path.remove(netstat_path)
 import re
 import termios
 
+march = os.uname()[4]
+
 # The PCI device class for ETHERNET devices
 ETHERNET_CLASS = "0200"
 NETWORK_CLASS = "0280"
@@ -79,7 +81,10 @@ devices = {}
 
 dpdk_and_kernel=[ "mlx5_core", "mlx5_ib", 'mlx4_core', 'mlx4_ib' ]
 
-dpdk_drivers = ["igb_uio", "vfio-pci", "uio_pci_generic" ]
+if march == 'ppc64le':
+    dpdk_drivers = ["vfio-pci"]
+else:
+    dpdk_drivers = ["igb_uio", "vfio-pci", "uio_pci_generic" ]
 
 # command-line arg flags
 b_flag = None
@@ -221,7 +226,7 @@ def get_loaded_modules():
     return loaded_modules
 
 def check_modules():
-    '''Checks that igb_uio is loaded'''
+    '''Checks that a kernel module is loaded'''
     global dpdk_drivers
 
     # list of supported modules

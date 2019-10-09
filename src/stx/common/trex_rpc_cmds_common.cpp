@@ -346,7 +346,9 @@ TrexRpcCmdGetVersion::_run(const Json::Value &params, Json::Value &result) {
 string
 TrexRpcCmdGetSysInfo::get_cpu_model() {
 
-    static const string cpu_prefix = "model name";
+    static const string cpu_prefix_x86 = "model name";
+    static const string cpu_prefix_ppc = "cpu";
+    static const string model_prefix_ppc = "POWER";
     ifstream cpuinfo("/proc/cpuinfo");
 
     if (cpuinfo.is_open()) {
@@ -355,18 +357,31 @@ TrexRpcCmdGetSysInfo::get_cpu_model() {
             string line;
             getline(cpuinfo, line);
 
-            int pos = line.find(cpu_prefix);
-            if (pos == string::npos) {
-                continue;
+            int pos = line.find(cpu_prefix_x86);
+            if (pos != string::npos) {
+                /* found an x86 cpu string, trim it */
+                int index = cpu_prefix_x86.size() + 1;
+                while ( (line[index] == ' ') || (line[index] == ':') ) {
+                    index++;
+                }
+
+                return line.substr(index);
             }
 
-            /* trim it */
-            int index = cpu_prefix.size() + 1;
-            while ( (line[index] == ' ') || (line[index] == ':') ) {
-                index++;
-            }
+            pos = line.find(cpu_prefix_ppc);
+            if (pos != string::npos) {
+                /* found the ppc cpu prefix, check for ppc model too */
+                pos = line.find(model_prefix_ppc);
+                if (pos != string::npos) {
+                    /* found a prefix and model match, trim it */
+                    int index = cpu_prefix_ppc.size() + 1;
+                    while ( (line[index] == ' ') || (line[index] == ':') ) {
+                        index++;
+                    }
 
-            return line.substr(index);
+                    return line.substr(index);
+                }
+            }
         }
     }
 
