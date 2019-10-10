@@ -1,0 +1,9 @@
+- port_limit    : 2
+  version       : 2
+  low_end       : true
+  interfaces    : ["veth0", "veth1"]
+  port_info     :
+                 - ip         : 241.1.1.1
+                   default_gw : 242.2.2.2
+                 - ip         : 242.2.2.2
+                   default_gw : 241.1.1.1
