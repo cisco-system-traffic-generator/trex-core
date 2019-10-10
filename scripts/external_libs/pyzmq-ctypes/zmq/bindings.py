@@ -20,7 +20,7 @@ elif march == 'x86_64' or march == 'i386' or march == 'i686':
 elif march == 'ppc64le':
     cpu_vendor = 'ppc'
 else:
-    assert(cpu_vendor, 'Unknown CPU architecture')
+    raise Exception('Unknown CPU architecture: ' + march)
 
 cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
 

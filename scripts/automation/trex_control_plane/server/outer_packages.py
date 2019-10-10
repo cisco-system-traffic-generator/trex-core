@@ -22,7 +22,7 @@ def _import_server_modules():
     elif march == 'ppc64le':
         cpu_vendor = 'ppc'
     else:
-        assert(cpu_vendor, 'Unknown CPU architecture')
+        raise Exception('Unknown CPU architecture: ' + march)
 
     cpu_bits   = '64bit' if sys.maxsize > 0xffffffff else '32bit'
     python_ver = 'python%s' % sys.version_info.major

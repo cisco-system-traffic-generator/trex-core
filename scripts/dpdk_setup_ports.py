@@ -27,6 +27,7 @@ import stat
 import time
 import shutil
 import signal
+import glob
 
 from dpdk_nic_bind import is_napatech
 
@@ -1056,36 +1057,37 @@ Other network devices
 
     def _get_cpu_topology(self):
         cpu_topology = OrderedDict()
-
-        # Find the total number of CPUs (logical cores)
         base_path = "/sys/devices/system/cpu"
-        fd = open("{}/kernel_max".format(base_path))
-        max_cpus = int(fd.read())
-        fd.close()
+        cpus = []
+       
+        file_re = re.compile(base_path + '/cpu([0-9]+)$')
+        for cpu_dir in glob.glob('{}/cpu*'.format(base_path)):
+            cpu_obj = file_re.match(cpu_dir)
+            if cpu_obj:
+                cpus.append(int(cpu_obj.group(1)))
+        cpus.sort()
 
-        for cpu in xrange(max_cpus + 1):
+        for cpu in cpus:
 
             # Find the socket ID of the current CPU
             try:
-                fd = open("{}/cpu{}/topology/physical_package_id".format(base_path, cpu))
+                with open("{}/cpu{}/topology/physical_package_id".format(base_path, cpu)) as f:
+                    socket = int(f.read())
             except IOError:
                 continue
             except:
                 break
-            socket = int(fd.read())
-            fd.close()
             if socket not in cpu_topology:
                 cpu_topology[socket] = OrderedDict()
 
             # Find the core ID of the current CPU
             try:
-                fd = open("{}/cpu{}/topology/core_id".format(base_path, cpu))
+                with open("{}/cpu{}/topology/core_id".format(base_path, cpu)) as f:
+                   core = int(f.read())
             except IOError:
                 continue
             except:
                 break
-            core = int(fd.read())
-            fd.close()
             if core not in cpu_topology[socket]:
                 cpu_topology[socket][core] = []
 
@@ -1093,7 +1095,7 @@ Other network devices
             cpu_topology[socket][core].append(cpu)
 
         if not cpu_topology:
-            raise DpdkSetup('Could not determine CPU topology')
+            raise DpdkSetup('Could not determine CPU topology from %s' % base_path)
         return cpu_topology
 
     # input: list of different descriptions of interfaces: index, pci, name etc.
