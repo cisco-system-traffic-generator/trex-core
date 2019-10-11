@@ -238,7 +238,10 @@ class ASTFClient(TRexClient):
         # Check if profile_id is a valid profile name
         for profile_id in profile_list:
             if profile_id not in list(self.astf_profile_state.keys()):
-                raise TRexError("ASTF profile_id %s does not exist." % profile_id)
+                if start == True:
+                    self.astf_profile_state[profile_id] = self.STATE_IDLE
+                else:
+                    raise TRexError("ASTF profile_id %s does not exist." % profile_id)
 
             if start == True:
                 if self.is_dynamic and self.astf_profile_state.get(profile_id) not in ok_states:
