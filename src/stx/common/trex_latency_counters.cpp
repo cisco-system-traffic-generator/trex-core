@@ -132,7 +132,7 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
 
     const TrexPlatformApi &api = get_platform_api();
     api.get_port_stat_info(0, num_counters, cap, ip_id_base);
-    
+
     m_ip_id_base = ip_id_base;
 }
 
@@ -227,8 +227,17 @@ RXLatency::handle_correct_flow(
     uint16_t hw_id = fsp_head->hw_id;
     m_rx_pg_stat_payload[hw_id].add_pkts(1);
     m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
-    uint64_t d = (hr_time_now - fsp_head->time_stamp );
-    dsec_t ctime = ptime_convert_hr_dsec(d);
+
+    // [nanos] Use nanoseconds instead of ticks
+    //uint64_t d = (hr_time_now - fsp_head->time_stamp );
+    //dsec_t ctime = ptime_convert_hr_dsec(d);
+    uint64_t receiver_time_nanoseconds = get_time_epoch_nanoseconds();
+    // received_pkt_with_future_timestamp == true means that time synchronization error is bigger than latency.
+    bool received_pkt_with_future_timestamp = receiver_time_nanoseconds < fsp_head->time_stamp;
+    uint64_t abs_diff = received_pkt_with_future_timestamp ?
+        fsp_head->time_stamp - receiver_time_nanoseconds
+        : receiver_time_nanoseconds - fsp_head->time_stamp;
+    dsec_t ctime = (received_pkt_with_future_timestamp ? -1.d : 1.d) * abs_diff / (1000.d * 1000.d * 1000.d);
     curr_rfc2544->add_sample(ctime);
 }
 
@@ -322,7 +331,7 @@ RXLatency::get_stats(rx_per_flow_t *rx_stats,
                      int max,
                      bool reset,
                      TrexPlatformApi::driver_stat_cap_e type) {
-    
+
     for (int hw_id = min; hw_id <= max; hw_id++) {
         if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
             rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
@@ -360,7 +369,7 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     os << "m_rx_stats = <";
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
         os << in.m_rx_pg_stat[i] << ", ";
-    } 
+    }
     os << ">" << std::endl;
     os << "m_rx_pg_stat_payload = < ";
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
