@@ -503,6 +503,11 @@ public:
     LEARN_MODE_TCP=100
     };
 
+    enum trex_timesync_method {
+        TIMESYNC_NONE = 0,
+        TIMESYNC_PTP = 1
+    };
+
 public:
 
     void reset() {
@@ -556,6 +561,8 @@ public:
         m_dummy_count=0;
         m_reta_mask=0;
         m_hdrh = false;
+        m_timesync_method = 0;
+        m_timesync_period = 60;
     }
 
     CParserOption(){
@@ -615,7 +622,9 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
-    
+
+    uint8_t         m_timesync_method;
+    uint32_t        m_timesync_period;
 
 
 public:

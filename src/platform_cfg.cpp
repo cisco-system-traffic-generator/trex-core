@@ -494,6 +494,13 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["tw"] >> plat_info.m_tw;
     }
 
+    if ( node.FindValue("timesync_method") ) {
+        node["timesync_method"] >> plat_info.m_timesync_method;
+    }
+
+    if ( node.FindValue("timesync_period") ){
+        node["timesync_period"] >> plat_info.m_timesync_period;
+    }
 
     if ( node.FindValue("port_info")  ) {
         const YAML::Node& mac_info = node["port_info"];
@@ -616,6 +623,14 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }
     if (m_tx_desc) {
         fprintf(fd," m_tx_desc    :  %d \n",(int)m_tx_desc);
+    }
+
+    if (m_timesync_method.length()) {
+        fprintf(fd," timesync_method:  %s \n",m_timesync_method.c_str());
+    }
+
+    if (m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
+        fprintf(fd," timesync_period:  %d \n",(int)m_timesync_period);
     }
 
     if ( m_mac_info_exist ){
