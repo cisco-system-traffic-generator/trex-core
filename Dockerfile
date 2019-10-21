@@ -12,17 +12,23 @@ RUN cd ./linux_dpdk && \
     ./b configure && \
     ./b build && \
     cd ../ && \
+    cd ./linux && \
+    ./b configure && \
+    ./b build && \
+    cd ../ && \
     rm -rf scripts/*.txt && \
     rm -rf scripts/_t-rex-64* && \
+    rm -rf scripts/bp-sim* && \
     cp linux_dpdk/build_dpdk/linux_dpdk/_t-rex-64* scripts/ && \
+    cp linux/build/linux/bp-sim* scripts/ && \
     rm -rf scripts/so/lib*.so && \
     cp linux_dpdk/build_dpdk/linux_dpdk/lib* scripts/so/
 
 FROM ubuntu:19.04
 
 RUN apt-get update && \
-    apt-get install -y sudo python git zlib1g-dev pciutils vim kmod \
-                       strace wget curl iproute2 iptables tcpdump \
+    apt-get install -y sudo python git zlib1g-dev pciutils vim valgrind \
+                       strace wget curl iproute2 iptables tcpdump kmod \
                        iputils-arping iputils-clockdiff iputils-ping \
                        iputils-tracepath inetutils-traceroute mtr && \
     rm -rf /var/lib/apt/lists/*
