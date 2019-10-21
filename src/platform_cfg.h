@@ -218,6 +218,7 @@ public:
         m_rx_desc =0;
         m_tx_desc =0;
 
+        m_latency_measurement = "";
         m_timesync_method = "";
         m_timesync_period = TIMESYNC_PERIOD_DEFAULT;
     }
@@ -264,6 +265,7 @@ public:
     CPlatformCoresYamlInfo      m_platform;
     CTimerWheelYamlInfo         m_tw;
 
+    std::string                 m_latency_measurement;
     std::string                 m_timesync_method;
     uint32_t                    m_timesync_period;
 

@@ -5015,7 +5015,17 @@ stats_for_pkt calculate_stats_for_pkts(
     return stats_for_pkt(results, error_cntrs);
 }
 
-TEST(latency_stats, no_duplicates) {
+class latency_stats: public trexStlTest {
+    public:
+
+    static void SetUpTestCase() {
+        CParserOption * po = &CGlobalInfo::m_options;
+        po->m_get_latency_timestamp = &os_get_hr_tick_64;
+        po->m_timestamp_diff_to_dsec = &ptime_convert_hr_dsec;
+    }
+};
+
+TEST_F(latency_stats, no_duplicates) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
@@ -5026,7 +5036,7 @@ TEST(latency_stats, no_duplicates) {
     EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 0);
 }
 
-TEST(latency_stats, single_duplicate) {
+TEST_F(latency_stats, single_duplicate) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
@@ -5038,7 +5048,7 @@ TEST(latency_stats, single_duplicate) {
     EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 1);
 }
 
-TEST(latency_stats, simple_duplicates) {
+TEST_F(latency_stats, simple_duplicates) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
@@ -5054,7 +5064,7 @@ TEST(latency_stats, simple_duplicates) {
     EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 3);
 }
 
-TEST(latency_stats, interleaved_duplicates) {
+TEST_F(latency_stats, interleaved_duplicates) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
@@ -5071,7 +5081,7 @@ TEST(latency_stats, interleaved_duplicates) {
     EXPECT_EQ(std::get<0>(results).get_dup_cnt(), 0);
 }
 
-TEST(latency_stats, no_bad_packets) {
+TEST_F(latency_stats, no_bad_packets) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
@@ -5082,7 +5092,7 @@ TEST(latency_stats, no_bad_packets) {
     EXPECT_EQ(std::get<1>(results).get_bad_header(), 0);
 }
 
-TEST(latency_stats, incorrect_magic) {
+TEST_F(latency_stats, incorrect_magic) {
     constexpr auto bad_magic = decltype(flow_stat_payload_header::magic)(FLOW_STAT_PAYLOAD_MAGIC) + 1;
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
@@ -5096,7 +5106,7 @@ TEST(latency_stats, incorrect_magic) {
     EXPECT_EQ(std::get<1>(results).get_bad_header(), 2);
 }
 
-TEST(latency_stats, bad_flow) {
+TEST_F(latency_stats, bad_flow) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, MAX_FLOW_STATS_PAYLOAD, 0, 1, 0},
@@ -5107,7 +5117,7 @@ TEST(latency_stats, bad_flow) {
     EXPECT_EQ(std::get<1>(results).get_bad_header(), 1);
 }
 
-TEST(latency_stats, out_of_order) {
+TEST_F(latency_stats, out_of_order) {
     flow_stat_payload_headers fs_headers = {
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
         {FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},

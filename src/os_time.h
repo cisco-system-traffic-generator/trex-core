@@ -47,7 +47,6 @@ struct COsTimeGlobalData {
 
 #ifdef LINUX
 
-// TIME EXPERIMENT
 static inline uint64_t get_time_epoch_nanoseconds() {
     struct timespec res{0, 0};
     if(clock_gettime(CLOCK_REALTIME, &res) == 0) {
@@ -188,6 +187,10 @@ static inline hr_time_t ptime_convert_dsec_hr(dsec_t dsec){
 /* convert delta time */
 static inline dsec_t  ptime_convert_hr_dsec(hr_time_t hrt){
     return ((dsec_t)((double)hrt * timer_gd.m_1_div_freq ));
+}
+
+static inline dsec_t ptime_convert_ns_dsec(hr_time_t hrt){
+    return static_cast<dsec_t>(static_cast<double>(hrt) / (1000 * 1000 * 1000));
 }
 
 
