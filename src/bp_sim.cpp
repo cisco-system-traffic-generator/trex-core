@@ -34,6 +34,7 @@ limitations under the License.
 
 #include "trex_stx.h"
 #include "utl_mbuf.h"
+#include "utl_timesync.h"
 
 /* stateless includes */
 #include "stl/trex_stl_stream_node.h"
@@ -3806,6 +3807,32 @@ void CNodeGenerator::handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thre
     }
 }
 
+void CNodeGenerator::handle_timesync_msg(CGenNodeTimesync *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
+    printf("MATEUSZ CNodeGenerator::handle_timesync_msg (PTP master) #0\n");
+    
+    /* first pop the node */
+    m_p_queue.pop();
+
+    /* exit in case this is the last node*/
+    if ( m_p_queue.size() == m_parent->m_non_active_nodes ) {
+        thread->free_node((CGenNode *)node);
+        exit_scheduler = true;
+    } else {
+        dsec_t cur_time = now_sec();
+        printf("MATEUSZ CNodeGenerator::handle_timesync_msg (PTP master) #1\ttimesync_last = %g\ttimesync_interval = %d\tcur_time = %g\n",
+            node->timesync_last, CGlobalInfo::m_options.m_timesync_interval, cur_time);
+        if (node->timesync_last + (double) CGlobalInfo::m_options.m_timesync_interval < cur_time) {
+            // do the timesyncing
+            printf("MATEUSZ CNodeGenerator::handle_timesync_msg (PTP master) #2\n");
+            node->timesync_last = do_timesync(cur_time);  // thread?
+        }
+        /* schedule for next time synchronization check */
+        node->m_time += SYNC_TIME_OUT;
+        m_p_queue.push((CGenNode *)node);
+    }
+    printf("MATEUSZ CNodeGenerator::handle_timesync_msg (PTP master) #3\n");
+}
+
 bool
 CNodeGenerator::handle_slow_messages(uint8_t type,
                                      CGenNode * node,
@@ -3863,6 +3890,10 @@ CNodeGenerator::handle_slow_messages(uint8_t type,
 
     case CGenNode::STL_RX_FLUSH:
         thread->handle_stl_rx(node,on_terminate);
+        break;
+
+    case CGenNode::TIMESYNC:
+        handle_timesync_msg((CGenNodeTimesync *)node, thread, exit_scheduler);
         break;
 
     default:

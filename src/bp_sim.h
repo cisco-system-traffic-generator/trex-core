@@ -526,6 +526,8 @@ public:
 
         RX_MSG                  =16,  /* message to Rx core */
         STL_RX_FLUSH            =17,
+
+        TIMESYNC                =18,
     };
 
     /* flags MASKS*/
@@ -1285,6 +1287,7 @@ private:
     void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
     void handle_maintenance(CFlowGenListPerThread *thread);
     void handle_batch_tw_level1(CGenNode *node, CFlowGenListPerThread *thread,bool &exit_scheduler,bool on_terminate);
+    void handle_timesync_msg(CGenNodeTimesync *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
 
 
 public:

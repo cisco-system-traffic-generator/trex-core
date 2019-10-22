@@ -1009,6 +1009,8 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 void
 TrexStatelessDpCore::start_scheduler() {
 
+    printf("MATEUSZ TrexStatelessDpCore::start_scheduler #0\n");
+
     /* creates a maintenace job using the scheduler */
     CGenNode * node_sync = m_core->create_node() ;
     node_sync->m_type = CGenNode::FLOW_SYNC;
@@ -1016,6 +1018,7 @@ TrexStatelessDpCore::start_scheduler() {
 
     m_core->m_node_gen.add_node(node_sync);
 
+    printf("MATEUSZ TrexStatelessDpCore::start_scheduler #1\n");
     if ( get_dpdk_mode()->dp_rx_queues() ){
         // add rx node if needed
         CGenNode * node_rx = m_core->create_node() ;
@@ -1024,6 +1027,20 @@ TrexStatelessDpCore::start_scheduler() {
         m_core->m_node_gen.add_node(node_rx);
     }
 
+    if ((CGlobalInfo::m_options.m_timesync_method != CParserOption::TIMESYNC_NONE) &&
+        (CGlobalInfo::m_options.m_timesync_interval > 0)) {
+        // This is a sending part for time synchronisation.  Enable it only if
+        // `timesync-method` is set and and `timesync-interval` is greater than 0.
+        printf("MATEUSZ TrexStatelessDpCore::start_scheduler #2\n");
+        CGenNodeTimesync *node_timesync = (CGenNodeTimesync *)m_core->create_node();
+        node_timesync->m_type = CGenNode::TIMESYNC;
+        node_timesync->m_time = m_core->m_cur_time_sec + SYNC_TIME_OUT;
+        node_timesync->timesync_last = -1.0 * (double)CGlobalInfo::m_options.m_timesync_interval;
+        m_core->m_node_gen.add_node((CGenNode *)node_timesync);
+        printf("MATEUSZ TrexStatelessDpCore::start_scheduler #3\n");
+    }
+
+    printf("MATEUSZ TrexStatelessDpCore::start_scheduler #4\n");
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
     /* bail out in case of terminate */
@@ -1031,6 +1048,7 @@ TrexStatelessDpCore::start_scheduler() {
         m_core->m_node_gen.close_file(m_core);
         m_state = STATE_IDLE; /* we exit from all ports and we have nothing to do, we move to IDLE state */
     }
+    printf("MATEUSZ TrexStatelessDpCore::start_scheduler #5\n");
 }
 
 

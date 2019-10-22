@@ -703,5 +703,47 @@ private:
 
 static_assert(sizeof(CGenNodePCAP) == sizeof(CGenNode), "sizeof(CGenNodePCAP) != sizeof(CGenNode)" );
 
+/* this is a event for time synchronization. */
+struct CGenNodeTimesync : public CGenNodeBase {
+    // This part if a copy of CGenNode
+    uint32_t m_src_ip;  /* client ip */
+    uint32_t m_dest_ip; /* server ip */
+
+    uint64_t m_flow_id; /* id that goes up for each flow */
+
+    /*c2*/
+    CFlowPktInfo *m_pkt_info;
+
+    CCapFileFlowInfo *m_flow_info;
+    CFlowYamlInfo *m_template_info;
+
+    void *m_plugin_info;
+
+    /* cache line -2 */
+    CHTimerObj m_tmr;
+    uint64_t m_tmr_pad[4];
+
+    /* cache line -3 */
+
+    CTupleGeneratorSmart *m_tuple_gen;
+    // cache line 1 - 64bytes waste of space !
+    uint32_t m_nat_external_ipv4;       // NAT client IP
+    uint32_t m_nat_tcp_seq_diff_client; // support for firewalls that do TCP seq num randomization
+    uint32_t m_nat_tcp_seq_diff_server; // And some do seq num randomization for server->client also
+    uint16_t m_nat_external_port;       // NAT client port
+    uint16_t m_nat_pad[1];
+    const ClientCfgBase *m_client_cfg;
+    // Here comes the actual CGenNodeTimesync part (the difference is last 4 * 64 bits)
+    // uint32_t            m_src_idx;
+    // uint32_t            m_dest_idx;
+    // uint32_t            m_end_of_cache_line[6];
+    dsec_t timesync_last;
+    double t2;
+    double t3;
+    double t4;
+} __rte_cache_aligned;
+
+static_assert(sizeof(CGenNodeTimesync) == sizeof(CGenNode), "sizeof(CGenNodeTimesync) != sizeof(CGenNode)");
+
 #endif /* __TREX_STL_STREAM_NODE_H__ */
 

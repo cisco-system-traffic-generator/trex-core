@@ -31,6 +31,7 @@
 #include "trex_rx_feature_api.h"
 #include "trex_stack_base.h"
 #include "trex_latency_counters.h"
+#include "trex_timesync.h"
 
 class CPortLatencyHWBase;
 class BPFFilter;
@@ -240,7 +241,8 @@ public:
         STACK        = 1 << 2,
         CAPTURE_PORT = 1 << 3,
         CAPWAP_PROXY = 1 << 4,
-        ASTF_LATENCY = 1 << 5
+        ASTF_LATENCY = 1 << 5,
+        TIMESYNC     = 1 << 6
     };
 
     RXPortManager();
@@ -303,6 +305,18 @@ public:
     void stop_queue() {
         m_queue.stop();
         unset_feature(QUEUE); 
+    }
+
+    /* timesync */
+    void enable_timesync(uint8_t timesync_method) {
+        printf("MATEUSZ RXPortManager::enable_timesync (%d)\n", timesync_method);
+        m_timesync = new RXTimesync(timesync_method);
+        set_feature(TIMESYNC);
+    }
+
+    void disable_timesync() {
+        printf("MATEUSZ RXPortManager::disable_timesync\n");
+        unset_feature(TIMESYNC);
     }
 
     const TrexPktBuffer *get_pkt_buffer() {
@@ -447,6 +461,8 @@ private:
     CRXCoreIgnoreStat            m_ign_stats_prev;
 
     RXFeatureAPI                 m_feature_api;
+
+    RXTimesync                  *m_timesync;
 };
 
 

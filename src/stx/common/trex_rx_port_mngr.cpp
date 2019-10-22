@@ -582,6 +582,10 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
         }
     }
 
+    if (is_feature_set(TIMESYNC)) {
+        m_timesync->handle_pkt(m, m_port_id);
+    }
+
     rte_pktmbuf_free(m);
 }
 
@@ -715,6 +719,13 @@ void RXPortManager::to_json(Json::Value &feat_res) const {
         feat_res["capwap_proxy"]["is_active"] = true;
     } else {
         feat_res["capwap_proxy"]["is_active"] = false;
+    }
+
+    if (is_feature_set(TIMESYNC)) {
+        feat_res["timesync"] = m_timesync->to_json();
+        feat_res["timesync"]["is_active"] = true;
+    } else {
+        feat_res["timesync"]["is_active"] = false;
     }
 
 }

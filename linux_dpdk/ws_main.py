@@ -502,6 +502,7 @@ main_src = SrcGroup(dir='src',
              'utils/utl_port_map.cpp',
              'utils/utl_sync_barrier.cpp',
              'utils/utl_term_io.cpp',
+             'utils/utl_timesync.cpp',
              'utils/utl_yaml.cpp',
              ]);
 
@@ -583,6 +584,7 @@ stx_src = SrcGroup(dir='src/stx/common/',
         'trex_rx_rpc_tunnel.cpp',
         'trex_stack_linux_based.cpp',
         'trex_stx.cpp',
+        'trex_timesync.cpp',
     ])
 
 
@@ -2180,16 +2182,3 @@ def test (ctx):
     r=getstatusoutput("git log --pretty=format:'%H' -n 1")
     if r[0]==0:
         print(r[1])
-
-
-
-
-
-
-
-
-
-
-
-
-

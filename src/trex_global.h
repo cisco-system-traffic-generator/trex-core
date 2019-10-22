@@ -570,7 +570,7 @@ public:
         m_hdrh = false;
         m_latency_measurement = 0;
         m_timesync_method = 0;
-        m_timesync_period = 60;
+        m_timesync_interval = 0;
     }
 
     CParserOption(){
@@ -635,7 +635,7 @@ public:
     uint64_t        (*m_get_latency_timestamp)();
     double          (*m_timestamp_diff_to_dsec)(uint64_t);
     uint8_t         m_timesync_method;
-    uint32_t        m_timesync_period;
+    uint32_t        m_timesync_interval;
 
 
 public:

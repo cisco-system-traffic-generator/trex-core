@@ -41,6 +41,7 @@ class TrexStream;
 class CGenNodePCAP;
 class ServiceModeWrapper;
 class CFlowStatParser;
+class CGenNodeTimesync;
 
 class CDpOneStream  {
 public:

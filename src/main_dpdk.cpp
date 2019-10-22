@@ -311,7 +311,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_LATENCY_MEASUREMENT_METHOD, "--latency-measurement", SO_REQ_SEP},
         { OPT_TIME_SYNC_METHOD,       "--timesync-method", SO_REQ_SEP},
-        { OPT_TIME_SYNC_PERIOD,       "--timesync-period", SO_REQ_SEP},
+        { OPT_TIME_SYNC_PERIOD,       "--timesync-interval", SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -410,8 +410,8 @@ static int COLD_FUNC  usage() {
     printf("                              argument from config file. Supported method are 1 for nanoseconds (clock_gettime), 0 (default) for standard system ticks (RDTSC)\n");
     printf(" --timesync-method <method> : Enable time synchronisation with given method. Overrides the 'timesync_method' argument from config file\n");
     printf("                              Supported method is 1 for PTP. Default is 0 for no synchronisation\n");
-    printf(" --timesync-period <num>    : Define how often (in seconds) will time synchronisation take place. Overrides the 'timesync_period' argument from config file\n");
-    printf("                              Default is 60 seconds\n");
+    printf(" --timesync-interval <num>  : Define how often (in seconds) will time synchronisation take place. Overrides the 'timesync_interval' argument from config file\n");
+    printf("                              Default is 0 seconds which means TRex will be running as a client/slave in time synchronisation protocol.\n");
     
 
     printf("\n");
@@ -937,7 +937,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 CGlobalInfo::m_options.m_timesync_method = (uint8_t)tmp_data;
                 break;
             case OPT_TIME_SYNC_PERIOD:
-                sscanf(args.OptionArg(), "%d", &CGlobalInfo::m_options.m_timesync_period);
+                sscanf(args.OptionArg(), "%d", &CGlobalInfo::m_options.m_timesync_interval);
                 break;
 
             default:
@@ -5978,8 +5978,8 @@ COLD_FUNC int update_global_info_from_platform_file(){
         }
     }
 
-    if (cg->m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
-        g_opts->m_timesync_period = cg->m_timesync_period;
+    if (cg->m_timesync_interval != TIMESYNC_INTERVAL_DEFAULT) {
+        g_opts->m_timesync_interval = cg->m_timesync_interval;
     }
 
     return (0);
@@ -6424,7 +6424,11 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     check_pdev_vdev_dummy();
 
     if (CGlobalInfo::m_options.m_timesync_method == CParserOption::TIMESYNC_PTP) {
-        printf("Enabled PTP time synchronisation every %d seconds.\n", CGlobalInfo::m_options.m_timesync_period);
+        if (CGlobalInfo::m_options.m_timesync_interval == 0) {
+            printf("Enabled PTP time synchronisation (as slave).\n");
+        } else {
+            printf("Enabled PTP time synchronisation every %d seconds (as master).\n", CGlobalInfo::m_options.m_timesync_interval);
+        }
     } else {
         printf("Time synchronisation disabled.\n");
     }
