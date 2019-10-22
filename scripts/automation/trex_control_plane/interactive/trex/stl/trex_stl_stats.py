@@ -65,6 +65,7 @@ class CPgIdStats(object):
             for pg_id in stats['latency']:
                 if 'latency' in stats['latency'][pg_id]:
                     stats['latency'][pg_id]['latency']['total_max'] = 0
+                    stats['latency'][pg_id]['latency']['total_min'] = 0
 
         for key in stats.keys():
             if key == 'flow_stats' and not clear_flow_stats:
@@ -105,7 +106,7 @@ class CPgIdStats(object):
                     ans_dict[key] = val
 
         # translation from json values to python API names
-        json_keys_latency = {'jit': 'jitter', 'average': 'average', 'total_max': 'total_max', 'last_max': 'last_max'}
+        json_keys_latency = {'jit': 'jitter', 'average': 'average', 'total_max': 'total_max', 'total_min': 'total_min', 'last_max': 'last_max'}
         json_keys_err = {'drp': 'dropped', 'ooo': 'out_of_order', 'dup': 'dup', 'sth': 'seq_too_high', 'stl': 'seq_too_low'}
         json_keys_global = {'old_flow': 'old_flow', 'bad_hdr': 'bad_hdr'}
         json_keys_flow_stat = {'rp': 'rx_pkts', 'rb': 'rx_bytes', 'tp': 'tx_pkts', 'tb': 'tx_bytes',
@@ -152,12 +153,7 @@ class CPgIdStats(object):
                 if 'histogram' in ans_dict['latency'][pg_id]['lat']:
                     #translate histogram numbers from string to integers
                     lat['latency']['histogram'] = {int(k): v for k, v in ans_dict['latency'][pg_id]['lat']['histogram'].items()}
-                    min_val = min(lat['latency']['histogram'])
-                    if min_val == 0:
-                        min_val = 2
-                    lat['latency']['total_min'] = min_val
                 else:
-                    lat['latency']['total_min'] = StatNotAvailable('total_min')
                     lat['latency']['histogram'] = {}
                 if 'hdrh' in ans_dict['latency'][pg_id]['lat']:
                     lat['latency']['hdrh'] = ans_dict['latency'][pg_id]['lat']['hdrh']
@@ -365,6 +361,7 @@ class CPgIdStats(object):
         lstats_data = OrderedDict([('TX pkts',       []),
                                    ('RX pkts',       []),
                                    ('Max latency',   []),
+                                   ('Min latency',   []),
                                    ('Avg latency',   []),
                                    ('-- Window --', [''] * stream_count),
                                    ('Last max',     []),
@@ -381,6 +378,7 @@ class CPgIdStats(object):
             lstats_data['RX pkts'].append(self.get(data, ['flow_stats', pg_id, 'rx_pkts', 'total']))
             lstats_data['Avg latency'].append(try_int(self.get(data, ['latency', pg_id, 'latency', 'average'])))
             lstats_data['Max latency'].append(try_int(self.get(data, ['latency', pg_id, 'latency', 'total_max'])))
+            lstats_data['Min latency'].append(try_int(self.get(data, ['latency', pg_id, 'latency', 'total_min'])))
             lstats_data['Last max'].append(last_max)
             self.max_hist[pg_id][self.max_hist_index] = last_max
             for i in range(1, self.latency_window_size):
