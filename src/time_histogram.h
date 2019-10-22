@@ -27,6 +27,7 @@ limitations under the License.
 #include <stdio.h>
 #include <math.h>
 #include <string>
+#include <float.h>
 #include <json/json.h>
 #include "mbuf.h"
 #include "os_time.h"
@@ -43,12 +44,17 @@ class CTimeHistogramPerPeriodData {
         m_cnt = 0;
         m_cnt_high = 0;
         m_max = 0;
+        m_min = DBL_MAX;
     }
     void inc_cnt() {m_cnt++;}
     void inc_high_cnt() {m_cnt_high++;}
     void update_max(dsec_t dt) {
         if (dt > m_max)
             m_max = dt;
+    }
+    void update_min(dsec_t dt) {
+        if (dt < m_min)
+            m_min = dt;
     }
     void update_sum(dsec_t dt) {
         m_sum += dt * 1000000;
@@ -58,11 +64,13 @@ class CTimeHistogramPerPeriodData {
     inline uint64_t get_high_cnt() {return m_cnt_high;}
     inline dsec_t get_max() {return m_max;}
     inline dsec_t get_max_usec() {return m_max * 1000000;}
+    inline dsec_t get_min() {return m_min;}
     inline CTimeHistogramPerPeriodData operator+= (const CTimeHistogramPerPeriodData& in) {
         this->m_sum += in.m_sum;
         this->m_cnt += in.m_cnt;
         this->m_cnt_high += in.m_cnt_high; // assuming they have the same threshold.
         this->m_max = std::max(this->m_max, in.m_max);
+        this->m_min = std::min(this->m_min, in.m_min);
         return *this;
     }
 
@@ -72,6 +80,7 @@ class CTimeHistogramPerPeriodData {
     uint64_t m_cnt;  // Number of samples
     uint64_t m_cnt_high;  // Number of samples above configured threshold
     dsec_t   m_max;  // Max sample
+    dsec_t   m_min;  // Min sample
 };
 
 class CTimeHistogram {
@@ -129,6 +138,7 @@ private:
     uint64_t m_total_cnt;
     uint64_t m_total_cnt_high;
     dsec_t   m_max_dt;  // Total maximum latency
+    dsec_t   m_min_dt;  // Total min latency
     dsec_t   m_average; /* moving average */
     uint32_t m_win_cnt;
     uint32_t m_hot_max;
