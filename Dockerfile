@@ -9,7 +9,7 @@ COPY . /src/trex-core
 WORKDIR /src/trex-core
 
 RUN cd ./linux_dpdk && \
-    ./b configure && \
+    ./b configure --no-mlx=NO_MLX && \
     ./b build && \
     cd ../ && \
     cd ./linux && \
