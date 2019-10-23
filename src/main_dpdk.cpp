@@ -6681,7 +6681,7 @@ COLD_FUNC void reorder_dpdk_ports() {
 
     if ( cg->m_if_list_vdevs.size()  > 0 ) {
         if ( isVerbose(0) ){
-           printf(" size of interfaces_vdevs %d",cg->m_if_list_vdevs.size());
+           printf(" size of interfaces_vdevs %d",(int)cg->m_if_list_vdevs.size());
         }
         int if_index = 0;
         for (std::string &opts : cg->m_if_list_vdevs) {
