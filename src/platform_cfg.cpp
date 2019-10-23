@@ -19,6 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <stdlib.h>
@@ -494,6 +495,21 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["tw"] >> plat_info.m_tw;
     }
 
+    if ( node.FindValue("latency_measurement") ) {
+        node["latency_measurement"] >> plat_info.m_latency_measurement;
+        std::transform(plat_info.m_latency_measurement.begin(), plat_info.m_latency_measurement.end(),
+                       plat_info.m_latency_measurement.begin(), ::toupper);
+    }
+
+    if ( node.FindValue("timesync_method") ) {
+        node["timesync_method"] >> plat_info.m_timesync_method;
+        std::transform(plat_info.m_timesync_method.begin(), plat_info.m_timesync_method.end(),
+                       plat_info.m_timesync_method.begin(), ::toupper);
+    }
+
+    if ( node.FindValue("timesync_period") ){
+        node["timesync_period"] >> plat_info.m_timesync_period;
+    }
 
     if ( node.FindValue("port_info")  ) {
         const YAML::Node& mac_info = node["port_info"];
@@ -616,6 +632,18 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     }
     if (m_tx_desc) {
         fprintf(fd," m_tx_desc    :  %d \n",(int)m_tx_desc);
+    }
+
+    if (m_latency_measurement.length()) {
+        fprintf(fd," latency_measurement:  %s \n",m_latency_measurement.c_str());
+    }
+
+    if (m_timesync_method.length()) {
+        fprintf(fd," timesync_method:  %s \n",m_timesync_method.c_str());
+    }
+
+    if (m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
+        fprintf(fd," timesync_period:  %d \n",(int)m_timesync_period);
     }
 
     if ( m_mac_info_exist ){

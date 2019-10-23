@@ -215,6 +215,9 @@ enum {
        OPT_SLEEPY_SCHEDULER,
        OPT_UNBIND_UNUSED_PORTS,
        OPT_HDRH,
+       OPT_LATENCY_MEASUREMENT_METHOD,
+       OPT_TIME_SYNC_METHOD,
+       OPT_TIME_SYNC_PERIOD,
     
        /* no more pass this */
        OPT_MAX
@@ -306,6 +309,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_TERMIO,              "--no-termio",       SO_NONE},
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
+        { OPT_LATENCY_MEASUREMENT_METHOD, "--latency-measurement", SO_REQ_SEP},
+        { OPT_TIME_SYNC_METHOD,       "--timesync-method", SO_REQ_SEP},
+        { OPT_TIME_SYNC_PERIOD,       "--timesync-period", SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -331,7 +337,7 @@ static int COLD_FUNC  usage() {
     printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
     printf(" --allow-coredump           : Allow creation of core dump \n");
     printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means 'never send' \n");
-    printf(" -c <num>>                  : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
+    printf(" -c <num>                   : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
     printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
     printf(" --checksum-offload         : Deprecated,enable by default. Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
     printf(" --checksum-offload-disable : Disable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
@@ -342,7 +348,7 @@ static int COLD_FUNC  usage() {
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
     printf("                               This it temporary option. Will be removed in the future \n");
     printf(" -d                         : Duration of the test in sec (default is 3600). Look also at --nc \n");
-    printf(" -e                         : Like -p but src/dst IP will be chosen according to the port (i.e. on client port send all packets with client src and server dest, and vice versa on server port \n");
+    printf(" -e                         : Like -p but src/dst IP will be chosen according to the port (i.e. on client port send all packets with client src and server dest, and vice versa on server port) \n");
     printf(" --flip                     : Each flow will be sent both from client to server and server to client. This can achieve better port utilization when flow traffic is asymmetric \n");
     printf(" --hdrh                     : Report latency using high dynamic range histograms (http://hdrhistogram.org)\n");
     printf(" --hops <hops>              : If rx check is enabled, the hop number can be assigned. See manual for details \n");
@@ -400,6 +406,12 @@ static int COLD_FUNC  usage() {
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf(" --latency-measurement <md> : Define what method (<md>) is be used to provide timestamps used in latency calculation. Overrides the 'latency_measurement'\n");
+    printf("                              argument from config file. Supported method are 1 for nanoseconds (clock_gettime), 0 (default) for standard system ticks (RDTSC)\n");
+    printf(" --timesync-method <method> : Enable time synchronisation with given method. Overrides the 'timesync_method' argument from config file\n");
+    printf("                              Supported method is 1 for PTP. Default is 0 for no synchronisation\n");
+    printf(" --timesync-period <num>    : Define how often (in seconds) will time synchronisation take place. Overrides the 'timesync_period' argument from config file\n");
+    printf("                              Default is 60 seconds\n");
     
 
     printf("\n");
@@ -909,6 +921,23 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
+                break;
+            case OPT_LATENCY_MEASUREMENT_METHOD:
+                sscanf(args.OptionArg(), "%d", &tmp_data);
+                if (! po->is_valid_opt_val(tmp_data, CParserOption::LATENCY_METHOD_TICKS, CParserOption::LATENCY_METHOD_NANOS, "--latency-measurement")) {
+                    exit(-1);
+                }
+                CGlobalInfo::m_options.m_latency_measurement = (uint8_t)tmp_data;
+                break;
+            case OPT_TIME_SYNC_METHOD:
+                sscanf(args.OptionArg(), "%d", &tmp_data);
+                if (! po->is_valid_opt_val(tmp_data, CParserOption::TIMESYNC_NONE, CParserOption::TIMESYNC_PTP, "--timesync-method")) {
+                    exit(-1);
+                }
+                CGlobalInfo::m_options.m_timesync_method = (uint8_t)tmp_data;
+                break;
+            case OPT_TIME_SYNC_PERIOD:
+                sscanf(args.OptionArg(), "%d", &CGlobalInfo::m_options.m_timesync_period);
                 break;
 
             default:
@@ -1906,9 +1935,7 @@ HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeState
     lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
 
     if (hw_id >= MAX_FLOW_STATS) {
-        // TIME EXPERIMENT
-        // fsp_head->time_stamp = os_get_hr_tick_64();
-        fsp_head->time_stamp = get_time_epoch_nanoseconds();
+        fsp_head->time_stamp = CGlobalInfo::m_options.m_get_latency_timestamp();
 
         send_pkt_lat(lp_port, mi, lp_stats);
     } else {
@@ -5937,6 +5964,24 @@ COLD_FUNC int update_global_info_from_platform_file(){
         }
     }
 
+    if (cg->m_latency_measurement.length()) {
+        if ((cg->m_latency_measurement.compare("NANOSECONDS") == 0) ||
+            (cg->m_latency_measurement.compare("1") == 0)) {
+            g_opts->m_latency_measurement = CParserOption::LATENCY_METHOD_NANOS;
+        }
+    }
+
+    if (cg->m_timesync_method.length()) {
+        if ((cg->m_timesync_method.compare("PTP") == 0) ||
+            (cg->m_timesync_method.compare("1") == 0)) {
+            g_opts->m_timesync_method = CParserOption::TIMESYNC_PTP;
+        }
+    }
+
+    if (cg->m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
+        g_opts->m_timesync_period = cg->m_timesync_period;
+    }
+
     return (0);
 }
 
@@ -6377,6 +6422,26 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     }
 
     check_pdev_vdev_dummy();
+
+    if (CGlobalInfo::m_options.m_timesync_method == CParserOption::TIMESYNC_PTP) {
+        printf("Enabled PTP time synchronisation every %d seconds.\n", CGlobalInfo::m_options.m_timesync_period);
+    } else {
+        printf("Time synchronisation disabled.\n");
+    }
+
+    // TODO when we have a decent hardware to test the performance, it might be a good idea to implement
+    // m_get_latency_timestamp and m_timestamp_diff_to_dsec using std::function instead of simple pointers
+    // to functions and compare the performance;  there are four more CPU cycles associated with using
+    // std::function so, for the time being, we will stick to the function pointers
+    if (CGlobalInfo::m_options.m_latency_measurement == CParserOption::LATENCY_METHOD_NANOS) {
+        CGlobalInfo::m_options.m_get_latency_timestamp = &get_time_epoch_nanoseconds;
+        CGlobalInfo::m_options.m_timestamp_diff_to_dsec = &ptime_convert_ns_dsec;
+        printf("Using realtime (nanoseconds) timestamps in latency stream.\n");
+    } else {
+        CGlobalInfo::m_options.m_get_latency_timestamp = &os_get_hr_tick_64;
+        CGlobalInfo::m_options.m_timestamp_diff_to_dsec = &ptime_convert_hr_dsec;
+        printf("Using cpu ticks timestamps in latency stream.\n");
+    }
 
     if (update_dpdk_args() < 0) {
         return -1;

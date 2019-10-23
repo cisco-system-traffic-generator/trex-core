@@ -7,3 +7,4 @@
                    default_gw : 242.2.2.2
                  - ip         : 242.2.2.2
                    default_gw : 241.1.1.1
+  latency_measurement: "nanoseconds"

@@ -33,6 +33,8 @@ limitations under the License.
 
 #define CONST_NB_MBUF_2_10G  (16380/2)
 
+#define TIMESYNC_PERIOD_DEFAULT 60
+
 typedef enum {         MBUF_64        , // per dual port, per NUMA
 
                        MBUF_128       ,
@@ -215,6 +217,10 @@ public:
         m_tw.reset();
         m_rx_desc =0;
         m_tx_desc =0;
+
+        m_latency_measurement = "";
+        m_timesync_method = "";
+        m_timesync_period = TIMESYNC_PERIOD_DEFAULT;
     }
 
     bool            m_info_exist; /* file exist ?*/
@@ -258,6 +264,10 @@ public:
     CPlatformMemoryYamlInfo     m_memory;
     CPlatformCoresYamlInfo      m_platform;
     CTimerWheelYamlInfo         m_tw;
+
+    std::string                 m_latency_measurement;
+    std::string                 m_timesync_method;
+    uint32_t                    m_timesync_period;
 
 public:
     std::string get_use_if_comma_seperated();
