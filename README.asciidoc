@@ -1,5 +1,8 @@
 
 == TRex Low-Cost, High-Speed Stateful Traffic Generator
+image:https://img.shields.io/travis/codilime/trex-core/master?label=master&logo=travis-ci&logoColor=BAD7FD[link="https://travis-ci.org/codilime/trex-core"]
+image:https://img.shields.io/travis/codilime/trex-core/dev?label=dev&logo=travis-ci&logoColor=BAD7FD[link="https://travis-ci.org/codilime/trex-core"]
+
 
 TRex is a traffic generator for Stateful and Stateless use cases.
 
