@@ -105,6 +105,14 @@ bool CAstfJsonValidator::validate_program(Json::Value  profile,
         int ip_gen_s=temp["client_template"]["ip_gen"]["dist_server"]["index"].asInt();
         max_temp  = std::max(max_temp,std::max(pinx_c,pinx_s));
         ip_gen_max = std::max(ip_gen_max,std::max(ip_gen_c,ip_gen_s));
+        /* check dist_client and dist_server direction in ip_gen_dist_list */
+        if (ip_gen_c == ip_gen_s) {
+            Json::Value dist_list = profile["ip_gen_dist_list"];
+            std::stringstream ss;
+            ss << "Validation failed : client direction is " << dist_list[ip_gen_c]["dir"] << ", server direction is " << dist_list[ip_gen_s]["dir"] <<std::endl;
+            err = ss.str();
+            return(false);
+        }
     }
 
     /* check #templates */
