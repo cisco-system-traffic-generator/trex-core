@@ -14,7 +14,6 @@ from ..common.trex_types import listify
 import imp
 import collections
 
-
 class _ASTFCapPath(object):
     @classmethod
     def get_pcap_file_path(cls, pcap_file_name):
@@ -838,7 +837,7 @@ class ASTFIPGenDist(object):
 
         @property
         def direction(self):
-            return self.fields['dir']
+            return self.fields.get('dir')
 
         @direction.setter
         def direction(self, direction):
@@ -855,7 +854,7 @@ class ASTFIPGenDist(object):
         def to_json(self):
             return dict(self.fields)
 
-    def __init__(self, ip_range, distribution="seq",per_core_distribution=None):
+    def __init__(self, ip_range, distribution="seq", per_core_distribution=None):
 
         """
         Define a ASTFIPGenDist
@@ -885,12 +884,13 @@ class ASTFIPGenDist(object):
             if per_core_distribution not in per_core_distribution_vals:
                 raise ASTFError("per_core_distribution must be one of {0}".format(per_core_distribution_vals))
 
-
         new_inner = self.Inner(ip_range=ip_range, distribution=distribution,per_core_distribution=per_core_distribution)
+
         for i in range(0, len(self.in_list)):
             if new_inner == self.in_list[i]:
                 self.index = i
                 return
+
         self.in_list.append(new_inner)
         self.index = len(self.in_list) - 1
 
@@ -992,13 +992,18 @@ class ASTFIPGen(object):
                      {"name": "dist_client", 'arg': dist_client, "t": ASTFIPGenDist, "must": True},
                      {"name": "dist_server", 'arg': dist_server, "t": ASTFIPGenDist, "must": True},
                      ]}
+
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         self.fields = {}
         self.fields['dist_client'] = dist_client
+        if dist_client.direction and dist_client.direction is not "c":
+            raise ASTFError("dist_client.direction is already dir:{0}".format(dist_client.direction))
         dist_client.direction = "c"
         dist_client.ip_offset = glob.ip_offset
         self.fields['dist_server'] = dist_server
+        if dist_server.direction and dist_server.direction is not "s":
+            raise ASTFError("dist_server.direction is already dir:{0}".format(dist_server.direction))
         dist_server.direction = "s"
         dist_server.ip_offset = glob.ip_offset
 
