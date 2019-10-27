@@ -597,9 +597,9 @@ class STLRX_Test(CStlGeneral_Test):
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
         
-        tx_percentage = self.rate_fstat
+        tx_percentage = float(self.rate_fstat)
         if self.is_VM:
-            tx_percentage = tx_percentage / 20
+            tx_percentage = tx_percentage / 20.0
 
         total_pkts = self.total_pkts
         latency_with_vm_streams_data = [
