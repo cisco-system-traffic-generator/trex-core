@@ -136,7 +136,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         self.astf_trex.reset()
 
 
-    def test_double_start_stop(self):
+    def _test_double_start_stop(self):
         print('')
         c = self.astf_trex
         c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'))
@@ -147,7 +147,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         c.stop()
 
 
-    def test_double_start_stop_dynamic_profile(self):
+    def _test_double_start_stop_dynamic_profile(self):
         print('')
         c = self.astf_trex
         random_profile_1 = self.randomString()
@@ -173,7 +173,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
             c.start()
             c.stop()
 
-    def test_stress_start_stop_dynamic_profile(self):
+    def _test_stress_start_stop_dynamic_profile(self):
         print('')
         c = self.astf_trex
 
