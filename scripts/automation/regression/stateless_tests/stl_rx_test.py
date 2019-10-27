@@ -596,6 +596,10 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
+        
+        tx_percentage = self.rate_fstat
+        if self.is_VM:
+            tx_percentage = tx_percentage / 20
 
         total_pkts = self.total_pkts
         latency_with_vm_streams_data = [
@@ -633,7 +637,8 @@ class STLRX_Test(CStlGeneral_Test):
                 mode = STLTXSingleBurst(total_pkts = total_pkts, pps = self.lat_pps)
             else:
                 flow_stats = STLFlowStats(pg_id = 5)
-                mode = STLTXSingleBurst(total_pkts = total_pkts, percentage = self.rate_fstat)
+                mode = STLTXSingleBurst(
+                    total_pkts=total_pkts, percentage = tx_percentage)
 
             s = STLStream(name = data['name'],
                           packet = data['pkt'],
