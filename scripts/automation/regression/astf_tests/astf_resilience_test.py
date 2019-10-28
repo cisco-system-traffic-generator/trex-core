@@ -173,7 +173,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
             c.start()
             c.stop()
 
-    def _test_stress_start_stop_dynamic_profile(self):
+    def test_stress_start_stop_dynamic_profile(self):
         print('')
         c = self.astf_trex
 

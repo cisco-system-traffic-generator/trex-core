@@ -360,7 +360,7 @@ public:
      * get_profiles_status        : get JSON value list for all profiles id
      */
     void update_astf_state();
-    void publish_astf_state(std::string &err);
+    void publish_astf_state();
     void get_profiles_status(Json::Value &result);
 
     void set_barrier(double timeout_sec);
