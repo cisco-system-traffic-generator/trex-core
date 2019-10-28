@@ -414,11 +414,11 @@ public:
     }
 
     uint8_t get_mac_ip_overide_mode() {
-        return btGetMaskBit32(m_flags, 22, 23);
+        return btGetMaskBit32(m_flags1, 23, 22);
     }
 
     void set_mac_ip_overide_mode(uint8_t mode) {
-        btSetMaskBit32(m_flags1, 22, 23, mode);
+        btSetMaskBit32(m_flags1, 23, 22, mode);
         if ( mode ) {
             set_slowpath_features_on(mode);
         }
