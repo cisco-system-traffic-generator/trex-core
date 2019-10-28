@@ -189,6 +189,8 @@ void TrexAstf::update_astf_state() {
         change_state(STATE_CLEANUP);
     } else if (temp_state & (0x01 << STATE_LOADED)) {
         change_state(STATE_LOADED);
+    } else if (temp_state & (0x01 << STATE_DELETE)) {
+        change_state(STATE_LOADED); // ASTFClient does not support STATE_DELETE.
     } else if (temp_state & (0x01 << STATE_IDLE)) {
         change_state(STATE_IDLE);
     }
@@ -480,7 +482,7 @@ void TrexAstf::inc_epoch() {
     m_epoch++;
 }
 
-void TrexAstf::publish_astf_state(string &err) {
+void TrexAstf::publish_astf_state() {
     /* Publish the state change of all profiles */
     int old_state = m_state;
 
@@ -492,9 +494,6 @@ void TrexAstf::publish_astf_state(string &err) {
     Json::Value data;
     data["state"] = m_state;
     data["epoch"] = m_epoch;
-    if ( !err.empty() && !is_trans_state() ) {
-        data["error"] = err.c_str();
-    }
 
     get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_STATE_CHG, data);
 }
@@ -751,7 +750,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
     m_astf_obj->m_states_cnt[new_state]++;
 
     publish_astf_profile_state();
-    m_astf_obj->publish_astf_state(m_error);
+    m_astf_obj->publish_astf_state();
     m_error = "";
 }
 
@@ -864,7 +863,11 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
             break;
         case STATE_DELETE:
             publish_astf_profile_clear();
-            m_astf_obj->delete_profile(m_cp_profile_id);
+            {
+                auto astf = m_astf_obj;
+                m_astf_obj->delete_profile(m_cp_profile_id);
+                astf->publish_astf_state();     // ASTF state should be updated
+            }
             break;
         default:
             printf("DP cores should not report in state: %s", m_astf_obj->m_states_names[m_profile_state].c_str());
