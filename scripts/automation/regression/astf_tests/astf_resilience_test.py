@@ -165,7 +165,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         c.stop(pid_input=str(random_profile_2))
 
 
-    def _test_stress_start_stop(self):
+    def test_stress_start_stop(self):
         print('')
         c = self.astf_trex
         c.load_profile(os.path.join(CTRexScenario.scripts_path, 'astf', 'udp1.py'))
