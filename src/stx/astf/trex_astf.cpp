@@ -189,6 +189,8 @@ void TrexAstf::update_astf_state() {
         change_state(STATE_CLEANUP);
     } else if (temp_state & (0x01 << STATE_LOADED)) {
         change_state(STATE_LOADED);
+    } else if (temp_state & (0x01 << STATE_DELETE)) {
+        change_state(STATE_LOADED); // ASTFClient does not support STATE_DELETE.
     } else if (temp_state & (0x01 << STATE_IDLE)) {
         change_state(STATE_IDLE);
     }
@@ -865,6 +867,7 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
         case STATE_DELETE:
             publish_astf_profile_clear();
             m_astf_obj->delete_profile(m_cp_profile_id);
+            m_astf_obj->publish_astf_state(m_error);    // ASTF state should be updated
             break;
         default:
             printf("DP cores should not report in state: %s", m_astf_obj->m_states_names[m_profile_state].c_str());
