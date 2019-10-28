@@ -12,7 +12,7 @@ class STLBench(object):
 
     def create_stream (self, size, vm, src, dst, pps = 1, isg = 0):
         # Create base packet and pad it to size
-        base_pkt = Ether()/IP(src = src, dst = dst)/UDP()
+        base_pkt = Ether()/IP(src=src, dst=dst)/UDP(chksum=0)
         pad = max(0, size - len(base_pkt) - 4) * 'x'
 
         pkt = STLPktBuilder(pkt = base_pkt/pad,
