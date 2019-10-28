@@ -1189,7 +1189,7 @@ Connect an ASTF client to the server and reset it.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1217,7 +1217,7 @@ Load an ASTF profile to the server. Then clear the loaded profile.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1252,7 +1252,7 @@ Start traffic on a loaded profile, update it and then stop.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1294,7 +1294,7 @@ Read and clear statistics.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1339,7 +1339,7 @@ Latency versions of the previous functions.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1380,7 +1380,7 @@ Get template group names and statistics.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 
@@ -1419,7 +1419,7 @@ Basic topology use.
 [source,python]
 ----
 # get TRex APIs
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
     c = ASTFClient(server = server)
 

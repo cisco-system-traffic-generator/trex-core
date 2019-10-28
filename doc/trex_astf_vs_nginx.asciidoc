@@ -210,7 +210,7 @@ A static route is configured so that (a) the traffic returns to the correct inte
 .TRex Profile
 [source,python]
 ----
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 class Prof1():
     def get_profile(self):

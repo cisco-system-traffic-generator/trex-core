@@ -215,17 +215,17 @@ In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
 * Flow order. ASTF has inherent ordering verification using the TCP layer. It also checks IP/TCP/UDP checksum out of the box.
 * Latency measurement is supported in both.
 * In ASTF mode, you can't control the IPG, less predictable (concurrent flows is less deterministic)
+* ASTF can be interactive (start, stop, stats)
 
 === ASTF package folders 
 
 [cols="5,5", options="header",width="100%"]
 |=============================
-| Location        | Description   
-| /astf           | astf native (py) profiles 
-| /automation/trex_control_plane/astf/examples     | automation examples
-| /automation/trex_control_plane/astf/trex_astf_lib     | astf lib compiler (convert py to JSON)
-| /automation/trex_control_plane/stf     | stf automation (used by astf mode)
-| /automation/trex_control_plane/astf/examples     | stf automation  example
+| Location                                                          | Description
+| /astf                                                             | ASTF native (py) profiles
+| /automation/trex_control_plane/interactive/trex/examples/astf     | automation examples
+| /automation/trex_control_plane/interactive/trex/astf              | ASTF lib compiler (convert py to JSON), Interactive lib
+| /automation/trex_control_plane/stf                                | STF automation (used by ASTF mode)
 |=============================
 
 
@@ -256,7 +256,7 @@ link:{github_astf_path}/http_simple.py[astf/http_simple.py]
 
 [source,python]
 ----
-from trex_astf_lib.api import *
+from trex.astf.api import *
 
 
 class Prof1():
