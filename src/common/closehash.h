@@ -22,7 +22,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-                    
+
 #include "dlist.h"
 #include <string.h>
 #include <stdio.h>
@@ -50,10 +50,10 @@ public:
 class COpenHashCounters {
 public:
     uint32_t   m_max_entry_in_row;
-    
-    uint32_t   m_cmd_find;   
-    uint32_t   m_cmd_open;   
-    uint32_t   m_cmd_remove; 
+
+    uint32_t   m_cmd_find;
+    uint32_t   m_cmd_open;
+    uint32_t   m_cmd_remove;
 
     COpenHashCounters(){
         m_max_entry_in_row=0;
@@ -82,7 +82,7 @@ public:
 
 
 /*
-example for hash env 
+example for hash env
 
 class HASH_ENV{
   public:
@@ -106,17 +106,17 @@ public:
     ~CCloseHash();
 
     bool Create(uint32_t size);
-    
+
     void Delete();
-    
+
     void reset();
 public:
-    
+
     HASH_STATUS insert(hashEntry_t * entry,uint32_t hash);
 
     /* insert without check */
     HASH_STATUS insert_nc(hashEntry_t * entry,uint32_t hash);
-    
+
     HASH_STATUS remove(hashEntry_t * entry);
 
     HASH_STATUS remove_by_key(const KEY & key,uint32_t hash,hashEntry_t * & entry);
@@ -140,7 +140,7 @@ public:
     void Dump(FILE *fd);
 
 private:
-    CCloseHashRec *              m_tbl; 
+    CCloseHashRec *              m_tbl;
     uint32_t                     m_size;  // size of m_tbl log2
     uint32_t                     m_mask;
     uint32_t                     m_numEntries; // Number of entries in hash
@@ -154,7 +154,7 @@ template<class KEY>
 CCloseHash<KEY>::CCloseHash(){
     m_size = 0;
     m_mask=0;
-    m_tbl=0; 
+    m_tbl=0;
     m_numEntries=0;
     m_maxEntries=0;
 }
@@ -173,7 +173,7 @@ inline static uint32_t hash_FindPower2(uint32_t number){
     }
     return(powerOf2);
 }
-    
+
 template<class KEY>
 bool CCloseHash<KEY>::Create(uint32_t size){
 

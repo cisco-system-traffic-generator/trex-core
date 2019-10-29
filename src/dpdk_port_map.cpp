@@ -4,10 +4,10 @@
 #include <assert.h>
 
 
-/* default MAP == direct */                                         
+/* default MAP == direct */
 CTRexPortMapper::CTRexPortMapper(){
-    m_max_trex_vports   = TREX_MAX_PORTS;   
-    m_max_rte_eth_ports = TREX_MAX_PORTS; 
+    m_max_trex_vports   = TREX_MAX_PORTS;
+    m_max_rte_eth_ports = TREX_MAX_PORTS;
     int i;
     for (i=0; i<TREX_MAX_PORTS; i++) {
         m_map[i]=i;
@@ -17,7 +17,7 @@ CTRexPortMapper::CTRexPortMapper(){
 
 
 void CTRexPortMapper::set(uint8_t rte_ports,dpdk_map_args_t &  pmap){
-    
+
     m_max_trex_vports = pmap.size();
     m_max_rte_eth_ports =rte_ports;
 
@@ -29,7 +29,7 @@ void CTRexPortMapper::set(uint8_t rte_ports,dpdk_map_args_t &  pmap){
 }
 
 
-                
+
 CTRexPortMapper * CTRexPortMapper::m_ins;
 
 

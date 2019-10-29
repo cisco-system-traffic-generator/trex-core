@@ -30,12 +30,12 @@ class VLANConfig;
 class CManyIPInfo;
 
 /**
- * a general API class to provide common functions to 
- * all RX features 
- *  
- * it simply exposes part of the RX port mngr instead of 
- * a full back pointer 
- *  
+ * a general API class to provide common functions to
+ * all RX features
+ *
+ * it simply exposes part of the RX port mngr instead of
+ * a full back pointer
+ *
  */
 class RXFeatureAPI {
 public:
@@ -43,45 +43,45 @@ public:
     RXFeatureAPI(RXPortManager *port_mngr) {
         m_port_mngr = port_mngr;
     }
-    
+
     /**
      * sends a packet through the TX queue
-     * 
+     *
      */
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
-    
+
     /**
      * sends a packet through the TX queue of another port
-     * 
+     *
      */
     bool tx_pkt(const std::string &pkt, uint8_t port_id);
     bool tx_pkt(rte_mbuf_t *m, uint8_t port_id);
 
     /**
      * returns the port id associated with the port manager
-     * 
+     *
      */
     uint8_t get_port_id();
-    
+
     /**
      * returns the port VLAN configuration
      */
     const VLANConfig *get_vlan_cfg();
-    
+
     /**
      * source addresses associated with the port
-     * 
+     *
      */
     CManyIPInfo *get_src_addr();
-    
+
     /**
      * returns the *first* IPv4 address associated with the port
      */
     uint32_t get_src_ipv4();
-    
+
 private:
-    
+
     RXPortManager *m_port_mngr;
 };
 

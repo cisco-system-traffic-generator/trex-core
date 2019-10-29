@@ -76,49 +76,49 @@ public:
 
 /**
  * TRex stateless interactive object
- * 
+ *
  */
 class TrexStateless : public TrexSTX {
 public:
 
-    /** 
-     * create stateless object 
+    /**
+     * create stateless object
      */
     TrexStateless(const TrexSTXCfg &cfg);
     virtual ~TrexStateless();
 
-    
+
     /**
      * launch control plane
-     * 
+     *
      */
     void launch_control_plane();
-    
-    
+
+
     /**
      * shutdown
-     * 
+     *
      */
     void shutdown();
-    
-    
+
+
     /**
      * create a STL DP core
-     * 
+     *
      */
     TrexDpCore *create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core);
-    
-    
+
+
     /**
      * fetch stateless port object by port ID
-     * 
+     *
      */
     TrexStatelessPort * get_port_by_id(uint8_t port_id);
 
 
     /**
      * publish stateless async data
-     * 
+     *
      */
     void publish_async_data();
 
@@ -152,9 +152,9 @@ public:
 
     friend TrexStatelessMulticoreSoftwareFSLatencyStats;
 
-    
+
 protected:
-    
+
     void _shutdown();
 
 public:
@@ -163,8 +163,8 @@ public:
 
 
 /**
- * returns the stateless object 
- * if mode is not stateless, will return NULL 
+ * returns the stateless object
+ * if mode is not stateless, will return NULL
  */
 static inline TrexStateless * get_stateless_obj() {
     return dynamic_cast<TrexStateless *>(get_stx());

@@ -39,7 +39,7 @@ void CTrexDpdkParams::dump(FILE *fd){
     fprintf(fd," rx_desc_num_drop_q   : %d \n",(int)rx_desc_num_drop_q);
     fprintf(fd," rx_desc_num_dp_q     : %d \n",(int)rx_desc_num_dp_q);
     fprintf(fd," total_desc           : %d \n",(int)get_total_rx_desc());
-    
+
     fprintf(fd," --   \n");
 
     fprintf(fd," tx_desc_num     : %d \n",(int)tx_desc_num);
@@ -103,7 +103,7 @@ void CDpdkMode::set_dpdk_mode(trex_dpdk_mode_t  dpdk_mode){
         CDpdkMode_DROP_QUE_FILTER::create,
         CDpdkMode_RSS_DROP_QUE_FILTER::create
     };
-    
+
     m_dpdk_mode = dpdk_mode;
     create_mode_cb_t cb=cbs[dpdk_mode];
     m_dpdk_obj = cb();
@@ -191,14 +191,14 @@ trex_driver_cap_t CDpdkMode::get_cap_for_mode(trex_dpdk_mode_t dpdk_mode,bool on
 std::string get_str_mode(trex_dpdk_mode_t que_mode){
 
   std::string str[]= {"ONE_QUE",
-                      "MULTI_QUE",     
-                      "DROP_QUE_FILTER",      
+                      "MULTI_QUE",
+                      "DROP_QUE_FILTER",
                       "RSS_DROP_QUE_FILTER"};
 
   return (str[que_mode]);
 }
 
-std::string 
+std::string
 get_str_trex_traffic_mode(trex_traffic_mode_t ttm_mode){
 
     std::string str[] = { "INVALID",
@@ -229,7 +229,7 @@ int CDpdkMode::choose_mode(uint32_t cap){
     modes.push_back( {OP_MODE_ASTF_BATCH, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } ); /* only filter is needed here */
     modes.push_back( {OP_MODE_ASTF_BATCH, false, { tmRSS_DROP_QUE_FILTER } } );
 
-    modes.push_back( {OP_MODE_ASTF, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } ); 
+    modes.push_back( {OP_MODE_ASTF, true,  { tmRSS_DROP_QUE_FILTER,tmONE_QUE } } );
     modes.push_back( {OP_MODE_ASTF, false, { tmRSS_DROP_QUE_FILTER,tmMULTI_QUE } } );
 
     bool one_core =  (dp_cores==1?true:false);
@@ -238,7 +238,7 @@ int CDpdkMode::choose_mode(uint32_t cap){
     int j;
     for (i=0; i<modes.size(); i++) {
         choose_mode_priorty_t * lp=&modes[i];
-        if ( (lp->m_one_core == one_core) && 
+        if ( (lp->m_one_core == one_core) &&
              (lp->m_mode == m_ttm_mode)) {
             for (j=0;j<lp->m_pm.size(); j++) {
                 trex_dpdk_mode_t dpdk_mode = (trex_dpdk_mode_t)lp->m_pm[j];
@@ -251,8 +251,8 @@ int CDpdkMode::choose_mode(uint32_t cap){
         }
     }
     /* can't be supported */
-    printf(" %s mode does not support more than one core by dual interfaces\n", 
-           get_str_trex_traffic_mode(m_ttm_mode).c_str()); 
+    printf(" %s mode does not support more than one core by dual interfaces\n",
+           get_str_trex_traffic_mode(m_ttm_mode).c_str());
     printf("try with setting the number of cores to 1 (-c 1)\n");
     return(tmDPDK_UNSUPPORTED);
 }

@@ -55,7 +55,7 @@
 		RTE_FMT(VDEV_NETVSC_DRIVER_NAME ": " \
 			RTE_FMT_HEAD(__VA_ARGS__,) "\n", \
 		RTE_FMT_TAIL(__VA_ARGS__,)))
-		
+
 /** Driver-specific log messages type. */
 static int vdev_netvsc_logtype;
 

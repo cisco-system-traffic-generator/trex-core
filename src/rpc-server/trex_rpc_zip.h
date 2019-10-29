@@ -25,7 +25,7 @@ public:
 
     /**
      * return true if message is compressed
-     * 
+     *
      */
     static bool is_compressed(const std::string &input);
 
@@ -45,7 +45,7 @@ private:
 
     /**
      * packed header for reading binary compressed messages
-     * 
+     *
      * @author imarom (15-Feb-16)
      */
     struct header_st {
@@ -54,7 +54,7 @@ private:
         char        data[0];
     } __attribute__((packed));
 
-  
+
     static const uint32_t G_HEADER_MAGIC = 0xABE85CEA;
 };
 

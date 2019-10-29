@@ -22,13 +22,13 @@ limitations under the License.
 
 /**
  * stateful test
- * 
+ *
  */
 class trexStfTest  : public testing::Test {
 public:
     trexStfTest() {
         TrexSTXCfg cfg;
-        set_stx(new TrexStateful(cfg, nullptr));  
+        set_stx(new TrexStateful(cfg, nullptr));
     }
     ~trexStfTest() {
          delete get_stx();
@@ -39,7 +39,7 @@ public:
 
 /**
  * stateless test
- * 
+ *
  */
 class trexStlTest  : public testing::Test {
 public:
@@ -56,7 +56,7 @@ public:
 
 /**
  * ASTF batch test
- * 
+ *
  */
 class trexAstfBatchTest  : public testing::Test {
 public:
@@ -72,7 +72,7 @@ public:
 
 /**
  * ASTF interactive test
- * 
+ *
  */
 class trexAstfInteractiveTest  : public testing::Test {
 public:

@@ -36,7 +36,7 @@ limitations under the License.
 
 /**
  * ZMQ based request-response server
- * 
+ *
  */
 TrexRpcServerReqRes::TrexRpcServerReqRes(const TrexRpcServerConfig &cfg) : TrexRpcServerInterface(cfg, "ZMQ sync request-response") {
 
@@ -48,14 +48,14 @@ void TrexRpcServerReqRes::_prepare() {
 
 
 /**
- * any error from the thread will be forward to here 
- * it will print out a message and exit 
+ * any error from the thread will be forward to here
+ * it will print out a message and exit
  */
 void
 TrexRpcServerReqRes::error(const std::string &msg, bool abnormal) {
    std::cout <<  "*** RPC thread has encountred error: '" << msg << "'";
    std::cout << "\nExiting...\n\n";
-   
+
    /* if the error is normal - simply exit, otherwise produce a core file */
    if (abnormal) {
        abort();
@@ -66,11 +66,11 @@ TrexRpcServerReqRes::error(const std::string &msg, bool abnormal) {
 
 
 /**
- * main entry point for the server 
- * this function will be created on a different thread 
- *  
- * no exception can be thrown from here 
- * 
+ * main entry point for the server
+ * this function will be created on a different thread
+ *
+ * no exception can be thrown from here
+ *
  * see https://gcc.gnu.org/ml/gcc-help/2013-01/msg00055.html
  */
 void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
@@ -88,7 +88,7 @@ void TrexRpcServerReqRes::_rpc_thread_cb() noexcept {
 void TrexRpcServerReqRes::_rpc_thread_cb_int() {
     std::stringstream ss;
     int zmq_rc;
-    
+
     pthread_setname_np(pthread_self(), "Trex ZMQ sync");
 
     m_monitor.create(m_name, 1);
@@ -177,7 +177,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
         }
     }
 
-  
+
 
     const char *data = (const char *)zmq_msg_data(&zmq_msg);
     size_t len = zmq_msg_size(&zmq_msg);
@@ -189,7 +189,7 @@ TrexRpcServerReqRes::fetch_one_request(std::string &msg) {
 
 /**
  * stops the ZMQ based RPC server
- * 
+ *
  */
 void TrexRpcServerReqRes::_stop_rpc_thread() {
     /* by calling zmq_term we signal the blocked thread to exit */
@@ -229,7 +229,7 @@ void TrexRpcServerReqRes::process_request(const std::string &request, std::strin
 
 /**
  * main processing of the request
- * 
+ *
  */
 void TrexRpcServerReqRes::process_request_raw(const std::string &request, std::string &response) {
 
@@ -306,9 +306,9 @@ void TrexRpcServerReqRes::process_zipped_request(const std::string &request, std
 
 /**
  * handles a server error
- * 
+ *
  */
-void 
+void
 TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
     std::string response;
 

@@ -66,7 +66,7 @@ public:
 
 
     void remove_all(free_map_object_func_t func){
-        if ( m_map.empty() ) 
+        if ( m_map.empty() )
             return;
 
         typename gen_map_t::iterator it;

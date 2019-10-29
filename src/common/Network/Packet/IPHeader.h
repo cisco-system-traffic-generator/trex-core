@@ -36,7 +36,7 @@ public:
         setSourceIp(0xBEEFDEAD);
         setProtocol(0xDD);
     };
-    
+
     IPHeader          (uint32_t argSource,
                        uint32_t argDestinaction,
                        uint8_t  argProtocol)
@@ -50,17 +50,17 @@ public:
 
     struct Protocol
     {
-        enum Type 
+        enum Type
         {
-            IP     	= 0x04 , 
-            TCP     = 0x06 , 
-            UDP     = 0x11 , 
-            ICMP    = 0x01 , 
+            IP     	= 0x04 ,
+            TCP     = 0x06 ,
+            UDP     = 0x11 ,
+            ICMP    = 0x01 ,
             IGMP    = 0x02,
             ESP     = 0x32,
             AH      = 0x33,
             GRE     = 0x2F,
-            SCTP    = 0x84, 
+            SCTP    = 0x84,
             IPV6_ICMP = 0x3A,
             IPV6_NONXT = 0x3B,
         };
@@ -78,11 +78,11 @@ public:
 
     inline  uint8_t   getVersion          ();
     inline  void    setVersion          (uint8_t);
-    
+
     /**
      * Return the header length in bytes
-     * 
-     * @return 
+     *
+     * @return
      */
     inline  uint8_t   getHeaderLength     ();
 
@@ -118,25 +118,25 @@ public:
     inline  bool    isDontFragment      ();
     inline  bool    isLastFragment      ();
     inline  bool    isNotFirstFragment  ();
-    inline  void    setFragment         (uint16_t         argOffset, 
+    inline  void    setFragment         (uint16_t         argOffset,
                                          bool           argMoreFrag,
                                          bool           argDontFrag);
 
     inline  uint8_t   getTimeToLive       (void);
     inline  void    setTimeToLive       (uint8_t);
-                                        
+
     inline  uint8_t   getProtocol         (void);
     inline  void    setProtocol         (uint8_t);
-                                        
+
     inline  uint32_t  getSourceIp         ();
     inline  void    setSourceIp         (uint32_t);
-                                        
+
     inline  uint32_t  getDestIp           ();
     inline  void    setDestIp           (uint32_t);
-                                        
+
     bool            isMulticast         ();
     bool            isBroadcast         ();
-                                        
+
     inline  uint16_t  getChecksum         ();
     bool            isChecksumOK        ();
 
@@ -222,7 +222,7 @@ protected:
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
     inline  uint8_t*  getPointer          (){return (uint8_t*)this;}
     inline  uint32_t  getSize             (){return  getHeaderLength();}
 
@@ -238,10 +238,10 @@ public:
     uint8_t       myVer_HeaderLength;
     uint8_t       myTos;
     uint16_t      myLength;
-        
+
     uint16_t      myId;
     uint16_t      myFrag;
-        
+
     uint8_t       myTTL;
     uint8_t       myProtocol;
     uint16_t      myChecksum;
@@ -257,9 +257,9 @@ class IPPseudoHeader
 public:
   uint32_t m_source_ip;
   uint32_t m_dest_ip;
-  uint8_t  m_zero;  
-  uint8_t  m_protocol; 
-  uint16_t m_length; 
+  uint8_t  m_zero;
+  uint8_t  m_protocol;
+  uint16_t m_length;
 public:
     inline uint8_t* getPointer(){return (uint8_t*)this;}
 
@@ -271,5 +271,5 @@ public:
 
 #include "IPHeader.inl"
 
-#endif 
+#endif
 

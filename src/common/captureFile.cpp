@@ -52,7 +52,7 @@ CCapPktRaw::CCapPktRaw(CCapPktRaw  *obj){
     time_nsec=obj->time_nsec;
     assert ((pkt_len>0) && (pkt_len<MAX_PKT_SIZE) );
     raw = (char *)m_handle.malloc(pkt_len,PKT_ALIGN);
-    // copy the packet 
+    // copy the packet
     memcpy(raw,obj->raw,pkt_len);
 }
 
@@ -150,7 +150,7 @@ bool CCapPktRaw::Compare(CCapPktRaw * obj,int dump,double dsec){
             utl_DumpBuffer(stdout,raw,pkt_len,0);
             fprintf(stdout," B2 \n");
             fprintf(stdout," ---------------\n");
-        
+
             utl_DumpBuffer(stdout,obj->raw,obj->pkt_len,0);
         }
         return (false);
@@ -245,7 +245,7 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
 /**
  * try to create type by type
  * @param name
- * 
+ *
  * @return CCapReaderBase*
  */
 CCapReaderBase * CCapReaderFactory::CreateReader(char * name, int loops, std::ostream &err)
@@ -295,14 +295,14 @@ CCapReaderBase * CCapReaderFactory::CreateReaderInstace(capture_type_e type)
 }
 
 
-	
+
 /**
  * The factory function will create the matching reader instance
  * according to the type.
- * 
+ *
  * @param type - the foramt
  * @param name - new file name
- * 
+ *
  * @return CCapWriter* - return pointer to the writer instance
  *         or NULL if failed from some reason. Instance user
  *         should relase memory when instance not needed
@@ -315,7 +315,7 @@ CFileWriterBase  * CCapWriterFactory::CreateWriter(capture_type_e type ,char * n
 	}
 
 	CFileWriterBase  * toRet = CCapWriterFactory::createWriterInsance(type);
-		
+
 	if (toRet) {
 		if (!toRet->Create(name)) {
             delete toRet;
@@ -329,7 +329,7 @@ CFileWriterBase  * CCapWriterFactory::CreateWriter(capture_type_e type ,char * n
 /**
  * Create instance for writer if type is supported.
  * @param type
- * 
+ *
  * @return CFileWriterBase*
  */
 CFileWriterBase  * CCapWriterFactory::createWriterInsance(capture_type_e type )

@@ -1,5 +1,5 @@
-/* This file should be refactored, it is a total mess !!!!! 
-   Hanoh 
+/* This file should be refactored, it is a total mess !!!!!
+   Hanoh
 */
 
 #include <iostream>
@@ -185,7 +185,7 @@ bool CAstfDB::clear_buffers(){
 }
 
 bool CAstfDB::add_buffers(Json::Value msg,std::string & err){
-    
+
     if (!msg.isArray()){
         std::stringstream ss;
         ss << "val should be an array of strings  ";
@@ -419,7 +419,7 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint32_t program_index, uint32_t cmd_index) 
 
     if (cmd["name"] == "tx_mode")
         return tcTX_MODE;
-    
+
     /* TBD need to check the value and put an error  !!! */
     return tcNO_CMD;
 }
@@ -438,7 +438,7 @@ uint32_t CAstfDB::get_delay_ticks(uint32_t program_index, uint32_t cmd_index) {
     return tw_time_usec_to_ticks(cmd["usec"].asInt());
 }
 
-void CAstfDB::fill_tx_mode(uint32_t program_index, 
+void CAstfDB::fill_tx_mode(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -455,7 +455,7 @@ void CAstfDB::fill_tx_mode(uint32_t program_index,
 }
 
 
-void CAstfDB::fill_delay_rnd(uint32_t program_index, 
+void CAstfDB::fill_delay_rnd(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -472,7 +472,7 @@ void CAstfDB::fill_delay_rnd(uint32_t program_index,
     res.u.m_delay_rnd.m_max_ticks = tw_time_usec_to_ticks(cmd["max_usec"].asUInt());
 }
 
-void CAstfDB::fill_set_var(uint32_t program_index, 
+void CAstfDB::fill_set_var(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -489,7 +489,7 @@ void CAstfDB::fill_set_var(uint32_t program_index,
     res.u.m_var.m_val    = cmd["val"].asUInt64();
 }
 
-void CAstfDB::fill_jmpnz(uint32_t program_index, 
+void CAstfDB::fill_jmpnz(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -506,7 +506,7 @@ void CAstfDB::fill_jmpnz(uint32_t program_index,
     res.u.m_jmpnz.m_offset = cmd["offset"].asInt();
 }
 
-void CAstfDB::fill_tx_pkt(uint32_t program_index, 
+void CAstfDB::fill_tx_pkt(uint32_t program_index,
                             uint32_t cmd_index,
                             uint8_t socket_id,
                             CEmulAppCmd &res) {
@@ -524,7 +524,7 @@ void CAstfDB::fill_tx_pkt(uint32_t program_index,
     res.u.m_tx_pkt.m_buf = m_tcp_data[socket_id].m_buf_list[indx];
 }
 
-void CAstfDB::fill_rx_pkt(uint32_t program_index, 
+void CAstfDB::fill_rx_pkt(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
@@ -548,7 +548,7 @@ void CAstfDB::fill_rx_pkt(uint32_t program_index,
     }
 }
 
-void CAstfDB::fill_keepalive_pkt(uint32_t program_index, 
+void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
                                  uint32_t cmd_index,
                                  CEmulAppCmd &res) {
     Json::Value cmd;
@@ -667,7 +667,7 @@ uint32_t CAstfDB::ip_from_str(const char *c_ip) {
 }
 
 bool CAstfDB::read_tunable_uint8(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   uint8_t & val){
@@ -685,7 +685,7 @@ bool CAstfDB::read_tunable_uint8(CTcpTuneables *tune,
 
 /* raise an Exception in case of an error */
 bool CAstfDB::read_tunable_uint16(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   uint16_t & val){
@@ -702,7 +702,7 @@ bool CAstfDB::read_tunable_uint16(CTcpTuneables *tune,
 }
 
 bool CAstfDB::read_tunable_uint32(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   uint32_t & val){
@@ -719,7 +719,7 @@ bool CAstfDB::read_tunable_uint32(CTcpTuneables *tune,
 }
 
 bool CAstfDB::read_tunable_uint64(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   uint64_t & val){
@@ -736,7 +736,7 @@ bool CAstfDB::read_tunable_uint64(CTcpTuneables *tune,
 }
 
 bool CAstfDB::read_tunable_double(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   double & val){
@@ -753,7 +753,7 @@ bool CAstfDB::read_tunable_double(CTcpTuneables *tune,
 }
 
 bool CAstfDB::read_tunable_bool(CTcpTuneables *tune,
-                                  const Json::Value &parent, 
+                                  const Json::Value &parent,
                                   const std::string &param,
                                   uint32_t enum_val,
                                   double & val){
@@ -836,9 +836,9 @@ bool CAstfDB::read_tunables_ipv6_field(CTcpTuneables *tune,
 
 
 bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
-    /* TBD for now the exception is handeled only here 
-       in interactive mode should be in higher level. 
-       CAstfDB  does not handle errors 
+    /* TBD for now the exception is handeled only here
+       in interactive mode should be in higher level.
+       CAstfDB  does not handle errors
     */
 
     if (tune_json == Json::nullValue) {
@@ -948,8 +948,8 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
         printf(" ERROR !!! '%s' \n",e.what());
         /* TBD need a better way to signal this */
         return(true);
-    } 
-    
+    }
+
     return true;
 }
 
@@ -1188,7 +1188,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
         if (c_temp["limit"] != Json::nullValue ){
             uint32_t cnt= utl_split_int(c_temp["limit"].asUInt(),
-                                        thread_id, 
+                                        thread_id,
                                         max_threads);
 
             /* there is a limit */

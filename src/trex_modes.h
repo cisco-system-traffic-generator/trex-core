@@ -22,76 +22,76 @@ limitations under the License.
 */
 
 
-/* 
+/*
 
  **DPDK mode of operations**
 
-tmONE_QUE : 
-   1. one dual ports 
-   2. one DP core  - Tx 0 
-   2. one RX core  - Rx 0 (all traffic to here, filter by hardware) 
-                     Tx latency --> redirect to DP core to send 
+tmONE_QUE :
+   1. one dual ports
+   2. one DP core  - Tx 0
+   2. one RX core  - Rx 0 (all traffic to here, filter by hardware)
+                     Tx latency --> redirect to DP core to send
 
 
 tmMULTI_QUE:
 
    1. more than one DP core per dual interfaces   - Txq (0,1,2,3,4 )
                                                     Rxq (0,1,2,3,4 )
-   
-   2. one RX core  - get latency packets from DP->RX message queues 
-                     send packets to DP (messaging) .. this is working like ONE_QUE and can optimized 
+
+   2. one RX core  - get latency packets from DP->RX message queues
+                     send packets to DP (messaging) .. this is working like ONE_QUE and can optimized
                      (can seperate the rx queue logic from tx queue logic) -- but this is not the main issue now
 
-   3. no need for HW filters, no need for RSS. any rx distribtion will work 
+   3. no need for HW filters, no need for RSS. any rx distribtion will work
 
-   4. STL and ASTF* can work in this mode 
+   4. STL and ASTF* can work in this mode
    (*FOR ASTF in case of a determesitic distribution need to change the flow context location once)
 
    5. latency won't be accurate in this mode -- both latency Tx and Rx are indirect
-   
+
 
 tmDROP_QUE_FILTER:
-    
+
    1. more than one DP core per dual interfaces   - Txq (0,1,2,3,4 )
                                                     Rxq (0 = DROP queue,1 -latency  )
-                                                    
+
    2. need to configure HW filter to pass latency packets (TOS& 0x01==0x01) to RXQ=1
-   
+
    2. one RX core  - get latency packets directly from RX1
 
-   3. accurate latency 
+   3. accurate latency
 
    4. STF/STL can work in this mode
 
-   5. need service mode to pass all traffic to Rx 
-   
+   5. need service mode to pass all traffic to Rx
 
 
-tmRSS_DROP_QUE_FILTER:     
+
+tmRSS_DROP_QUE_FILTER:
 
    in case on one DP core per dual:
 
    1. one DP core per dual interfaces   - Txq (0 )
                                           Rxq (0) - DP
 
-                                          Rxq (1) RX core-- latency Filter by hardware  
-   
+                                          Rxq (1) RX core-- latency Filter by hardware
+
 
    in case on multi ports per DP core :
-                     
+
    1. more than one DP core per dual interfaces   - Txq (0,1,2,3,4 )
                                                     Rxq (0,2,3,4 ) - DP
-                                                    Rxq (1) RX core-- latency Filter by hardware  
-                                                    
+                                                    Rxq (1) RX core-- latency Filter by hardware
+
    2. need to configure HW filter to pass latency packets (TOS& 0x01==0x01) to RXQ=1
-   
+
    2. one RX core  - get latency packets directly from RX1
 
-   3. accurate latency 
+   3. accurate latency
 
    4. ASTF can work in this mode
 
-   5. redirect any non-TCP/UDP to Rx core (latency directly to this mode 
+   5. redirect any non-TCP/UDP to Rx core (latency directly to this mode
 
 
 Queue mode               |  hw_filter to rx |  is_dp_latency   |  latency rx/tx             |
@@ -100,14 +100,14 @@ tmONE_QUE                |   false          |  false           |  message to/fro
 tmMULTI_QUE              |   false          |  false           |  message to/from DP        |
 tmDROP_QUE_FILTER        |   true           |   STL=true?false | filter/queue               |
 mRSS_DROP_QUE_FILTER     |   true           |  false           | filter/queue +             |
-                         |                  |                  |  redirect message to RX 
+                         |                  |                  |  redirect message to RX
                                                                   from DP
-                         
 
 
 
-    
-   
+
+
+
 **DPDK mode of operations**
 
 
@@ -120,13 +120,13 @@ tdCAP_MULTI_QUE:
 
 
 tdCAP_DROP_QUE_FILTER:
-  driver supports multi queue Rx and Tx and filter 
+  driver supports multi queue Rx and Tx and filter
 
 tdCAP_RSS_DROP_QUE_FILTER:
 
-  driver supports multi queue Rx and Tx  filter and RSS full API 
-        
-*/ 
+  driver supports multi queue Rx and Tx  filter and RSS full API
+
+*/
 
 #include <stdint.h>
 #include <vector>
@@ -159,7 +159,7 @@ public:
     }
 
     uint32_t get_total_rx_desc(){
-        return ( (rx_data_q_num * rx_desc_num_data_q) + 
+        return ( (rx_data_q_num * rx_desc_num_data_q) +
                  (rx_dp_q_num  * rx_desc_num_dp_q) +
                  (rx_drop_q_num * rx_desc_num_drop_q) );
     }
@@ -172,14 +172,14 @@ public:
 
 typedef enum { ddRX_DIST_NONE=0,                 /* no need to distribute as there is one rx queue */
 
-               ddRX_DIST_ASTF_HARDWARE_RSS,      /*  server side will use RSS with full key, client side will use special 
+               ddRX_DIST_ASTF_HARDWARE_RSS,      /*  server side will use RSS with full key, client side will use special
                                                      RSS key and RETA in such way that generate tuple will be forward back to sender  */
 
                ddRX_DIST_BEST_EFFORT,           /* any distribtion */
 
                ddRX_DIST_FLOW_BASED              /* any as long as determenistic flow distribtion, one flow to one core */
-        
-             } trex_dpdk_rx_distro_mode_t; 
+
+             } trex_dpdk_rx_distro_mode_t;
 
 
 /* capability of the drivers */
@@ -189,10 +189,10 @@ typedef enum { tdNONE = 0x00,
                tdCAP_MULTI_QUE       = 0x02,      /* driver support multi TX and multi RX queue -
                                                     - distribution to RX could be random */
 
-               tdCAP_DROP_QUE_FILTER = 0x04, /* driver support multi TX and multi RX queue, 
+               tdCAP_DROP_QUE_FILTER = 0x04, /* driver support multi TX and multi RX queue,
                                                 and support DROP QUEUE and TOS filter for specific queue*/
-        
-               tdCAP_RSS_DROP_QUE_FILTER = 0x08, /* driver support multi TX and multi RX queue, 
+
+               tdCAP_RSS_DROP_QUE_FILTER = 0x08, /* driver support multi TX and multi RX queue,
                                                    DROP queue and filter and support full RSS API for IPv6,IPV4 for */
 
                tdCAP_ALL = tdCAP_RSS_DROP_QUE_FILTER | tdCAP_DROP_QUE_FILTER | tdCAP_MULTI_QUE | tdCAP_ONE_QUE,
@@ -204,7 +204,7 @@ typedef enum { tdNONE = 0x00,
 
 /*
 
-DPDK mode of operation from filter, tx/rx queues model, rss configration 
+DPDK mode of operation from filter, tx/rx queues model, rss configration
 
 */
 
@@ -213,26 +213,26 @@ typedef enum { tmONE_QUE=0,       /* driver support only one TX and one RX queue
                tmMULTI_QUE,      /* driver support multi TX and multi RX queue -
                                     - distribution to RX could be random */
 
-               tmDROP_QUE_FILTER,      /* driver support multi TX and multi RX queue, 
+               tmDROP_QUE_FILTER,      /* driver support multi TX and multi RX queue,
                                          and support DROP QUEUE and TOS filter for specific queue*/
 
-               tmRSS_DROP_QUE_FILTER, /* driver support multi TX and multi RX queue, 
+               tmRSS_DROP_QUE_FILTER, /* driver support multi TX and multi RX queue,
                                             DROP queue and filter and support full RSS API for IPv6,IPV4 for */
                tmDPDK_MODES,
 
                tmDPDK_UNSUPPORTED
-        
-             } trex_dpdk_mode_t; 
+
+             } trex_dpdk_mode_t;
 
 
-typedef enum { 
+typedef enum {
                 OP_MODE_INVALID,
                 OP_MODE_STF,
                 OP_MODE_STL,
                 OP_MODE_ASTF,
                 OP_MODE_ASTF_BATCH,
                 OP_MODE_DUMP_INTERFACES
-             } trex_traffic_mode_t; 
+             } trex_traffic_mode_t;
 
 typedef std::vector<int>  rx_que_desc_t;
 
@@ -244,9 +244,9 @@ public:
     virtual ~CDpdkModeBase(){
     }
     /* rx queue 0 is drop queue */
-    virtual bool is_drop_rx_queue_needed()=0; 
+    virtual bool is_drop_rx_queue_needed()=0;
 
-    /* do we need hardware filter? in case we won't get hardware filter it is asumed the software will get 
+    /* do we need hardware filter? in case we won't get hardware filter it is asumed the software will get
       all the packets, in case we need hardware filter, latency will go to RX_QUEUE 1 */
     virtual bool is_hardware_filter_needed()=0;
 
@@ -259,11 +259,11 @@ public:
     /* there is one tx queue and on rx queue per port, it is not posible to open mode queues  */
     virtual bool is_one_tx_rx_queue()=0;
 
-    /* will get the result from messaging, do not read from ANY rx queue. 
+    /* will get the result from messaging, do not read from ANY rx queue.
       in case of ASTF there is no need to read from RX queue when there is one queue  */
     virtual bool is_rx_core_read_from_queue()=0;
 
-    /* do we have a special queue for latency in dp 
+    /* do we have a special queue for latency in dp
        e.g stateless is using this in case of hardwre drop mode. in all other case it should be zero  */
     virtual bool is_dp_latency_tx_queue()=0;
 
@@ -321,7 +321,7 @@ public:
       virtual bool is_dp_latency_tx_queue();
 
       virtual uint16_t dp_rx_queues(){
-          /* this is exception, 
+          /* this is exception,
           in case of ASTF the Rx is used by DP */
           return(0);
       }

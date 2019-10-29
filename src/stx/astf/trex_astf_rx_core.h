@@ -99,14 +99,14 @@ public:
 
 /**
  * TRex ASTF RX core
- * 
+ *
  */
 class CRxAstfCore : public CRxCore {
 public:
     CRxAstfCore();
 
 public:
-    /* commands */ 
+    /* commands */
     void start_latency(const lat_start_params_t &args);
     void stop_latency();
     void update_latency(double cps);

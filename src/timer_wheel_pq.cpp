@@ -54,7 +54,7 @@ void CTimerWheel::dump_json(std::string & json ){
 
 
 
-void CTimerWheel::restart_timer(CFlowTimerHandle *  timer, 
+void CTimerWheel::restart_timer(CFlowTimerHandle *  timer,
 	double new_time){
 
 
@@ -89,7 +89,7 @@ void CTimerWheel::stop_timer(CFlowTimerHandle *  timer){
 	CFlowTimer * t = timer->m_timer;
 	if (t){
         m_st_stop++;
-		t->m_flow = 0; 
+		t->m_flow = 0;
 		timer->m_timer = 0;
 	}
 };

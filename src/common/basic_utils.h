@@ -25,10 +25,10 @@ limitations under the License.
 
 /**
  * return  true if number of log2
- * 
+ *
  * @param num
- * 
- * @return 
+ *
+ * @return
  */
 inline bool utl_islog2(uint32_t num){
     uint32_t mask=1;
@@ -64,22 +64,22 @@ inline uint32_t utl_log2_shift(uint32_t num){
 
 /**
  * return mask for log2 number
- * 
+ *
  * @param num
- * 
- * @return 
+ *
+ * @return
  */
 inline uint32_t utl_mask_log2(uint32_t num){
     return (num-1);
 }
 
-           
+
 /**
  * the round must be power 2 e.g 2,4,8...
- * 
+ *
  * @param num
  * @param round
- * @return 
+ * @return
  */
 inline uint utl_align_up(uint num,uint round){
     if ((num & ((round-1)) )==0) {
@@ -106,7 +106,7 @@ void utl_DumpBuffer(FILE* fp,void  * src,  unsigned int size,int offset=0);
 #define SHOW_BUFFER_ALL (SHOW_BUFFER_ADDR_EN|SHOW_BUFFER_ADDR|SHOW_BUFFER_CHAR)
 
 void utl_DumpBuffer2(FILE* fd,
-                     void  * src,  
+                     void  * src,
                      unsigned int size, //buffer size
                      unsigned int width ,
                      unsigned int width_line ,
@@ -158,11 +158,11 @@ std::string utl_generate_random_str(int len);
 void split_str_by_delimiter(std::string str, char delim, std::vector<std::string> &tokens);
 
 /**
- * define the coredump size 
- * allowed when crashing 
- * 
+ * define the coredump size
+ * allowed when crashing
+ *
  * @param size - -1 means unlimited
- * @param map_huge_pages - should the core map the huge TLB 
+ * @param map_huge_pages - should the core map the huge TLB
  *                       pages
  */
 void utl_set_coredump_size(long size, bool map_huge_pages = false);

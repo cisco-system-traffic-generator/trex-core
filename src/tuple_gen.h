@@ -68,7 +68,7 @@ static inline uint8_t reverse_bits8(uint8_t b) {
    return b;
 }
 
-static inline uint16_t rss_reverse_bits_port(uint16_t port){        
+static inline uint16_t rss_reverse_bits_port(uint16_t port){
     return ( (port&0xff00) + reverse_bits8(port&0xff));
 }
 
@@ -92,7 +92,7 @@ public:
        void setClientId(uint32_t id) {
            m_client_idx = id;
        }
-       
+
        uint32_t getServer(){
            return m_server_ip;
        }
@@ -136,7 +136,7 @@ public:
            setClient(ip);
            setClientPort(port);
        }
- 
+
        void setServerAll(uint32_t id, uint32_t ip) {
            setServerId(id);
            setServer(ip);
@@ -191,7 +191,7 @@ typedef enum  {
 } IP_DIST_t ;
 
 /* For type 1, we generator port by maintaining a 64K bit array for each port.
- * In this case, we cannot support large number of clients due to memory exhausted. 
+ * In this case, we cannot support large number of clients due to memory exhausted.
  *
  * So we develop a type 2 tuple generator. In this case, we only maintain a 16 bit
  * current port number for each client. To apply to type 2, it should meet:
@@ -442,10 +442,10 @@ class CIpInfo : public CIpInfoBase {
 
 /**
  * a flat client info (no configuration)
- *  
- * using template to avoid duplicating the code for CIpInfo and 
- * CIpInfoL 
- *  
+ *
+ * using template to avoid duplicating the code for CIpInfo and
+ * CIpInfoL
+ *
  * @author imarom (27-Jun-16)
  */
 template <typename T>
@@ -466,7 +466,7 @@ public:
 
 /**
  * a configured client object
- * 
+ *
  * @author imarom (26-Jun-16)
  */
 template <typename T>
@@ -519,7 +519,7 @@ class CIpPool {
             CIpInfoBase* ip_info = m_ip_info[idx];
             uint16_t port;
             port = ip_info->get_new_free_port();
-            
+
             //printf(" alloc extra  %x %d \n",c_ip,port);
             if (port==ILLEGAL_PORT) {
                 m_port_allocation_error++;
@@ -531,12 +531,12 @@ class CIpPool {
        bool is_valid_ip(uint32_t ip){
             CIpInfoBase* ip_front = m_ip_info.front();
             CIpInfoBase* ip_back  = m_ip_info.back();
-            if ((ip>=ip_front->get_ip()) && 
+            if ((ip>=ip_front->get_ip()) &&
                 (ip<=ip_back->get_ip())) {
                 return(true);
             }
-            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n", 
-                   ip, ip_front->get_ip(), 
+            printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n",
+                   ip, ip_front->get_ip(),
                    ip_back->get_ip(),this);
             return(false);
         }
@@ -553,7 +553,7 @@ class CIpPool {
 
         void inc_cur_idx() {
             switch (m_dist) {
-            case cdRANDOM_DIST: 
+            case cdRANDOM_DIST:
                 m_cur_idx = get_random_idx();
                 break;
             case cdSEQ_DIST :
@@ -570,7 +570,7 @@ class CIpPool {
             return res_idx;
         }
 
-            
+
 
         void set_dist(IP_DIST_t dist) {
             if (dist>=cdMAX_DIST) {
@@ -599,8 +599,8 @@ class CIpPool {
             CIpInfoBase* client = m_ip_info[id];
             client->return_port(port);
         }
-        
- 
+
+
     public:
         std::vector<CIpInfoBase*> m_ip_info;
         IP_DIST_t  m_dist;
@@ -671,7 +671,7 @@ public:
                 double          active_flows,
                 ClientCfgDB     &client_info,
                 uint16_t        tcp_aging,
-                uint16_t        udp_aging); 
+                uint16_t        udp_aging);
 
 
     void set_thread_id(uint16_t thread_id){
@@ -686,7 +686,7 @@ public:
         m_reta_mask = reta_mask;
     }
 
-public: 
+public:
     uint16_t m_tcp_aging;
     uint16_t m_udp_aging;
     uint16_t m_thread_id;
@@ -723,7 +723,7 @@ class CServerPoolBase {
     virtual void Create(IP_DIST_t  dist_value,
                uint32_t min_ip,
                uint32_t max_ip,
-               double active_flows) = 0; 
+               double active_flows) = 0;
     void set_thread_id(uint16_t thread_id){
         m_thread_id =thread_id;
     }
@@ -752,7 +752,7 @@ public:
         if (m_cur_server_ip > m_max_server_ip) {
             m_cur_server_ip = m_min_server_ip;
         }
-    } 
+    }
     uint16_t GenerateOnePort(uint32_t idx) {
         // do nothing
         return 0;
@@ -778,8 +778,8 @@ public:
     void Create(IP_DIST_t  dist_value,
                 uint32_t min_ip,
                 uint32_t max_ip,
-                double active_flows); 
- 
+                double active_flows);
+
     void Delete() {
         if (gen!=NULL) {
             gen->Delete();
@@ -790,7 +790,7 @@ public:
     uint32_t get_total_ips() {
         return gen->m_ip_info.size();
     }
-private: 
+private:
     CIpPool *gen;
 };
 
@@ -830,11 +830,11 @@ public:
         return (SocketsPerClient() * getTotalClients());
     }
 
-    
+
     void FreePort(pool_index_t pool_idx, uint32_t id, uint16_t port) {
         get_client_pool(pool_idx)->FreePort(id, port);
     }
-        
+
     bool IsFreePortRequired(pool_index_t pool_idx){
         return(get_client_pool(pool_idx)->IsFreePortRequired());
     }
@@ -913,7 +913,7 @@ public:
 private:
     uint32_t m_id;
     uint32_t m_thread_id;
-    uint16_t m_rss_thread_id; /* per port thread id 0..x, for 2 dual-ports systems with 8 threads total 
+    uint16_t m_rss_thread_id; /* per port thread id 0..x, for 2 dual-ports systems with 8 threads total
                                   dual-0 : 0,1,2,3
                                   dual-1 : 0,1,2,3
                                  */
@@ -945,7 +945,7 @@ public:
                 m_cache_client_idx = tuple.getClientId();
                 tuple.getServerAll(m_cache_server_idx, m_cache_server_ip);
             }else{
-                tuple.setServerAll(m_cache_server_idx, 
+                tuple.setServerAll(m_cache_server_idx,
                                    m_cache_server_ip);
                 tuple.setClientAll2(m_cache_client_idx,
                                     m_cache_client_ip,
@@ -997,7 +997,7 @@ public:
     }
 
 
-    void SetSingleServer(bool is_single, 
+    void SetSingleServer(bool is_single,
                          uint32_t server_ip,
                          uint32_t dual_port_index,
                          uint32_t dual_mask){
@@ -1028,14 +1028,14 @@ private:
 
 /* YAML of generator */
 #if 0
-        -  client_distribution      : 'seq' - ( e.g c0,1,2,3,4  
-                                      'random' - random from the pool 
-                                      'normal' - need to give average and dev -- second phase      
-                                        
+        -  client_distribution      : 'seq' - ( e.g c0,1,2,3,4
+                                      'random' - random from the pool
+                                      'normal' - need to give average and dev -- second phase
+
         -  client_pool_mask         : 10.0.0.0-20.0.0.0
-        -  server_pool_mask         : 70.0.0.0-70.0.20.0    
+        -  server_pool_mask         : 70.0.0.0-70.0.20.0
         -  number_of_clients_per_gb : 20
-        -  dual_interface_mask      : 1.0.0.0  // each dual ports will add this to the pool of clients 
+        -  dual_interface_mask      : 1.0.0.0  // each dual ports will add this to the pool of clients
 #endif
 
 struct CTupleGenPoolYaml {
@@ -1066,12 +1066,12 @@ struct CTupleGenPoolYaml {
     bool is_valid(uint32_t num_threads,bool is_plugins);
     void Dump(FILE *fd);
 };
-   
+
 
 struct CTupleGenYamlInfo {
     std::vector<CTupleGenPoolYaml> m_client_pool;
     std::vector<CTupleGenPoolYaml> m_server_pool;
-        
+
 public:
     bool is_valid(uint32_t num_threads,bool is_plugins);
     pool_index_t get_server_pool_id(std::string name){
@@ -1079,7 +1079,7 @@ public:
              return 0;
          }
         for (pool_index_t i=0;i<m_server_pool.size();i++) {
-            if (m_server_pool[i].m_name==name) 
+            if (m_server_pool[i].m_name==name)
                 return i;
         }
         printf("ERROR invalid server pool name %s, please review your YAML file\n",(char *)name.c_str());
@@ -1092,7 +1092,7 @@ public:
              return 0;
          }
         for (pool_index_t i=0;i<m_client_pool.size();i++) {
-            if (m_client_pool[i].m_name==name) 
+            if (m_client_pool[i].m_name==name)
                 return i;
         }
         printf("ERROR invalid client pool name %s, please review your YAML file\n",(char *)name.c_str());
@@ -1121,10 +1121,10 @@ void split_ips(uint32_t thread_id,
                    CIpPortion & portion);
 
 
-void split_ips_v2( uint32_t total_threads, 
+void split_ips_v2( uint32_t total_threads,
                    uint32_t rss_thread_id,
                    uint32_t rss_max_threads,
-                   uint32_t max_dual_ports, 
+                   uint32_t max_dual_ports,
                    uint32_t dual_port_id,
                    CTupleGenPoolYaml& poolinfo,
                    CIpPortion & portion);

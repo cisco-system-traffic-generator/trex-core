@@ -27,7 +27,7 @@ limitations under the License.
  * It has fields that are equivalent to the ethernet header fields.
  * The data is saved in network byte order, and therefore the class can be used to create a packet in a buffer
  * and send it over the network.
- */ 
+ */
 class EthernetHeader
 {
 public:
@@ -49,12 +49,12 @@ public:
         };
     };
 
-	
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
 	//Empty constructor
 	EthernetHeader() :
         myProtocol(0)
@@ -66,7 +66,7 @@ public:
     inline  uint32_t  getSize () {
         return ( (getNextProtocol() == Protocol::VLAN) ? 18 : 14);
     }
-    
+
     // Get dest MAC pointer
     MacAddress *getDestMacP()             { return &myDestination; }
 

@@ -56,19 +56,19 @@ static inline uint16_t get_log2_size(uint16_t size){
 }
 
 /**
- *  calculate the size of writable mbuf in bytes. maximum size if packet size 
- * 
+ *  calculate the size of writable mbuf in bytes. maximum size if packet size
+ *
  * @param max_offset_writable
  *                 the last byte that we don't write too. for example when 63 it means that bytes [62] in the array is written (zero base)
  * @param pkt_size packet size in bytes
- * 
- * @return the writable size of the first mbuf . the idea is to give at least 64 bytes const mbuf else all packet will be writeable 
- * 
+ *
+ * @return the writable size of the first mbuf . the idea is to give at least 64 bytes const mbuf else all packet will be writeable
+ *
  * examples:
  *       max_offset_writable =63
  *       pkt_size =62
  *        ==>62
- * 
+ *
  */
 
 static inline uint16_t calc_writable_mbuf_size(uint16_t max_offset_writable,
@@ -107,13 +107,13 @@ public:
             len    = in_pkt_size;
             memcpy(binary,in_binary,in_pkt_size);
         }
-}; 
+};
 
 class TrexStream;
 
 /**
  * describes a stream rate
- * 
+ *
  * @author imarom (18-Feb-16)
  */
 class TrexStreamRate {
@@ -147,9 +147,9 @@ public:
     }
 
     /**
-     * set the base rate 
-     * other values will be dervied from this value 
-     * 
+     * set the base rate
+     * other values will be dervied from this value
+     *
      */
     void set_base_rate(rate_type_e type, double value) {
         m_pps        = 0;
@@ -177,7 +177,7 @@ public:
 
         default:
             throw TrexException("Invalid rate type.");
-        
+
         }
     }
 
@@ -187,7 +187,7 @@ public:
         }
         return (m_pps);
     }
-    
+
     double get_bps_L1() {
         if (m_bps_L1 == 0) {
             calculate();
@@ -209,7 +209,7 @@ public:
         return m_percentage;
     }
 
-  
+
 
     /* update the rate by a factor */
     void update_factor(double factor) {
@@ -220,13 +220,13 @@ public:
         m_percentage *= factor;
     }
 
-   
+
 
 private:
 
     /**
      * calculates all the rates from the base rate
-     * 
+     *
      */
     void calculate() {
 
@@ -285,7 +285,7 @@ private:
 
 /**
  * Stateless Stream
- * 
+ *
  */
 class TrexStream {
 friend class TrexStreamRate;
@@ -412,7 +412,7 @@ public:
 
     }
 
-    void set_multi_burst(uint32_t   burst_total_pkts, 
+    void set_multi_burst(uint32_t   burst_total_pkts,
                          uint32_t   num_bursts,
                          double     ibg_usec) {
         m_burst_total_pkts = burst_total_pkts;
@@ -421,7 +421,7 @@ public:
     }
 
     void set_single_burst(uint32_t   burst_total_pkts){
-        set_multi_burst(burst_total_pkts,1,0.0); 
+        set_multi_burst(burst_total_pkts,1,0.0);
     }
 
 
@@ -435,7 +435,7 @@ public:
         /* on full clone we copy also VM */
         if (full) {
             m_vm.clone(dp->m_vm);
-            
+
         }
 
         /* copy VM DP product */
@@ -494,7 +494,7 @@ public:
     double get_ipg_sec() {
         return (1.0 / get_pps());
     }
-   
+
     /* return the delay before starting a stream */
     inline double get_start_delay_sec() {
         return usec_to_sec(m_isg_usec) + m_mc_phase_pre_sec;
@@ -518,7 +518,7 @@ public:
 
     /**
      * internal compilation of stream (for DP)
-     * 
+     *
      */
     void vm_compile();
 
@@ -551,7 +551,7 @@ public:
     uint32_t      m_action_count;
     uint16_t      m_cache_size;
     uint32_t      m_random_seed;
-    
+
 
     /* config fields */
     double        m_mc_phase_pre_sec;
@@ -627,8 +627,8 @@ private:
 
 
 /**
- * holds all the streams 
- *  
+ * holds all the streams
+ *
  */
 class TrexStreamTable {
 public:
@@ -637,8 +637,8 @@ public:
     ~TrexStreamTable();
 
     /**
-     * add a stream 
-     * if a previous one exists, the old one  will be deleted 
+     * add a stream
+     * if a previous one exists, the old one  will be deleted
      */
     void add_stream(TrexStream *stream);
 
@@ -647,40 +647,40 @@ public:
      */
     void remove_stream(TrexStream *stream);
 
- 
+
     /**
-     * fetch a stream if exists 
-     * o.w NULL 
-     *  
+     * fetch a stream if exists
+     * o.w NULL
+     *
      */
     TrexStream * get_stream_by_id(uint32_t stream_id);
 
     /**
      * get max stream ID assigned
-     * 
-     * 
+     *
+     *
      * @return int
      */
     int get_max_stream_id() const;
 
     /**
      * populate a list with all the stream IDs
-     * 
+     *
      * @author imarom (06-Sep-15)
-     * 
-     * @param stream_list 
+     *
+     * @param stream_list
      */
     void get_id_list(std::vector<uint32_t> &id_list);
 
     /**
      * populate a list with all the stream objects
-     * 
+     *
      */
     void get_object_list(std::vector<TrexStream *> &object_list);
 
     /**
      * get the table size
-     * 
+     *
      */
     int size();
 
@@ -690,7 +690,7 @@ public:
 private:
     /**
      * holds all the stream in a hash table by stream id
-     * 
+     *
      */
     std::unordered_map<int, TrexStream *> m_stream_table;
 };

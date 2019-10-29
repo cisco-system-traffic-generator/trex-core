@@ -26,17 +26,17 @@
 
 /**
  * copy MBUF to a flat buffer
- * 
+ *
  * @author imarom (12/20/2016)
- * 
- * @param dest - buffer with at least rte_pktmbuf_pkt_len(m) 
+ *
+ * @param dest - buffer with at least rte_pktmbuf_pkt_len(m)
  *               bytes
- * @param m - MBUF to copy 
- * 
- * @return uint8_t* 
+ * @param m - MBUF to copy
+ *
+ * @return uint8_t*
  */
 void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m) {
-    
+
     int index = 0;
     for (const rte_mbuf_t *it = m; it != NULL; it = it->next) {
         const uint8_t *src = rte_pktmbuf_mtod(it, const uint8_t *);
@@ -48,11 +48,11 @@ void mbuf_to_buffer(uint8_t *dest, const rte_mbuf_t *m) {
 
 /**
  * duplicate MBUF into target port ID pool
- * 
+ *
  * @param m - MBUF to copy
  *
  * @param port_id - mbuf memory pool will be taken from here
- * 
+ *
  * @return pointer to new mbuf
  */
 rte_mbuf_t * duplicate_mbuf(const rte_mbuf_t *m, uint8_t port_id) {
@@ -73,7 +73,7 @@ rte_mbuf_t * duplicate_mbuf(const rte_mbuf_t *m, uint8_t port_id) {
 
 /**************************************
  * TRex packet
- * 
+ *
  *************************************/
 TrexPkt::TrexPkt(const rte_mbuf_t *m, int port, origin_e origin, uint64_t index) {
 
@@ -86,7 +86,7 @@ TrexPkt::TrexPkt(const rte_mbuf_t *m, int port, origin_e origin, uint64_t index)
 
     /* generate a packet timestamp */
     m_timestamp = now_sec();
-    
+
     m_port   = port;
     m_origin = origin;
     m_index  = index;
@@ -96,9 +96,9 @@ TrexPkt::TrexPkt(const TrexPkt &other) {
     m_size = other.m_size;
     m_raw = new uint8_t[m_size];
     memcpy(m_raw, other.m_raw, m_size);
-    
+
     m_timestamp = other.m_timestamp;
-    
+
     m_port   = other.m_port;
     m_origin = other.m_origin;
     m_index  = other.m_index;
@@ -107,7 +107,7 @@ TrexPkt::TrexPkt(const TrexPkt &other) {
 
 /**************************************
  * TRex packet buffer
- * 
+ *
  *************************************/
 
 TrexPktBuffer::TrexPktBuffer(uint64_t size, mode_e mode) {
@@ -117,7 +117,7 @@ TrexPktBuffer::TrexPktBuffer(uint64_t size, mode_e mode) {
     m_tail             = 0;
     m_bytes            = 0;
     m_size             = (size + 1); // for the empty/full difference 1 slot reserved
-    
+
     /* generate queue */
     m_buffer = new const TrexPkt*[m_size](); // zeroed
 }
@@ -135,9 +135,9 @@ TrexPktBuffer::~TrexPktBuffer() {
 /**
  * packet will be copied to an internal object
  */
-void 
+void
 TrexPktBuffer::push(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uint64_t pkt_index) {
-    
+
     /* if full - decide by the policy */
     if (is_full()) {
         if (m_mode == MODE_DROP_HEAD) {
@@ -152,10 +152,10 @@ TrexPktBuffer::push(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uin
 }
 
 /**
- * packet will be handled internally 
- * packet pointer is invalid after this call 
+ * packet will be handled internally
+ * packet pointer is invalid after this call
  */
-void 
+void
 TrexPktBuffer::push(const TrexPkt *pkt, uint64_t pkt_index) {
     /* if full - decide by the policy */
     if (is_full()) {
@@ -169,34 +169,34 @@ TrexPktBuffer::push(const TrexPkt *pkt, uint64_t pkt_index) {
 
     /* duplicate packet */
     TrexPkt *dup = new TrexPkt(*pkt);
-    
+
     /* update packet index if given */
     if (pkt_index != 0) {
         dup->set_index(pkt_index);
     }
-    
+
     push_internal(dup);
 }
 
 
-void 
+void
 TrexPktBuffer::push_internal(const TrexPkt *pkt) {
     /* push the packet */
     m_buffer[m_head] = pkt;
     m_bytes += pkt->get_size();
-    
+
     m_head = next(m_head);
 }
 
 const TrexPkt *
 TrexPktBuffer::pop() {
     assert(!is_empty());
-    
+
     const TrexPkt *pkt = m_buffer[m_tail];
     m_tail = next(m_tail);
-    
+
     m_bytes -= pkt->get_size();
-    
+
     return pkt;
 }
 
@@ -231,19 +231,19 @@ TrexPktBuffer::to_json_status(Json::Value &output) const {
     output["count"]  = get_element_count();
     output["bytes"]  = get_bytes();
     output["limit"]  = get_capacity();
-    
+
     switch (m_mode) {
     case MODE_DROP_TAIL:
         output["mode"] = "fixed";
         break;
-        
+
     case MODE_DROP_HEAD:
         output["mode"] = "cyclic";
         break;
-        
+
     default:
         assert(0);
-        
+
     }
 }
 
@@ -253,16 +253,16 @@ TrexPktBuffer *
 TrexPktBuffer::pop_n(uint32_t count) {
     /* can't pop more than total */
     assert(count <= get_element_count());
-    
+
     // TODO: consider returning NULL if no packets exists
     //       to avoid mallocing
- 
+
     TrexPktBuffer *partial = new TrexPktBuffer(count);
-    
+
     for (int i = 0; i < count; i++) {
         const TrexPkt *pkt = pop();
         partial->push_internal(pkt);
     }
-    
+
     return partial;
 }

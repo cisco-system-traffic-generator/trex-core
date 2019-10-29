@@ -32,7 +32,7 @@ typedef uint32_t    uint;
 typedef uint8_t    uchar;
 typedef uint16_t   ushort;
 
-typedef void*           c_pvoid;            
+typedef void*           c_pvoid;
 
 #ifndef NULL
 #ifdef __cplusplus

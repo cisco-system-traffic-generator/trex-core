@@ -59,18 +59,18 @@ RXPktParser::RXPktParser(const rte_mbuf_t *mbuf) {
         return;
     }
 }
-    
-    
+
+
 /**
- * parse L2 header 
+ * parse L2 header
  * returns the payload protocol (VLANs stripped)
  */
 uint16_t RXPktParser::parse_l2(void) {
     /* ethernet */
     m_ether = (EthernetHeader *)parse_bytes(14);
-    
+
     uint16_t next_proto = m_ether->getNextProtocol();
- 
+
     while (true) {
         switch (next_proto) {
         case EthernetHeader::Protocol::QINQ:
@@ -80,28 +80,28 @@ uint16_t RXPktParser::parse_l2(void) {
                 m_vlan_ids.push_back(vlan_hdr->getTagID());
 
                 next_proto = vlan_hdr->getNextProtocolHostOrder();
-                
+
             }
             break;
-            
+
         default:
             /* break */
             return next_proto;
         }
     }
-    
+
 }
-    
-    
+
+
 const uint8_t *RXPktParser::parse_bytes(uint32_t size) {
     if (m_size_left < size) {
         parse_err();
     }
-    
+
     const uint8_t *p = m_current;
     m_current    += size;
     m_size_left  -= size;
-    
+
     return p;
 }
 
@@ -111,15 +111,15 @@ void RXPktParser::parse_arp(void) {
 
 void RXPktParser::parse_ipv4(void) {
     m_ipv4 = (IPHeader *)parse_bytes(IPHeader::DefaultSize);
-    
+
     /* advance over IP options if exists */
     parse_bytes(m_ipv4->getOptionLen());
-    
+
     switch (m_ipv4->getNextProtocol()) {
     case IPHeader::Protocol::ICMP:
         parse_icmp();
         return;
-        
+
     default:
         return;
     }

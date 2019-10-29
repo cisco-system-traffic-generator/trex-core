@@ -5433,7 +5433,7 @@ i40e_vsi_update_tc_bandwidth_ex(struct i40e_vsi *vsi)
 		PMD_DRV_LOG(ERR, "Failed to configure TC BW");
 		return ret;
 	}
-    
+
     vsi->enabled_tc=3;
     res_buffer = ( struct i40e_aqc_configure_vsi_tc_bw_data *)&tc_bw_data;
     (void)rte_memcpy(vsi->info.qs_handle, res_buffer->qs_handles,

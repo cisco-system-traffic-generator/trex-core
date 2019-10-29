@@ -279,15 +279,15 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_keeptimeo,"keepalive timeouts");
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
     TCP_S_ADD_CNT_E(tcps_keepdrops,"connections dropped in keepalive");
-    TCP_S_ADD_CNT(tcps_testdrops,"connections dropped by user at timeout (no-close flag --nc)"); // due to test timeout --nc 
-    
-    
+    TCP_S_ADD_CNT(tcps_testdrops,"connections dropped by user at timeout (no-close flag --nc)"); // due to test timeout --nc
+
+
     TCP_S_ADD_CNT_E(tcps_sndrexmitpack,"data packets retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndprobe,"window probes sent");
     TCP_S_ADD_CNT_E(tcps_sndurg,"packets sent with URG only");
     TCP_S_ADD_CNT(tcps_sndwinup,"window update-only packets sent");
-    
+
     TCP_S_ADD_CNT_E(tcps_rcvbadsum,"packets received with ccksum errs");
     TCP_S_ADD_CNT_E(tcps_rcvbadoff,"packets received with bad offset");
     TCP_S_ADD_CNT_E(tcps_rcvshort,"packets received too short");
@@ -297,8 +297,8 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_rcvpartdupbyte,"dup. bytes in part-dup. packets");
     TCP_S_ADD_CNT_E(tcps_rcvoopackdrop,"OOO packet drop due to queue len");
     TCP_S_ADD_CNT_E(tcps_rcvoobytesdrop,"OOO bytes drop due to queue len");
-    
-    
+
+
     TCP_S_ADD_CNT_E(tcps_rcvoopack,"out-of-order packets received");
     TCP_S_ADD_CNT_E(tcps_rcvoobyte,"out-of-order bytes received");
     TCP_S_ADD_CNT_E(tcps_rcvpackafterwin,"packets with data after window");
@@ -313,7 +313,7 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_predack,"times hdr predict ok for acks");
     TCP_S_ADD_CNT_E(tcps_persistdrop,"timeout in persist state");
     TCP_S_ADD_CNT_E(tcps_badsyn,"bogus SYN, e.g. premature ACK");
-    
+
     TCP_S_ADD_CNT_E(tcps_reasalloc,"allocate tcp reasembly ctx");
     TCP_S_ADD_CNT_E(tcps_reasfree,"free tcp reasembly ctx");
     TCP_S_ADD_CNT_E(tcps_nombuf,"no mbuf for tcp - drop the packets");
@@ -340,7 +340,7 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
 
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
-    FT_S_ADD_CNT_E(err_len_err,"pkt with length error"); 
+    FT_S_ADD_CNT_E(err_len_err,"pkt with length error");
     FT_S_ADD_CNT_E(err_fragments_ipv4_drop,"fragments_ipv4_drop"); /* frag is not supported */
     FT_S_ADD_CNT_OK(err_no_tcp_udp,"no tcp/udp packet");
     FT_S_ADD_CNT_E(err_no_template,"server can't match L7 template");
@@ -481,7 +481,7 @@ void CSTTCp::Delete(bool last_time){
         m_sts[i].Delete();
         }
     }
-    
+
 }
 
 void CSTTCp::clear_counters(void) {

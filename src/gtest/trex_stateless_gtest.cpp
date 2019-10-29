@@ -43,7 +43,7 @@ limitations under the License.
 #include "stl/trex_stl_stream.h"
 #include "stl/trex_stl_port.h"
 
- 
+
 
 class CPcapLoader {
 public:
@@ -879,25 +879,25 @@ TEST_F(basic_vm, vm_rand_len) {
     StreamDPVmInstructionsRunner runner;
 
          uint8_t ex_tos[]={
-             0x98,          
-             0xbd,          
-             0xb5,          
-             0x7 ,          
-             0x14,          
-             0xd6,          
-             0x3 ,          
-             0x90,          
-             0x5d,          
-             0x88,          
-              0x98,         
-              0xbd,         
-              0xb5,         
-              0x7 ,         
-              0x14,         
-              0xd6,         
-              0x3 ,         
-              0x90,         
-              0x5d,         
+             0x98,
+             0xbd,
+             0xb5,
+             0x7 ,
+             0x14,
+             0xd6,
+             0x3 ,
+             0x90,
+             0x5d,
+             0x88,
+              0x98,
+              0xbd,
+              0xb5,
+              0x7 ,
+              0x14,
+              0xd6,
+              0x3 ,
+              0x90,
+              0x5d,
               0x88
          };
 
@@ -967,27 +967,27 @@ TEST_F(basic_vm, vm_rand_len_l0) {
     StreamDPVmInstructionsRunner runner;
 
          uint8_t ex_tos[]={
-         0x7,    
-         0xa,    
-         0xa,    
-         0x4,    
-         0x7,    
-         0x5,    
-         0x2,    
-         0x3,    
-         0x8,    
-         0x9,    
-          0x7,   
-          0xa,   
-          0xa,   
-          0x4,   
-          0x7,   
-          0x5,   
-          0x2,   
-          0x3,   
-          0x8,   
+         0x7,
+         0xa,
+         0xa,
+         0x4,
+         0x7,
+         0x5,
+         0x2,
+         0x3,
+         0x8,
+         0x9,
+          0x7,
+          0xa,
+          0xa,
+          0x4,
+          0x7,
+          0x5,
+          0x2,
+          0x3,
+          0x8,
           0x9,
-             
+
          };
 
 
@@ -1058,26 +1058,26 @@ TEST_F(basic_vm, vm_rand_len1) {
 
 
          uint16_t ex_tos[]={
-             0x983b,         
-             0xbd64,         
-             0xb512,         
-             0x715 ,         
-             0x1410,         
-             0xd664,         
-             0x371 ,         
-             0x9058,         
-             0x5d3b,         
-             0x884d,         
-             0x983b,         
-             0xbd64,         
-             0xb512,         
-             0x715 ,         
-             0x1410,         
-             0xd664,         
-             0x371 ,         
-             0x9058,         
-             0x5d3b,         
-             0x884d         
+             0x983b,
+             0xbd64,
+             0xb512,
+             0x715 ,
+             0x1410,
+             0xd664,
+             0x371 ,
+             0x9058,
+             0x5d3b,
+             0x884d,
+             0x983b,
+             0xbd64,
+             0xb512,
+             0x715 ,
+             0x1410,
+             0xd664,
+             0x371 ,
+             0x9058,
+             0x5d3b,
+             0x884d
          };
 
 
@@ -1146,26 +1146,26 @@ TEST_F(basic_vm, vm_rand_len2) {
     StreamDPVmInstructionsRunner runner;
 
          uint32_t ex_tos[]={
-             0xbd64983b,        
-             0x715b512 ,        
-             0xd6641410,        
-             0x90580371,        
-             0x884d5d3b,        
-             0x8e0f8212,        
-             0xf00b2f39,        
-             0xa015ee4e,        
-             0x540b390e,        
-             0xdb778538,        
-             0xbd64983b,       
-             0x715b512 ,       
-             0xd6641410,       
-             0x90580371,       
-             0x884d5d3b,       
-             0x8e0f8212,       
-             0xf00b2f39,       
-             0xa015ee4e,       
-             0x540b390e,       
-             0xdb778538       
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538,
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538
          };
 
 
@@ -1235,26 +1235,26 @@ TEST_F(basic_vm, vm_rand_len3) {
 
 #if 0
          uint32_t ex_tos[]={
-             0xbd64983b,        
-             0x715b512 ,        
-             0xd6641410,        
-             0x90580371,        
-             0x884d5d3b,        
-             0x8e0f8212,        
-             0xf00b2f39,        
-             0xa015ee4e,        
-             0x540b390e,        
-             0xdb778538,        
-             0xbd64983b,       
-             0x715b512 ,       
-             0xd6641410,       
-             0x90580371,       
-             0x884d5d3b,       
-             0x8e0f8212,       
-             0xf00b2f39,       
-             0xa015ee4e,       
-             0x540b390e,       
-             0xdb778538       
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538,
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538
          };
 #endif
 
@@ -1326,26 +1326,26 @@ TEST_F(basic_vm, vm_rand_len3_l0) {
 
 #if 0
          uint32_t ex_tos[]={
-             0xbd64983b,        
-             0x715b512 ,        
-             0xd6641410,        
-             0x90580371,        
-             0x884d5d3b,        
-             0x8e0f8212,        
-             0xf00b2f39,        
-             0xa015ee4e,        
-             0x540b390e,        
-             0xdb778538,        
-             0xbd64983b,       
-             0x715b512 ,       
-             0xd6641410,       
-             0x90580371,       
-             0x884d5d3b,       
-             0x8e0f8212,       
-             0xf00b2f39,       
-             0xa015ee4e,       
-             0x540b390e,       
-             0xdb778538       
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538,
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538
          };
 #endif
 
@@ -1485,26 +1485,26 @@ TEST_F(basic_vm, vm_rand_len3_l1) {
 
 #if 0
          uint32_t ex_tos[]={
-             0xbd64983b,        
-             0x715b512 ,        
-             0xd6641410,        
-             0x90580371,        
-             0x884d5d3b,        
-             0x8e0f8212,        
-             0xf00b2f39,        
-             0xa015ee4e,        
-             0x540b390e,        
-             0xdb778538,        
-             0xbd64983b,       
-             0x715b512 ,       
-             0xd6641410,       
-             0x90580371,       
-             0x884d5d3b,       
-             0x8e0f8212,       
-             0xf00b2f39,       
-             0xa015ee4e,       
-             0x540b390e,       
-             0xdb778538       
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538,
+             0xbd64983b,
+             0x715b512 ,
+             0xd6641410,
+             0x90580371,
+             0x884d5d3b,
+             0x8e0f8212,
+             0xf00b2f39,
+             0xa015ee4e,
+             0x540b390e,
+             0xdb778538
          };
 #endif
 
@@ -4827,7 +4827,7 @@ static const uint8_t TEST_L4_PROTO = IPPROTO_TCP;
 
 TEST_F(flow_stat, add_del_stream) {
     return;
-    
+
     uint8_t test_pkt[] = {
         // ether header
         0x74, 0xa2, 0xe6, 0xd5, 0x39, 0x25,

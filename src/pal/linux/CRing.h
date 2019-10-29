@@ -25,19 +25,19 @@ limitations under the License.
 #include <assert.h>
 #include <stdint.h>
 #include <string>
-#include <queue> 
+#include <queue>
 
 
 
 typedef std::queue<void *>  my_stl_queue_t;
-               
+
 class CRingSp {
 public:
     CRingSp(){
         m_queue=0;
     }
 
-    bool Create(std::string name, 
+    bool Create(std::string name,
                 uint16_t cnt,
                 int socket_id){
         m_queue = new my_stl_queue_t();
@@ -72,7 +72,7 @@ public:
     }
 
     bool isEmpty(void){
-        return ( m_queue->empty() ?true:false); 
+        return ( m_queue->empty() ?true:false);
     }
 
 private:

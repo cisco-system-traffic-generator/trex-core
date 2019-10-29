@@ -32,20 +32,20 @@ class CRxCore;
 class CFlowGenListPerThread;
 
 /**
- *  
- * STX object related information 
- *  
- * STX is a polymorphic object used by: 
- * 1. STF 
- * 2. STL 
- * 3. ASTF 
+ *
+ * STX object related information
+ *
+ * STX is a polymorphic object used by:
+ * 1. STF
+ * 2. STL
+ * 3. ASTF
  * 4. ASTF batch
- *  
- * all those objects provide common interface with 
- * more specific functions in the specific object 
- *  
- * but the common interface is always STX 
- *  
+ *
+ * all those objects provide common interface with
+ * more specific functions in the specific object
+ *
+ * but the common interface is always STX
+ *
  */
 
 typedef std::unordered_map<uint8_t, TrexPort *> stx_port_map_t;
@@ -55,11 +55,11 @@ typedef std::unordered_map<uint8_t, TrexPort *> stx_port_map_t;
  */
 class TrexSTXCfg {
 public:
-    
+
     TrexSTXCfg() {
         m_publisher = nullptr;
     }
-    
+
     TrexSTXCfg(const TrexRpcServerConfig &rpc_cfg,
                const CRxSlCfg &rx_cfg,
                TrexPublisher *publisher) : m_rpc_req_resp_cfg(rpc_cfg), m_rx_cfg(rx_cfg), m_publisher(publisher) {
@@ -72,10 +72,10 @@ public:
 
 
 /**
- * abstract class (meant for derived implementation) 
- *  
+ * abstract class (meant for derived implementation)
+ *
  * dervied by STL, STF, ASTF and ASTF batch
- * 
+ *
  * @author imarom (8/30/2017)
  */
 class TrexSTX {
@@ -83,64 +83,64 @@ public:
 
     /**
      * create a STX object with configuration
-     * 
+     *
      */
     TrexSTX(const TrexSTXCfg &cfg);
-    
-    
+
+
     /**
      * pure virtual DTOR to enforce deriviation
      */
     virtual ~TrexSTX();
-    
+
 
     /**
      * starts the control plane side
      */
     virtual void launch_control_plane() = 0;
-    
-    
+
+
     /**
-     * shutdown the server 
+     * shutdown the server
      */
     virtual void shutdown() = 0;
-    
+
 
     /**
      * create a DP core object
-     * 
+     *
      */
     virtual TrexDpCore * create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) = 0;
 
-    
+
     /**
      * publish config-specific data
-     * 
+     *
      */
     virtual void publish_async_data() = 0;
 
 
     /**
      * fast path tick
-     * 
+     *
      */
     void fastpath_tick() {
         check_for_dp_messages();
-        
+
         /* update RX core util. */
         for (int i = 0; i < 1000; i++) {
             m_rx->update_cpu_util();
             rte_pause();
         }
     }
-    
-    
+
+
     /**
      * can be implemented by the derived class for slowpath tick
-     * 
+     *
      */
     virtual void slowpath_tick() {}
-    
+
 
     /**
      * DP core has finished
@@ -158,32 +158,32 @@ public:
 
     /**
      * fills ignored stats on 'stat'
-     * 
+     *
      */
     void get_ignore_stats(int port_id, CRXCoreIgnoreStat &ign_stats, bool get_diff) {
         get_rx()->get_ignore_stats(port_id, ign_stats, get_diff);
     }
-    
-    
+
+
     /**
      * send a message to the RX core
      */
     void send_msg_to_rx(TrexCpToRxMsgBase *msg) const;
-    
-      
+
+
     /**
      * returns the port count
      */
     uint8_t get_port_count() const;
-    
-    
+
+
    /**
     * returns the TRex port (interactive)
     * by ID
     */
     TrexPort * get_port_by_id(uint8_t port_id);
-    
-    
+
+
     /**
      * returns a map of CP ports
      */
@@ -191,16 +191,16 @@ public:
         return m_ports;
     }
 
-    
+
     TrexRpcServer * get_rpc_server() {
         return &m_rpc_server;
     }
-    
+
 
     TrexPublisher * get_publisher() {
         return m_cfg.m_publisher;
     }
-    
+
 
     TrexRxCore *get_rx() {
         return m_rx;
@@ -208,7 +208,7 @@ public:
 
     /**
      * check for messages from any core
-     * 
+     *
      */
     void check_for_dp_messages();
     bool has_dp_messages();
@@ -227,9 +227,9 @@ protected:
     void check_for_dp_message_from_core(int thread_id);
     void send_msg_to_all_dp(TrexCpToDpMsgBase *msg);
     void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
-    
+
     /* no copy or assignment */
-    TrexSTX(TrexSTX const&)              = delete;  
+    TrexSTX(TrexSTX const&)              = delete;
     void operator=(TrexSTX const&)       = delete;
 
     /* RPC server array */
@@ -237,11 +237,11 @@ protected:
 
     /* ports */
     stx_port_map_t m_ports;
-    
+
     /* RX */
     TrexRxCore                 *m_rx;
     const TrexSTXCfg            m_cfg;
-    
+
     uint8_t                     m_dp_core_count;
     uint64_t                    m_ticket_id;
     async_ticket_map_t          m_async_task_by_ticket;
@@ -249,8 +249,8 @@ protected:
 
 
 /**
- * get the STX object - implemented by main_dpdk or 
- * simulator 
+ * get the STX object - implemented by main_dpdk or
+ * simulator
  */
 TrexSTX * get_stx();
 

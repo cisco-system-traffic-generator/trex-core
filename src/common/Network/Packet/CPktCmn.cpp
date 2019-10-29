@@ -19,7 +19,7 @@ limitations under the License.
 
 #define TouchCacheLine(a)
 
-uint16_t pkt_InetChecksum(uint8_t* data , 
+uint16_t pkt_InetChecksum(uint8_t* data ,
                         uint16_t len, uint8_t* data2 , uint16_t len2){
 
     TouchCacheLine(data2);
@@ -112,7 +112,7 @@ extern "C" void pkt_ChecksumTest(){
     }else{
         printf("ERROR: CS func produced wrong value with odd number of bytes.\n");
     }
-    
+
     cs = pkt_InetChecksum((uint8_t*)data,4);
     printf("CS = 0x%04x: ",cs);
     if(cs == 0x2FDD){
@@ -127,6 +127,6 @@ extern "C" void pkt_ChecksumTest(){
         printf("Update CS func OK.\n");
     }else{
         printf("ERROR: Update CS func produced wrong value.\n");
-    }   
+    }
 
 }

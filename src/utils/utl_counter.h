@@ -66,14 +66,14 @@ public:
     CGCountersUtl64 & operator=(const CGCountersUtl32 &rhs);
 
     CGCountersUtl64 & operator=(const CGCountersUtl64 &rhs);
-    
+
 
 private:
       uint64_t *m_base;
       uint32_t  m_cnt;
 };
 
-typedef enum { scINFO =0x12, 
+typedef enum { scINFO =0x12,
                scWARNING = 0x13,
                scERROR = 0x14
                } counter_info_t_;
@@ -135,7 +135,7 @@ public:
         }
         return ("unknown");
     }
-     
+
     std::string get_info_as_short_str(){
         switch (m_info) {
         case scINFO:
@@ -349,7 +349,7 @@ public:
     CGSimpleBase* get_cnt(int index){
         return(m_counters[index]);
     }
-    
+
 private:
    uint32_t                   m_index;
    bool                       m_free_objects;

@@ -28,7 +28,7 @@ limitations under the License.
 
 /**
  * JSON RPC V2 parsed object
- * 
+ *
  * @author imarom (12-Aug-15)
  */
 class TrexJsonRpcV2ParsedObject {
@@ -39,7 +39,7 @@ public:
 
     /**
      * main function to execute the command
-     * 
+     *
      */
     void execute(Json::Value &response);
 
@@ -56,7 +56,7 @@ protected:
 
 /**
  * JSON RPC V2 parser
- * 
+ *
  * @author imarom (12-Aug-15)
  */
 class TrexJsonRpcV2Parser {
@@ -65,43 +65,43 @@ public:
 
     /**
      * creates a JSON-RPC object from a string
-     * 
+     *
      * @author imarom (12-Aug-15)
-     * 
-     * @param msg 
+     *
+     * @param msg
      */
     TrexJsonRpcV2Parser(const std::string &msg);
 
     /**
      * parses the string to a executable commands vector
-     * 
+     *
      * @author imarom (12-Aug-15)
      */
     void parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 
     /**
-     * will generate a valid JSON RPC v2 error message with 
-     * generic error code and message 
-     * 
+     * will generate a valid JSON RPC v2 error message with
+     * generic error code and message
+     *
      * @author imarom (16-Sep-15)
-     * 
+     *
      */
     static void generate_common_error(Json::Value &json, const std::string &specific_err);
 
     /**
-     * will generate a valid JSON RPC v2 error message with 
-     * generic error code and message 
-     * 
+     * will generate a valid JSON RPC v2 error message with
+     * generic error code and message
+     *
      * @author imarom (16-Sep-15)
-     * 
+     *
      */
     static void generate_common_error(std::string &response, const std::string &specific_err);
 
     /**
-     * *tries* to generate a pretty string from JSON 
-     * if json_str is not a valid JSON string 
+     * *tries* to generate a pretty string from JSON
+     * if json_str is not a valid JSON string
      * it will duplicate the source
-     * 
+     *
      */
     static std::string pretty_json_str(const std::string &json_str);
 
@@ -109,7 +109,7 @@ private:
 
     /**
      * handle a single request
-     * 
+     *
      */
     void parse_single_request(Json::Value &request, std::vector<TrexJsonRpcV2ParsedObject *> &commands);
 

@@ -47,7 +47,7 @@ void CUdpFlow::Create(CPerProfileCtx *pctx,
                       bool client, uint16_t tg_id){
     CFlowBase::Create(pctx, tg_id);
     m_keep_alive_timer.reset();
-    m_keep_alive_timer.m_type = ttUDP_FLOW; 
+    m_keep_alive_timer.m_type = ttUDP_FLOW;
     m_mbuf_socket = pctx->m_ctx->m_mbuf_socket;
     if (client){
         INC_UDP_STAT(m_pctx, m_tg_id, udps_connects);
@@ -231,20 +231,20 @@ static inline void udp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
 
 
 /*
- * Drop UDP header, IP headers. go to L7 
+ * Drop UDP header, IP headers. go to L7
    remove pad if exists
  */
-static inline void udp_pktmbuf_fix_mbuf(struct rte_mbuf *m, 
+static inline void udp_pktmbuf_fix_mbuf(struct rte_mbuf *m,
                                         uint16_t adj_len,
                                         uint16_t l7_len){
 
     /*
-     * Drop TCP, IP headers and TCP options. go to L7 
+     * Drop TCP, IP headers and TCP options. go to L7
      */
     udp_pktmbuf_adj(m, adj_len);
 
     /*
-     * remove padding if exists. 
+     * remove padding if exists.
      */
     if (unlikely(m->pkt_len > l7_len)) {
         uint32_t pad_size = m->pkt_len-(uint32_t)l7_len;

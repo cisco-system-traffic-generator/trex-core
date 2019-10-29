@@ -39,7 +39,7 @@ class TrexRpcServerReqRes;
 
 /**
  * defines a configuration of generic RPC server
- * 
+ *
  * @author imarom (17-Aug-15)
  */
 class TrexRpcServerConfig {
@@ -56,7 +56,7 @@ public:
         m_lock        = nullptr;
         m_is_verbose  = false;
     }
-       
+
     void create(rpc_prot_e protocol, uint16_t port, std::recursive_mutex *lock, const std::string &logfile_name, bool is_verbose = false) {
         m_protocol     = protocol;
         m_port         = port;
@@ -64,7 +64,7 @@ public:
         m_is_verbose   = is_verbose;
         m_logfile_name = logfile_name;
     }
-    
+
     uint16_t get_port() const {
         return m_port;
     }
@@ -94,49 +94,49 @@ public:
 
 /**
  * generic type RPC server instance
- * 
+ *
  * @author imarom (12-Aug-15)
  */
 class TrexRpcServerInterface {
 public:
-  
+
     TrexRpcServerInterface(const TrexRpcServerConfig &cfg, const std::string &name);
     virtual ~TrexRpcServerInterface();
 
     /**
      * starts the server
-     * 
+     *
      */
     virtual void start();
 
     /**
      * stops the server
-     * 
+     *
      */
     virtual void stop();
 
     /**
      * set verbose on or off
-     * 
+     *
      */
     void set_verbose(bool verbose);
 
     /**
      * return TRUE if server is active
-     * 
+     *
      */
     bool is_running();
 
     /**
      * is the server verbose or not
-     * 
+     *
      */
     bool is_verbose();
 
 protected:
     /**
      * instances implement this
-     * 
+     *
      */
     virtual void _prepare()                         = 0;
     virtual void _rpc_thread_cb()                   = 0;
@@ -144,14 +144,14 @@ protected:
 
     /**
      * prints a verbosed message (if enabled)
-     * 
+     *
      */
     void verbose_msg(const std::string &msg);
 
     /**
-     * prints a verbose message with a JSON to be converted to 
-     * string 
-     * 
+     * prints a verbose message with a JSON to be converted to
+     * string
+     *
      */
     void verbose_json(const std::string &msg, const std::string &json_str);
 
@@ -167,15 +167,15 @@ protected:
 };
 
 /**
- * TREX RPC server 
- * may contain serveral types of RPC servers 
- * (request response, async and etc.) 
- * 
+ * TREX RPC server
+ * may contain serveral types of RPC servers
+ * (request response, async and etc.)
+ *
  * @author imarom (12-Aug-15)
  */
 class TrexRpcServer {
 public:
-  
+
     /* creates the collection of servers using configurations */
     TrexRpcServer(const TrexRpcServerConfig &req_resp_cfg);
 
@@ -183,14 +183,14 @@ public:
 
     /**
      * starts the RPC server
-     * 
+     *
      * @author imarom (19-Aug-15)
      */
     void start();
 
     /**
      * stops the RPC server
-     * 
+     *
      * @author imarom (19-Aug-15)
      */
     void stop();
@@ -204,13 +204,13 @@ public:
 
     /**
      * allow injecting of a JSON and get a response
-     * 
+     *
      * @author imarom (27-Dec-15)
-     * 
-     * @return std::string 
+     *
+     * @return std::string
      */
     std::string test_inject_request(const std::string &request_str);
-   
+
 
 private:
     static std::string generate_handler();

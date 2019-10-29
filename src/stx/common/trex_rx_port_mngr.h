@@ -50,14 +50,14 @@ public:
 
     void handle_pkt(const rte_mbuf_t *m);
 
-private:    
+private:
     CRxCore * m_rx_core;
     uint8_t   m_port_id;
 };
 
 /**************************************
- * RX feature queue 
- * 
+ * RX feature queue
+ *
  *************************************/
 
 class RXQueue {
@@ -65,33 +65,33 @@ public:
     RXQueue() {
         m_pkt_buffer = nullptr;
     }
- 
+
     ~RXQueue() {
         stop();
     }
-    
+
     /**
      * start RX queue
-     * 
+     *
      */
     void start(uint64_t size);
-    
+
     /**
      * fetch the current buffer
      * return NULL if no packets
      */
     const TrexPktBuffer * fetch();
-    
+
     /**
      * stop RX queue
-     * 
+     *
      */
     void stop();
-    
+
     void handle_pkt(const rte_mbuf_t *m);
-    
+
     Json::Value to_json() const;
-    
+
 private:
     TrexPktBuffer  *m_pkt_buffer;
 };
@@ -224,7 +224,7 @@ private:
 
 /**
  * per port RX features manager
- * 
+ *
  * @author imarom (10/30/2016)
  */
 class RXPortManager {
@@ -266,10 +266,10 @@ public:
                            int max,
                            bool reset,
                            TrexPlatformApi::driver_stat_cap_e type) {
-        
+
         return m_latency.get_stats(rx_stats, min, max, reset, type);
     }
-    
+
     RXLatency & get_latency() {
         return m_latency;
     }
@@ -302,14 +302,14 @@ public:
 
     void stop_queue() {
         m_queue.stop();
-        unset_feature(QUEUE); 
+        unset_feature(QUEUE);
     }
 
     const TrexPktBuffer *get_pkt_buffer() {
         if (!is_feature_set(QUEUE)) {
             return nullptr;
         }
-        
+
         return m_queue.fetch();
     }
 
@@ -358,14 +358,14 @@ public:
 
     /**
      * fetch and process all packets
-     * 
+     *
      */
     int process_all_pending_pkts(bool flush_rx = false);
 
 
     /**
      * flush all pending packets without processing them
-     * 
+     *
      */
     void flush_all_pending_pkts() {
         process_all_pending_pkts(true);
@@ -374,13 +374,13 @@ public:
 
     /**
      * TX packets immediately (no queue)
-     *  
-     * returns true in case packets was transmitted succesfully 
+     *
+     * returns true in case packets was transmitted succesfully
      */
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
-    
-    
+
+
     bool has_features_set() {
         return (m_features != NO_FEATURES);
     }
@@ -398,7 +398,7 @@ public:
      * (grat ARP, PING response and etc.)
      */
     void get_ignore_stats(CRXCoreIgnoreStat &stat, bool get_diff);
-    
+
     /**
      * write the status to a JSON format
      */
@@ -412,7 +412,7 @@ private:
 
     /**
      * handle a single packet
-     * 
+     *
      */
     void handle_pkt(rte_mbuf_t *m);
 

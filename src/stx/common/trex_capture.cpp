@@ -23,7 +23,7 @@ limitations under the License.
 
 /**************************************
  * Capture
- *  
+ *
  * A single instance of a capture
  *************************************/
 TrexCapture::TrexCapture(capture_id_t id,
@@ -36,7 +36,7 @@ TrexCapture::TrexCapture(capture_id_t id,
     m_state      = STATE_ACTIVE;
     m_start_ts   = now_sec();
     m_pkt_index  = 0;
-    
+
     m_filter.compile();
 }
 
@@ -48,16 +48,16 @@ TrexCapture::~TrexCapture() {
 
 void
 TrexCapture::handle_pkt(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
-    
+
     if (m_state != STATE_ACTIVE) {
         return;
     }
-    
+
     /* if not in filter - back off */
     if (!m_filter.match(port, origin, m)) {
         return;
     }
-    
+
     m_pkt_buffer->push(m, port, origin, ++m_pkt_index);
 }
 
@@ -69,30 +69,30 @@ TrexCapture::to_json() const {
     output["id"]       = Json::UInt64(m_id);
     output["matched"]  = Json::UInt64(m_pkt_index);
     output["filter"]   = m_filter.to_json();
-    
+
     switch (m_state) {
     case STATE_ACTIVE:
         output["state"]  = "ACTIVE";
         break;
-        
+
     case STATE_STOPPED:
         output["state"]  = "STOPPED";
         break;
-        
+
     default:
         assert(0);
     }
-    
-    
+
+
     /* write the pkt buffer status */
     m_pkt_buffer->to_json_status(output);
-    
+
     return output;
 }
 
 /**
  * fetch up to 'pkt_limit' from the capture
- * 
+ *
  */
 TrexPktBuffer *
 TrexCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
@@ -104,34 +104,34 @@ TrexCapture::fetch(uint32_t pkt_limit, uint32_t &pending) {
         pending = 0;
         return current;
     }
-    
+
     /* partial fetch - take a partial list */
     TrexPktBuffer *partial = m_pkt_buffer->pop_n(pkt_limit);
     pending  = m_pkt_buffer->get_element_count();
-    
+
     return partial;
 }
 
 
 /**************************************
- * Capture Manager 
- * handles all the captures 
- * in the system 
+ * Capture Manager
+ * handles all the captures
+ * in the system
  *************************************/
 
 /**
- * holds the global filter in the capture manager 
- * which ports in the entire system are monitored 
+ * holds the global filter in the capture manager
+ * which ports in the entire system are monitored
  */
 void
 TrexCaptureMngr::update_global_filter() {
-    
+
     /* if no captures - clear global filter */
     if (m_captures.size() == 0) {
         m_global_filter = CaptureFilter();
         return;
     }
-    
+
     /* copy the first one */
     CaptureFilter new_filter = CaptureFilter();
 
@@ -141,7 +141,7 @@ TrexCaptureMngr::update_global_filter() {
             new_filter += m_captures[i]->get_filter();
         }
     }
-  
+
     /* copy and compile */
     m_global_filter = new_filter;
     m_global_filter.compile();
@@ -153,13 +153,13 @@ TrexCaptureMngr::update_global_filter() {
  */
 TrexCapture *
 TrexCaptureMngr::lookup(capture_id_t capture_id) const {
-    
+
     for (int i = 0; i < m_captures.size(); i++) {
         if (m_captures[i]->get_id() == capture_id) {
             return m_captures[i];
         }
     }
-    
+
     /* does not exist */
     return nullptr;
 }
@@ -178,7 +178,7 @@ TrexCaptureMngr::lookup_index(capture_id_t capture_id) const {
 
 /**
  * starts a new capture
- * 
+ *
  */
 void
 TrexCaptureMngr::start(const CaptureFilter &filter,
@@ -191,24 +191,24 @@ TrexCaptureMngr::start(const CaptureFilter &filter,
         rc.set_err(TrexCaptureRC::RC_CAPTURE_LIMIT_REACHED);
         return;
     }
-    
+
     /* create a new capture*/
     int new_id = m_id_counter++;
     TrexCapture *new_capture = new TrexCapture(new_id, limit, filter, mode);
-    
+
     /**
-     * add the new capture in a safe mode 
-     * (TX might be active) 
+     * add the new capture in a safe mode
+     * (TX might be active)
      */
     std::unique_lock<std::mutex> ulock(m_lock);
     m_captures.push_back(new_capture);
 
     /* update global filter */
     update_global_filter();
-    
+
     /* done with critical section */
     ulock.unlock();
-    
+
     /* result */
     rc.set_rc(new_id, new_capture->get_start_ts());
 }
@@ -220,7 +220,7 @@ TrexCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
         rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
         return;
     }
-    
+
     std::unique_lock<std::mutex> ulock(m_lock);
     capture->stop();
     /* update global filter under lock (for barrier) */
@@ -228,7 +228,7 @@ TrexCaptureMngr::stop(capture_id_t capture_id, TrexCaptureRCStop &rc) {
 
     /* done with critical section */
     ulock.unlock();
-    
+
     rc.set_rc(capture->get_pkt_count());
 }
 
@@ -240,40 +240,40 @@ TrexCaptureMngr::fetch(capture_id_t capture_id, uint32_t pkt_limit, TrexCaptureR
         rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
         return;
     }
-    
+
     uint32_t pending = 0;
-    
+
     /* take a lock before fetching all the packets */
     std::unique_lock<std::mutex> ulock(m_lock);
     TrexPktBuffer *pkt_buffer = capture->fetch(pkt_limit, pending);
     ulock.unlock();
-    
+
     rc.set_rc(pkt_buffer, pending, capture->get_start_ts());
 }
 
 void
 TrexCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &rc) {
-    
+
     /* lookup index */
     int index = lookup_index(capture_id);
     if (index == -1) {
         rc.set_err(TrexCaptureRC::RC_CAPTURE_NOT_FOUND);
         return;
     }
-    
+
     TrexCapture *capture =  m_captures[index];
-    
+
     /* remove from list under lock */
     std::unique_lock<std::mutex> ulock(m_lock);
-    
+
     m_captures.erase(m_captures.begin() + index);
-    
+
     /* update global filter under lock (for barrier) */
     update_global_filter();
-    
+
     /* done with critical section */
     ulock.unlock();
-    
+
     /* free memory */
     delete capture;
 
@@ -283,7 +283,7 @@ TrexCaptureMngr::remove(capture_id_t capture_id, TrexCaptureRCRemove &rc) {
 void
 TrexCaptureMngr::reset() {
     TrexCaptureRCRemove dummy;
-    
+
     while (m_captures.size() > 0) {
         remove(m_captures[0]->get_id(), dummy);
         assert(!!dummy);
@@ -293,18 +293,18 @@ TrexCaptureMngr::reset() {
 /* define this macro to stress test the critical section */
 //#define STRESS_TEST
 
-void 
+void
 TrexCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin) {
-    
+
     #ifdef STRESS_TEST
         static int sanity = 0;
         assert(__sync_fetch_and_add(&sanity, 1) == 0);
     #endif
-    
+
     for (TrexCapture *capture : m_captures) {
         capture->handle_pkt(m, port, origin);
     }
-    
+
     #ifdef STRESS_TEST
         assert(__sync_fetch_and_sub(&sanity, 1) == 1);
     #endif
@@ -314,15 +314,15 @@ TrexCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::or
 Json::Value
 TrexCaptureMngr::to_json() {
     Json::Value lst = Json::arrayValue;
-    
+
     std::unique_lock<std::mutex> ulock(m_lock);
-    
+
     for (TrexCapture *capture : m_captures) {
         lst.append(capture->to_json());
     }
 
     ulock.unlock();
-    
+
     return lst;
 }
 

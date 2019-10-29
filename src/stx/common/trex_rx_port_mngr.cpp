@@ -48,8 +48,8 @@ void RxAstfLatency::handle_pkt(const rte_mbuf_t *m){
 
 
 /**************************************
- * RX feature queue 
- * 
+ * RX feature queue
+ *
  *************************************/
 
 void
@@ -75,7 +75,7 @@ RXQueue::fetch() {
     if ( (!m_pkt_buffer) || (m_pkt_buffer->get_element_count() == 0) ) {
         return nullptr;
     }
-    
+
     /* hold a pointer to the old one */
     TrexPktBuffer *old_buffer = m_pkt_buffer;
 
@@ -93,12 +93,12 @@ RXQueue::handle_pkt(const rte_mbuf_t *m) {
 Json::Value
 RXQueue::to_json() const {
     assert(m_pkt_buffer != NULL);
-    
+
     Json::Value output = Json::objectValue;
-    
+
     output["size"]    = Json::UInt64(m_pkt_buffer->get_capacity());
     output["count"]   = Json::UInt64(m_pkt_buffer->get_element_count());
-    
+
     return output;
 }
 
@@ -219,7 +219,7 @@ RXCapturePort::~RXCapturePort() {
 
 /**************************************
  * CAPWAP proxy
- * 
+ *
  *************************************/
 
 #ifndef WLAN_IP_OFFSET
@@ -430,8 +430,8 @@ RXCapwapProxy::handle_wireless(rte_mbuf_t *m) {
 
 
 /**************************************
- * Port manager 
- * 
+ * Port manager
+ *
  *************************************/
 
 RXPortManager::RXPortManager() : m_feature_api(this) {
@@ -455,14 +455,14 @@ RXPortManager::create_async(uint32_t port_id,
                       CRFC2544Info *rfc2544,
                       CRxCoreErrCntrs *err_cntrs,
                       CCpuUtlDp *cpu_util) {
-    
+
     m_port_id = port_id;
     m_io = io;
     m_rx_core = rx_core;
 
     /* create a predicator for CPU util. */
     m_cpu_pred.create(cpu_util);
-    
+
     /* init features */
     m_latency.create(rfc2544, err_cntrs);
     m_astf_latency.create(m_rx_core,port_id);
@@ -570,7 +570,7 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
         m_capture_port.handle_pkt(m);
     }
 
-    if (is_feature_set(ASTF_LATENCY)) { 
+    if (is_feature_set(ASTF_LATENCY)) {
         m_astf_latency.handle_pkt(m);
     }
 
@@ -644,7 +644,7 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 
     /* done */
     m_cpu_pred.commit();
-    
+
 
     return cnt_tx + cnt_rx;
 }
@@ -655,20 +655,20 @@ RXPortManager::tx_pkt(const std::string &pkt) {
     /* allocate MBUF */
     rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(CGlobalInfo::m_socket.port_to_socket(m_port_id), pkt.size());
     assert(m);
-    
+
     /* allocate */
     uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt.size());
     assert(p);
-    
+
     /* copy */
     memcpy(p, pkt.c_str(), pkt.size());
-    
+
     /* send */
     bool rc = tx_pkt(m);
     if (!rc) {
         rte_pktmbuf_free(m);
     }
-    
+
     return rc;
 }
 
@@ -732,8 +732,8 @@ void RXPortManager::get_ignore_stats(CRXCoreIgnoreStat &stat, bool get_diff) {
 
 /**************************************
  * RX feature API
- * exposes a subset of commands 
- * from the port manager object 
+ * exposes a subset of commands
+ * from the port manager object
  *************************************/
 
 bool

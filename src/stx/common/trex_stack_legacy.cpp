@@ -90,43 +90,43 @@ void CStackLegacy::handle_pkt(const rte_mbuf_t *m) {
 }
 
 void CStackLegacy::handle_icmp(RXPktParser &parser) {
-    
+
     /* maybe not for us... */
     uint32_t sip = *(uint32_t *)m_port_node->get_src_ip4().c_str();
     if (parser.m_ipv4->myDestination != sip) {
         return;
     }
-    
+
     /* we handle only echo request */
     if (parser.m_icmp->getType() != ICMPHeader::TYPE_ECHO_REQUEST) {
         return;
     }
-    
+
     /* duplicate the MBUF */
     rte_mbuf_t *response = duplicate_mbuf(parser.m_mbuf);
     if (!response) {
         return;
     }
-    
+
     /* reparse the cloned packet */
     RXPktParser response_parser(response);
-    
+
     /* swap MAC */
     MacAddress tmp = response_parser.m_ether->mySource;
     response_parser.m_ether->mySource = response_parser.m_ether->myDestination;
     response_parser.m_ether->myDestination = tmp;
-    
+
     /* swap IP */
     swap(response_parser.m_ipv4->mySource, response_parser.m_ipv4->myDestination);
-    
+
     /* new packet - new TTL */
     response_parser.m_ipv4->setTimeToLive(128);
     response_parser.m_ipv4->updateCheckSum();
-    
+
     /* update type and fix checksum */
     response_parser.m_icmp->setType(ICMPHeader::TYPE_ECHO_REPLY);
     response_parser.m_icmp->updateCheckSum(response_parser.m_ipv4->getTotalLength() - response_parser.m_ipv4->getHeaderLength());
-    
+
     /* send */
     bool rc = m_api->tx_pkt(response);
     if (!rc) {
@@ -136,13 +136,13 @@ void CStackLegacy::handle_icmp(RXPktParser &parser) {
 
 void CStackLegacy::handle_arp(RXPktParser &parser) {
     MacAddress src_mac;
-    
+
     /* only ethernet format supported */
     if (parser.m_arp->getHrdType() != ArpHdr::ARP_HDR_HRD_ETHER) {
         return;
     }
-    
-    /* IPV4 only */    
+
+    /* IPV4 only */
     if (parser.m_arp->getProtocolType() != ArpHdr::ARP_HDR_PROTO_IPV4) {
         return;
     }
@@ -151,7 +151,7 @@ void CStackLegacy::handle_arp(RXPktParser &parser) {
     if (parser.m_arp->getOp() != ArpHdr::ARP_HDR_OP_REQUEST) {
         return;
     }
-    
+
     /* are we the target ? if not - go home */
     if (parser.m_arp->m_arp_tip != *(uint32_t *) m_port_node->get_src_ip4().c_str()) {
         return;
@@ -165,25 +165,25 @@ void CStackLegacy::handle_arp(RXPktParser &parser) {
 
     /* reparse the cloned packet */
     RXPktParser response_parser(response);
-    
+
     /* reply */
     response_parser.m_arp->setOp(ArpHdr::ARP_HDR_OP_REPLY);
-    
+
     /* fix the MAC addresses */
     src_mac.set((uint8_t *)m_port_node->get_src_mac().c_str());
     response_parser.m_ether->mySource = src_mac;
     response_parser.m_ether->myDestination = parser.m_ether->mySource;
-    
+
     /* fill up the fields */
-    
+
     /* src */
     response_parser.m_arp->m_arp_sha = src_mac;
     response_parser.m_arp->setSip(parser.m_arp->getTip());
-    
+
     /* dst */
     response_parser.m_arp->m_arp_tha = parser.m_arp->m_arp_sha;
     response_parser.m_arp->m_arp_tip = parser.m_arp->m_arp_sip;
-    
+
     /* send */
     bool rc = m_api->tx_pkt(response);
     if (!rc) {
@@ -242,18 +242,18 @@ uint16_t CStackLegacy::send_grat_arp() {
 }
 
 rte_mbuf_t* CStackLegacy::duplicate_mbuf(const rte_mbuf_t *m) {
-    
+
     /* allocate */
     rte_mbuf_t *clone_mbuf = CGlobalInfo::pktmbuf_alloc_by_port(m_api->get_port_id(), rte_pktmbuf_pkt_len(m));
     assert(clone_mbuf);
-    
+
     /* append data - should always succeed */
     uint8_t *dest = (uint8_t *)rte_pktmbuf_append(clone_mbuf, rte_pktmbuf_pkt_len(m));
     assert(dest);
-    
+
     /* copy data */
     mbuf_to_buffer(dest, m);
-    
+
     return clone_mbuf;
 }
 

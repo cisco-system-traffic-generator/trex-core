@@ -153,7 +153,7 @@ void CRxCheckFlowTableMap::dump_all(FILE *fd){
 
 
 void CRxCheckFlowTableMap::remove_all(){
-    if ( m_map.empty() ) 
+    if ( m_map.empty() )
         return;
 
     rx_check_flow_map_iter_t it;
@@ -275,7 +275,7 @@ void RxCheckManager::handle_packet(CRx_check_header * rxh){
     uint64_t d = (os_get_hr_tick_32() - rxh->m_time_stamp );
     double dt= ptime_convert_hr_dsec(d);
     m_hist.Add(dt);
-    // calc jitter per template 
+    // calc jitter per template
     CPerTemplateInfo *lpt= get_template(rxh->m_template_id);
     lpt->calc(dt);
     lpt->inc_rx_counter();
@@ -348,7 +348,7 @@ void RxCheckManager::handle_packet(CRx_check_header * rxh){
 
             CRxCheckFlowPerDir *lpd=&lf->m_dir[rxh->get_dir()];
             if ( !lpd->is_fif_seen() ){
-                // init this dir 
+                // init this dir
                 lpd->set_fif_seen(rxh->m_flow_size);
 
             }else{

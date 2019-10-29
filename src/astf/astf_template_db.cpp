@@ -34,7 +34,7 @@ bool CAstfPerTemplateRW::Create(CTupleGeneratorSmart  * global_gen,
     m_thread_id =thread_id ;
     m_tid   = tid;
 
-    m_tuple_gen.Create(global_gen, 
+    m_tuple_gen.Create(global_gen,
                        info->m_client_pool_idx,
                        info->m_server_pool_idx);
 
@@ -114,7 +114,7 @@ bool CAstfTemplatesRW::Create(astf_thread_id_t           thread_id,
 }
 
 
-void CAstfTemplatesRW::Delete(){ 
+void CAstfTemplatesRW::Delete(){
     int i;
     for (i=0; i<m_cap_gen.size(); i++) {
         CAstfPerTemplateRW * lp=m_cap_gen[i];

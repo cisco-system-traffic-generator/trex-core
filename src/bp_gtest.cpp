@@ -716,7 +716,7 @@ public:
     virtual int tx_raw(rte_mbuf_t *m) {
         return tx(m);
     }
-    
+
     virtual int tx_latency(rte_mbuf_t *m) {
         return tx(m);
     }
@@ -1896,7 +1896,7 @@ public:
             delete m_raw;
             m_raw = nullptr;
         }
-        
+
         return (0);
     }
 
@@ -2838,7 +2838,7 @@ TEST_F(ipg_calc, test4) {
 }
 
 int expect_vec(dpdk_map_args_t &port_map,
-               int * array, 
+               int * array,
                int array_size){
     int i;
     EXPECT_EQ(port_map.size(),array_size);

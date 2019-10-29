@@ -53,7 +53,7 @@ private:
     uint16_t           m_cur_tick;
     uint16_t           m_rampup_sec;
 };
-      
+
 
 
 #endif

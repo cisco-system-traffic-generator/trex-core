@@ -155,7 +155,7 @@ void CTblGCounters::dump_meta(std::string name,
 
     obj["name"] = name;
     obj["data"] = data;
-    
+
     CGTblClmCounters* lp=m_counters[0];
     int i;
     Json::Value * lpj=&obj["data"];
@@ -195,7 +195,7 @@ void CTblGCounters::inc_epoch(void) {
 }
 
 
-void CTblGCounters::dump_as_json(std::string name, 
+void CTblGCounters::dump_as_json(std::string name,
                                  std::string & json){
 
     json="{\"name\":\""+ name+"\",\"type\":0,\"data\":{";

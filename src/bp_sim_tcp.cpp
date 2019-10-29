@@ -275,7 +275,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
     }
 
     /* priorty to global */
-    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() || 
+    bool is_ipv6 = CGlobalInfo::is_ipv6_enable() ||
                    c_rw->get_c_tuneables()->is_valid_field(CTcpTuneables::ipv6_enable) ||
                    cur->get_c_tune()->is_valid_field(CTcpTuneables::ipv6_enable);
 
@@ -318,7 +318,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
     /* save tuple generator information into the flow */
     c_flow->set_tuple_generator(tuple.getClientId(),
-                                cur->m_client_pool_idx, 
+                                cur->m_client_pool_idx,
                                 template_id,
                                 true);
 
@@ -465,7 +465,7 @@ void CFlowGenListPerThread::handle_tw(CGenNode * node,
             m_tcp_terminate_cnt=0;
         }
     }
-    
+
 }
 
 

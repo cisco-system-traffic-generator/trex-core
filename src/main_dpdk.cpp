@@ -139,7 +139,7 @@ static inline int get_min_sample_rate(void){
 
 // cores =0==1,1*2,2,3,4,5,6
 // An enum for all the option types
-enum { 
+enum {
        /* no more before this */
        OPT_MIN,
 
@@ -149,7 +149,7 @@ enum {
        OPT_NODE_DUMP,
        OPT_DUMP_INTERFACES,
        OPT_UT,
-       OPT_PROM, 
+       OPT_PROM,
        OPT_CORES,
        OPT_SINGLE_CORE,
        OPT_FLIP_CLIENT_SERVER,
@@ -211,11 +211,11 @@ enum {
        OPT_ASTF_TUNABLE,
        OPT_NO_TERMIO,
        OPT_QUEUE_DROP,
-       OPT_ASTF_EMUL_DEBUG, 
+       OPT_ASTF_EMUL_DEBUG,
        OPT_SLEEPY_SCHEDULER,
        OPT_UNBIND_UNUSED_PORTS,
        OPT_HDRH,
-    
+
        /* no more pass this */
        OPT_MAX
 
@@ -400,7 +400,7 @@ static int COLD_FUNC  usage() {
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
-    
+
 
     printf("\n");
     printf(" Examples: ");
@@ -437,9 +437,9 @@ static int COLD_FUNC  usage() {
     printf(" Date    : %s , %s \n",get_build_date(),get_build_time());
     printf(" Uuid    : %s    \n",VERSION_UIID);
     printf(" Git SHA : %s    \n",VERSION_GIT_SHA);
-    
+
     TrexBuildInfo::show();
-    
+
     return (0);
 }
 
@@ -453,7 +453,7 @@ static void parse_err(const std::string &msg) {
 
 /**
  * convert an option to string
- * 
+ *
  */
 static std::string opt_to_str(int opt) {
     for (const CSimpleOpt::SOption &x : parser_options) {
@@ -461,7 +461,7 @@ static std::string opt_to_str(int opt) {
             return std::string(x.pszArg);
         }
     }
-    
+
     assert(0);
     return "";
 }
@@ -469,13 +469,13 @@ static std::string opt_to_str(int opt) {
 
 /**
  * checks options exclusivity
- * 
+ *
  */
 static void check_exclusive(const OptHash &args_set,
                             const std::initializer_list<int> &opts,
                             bool at_least_one = false) {
     int seen = -1;
-    
+
     for (int x : opts) {
         if (args_set.at(x)) {
             if (seen == -1) {
@@ -485,13 +485,13 @@ static void check_exclusive(const OptHash &args_set,
             }
         }
     }
-    
+
     if ( (seen == -1) && at_least_one ) {
         std::string opts_str;
         for (int x : opts) {
             opts_str += "'" + opt_to_str(x) + "', ";
         }
-        
+
         /* remove the last 2 chars */
         opts_str.pop_back();
         opts_str.pop_back();
@@ -511,12 +511,12 @@ static OptHash
 args_first_pass(int argc, char *argv[], CParserOption* po) {
     CSimpleOpt args(argc, argv, parser_options);
     OptHash args_set;
-    
+
     /* clear */
     for (int i = OPT_MIN + 1; i < OPT_MAX; i++) {
         args_set[i] = false;
     }
-    
+
     /* set */
     while (args.Next()) {
         if (args.LastError() != SO_SUCCESS) {
@@ -524,20 +524,20 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
         }
         args_set[args.OptionId()] = true;
     }
-    
+
     if (args_set[OPT_HELP]) {
         usage();
         exit(0);
     }
-    
+
     /* sanity */
-    
+
     /* STL and TCP */
     check_exclusive(args_set, {OPT_STL_MODE, OPT_TCP_MODE});
-    
+
     /* interactive, batch or dump */
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_MODE_BATCH, OPT_DUMP_INTERFACES}, true);
-    
+
     /* interactive mutual exclusion options */
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_DURATION});
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_CLIENT_CFG_FILE});
@@ -546,7 +546,7 @@ args_first_pass(int argc, char *argv[], CParserOption* po) {
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_ONLY_LATENCY});
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_SINGLE_CORE});
     check_exclusive(args_set, {OPT_MODE_INTERACTIVE, OPT_RATE_MULT});
-    
+
     return args_set;
 }
 
@@ -625,11 +625,11 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     po->preview.setRealTime(true);
     uint32_t tmp_data;
     float tmp_double;
-    
+
     /* first run - pass all parameters for existance */
     OptHash args_set = args_first_pass(argc, argv, po);
-    
-    
+
+
     while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
             switch (args.OptionId()) {
@@ -650,7 +650,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 /* can be batch or non batch */
                 set_op_mode((args_set[OPT_MODE_INTERACTIVE] ? OP_MODE_ASTF : OP_MODE_ASTF_BATCH));
                 break;
-                
+
             /* stl */
             case OPT_STL_MODE:
                 set_op_mode(OP_MODE_STL);
@@ -1463,12 +1463,12 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
 COLD_FUNC void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     // reading m_stats, so drivers saving prev in m_stats will be updated.
     // Actually, we want m_stats to be cleared
-    
+
     /* block until this succeeds */
     while (!get_extended_stats()) {
         delay(10);
     }
-    
+
     m_ignore_stats.ipackets = m_stats.ipackets;
     m_ignore_stats.ibytes = m_stats.ibytes;
     m_ignore_stats.opackets = m_stats.opackets;
@@ -1638,7 +1638,7 @@ public:
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
 public:
-    uint16_t     m_rx_queue_id[CS_NUM]; 
+    uint16_t     m_rx_queue_id[CS_NUM];
 };
 
 class CCoreEthIFTcp : public CCoreEthIF {
@@ -1660,7 +1660,7 @@ public:
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
 public:
-    uint16_t     m_rx_queue_id[CS_NUM]; 
+    uint16_t     m_rx_queue_id[CS_NUM];
 };
 
 
@@ -1760,10 +1760,10 @@ COLD_FUNC void CCoreEthIF::DumpIfStats(FILE *fd){
 }
 
 /**
- * when measureing performance with perf prefer drop in case of 
- * queue full 
- * this will allow us actually measure the max B/W possible 
- * without the noise of retrying 
+ * when measureing performance with perf prefer drop in case of
+ * queue full
+ * this will allow us actually measure the max B/W possible
+ * without the noise of retrying
  */
 
 HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
@@ -2850,12 +2850,12 @@ public:
     int  device_start();
     int  device_rx_queue_flush();
     void init_vif_cores();
-    
+
     void rx_batch_conf();
     void rx_interactive_conf();
-    
+
     TrexSTXCfg get_stx_cfg();
-    
+
     void init_stl();
     void init_stf();
     void init_astf();
@@ -2863,7 +2863,7 @@ public:
     void init_stl_stats();
 
     void init_astf_batch();
-    
+
     bool is_all_links_are_up(bool dump=false);
     void pre_test();
     void run_bird_with_ns();
@@ -3248,7 +3248,7 @@ COLD_FUNC void CGlobalTRex::run_bird_with_ns() {
         auto &ports_map = m_stx->get_port_map();
         assert(!ports_map.empty());
         TrexPort *first_port = ports_map.begin()->second;
-        
+
         if ( !(first_port->get_stack_caps() & CStackBase::BIRD) ) {
             std::string stack_name = CGlobalInfo::m_options.m_stack_type;
             rte_exit(EXIT_FAILURE, "Cannot run Bird on %s stack mode \n", stack_name.c_str());
@@ -3462,7 +3462,7 @@ COLD_FUNC void CGlobalTRex::rx_batch_conf(void) {
 
 
 COLD_FUNC void CGlobalTRex::rx_interactive_conf(void) {
-    
+
     if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
         /* vm mode, indirect queues  */
         for (int i=0; i < m_max_ports; i++) {
@@ -3556,7 +3556,7 @@ CGlobalTRex::init_vif_cores() {
     for (int i = 0; i < get_cores_tx(); i++) {
         int j=(i+1);
         int queue_id=((j-1)/get_base_num_cores() );   /* for the first min core queue 0 , then queue 1 etc */
-     
+
         m_cores_vif[j]->Create(j,
                                queue_id,
                                m_ports[port_offset], /* 0,2*/
@@ -3590,7 +3590,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
     register_signals();
 
     m_stats_cnt =0;
-    
+
     /* End update pre flags */
 
     device_prob_init();
@@ -3657,7 +3657,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
         assert(0);
     }
 
-    
+
     return (true);
 
 }
@@ -3666,16 +3666,16 @@ COLD_FUNC TrexSTXCfg
  CGlobalTRex::get_stx_cfg() {
 
     TrexSTXCfg cfg;
-    
+
     /* control plane config */
     cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_TCP,
                                   global_platform_cfg_info.m_zmq_rpc_port,
                                   &m_cp_lock,
                                   CGlobalInfo::m_options.rpc_logfile_name);
-    
+
     bool hw_filter = (get_dpdk_mode()->is_hardware_filter_needed());
     std::unordered_map<uint8_t, CPortLatencyHWBase*> ports;
-    
+
     for (int i = 0; i < m_max_ports; i++) {
         if ( CTVPort(i).is_dummy() ) {
             continue;
@@ -3686,19 +3686,19 @@ COLD_FUNC TrexSTXCfg
             ports[i] = &m_latency_vports[i];
         }
     }
-    
+
     /* RX core */
     cfg.m_rx_cfg.create(get_cores_tx(),
                         ports);
-    
+
     cfg.m_publisher = &m_zmq_publisher;
-    
+
     return cfg;
 }
 
 
 COLD_FUNC void CGlobalTRex::init_stl() {
-    
+
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_stl[i + 1];
     }
@@ -3706,7 +3706,7 @@ COLD_FUNC void CGlobalTRex::init_stl() {
     if (get_dpdk_mode()->dp_rx_queues() ){
         /* multi-queue mode */
         for (int i = 0; i < get_cores_tx(); i++) {
-           int qid =(i/get_base_num_cores());   
+           int qid =(i/get_base_num_cores());
            int rx_qid=get_dpdk_mode()->get_dp_rx_queues(qid); /* 0,1,2,3*/
            m_cores_vif_stl[i+1].set_rx_queue_id(rx_qid,rx_qid);
        }
@@ -3715,9 +3715,9 @@ COLD_FUNC void CGlobalTRex::init_stl() {
     init_vif_cores();
 
     rx_interactive_conf();
-    
+
     m_stx = new TrexStateless(get_stx_cfg());
-    
+
     start_master_stateless();
 
     init_stl_stats();
@@ -3745,7 +3745,7 @@ void CGlobalTRex::init_astf_vif_rx_queues(){
 }
 
 COLD_FUNC void CGlobalTRex::init_astf() {
-        
+
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
     }
@@ -3753,51 +3753,51 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     init_vif_cores();
     init_astf_vif_rx_queues();
     rx_interactive_conf();
-    
+
     m_stx = new TrexAstf(get_stx_cfg());
-    
+
     start_master_astf();
 }
 
 
 COLD_FUNC void CGlobalTRex::init_astf_batch() {
-    
+
      for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_tcp[i + 1];
     }
-     
+
      init_vif_cores();
      init_astf_vif_rx_queues();
      rx_batch_conf();
-     
+
      m_stx = new TrexAstfBatch(get_stx_cfg(), &m_mg);
-     
+
      start_master_astf_batch();
 }
 
 
 COLD_FUNC void CGlobalTRex::init_stf() {
     CFlowsYamlInfo  pre_yaml_info;
-    
+
     pre_yaml_info.load_from_yaml_file(CGlobalInfo::m_options.cfg_file);
     if ( isVerbose(0) ){
         CGlobalInfo::m_options.dump(stdout);
         CGlobalInfo::m_memory_cfg.Dump(stdout);
     }
-    
+
     if (pre_yaml_info.m_vlan_info.m_enable) {
         CGlobalInfo::m_options.preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_LOAD_BALANCE);
     }
-        
+
     for (int i = 0; i < get_cores_tx(); i++) {
         m_cores_vif[i + 1] = &m_cores_vif_stf[i + 1];
     }
-    
+
     init_vif_cores();
     rx_batch_conf();
-        
+
     m_stx = new TrexStateful(get_stx_cfg(), &m_mg);
-    
+
     start_master_statefull();
 }
 
@@ -3818,7 +3818,7 @@ COLD_FUNC void CGlobalTRex::Delete(){
 
     m_fl.Delete();
     m_mg.Delete();
-    
+
     /* imarom: effectively has no meaning as memory is not released (See msg_manager.cpp) */
     CMsgIns::Ins()->Delete();
     delete m_sync_barrier;
@@ -3845,7 +3845,7 @@ static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
 COLD_FUNC void  dump_dpdk_devices(void){
         printf(" DPDK devices %d : %d \n", rte_eth_dev_count(),
          rte_eth_dev_count_total());
-        printf("-----\n");  
+        printf("-----\n");
         char name[100];
         int j;
         for (j=0; j < rte_eth_dev_count_total(); j++){
@@ -3986,7 +3986,7 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
                (int)rx_queues);
         exit(1);
     }
-    
+
 
     if ( get_dpdk_mode()->is_hardware_filter_needed() ){
         m_port_cfg.update_global_config_fdir();
@@ -4005,7 +4005,7 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
         }
     }
 
-    if ( is_valid_dpdk_limits(&dev_info.tx_desc_lim) && 
+    if ( is_valid_dpdk_limits(&dev_info.tx_desc_lim) &&
          is_valid_dpdk_limits(&dev_info.rx_desc_lim)) {
         /* driver support min/max descriptors*/
         CTrexDpdkParams dpdk_p;
@@ -4106,22 +4106,22 @@ COLD_FUNC uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
        return (INVALID_TX_QUEUE_ID);
    }
 
-    /* 2 spare tx queues per port 
+    /* 2 spare tx queues per port
       X is the number of dual_ports  0--x-1 for DP
-      
-    
-       stateless 
+
+
+       stateless
        x+0 - DP
-       x+1 - rx core ARPs 
-       x+2 - low latency 
+       x+1 - rx core ARPs
+       x+2 - low latency
 
        STL/ASTF
 
        x+0 - DP
-       x+1 - not used 
-       x+2 - rx core, latency 
+       x+1 - not used
+       x+2 - rx core, latency
    */
-    
+
     /* imarom: is this specific to stateless ? */
 
     if (get_dpdk_mode()->is_dp_latency_tx_queue()) {
@@ -4132,22 +4132,22 @@ COLD_FUNC uint16_t CGlobalTRex::get_rx_core_tx_queue_id() {
 }
 
 COLD_FUNC uint16_t CGlobalTRex::get_latency_tx_queue_id() {
-    /* 2 spare tx queues per port 
+    /* 2 spare tx queues per port
       X is the number of dual_ports  0--x-1 for DP
 
 
-       stateless 
+       stateless
        x+0 - DP
-       x+1 - rx core ARPs 
-       x+2 - low latency 
+       x+1 - rx core ARPs
+       x+2 - low latency
 
        STL/ASTF
 
        x+0 - DP
-       x+1 - not used 
-       x+2 - rx core, latency 
+       x+1 - not used
+       x+2 - rx core, latency
    */
-    
+
     /* imarom: is this specific to stateless ? */
     if (get_is_stateless()) {
         return (m_cores_to_dual_ports+1);
@@ -4362,7 +4362,7 @@ void CGlobalTRex::get_stats(CGlobalStats & stats){
 
     stats.m_rx_cpu_util = m_stx->get_rx()->get_cpu_util();
     stats.m_rx_core_pps = m_stx->get_rx()->get_pps_rate();
-        
+
     stats.m_threads      = m_fl.m_threads_info.size();
 
     for (i=0; i<m_max_ports; i++) {
@@ -4589,7 +4589,7 @@ COLD_FUNC bool CGlobalTRex::sanity_check(){
 COLD_FUNC void CGlobalTRex::dump_template_info(std::string & json){
     CFlowGenListPerThread   * lpt = m_fl.m_threads_info[0];
     CFlowsYamlInfo * yaml_info=&lpt->m_yaml_info;
-    if ( yaml_info->is_any_template()==false){ 
+    if ( yaml_info->is_any_template()==false){
         json="";
         return;
     }
@@ -4697,7 +4697,7 @@ COLD_FUNC void CGlobalTRex::port_stats_to_json(Json::Value &output, uint8_t port
 
 
 COLD_FUNC void CGlobalTRex::check_for_ports_link_change() {
-    
+
     // update speed, link up/down etc.
     for (int i=0; i<m_max_ports; i++) {
         bool changed = m_ports[i]->get_port_attr()->update_link_status_nowait();
@@ -4713,13 +4713,13 @@ COLD_FUNC void CGlobalTRex::check_for_io() {
     if (CGlobalInfo::m_options.preview.get_no_keyboard()) {
         return;
     }
-    
+
     bool rc = m_io_modes.handle_io_modes();
     if (rc) {
         mark_for_shutdown(SHUTDOWN_CTRL_C);
         return;
     }
-    
+
 }
 
 
@@ -4934,7 +4934,7 @@ COLD_FUNC int CGlobalTRex::run_in_rx_core(void){
 
     /* will block until RX core is signaled to stop */
     m_stx->get_rx()->start();
-  
+
     return (0);
 }
 
@@ -4975,7 +4975,7 @@ COLD_FUNC int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     TrexWatchDog::getInstance().register_monitor(&lpt->m_monitor);
 
     lpt->start(CGlobalInfo::m_options.out_file, *lp);
-    
+
     /* done - remove this from the watchdog (we might wait on join for a long time) */
     lpt->m_monitor.disable();
 
@@ -5063,17 +5063,17 @@ COLD_FUNC bool CGlobalTRex::is_all_dp_cores_finished() {
             return false;
         }
     }
-    
+
     return true;
 }
 
 COLD_FUNC bool CGlobalTRex::is_all_cores_finished() {
-    
+
     /* DP cores */
     if (!is_all_dp_cores_finished()) {
         return false;
     }
-    
+
     /* RX core */
     if (m_stx->get_rx()->is_active()) {
         return false;
@@ -5342,7 +5342,7 @@ const static uint8_t client_rss_key[] = {
 
 COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
                                    uint16_t numer_of_queues,
-                                   uint16_t skip_queue){ 
+                                   uint16_t skip_queue){
 
     struct rte_eth_dev_info dev_info;
 
@@ -5394,7 +5394,7 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
 
 
 COLD_FUNC void CPhyEthIF::configure_rss(){
-    trex_dpdk_rx_distro_mode_t rss_mode = 
+    trex_dpdk_rx_distro_mode_t rss_mode =
          get_dpdk_mode()->get_rx_distro_mode();
 
     if ( rss_mode == ddRX_DIST_ASTF_HARDWARE_RSS ){
@@ -5419,7 +5419,7 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
 
     g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
 
-    struct rte_eth_rss_conf *lp_rss = 
+    struct rte_eth_rss_conf *lp_rss =
         &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
 
     if (dev_info->flow_type_rss_offloads){
@@ -5428,7 +5428,7 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
                          ETH_RSS_NONFRAG_IPV6_TCP |
                          ETH_RSS_NONFRAG_IPV6_UDP));
         lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
-    }else{                 
+    }else{
         lp_rss->rss_key =0;
     }
     lp_rss->rss_key_len = hash_key_size;
@@ -5485,7 +5485,7 @@ COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
         lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
     }
     lp_rss->rss_key_len = hash_key_size;
-    
+
 }
 
 
@@ -5542,7 +5542,7 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
 
     if ( CGlobalInfo::m_options.preview.getTsoOffloadDisable() ) {
         tx_offloads &= ~(
-            DEV_TX_OFFLOAD_TCP_TSO | 
+            DEV_TX_OFFLOAD_TCP_TSO |
             DEV_TX_OFFLOAD_UDP_TSO);
     }
 
@@ -5552,7 +5552,7 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
 
     /* configure tx que */
     for (uint16_t qid = 0; qid < tx_qs; qid++) {
-        tx_queue_setup(qid, tx_descs , socket_id, 
+        tx_queue_setup(qid, tx_descs , socket_id,
                        &g_trex.m_port_cfg.m_tx_conf);
     }
 
@@ -5560,8 +5560,8 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
         if (isVerbose(0)) {
            printf(" rx_qid: %d (%d) \n", qid,rx_qs_descs[qid]);
         }
-        rx_queue_setup(qid, rx_qs_descs[qid], 
-                       socket_id, 
+        rx_queue_setup(qid, rx_qs_descs[qid],
+                       socket_id,
                        &cfg.m_rx_conf,
                        get_rx_mem_pool(socket_id));
     }
@@ -5599,7 +5599,7 @@ COLD_FUNC void CPhyEthIF::conf_queues(void){
        int i;
        for (i=0; i<rx_qs; i++) {
            uint16_t desc;
-           if ( is_drop_q && 
+           if ( is_drop_q &&
                (i==MAIN_DPDK_DROP_Q) ){
                desc =dpdk_p.rx_desc_num_drop_q;
            }else{
@@ -5625,8 +5625,8 @@ COLD_FUNC void CPhyEthIF::conf_queues(void){
 }
 
 /**
- * get extended stats might fail on some drivers (i40e_vf) 
- * so wrap it another a watch 
+ * get extended stats might fail on some drivers (i40e_vf)
+ * so wrap it another a watch
  */
 COLD_FUNC bool CPhyEthIF::get_extended_stats() {
     bool rc = get_ex_drv()->get_extended_stats(this, &m_stats);
@@ -5635,7 +5635,7 @@ COLD_FUNC bool CPhyEthIF::get_extended_stats() {
         assert(m_stats_err_cnt <= 5);
         return false;
     }
-    
+
     /* clear the counter */
     m_stats_err_cnt = 0;
     return true;
@@ -5647,11 +5647,11 @@ COLD_FUNC void CPhyEthIF::update_counters() {
     if (!rc) {
         return;
     }
-    
+
     CRXCoreIgnoreStat ign_stats;
 
     g_trex.m_stx->get_ignore_stats(m_tvpid, ign_stats, true);
-    
+
     m_stats.obytes -= ign_stats.get_tx_bytes();
     m_stats.opackets -= ign_stats.get_tx_pkts();
     m_ignore_stats.opackets += ign_stats.get_tx_pkts();
@@ -5772,7 +5772,7 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
 
 COLD_FUNC int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
     get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
-    
+
     for (int i = min; i <= max; i++) {
         if ( reset ) {
             if (tx_stats != NULL) {
@@ -6322,7 +6322,7 @@ COLD_FUNC int main_test(int argc , char * argv[]){
 
     int ret;
     unsigned lcore_id;
-    
+
     if (TrexBuildInfo::is_sanitized()) {
          printf("\n*******************************************************\n");
          printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
@@ -6445,7 +6445,7 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     set_driver();
 
     uint32_t driver_cap = get_ex_drv()->get_capabilities();
-    
+
     int res;
     res =CGlobalInfo::m_dpdk_mode.choose_mode((trex_driver_cap_t)driver_cap);
     if (res == tmDPDK_UNSUPPORTED) {
@@ -6573,7 +6573,7 @@ COLD_FUNC int main_test(int argc , char * argv[]){
 
     g_trex.stop_master();
     g_trex.Delete();
-    
+
     if (!CGlobalInfo::m_options.preview.get_is_termio_disabled()) {
         utl_termio_reset();
     }
@@ -6663,7 +6663,7 @@ COLD_FUNC void set_driver() {
         }
     }
 
-    
+
 }
 
 
@@ -6700,7 +6700,7 @@ COLD_FUNC void reorder_dpdk_ports() {
         }
         return;
     }
-   
+
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         uint8_t if_index = 0;
         for (int i=0; i<global_platform_cfg_info.m_if_list.size(); i++) {
@@ -6747,7 +6747,7 @@ COLD_FUNC void reorder_dpdk_ports() {
 }
 
 
-#if 0  
+#if 0
 /**
  * convert chain of mbuf to one big mbuf
  *
@@ -7042,7 +7042,7 @@ TrexDpdkPlatformApi::get_fl() const {
  */
 TrexPlatformApi &get_platform_api() {
     static TrexDpdkPlatformApi api;
-    
+
     return api;
 }
 

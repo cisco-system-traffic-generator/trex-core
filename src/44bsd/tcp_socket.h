@@ -95,7 +95,7 @@ struct  sockbuf {
 
 struct tcp_socket * sonewconn(struct tcp_socket *head, int connstatus);
 
-uint32_t    sbspace(struct sockbuf *sb); 
+uint32_t    sbspace(struct sockbuf *sb);
 //void    sbdrop(struct sockbuf *sb, int len);
 
 int soabort(struct tcp_socket *so);
@@ -111,24 +111,24 @@ void sbflush (struct sockbuf *sb);
 //void    sbappend(struct sockbuf *sb, struct rte_mbuf *m);
 
 void    sbappend(struct tcp_socket *so,
-                 struct sockbuf *sb, 
+                 struct sockbuf *sb,
                  struct rte_mbuf *m,
                  uint32_t len);
 
 void    sbappend_bytes(struct tcp_socket *so,
-                       struct sockbuf *sb, 
+                       struct sockbuf *sb,
                        uint32_t len);
 
 #ifdef FIXME
 #define sorwakeup(so)   { sowakeup((so), &(so)->so_rcv); \
               if ((so)->so_upcall) \
                 (*((so)->so_upcall))((so), (so)->so_upcallarg, M_DONTWAIT); \
-                
+
             }
 #else
 
 
-#endif            
+#endif
 
 void    soisconnected(struct tcp_socket *so);
 void    soisconnecting(struct tcp_socket *so);
@@ -138,10 +138,10 @@ void    socantrcvmore(struct tcp_socket *so);
 
 //#define   IN_CLASSD(i)        (((u_int32_t)(i) & 0xf0000000) == 0xe0000000)
 /* send/received as ip/link-level broadcast */
-#define TCP_PKT_M_BCAST     (1ULL << 1) 
+#define TCP_PKT_M_BCAST     (1ULL << 1)
 
 /* send/received as iplink-level multicast */
-#define TCP_PKT_M_MCAST     (1ULL << 2) 
+#define TCP_PKT_M_MCAST     (1ULL << 2)
 #define TCP_PKT_M_B_OR_MCAST    (TCP_PKT_M_BCAST  | TCP_PKT_M_MCAST)
 
 typedef uint8_t tcp_l2_pkt_flags_t ;
@@ -157,7 +157,7 @@ typedef uint8_t tcp_l2_pkt_flags_t ;
 
 
 typedef enum { MO_CONST=17,
-               MO_RW 
+               MO_RW
              } mbuf_types_enum_t;
 
 typedef uint32_t mbuf_types_t;
@@ -169,7 +169,7 @@ public:
     void Dump(FILE *fd);
     void Free(){
         if (m_mbuf) {
-            /*  
+            /*
             can't work with ASTF interactive see https://trex-tgn.cisco.com/youtrack/issue/trex-537
             rte_mbuf_set_as_core_multi(m_mbuf);
             assert(rte_mbuf_refcnt_read(m_mbuf)==1);
@@ -215,8 +215,8 @@ public:
     void Delete();
 
     /**
-     * the blocks must be in the same size 
-     * 
+     * the blocks must be in the same size
+     *
      * @param obj
      */
     void Add_mbuf(CMbufObject & obj);
@@ -226,10 +226,10 @@ public:
 
     /**
      * return pointer of mbuf in offset and res size
-     * 
+     *
      * @param offset
      * @param res
-     * 
+     *
      */
     void get_by_offset(uint32_t offset,CBufMbufRef & res);
 
@@ -240,7 +240,7 @@ public:
     vec_mbuf_t   m_vec;
     uint32_t     m_num_pkt;      // number of packet in the vector, for speed can be taken from vec.size()
     uint32_t     m_blk_size;     // the size of each mbuf ( maximum , except the last block */
-    uint32_t     m_t_bytes;      // the total bytes in all mbufs 
+    uint32_t     m_t_bytes;      // the total bytes in all mbufs
 };
 
 
@@ -260,12 +260,12 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcCONNECT_WAIT          =6,   /* wait for the connection, should be the first command */
                tcDELAY_RAND            =7,   /* delay random min-max*/
                tcSET_VAR               =8,   /* set value to var */
-               tcJMPNZ                 =9,   /* jump in case var in not zero */           
-               tcTX_PKT                =10,  /* UDP send packet */ 
+               tcJMPNZ                 =9,   /* jump in case var in not zero */
+               tcTX_PKT                =10,  /* UDP send packet */
                tcRX_PKT                =11,  /* check # pkts */
                tcKEEPALIVE             =12,  /* set keep alive */
-               tcCLOSE_PKT             =13,  /* close connection for udp */ 
-               tcTX_MODE               =14,  /* TCP send mode, block, none block */ 
+               tcCLOSE_PKT             =13,  /* close connection for udp */
+               tcTX_MODE               =14,  /* TCP send mode, block, none block */
 
 
                tcNO_CMD                =255  /* explicit reset */
@@ -362,8 +362,8 @@ struct CEmulAppCmd {
         CEmulAppCmdSetVar    m_var;
         CEmulAppCmdJmpNZ     m_jmpnz;
         CEmulAppCmdTxPkt     m_tx_pkt;
-        CEmulAppCmdRxPkt     m_rx_pkt;   
-        CEmulAppCmdKeepAlive m_keepalive;   
+        CEmulAppCmdRxPkt     m_rx_pkt;
+        CEmulAppCmdKeepAlive m_keepalive;
 
     } u;
 public:
@@ -417,7 +417,7 @@ public:
 class  CEmulAppProgram {
 
 public:
-    ~CEmulAppProgram(){ 
+    ~CEmulAppProgram(){
         m_cmds.clear();
         m_stream=true;
     }
@@ -448,15 +448,15 @@ private:
 
 private:
     bool                   m_stream;
-    tcp_app_cmd_list_t     m_cmds; 
+    tcp_app_cmd_list_t     m_cmds;
 };
 
 
 
-typedef enum { te_SOISCONNECTING  =17,   
-               te_SOISCONNECTED,      
-               te_SOCANTRCVMORE,      
-               te_SOABORT     ,       
+typedef enum { te_SOISCONNECTING  =17,
+               te_SOISCONNECTED,
+               te_SOCANTRCVMORE,
+               te_SOABORT     ,
                te_SOWWAKEUP   ,
                te_SORWAKEUP   ,
                te_SOISDISCONNECTING,
@@ -470,10 +470,10 @@ typedef uint8_t tcp_app_events_t;
 std::string get_tcp_app_events_name(tcp_app_events_t event);
 
 
-typedef enum { te_NONE     =0,    
-               te_SEND     =17, /* sending trafic task could be long*/   
-               te_WAIT_RX  =18, /* wait for traffic to be Rx */     
-               te_DELAY    =19,      
+typedef enum { te_NONE     =0,
+               te_SEND     =17, /* sending trafic task could be long*/
+               te_WAIT_RX  =18, /* wait for traffic to be Rx */
+               te_DELAY    =19,
 } tcp_app_state_enum_t;
 
 typedef uint8_t tcp_app_state_t;
@@ -501,7 +501,7 @@ public:
     }
 
     void get_by_offset(uint32_t offset,CBufMbufRef & res);
-    
+
     bool on_bh_tx_acked(uint32_t tx_bytes,
                         uint32_t & tx_residue,
                         bool is_zero
@@ -600,7 +600,7 @@ public:
         return ((m_flags &taINTERRUPT)?true:false);
     }
 
-    
+
     void set_rx_clear(bool enable){
         if (enable){
             m_flags|=taDO_RX_CLEAR;
@@ -631,7 +631,7 @@ public:
     bool is_log_enable(){
         return ((m_flags &taLOG_ENABLE)?true:false);
     }
-    
+
 
     bool get_rx_clear(){
         return ((m_flags &taDO_RX_CLEAR)?true:false);
@@ -775,7 +775,7 @@ public:
 
     virtual void on_bh_event(tcp_app_events_t event);
 
-    virtual void do_disconnect(); 
+    virtual void do_disconnect();
 
     virtual void do_close();
 
@@ -840,7 +840,7 @@ private:
     /* cache line 0 */
     CTcpFlow *              m_flow;
     CPerProfileCtx *        m_pctx;
-    CEmulAppApi *           m_api; 
+    CEmulAppApi *           m_api;
 
     CEmulTxQueue            m_q;
 
@@ -917,7 +917,7 @@ public:
  * private data and error information.
  */
 struct tcp_socket {
-    short   so_options; 
+    short   so_options;
     int     so_error;
     int     so_state;
 /*

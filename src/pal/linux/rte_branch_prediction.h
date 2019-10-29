@@ -40,11 +40,11 @@
 #define _RTE_BRANCH_PREDICTION_H_
 
 #ifndef likely
-#define likely(x) 
+#define likely(x)
 #endif /* likely */
 
 #ifndef unlikely
-#define unlikely(x)  
+#define unlikely(x)
 #endif /* unlikely */
 
 #endif /* _RTE_BRANCH_PREDICTION_H_ */

@@ -60,9 +60,9 @@ class TrexRpcComponent;
 
 
 /**
- * open (no API) commands 
- * no commands should be here besides API sync 
- * and ping 
+ * open (no API) commands
+ * no commands should be here besides API sync
+ * and ping
  */
 #define TREX_RPC_CMD_NOAPI(class_name, cmd_name)           TREX_RPC_CMD_DEFINE_EXTENDED(class_name, cmd_name, false, false, ;)
 
@@ -75,52 +75,52 @@ public:
 
     /**
      * init the RPC configuration
-     * 
+     *
      */
     void init(const std::string &name, int major, int minor) {
         m_name  = name;
         m_major = major;
         m_minor = minor;
-        
+
         m_api_handler = utl_generate_random_str(8);
     }
-    
-    
+
+
     /**
-     * verifies RPC configuration and version 
-     *  
-     * on success, will return a special handler 
-     * on error will throw exception 
+     * verifies RPC configuration and version
+     *
+     * on success, will return a special handler
+     * on error will throw exception
      */
     const std::string & verify(const std::string &name, int major, int minor) const {
         std::stringstream ss;
-        
+
         bool fail = false;
 
         if (name != m_name) {
             ss << "RPC configuration mismatch - server RPC configuration: '" << m_name << "', client RPC configuration: '" << name << "'";
             throw TrexRpcException(ss.str());
         }
-        
+
         if (major < m_major) {
             ss << "RPC version mismatch: a newer client version is required";
             fail = true;
-            
+
         } else if (major > m_major) {
             ss << "Version mismatch: your client version is too new to be supported by the server";
             fail = true;
-            
+
         } else if (minor > m_minor) {
             ss << "Version mismatch: your client version is too new to be supported by the server";
             fail = true;
-            
+
         }
 
         if (fail) {
             ss << "\n(";
             ss <<  "API type '" << m_name << "': "" - server: '" << get_server_ver() << "', client: '" << ver(major, minor) << "'";
             ss << ")";
-            
+
             throw TrexRpcException(ss.str());
         }
 
@@ -136,7 +136,7 @@ public:
     const std::string & get_name() const {
         return m_name;
     }
-    
+
 private:
 
     std::string ver(int major, int minor) const {
@@ -152,7 +152,7 @@ private:
     std::string    m_name;
     int            m_major;
     int            m_minor;
-    
+
     /* a unique API handler */
     std::string    m_api_handler;
 };
@@ -160,64 +160,64 @@ private:
 /********************************* RPC Component *********************************/
 
 /**
- * an interface for creating a 
- * group of cmds 
- * 
+ * an interface for creating a
+ * group of cmds
+ *
  * @author imarom (8/23/2017)
  */
 class TrexRpcComponent {
 public:
-    
+
     TrexRpcComponent(const std::string &name) {
         m_name         = name;
         m_rpc_api_ver  = NULL;
     }
-    
-    
+
+
     ~TrexRpcComponent();
-    
+
     /**
      * called the RPC table to set the API handler
-     * 
+     *
      */
     void set_rpc_api_ver(const TrexRpcAPIVersion *rpc_api_ver) {
         m_rpc_api_ver = rpc_api_ver;
     }
 
-    
+
     /**
      * returns the API version/config related to this component
-     * 
+     *
      */
     const TrexRpcAPIVersion *get_rpc_api_ver() const {
         return m_rpc_api_ver;
     }
-    
-        
+
+
     /**
      * returns the name of the component
-     * 
+     *
      */
     const std::string &get_name() const {
         return m_name;
     }
 
-    
+
     /**
-     * returns a vector of all the RPC commands 
-     * under the component 
-     *  
+     * returns a vector of all the RPC commands
+     * under the component
+     *
      */
     const std::vector<TrexRpcCommand *> &get_rpc_cmds() {
         return m_cmds;
     }
-    
-    
+
+
 protected:
     std::string                      m_name;
     std::vector<TrexRpcCommand *>    m_cmds;
     const TrexRpcAPIVersion         *m_rpc_api_ver;
-    
+
 };
 
 
@@ -236,7 +236,7 @@ typedef enum trex_rpc_cmd_rc_ {
 
 /**
  * simple exception for RPC command processing
- * 
+ *
  * @author imarom (23-Aug-15)
  */
 class TrexRpcCommandException : public TrexRpcException {
@@ -265,7 +265,7 @@ protected:
 
 /**
  * interface for RPC command
- * 
+ *
  * @author imarom (13-Aug-15)
  */
 class TrexRpcCommand {
@@ -281,7 +281,7 @@ public:
 
     /**
      * entry point for executing RPC command
-     * 
+     *
      */
     trex_rpc_cmd_rc_e run(const Json::Value &params, Json::Value &result);
 
@@ -291,9 +291,9 @@ public:
 
     /**
      * on test we enable this override
-     * 
-     * 
-     * @param enable 
+     *
+     *
+     * @param enable
      */
     static void test_set_override_ownership(bool enable) {
         g_test_override_ownership = enable;
@@ -326,19 +326,19 @@ protected:
 
     /**
      * implemented by the dervied class
-     * 
+     *
      */
     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result) = 0;
 
     /**
      * verify API handler
-     * 
+     *
      */
     void verify_api_handler(const Json::Value &params, Json::Value &result);
 
     /**
      * verify ownership
-     * 
+     *
      */
     virtual void verify_ownership(const Json::Value &params, Json::Value &result);
 
@@ -349,13 +349,13 @@ protected:
 
     /**
      * validate port id
-     * 
+     *
      */
     void validate_port_id(uint8_t port_id, Json::Value &result);
 
     /**
      * parse functions
-     * 
+     *
      */
     template<typename T> uint8_t parse_byte(const Json::Value &parent, const T &param, Json::Value &result) {
         check_field_type(parent, param, FIELD_TYPE_BYTE, result);
@@ -418,7 +418,7 @@ protected:
         return parent[param];
     }
 
-   
+
     /**
      * parse with defaults
      */
@@ -523,8 +523,8 @@ protected:
     std::string parse_profile(const Json::Value &params, Json::Value &result, std::string default_value = "_" );
 
     /**
-     * parse a field from choices 
-     * 
+     * parse a field from choices
+     *
      */
     template<typename T> T parse_choice(const Json::Value &params, const std::string &name, const std::initializer_list<T> choices, Json::Value &result) {
         const Json::Value &field = params[name];
@@ -562,7 +562,7 @@ protected:
 
     /**
      * check field type
-     * 
+     *
      */
     void check_field_type(const Json::Value &parent, const std::string &name, field_type_e type, Json::Value &result);
     void check_field_type(const Json::Value &parent, int index, field_type_e type, Json::Value &result);
@@ -572,39 +572,39 @@ protected:
 
     /**
      * error generating functions
-     * 
+     *
      */
     void generate_parse_err(Json::Value &result, const std::string &msg);
 
 
     /**
      * method execute error
-     * 
+     *
      */
     void generate_execute_err(Json::Value &result, const std::string &msg);
 
     /**
      * internal error
-     * 
+     *
      */
     void generate_internal_err(Json::Value &result, const std::string &msg);
 
     /**
      * try again same command later, can't handle it now
-     * 
+     *
      */
     void generate_try_again(Json::Value &result, const std::string &msg);
     void generate_try_again(Json::Value &result);
 
     /**
      * async: wip, continues polling for status
-     * 
+     *
      */
     void generate_async_wip(Json::Value &result, uint64_t ticket_id);
 
     /**
      * async: no results (got wiped by aging?)
-     * 
+     *
      */
     void generate_async_no_results(Json::Value &result, const std::string &msg);
     void generate_async_no_results(Json::Value &result);
@@ -612,13 +612,13 @@ protected:
 
     /**
      * translate enum to string
-     * 
+     *
      */
     const char * type_to_str(field_type_e type);
 
     /**
      * translate JSON values to string
-     * 
+     *
      */
     const char * json_type_to_name(const Json::Value &value);
 
@@ -626,10 +626,10 @@ protected:
     std::string        m_name;
     bool               m_needs_ownership;
     bool               m_needs_api;
-    
+
     /* back pointer to the component */
     TrexRpcComponent  *m_component;
-    
+
     /* for debug */
     static bool        g_test_override_ownership;
     static bool        g_test_override_api;

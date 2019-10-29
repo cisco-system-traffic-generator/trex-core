@@ -30,7 +30,7 @@ class CPortLatencyHWBase;
 
 /**
  * general SL cfg
- * 
+ *
  */
 class CRxSlCfg {
  public:
@@ -42,17 +42,17 @@ class CRxSlCfg {
         m_tx_cores  = tx_cores;
         m_ports = ports;
     }
-    
+
  public:
     uint32_t                            m_tx_cores;
     std::unordered_map<uint8_t, CPortLatencyHWBase *>   m_ports;
 };
 
 /**
- * describes the filter type applied to the RX 
+ * describes the filter type applied to the RX
  *  RX_FILTER_MODE_HW - only hardware filtered traffic will
  *  reach the RX core
- *  
+ *
  */
 typedef enum rx_filter_mode_ {
     RX_FILTER_MODE_HW,
@@ -63,57 +63,57 @@ typedef enum rx_filter_mode_ {
 class CRXCoreIgnoreStat;
 
 /**
- * RX core interface - used by both stateful RX core and 
- * STL/ASTF RX core 
- * 
+ * RX core interface - used by both stateful RX core and
+ * STL/ASTF RX core
+ *
  */
 class TrexRxCore {
 public:
 
     virtual ~TrexRxCore(){}
-    
-    
+
+
     /**
      * start the RX core
      * should be called from the RX thread
      */
     virtual void start() = 0;
-    
-    
+
+
     /**
      * return true if RX core is active
-     * 
+     *
      */
     virtual bool is_active() = 0;
-    
-    
+
+
     /**
-     * updates the RX core CPU util. 
-     * (called from master) 
-     * 
+     * updates the RX core CPU util.
+     * (called from master)
+     *
      */
     virtual void update_cpu_util() = 0;
-    
-    
+
+
     /**
      * get current CPU util.
-     * 
+     *
      */
     virtual double get_cpu_util() = 0;
-    
-    
+
+
     /**
      * RX core PPS rate
-     * 
+     *
      */
     virtual float get_pps_rate() = 0;
-    
-    
+
+
     /**
      * get ignored stats
      */
     virtual void get_ignore_stats(int port_id, CRXCoreIgnoreStat &ign_stats, bool get_diff) = 0;
-    
+
 };
 
 #endif /* __TREX_STATELESS_RX_DEFS_H__ */

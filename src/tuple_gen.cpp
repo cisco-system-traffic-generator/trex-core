@@ -94,12 +94,12 @@ void CClientPool::Create(IP_DIST_t       dist_value,
 
     m_tcp_aging = tcp_aging;
     m_udp_aging = udp_aging;
-    CreateBase(); 
+    CreateBase();
 }
 
 
-/* base on thread_id and client_index 
-  client index would be the same for all thread 
+/* base on thread_id and client_index
+  client index would be the same for all thread
 */
 static uint16_t generate_rand_sport(uint32_t client_index,
                                     uint16_t threadid,
@@ -120,12 +120,12 @@ static uint16_t generate_rand_sport(uint32_t client_index,
 
 /**
  * simple allocation of a client - no configuration was provided
- * 
+ *
  * @author imarom (27-Jun-16)
- * 
- * @param ip 
- * @param index 
- * @param is_long_range 
+ *
+ * @param ip
+ * @param index
+ * @param is_long_range
  */
 void CClientPool::allocate_simple_clients(uint32_t  min_ip,
                                           uint32_t  total_ip,
@@ -170,12 +170,12 @@ void CClientPool::configure_client(uint32_t indx){
 
 /**
  * simple allocation of a client - no configuration was provided
- * 
+ *
  * @author imarom (27-Jun-16)
- * 
- * @param ip 
- * @param index 
- * @param is_long_range 
+ *
+ * @param ip
+ * @param index
+ * @param is_long_range
  */
 void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                                               uint32_t        total_ip,
@@ -235,7 +235,7 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
                                           bool is_bundling){
     assert(max_server>=min_server);
     CServerPoolBase* pool;
-    if (is_bundling) 
+    if (is_bundling)
         pool = new CServerPool();
     else
         pool = new CServerPoolSimple();
@@ -251,7 +251,7 @@ bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,
 
 bool CTupleGeneratorSmart::Create(uint32_t _id,
                                   uint32_t thread_id)
-                                  
+
 {
     m_thread_id     = thread_id;
     m_id = _id;
@@ -363,7 +363,7 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
         printf(" ERROR The ip_start must be bigger than ip_end \n");
         return(false);
     }
-    
+
     uint32_t ips= (m_ip_end - m_ip_start +1);
     if ( ips < num_threads ) {
         printf(" ERROR The number of ips should be at least number of threads %d \n",num_threads);
@@ -379,11 +379,11 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
 
 #define UTL_YAML_READ(type, field, target) if (node.FindValue(#field)) { \
     utl_yaml_read_ ## type (node, #field , target); \
-    } else { printf("generator definition mising " #field "\n"); } 
+    } else { printf("generator definition mising " #field "\n"); }
 
 #define UTL_YAML_READ_NO_MSG(type, field, target) if (node.FindValue(#field)) { \
     utl_yaml_read_ ## type (node, #field , target); \
-    } 
+    }
 
 IP_DIST_t convert_distribution (const YAML::Node& node) {
     std::string tmp;
@@ -413,8 +413,8 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
         assert(0);
     }
     if (node.FindValue("distribution")) {
-        fi.m_dist = convert_distribution(node); 
-    } 
+        fi.m_dist = convert_distribution(node);
+    }
     UTL_YAML_READ(ip_addr, ip_start, fi.m_ip_start);
     UTL_YAML_READ(ip_addr, ip_end, fi.m_ip_end);
 
@@ -448,9 +448,9 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
 
     CTupleGenPoolYaml c_pool;
     CTupleGenPoolYaml s_pool;
-    
+
     if (node.FindValue("distribution")) {
-        c_pool.m_dist = convert_distribution(node); 
+        c_pool.m_dist = convert_distribution(node);
         s_pool.m_dist = c_pool.m_dist;
         UTL_YAML_READ(ip_addr, clients_start, c_pool.m_ip_start);
         UTL_YAML_READ(ip_addr, clients_end, c_pool.m_ip_end);
@@ -465,7 +465,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     } else {
         printf("No default generator defined.\n");
     }
-    
+
     if (node.FindValue("generator_clients")) {
         const YAML::Node& c_pool_info = node["generator_clients"];
         for (uint16_t idx=0;idx<c_pool_info.size();idx++) {
@@ -478,7 +478,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         }
     } else {
         printf("no client generator pool configured, using default pool\n");
-    } 
+    }
 
     if (fi.m_client_pool.size() >= CS_MAX_POOLS) {
         printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_client_pool.size(),(ulong)CS_MAX_POOLS);
@@ -497,7 +497,7 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         }
     } else {
         printf("no server generator pool configured, using default pool\n");
-    } 
+    }
 
     if (fi.m_server_pool.size() >= CS_MAX_POOLS) {
         printf(" ERROR pool_size: %lu is bigger than maximum %lu \n",(ulong)fi.m_server_pool.size(),(ulong)CS_MAX_POOLS);
@@ -508,11 +508,11 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
 
 bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){
     for (int i=0;i<m_client_pool.size();i++) {
-        if (m_client_pool[i].is_valid(num_threads, is_plugins)==false) 
+        if (m_client_pool[i].is_valid(num_threads, is_plugins)==false)
             return false;
     }
     for (int i=0;i<m_server_pool.size();i++) {
-        if (m_server_pool[i].is_valid(num_threads, is_plugins)==false) 
+        if (m_server_pool[i].is_valid(num_threads, is_plugins)==false)
             return false;
     }
 
@@ -523,8 +523,8 @@ bool CTupleGenYamlInfo::is_valid(uint32_t num_threads,bool is_plugins){
 /* split the clients and server by dual_port_id and thread_id ,
   clients is splited by threads and dual_port_id
   servers is spliteed by dual_port_id */
-void split_ips(uint32_t thread_id, 
-               uint32_t total_threads, 
+void split_ips(uint32_t thread_id,
+               uint32_t total_threads,
                uint32_t dual_port_id,
                CTupleGenPoolYaml& poolinfo,
                CIpPortion & portion){
@@ -534,7 +534,7 @@ void split_ips(uint32_t thread_id,
     assert(chunks>0);
 
     uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
-    
+
     portion.m_ip_start  = poolinfo.get_ip_start()  + thread_id*chunks + dual_if_mask;
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
@@ -542,10 +542,10 @@ void split_ips(uint32_t thread_id,
 
 /* split in way that each core will get continues range of ip's */
 
-void split_ips_v2( uint32_t total_threads, 
+void split_ips_v2( uint32_t total_threads,
                    uint32_t rss_thread_id,
                    uint32_t rss_max_threads,
-                   uint32_t max_dual_ports, 
+                   uint32_t max_dual_ports,
                    uint32_t dual_port_id,
                    CTupleGenPoolYaml& poolinfo,
                    CIpPortion & portion){

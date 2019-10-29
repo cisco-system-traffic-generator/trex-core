@@ -29,7 +29,7 @@ limitations under the License.
 
 /**
  * generic exception for RPC errors
- * 
+ *
  */
 class TrexRpcException : public TrexException {
 

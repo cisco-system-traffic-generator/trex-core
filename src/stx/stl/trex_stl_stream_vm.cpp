@@ -1,6 +1,6 @@
 /*
  Itay Marom
- Hanoch Haim 
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -35,22 +35,22 @@ limitations under the License.
 
 
 /**
- * provides some tools for the fast rand function 
- * that is used by the datapath 
- * some features of this function is different 
- * from a regular random 
- * (such as average can be off by few percents) 
- * 
+ * provides some tools for the fast rand function
+ * that is used by the datapath
+ * some features of this function is different
+ * from a regular random
+ * (such as average can be off by few percents)
+ *
  * @author imarom (7/24/2016)
  */
 class FastRandUtils {
 public:
 
     /**
-     * searches the target in the cache 
-     * if not found iterativly calculate it 
-     * and add it to the cache 
-     * 
+     * searches the target in the cache
+     * if not found iterativly calculate it
+     * and add it to the cache
+     *
      */
     double calc_fastrand_avg(uint16_t target) {
         auto search = m_avg_cache.find(target);
@@ -73,7 +73,7 @@ private:
 
     /**
      * hard calculate a value using iterations
-     * 
+     *
      */
     double iterate_calc(uint16_t target) {
          const int num_samples = 10000;
@@ -137,7 +137,7 @@ void StreamVmInstructionFlowMan::sanity_check_valid_opt(uint32_t ins_id,StreamVm
 }
 
 void StreamVmInstructionFlowMan::sanity_check_valid_range(uint32_t ins_id,StreamVm *lp){
-    //TBD check that init,min,max in valid range 
+    //TBD check that init,min,max in valid range
 }
 
 
@@ -177,7 +177,7 @@ void StreamVmInstructionFlowMan::sanity_check(uint32_t ins_id,StreamVm *lp){
 
 void StreamVmInstructionFlowRandLimit::Dump(FILE *fd){
     fprintf(fd," flow_var_rand_limit  , %s ,%lu,   ",m_var_name.c_str(),(ulong)m_size_bytes);
-    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d, has_previous %d ",m_limit,(ulong)m_size_bytes,(ulong)m_seed, 
+    fprintf(fd," (%lu:%lu:%lu) (min:%lu,max:%lu), is_split_needed:%d, has_previous %d ",m_limit,(ulong)m_size_bytes,(ulong)m_seed,
                                     m_min_value,m_max_value, m_is_split_needed, m_has_previous);
     fprintf(fd, "next_var: %s\n", m_next_var_name.c_str());
 }
@@ -276,7 +276,7 @@ void StreamVmInstructionFlowMan::Dump(FILE *fd){
     fprintf(fd," flow_var  , %s ,%lu,  ",m_var_name.c_str(),(ulong)m_size_bytes);
 
     switch (m_op) {
-    
+
     case FLOW_VAR_OP_INC :
         fprintf(fd," INC    ,");
         break;
@@ -342,7 +342,7 @@ uint8_t StreamVmInstructionFlowClient::set_bss_init_value(uint8_t *p) {
 
 /***************************
  * StreamVmInstruction
- * 
+ *
  **************************/
 StreamVmInstruction::~StreamVmInstruction() {
 
@@ -350,10 +350,10 @@ StreamVmInstruction::~StreamVmInstruction() {
 
 /***************************
  * StreamVm
- * 
+ *
  **************************/
 void StreamVm::add_instruction(StreamVmInstruction *inst) {
-    
+
     if (inst->get_instruction_type() == StreamVmInstruction::itFLOW_MAN) {
         StreamVmInstructionFlowMan * ins_man=(StreamVmInstructionFlowMan *)inst;
         if (ins_man->m_op == StreamVmInstructionFlowMan::FLOW_VAR_OP_RANDOM) {
@@ -378,7 +378,7 @@ StreamVm::get_dp_instruction_buffer(){
 }
 
 
-const std::vector<StreamVmInstruction *> & 
+const std::vector<StreamVmInstruction *> &
 StreamVm::get_instruction_list() {
     return m_inst_list;
 }
@@ -447,7 +447,7 @@ void StreamVm::build_flow_var_table() {
             ins_man->sanity_check(ins_id,this);
 
             VmFlowVarRec var;
-            /* if this is the first time */ 
+            /* if this is the first time */
             if ( var_lookup( ins_man->m_var_name,var) == true){
                 std::stringstream ss;
                 ss << "instruction id '" << ins_id << "' flow variable name " << ins_man->m_var_name << " already exists";
@@ -471,7 +471,7 @@ void StreamVm::build_flow_var_table() {
             ins_man->sanity_check(ins_id,this);
 
             VmFlowVarRec var;
-            /* if this is the first time */ 
+            /* if this is the first time */
             if ( var_lookup( ins_man->m_var_name,var) == true){
                 std::stringstream ss;
                 ss << "instruction id '" << ins_id << "' flow variable name " << ins_man->m_var_name << " already exists";
@@ -491,7 +491,7 @@ void StreamVm::build_flow_var_table() {
             StreamVmInstructionFlowClient * ins_man=(StreamVmInstructionFlowClient *)inst;
 
             VmFlowVarRec var;
-            /* if this is the first time */ 
+            /* if this is the first time */
             if ( var_lookup( ins_man->m_var_name+".ip",var) == true){
                 std::stringstream ss;
                 ss << "instruction id '" << ins_id << "' client variable name " << ins_man->m_var_name << " already exists";
@@ -530,7 +530,7 @@ void StreamVm::build_flow_var_table() {
             var_add(ins_man->m_var_name+".port",var_port);
             var_add(ins_man->m_var_name+".flow_limit",var_flow_limit);
 
-            m_cur_var_offset += StreamVmInstructionFlowClient::get_flow_var_size(); 
+            m_cur_var_offset += StreamVmInstructionFlowClient::get_flow_var_size();
 
             assert(sizeof(StreamDPFlowClient)==StreamVmInstructionFlowClient::get_flow_var_size());
         }
@@ -756,7 +756,7 @@ void StreamVm::build_program(){
                             ss << "instruction id '" << ins_id << "' fix hw command IPv4 header size is not valid  " << ipv4->getSize() ;
                             err(ss.str());
                         }
-                        if ( !((ipv4->getNextProtocol() == IPHeader::Protocol::TCP) || 
+                        if ( !((ipv4->getNextProtocol() == IPHeader::Protocol::TCP) ||
                               (ipv4->getNextProtocol() == IPHeader::Protocol::UDP) ) ) {
                             std::stringstream ss;
                             ss << "instruction id '" << ins_id << "' fix hw command L4 should be TCP or UDP  " << ipv4->getSize() ;
@@ -1261,7 +1261,7 @@ void StreamVm::build_program(){
                 client_cmd.m_min_port    = lpMan->m_port.m_min_value;
                 client_cmd.m_max_port    = lpMan->m_port.m_max_value;
                 client_cmd.m_step_port   = lpMan->m_port.m_step;
-                
+
                 client_cmd.m_min_ip      = lpMan->m_ip.m_min_value;
                 client_cmd.m_max_ip      = lpMan->m_ip.m_max_value;
                 client_cmd.m_step_ip     = lpMan->m_ip.m_step;
@@ -1331,12 +1331,12 @@ void StreamVm::build_bss() {
 
 /**
  * clone VM from this VM to 'other'
- * 
+ *
  * @author imarom (22-Dec-15)
- * 
- * @param other 
+ *
+ * @param other
  */
-void 
+void
 StreamVm::clone(StreamVm &other) const {
     /* clear previous if any exists */
     for (auto instr : other.m_inst_list) {
@@ -1358,7 +1358,7 @@ StreamVm::clone(StreamVm &other) const {
 
 /**
  * actual work - compile the VM
- * 
+ *
  */
 void StreamVm::compile(uint16_t pkt_len) {
 
@@ -1392,13 +1392,13 @@ void StreamVm::compile(uint16_t pkt_len) {
 StreamVm::~StreamVm() {
     for (auto inst : m_inst_list) {
         delete inst;
-    }          
+    }
     free_bss();
 }
 
 /**
  * calculate packet len data (min, max, expected size) of stream's VM
- * 
+ *
  */
 void StreamVm::calc_pkt_len_data(uint16_t regular_pkt_size, TrexStreamPktLenData &pkt_len_data) const {
 
@@ -1423,10 +1423,10 @@ void StreamVm::calc_pkt_len_data(uint16_t regular_pkt_size, TrexStreamPktLenData
     pkt_len_data = dummy.m_pkt_len_data;
 }
 
-/** 
-* return a pointer to a flow var / client var 
-* by name if exists, otherwise NULL 
-* 
+/**
+* return a pointer to a flow var / client var
+* by name if exists, otherwise NULL
+*
 */
 StreamVmInstructionVar *
 StreamVm::lookup_var_by_name(const std::string &var_name) {
@@ -1586,25 +1586,25 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             p+=sizeof(StreamDPOpPktWr32);
             break;
 
-        case  itPKT_WR64 :      
+        case  itPKT_WR64 :
             lpw64 =(StreamDPOpPktWr64 *)p;
             lpw64->dump(fd,"Wr64");
             p+=sizeof(StreamDPOpPktWr64);
             break;
 
-        case  itCLIENT_VAR :      
+        case  itCLIENT_VAR :
             lp_client =(StreamDPOpClientsLimit *)p;
             lp_client->dump(fd,"Client");
             p+=sizeof(StreamDPOpClientsLimit);
             break;
 
-        case  itCLIENT_VAR_UNLIMIT :      
+        case  itCLIENT_VAR_UNLIMIT :
             lp_client_unlimited =(StreamDPOpClientsUnLimit *)p;
             lp_client_unlimited->dump(fd,"ClientUnlimted");
             p+=sizeof(StreamDPOpClientsUnLimit);
             break;
 
-        case  itPKT_SIZE_CHANGE :      
+        case  itPKT_SIZE_CHANGE :
             lp_pkt_size_change =(StreamDPOpPktSizeChange *)p;
             lp_pkt_size_change->dump(fd,"pkt_size_c");
             p+=sizeof(StreamDPOpPktSizeChange);
@@ -1646,37 +1646,37 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             lpv32s->dump(fd,"DEC32_STEP");
             p+=sizeof(StreamDPOpFlowVar32Step) + lpv32s->get_sizeof_list();
             break;
-        case  ditDEC64_STEP :  
+        case  ditDEC64_STEP :
             lpv64s =(StreamDPOpFlowVar64Step *)p;
             lpv64s->dump(fd,"DEC64_STEP");
             p+=sizeof(StreamDPOpFlowVar64Step) + lpv64s->get_sizeof_list();
             break;
 
-        case  itPKT_WR_MASK :  
+        case  itPKT_WR_MASK :
             lpwrmask =(StreamDPOpPktWrMask *)p;
             lpwrmask->dump(fd,"WR_MASK");
             p+=sizeof(StreamDPOpPktWrMask);
             break;
 
-        case  ditRAND_LIMIT8 :  
+        case  ditRAND_LIMIT8 :
             lpv_rl8 =(StreamDPOpFlowRandLimit8 *)p;
             lpv_rl8->dump(fd,"RAND_LIMIT8");
             p+=sizeof(StreamDPOpFlowRandLimit8);
             break;
 
-        case  ditRAND_LIMIT16 :  
+        case  ditRAND_LIMIT16 :
             lpv_rl16 =(StreamDPOpFlowRandLimit16 *)p;
             lpv_rl16->dump(fd,"RAND_LIMIT16");
             p+=sizeof(StreamDPOpFlowRandLimit16);
             break;
 
-        case  ditRAND_LIMIT32 :  
+        case  ditRAND_LIMIT32 :
             lpv_rl32 =(StreamDPOpFlowRandLimit32 *)p;
             lpv_rl32->dump(fd,"RAND_LIMIT32");
             p+=sizeof(StreamDPOpFlowRandLimit32);
             break;
 
-        case  ditRAND_LIMIT64 :  
+        case  ditRAND_LIMIT64 :
             lpv_rl64 =(StreamDPOpFlowRandLimit64 *)p;
             lpv_rl64->dump(fd,"RAND_LIMIT64");
             p+=sizeof(StreamDPOpFlowRandLimit64);
@@ -1785,7 +1785,7 @@ void StreamDPOpPktWrMask::wr(uint8_t * flow_var_base,
             val=(*((uint32_t*)pv));
             break;
         default:
-          assert(0);    
+          assert(0);
         }
 
         val+=m_add_value;
@@ -1808,41 +1808,41 @@ void StreamDPOpPktWrMask::wr(uint8_t * flow_var_base,
             switch (m_pkt_cast_size) {
             case 1:
                 pkt_val= (uint32_t)(*((uint8_t*)p_pkt));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;
                 *p_pkt=pkt_val;
                 break;
             case 2:
                 pkt_val= (uint32_t)PKT_NTOHS((*((uint16_t*)p_pkt)));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;
                 *((uint16_t*)p_pkt)=PKT_NTOHS(pkt_val);
                 break;
             case 4:
                 pkt_val= (uint32_t)PKT_NTOHL((*((uint32_t*)p_pkt)));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;
                 *((uint32_t*)p_pkt)=PKT_NTOHL(pkt_val);
                 break;
             default:
-              assert(0);    
+              assert(0);
             }
         }else{
             switch (m_flowv_cast_size) {
             case 1:
                 pkt_val= (uint32_t)(*((uint8_t*)p_pkt));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xff;
                 *p_pkt=pkt_val;
                 break;
             case 2:
                 pkt_val= (uint32_t)(*((uint16_t*)p_pkt));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) & 0xffff;
                 *((uint16_t*)p_pkt)=pkt_val;
                 break;
             case 4:
                 pkt_val= (uint32_t)(*((uint32_t*)p_pkt));
-                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;   
+                pkt_val = ((pkt_val & ~m_mask) | (val & m_mask)) ;
                 *((uint32_t*)p_pkt)=pkt_val;
                 break;
             default:
-              assert(0);    
+              assert(0);
             }
         }
 }

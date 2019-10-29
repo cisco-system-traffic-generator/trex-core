@@ -26,7 +26,7 @@ limitations under the License.
 /**
  * split a specific stream's VM to multiple cores
  * number of cores is implied by the size of the vector
- * 
+ *
  */
 void
 TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams) {
@@ -62,7 +62,7 @@ TrexVmSplitter::split(TrexStream *stream, std::vector<TrexStream *> core_streams
         for (TrexStream *core_stream : *m_core_streams) {
             core_stream->m_cache_size = cache_per_core;
             if (leftover) {
-                core_stream->m_cache_size+=1; 
+                core_stream->m_cache_size+=1;
                 leftover-=1;
             }
         }
@@ -117,12 +117,12 @@ TrexVmSplitter::split_internal() {
 
 /**
  * split a flow var instruction
- * 
+ *
  * @author imarom (20-Dec-15)
- * 
- * @param instr 
- * 
- * @return bool 
+ *
+ * @param instr
+ *
+ * @return bool
  */
 void
 TrexVmSplitter::split_flow_var(const StreamVmInstructionVar *src) {

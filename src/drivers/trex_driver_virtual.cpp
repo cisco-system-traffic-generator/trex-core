@@ -198,7 +198,7 @@ CTRexExtendedDriverIxgbevf::CTRexExtendedDriverIxgbevf() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
-    
+
 CTRexExtendedDriverAzure::CTRexExtendedDriverAzure(){
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;;
 }

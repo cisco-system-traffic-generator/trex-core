@@ -23,11 +23,11 @@ limitations under the License.
 
 
 /**
- * a  class for a RC results of batch commands 
- * 
+ * a  class for a RC results of batch commands
+ *
  */
 class TrexStackResultsRC {
-    
+
 public:
     TrexStackResultsRC() {
         m_in_progress =false;
@@ -35,7 +35,7 @@ public:
         m_total_exec_cmds = 0;
         m_total_errs_cmds = 0;
     }
-    
+
 public:
     bool      m_in_progress;
     uint32_t  m_total_cmds;      /* valid in case in_progress is true */
@@ -43,6 +43,6 @@ public:
     uint32_t  m_total_errs_cmds; /* total errors */
 };
 
- 
+
 #endif /* __TREX_STACK_RC_H__ */
 

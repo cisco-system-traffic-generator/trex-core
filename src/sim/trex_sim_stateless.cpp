@@ -78,7 +78,7 @@ static string format_num(double num, const string &suffix = "") {
 }
 
 
-class SimRunException : public std::runtime_error 
+class SimRunException : public std::runtime_error
 {
 public:
     SimRunException() : std::runtime_error("") {
@@ -90,7 +90,7 @@ public:
 
 /**
  * handler for DP to CP messages
- * 
+ *
  * @author imarom (19-Nov-15)
  */
 class DpToCpHandler {
@@ -98,10 +98,10 @@ public:
     virtual void handle(TrexDpToCpMsgBase *msg) = 0;
 };
 
-/************************ 
- * 
+/************************
+ *
  *  stateless sim object
- *  
+ *
 ************************/
 class SimPublisher : public TrexPublisher {
 public:
@@ -122,10 +122,10 @@ public:
     }
 };
 
-/************************ 
- * 
+/************************
+ *
  *  stateless sim object
- *  
+ *
 ************************/
 
 SimStateless::SimStateless() {
@@ -141,15 +141,15 @@ SimStateless::SimStateless() {
     /* override ownership checks */
     TrexRpcCommand::test_set_override_ownership(true);
     TrexRpcCommand::test_set_override_api(true);
-  
+
 }
 
 
 /**
- * on the simulation we first construct CP and then DP 
- * the only way to "assume" which DP will be active during 
- * the run is by checking for pending CP messages on the cores 
- * 
+ * on the simulation we first construct CP and then DP
+ * the only way to "assume" which DP will be active during
+ * the run is by checking for pending CP messages on the cores
+ *
  * @author imarom (8/10/2016)
  */
 void
@@ -165,10 +165,10 @@ SimStateless::find_active_dp_cores() {
 
 void
 SimStateless::init() {
-    
+
     /* message queue init */
     assert(CMsgIns::Ins()->Create(m_dp_core_count));
-    
+
     /* a hack for the simulator - change the DP core count in runtime */
     SimPlatformApi &sim_api = dynamic_cast<SimPlatformApi &>(get_platform_api());
     sim_api.set_dp_core_count(m_dp_core_count);
@@ -176,12 +176,12 @@ SimStateless::init() {
     TrexSTXCfg cfg;
 
     cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr, "");
-    
+
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
-    
+
     cfg.m_rx_cfg.create(1, {{}});
-    
+
     set_stx(new TrexStateless(cfg));
 }
 
@@ -218,13 +218,13 @@ SimStateless::run(const string &json_filename,
 
     find_active_dp_cores();
     run_dp(out_filename);
-    
+
     return 0;
 }
 
 
 SimStateless::~SimStateless() {
-    
+
     if (get_stateless_obj()) {
         delete get_stateless_obj();
         set_stx(NULL);
@@ -240,7 +240,7 @@ SimStateless::~SimStateless() {
 
 /**
  * prepare control plane for test
- * 
+ *
  * @author imarom (28-Dec-15)
  */
 void
@@ -257,11 +257,11 @@ SimStateless::prepare_control_plane() {
 
 /**
  * prepare the data plane for test
- * 
+ *
  */
 void
 SimStateless::prepare_dataplane() {
-    
+
     CGlobalInfo::m_options.m_expected_portd = m_port_count;
     set_op_mode(OP_MODE_STL);
 
@@ -322,7 +322,7 @@ SimStateless::validate_response(const Json::Value &resp) {
             throw SimRunException(ss.str());
         }
     }
-  
+
 }
 
 static inline bool is_debug() {
@@ -363,7 +363,7 @@ SimStateless::show_intro(const std::string &out_filename) {
 
     std::cout << "ports:                    " << m_port_count << "\n";
     std::cout << "cores:                    " << m_dp_core_count << "\n";
-   
+
 
     std::cout << "\nPort Config:\n";
     std::cout << "------------\n\n";
@@ -447,12 +447,12 @@ SimStateless::cleanup() {
         get_stateless_obj()->get_port_by_id(port_id)->stop_traffic();
         get_stateless_obj()->get_port_by_id(port_id)->remove_and_delete_all_streams();
     }
-    
+
     flush_messages();
     CFlowStatRuleMgr::cleanup();
 }
 
-uint64_t 
+uint64_t
 SimStateless::get_limit_per_core(int core_index) {
     /* global no limit ? */
     if (m_limit == 0) {
@@ -475,7 +475,7 @@ SimStateless::run_dp_core(int core_index,
     CFlowGenListPerThread *lpt = m_fl.m_threads_info[core_index];
 
     lpt->start_sim((std::string)out_filename, CGlobalInfo::m_options.preview, get_limit_per_core(core_index));
-    
+
     flush_dp_to_cp_messages_core(core_index);
 
     /* core */

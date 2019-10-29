@@ -24,9 +24,9 @@
 
 /**
  * create a new queue with a capacity
- * 
+ *
  * @author imarom (8/20/2017)
- *  
+ *
  */
 void
 TXQueue::create(CRxCore *rx, uint32_t capacity) {
@@ -44,7 +44,7 @@ TXQueue::destroy() {
 
         TXPacket *pkt = m_heap.top();
         delete pkt;
-        
+
         m_heap.pop();
     }
 }
@@ -56,41 +56,41 @@ TXQueue::destroy() {
  */
 bool
 TXQueue::push(int port_id, const std::string &raw, double ts_sec) {
-    
+
     /* do we have space ? */
     if (is_full()) {
         return false;
     }
-    
+
     /* add the packet to the heap */
     m_heap.push(new TXPacket(port_id, raw, ts_sec));
-    
+
     return true;
 }
 
 /**
- * slow path tick 
- * 
+ * slow path tick
+ *
  */
 void
 TXQueue::_tick() {
 
     int pkts_sent = 0;
-    
+
     /* trasnmit all packets that have their TS in the past but not more than 100 */
     while (!m_heap.empty() && (pkts_sent < 100)) {
         TXPacket *pkt = m_heap.top();
-       
+
         if (pkt->get_time() <= now_sec()) {
             /* pop */
             m_heap.pop();
-            
+
             /* send the packet */
             m_rx->tx_pkt(pkt->get_port_id(), pkt->get_raw());
             delete pkt;
-            
+
             pkts_sent++;
-            
+
         } else {
             /* next packet is in the future - exit */
             break;

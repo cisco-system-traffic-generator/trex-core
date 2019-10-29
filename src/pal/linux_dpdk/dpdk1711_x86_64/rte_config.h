@@ -14,7 +14,7 @@
 #undef RTE_NEXT_ABI
 #define RTE_NEXT_ABI 1
 #undef RTE_MAJOR_ABI
-#define RTE_MAJOR_ABI 
+#define RTE_MAJOR_ABI
 #undef RTE_CACHE_LINE_SIZE
 #define RTE_CACHE_LINE_SIZE 64
 #undef RTE_LIBRTE_EAL

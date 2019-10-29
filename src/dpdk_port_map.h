@@ -22,14 +22,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* 
+/*
 
-This file should be included only in DPDK specific files like main_dpdk.cpp, 
-general trex core always works in virtual ports id 
+This file should be included only in DPDK specific files like main_dpdk.cpp,
+general trex core always works in virtual ports id
 
-it maps betwean virtual trex port to dpdk ports (for cases that there is no 1:1 map 
+it maps betwean virtual trex port to dpdk ports (for cases that there is no 1:1 map
 
-*/ 
+*/
 
 #include <stddef.h>
 #include <stdio.h>

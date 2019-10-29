@@ -88,7 +88,7 @@ public:
 	CFlowTimer *	m_timer;
 	void *			m_object;
     void *			m_object1;
-	CallbackType_t  m_callback; 
+	CallbackType_t  m_callback;
 	uint32_t		m_id;
 };
 

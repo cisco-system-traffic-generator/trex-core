@@ -124,7 +124,7 @@ void ClientCfgDirExt::set_resolved_macs(CManyIPInfo *pretest_result, uint16_t co
 void ClientCfgBase::update(uint32_t index, const ClientCfgExt *cfg) {
     m_initiator.update(index, cfg->m_initiator);
     m_responder.update(index, cfg->m_responder);
-    
+
     m_is_set = true;
 }
 
@@ -133,9 +133,9 @@ void
 ClientCfgBase::apply(rte_mbuf_t *m, pkt_dir_t dir) const {
 
     assert(m_is_set);
-    
+
     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t *);
-    
+
     /* take the right direction config */
     const ClientCfgDirBase &cfg_dir = ( (dir == CLIENT_SIDE) ? m_initiator : m_responder);
 

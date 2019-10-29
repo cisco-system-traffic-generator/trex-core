@@ -56,7 +56,7 @@ public:
         }
     }
 
-   
+
     uint8_t get_total_count() const {
         return m_dp_core_count;
     }
@@ -101,7 +101,7 @@ public:
 
 /**
  * compiled object for a table of streams
- * 
+ *
  * @author imarom (28-Oct-15)
  */
 class TrexStreamsCompiledObj {
@@ -162,15 +162,15 @@ class TrexStreamsCompiler {
 public:
 
      TrexStreamsCompiler(std::string profile_id = "_") {
- 
+
          m_profile_id = profile_id;
      }
      ~TrexStreamsCompiler(){}
     /**
      * compiles a vector of streams to an object passable to the DP
-     * 
+     *
      * @author imarom (28-Oct-15)
-     * 
+     *
      */
     bool compile(uint8_t                                port_id,
                  const std::vector<TrexStream *>        &streams,
@@ -181,7 +181,7 @@ public:
 
 
     /**
-     * 
+     *
      * returns a reference pointer to the last compile warnings
      * if no warnings were produced - the vector is empty
      */
@@ -281,17 +281,17 @@ public:
 
         return *this;
     }
-    
+
     /**
-     * a static constructor which makes the least valid 
-     * BW object 
+     * a static constructor which makes the least valid
+     * BW object
      */
     static BW min_bw(uint32_t min_pps = 1, uint16_t min_pkt_size = 14) {
         return BW(min_pps,
                   min_pps * (min_pkt_size * 8),
                   min_pps * (min_pkt_size + 20) * 8);
     }
-    
+
     double m_pps;
     double m_bps_l1;
     double m_bps_l2;
@@ -305,9 +305,9 @@ static inline BW operator+ (BW lhs, const BW &rhs) {
 }
 
 /**************************************
- * streams graph object 
- *  
- * holds the step graph for bandwidth 
+ * streams graph object
+ *
+ * holds the step graph for bandwidth
  *************************************/
 class TrexStreamsGraphObj {
     friend class TrexStreamsGraph;
@@ -319,10 +319,10 @@ public:
     }
 
     /**
-     * rate event is defined by those: 
-     * time - the time of the event on the timeline 
-     * diff - what is the nature of the change ? 
-     * 
+     * rate event is defined by those:
+     * time - the time of the event on the timeline
+     * diff - what is the nature of the change ?
+     *
      * @author imarom (23-Nov-15)
      */
     struct rate_event_st {
@@ -386,7 +386,7 @@ public:
 
 private:
 
-  
+
     void on_loop_detection() {
         m_expected_duration = -1;
     }
@@ -419,8 +419,8 @@ private:
 };
 
 /**
- * graph creator 
- * 
+ * graph creator
+ *
  * @author imarom (23-Nov-15)
  */
 class TrexStreamsGraph {
@@ -432,7 +432,7 @@ public:
 
     /**
      * generate a sequence graph for streams
-     * 
+     *
      */
     const TrexStreamsGraphObj * generate(const std::vector<TrexStream *> &streams);
 
@@ -450,7 +450,7 @@ private:
 
     /* main object to hold the graph - returned to the user */
     TrexStreamsGraphObj *m_graph_obj;
-    
+
     /* less than this number - a burst will be disregarded */
     static const uint32_t G_MIN_BURST_SIZE = 1000;
 };

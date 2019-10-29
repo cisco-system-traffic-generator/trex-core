@@ -30,7 +30,7 @@ class CSimEventDriven ;
 
 class CSimEventBase {
 public:
-    double   m_time;    
+    double   m_time;
 public:
     virtual ~CSimEventBase(){
     };

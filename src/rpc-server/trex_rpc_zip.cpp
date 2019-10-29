@@ -98,7 +98,7 @@ TrexRpcZip::compress(const std::string &input, std::string &output) {
 
     header_st *header = (header_st *)buffer;
     uLongf destLen    = bound_size;
-    
+
     int z_err = ::compress((Bytef *)header->data,
                            &destLen,
                            (const Bytef *)input.c_str(),
@@ -115,10 +115,10 @@ TrexRpcZip::compress(const std::string &input, std::string &output) {
     /* add the header */
     header->magic      = htonl(G_HEADER_MAGIC);
     header->uncmp_size = htonl(input.size());
-    
+
     output.append((const char *)header, sizeof(header_st) + destLen);
 
     delete [] buffer;
 
-    return true;    
+    return true;
 }

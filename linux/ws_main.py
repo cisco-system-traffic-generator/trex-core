@@ -75,10 +75,10 @@ class SrcGroups:
     def __repr__ (self):
           return (self.file_list(''));
 
-          
+
 
 def options(opt):
-    
+
     opt.load('compiler_cxx')
 
     co = opt.option_groups['configure options']
@@ -100,7 +100,7 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     return (ver >= min_ver, ver, min_ver)
 
-    
+
 def configure(conf):
     if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
         conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
@@ -122,15 +122,15 @@ def configure(conf):
     else:
         configure_gcc(conf)
 
-    
+
     # first verify CC version
     rc = verify_cc_version(conf.env, REQUIRED_CC_VERSION)
     if not rc[0]:
         print("\nMachine GCC version too low '{0}' - required at least '{1}'".format(rc[1], rc[2]))
         print( "\n*** please set a compiler using CXX / AR enviorment variables ***\n")
         exit(-1)
-    
-        
+
+
     # handle sanitized process if needed
     configure_sanitized(conf)
 
@@ -168,10 +168,10 @@ def configure_sanitized (conf):
 
     # first we turn off SANITIZED
     conf.env.SANITIZED = False
-    
+
     # if sanitized is required - check GCC version for sanitizing
-    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))    
-    
+    conf.start_msg('Build sanitized images (GCC >= {0})'.format(SANITIZE_CC_VERSION))
+
     # not required
     if not conf.options.sanitized:
         conf.end_msg('no', 'YELLOW')
@@ -184,9 +184,9 @@ def configure_sanitized (conf):
             conf.end_msg('yes', 'GREEN')
             conf.env.SANITIZED = True
 
-    
-    
-        
+
+
+
 bp_sim_main = SrcGroup(dir='src',
         src_list=['main.cpp'])
 
@@ -273,7 +273,7 @@ main_src = SrcGroup(dir='src',
             ]);
 
 cmn_src = SrcGroup(dir='src/common',
-    src_list=[ 
+    src_list=[
         'gtest-all.cc',
         'gtest_main.cc',
         'basic_utils.cpp',
@@ -285,7 +285,7 @@ cmn_src = SrcGroup(dir='src/common',
         'n_uniform_prob.cpp'
         ]);
 
-         
+
 net_src = SrcGroup(dir='src/common/Network/Packet',
         src_list=[
            'CPktCmn.cpp',
@@ -341,7 +341,7 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
                                     'trex_stl_fs.cpp',
 
                                     'trex_stl_messaging.cpp',
-                                    
+
                                     'trex_stl_rpc_cmds.cpp'
 
                                     ])
@@ -431,20 +431,20 @@ stubs = SrcGroup(dir='/src/stub/',
 bp =SrcGroups([
                 bp_sim_main,
                 bp_sim_gtest,
-                main_src, 
+                main_src,
                 cmn_src ,
                 stubs,
                 net_src ,
                 yaml_src,
                 json_src,
-                
+
                 stx_src,
                 stf_src,
                 stateless_src,
                 astf_batch_src,
                 astf_src,
                 md5_src,
-                
+
                 rpc_server_src
                 ]);
 
@@ -470,15 +470,15 @@ includes_path =''' ../src/pal/linux/
                    ../src/pal/common/
                    ../src/
                    ../src/utils/
-                   
+
                    ../src/rpc-server/
-                   
+
                     ../src/hdrh/
 
                    ../src/stx/
                    ../src/stx/common/
                    ../src/stx/common/rx/
-                   
+
                    ../external_libs/json/
                    ../external_libs/md5/
                    ../external_libs/zmq/'''+ march +'''/include/
@@ -544,10 +544,10 @@ class build_option:
 
     def isRelease (self):
         return ( self.mode  == RELEASE_);
-     
+
     def isPIE (self):
         return self.is_pie
-    
+
     def update_executable_name (self,name):
         return self.update_name(name,"-")
 
@@ -607,7 +607,7 @@ class build_option:
             ]
 
         return flags
-        
+
 
     def get_src (self):
         return self.src.file_list(top)
@@ -616,7 +616,7 @@ class build_option:
         return self.rpath
 
     def get_link_flags(self, is_sanitized):
-        
+
         # add here basic flags
         base_flags = [];
         if self.isPIE():
@@ -657,15 +657,15 @@ build_types = [
 
 
 def build_prog (bld, build_obj):
-    
+
     # determine if sanitized image should be built
     is_sanitized = bld.env.SANITIZED
-    
+
     cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
     linkflags = build_obj.get_link_flags(is_sanitized)
-    
-        
-    bld.program(features='cxx cxxprogram', 
+
+
+    bld.program(features='cxx cxxprogram',
                 includes =  includes_path,
                 cxxflags =  cxxflags,
                 linkflags = linkflags,
@@ -691,12 +691,12 @@ def post_build(bld):
 def build(bld):
     if bld.env.SANITIZED and bld.cmd == 'build':
         Logs.warn("\n******* building sanitized binaries *******\n")
-        
+
     bld.add_post_fun(post_build);
     for obj in build_types:
         build_type(bld,obj);
 
-    
+
 
 def build_info(bld):
     pass;

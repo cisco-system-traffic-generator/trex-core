@@ -46,14 +46,14 @@ public:
     CAstfJsonValidator(){
         m_schema_adapter = NULL;
     }
-    
+
     bool Create(std::string input_schema_file);
     void Delete();
 
-    bool validate_profile_file(std::string  input_json_filename, 
+    bool validate_profile_file(std::string  input_json_filename,
                                std::string & err);
 
-    bool validate_profile(Json::Value  profile, 
+    bool validate_profile(Json::Value  profile,
                           std::string & err);
 
 private:

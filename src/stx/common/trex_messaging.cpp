@@ -125,7 +125,7 @@ TrexDpCoreError::handle(void) {
 bool TrexRxEnableLatency::handle (CRxCore *rx_core) {
     rx_core->enable_latency();
     m_reply.set_reply(true);
-    
+
     return true;
 }
 
@@ -146,66 +146,66 @@ bool TrexRxQuit::handle (CRxCore *rx_core) {
 
 bool
 TrexRxCaptureStart::handle(CRxCore *rx_core) {
-    
+
     TrexCaptureRCStart start_rc;
-    
+
     TrexCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
-    
+
     /* mark as done */
     m_reply.set_reply(start_rc);
-    
+
     return true;
 }
 
 bool
 TrexRxCaptureStop::handle(CRxCore *rx_core) {
-    
+
     TrexCaptureRCStop stop_rc;
-    
+
     TrexCaptureMngr::getInstance().stop(m_capture_id, stop_rc);
-    
+
     /* mark as done */
     m_reply.set_reply(stop_rc);
-    
+
     return true;
 }
 
 bool
 TrexRxCaptureFetch::handle(CRxCore *rx_core) {
-    
+
     TrexCaptureRCFetch fetch_rc;
-    
+
     TrexCaptureMngr::getInstance().fetch(m_capture_id, m_pkt_limit, fetch_rc);
-    
+
     /* mark as done */
     m_reply.set_reply(fetch_rc);
-    
+
     return true;
 }
 
 bool
 TrexRxCaptureStatus::handle(CRxCore *rx_core) {
-    
+
     TrexCaptureRCStatus status_rc;
-    
-    status_rc.set_rc(TrexCaptureMngr::getInstance().to_json()); 
-    
+
+    status_rc.set_rc(TrexCaptureMngr::getInstance().to_json());
+
     /* mark as done */
     m_reply.set_reply(status_rc);
-    
+
     return true;
 }
 
 bool
 TrexRxCaptureRemove::handle(CRxCore *rx_core) {
-    
+
     TrexCaptureRCRemove remove_rc;
-    
+
     TrexCaptureMngr::getInstance().remove(m_capture_id, remove_rc);
-    
+
     /* mark as done */
     m_reply.set_reply(remove_rc);
-    
+
     return true;
 }
 
@@ -213,10 +213,10 @@ TrexRxCaptureRemove::handle(CRxCore *rx_core) {
 bool
 TrexRxStartQueue::handle(CRxCore *rx_core) {
     rx_core->start_queue(m_port_id, m_size);
-    
+
     /* mark as done */
     m_reply.set_reply(true);
-    
+
     return true;
 }
 
@@ -263,7 +263,7 @@ TrexRxStopCapwapProxy::handle(CRxCore *rx_core) {
 bool
 TrexRxQueueGetPkts::handle(CRxCore *rx_core) {
     const TrexPktBuffer *pkt_buffer = rx_core->get_rx_queue_pkts(m_port_id);
-    
+
     /* set the reply */
     m_reply.set_reply(pkt_buffer);
 
@@ -410,9 +410,9 @@ bool TrexRxGetTasksResults::handle(CRxCore *rx_core) {
 bool
 TrexRxTXPkts::handle(CRxCore *rx_core) {
     uint32_t sent = rx_core->tx_pkts(m_port_id, m_pkts, m_ipg_usec);
-    
+
     m_reply.set_reply(sent);
-    
+
     return true;
 }
 

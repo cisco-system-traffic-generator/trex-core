@@ -31,7 +31,7 @@ limitations under the License.
 #include "os_time.h"
 #include "nat_check_flow_table.h"
 
-// 2msec timeout                                            
+// 2msec timeout
 #define MAX_TIME_MSG_IN_QUEUE_SEC  ( 0.002 )
 #define NAT_FLOW_ID_MASK_TCP_ACK 0x00ffffff
 #define NAT_FLOW_ID_MASK_IP_ID   0x000001ff
@@ -135,7 +135,7 @@ struct CNatFlowInfo {
     #define MAX_NAT_FLOW_INFO (7)
     #define MAX_PKT_MSG_INFO  (26)
 
-/* 
+/*
      !!!   WARNING  - CGenNodeNatInfo !!
 
  this struct should be in the same size of CGenNode beacuse allocator is global .
@@ -175,10 +175,10 @@ public:
 struct CGenNodeLatencyPktInfo : public CGenNodeMsgBase {
     uint8_t       m_dir;
     uint16_t      m_latency_offset;
-    
+
     uint8_t       m_update_ts;
     uint8_t       m_pad3[3];
-    
+
     struct rte_mbuf *m_pkt;
 
     uint32_t      m_pad4[MAX_PKT_MSG_INFO];
@@ -194,7 +194,7 @@ struct CGenNodeLatencyPktInfo : public CGenNodeMsgBase {
 };
 
 
-/* per thread ring info for NAT messages 
+/* per thread ring info for NAT messages
    try to put as many messages  */
 class CNatPerThreadInfo {
 public:
@@ -206,7 +206,7 @@ public:
 public:
     dsec_t            m_last_time;
     CGenNodeNatInfo * m_cur_nat_msg;
-    CNodeRing       * m_ring;  
+    CNodeRing       * m_ring;
 };
 
 

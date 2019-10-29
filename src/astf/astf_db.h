@@ -36,7 +36,7 @@ limitations under the License.
 #include "tuple_gen.h"
 
 
-    
+
 class CTRexDummyCommand : public  TrexRpcCommand {
 
 public:
@@ -149,7 +149,7 @@ class CTcpTuneables {
     uint16_t m_scheduler_rampup; /* time in sec for rampup*/
     uint8_t  m_ip_ttl;
     uint8_t  m_ip_tos;
-    
+
 
  private:
     uint32_t m_bitfield;
@@ -405,16 +405,16 @@ class CAstfDB  : public CTRexDummyCommand  {
 
     /***************************/
     /* split profile to a few steps */
-    /*  
+    /*
         start_profile_no_buffer(..);
 
-        loops:        
+        loops:
           add_buffers(msg,err);
-        
+
         compile_profile(err);
 
         m_val will have a valid json after this
-        
+
     */
 
     /* set profile as message without buffers  */
@@ -441,12 +441,12 @@ class CAstfDB  : public CTRexDummyCommand  {
     }
     ClientCfgDB  *get_client_cfg_db();
 
-    // called *once* by each core, using socket_id associated with the core 
-    // multi-threaded need to be protected / per socket read-only data 
+    // called *once* by each core, using socket_id associated with the core
+    // multi-threaded need to be protected / per socket read-only data
     CAstfDbRO *get_db_ro(uint8_t socket_id);
     void clear_db_ro(uint8_t socket_id);
     // called by each core once. Allocating memory that will be freed in clear()
-    // multi-threaded need to be protected 
+    // multi-threaded need to be protected
     CAstfTemplatesRW *get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                              uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id);
     void clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id=0);
@@ -490,7 +490,7 @@ private:
     void fill_delay_rnd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpnz(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
-    void fill_tx_pkt(uint32_t program_index, 
+    void fill_tx_pkt(uint32_t program_index,
                      uint32_t cmd_index,
                      uint8_t socket_id,
                      CEmulAppCmd &res);
@@ -516,25 +516,25 @@ private:
                                   uint32_t enum_val);
 
     bool read_tunable_uint8(CTcpTuneables *tune,
-                             const Json::Value &parent, 
+                             const Json::Value &parent,
                              const std::string &param,
                              uint32_t enum_val,
                              uint8_t & val);
 
     bool read_tunable_uint16(CTcpTuneables *tune,
-                             const Json::Value &parent, 
+                             const Json::Value &parent,
                              const std::string &param,
                              uint32_t enum_val,
                              uint16_t & val);
 
     bool read_tunable_uint32(CTcpTuneables *tune,
-                             const Json::Value &parent, 
+                             const Json::Value &parent,
                              const std::string &param,
                              uint32_t enum_val,
                              uint32_t & val);
 
     bool read_tunable_uint64(CTcpTuneables *tune,
-                             const Json::Value &parent, 
+                             const Json::Value &parent,
                              const std::string &param,
                              uint32_t enum_val,
                              uint64_t & val);
@@ -542,16 +542,16 @@ private:
 
 
     bool read_tunable_double(CTcpTuneables *tune,
-                             const Json::Value &parent, 
+                             const Json::Value &parent,
                              const std::string &param,
                              uint32_t enum_val,
                             double & val);
 
     bool read_tunable_bool(CTcpTuneables *tune,
-                          const Json::Value &parent, 
+                          const Json::Value &parent,
                           const std::string &param,
                           uint32_t enum_val,
-                          double & val);    
+                          double & val);
 
     void tunable_min_max_u32(std::string param,
                              uint32_t val,
@@ -588,7 +588,7 @@ private:
     TopoMngr           *m_topo_mngr;
 
     uint16_t m_num_of_tg_ids;
-    std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
+    std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids
     starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
 
     double m_factor; /* initial multiplier factor */

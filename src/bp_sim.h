@@ -3025,7 +3025,7 @@ public:
 
     void start(std::string &erf_file_name, CPreviewMode &preview);
     void start_sim(const std::string &erf_file_name, CPreviewMode &preview, uint64_t limit = 0);
-  
+
     /**
      * a core provides services for two interfaces
      * it can either be idle, active for one port
@@ -3065,13 +3065,13 @@ public:
         return m_dp_core;
     }
 
-    
+
 private:
 
     FORCE_NO_INLINE void   no_memory_error();
 
 
-    
+
     bool check_msgs_from_rx();
 
     void handle_nat_msg(CGenNodeNatInfo * msg);
@@ -3107,7 +3107,7 @@ private:
     }
 
 
-    
+
 private:
     FORCE_NO_INLINE bool associate(uint32_t fid,CGenNode *     node ){
          if (m_flow_id_to_node_lookup.lookup(fid) != 0)
@@ -3426,9 +3426,9 @@ class CRXCoreIgnoreStat {
     friend class CCPortLatency;
     friend class CLatencyManager;
     friend class CStackLegacy;
-    
+
  public:
-     
+
     CRXCoreIgnoreStat() {
         clear();
     }

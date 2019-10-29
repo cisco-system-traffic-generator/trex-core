@@ -1,6 +1,6 @@
 /*
  Itay Marom
- 
+
  Cisco Systems, Inc.
 */
 
@@ -39,11 +39,11 @@ protected:
     void set_verbose(bool verbose) {
         m_verbose = verbose;
     }
-    
+
     virtual void SetUp() {
 
         m_verbose = false;
-         
+
         m_context = zmq_ctx_new ();
         m_socket = zmq_socket (m_context, ZMQ_REQ);
 
@@ -318,7 +318,7 @@ TEST_F(RpcTest, ping) {
     EXPECT_TRUE(response["result"] == "ACK");
 }
 
-static bool 
+static bool
 find_member_in_array(const Json::Value &array, const string &member) {
     for (auto x : array) {
         if (x == member) {
@@ -529,7 +529,7 @@ TEST_F(RpcTestOwned, add_remove_stream) {
 TEST_F(RpcTestOwned, get_stream_id_list) {
     Json::Value request;
     Json::Value response;
-    
+
      /* add stream 1 */
     create_request(request, "add_stream", 1);
     request["params"]["port_id"] = 1;
@@ -596,7 +596,7 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     create_simple_stream(stream);
 
     request["params"]["stream"] = stream;
-    
+
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
@@ -604,7 +604,7 @@ TEST_F(RpcTestOwned, start_stop_traffic) {
     create_request(request, "add_stream", 1, 3);
     request["params"]["stream_id"] = 12;
     request["params"]["stream"] = stream;
-    
+
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
@@ -680,7 +680,7 @@ TEST_F(RpcTestOwned, states_check) {
     create_simple_stream(stream);
 
     request["params"]["stream"] = stream;
-    
+
     send_request(request, response);
     EXPECT_EQ(response["result"], "ACK");
 
@@ -697,7 +697,7 @@ TEST_F(RpcTestOwned, states_check) {
     create_simple_stream(stream);
 
     request["params"]["stream"] = stream;
-    
+
     send_request(request, response);
     EXPECT_EQ(response["error"]["code"], -32000);
 

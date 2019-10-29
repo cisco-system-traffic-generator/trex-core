@@ -36,7 +36,7 @@ limitations under the License.
 
 #ifndef TREX_RPC_MOCK_SERVER
 
-// DPDK c++ issue 
+// DPDK c++ issue
 #ifndef UINT8_MAX
     #define UINT8_MAX 255
 #endif
@@ -45,7 +45,7 @@ limitations under the License.
     #define UINT16_MAX 0xFFFF
 #endif
 
-// DPDK c++ issue 
+// DPDK c++ issue
 #endif
 
 #include <os_time.h>
@@ -67,7 +67,7 @@ class AsyncStopEvent : public TrexDpPortEvent {
 protected:
     /**
      * when an async event occurs (all cores have reported in)
-     * 
+     *
      * @author imarom (29-Feb-16)
      */
     virtual void on_event() {
@@ -136,9 +136,9 @@ protected:
 };
 
 /*************************************
- * Streams Feeder 
- * A class that holds a temporary 
- * clone of streams that can be 
+ * Streams Feeder
+ * A class that holds a temporary
+ * clone of streams that can be
  * manipulated
  *
  * this is a RAII object meant for
@@ -155,7 +155,7 @@ public:
     }
 
     void feed() {
- 
+
         /* fetch the original streams */
         m_mprofile->get_object_list(m_in_streams);
 
@@ -181,7 +181,7 @@ public:
      * RAII
      */
     ~StreamsFeeder() {
- 
+
         for (int i = 0; i < m_out_streams.size(); i++) {
             TrexStream *out_stream = m_out_streams[i];
             TrexStream *in_stream  = m_in_streams[i];
@@ -201,7 +201,7 @@ private:
     vector<TrexStream *>  m_in_streams;
     vector<TrexStream *>  m_out_streams;
     bool                  m_success;
- 
+
     TrexStatelessProfile    *m_mprofile;
 };
 
@@ -320,7 +320,7 @@ TrexStatelessProfile::start_traffic(const TrexPortMultiplier &mul, double durati
     m_factor = factor;
     m_last_all_streams_continues = compiled_objs[mask.get_active_cores()[0]]->get_all_streams_continues();
     m_last_duration = duration;
-    
+
     change_state(PORT_STATE_TX);
 
     /* update the DP - messages will be freed by the DP */
@@ -350,11 +350,11 @@ TrexStatelessProfile::start_traffic(const TrexPortMultiplier &mul, double durati
 
         index++;
     }
-    
+
     /* for debug - this can be turn on */
     //m_dp_events.barrier(m_dp_profile_id);
 
-    /* update subscribers */    
+    /* update subscribers */
     Json::Value data;
     data["port_id"] = m_port_id;
     data["profile_id"] = m_profile_id;
@@ -365,10 +365,10 @@ TrexStatelessProfile::start_traffic(const TrexPortMultiplier &mul, double durati
 
 /**
  * stop traffic on port
- * 
+ *
  * @author imarom (09-Nov-15)
- * 
- * @return TrexStatelessProfile::rc_e 
+ *
+ * @return TrexStatelessProfile::rc_e
  */
 void
 TrexStatelessProfile::stop_traffic() {
@@ -376,7 +376,7 @@ TrexStatelessProfile::stop_traffic() {
     if (!is_active()) {
         return;
     }
- 
+
     /* delete any previous graphs */
     delete_streams_graph();
 
@@ -386,7 +386,7 @@ TrexStatelessProfile::stop_traffic() {
         m_pending_async_stop_event = TrexDpPortEvents::INVALID_ID;
 
     }
-    
+
     /* generate a message to all the relevant DP cores to start transmitting */
     TrexCpToDpMsgBase *stop_msg = new TrexStatelessDpStop(m_port_id, m_dp_profile_id);
     send_message_to_all_dp(stop_msg);
@@ -401,7 +401,7 @@ TrexStatelessProfile::stop_traffic() {
 
 /**
  * remove all RX filters from port
- * 
+ *
  * @author imarom (28-Mar-16)
  */
 void
@@ -632,19 +632,19 @@ TrexStatelessProfile::calculate_effective_factor(const TrexPortMultiplier &mul, 
     if (force) {
         return factor;
     } else {
-        
+
         /* due to float calculations we allow 0.1% roundup */
         if ( (expected_l1_rate / get_port_speed_bps()) > 1.0001 )  {
             stringstream ss;
             ss << "Expected L1 B/W: '" << bps_to_gbps(expected_l1_rate) << " Gbps' exceeds port line rate: '" << bps_to_gbps(get_port_speed_bps()) << " Gbps'";
             throw TrexException(ss.str());
         }
-        
+
         /* in any case, without force, do not return any value higher than the max factor */
         double max_factor = graph_obj.get_factor_bps_l1(get_port_speed_bps());
         return std::min(max_factor, factor);
     }
-    
+
 }
 
 double
@@ -738,7 +738,7 @@ TrexPortMultiplier(const std::string &type_str, const std::string &op_str, doubl
     mul_op_e   op;
 
     if (type_str == "raw") {
-        type = MUL_FACTOR; 
+        type = MUL_FACTOR;
 
     } else if (type_str == "bps") {
         type = MUL_BPS;
@@ -837,7 +837,7 @@ TrexStatelessProfile::get_port_effective_rate(double &pps,
     bps_L1     = m_graph_obj->get_max_bps_l1(m_factor);
     bps_L2     = m_graph_obj->get_max_bps_l2(m_factor);
     percentage = (bps_L1 / get_port_speed_bps()) * 100.0;
-    
+
 }
 
 
@@ -912,7 +912,7 @@ TrexStatelessProfile::remove_and_delete_all_streams() {
 
 /***************************
  * trex stateless port
- * 
+ *
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
 
@@ -946,7 +946,7 @@ TrexStatelessPort::is_running_flow_stats() {
 }
 
 
-bool 
+bool
 TrexStatelessPort::has_flow_stats(string profile_id) {
 
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
@@ -955,7 +955,7 @@ TrexStatelessPort::has_flow_stats(string profile_id) {
 
 /**
  * starts the traffic on the port
- * 
+ *
  */
 void
 TrexStatelessPort::start_traffic(string profile_id, const TrexPortMultiplier &mul, double duration, bool force, uint64_t core_mask, double start_at_ts) {
@@ -970,13 +970,13 @@ TrexStatelessPort::start_traffic(string profile_id, const TrexPortMultiplier &mu
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
     mprofile->start_traffic(mul, duration, force, core_mask, start_at_ts);
     update_and_publish_port_state();
- 
+
 }
 
 
 /**
  * stop traffic on port
- * 
+ *
  */
 void
 TrexStatelessPort::stop_traffic(string profile_id) {
@@ -1038,7 +1038,7 @@ TrexStatelessPort::stop_traffic_pcap(void) {
 
 /**
  * remove all RX filters from port
- * 
+ *
  */
 void
 TrexStatelessPort::remove_rx_filters(string profile_id) {
@@ -1051,7 +1051,7 @@ TrexStatelessPort::remove_rx_filters(string profile_id) {
 
 /**
  * when a port stops, perform various actions
- * 
+ *
  */
 void
 TrexStatelessPort::common_port_stop_actions(bool async) {
@@ -1175,7 +1175,7 @@ TrexStatelessPort::push_remote(const std::string &pcap_filename,
                                                               is_dual);
     send_message_to_dp(tx_core, push_msg);
 
-    /* update subscribers */    
+    /* update subscribers */
     Json::Value data;
     data["port_id"] = m_port_id;
     get_stateless_obj()->get_publisher()->publish_event(TrexPublisher::EVENT_PORT_STARTED, data);
@@ -1199,7 +1199,7 @@ TrexStatelessPort::get_max_stream_id(){
             }
         }
         return port_max_stream_id;
-    } 
+    }
 }
 
 
@@ -1280,23 +1280,23 @@ TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
 
 
 /**
- * enable/disable service mode 
- * sends a query to the RX core 
- * 
+ * enable/disable service mode
+ * sends a query to the RX core
+ *
  */
-void 
+void
 TrexStatelessPort::set_service_mode(bool enabled) {
 
     static MsgReply<TrexStatelessRxQuery::query_rc_e> reply;
     reply.reset();
-    
+
     TrexStatelessRxQuery::query_type_e query_type = (enabled ? TrexStatelessRxQuery::SERVICE_MODE_ON : TrexStatelessRxQuery::SERVICE_MODE_OFF);
-    
+
     TrexCpToRxMsgBase *msg = new TrexStatelessRxQuery(m_port_id, query_type, reply);
     send_message_to_rx(msg);
 
     TrexStatelessRxQuery::query_rc_e rc = reply.wait_for_reply();
-    
+
     switch (rc) {
     case TrexStatelessRxQuery::RC_OK:
         if (enabled) {
@@ -1306,10 +1306,10 @@ TrexStatelessPort::set_service_mode(bool enabled) {
         }
         m_is_service_mode_on = enabled;
         break;
-        
+
     case TrexStatelessRxQuery::RC_FAIL_RX_QUEUE_ACTIVE:
         throw TrexException("unable to disable service mode - please remove RX queue");
-        
+
     case TrexStatelessRxQuery::RC_FAIL_CAPTURE_ACTIVE:
         throw TrexException("unable to disable service mode - an active capture on port " + std::to_string(m_port_id) + " exists");
 
@@ -1317,12 +1317,12 @@ TrexStatelessPort::set_service_mode(bool enabled) {
         throw TrexException("unable to disable service mode - please remove CAPWAP proxy");
 
     case TrexStatelessRxQuery::RC_FAIL_CAPTURE_PORT_ACTIVE:
-        throw TrexException("unable to disable service mode - port " + std::to_string(m_port_id) + " is configured as capture port"); 
+        throw TrexException("unable to disable service mode - port " + std::to_string(m_port_id) + " is configured as capture port");
 
     default:
         assert(0);
     }
-    
+
     /* update the all the relevant dp cores to move to service mode */
     TrexStatelessDpServiceMode *dp_msg = new TrexStatelessDpServiceMode(m_port_id, enabled);
     send_message_to_all_dp(dp_msg);
@@ -1330,14 +1330,14 @@ TrexStatelessPort::set_service_mode(bool enabled) {
 
 
 /**
- * get profile state function 
+ * get profile state function
  *
  */
 TrexPort::port_state_e
 TrexStatelessPort::get_profile_state(string profile_id) {
 
     TrexStatelessProfile *mprofile = get_profile_by_id(profile_id);
-    return mprofile->get_state(); 
+    return mprofile->get_state();
 }
 
 
@@ -1357,23 +1357,23 @@ TrexStatelessPort::get_profiles_status(Json::Value &result) {
 
     std::vector<string> profile_list;
     get_profile_id_list(profile_list);
- 
+
     Json::Value get_profiles_status_json = Json::objectValue;
 
     for (auto &profile_id : profile_list) {
         string j = get_profile_state_as_string(profile_id);
         std::stringstream ss;
         ss << profile_id;
-        get_profiles_status_json[ss.str()] = j; 
+        get_profiles_status_json[ss.str()] = j;
     }
- 
+
     result =  get_profiles_status_json;
 }
 
 
 /**
  * returns profile state formatted as string
- * 
+ *
  */
 std::string
 TrexStatelessPort::get_profile_state_as_string(string profile_id) {
@@ -1381,34 +1381,34 @@ TrexStatelessPort::get_profile_state_as_string(string profile_id) {
     switch (get_profile_state(profile_id)) {
         case PORT_STATE_DOWN:
             return "DOWN";
- 
+
         case PORT_STATE_IDLE:
             return "IDLE";
- 
+
         case PORT_STATE_STREAMS:
             return "STREAMS";
- 
+
         case PORT_STATE_TX:
             return "TX";
- 
+
         case PORT_STATE_PAUSE:
             return "PAUSE";
- 
+
         case PORT_STATE_PCAP_TX:
             return "PCAP_TX";
- 
+
         case PORT_STATE_ASTF_LOADED:
             return "ASTF_LOADED";
- 
+
         case PORT_STATE_ASTF_PARSE:
             return "ASTF_PARSE";
- 
+
         case PORT_STATE_ASTF_BUILD:
             return "ASTF_BUILD";
- 
+
         case PORT_STATE_ASTF_CLEANUP:
             return "ASTF_CLEANUP";
- 
+
     }
     return "UNKNOWN";
 }
@@ -1416,12 +1416,12 @@ TrexStatelessPort::get_profile_state_as_string(string profile_id) {
 
 
 /**
- * update port state with all profiles state 
+ * update port state with all profiles state
  */
 void
 TrexStatelessPort::update_port_state() {
 
-    
+
     if (get_state() & (PORT_STATE_TX | PORT_STATE_PAUSE | PORT_STATE_STREAMS | PORT_STATE_IDLE)) {
 
         int temp_state = 0;
@@ -1443,7 +1443,7 @@ TrexStatelessPort::update_port_state() {
 }
 
 /**
- * update and publish port state 
+ * update and publish port state
  */
 void
 TrexStatelessPort::update_and_publish_port_state(bool async) {
@@ -1480,8 +1480,8 @@ TrexStatelessPort::valide_profile(string profile_id) {
 }
 
 
-/* ********************************* 
- * profile table                      
+/* *********************************
+ * profile table
  * ******************************* */
 TrexProfileTable::TrexProfileTable() {
 
@@ -1491,7 +1491,7 @@ TrexProfileTable::~TrexProfileTable() {
 
     for (auto mprofile : m_profile_table) {
         delete mprofile.second;
-    }   
+    }
 }
 
 void TrexProfileTable::add_profile(TrexStatelessProfile *mprofile) {

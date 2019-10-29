@@ -1,5 +1,5 @@
-#ifndef ASTF_TEMPLATE_DB_H 
-#define ASTF_TEMPLATE_DB_H 
+#ifndef ASTF_TEMPLATE_DB_H
+#define ASTF_TEMPLATE_DB_H
 
 /*
  Hanoh Haim
@@ -40,7 +40,7 @@ struct CAstfPerTemplateRO {
     uint16_t            m_destination_port; /* template dest port */
     bool                m_stream;
     bool                m_one_app_server;   /* single server */
-    uint32_t            m_server_addr;      /* IPv4 single server addr */  
+    uint32_t            m_server_addr;      /* IPv4 single server addr */
     uint32_t            m_dual_mask;        /* dual mask */
     uint32_t            m_w;                /* tuple generator w */
     double              m_k_cps;            /* kCPS for this template */
@@ -97,7 +97,7 @@ public:
     pool_index_t                  m_server_pool_idx;  /* server pool index - default is zero*/
     //CPolicer                      m_policer;
     uint16_t                      m_dest_port;
-    astf_t_id_t                   m_tid ; 
+    astf_t_id_t                   m_tid ;
     astf_thread_id_t              m_thread_id;
     CTcpTuneables               * m_c_tune;
     CTcpTuneables               * m_s_tune;

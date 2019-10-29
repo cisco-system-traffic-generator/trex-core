@@ -17,7 +17,7 @@ limitations under the License.
 */
 
 
-                                
+
 #include <common/c_common.h>
 #include <common/bitMan.h>
 #include <stdio.h>
@@ -40,7 +40,7 @@ uint16_t pkt_InetChecksum(uint8_t* data , uint16_t len);
 // len2 can be odd.
 // returns cs in NETWROK order
 uint16_t pkt_InetChecksum(uint8_t* data , uint16_t len, uint8_t* data2 , uint16_t len2);
-    
+
 // this functiion updates an inet-checksum.
 // It accepts the checksum field AS IS from the packet, the old byte's value
 // and the new byte's value.
@@ -80,32 +80,32 @@ inline uint16_t pkt_AddInetChecksumRaw(uint16_t checksum, uint16_t csToAdd){
 
 struct Tunnels
 {
-	enum Type 
+	enum Type
 	{
 		// basic tunnels have a bit each. They can be bitwise OR ed.
 		// WARNING: We use this number as a Uint8 in some places - don't go over 1 byte !!!
 
 		//Another warning: DO NOT change the values of these symbols, unless you have permission from everyone who
-		//uses them. These values are externally exposed through CmdlTunnel interfaces, and therefore JRT relies on these 
+		//uses them. These values are externally exposed through CmdlTunnel interfaces, and therefore JRT relies on these
 		//specific values. (Assi - Jan 2006)
 		Empty			= 0x00,
 		UNTUNNELED_Marker       = 0x01,
-		VLAN			= 0x01, 
-		MPLS			= 0x02, 
+		VLAN			= 0x01,
+		MPLS			= 0x02,
 		L2TP			= 0x04,
 		IPinIP			= 0x08,
         GRE			    = 0x10,
 		Ethernet		= 0x20,//This is not tunneled. It's an exception, until all these values are changed.
 		AnyIP			= 0x40,
         AnyTunneled     = 0x7f,
-		TUNNELED_Marker = AnyTunneled,//Any sum of the values written above mustn't reach this value		
+		TUNNELED_Marker = AnyTunneled,//Any sum of the values written above mustn't reach this value
 		Unrecognized	= 0x80,
-        GTP             = 0x81        
+        GTP             = 0x81
 	};
 };
 
 
 
 
-#endif 
+#endif
 

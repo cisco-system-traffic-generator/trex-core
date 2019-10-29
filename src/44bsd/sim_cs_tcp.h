@@ -221,12 +221,12 @@ typedef uint16_t cs_sim_mode_t ;
 
 typedef enum {  tiTEST2    =0,
                 tiHTTP     =1,
-                tiHTTP_RST =2, 
-                tiHTTP_FIN_ACK =3, 
-                tiHTTP_CONNECT =4, 
-                tiHTTP_CONNECT_RST =5, 
-                tiHTTP_CONNECT_RST2 =6, 
-                tiHTTP_RST_KEEP_ALIVE =7, 
+                tiHTTP_RST =2,
+                tiHTTP_FIN_ACK =3,
+                tiHTTP_CONNECT =4,
+                tiHTTP_CONNECT_RST =5,
+                tiHTTP_CONNECT_RST2 =6,
+                tiHTTP_RST_KEEP_ALIVE =7,
 
 
                } cs_sim_test_id_t_;
@@ -269,12 +269,12 @@ public:
     }
     void set_drop_rate(double rate);
 
-    /* dir ==0 , C->S 
+    /* dir ==0 , C->S
        dir ==1   S->C */
     void on_tx(int dir,rte_mbuf_t *m);
     void on_rx(int dir,rte_mbuf_t *m);
     void on_tx_transmit(int dir, rte_mbuf_t *m);
-    void on_tx_shaper(int dir, rte_mbuf_t *m);  
+    void on_tx_shaper(int dir, rte_mbuf_t *m);
 
     void set_cfg_ext(CClientServerTcpCfgExt * cfg);
 
@@ -295,7 +295,7 @@ public:
     bool compare(std::string exp_dir);
     void close_file();
     void set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *s_tune);
-private: 
+private:
     void write_pcap(int dir, rte_mbuf_t *m,double dtime);
     int simple_http_generic(method_program_cb_t bc);
     int build_http(CMbufBuffer * buf_req,

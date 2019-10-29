@@ -28,9 +28,9 @@ limitations under the License.
 
 /**
  * create the publisher
- * 
+ *
  */
-bool 
+bool
 TrexPublisher::Create(uint16_t port, bool disable){
 
     char thread_name[256];
@@ -66,18 +66,18 @@ TrexPublisher::Create(uint16_t port, bool disable){
     }
 
     std::cout << "zmq publisher at: " << ss.str() << "\n";
-    
+
     m_is_connected = true;
-    
+
     return (true);
 }
 
 
-void 
+void
 TrexPublisher::Delete(int timeout_sec) {
 
     m_is_connected = false;
-    
+
     if (m_publisher) {
 
         /* before calling zmq_close set the linger property to the specific timeout in seconds
@@ -99,7 +99,7 @@ TrexPublisher::Delete(int timeout_sec) {
 }
 
 
-void 
+void
 TrexPublisher::publish_json(const std::string &s, uint32_t zip_threshold){
 
     if (m_publisher) {
@@ -111,7 +111,7 @@ TrexPublisher::publish_json(const std::string &s, uint32_t zip_threshold){
     }
 }
 
-void 
+void
 TrexPublisher::publish_zipped_json(const std::string &s) {
     std::string compressed_msg;
 
@@ -122,7 +122,7 @@ TrexPublisher::publish_zipped_json(const std::string &s) {
     }
 }
 
-void 
+void
 TrexPublisher::publish_raw_json(const std::string &s) {
      int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
      if (size > 0) {
@@ -135,7 +135,7 @@ TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
     Json::FastWriter writer;
     Json::Value value;
     std::string s;
-    
+
     value["name"] = "trex-event";
     value["type"] = type;
     value["data"] = data;
@@ -149,7 +149,7 @@ TrexPublisher::publish_barrier(uint32_t key) {
     Json::FastWriter writer;
     Json::Value value;
     std::string s;
-    
+
     value["name"] = "trex-barrier";
     value["type"] = key;
     value["data"] = Json::objectValue;
@@ -160,9 +160,9 @@ TrexPublisher::publish_barrier(uint32_t key) {
 
 /**
  * error handling
- * 
+ *
  */
-void 
+void
 TrexPublisher::show_zmq_last_error(const std::string &err){
     std::cout << " ERROR " << err << "\n";
     std::cout << " ZMQ: " << zmq_strerror (zmq_errno ());

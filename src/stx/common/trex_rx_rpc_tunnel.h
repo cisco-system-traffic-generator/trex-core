@@ -69,7 +69,7 @@ protected:
     virtual trex_rpc_cmd_rc_e _run(const Json::Value &params, Json::Value &result);
     /* callback, call by batch to update number of commands */
     virtual void update_cmd_count(uint32_t total_commands,
-                                  uint32_t err_commands); 
+                                  uint32_t err_commands);
 
 private:
     CRpcDispatch  m_rpc_dispatch;

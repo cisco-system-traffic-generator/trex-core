@@ -132,7 +132,7 @@ public:
     static CTRexExtendedDriverBase * create(){
         return ( new CTRexExtendedDriverAzure() );
     }
-    
+
     virtual bool is_support_for_rx_scatter_gather(){
         return (true);
     }

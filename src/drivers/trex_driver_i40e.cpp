@@ -413,7 +413,7 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_FRAG_IPV4, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
-    
+
 
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);
     add_del_rules(op, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 10, 0, 0, MAIN_DPDK_RX_Q, 0);

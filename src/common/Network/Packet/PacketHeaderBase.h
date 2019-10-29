@@ -43,7 +43,7 @@ public:
 
 enum
 {
-    TCPDefaultHeaderSize = 20,//TCP 
+    TCPDefaultHeaderSize = 20,//TCP
     UDPDefaultHeaderSize = 8  //UDP
 };
 

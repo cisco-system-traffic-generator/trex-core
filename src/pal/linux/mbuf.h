@@ -97,7 +97,7 @@ struct rte_mbuf {
 
 #ifdef TREX_MBUF_SIM_LOCAL
 
-static inline void 
+static inline void
 rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
     m->m_core_locality = RTE_MBUF_CORE_LOCALITY_LOCAL;
 }
@@ -113,14 +113,14 @@ rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
 }
 
 #else
-static inline void 
+static inline void
 rte_mbuf_set_as_core_local(struct rte_mbuf *m) {
-    
+
 }
 
 static inline void
 rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
-    
+
 }
 
 static inline void
@@ -318,7 +318,7 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
 
 
 
-#define __rte_cache_aligned 
+#define __rte_cache_aligned
 
 #ifdef __PPC64__
 #define CACHE_LINE_SIZE 128

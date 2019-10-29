@@ -315,7 +315,7 @@ bool CTRexExtendedDriverBase1G::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
     stats->oerrors      +=  0;
     stats->imcasts      =  0;
     stats->rx_nombuf    =  0;
-    
+
     return true;
 }
 

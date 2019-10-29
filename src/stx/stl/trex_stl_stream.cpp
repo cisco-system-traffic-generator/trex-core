@@ -153,9 +153,9 @@ TrexStream::TrexStream(uint8_t type, uint8_t port_id, uint32_t stream_id, uint32
     m_rx_check.m_enabled = false;
     m_rx_check.m_vxlan_skip = false;
 
-    m_burst_total_pkts=0; 
-    m_num_bursts=1; 
-    m_ibg_usec=0.0;  
+    m_burst_total_pkts=0;
+    m_num_bursts=1;
+    m_ibg_usec=0.0;
     m_vm_dp = NULL;
     m_flags=0;
     m_action_count=0;
@@ -213,7 +213,7 @@ void TrexStreamTable::add_stream(TrexStream *stream) {
     }
 
     m_stream_table[stream->m_stream_id] = stream;
-}                                           
+}
 
 void TrexStreamTable::remove_stream(TrexStream *stream) {
     m_stream_table.erase(stream->m_stream_id);

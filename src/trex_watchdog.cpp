@@ -134,27 +134,27 @@ extern "C" {
 
     /* thread local storage - to avoid multiple threads calling assert */
     static __thread bool g_in_assert = false;
-    
+
     extern void __assert_fail (const char *__assertion, const char *__file, unsigned int __line, const char *__function) throw () {
-        
+
         /* double assert - make sure no re-entrant calls, simply call abort directly */
         if (g_in_assert) {
             abort();
         }
-        
+
         /* mark it */
         g_in_assert = true;
-        
+
         std::string cause = "assert: " + std::string(__file) + ":" + std::to_string(__line) + " " + std::string(__function) + " Assertion '" + std::string(__assertion) + "' failed.";
-        
+
         std::stringstream ss;
         ss << cause;
         ss << "\n\n*** traceback follows ***\n\n" << Backtrace() << "\n";
-        
-        
+
+
         /* a bit shorter version */
         std::string publish_cause = "assert: " + std::string(__file) + ":" + std::to_string(__line) +  " Assertion '" + std::string(__assertion) + "' failed.";
-        
+
         /* abort with messages */
         abort_gracefully(ss.str(), publish_cause);
     }
@@ -185,13 +185,13 @@ void TrexWatchDog::init(bool enable){
     m_enable = enable;
     if (m_enable) {
         register_signal();
-    } 
+    }
 }
 
 /**
  * get pointer to monitor of current thread
  * (NULL if no monitor)
- * 
+ *
  */
 TrexMonitor * TrexWatchDog::get_current_monitor() {
 
@@ -206,9 +206,9 @@ TrexMonitor * TrexWatchDog::get_current_monitor() {
 
 
 /**
- * register a monitor 
- * this function is thread safe 
- * 
+ * register a monitor
+ * this function is thread safe
+ *
  */
 void TrexWatchDog::register_monitor(TrexMonitor *monitor) {
     if (!m_enable){
@@ -273,7 +273,7 @@ void TrexWatchDog::stop() {
 
 /**
  * main loop
- * 
+ *
  */
 void TrexWatchDog::_main() noexcept {
 
@@ -298,7 +298,7 @@ void TrexWatchDog::_main() noexcept {
             if (!monitor->is_expired(now)) {
                 continue;
             }
-            
+
             /* it has expired but it was tickled */
             if (monitor->is_tickled()) {
                 monitor->reset(now);

@@ -33,7 +33,7 @@ limitations under the License.
 #define _1GB 1000000000ULL
 #define _500GB (_1GB*500)
 
-            
+
 typedef enum {
     KBYE_1024,
     KBYE_1000

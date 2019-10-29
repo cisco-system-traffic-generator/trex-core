@@ -31,7 +31,7 @@ limitations under the License.
  */
 class TrexDpCoreAstfBatch : public TrexDpCore {
 public:
-    
+
     TrexDpCoreAstfBatch(uint32_t thread_id, CFlowGenListPerThread *core);
     ~TrexDpCoreAstfBatch(void);
 
@@ -39,20 +39,20 @@ public:
     virtual bool are_all_ports_idle() override {
         return false;
     }
-    
+
     /* stateful always on */
     virtual bool is_port_active(uint8_t port_id) override {
         return true;
     }
-    
+
 protected:
-    
+
     void start_astf();
-    
+
     virtual void start_scheduler() override {
 
         start_astf();
-        
+
         /* in batch - no more iterations */
         m_state = STATE_TERMINATE;
     }
@@ -61,21 +61,21 @@ protected:
 
 /**
  * ASTF batch
- * 
+ *
  * @author imarom (9/13/2017)
  */
 class TrexAstfBatch : public TrexSTX {
 public:
 
     TrexAstfBatch(const TrexSTXCfg &cfg, CLatencyManager *mg) : TrexSTX(cfg) {
-        
+
         /* no RPC or ports */
-        
+
         /* RX core */
         m_rx = mg;
     }
-    
-    
+
+
     /**
      * create and allocate a DP core object
      *
@@ -83,29 +83,29 @@ public:
     virtual TrexDpCore * create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) override {
         return new TrexDpCoreAstfBatch(thread_id, core);
     }
-    
-    
-    
+
+
+
     /* nothing on the control plane side */
     void launch_control_plane() override {}
 
-    
+
     /**
      * shutdown for ASTF batch mode
-     * 
+     *
      */
     void shutdown() override;
-    
-  
+
+
     void publish_async_data() override;
 
-    
+
 private:
 
     CLatencyManager *get_mg() {
         return static_cast<CLatencyManager *>(m_rx);
     }
-    
+
 };
 
 #endif /* __TREX_ASTF_BATCH_H__ */

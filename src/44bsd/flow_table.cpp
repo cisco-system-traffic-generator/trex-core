@@ -35,16 +35,16 @@ void CSttFlowTableStats::Clear(){
 #define MYC_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)m_sts.f)
 
 void CSttFlowTableStats::Dump(FILE *fd){
-    MYC(m_err_no_syn);                  
-    MYC(m_err_len_err);                 
+    MYC(m_err_no_syn);
+    MYC(m_err_len_err);
     MYC(m_err_fragments_ipv4_drop);
-    MYC(m_err_no_tcp_udp);                  
-    MYC(m_err_client_pkt_without_flow); 
-    MYC(m_err_no_template);             
-    MYC(m_err_no_memory);               
-    MYC(m_err_duplicate_client_tuple);  
-    MYC(m_err_l3_cs);                   
-    MYC(m_err_l4_cs);                   
+    MYC(m_err_no_tcp_udp);
+    MYC(m_err_client_pkt_without_flow);
+    MYC(m_err_no_template);
+    MYC(m_err_no_memory);
+    MYC(m_err_duplicate_client_tuple);
+    MYC(m_err_l3_cs);
+    MYC(m_err_l4_cs);
     MYC(m_err_redirect_rx);
     MYC(m_redirect_rx_ok);
     MYC(m_err_rx_throttled);
@@ -118,7 +118,7 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     }
     uint32_t pkt_len=0;
 
-    if ( (parser.m_protocol != IPHeader::Protocol::TCP) && 
+    if ( (parser.m_protocol != IPHeader::Protocol::TCP) &&
          (parser.m_protocol != IPHeader::Protocol::UDP) ){
         FT_INC_SCNT(m_err_no_tcp_udp);
         action=tREDIRECT_RX_CORE;
@@ -284,11 +284,11 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                         uint8_t *   pkt,
                                         IPv6Header *    ipv6,
                                         CFlowKeyFullTuple &ftuple){
-   /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
-      allocate flow, 
+   /* TBD could be done much faster, but this is a corner case and there is no need to improve this
+      allocate flow,
       fill information
       generate RST
-      free flow 
+      free flow
    */
 
     if ( lpTcp->getResetFlag() ){
@@ -319,8 +319,8 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
 
         tcp_respond(flow->m_pctx,
                      &flow->m_tcp,
-                     0, 
-                     lpTcp->getAckNumber(), 
+                     0,
+                     lpTcp->getAckNumber(),
                      TH_RST);
 
 
@@ -340,8 +340,8 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
         }
         tcp_respond(flow->m_pctx,
                      &flow->m_tcp,
-                     lpTcp->getSeqNumber()+tlen, 
-                     seq, 
+                     lpTcp->getSeqNumber()+tlen,
+                     seq,
                      TH_RST|TH_ACK);
     }
 
@@ -488,7 +488,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     uint32_t dest_ip;
     bool is_ipv6=false;
     if (parser.m_ipv4){
-        IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;    
+        IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;
         dest_ip=ipv4->getDestIp();
     }else{
         IPv6Header *   ipv6= parser.m_ipv6;
@@ -568,7 +568,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     app->set_bh_api(m_udp_api);
     app->set_udp_flow_ctx(flow->m_pctx,flow);
     app->set_udp_flow();
-    //flow->set_s_udp_info(tcp_data_ro, s_tune);  NOT needed for now 
+    //flow->set_s_udp_info(tcp_data_ro, s_tune);  NOT needed for now
 
 
     app->start(true); /* start the application */
@@ -590,13 +590,13 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     TCPHeader    * lpTcp = (TCPHeader *)parser.m_l4;
 
-    /* server with SYN packet, it is OK 
+    /* server with SYN packet, it is OK
       we need to build the flow and add it to the table */
     /* Patch */
     uint32_t dest_ip;
     bool is_ipv6=false;
     if (parser.m_ipv4){
-        IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;    
+        IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;
         dest_ip=ipv4->getDestIp();
     }else{
         IPv6Header *   ipv6= parser.m_ipv6;
@@ -621,7 +621,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
             uint32_t source_ip;
             if (parser.m_ipv4){
-                IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;    
+                IPHeader *  ipv4 = (IPHeader *)parser.m_ipv4;
                 source_ip=ipv4->getSourceIp();
             }else{
                 IPv6Header *   ipv6= parser.m_ipv6;

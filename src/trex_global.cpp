@@ -314,10 +314,10 @@ void CParserOption::dump(FILE *fd){
     fprintf(fd," latency         : %d pkt/sec \n",m_latency_rate);
     fprintf(fd," zmq_port        : %d \n",m_zmq_port);
     fprintf(fd," telnet_port     : %d \n",m_telnet_port);
-    fprintf(fd," expected_ports  : %d \n",m_expected_portd);   
-    fprintf(fd," tw_bucket_usec  : %f usec \n",get_tw_bucket_time_in_sec()*1000000.0);   
-    fprintf(fd," tw_buckets      : %lu usec \n",(ulong)get_tw_buckets());   
-    fprintf(fd," tw_levels       : %lu usec \n",(ulong)get_tw_levels());   
+    fprintf(fd," expected_ports  : %d \n",m_expected_portd);
+    fprintf(fd," tw_bucket_usec  : %f usec \n",get_tw_bucket_time_in_sec()*1000000.0);
+    fprintf(fd," tw_buckets      : %lu usec \n",(ulong)get_tw_buckets());
+    fprintf(fd," tw_levels       : %lu usec \n",(ulong)get_tw_levels());
 
 
     if (preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {

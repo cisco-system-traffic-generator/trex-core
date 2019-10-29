@@ -52,7 +52,7 @@ void LibPCapReader::Rewind() {
 /**
  * open file for read.
  * @param name
- * 
+ *
  * @return bool
  */
 bool LibPCapReader::Create(char * name, int loops)
@@ -67,7 +67,7 @@ bool LibPCapReader::Create(char * name, int loops)
         return true;
     }
     m_file_handler = CAP_FOPEN_64(name,"rb");
-   
+
     if (m_file_handler == 0) {
         printf(" failed to open cap file %s : errno : %d\n",name, errno);
         return false;
@@ -76,7 +76,7 @@ bool LibPCapReader::Create(char * name, int loops)
    CAP_FSEEK_64 (m_file_handler, 0, SEEK_END);
    m_file_size = CAP_FTELL_64 (m_file_handler);
    rewind (m_file_handler);
- 
+
    if (init()) {
 	   m_is_open = true;
 	   return true;
@@ -92,7 +92,7 @@ bool LibPCapReader::Create(char * name, int loops)
  * First read the header of the file make sure it is libpacp.
  * If so read the flip value. records are senstive to the local
  * recording machine endianity.
- * 
+ *
  * @return bool
  */
 bool LibPCapReader::init()
@@ -143,7 +143,7 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
        if (m_loops > 0) {
            rewind(m_file_handler);
            this->init();
-          
+
        }
    }
    int n = fread(&pkt_header,1,sizeof(sf_pkthdr_t),m_file_handler);
@@ -205,7 +205,7 @@ void LibPCapWriter::Close()
 /**
  * Try to open file for writing.
  * @param name - file nae
- * 
+ *
  * @return bool
  */
 bool LibPCapWriter::Create(char * name)
@@ -223,7 +223,7 @@ bool LibPCapWriter::Create(char * name)
         printf(" ERROR create file \n");
         return(false);
     }
-    
+
     /* prepare the write counter */
     m_pkt_count = 0;
     return init();
@@ -236,9 +236,9 @@ void LibPCapWriter::flush_to_disk() {
 }
 
 /**
- * 
+ *
  * Write the libpcap header.
- * 
+ *
  * @return bool - true on success
  */
 bool LibPCapWriter::init()
@@ -270,7 +270,7 @@ bool LibPCapWriter::init()
  * Must be called after successfull Create call.
  * @param p
  * @param size
- * 
+ *
  * @return bool  - true on success.
  */
 bool LibPCapWriter::write_packet(CCapPktRaw * lpPacket)

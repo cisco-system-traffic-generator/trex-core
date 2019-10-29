@@ -66,9 +66,9 @@ TrexStatelessDpStart::~TrexStatelessDpStart() {
 
 bool
 TrexStatelessDpStart::handle(TrexDpCore *dp_core) {
-    
+
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     /* start traffic */
     stl_core->start_traffic(m_obj, m_profile_id, m_duration, m_event_id, m_start_at_ts);
 
@@ -82,7 +82,7 @@ bool
 TrexStatelessDpStop::handle(TrexDpCore *dp_core) {
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     stl_core->stop_traffic(m_port_id, m_profile_id, m_stop_only_for_event_id, m_event_id);
     return true;
 }
@@ -104,9 +104,9 @@ TrexCpToDpMsgBase * TrexStatelessDpPause::clone(){
 
 
 bool TrexStatelessDpPause::handle(TrexDpCore *dp_core){
-    
+
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     stl_core->pause_traffic(m_port_id, m_profile_id);
     return (true);
 }
@@ -135,7 +135,7 @@ TrexCpToDpMsgBase * TrexStatelessDpResume::clone(){
 bool TrexStatelessDpResume::handle(TrexDpCore *dp_core){
 
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     stl_core->resume_traffic(m_port_id, m_profile_id);
     return (true);
 }
@@ -177,9 +177,9 @@ TrexStatelessDpStop::clone() {
  ************************/
 bool
 TrexStatelessDpUpdate::handle(TrexDpCore *dp_core) {
-    
+
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     stl_core->update_traffic(m_port_id, m_profile_id, m_factor);
 
     return true;
@@ -215,9 +215,9 @@ TrexStatelessDpUpdateStreams::clone() {
  ************************/
 bool
 TrexStatelessDpPushPCAP::handle(TrexDpCore *dp_core) {
-    
+
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    
+
     stl_core->push_pcap(m_port_id,
                         m_event_id,
                         m_pcap_filename,
@@ -253,7 +253,7 @@ TrexStatelessDpPushPCAP::clone() {
 
 bool
 TrexStatelessDpServiceMode::handle(TrexDpCore *dp_core) {
-    
+
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
     stl_core->set_service_mode(m_port_id, m_enabled);
@@ -274,14 +274,14 @@ bool
 TrexStatelessRxQuery::handle(CRxCore *rx_core) {
 
     query_rc_e rc = RC_OK;
-    
+
     switch (m_query_type) {
-   
+
     case SERVICE_MODE_ON:
         /* for service mode on - always allow this */
         rc = RC_OK;
         break;
-        
+
     case SERVICE_MODE_OFF:
         /* cannot leave service mode when RX queue is active */
         if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::QUEUE)) {
@@ -294,7 +294,7 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
             rc = RC_FAIL_CAPWAP_PROXY_ACTIVE;
             break;
         }
-        
+
         /* cannot leave service mode if PCAP capturing is active */
         if (TrexCaptureMngr::getInstance().is_active(m_port_id)) {
             rc = RC_FAIL_CAPTURE_ACTIVE;
@@ -308,15 +308,15 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
         }
 
         break;
-    
+
     default:
         assert(0);
         break;
-        
+
     }
-    
+
     m_reply.set_reply(rc);
-    
+
     return true;
 }
 
@@ -324,7 +324,7 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
 bool TrexStatelessRxEnableLatency::handle (CRxCore *rx_core) {
     rx_core->enable_latency();
     m_reply.set_reply(true);
-    
+
     return true;
 }
 

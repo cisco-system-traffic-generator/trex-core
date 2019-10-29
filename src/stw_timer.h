@@ -2,11 +2,11 @@
 
  * Februrary 2002, Bo Berry
   * hhaim-  2013
-   base on  Februrary 2002, Bo Berry 
+   base on  Februrary 2002, Bo Berry
  *
  * Copyright (c) 2005-2009 by Cisco Systems, Inc.
- * All rights reserved. 
- * 
+ * All rights reserved.
+ *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -34,7 +34,7 @@
 #ifndef __STW_TIMER_H__
 #define __STW_TIMER_H__
 
-#undef TW_DEBUG 
+#undef TW_DEBUG
 
 #define MAGIC_TAG         ( 0xDEADBEEF )
 
@@ -78,7 +78,7 @@ public:
         prepare ();
         m_rotation_count=0;
         m_last_update_tick=0;
-        m_aging_ticks=0;  
+        m_aging_ticks=0;
     }
 
     inline bool is_running(){
@@ -125,7 +125,7 @@ public:
         if ( tmr->is_running() ){
             tmr->m_last_update_tick = m_ticks;/* update the time with current tick */
 
-            #ifdef TW_DEBUG 
+            #ifdef TW_DEBUG
             m_timer_restart++ ;
             #endif
         }
@@ -142,7 +142,7 @@ public:
                 tmr->m_last_update_tick = m_ticks;
                 tmr->m_aging_ticks =ticks;
 
-                #ifdef TW_DEBUG 
+                #ifdef TW_DEBUG
                 m_timer_restart++ ;
                 #endif
                 return (RC_STW_OK);
@@ -160,22 +160,22 @@ public:
         if ( tmr->is_running() ){
             return( RC_STW_TIMER_IS_ON);
         }
-        
-        #ifdef TW_DEBUG 
+
+        #ifdef TW_DEBUG
             CTimerWheelLink *next, *prev;
 
             if (this == 0) {
                 return (RC_STW_NULL_WHEEL);
             }
-        
+
             if (tmr == 0) {
                 return (RC_STW_NULL_TMR);
             }
-        
+
             if (m_magic_tag != MAGIC_TAG) {
                return (RC_STW_INVALID_WHEEL);
             }
-        
+
             /*
              * First check to see if it is already running. If so, remove
              * it from the wheel.  We don't bother cleaning up the fields
@@ -186,7 +186,7 @@ public:
                 prev = tmr->m_links.stw_prev;
                 next->stw_prev = prev;
                 prev->stw_next = next;
-        
+
                 /*
                  * stats book keeping
                  */
@@ -197,8 +197,8 @@ public:
         tmr->m_last_update_tick = m_ticks;  /* save the tick */
         tmr->m_aging_ticks      = ticks;   /* set the original aging tick */
         tmr_enqueue( tmr, ticks);
-    
-    #ifdef TW_DEBUG 
+
+    #ifdef TW_DEBUG
         m_timer_starts++;
         m_timer_active++;
         if (m_timer_active > m_timer_hiwater_mark) {
@@ -215,7 +215,7 @@ public:
 
         inline void timer_tick(){
 
-        	#ifdef TW_DEBUG 
+        	#ifdef TW_DEBUG
             if ((this == 0) || (m_magic_tag != MAGIC_TAG)) {
                 return;
             }
@@ -225,9 +225,9 @@ public:
         	#endif
 
             m_ticks++;
-        
+
         	m_bucket_index++;
-        
+
         	if ( m_bucket_index == m_wheel_size ) {
         		m_bucket_index=0;
         	}
@@ -250,20 +250,20 @@ public:
             CTimerWheelLink  *bucket, *next, *prev;
             CTimerObj *tmr;
 
-        #ifdef TW_DEBUG 
+        #ifdef TW_DEBUG
             if ((this == 0) || (m_magic_tag != MAGIC_TAG)) {
                 return (CTimerObj *)0;
             }
         #endif
-        
+
             bucket = m_active_bucket; /* point the last/first */
             tmr = (CTimerObj *)m_active_tick_timer->stw_next;
 
             while( (CTimerWheelLink *)tmr != bucket) {
-        
+
                 next = (CTimerWheelLink *)tmr->m_links.stw_next;
                 rte_prefetch0(next);
-        
+
                 /*
                  * if the timer is a long one and requires one or more rotations
                  * decrement rotation count and leave for next turn.
@@ -284,13 +284,13 @@ public:
                         tmr->m_links.stw_next = 0;
                         tmr->m_links.stw_prev = 0;
 
-                        #ifdef TW_DEBUG 
+                        #ifdef TW_DEBUG
                         /* book keeping */
                         m_timer_active--;
                         m_timer_expired++;
                         #endif
-                        
-                        m_active_tick_timer = next->stw_prev; 
+
+                        m_active_tick_timer = next->stw_prev;
             			return(tmr);
                     }else{
                         if ( (reschedule % m_wheel_size ==0)) {
@@ -311,7 +311,7 @@ public:
 
                     }
                 }
-        
+
                 tmr = (CTimerObj *)next;
             }
             m_active_tick_timer = NULL; /* point to the bucket */
@@ -327,12 +327,12 @@ public:
 
 private:
 
-        inline void tmr_enqueue (CTimerObj *tmr, 
+        inline void tmr_enqueue (CTimerObj *tmr,
 								 uint32_t ticks) {
             CTimerWheelLink  *prev, *spoke;
-        
+
             uint32_t cursor;
-        
+
             if (ticks >= m_wheel_size) {
                 tmr->m_rotation_count = (ticks / m_wheel_size);
             }else{
@@ -341,9 +341,9 @@ private:
             cursor = ((m_bucket_index + ticks) % m_wheel_size);
             spoke = &m_buckets[cursor];
             prev = spoke->stw_prev;
-            tmr->m_links.stw_next = spoke;     
+            tmr->m_links.stw_next = spoke;
             tmr->m_links.stw_prev = prev;
-        
+
             prev->stw_next   = (CTimerWheelLink *)tmr;
             spoke->stw_prev = (CTimerWheelLink *)tmr;
         }
@@ -356,11 +356,11 @@ private:
     CTimerWheelLink  * m_active_tick_timer; /* interator of current tick, could be NULL in case we finish scanning the line */
 
 
-    uint32_t           m_ticks;               
-    uint32_t           m_magic_tag;           
+    uint32_t           m_ticks;
+    uint32_t           m_magic_tag;
 
     uint32_t           m_wheel_size;
-    uint32_t           m_bucket_index; 
+    uint32_t           m_bucket_index;
 
 protected:
     /* stats */

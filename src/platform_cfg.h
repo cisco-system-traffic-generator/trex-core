@@ -56,29 +56,29 @@ typedef enum {         MBUF_64        , // per dual port, per NUMA
 
 
                        MBUF_DP_FLOWS        ,
-                       MBUF_GLOBAL_FLOWS    , 
-                       MBUF_ELM_SIZE         
+                       MBUF_GLOBAL_FLOWS    ,
+                       MBUF_ELM_SIZE
               } mbuf_sizes_t;
 
 const std::string * get_mbuf_names(void);
 
 /*
 #- port_limit      : 2         # this option can limit the number of port of the platform
-  cpu_mask_offset : 4    # the offset of the cpu affinity 
+  cpu_mask_offset : 4    # the offset of the cpu affinity
   interface_mask  : [ "0000:11:00.00", "0000:11:00.01" ]  # interface that should be mask and not be considered
   scan_only_1g    : true
-  enable_zmq_pub  : true  # enable publisher for stats data 
+  enable_zmq_pub  : true  # enable publisher for stats data
   zmq_pub_port    : 4500
   telnet_port     : 4501 # the telnet port in case it is enable ( with intercative mode )
-  port_info       :  # set eh mac addr 
+  port_info       :  # set eh mac addr
           - dest_mac        :   [0x0,0x0,0x0,0x1,0x0,0x00]  # port 0
             src_mac         :   [0x0,0x0,0x0,0x1,0x0,0x00]
 
-  #for system of 1Gb/sec NIC or VM enable this  
-  port_bandwidth_gb : 10  # port bandwidth 10Gb/sec , for VM put here 1 for XL710 put 40 
-# memory configuration for 2x10Gb/sec system 
-  memory    : 
-     mbuf_64     : 16380 
+  #for system of 1Gb/sec NIC or VM enable this
+  port_bandwidth_gb : 10  # port bandwidth 10Gb/sec , for VM put here 1 for XL710 put 40
+# memory configuration for 2x10Gb/sec system
+  memory    :
+     mbuf_64     : 16380
      mbuf_128    : 8190
      mbuf_256    : 8190
      mbuf_512    : 8190
@@ -91,9 +91,9 @@ const std::string * get_mbuf_names(void);
      traffic_mbuf_1024   : 8190
      traffic_mbuf_2048   : 2049
 
-     dp_flows    : 1048576 
-     global_flows : 10240 
-            
+     dp_flows    : 1048576
+     global_flows : 10240
+
 */
 
 
@@ -137,7 +137,7 @@ struct CMacYamlInfo {
 
 struct CPlatformDualIfYamlInfo {
 public:
-    uint32_t              m_socket; 
+    uint32_t              m_socket;
     std::vector <uint8_t> m_threads;
 public:
     void Dump(FILE *fd);
@@ -150,8 +150,8 @@ public:
         m_is_exists=false;
     }
     bool             m_is_exists;
-    uint32_t         m_master_thread; 
-    uint32_t         m_rx_thread;  
+    uint32_t         m_master_thread;
+    uint32_t         m_rx_thread;
     std::vector <CPlatformDualIfYamlInfo> m_dual_if;
 public:
     void Dump(FILE *fd);
@@ -167,7 +167,7 @@ public:
     CPlatformMemoryYamlInfo(){
         reset();
     }
-    uint32_t         m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports 
+    uint32_t         m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports
 
 public:
     void Dump(FILE *fd);
@@ -220,7 +220,7 @@ public:
     bool            m_info_exist; /* file exist ?*/
 
     bool            m_port_limit_exist;
-    uint32_t        m_port_limit; 
+    uint32_t        m_port_limit;
 
 
     bool                          m_if_mask_exist;
@@ -240,7 +240,7 @@ public:
     bool                          m_enable_zmq_pub_exist;
     bool                          m_enable_zmq_pub;
     uint16_t                      m_zmq_pub_port;
-    
+
 
     bool                          m_telnet_exist;
     uint16_t                      m_telnet_port;

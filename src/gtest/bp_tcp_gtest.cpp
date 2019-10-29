@@ -210,7 +210,7 @@ TEST_F(gt_tcp, tst6) {
                                {.m_seq=1000,.m_len=20,.m_flags=0} };
 
     vec_tcp_reas_t out_pkts={ {.m_seq=1000,.m_len=20,.m_flags=0}
-                              
+
     };
 
     CTcpReassTest tst;
@@ -558,7 +558,7 @@ TEST_F(gt_tcp, tst15) {
 
     EXPECT_EQ(tx_sock.get_sbspace(),8*1024);
 
-    
+
     //tx_sock.sb_start_new_buffer();
 
     /* append maximum */
@@ -624,9 +624,9 @@ TEST_F(gt_tcp, tst16) {
         printf(" %lu \n",(ulong)offset);
         tcp_build_dpkt(&m_ctx,
                        &m_flow.m_tcp,
-                       offset, 
+                       offset,
                        diff,
-                       20, 
+                       20,
                        pkt);
         offset+=diff;
 
@@ -680,9 +680,9 @@ TEST_F(gt_tcp, tst17) {
         printf(" %lu \n",(ulong)offset);
         tcp_build_dpkt(&m_ctx,
                        &m_flow.m_tcp,
-                       offset, 
+                       offset,
                        diff,
-                       20, 
+                       20,
                        pkt);
         offset+=diff;
 
@@ -845,7 +845,7 @@ TEST_F(gt_tcp, tst21) {
 void tcp_gen_test(std::string pcap_file,
                   bool debug_mode,
                   cs_sim_test_id_t test_id=tiTEST2,
-                  int valn=0, 
+                  int valn=0,
                   cs_sim_mode_t sim_mode=csSIM_NONE,
                   bool is_ipv6=false,
                   uint16_t mss=0,
@@ -908,7 +908,7 @@ void tcp_gen_test(std::string pcap_file,
     default:
         assert(0);
     }
-    
+
 
     lpt1->close_file();
 
@@ -1263,7 +1263,7 @@ struct CMyNode {
     TCDListNode m_node;
     uint32_t    m_id;
 };
-      
+
 
 TEST_F(gt_tcp, tst32) {
     TCGenDList list;
@@ -1374,7 +1374,7 @@ int hash_func_test(uint32_t mask,int clients,int ports,chash_result & res){
 TEST_F(gt_tcp, tst34) {
 
     uint32_t mask=((1<<20)-1);
-    int i; 
+    int i;
     chash_result res;
     for (i=1000;i<6000; i+=100) {
         hash_func_test(mask,255,i,res);
@@ -1429,7 +1429,7 @@ TEST_F(gt_tcp, tst36) {
     ht.Create(32);
 
     flow_key_t key = tuple.get_as_uint64();
-    uint32_t   hash =tuple.get_hash(); 
+    uint32_t   hash =tuple.get_hash();
 
     lp=ht.find(key,hash);
     assert(lp==0);
@@ -1474,7 +1474,7 @@ TEST_F(gt_tcp, tst37) {
     ht.Create(32);
 
     flow_key_t key = tuple.get_as_uint64();
-    uint32_t   hash =tuple.get_hash(); 
+    uint32_t   hash =tuple.get_hash();
 
     lp=ht.find(key,hash);
     assert(lp==0);
@@ -1670,7 +1670,7 @@ TEST_F(gt_tcp, tst40) {
 
 /* reass test1  flow is not enabled */
 TEST_F(gt_tcp, tst42) {
-    CTcpPerThreadCtx       ctx;  
+    CTcpPerThreadCtx       ctx;
     CTcpFlow               flow;
     ctx.Create(100,true);
     flow.Create(&ctx);
@@ -1686,38 +1686,38 @@ TEST_F(gt_tcp, tst42) {
 
     int tiflags=0;
 
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ti.ih_len = 100;
     ti.ti_seq +=100 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+2000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+3000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+4000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
@@ -1729,7 +1729,7 @@ TEST_F(gt_tcp, tst42) {
 /* reass test1  flow is enabled by application*/
 
 TEST_F(gt_tcp, tst43) {
-    CTcpPerThreadCtx       ctx;  
+    CTcpPerThreadCtx       ctx;
     CTcpFlow               flow;
     CEmulAppApiImpl         tcp_bh_api_impl_c;
     ctx.Create(100,true);
@@ -1769,38 +1769,38 @@ TEST_F(gt_tcp, tst43) {
 
     int tiflags=0;
 
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ti.ih_len = 100;
     ti.ti_seq +=100 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+2000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+3000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+4000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0);
 
     ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
@@ -1818,7 +1818,7 @@ int test_buffer(int pkt_size,
                 int trim,
                 int verbose){
 
-    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1); 
+    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1);
     struct rte_mbuf * m;
     assert(buf);
     m=utl_rte_pktmbuf_mem_to_pkt(buf,pkt_size,
@@ -1852,7 +1852,7 @@ TEST_F(gt_tcp_long, tst50) {
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
         assert(test_buffer(2048,512,i,0)==0);
-    } 
+    }
 }
 
 
@@ -1861,7 +1861,7 @@ int test_buffer_adj(int pkt_size,
                     int adj,
                     int verbose){
 
-    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1); 
+    char * buf=utl_rte_pktmbuf_mem_fill(pkt_size,1);
     struct rte_mbuf * m;
     assert(buf);
     m=utl_rte_pktmbuf_mem_to_pkt(buf,pkt_size,
@@ -1899,7 +1899,7 @@ TEST_F(gt_tcp_long, tst51) {
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
         assert(test_buffer(2048,512,i,0)==0);
-    } 
+    }
 }
 
 
@@ -1911,7 +1911,7 @@ TEST_F(gt_tcp_long, tst_adj) {
     for (i=0; i<2047; i++) {
         printf(" test : %d \n",(int)i);
         assert(test_buffer_adj(2048,512,i,0)==0);
-    } 
+    }
 }
 
 
@@ -1957,7 +1957,7 @@ TEST_F(gt_tcp, tst52) {
 
 
 int test_prob(int intr,std::vector<double> & dist){
-    std::vector<int>     cnt;   
+    std::vector<int>     cnt;
     cnt.resize(dist.size());
 
     KxuLCRand rnd;
@@ -2138,7 +2138,7 @@ public:
 
 
  int test_prob2(int intr,std::vector<double> & dist){
-     std::vector<int>     cnt;   
+     std::vector<int>     cnt;
      cnt.resize(dist.size());
 
      CPolicerNuRand * ru=new CPolicerNuRand(dist);
@@ -2367,8 +2367,8 @@ TEST_F(gt_tcp, tst64) {
     cental limit theorem. */
     std::vector<double> distributions; // this vector will hold the distributions
     int number_of_distributions = 10; // number of distributions we are testing
-    
-    for (int i = 0; i < number_of_distributions; i++) { 
+
+    for (int i = 0; i < number_of_distributions; i++) {
         distributions.push_back(i);
     }
     assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
@@ -2383,7 +2383,7 @@ TEST_F(gt_tcp, tst65) {
     cental limit theorem. */
     std::vector<double> distributions; // this vector will hold the distributions
     int number_of_distributions = rand() % 1000 ; // number of distributions
-    for (int i = 0; i < number_of_distributions; i++) { 
+    for (int i = 0; i < number_of_distributions; i++) {
         distributions.push_back(1);
     }
     assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
@@ -2398,8 +2398,8 @@ TEST_F(gt_tcp, tst66) {
     cental limit theorem. */
     std::vector<double> distributions; // this vector will hold the distributions
     int number_of_distributions = 1000; // number of distributions we are testing
-    
-    for (int i = 0; i < number_of_distributions; i++) { 
+
+    for (int i = 0; i < number_of_distributions; i++) {
         distributions.push_back(rand());
     }
     assert(test_KxuNuRand(distributions, error_percentage, num_of_iterations));
@@ -2674,7 +2674,7 @@ TEST_F(gt_tcp, tst71) {
 
     //uint8_t b[]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
     //printf(" %x \n",calc_toeplitz(port_rss_key,40,b,8));
-    int i=0; 
+    int i=0;
 
     //uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
     uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
@@ -2710,7 +2710,7 @@ uint16_t get_rss_port(uint16_t port){
 }
 
 TEST_F(gt_tcp, tst72) {
-    int i; 
+    int i;
     uint8_t b[12]={0x42,0x09,0x95,0xbb,0xa1,0x8e,0x64,0x50,0x0a,0xea,0x06,0xe6};
     for (i=0; i<12; i++) {
         b[i]=0;
@@ -2792,7 +2792,7 @@ TEST_F(gt_tcp, tst77) {
 
 
 TEST_F(gt_tcp, tst78) {
-    
+
 
     CMbufBuffer b1;
 
@@ -2883,7 +2883,7 @@ TEST_F(gt_tcp, tst79) {
     q.get_by_offset(2050,res);
     res.Dump(stdout);
 
-    q.subtract_bytes(2060); //<< move the packet to buffer 
+    q.subtract_bytes(2060); //<< move the packet to buffer
 
     uint32_t tx_residue=0;
     bool is_next=q.on_bh_tx_acked(2060,tx_residue,true);
@@ -3023,7 +3023,7 @@ TEST_F(gt_tcp, tst201) {
     }
     double d1=now_sec();
     if (!res) {
-        printf("ERROR is : %s \n",err.c_str()); 
+        printf("ERROR is : %s \n",err.c_str());
     }else{
         printf(" OK %f \n",d1-d);
     }
@@ -3049,7 +3049,7 @@ TEST_F(gt_tcp, tst202) {
     }
     double d1=now_sec();
     if (!res) {
-        printf("ERROR is : %s \n",err.c_str()); 
+        printf("ERROR is : %s \n",err.c_str());
     }else{
         printf(" OK %f \n",d1-d);
     }
@@ -3139,7 +3139,7 @@ trex_rpc_cmd_rc_e CRpcTunnelBatchNode::rpc_clear(const Json::Value &params, Json
 
 
 
-void CExampleNode::conf_ip4_internal(const string &ip4_buf, 
+void CExampleNode::conf_ip4_internal(const string &ip4_buf,
                                      const string &gw4_buf){
     printf("conf_ip4_internal: %s %s \n",ip4_buf.c_str(),gw4_buf.c_str());
 }
@@ -3148,7 +3148,7 @@ void CExampleNode::clear_ip4_internal(void){
     printf("clear_ipv4 \n");
 }
 
-void CExampleNode::conf_ip6_internal(bool enabled, 
+void CExampleNode::conf_ip6_internal(bool enabled,
                                      const string &ip6_buf){
     printf("conf_ip6_internal: %d %s \n",enabled?1:0,ip6_buf.c_str());
 }
@@ -3180,13 +3180,13 @@ TEST_F(gt_tcp, tst201) {
     Json::Value results;
 
     lp->get_rpc_tunnel()->run_batch(commands,results);
-    /* NULL --> OK 
+    /* NULL --> OK
        {
        "error" :{
-       "message" : string 
+       "message" : string
        }
        "result" : {
-         object 
+         object
         }
     */
 
@@ -3206,13 +3206,13 @@ TEST_F(gt_tcp, tst202) {
     Json::Value results;
 
     lp->get_rpc_tunnel()->run_batch(commands,results);
-    /* NULL --> OK 
+    /* NULL --> OK
        {
        "error" :{
-       "message" : string 
+       "message" : string
        }
        "result" : {
-         object 
+         object
         }
     */
 
@@ -3232,13 +3232,13 @@ TEST_F(gt_tcp, tst203) {
     Json::Value results;
 
     lp->get_rpc_tunnel()->run_batch(commands,results);
-    /* NULL --> OK 
+    /* NULL --> OK
        {
        "error" :{
-       "message" : string 
+       "message" : string
        }
        "result" : {
-         object 
+         object
         }
     */
 

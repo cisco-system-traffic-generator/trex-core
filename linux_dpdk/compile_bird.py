@@ -1,5 +1,5 @@
 # this script will download & compile bird moving exe file to wanted path
-# and create a simple configuration file 
+# and create a simple configuration file
 
 import os
 import sys

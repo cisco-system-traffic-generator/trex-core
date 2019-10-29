@@ -49,9 +49,9 @@ TrexDpPortEvents::lookup(int event_id) {
 }
 
 /**
- * mark the next allowed event 
- * all other events will be disabled 
- * 
+ * mark the next allowed event
+ * all other events will be disabled
+ *
  */
 int
 TrexDpPortEvents::create_event(TrexDpPortEvent *event, int timeout_ms) {
@@ -65,7 +65,7 @@ TrexDpPortEvents::create_event(TrexDpPortEvent *event, int timeout_ms) {
     return event_id;
 }
 
-void 
+void
 TrexDpPortEvents::destroy_event(int event_id) {
     TrexDpPortEvent *event = lookup(event_id);
     if (!event) {
@@ -95,7 +95,7 @@ TrexDpPortEvents::barrier(uint32_t profile_id) {
     #ifdef TREX_SIM
     return;
     #endif
-     
+
     int barrier_id = create_event(new DPBarrier());
 
     TrexCpToDpMsgBase *barrier_msg = new TrexDpBarrier(m_port->m_port_id, profile_id, barrier_id);
@@ -109,9 +109,9 @@ TrexDpPortEvents::barrier(uint32_t profile_id) {
 }
 /**
  * handle an event
- * 
+ *
  */
-void 
+void
 TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id, bool status) {
     TrexDpPortEvent *event = lookup(event_id);
     /* event might have been deleted */
@@ -128,7 +128,7 @@ TrexDpPortEvents::on_core_reporting_in(int event_id, int thread_id, bool status)
 
 
 /**
- * return true if a core is still pending on an event 
+ * return true if a core is still pending on an event
  */
 bool
 TrexDpPortEvents::is_core_pending_on_event(int event_id, int thread_id) {
@@ -143,14 +143,14 @@ TrexDpPortEvents::is_core_pending_on_event(int event_id, int thread_id) {
 
 /***************************
  * event
- * 
+ *
  **************************/
 TrexDpPortEvent::TrexDpPortEvent() {
     m_port = NULL;
     m_event_id = -1;
 }
 
-void 
+void
 TrexDpPortEvent::init(TrexPort *port, int event_id, int timeout_ms) {
     m_port = port;
     m_event_id = event_id;

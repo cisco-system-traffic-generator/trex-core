@@ -505,14 +505,14 @@ class CFlowStatRuleMgr {
          }
         return m_pInstance;
     }
-    
+
     static void cleanup() {
         if (m_pInstance) {
             delete m_pInstance;
             m_pInstance = nullptr;
         }
     }
-    
+
     ~CFlowStatRuleMgr();
     friend std::ostream& operator<<(std::ostream& os, const CFlowStatRuleMgr& cf);
     void copy_state(TrexStream * from, TrexStream * to);

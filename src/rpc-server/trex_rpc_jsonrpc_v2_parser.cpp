@@ -27,8 +27,8 @@ limitations under the License.
 #include <iostream>
 
 /**
- * error as described in the RFC 
- * http://www.jsonrpc.org/specification 
+ * error as described in the RFC
+ * http://www.jsonrpc.org/specification
  */
 enum {
     JSONRPC_V2_ERR_PARSE              = -32700,
@@ -152,8 +152,8 @@ private:
 /******************* RPC error **************/
 
 /**
- * describes the parser error 
- * 
+ * describes the parser error
+ *
  */
 class JsonRpcError : public TrexJsonRpcV2ParsedObject {
 public:
@@ -181,10 +181,10 @@ TrexJsonRpcV2Parser::TrexJsonRpcV2Parser(const std::string &msg) : m_msg(msg) {
 
 /**
  * parse a batch of commands
- * 
+ *
  * @author imarom (17-Aug-15)
- * 
- * @param commands 
+ *
+ * @param commands
  */
 void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2ParsedObject *> &commands) {
 
@@ -209,11 +209,11 @@ void TrexJsonRpcV2Parser::parse(std::vector<TrexJsonRpcV2ParsedObject *> &comman
         parse_single_request(request, commands);
     }
 
-  
+
 }
 
 
-void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request, 
+void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
                                                std::vector<TrexJsonRpcV2ParsedObject *> &commands) {
 
     Json::Value msg_id = request["id"];
@@ -258,12 +258,12 @@ void TrexJsonRpcV2Parser::parse_single_request(Json::Value &request,
 
 /**
  * tries to pretty a JSON str
- * 
+ *
  * @author imarom (03-Sep-15)
- * 
- * @param json_str 
- * 
- * @return std::string 
+ *
+ * @param json_str
+ *
+ * @return std::string
  */
 std::string TrexJsonRpcV2Parser::pretty_json_str(const std::string &json_str) {
     Json::Reader reader;

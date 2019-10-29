@@ -149,7 +149,7 @@ public:
 
 protected:
     virtual void update_cmd_count(uint32_t total_exec_commands,
-                                  uint32_t err_exec_commands); 
+                                  uint32_t err_exec_commands);
 
 private:
   CStackBase * m_obj;
@@ -337,7 +337,7 @@ private:
     void _finish_rpc(uint64_t ticket_id);
 
 protected:
-    
+
 
     str_set_t                   m_add_macs_list;
     str_set_t                   m_del_macs_list;

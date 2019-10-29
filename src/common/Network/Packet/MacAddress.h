@@ -141,7 +141,7 @@ public:
         memcpy(data, rhs, ETHER_ADDR_LEN);
         return (*this);
     }
-     
+
     uint8_t*	GetBuffer()
     {
         return data;

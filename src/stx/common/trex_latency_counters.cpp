@@ -132,7 +132,7 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
 
     const TrexPlatformApi &api = get_platform_api();
     api.get_port_stat_info(0, num_counters, cap, ip_id_base);
-    
+
     m_ip_id_base = ip_id_base;
 }
 
@@ -322,7 +322,7 @@ RXLatency::get_stats(rx_per_flow_t *rx_stats,
                      int max,
                      bool reset,
                      TrexPlatformApi::driver_stat_cap_e type) {
-    
+
     for (int hw_id = min; hw_id <= max; hw_id++) {
         if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
             rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
@@ -360,7 +360,7 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     os << "m_rx_stats = <";
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
         os << in.m_rx_pg_stat[i] << ", ";
-    } 
+    }
     os << ">" << std::endl;
     os << "m_rx_pg_stat_payload = < ";
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {

@@ -27,11 +27,11 @@ limitations under the License.
 #include "time_histogram.h"
 #include "utl_jitter.h"
 
-                                 
+
 
 typedef enum {
-    CLIENT_SIDE = 0,    
-    SERVER_SIDE = 1,    
+    CLIENT_SIDE = 0,
+    SERVER_SIDE = 1,
     CS_NUM = 2,
     CS_INVALID = 255
 } pkt_dir_enum_t;
@@ -50,7 +50,7 @@ public:
         m_flow_size=0;
 
     }
-    uint16_t         m_flow_size; // how many packets in this direction 
+    uint16_t         m_flow_size; // how many packets in this direction
     uint16_t         m_pkts;
     uint16_t         m_seq;
 private:
@@ -276,7 +276,7 @@ public:
 	}
 
     void remove_all(void){
-		
+
 	}
     void dump_all(FILE *fd){
 		m_hash.Dump(fd);
@@ -408,7 +408,7 @@ protected:
     bool on_flow_end(CRxCheckFlow * lp);
     friend void  flow_aging_callback(CFlowTimerHandle * t);
 public:
-    
+
     CTimerWheel                     m_tw;
     CRxCheckFlowTableMap           m_ft;
     CRxCheckFlowTableStats         m_stats;

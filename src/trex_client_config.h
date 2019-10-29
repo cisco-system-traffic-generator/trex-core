@@ -202,41 +202,41 @@ class ClientCfgExt;
 class ClientCfgBase {
 
 public:
-    
+
     ClientCfgBase() {
         m_is_set = false;
     }
-    
+
     virtual void dump (FILE *fd) const {
         fprintf(fd, "    initiator :\n");
         m_initiator.dump(fd);
         fprintf(fd, "    responder :\n");
         m_responder.dump(fd);
     }
-    
+
     virtual void update(uint32_t index, const ClientCfgExt *cfg);
 
     /**
-     * explicit bool operator 
-     * safe to use 
+     * explicit bool operator
+     * safe to use
      */
     explicit operator bool() const {
         return m_is_set;
     }
-    
+
     /**
-     * apply client configuration to a MBUF 
-     *  
-     * rte_mbuf_t *m 
+     * apply client configuration to a MBUF
+     *
+     * rte_mbuf_t *m
      * pkt_dir_t dir
      */
     void apply(rte_mbuf_t *m, uint8_t dir) const;
-    
-    
+
+
  public:
     ClientCfgDirBase  m_initiator;
     ClientCfgDirBase  m_responder;
-    
+
     bool              m_is_set;
 };
 
@@ -296,14 +296,14 @@ class ClientCfgEntry {
 public:
 
     void dump(FILE *fd) const;
-    
+
     void set_resolved_macs(CManyIPInfo *pretest_result);
-    
+
     bool contains(uint32_t ip) const {
         return ( (ip >= m_ip_start) && (ip <= m_ip_end) );
     }
 
-    
+
     /**
      * assings a client config from the group
      *
@@ -316,7 +316,7 @@ public:
 
         /* fold the offset */
         uint32_t index = (ip - m_ip_start) % m_count;
-        
+
         info.m_initiator = m_cfg.m_initiator;
         info.m_responder = m_cfg.m_responder;
         info.update(index, &m_cfg);

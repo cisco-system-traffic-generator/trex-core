@@ -36,21 +36,21 @@
 
 // This line ensures that gtest.h can be compiled on its own, even
 // when it's fused.
-// 
-// 
-/*****                         
+//
+//
+/*****
  * NAME
- *   
- *   
+ *
+ *
  * AUTHOR
- *   google 
- *   
+ *   google
+ *
  * COPYRIGHT
  *   Copyright (c) 2004-2011 by cisco Systems, Inc.
  *   All rights reserved.
- *   
+ *
  * DESCRIPTION
- *   
+ *
  ****/
 
 #include <common/gtest.h>

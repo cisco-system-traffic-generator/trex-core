@@ -47,7 +47,7 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_node(const Json::Value &params, 
     if ( is_bird ) {
         return (m_obj->rpc_add_bird_node(mac));
     } else {
-        return (m_obj->rpc_add_node(mac));  
+        return (m_obj->rpc_add_node(mac));
     }
 }
 
@@ -215,7 +215,7 @@ void CRpcTunnelCStackBase::register_rpc_functions(){
 
 }
 
-                                        
+
 
 /***************************************
 *             CStackBase               *
@@ -495,7 +495,7 @@ void CStackBase::conf_name_space_batch_async(const std::string &json){
 
 
 void CStackBase::rpc_help(const std::string & mac,const std::string & p1,const std::string & p2){
-    printf(" rpc_help base -- not implemented \n"); 
+    printf(" rpc_help base -- not implemented \n");
 }
 
 

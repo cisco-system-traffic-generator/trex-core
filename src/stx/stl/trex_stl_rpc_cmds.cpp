@@ -176,7 +176,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * get active packet group IDs
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
@@ -205,7 +205,7 @@ TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * get packet group IDs stats
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
@@ -240,9 +240,9 @@ TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
 
 
 /***************************
- * get all profiles configured 
- * on a specific port 
- * 
+ * get all profiles configured
+ * on a specific port
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetProfileList::_run(const Json::Value &params, Json::Value &result) {
@@ -266,9 +266,9 @@ TrexRpcCmdGetProfileList::_run(const Json::Value &params, Json::Value &result) {
 
 
 /***************************
- * get all streams configured 
- * on a specific port 
- * 
+ * get all streams configured
+ * on a specific port
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
@@ -292,10 +292,10 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
             for (auto &stream_id : stream_list) {
                 json_list.append(stream_id);
             }
-            
+
             std::stringstream ss;
             ss << profile_id;
-            json_profile_stream_list[ss.str()] = json_list; 
+            json_profile_stream_list[ss.str()] = json_list;
         }
 
         result["result"] = json_profile_stream_list;
@@ -307,7 +307,7 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
         for (auto &stream_id : stream_list) {
             json_list.append(stream_id);
         }
-    
+
         result["result"] = json_list;
     }
 
@@ -317,7 +317,7 @@ TrexRpcCmdGetStreamList::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * get all streams
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
@@ -326,7 +326,7 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     string profile_id = parse_profile(params, result);
-    
+
     Json::Value streams_json = Json::objectValue;
     Json::Value profiles_json = Json::objectValue;
 
@@ -336,13 +336,13 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
 
         for (auto &mprofile : profiles) {
             string profile_id_prt = mprofile->m_profile_id;
-            
+
             std::vector <TrexStream *> streams;
             port->get_object_list(profile_id_prt, streams);
-    
+
             std::stringstream ps;
             ps << profile_id_prt;
-    
+
             std::vector<uint32_t> stream_list;
             port->get_id_list(profile_id_prt, stream_list);
             Json::Value json_list = Json::arrayValue;
@@ -371,9 +371,9 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
                 Json::Value j = stream->get_stream_json();
                 std::stringstream ss;
                 ss << stream->m_stream_id;
-                streams_json[ss.str()] = j; 
-            }    
-         }    
+                streams_json[ss.str()] = j;
+            }
+         }
          result["result"]["streams"] = streams_json;
     }
 
@@ -383,7 +383,7 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * add new stream
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
@@ -400,7 +400,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         /* get the type of the stream */
         const Json::Value &mode = parse_object(section, "mode", result);
         string type = parse_string(mode, "type", result);
-        
+
 
         /* allocate a new stream based on the type */
         std::unique_ptr<TrexStream> stream = allocate_new_stream(section, port_id, stream_id, result);
@@ -448,7 +448,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
         if ( (pkt_binary.size() < MIN_PKT_SIZE) || (pkt_binary.size() > MAX_PKT_SIZE) ) {
             std::stringstream ss;
             ss << "Bad packet size provided: " << pkt_binary.size() <<  ". Should be between " << MIN_PKT_SIZE << " and " << MAX_PKT_SIZE;
-            generate_execute_err(result, ss.str()); 
+            generate_execute_err(result, ss.str());
         }
 
         /* fetch the packet from the message */
@@ -503,7 +503,7 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             }
         }
-        
+
         /* make sure this is a valid stream to add */
         validate_stream(profile_id, stream, result);
         port->add_stream(profile_id, stream.get());
@@ -568,7 +568,7 @@ TrexRpcCmdAddStream::allocate_new_stream(const Json::Value &section, uint8_t por
 
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     double value = parse_udouble(rate, "value", result);
@@ -591,24 +591,24 @@ TrexRpcCmdAddStream::parse_rate(const Json::Value &rate, std::unique_ptr<TrexStr
 
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_checksum_hw(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
-    uint16_t l2_len = parse_uint16(inst, "l2_len", result); 
-    uint16_t l3_len = parse_uint16(inst, "l3_len", result); 
-    uint16_t l4_type = parse_uint16(inst, "l4_type", result); 
+    uint16_t l2_len = parse_uint16(inst, "l2_len", result);
+    uint16_t l3_len = parse_uint16(inst, "l3_len", result);
+    uint16_t l4_type = parse_uint16(inst, "l4_type", result);
 
     stream->m_vm.add_instruction(new StreamVmInstructionFixHwChecksum(l2_len,l3_len,l4_type));
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
-    uint16_t pkt_offset = parse_uint16(inst, "pkt_offset", result); 
+    uint16_t pkt_offset = parse_uint16(inst, "pkt_offset", result);
     stream->m_vm.add_instruction(new StreamVmInstructionFixChecksumIpv4(pkt_offset));
 }
 
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_trim_pkt_size(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result){
 
     std::string  flow_var_name = parse_string(inst, "name", result);
@@ -617,7 +617,7 @@ TrexRpcCmdAddStream::parse_vm_instr_trim_pkt_size(const Json::Value &inst, std::
 }
 
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result){
 
 
@@ -649,10 +649,10 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
 
 
 /**
- * if a user specify min_value and max_value with a step 
- * that does not create a full cycle - pad the values to allow 
- * a true cycle 
- * 
+ * if a user specify min_value and max_value with a step
+ * that does not create a full cycle - pad the values to allow
+ * a true cycle
+ *
  */
 void
 TrexRpcCmdAddStream::handle_range_padding(uint64_t &max_value,
@@ -662,7 +662,7 @@ TrexRpcCmdAddStream::handle_range_padding(uint64_t &max_value,
                                           Json::Value &result) {
 
     /* pad for the step */
-    uint64_t pad = (max_value - min_value + 1) % step; 
+    uint64_t pad = (max_value - min_value + 1) % step;
     if (pad == 0) {
         return;
     }
@@ -693,12 +693,12 @@ TrexRpcCmdAddStream::handle_range_padding(uint64_t &max_value,
     }
 }
 
-void 
-TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size, 
+void
+TrexRpcCmdAddStream::check_min_max(uint8_t flow_var_size,
                                    uint64_t init_value,
                                    uint64_t step,
                                    uint64_t min_value,
-                                   uint64_t max_value, 
+                                   uint64_t max_value,
                                    Json::Value &result){
 
     if (step == 0) {
@@ -781,7 +781,7 @@ TrexRpcCmdAddStream::check_value_list(uint8_t flow_var_size,
     }
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
     std::string next_var_name = parse_string(inst, "next_var", result, "");
@@ -813,7 +813,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var_rand_limit(const Json::Value &inst,
                                  );
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
 
@@ -883,7 +883,7 @@ TrexRpcCmdAddStream::parse_vm_instr_flow_var(const Json::Value &inst, std::uniqu
 }
 
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
@@ -903,7 +903,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_mask_flow_var(const Json::Value &inst,
 }
 
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
     std::string  flow_var_name = parse_string(inst, "name", result);
     uint16_t     pkt_offset    = parse_uint16(inst, "pkt_offset", result);
@@ -916,7 +916,7 @@ TrexRpcCmdAddStream::parse_vm_instr_write_flow_var(const Json::Value &inst, std:
                                                                    is_big_endian));
 }
 
-void 
+void
 TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
 
     const Json::Value &instructions =  parse_array(vm ,"instructions", result);
@@ -980,7 +980,7 @@ TrexRpcCmdAddStream::validate_stream(string profile_id, const std::unique_ptr<Tr
 
 /***************************
  * remove stream
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
@@ -989,7 +989,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
     string profile_id = parse_profile(params, result);
-       
+
     uint32_t stream_id = parse_uint32(params, "stream_id", result);
     TrexStream *stream = port->get_stream_by_id(profile_id, stream_id);
 
@@ -1004,7 +1004,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    
+
     delete stream;
 
     result["result"] = Json::objectValue;
@@ -1015,7 +1015,7 @@ TrexRpcCmdRemoveStream::_run(const Json::Value &params, Json::Value &result) {
 /***************************
  * remove all streams
  * for a port
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result) {
@@ -1040,8 +1040,8 @@ TrexRpcCmdRemoveAllStreams::_run(const Json::Value &params, Json::Value &result)
 
 /***************************
  * get stream by id
- * on a specific port 
- * 
+ * on a specific port
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
@@ -1082,7 +1082,7 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * start traffic on port
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
@@ -1109,7 +1109,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     /* check for a valid core mask */
     if (!TrexDPCoreMask::is_valid_mask(port->get_dp_core_count(), core_mask)) {
         std::stringstream ss;
-        ss << "core_mask: '0x" << std::hex << core_mask << "' for " << std::to_string(port->get_dp_core_count()) << " cores generates an empty set"; 
+        ss << "core_mask: '0x" << std::hex << core_mask << "' for " << std::to_string(port->get_dp_core_count()) << " cores generates an empty set";
         generate_parse_err(result, ss.str());
     }
 
@@ -1119,7 +1119,7 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
     std::string type   = parse_choice(mul_obj, "type", TrexPortMultiplier::g_types, result);
     std::string op     = parse_string(mul_obj, "op", result);
     double      value  = parse_udouble(mul_obj, "value", result);
-    
+
     if ( value == 0 ) {
         generate_parse_err(result, "multiplier can't be zero");
     }
@@ -1144,13 +1144,13 @@ TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
     result["result"]["multiplier"] = port->get_multiplier(profile_id);
     result["result"]["ts"]         = ts;
-    
+
     return (TREX_RPC_CMD_OK);
 }
 
 /***************************
  * stop traffic on port
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
@@ -1174,7 +1174,7 @@ TrexRpcCmdStopTraffic::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * remove all hardware filters
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdRemoveRXFilters::_run(const Json::Value &params, Json::Value &result) {
@@ -1197,7 +1197,7 @@ TrexRpcCmdRemoveRXFilters::_run(const Json::Value &params, Json::Value &result) 
 
 /***************************
  * pause traffic
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdPauseTraffic::_run(const Json::Value &params, Json::Value &result) {
@@ -1256,7 +1256,7 @@ TrexRpcCmdPauseStreams::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * resume traffic
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdResumeTraffic::_run(const Json::Value &params, Json::Value &result) {
@@ -1316,7 +1316,7 @@ TrexRpcCmdResumeStreams::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * update traffic
- * 
+ *
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdUpdateTraffic::_run(const Json::Value &params, Json::Value &result) {
@@ -1401,10 +1401,10 @@ TrexRpcCmdUpdateStreams::_run(const Json::Value &params, Json::Value &result) {
 
 /***************************
  * validate
- *  
+ *
  * checks that the port
- * attached streams are 
- * valid as a program 
+ * attached streams are
+ * valid as a program
  **************************/
 trex_rpc_cmd_rc_e
 TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
@@ -1507,7 +1507,7 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * set service mode on/off
- * 
+ *
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
@@ -1530,7 +1530,7 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     } catch (TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    
+
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
 }
@@ -1539,7 +1539,7 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * STL RPC component
- * 
+ *
  */
 TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
 
@@ -1550,7 +1550,7 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
-    
+
     /* profiles */
     m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
 
@@ -1561,7 +1561,7 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdAddStream(this));
     m_cmds.push_back(new TrexRpcCmdRemoveStream(this));
     m_cmds.push_back(new TrexRpcCmdRemoveAllStreams(this));
-    
+
     /* traffic */
     m_cmds.push_back(new TrexRpcCmdStartTraffic(this));
     m_cmds.push_back(new TrexRpcCmdStopTraffic(this));
@@ -1573,10 +1573,10 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdUpdateStreams(this));
     m_cmds.push_back(new TrexRpcCmdValidate(this));
     m_cmds.push_back(new TrexRpcCmdRemoveRXFilters(this));
-    
+
     /* service mode */
     m_cmds.push_back(new TrexRpcCmdSetServiceMode(this));
-    
+
     /* pcap */
     m_cmds.push_back(new TrexRpcCmdPushRemote(this));
 }

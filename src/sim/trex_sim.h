@@ -49,7 +49,7 @@ public:
     STXSimGuard(TrexSTX *stx) {
         set_stx(stx);
     }
-    
+
     ~STXSimGuard() {
         delete get_stx();
         set_stx(nullptr);
@@ -57,14 +57,14 @@ public:
 };
 
 
-static inline bool 
+static inline bool
 in_range(int x, int low, int high) {
     return ( (x >= low) && (x <= high) );
 }
 
 /**
  * interface for a sim target
- * 
+ *
  */
 class SimInterface {
 public:
@@ -83,13 +83,13 @@ public:
         CGlobalInfo::m_socket.Delete();
     }
 
-    
+
 };
 
 
 /**
  * gtest target
- * 
+ *
  * @author imarom (28-Dec-15)
  */
 class SimGtest : SimInterface {
@@ -105,7 +105,7 @@ public:
 
 /**
  * stateful target
- * 
+ *
  */
 class SimStateful : public SimInterface {
 
@@ -117,7 +117,7 @@ public:
 
 /**
  * target for sim stateless
- * 
+ *
  * @author imarom (28-Dec-15)
  */
 class SimStateless : public SimInterface {
@@ -128,7 +128,7 @@ public:
         return instance;
     }
 
-    
+
     int run(const std::string &json_filename,
             const std::string &out_filename,
             int port_count,
@@ -207,7 +207,7 @@ struct asrtf_args_t {
 
 /**
  * stateful target
- * 
+ *
  */
 class SimAstf : public SimInterface {
 

@@ -266,7 +266,7 @@ char *CTestPktGen::create_test_pkt(uint16_t l3_type, uint16_t l4_proto, uint8_t 
  *  src_mac - Our source MAC
  *  port - Port we intended to send packet on. This is needed since we put some "magic" number with the port, so
  *         we can identify if we are connected in loopback, which ports are connected.
- *  
+ *
  *  inner_vlan - VLAN tag to send the packet on. If set to 0, no vlan tag will be added.
  *  outer_vlan - QinQ VLAN tag. If set to 0, no QinQ tag will be added
  */
@@ -277,7 +277,7 @@ void CTestPktGen::create_arp_req(uint8_t *pkt,
                                  uint16_t port,
                                  uint16_t inner_vlan,
                                  uint16_t outer_vlan) {
-    
+
     uint16_t l2_proto = htons(EthernetHeader::Protocol::ARP);
 
     // dst MAC
@@ -292,22 +292,22 @@ void CTestPktGen::create_arp_req(uint8_t *pkt,
 
         *((uint16_t *)pkt) = htons(EthernetHeader::Protocol::QINQ);
         pkt += 2;
-        
+
         *((uint16_t *)pkt) = htons(outer_vlan);
         pkt += 2;
-      
-        
+
+
     }
 
     /* regular VLAN */
     if (inner_vlan != 0) {
-        
+
         *((uint16_t *)pkt) = htons(EthernetHeader::Protocol::VLAN);
         pkt += 2;
-        
+
         *((uint16_t *)pkt) = htons(inner_vlan);
         pkt += 2;
-        
+
     }
 
     // l3 type

@@ -33,13 +33,13 @@ class TrexWatchDog;
 
 class CLatencyPktInfo {
 public:
-    
+
     CLatencyPktInfo() {
         m_client_cfg = NULL;
         m_packet     = NULL;
     }
-    
-    
+
+
     void Create(class CLatencyPktMode *m_l_pkt_info);
     void Delete();
 
@@ -49,7 +49,7 @@ public:
     void set_ip(uint32_t                src,
                 uint32_t                dst,
                 uint32_t                dual_port_mask);
-    
+
     /**
      * set IP with client clustering configuration
      */
@@ -58,8 +58,8 @@ public:
                 uint32_t                dual_port_mask,
                 uint8_t                 port_cnt,
                 ClientCfgDB            &db);
-    
-    
+
+
     rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0,uint32_t extern_dest_ip=0);
 
     CGenNode   *    getNode(){
@@ -124,7 +124,7 @@ public:
     void set_enable_none_latency_processing(bool enable){
         m_handle_none_latency =enable;
     }
-    
+
     bool can_send_packet(int direction){
         // in icmp_reply mode, can send response from server, only after we got the relevant request
         // if we got request, we are sure to have NAT translation in place already.
@@ -251,41 +251,41 @@ public:
 
 class CPortLatencyHWBase {
 public:
-    
+
     /**
      * sends a packet
-     *  
-     * in case of a failure the user should free the mbuf 
+     *
+     * in case of a failure the user should free the mbuf
      */
     virtual int tx(rte_mbuf_t *m) = 0;
-    
+
     /**
-     * send a packet as raw (no vlan tagging or any other 
-     * modification) 
-     * used mainly by stateless RX core 
-     *  
-     * in case of a failure the user should free the mbuf 
+     * send a packet as raw (no vlan tagging or any other
+     * modification)
+     * used mainly by stateless RX core
+     *
+     * in case of a failure the user should free the mbuf
      */
     virtual int tx_raw(rte_mbuf_t *m) = 0;
-    
+
     /**
-     * sends a latency packet 
-     * if needed, timestamp will be updated 
-     *  
+     * sends a latency packet
+     * if needed, timestamp will be updated
+     *
      * in case of a failure the user should free the mbuf
      */
     virtual int tx_latency(rte_mbuf_t *m) = 0;
-    
+
     virtual rte_mbuf_t * rx() = 0;
     virtual uint16_t rx_burst(struct rte_mbuf **rx_pkts, uint16_t nb_pkts) = 0;
-    
+
 protected:
-    
+
     /**
      * apply HW VLAN
      */
     void apply_hw_vlan(rte_mbuf_t *m, uint8_t port_id);
-    
+
 };
 
 
@@ -368,24 +368,24 @@ public:
     void  stop();
     bool  is_active();
 
-    
+
     void set_ip(uint32_t client_ip,
                 uint32_t server_ip,
                 uint32_t mask_dual_port) {
-        
+
         m_pkt_gen.set_ip(client_ip, server_ip, mask_dual_port);
     }
-    
-    
+
+
     void set_ip(uint32_t        client_ip,
                 uint32_t        server_ip,
                 uint32_t        mask_dual_port,
                 ClientCfgDB    &client_cfg_db) {
-        
+
         m_pkt_gen.set_ip(client_ip, server_ip, mask_dual_port, m_max_ports, client_cfg_db);
     }
-    
-    
+
+
     void Dump(FILE *fd); // dump all
     void DumpShort(FILE *fd); // dump short histogram of latency
 
@@ -418,7 +418,7 @@ public:
     CLatencyPktMode *c_l_pkt_mode;
     void add_grat_arp_src(COneIPv4Info &ip);
 
-    
+
     /* TrexRxCore interface */
 
     void start() {
@@ -429,12 +429,12 @@ public:
         /* not supported */
         return -1;
     }
-    
-    
+
+
 private:
     void handle_rx_msgs();
     void handle_rx_one_queue(uint8_t ti,CNodeRing * r);
-    void handle_pkt_msg(uint8_t thread_id, 
+    void handle_pkt_msg(uint8_t thread_id,
                         CGenNodeLatencyPktInfo * msg);
 
     void  tickle();
@@ -462,7 +462,7 @@ private:
      CCpuUtlCp               m_cpu_cp_u;
      TrexMonitor             m_monitor;
      CManyIPInfo             m_arp_info; // for grat ARP
-     volatile bool           m_do_stop; 
+     volatile bool           m_do_stop;
      char                    m_false_sharing[128];
 };
 

@@ -120,7 +120,7 @@ int CRxAstfCore::_do_start(void){
             do_background();
         }
         m_cpu_dp_u.start_work1();
-        // re-read it as background might add new nodes 
+        // re-read it as background might add new nodes
         node = m_p_queue.top();
         n_time = node->m_time;
 
@@ -135,7 +135,7 @@ int CRxAstfCore::_do_start(void){
             if (!send_pkt_all_ports() && (node->m_pad2==m_epoc) ){
             }else{
                 restart=false;
-            } 
+            }
             break;
 #ifdef LATENCY_UPDATE_NODE
         case  CGenNode::TW_SYNC:
@@ -389,7 +389,7 @@ void CRxAstfCore::handle_rx_pkt(CLatencyManagerPerPort * lp,
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     utl_k12_pkt_format(stdout,p ,pkt_size) ;
     /****************************************/
-#endif 
+#endif
 
     lp->m_port.check_packet(m,rxc);
     if ( unlikely(rxc!=NULL) ){

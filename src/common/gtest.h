@@ -47,20 +47,20 @@
 // Acknowledgment: Google Test borrowed the idea of automatic test
 // registration from Barthelemy Dagenais' (barthelemy@prologique.com)
 // easyUnit framework.
-// 
-/*****                         
+//
+/*****
  * NAME
- *   
- *   
+ *
+ *
  * AUTHOR
- *   google 
- *   
+ *   google
+ *
  * COPYRIGHT
  *   Copyright (c) 2004-2011 by cisco Systems, Inc.
  *   All rights reserved.
- *   
+ *
  * DESCRIPTION
- *   
+ *
  ****/
 
 

@@ -133,7 +133,7 @@ void  CHTimerOneWheel::dump_link_list(uint32_t bucket_index,
 
 
 void CHTimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
-    #ifndef _DEBUG 
+    #ifndef _DEBUG
     if (m_total_events==0) {
         return;
     }
@@ -166,7 +166,7 @@ void CHTimerWheel::on_tick(void *userdata,htw_on_tick_cb_t cb){
             if (event->m_ticks_left==0) {
                 cb(userdata,event);
             }else{
-                timer_start(event,event->m_ticks_left); 
+                timer_start(event,event->m_ticks_left);
             }
         }
         if (!lp->check_timer_tick_cycle()){
@@ -197,7 +197,7 @@ RC_HTW_t CHTimerWheel::timer_stop (CHTimerObj *tmr){
 
 
 
-RC_HTW_t CHTimerWheel::timer_start_rest(CHTimerObj  *tmr, 
+RC_HTW_t CHTimerWheel::timer_start_rest(CHTimerObj  *tmr,
                                         htw_ticks_t  ticks){
     int i;
     htw_ticks_t nticks  = ticks;
@@ -272,7 +272,7 @@ RC_HTW_t CHTimerWheel::Delete(){
 
 
 void CNATimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
-    #ifndef _DEBUG 
+    #ifndef _DEBUG
     if (m_total_events==0) {
         reset_tick_level_inc(1);
         return;
@@ -340,7 +340,7 @@ uint16_t CNATimerWheel::on_tick_level_count(int level,
 
     CHTimerOneWheel * lp=&m_timer_w[level];
     CHTimerObj * event;
-    uint32_t cnt=0; 
+    uint32_t cnt=0;
     uint16_t old_state = m_cnt_state;
 
     left=lp->get_bucket_total_events();
@@ -439,10 +439,10 @@ RC_HTW_t CNATimerWheel::timer_stop (CHTimerObj *tmr){
 
 
 
-RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr, 
+RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr,
                                         htw_ticks_t  ticks){
 
-    htw_ticks_t nticks = (ticks+m_wheel_level1_err)>>m_wheel_level1_shift; 
+    htw_ticks_t nticks = (ticks+m_wheel_level1_err)>>m_wheel_level1_shift;
     if (nticks<m_wheel_size) {
         if (nticks<2) {
             nticks=2; /* not on the same bucket*/

@@ -90,8 +90,8 @@
 #define PR_SLOWHZ   2       /* 2 slow timeouts per second */
 #define PR_FASTHZ   5       /* 5 fast timeouts per second */
 
- 
-/* reduce the 2MSL to 2 sec from 30 sec */                      
+
+/* reduce the 2MSL to 2 sec from 30 sec */
 #define TCPTV_2MSL   ( 1)     /* max seg lifetime (hah!) */
 #define TCPTV_SRTTBASE  0           /* base roundtrip time;
                            if 0, no idea yet */

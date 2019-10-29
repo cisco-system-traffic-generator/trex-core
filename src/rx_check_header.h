@@ -24,7 +24,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include <stdio.h>
-#include <common/bitMan.h> 
+#include <common/bitMan.h>
 #include <common/Network/Packet/CPktCmn.h>
 
 #define RX_CHECK_LEN    (sizeof(struct CRx_check_header))

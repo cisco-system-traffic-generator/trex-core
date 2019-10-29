@@ -47,7 +47,7 @@ void sbflush (struct sockbuf *sb){
 }
 
 void    sbappend(struct tcp_socket *so,
-                 struct sockbuf *sb, 
+                 struct sockbuf *sb,
                  struct rte_mbuf *m,
                  uint32_t len){
     assert(len==m->pkt_len);
@@ -65,7 +65,7 @@ void    sbappend(struct tcp_socket *so,
 
 
 void    sbappend_bytes(struct tcp_socket *so,
-                       struct sockbuf *sb, 
+                       struct sockbuf *sb,
                        uint32_t len){
     sb->sb_cc+=len;
     if (len) {
@@ -208,7 +208,7 @@ void CMbufBuffer::get_by_offset(uint32_t offset,CBufMbufRef & res){
     res.m_offset = mod;
     CMbufObject *lp= &m_vec[index];
     res.m_mbuf   = lp->m_mbuf;
-    res.m_type   = lp->m_type; 
+    res.m_type   = lp->m_type;
 }
 
 
@@ -312,14 +312,14 @@ void CEmulApp::check_rx_pkt_condition(){
 }
 
 
-/* state-machine without table for speed. might need to move to table in the future 
-   Interrupt means that we are inside the Rx TCP function and need to make sure it is possible to call the function 
+/* state-machine without table for speed. might need to move to table in the future
+   Interrupt means that we are inside the Rx TCP function and need to make sure it is possible to call the function
    It is possible to defer a function to do after we finish the interrupt see dpc functions
    Next () -- will jump to the next state
 
-   SEND/RX could happen in parallel 
+   SEND/RX could happen in parallel
 
-   te_SEND    - while sending a big buffer 
+   te_SEND    - while sending a big buffer
    te_WAIT_RX  - while waiting for buffer to be Rx
    te_NONE    - for general commands
 
@@ -412,11 +412,11 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             }
         }
         break;
-    case tcDELAY_RAND : 
+    case tcDELAY_RAND :
         run_cmd_delay_rand((htw_ticks_t) cmd->u.m_delay_rnd.m_min_ticks,
                           (htw_ticks_t) cmd->u.m_delay_rnd.m_max_ticks);
         break;
-    case tcSET_VAR : 
+    case tcSET_VAR :
         {
         assert(cmd->u.m_var.m_var_id<apVAR_NUM_SIZE);
         m_vars[cmd->u.m_var.m_var_id]=cmd->u.m_var.m_val;
@@ -424,7 +424,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         }
         break;
 
-    case tcJMPNZ : 
+    case tcJMPNZ :
         {
             assert(cmd->u.m_jmpnz.m_var_id<apVAR_NUM_SIZE);
             if (--m_vars[cmd->u.m_jmpnz.m_var_id]>0){
@@ -440,7 +440,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         }
         break;
 
-    case tcTX_PKT : 
+    case tcTX_PKT :
         {
            m_state=te_NONE;
            m_api->send_pkt((CUdpFlow *)m_flow,cmd->u.m_tx_pkt.m_buf);
@@ -448,7 +448,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         }
         break;
 
-    case tcRX_PKT : 
+    case tcRX_PKT :
         {
             uint32_t  flags = cmd->u.m_rx_pkt.m_flags;
             /* clear rx counter */
@@ -468,7 +468,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         }
         break;
 
-    case tcKEEPALIVE : 
+    case tcKEEPALIVE :
         {
             m_state=te_NONE;
             m_api->set_keepalive((CUdpFlow *)m_flow,cmd->u.m_keepalive.m_keepalive_msec);
@@ -568,7 +568,7 @@ void CEmulApp::do_close(){
 int CEmulApp::on_bh_tx_acked(uint32_t tx_bytes){
     set_interrupt(true);
     uint32_t  add_to_queue;
-    
+
     bool is_next=m_q.on_bh_tx_acked(tx_bytes,add_to_queue,get_tx_mode_none_blocking()?false:true);
 
     if (add_to_queue) {
@@ -629,7 +629,7 @@ int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
     if ( get_rx_enabled() ) {
 
         /* drain the bytes from the queue */
-        m_cmd_rx_bytes+= m_api->rx_drain(m_flow); 
+        m_cmd_rx_bytes+= m_api->rx_drain(m_flow);
         if (m_state==te_WAIT_RX) {
             check_rx_condition();
         }
@@ -652,10 +652,10 @@ void CEmulAppProgram::add_cmd(CEmulAppCmd & cmd){
 }
 
 bool CEmulAppProgram::is_common_commands(tcp_app_cmd_t cmd_id){
-    if ( (cmd_id==tcDELAY) || 
+    if ( (cmd_id==tcDELAY) ||
          (cmd_id==tcDELAY_RAND) ||
          (cmd_id==tcSET_VAR) ||
-         (cmd_id==tcJMPNZ) 
+         (cmd_id==tcJMPNZ)
         ){
         return (true);
     }
@@ -663,10 +663,10 @@ bool CEmulAppProgram::is_common_commands(tcp_app_cmd_t cmd_id){
 }
 
 bool CEmulAppProgram::is_udp_commands(tcp_app_cmd_t cmd_id){
-    if ( (cmd_id==tcTX_PKT) || 
+    if ( (cmd_id==tcTX_PKT) ||
          (cmd_id==tcRX_PKT) ||
          (cmd_id==tcKEEPALIVE) ||
-         (cmd_id==tcCLOSE_PKT) 
+         (cmd_id==tcCLOSE_PKT)
         ){
         return (true);
     }
@@ -680,7 +680,7 @@ bool CEmulAppProgram::sanity_check(std::string & err){
     for (i=0; i<m_cmds.size(); i++) {
         CEmulAppCmd * lp=&m_cmds[i];
 
-        if (m_stream) {  
+        if (m_stream) {
             if ( is_udp_commands(lp->m_cmd) ){
                 err="CMD is not valid with stream mode ";
                 return false;
@@ -830,13 +830,13 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
                                     uint8_t *d,
                                     uint32_t size,
                                     bool mbuf_const){
-    
+
     buf->Create(blk_size);
     while (size>0) {
         uint32_t alloc_size=bsd_umin(blk_size,size);
         rte_mbuf_t   * m=tcp_pktmbuf_alloc(socket,alloc_size);
         assert(m);
-        /*  
+        /*
         can't work with ASTF interactive see https://trex-tgn.cisco.com/youtrack/issue/trex-537
         if (mbuf_const){
             rte_mbuf_set_as_core_const(m);
@@ -861,12 +861,12 @@ int utl_mbuf_buffer_create_and_fill(uint8_t socket,
                                     uint32_t size,
                                     bool mbuf_const){
     buf->Create(blk_size);
-    uint8_t cnt=0; 
+    uint8_t cnt=0;
     while (size>0) {
         uint32_t alloc_size=bsd_umin(blk_size,size);
         rte_mbuf_t   * m=tcp_pktmbuf_alloc(socket,alloc_size);
         assert(m);
-        /*  
+        /*
         can't work with ASTF interactive see https://trex-tgn.cisco.com/youtrack/issue/trex-537
         if (mbuf_const){
             rte_mbuf_set_as_core_const(m);
@@ -883,7 +883,7 @@ int utl_mbuf_buffer_create_and_fill(uint8_t socket,
         CMbufObject obj;
         obj.m_type =MO_CONST;
         obj.m_mbuf=m;
-        
+
         buf->Add_mbuf(obj);
         size-=alloc_size;
     }
@@ -895,7 +895,7 @@ void CEmulTxQueue::get_by_offset(uint32_t offset,CBufMbufRef & res){
     uint32_t z=m_q.size();
     assert(z>0);
     if (likely(z==1)) {
-        /* most of the time there are *one* buffer in the queue */ 
+        /* most of the time there are *one* buffer in the queue */
         CMbufBuffer * b=m_q[0];
         b->get_by_offset(m_tx_offset+offset,res);
         return;
@@ -917,11 +917,11 @@ void CEmulTxQueue::get_by_offset(uint32_t offset,CBufMbufRef & res){
 }
 
 
-/* ack number tx_bytes, 
+/* ack number tx_bytes,
    tx_residue : how many to fill the virtual queue of TCP Tx
    is_zero    : do we want to get event if the queue is zero or almost zero ?
 
-*/   
+*/
 bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
                               uint32_t & add_to_tcp_queue,
                               bool is_zero){
@@ -948,7 +948,7 @@ bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
         }
         /* remove the buffers */
         if (i>0) {
-            /* i is the number of elemets to drop, 
+            /* i is the number of elemets to drop,
                sum is the number of bytes to fix */
             int j;
             sum=0;
@@ -984,7 +984,7 @@ bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
     }else{
         if ( (residue==0) || ( (m_v_cc>0)&& (m_v_cc<m_wnd_div_2) )) {
             /*
-            There is no need to go next (add another buffer) if  v_cc==0 (byte in outer queue), in any case pipeline won't happen and BDP would be larger. 
+            There is no need to go next (add another buffer) if  v_cc==0 (byte in outer queue), in any case pipeline won't happen and BDP would be larger.
             For  example, in case that window> buffer_size. Adding next buffer cost CPU% and better to do it only when there is a need for that.
             */
             return true;

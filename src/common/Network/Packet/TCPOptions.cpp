@@ -33,9 +33,9 @@ bool    TCPOptions::doesContain(TCPOptions::Kind::Val argKind)
 {
     uint32_t  optionTypeIdx = 0;// Used to verify that we're not in infinite loop
 
-    // we'll run over the whole list of TLVs and check each relative to the time stamp 
+    // we'll run over the whole list of TLVs and check each relative to the time stamp
     // option kind value.
-    do 
+    do
     {
         Kind::Val   theCurrentOptionKind;
         uint8_t       theOptionLength;
@@ -71,9 +71,9 @@ void    TCPOptions::dump(FILE*  argOutputFile)
 
 void    TCPOptions::get(TCPOptions::Counters& argCounters)
 {
-     argCounters.itsOptionsSizeMismatch = ourCounters.itsOptionsSizeMismatch;  
-     argCounters.itsZeroLengthOptions   = ourCounters.itsZeroLengthOptions;    
-     argCounters.itsPossibleEndlessLoop = ourCounters.itsPossibleEndlessLoop;  
+     argCounters.itsOptionsSizeMismatch = ourCounters.itsOptionsSizeMismatch;
+     argCounters.itsZeroLengthOptions   = ourCounters.itsZeroLengthOptions;
+     argCounters.itsPossibleEndlessLoop = ourCounters.itsPossibleEndlessLoop;
 }
 
 uint8_t*  TCPOptions::getCurrentOption    (Kind::Val&    argKind, uint8_t& argLength)
@@ -86,7 +86,7 @@ uint8_t*  TCPOptions::getCurrentOption    (Kind::Val&    argKind, uint8_t& argLe
 
 uint8_t   TCPOptions::getCurrentOptionLength()
 {
-    if(myCurrentOptionP->theKind == Kind::NO_OP || 
+    if(myCurrentOptionP->theKind == Kind::NO_OP ||
        myCurrentOptionP->theKind == Kind::EOL)
     {
         return 1;
@@ -128,7 +128,7 @@ bool    TCPOptions::isLastOption        ()
 
                     for (uint32_t i = 0; i < thePacketLength; i++)
                     {
-                        numWritten += sprintf(theDumpBuffer + numWritten,"%.2x ", theIPPacket[i]); 
+                        numWritten += sprintf(theDumpBuffer + numWritten,"%.2x ", theIPPacket[i]);
 
                         if ((i % 16) == 15)
                         {

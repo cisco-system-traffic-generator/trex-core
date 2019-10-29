@@ -37,8 +37,8 @@
  */
 
 #include <common/basic_utils.h>
-        
-             
+
+
 typedef uint32_t  tcp_seq;
 /*
  * TCP header.
@@ -49,11 +49,11 @@ struct tcphdr {
     u_short th_dport;       /* destination port */
     tcp_seq th_seq;         /* sequence number */
     tcp_seq th_ack;         /* acknowledgement number */
-#if BYTE_ORDER == LITTLE_ENDIAN 
+#if BYTE_ORDER == LITTLE_ENDIAN
     u_char  th_x2:4,        /* (unused) */
         th_off:4;       /* data offset */
 #endif
-#if BYTE_ORDER == BIG_ENDIAN 
+#if BYTE_ORDER == BIG_ENDIAN
     u_char  th_off:4,       /* data offset */
         th_x2:4;        /* (unused) */
 #endif

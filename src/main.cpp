@@ -59,10 +59,10 @@ enum { OPT_HELP, OPT_CFG, OPT_NODE_DUMP, OP_STATS,
 
 
 /**
- * type of run 
- * GTEST 
- * Stateful 
- * Stateless 
+ * type of run
+ * GTEST
+ * Stateful
+ * Stateless
  */
 typedef enum {
     OPT_TYPE_GTEST = 7,
@@ -111,7 +111,7 @@ static CSimpleOpt::SOption parser_options[] =
 
     { OPT_DRY_RUN,            "--dry",      SO_NONE },
 
-    
+
     SO_END_OF_OPTIONS
 };
 
@@ -181,8 +181,8 @@ static int usage(){
 
     printf(" Copyright (C) 2015 by hhaim Cisco-System for IL dev-test \n");
     printf(" version : 1.0 beta  \n");
-    
-    
+
+
     TrexBuildInfo::show();
     return (0);
 }
@@ -197,7 +197,7 @@ static int parse_options(int argc,
          printf("\n***** Sanitized binary - Expect lower performance *****\n\n");
          printf("\n*******************************************************\n");
      }
-     
+
      CSimpleOpt args(argc, argv, parser_options);
 
      int a=0;
@@ -216,7 +216,7 @@ static int parse_options(int argc,
                 return (0);
                 break;
 
-            case OPT_HELP: 
+            case OPT_HELP:
                 usage();
                 return -1;
 
@@ -279,7 +279,7 @@ static int parse_options(int argc,
             case OPT_ASTF_SHAPER_RATE:
                 asrtf_args.m_shaper_kbps=atoi(args.OptionArg());
                 break;
-            case OPT_ASTF_SHAPER_SIZE: 
+            case OPT_ASTF_SHAPER_SIZE:
                 asrtf_args.m_shaper_size=atoi(args.OptionArg());
                 break;
             case OPT_ASTF_RTT:
@@ -391,7 +391,7 @@ void set_stx(TrexSTX *obj) {
 
 void abort_gracefully(const std::string &on_stdout,
                       const std::string &on_publisher) {
-    
+
     std::cout << on_stdout << "\n";
     abort();
 }
@@ -490,7 +490,7 @@ int main(int argc , char * argv[]){
  */
 TrexPlatformApi &get_platform_api() {
     static SimPlatformApi api(1);
-    
+
     return api;
 }
 

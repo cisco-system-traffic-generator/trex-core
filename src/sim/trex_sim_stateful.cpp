@@ -79,7 +79,7 @@ void test_load_list_of_cap_files_linux(CParserOption * op){
     fl.load_from_yaml(op->cfg_file,cores);
     fl.DumpPktSize();
 
-    
+
     fl.generate_p_thread_info(cores);
     CFlowGenListPerThread   * lpt;
 
@@ -139,8 +139,8 @@ void test_load_list_of_cap_files(CParserOption * op){
 
     fl.load_from_yaml(op->cfg_file,NUM);
     fl.DumpPktSize();
-    
-    
+
+
     fl.generate_p_thread_info(NUM);
     CFlowGenListPerThread   * lpt;
 
@@ -166,7 +166,7 @@ int load_list_of_cap_files(CParserOption * op){
     CFlowGenList fl;
     fl.Create();
     fl.load_from_yaml(op->cfg_file,1);
-    
+
     if (op->client_cfg_file != "") {
         try {
             fl.load_client_config_file(op->client_cfg_file);
@@ -368,7 +368,7 @@ int manipolate_capfile() {
     change_pkt_len(&flow_info,19-1,6);
 
     flow_info.save_to_erf("exp/c.pcap",1);
-    
+
     return (1);
 }
 
@@ -385,7 +385,7 @@ int manipolate_capfile_sip() {
     change_pkt_len(&flow_info,2-1 ,6+6);
 
     flow_info.save_to_erf("exp/delay_10_sip_0_fixed.pcap",1);
-    
+
     return (1);
 }
 
@@ -404,7 +404,7 @@ int manipolate_capfile_sip1() {
     change_pkt_len(&flow_info,2-1 ,6+6+10);
 
     flow_info.save_to_erf("exp/delay_sip_0_fixed_1.pcap",1);
-    
+
     return (1);
 }
 
@@ -617,10 +617,10 @@ int merge_2_cap_files_sip() {
 int
 SimStateful::run() {
     TrexSTXCfg cfg;
-    
+
     assert( CMsgIns::Ins()->Create(4) );
     STXSimGuard guard(new TrexStateful(cfg, nullptr));
-    
+
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options);
     } catch (const std::runtime_error &e) {

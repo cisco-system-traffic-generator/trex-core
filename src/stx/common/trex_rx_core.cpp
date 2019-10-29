@@ -201,12 +201,12 @@ bool CRxCore::should_be_hot() {
 }
 
 /**
- * when in hot state we busy poll as fast as possible 
- * because of latency packets 
- * 
+ * when in hot state we busy poll as fast as possible
+ * because of latency packets
+ *
  */
 void CRxCore::hot_state_loop() {
-    
+
     while (m_state == STATE_HOT) {
         if (!work_tick()) {
             rte_pause_or_delay_lowend();
@@ -219,14 +219,14 @@ void CRxCore::hot_state_loop() {
 
 /**
  * on cold state loop we adapt to work actually done
- * 
+ *
  */
 void CRxCore::cold_state_loop() {
     const uint32_t COLD_LIMIT_ITER = 10000000;
     const uint32_t COLD_SLEEP_MS  = 10;
 
     int counter = 0;
- 
+
     while (m_state == STATE_COLD) {
         bool did_something = work_tick();
         if (did_something) {
@@ -235,7 +235,7 @@ void CRxCore::cold_state_loop() {
             delay_lowend();
             continue;
         }
-        
+
         if (counter < COLD_LIMIT_ITER) {
             /* hot stage */
             counter++;
@@ -244,17 +244,17 @@ void CRxCore::cold_state_loop() {
             /* cold stage */
             delay(COLD_SLEEP_MS);
         }
-        
+
     }
 }
 
 /**
  * init the 'IF' scheduler values
- * 
+ *
  * @author imarom (2/20/2017)
  */
 void CRxCore::init_work_stage() {
-    
+
     /* set the next sync time to */
     dsec_t now = now_sec();
     m_sync_time_sec = now + m_sync_time_period;
@@ -266,13 +266,13 @@ void CRxCore::init_work_stage() {
  * return true if anything was done
  */
 bool CRxCore::work_tick() {
-    
+
     bool did_something = false;
     int pkt_cnt;
     int limit = 30;
 
     /* TODO: add a scheduler - will solve all problems here */
-    
+
     /* continue while pending packets are waiting or limit reached */
     do {
         pkt_cnt = process_all_pending_pkts();
@@ -280,7 +280,7 @@ bool CRxCore::work_tick() {
         limit--;
         did_something |= (pkt_cnt > 0);
     } while ( pkt_cnt && limit );
-    
+
     dsec_t now = now_sec();
 
     /* until a scheduler is added here - dirty IFs */
@@ -292,15 +292,15 @@ bool CRxCore::work_tick() {
         if (periodic_check_for_cp_messages()) {
             did_something = true;
         }
-        
+
         m_sync_time_sec = now + m_sync_time_period;
     }
 
     /* pass a tick to the TX queue
-     
+
        */
     m_tx_queue.tick();
-    
+
     return did_something;
 }
 
@@ -339,16 +339,16 @@ int CRxCore::_do_start(void){
 
 
 void CRxCore::start() {
-    
+
     /* mark the core as active (used for accessing from other cores) */
     m_is_active = true;
-       
+
     /* register a watchdog handle on current core */
     m_monitor.create("STL RX CORE", 1);
     TrexWatchDog::getInstance().register_monitor(&m_monitor);
 
     recalculate_next_state();
-    
+
     init_work_stage();
 
     (void)_do_start();
@@ -356,7 +356,7 @@ void CRxCore::start() {
     m_monitor.disable();
 
     m_is_active = false;
-    
+
 }
 
 void CRxCore::handle_astf_latency_pkt(const rte_mbuf_t *m,
@@ -385,9 +385,9 @@ int CRxCore::get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int
 
     /* for now only latency stats */
     m_rx_port_mngr_vec[port_id]->get_latency_stats(rx_stats, min, max, reset, type);
-    
+
     return (0);
-    
+
 }
 
 /*
@@ -464,7 +464,7 @@ CRxCore::enable_latency() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->enable_latency();
     }
-    
+
     recalculate_next_state();
 }
 
@@ -473,7 +473,7 @@ CRxCore::enable_astf_latency_fia(bool enable) {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->enable_astf_latency(enable);
     }
-    
+
     recalculate_next_state();
 }
 
@@ -483,7 +483,7 @@ CRxCore::disable_latency() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->disable_latency();
     }
-    
+
     recalculate_next_state();
 }
 
@@ -513,25 +513,25 @@ bool CRxCore::has_port(const std::string &mac_buf) {
 
 /**
  * sends packets through the RX core TX queue
- * 
+ *
 */
 uint32_t
 CRxCore::tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec) {
 
     double time_to_send_sec = now_sec();
     uint32_t pkts_sent      = 0;
-    
+
     for (const auto &pkt : pkts) {
         bool rc = m_tx_queue.push(port_id, pkt, time_to_send_sec);
         if (!rc) {
             break;
-            
+
         }
-        
+
         pkts_sent++;
         time_to_send_sec += usec_to_sec(ipg_usec);
     }
-    
+
     return pkts_sent;
 }
 

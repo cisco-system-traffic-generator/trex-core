@@ -34,19 +34,19 @@
 *
 * $Id: erf.h 15544 2005-08-26 19:40:46Z guy $
 */
-/*****                         
+/*****
  * NAME
- *   
- *   
+ *
+ *
  * AUTHOR
  *   taken from SCE
- *   
+ *
  * COPYRIGHT
  *   Copyright (c) 2004-2011 by cisco Systems, Inc.
  *   All rights reserved.
- *   
+ *
  * DESCRIPTION
- *   
+ *
  ****/
 
 
@@ -183,7 +183,7 @@ typedef struct erf_record {
 #define ATM_SNAPLEN		48
 
 /*
- * Size of ATM payload 
+ * Size of ATM payload
  */
 #define ATM_SLEN(h, e)		ATM_SNAPLEN
 #define ATM_WLEN(h, e)		ATM_SNAPLEN
@@ -224,13 +224,13 @@ public:
     virtual bool Create(char *file_name);
     void Delete();
     virtual bool write_packet(CCapPktRaw * lpPacket);
-    
+
     /**
      * flush all packets to disk
-     * 
+     *
      */
     void flush_to_disk();
-    
+
 private:
     FILE *m_fd;
     int m_cnt;

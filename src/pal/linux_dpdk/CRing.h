@@ -35,19 +35,19 @@ public:
         m_ring=0;
     }
 
-    bool Create(std::string name, 
+    bool Create(std::string name,
                 uint16_t cnt,
                 int socket_id){
-        m_ring=rte_ring_create((char *)name.c_str(), 
+        m_ring=rte_ring_create((char *)name.c_str(),
                                cnt,
-				 socket_id, 
+				 socket_id,
                  RING_F_SP_ENQ | RING_F_SC_DEQ);
         assert(m_ring);
         return(true);
     }
 
     void Delete(void){
-        // can't free the memory of DPDK, it is from reserve memory 
+        // can't free the memory of DPDK, it is from reserve memory
     }
 
     int Enqueue(void *obj){

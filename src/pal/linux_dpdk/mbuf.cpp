@@ -34,7 +34,7 @@ void print_alloc_err(bool is_hugepages) {
 }
 
 rte_mempool_t * utl_rte_mempool_create(const char  *name,
-                                       unsigned n, 
+                                       unsigned n,
                                        unsigned elt_size,
                                        unsigned cache_size,
                                        int socket_id,
@@ -59,7 +59,7 @@ rte_mempool_t * utl_rte_mempool_create(const char  *name,
 }
 
 rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
-                                               unsigned n, 
+                                               unsigned n,
                                                unsigned elt_size,
                                                unsigned cache_size,
                                                int socket_id,
@@ -80,7 +80,7 @@ rte_mempool_t * utl_rte_mempool_create_non_pkt(const char  *name,
     //printf("Creating non-pkt-pool: %s, count: %u, size: %u, flags: %u\n", name, n, elt_size, flags);
     rte_mempool_t *  res=
         rte_mempool_create(buffer, n,
-                           elt_size, 
+                           elt_size,
                            cache_size,
                            0,
                            NULL, NULL,

@@ -143,7 +143,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
         m_is_initialized = true;
     }
     rte_spinlock_init(&m_main_loop);
-    m_epoll_fd = epoll_create1(0); 
+    m_epoll_fd = epoll_create1(0);
     if(m_epoll_fd == -1){
         throw TrexException("Failed to create epoll file descriptor  ");
     }
@@ -470,7 +470,7 @@ CNodeBase *CStackLinuxBased::add_linux_events_and_node(const string &mac_buf, co
     node->m_event.events = EPOLLIN;
     node->m_event.data.fd = node->get_pair_id();
 
-    // thread safe 
+    // thread safe
     if(epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, node->get_pair_id(), &node->m_event)){
        throw TrexException("Failed to add file descriptor to epoll " + mac_str +" " +strerror(errno));
     }
@@ -935,7 +935,7 @@ CBirdIfNode::~CBirdIfNode() {
 
 void CBirdIfNode::create_veths(const string &mtu) {
     CNamespacedIfNode::create_veths(mtu);
-    run_in_ns("ethtool -K " + m_if_name + "-L tx off rx off sg off", 
+    run_in_ns("ethtool -K " + m_if_name + "-L tx off rx off sg off",
     "Could not disable rx checksum, tx checksum, and tcp segmentation for bird internal veth");
 
 }
@@ -1170,7 +1170,7 @@ void popen_general(const string &cmd, const string &err, bool throw_exception, s
 
 
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output) {
-    popen_general(cmd, err, throw_exception, output); 
+    popen_general(cmd, err, throw_exception, output);
 }
 
 void popen_with_err(const string &cmd, const string &err) {
@@ -1206,7 +1206,7 @@ void CLinuxNamespace::run_in_ns(void (CLinuxNamespace::*func)()) {
     cloned_args_t cloned_args;
     cloned_args.func = func;
     cloned_args.obj = this;
-    
+
     int pid = clone(run_in_cloned, m_stack + STACK_SIZE, CLONE_NEWNET, (void*) &cloned_args);
     if (pid == -1) {
         printf("clone failed\n");
@@ -1220,7 +1220,7 @@ void CLinuxNamespace::run_in_ns(void (CLinuxNamespace::*func)()) {
 
 int CLinuxNamespace::run_in_cloned(void *cloned_args_void) {
     cloned_args_t *cloned_args = (cloned_args_t*) cloned_args_void;
-    
+
     string ns_path = "/var/run/netns/" + cloned_args->obj->m_name;
     int fd = open(ns_path.c_str(), O_RDONLY);
     if (fd == -1) {

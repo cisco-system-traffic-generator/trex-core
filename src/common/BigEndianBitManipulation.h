@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "bitMan.h"
 
-inline void setMaskBit8(uint8_t & a, 
+inline void setMaskBit8(uint8_t & a,
                         int           startbit,
                         int           stopbit,
                         uint8_t newVal )
@@ -27,7 +27,7 @@ inline void setMaskBit8(uint8_t & a,
 }
 
 
-inline void setMaskBit16(uint16_t & a, 
+inline void setMaskBit16(uint16_t & a,
                          int           startbit,
                          int           stopbit,
                          uint16_t newVal )
@@ -36,7 +36,7 @@ inline void setMaskBit16(uint16_t & a,
 }
 
 
-inline void setMaskBit32(uint32_t   & a, 
+inline void setMaskBit32(uint32_t   & a,
                          int           startbit,
                          int           stopbit,
                          uint32_t newVal )
@@ -47,21 +47,21 @@ inline void setMaskBit32(uint32_t   & a,
 
 
 
-inline unsigned char getMaskBit8(uint8_t   a, 
+inline unsigned char getMaskBit8(uint8_t   a,
                                  int             startbit,
                                  int             stopbit) {
      return btGetMaskBitBigE8(a,startbit,stopbit);
 }
 
 
-inline unsigned short getMaskBit16(uint16_t a, 
+inline unsigned short getMaskBit16(uint16_t a,
                                   int            startbit,
                                   int            stopbit) {
      return btGetMaskBitBigE16(a,startbit,stopbit);
 }
 
 
-inline unsigned long   getMaskBit32(uint32_t   a, 
+inline unsigned long   getMaskBit32(uint32_t   a,
                                  int             startbit,
                                  int             stopbit) {
      return btGetMaskBitBigE32(a,startbit,stopbit);

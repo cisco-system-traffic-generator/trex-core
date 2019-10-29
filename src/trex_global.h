@@ -602,7 +602,7 @@ public:
     bool            m_is_bird_enabled;
     std::string     m_stack_type;
 
-    
+
     std::string        cfg_file;
     std::string        astf_cfg_file;
     std::string        client_cfg_file;
@@ -615,7 +615,7 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
-    
+
 
 
 public:
@@ -870,7 +870,7 @@ public:
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
-    
+
     static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_local(socket_id_t socket){
         rte_mbuf_t *m = pktmbuf_alloc_small(socket);
         if (m) {
@@ -878,8 +878,8 @@ public:
         }
         return m;
     }
-    
-      
+
+
     static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_local(socket_id_t socket,uint16_t size) {
         rte_mbuf_t *m = pktmbuf_alloc(socket, size);
         if (m) {
@@ -887,8 +887,8 @@ public:
         }
         return m;
     }
-    
-    
+
+
     static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
         socket_id_t socket = m_socket.port_to_socket(port_id);
         if (size<=_64_MBUF_SIZE) {
@@ -999,7 +999,7 @@ static inline int get_is_tcp_mode(){
 }
 
 static inline int get_is_tcp_mode_multi_core(){
-    return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) ); 
+    return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) );
 }
 
 
@@ -1019,7 +1019,7 @@ static inline uint16_t get_rx_check_hops() {
 }
 
 
-static inline bool isVerbose(int val){ 
+static inline bool isVerbose(int val){
     return ((CGlobalInfo::m_options.preview.getVMode() > val) ?true:false);
 }
 

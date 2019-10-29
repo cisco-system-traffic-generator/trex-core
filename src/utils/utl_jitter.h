@@ -26,7 +26,7 @@ limitations under the License.
 
 class CJitter {
 
-public:     
+public:
    CJitter(){
        reset();
    }
@@ -44,7 +44,7 @@ public:
            }
            m_jitter +=(1.0/16.0) * ((double)d - m_jitter);
            return(m_jitter);
-        }    
+        }
    double get_jitter(){
         return (m_jitter);
    }
@@ -77,7 +77,7 @@ private:
 
 class CJitterUint {
 
-public:     
+public:
    CJitterUint(){
        reset();
    }
@@ -94,10 +94,10 @@ public:
               d = -d;
            }
            m_jitter += d - ((m_jitter + 8)>>4);
-        }    
+        }
    uint32_t get_jitter(){
         return (m_jitter>>4);
-   }     
+   }
 
 private:
   int32_t m_old_transit; /* time usec maximum up to 30msec */

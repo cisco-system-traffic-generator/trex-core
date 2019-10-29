@@ -33,40 +33,40 @@ class CRxCore;
  */
 class TXPacket {
 public:
-    
+
     /**
-     * create a new packet 
-     *  
+     * create a new packet
+     *
      */
     TXPacket(int port_id, const std::string &raw, double ts_sec) : m_raw(raw) {
         m_port_id = port_id;
         m_time    = ts_sec;
     }
-    
+
     /**
      * returns the timestamp of the packet
      */
     double get_time() const {
         return m_time;
     }
-    
+
     /**
      * returns the port id on which the packet should be sent
      */
     int get_port_id() const {
         return m_port_id;
     }
-    
+
     /**
      * returns the binary raw of the packet (string)
-     * 
+     *
      */
     const std::string &get_raw() const {
         return m_raw;
     }
-    
+
 private:
-    
+
     const std::string   m_raw;
     double              m_time;
     int                 m_port_id;
@@ -87,7 +87,7 @@ struct TXPacketCompare
 
 /**
  * holds a heap of to-be-sent packets
- * 
+ *
  * @author imarom (8/15/2017)
  */
 class TXQueue {
@@ -97,35 +97,35 @@ public:
         m_rx = NULL;
         m_capacity  = 0;
     }
-    
+
     /**
      * create a TX queue
      */
     void create(CRxCore *rx, uint32_t capacity);
-    
+
     /**
      * release all resources
      */
     void destroy();
-    
+
     /**
      * pushes a new packet to the send queue
-     *  
-     * raw    - a string of the packet 
+     *
+     * raw    - a string of the packet
      * ts_sec - when to send the packet ( in respect to now_sec() )
      */
     bool push(int port_id, const std::string &raw, double ts_sec);
-    
+
     /**
      * return true if the queue is full
-     * 
+     *
      */
     bool is_full() const {
         /* should never be bigger, but... */
         return m_heap.size() >= m_capacity;
     }
-    
-    
+
+
     /**
      * a constant tick to the queue
      */
@@ -134,17 +134,17 @@ public:
         if (m_heap.empty()) {
             return;
         }
-        
+
         /* slow path */
         _tick();
     }
-    
+
 private:
 
     void _tick();
-    
+
     std::priority_queue<TXPacket *, std::vector<TXPacket *>, TXPacketCompare> m_heap;
-    
+
     CRxCore                 *m_rx;
     uint32_t                 m_capacity;
 };

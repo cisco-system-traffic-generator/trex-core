@@ -27,7 +27,7 @@ limitations under the License.
 
 struct rte_mbuf * utl_rte_pktmbuf_cpy(char *p,
                                       struct rte_mbuf *mi,
-                                      uint16_t cp_size, 
+                                      uint16_t cp_size,
                                       uint16_t & off){
 
     while (cp_size) {
@@ -55,8 +55,8 @@ struct rte_mbuf * utl_rte_pktmbuf_cpy(char *p,
 
 
 /**
- * Creates a "clone" of the given packet mbuf - allocate new mbuf in size of block_size and chain them 
- * this is to simulate Tx->Rx packet convertion 
+ * Creates a "clone" of the given packet mbuf - allocate new mbuf in size of block_size and chain them
+ * this is to simulate Tx->Rx packet convertion
  *
  */
 struct rte_mbuf * utl_rte_pktmbuf_deepcopy(struct rte_mempool *mp,
@@ -76,9 +76,9 @@ struct rte_mbuf * utl_rte_pktmbuf_deepcopy(struct rte_mempool *mp,
     m = mc; /* root */
     pktlen = mi->pkt_len;
     origin_pktlen = mi->pkt_len;
-    
+
     uint16_t off=0;
-        
+
     nseg = 0;
 
     while (true) {
@@ -109,12 +109,12 @@ struct rte_mbuf * utl_rte_pktmbuf_deepcopy(struct rte_mempool *mp,
     }
     m->nb_segs = nseg;
     m->pkt_len = origin_pktlen;
-    
+
 
     return m;
 err:
    rte_pktmbuf_free(m);
-   return (NULL); 
+   return (NULL);
 }
 
 char * utl_rte_pktmbuf_to_mem(struct rte_mbuf *m){
@@ -138,9 +138,9 @@ char * utl_rte_pktmbuf_to_mem(struct rte_mbuf *m){
 
 
 /* return 0   equal
-          -1  not equal 
+          -1  not equal
 
-*/          
+*/
 int utl_rte_pktmbuf_deepcmp(struct rte_mbuf *ma,
                             struct rte_mbuf *mb){
 
@@ -195,7 +195,7 @@ void  utl_rte_pktmbuf_dump_k12(FILE* fp,rte_mbuf_t   * m){
 }
 
 
-char * utl_rte_pktmbuf_mem_fill(uint32_t size, 
+char * utl_rte_pktmbuf_mem_fill(uint32_t size,
                                    int to_rand){
     char *p=(char *)malloc(size);
     char *res=p;
@@ -216,15 +216,15 @@ char * utl_rte_pktmbuf_mem_fill(uint32_t size,
 
 /* convert contiguous buffer to chanin of mbuf in the size of pool  */
 struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
-                                              uint32_t size, 
+                                              uint32_t size,
                                               uint16_t mp_blk_size,
                                               struct  rte_mempool *mp){
-    uint16_t blk_size= mp_blk_size; 
+    uint16_t blk_size= mp_blk_size;
     rte_mbuf * mr=NULL;
     rte_mbuf * mlast=NULL;
-    uint16_t nseg=0;        
+    uint16_t nseg=0;
     uint32_t pkt_size=size;
-    
+
     while (size>0) {
         uint16_t alloc_size=std::min((uint32_t)blk_size,size);
         rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
@@ -247,7 +247,7 @@ struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
     return(mr);
 }
 
-__attribute__ ((noinline)) int _utl_rte_pktmbuf_trim_ex(struct rte_mbuf *m, 
+__attribute__ ((noinline)) int _utl_rte_pktmbuf_trim_ex(struct rte_mbuf *m,
                                                         uint16_t len){
         /* more than 1 mbufs */
     if (m->pkt_len < len) {
@@ -273,7 +273,7 @@ __attribute__ ((noinline)) int _utl_rte_pktmbuf_trim_ex(struct rte_mbuf *m,
     m2->data_len = (uint16_t)(m->pkt_len - sum); /* sum has the prev mbuf sizes*/
 
     if (m2->next != 0) {
-        //we are in the last but there are more mbufs after that 
+        //we are in the last but there are more mbufs after that
         rte_pktmbuf_free(m2->next);
         m2->next= NULL;
     }

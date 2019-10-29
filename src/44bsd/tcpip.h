@@ -48,7 +48,7 @@
 #include <common/Network/Packet/EthernetHeader.h>
 #include <common/Network/Packet/VLANHeader.h>
 
- 
+
 struct tcpiphdr {
     uint16_t  ih_len;
     struct      tcphdr ti_t;        /* tcp header */

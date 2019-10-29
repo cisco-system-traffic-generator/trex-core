@@ -32,7 +32,7 @@ private:
         uint16_t mySourcePort;
         uint16_t myDestinationPort;
 };
-                 
+
 class TCPHeader
 {
 
@@ -120,7 +120,7 @@ public:
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
     uint8_t*  getPointer      (){return (uint8_t*)this;}
     uint32_t  getSize         (){return  getHeaderLength();}
 

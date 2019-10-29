@@ -20,7 +20,7 @@ limitations under the License.
 /* check that we are 64bit platform*/
 
 #if defined(__x86_64__) || defined(__aarch64__) || defined(__PPC64__)
- // supported 
+ // supported
 #else
     #error("NOT supported platform");
 #endif

@@ -532,7 +532,7 @@ void CFlowStatRuleMgr::create() {
 
     /* we know it's stateless */
     m_rx_core = get_stateless_obj()->get_stl_rx();
-    
+
     m_cap = cap;
     m_ip_id_reserve_base = ip_id_base;
 
@@ -1144,7 +1144,7 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
     #ifdef TREX_SIM
         return;
     #endif
-    
+
     if (is_start) {
         static MsgReply<bool> reply;
         reply.reset();
@@ -1155,7 +1155,7 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
         /* hold until message was ack'ed - otherwise we might lose packets */
         reply.wait_for_reply();
         assert(m_rx_core->is_working());
-        
+
     } else {
         msg = new TrexStatelessRxDisableLatency();
         m_ring_to_rx->SecureEnqueue((CGenNode *)msg);

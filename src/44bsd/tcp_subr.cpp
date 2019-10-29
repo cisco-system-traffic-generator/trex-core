@@ -48,7 +48,7 @@
 #include <common/utl_gcc_diag.h>
 #include <common/basic_utils.h>
 #include "h_timer.h"
-#include <stddef.h> 
+#include <stddef.h>
 #include <common/Network/Packet/IPv6Header.h>
 #include <astf/astf_template_db.h>
 #include <astf/astf_db.h>
@@ -89,62 +89,62 @@ void tcpstat::ClearPerTGID(uint16_t tg_id){
 void tcpstat::Dump(FILE *fd){
 
     MYC(tcps_connattempt);
-    MYC(tcps_accepts);     
-    MYC(tcps_connects);    
-    MYC(tcps_drops);           
+    MYC(tcps_accepts);
+    MYC(tcps_connects);
+    MYC(tcps_drops);
     MYC(tcps_conndrops);
-    MYC(tcps_closed); 
-    MYC(tcps_segstimed);       
-    MYC(tcps_rttupdated);   
-    MYC(tcps_delack); 
+    MYC(tcps_closed);
+    MYC(tcps_segstimed);
+    MYC(tcps_rttupdated);
+    MYC(tcps_delack);
     MYC(tcps_timeoutdrop);
     MYC(tcps_rexmttimeo);
     MYC(tcps_rexmttimeo_syn);
     MYC(tcps_persisttimeo);
     MYC(tcps_keeptimeo);
-    MYC(tcps_keepprobe);   
-    MYC(tcps_keepdrops);   
+    MYC(tcps_keepprobe);
+    MYC(tcps_keepdrops);
     MYC(tcps_testdrops);
 
-    MYC(tcps_sndtotal);    
-    MYC(tcps_sndpack);     
-    MYC(tcps_sndbyte);     
+    MYC(tcps_sndtotal);
+    MYC(tcps_sndpack);
+    MYC(tcps_sndbyte);
     MYC(tcps_sndrexmitpack);
     MYC(tcps_sndrexmitbyte);
     MYC(tcps_sndacks);
-    MYC(tcps_sndprobe);    
+    MYC(tcps_sndprobe);
     MYC(tcps_sndurg);
     MYC(tcps_sndwinup);
     MYC(tcps_sndctrl);
 
-    MYC(tcps_rcvtotal);    
-    MYC(tcps_rcvpack);     
-    MYC(tcps_rcvbyte);     
-    MYC(tcps_rcvbadsum);       
-    MYC(tcps_rcvbadoff);       
-    MYC(tcps_rcvshort);    
-    MYC(tcps_rcvduppack);   
-    MYC(tcps_rcvdupbyte);   
-    MYC(tcps_rcvpartduppack);  
-    MYC(tcps_rcvpartdupbyte);  
-    MYC(tcps_rcvoopack);        
-    MYC(tcps_rcvoobyte);        
+    MYC(tcps_rcvtotal);
+    MYC(tcps_rcvpack);
+    MYC(tcps_rcvbyte);
+    MYC(tcps_rcvbadsum);
+    MYC(tcps_rcvbadoff);
+    MYC(tcps_rcvshort);
+    MYC(tcps_rcvduppack);
+    MYC(tcps_rcvdupbyte);
+    MYC(tcps_rcvpartduppack);
+    MYC(tcps_rcvpartdupbyte);
+    MYC(tcps_rcvoopack);
+    MYC(tcps_rcvoobyte);
     MYC(tcps_rcvoopackdrop);
     MYC(tcps_rcvoobytesdrop);
-    MYC(tcps_rcvpackafterwin);  
-    MYC(tcps_rcvbyteafterwin);  
-    MYC(tcps_rcvafterclose);       
-    MYC(tcps_rcvwinprobe);     
-    MYC(tcps_rcvdupack);           
-    MYC(tcps_rcvacktoomuch);       
-    MYC(tcps_rcvackpack);      
-    MYC(tcps_rcvackbyte);      
-    MYC(tcps_rcvwinupd);           
-    MYC(tcps_pawsdrop);        
-    MYC(tcps_predack);         
-    MYC(tcps_preddat);         
-    MYC(tcps_persistdrop);     
-    MYC(tcps_badsyn); 
+    MYC(tcps_rcvpackafterwin);
+    MYC(tcps_rcvbyteafterwin);
+    MYC(tcps_rcvafterclose);
+    MYC(tcps_rcvwinprobe);
+    MYC(tcps_rcvdupack);
+    MYC(tcps_rcvacktoomuch);
+    MYC(tcps_rcvackpack);
+    MYC(tcps_rcvackbyte);
+    MYC(tcps_rcvwinupd);
+    MYC(tcps_pawsdrop);
+    MYC(tcps_predack);
+    MYC(tcps_preddat);
+    MYC(tcps_persistdrop);
+    MYC(tcps_badsyn);
     MYC(tcps_reasalloc);
     MYC(tcps_reasfree);
     MYC(tcps_nombuf);
@@ -179,7 +179,7 @@ int tcp_connect(CPerProfileCtx * pctx,
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_connattempt);
     tp->t_state = TCPS_SYN_SENT;
     tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
-    tp->iss = ctx->tcp_iss; 
+    tp->iss = ctx->tcp_iss;
     ctx->tcp_iss += TCP_ISSINCR/4;
     tcp_sendseqinit(tp);
     error = tcp_output(pctx,tp);
@@ -307,7 +307,7 @@ void CFlowBase::Delete(){
 void CFlowBase::init(){
         /* build template */
     m_template.set_offload_mask(m_pctx->m_ctx->m_offload_flags);
-    
+
     m_template.build_template(m_pctx,m_c_template_idx);
 }
 
@@ -321,12 +321,12 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     CFlowBase::Create(pctx, tg_id);
     m_tick=0;
     m_timer.reset();
-    m_timer.m_type = 0; 
+    m_timer.m_type = 0;
 
     /* TCP_OPTIM  */
     tcpcb *tp=&m_tcp;
     memset((char *) tp, 0,sizeof(struct tcpcb));
-    m_timer.m_type = ttTCP_FLOW; 
+    m_timer.m_type = ttTCP_FLOW;
 
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
@@ -349,7 +349,7 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     tp->t_srtt = TCPTV_SRTTBASE;
     tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ ;
     tp->t_rttmin = TCPTV_MIN;
-    TCPT_RANGESET(tp->t_rxtcur, 
+    TCPT_RANGESET(tp->t_rxtcur,
         ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
         TCPTV_MIN, TCPTV_REXMTMAX);
     tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
@@ -588,7 +588,7 @@ void CTcpPerThreadCtx::reset_tuneables() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
     tcp_fast_tick_msec = TCP_FAST_TICK_;
-    tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR); 
+    tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR);
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepinit = TCPTV_KEEP_INIT;
@@ -857,7 +857,7 @@ static void tcp_template_ipv4_update(IPHeader *ipv4,
     if (!c_rw){
         return;
     }
-    
+
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
     CTcpTuneables * ctx_tune;
     CTcpTuneables * t_tune;
@@ -1125,7 +1125,7 @@ void CFlowTemplate::build_template_udp(CPerProfileCtx * pctx){
 
     const uint8_t udp_header[] = {
         0x00, 0x00, 0x00, 0x00, // src, dst ports  //UDP
-        0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00,
     };
 
     uint8_t *p=m_template_pkt;
@@ -1164,7 +1164,7 @@ void CFlowTemplate::build_template(CPerProfileCtx * pctx,
  * then send a RST to peer.
  */
 struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
-                            struct tcpcb *tp, 
+                            struct tcpcb *tp,
                             int res){
     struct tcp_socket *so = &tp->m_socket;
     uint16_t tg_id = tp->m_flow->m_tg_id;
@@ -1189,18 +1189,18 @@ struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
  *  discard internet protocol block
  *  wake up any sleepers
  */
-struct tcpcb *  
+struct tcpcb *
 tcp_close(CPerProfileCtx * pctx,
           struct tcpcb *tp){
 
 
-// no need for that , RTT will be calculated again for each flow 
+// no need for that , RTT will be calculated again for each flow
 #ifdef RTV_RTT
     register struct rtentry *rt;
 
     /*
      * If we sent enough data to get some meaningful characteristics,
-     * save them in the routing entry.  'Enough' is arbitrarily 
+     * save them in the routing entry.  'Enough' is arbitrarily
      * defined as the sendpipesize (default 4K) * 16.  This would
      * give us 16 rtt samples assuming we only get one sample per
      * window (the usual case on a long haul net).  16 samples is
@@ -1306,7 +1306,7 @@ tcp_notify(inp, error)
     } else if (tp->t_state < TCPS_ESTABLISHED && tp->t_rxtshift > 3 &&
         tp->t_softerror)
         so->so_error = error;
-    else 
+    else
         tp->t_softerror = error;
     wakeup((caddr_t) &so->so_timeo);
     sorwakeup(so);

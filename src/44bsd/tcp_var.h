@@ -96,7 +96,7 @@ struct CTcpPkt {
 
 struct tcpcb {
 
-    tcp_socket m_socket; 
+    tcp_socket m_socket;
 
     /* ====== size 8 bytes  */
 
@@ -213,7 +213,7 @@ struct tcpcb {
 
 public:
 
-    
+
     tcpcb() {
         m_tuneable_flags = 0;
     }
@@ -240,7 +240,7 @@ public:
     inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
         return (tcp_pktmbuf_alloc(mbuf_socket,size));
     }
-    
+
 };
 
 #define intotcpcb(ip)   ((struct tcpcb *)(ip)->inp_ppcb)
@@ -389,7 +389,7 @@ public:
 #define TCP_TIMER_LEVEL1_DIV   1
 
 
-#define TCP_TIMER_TICK_BASE_MS 200 
+#define TCP_TIMER_TICK_BASE_MS 200
 
 /* tick is 50 msec */
 #define TCP_TIMER_W_TICK       50
@@ -405,9 +405,9 @@ public:
 /* main tick in sec */
 #define TCP_TIME_TICK_SEC ((double)TCP_TIMER_W_TICK/((double)TCP_TIMER_W_DIV* 1000.0))
 
-#define TCP_TIMER_W_1_TICK_US    (TCP_TIMER_W_TICK*1000) 
+#define TCP_TIMER_W_1_TICK_US    (TCP_TIMER_W_TICK*1000)
 
-#else 
+#else
 
 /* 2 levels (0,1) of the tw are used */
 #define TCP_TIMER_LEVEL1_DIV   16
@@ -415,7 +415,7 @@ public:
 // base tick in msec
 
 /* base tick of timer in 20usec */
-#define TCP_TIMER_W_1_TICK_US     20  
+#define TCP_TIMER_W_1_TICK_US     20
 
 #define TCP_TIMER_W_1_MS (1000/TCP_TIMER_W_1_TICK_US)
 
@@ -620,7 +620,7 @@ public:
 
     CPerProfileCtx   *m_pctx;
     flow_hash_ent_t   m_hash;  /* hash object - 64bit  */
-    CEmulApp          m_app;   
+    CEmulApp          m_app;
     CFlowTemplate     m_template;  /* 128+32 bytes */
 };
 
@@ -628,16 +628,16 @@ public:
 /*****************************************************/
 /* UDP */
 struct  udp_stat_int_t {
-    uint64_t    udps_sndbyte;  
-    uint64_t    udps_sndpkt; 
-    uint64_t    udps_rcvbyte;  
+    uint64_t    udps_sndbyte;
+    uint64_t    udps_sndpkt;
+    uint64_t    udps_rcvbyte;
     uint64_t    udps_rcvpkt;
 
     uint64_t    udps_accepts;       /* connections accepted */
     uint64_t    udps_connects;      /* connections established */
     uint64_t    udps_closed;        /* conn. closed (includes drops) */
 
-    uint64_t    udps_keepdrops;     
+    uint64_t    udps_keepdrops;
     uint64_t    udps_nombuf;        /* no mbuf for udp - drop the packets */
     uint64_t    udps_pkt_toobig;    /* pkt too big */
 
@@ -718,7 +718,7 @@ private:
     }
 
 public:
-    CHTimerObj        m_keep_alive_timer; /* 32 bytes */ 
+    CHTimerObj        m_keep_alive_timer; /* 32 bytes */
     uint32_t          m_keepaive_ticks;
     uint8_t           m_mbuf_socket;    /* mbuf socket */
     uint8_t           m_keepalive;      /* 1- no-alive 0- alive */
@@ -770,13 +770,13 @@ public:
     void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
 public:
-    CHTimerObj        m_timer; /* 32 bytes */ 
+    CHTimerObj        m_timer; /* 32 bytes */
     tcpcb             m_tcp;
     uint8_t           m_tick;
 };
 
-/* general timer object used by ASTF, 
-  speed does not matter here, so we allocate it dynamically. 
+/* general timer object used by ASTF,
+  speed does not matter here, so we allocate it dynamically.
   Callbacks and opaque data inside it */
 
 class CAstfTimerObj;
@@ -789,7 +789,7 @@ class CAstfTimerObj : public CHTimerObj  {
 public:
     CAstfTimerObj(){
         CHTimerObj::reset();
-        m_type=ttGen;  
+        m_type=ttGen;
         m_cb=0;
         m_userdata1=0;
     }
@@ -803,8 +803,8 @@ class CAstfTimerFunctorObj;
 
 typedef std::function<void(CAstfTimerFunctorObj *tmr)> method_timer_cb_t;
 
-/* callback for object method  
-   WATCH OUT : this object is super not efficient due to the c++ standard std::function. 
+/* callback for object method
+   WATCH OUT : this object is super not efficient due to the c++ standard std::function.
    It is very big ~80 bytes and slow to allocate however, it gives a good generic interface for object methods. Use it only in none performance oriented features.
 
 */
@@ -813,13 +813,13 @@ class CAstfTimerFunctorObj : public CHTimerObj  {
 public:
     CAstfTimerFunctorObj(){
         CHTimerObj::reset();
-        m_type=ttGenFunctor;  
+        m_type=ttGenFunctor;
         m_cb=0;
         m_userdata1=0;
     }
 
 public:
-    method_timer_cb_t   m_cb;  
+    method_timer_cb_t   m_cb;
     void *              m_userdata1;
 };
 
@@ -1133,7 +1133,7 @@ public:
   void Dump(FILE *fd);
   bool operator==(CTcpReassBlock& rhs)const;
 
-  uint32_t m_seq;  
+  uint32_t m_seq;
   uint32_t m_len;  /* scale option require 32bit maximum adv window */
   uint32_t m_flags; /* only 1 bit is needed, for align*/
 };
@@ -1151,16 +1151,16 @@ public:
  }
 
  int pre_tcp_reass(CPerProfileCtx * pctx,
-              struct tcpcb *tp, 
-              struct tcpiphdr *ti, 
+              struct tcpcb *tp,
+              struct tcpiphdr *ti,
               struct rte_mbuf *m);
 
  int tcp_reass_no_data(CPerProfileCtx * pctx,
                          struct tcpcb *tp);
 
  int tcp_reass(CPerProfileCtx * pctx,
-                          struct tcpcb *tp, 
-                          struct tcpiphdr *ti, 
+                          struct tcpcb *tp,
+                          struct tcpiphdr *ti,
                           struct rte_mbuf *m);
 
 #ifdef  TREX_SIM
@@ -1229,7 +1229,7 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 
 
 int tcp_flow_input(CPerProfileCtx * pctx,
-                   struct tcpcb *tp, 
+                   struct tcpcb *tp,
                    struct rte_mbuf *m,
                    TCPHeader *tcp,
                    int offset_l7,
@@ -1253,7 +1253,7 @@ int tcp_build_cpkt(CPerProfileCtx * pctx,
 
 int tcp_build_dpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
-                   uint32_t offset, 
+                   uint32_t offset,
                    uint32_t dlen,
                    uint16_t  tcphlen,
                    CTcpPkt &pkt);
@@ -1262,7 +1262,7 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
 
 
 struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
-                            struct tcpcb *tp, 
+                            struct tcpcb *tp,
                             int res);
 
 
@@ -1291,7 +1291,7 @@ inline void tcp_reass_clean(CPerProfileCtx * pctx,
     }
 }
 
-extern struct tcpcb *debug_flow; 
+extern struct tcpcb *debug_flow;
 
 
 inline void tcp_set_debug_flow(struct tcpcb * debug){

@@ -748,19 +748,19 @@ struct rte_mbuf_ext_shared_info {
 #ifdef TREX_PATCH
 
 /**
- * MBUF core locality type 
- *  
- * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with 
+ * MBUF core locality type
+ *
+ * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with
  * the allocating core only.
- *  
- * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count 
- * 
- * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be 
- * used with multiple cores 
- *  
- * having an MBUF set as core-local will allow us to skip 
- * atomic checks 
- * 
+ *
+ * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count
+ *
+ * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be
+ * used with multiple cores
+ *
+ * having an MBUF set as core-local will allow us to skip
+ * atomic checks
+ *
  * WARNING don't change the NUMBERS orders 0,1,2
  */
 typedef enum {

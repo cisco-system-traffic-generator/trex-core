@@ -51,7 +51,7 @@ int CAstfJsonValidator::get_max_buffer(Json::Value  program){
 
     int max_val=-1;
     Json::Value commands=program["commands"];
-    int i; 
+    int i;
     for (i=0; i<commands.size(); i++) {
         Json::Value cmd=commands[i];
         Json::Value buf_index=cmd["buf_index"];
@@ -149,7 +149,7 @@ bool CAstfJsonValidator::validate_program(Json::Value  profile,
 }
 
 
-bool CAstfJsonValidator::validate_profile(Json::Value  profile, 
+bool CAstfJsonValidator::validate_profile(Json::Value  profile,
                                           std::string & err){
 
     Validator validator;
@@ -177,7 +177,7 @@ bool CAstfJsonValidator::validate_profile(Json::Value  profile,
     return (validate_program(profile,err));
 }
 
-bool CAstfJsonValidator::validate_profile_file(std::string  input_json_filename, 
+bool CAstfJsonValidator::validate_profile_file(std::string  input_json_filename,
                                                std::string & err){
     Json::Value myTargetDoc;
 

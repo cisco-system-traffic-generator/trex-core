@@ -80,13 +80,13 @@ bool COneIPv6Info::is_zero_ip() {
 
 const COneIPInfo *CManyIPInfo::get_next() {
     const COneIPInfo *ret;
-    
+
     if (!m_iter_initiated) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         m_iter_initiated = true;
     }
 
-    
+
     if (m_ipv4_iter == m_ipv4_resolve.end()) {
         m_ipv4_iter = m_ipv4_resolve.begin();
         return NULL;

@@ -22,12 +22,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* 
+/*
 
-This file should be included only in DPDK specific files like main_dpdk.cpp, 
-general trex core always works in virtual ports id 
+This file should be included only in DPDK specific files like main_dpdk.cpp,
+general trex core always works in virtual ports id
 
-*/ 
+*/
 
 #include <stddef.h>
 #include <stdio.h>
@@ -79,7 +79,7 @@ public:
 
     void dump(FILE *fd);
 
-    bool compare(CPciPortCfgDesc * rhs){ 
+    bool compare(CPciPortCfgDesc * rhs){
         return (( get_id() == rhs->get_id() ) && (get_pci() == rhs->get_pci() ) );
     }
 
@@ -90,7 +90,7 @@ private:
 };
 
 
-typedef  std::vector<std::string>        dpdk_input_args_t;      /* input to DPDK */ 
+typedef  std::vector<std::string>        dpdk_input_args_t;      /* input to DPDK */
 typedef  std::vector<CPciPortCfgDesc *>  dpdk_cfg_args_t; /* config args */
 typedef  std::vector<uint8_t>            dpdk_map_args_t; /* config args */
 typedef std::map<std::string, int>       dpdk_map_name_to_int_t;
@@ -112,7 +112,7 @@ public:
     }
 
     /* input scan and get port map */
-    int get_map_args(dpdk_input_args_t & dpdk_scan, 
+    int get_map_args(dpdk_input_args_t & dpdk_scan,
                       dpdk_map_args_t & port_map,
                       std::string & err);
 
@@ -146,11 +146,11 @@ private:
 private:
 
    dpdk_input_args_t    m_input;         /* input string */
-   dpdk_cfg_args_t      m_vec;           /* parse input */ 
+   dpdk_cfg_args_t      m_vec;           /* parse input */
    dpdk_cfg_args_t      m_scan_vec;      /* parse scan include the scan better format*/
    dpdk_input_args_t    m_eal_init_vec;  /* dpdk string */
    dpdk_input_args_t    m_dpdk_pci_scan; /* output from dpdk */
-   dpdk_map_args_t      m_last_result;   /* save result */ 
+   dpdk_map_args_t      m_last_result;   /* save result */
 };
 
 

@@ -206,7 +206,7 @@ public:
         CAPTURE      = 1 << 1,
     };
 
- 
+
     TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
 
     ~TrexStatelessDpCore();

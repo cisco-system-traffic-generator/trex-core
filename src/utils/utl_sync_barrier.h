@@ -42,7 +42,7 @@ public:
 
     /**
      * Object initialized by one thread (CP)
-     * 
+     *
      * @param max_ids
      * @param timeout_sec
      */

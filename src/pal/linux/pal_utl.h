@@ -42,7 +42,7 @@ limitations under the License.
 
 #define PAL_NTOHL(x)     ((uint32_t)(PAL_LONGSWAP((uint32_t)x)))
 #define PAL_NTOHS(x)     ((uint16_t)(((PAL_MSB((uint16_t)x))) | (PAL_LSB((uint16_t)x) << 8)))
- 
+
 #define PAL_HTONS(x)     (PAL_NTOHS(x))
 #define PAL_HTONL(x)     (PAL_NTOHL(x))
 

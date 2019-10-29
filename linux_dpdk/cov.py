@@ -1,5 +1,5 @@
 # hhaim 2015
-import sys 
+import sys
 import os
 import argparse;
 import uuid
@@ -13,7 +13,7 @@ class cov_driver(object):
      args=None;
 
 
-BUILD_NUM_FILE  = "../VERSION" 
+BUILD_NUM_FILE  = "../VERSION"
 
 COV_FILE_OUT = 'trex-64.bz2'
 
@@ -40,7 +40,7 @@ def get_build_num_dis ():
 
 
 def process_options ():
-    parser = argparse.ArgumentParser(usage=""" 
+    parser = argparse.ArgumentParser(usage="""
     cov -b # build  sa
     cov -u  #upload sa
     """,
@@ -106,13 +106,13 @@ def check_env (env,err):
 def main_cov ():
     args=cov_driver.args
 
-    # default nothing was given 
+    # default nothing was given
     if args.b == False and args.u == False :
         run_build (True)
         upload ()
 
     if args.b :
-        is_clean = not args.nc 
+        is_clean = not args.nc
         run_build (is_clean)
 
     if args.u:
@@ -138,4 +138,4 @@ def main ():
 if __name__ == "__main__":
     main();
 
-    
+

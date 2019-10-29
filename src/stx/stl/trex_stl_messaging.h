@@ -302,7 +302,7 @@ private:
 
 /**
  * move a DP core in/out of service mode (slower as it might do
- * capturing and etc.) 
+ * capturing and etc.)
  *
  */
 class TrexStatelessDpServiceMode : public TrexCpToDpMsgBase {
@@ -335,7 +335,7 @@ public:
         SERVICE_MODE_ON,
         SERVICE_MODE_OFF,
     };
-    
+
     /**
      * RC types for queries
      */
@@ -347,18 +347,18 @@ public:
         RC_FAIL_CAPWAP_PROXY_ACTIVE,
         RC_FAIL_CAPWAP_PROXY_INACTIVE,
     };
-    
+
     TrexStatelessRxQuery(uint8_t port_id, query_type_e query_type, MsgReply<query_rc_e> &reply) : m_reply(reply) {
         m_port_id    = port_id;
         m_query_type = query_type;
     }
-     
+
     /**
      * virtual function to handle a message
      *
      */
     virtual bool handle(CRxCore *rx_core);
-    
+
 private:
     uint8_t                m_port_id;
     query_type_e           m_query_type;
@@ -370,9 +370,9 @@ class TrexStatelessRxEnableLatency : public TrexCpToRxMsgBase {
 public:
     TrexStatelessRxEnableLatency(MsgReply<bool> &reply) : m_reply(reply) {
     }
-    
+
     bool handle (CRxCore *rx_core);
-    
+
 private:
     MsgReply<bool>    &m_reply;
 };

@@ -1,7 +1,7 @@
 /*
 taken from here https://oroboro.com/non-uniform-random-numbers/
 
-Copyright (c) 2015-2017 oroboro 
+Copyright (c) 2015-2017 oroboro
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ limitations under the License.
 #include <assert.h>
 
 
-u32 KxuNuRand::getRandom() { 
-   const Distribution& dist = mDist[mRand->getRandomInRange( mDist.size() )]; 
-   return ( mRand->getRandom() <= dist.mProb ) ? dist.mA : dist.mB; 
+u32 KxuNuRand::getRandom() {
+   const Distribution& dist = mDist[mRand->getRandomInRange( mDist.size() )];
+   return ( mRand->getRandom() <= dist.mProb ) ? dist.mA : dist.mB;
 }
 
 static void prob_conv_fix_size(std::vector<double> prob,
@@ -42,16 +42,16 @@ static void prob_conv_fix_size(std::vector<double> prob,
 
 
 static void normProbs( std::vector<u32>& probs );
-static void computeBiDist( std::vector<u32>& p, u32 n, 
+static void computeBiDist( std::vector<u32>& p, u32 n,
                            Distribution& dist, u32 aIdx, u32 bIdx );
 
 
-// Since we are using fixed point math, we first implement 
-// a fixed 0.32 point inversion:  1/(n-1) 
+// Since we are using fixed point math, we first implement
+// a fixed 0.32 point inversion:  1/(n-1)
 #define DIST_INV( n ) ( 0xFFFFFFFF/( (n) - 1 ))
 
 
-KxuNuRand::KxuNuRand( const std::vector<double> prob, 
+KxuNuRand::KxuNuRand( const std::vector<double> prob,
                       KxuRandUniform* rand ){
     std::vector<u32>  fix_p;
     prob_conv_fix_size(prob,fix_p);
@@ -60,7 +60,7 @@ KxuNuRand::KxuNuRand( const std::vector<double> prob,
 }
 
 
-void KxuNuRand::init(const std::vector<u32>& dist, 
+void KxuNuRand::init(const std::vector<u32>& dist,
                      KxuRandUniform* rand ){
     mRand = rand;
 
@@ -72,26 +72,26 @@ void KxuNuRand::init(const std::vector<u32>& dist,
 
        // The non-uniform distribution is passed in as an argument to the
        // constructor. This is a series of integers in the desired proportions.
-       // Normalize these into a series of probabilities that sum to 1, expressed 
+       // Normalize these into a series of probabilities that sum to 1, expressed
        // in 0.32 fixed point.
        std::vector<u32> p; p = dist;
        normProbs( p );
 
-       // Then we count up the number of non-zero probabilities so that we can 
+       // Then we count up the number of non-zero probabilities so that we can
        // figure out the number of distributions we need.
        u32 numDistros = 0;
        for ( u32 i = 0; i < p.size(); i++ )
           if ( p[i] ) numDistros++;
-       if ( numDistros < 2 ) 
+       if ( numDistros < 2 )
            numDistros = 2;
        u32 thresh = DIST_INV( numDistros );
 
-       // reserve space for the distributions.      
+       // reserve space for the distributions.
        mDist.resize( numDistros - 1 );
 
-       u32 aIdx = 0; 
-       u32 bIdx = 0; 
-       for ( u32 i = 0; i < mDist.size(); i++ ) { 
+       u32 aIdx = 0;
+       u32 bIdx = 0;
+       for ( u32 i = 0; i < mDist.size(); i++ ) {
           // find a small prob, non-zero preferred
           while ( aIdx < p.size()-1 ){
              if (( p[aIdx] <= thresh ) && p[aIdx] ) break;
@@ -115,7 +115,7 @@ void KxuNuRand::init(const std::vector<u32>& dist,
           }
 
           // We've selected 2 symbols, at indexes aIdx, and bIdx.
-          // This function will initialize a new binary distribution, and make 
+          // This function will initialize a new binary distribution, and make
           // the appropriate adjustments to the input non-uniform distribution.
           computeBiDist( p, numDistros, mDist[i], aIdx, bIdx );
           assert (bIdx < p.size());
@@ -123,7 +123,7 @@ void KxuNuRand::init(const std::vector<u32>& dist,
              aIdx = bIdx;
           else
              aIdx++;
-       }       
+       }
     }
 }
 
@@ -132,22 +132,22 @@ KxuNuRand::KxuNuRand( const std::vector<u32>& dist, KxuRandUniform* rand ){
 }
 
 
-static void computeBiDist( std::vector<u32>& p, u32 n, 
-                           Distribution& dist, u32 aIdx, u32 bIdx ) { 
-   dist.mA = aIdx; 
-   dist.mB = bIdx; 
+static void computeBiDist( std::vector<u32>& p, u32 n,
+                           Distribution& dist, u32 aIdx, u32 bIdx ) {
+   dist.mA = aIdx;
+   dist.mB = bIdx;
    if ( aIdx == bIdx ){
       dist.mProb = 0;
    } else {
       if ((( p[aIdx] >> 1 ) * ( n - 1 )) >= 0x80000000 ){
           dist.mProb = 0xFFFFFFFF;
       }else{
-          dist.mProb = p[aIdx] * ( n - 1 ); 
+          dist.mProb = p[aIdx] * ( n - 1 );
       }
       p[bIdx] -= ( DIST_INV( n ) - p[aIdx] );
    }
-   p[aIdx] = 0; 
-} 
+   p[aIdx] = 0;
+}
 
 static bool tryDistributingErrorToBiggest(std::vector<u32>& probs){
     /* Returns true if the error is smaller than the max prob and can be distributed
@@ -170,7 +170,7 @@ static bool tryDistributingErrorToBiggest(std::vector<u32>& probs){
         probs[maxIdx] += error;
         return true;
     }
-    return false; 
+    return false;
 }
 
 static void distributeErrorRelatively(std::vector<u32>& probs){
@@ -211,16 +211,16 @@ static void normProbs( std::vector<u32>& probs ){
    for ( u32 i = 0; i < probs.size(); i++ ){
        if ( probs[i] ) numNonZero++;
    }
- 
+
    if ( numNonZero == 0 ){
-      // degenerate all zero probability array. 
+      // degenerate all zero probability array.
       // Can't do anything with it... result is undefined
       assert(0);
       return;
    }
- 
+
    if ( numNonZero == 1 ){
-      // trivial case with only one real prob - handle special because 
+      // trivial case with only one real prob - handle special because
       // computation would overflow below anyway.
       for ( u32 i = 0; i < probs.size(); i++ ){
           probs[i] = probs[i] ? U32_MAX : 0;

@@ -28,7 +28,7 @@ public:
         TYPE_ECHO_REPLY   = 0,
         TYPE_ECHO_REQUEST = 8,
     };
-    
+
     ICMPHeader()
 	{
 		setCode(0);
@@ -74,7 +74,7 @@ public:
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
     inline	uint8_t*  getPointer          (){return (uint8_t*)this;}
     inline	uint32_t  getSize             (){return 8;}
 
@@ -91,4 +91,4 @@ private:
 
 #include "IcmpHeader.inl"
 
-#endif 
+#endif

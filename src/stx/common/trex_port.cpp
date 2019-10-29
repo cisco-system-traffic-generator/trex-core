@@ -33,10 +33,10 @@ TrexPort::TrexPort(uint8_t port_id) : m_dp_events(this) {
     m_port_id             = port_id;
     m_port_state          = PORT_STATE_IDLE;
     m_synced_stack_caps   = false;
-    
+
     /* query RX info from driver */
     get_platform_api().get_port_stat_info(port_id, m_rx_count_num, m_rx_caps, m_ip_id_base);
-        
+
     /* get the DP cores belonging to this port */
     get_platform_api().port_id_to_cores(m_port_id, core_pair_list);
 
@@ -52,13 +52,13 @@ TrexPort::TrexPort(uint8_t port_id) : m_dp_events(this) {
 
 /**
  * acquire the port
- * 
+ *
  * @author imarom (09-Nov-15)
- * 
- * @param user 
- * @param force 
+ *
+ * @param user
+ * @param force
  */
-void 
+void
 TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
     bool used_force = !get_owner().is_free() && force;
@@ -92,7 +92,7 @@ TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
 void
 TrexPort::release(void) {
-    
+
 
     Json::Value data;
 
@@ -107,15 +107,15 @@ TrexPort::release(void) {
 }
 
 
-void 
+void
 TrexPort::start_rx_queue(uint64_t size) {
     static MsgReply<bool> reply;
-    
+
     reply.reset();
-    
+
     TrexRxStartQueue *msg = new TrexRxStartQueue(m_port_id, size, reply);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
-    
+
     /* we cannot return ACK to the user until the RX core has approved
        this might cause the user to lose some packets from the queue
      */
@@ -166,7 +166,7 @@ TrexPort::stop_capwap_proxy() {
 const TrexPktBuffer *
 TrexPort::get_rx_queue_pkts() {
     static MsgReply<const TrexPktBuffer *> reply;
-    
+
     reply.reset();
 
     TrexRxQueueGetPkts *msg = new TrexRxQueueGetPkts(m_port_id, reply);
@@ -178,7 +178,7 @@ TrexPort::get_rx_queue_pkts() {
 
 
 bool TrexPort::is_active() const {
-    return   (  (m_port_state == PORT_STATE_TX) 
+    return   (  (m_port_state == PORT_STATE_TX)
              || (m_port_state == PORT_STATE_PAUSE)
              || (m_port_state == PORT_STATE_PCAP_TX)
              );
@@ -210,7 +210,7 @@ TrexPort::change_state(port_state_e new_state) {
 
 /**
  * core is considered active if it has a pending for async stop
- * 
+ *
  */
 bool
 TrexPort::is_core_active(int core_id) {
@@ -221,9 +221,9 @@ TrexPort::is_core_active(int core_id) {
 
 /**
  * returns port state formatted as string
- * 
+ *
  */
-std::string 
+std::string
 TrexPort::get_state_as_string() const {
 
     switch (get_state()) {
@@ -270,7 +270,7 @@ TrexPort::encode_stats(Json::Value &port) {
 }
 
 
-void 
+void
 TrexPort::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool send_to_active_only) {
 
     for (auto core_id : m_cores_id_list) {
@@ -300,7 +300,7 @@ TrexPort::get_active_cores_count(void) {
 }
 
 
-void 
+void
 TrexPort::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
 
     /* send the message to the core */
@@ -356,7 +356,7 @@ void TrexPort::get_port_node(CNodeBase &node) {
 
 /**
  * configures port in L2 mode
- * 
+ *
  */
 void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
     /* not valid under traffic */
@@ -372,7 +372,7 @@ void TrexPort::set_l2_mode_async(const std::string &dst_mac) {
 
 /**
  * configures port in L3 mode
- * 
+ *
  */
 void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac) {
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "set_l3_mode");
@@ -388,7 +388,7 @@ void TrexPort::set_l3_mode_async(const std::string &src_ipv4, const std::string 
 
 /**
  * configures IPv6 of port
- * 
+ *
  */
 void TrexPort::conf_ipv6_async(bool enabled, const std::string &src_ipv6) {
     verify_state(PORT_STATE_IDLE | PORT_STATE_STREAMS | PORT_STATE_ASTF_LOADED, "conf_ipv6");
@@ -460,7 +460,7 @@ static void disable_vlan_if_not_needed(CParserOption &opts) {
 
 /**
  * configures VLAN tagging
- * 
+ *
  */
 void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
     /* not valid under traffic */

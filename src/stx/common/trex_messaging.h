@@ -35,13 +35,13 @@ class CRxCore;
 
 /**
  * Generic message reply object
- * 
+ *
  * @author imarom (11/27/2016)
  */
 template<typename T> class MsgReply {
 
 public:
-    
+
     MsgReply() {
         reset();
     }
@@ -49,7 +49,7 @@ public:
     void reset() {
         m_pending = true;
     }
-    
+
     bool is_pending() const {
         return m_pending;
     }
@@ -71,11 +71,11 @@ public:
 
             delay(backoff_ms);
         }
-    
+
         return m_reply;
 
     }
-    
+
 protected:
     volatile bool  m_pending;
     T              m_reply;
@@ -359,7 +359,7 @@ public:
                                 uint64_t limit,
                                 TrexPktBuffer::mode_e mode,
                                 MsgReply<TrexCaptureRCStart> &reply) : m_reply(reply) {
-        
+
         m_limit  = limit;
         m_filter = filter;
         m_mode   = mode;
@@ -480,7 +480,7 @@ public:
     TrexRxStartQueue(uint8_t port_id,
                               uint64_t size,
                               MsgReply<bool> &reply) : m_reply(reply) {
-        
+
         m_port_id = port_id;
         m_size    = size;
     }
@@ -524,7 +524,7 @@ public:
 private:
     uint8_t                              m_port_id;
     MsgReply<const TrexPktBuffer *>     &m_reply;
-    
+
 };
 
 /**
@@ -722,18 +722,18 @@ private:
  */
 class TrexPortAttrToJson : public TrexCpToRxMsgBase {
 public:
-    
+
     TrexPortAttrToJson(uint8_t port_id, Json::Value &attr_res, MsgReply<bool> &reply) :
                     m_attr_res(attr_res), m_reply(reply) {
         m_port_id = port_id;
     }
-     
+
     /**
      * virtual function to handle a message
      *
      */
     virtual bool handle(CRxCore *rx_core);
-    
+
 private:
     uint8_t                  m_port_id;
     Json::Value             &m_attr_res;
@@ -746,18 +746,18 @@ private:
  */
 class TrexRxFeaturesToJson : public TrexCpToRxMsgBase {
 public:
-    
+
     TrexRxFeaturesToJson(uint8_t port_id, Json::Value &feat_res, MsgReply<bool> &reply) :
                     m_feat_res(feat_res), m_reply(reply) {
         m_port_id = port_id;
     }
-     
+
     /**
      * virtual function to handle a message
      *
      */
     virtual bool handle(CRxCore *rx_core);
-    
+
 private:
     uint8_t                  m_port_id;
     Json::Value             &m_feat_res;
@@ -774,7 +774,7 @@ public:
     TrexRxSetVLAN(uint8_t port_id, const vlan_list_t &vlan_list) : m_vlan_list(vlan_list) {
         m_port_id    = port_id;
     }
-    
+
     virtual bool handle(CRxCore *rx_core);
 
 private:
@@ -791,7 +791,7 @@ public:
     TrexRxInvalidateDstMac(uint8_t port_id) {
         m_port_id    = port_id;
     }
-    
+
     virtual bool handle(CRxCore *rx_core);
 
 private:
@@ -807,7 +807,7 @@ public:
     TrexRxIsDstMacValid(uint8_t port_id, MsgReply<bool> &reply) : m_reply(reply){
         m_port_id    = port_id;
     }
-    
+
     virtual bool handle(CRxCore *rx_core);
 
 private:
@@ -820,7 +820,7 @@ private:
  */
 class TrexRxTXPkts : public TrexCpToRxMsgBase {
 public:
-    
+
     TrexRxTXPkts(uint8_t port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec, MsgReply<uint32_t> &reply) :
                     m_pkts(pkts), m_reply(reply) {
         m_port_id  = port_id;

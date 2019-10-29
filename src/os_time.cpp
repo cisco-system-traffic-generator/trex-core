@@ -43,7 +43,7 @@ uint32_t SANB_tickGet()
 int SANB_sysClkRateGet()
 {
     int rate = sysconf(_SC_CLK_TCK);
-    if (rate == -1) 
+    if (rate == -1)
     {
         fprintf(stderr,"SANB_sysClkRateGet, sysconf FAILED, something very basic is wrong....!\n");
     }

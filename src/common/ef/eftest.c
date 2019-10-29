@@ -193,7 +193,7 @@ int
 main(int argc, char * * argv)
 {
 	static const struct diagnostic *	diag = diagnostics;
-	
+
 
 	EF_PROTECT_BELOW = 0;
 	EF_ALIGNMENT = 0;

@@ -240,7 +240,7 @@ void CPacketIndication::UpdateMbufSize(){
     assert(offset>0);
 
     if ( m_desc.IsTcp() ) {
-        offset+=20; 
+        offset+=20;
     }else{
         if ( m_desc.IsUdp() ) {
             offset+=8;
@@ -2394,7 +2394,7 @@ void CFlowsYamlInfo::set_astf_mode(){
     } else {
         m_duration_sec = 0;
     }
-    
+
     m_is_plugin_configured=false;
 }
 
@@ -2852,7 +2852,7 @@ bool CNodeGenerator::has_limit_reached() {
     return ( (m_limit > 0) && (m_cnt >= m_limit) );
 }
 
-uint8_t CFlowGenListPerThread::get_memory_socket_id(){ 
+uint8_t CFlowGenListPerThread::get_memory_socket_id(){
     uint8_t p1;
     uint8_t p2;
     get_port_ids(p1,p2);
@@ -2860,7 +2860,7 @@ uint8_t CFlowGenListPerThread::get_memory_socket_id(){
 }
 
 /* the expected number of flows for TCP mode, this is taken from configuration file and div by threads*/
-uint32_t CFlowGenListPerThread::get_max_active_flows_per_core_tcp(){ 
+uint32_t CFlowGenListPerThread::get_max_active_flows_per_core_tcp(){
 
     double active_flows_per_core = (double)CGlobalInfo::m_memory_cfg.get_each_core_dp_flows();
     /* can't have more than 20M flows per core ..*/
@@ -2913,12 +2913,12 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
                                                  false,
                                                  use_hugepages);
 
-     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV); 
+     RC_HTW_t tw_res=m_tw.Create(TW_BUCKETS,TW_BUCKETS_LEVEL1_DIV);
      if (tw_res != RC_HTW_OK){
          CHTimerWheelErrorStr err(tw_res);
          printf("Timer wheel configuration error,please look into the manual for details  \n");
          printf("ERROR  %-30s  - %s \n",err.get_str(),err.get_help_str());
-         exit(1);  
+         exit(1);
      }
 
     m_node_gen.Create(this);
@@ -2977,7 +2977,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
     /* will be set by start */
     m_dp_core = get_stx()->create_dp_core(thread_id, this);
-    
+
     return (true);
 }
 
@@ -3113,7 +3113,7 @@ void CFlowGenListPerThread::Delete(){
     m_tw.Delete();
 
     utl_rte_mempool_delete(m_node_pool);
-    
+
     if (m_dp_core) {
         delete m_dp_core;
         m_dp_core = nullptr;
@@ -3211,7 +3211,7 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
     #ifdef TREX_SIM
     /* for sim, we need to update the node from tick time*/
     if ( likely (!node->is_repeat_flow() ) ){
-        node->m_time=m_cur_time_sec; 
+        node->m_time=m_cur_time_sec;
     }
     #endif
     #ifdef _DEBUG
@@ -3222,7 +3222,7 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
     if ( likely (!node->is_repeat_flow()) ) {
         if ( likely (!node->is_last_in_flow()) ) {
             m_tw.timer_start(&node->m_tmr,node->update_next_pkt_in_flow_tw() );
-        }else{                              
+        }else{
             free_last_flow_node(node);
         }
     }else{
@@ -3230,7 +3230,7 @@ inline void CFlowGenListPerThread::on_flow_tick(CGenNode *node){
         if ( node->is_last_in_flow() ) {
 
             if ( TEARDOWN == false ){
-                reschedule_flow(node); 
+                reschedule_flow(node);
             }else{
                 free_last_flow_node(node);
             }
@@ -3646,7 +3646,7 @@ int CNodeGenerator::flush_file(dsec_t max_time,
 }
 
 
-void CNodeGenerator::handle_batch_tw_level1(CGenNode *node, 
+void CNodeGenerator::handle_batch_tw_level1(CGenNode *node,
                                             CFlowGenListPerThread *thread,
                                             bool &exit_scheduler,
                                             bool on_terminate) {
@@ -3691,7 +3691,7 @@ void CNodeGenerator::handle_batch_tw_level1(CGenNode *node,
         }
     }
 
-    if ( on_terminate &&  
+    if ( on_terminate &&
          (thread->m_tw.is_any_events_left()==false) ){
         thread->free_node(node);
     }else{
@@ -4178,14 +4178,14 @@ void CFlowGenListPerThread::handle_stl_rx(CGenNode * node,
     }else{
         m_tcp_terminate_cnt=0;
     }
-    
+
     if ( on_terminate ){
         drop=1;
     }
 
     int do_drop=0;
     if (drop) {
-        /* this is not clean, we want to remove this node only if it the last one 
+        /* this is not clean, we want to remove this node only if it the last one
          including the SYNC node. so ask the same query +1 */
         if ( m_node_gen.m_p_queue.size() == (m_non_active_nodes+1) ) {
             do_drop=1;
@@ -4229,8 +4229,8 @@ uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
                 m_dp_core->rx_handle_packet(dir,m,is_idle,ports_id[dir]);
             }
             sum+=cnt;
-            /* support up to 25MPPS per core (for 20usec tick it would be 512 
-               suggested by @jsmoon 
+            /* support up to 25MPPS per core (for 20usec tick it would be 512
+               suggested by @jsmoon
             */
             if (sum>512) {
                 break;
@@ -4256,9 +4256,9 @@ void   CFlowGenListPerThread::no_memory_error(){
     printf("\n");
     printf(" Check your active flows, 'Active-flows    :  6771863', If it too high reduce the multiplier \n");
     printf(" or use --active-flows directive to reduce the number of flows\n");
-    printf(" If you don't have enough memory for flows you should add something like that in your config file            \n");                                
+    printf(" If you don't have enough memory for flows you should add something like that in your config file            \n");
     printf("\n");
-    printf(" memory    :             \n");                                
+    printf(" memory    :             \n");
     printf("      dp_flows    : 4048576 \n");
     printf("--------\n");
     exit(1);
@@ -4326,15 +4326,15 @@ bool CFlowGenListPerThread::check_msgs() {
 
 
 void CFlowGenListPerThread::start(std::string &erf_file_name, CPreviewMode &preview) {
-    
+
     /* reset the time */
     m_cur_time_sec = 0;
-    
+
     /* set per thread global info, for performance */
     m_preview_mode = preview;
-    
+
     m_node_gen.open_file(erf_file_name, &m_preview_mode);
-    
+
     /* start the core */
     m_dp_core->start();
 }
@@ -4343,7 +4343,7 @@ void CFlowGenListPerThread::start_sim(const std::string &erf_file_name, CPreview
     m_preview_mode = preview;
     m_node_gen.open_file(erf_file_name,&m_preview_mode);
     m_node_gen.set_packet_limit(limit);
-    
+
     m_cur_time_sec = 0;
     m_dp_core->start_once();
     m_node_gen.m_v_if->close_file();
@@ -4432,7 +4432,7 @@ double CFlowGenList::get_worse_case_active_flows(){
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_cap_gen[i];
         lp->getFlowStats(&stats);
-        
+
         if ( stats.duration_sec > max_duration){
             max_duration=stats.duration_sec;
         }
@@ -5871,7 +5871,7 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
     m_new_pkt_size=0;
     bool need_to_stop=false;
     int cnt=0;
-    
+
     while (! need_to_stop) {
         CMiniVMCmdBase * cmd = cmds[cnt];
         switch (cmd->m_cmd) {

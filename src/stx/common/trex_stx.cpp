@@ -25,7 +25,7 @@ limitations under the License.
 
 /***********************************************************
  * Trex STX base object
- * 
+ *
  **********************************************************/
 
 TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), m_cfg(cfg) {
@@ -34,9 +34,9 @@ TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), 
 }
 
 
-/** 
- * release all memory 
- * 
+/**
+ * release all memory
+ *
  * @author imarom (08-Oct-15)
  */
 TrexSTX::~TrexSTX() {
@@ -71,7 +71,7 @@ bool TrexSTX::get_task_by_ticket(uint64_t ticket_id, async_ticket_task_t &task) 
 
 /**
  * fetch a port by ID
- * 
+ *
  */
 TrexPort *
 TrexSTX::get_port_by_id(uint8_t port_id) {
@@ -88,26 +88,26 @@ TrexSTX::get_port_by_id(uint8_t port_id) {
 /**
  * returns the port count
  */
-uint8_t 
+uint8_t
 TrexSTX::get_port_count() const {
     return m_ports.size();
 }
 
 
 /**
- * sends a message to all the DP cores 
- * (regardless of ports) 
+ * sends a message to all the DP cores
+ * (regardless of ports)
  */
 void
 TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
 
     int max_threads=(int)CMsgIns::Ins()->getCpDp()->get_num_threads();
-    
+
     for (int i = 0; i < max_threads; i++) {
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
         ring->SecureEnqueue((CGenNode*)msg->clone());
     }
-    
+
     delete msg;
 }
 
@@ -134,7 +134,7 @@ TrexSTX::send_msg_to_rx(TrexCpToRxMsgBase *msg) const {
 
 /**
  * check for a message from DP core
- * 
+ *
  */
 void
 TrexSTX::check_for_dp_message_from_core(int thread_id) {

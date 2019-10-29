@@ -4,7 +4,7 @@
 /*
 taken from here https://oroboro.com/non-uniform-random-numbers/
 
-Copyright (c) 2015-2017 oroboro 
+Copyright (c) 2015-2017 oroboro
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,22 +26,22 @@ limitations under the License.
 #include <assert.h>
 
 #define U32_MAX 0xFFFFFFFF
- 
+
 class KxuRand {
  public:
     virtual ~KxuRand() { ; }
     virtual uint32_t    getRandom() = 0;
     virtual double getRandomUnit() { return (((double)getRandom()) / U32_MAX ); }
  };
- 
+
 class KxuRandUniform : public KxuRand {
  public:
     virtual ~KxuRandUniform() { ; }
     virtual void setSeed( uint32_t seed ) = 0;
- 
-    uint32_t  getRandomInRange( uint32_t n ) 
+
+    uint32_t  getRandomInRange( uint32_t n )
        { uint64_t v = getRandom(); v *= n; return uint32_t( v >> 32 ); }
-    uint32_t  getRandomInRange( uint32_t start, uint32_t end ) 
+    uint32_t  getRandomInRange( uint32_t start, uint32_t end )
        { return getRandomInRange( end - start ) + start; }
 
     double  getRandomInRange( double start, double end)  {
@@ -50,14 +50,14 @@ class KxuRandUniform : public KxuRand {
         return (((double)rand* (end -start)/((double)U32_MAX)+start));
     }
 };
- 
+
 // a dead simple Linear Congruent random number generator
 class KxuLCRand : public KxuRandUniform {
  public:
     KxuLCRand( uint32_t seed = 555 ) { setSeed( seed ); }
     void setSeed( uint32_t seed ) { if ( !seed ) seed = 0x333; mState = seed | 1; }
     uint32_t getRandom() { mState = ( mState * 69069 ) + 1; return mState; }
- 
+
  private:
     uint32_t mState;
 };
@@ -65,25 +65,25 @@ class KxuLCRand : public KxuRandUniform {
 typedef uint32_t u32 ;
 
 
-class Distribution {  
+class Distribution {
 public:
    Distribution() {}
-   Distribution( u32 a, 
-                 u32 b, 
+   Distribution( u32 a,
+                 u32 b,
                  u32 p ) { mA = a; mB = b, mProb = p; }
- 
-   u32 mA; 
-   u32 mB; 
-   u32 mProb; 
+
+   u32 mA;
+   u32 mB;
+   u32 mProb;
 };
 
-class KxuNuRand : public KxuRand { 
+class KxuNuRand : public KxuRand {
 public:
    KxuNuRand( const std::vector<u32>& dist, KxuRandUniform* rand );
    KxuNuRand( const std::vector<double> prob, KxuRandUniform* rand );
 
    u32 getRandom();
- 
+
 protected:
    std::vector<Distribution> mDist;
    KxuRandUniform*           mRand;

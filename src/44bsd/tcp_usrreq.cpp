@@ -61,10 +61,10 @@ extern  char *tcpstates[];
 /*ARGSUSED*/
 int
 tcp_usrreq(CTcpPerThreadCtx * ctx,
-           struct tcp_socket *so, 
-           int req, 
-           struct rte_mbuf *m, 
-           struct rte_mbuf * nam, 
+           struct tcp_socket *so,
+           int req,
+           struct rte_mbuf *m,
+           struct rte_mbuf * nam,
            struct rte_mbuf * control){
 
     struct inpcb *inp;

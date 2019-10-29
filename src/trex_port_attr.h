@@ -84,14 +84,14 @@ public:
     virtual int set_rx_filter_mode(rx_filter_mode_e mode) = 0;
     virtual int set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) = 0;
 
-    
-    
+
+
     /* DUMPS */
     virtual void dump_link(FILE *fd) = 0;
 
     /* dump object status to JSON */
     void to_json(Json::Value &output);
-    
+
     uint8_t get_port_id() const {
         return m_port_id;
     }

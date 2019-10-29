@@ -69,7 +69,7 @@ public:
 // Common Header Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
     inline	uint8_t*  getPointer          (){return (uint8_t*)this;}
     inline	uint32_t  getSize             (){return 8;}
 
@@ -89,5 +89,5 @@ private:
 
 #include "UdpHeader.inl"
 
-#endif 
+#endif
 

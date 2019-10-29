@@ -33,7 +33,7 @@ limitations under the License.
 
 #define PAL_NTOHL(x)     ( (uint32_t)( rte_bswap32(x) ) )
 #define PAL_NTOHS(x)     ( (uint16_t)( rte_bswap16(x) ) )
- 
+
 #define PAL_HTONS(x)     (PAL_NTOHS(x))
 #define PAL_HTONL(x)     (PAL_NTOHL(x))
 

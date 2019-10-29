@@ -74,7 +74,7 @@ port_cfg_t::port_cfg_t() {
 
 void port_cfg_t::update_var(void) {
     get_ex_drv()->update_configuration(this);
-    if ( (m_port_conf.rxmode.offloads & DEV_RX_OFFLOAD_TCP_LRO) && 
+    if ( (m_port_conf.rxmode.offloads & DEV_RX_OFFLOAD_TCP_LRO) &&
         CGlobalInfo::m_options.preview.getLroOffloadDisable() ) {
         m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_TCP_LRO;
         printf("Warning LRO is supported and asked to be disabled by user \n");
@@ -208,10 +208,10 @@ bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthI
     struct rte_eth_stats stats1;
     struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
     int res;
-    
+
     /* fetch stats */
     res=rte_eth_stats_get(_if->get_repid(), &stats1);
-    
+
     /* check the error flag */
     if (res!=0) {
         /* error (might happen on i40e_vf ) */
@@ -240,7 +240,7 @@ bool CTRexExtendedDriverBase::get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthI
     prev_stats->oerrors = stats1.oerrors;
     prev_stats->ierrors = stats1.ierrors;
     prev_stats->rx_nombuf = stats1.rx_nombuf;
-    
+
     return true;
 }
 

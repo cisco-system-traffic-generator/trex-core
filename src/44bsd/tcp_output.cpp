@@ -50,7 +50,7 @@
 
 #define MAX_TCPOPTLEN   32  /* max # bytes that go in options */
 
-                      
+
 /*
  * Flags used when sending segments in tcp_output.
  * Basic flags (TH_RST,TH_ACK,TH_SYN,TH_FIN) are totally
@@ -100,7 +100,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             if ( tp->is_tso() ) {
                 uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
                 if ( dlen>seg_size ){
-                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->ol_flags |=PKT_TX_TCP_SEG;
                     m->tso_segsz = seg_size;
                     m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
                     tso_done=true;
@@ -128,7 +128,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             if ( tp->is_tso() ) {
                 uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
                 if ( dlen>seg_size ){
-                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->ol_flags |=PKT_TX_TCP_SEG;
                     m->tso_segsz = seg_size;
                     m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
                     tso_done=true;
@@ -160,13 +160,13 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
 
 /**
  * build control packet without data
- * 
+ *
  * @param pctx
  * @param tp
  * @param tcphlen
  * @param pkt
- * 
- * @return 
+ *
+ * @return
  */
 static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
@@ -229,23 +229,23 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
 
 
 /**
- * build packet from socket buffer 
- * 
+ * build packet from socket buffer
+ *
  * @param pctx
  * @param tp
  * @param offset
  * @param dlen
  * @param tcphlen
  * @param pkt
- * 
- * @return 
+ *
+ * @return
  */
 static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
                                   struct tcpcb *tp,
-                                  uint32_t offset, 
+                                  uint32_t offset,
                                   uint32_t dlen,
-                                  uint16_t tcphlen, 
+                                  uint16_t tcphlen,
                                   CTcpPkt &pkt){
 
     int res=_tcp_build_cpkt(pctx,ftp,tp,tcphlen,pkt);
@@ -292,7 +292,7 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
                 bsize = update_next_mbuf(mi,rb,lastm,dlen);
             }
         }else{
-            //rb.m_type==MO_RW not supported right now 
+            //rb.m_type==MO_RW not supported right now
             if (rb.m_type==MO_RW) {
                 /* assume mbuf with one seg */
                 assert(mn->nb_segs==1);
@@ -313,13 +313,13 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
     return(0);
 }
 
-/* len : if TSO==true, it is the TSO packet size (before segmentation), 
+/* len : if TSO==true, it is the TSO packet size (before segmentation),
          else it is the packet size */
 int tcp_build_dpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
-                   uint32_t offset, 
+                   uint32_t offset,
                    uint32_t dlen,
-                   uint16_t tcphlen, 
+                   uint16_t tcphlen,
                    CTcpPkt &pkt){
     assert(tp->m_flow);
     CFlowTemplate *ftp=&tp->m_flow->m_template;
@@ -346,9 +346,9 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
  * segment are as specified by the parameters.
  */
 void tcp_respond(CPerProfileCtx * pctx,
-            struct tcpcb *tp, 
-            tcp_seq ack, 
-            tcp_seq seq, 
+            struct tcpcb *tp,
+            tcp_seq ack,
+            tcp_seq seq,
             int flags){
     assert(tp);
     uint32_t win = sbspace(&tp->m_socket.so_rcv);
@@ -469,7 +469,7 @@ again:
     if (SEQ_LT(tp->snd_nxt + len, tp->snd_una + so->so_snd.sb_cc))
         flags &= ~TH_FIN;
 
-    win = sbspace(&so->so_rcv);               
+    win = sbspace(&so->so_rcv);
 
     /*
      * Sender silly window avoidance.  If connection is idle
@@ -503,7 +503,7 @@ again:
      * window, then want to send a window update to peer.
      */
     if (win > 0) {
-        /* 
+        /*
          * "adv" is the amount we can increase the window,
          * taking into account that we are limited by
          * TCP_MAXWIN << tp->rcv_scale.
@@ -593,7 +593,7 @@ send:
             mss = bsd_htons((u_short) tcp_mss(pctx,tp, 0));
             *(uint16_t*)(opt + 2)=mss;
             optlen = 4;
-     
+
             if ((tp->t_flags & TF_REQ_SCALE) &&
                 ((flags & TH_ACK) == 0 ||
                 (tp->t_flags & TF_RCVD_SCALE))) {
@@ -606,9 +606,9 @@ send:
             }
         }
     }
- 
+
     /*
-     * Send a timestamp and echo-reply if this is a SYN and our side 
+     * Send a timestamp and echo-reply if this is a SYN and our side
      * wants to use timestamps (TF_REQ_TSTMP is set) or both our side
      * and our peer have sent timestamps in our SYN's.
      */
@@ -617,7 +617,7 @@ send:
         ((flags & (TH_SYN|TH_ACK)) == TH_SYN ||
          (tp->t_flags & TF_RCVD_TSTMP))) {
         uint32_t *lp = (uint32_t *)(opt + optlen);
- 
+
         /* Form timestamp option as shown in appendix A of RFC 1323. */
         *lp++ = bsd_htonl(TCPOPT_TSTAMP_HDR);
         *lp++ = bsd_htonl(ctx->tcp_now);
@@ -656,7 +656,7 @@ send:
      * be transmitted, and initialize the header from
      * the template for sends on this connection.
      */
-    uint16_t tg_id = tp->m_flow->m_tg_id; 
+    uint16_t tg_id = tp->m_flow->m_tg_id;
     if (len) {
         if (tp->t_force && len == 1){
             INC_STAT(pctx, tg_id, tcps_sndprobe);
@@ -706,7 +706,7 @@ send:
      * window for use in delaying messages about window sizes.
      * If resending a FIN, be sure not to use a new sequence number.
      */
-    if (flags & TH_FIN && tp->t_flags & TF_SENTFIN && 
+    if (flags & TH_FIN && tp->t_flags & TF_SENTFIN &&
         tp->snd_nxt == tp->snd_max)
         tp->snd_nxt--;
     /*

@@ -27,19 +27,19 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/*****                         
+/*****
  * NAME
- *   
- *   
+ *
+ *
  * AUTHOR
- *   google 
- *   
+ *   google
+ *
  * COPYRIGHT
  *   Copyright (c) 2004-2011 by cisco Systems, Inc.
  *   All rights reserved.
- *   
+ *
  * DESCRIPTION
- *   
+ *
  ****/
 
 #include <iostream>

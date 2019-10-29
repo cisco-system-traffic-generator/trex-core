@@ -39,17 +39,17 @@ TrexRpcCommandsTable::~TrexRpcCommandsTable() {
 
 /**
  * init the RPC table with configuration name and version
- * 
+ *
  */
 void
 TrexRpcCommandsTable::init(const std::string &config_name, int major, int minor) {
-    
+
     /* reset any previous data */
     reset();
-    
+
     /* init the API version */
     m_api_ver.init(config_name, major, minor);
-    
+
     m_is_init = true;
 }
 
@@ -60,7 +60,7 @@ TrexRpcCommandsTable::reset() {
     for (auto comp : m_rpc_components) {
         delete comp;
     }
-    
+
     m_rpc_components.clear();
     m_is_init = false;
 }
@@ -71,13 +71,13 @@ TrexRpcCommandsTable::reset() {
  */
 void
 TrexRpcCommandsTable::load_component(TrexRpcComponent *comp) {
-    
+
     /* set the component to the right API version / config */
     comp->set_rpc_api_ver(&m_api_ver);
-    
+
     /* add the component */
     m_rpc_components.push_back(comp);
-     
+
     /* register all the RPC commands */
     for (auto cmd : comp->get_rpc_cmds()) {
         register_command(cmd);
@@ -87,7 +87,7 @@ TrexRpcCommandsTable::load_component(TrexRpcComponent *comp) {
 
 /**
  * register a new command to the table
- * 
+ *
  */
 void
 TrexRpcCommandsTable::register_command(TrexRpcCommand *command) {
@@ -98,7 +98,7 @@ TrexRpcCommandsTable::register_command(TrexRpcCommand *command) {
 
 /**
  * query for all the commands
- * @param cmds 
+ * @param cmds
  */
 void TrexRpcCommandsTable::query(vector<string> &cmds) {
     for (auto cmd : m_rpc_cmd_table) {

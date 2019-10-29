@@ -88,7 +88,7 @@ struct TCGenDList {
         m_head.set_self();
         return(true);
     }
-    
+
     inline void append(TCDListNode* node){
         m_head.add_before(node);
     }
@@ -170,4 +170,4 @@ inline TCDListNode* TCGenDListIterator::operator++(int){
 
 
 
-#endif  
+#endif

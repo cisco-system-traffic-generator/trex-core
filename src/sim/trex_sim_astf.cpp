@@ -118,7 +118,7 @@ void   CCoreEthIFTcpSim::write_pkt_to_file(uint8_t dir,
     m_raw->time_sec  = t_c.m_time_sec;
     uint8_t p_id = (uint8_t)dir;
     m_raw->setInterface(p_id);
-    
+
     int rc = write_pkt(m_raw);
     assert(rc == 0);
 }
@@ -207,7 +207,7 @@ static int load_list_of_cap_files(CParserOption * op,
     CFlowGenList fl;
     fl.Create();
     fl.load_astf();
-    
+
     if (op->client_cfg_file != "") {
         try {
             fl.load_client_config_file(op->client_cfg_file);
@@ -256,7 +256,7 @@ static int load_list_of_cap_files(CParserOption * op,
     dump_tcp_counters(lpt->m_c_tcp,
                       lpt->m_s_tcp,
                       args->dump_json);
-                                      
+
     uint32_t stop=    os_get_time_msec();
     printf(" took time: %umsec (freq: %u) \n", stop-start, os_get_time_freq());
 
@@ -268,11 +268,11 @@ static int load_list_of_cap_files(CParserOption * op,
 
 
 int SimAstf::run() {
-     
+
     assert( CMsgIns::Ins()->Create(4) );
-    
+
     STXSimGuard guard(new TrexAstfBatch(TrexSTXCfg(), nullptr));
-    
+
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options, args);
     } catch (const std::runtime_error &e) {

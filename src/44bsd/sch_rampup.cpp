@@ -71,7 +71,7 @@ void CAstfFifRampup::on_timer_update(CAstfTimerFunctorObj *tmr){
     }
 
     m_ctx->m_timer_w.timer_start(tmr,
-                                 tw_time_msec_to_ticks(CAstfFifRampup::TICK_MSEC) 
+                                 tw_time_msec_to_ticks(CAstfFifRampup::TICK_MSEC)
                                  );
     m_cur_tick++;
 }

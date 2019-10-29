@@ -39,18 +39,18 @@ typedef std::vector<RXPortManager*> rx_port_mg_vec_t;
 
 /**
  * RX core
- * 
+ *
  */
 class CRxCore : public TrexRxCore {
 
 protected:
         /**
-     * core states 
-     *  
-     * STATE_COLD - will sleep until a packet arrives 
+     * core states
+     *
+     * STATE_COLD - will sleep until a packet arrives
      *              then it will move to a faster pace
      *              until no packet arrives for some time
-     *  
+     *
      * STATE_HOT  - 100% checking for packets (latency check)
      */
     enum state_e {
@@ -62,12 +62,12 @@ protected:
 
  public:
 
-     
+
     CRxCore() {
         m_is_active = false;
     }
     ~CRxCore();
-    
+
     void start();
     void create(const CRxSlCfg &cfg);
     void reset_rx_stats(uint8_t port_id);
@@ -82,7 +82,7 @@ protected:
     double get_cpu_util();
     void update_cpu_util();
 
-    
+
     const TrexPktBuffer *get_rx_queue_pkts(uint8_t port_id);
 
     bool tx_pkt(rte_mbuf_t *m, uint8_t tx_port_id);
@@ -90,14 +90,14 @@ protected:
 
     /**
      * start RX queueing of packets
-     * 
+     *
      */
     void start_queue(uint8_t port_id, uint64_t size);
     void stop_queue(uint8_t port_id);
 
     /**
      * start proxifying of CAPWAP traffic between WLC and STF TRex
-     * 
+     *
      */
     bool start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
     void stop_capwap_proxy(uint8_t port_id);
@@ -119,32 +119,32 @@ protected:
 
     /**
      * fetch the ignored stats for a port
-     * 
+     *
      */
     void get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff);
 
     /**
-     * returns the current rate that 
-     * the RX core handles packets 
-     * 
+     * returns the current rate that
+     * the RX core handles packets
+     *
      */
     float get_pps_rate() {
         return m_rx_pps.add(m_rx_pkts);
     }
-    
+
     /**
      * sends a list of packets using a queue (delayed) with IPG
      */
     uint32_t tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec);
-    
+
     /**
      * sends a packet through the TX queue assigned to the RX core
      */
     bool tx_pkt(int port_id, const std::string &pkt);
-    
+
     /**
      * returns true if the RX core is active
-     * 
+     *
      */
     bool is_active() {
         return m_is_active;
@@ -209,7 +209,7 @@ protected:
     rx_port_mg_vec_t m_rx_port_mngr_vec;
 
     CPPSMeasure      m_rx_pps;
-    
+
     TXQueue          m_tx_queue;
 
     /* accessed from control core */

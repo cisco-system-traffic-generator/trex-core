@@ -5,8 +5,8 @@
 
 /* todo :
 
-1. add jitter support 
-2. in case ticks take too much time add a quata and keep the time in the current bucket then speed up 
+1. add jitter support
+2. in case ticks take too much time add a quata and keep the time in the current bucket then speed up
 
 hhaim
 */
@@ -55,7 +55,7 @@ bool CTimerWheelBucket::do_tick(void *userdata,
                                 tw_on_tick_cb_t cb,
                                 int32_t limit){
 
-    
+
     CTimerObj * tmr;
     int cnt=0;
     while (  true ) {
@@ -84,7 +84,7 @@ void CTimerWheelBucket::timer_stats_dump(FILE *fd){
     fprintf(fd,"timer_starts       :%lu \n", (ulong)m_timer_starts);
     fprintf(fd,"timer_cancelled    :%lu \n", (ulong)m_timer_cancelled);
     fprintf(fd,"m_timer_restart    :%lu \n", (ulong)m_timer_restart);
-    
+
 }
 
 
@@ -92,7 +92,7 @@ RC_STW_t CTimerWheelBucket::timer_stop (CTimerObj *tmr)
 {
     CTimerWheelLink *next, *prev;
 
-#ifdef TW_DEBUG 
+#ifdef TW_DEBUG
 
     if (this == 0) {
         return (RC_STW_NULL_WHEEL);
@@ -194,7 +194,7 @@ RC_STW_t CTimerWheelBucket::Create(uint32_t wheel_size){
     m_active_tick_timer = m_active_bucket;
     /* link list point to itself */
     for (j = 0; j < wheel_size; j++) {
-        bucket->stw_next = bucket;    
+        bucket->stw_next = bucket;
         bucket->stw_prev = bucket;
         bucket++;
     }

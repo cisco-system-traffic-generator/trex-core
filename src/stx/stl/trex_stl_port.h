@@ -23,7 +23,7 @@ limitations under the License.
 
 #include "common/basic_utils.h"
 
-#include <json/json.h> 
+#include <json/json.h>
 
 /* common files */
 #include "trex_port.h"
@@ -104,14 +104,14 @@ public:
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessProfile: public TrexPort {
-    
+
     friend TrexDpPortEvents;
     friend TrexDpPortEvent;
     friend AsyncProfileStopEvent;
 
 public:
 
-    TrexStatelessProfile(uint8_t port_id, std::string profile_id); 
+    TrexStatelessProfile(uint8_t port_id, std::string profile_id);
     ~TrexStatelessProfile();
 
 
@@ -123,7 +123,7 @@ public:
     const Json::Value & get_profile_json();
 
     /* original template provided by requester */
-    Json::Value m_profile_json;    
+    Json::Value m_profile_json;
 
 
     /**
@@ -149,9 +149,9 @@ public:
     void stop_traffic(void);
 
     /**
-     * remove all RX filters 
-     * valid only when port is stopped 
-     * 
+     * remove all RX filters
+     * valid only when port is stopped
+     *
      * @author imarom (28-Mar-16)
      */
     void remove_rx_filters(void);
@@ -180,12 +180,12 @@ public:
 
     /**
      * sets service mode
-     * 
+     *
      * @author imarom (1/22/2017)
-     * 
-     * @param enabled 
+     *
+     * @param enabled
      */
-    
+
     bool is_service_mode_on() const {
         return false;
     }
@@ -224,7 +224,7 @@ public:
         m_stream_table.get_object_list(object_list);
     }
 
-    
+
     /**
      * returns the traffic multiplier currently being used by the DP
      *
@@ -262,7 +262,7 @@ private:
      *
      */
     void common_profile_stop_actions(bool async);
-    
+
     /**
      * calculate effective M per core
      *
@@ -297,7 +297,7 @@ private:
     const TrexStreamsGraphObj  *m_graph_obj;
 
     bool  m_is_service_mode_on;
-    
+
     static const uint32_t MAX_STREAMS = 20000;
 
 };
@@ -305,8 +305,8 @@ private:
 
 
 /**
- *  TrexProfileTable class 
- *  
+ *  TrexProfileTable class
+ *
  */
 class TrexProfileTable {
 public:
@@ -315,38 +315,38 @@ public:
     ~TrexProfileTable();
 
     /**
-     * add a profile 
-     * if a previous one exists, the old one  will be deleted 
+     * add a profile
+     * if a previous one exists, the old one  will be deleted
      */
     void add_profile(TrexStatelessProfile *mprofile);
 
- 
+
     /**
-     * fetch a stream if exists 
-     * o.w NULL 
-     *  
+     * fetch a stream if exists
+     * o.w NULL
+     *
      */
     TrexStatelessProfile * get_profile_by_id(string profile_id);
 
 
-    /** 
+    /**
      * populate a list with all the profile IDs
-     * 
+     *
      * @author imarom (06-Sep-15)
-     * 
-     * @param profile_list 
+     *
+     * @param profile_list
      */
     void get_profile_id_list(std::vector<string> &profile_id_list);
 
-    /** 
+    /**
      * populate a list with all the stream objects
-     * 
+     *
      */
     void get_profile_object_list(std::vector<TrexStatelessProfile *> &profile_object_list);
 
-    /** 
+    /**
      * get the table size
-     * 
+     *
      */
     int size();
 
@@ -356,10 +356,10 @@ public:
 private:
     /**
      * holds all the profile in a hash table by profile id
-     * 
+     *
      */
     std::unordered_map<string, TrexStatelessProfile *> m_profile_table;
-};     
+};
 
 
 
@@ -370,7 +370,7 @@ private:
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessPort : public TrexPort {
-    
+
     friend TrexDpPortEvents;
     friend TrexDpPortEvent;
     friend AsyncStopEvent;
@@ -406,9 +406,9 @@ public:
     void stop_traffic(string profile_idi = "_");
     void stop_traffic_pcap();
     /**
-     * remove all RX filters 
-     * valid only when port is stopped 
-     * 
+     * remove all RX filters
+     * valid only when port is stopped
+     *
      * @author imarom (28-Mar-16)
      */
     void remove_rx_filters(string profile_id);
@@ -436,7 +436,7 @@ public:
 
     /**
      * push a PCAP file onto the port
-     * 
+     *
      */
     void push_remote(const std::string &pcap_filename,
                      double            ipg_usec,
@@ -446,17 +446,17 @@ public:
                      double            duration,
                      bool              is_dual);
 
-    
+
 
     /**
      * sets service mode
-     * 
+     *
      * @author imarom (1/22/2017)
-     * 
-     * @param enabled 
+     *
+     * @param enabled
      */
     void set_service_mode(bool enabled);
-    
+
     bool is_service_mode_on() const {
         return m_is_service_mode_on;
     }
@@ -501,7 +501,7 @@ public:
         mprofile->get_object_list(object_list);
     }
 
-   
+
     TrexStatelessProfile * get_profile_by_id(string profile_id) {
         return m_profile_table.get_profile_by_id(profile_id);
     }
@@ -576,12 +576,12 @@ public:
             }
         }
         return m_dp_events;
-    }     
+    }
 
 
 private:
 
-    
+
     /**
      * when a port stops, perform various actions
      *

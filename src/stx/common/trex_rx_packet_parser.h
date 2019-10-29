@@ -32,7 +32,7 @@
 
 /**************************************
  * RX feature server (ARP, ICMP) and etc.
- * 
+ *
  *************************************/
 
 class RXPktParser {
@@ -44,13 +44,13 @@ public:
     IPHeader                 *m_ipv4;
     ICMPHeader               *m_icmp;
     std::vector<uint16_t>     m_vlan_ids;
-    
+
 protected:
     uint16_t parse_l2(void);
     const uint8_t *parse_bytes(uint32_t size);
     void parse_arp(void);
     void parse_ipv4(void);
-    void parse_icmp(void);    
+    void parse_icmp(void);
     void parse_err(void);
 
     const uint8_t *m_current;

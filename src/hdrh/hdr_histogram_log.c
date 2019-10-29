@@ -170,7 +170,7 @@ union uint64_dbl_cvt
 static double int64_bits_to_double(int64_t i)
 {
     union uint64_dbl_cvt x;
-    
+
     x.l = (uint64_t) i;
     return x.d;
 }

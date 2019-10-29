@@ -17,10 +17,10 @@ limitations under the License.
 #include "VLANHeader.h"
 
 
-/*   
+/*
                               VLAN Header Fields
                               ------------------
-                                    
+
     0       2   3   4                                                            15
     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     |Priority| CFI |                Tag                                             |
@@ -41,12 +41,12 @@ void    VLANHeader::dump             (FILE*  fd)
 uint8_t VLANHeader::reconstructFromBuffer(uint8_t* destBuffer, uint8_t* srcBuffer)
 {
 	uint8_t type = srcBuffer[0];
-	uint8_t size = srcBuffer[1];	
+	uint8_t size = srcBuffer[1];
 	if((type != Tunnels::VLAN) || (size != sizeof(VLANHeader)))
 	{
 		// DBG_Error2(PACKET_DBG_TUNNEL_RECONSTRUCTION_ERROR,Tunnels::VLAN,size);
 		return 0;
-	}	
+	}
 	memcpy(destBuffer,srcBuffer+2,sizeof(VLANHeader));
 	return size;
 }
@@ -56,7 +56,7 @@ uint8_t VLANHeader::fillReconstructionBuffer(uint8_t* destBuffer, uint8_t* srcBu
 	destBuffer[0] = (uint8_t)Tunnels::VLAN;
 	destBuffer[1] = sizeof(VLANHeader);
 	memcpy(destBuffer+2,srcBuffer,sizeof(VLANHeader));
-	return sizeof(VLANHeader)+2;	
+	return sizeof(VLANHeader)+2;
 }
 
 uint8_t VLANHeader::fillReconstructionBuffer(uint8_t* destBuffer, VLANHeader& vHeader)
@@ -64,14 +64,14 @@ uint8_t VLANHeader::fillReconstructionBuffer(uint8_t* destBuffer, VLANHeader& vH
 	destBuffer[0] = (uint8_t)Tunnels::VLAN;
 	destBuffer[1] = sizeof(VLANHeader);
     vHeader.reconstructPkt(destBuffer+2);
-	return sizeof(VLANHeader)+2;	
+	return sizeof(VLANHeader)+2;
 }
 
 #if 0
 Status VLANHeader::parseAsText(uint8_t* srcBuffer, TextCollectorInterface &tc)
 {
 	uint8_t type = srcBuffer[0];
-	uint8_t size = srcBuffer[1];	
+	uint8_t size = srcBuffer[1];
 	if((type != Tunnels::VLAN) //The buffer doesn't contain valid information
 	   || (size < sizeof(VLANHeader))) //The buffer isn't big enough
 	{
@@ -83,7 +83,7 @@ Status VLANHeader::parseAsText(uint8_t* srcBuffer, TextCollectorInterface &tc)
 	{
 		VLANHeader vlanHeader;
 		vlanHeader.setFromPkt(&srcBuffer[2+offset]);
-		
+
 		tc.printf("Tag %d (0x%.2X), Pri %d, CFI - %d, Next protocol - %d (0x%.2X)\n",
             vlanHeader.getTagID(), vlanHeader.getTagID(), vlanHeader.getTagUserPriorty(), vlanHeader.getTagCFI(), vlanHeader.getNextProtocolHostOrder(), vlanHeader.getNextProtocolHostOrder());
 		offset += sizeof(VLANHeader);

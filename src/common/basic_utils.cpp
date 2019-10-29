@@ -30,7 +30,7 @@ bool utl_is_file_exists (const std::string& name) {
         return true;
     } else {
         return false;
-    }   
+    }
 }
 
 void utl_k12_pkt_format(FILE* fp,void  * src,  unsigned int size,int time_sec) {
@@ -64,10 +64,10 @@ void utl_DumpBuffer(FILE* fp,void  * src,  unsigned int size,int offset) {
 }
 
 
-void utl_DumpChar(FILE* fd, 
-                  void  * src,  
-                  unsigned int eln, 
-                  unsigned int width 
+void utl_DumpChar(FILE* fd,
+                  void  * src,
+                  unsigned int eln,
+                  unsigned int width
                   ){
     int size=eln*width;
     unsigned char * p=(unsigned char *)src;
@@ -83,15 +83,15 @@ void utl_DumpChar(FILE* fd,
     }
 }
 
-void utl_DumpBufferLine(FILE* fd, 
-                        void  * src,  
+void utl_DumpBufferLine(FILE* fd,
+                        void  * src,
                         int     offset,
-                        unsigned int eln, 
+                        unsigned int eln,
                         unsigned int width ,
                         unsigned int mask){
     unsigned char * p=(unsigned char *)src;
     uint32 addr;
-    
+
     if ( mask & SHOW_BUFFER_ADDR_EN){
         addr=offset;
         fprintf(fd,"%08x: ",(int)addr);
@@ -125,7 +125,7 @@ void utl_DumpBufferLine(FILE* fd,
 }
 
 void utl_DumpBuffer2(FILE* fd,
-                     void  * src,  
+                     void  * src,
                      unsigned int size, //buffer size
                      unsigned int width ,
                      unsigned int width_line ,
@@ -150,11 +150,11 @@ void utl_DumpBuffer2(FILE* fd,
             offset=0;
         }
     }
-    unsigned int eln_w;  
+    unsigned int eln_w;
     int len_exist=size;
-    
+
     for (i=0; i<nlen; i++) {
-      if ( len_exist > (int)(width_line /width) ){  
+      if ( len_exist > (int)(width_line /width) ){
         eln_w=width_line /width;
       }else{
         eln_w=(len_exist+width-1)/width;
@@ -164,7 +164,7 @@ void utl_DumpBuffer2(FILE* fd,
       offset+=width_line;
       len_exist-=  width_line;
     }
-}                              
+}
 
 
 void TestDump(void){
@@ -180,7 +180,7 @@ void TestDump(void){
 }
 
 void utl_macaddr_to_str(const uint8_t *macaddr, std::string &output) {
-    
+
     for (int i = 0; i < 6; i++) {
         char formatted[4];
 
@@ -210,7 +210,7 @@ bool utl_str_to_macaddr(const std::string &s, uint8_t *mac) {
     if ( (rc != 6) || (s.size() != last) ) {
         return false;
     }
-    
+
     return true;
 }
 
@@ -268,9 +268,9 @@ bool mac2vect(const std::string &mac_str, std::vector<uint8_t> &mac) {
 
 /**
  * generate a random connection handler
- * 
+ *
  */
-std::string 
+std::string
 utl_generate_random_str(unsigned int &seed, int len) {
     std::stringstream ss;
 
@@ -311,17 +311,17 @@ void split_str_by_delimiter(std::string str, char delim, std::vector<std::string
 
 
 /**
- * define the coredump size 
- * allowed when crashing 
- * 
+ * define the coredump size
+ * allowed when crashing
+ *
  * @param size - -1 means unlimited
- * @param map_huge_pages - should the core map the huge TLB 
+ * @param map_huge_pages - should the core map the huge TLB
  *                       pages
  */
 void utl_set_coredump_size(long size, bool map_huge_pages) {
     int mask;
     struct rlimit core_limits;
-    
+
     if (size == -1) {
         core_limits.rlim_cur = core_limits.rlim_max = RLIM_INFINITY;
     } else {
@@ -343,25 +343,25 @@ void utl_set_coredump_size(long size, bool map_huge_pages) {
     } else {
         mask = 0x13;
     }
-    
+
     fprintf(fp, "%08x\n", mask);
     fclose(fp);
 }
 
 bool utl_ipv4_to_uint32(const char *ipv4_str, uint32_t &ipv4_num) {
-    
+
     uint32_t tmp;
-    
+
     int rc = my_inet_pton4(ipv4_str, (unsigned char *)&tmp);
     if (!rc) {
         return false;
     }
-    
+
     ipv4_num = PAL_NTOHL(tmp);
-    
+
     return true;
 }
-   
+
 std::string utl_uint32_to_ipv4(uint32_t ipv4_addr) {
     std::stringstream ss;
     ss << ((ipv4_addr >> 24) & 0xff) << "." << ((ipv4_addr >> 16) & 0xff) << "." << ((ipv4_addr >> 8) & 0xff) << "." << (ipv4_addr & 0xff);

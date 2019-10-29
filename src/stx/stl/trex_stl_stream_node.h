@@ -58,16 +58,16 @@ public:
         SL_NODE_FLAGS_MBUF_CACHE           =2, //USED by master
 
         SL_NODE_CONST_MBUF                 =4,
-                                             
+
         SL_NODE_VAR_PKT_SIZE               = 8,
         SL_NODE_STATS_NEEDED               = 0x10,
         SL_NODE_CONST_MBUF_CACHE_ARRAY     = 0x20  /* array of mbuf - cache */
     };
 
-    enum {                                          
+    enum {
             ss_FREE_RESUSE =1, /* should be free by scheduler */
             ss_INACTIVE    =2, /* will be active by other stream or stopped */
-            ss_ACTIVE      =3  /* the stream is active */ 
+            ss_ACTIVE      =3  /* the stream is active */
          };
     typedef uint8_t stream_state_t ;
 
@@ -91,14 +91,14 @@ private:
     uint8_t             m_pause;
 
     uint32_t            m_single_burst; /* the number of bursts in case of burst */
-    uint32_t            m_single_burst_refill; 
+    uint32_t            m_single_burst_refill;
 
     uint32_t            m_multi_bursts; /* in case of multi_burst how many bursts */
     double              m_next_time_offset_backup; /* paused nodes will be given slower ipg, backup value */
 
     /******************************/
-    /* cache line 1  
-      this cache line should be READONLY ! you can write only at init time */ 
+    /* cache line 1
+      this cache line should be READONLY ! you can write only at init time */
     /******************************/
     TrexStream *         m_ref_stream_info; /* the stream info */
     CGenNodeStateless  * m_next_stream;
@@ -114,7 +114,7 @@ private:
     uint8_t              m_port_id;
     uint32_t             m_profile_id;
 
-    uint16_t             m_pad5; 
+    uint16_t             m_pad5;
 
     /* End Fast Field VM Section */
 
@@ -136,9 +136,9 @@ public:
     }
 
     /**
-     * calculate the time offset based 
-     * on the PPS and multiplier 
-     * 
+     * calculate the time offset based
+     * on the PPS and multiplier
+     *
      */
     void update_rate(double factor) {
         /* update the inter packet gap */
@@ -250,7 +250,7 @@ public:
             m_multi_bursts--;
             if ( m_multi_bursts == 0 ) {
                 set_state(CGenNodeStateless::ss_INACTIVE);
-                
+
                 TrexStatelessDpCore *stl_dp_core = (TrexStatelessDpCore *)thread->get_dp_core();
                 if ( stl_dp_core->set_stateless_next_node(this, m_next_stream) ) {
                     /* update the next stream time using isg and post phase */
@@ -258,7 +258,7 @@ public:
 
                     thread->m_node_gen.m_p_queue.push( (CGenNode *)m_next_stream);
                 }else{
-                    // in case of zero we will schedule a command to stop 
+                    // in case of zero we will schedule a command to stop
                     // will be called from set_stateless_next_node
                 }
 
@@ -271,12 +271,12 @@ public:
         }
     }
 
-        
+
     /**
      * main function to handle an event of a packet tx
-     * 
-     * 
-     * 
+     *
+     *
+     *
      */
 
     inline void handle(CFlowGenListPerThread *thread) {
@@ -478,7 +478,7 @@ friend class TrexStatelessDpPerPort;
 public:
 
     /**
-     * creates a node from a PCAP file 
+     * creates a node from a PCAP file
      */
     bool create(uint8_t port_id,
                 pkt_dir_t dir,
@@ -494,17 +494,17 @@ public:
 
     /**
      * destroy the node cleaning up any data
-     * 
+     *
      */
     void destroy();
- 
+
     bool is_dual() const {
         return m_is_dual;
     }
 
     /**
      * advance - will read the next packet
-     * 
+     *
      * @author imarom (03-May-16)
      */
     void next() {
@@ -521,7 +521,7 @@ public:
             if (m_count == 0) {
                 m_state = PCAP_INACTIVE;
                 return;
-            } 
+            }
 
             /* rewind and load the first packet */
             m_reader->Rewind();
@@ -533,7 +533,7 @@ public:
 
         /* update the packet dir if needed */
         update_pkt_dir();
-      
+
     }
 
 
@@ -547,7 +547,7 @@ public:
 
     /**
      * return the time for the next scheduling for a packet
-     * 
+     *
      */
     inline double get_ipg() {
         assert(m_state != PCAP_INVALID);
@@ -562,7 +562,7 @@ public:
 
     /**
      * get the current packet as MBUF
-     * 
+     *
      */
     inline rte_mbuf_t *get_pkt() {
         assert(m_state != PCAP_INVALID);
@@ -596,10 +596,10 @@ public:
                     memcpy(p, mac, 6);
                 }
             }
-        }else{ 
+        }else{
             memcpy(p, mac, 12);
         }
-        
+
 
         return (m);
     }
@@ -614,8 +614,8 @@ public:
 
         if (is_active()) {
             m_time += get_ipg();
-            thread->m_node_gen.m_p_queue.push((CGenNode *)this);  
-                            
+            thread->m_node_gen.m_p_queue.push((CGenNode *)this);
+
         } else {
             TrexStatelessDpCore *stl_dp_core = (TrexStatelessDpCore *)thread->get_dp_core();
             int event_id = stl_dp_core->get_port_db(get_port_id())->get_event_id();
@@ -685,11 +685,11 @@ private:
 
     CCapReaderBase      *m_reader;
     CCapPktRaw          *m_raw_packet;
-    
+
     uint8_t             m_port_id;
 
     bool                m_is_dual;
-    
+
     uint8_t             m_ex_flags;
 
     /* pad to match the size of CGenNode */

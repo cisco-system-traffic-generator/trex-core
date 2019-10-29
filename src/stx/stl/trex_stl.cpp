@@ -154,24 +154,24 @@ TrexStatelessMulticoreSoftwareFSLatencyStats::reset_rx_stats(uint8_t port_id, co
 
 /***********************************************************
  * Trex stateless object
- * 
+ *
  **********************************************************/
 
 /**
- * 
+ *
  */
 TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 4;
     const int API_VER_MINOR = 6;
-    
+
     /* init the RPC table */
     TrexRpcCommandsTable::get_instance().init("STL", API_VER_MAJOR, API_VER_MINOR);
-    
+
     /* load the RPC components for stateless */
     TrexRpcCommandsTable::get_instance().load_component(new TrexRpcCmdsCommon());
     TrexRpcCommandsTable::get_instance().load_component(new TrexRpcCmdsSTL());
-    
+
     /* create stateless ports */
     for (int i = 0; i < get_platform_api().get_port_count(); i++) {
         if ( !CGlobalInfo::m_options.m_dummy_port_map[i] ) {
@@ -182,20 +182,20 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* create RX core */
     CRxCore *rx = new CRxCore();
     rx->create(cfg.m_rx_cfg);
-    
+
     m_rx = rx;
 
     m_stats = nullptr;
 }
 
 
-/** 
- * release all memory 
- * 
+/**
+ * release all memory
+ *
  * @author imarom (08-Oct-15)
  */
 TrexStateless::~TrexStateless() {
-    
+
     /* release memory for ports */
     for (auto &port : m_ports) {
         delete port.second;
@@ -224,13 +224,13 @@ void TrexStateless::shutdown() {
         /* safe to call stop even if not active */
         port.second->stop_traffic("*");
     }
-    
+
     /* shutdown the RPC server */
     m_rpc_server.stop();
-    
+
     /* shutdown all DP cores */
     send_msg_to_all_dp(new TrexDpQuit());
-    
+
     /* shutdown RX */
     send_msg_to_rx(new TrexRxQuit());
 }
@@ -238,7 +238,7 @@ void TrexStateless::shutdown() {
 
 /**
  * fetch a port by ID
- * 
+ *
  */
 TrexStatelessPort * TrexStateless::get_port_by_id(uint8_t port_id) {
     return (TrexStatelessPort *)TrexSTX::get_port_by_id(port_id);

@@ -26,7 +26,7 @@ limitations under the License.
 
 /**
  * request-response RPC server
- * 
+ *
  * @author imarom (11-Aug-15)
  */
 class TrexRpcServerReqRes : public TrexRpcServerInterface  {
@@ -59,7 +59,7 @@ protected:
 
 /**
  * a mock req resp server (for tests)
- * 
+ *
  * @author imarom (03-Jan-16)
  */
 class TrexRpcServerReqResMock : public TrexRpcServerReqRes {

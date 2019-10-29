@@ -60,10 +60,10 @@ public:
         PORT_STATE_ASTF_BUILD   = 1 << 8,
         PORT_STATE_ASTF_CLEANUP = 1 << 9,
     };
-    
+
     TrexPort(uint8_t port_id);
     virtual ~TrexPort() {}
-    
+
     /**
      * acquire port
      * throws TrexException in case of an error
@@ -76,7 +76,7 @@ public:
      */
     void release(void);
 
-    
+
     uint8_t get_port_id() {
         return m_port_id;
     }
@@ -94,7 +94,7 @@ public:
         (void) profile_id;
         return m_dp_events;
     }
-   
+
     /**
      * returns the number of DP cores linked to this port
      *
@@ -110,7 +110,7 @@ public:
      */
     uint64_t get_port_speed_bps() const;
 
-  
+
     TrexOwner & get_owner() {
         return m_owner;
     }
@@ -118,16 +118,16 @@ public:
 
     /**
      * start RX queueing of packets
-     * 
+     *
      * @author imarom (11/7/2016)
-     * 
-     * @param limit 
+     *
+     * @param limit
      */
     void start_rx_queue(uint64_t limit);
 
     /**
      * stop RX queueing
-     * 
+     *
      * @author imarom (11/7/2016)
      */
     void stop_rx_queue();
@@ -135,7 +135,7 @@ public:
 
     /**
      * set the port to state of proxyifying traffic between STF TRex and WLC
-     * 
+     *
      * @param
      *      pair_port_id  - pair port to pass the traffic to
      *      is_wireless_side - is port connected to STF TRex
@@ -144,14 +144,14 @@ public:
 
     /**
      * stop proxyifying traffic between STF TRex and WLC
-     * 
+     *
      */
     void stop_capwap_proxy();
 
 
     /**
      * fetch the RX queue packets from the queue
-     * 
+     *
      */
     const TrexPktBuffer *get_rx_queue_pkts();
 
@@ -179,7 +179,7 @@ public:
     // return false if results are deleted
     bool get_rx_cfg_tasks_results(uint64_t ticket_id, stack_result_t &results);
 
-    // get extended results  
+    // get extended results
     void get_rx_cfg_tasks_results_ext(uint64_t ticket_id, stack_result_t &results, TrexStackResultsRC &rc);
 
     // get port node to query ip/mac/vlan etc. info
@@ -187,19 +187,19 @@ public:
 
     /**
      * configures port for L2 mode
-     * 
+     *
      */
     void set_l2_mode_async(const std::string &dst_mac);
-    
+
     /**
      * configures port in L3 mode
-     * 
+     *
      */
     void set_l3_mode_async(const std::string &src_ipv4, const std::string &dst_ipv4, const std::string *dst_mac);
 
     /**
      * configures IPv6 of port
-     * 
+     *
      */
     void conf_ipv6_async(bool enabled, const std::string &src_ipv6);
 
@@ -246,45 +246,45 @@ public:
     void port_attr_to_json(Json::Value &attr_res);
 
     /**
-     * generate a JSON describing the status 
-     * of the RX features 
+     * generate a JSON describing the status
+     * of the RX features
      */
     void rx_features_to_json(Json::Value &feat_res);
-    
+
     /**
      * return the port attribute object (speed, prom etc.)
      */
     TRexPortAttr *getPortAttrObj() {
         return get_platform_api().getPortAttrObj(m_port_id);
     }
-    
+
     /**
      * simply a const version
      */
     const TRexPortAttr *getPortAttrObj() const {
         return get_platform_api().getPortAttrObj(m_port_id);
     }
-    
+
     /**
      * get port source MAC
-     * 
+     *
      */
     const uint8_t * get_src_mac() const;
-    
+
     /**
      * get port dst MAC
-     * 
+     *
      */
     const uint8_t * get_dst_mac() const;
-    
-    
+
+
     /**
      * is port active
-     * 
+     *
      */
     bool is_active() const;
 
-    
+
       /**
      * get the port state
      *
@@ -311,47 +311,47 @@ public:
     }
 
     /**
-     * encode stats of the port 
-     * to JSON 
+     * encode stats of the port
+     * to JSON
      */
     void encode_stats(Json::Value &port);
-    
-    
+
+
     /**
      * implemented by dervied
-     * 
+     *
      */
     virtual bool is_service_mode_on() const = 0;
 
 protected:
-    
+
     /**
      * verify the state of the port for a command
-     *  
-     * if should_throw is true will throw exception 
-     * in case the state is not valid 
-     *  
-     * the state is bitfield 
+     *
+     * if should_throw is true will throw exception
+     * in case the state is not valid
+     *
+     * the state is bitfield
      */
     bool verify_state(int state, const char *cmd_name, bool should_throw = true) const;
 
 
     /**
-     * change the state 
-     * to a new state 
+     * change the state
+     * to a new state
      */
     virtual void change_state(port_state_e new_state);
-    
-    
+
+
     /**
-     * return true if specific core is active 
-     * (has yet to respond as done) 
-     * 
+     * return true if specific core is active
+     * (has yet to respond as done)
+     *
      * @author imarom (9/4/2017)
-     * 
-     * @param core_id 
-     * 
-     * @return bool 
+     *
+     * @param core_id
+     *
+     * @return bool
      */
     bool is_core_active(int core_id);
 
@@ -381,23 +381,23 @@ protected:
     // run RX core config tasks with given ticket ID
     void run_rx_cfg_tasks_internal_async(uint64_t ticket_id,bool rpc);
 
-    
-    
+
+
     /* port id */
     uint8_t                m_port_id;
-    
+
     /* port state */
     port_state_e           m_port_state;
-    
+
     /* holds the DP cores associated with this port */
     std::vector<uint8_t>   m_cores_id_list;
 
     int                    m_pending_async_stop_event;
-    
+
     /* owner information */
     TrexOwner              m_owner;
 
-    
+
     /* caching some RX info */
     uint16_t               m_rx_caps;
     uint16_t               m_rx_count_num;

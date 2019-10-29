@@ -29,7 +29,7 @@ class CTrexDpdkParamsOverride {
  public:
    uint16_t rx_desc_num_data_q;
    uint16_t rx_desc_num_drop_q;
-   uint16_t rx_desc_num_dp_q; 
+   uint16_t rx_desc_num_dp_q;
 
    uint16_t tx_desc_num;
 };
@@ -112,8 +112,8 @@ public:
         return m_cap;
     }
 
-    /* return true in case the driver can get 2K buffers and can make then one big 9K buffer 
-       e.g. mlx5 and napatech can't do that 
+    /* return true in case the driver can get 2K buffers and can make then one big 9K buffer
+       e.g. mlx5 and napatech can't do that
     */
     virtual bool is_support_for_rx_scatter_gather(){
         return (true);

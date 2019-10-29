@@ -26,47 +26,47 @@ limitations under the License.
 
 /**
  * Build Information
- * 
+ *
  * @author imarom (11/7/2017)
  */
 class TrexBuildInfo {
-    
+
 public:
-    
+
     /**
      * returns true if the image is sanitized
-     * 
+     *
      */
     static bool is_sanitized();
-    
+
     /**
      * get GCC version used to build the binary
      */
     static std::string get_gcc_built_with_vesrion();
-    
+
     /**
-     * 
-     * 
+     *
+     *
      * @author imarom (11/6/2017)
-     * 
-     * @return std::string 
+     *
+     * @return std::string
      */
     static std::string get_glibc_built_with_version();
-    
-    
+
+
     /**
      * machine GLIBC version
-     * 
+     *
      * @author imarom (11/6/2017)
-     * 
-     * @return std::string 
+     *
+     * @return std::string
      */
     static std::string get_host_glibc_version();
-    
-    
+
+
     /**
      * print all information to stdout
-     * 
+     *
      * @author imarom (11/6/2017)
      */
     static void show();

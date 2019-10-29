@@ -548,7 +548,7 @@ static uint16_t eth_ntacc_rx_mode2(void *queue,
       return 0;
     }
   }
-  
+
   NtDyn3Descr_t *dyn3;
   uint16_t i;
   uint16_t mbuf_len;
@@ -1091,7 +1091,7 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   dev_info->tx_desc_lim.nb_align = 32;
 
   dev_info->reta_size = internals->stream_table_size;
-  
+
   dev_info->rx_offload_capa = DEV_RX_OFFLOAD_JUMBO_FRAME |
                               DEV_RX_OFFLOAD_TIMESTAMP   |
                               DEV_RX_OFFLOAD_KEEP_CRC |
@@ -2434,7 +2434,7 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
         nb_queues = 1;
       }
     }
-#ifdef NTACC_TOEPLITZ_SUPPORT    
+#ifdef NTACC_TOEPLITZ_SUPPORT
     else {
       if ((ret = create_stream_table(internals)) < 0)
         goto IsolateError;
@@ -2478,7 +2478,7 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
   return 0;
 }
 
-static int _dev_flow_validate(struct rte_eth_dev *dev __rte_unused, 
+static int _dev_flow_validate(struct rte_eth_dev *dev __rte_unused,
                          		  const struct rte_flow_attr *attr __rte_unused,
                         		  const struct rte_flow_item items[] __rte_unused,
                         		  const struct rte_flow_action actions[] __rte_unused,
@@ -2992,7 +2992,7 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
     internals->local_port_offset = offset;
     internals->symHashMode = SYM_HASH_DIS_PER_PORT;
     internals->fpgaid.value = pInfo->u.port_v7.data.adapterInfo.fpgaid.value;
-    
+
     // Check timestamp format
     if (pInfo->u.port_v7.data.adapterInfo.timestampType == NT_TIMESTAMP_TYPE_NATIVE_UNIX) {
       internals->tsMultiplier = 10;
@@ -3059,7 +3059,7 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
 
     internals->hash_func = RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
     internals->stream_table_size = 0;
-    
+
     internals->supported_hash_funcs = (1 << RTE_ETH_HASH_FUNCTION_SIMPLE_XOR);
     pInfo->cmd = NT_INFO_CMD_READ_PROPERTY;
     snprintf(pInfo->u.property.path, 120, "adapter%u.filter.toeplitz", adapterNo);
@@ -3104,7 +3104,7 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
       if (value == 0) {
         internals->keyMatcher = 0;
         PMD_NTACC_LOG(INFO, "keyMatcher is not supported\n");
-      } else 
+      } else
         internals->keyMatcher = 1;
 
       // Do we have 4GA zero copy
@@ -3142,14 +3142,14 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
     }
 
     // Set rx and tx mode according to the adapter capability
-    if (internals->mode2Rx) 
+    if (internals->mode2Rx)
       eth_dev->rx_pkt_burst = eth_ntacc_rx_mode2;
     else
       eth_dev->rx_pkt_burst = eth_ntacc_rx_mode1;
 
-    if (internals->mode2Tx) 
+    if (internals->mode2Tx)
       eth_dev->tx_pkt_burst = eth_ntacc_tx_mode2;
-    else 
+    else
       eth_dev->tx_pkt_burst = eth_ntacc_tx_mode1;
 
     eth_dev->state = RTE_ETH_DEV_ATTACHED;

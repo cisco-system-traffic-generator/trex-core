@@ -27,7 +27,7 @@ limitations under the License.
 #include "dpdk_port_map.h"
 
 
-typedef uint64_t flow_key_t; 
+typedef uint64_t flow_key_t;
 
 static inline uint32_t ft_hash_rot(uint32_t v,uint16_t r ){
     return ( (v<<r) | ( v>>(32-(r))) );
@@ -132,7 +132,7 @@ public:
     uint8_t  m_proto;
     uint8_t  m_l3_offset;  /*IPv4/IPv6*/
     uint8_t  m_l4_offset; /* TCP/UDP*/
-    uint8_t  m_l7_offset; 
+    uint8_t  m_l7_offset;
     uint16_t m_l7_total_len;
     bool     m_ipv4;
 };
@@ -158,10 +158,10 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_no_syn;
     uint32_t        m_err_len_err;
     uint32_t        m_err_fragments_ipv4_drop;
-    uint32_t        m_err_no_tcp_udp;  
-    uint32_t        m_err_no_template;  
-    uint32_t        m_err_no_memory; 
-    uint32_t        m_err_duplicate_client_tuple; 
+    uint32_t        m_err_no_tcp_udp;
+    uint32_t        m_err_no_template;
+    uint32_t        m_err_no_memory;
+    uint32_t        m_err_duplicate_client_tuple;
     uint32_t        m_err_l3_cs;
     uint32_t        m_err_l4_cs;
     uint32_t        m_err_redirect_rx;
@@ -184,9 +184,9 @@ public:
 
 
 typedef enum { tPROCESS=0x12,
-               tDROP , 
+               tDROP ,
                tREDIRECT_RX_CORE,
-               tEOP 
+               tEOP
                } tcp_rx_pkt_action_t;
 
 

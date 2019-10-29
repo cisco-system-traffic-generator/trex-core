@@ -27,7 +27,7 @@ void CRpcTunnelBatch::update_cmd_count(uint32_t total_commands,
                                        uint32_t err_commands){
 }
 
-trex_rpc_cmd_rc_e  CRpcTunnelBatch::_run(const Json::Value &params, 
+trex_rpc_cmd_rc_e  CRpcTunnelBatch::_run(const Json::Value &params,
                                          Json::Value &result) {
     assert(0);
     return(TREX_RPC_CMD_OK);
@@ -65,7 +65,7 @@ trex_rpc_cmd_rc_e CRpcTunnelBatch::run_batch(const Json::Value &commands,
                 }else{
                     results[index]["result"] = result;
                 }
-            } catch (const TrexRpcException &e) { 
+            } catch (const TrexRpcException &e) {
                 results[index]["error"]= e.what();
                 index_err++;
             }

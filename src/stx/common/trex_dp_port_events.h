@@ -29,7 +29,7 @@ class TrexDpPortEvents;
 
 /**
  * interface class for DP events
- * 
+ *
  * @author imarom (29-Feb-16)
  */
 class TrexDpPortEvent {
@@ -41,19 +41,19 @@ public:
 
 protected:
     /**
-     * what to do when an event has been completed (all cores 
-     * reported in 
-     * 
+     * what to do when an event has been completed (all cores
+     * reported in
+     *
      * @author imarom (29-Feb-16)
      */
     virtual void on_event() = 0;
 
     /**
      * when a thread ID encounter an error
-     * 
+     *
      * @author imarom (20-Apr-16)
-     * 
-     * @param thread_id 
+     *
+     * @param thread_id
      */
     virtual void on_error(int thread_id) = 0;
 
@@ -76,7 +76,7 @@ private:
 
 /**
  * all the events related to a port
- * 
+ *
  */
 class TrexDpPortEvents {
 public:
@@ -87,16 +87,16 @@ public:
     TrexDpPortEvents(TrexPort *port);
 
     /**
-     * wait a new DP event on the port 
-     * returns a key which will be used to identify 
-     * the event happened 
-     * 
+     * wait a new DP event on the port
+     * returns a key which will be used to identify
+     * the event happened
+     *
      */
     int create_event(TrexDpPortEvent *event, int timeout_ms = -1);
 
     /**
      * destroy an event
-     * 
+     *
      */
     void destroy_event(int event_id);
 
@@ -106,14 +106,14 @@ public:
     void barrier(uint32_t profile_id = 0);
 
     /**
-     * a core has reached the event 
+     * a core has reached the event
      */
     void on_core_reporting_in(int event_id, int thread_id, bool status = true);
 
     /**
-     * return true if core has yet to respond 
-     * to the event 
-     * 
+     * return true if core has yet to respond
+     * to the event
+     *
      */
     bool is_core_pending_on_event(int event_id, int thread_id);
 
@@ -125,7 +125,7 @@ private:
     int m_event_id_counter;
 
     TrexPort *m_port;
-    
+
 };
 
 #endif /* __TREX_DP_PORT_EVENTS_H__ */

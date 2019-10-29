@@ -27,12 +27,12 @@ limitations under the License.
 TrexDpCore::TrexDpCore(uint32_t thread_id, CFlowGenListPerThread *core, state_e init_state) {
     m_thread_id  = thread_id;
     m_core       = core;
-    
+
     CMessagingManager *cp_dp = CMsgIns::Ins()->getCpDp();
 
     m_ring_from_cp = cp_dp->getRingCpToDp(thread_id);
     m_ring_to_cp   = cp_dp->getRingDpToCp(thread_id);
-    
+
     m_state  = init_state;
 }
 
@@ -68,7 +68,7 @@ TrexDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
         m_core->tickle();
-        
+
         bool had_msg = m_core->check_msgs();
         if (had_msg) {
             counter = 0;
@@ -109,11 +109,11 @@ TrexDpCore::is_hot_state() {
 void
 TrexDpCore::start_once() {
     /* for simulation */
-    
+
     if ( (m_state == STATE_IDLE) && (are_any_pending_cp_messages()) ) {
         idle_state_loop();
     }
-    
+
     start_scheduler();
 }
 
@@ -122,7 +122,7 @@ void
 TrexDpCore::start() {
 
     while (true) {
-        
+
         switch (m_state) {
         case STATE_IDLE:
             idle_state_loop();
@@ -138,9 +138,9 @@ TrexDpCore::start() {
         case STATE_TERMINATE:
             return;
         }
-        
+
     }
-    
+
 }
 
 

@@ -20,7 +20,7 @@ limitations under the License.
 */
 
 /**
- * holds all the common RPC commands used by stateless and 
+ * holds all the common RPC commands used by stateless and
  * advanced stateful
  */
 
@@ -30,12 +30,12 @@ limitations under the License.
 #include "rpc-server/trex_rpc_cmd_api.h"
 
 /**
- * common RPC component 
- * contains all the common RPC commands 
+ * common RPC component
+ * contains all the common RPC commands
  */
 class TrexRpcCmdsCommon : public TrexRpcComponent {
 public:
-    
+
     TrexRpcCmdsCommon();
 };
 

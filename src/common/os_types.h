@@ -22,7 +22,7 @@ limitations under the License.
 #include <sys/types.h>
 #include <unistd.h>
 
-#define TASKFUNC 
+#define TASKFUNC
 
 #ifndef STDIN_FILENO
 	#define STDIN_FILENO 0

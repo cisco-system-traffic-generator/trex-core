@@ -46,7 +46,7 @@
 #include "tcpip.h"
 #include "tcp_debug.h"
 #include "tcp_socket.h"
-                         
+
 
 struct	tcp_debug {
 	dsec_t 	td_time;
@@ -58,7 +58,7 @@ struct	tcp_debug {
 	struct	tcpcb td_cb;
 };
 
-              
+
 
 const char *tcptimers[] =
     { "REXMT", "PERSIST", "KEEP", "2MSL" };
@@ -89,10 +89,10 @@ const char *prurequests[] = {
  * Tcp debug routines
  */
 void tcp_trace(CPerProfileCtx * pctx,
-          short act, 
-          short ostate, 
-          struct tcpcb * tp, 
-          struct tcpiphdr * ti, 
+          short act,
+          short ostate,
+          struct tcpcb * tp,
+          struct tcpiphdr * ti,
           TCPHeader * tio,
           int req){
 	tcp_seq seq, ack;
@@ -215,10 +215,10 @@ void tcp_trace(CPerProfileCtx * pctx,
 #else
 
 void tcp_trace(CPerProfileCtx * pctx,
-          short act, 
-          short ostate, 
-          struct tcpcb * tp, 
-          struct tcpiphdr * ti, 
+          short act,
+          short ostate,
+          struct tcpcb * tp,
+          struct tcpiphdr * ti,
           TCPHeader * tio,
           int req){
 }

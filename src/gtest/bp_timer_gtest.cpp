@@ -299,7 +299,7 @@ void CHTimerWheelTest1::start_test(){
             cnt+=m_cfg.m_restart_tick;
         }
     }
-    
+
     m_total_ticks=0;
     m_event.m_id=17;
     m_timer.timer_start(&m_event.m_timer,m_cfg.m_start_tick);
@@ -495,7 +495,7 @@ void CHTimerWheelTest2::Delete(){
 
 void CHTimerWheelTest2::start_test(){
 
-    CMyTestObject *  m_events = new CMyTestObject[m_cfg.m_number_of_con_event]; 
+    CMyTestObject *  m_events = new CMyTestObject[m_cfg.m_number_of_con_event];
     int i;
     for (i=0; i<m_cfg.m_number_of_con_event; i++) {
         CMyTestObject * lp=&m_events[i];
@@ -785,7 +785,7 @@ void CNATimerWheelTest1::start_test(){
     }
     if (!m_cfg.m_dont_assert){
       //assert( (m_expected_total_ticks==m_total_ticks) || ((m_expected_total_ticks+1) ==m_total_ticks) );
-    } 
+    }
 }
 
 
@@ -884,7 +884,7 @@ TEST_F(gt_r_timer, timer23) {
 
 
 #if 0
-// too long, skip for now 
+// too long, skip for now
 TEST_F(gt_r_timer, timer24) {
 
     int i,j;
@@ -978,7 +978,7 @@ void CNATimerWheelTest2::Delete(){
 
 void CNATimerWheelTest2::start_test(){
 
-    CMyTestObject *  m_events = new CMyTestObject[m_cfg.m_number_of_con_event]; 
+    CMyTestObject *  m_events = new CMyTestObject[m_cfg.m_number_of_con_event];
     int i;
     for (i=0; i<m_cfg.m_number_of_con_event; i++) {
         CMyTestObject * lp=&m_events[i];
@@ -1141,7 +1141,7 @@ TEST_F(gt_r_timer, timer33) {
         /* 1000 events in the same bucket */
         uint16_t number_of_con_event=40;
 
-        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event]; 
+        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event];
         int i;
         for (i=0; i<number_of_con_event; i++) {
             CMyTestObject * lp=&m_events[i];
@@ -1170,8 +1170,8 @@ TEST_F(gt_r_timer, timer34) {
 
         CNATimerWheel          m_timer;
 
-        /* each tick is 20usec , second level *will* be used 
-          second level is 1024/16 each 1.28 msec there would be a tick 
+        /* each tick is 20usec , second level *will* be used
+          second level is 1024/16 each 1.28 msec there would be a tick
          */
         assert(m_timer.Create(1024,16)==RC_HTW_OK);
         m_timer.set_level1_cnt_div(); /* every 20usec do tick */
@@ -1179,7 +1179,7 @@ TEST_F(gt_r_timer, timer34) {
         /* 1000 events in the same bucket */
         uint16_t number_of_con_event=1000;
 
-        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event]; 
+        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event];
         int i;
         for (i=0; i<number_of_con_event; i++) {
             CMyTestObject * lp=&m_events[i];
@@ -1190,11 +1190,11 @@ TEST_F(gt_r_timer, timer34) {
         }
 
         /* long events in the second level */
-        CMyTestObject *  m_events_long = new CMyTestObject[number_of_con_event]; 
+        CMyTestObject *  m_events_long = new CMyTestObject[number_of_con_event];
         for (i=0; i<number_of_con_event; i++) {
             CMyTestObject * lp=&m_events_long[i];
             lp->m_id=i+1;
-            lp->m_d_tick = 2000;  
+            lp->m_d_tick = 2000;
             lp->m_t_tick=lp->m_d_tick;
             m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
         }
@@ -1202,8 +1202,8 @@ TEST_F(gt_r_timer, timer34) {
 
         for (i=0; i<2500; i++) {
             uint32_t left;
-            m_timer.on_tick_level0((void *)&m_timer,my_test_on_tick_cb19);     // call the callback of first level 
-            m_timer.on_tick_level_count(1,(void *)&m_timer,my_test_on_tick_cb19,32,left); // call the callback of second level 
+            m_timer.on_tick_level0((void *)&m_timer,my_test_on_tick_cb19);     // call the callback of first level
+            m_timer.on_tick_level_count(1,(void *)&m_timer,my_test_on_tick_cb19,32,left); // call the callback of second level
         }
         delete []m_events;
         delete []m_events_long;

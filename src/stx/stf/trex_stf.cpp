@@ -100,9 +100,9 @@ TrexDpCoreStf::start_stf() {
         fprintf(stdout,"=================\n");
         m_core->m_stats.dump(stdout);
     }
-    
+
     m_core->m_node_gen.close_file(m_core);
-    
+
 }
 
 
@@ -110,7 +110,7 @@ void
 TrexStateful::shutdown() {
     /* shutdown all DP cores */
     send_msg_to_all_dp(new TrexDpQuit());
-        
+
     /* stop the latency core */
     get_mg()->stop();
     delay(1000);
@@ -120,7 +120,7 @@ TrexStateful::shutdown() {
 void
 TrexStateful::publish_async_data() {
     std::string json;
-        
+
     dump_template_info(json);
     if (json != ""){
         get_publisher()->publish_json(json);
@@ -130,7 +130,7 @@ TrexStateful::publish_async_data() {
         get_mg()->rx_check_dump_json(json);
         get_publisher()->publish_json(json);
     }
-        
+
     /* backward compatible */
     get_mg()->dump_json(json);
     get_publisher()->publish_json(json);

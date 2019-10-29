@@ -42,8 +42,8 @@ limitations under the License.
 class StreamVmInstructionFlowClient;
 
 
-inline uint64_t   utl_split_limit(uint64_t limit, 
-                           uint64_t phase, 
+inline uint64_t   utl_split_limit(uint64_t limit,
+                           uint64_t phase,
                            uint64_t step_mul){
 
     uint64_t per_core_limit = (limit / step_mul);
@@ -64,15 +64,15 @@ inline uint64_t   utl_split_limit(uint64_t limit,
 
 
 /**
- * two functions ahead are used by both control plane and 
- * dataplane to allow fast inc/dec and handle overflow 
- *  
- * a - low bound 
- * b - high bound 
- * c - current value 
- * step - how many to advance / go back 
+ * two functions ahead are used by both control plane and
+ * dataplane to allow fast inc/dec and handle overflow
+ *
+ * a - low bound
+ * b - high bound
+ * c - current value
+ * step - how many to advance / go back
  */
-static inline 
+static inline
 uint64_t inc_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
     /* check if we have enough left for simple inc */
     uint64_t left = b - c;
@@ -83,7 +83,7 @@ uint64_t inc_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
     }
 }
 
-static inline 
+static inline
 uint64_t dec_mod(uint64_t a, uint64_t b, uint64_t c, uint64_t step) {
     /* check if we have enough left for simple dec */
     uint64_t left = c - a;
@@ -120,9 +120,9 @@ uint64_t dec_mod_list(uint64_t size, uint64_t index, uint64_t step) {
 
 /**
  * a slower set of functions that indicate an overflow
- * 
+ *
  */
-static inline 
+static inline
 uint64_t inc_mod_of(uint64_t a, uint64_t b, uint64_t c, uint64_t step, bool &of) {
     /* check if we have enough left for simple inc */
     uint64_t left = b - c;
@@ -135,7 +135,7 @@ uint64_t inc_mod_of(uint64_t a, uint64_t b, uint64_t c, uint64_t step, bool &of)
     }
 }
 
-static inline 
+static inline
 uint64_t dec_mod_of(uint64_t a, uint64_t b, uint64_t c, uint64_t step, bool &of) {
     /* check if we have enough left for simple dec */
     uint64_t left = c - a;
@@ -162,7 +162,7 @@ inline int fastrand(uint32_t &g_seed)
 {
   g_seed = (214013*g_seed+2531011);
   return (g_seed>>16)&0x7FFF;
-}         
+}
 
 static inline void vm_srand(uint32_t * per_thread_seed,uint64_t seedval)
 {
@@ -187,7 +187,7 @@ static inline uint64_t vm_rand64(uint32_t * per_thread_seed)
 
     return (res);
 }
-                          
+
 
 class StreamVm;
 
@@ -264,7 +264,7 @@ public:
         if ( m_skip > 0 && p->m_cnt != 0) {
             *program += m_skip;
         }
-        uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1)); 
+        uint32_t val = m_min_val + (vm_rand16(&p->m_seed)  % (int)(m_max_val - m_min_val + 1));
         p->m_val= (uint16_t)(val);
         p->m_cnt++;
     }
@@ -291,7 +291,7 @@ public:
         if ( m_skip > 0 && p->m_cnt != 0) {
             *program += m_skip;
         }
-        uint32_t val = m_min_val + (vm_rand32(&p->m_seed)  % ((uint64_t)m_max_val - m_min_val + 1)); 
+        uint32_t val = m_min_val + (vm_rand32(&p->m_seed)  % ((uint64_t)m_max_val - m_min_val + 1));
         p->m_val= val;
         p->m_cnt++;
     }
@@ -323,7 +323,7 @@ public:
         } else {
             val = m_min_val + ( vm_rand64(&p->m_seed)  % ( (uint64_t)m_max_val - m_min_val + 1) );
         }
-        
+
         p->m_val= val;
         p->m_cnt++;
     }
@@ -603,7 +603,7 @@ struct StreamDPOpPktWrBase {
 
     uint8_t m_op;
     uint8_t m_flags;
-    uint8_t  m_offset; 
+    uint8_t  m_offset;
 
 public:
     bool is_big(){
@@ -697,13 +697,13 @@ struct StreamDPOpPktWrMask  {
 
     uint8_t  m_op;
     uint8_t  m_flags;
-    uint8_t  m_var_offset; 
-    int8_t   m_shift;    
-    uint8_t  m_pkt_cast_size; 
+    uint8_t  m_var_offset;
+    int8_t   m_shift;
+    uint8_t  m_pkt_cast_size;
     uint8_t  m_flowv_cast_size; /* 1,2,4 */
     uint16_t m_pkt_offset;
     uint32_t m_mask;
-    int32_t  m_add_value;   
+    int32_t  m_add_value;
     bool is_big(){
         return ( (m_flags &StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG) == StreamDPOpPktWrMask::MASK_PKT_WR_IS_BIG ?true:false);
     }
@@ -761,7 +761,7 @@ struct StreamDPOpHwCsFix {
     uint8_t   m_op;
     uint16_t  m_l2_len;
     uint16_t  m_l3_len;
-    uint64_t  m_ol_flags;   
+    uint64_t  m_ol_flags;
 
 public:
     void dump(FILE *fd,std::string opt);
@@ -835,7 +835,7 @@ public:
 
         /* advance the port - most of the time zero but in extreme cases can have each time wrap around */
         lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, m_step_port);
-        
+
         /* in case of overflow of IP - add 1 to the port */
         if (of) {
             lp->cur_port = inc_mod(m_min_port, m_max_port, lp->cur_port, 1);
@@ -1045,13 +1045,13 @@ inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_ran
         uint8_t op_code=*p;
         switch (op_code) {
 
-        case StreamDPVmInstructions::itCLIENT_VAR :      
+        case StreamDPVmInstructions::itCLIENT_VAR :
             ua.lpcl =(StreamDPOpClientsLimit *)p;
             ua.lpcl->run(flow_var);
             p+=sizeof(StreamDPOpClientsLimit);
             break;
 
-        case StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT :      
+        case StreamDPVmInstructions::itCLIENT_VAR_UNLIMIT :
             ua.lpclu =(StreamDPOpClientsUnLimit *)p;
             ua.lpclu->run(flow_var);
             p += sizeof(StreamDPOpClientsUnLimit);
@@ -1159,18 +1159,18 @@ inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_ran
             p+=sizeof(StreamDPOpPktWr32);
             break;
 
-        case  StreamDPVmInstructions::itPKT_WR64 :      
+        case  StreamDPVmInstructions::itPKT_WR64 :
             ua.lpw64 =(StreamDPOpPktWr64 *)p;
             ua.lpw64->wr(flow_var,pkt);
             p+=sizeof(StreamDPOpPktWr64);
             break;
 
-        case  StreamDPVmInstructions::itPKT_SIZE_CHANGE :      
+        case  StreamDPVmInstructions::itPKT_SIZE_CHANGE :
             ua.lpw_pkt_size =(StreamDPOpPktSizeChange *)p;
             ua.lpw_pkt_size->run(flow_var,m_new_pkt_size);
             p+=sizeof(StreamDPOpPktSizeChange);
             break;
-        
+
         default:
             slow_commands(op_code,flow_var,pkt,p);
             break;
@@ -1183,7 +1183,7 @@ inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_ran
 
 /**
  * interface for stream VM instruction
- * 
+ *
  */
 class StreamVmInstruction {
 public:
@@ -1209,7 +1209,7 @@ public:
     virtual ~StreamVmInstruction();
 
     virtual void Dump(FILE *fd)=0;
-    
+
     virtual StreamVmInstruction * clone() = 0;
 
     /* by default a regular instruction is not splitable for multicore */
@@ -1231,7 +1231,7 @@ public:
 
 /**
  * abstract class that defines a flow var
- * 
+ *
  * @author imarom (23-Dec-15)
  */
 class StreamVmInstructionVar : public StreamVmInstruction {
@@ -1248,9 +1248,9 @@ public:
 
 
     /**
-     * allows a var instruction to be updated 
-     * for multicore (split) 
-     * 
+     * allows a var instruction to be updated
+     * for multicore (split)
+     *
      */
     virtual void update(uint64_t phase, uint64_t step_mul) = 0;
 
@@ -1258,14 +1258,14 @@ public:
 
 
 public:
-    
+
     /* flow var name */
     const std::string m_var_name;
 };
 
 /**
  * fix checksum for ipv4
- * 
+ *
  */
 class StreamVmInstructionFixChecksumIpv4 : public StreamVmInstruction {
 public:
@@ -1288,8 +1288,8 @@ public:
 };
 
 /**
- * fix Ipv6/Ipv6 TCP/UDP L4 headers using HW ofload to fix only IPv6 header use software it would be faster 
- * 
+ * fix Ipv6/Ipv6 TCP/UDP L4 headers using HW ofload to fix only IPv6 header use software it would be faster
+ *
  */
 class StreamVmInstructionFixHwChecksum : public StreamVmInstruction {
 public:
@@ -1303,7 +1303,7 @@ public:
 
     StreamVmInstructionFixHwChecksum(uint16_t l2_len,
                                      uint16_t l3_len,
-                                     uint8_t l4_type) { 
+                                     uint8_t l4_type) {
         m_l2_len = l2_len;
         m_l3_len = l3_len;
         m_l4_type   = l4_type;
@@ -1328,7 +1328,7 @@ public:
 
 /**
  * flow manipulation instruction
- * 
+ *
  * @author imarom (07-Sep-15)
  */
 class StreamVmInstructionFlowMan : public StreamVmInstructionVar {
@@ -1431,22 +1431,22 @@ public:
         uint32_t wa = m_wa * steps;
 
         wa += (steps * m_step) / get_range();
-        
+
         return wa;
     }
-    
+
     virtual void update(uint64_t phase, uint64_t step_mul) {
 
         /* update the init value to be with a phase */
         m_init_value = peek_next(phase);
 
         /* multiply the step */
-        
+
         /* reconstruct the original step, multiply and recalculate */
         uint64_t step = (m_wa * get_range()) + m_step;
         m_step = (step * step_mul) % get_range();
         m_wa   = (step * step_mul) / get_range();
-        
+
         assert(m_init_value >= m_min_value);
         assert(m_init_value <= m_max_value);
     }
@@ -1509,7 +1509,7 @@ protected:
         if (carry) {
             next_step++;
         }
-        
+
         next_step = next_step % get_range();
 
         if (add) {
@@ -1551,8 +1551,8 @@ public:
 
 
 /**
- * flow var random with limit 
- * 
+ * flow var random with limit
+ *
  * @author hhaim 9/2016
  */
 class StreamVmInstructionFlowRandLimit : public StreamVmInstructionVar {
@@ -1580,7 +1580,7 @@ public:
                                      bool is_split_needed=true,
                                      const std::string &next_var_name="",
                                      bool has_previous=false
-                                     ) : StreamVmInstructionVar(var_name), 
+                                     ) : StreamVmInstructionVar(var_name),
                                      m_next_var_name(next_var_name) {
 
         m_size_bytes = size;
@@ -1641,18 +1641,18 @@ public:
 
 /**
  * write flow-write-mask  to packet, hhaim
- * 
+ *
  *  uint32_t var_tmp=(uint32_t )(flow_var_t size )flow_var;
  *  if (shift){
  *     var_tmp=var_tmp<<shift
  *  }else{
  *      var_tmp=var_tmp>>shift
  *  }
- *  
+ *
  *  pkt_data=read_pkt_size()
- *  pkt_data =  (pkt_data & ~mask) |(var_tmp & mask)   
+ *  pkt_data =  (pkt_data & ~mask) |(var_tmp & mask)
  *  write_pkt(pkt_data)
- * 
+ *
  */
 class StreamVmInstructionWriteMaskToPkt : public StreamVmInstruction {
 public:
@@ -1666,9 +1666,9 @@ public:
                                   bool               is_big_endian = true) :
                                                         m_flow_var_name(flow_var_name),
                                                         m_pkt_offset(pkt_offset),
-                                                        m_pkt_cast_size(pkt_cast_size), 
+                                                        m_pkt_cast_size(pkt_cast_size),
                                                         m_mask(mask),
-                                                        m_shift(shift),       
+                                                        m_shift(shift),
                                                         m_add_value(add_value),
                                                         m_is_big_endian(is_big_endian) {}
 
@@ -1707,8 +1707,8 @@ public:
 
 
 /**
- * flow client instruction - save state for client range and port range 
- * 
+ * flow client instruction - save state for client range and port range
+ *
  * @author hhaim
  */
 class StreamVmInstructionFlowClient : public StreamVmInstructionVar {
@@ -1736,11 +1736,11 @@ public:
                                   uint16_t flags
                                ) : StreamVmInstructionVar(var_name),
                                    m_ip("ip", 4, StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, client_min_value, client_min_value, client_max_value, 1),
-                                   m_port("port", 2, StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, port_min, port_min, port_max, 1) { 
+                                   m_port("port", 2, StreamVmInstructionFlowMan::FLOW_VAR_OP_INC, port_min, port_min, port_max, 1) {
 
         m_limit_num_flows = limit_num_flows;
         m_flags = flags;
-        
+
         /* construct as per single core */
         update(0, 1);
     }
@@ -1775,7 +1775,7 @@ public:
 
 
     bool is_unlimited_flows(){
-        return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) == 
+        return ( (m_flags &   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS ) ==
                   StreamVmInstructionFlowClient::CLIENT_F_UNLIMITED_FLOWS );
     }
 
@@ -1783,12 +1783,12 @@ public:
         return new StreamVmInstructionFlowClient(*this);
     }
 
-    
+
     virtual void update(uint64_t phase, uint64_t step_mul) {
 
         /* calculate the phase BEFORE adjusting the outer var (IP) */
         uint16_t port_phase = m_ip.get_wrap_arounds(phase);
-        
+
         /* update outer var */
         m_ip.update(phase, step_mul);
 
@@ -1798,12 +1798,12 @@ public:
         /* ugly, but we need to set the reference to 1 (default is zero) */
         m_port.m_step = 1;
         m_port.update(port_phase, port_step_mul);
-    
+
         /* update the limit per core */
         if (m_limit_num_flows) {
             m_limit_num_flows = utl_split_limit(m_limit_num_flows, phase, step_mul);
         }
-        
+
     }
 
 
@@ -1819,7 +1819,7 @@ protected:
 
     /**
      * defines a froward/backward method
-     * 
+     *
      */
     void peek(uint32_t &next_ip, uint16_t &next_port, int skip = 1, bool forward = true) const {
         bool of = false;
@@ -1856,7 +1856,7 @@ public:
 
 /**
  * write flow var to packet, hhaim
- * 
+ *
  */
 class StreamVmInstructionWriteToPkt : public StreamVmInstruction {
 public:
@@ -1902,8 +1902,8 @@ public:
 
 
 /**
- * change packet size,  
- * 
+ * change packet size,
+ *
  */
 class StreamVmInstructionChangePktSize : public StreamVmInstruction {
 public:
@@ -1931,14 +1931,14 @@ public:
 
 
 /**
- * describes a VM program for DP 
- * 
+ * describes a VM program for DP
+ *
  */
 
 class StreamVmDp {
 public:
     StreamVmDp(){
-        m_bss_ptr=NULL; 
+        m_bss_ptr=NULL;
         m_program_ptr =NULL ;
         m_bss_size=0;
         m_program_size=0;
@@ -1964,7 +1964,7 @@ public:
             memcpy(m_bss_ptr,bss,bss_size);
             m_bss_size=bss_size;
         }else{
-            m_bss_ptr=NULL; 
+            m_bss_ptr=NULL;
             m_bss_size=0;
         }
 
@@ -2083,7 +2083,7 @@ class TrexStreamPktLenData {
 
 /**
  * describes a VM program
- * 
+ *
  */
 class StreamVm {
 
@@ -2111,10 +2111,10 @@ public:
 
 
     /**
-     * calculate the expected packet size 
-     * might be different from regular_pkt_size 
-     * if the VM changes the packet length (random) 
-     * 
+     * calculate the expected packet size
+     * might be different from regular_pkt_size
+     * if the VM changes the packet length (random)
+     *
      */
     void calc_pkt_len_data(uint16_t regular_pkt_size, TrexStreamPktLenData &pkt_len_data) const;
 
@@ -2136,16 +2136,16 @@ public:
                                         );
         assert(lp);
         return (lp);
-        
+
     }
 
     /**
      * clone VM instructions
-     * 
+     *
      */
     void clone(StreamVm &other) const;
 
-    
+
     bool is_vm_empty() const {
         return (m_inst_list.size() == 0);
     }
@@ -2160,13 +2160,13 @@ public:
 
     /**
      * add new instruction to the VM
-     * 
+     *
      */
     void add_instruction(StreamVmInstruction *inst);
 
     /**
      * get const access to the instruction list
-     * 
+     *
      */
     const std::vector<StreamVmInstruction *> & get_instruction_list();
 
@@ -2192,16 +2192,16 @@ public:
     bool is_var_pkt_size(){
         return (m_is_change_pkt_size);
     }
-    
+
 
     bool is_compiled() const {
         return m_is_compiled;
     }
 
     /**
-     * compile the VM 
-     * return true of success, o.w false 
-     * 
+     * compile the VM
+     * return true of success, o.w false
+     *
      */
     void compile(uint16_t pkt_len);
 
@@ -2218,9 +2218,9 @@ public:
 
 
     /**
-     * return a pointer to a flow var / client var 
-     * by name if exists, otherwise NULL 
-     * 
+     * return a pointer to a flow var / client var
+     * by name if exists, otherwise NULL
+     *
      */
     StreamVmInstructionVar * lookup_var_by_name(const std::string &var_name);
 
@@ -2234,7 +2234,7 @@ private:
     bool  var_add(const std::string &var_name,VmFlowVarRec & var);
 
     uint16_t get_var_offset(const std::string &var_name);
-    
+
     void build_flow_var_table() ;
 
     void build_bss();
@@ -2262,18 +2262,18 @@ private:
     TrexStreamPktLenData               m_pkt_len_data;
 
     uint16_t                           m_cur_var_offset;
-    uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */ 
+    uint16_t                           m_max_field_update; /* the location of the last byte that is going to be changed in the packet */
 
     std::vector<StreamVmInstruction *> m_inst_list;
     std::unordered_map<std::string, VmFlowVarRec> m_flow_var_offset;
     uint8_t *                          m_bss;
 
     StreamDPVmInstructions             m_instructions;
-    
+
     uint8_t                            *m_pkt;
 
-    
-    
+
+
 };
 
 #endif /* __TREX_STREAM_VM_API_H__ */

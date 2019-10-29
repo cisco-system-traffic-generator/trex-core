@@ -110,4 +110,4 @@ rte_atomic32_add_return(rte_atomic32_t *v, int32_t inc)
     return(res);
 }
 
-#endif 
+#endif

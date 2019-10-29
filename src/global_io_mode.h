@@ -37,9 +37,9 @@ public:
         m_l_mode=lENABLE;
         m_rc_mode=rcENABLE;
     }
-    /* 0 - disable -> normal 
-       h - help -> normal 
-       1 - -> normal 
+    /* 0 - disable -> normal
+       h - help -> normal
+       1 - -> normal
        2 - pp
        3 - ap
        4 - ll
@@ -60,16 +60,16 @@ public:
     };
 
     enum CliDumpMode {
-      cdDISABLE=0, // no print at all 
-      cdNORMAL=1,  // normal 
-      cdSHORT =2   // short only all ports info 
+      cdDISABLE=0, // no print at all
+      cdNORMAL=1,  // normal
+      cdSHORT =2   // short only all ports info
     };
 
 
     enum Global {
-      gDISABLE=0, // no print at all 
+      gDISABLE=0, // no print at all
       gHELP=1,    // help
-      gNORMAL=2,   // normal 
+      gNORMAL=2,   // normal
       gMem=3,
       gNAT,
       gSTT /* TCP stats */
@@ -80,31 +80,31 @@ public:
     typedef uint8_t Global_t;
 
     enum PerPortCountersMode {
-        ppDISABLE=0, 
-        ppTABLE  =1,    
+        ppDISABLE=0,
+        ppTABLE  =1,
         ppSTANDARD=2,
         ppLAST    =3
     };
     typedef uint8_t PerPortCountersMode_t;
 
     enum AllPortCountersMode {
-        apDISABLE=0, 
-        apENABLE =1,    
+        apDISABLE=0,
+        apENABLE =1,
         apLAST   =2
     };
     typedef uint8_t AllPortCountersMode_t;
 
     enum LatecnyMode {
-        lDISABLE =0, 
-        lENABLE  =1,    
+        lDISABLE =0,
+        lENABLE  =1,
         lENABLE_Extended=2,
         lLAST           =3
     };
     typedef uint8_t LatecnyMode_t;
 
     enum RxCheckMode {
-        rcDISABLE  =0, 
-        rcENABLE  =1,  
+        rcDISABLE  =0,
+        rcENABLE  =1,
         rcENABLE_Extended=2,
         rcLAST           =3
     };

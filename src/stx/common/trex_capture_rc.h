@@ -24,11 +24,11 @@ limitations under the License.
 typedef int32_t capture_id_t;
 
 /**
- * a base class for a capture command RC 
- * not to be used directly 
+ * a base class for a capture command RC
+ * not to be used directly
  */
 class TrexCaptureRC {
-    
+
 protected:
     /* cannot instantiate this object from outside */
     TrexCaptureRC() {
@@ -51,10 +51,10 @@ public:
     bool operator !() const {
         return (m_rc != RC_OK);
     }
-    
+
     std::string get_err() const {
         assert(m_rc != RC_INVALID);
-        
+
         switch (m_rc) {
         case RC_OK:
             return "";
@@ -67,17 +67,17 @@ public:
         case RC_INVALID:
             /* should never be called under invalid */
             assert(0);
-            
+
         default:
             assert(0);
         }
     }
-    
+
     void set_err(rc_e rc) {
         m_rc = rc;
     }
-    
-    
+
+
 protected:
     rc_e m_rc;
 };
@@ -93,17 +93,17 @@ public:
         m_start_ts    = start_ts;
         m_rc          = RC_OK;
     }
-    
+
     capture_id_t get_new_id() const {
         assert(m_rc == RC_OK);
         return m_capture_id;
     }
-    
+
     dsec_t get_start_ts() const {
         assert(m_rc == RC_OK);
         return m_start_ts;
     }
-    
+
 private:
     capture_id_t  m_capture_id;
     dsec_t        m_start_ts;
@@ -114,17 +114,17 @@ private:
  */
 class TrexCaptureRCStop : public TrexCaptureRC {
 public:
-    
+
     void set_rc(uint32_t pkt_count) {
         m_pkt_count = pkt_count;
         m_rc        = RC_OK;
     }
-    
+
     uint32_t get_pkt_count() const {
         assert(m_rc == RC_OK);
         return m_pkt_count;
     }
-    
+
 private:
     uint32_t m_pkt_count;
 };
@@ -141,22 +141,22 @@ public:
         m_start_ts    = start_ts;
         m_rc          = RC_OK;
     }
-    
+
     const TrexPktBuffer *get_pkt_buffer() const {
         assert(m_rc == RC_OK);
         return m_pkt_buffer;
     }
-    
+
     uint32_t get_pending() const {
         assert(m_rc == RC_OK);
         return m_pending;
     }
-    
+
     dsec_t get_start_ts() const {
         assert(m_rc == RC_OK);
         return m_start_ts;
     }
-    
+
 private:
     const TrexPktBuffer *m_pkt_buffer;
     uint32_t             m_pending;
@@ -175,17 +175,17 @@ public:
 
 class TrexCaptureRCStatus : public TrexCaptureRC {
 public:
-    
+
     void set_rc(const Json::Value &json) {
         m_json = json;
         m_rc   = RC_OK;
     }
-    
+
     const Json::Value & get_status() const {
         assert(m_rc == RC_OK);
         return m_json;
     }
-    
+
 private:
     Json::Value m_json;
 };

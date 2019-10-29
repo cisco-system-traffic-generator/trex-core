@@ -16,15 +16,15 @@ limitations under the License.
 
 #ifndef _VLAN_HEADER_H_
 #define _VLAN_HEADER_H_
-    
+
 #include "PacketHeaderBase.h"
 #include "EthernetHeader.h"
 
 
-/*   
+/*
                               VLAN Header Fields
                               ------------------
-                                    
+
     0       2   3   4                                                            15
     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     |Priority| CFI |                                                             |
@@ -37,7 +37,7 @@ limitations under the License.
  * It has fields that are equivalent to the VLAN header fields.
  * The data is saved in network byte order, and therefore the class can be used to create a packet in a buffer
  * and send it over the network.
- */ 
+ */
 class VLANHeader
 {
 
@@ -53,7 +53,7 @@ public:
 
     void    setTagUserPriorty   (uint8_t data);
     uint8_t   getTagUserPriorty   ();
-    
+
     bool    getTagCFI           ();
     void    setTagCFI           (bool);
 
@@ -71,7 +71,7 @@ public:
 // Common Interface
 ////////////////////////////////////////////////////////////////////////////////////////
 
-public: 
+public:
     uint8_t*  getPointer          (){return (uint8_t*)this;}
     uint32_t  getSize      (){return (uint32_t)sizeof(VLANHeader);}
 
@@ -93,7 +93,7 @@ public:
 
     static uint8_t fillReconstructionBuffer(uint8_t* destBuffer, VLANHeader& vHeader);
 
-    
+
     static uint32_t getMaxVlanTag()  { return (1<<12) - 1 ; }
 
 public:

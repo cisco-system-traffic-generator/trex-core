@@ -67,7 +67,7 @@ static inline uintptr_t my_utl_align_up(uintptr_t num,uint16_t round){
 
 class CPktNsecTimeStamp {
 public:
-    
+
     #define _NSEC_TO_SEC 1000000000.0
     CPktNsecTimeStamp(){
         m_time_sec  =0;
@@ -132,15 +132,15 @@ public:
     char * append(uint16_t len);
 
     void CloneShalow(CCapPktRaw  *obj);
-    
+
     void setInterface(uint8_t _if){
         btSetMaskBit16(flags,10,8,_if);
     }
-    
+
     uint8_t getInterface(){
         return ((uint8_t)btGetMaskBit16(flags,10,8));
     }
-    
+
     void setDoNotFree(bool do_not_free){
         btSetMaskBit16(flags,0,0,do_not_free?1:0);
     }
@@ -151,17 +151,17 @@ public:
 
     bool Compare(CCapPktRaw * obj,int dump,double dsec);
 
-    
+
 public:
 	inline uint16_t getTotalLen(void) {
 		return (pkt_len);
 	}
 	void Dump(FILE *fd,int verbose);
 };
- 
+
 /**
  * Interface for capture file reader.
- * 
+ *
  */
 class CCapReaderBase
 {
@@ -171,14 +171,14 @@ public:
 
     virtual bool ReadPacket(CCapPktRaw * lpPacket)=0;
 
-    
+
     /* by default all reader reads one packet
        and gives the feature one packet
     */
     virtual uint32_t  get_last_pkt_count() {return 1;}
 
     /* method for rewind the reader
-      abstract and optional 
+      abstract and optional
     */
     virtual void Rewind() {};
 	/**
@@ -209,7 +209,7 @@ public:
      * @param loops - number of loops for the same capture. use 0
      *                for one time transmition
      * @param err - IO stream to print error
-     *  
+     *
      * @return CCapReaderBase* - pointer to new instance (allocated
      *         by the function). the user should release the
      *         instance once it has no use any more.
@@ -244,14 +244,14 @@ public:
  */
 class CCapWriterFactory {
 public:
-	
+
 	/**
      * The factory function will create the matching reader instance
      * according to the type.
-     * 
+     *
      * @param type - the foramt
      * @param name - new file name
-	 * 
+	 *
      * @return CCapWriter* - return pointer to the writer instance
      *         or NULL if failed from some reason (or unsupported
      *         format).Instance user

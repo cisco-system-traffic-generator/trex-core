@@ -30,8 +30,8 @@
 #include "trex_defs.h"
 #include "dpdk_port_map.h"
 
-typedef enum { mfDISABLE     = 0x12, 
-               mfPASS_ALL_RX = 0x13, 
+typedef enum { mfDISABLE     = 0x12,
+               mfPASS_ALL_RX = 0x13,
                mfDROP_ALL_PASS_TOS =0x14,
                mfPASS_TOS =0x15
 } dpdk_filter_mode_t;
@@ -54,7 +54,7 @@ public:
     void set_drop_all_mode(bool enable){
         m_drop_all=enable;
     }
-    
+
     void set_mode(dpdk_filter_mode_t mode);
 
 public:

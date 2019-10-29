@@ -29,8 +29,8 @@ limitations under the License.
 #include "rpc-server/trex_rpc_cmd_api.h"
 
 /**
- * ASTF specific RPC commands 
- *  
+ * ASTF specific RPC commands
+ *
  */
 class TrexRpcCmdsASTF : public TrexRpcComponent {
 public:

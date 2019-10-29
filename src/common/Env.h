@@ -16,7 +16,7 @@ limitations under the License.
 
 #ifndef OS_ENV
 #define OS_ENV
-                   
+
 #ifdef __GNUC__
     #if  (_BYTE_ORDER == _BIG_ENDIAN)
       #define  BIG_EDIAN
@@ -31,4 +31,4 @@ limitations under the License.
 #endif
 
 
-#endif 
+#endif

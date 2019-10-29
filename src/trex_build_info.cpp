@@ -42,7 +42,7 @@ std::string TrexBuildInfo::get_gcc_built_with_vesrion() {
 std::string TrexBuildInfo::get_glibc_built_with_version() {
     std::stringstream ss;
     ss << __GLIBC__ << "." << __GLIBC_MINOR__;
-    
+
     return ss.str();
 }
 

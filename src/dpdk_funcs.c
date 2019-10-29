@@ -43,12 +43,12 @@ void i40e_trex_dump_fdir_regs(struct i40e_hw *hw)
         printf("I40E_PRTQF_FD_INSET(%d, 1): 0x%08x\n", reg_nums[i], reg);
     }
 }
-    
+
 void i40e_trex_fdir_reg_init(repid_t repid, int mode)
 {
     struct rte_eth_dev *dev = &rte_eth_devices[repid];
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-    
+
 	I40E_WRITE_REG(hw, I40E_GLQF_ORT(12), 0x00000062);
 	I40E_WRITE_REG(hw, I40E_GLQF_PIT(2), 0x000024A0);
 	I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV4_UDP, 0), 0);
@@ -59,7 +59,7 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
     I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER, 0), 0);
     I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV4, 0), 0);
     I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV6, 0), 0);
-    
+
     switch(mode) {
     case I40E_TREX_INIT_STL:
         // stateless - filter according to IP id or IPv6 identification
@@ -85,7 +85,7 @@ void i40e_trex_fdir_reg_init(repid_t repid, int mode)
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP, 1), 0);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV4, 1), 0);
         I40E_WRITE_REG(hw, I40E_PRTQF_FD_INSET(I40E_FILTER_PCTYPE_FRAG_IPV6, 1), 0);
-        
+
         break;
     case I40E_TREX_INIT_STF:
     default:

@@ -35,31 +35,31 @@ limitations under the License.
 
 /**
  * every thread creates its own monitor from its own memory
- * 
+ *
  * @author imarom (19-Jun-16)
  */
 class TrexMonitor {
     friend class TrexWatchDog;
-    
+
 public:
 
     /**
-    * create a monitor 
-    * 
+    * create a monitor
+    *
     * @author imarom (31-May-16)
-    * 
-    * @param name 
-    * @param timeout 
-    * 
-    * @return int 
+    *
+    * @param name
+    * @param timeout
+    *
+    * @return int
     */
     void create(const std::string &name, double timeout_sec);
 
     /**
-     * disable the monitor for 'time_sec' 
-     * by default it will disable it for a long period of time 
-     * (forever) 
-     * 
+     * disable the monitor for 'time_sec'
+     * by default it will disable it for a long period of time
+     * (forever)
+     *
      */
     void disable(dsec_t time_sec = 1e9) {
         set_timeout(time_sec);
@@ -67,28 +67,28 @@ public:
 
     /**
      * re-enable a monitor after it was disabled
-     * 
+     *
      */
     void enable() {
         set_timeout(m_base_timeout_sec);
     }
-    
+
     /**
-     * not thread safe 
-     * call from current thread only 
+     * not thread safe
+     * call from current thread only
      */
     void io_begin() {
         /**
-         * holds a ref cnt 
-         * a thread might start many IO operations 
+         * holds a ref cnt
+         * a thread might start many IO operations
          */
         m_io_ref_cnt++;
         set_timeout(IO_TIMEOUT_SEC);
     }
-    
+
      /**
-     * not thread safe 
-     * call from current thread only 
+     * not thread safe
+     * call from current thread only
      */
     void io_end() {
         assert(m_io_ref_cnt > 0);
@@ -97,11 +97,11 @@ public:
             set_timeout(m_base_timeout_sec);
         }
     }
-    
+
     /**
-     * tickle the monitor - this should be called from the thread 
-     * to avoid the watchdog from detecting a stuck thread 
-     * 
+     * tickle the monitor - this should be called from the thread
+     * to avoid the watchdog from detecting a stuck thread
+     *
      * @author imarom (19-Jun-16)
      */
     void tickle() {
@@ -114,7 +114,7 @@ public:
     const std::string &get_name() const {
         return m_name;
     }
-    
+
     /* return how much time has passed since last tickle */
     dsec_t get_interval(dsec_t now) const {
         return (now - m_ts);
@@ -130,14 +130,14 @@ private:
 
     /**
      * called by the watchdog to reset the monitor for a new round
-     * 
+     *
      */
     void reset(dsec_t now) {
         m_tickled = false;
         m_ts      = now;
     }
 
-   
+
     pthread_t get_tid() const {
         return m_tid;
     }
@@ -168,7 +168,7 @@ private:
     std::string      m_name;
 
     uint32_t         m_io_ref_cnt;
-    
+
     static const int IO_TIMEOUT_SEC = 30;
 
 } __rte_cache_aligned;
@@ -176,7 +176,7 @@ private:
 
 /**
  * a watchdog is a list of registered monitors
- * 
+ *
  * @author imarom (19-Jun-16)
  */
 class TrexWatchDog {
@@ -184,10 +184,10 @@ public:
 
     /**
      * singleton entry
-     * 
+     *
      * @author imarom (19-Jun-16)
-     * 
-     * @return TrexWatchDog& 
+     *
+     * @return TrexWatchDog&
      */
     static TrexWatchDog& getInstance() {
         static TrexWatchDog instance;
@@ -202,32 +202,32 @@ public:
     /**
      * get monitor of current thread if registered
      * (NULL if not registered)
-     * 
+     *
      */
     TrexMonitor * get_current_monitor();
 
     /**
-     * add a monitor to the watchdog 
-     * from now on this monitor will be watched 
-     * 
+     * add a monitor to the watchdog
+     * from now on this monitor will be watched
+     *
      * @author imarom (19-Jun-16)
-     * 
+     *
      * @param monitor - a pointer to the object
-     * 
+     *
      */
     void register_monitor(TrexMonitor *monitor);
 
 
     /**
      * start the watchdog
-     * 
+     *
      */
     void start();
 
 
     /**
      * stop the watchdog
-     * 
+     *
      */
     void stop();
 

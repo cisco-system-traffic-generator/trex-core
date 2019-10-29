@@ -145,7 +145,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
          * retransmit times until then.
          */
         if (tp->t_rxtshift > TCP_MAXRXTSHIFT / 4) {
-            //in_losing(tp->t_inpcb); # no need that 
+            //in_losing(tp->t_inpcb); # no need that
             tp->t_rttvar += (tp->t_srtt >> TCP_RTT_SHIFT);
             tp->t_srtt = 0;
         }
@@ -167,7 +167,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
          * size increase exponentially with time.  If the
          * window is larger than the path can handle, this
          * exponential growth results in dropped packet(s)
-         * almost immediately.  To get more time between 
+         * almost immediately.  To get more time between
          * drops but still "push" the network to take advantage
          * of improving conditions, we switch from exponential
          * to linear window opening at some threshhold size.

@@ -47,7 +47,7 @@ public:
         TimeStampSize   =   12
     };
 
-    enum 
+    enum
     {
         MaxOptionsInPacket = 64
     };
@@ -61,8 +61,8 @@ public:
 
     struct  Counters
     {
-        uint32_t    itsOptionsSizeMismatch; 
-        uint32_t    itsZeroLengthOptions;  
+        uint32_t    itsOptionsSizeMismatch;
+        uint32_t    itsZeroLengthOptions;
         uint32_t    itsPossibleEndlessLoop;
     };
 
@@ -81,7 +81,7 @@ public:
      * This method allows the user of this class to query whether
      * the options in hand contains a specific type of its
      * interest.
-     * 
+     *
      * @return  true if the specified option exist.
      */
     bool    doesContain(Kind::Val);
@@ -94,19 +94,19 @@ public:
     /**
      * Returns a pointer to the current option.
      * With the kind and length of it.
-     * 
+     *
      * @param argKind
      * @param argLength
-     * @return 
+     * @return
      */
     uint8_t*  getCurrentOption    (Kind::Val&    argKind, uint8_t& argLength);
 
     /**
      * This method gives the length of the current option.
      * Can vary since there are two options that are exception to
-     * the usual TLV definition. 
-     * 
-     * @return 
+     * the usual TLV definition.
+     *
+     * @return
      */
     uint8_t   getCurrentOptionLength();
 
@@ -114,8 +114,8 @@ public:
      * This is an internal method that verifies based on the current
      * pointer, the total options length and the current options length,
      * whether this is the last option.
-     * 
-     * @return 
+     *
+     * @return
      */
     bool    isLastOption        ();
 
@@ -126,7 +126,7 @@ public:
     /**
      * This method tells the object to advance one option ahead.
      * i.e. to the next option.
-     * 
+     *
      * @return True if next option exist.
      *         False if we are at the last option.
      */

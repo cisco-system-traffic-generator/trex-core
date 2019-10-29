@@ -132,7 +132,7 @@ public:
 
     // node -> TRex port
     uint16_t handle_tx(uint16_t limit);
-    
+
     static string m_bird_ns;
 
 

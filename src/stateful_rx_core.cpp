@@ -126,7 +126,7 @@ void CLatencyPktInfo::Create(class CLatencyPktMode *m_l_pkt_info){
     m_dummy_node.m_flags =CGenNode::NODE_FLAGS_LATENCY;
 }
 
-rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id, 
+rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,
                                            uint32_t extern_ip,
                                            uint32_t extern_dest_ip) {
     bool is_client_to_server = (port_id % 2 == 0) ? true:false;
@@ -154,11 +154,11 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,
     }
 
     rte_mbuf_t *m = m_pkt_info.generate_new_mbuf(&m_dummy_node);
-    
+
     if (m_client_cfg) {
         m_client_cfg[dual_port_index].apply(m, (is_client_to_server ? CLIENT_SIDE : SERVER_SIDE));
     }
-    
+
     return m;
 }
 
@@ -168,11 +168,11 @@ void CLatencyPktInfo::set_ip(uint32_t                src,
     m_client_ip.v4   = src;
     m_server_ip.v4   = dst;
     m_dual_port_mask = dual_port_mask;
-    
+
     if (m_client_cfg) {
         delete [] m_client_cfg;
     }
-    
+
     /* no client cluster cfg */
     m_client_cfg = NULL;
 }
@@ -186,19 +186,19 @@ void CLatencyPktInfo::set_ip(uint32_t        src,
     m_client_ip.v4   = src;
     m_server_ip.v4   = dst;
     m_dual_port_mask = dual_port_mask;
-    
+
     if (m_client_cfg) {
         delete [] m_client_cfg;
     }
-    
+
     /* allocate one client config for each pair of ports */
     int dual_port_cnt = port_cnt >> 1;
     m_client_cfg = new ClientCfgBase[dual_port_cnt];
-    
+
     /* for each IP - lookup the client cluster */
     for (int i = 0; i < dual_port_cnt; i++) {
         uint32_t ip = src + (dual_port_mask * i);
-        
+
         ClientCfgEntry *entry = client_cfg_db.lookup(ip);
         if (!entry) {
             std::stringstream ss;
@@ -206,7 +206,7 @@ void CLatencyPktInfo::set_ip(uint32_t        src,
             std::cout << ss.str();
             exit(-1);
         }
-        
+
         entry->assign(m_client_cfg[i], ip);
     }
 }
@@ -215,7 +215,7 @@ void CLatencyPktInfo::set_ip(uint32_t        src,
 void CLatencyPktInfo::Delete(){
     m_pkt_info.Delete();
     delete m_packet;
-    
+
     if (m_client_cfg) {
         delete [] m_client_cfg;
         m_client_cfg = NULL;
@@ -464,7 +464,7 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
         if ( (m->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
             m_l3_cs_err++;
         }
-    
+
         if ( (m->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD ){
             if ( parser.m_protocol != IPHeader::Protocol::SCTP ){
                 /* in case of SCTP packets we don't fix checksum  for L4 */
@@ -598,7 +598,7 @@ void CLatencyManager::Delete(){
         m_nat_check_manager.Delete();
     }
     m_cpu_cp_u.Delete();
-    
+
     if (c_l_pkt_mode) {
         delete c_l_pkt_mode;
     }
@@ -657,7 +657,7 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
     m_pkt_gen.set_ip(cfg->m_client_ip.v4,
                      cfg->m_server_ip.v4,
                      cfg->m_dual_port_mask);
-    
+
     m_cpu_cp_u.Create(&m_cpu_dp_u);
     if ( CGlobalInfo::is_learn_mode() ){
         m_nat_check_manager.Create();
@@ -787,7 +787,7 @@ void CLatencyManager::handle_rx_pkt(CLatencyManagerPerPort * lp,
     uint16_t pkt_size=rte_pktmbuf_pkt_len(m);
     utl_k12_pkt_format(stdout,p ,pkt_size) ;
     /****************************************/
-#endif 
+#endif
 
     lp->m_port.check_packet(m,rxc);
     if ( unlikely(rxc!=NULL) ){
@@ -863,9 +863,9 @@ void CLatencyManager::handle_rx_one_queue(uint8_t ti,CNodeRing * r){
              break;
          }
          assert(node);
-   
+
          CGenNodeMsgBase * msg=(CGenNodeMsgBase *)node;
-   
+
          uint8_t   msg_type =  msg->m_msg_type;
          switch (msg_type ) {
          case CGenNodeMsgBase::LATENCY_PKT:
@@ -875,7 +875,7 @@ void CLatencyManager::handle_rx_one_queue(uint8_t ti,CNodeRing * r){
              printf("ERROR latency-thread message type is not valid %d \n",msg_type);
              assert(0);
          }
-   
+
          CGlobalInfo::free_node(node);
     }
 }
@@ -1022,7 +1022,7 @@ void  CLatencyManager::start(int iter, bool activate_watchdog) {
     if (activate_watchdog) {
         m_monitor.disable();
     }
-    
+
     m_is_active = false;
 
 }

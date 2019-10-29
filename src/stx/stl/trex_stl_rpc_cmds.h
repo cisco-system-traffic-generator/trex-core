@@ -29,12 +29,12 @@ limitations under the License.
 #include "rpc-server/trex_rpc_cmd_api.h"
 
 /**
- * STL specific RPC commands 
- *  
+ * STL specific RPC commands
+ *
  */
 class TrexRpcCmdsSTL : public TrexRpcComponent {
 public:
-    
+
     TrexRpcCmdsSTL();
 };
 

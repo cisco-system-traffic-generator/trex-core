@@ -300,7 +300,7 @@ int CreateHashModeHash(struct rte_eth_rss_conf *rss_conf,
                        int priority)
 {
   const uint64_t rss_hf = rss_conf->rss_hf;
-  
+
   if (rss_hf == 0) {
     PMD_NTACC_LOG(DEBUG, "No HASH function is selected. Ignoring hash.\n");
     return 0;

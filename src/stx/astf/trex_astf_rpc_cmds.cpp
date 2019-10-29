@@ -744,7 +744,7 @@ TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
 
 /**
  * ASTF RPC component
- * 
+ *
  */
 TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfSync(this));

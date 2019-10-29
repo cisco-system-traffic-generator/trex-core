@@ -96,7 +96,7 @@ public:
 
     virtual CSyncBarrier * get_sync_barrier(void) const = 0;
     virtual CFlowGenList * get_fl() const = 0;
-    
+
     virtual ~TrexPlatformApi() {}
 };
 
@@ -118,7 +118,7 @@ public:
     void publish_async_data_now(uint32_t key, bool baseline) const;
     void publish_async_port_attr_changed(uint8_t port_id) const;
     uint8_t get_dp_core_count() const;
-    
+
     void get_port_stat_info(uint8_t port_id, uint16_t &num_counters, uint16_t &capabilities
                                  , uint16_t &ip_id_base) const;
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
@@ -171,14 +171,14 @@ public:
     void set_dp_core_count(int dp_core_count) {
         m_dp_core_count = dp_core_count;
     }
-    
+
     virtual void global_stats_to_json(Json::Value &output) const {
     }
 
     virtual uint32_t get_port_count() const {
         return 2;
     }
-    
+
     virtual void get_port_info(uint8_t port_id, intf_info_st &info) const {
 
         info.driver_name = "TEST";
@@ -232,13 +232,13 @@ public:
     CSyncBarrier * get_sync_barrier() const {
         return nullptr;
     }
-    
+
 
     CFlowGenList * get_fl() const {
         return nullptr;
     }
 
-    
+
 private:
     int m_dp_core_count;
     SimTRexPortAttr * m_port_attr;
@@ -246,8 +246,8 @@ private:
 
 
 /**
- * this function should be implemented by either 
- * DPDK platform or SIM 
+ * this function should be implemented by either
+ * DPDK platform or SIM
  */
 TrexPlatformApi & get_platform_api();
 

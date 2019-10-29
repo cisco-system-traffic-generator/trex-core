@@ -95,7 +95,7 @@ void TrexRpcServerInterface::verbose_json(const std::string &msg, const std::str
 
 /**
  * starts a RPC specific server
- * 
+ *
  * @author imarom (17-Aug-15)
  */
 void TrexRpcServerInterface::start() {
@@ -119,8 +119,8 @@ void TrexRpcServerInterface::stop() {
 
     /* call the dynamic type class stop */
     _stop_rpc_thread();
-    
-    /* hold until thread has joined */    
+
+    /* hold until thread has joined */
     m_thread->join();
 
     verbose_msg("Server Stopped");
@@ -143,7 +143,7 @@ bool TrexRpcServerInterface::is_running() {
 
 /************** RPC server *************/
 
-static const std::string 
+static const std::string
 get_current_date_time() {
     time_t     now = time(0);
     struct tm  tstruct;
@@ -182,7 +182,7 @@ TrexRpcServer::~TrexRpcServer() {
 
 /**
  * start the server array
- * 
+ *
  */
 void TrexRpcServer::start() {
     for (auto server : m_servers) {
@@ -192,7 +192,7 @@ void TrexRpcServer::start() {
 
 /**
  * stop the server array
- * 
+ *
  */
 void TrexRpcServer::stop() {
     for (auto server : m_servers) {
@@ -226,7 +226,7 @@ TrexRpcServerReqResMock::TrexRpcServerReqResMock(const TrexRpcServerConfig &cfg)
 
 /**
  * override start
- * 
+ *
  */
 void
 TrexRpcServerReqResMock::start() {

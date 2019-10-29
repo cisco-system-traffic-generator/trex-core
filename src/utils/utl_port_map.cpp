@@ -19,12 +19,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* 
+/*
 
-This file should be included only in DPDK specific files like main_dpdk.cpp, 
-general trex core always works in virtual ports id 
+This file should be included only in DPDK specific files like main_dpdk.cpp,
+general trex core always works in virtual ports id
 
-*/ 
+*/
 
 #include "utl_port_map.h"
 #include <string.h>
@@ -43,7 +43,7 @@ void CPciPortCfgDesc::dump(FILE *fd){
     const char *p= pci_n.c_str();
 
     rte_pci_addr addr;
-    if (eal_parse_pci_BDF(p, &addr) != 0 && 
+    if (eal_parse_pci_BDF(p, &addr) != 0 &&
         eal_parse_pci_DomBDF(p, &addr) != 0) {
         snprintf(buf,BUF_MAX,"ERROR not valid PCI addr %s", p);
         err=std::string(buf);
@@ -68,7 +68,7 @@ int CPciPortCfgDesc::parse(std::string & err){
 
     const char *p=m_name.c_str();
     int len = strlen(m_name.c_str());
-    int i; 
+    int i;
     int index=-1;
     for (i=0; i<len; i++ ) {
         if (*p=='/') {
@@ -102,7 +102,7 @@ int CPciPortCfgDesc::parse(std::string & err){
         return(-1);
     }
 
-    std::string id  = m_name.substr (index+1,len); 
+    std::string id  = m_name.substr (index+1,len);
     m_id=atoi(id.c_str());
 
     update_name();
@@ -156,7 +156,7 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
 
         CPciPortCfgDesc * lp= new CPciPortCfgDesc();
         lp->set_name(iname);
-        
+
         if ( lp->parse(err)!=0){
             return(-1);
         }
@@ -182,14 +182,14 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
 cfg :
 06:00/1 06:00/0 02:00/0  02:00/1
 
-init (both DPDK and script) : 02:00  06:00 
+init (both DPDK and script) : 02:00  06:00
 
 scan: 02:00 02:00 06:00 06:00
 
 map: 3  2  1  0
 */
 
-int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan, 
+int CPciPorts::get_map_args(dpdk_input_args_t & dpdk_scan,
                              dpdk_map_args_t & port_map,
                              std::string & err){
     /* remember the scan */

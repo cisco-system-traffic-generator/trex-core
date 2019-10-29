@@ -203,21 +203,21 @@ public:
         AMOUNT_OF_L_STATES,
     };
 
-    /** 
-     * create ASTF object 
+    /**
+     * create ASTF object
      */
     TrexAstf(const TrexSTXCfg &cfg);
     virtual ~TrexAstf();
 
     /**
      * ASTF control plane
-     * 
+     *
      */
     void launch_control_plane();
 
     /**
      * shutdown ASTF
-     * 
+     *
      */
     void shutdown();
 
@@ -225,13 +225,13 @@ public:
 
     /**
      * async data sent for ASTF
-     * 
+     *
      */
     void publish_async_data();
 
     /**
      * create a ASTF DP core
-     * 
+     *
      */
     TrexDpCore *create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core);
 
@@ -301,12 +301,12 @@ public:
     }
 
     /**
-     * Start transmit latency streams only 
+     * Start transmit latency streams only
      */
     void start_transmit_latency(const lat_start_params_t &args);
 
     /**
-     * Stop transmit latency streams only 
+     * Stop transmit latency streams only
      */
     bool stop_transmit_latency();
 
