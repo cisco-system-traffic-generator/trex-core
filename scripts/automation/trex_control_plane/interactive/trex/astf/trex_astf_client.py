@@ -285,6 +285,7 @@ class ASTFClient(TRexClient):
             state = self._get_profile_state(profile_id) if profile_id else self.state
             if state not in self.transient_states:
                 break
+
             if (time.time() - time_begin) > 0.1:
                 self.sync()
                 time_begin = time.time()
@@ -324,16 +325,16 @@ class ASTFClient(TRexClient):
 
         self.sync_waiting = True
         try:
-            # to prevent from checking with wrong state (e.g. 'start')
-            if ready_state and self._get_profile_state(profile_id) != ready_state:
-                self.wait_for_profile_state(profile_id, ready_state)
-            if bad_states and self._get_profile_state(profile_id) in bad_states:
-                self._set_profile_state(profile_id, self.transient_states[0])
+            if ready_state:
+                assert ready_state not in self.transient_states
+                if self._get_profile_state(profile_id) != ready_state:
+                    self.wait_for_profile_state(profile_id, ready_state)
+            else:
+                self.wait_for_steady(profile_id)
 
             rc = self._transmit(rpc_func, **k)
             if not rc:
                 return rc
-            self.wait_for_steady(profile_id)
 
             time_begin = time.time()
             while True:
@@ -341,7 +342,11 @@ class ASTFClient(TRexClient):
                 if state in ok_states:
                     return RC_OK()
 
-                if self.last_profile_error.get(profile_id) or (bad_states and state in bad_states):
+                # check transient state transition first to avoid wrong decision (e.g. 'start')
+                if ready_state and state in self.transient_states:
+                    ready_state = None
+
+                if self.last_profile_error.get(profile_id) or (not ready_state and bad_states and state in bad_states):
                     error = self.last_profile_error.pop(profile_id, None)
                     return RC_ERR(error or 'Unknown error, state: {} {}'.format(state,profile_id))
 
