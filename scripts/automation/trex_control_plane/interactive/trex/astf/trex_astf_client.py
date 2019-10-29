@@ -350,18 +350,6 @@ class ASTFClient(TRexClient):
         finally:
             self.sync_waiting = False
 
-    def check_states(self, ok_states):
-        cnt = 0
-        while True:
-            if self.state in ok_states:
-                break
-            cnt = cnt + 1
-            if cnt % 10 == 0:
-                self.sync()
-            else:
-                time.sleep(0.1) # 100ms
-        self.sync() # guarantee to update profile states
-
 
 ############################       ASTF     #############################
 ############################       API      #############################
@@ -392,12 +380,10 @@ class ASTFClient(TRexClient):
             with self.ctx.logger.suppress():
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
-                self.stop(False, pid_input=ALL_PROFILE_ID)
-                self.check_states(ok_states=[self.STATE_ASTF_LOADED, self.STATE_IDLE])
+                self.stop(pid_input = ALL_PROFILE_ID)
                 self.stop_latency()
                 self.clear_stats(ports, pid_input = ALL_PROFILE_ID)
-                self.clear_profile(False, pid_input=ALL_PROFILE_ID)
-                self.check_states(ok_states=[self.STATE_IDLE])
+                self.clear_profile(block = True, pid_input = ALL_PROFILE_ID)
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
