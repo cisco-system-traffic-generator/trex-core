@@ -436,7 +436,7 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
 }
 
 void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
-    if (!is_profile(profile_id) || get_profile_state(profile_id) < pSTATE_ACTIVE) {
+    if (!is_profile(profile_id) || get_profile_state(profile_id) < pSTATE_STARTING) {
         return; // no action for invalid profile
     }
 

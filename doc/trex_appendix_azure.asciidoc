@@ -326,7 +326,15 @@ ierrors    |                 0 |                 0 |                 0
 
 You should see something like this in the log with ```ifconfig -a``` should shows *dtap0*/*dtap1* interfaces 
 
-== Known issues (per v2.64)
+== Performance optimization
+
+* TCP/UDP flows with the right checksum and bigger than 64B (e.g. *68 Bytes* and up UDP packets) will be sent to the optimized path (Mellanox). Adding checksum=0 to UDP header will make the UDP packets with the right checksum  `Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67,chksum=0)` 
+
+* Disable gso, tso and gro on the NetVSC linux interface  (in above example it is eth1/eth2) 
+
+* Use MLX5 dpdk (as opposed to  mlx4) enabled Centos VM as DUT
+
+== Known issues (per v2.64 and up)
 
 * The trex image was build with TAP interfaces support for CentOs kernel (linux headers), it might not work on different distro/os 
 * In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case. ` ZMQ unhandled error code 14`

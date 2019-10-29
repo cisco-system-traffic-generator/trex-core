@@ -16,8 +16,8 @@ else
 fi    
 
 MACHINE_TYPE=`uname -m`
-if [ ${MACHINE_TYPE} != 'x86_64' -a ${MACHINE_TYPE} != 'aarch64' ]; then
-  echo "ERROR, only 64bit operating systems are supported, please reinstall x86 64 bit OS"
+if [ ${MACHINE_TYPE} != 'x86_64' -a ${MACHINE_TYPE} != 'aarch64' -a ${MACHINE_TYPE} != 'ppc64le' ]; then
+  echo "ERROR, only 64bit operating systems are supported, please reinstall a 64 bit OS"
   exit -1
 fi
 

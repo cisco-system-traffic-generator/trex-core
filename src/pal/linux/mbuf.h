@@ -320,9 +320,14 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
 
 #define __rte_cache_aligned 
 
-
+#ifdef __PPC64__
+#define CACHE_LINE_SIZE 128
+#define RTE_CACHE_LINE_SIZE 128
+#else
 #define CACHE_LINE_SIZE 64
 #define RTE_CACHE_LINE_SIZE 64
+#endif
+
 #define SOCKET_ID_ANY 0
 
 // has to be after the definition of rte_mbuf and other utility functions

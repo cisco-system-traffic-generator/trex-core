@@ -60,7 +60,7 @@ public:
         m_pending = false;
     }
 
-    T wait_for_reply(int timeout_ms = 500, int backoff_ms = 1) {
+    T wait_for_reply(int timeout_ms = 1000, int backoff_ms = 1) {
         int guard = timeout_ms;
 
         while (is_pending()) {

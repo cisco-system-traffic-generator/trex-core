@@ -99,8 +99,34 @@ static inline void  platform_time_get_highres_tick_64(uint64_t* t)
     *t = tsc;
 }
 
+#elif defined(__PPC64__) && defined(__LITTLE_ENDIAN__)
+
+static inline void  platform_time_get_highres_tick_64(uint64_t* t)
+{
+    union {
+        uint64_t tsc_64;
+        // RTE_STD_C11
+        struct {
+            uint32_t lo_32;
+            uint32_t hi_32;
+        };
+    } tsc;
+    uint32_t tmp;
+
+    asm volatile(
+        "0:\n"
+        "mftbu   %[hi32]\n"
+        "mftb    %[lo32]\n"
+        "mftbu   %[tmp]\n"
+        "cmpw    %[tmp],%[hi32]\n"
+        "bne     0b\n"
+        : [hi32] "=r"(tsc.hi_32), [lo32] "=r"(tsc.lo_32), [tmp] "=r"(tmp)
+    );
+    *t = tsc.tsc_64;
+}
+
 #else
-#error "Unknown platform, not intel or aarch64"
+#error "Unknown platform, not intel, aarch64, or ppc64le"
 #endif
 
 static inline uint32_t  platform_time_get_highres_tick_32()

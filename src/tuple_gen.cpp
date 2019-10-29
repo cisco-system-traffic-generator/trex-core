@@ -370,8 +370,8 @@ bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
         return (false);
     }
 
-    if (ips > 1000000) {
-        printf("  The number of clients requested is %d maximum supported : %d \n",ips,1000000);
+    if (ips > MAX_CLIENTS) {
+        printf("  The number of clients requested is %d maximum supported : %d \n",ips,MAX_CLIENTS);
         return (false);
     }
     return (true);

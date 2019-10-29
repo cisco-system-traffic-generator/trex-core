@@ -49,6 +49,7 @@ void CTimeHistogram::Reset() {
     m_total_cnt = 0;
     m_total_cnt_high = 0;
     m_max_dt = 0;
+    m_min_dt = DBL_MAX;
     m_average = 0;
     memset(&m_max_ar[0],0,sizeof(m_max_ar));
     m_win_cnt = 0;
@@ -94,6 +95,7 @@ bool CTimeHistogram::Add(dsec_t dt) {
     period_elem.update_sum(dt);
     if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || (m_win_cnt > 1)){
         period_elem.update_max(dt);
+        period_elem.update_min(dt);
     }
 
     // record any value in usec
@@ -161,6 +163,9 @@ void CTimeHistogram::update() {
     m_total_cnt_high += period_elem.get_high_cnt();
     if ( m_max_dt < period_elem.get_max()) {
         m_max_dt = period_elem.get_max();
+    }
+    if ( m_min_dt > period_elem.get_min()) {
+        m_min_dt = period_elem.get_min();
     }
 }
 
@@ -269,6 +274,7 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
     CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
 
     json["total_max"] = get_usec(m_max_dt);
+    json["total_min"] = get_usec(m_min_dt);
     json["last_max"] = get_usec(period_elem.get_max());
     json["average"] = get_average_latency();
 
@@ -331,6 +337,7 @@ CTimeHistogram CTimeHistogram::operator+= (const CTimeHistogram& in) {
         new_sum += this->m_period_data[i].get_sum();
     }
     this->m_max_dt = std::max(this->m_max_dt, in.m_max_dt);
+    this->m_min_dt = std::min(this->m_min_dt, in.m_min_dt);
     this->m_win_cnt = in.m_win_cnt;
     this->m_period = in.m_period;
     if (this->m_total_cnt != 0) {
