@@ -32,6 +32,7 @@ limitations under the License.
 #include "trex_platform.h"
 #include "trex_modes.h"
 #include "hot_section.h"
+#include <algorithm>
 
 
 
@@ -49,6 +50,7 @@ limitations under the License.
 #define _2048_MBUF_SIZE 2048
 #define _4096_MBUF_SIZE 4096
 #define MAX_PKT_ALIGN_BUF_9K       (9*1024+64)
+#define NUM_OF_POOLS 7
 
 #define MBUF_PKT_PREFIX ( sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM )
 
@@ -756,6 +758,20 @@ public:
         assert(0);
     }
 
+    inline rte_mbuf_t   * HOT_FUNC _rte_pktmbuf_alloc_no_assert(rte_mempool_t * mp ){
+        rte_mbuf_t   * m=rte_pktmbuf_alloc(mp);
+        if ( likely(m) ) {
+            return (m);
+        }
+        // hack for failure when using lots of 4k mbufs. See TRex-393
+        // real solution should be to always use 2K mbufs, and concatenate if needed
+        if (mp == m_mbuf_pool_4096) {
+            return _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_9k);
+        } else {
+            return m;
+        }
+    }
+
     inline rte_mempool_t HOT_FUNC * pktmbuf_get_pool(uint16_t size){
 
         rte_mempool_t * p;
@@ -802,8 +818,46 @@ public:
         return (m);
     }
 
+    inline HOT_FUNC rte_mbuf_t   * pktmbuf_alloc_no_assert(uint16_t size){
+
+        rte_mbuf_t * m;
+        if ( size <= _128_MBUF_SIZE) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_128);
+            if ( m ) { return m; }
+        } 
+        if ( size <= _256_MBUF_SIZE ) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_256);
+            if ( m ) { return m; }
+        } 
+        if ( size <= _512_MBUF_SIZE ) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_512);
+            if ( m ) { return m; }
+        } 
+        if ( size <= _1024_MBUF_SIZE ) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_1024);
+            if ( m ) { return m; }
+        } 
+        if ( size <= _2048_MBUF_SIZE ) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_2048);
+            if ( m ) { return m; }
+        } 
+        if ( size <= _4096_MBUF_SIZE ) {
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_4096);
+            if ( m ) { return m; }
+        } else {
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
+            m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_9k);
+            if ( m ) { return m; }
+        }
+        return NULL;
+    }
+
     inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small(){
         return ( _rte_pktmbuf_alloc(m_small_mbuf_pool) );
+    }
+
+    inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_no_assert(){
+        return ( _rte_pktmbuf_alloc_no_assert(m_small_mbuf_pool) );
     }
 
     bool dump_one(FILE *fd, const char *name, rte_mempool_t *pool);
@@ -845,6 +899,10 @@ public:
         return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_no_assert(socket_id_t socket){
+        return ( m_mem_pool[socket].pktmbuf_alloc_small() );
+    }
+
     static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_small_by_port(uint8_t port_id) {
         return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
     }
@@ -868,6 +926,13 @@ public:
             return ( pktmbuf_alloc_small(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc(size));
+    }
+
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_no_assert(socket_id_t socket,uint16_t size){
+        if (size<=_64_MBUF_SIZE) {
+            return ( pktmbuf_alloc_small_no_assert(socket));
+        }
+        return (m_mem_pool[socket].pktmbuf_alloc_no_assert(size));
     }
 
     

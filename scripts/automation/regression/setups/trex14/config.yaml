@@ -36,6 +36,7 @@
 trex:
   hostname       : csi-trex-14
   cores          : 4
+  modes: ['bird']
 
 router:
   model          : ASR1001x

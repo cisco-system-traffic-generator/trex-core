@@ -103,7 +103,7 @@ def start_pybird():
         return
 
     server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'interactive')
-    cmd = 'sudo taskset -c {core} {python} -m trex.pybird_server.bird_zmq_server -p {port}'.format(core = args.core, python = sys.executable, port = args.port)
+    cmd = 'sudo taskset -c {core} {python} -m trex.pybird_server.bird_zmq_server -p {port} -v -l'.format(core = args.core, python = sys.executable, port = args.port)
     proc, stdout_file = run_command(cmd, is_daemon = True, cwd = server_path)
     ret = progress(is_pybird_running, 'Starting PyBird server', 'PyBird server is started', 'PyBird server failed to run', fail_check = proc.poll)
     if proc.poll():
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         formatter_class = RawTextHelpFormatter,
     )
     
-    parser.add_argument('-p', '--port', type = int, default = 4509,
+    parser.add_argument('-p', '--port', type = int, default = 4505,
             help='Select tcp port on which PyBird server will listen.\nDefault is 4509.')
     parser.add_argument('-c', '--core', type = int, default = 0,
             help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')

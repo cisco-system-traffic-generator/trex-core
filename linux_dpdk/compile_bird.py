@@ -83,7 +83,7 @@ def build_bird(dst, is_verbose = False):
     if is_verbose:
         print(output)
 
-    #make
+    # make
     code, output = run_command('make', cwd=bird_down_path, timeout=180)
     if code != 0:
         raise Exception('Error in "{0}" command, output: {1}'.format('make', output))
@@ -137,11 +137,13 @@ def do_create_link (src, name, where):
 def create_links(src_dir, links_dir):
     if not os.path.exists(links_dir):
         os.makedirs(links_dir)
-    os.system('chmod -R 777 %s' % links_dir)
 
     do_create_link(src    = src_dir + '/trex_bird',
                     name  = 'trex_bird',
                     where = links_dir)
     do_create_link(src    = src_dir + '/bird.conf',
                     name  = 'bird.conf',
+                    where = links_dir)
+    do_create_link(src    = src_dir + '/birdcl',
+                    name  = 'birdcl',
                     where = links_dir)

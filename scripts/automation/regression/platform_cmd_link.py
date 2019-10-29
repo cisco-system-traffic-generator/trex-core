@@ -451,6 +451,7 @@ class CIosTelnet(telnetlib.Telnet):
         self.read_until(self.pr, timeout = 1)
 
         res = ''
+        errors_msgs = ('Invalid', 'Error:')
         if 'read_until' in kwargs:
             wf = kwargs['read_until']
         else:
@@ -471,7 +472,7 @@ class CIosTelnet(telnetlib.Telnet):
                 print('<-- (%ss)\n%s' % (round(time.time() - start_time, 2), output))
             if time.time() - start_time > timeout - 1:
                 raise Exception('Timeout while performing telnet command: %s' % cmd)
-        if 'Invalid' in res:
+        if any(msg in res for msg in errors_msgs):
             print('Warning: telnet command probably failed.\nCommand: %s\nResponse: %s' % (cmd_list, res))
 #       return res.split('\r\n')
         return res  # return the received response as a string, each line is seperated by '\r\n'.

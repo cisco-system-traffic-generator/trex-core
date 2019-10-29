@@ -1,0 +1,20 @@
+- version: 2
+  interfaces: ['82:00.0', '82:00.1']
+  stack: linux_based
+  port_info:
+
+      - ip         : 1.1.1.2
+        default_gw : 1.1.1.1
+        src_mac    : 00:00:00:01:00:01
+
+      - ip         : 1.1.2.2
+        default_gw : 1.1.2.1
+        src_mac    : 00:00:00:02:00:01
+
+  platform:
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 1
+          threads: [8,9,10,11,12,13,14,15]
+
