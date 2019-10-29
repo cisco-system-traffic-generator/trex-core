@@ -8,6 +8,7 @@ import time
 import outer_packages
 import zmq
 import yaml
+import traceback
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 import jsonrpclib
 from jsonrpclib import Fault
@@ -71,6 +72,7 @@ class CTRexServer(object):
         Instantiate a TRex client object, and connecting it to listening daemon-server
         """
         self.TREX_PATH          = os.path.abspath(os.path.dirname(trex_path+'/'))
+        os.chdir(self.TREX_PATH)
         self.trex_files_path    = os.path.abspath(os.path.dirname(trex_files_path+'/'))
         self.__check_trex_path_validity()
         self.__check_files_path_validity()
@@ -386,34 +388,37 @@ class CTRexServer(object):
 
             try:
                 server_cmd_data, zmq_port = self.generate_run_cmd(stateless = stateless, debug_image = debug_image, trex_args = trex_args, **trex_cmd_options)
-                self.trex.start_trex(self.TREX_PATH, server_cmd_data, zmq_port)
-                logger.info("TRex session has been successfully initiated.")
-                if block_to_success:
-                    # delay server response until TRex is at 'Running' state.
-                    start_time = time.time()
-                    trex_state = None
-                    while (time.time() - start_time) < timeout :
-                        trex_state = self.trex.get_status()
-                        if trex_state != TRexStatus.Starting:
-                            break
-                        else:
-                            time.sleep(0.5)
-                            self.assert_zmq_ok()
-
-                    # check for TRex run started normally
-                    if trex_state == TRexStatus.Starting:   # reached timeout
-                        logger.warning("TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.")
-                        return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
-                    elif trex_state == TRexStatus.Idle:
-                        return Fault(-11, self.trex.get_verbose_status())   # raise at client TRexError
-                
-                # reach here only if TRex is at 'Running' state
-                self.trex.gen_seq()
-                return self.trex.get_seq()          # return unique seq number to client
-                        
             except TypeError as e:
-                logger.error("TRex command generation failed, probably because either -f (traffic generation .yaml file) and -c (num of cores) was not specified correctly.\nReceived params: {params}".format( params = trex_cmd_options) )
-                raise TypeError('TRex -f (traffic generation .yaml file) and -c (num of cores) must be specified. %s' % e)
+                tb = traceback.format_exc()
+                msg = "TRex command generation failed.\nReceived params: {params}\nTrackback: {tb}".format(params = trex_cmd_options, tb = tb)
+                logger.error(msg)
+                raise TypeError(msg)
+
+            self.trex.start_trex(self.TREX_PATH, server_cmd_data, zmq_port)
+            logger.info("TRex session has been successfully initiated.")
+            if block_to_success:
+                # delay server response until TRex is at 'Running' state.
+                start_time = time.time()
+                trex_state = None
+                while (time.time() - start_time) < timeout :
+                    trex_state = self.trex.get_status()
+                    if trex_state != TRexStatus.Starting:
+                        break
+                    else:
+                        time.sleep(0.5)
+                        self.assert_zmq_ok()
+
+                # check for TRex run started normally
+                if trex_state == TRexStatus.Starting:   # reached timeout
+                    logger.warning("TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.")
+                    return Fault(-12, 'TimeoutError: TRex initiation outcome could not be obtained, since TRex stays at Starting state beyond defined timeout.') # raise at client TRexWarning
+                elif trex_state == TRexStatus.Idle:
+                    return Fault(-11, self.trex.get_verbose_status())   # raise at client TRexError
+            
+            # reach here only if TRex is at 'Running' state
+            self.trex.gen_seq()
+            return self.trex.get_seq()          # return unique seq number to client
+
 
 
     def stop_trex(self, seq, with_tb = False):

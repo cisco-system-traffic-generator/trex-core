@@ -40,5 +40,23 @@ TRex Stateless API Reference
     
     namespace 
 
+**Bird CFG Creator**
 
+.. toctree::
+    :maxdepth: 4
+    
+    bird_cfg_creator 
 
+**PyBirdClient**
+
+.. toctree::
+    :maxdepth: 4
+    
+    pybird_client
+
+**Bird Node**
+
+.. toctree::
+    :maxdepth: 4
+    
+    bird_node

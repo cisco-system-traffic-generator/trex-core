@@ -127,9 +127,14 @@ public:
     void init(CStackBase * obj);
 
     trex_rpc_cmd_rc_e rpc_add_node(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_add_shared_ns(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_remove_node(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_remove_shared_ns(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_vlans(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_ipv4(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_filter(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_dg(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_mtu(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_clear_ipv4(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_ipv6(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_remove_all(const Json::Value &params, Json::Value &result);
@@ -224,6 +229,7 @@ public:
 
     void cancel_pending_tasks();
     void cancel_running_tasks();
+    CRxCounters &get_counters() { return m_counters; }
 public:
     virtual void dummy_rpc_command(string ipv4,string ipv4_dg);
     virtual void rpc_help(const std::string & mac,const std::string & p1,const std::string & p2);
@@ -240,7 +246,12 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_add_bird_node(const std::string & mac){
+    virtual trex_rpc_cmd_rc_e rpc_add_shared_ns(Json::Value &result){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_add_shared_ns_node(const std::string & mac, bool is_bird, const string &shared_ns){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
@@ -250,17 +261,38 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
+    virtual trex_rpc_cmd_rc_e rpc_remove_shared_ns(const std::string & shared_ns){
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_filter(const std::string & mac, const std::string &filter) {
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+
+    }
+    
+    virtual trex_rpc_cmd_rc_e rpc_set_dg(const std::string & shared_ns, const std::string &dg) {
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_mtu(const std::string & mac, const std::string &mtu) {
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
     virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac, const vlan_list_t &vlan_list, const vlan_list_t &tpid_list) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string & mac,std::string ip4_buf,std::string gw4_buf){
+    virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string &mac, std::string ip4_buf, std::string gw4_buf) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_set_ipv4_bird(const std::string & mac,std::string ip4_buf, uint8_t subnet) {
+    virtual trex_rpc_cmd_rc_e rpc_set_shared_ns_ipv4(const std::string & mac, const std::string &ip4_buf, uint8_t subnet) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
@@ -275,7 +307,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_set_ipv6_bird(const std::string & mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
+    virtual trex_rpc_cmd_rc_e rpc_set_shared_ns_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }

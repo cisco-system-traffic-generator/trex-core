@@ -70,6 +70,7 @@ public:
     uint64_t            m_gen_cnt[CNT_RX_TX_SIZE][CNT_TYPE][CNT_UMB_TYPE];
     uint64_t            m_tx_err_small_pkt;
     uint64_t            m_tx_err_big_9k;
+    uint64_t            m_tx_dropped_no_mbuf;
     uint64_t            m_rx_err_invalid_pkt;
     uint64_t            m_rx_bcast_filtered;
     uint64_t            m_rx_mcast_filtered;

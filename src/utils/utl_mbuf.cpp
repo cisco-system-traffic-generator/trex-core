@@ -215,7 +215,7 @@ char * utl_rte_pktmbuf_mem_fill(uint32_t size,
 }
 
 /* convert contiguous buffer to chanin of mbuf in the size of pool  */
-struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
                                               uint32_t size, 
                                               uint16_t mp_blk_size,
                                               struct  rte_mempool *mp){
@@ -229,6 +229,40 @@ struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
         uint16_t alloc_size=std::min((uint32_t)blk_size,size);
         rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
         assert(m);
+        nseg++;
+        if (mr==NULL) {
+            mr=m;
+        }
+        if (mlast) {
+            mlast->next=m;
+        }
+        mlast=m;
+        char *p=(char *)rte_pktmbuf_append(m, alloc_size);
+        memcpy(p,buf,alloc_size);
+        buf+=alloc_size;
+        size-=alloc_size;
+    }
+    mr->nb_segs = nseg;
+    mr->pkt_len = pkt_size;
+    return(mr);
+}
+
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt_no_assert(const char *   buf,
+                                              uint32_t size, 
+                                              uint16_t mp_blk_size,
+                                              struct  rte_mempool *mp){
+    uint16_t blk_size= mp_blk_size; 
+    rte_mbuf * mr=NULL;
+    rte_mbuf * mlast=NULL;
+    uint16_t nseg=0;        
+    uint32_t pkt_size=size;
+    
+    while (size>0) {
+        uint16_t alloc_size=std::min((uint32_t)blk_size,size);
+        rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
+        if ( !m ) {
+            return NULL;
+        }
         nseg++;
         if (mr==NULL) {
             mr=m;

@@ -104,15 +104,17 @@ class BirdWrapper:
         self._config_fragments['frags'] = []       # reset fragments config
         self._config_fragments['md5'] = None
         cached = self._is_md5_cached(md5)
-        self._current_md5 = md5
         
         if 'Already configured' in cached:
             return cached
         elif 'Found configuration in cache' in cached:
             return cached + self.pybird.set_config(self.prev_md5s[md5])
         else:
-            self.prev_md5s[md5] = config           # new md5, cache it
-            return self.pybird.set_config(config)  # return a string
+            res = self.pybird.set_config(config)  # return a string
+            if 'Configured successfully' in res:
+                self._current_md5 = md5
+                self.prev_md5s[md5] = config           # new md5, cache it
+            return res
 
     def _is_md5_cached(self, md5):
         if md5 == self._current_md5:
@@ -140,7 +142,7 @@ class BirdWrapper:
         return self.bird_methods[method]['is_command']
 
     def error_handler(self, e, req_id):
-        response = []
+        response = {"jsonrpc": "2.0", "error": {"code": -32097, "message": str(e)}, "id": req_id}
         try:
             raise e
         except ParseException as e:
@@ -181,7 +183,7 @@ class BirdServer():
 
     SERVER_VERSION = "1.0"  # need to sync with bird zmq client
 
-    def __init__(self, args, port=4507):
+    def __init__(self, args, port = 4509):
         self._build_logger()
         self.logger.info('***Bird Server is starting***')
         self.port = port
@@ -219,13 +221,13 @@ class BirdServer():
             self.context.destroy()
 
     def _build_logger(self):
-        self.logger = logging.getLogger('bird_logger')
+        self.logger = logging.getLogger('pybird_server_logger')
         self.logger.setLevel(logging.INFO)
         console_h = logging.StreamHandler(sys.__stdout__)
         formatter = logging.Formatter(
             fmt='%(asctime)s %(message)s', datefmt='%d-%m-%Y %H:%M:%S')
         if args.log:
-            logfile_h = logging.FileHandler('bird_server.log')
+            logfile_h = logging.FileHandler('/var/log/pybird_server.log')
             logfile_h.setLevel(logging.INFO)
             logfile_h.setFormatter(formatter)
             self.logger.addHandler(logfile_h)
@@ -350,11 +352,11 @@ def main(args, port):
 if __name__ == '__main__':
 
     parser = ArgumentParser(description=' Runs Bird Server ')
-    parser.add_argument('-p', '--bird-port', type=int, default=4507, dest='bird_port',
-                        help='Select port to which Bird Server will listen to.\n default is 4507.', action='store')
+    parser.add_argument('-p', '--bird-port', type=int, default=4509, dest='bird_port',
+                        help='Select port to which Bird Server will listen to.\n default is 4509.', action='store')
     parser.add_argument('-v', '--verbose', help='Print Client-Server Request-Reply information to console.',
                         action='store_true', default=False)
-    parser.add_argument('-l', '--log', help='Log every activity of the server to the log file bird_server.log .The log does not discard older entries, the file is not limited by size.',
+    parser.add_argument('-l', '--log', help='Log every activity of the server to the log file pybird_server .The log does not discard older entries, the file is not limited by size.',
                         action='store_true', default=False)
     args = parser.parse_args()
     port = args.bird_port

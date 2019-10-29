@@ -67,7 +67,12 @@ char * utl_rte_pktmbuf_mem_fill(uint32_t size,
                                 int to_rand);
 
 /* convert contiguous buffer to chanin of mbuf in the size of pool  */
-struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(char *   buf,
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
+                                              uint32_t size, 
+                                              uint16_t mp_blk_size,
+                                              struct  rte_mempool *mp);
+
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt_no_assert(const char *   buf,
                                               uint32_t size, 
                                               uint16_t mp_blk_size,
                                               struct  rte_mempool *mp);

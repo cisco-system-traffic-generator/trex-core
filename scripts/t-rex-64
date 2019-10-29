@@ -50,7 +50,17 @@ if [ -t 0 ] && [ -t 1 ]; then
     saveterm="$(stty -g)"
 fi
 
+function bird_preparation {
+    BIRD_PID="$(pgrep trex_bird)"
+    if [[ -n "$BIRD_PID" ]]; then
+        kill $BIRD_PID
+    fi
+    mkdir -p "/tmp/trex-bird"
+    chmod -R 777 "/tmp/trex-bird"
+}
+
 function cleanup {
+    bird_preparation
     if [[ ! -z "$saveterm" ]]; then
         stty $saveterm
     fi
@@ -69,6 +79,7 @@ elif [[ "$ARCH" == "ppc64le" ]] ; then
     FLAG='POWER9'
 fi
 
+bird_preparation
 
 if grep -q $FLAG /proc/cpuinfo  ; then
     ./_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS

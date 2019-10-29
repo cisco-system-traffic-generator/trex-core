@@ -95,6 +95,16 @@ class InteractivePlatform(cmd.Cmd):
         self.platform.configure_basic_interfaces(vlan = True)
         print(termstyle.green("Basic VLAN interfaces configuration applied successfully."))
 
+    def do_basic_bgp(self, line):
+        """Apply basic bgp configuartion to all platform interfaces"""
+        self.platform.configure_bgp()
+        print(termstyle.green("Basic bgp configuration applied successfully."))
+
+    def do_basic_rip(self, line):
+        """Apply basic rip configuartion to all platform interfaces"""
+        self.platform.configure_rip()
+        print(termstyle.green("Basic rip configuration applied successfully."))
+
     def do_pbr(self, line):
         """Apply IPv4 PBR configuration on all interfaces"""
         self.platform.config_pbr()

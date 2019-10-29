@@ -75,7 +75,7 @@ def add_th_th(key, value):
 # returns <div> with table of tests under given category.
 # category - string with name of category
 # tests - list of tests, derived from aggregated xml report, changed a little to get easily stdout etc.
-# tests_type - stateful, stateless, astf etc.
+# tests_type - stateful, stateless, astf, bird etc.
 # category_info_dir - folder to search for category info file
 # expanded - bool, false = outputs (stdout etc.) of tests are hidden by CSS
 # brief - bool, true = cut some part of tests outputs (useful for errors section with expanded flag)

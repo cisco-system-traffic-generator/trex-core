@@ -287,7 +287,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             return('stateful');
         return('stateless');
 
-      
+
 
 
 ##### option/configure
@@ -320,6 +320,8 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--stl', '--stateless', action="store_true",
                             dest="stateless",
                             help="Run stateless tests.")
+        parser.add_option('--bird', action="store_true",
+                            help="Run Bird tests.")
         parser.add_option('--stf', '--stateful', action="store_true",
                             dest="stateful",
                             help="Run stateful tests.")
@@ -342,7 +344,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--ga', action="store_true",
                             help="Flag to send benchmarks to GA.")
         parser.add_option('--no-daemon', action="store_true",
-                            help="Flag that specifies to use running stl server, no need daemons.")
+                            help="Flag that specifies to use running interactive server, no need daemons.")
         parser.add_option('--debug-image', action="store_true",
                             help="Flag that specifies to use t-rex-64-debug as TRex executable.")
         parser.add_option('--trex-args', default = '',
@@ -359,6 +361,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
+        self.bird           = options.bird
         self.astf           = options.astf
         self.stateful       = options.stateful
         self.wireless       = options.wireless
@@ -553,6 +556,12 @@ class CTRexTestConfiguringPlugin(Plugin):
             if not self.no_daemon:
                 CTRexScenario.trex.force_kill(False)
             CTRexScenario.stl_trex = None
+        elif self.bird:
+            if CTRexScenario.bird_trex and CTRexScenario.bird_trex.is_connected():
+                CTRexScenario.bird_trex.disconnect()
+            if not self.no_daemon:
+                CTRexScenario.trex.force_kill(False)
+            CTRexScenario.bird_trex = None
         elif self.astf:
             if CTRexScenario.astf_trex and CTRexScenario.astf_trex.is_connected():
                 CTRexScenario.astf_trex.disconnect()
@@ -637,6 +646,10 @@ if __name__ == "__main__":
             if key in sys_args:
                 CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
                 sys_args.remove(key)
+        key = '--bird'
+        if key in sys_args:
+            CTRexScenario.test_types['bird_tests'].append('bird_tests')
+            sys_args.remove(key)
         key = '--astf'
         if key in sys_args:
             CTRexScenario.test_types['astf_tests'].append('astf_tests')
@@ -660,7 +673,7 @@ if __name__ == "__main__":
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
 
-    trex_tests = options.stateless or options.stateful or options.astf
+    trex_tests = options.stateless or options.stateful or options.astf or options.bird
     if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional or options.wireless)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
@@ -724,6 +737,13 @@ if __name__ == "__main__":
                 additional_args.extend(['-a', attrs])
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_astf.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+        if CTRexScenario.test_types['bird_tests'] and not is_wlc:
+            additional_args = ['--bird', 'bird_tests/bird_general_test.py:BirdBasic_Test.test_connectivity'] + CTRexScenario.test_types['bird_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_bird.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
         if CTRexScenario.test_types['stateful_tests'] and not is_wlc:
             additional_args = ['--stf']

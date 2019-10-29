@@ -7,7 +7,8 @@ from subprocess import Popen, PIPE
 
 # TODO change to something aesthetic 
 BIRD_PATH = os.path.abspath(os.path.join(__file__ ,"../../../../../../../bird"))  # trex scripts folder 
-CTL_PATH = "%s/bird.ctl" % BIRD_PATH
+BIRD_TMP_PATH = "/tmp/trex-bird"
+CTL_PATH = "%s/bird.ctl" % BIRD_TMP_PATH  
 CONF_PATH = "%s/bird.conf" % BIRD_PATH 
 DEFAULT_CFG = """
 router id 100.100.100.100;
@@ -27,6 +28,8 @@ class PyBird(object):
         """Basic pybird setup."""
         if not os.path.exists(config_file):
            raise Exception('Config file not found: %s' % config_file)
+        if not os.path.exists(BIRD_TMP_PATH):
+            os.makedirs(BIRD_TMP_PATH)
         self.socket_file    = socket_file
         self.socket         = None
         self.hostname       = hostname
@@ -84,19 +87,34 @@ class PyBird(object):
 
     def set_config(self, data):
         self.log.debug("PyBird: setting new config")
+        temp_conf_path = '%s/temp_bird_config.conf' % BIRD_TMP_PATH
+        if type(data) != str:
+            data = str(data)
+        with open(temp_conf_path, 'w') as f:
+            f.write(data)
+        os.chmod(temp_conf_path, 777)
+        try:
+            self.check_config(temp_conf_path)
+        except ValueError as e:
+            return str(e)
+        finally:
+            os.remove(temp_conf_path)
         res = self._write_file(data)
-        return 'Configured successfully' if '\n0003' in res else res  # Configuration OK code
+
+        if '\n0003' in res or '\n0004' in res:
+            return 'Configured successfully' 
+        else:
+            res  # Configuration OK code
     
     def set_empty_config(self):
         return self.set_config(DEFAULT_CFG)
 
-    def check_config(self):
+    def check_config(self, path):
         """ Check the current BIRD configuration. Raise a ValueError in case of bad conf file. """
-        query = "configure check"
+        query = 'configure check "%s"' % path
         self.log.debug("PyBird: checking current config")
         data = self._send_query(query)
-        
-        return self._parse_configure(data)
+        self._parse_configure(data)
 
     def _remove_replay_codes(self, data):
         ''' Gets data with replay codes from socket and return the data cleaned as shown in birdc'''
@@ -178,7 +196,7 @@ class PyBird(object):
 
             elif fieldnum in success_fields:
                 return True
-        raise ValueError("Unable to parse configure response")
+        raise ValueError("Bad configuration file!")
 
     def _parse_router_status_line(self, line, parse_date=False):
         """Parse a line like:
@@ -639,7 +657,7 @@ class PyBird(object):
             else:
                 return self._socket_query(query)
         except Exception as e:
-                raise Exception('Error sending query to bird! detalis:\n' + str(e))
+            return 'Error sending query to bird! details:\n' + str(e)
 
     def _remote_query(self, query):
         """
@@ -677,7 +695,6 @@ class PyBird(object):
                 self.log.debug(data_list[-1])
                 raise ValueError("Could not read additional data from BIRD")
             prev_data = data_list[-1]
-
         return ''.join(data_list)
 
     def _clean_input(self, inp):
