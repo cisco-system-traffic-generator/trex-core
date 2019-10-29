@@ -228,7 +228,10 @@ class ASTFClient(TRexClient):
                 raise TRexError("Cannot have %s as a profile value for start command" % ALL_PROFILE_ID)
             else:
                 self.sync()
-                return list(self.astf_profile_state.keys())
+                # return profiles can be operational only for the requests.
+                # STATE_IDLE is operational for 'profile_clear.'
+                return [pid for pid, state in self.astf_profile_state.items()
+                                if state is not self.STATE_ASTF_DELETE]
 
         for profile_id in profile_list:
             if profile_id not in list(self.astf_profile_state.keys()):
@@ -578,7 +581,8 @@ class ASTFClient(TRexClient):
         valid_pids = self.validate_profile_id_input(pid_input)
 
         for profile_id in valid_pids:
-            if self.astf_profile_state.get(profile_id) in ok_states:
+            profile_state = self.astf_profile_state.get(profile_id)
+            if profile_state in ok_states:
                 params = {
                     'handler': self.handler,
                     'profile_id': profile_id
@@ -681,21 +685,35 @@ class ASTFClient(TRexClient):
         valid_pids = self.validate_profile_id_input(pid_input)
 
         for profile_id in valid_pids:
-            params = {
-                'handler': self.handler,
-                'profile_id': profile_id
-                }
-            self.ctx.logger.pre_cmd('Stopping traffic.')
-            if block or is_remove:
-                rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
-            else:
-                rc = self._transmit('stop', params = params)
-            self.ctx.logger.post_cmd(rc)
+            profile_state = self.astf_profile_state.get(profile_id)
 
-            if not rc:
-                raise TRexError(rc.err())
+            # 'stop' will be silently ignored in server-side PARSE/BUILD state.
+            # So, TX state should be forced to avoid unexpected hanging situation.
+            if profile_state in {self.STATE_ASTF_PARSE, self.STATE_ASTF_BUILD}:
+                self.wait_for_profile_state(profile_id, self.STATE_TX)
+                profile_state = self.astf_profile_state.get(profile_id)
+
+            if profile_state is self.STATE_TX:
+                params = {
+                    'handler': self.handler,
+                    'profile_id': profile_id
+                    }
+                self.ctx.logger.pre_cmd('Stopping traffic.')
+                if block or is_remove:
+                    rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
+                else:
+                    rc = self._transmit('stop', params = params)
+                self.ctx.logger.post_cmd(rc)
+
+                if not rc:
+                    raise TRexError(rc.err())
+
+                profile_state = self.astf_profile_state.get(profile_id)
 
             if is_remove:
+                if profile_state is self.STATE_ASTF_CLEANUP:
+                    self.wait_for_profile_state(profile_id, self.STATE_ASTF_LOADED)
+
                 self.clear_profile(block = block, pid_input = profile_id)
 
 
