@@ -5,7 +5,7 @@ import yaml as yml
 from pprint import pprint
 import argparse
 import sys
-import ndr_bench as ndr
+import trex.examples.stl.ndr_bench as ndr
 
 
 def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, dest_stop_ip, direction):
