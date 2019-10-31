@@ -348,7 +348,8 @@ class ASTFClient(TRexClient):
 
                 if self.last_profile_error.get(profile_id) or (not ready_state and bad_states and state in bad_states):
                     error = self.last_profile_error.pop(profile_id, None)
-                    return RC_ERR(error or 'Unknown error, state: {} {}'.format(state,profile_id))
+                    general_error = 'Unknown error, state: {}, profile: {}'.format(state, profile_id)
+                    return RC_ERR(error or general_error)
 
                 if (time.time() - time_begin) > 0.2:
                     self.sync() # in case state change lost in async(SUB/PUB) channel
