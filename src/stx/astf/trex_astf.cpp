@@ -734,6 +734,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_CLEANUP:
+            m_stt_cp->Update();
             m_stt_cp->m_update = false;
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
