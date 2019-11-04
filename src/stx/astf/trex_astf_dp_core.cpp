@@ -83,6 +83,9 @@ void TrexAstfDpCore::on_profile_stop_event(profile_id_t profile_id) {
             (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
             set_profile_state(profile_id, pSTATE_LOADED);
             report_finished(profile_id);
+
+            m_flow_gen->m_c_tcp->set_profile_cb(profile_id, this, nullptr);
+            m_flow_gen->m_s_tcp->set_profile_cb(profile_id, this, nullptr);
         }
     }
 }
