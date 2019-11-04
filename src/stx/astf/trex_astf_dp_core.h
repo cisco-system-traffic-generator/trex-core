@@ -61,6 +61,7 @@ protected:
     void report_finished(profile_id_t profile_id = 0);
     void report_error(profile_id_t profile_id, const std::string &error);
     bool sync_barrier();
+    void report_dp_state();
     CFlowGenListPerThread *m_flow_gen;
 
     virtual void start_scheduler() override;

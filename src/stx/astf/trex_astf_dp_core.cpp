@@ -166,6 +166,7 @@ void TrexAstfDpCore::start_scheduler() {
 
     if (m_state == STATE_STARTING) { /* set by start_transmit function */
         m_state = STATE_TRANSMITTING;
+        report_dp_state();
 
         auto it = m_sched_param.begin();
         profile_id = it->m_profile_id;
@@ -240,6 +241,7 @@ void TrexAstfDpCore::start_scheduler() {
             }
         }
         m_state = STATE_IDLE;
+        report_dp_state();
     }
 }
 
@@ -277,6 +279,7 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
 
     if ((active_profile_cnt() == 0) || m_flow_gen->is_terminated_by_master()) {
         m_state = STATE_STOPPING;
+        report_dp_state();
         clear_profile_stop_event_all();
 
         add_global_duration(0.0001); // trigger exit from node scheduler
@@ -424,6 +427,7 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
     switch (m_state) {
     case STATE_IDLE:
         m_state = STATE_STARTING;
+        report_dp_state();
         m_sched_param.clear();
     case STATE_STARTING:
         m_sched_param.push_back({profile_id, duration});
@@ -481,6 +485,11 @@ void TrexAstfDpCore::report_finished(profile_id_t profile_id) {
 
 void TrexAstfDpCore::report_error(profile_id_t profile_id, const string &error) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreError(m_flow_gen->m_thread_id, profile_id, error);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+}
+
+void TrexAstfDpCore::report_dp_state() {
+    TrexDpToCpMsgBase *msg = new TrexDpCoreState(m_flow_gen->m_thread_id, m_state);
     m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 

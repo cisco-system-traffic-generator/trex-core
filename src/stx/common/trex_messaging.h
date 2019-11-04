@@ -315,6 +315,25 @@ private:
 
 };
 
+/**
+ * a message indicating that DP core state changed
+ */
+class TrexDpCoreState : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreState(int thread_id, int state) {
+        m_thread_id = thread_id;
+        m_state = state;
+    }
+
+    virtual bool handle(void);
+
+private:
+    int          m_thread_id;
+    int          m_state;
+
+};
+
 /************************* messages from CP to RX **********************/
 
 /**
