@@ -309,13 +309,11 @@ public:
 
     /* timesync */
     void enable_timesync(uint8_t timesync_method) {
-        printf("MATEUSZ RXPortManager::enable_timesync (%d)\n", timesync_method);
         m_timesync = new RXTimesync(timesync_method);
         set_feature(TIMESYNC);
     }
 
     void disable_timesync() {
-        printf("MATEUSZ RXPortManager::disable_timesync\n");
         unset_feature(TIMESYNC);
     }
 
