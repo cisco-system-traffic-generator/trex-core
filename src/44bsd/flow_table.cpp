@@ -507,11 +507,16 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     uint16_t dst_port = lpUDP->getDestPort();
 
+    if (!ctx->is_any_profile()) {
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_no_template);
+        return(false);
+    }
     CPerProfileCtx * pctx = ctx->get_profile_by_server_port(dst_port,false);
     CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
     CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port,false);
 
-    if (! server_info) {
+    if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);
@@ -615,6 +620,11 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     uint16_t dst_port = lpTcp->getDestPort();
 
+    if (!ctx->is_any_profile()) {
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_no_template);
+        return(false);
+    }
         /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
         if ( ctx->tcp_blackhole ==0 ){
@@ -671,7 +681,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
     CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port,true);
 
-    if (! server_info) {
+    if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
         if (ctx->tcp_blackhole ==0 ){
           generate_rst_pkt(pctx,
                          dest_ip,

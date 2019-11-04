@@ -67,10 +67,8 @@ void CUdpFlow::init(){
 
     m_closed =false;
     /* TBD need to fix this to tunebale */
-    m_keepaive_ticks  =  tw_time_msec_to_ticks(1000);
-
-    m_keepalive=1;
-    m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    m_keepalive_ticks = tw_time_msec_to_ticks(1000);
+    keepalive_timer_start(true);
 }
 
 
@@ -199,19 +197,35 @@ void CUdpFlow::disconnect(){
     m_closed=true;
 }
 
+#define KEEPALIVE_TICKS_UNIT    (100*1000/TCP_TIMER_W_1_TICK_US)    // 100 msec
+
+void CUdpFlow::keepalive_timer_start(bool init){
+    if (init) {
+        m_keepalive=1;
+        m_remain_ticks = m_keepalive_ticks;
+    }
+
+    uint32_t ticks = KEEPALIVE_TICKS_UNIT;
+    if (m_remain_ticks < KEEPALIVE_TICKS_UNIT) {
+        ticks = m_remain_ticks;
+    }
+    m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,ticks);
+    m_remain_ticks -= ticks;
+}
+
 void CUdpFlow::set_keepalive(uint64_t  msec){
-    m_keepalive=1;
-    m_keepaive_ticks  =  tw_time_msec_to_ticks(msec);
+    m_keepalive_ticks = tw_time_msec_to_ticks(msec);
     /* stop and restart the timer with new time */
     m_pctx->m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);
-    m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+    keepalive_timer_start(true);
 }
 
 
 void CUdpFlow::on_tick(){
     if (m_keepalive==0) {
-        m_keepalive=1;
-        m_pctx->m_ctx->m_timer_w.timer_start(&m_keep_alive_timer,m_keepaive_ticks);
+        keepalive_timer_start(true);    // reset keepalive timer
+    }else if (m_remain_ticks > 0) {
+        keepalive_timer_start(false);   // continue keepalive timer
     }else{
         INC_UDP_STAT(m_pctx, m_tg_id, udps_keepdrops);
         disconnect();
