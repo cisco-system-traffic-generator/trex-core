@@ -79,6 +79,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_state = STATE_IDLE;
     m_epoch = 0;
 
+    m_dp_states.resize(api.get_dp_core_count());
+
     /* create RX core */
     CRxCore *rx = (CRxCore*) new CRxAstfCore();
     rx->create(cfg.m_rx_cfg);
@@ -218,6 +220,27 @@ void TrexAstf::dp_core_error(int thread_id, uint32_t dp_profile_id, const string
     get_profile(get_profile_id(dp_profile_id))->dp_core_error(err);
 }
 
+bool TrexAstf::is_dp_core_state(int state, bool any) {
+    int states_mask = 0;
+    for (auto dp_state: m_dp_states) {
+        states_mask |= 1 << dp_state;
+    }
+
+    int s_mask = 1 << state;
+    return any ? (states_mask & s_mask): (states_mask == s_mask);
+}
+
+void TrexAstf::dp_core_state(int thread_id, int state) {
+    m_dp_states[thread_id] = state;
+
+    if (m_suspended_msgs.size() && !is_dp_core_state(TrexAstfDpCore::STATE_STOPPING, true)) {
+        for (auto msg: m_suspended_msgs) {
+            send_message_to_all_dp(msg);    // TrexAstfDpCreateTcp
+        }
+        m_suspended_msgs.clear();
+    }
+}
+
 TrexDpCore* TrexAstf::create_dp_core(uint32_t thread_id, CFlowGenListPerThread *core) {
     return new TrexAstfDpCore(thread_id, core);
 }
@@ -347,7 +370,7 @@ void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
     m_opts->preview.setNoCleanFlowClose(true);
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id());
-    send_message_to_all_dp(msg);
+    send_message_to_all_dp(msg, true);
 }
 
 void TrexAstf::profile_clear(cp_profile_id_t profile_id){
@@ -467,7 +490,13 @@ void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool 
     }
 }
 
-void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg) {
+void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool suspend) {
+    /* some messages should not be delivered during DP is stopping */
+    if (suspend && (m_suspended_msgs.size() || is_dp_core_state(TrexAstfDpCore::STATE_STOPPING, true))) {
+        m_suspended_msgs.push_back(msg);
+        return;
+    }
+
     for ( uint8_t core_id = 0; core_id < m_dp_core_count; core_id++ ) {
         send_message_to_dp(core_id, msg, true);
     }
@@ -825,7 +854,7 @@ void TrexAstfPerProfile::transmit() {
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration);
 
-    m_astf_obj->send_message_to_all_dp(msg);
+    m_astf_obj->send_message_to_all_dp(msg, true);
 }
 
 void TrexAstfPerProfile::cleanup() {
