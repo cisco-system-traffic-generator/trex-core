@@ -171,6 +171,10 @@ void
 TrexSTX::dp_core_error(int thread_id, uint32_t profile_id, const std::string &err) {
 }
 
+void
+TrexSTX::dp_core_state(int thread_id, int state) {
+}
+
 /**
  * check for messages that arrived from DP to CP
  *

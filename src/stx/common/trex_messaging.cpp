@@ -119,6 +119,12 @@ TrexDpCoreError::handle(void) {
     return true;
 }
 
+bool
+TrexDpCoreState::handle(void) {
+    get_stx()->dp_core_state(m_thread_id, m_state);
+    return true;
+}
+
 /************************* messages from CP to RX **********************/
 
 #if 0
