@@ -29,6 +29,7 @@ limitations under the License.
 struct profile_param {
     profile_id_t    m_profile_id;
     double          m_duration;
+    bool            m_nc_flow_close;
 };
 
 class TrexAstfDpCore : public TrexDpCore {
@@ -48,7 +49,7 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(profile_id_t profile_id, double duration);
+    void start_transmit(profile_id_t profile_id, double duration, bool nc);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id);
     void update_rate(profile_id_t profile_id, double ratio);
     void create_tcp_batch(profile_id_t profile_id, double factor);
@@ -71,7 +72,7 @@ protected:
     void set_profile_stop_id(profile_id_t profile_id, uint32_t stop_id);
 
     void get_scheduler_options(profile_id_t profile_id, bool& disable_client, double& d_time_flow, double& d_phase);
-    void start_profile_ctx(profile_id_t profile_id, double duration);
+    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc);
     void stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id);
 
     std::vector<struct profile_param> m_sched_param;
@@ -120,6 +121,9 @@ protected:
     void set_profile_stopping(profile_id_t profile_id);
     int active_profile_cnt() { return m_active_profile_cnt; }
     int profile_cnt() { return m_profile_states.size(); }
+
+    void set_profile_nc(profile_id_t profile_id, bool nc);
+    bool get_profile_nc(profile_id_t profile_id);
 
     uint32_t profile_stop_id() {
         if (++m_profile_stop_id == 0) {
