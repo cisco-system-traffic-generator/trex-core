@@ -71,6 +71,15 @@ void TrexAstfDpCore::set_profile_active(profile_id_t profile_id) {
     m_flow_gen->m_s_tcp->activate_profile_ctx(profile_id);
 }
 
+void TrexAstfDpCore::set_profile_nc(profile_id_t profile_id, bool nc) {
+    m_flow_gen->m_c_tcp->set_profile_nc(profile_id, nc);
+    m_flow_gen->m_s_tcp->set_profile_nc(profile_id, nc);
+}
+
+bool TrexAstfDpCore::get_profile_nc(profile_id_t profile_id) {
+    return m_flow_gen->m_c_tcp->get_profile_nc(profile_id);
+}
+
 void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
     set_profile_state(profile_id, pSTATE_WAIT);
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
@@ -163,6 +172,7 @@ void TrexAstfDpCore::start_scheduler() {
 
     profile_id_t profile_id = 0;
     double duration = -1;
+    bool nc = false;
 
     if (m_state == STATE_STARTING) { /* set by start_transmit function */
         m_state = STATE_TRANSMITTING;
@@ -171,6 +181,7 @@ void TrexAstfDpCore::start_scheduler() {
         auto it = m_sched_param.begin();
         profile_id = it->m_profile_id;
         duration = it->m_duration;
+        nc = it->m_nc_flow_close;
 
         m_sched_param.erase(it);
     }
@@ -196,9 +207,9 @@ void TrexAstfDpCore::start_scheduler() {
             duration = m_flow_gen->m_yaml_info.m_duration_sec;
         }
 
-        start_profile_ctx(profile_id, duration);
+        start_profile_ctx(profile_id, duration, nc);
         for (auto param: m_sched_param) {
-            start_profile_ctx(param.m_profile_id, param.m_duration);
+            start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close);
         }
 
         node = m_flow_gen->create_node() ;
@@ -245,7 +256,7 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration) {
+void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration, bool nc) {
 
     dsec_t d_time_flow;
     bool disable_client = false;
@@ -263,6 +274,7 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration)
     }
 
     set_profile_active(profile_id);
+    set_profile_nc(profile_id, nc);
 
     if ( duration > 0 ) {
         add_profile_duration(profile_id, d_phase + duration);
@@ -294,6 +306,11 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
         report_finished(profile_id);
     }
     else {
+        if (stop_id == 0 || get_profile_nc(profile_id)) {
+            m_flow_gen->flush_tx_queue();
+
+            set_profile_nc(profile_id, true);   /* triggering no clean flow close */
+        }
         set_profile_stop_event(profile_id);
     }
 }
@@ -412,7 +429,7 @@ void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove) {
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
+void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc) {
     if (!is_profile(profile_id)) {
         report_error(profile_id, "Start of unknown profile");
         return;
@@ -430,10 +447,10 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration) {
         report_dp_state();
         m_sched_param.clear();
     case STATE_STARTING:
-        m_sched_param.push_back({profile_id, duration});
+        m_sched_param.push_back({profile_id, duration, nc});
         break;
     case STATE_TRANSMITTING:
-        start_profile_ctx(profile_id, duration);
+        start_profile_ctx(profile_id, duration, nc);
         break;
     case STATE_STOPPING:
     default:

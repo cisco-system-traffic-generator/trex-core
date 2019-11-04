@@ -852,7 +852,7 @@ void TrexAstfPerProfile::transmit() {
 
     profile_change_state(STATE_TX);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration, m_nc_flow_close);
 
     m_astf_obj->send_message_to_all_dp(msg, true);
 }

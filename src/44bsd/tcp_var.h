@@ -717,11 +717,14 @@ private:
         return (tcp_pktmbuf_alloc(m_mbuf_socket,size));
     }
 
+    void keepalive_timer_start(bool init);
+
 public:
     CHTimerObj        m_keep_alive_timer; /* 32 bytes */ 
-    uint32_t          m_keepaive_ticks;
+    uint32_t          m_keepalive_ticks;
     uint8_t           m_mbuf_socket;    /* mbuf socket */
     uint8_t           m_keepalive;      /* 1- no-alive 0- alive */
+    uint32_t          m_remain_ticks;
     bool              m_closed;
 
 };
@@ -883,6 +886,7 @@ public:
 
 private:
     bool                m_stopped;
+    bool                m_nc_flow_close;
 
 public:
     ~CPerProfileCtx() {
@@ -894,6 +898,9 @@ public:
     void activate() { m_stopped = false; }
     void deactivate() { m_stopped = true; }
     bool is_active() { return m_stopped == false; }
+
+    void set_nc(bool nc) { m_nc_flow_close = nc; }
+    bool get_nc() { return m_nc_flow_close; }
 
     void on_flow_close() {
         if (m_flow_cnt == 0 && !is_active()) {
@@ -924,6 +931,8 @@ public:
     void handle_udp_timer(CUdpFlow * flow){
         if (flow->is_can_closed()) {
           m_ft.handle_close(this,flow,true);
+        } else if (!flow->m_pctx->is_active() && flow->m_pctx->get_nc()) {
+          m_ft.terminate_flow(this,flow,true);
         }
     }
 
@@ -931,10 +940,13 @@ public:
         if (flow->is_can_close()) {
             /* free the flow in case it was finished */
             m_ft.handle_close(this,flow,true);
-            return(RC_HTW_OK);
+        } else if (!flow->m_pctx->is_active() && flow->m_pctx->get_nc()) {
+            /* terminate the flow in case --nc specified */
+            m_ft.terminate_flow(this,flow,true);
         }else{
             return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
         }
+        return(RC_HTW_OK);
     }
 
 
@@ -1041,6 +1053,7 @@ private:
 
 public:
     bool is_profile_ctx(profile_id_t profile_id) { return m_profiles.find(profile_id) != m_profiles.end(); }
+    bool is_any_profile(void) { return (m_active_profiles.size() != 0); }
 #define FALLBACK_PROFILE_CTX(ctx)   ((ctx)->get_first_profile_ctx())
 #define DEFAULT_PROFILE_CTX(ctx)    ((ctx)->get_profile_ctx(0))
     CPerProfileCtx* get_profile_ctx(profile_id_t profile_id) {
@@ -1103,6 +1116,9 @@ public:
 
     void activate_profile_ctx(profile_id_t profile_id) { get_profile_ctx(profile_id)->activate(); }
     void deactivate_profile_ctx(profile_id_t profile_id) { get_profile_ctx(profile_id)->deactivate(); }
+
+    void set_profile_nc(profile_id_t profile_id, bool nc) { get_profile_ctx(profile_id)->set_nc(nc); }
+    bool get_profile_nc(profile_id_t profile_id) { return get_profile_ctx(profile_id)->get_nc(); }
 
     void set_profile_cb(profile_id_t profile_id, void *cb_data, on_stopped_cb_t cb) {
         CPerProfileCtx *pctx = get_profile_ctx(profile_id);
