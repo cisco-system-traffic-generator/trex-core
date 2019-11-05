@@ -484,11 +484,11 @@ void CSTTCp::Delete(bool last_time){
     
 }
 
-void CSTTCp::clear_counters(void) {
+void CSTTCp::clear_counters(bool epoch_increment) {
     for (auto &sts : m_sts) {
         sts.clear_counters();
     }
-    m_epoch++;
+    if (epoch_increment) m_epoch++;
 }
 
 void CSTTCp::Resize(uint16_t new_num_of_tg_ids) {

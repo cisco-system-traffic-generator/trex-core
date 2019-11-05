@@ -99,7 +99,7 @@ public:
     void Update();
     void DumpTable();
     bool dump_json(std::string &json);
-    void clear_counters();
+    void clear_counters(bool epoch_increment=true);
     void Resize(uint16_t new_num_of_tg_ids);
     void DumpTGNames(Json::Value &result);
     void UpdateTGNames(const std::vector<std::string>& tg_names);
