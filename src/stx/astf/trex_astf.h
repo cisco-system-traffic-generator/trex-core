@@ -129,6 +129,11 @@ public:
     void    set_duration(double duration) { m_duration = duration; }
     void    set_factor(double mult) { m_factor = mult; }
 
+    /*
+     * clear statistics counter
+     */
+    void    clear_counters(bool epoch_increment=true) { m_stt_cp->clear_counters(epoch_increment); }
+
 private:
     state_e         m_profile_state;
     std::string     m_profile_buffer;

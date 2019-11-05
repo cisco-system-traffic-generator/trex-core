@@ -383,12 +383,6 @@ void TrexAstf::stop_dp_scheduler() {
 void TrexAstf::profile_clear(cp_profile_id_t profile_id){
     TrexAstfPerProfile* pid = get_profile(profile_id);
     pid->profile_check_whitelist_states({STATE_IDLE, STATE_LOADED});
-
-    if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
-        pid->profile_init();
-        return;
-    }
-
     pid->profile_change_state(STATE_DELETE);
 
     TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(pid->get_dp_profile_id());
@@ -603,8 +597,16 @@ void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
 }
 
 bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
-    if (is_valid_profile(profile_id)) {
-        auto profile = m_profile_list[profile_id];
+    if (!is_valid_profile(profile_id)) {
+        return false;
+    }
+
+    auto profile = m_profile_list[profile_id];
+    profile->clear_counters(false);
+    if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
+        profile->profile_change_state(STATE_IDLE);
+        profile->profile_init();
+    } else {
         m_profile_id_map.erase(profile->get_dp_profile_id());
 
         auto state = profile->get_profile_state();
@@ -613,10 +615,10 @@ bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
 
         delete m_profile_list.find(profile_id)->second;
         m_profile_list.erase(profile_id);
-        return true;
+
     }
 
-    return false;
+    return true;
 }
 
 bool TrexAstfProfile::is_valid_profile(cp_profile_id_t profile_id) {
