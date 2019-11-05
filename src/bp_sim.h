@@ -445,6 +445,7 @@ struct CFlowYamlInfo {
         m_ipg_sec=0.01;
         m_rtt_sec=0.01;
         m_multi_flow_was_set = false;
+        m_keep_src_port = false;
         m_plugin_id = 0;
     }
 
@@ -468,6 +469,7 @@ struct CFlowYamlInfo {
     bool            m_cap_mode_was_set;
     bool            m_limit_was_set;
     bool            m_multi_flow_was_set;
+    bool            m_keep_src_port;
     std::vector<pkt_dir_t>  m_flows_dirs;
     CFlowYamlDynamicPyloadPlugin * m_dpPkt; /* plugin */
 
@@ -1392,7 +1394,8 @@ inline bool CFlowKey::operator ==(const CFlowKey& rhs) const{
 
 #define KEEP_DST_IP 0
 #define KEEP_SRC_IP 1
-#define SWAP_FLOW_DIR 2
+#define KEEP_SRC_PORT 2
+#define SWAP_FLOW_DIR 3
 
 /***********************************************************/
 
@@ -1590,16 +1593,24 @@ public:
         return btGetMaskBit32(m_flags2, KEEP_DST_IP, KEEP_DST_IP);
     }
 
-    inline void setKeepDstIP(bool is_valid) {
-        btSetMaskBit32(m_flags2, KEEP_DST_IP, KEEP_DST_IP, is_valid ? 1 : 0);
+    inline void setKeepDstIP(bool is_keep) {
+        btSetMaskBit32(m_flags2, KEEP_DST_IP, KEEP_DST_IP, is_keep ? 1 : 0);
     }
 
     inline bool isKeepSrcIP() {
         return btGetMaskBit32(m_flags2, KEEP_SRC_IP, KEEP_SRC_IP);
     }
 
-    inline void setKeepSrcIP(bool is_valid) {
-        btSetMaskBit32(m_flags2, KEEP_SRC_IP, KEEP_SRC_IP, is_valid ? 1 : 0);
+    inline void setKeepSrcIP(bool is_keep) {
+        btSetMaskBit32(m_flags2, KEEP_SRC_IP, KEEP_SRC_IP, is_keep ? 1 : 0);
+    }
+
+    inline bool isKeepSrcPort() {
+        return btGetMaskBit32(m_flags2, KEEP_SRC_PORT, KEEP_SRC_PORT);
+    }
+
+    inline void setKeepSrcPort(bool is_keep) {
+        btSetMaskBit32(m_flags2, KEEP_SRC_PORT, KEEP_SRC_PORT, is_keep ? 1 : 0);
     }
 
     inline bool isSwapDir() {
@@ -2392,6 +2403,7 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
         }
     }
 
+    bool keep_src_port = m_pkt_indication.m_desc.isKeepSrcPort();
 
     /* replace port base on TCP/UDP */
     if ( m_pkt_indication.m_desc.IsTcp() ) {
@@ -2399,10 +2411,14 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
         BP_ASSERT(tcp);
         /* replace port */
         if ( port_dir ==  CLIENT_SIDE ) {
-            tcp->setSourcePort(src_port);
+            if ( likely(!keep_src_port) ) {
+                tcp->setSourcePort(src_port);
+            }
             tcp->setAckNumber(tcp->getAckNumber() + tcp_seq_diff_server);
         }else{
-            tcp->setDestPort(src_port);
+            if ( likely(!keep_src_port) ) {
+                tcp->setDestPort(src_port);
+            }
             tcp->setAckNumber(tcp->getAckNumber() + tcp_seq_diff_client);
         }
         update_tcp_cs(tcp,ipv4);
@@ -2411,10 +2427,12 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
             UDPHeader * udp =(UDPHeader *)(p +m_pkt_indication.getFastTcpOffset() );
             BP_ASSERT(udp);
 
-            if ( port_dir ==  CLIENT_SIDE ) {
-                udp->setSourcePort(src_port);
-            }else{
-                udp->setDestPort(src_port);
+            if ( likely(!keep_src_port) ) {
+                if ( port_dir ==  CLIENT_SIDE ) {
+                    udp->setSourcePort(src_port);
+                }else{
+                    udp->setDestPort(src_port);
+                }
             }
             update_udp_cs(udp,ipv4);
         }else{
