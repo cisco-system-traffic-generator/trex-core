@@ -76,6 +76,7 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"]\n");
     fprintf(fd,"one_server_was_set  : %d \n",m_one_app_server_was_set?1:0);
     fprintf(fd,"multi_flow_enabled  : %d \n",m_multi_flow_was_set);
+    fprintf(fd,"keep_src_port       : %d \n",m_keep_src_port);
 
     if (m_dpPkt) {
         m_dpPkt->Dump(fd);
@@ -1596,6 +1597,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     bool is_plugin_enabled = (flow_info.m_plugin_id != 0);
     bool is_multi_flow_enabled = flow_info.m_multi_flow_was_set;
     bool is_custom_dirs = (flow_info.m_flows_dirs.size() > 0);
+    bool keep_src_port = flow_info.m_keep_src_port;
 
 
     CFlowTableMap flow;
@@ -1722,6 +1724,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
                 return kPktNotSupp;
             }
             pkt_indication.m_desc.SetInitSide(is_init_side);
+            pkt_indication.m_desc.setKeepSrcPort(keep_src_port);
             Append(&pkt_indication);
         }else{
             fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
@@ -2023,13 +2026,19 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
        fi.m_plugin_id=0;
    }
 
-    if ( node.FindValue("multi_flow_enabled") ){
+    if ( node.FindValue("multi_flow_enabled") ) {
         node["multi_flow_enabled"] >> fi.m_multi_flow_was_set;
     }else{
         fi.m_multi_flow_was_set = 0;
     }
 
-    if ( node.FindValue("flows_dirs") ){
+    if ( node.FindValue("keep_src_port") ) {
+        node["keep_src_port"] >> fi.m_keep_src_port;
+    }else{
+        fi.m_keep_src_port = 0;
+    }
+
+    if ( node.FindValue("flows_dirs") ) {
         const YAML::Node& flows_dirs = node["flows_dirs"];
         if ( flows_dirs.Type() != YAML::NodeType::Sequence ) {
             fprintf(stderr, " flow_dirs must be array\n");
@@ -2053,6 +2062,10 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
     if ( fi.m_plugin_id ) {
         if ( fi.m_multi_flow_was_set ) {
             fprintf(stderr, " plugin_id and multi_flow_enabled are mutual exclusive\n");
+            exit(-1);
+        }
+        if ( fi.m_keep_src_port ) {
+            fprintf(stderr, " plugin_id and keep_src_port are mutual exclusive\n");
             exit(-1);
         }
         if ( fi.m_flows_dirs.size() ) {
@@ -3056,6 +3069,7 @@ void CFlowGenListPerThread::init_from_global(){
         yaml_info->m_w   = lp->m_info->m_w;
         yaml_info->m_cap_mode =lp->m_info->m_cap_mode;
         yaml_info->m_plugin_id = lp->m_info->m_plugin_id;
+        yaml_info->m_keep_src_port = lp->m_info->m_keep_src_port;
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
         yaml_info->m_dpPkt          =lp->m_info->m_dpPkt;

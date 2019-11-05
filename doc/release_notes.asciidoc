@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.66 ==
+
+* STF:
+** Add optional flag to keep source TCP/UDP port (per template). link:trex_manual.html#_per_template_section[More info]
+
+
 == Release 2.65  ==
 
 * Fix minor Azure related issues
@@ -192,147 +198,6 @@ Need to configure TRex port (portattr --vxlan ...)
 *** Network replaces VXLAN (strips current and adds new): +
 Need to configure both stream and TRex port
 
-
-
-== Release 2.49 ==
-
-* STL  
-** Add support for more than one DP core in software mode see link:trex_appendix_software_mode.html[software mode]
-** Add support for Field Engine dependent variables link:trex_stateless.html#_tutorial_field_engine_dependent_variables[dependent_variables]
-* ASTF interactive - add support for topology link:trex_astf.html#_interactive_mode[interactive_mode]
-* ZMQ: enable hearbeat. This is good for situations that the client and server are remote (e.g. The server at the lab and client GUI at DC)  and a firewall betwean them drop the connection after a long time without keepalive. Another side feature is the ability to set the time-out of the connection for remote connection.
-
-== Release 2.48 ==
-
-* ASTF interactive vlan dynamic change fix (vlan per port was configured only from trex_cfg.yaml)
-* STL mode with old GUI fix.
-
-== Release 2.47 ==
-
-* ASTF: supports interactive framework like STL. common features are:
-** L2 emulation (arp/ipv6/l3/ping/vlan/scan6 etc)
-** Port management  (e.g. link attribute)
-** Network namespace
-** Capture/service mode 
-** Plugin services 
-** Console/TUI/API
-** Not supported yet: cluster mode 
-* The ASTF batch mode is planned to be deprecated 
-
-.Start ASTF in interactive mode
-[source,bash]
--------------------
-sudo ./t-rex-64 -i --astf
--------------------
-
-.Console
-[source,bash]
--------------------
-./trex-console -s [server-ip]
------------------
-
-
-.From Console
-[source,bash]
--------------------
-trex>start -f astf/http_simple.py -m 1000 -d 1000 -l 1000
-trex>tui
-trex>[press] t/l for astf statistics and latency 
-trex>stop
-------------------
- 
-* An updated manual with the new features  link:trex_astf.html[astf]
-* ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
-* ASTF RPC spec for developers is here link:trex_rpc_server_spec.html#_rpc_commands_astf[rpc]
-* STL: add stream pinning to core see link:trex_stateless.html#_tutorial_core_pinning[core_pinning]
-* ASTF/STL Linux network namespace emulation stacks see link:trex_manual.html#_emulation_stacks[emulation]
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-540[trex-540]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-538[trex-538]
-
-== Release 2.46 ==
-
-* ASTF: add per_core_distribution field see  link:cp_astf_docs/_modules/trex/astf/trex_astf_profile.html#ASTFIPGenDist[per_core_distribution]
-* Extend astf-sim to replay pcap file for STF mode link:https://github.com/cisco-system-traffic-generator/trex-core/issues/156[github-256] 
-* Amazon DPDK ENA driver fix
-* Stateless GUI can build  trex_cfg.yaml file 
-* Support Python ZMQ 32bit binding for x86-32bit platforms 
-* fix scapy igmp3 for python-3
-* eWLC plugin for AP scale tests
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-536[trex-536]
-* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/150[github-150]
-* link:https://github.com/cisco-system-traffic-generator/trex-core/issues/123[github-123]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-192[trex-192]
-
-
-== Release 2.45 ==
-
-* Upgrade to DPDK 18.08
-* Latency dummy stream does not consume pgid
-* Server/Python client use the same C-ZMQ share object.
-* Simplified Python ZMQ binding 
-* Speedup service mode using server side ZMQ IPC 
-
-== Release 2.44 ==
-
-* Upgrade to DPDK 18.05
-* Stateless: allow "start" when port is unresolved and all streams have explicit dest MAC.
-* mlx5 can compile with Ubuntu distro  
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-533[trex-533]
-
-
-== Release 2.43 ==
-
-* Client Python library consolidation STL/ASTF
-** New code should use:
-+
-----
-from trex.stl.api import *
-----
-
-** For backward compatability old code still works:
-+
-----
-from trex_stl_lib.api import *
-----
-
-** Interactive ASTF connects to the console, sending traffic/collecting stats via new lib is WIP.
-* Mellanox with OFED 4.3.1 offers newer FW with significantly better RX speed (due to faster dropping). +
-Bidirectional 64B packets RX is \~132MPPS from 2 ports (compared to ~38MPPS with older OFED/FW)
-
-
-* TODO: describe FE instruction "list"
-
-=== Fixed issues: ===
-
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-531[trex-531]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-532[trex-532]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-510[trex-510]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-528[trex-528]
-* link:https://trex-tgn.cisco.com/youtrack/issue/trex-529[trex-529]
-
-
-== Release 2.41 ==
-
-* ASTF
-** Add support for non-blocking `send`, for better eflow performance (30Gb/sec per one flow) see http_eflow2.py profile
-** Fix TCP fast recovery. dupack counter wasn't cleard
-* minor bug fixes 
-
-== Release 2.41 ==
-
-* ASTF
-** Add support for non-blocking `send`, for better eflow performance (30Gb/sec per one flow) see http_eflow2.py profile
-** Fix TCP fast recovery. dupack counter wasn't cleard
-* minor bug fixes 
 
 
 == Older release notes ==
