@@ -436,18 +436,7 @@ public:
 
 
 struct CFlowYamlInfo {
-    CFlowYamlInfo(){
-        m_dpPkt=0;
-        m_server_addr=0;
-        m_client_pool_idx = 0;
-        m_server_pool_idx = 0;
-        m_cap_mode=false;
-        m_ipg_sec=0.01;
-        m_rtt_sec=0.01;
-        m_multi_flow_was_set = false;
-        m_keep_src_port = false;
-        m_plugin_id = 0;
-    }
+    CFlowYamlInfo();
 
     std::string     m_name;
     std::string     m_client_pool_name;

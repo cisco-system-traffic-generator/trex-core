@@ -55,6 +55,18 @@ uint32_t getDualPortId(uint32_t thread_id){
 
 
 
+CFlowYamlInfo::CFlowYamlInfo() {
+    m_dpPkt=0;
+    m_server_addr=0;
+    m_client_pool_idx = 0;
+    m_server_pool_idx = 0;
+    m_cap_mode=false;
+    m_ipg_sec=0.01;
+    m_rtt_sec=0.01;
+    m_multi_flow_was_set = false;
+    m_keep_src_port = false;
+    m_plugin_id = 0;
+}
 
 void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"name        : %s \n",m_name.c_str());
@@ -2577,6 +2589,11 @@ bool CFlowGeneratorRecPerThread::Create(CTupleGeneratorSmart  * global_gen,
 
 void CFlowGeneratorRecPerThread::Delete(){
     tuple_gen.Delete();
+    if ( m_info->m_dpPkt ) {
+        delete m_info->m_dpPkt;
+        m_info->m_dpPkt = 0;
+    }
+    delete m_info;
 }
 
 
@@ -3059,7 +3076,7 @@ void CFlowGenListPerThread::init_from_global(){
     for (i=0; i<(int)m_flow_list->m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_flow_list->m_cap_gen[i];
         CFlowGeneratorRecPerThread * lp_thread=new CFlowGeneratorRecPerThread();
-        /* TBD leak of memory */
+
         CFlowYamlInfo *         yaml_info =new CFlowYamlInfo();
 
         yaml_info->m_name    = lp->m_info->m_name;
