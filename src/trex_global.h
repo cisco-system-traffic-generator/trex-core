@@ -714,6 +714,19 @@ public:
         return (  (m_run_flags &RUN_FLAGS_RXCHECK_CONST_TS)?true:false );
     }
 
+
+    inline bool is_timesync_enabled() {
+        return m_timesync_method != CParserOption::TIMESYNC_NONE;
+    }
+
+    inline bool is_timesync_tx_enabled() {
+        return is_timesync_enabled() && (m_timesync_interval > 0);
+    }
+
+    inline bool is_timesync_rx_enabled() {
+        return is_timesync_enabled() && (m_timesync_interval == 0);
+    }
+
     inline uint8_t get_l_pkt_mode(){
         return (m_l_pkt_mode);
     }

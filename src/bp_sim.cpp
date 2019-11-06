@@ -3807,22 +3807,18 @@ void CNodeGenerator::handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thre
 }
 
 void CNodeGenerator::handle_timesync_msg(CGenNodeTimesync *node, CFlowGenListPerThread *thread, bool &exit_scheduler) {
-    /* first pop the node */
     m_p_queue.pop();
-
-    /* exit in case this is the last node*/
-    if (m_p_queue.size() == m_parent->m_non_active_nodes) {
+    if ((unlikely(node->is_mask_for_free())) ||                 // exit in case of stopped traffic (Tx side)
+        (m_p_queue.size() == m_parent->m_non_active_nodes)) {   // exit in case this is the last node
         thread->free_node((CGenNode *)node);
         exit_scheduler = true;
     } else {
-        dsec_t cur_time = now_sec();
-        if (node->timesync_last + (double) CGlobalInfo::m_options.m_timesync_interval < cur_time) {
-            // do the timesyncing
+        if (node->timesync_last + (double)CGlobalInfo::m_options.m_timesync_interval < now_sec()) {
+            // synchronize time
             node->handle(thread);
         }
-
-        /* schedule for next time synchronization check */
-        node->m_time += SYNC_TIME_OUT;
+        // schedule for next time synchronization check
+        node->m_time += TIMESYNC_TIME_OUT;
         m_p_queue.push((CGenNode *)node);
     }
 }

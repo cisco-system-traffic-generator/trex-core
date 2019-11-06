@@ -465,8 +465,7 @@ CRxCore::enable_latency() {
         mngr_pair.second->enable_latency();
         // This is a sending part for time synchronisation.  Enable it only if `timesync-method`
         // is set and `timesync-interval` equals 0.
-        if ((CGlobalInfo::m_options.m_timesync_method != CParserOption::TIMESYNC_NONE) &&
-            (CGlobalInfo::m_options.m_timesync_interval == 0)) {
+        if (CGlobalInfo::m_options.is_timesync_rx_enabled()) {
             mngr_pair.second->enable_timesync(CGlobalInfo::m_options.m_timesync_method);
         }
     }
@@ -487,7 +486,7 @@ CRxCore::enable_astf_latency_fia(bool enable) {
 void
 CRxCore::disable_latency() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
-        if (CGlobalInfo::m_options.m_timesync_method != CParserOption::TIMESYNC_NONE) {
+        if (CGlobalInfo::m_options.is_timesync_rx_enabled()) {
             mngr_pair.second->disable_timesync();
         }
         mngr_pair.second->disable_latency();

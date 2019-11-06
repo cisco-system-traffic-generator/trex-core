@@ -807,16 +807,28 @@ bool PerPortProfile::stop_traffic(uint8_t  port_id,
         }
     }
 
+
+    // TODO: refactor me (Mateusz, 2019-11-07)
     for (auto& dp_stream : m_active_nodes) {
         CGenNodeStateless * node =dp_stream.m_node;
         assert(node->get_port_id() == port_id);
-        if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
-            node->mark_for_free();
-            m_active_streams--;
-            dp_stream.DeleteOnlyStream();
-
-        }else{
-            dp_stream.Delete(m_port->m_core);
+        if (node->m_type != CGenNode::TIMESYNC) {
+            if ( node->get_state() == CGenNodeStateless::ss_ACTIVE) {
+                node->mark_for_free();
+                m_active_streams--;
+                dp_stream.DeleteOnlyStream();
+            }else{
+                dp_stream.Delete(m_port->m_core);
+            }
+        } else {
+            CGenNodeTimesync *timesync_node = (CGenNodeTimesync *)node;
+            if (timesync_node->get_state() == CGenNodeStateless::ss_ACTIVE) {
+                timesync_node->mark_for_free();
+                m_active_streams--;
+                dp_stream.DeleteOnlyStream();
+            } else {
+                dp_stream.Delete(m_port->m_core);
+            }
         }
     }
 
@@ -1024,17 +1036,6 @@ TrexStatelessDpCore::start_scheduler() {
         m_core->m_node_gen.add_node(node_rx);
     }
 
-    if ((CGlobalInfo::m_options.m_timesync_method != CParserOption::TIMESYNC_NONE) &&
-        (CGlobalInfo::m_options.m_timesync_interval > 0)) {
-        // This is a Tx part for time synchronisation.  Enable it only if
-        // `timesync-method` is set and and `timesync-interval` is greater than 0.
-        CGenNodeTimesync *node_timesync = (CGenNodeTimesync *)m_core->create_node();
-        node_timesync->m_type = CGenNode::TIMESYNC;
-        node_timesync->m_time = m_core->m_cur_time_sec + SYNC_TIME_OUT;
-        node_timesync->timesync_last = -1.0 * (double)CGlobalInfo::m_options.m_timesync_interval;
-        m_core->m_node_gen.add_node((CGenNode *)node_timesync);
-    }
-
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
     /* bail out in case of terminate */
@@ -1221,6 +1222,7 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
 }
 
 
+// TODO: refactor me (Mateusz, 2019-11-07)
 void
 TrexStatelessDpCore::add_stream(PerPortProfile * profile,
                                 uint32_t profile_id,
@@ -1418,6 +1420,45 @@ TrexStatelessDpCore::add_stream(PerPortProfile * profile,
     if (node->m_state == CGenNodeStateless::ss_ACTIVE) {
         m_core->m_node_gen.add_node((CGenNode *)node);
     }
+
+    // create and add CGenNodeTimesync (moved from start_scheduler)
+    if (node->is_latency_stream() && CGlobalInfo::m_options.is_timesync_tx_enabled()) {
+        CGenNodeTimesync *timesync_node = (CGenNodeTimesync *)m_core->create_node();
+
+        timesync_node->m_thread_id = m_thread_id;
+        timesync_node->m_type = CGenNode::TIMESYNC;
+        timesync_node->m_flags = 0;
+        timesync_node->m_src_port = 0;
+        timesync_node->timesync_last = -1.0 * (double)CGlobalInfo::m_options.m_timesync_interval;
+        timesync_node->m_stream_type = stream->m_type;
+        timesync_node->m_ref_stream_info = stream->clone();
+        timesync_node->m_port_id = stream->m_port_id;
+        timesync_node->m_profile_id = profile_id;
+
+        if (stream->m_self_start) {
+            timesync_node->m_state = CGenNodeStateless::ss_ACTIVE;
+            profile->m_active_streams++;
+        } else {
+            timesync_node->m_state = CGenNodeStateless::ss_INACTIVE;
+        }
+
+        if (unlikely(start_at_ts)) {
+            timesync_node->m_time = start_at_ts + stream->get_start_delay_sec();
+        } else {
+            timesync_node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
+        }
+
+        CDpOneStream timesync_one_stream;
+
+        timesync_one_stream.m_dp_stream = timesync_node->m_ref_stream_info;
+        timesync_one_stream.m_node = (CGenNodeStateless*)timesync_node;
+
+        profile->m_active_nodes.push_back(timesync_one_stream);
+
+        if (timesync_node->m_state == CGenNodeStateless::ss_ACTIVE) {
+            m_core->m_node_gen.add_node((CGenNode *)timesync_node);
+        }
+    }
 }
 
 void
@@ -1445,13 +1486,17 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
     /* no nodes in the list */
     assert(profile->m_active_nodes.size()==0);
 
+    uint32_t number_of_latency_streams = 0;
     for (auto single_stream : obj->get_objects()) {
         /* all commands should be for the same port */
         assert(obj->get_port_id() == single_stream.m_stream->m_port_id);
         add_stream(profile,profile_id,single_stream.m_stream,obj,start_at_ts);
+        if ((CGlobalInfo::m_options.is_timesync_tx_enabled()) && (single_stream.m_stream->is_latency_stream())) {
+            number_of_latency_streams++;
+        }
     }
 
-    uint32_t nodes = profile->m_active_nodes.size();
+    uint32_t nodes = profile->m_active_nodes.size() - number_of_latency_streams;
     /* find next stream */
     assert(nodes == obj->get_objects().size());
 

@@ -491,6 +491,8 @@ class CCapFileFlowInfo ;
 
 //#define SYNC_TIME_OUT ( 2000.0/1000)
 
+#define TIMESYNC_TIME_OUT (85.0 / 1000)
+
 /* this is a simple struct, do not add constructor and destractor here!
    we are optimizing the allocation dealocation !!!
  */
@@ -527,7 +529,7 @@ public:
         RX_MSG                  =16,  /* message to Rx core */
         STL_RX_FLUSH            =17,
 
-        TIMESYNC                =18,
+        TIMESYNC                =31,
     };
 
     /* flags MASKS*/

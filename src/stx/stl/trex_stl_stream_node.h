@@ -705,10 +705,46 @@ static_assert(sizeof(CGenNodePCAP) == sizeof(CGenNode), "sizeof(CGenNodePCAP) !=
 
 /* this is a event for time synchronization. */
 struct CGenNodeTimesync : public CGenNodeBase {
+    friend class TrexStatelessDpCore;
+
+  public:
+    enum {
+        PTP_INVALID = 0,
+        PTP_WAIT,
+        PTP_SYNC,
+        PTP_FOLLOW_UP_MASTER,
+        PTP_DELAYED_REQ,
+        PTP_FOLLOW_UP_SLAVE,
+        PTP_DELAYED_RESP,
+        PTP_MARKED_FOR_FREE
+    };
+
+    /* cache line 0 */
+    /* important stuff here */
+    dsec_t timesync_last;
+
+  private:
+    CGenNodeStateless::stream_state_t m_state;
+    uint8_t m_stream_type; // see TrexStream::STREAM_TYPE, stream_type_t
+    uint8_t m_ptp_state;
+    uint32_t m_ptp_slave_ip;
+    double m_ptp_t1;
+    double m_ptp_t2;
+    double m_ptp_t3;
+    double m_ptp_t4;
+
+    /* cache line 1 */
+    /* this cache line should be READONLY ! you can write only at init time */
+    TrexStream *m_ref_stream_info;
+    uint8_t m_port_id;
+    uint32_t m_profile_id;
+
+    uint64_t m_pad[14];
+
   public:
     inline void init() {
         set_send_immediately(true);
-        m_state = PTP_WAIT;
+        m_ptp_state = PTP_WAIT;
     }
 
     inline void handle(CFlowGenListPerThread *thread) {
@@ -721,7 +757,7 @@ struct CGenNodeTimesync : public CGenNodeBase {
 #endif
         return;
 
-        switch (m_state) {
+        switch (m_ptp_state) {
         case PTP_WAIT:
             return;
             break;
@@ -736,39 +772,16 @@ struct CGenNodeTimesync : public CGenNodeBase {
         }
     }
 
-    dsec_t timesync_last;
+    inline CGenNodeStateless::stream_state_t get_state() { return m_state; }
 
-  private:
-    enum {
-        PTP_INVALID = 0,
-        PTP_WAIT,
-        PTP_SYNC,
-        PTP_FOLLOW_UP_MASTER,
-        PTP_DELAYED_REQ,
-        PTP_FOLLOW_UP_SLAVE,
-        PTP_DELAYED_RESP,
-        PTP_MARKED_FOR_FREE
-    };
+    inline bool is_mask_for_free() { return (m_state == CGenNodeStateless::ss_FREE_RESUSE ? true : false); }
 
-    /* cache line 0 */
-    /* important stuff here */
-    uint32_t m_slave_ip_addr;
-    uint8_t m_state;
+    inline void mark_for_free() { m_state = CGenNodeStateless::ss_FREE_RESUSE; }
 
-    double t1;
-    double t2;
-    double t3;
-    double t4;
-
-    /* pad to match the size of CGenNode */
-    uint8_t m_pad_end[57];
-
-    /* CACHE_LINE */
-    uint64_t m_pad3[8];
+    inline uint8_t get_stream_type() { return (m_stream_type); }
 
 } __rte_cache_aligned;
 
 static_assert(sizeof(CGenNodeTimesync) == sizeof(CGenNode), "sizeof(CGenNodeTimesync) != sizeof(CGenNode)");
 
 #endif /* __TREX_STL_STREAM_NODE_H__ */
-
