@@ -347,7 +347,6 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     pid->set_nc_flow_close(args.nc);
 
     m_opts->m_astf_client_mask = args.client_mask;
-    m_opts->preview.setNoCleanFlowClose(args.nc);
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
     if ( pid->profile_needs_parsing() || topo_needs_parsing() ) {
@@ -366,8 +365,6 @@ void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
     }
 
     pid->set_profile_stopping(true);
-    // TODO: apply nc_flow_close per each profile after changing DP code
-    m_opts->preview.setNoCleanFlowClose(true);
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id());
     send_message_to_all_dp(msg, true);
