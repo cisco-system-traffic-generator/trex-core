@@ -374,6 +374,7 @@ public:
     std::string* get_topo_buffer() { return &m_topo_buffer; }
     void         set_topo_parsed(bool topo) { m_topo_parsed = topo; }
 
+    void stop_dp_scheduler();
     bool is_dp_core_state(int state, bool any = false);
 
 protected:
@@ -399,6 +400,7 @@ protected:
     uint64_t        m_epoch;
 
 public:
+    bool                m_stopping_dp;
     std::vector<int>    m_dp_states;
     std::vector<TrexCpToDpMsgBase*> m_suspended_msgs;
 };

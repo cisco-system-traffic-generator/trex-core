@@ -190,8 +190,6 @@ void TrexAstfDpCore::start_scheduler() {
     bool disable_client = false;
     double d_phase;
 
-    CParserOption *go = &CGlobalInfo::m_options;
-
     get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
 
     double old_offset = 0.0;
@@ -229,9 +227,6 @@ void TrexAstfDpCore::start_scheduler() {
 
         m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, false, m_flow_gen, old_offset);
 
-        if ( !m_flow_gen->is_terminated_by_master() && !go->preview.getNoCleanFlowClose() ) { // close gracefully
-            m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, true, m_flow_gen, old_offset);
-        }
         m_flow_gen->flush_tx_queue();
         m_flow_gen->m_node_gen.close_file(m_flow_gen);
         m_flow_gen->m_c_tcp->cleanup_flows();
@@ -482,6 +477,26 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
         break;
     }
 }
+
+void TrexAstfDpCore::scheduler(bool activate) {
+    switch (m_state) {
+    case STATE_IDLE:
+        // TODO: activating node scheduler by CP
+        break;
+    case STATE_TRANSMITTING:
+        if (activate == false) {
+            m_state = STATE_STOPPING;
+            clear_profile_stop_event_all();
+
+            add_global_duration(0.0001); // trigger exit from node scheduler
+        }
+        break;
+    default:
+        break;
+    }
+    report_dp_state();
+}
+
 
 void TrexAstfDpCore::update_rate(profile_id_t profile_id, double old_new_ratio) {
     double fif_d_time = m_flow_gen->m_c_tcp->get_fif_d_time(profile_id);

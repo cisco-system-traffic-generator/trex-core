@@ -80,6 +80,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_epoch = 0;
 
     m_dp_states.resize(api.get_dp_core_count());
+    m_stopping_dp = false;
 
     /* create RX core */
     CRxCore *rx = (CRxCore*) new CRxAstfCore();
@@ -233,7 +234,8 @@ bool TrexAstf::is_dp_core_state(int state, bool any) {
 void TrexAstf::dp_core_state(int thread_id, int state) {
     m_dp_states[thread_id] = state;
 
-    if (m_suspended_msgs.size() && !is_dp_core_state(TrexAstfDpCore::STATE_STOPPING, true)) {
+    if (m_stopping_dp && is_dp_core_state(TrexAstfDpCore::STATE_IDLE)) {
+        m_stopping_dp = false;
         for (auto msg: m_suspended_msgs) {
             send_message_to_all_dp(msg);    // TrexAstfDpCreateTcp
         }
@@ -370,6 +372,14 @@ void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
     send_message_to_all_dp(msg, true);
 }
 
+void TrexAstf::stop_dp_scheduler() {
+    if (!m_stopping_dp && is_dp_core_state(TrexAstfDpCore::STATE_TRANSMITTING)) {
+        TrexCpToDpMsgBase *msg = new TrexAstfDpScheduler(false);
+        send_message_to_all_dp(msg);
+        m_stopping_dp = true;
+    }
+}
+
 void TrexAstf::profile_clear(cp_profile_id_t profile_id){
     TrexAstfPerProfile* pid = get_profile(profile_id);
     pid->profile_check_whitelist_states({STATE_IDLE, STATE_LOADED});
@@ -489,7 +499,7 @@ void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool 
 
 void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool suspend) {
     /* some messages should not be delivered during DP is stopping */
-    if (suspend && (m_suspended_msgs.size() || is_dp_core_state(TrexAstfDpCore::STATE_STOPPING, true))) {
+    if (suspend && (m_suspended_msgs.size() || m_stopping_dp)) {
         m_suspended_msgs.push_back(msg);
         return;
     }
@@ -515,6 +525,13 @@ void TrexAstf::publish_astf_state() {
     update_astf_state();
     if (old_state == m_state) {
         return;
+    }
+
+    if (old_state == STATE_TX) {
+        /* trigger DP core exit from its scheduler */
+        if (m_state != STATE_BUILD && m_state != STATE_PARSE) {
+            stop_dp_scheduler();
+        }
     }
 
     Json::Value data;
