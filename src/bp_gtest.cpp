@@ -622,6 +622,9 @@ test_latency_pkt_rcv(rte_mbuf_t *m, uint8_t l_pkt_mode, uint8_t port_num, uint16
     // if packet is bad, check_packet raise the error counter
     EXPECT_EQ_UINT32(port.m_unsup_prot, exp_pkt_ok?0:1)<<  "Failed unsupported packets count";
 
+    delete c_l_pkt_mode;
+    info.Delete();
+    rte_pktmbuf_free(m);
     return true;
 }
 
@@ -1252,8 +1255,10 @@ TEST_F(timerwl, many_timers) {
     CTimerWheel  my_tw;
 
     int i;
+    std::vector<CTestFlow*> flows_list;
     for (i=0; i<100; i++) {
         CTestFlow * f= new CTestFlow();
+        flows_list.push_back(f);
         f->m_timer_handle.m_callback=many_timers_flow_callback;
         f->flow_id=(uint32_t)i;
         my_tw.restart_timer(&f->m_timer_handle,100.0-(double)i);
@@ -1280,6 +1285,9 @@ TEST_F(timerwl, many_timers) {
     EXPECT_EQ(my_tw.m_st_free ,100);
     EXPECT_EQ(my_tw.m_st_start ,100);
 
+    for ( auto &flow : flows_list ) {
+        delete flow;
+    }
 }
 
 void  many_timers_stop_flow_callback(CFlowTimerHandle * t){
@@ -1293,8 +1301,10 @@ TEST_F(timerwl, many_timers_with_stop) {
     CTimerWheel  my_tw;
 
     int i;
+    std::vector<CTestFlow*> flows_list;
     for (i=0; i<100; i++) {
         CTestFlow * f= new CTestFlow();
+        flows_list.push_back(f);
         f->m_timer_handle.m_callback=many_timers_stop_flow_callback;
         f->flow_id=(uint32_t)i;
         my_tw.restart_timer(&f->m_timer_handle, 500.0 - (double)i);
@@ -1320,6 +1330,10 @@ TEST_F(timerwl, many_timers_with_stop) {
     EXPECT_EQ(my_tw.m_st_handle ,0);
     EXPECT_EQ(my_tw.m_st_alloc-my_tw.m_st_free ,0);
     EXPECT_EQ(my_tw.m_st_start ,300);
+
+    for ( auto &flow : flows_list ) {
+        delete flow;
+    }
 }
 
 //////////////////////////////////////////////
@@ -1363,6 +1377,7 @@ TEST_F(rx_check, rx_check_normal) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,1);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 
@@ -1551,6 +1566,7 @@ TEST_F(rx_check, rx_check_normal_two_dir) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,1);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 
@@ -1581,6 +1597,7 @@ TEST_F(rx_check, rx_check_normal_two_dir_fails) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,0);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_two_dir_ok) {
@@ -1617,6 +1634,7 @@ TEST_F(rx_check, rx_check_normal_two_dir_ok) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,1);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_one_pkt_one_dir) {
@@ -1645,6 +1663,7 @@ TEST_F(rx_check, rx_check_normal_one_pkt_one_dir) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,0);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_one_pkt_one_dir_0) {
@@ -1672,6 +1691,7 @@ TEST_F(rx_check, rx_check_normal_one_pkt_one_dir_0) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,1);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_0) {
@@ -1706,6 +1726,7 @@ TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_0) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,1);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_err1) {
@@ -1750,6 +1771,7 @@ TEST_F(rx_check, rx_check_normal_one_pkt_two_dir_err1) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,0);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 
@@ -1797,6 +1819,7 @@ TEST_F(rx_check, rx_check_normal_two_dir_oo) {
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,0);
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_aging) {
@@ -1833,6 +1856,7 @@ TEST_F(rx_check, rx_check_normal_aging) {
     EXPECT_EQ(m_rx_check.m_stats.m_err_oo_late,1);
 
     m_rx_check.Dump(stdout);
+    m_rx_check.tw_drain();
 }
 
 TEST_F(rx_check, rx_check_normal_no_aging) {
@@ -1861,6 +1885,7 @@ TEST_F(rx_check, rx_check_normal_no_aging) {
     EXPECT_EQ(m_rx_check.m_stats.get_total_err(),0);
     EXPECT_EQ(m_rx_check.m_stats.m_add,1);
     EXPECT_EQ(m_rx_check.m_stats.m_remove,0);
+    m_rx_check.tw_drain();
 }
 
 ///////////////////////////////////////////////////////////////
@@ -1892,11 +1917,10 @@ public:
 
     virtual int close_file(void){
         if (m_raw) {
-            m_raw->raw=0;
             delete m_raw;
             m_raw = nullptr;
         }
-        
+
         return (0);
     }
 
