@@ -86,6 +86,19 @@ private:
 };
 
 /**
+ * a message to stop DP scheduler
+ *
+ */
+class TrexAstfDpScheduler : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpScheduler(bool activate);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    bool m_activate;    // DP scheduler activate(true) or deactivate(false)
+};
+
+/**
  * a message to update traffic rate
  *
  */

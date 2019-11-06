@@ -57,6 +57,8 @@ public:
     void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer);
     void remove_astf_json(profile_id_t profile_id);
 
+    void scheduler(bool activate);
+
 protected:
     virtual bool rx_for_idle();
     void report_finished(profile_id_t profile_id = 0);

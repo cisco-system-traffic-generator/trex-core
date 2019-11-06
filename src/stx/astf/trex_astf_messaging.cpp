@@ -76,6 +76,22 @@ TrexCpToDpMsgBase* TrexAstfDpStop::clone() {
 }
 
 /*************************
+  control DP scheduler
+ ************************/
+TrexAstfDpScheduler::TrexAstfDpScheduler(bool activate) {
+    m_activate = activate;
+}
+
+bool TrexAstfDpScheduler::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->scheduler(m_activate);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpScheduler::clone() {
+    return new TrexAstfDpScheduler(m_activate);
+}
+
+/*************************
   update traffic message
  ************************/
 TrexAstfDpUpdate::TrexAstfDpUpdate(profile_id_t profile_id, double old_new_ratio) {
