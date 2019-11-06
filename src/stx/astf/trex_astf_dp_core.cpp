@@ -288,12 +288,11 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
     }
 
     set_profile_stopping(profile_id);
+    if (stop_id == 0) {                     /* override nc when CP requested */
+        set_profile_nc(profile_id, true);   /* triggering no clean flow close */
+    }
 
-    if ((active_profile_cnt() == 0) || m_flow_gen->is_terminated_by_master()) {
-        m_state = STATE_STOPPING;
-        report_dp_state();
-        clear_profile_stop_event_all();
-
+    if (m_flow_gen->is_terminated_by_master()) {
         add_global_duration(0.0001); // trigger exit from node scheduler
         return;
     }
@@ -306,11 +305,6 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
         report_finished(profile_id);
     }
     else {
-        if (stop_id == 0 || get_profile_nc(profile_id)) {
-            m_flow_gen->flush_tx_queue();
-
-            set_profile_nc(profile_id, true);   /* triggering no clean flow close */
-        }
         set_profile_stop_event(profile_id);
     }
 }
@@ -479,6 +473,9 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
         break;
     case STATE_STOPPING:
         set_profile_stopping(profile_id);
+        if (stop_id == 0) {
+            set_profile_nc(profile_id, true);
+        }
         break;
     default:
         report_error(profile_id, "Stop in unexpected DP core state: " + std::to_string(m_state));
