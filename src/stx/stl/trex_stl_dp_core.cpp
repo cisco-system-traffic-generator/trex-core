@@ -1024,6 +1024,17 @@ TrexStatelessDpCore::start_scheduler() {
         m_core->m_node_gen.add_node(node_rx);
     }
 
+    if ((CGlobalInfo::m_options.m_timesync_method != CParserOption::TIMESYNC_NONE) &&
+        (CGlobalInfo::m_options.m_timesync_interval > 0)) {
+        // This is a Tx part for time synchronisation.  Enable it only if
+        // `timesync-method` is set and and `timesync-interval` is greater than 0.
+        CGenNodeTimesync *node_timesync = (CGenNodeTimesync *)m_core->create_node();
+        node_timesync->m_type = CGenNode::TIMESYNC;
+        node_timesync->m_time = m_core->m_cur_time_sec + SYNC_TIME_OUT;
+        node_timesync->timesync_last = -1.0 * (double)CGlobalInfo::m_options.m_timesync_interval;
+        m_core->m_node_gen.add_node((CGenNode *)node_timesync);
+    }
+
     double old_offset = 0.0;
     m_core->m_node_gen.flush_file(-1, 0.0, false, m_core, old_offset);
     /* bail out in case of terminate */

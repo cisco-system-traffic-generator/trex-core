@@ -319,7 +319,8 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_stack_linux_based.cpp',
                                      'trex_stack_legacy.cpp',
                                      'trex_rx_rpc_tunnel.cpp',
-                                     'trex_rpc_cmds_common.cpp'
+                                     'trex_rpc_cmds_common.cpp',
+                                     'trex_timesync.cpp',
                                      ])
 
 
@@ -717,7 +718,3 @@ def install_single_system (bld, exec_p, build_obj):
         if not os.path.lexists(dest_file):
             print('{0} --> {1}'.format(build_obj.get_target(), relative_path))
             os.symlink(relative_path, dest_file);
-
-
-
-

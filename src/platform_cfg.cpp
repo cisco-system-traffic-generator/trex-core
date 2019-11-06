@@ -507,8 +507,8 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
                        plat_info.m_timesync_method.begin(), ::toupper);
     }
 
-    if ( node.FindValue("timesync_period") ){
-        node["timesync_period"] >> plat_info.m_timesync_period;
+    if ( node.FindValue("timesync_interval") ){
+        node["timesync_interval"] >> plat_info.m_timesync_interval;
     }
 
     if ( node.FindValue("port_info")  ) {
@@ -642,8 +642,8 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd," timesync_method:  %s \n",m_timesync_method.c_str());
     }
 
-    if (m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
-        fprintf(fd," timesync_period:  %d \n",(int)m_timesync_period);
+    if (m_timesync_interval != TIMESYNC_INTERVAL_DEFAULT) {
+        fprintf(fd," timesync_interval:  %d \n",(int)m_timesync_interval);
     }
 
     if ( m_mac_info_exist ){

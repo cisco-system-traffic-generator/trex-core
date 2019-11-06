@@ -33,7 +33,7 @@ limitations under the License.
 
 #define CONST_NB_MBUF_2_10G  (16380/2)
 
-#define TIMESYNC_PERIOD_DEFAULT 60
+#define TIMESYNC_INTERVAL_DEFAULT 0
 
 typedef enum {         MBUF_64        , // per dual port, per NUMA
 
@@ -220,7 +220,7 @@ public:
 
         m_latency_measurement = "";
         m_timesync_method = "";
-        m_timesync_period = TIMESYNC_PERIOD_DEFAULT;
+        m_timesync_interval = TIMESYNC_INTERVAL_DEFAULT;
     }
 
     bool            m_info_exist; /* file exist ?*/
@@ -267,7 +267,7 @@ public:
 
     std::string                 m_latency_measurement;
     std::string                 m_timesync_method;
-    uint32_t                    m_timesync_period;
+    uint32_t                    m_timesync_interval;
 
 public:
     std::string get_use_if_comma_seperated();

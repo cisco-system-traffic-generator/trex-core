@@ -311,7 +311,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_LATENCY_MEASUREMENT_METHOD, "--latency-measurement", SO_REQ_SEP},
         { OPT_TIME_SYNC_METHOD,       "--timesync-method", SO_REQ_SEP},
-        { OPT_TIME_SYNC_PERIOD,       "--timesync-period", SO_REQ_SEP},
+        { OPT_TIME_SYNC_PERIOD,       "--timesync-interval", SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -410,8 +410,8 @@ static int COLD_FUNC  usage() {
     printf("                              argument from config file. Supported method are 1 for nanoseconds (clock_gettime), 0 (default) for standard system ticks (RDTSC)\n");
     printf(" --timesync-method <method> : Enable time synchronisation with given method. Overrides the 'timesync_method' argument from config file\n");
     printf("                              Supported method is 1 for PTP. Default is 0 for no synchronisation\n");
-    printf(" --timesync-period <num>    : Define how often (in seconds) will time synchronisation take place. Overrides the 'timesync_period' argument from config file\n");
-    printf("                              Default is 60 seconds\n");
+    printf(" --timesync-interval <num>  : Define how often (in seconds) will time synchronisation take place. Overrides the 'timesync_interval' argument from config file\n");
+    printf("                              Default is 0 seconds which means TRex will be running as a client/slave in time synchronisation protocol.\n");
     
 
     printf("\n");
@@ -937,7 +937,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 CGlobalInfo::m_options.m_timesync_method = (uint8_t)tmp_data;
                 break;
             case OPT_TIME_SYNC_PERIOD:
-                sscanf(args.OptionArg(), "%d", &CGlobalInfo::m_options.m_timesync_period);
+                sscanf(args.OptionArg(), "%d", &CGlobalInfo::m_options.m_timesync_interval);
                 break;
 
             default:
@@ -1611,6 +1611,8 @@ public:
     }
 
 protected:
+    inline uint16_t& queue_pkt(CCorePerPort * lp_port,
+                        rte_mbuf_t *m);
 
     int send_burst(CCorePerPort * lp_port,
                    uint16_t len,
@@ -1618,9 +1620,12 @@ protected:
     int send_pkt(CCorePerPort * lp_port,
                  rte_mbuf_t *m,
                  CVirtualIFPerSideStats  * lp_stats);
+    int send_one_pkt(CCorePerPort * lp_port,
+                     rte_mbuf_t *m,
+                     CVirtualIFPerSideStats  * lp_stats);
     int send_pkt_lat(CCorePerPort * lp_port,
-                 rte_mbuf_t *m,
-                 CVirtualIFPerSideStats  * lp_stats);
+                     rte_mbuf_t *m,
+                     CVirtualIFPerSideStats  * lp_stats);
 
 protected:
     uint8_t      m_core_id;
@@ -1788,6 +1793,16 @@ COLD_FUNC void CCoreEthIF::DumpIfStats(FILE *fd){
     }
 }
 
+inline uint16_t& HOT_FUNC CCoreEthIF::queue_pkt(CCorePerPort * lp_port,
+                                         rte_mbuf_t *m)
+{
+    uint16_t& len = lp_port->m_len;
+    lp_port->m_table[len] = m;
+    len += 1;
+
+    return len;
+}
+
 /**
  * when measureing performance with perf prefer drop in case of 
  * queue full 
@@ -1795,9 +1810,10 @@ COLD_FUNC void CCoreEthIF::DumpIfStats(FILE *fd){
  * without the noise of retrying 
  */
 
-HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
-                           uint16_t len,
-                           CVirtualIFPerSideStats  * lp_stats){
+HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort *lp_port,
+                                     uint16_t len,
+                                     CVirtualIFPerSideStats *lp_stats)
+{
 
     uint16_t ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,lp_port->m_table,len);
     if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
@@ -1824,22 +1840,31 @@ HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
     return (0);
 }
 
+int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort *lp_port,
+                                  rte_mbuf_t *m,
+                                  CVirtualIFPerSideStats *lp_stats)
+{
 
-int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
-                         rte_mbuf_t      *m,
-                         CVirtualIFPerSideStats  * lp_stats
-                         ){
-
-    uint16_t len = lp_port->m_len;
-    lp_port->m_table[len]=m;
-    len++;
+    uint16_t& len = queue_pkt(lp_port, m);
 
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
         send_burst(lp_port, MAX_PKT_BURST,lp_stats);
         len = 0;
     }
-    lp_port->m_len = len;
+
+    return (0);
+}
+
+int HOT_FUNC CCoreEthIF::send_one_pkt(CCorePerPort * lp_port,
+                                      rte_mbuf_t *m,
+                                      CVirtualIFPerSideStats  * lp_stats)
+{
+    uint16_t& len = queue_pkt(lp_port, m);
+
+    /* flush */
+    send_burst(lp_port, len, lp_stats);
+    len = 0;
 
     return (0);
 }
@@ -1866,14 +1891,13 @@ HOT_FUNC int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVir
     return ret;
 }
 
-HOT_FUNC void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
-                              rte_mbuf_t      *m){
+HOT_FUNC void CCoreEthIF::send_one_pkt(pkt_dir_t dir,
+                                       rte_mbuf_t *m)
+{
     CCorePerPort *  lp_port=&m_ports[dir];
     CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
-    send_pkt(lp_port,m,lp_stats);
-    /* flush */
-    send_burst(lp_port,lp_port->m_len,lp_stats);
-    lp_port->m_len = 0;
+
+    send_one_pkt(lp_port, m, lp_stats);
 }
 
 HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
@@ -1985,7 +2009,11 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
         }
         return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
     } else {
-        return send_pkt(lp_port, m, lp_stats);
+        if(unlikely(node_sl->should_send_immediately())) {
+            return send_one_pkt(lp_port, m, lp_stats);
+        } else {
+            return send_pkt(lp_port, m, lp_stats);
+        }
     }
 }
 
@@ -5978,8 +6006,8 @@ COLD_FUNC int update_global_info_from_platform_file(){
         }
     }
 
-    if (cg->m_timesync_period != TIMESYNC_PERIOD_DEFAULT) {
-        g_opts->m_timesync_period = cg->m_timesync_period;
+    if (cg->m_timesync_interval != TIMESYNC_INTERVAL_DEFAULT) {
+        g_opts->m_timesync_interval = cg->m_timesync_interval;
     }
 
     return (0);
@@ -6424,7 +6452,11 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     check_pdev_vdev_dummy();
 
     if (CGlobalInfo::m_options.m_timesync_method == CParserOption::TIMESYNC_PTP) {
-        printf("Enabled PTP time synchronisation every %d seconds.\n", CGlobalInfo::m_options.m_timesync_period);
+        if (CGlobalInfo::m_options.m_timesync_interval == 0) {
+            printf("Enabled PTP time synchronisation (as slave).\n");
+        } else {
+            printf("Enabled PTP time synchronisation every %d seconds (as master).\n", CGlobalInfo::m_options.m_timesync_interval);
+        }
     } else {
         printf("Time synchronisation disabled.\n");
     }

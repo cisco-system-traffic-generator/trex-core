@@ -526,6 +526,8 @@ public:
 
         RX_MSG                  =16,  /* message to Rx core */
         STL_RX_FLUSH            =17,
+
+        TIMESYNC                =18,
     };
 
     /* flags MASKS*/
@@ -541,7 +543,8 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100, /* init packet start from server side with server addr */
-        NODE_FLAGS_SLOW_PATH = 0x200 /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_SLOW_PATH = 0x200, /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_SEND_IMMEDIATELY = 0x400 /* used by the nodes to flag as need to send immediately */
     };
 
 
@@ -590,6 +593,18 @@ public:
 
     inline bool get_is_slow_path() const {
         return ( (m_flags & NODE_FLAGS_SLOW_PATH) ? true : false);
+    }
+    
+    inline void set_send_immediately(bool enable) {
+        if (enable) {
+            m_flags |= NODE_FLAGS_SEND_IMMEDIATELY;
+        } else {
+            m_flags &= ~NODE_FLAGS_SEND_IMMEDIATELY;
+        }
+    }
+
+    inline bool should_send_immediately() const {
+        return ( (m_flags & NODE_FLAGS_SEND_IMMEDIATELY) ? true : false);
     }
 
     void free_base();
@@ -1285,6 +1300,7 @@ private:
     void handle_pcap_pkt(CGenNode *node, CFlowGenListPerThread *thread);
     void handle_maintenance(CFlowGenListPerThread *thread);
     void handle_batch_tw_level1(CGenNode *node, CFlowGenListPerThread *thread,bool &exit_scheduler,bool on_terminate);
+    void handle_timesync_msg(CGenNodeTimesync *node, CFlowGenListPerThread *thread, bool &exit_scheduler);
 
 
 public:

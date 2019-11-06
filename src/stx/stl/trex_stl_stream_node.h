@@ -703,5 +703,72 @@ private:
 
 static_assert(sizeof(CGenNodePCAP) == sizeof(CGenNode), "sizeof(CGenNodePCAP) != sizeof(CGenNode)" );
 
+/* this is a event for time synchronization. */
+struct CGenNodeTimesync : public CGenNodeBase {
+  public:
+    inline void init() {
+        set_send_immediately(true);
+        m_state = PTP_WAIT;
+    }
+
+    inline void handle(CFlowGenListPerThread *thread) {
+
+        // placeholder
+        timesync_last = now_sec();
+        printf("Syncing time with PTP method (master side).\n");
+#ifdef _DEBUG
+        printf("PTP time synchronisation is currently not supported (but we are working on that).\n");
+#endif
+        return;
+
+        switch (m_state) {
+        case PTP_WAIT:
+            return;
+            break;
+
+        case PTP_SYNC:
+            thread->m_node_gen.m_v_if->send_node((CGenNode *)this);
+            break;
+
+        case PTP_INVALID:
+        default:
+            assert(0);
+        }
+    }
+
+    dsec_t timesync_last;
+
+  private:
+    enum {
+        PTP_INVALID = 0,
+        PTP_WAIT,
+        PTP_SYNC,
+        PTP_FOLLOW_UP_MASTER,
+        PTP_DELAYED_REQ,
+        PTP_FOLLOW_UP_SLAVE,
+        PTP_DELAYED_RESP,
+        PTP_MARKED_FOR_FREE
+    };
+
+    /* cache line 0 */
+    /* important stuff here */
+    uint32_t m_slave_ip_addr;
+    uint8_t m_state;
+
+    double t1;
+    double t2;
+    double t3;
+    double t4;
+
+    /* pad to match the size of CGenNode */
+    uint8_t m_pad_end[57];
+
+    /* CACHE_LINE */
+    uint64_t m_pad3[8];
+
+} __rte_cache_aligned;
+
+static_assert(sizeof(CGenNodeTimesync) == sizeof(CGenNode), "sizeof(CGenNodeTimesync) != sizeof(CGenNode)");
+
 #endif /* __TREX_STL_STREAM_NODE_H__ */
 
