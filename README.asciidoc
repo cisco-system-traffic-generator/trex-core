@@ -153,6 +153,7 @@ link:http://www.youtube.com/watch?v=U0gRalB7DOs[Video DPDK summit 2015]
 
 link:https://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation]
 
+link:https://packetpushers.net/podcast/heavy-networking-482-test-your-limits-with-the-trex-oss-traffic-generator/[Heavy Networking 482: Test Your Limits With The TRex OSS Traffic Generator]
 
 === Documentation
 
