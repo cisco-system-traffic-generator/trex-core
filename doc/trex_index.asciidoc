@@ -15,6 +15,8 @@ include::trex_ga.asciidoc[]
 | Description  |    Name 
 | image:images/clb.png[width=150,title=""]  | 
 Learning Session, 45min  link:https://www.youtube.com/watch?v=n0iovQO4d_w[DevNet youTube] 
+| Packetpushers - Heavy Networking 482: Test Your Limits With The TRex OSS Traffic Generator    | 
+link:https://packetpushers.net/podcast/heavy-networking-482-test-your-limits-with-the-trex-oss-traffic-generator/[Podcast]
 | Stateful     | 
 link:trex_preso.html[Stateful] 
 | Stateful DPDK    | 
