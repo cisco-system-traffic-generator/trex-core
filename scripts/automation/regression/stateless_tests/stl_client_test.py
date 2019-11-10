@@ -1054,8 +1054,13 @@ class STLClient_Test(CStlGeneral_Test):
     def test_random_dynamic_add_remove (self):
 
         if self.drv_name in ['net_e1000_em']:
-            # this test is sensetive and does not work good on E1000
+            # this test is sensitive and does not work good on E1000
             return;
+        if CTRexScenario.setup_name in ('trex21', 'trex22'):
+            # sensitive to this test, there are a few drops that are valid due to the virtual nature of the interfaces that make noise 
+            # better not to test it
+            return;
+
 
         if not self.is_loopback:
            self.skip('skipping profile tests for non loopback')
