@@ -405,6 +405,8 @@ class ASTFClient(TRexClient):
                 self.check_states(ok_states=[self.STATE_ASTF_LOADED, self.STATE_IDLE])
                 self.stop_latency()
                 self.clear_stats(ports, pid_input = ALL_PROFILE_ID)
+                self.traffic_stats.reset()
+                self.latency_stats.reset()
                 self.clear_profile(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_IDLE])
                 self.set_port_attr(ports,
@@ -862,6 +864,7 @@ class ASTFClient(TRexClient):
         for profile_id in valid_pids:
             if clear_traffic:
                self.clear_traffic_stats(profile_id)
+        self.clear_traffic_stats(is_sum = True)
 
         return self._clear_stats_common(ports, clear_global, clear_xstats)
 
@@ -937,7 +940,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('getter', True)
-    def clear_traffic_stats(self, pid_input = DEFAULT_PROFILE_ID):
+    def clear_traffic_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         """
             Clears traffic statistics.
 
@@ -946,7 +949,7 @@ class ASTFClient(TRexClient):
                     Input profile ID
 
         """
-        return self.traffic_stats.clear_stats(pid_input)
+        return self.traffic_stats.clear_stats(pid_input, is_sum)
 
 
     @client_api('getter', True)
@@ -1379,6 +1382,21 @@ class ASTFClient(TRexClient):
             raise TRexError('Unhandled command %s' % opts.command)
 
         return True
+
+
+    @console_api('clear', 'common', False)
+    def clear_stats_line (self, line):
+        '''Clear cached local statistics\n'''
+        # define a parser
+        parser = parsing_opts.gen_parser(self,
+                                         "clear",
+                                         self.clear_stats_line.__doc__,
+                                         parsing_opts.PORT_LIST_WITH_ALL)
+
+        opts = parser.parse_args(line.split())
+        self.clear_stats(opts.ports, pid_input = ALL_PROFILE_ID)
+
+        return RC_OK()
 
 
     @console_api('stats', 'common', True)
