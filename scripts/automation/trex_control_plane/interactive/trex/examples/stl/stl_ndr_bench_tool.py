@@ -35,7 +35,8 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
                        fe_src_start_ip=None,
                        fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None, drop_rate_interval=10,
                        output=None, ports_list=[],
-                       latency_rate=1000, max_iterations=10, yaml_file=None):
+                       latency_rate=1000, max_iterations=10, yaml_file=None,
+                       bi_dir=False, force_map_table=False):
     configs = {'server': server, 'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
                'pdr_error': pdr_error, 'title': title,
@@ -44,7 +45,8 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
                'ports': ports_list, 'latency_rate': latency_rate, 'max_iterations': max_iterations,
                'drop rate interval': drop_rate_interval, 'fe_src_start_ip': fe_src_start_ip,
                'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
-               'fe_dst_stop_ip': fe_dst_stop_ip}
+               'fe_dst_stop_ip': fe_dst_stop_ip,
+               'bi_dir': bi_dir, 'force_map_table': force_map_table}
     passed = True
     if yaml_file:
         try:
@@ -72,15 +74,18 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
         if len(ports_list) % 2 != 0:
             print("illegal ports list")
             return
-        for i in range(0,len(ports_list), 2):
-            if (ports_list[i],ports_list[i+1]) not in table['bi']:
-                print("some given ports pairs are not configured properly ")
-                return
+        if not force_map_table:
+            for i in range(0,len(ports_list), 2):
+                if (ports_list[i],ports_list[i+1]) not in table['bi']:
+                    print("some given ports pairs are not configured properly ")
+                    return
     if ports_list:
         dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
+        dir_1 = [ports_list[i] for i in range(1, len(ports_list), 2)]
         ports = ports_list
     else:
         dir_0 = [table['bi'][i][0] for i in range(0, len(table['bi']))]
+        dir_1 = [table['bi'][i][0] for i in range(1, len(table['bi']))]
         ports = []
         for port in table['bi']:
             ports.append(port[0])
@@ -92,7 +97,8 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
         burst_size = 1000
         pps = latency_rate
         pkt = STLPktBuilder(pkt=Ether() / IP(src="16.0.0.1", dst="48.0.0.1") / UDP(dport=12,
-                                                                                   sport=1025) / 'at_least_16_bytes_payload_needed')
+                                                                                   sport=1025,
+                                                                                   chksum=0) / 'at_least_16_bytes_payload_needed')
         total_pkts = burst_size
         for i in dir_0:
             all_streams = list(streams)
@@ -110,6 +116,12 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
     else:
         c.add_streams(streams, ports=dir_0)
 
+    # add bi-directional stream
+    streams = build_streams_for_bench(size=pkt_size, vm=vm, src_start_ip=fe_src_start_ip,
+                                          src_stop_ip=fe_src_stop_ip, dest_start_ip=fe_dst_start_ip,
+                                          dest_stop_ip=fe_dst_stop_ip, direction=1)
+    c.add_streams(streams, ports=dir_1)
+
     config = ndr.NdrBenchConfig(**configs)
     # print "config before running: "
     # pprint(config.core_mask)
@@ -117,9 +129,9 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
-        b.find_ndr()
+        b.find_ndr(bi_dir)
         if config.verbose:
-            b.results.print_final(latency)
+            b.results.print_final(latency, bi_dir)
             # pprint(run_results)
     except STLError as e:
         passed = False
@@ -260,6 +272,16 @@ if __name__ == '__main__':
                         type=int, nargs='*', default=None)
     parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\TO\YAML.yaml',
                         type=str, default=None)
+    parser.add_argument('--force-map',
+                        dest='force_map_table',
+                        help='Ignore map table configuration and use the specified port list.',
+                        default=False,
+                        action='store_true')
+    parser.add_argument('--bi-dir',
+                        dest='bi_dir',
+                        help='Specify bi-directional traffic.',
+                        default=False,
+                        action='store_true')
     args = parser.parse_args()
     # run the tests
     ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duration, args.ndr_results, args.title,
@@ -267,4 +289,6 @@ if __name__ == '__main__':
                        args.pdr_error, args.q_ful_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
                        args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip, args.drop_rate_interval,
                        args.output,
-                       args.ports_list, args.latency_rate, args.max_iterations, args.yaml)
+                       args.ports_list, args.latency_rate, args.max_iterations, args.yaml,
+                       args.bi_dir, args.force_map_table)
+

@@ -21,7 +21,7 @@ class STLBench(object):
 
     def create_stream(self, size, vm, src, dst, pps=1, isg=0):
         # Create base packet and pad it to size
-        base_pkt = Ether() / IP(src=src, dst=dst) / UDP()
+        base_pkt = Ether() / IP(src=src, dst=dst) / UDP(chksum=0)
         pad = max(0, int(size) - len(base_pkt) - 4) * 'x'
 
         pkt = STLPktBuilder(pkt=base_pkt / pad,
@@ -113,8 +113,11 @@ class NdrBenchConfig:
                  iteration_duration=20.00,
                  q_ful_resolution=2.00,
                  first_run_duration=20.00, pdr=0.1, pdr_error=1.0, ndr_results=1, max_iterations=10, latency=True,
-                 core_mask=0xffffffffffffffff, drop_rate_interval=10, verbose=False, **kwargs):
-        self.iteration_duration = iteration_duration
+                 core_mask=0xffffffffffffffff, drop_rate_interval=10, verbose=False,
+                 bi_dir=False,  **kwargs):
+        self.bi_dir = bi_dir
+        # The sleep call divides the duration by 2
+        self.iteration_duration = (iteration_duration * 2)
         self.q_ful_resolution = q_ful_resolution
         self.first_run_duration = first_run_duration
         self.pdr = pdr  # desired percent of drop-rate. pdr = 0 is NO drop-rate
@@ -137,6 +140,10 @@ class NdrBenchConfig:
             # for x in self.transmit_core_masks:
             #     print "%x" % x
         self.receive_ports = [self.ports[i] for i in range(1, len(self.ports), 2)]
+        if self.bi_dir:
+            self.transmit_ports = list(ports)
+            self.transmit_core_masks = list(core_mask)
+            self.receive_ports = list(ports)
         self.drop_rate_interval = drop_rate_interval
         self.pkt_size = pkt_size
         self.vm = vm
@@ -152,7 +159,7 @@ class NdrBenchConfig:
                        'latencyCalculation': self.latencyCalculation, 'ports': self.ports,
                        'drop_rate_interval': self.drop_rate_interval, 'pkt_size': self.pkt_size, 'vm': self.vm,
                        'cores': self.cores, 'verbose': self.verbose, 'title': self.title,
-                       'latency_rate': self.latency_rate}
+                       'latency_rate': self.latency_rate, 'bi_dir' : self.bi_dir}
         return config_dict
 
 
@@ -168,7 +175,7 @@ class NdrBenchResults:
     def convert_rate(self, rate_bps, packet=False):
         converted = float(rate_bps)
         magnitude = 0
-        while converted > 100.00:
+        while converted > 1000.00:
             magnitude += 1
             converted /= 1000.00
         converted = round(converted, 2)
@@ -179,6 +186,7 @@ class NdrBenchResults:
         if magnitude == 0:
             return str(converted) + postfix
         elif magnitude == 1:
+            converted = round(converted)
             return str(converted) + " K" + postfix
         elif magnitude == 2:
             return str(converted) + " M" + postfix
@@ -198,25 +206,28 @@ class NdrBenchResults:
         except TypeError:
             pass
 
-    def print_run_stats(self, latency):
+    def print_run_stats(self, latency, bi_dir):
+        if bi_dir:
+            traffic_dir = "bi-directional "
+        else:
+            traffic_dir = "uni-directional"
         print("Elapsed Time                      :%0.2f seconds" % self.stats['Elapsed Time'])
-        print("Queue Full                        :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
         print("BW Per Core                       :%0.2f Gbit/Sec @100%% per core" % float(self.stats['bw_per_core']))
-        print("RX PPS                            :%s       " % self.convert_rate(float(self.stats['rx_pps']), True))
-        print("TX PPS                            :%s       " % self.convert_rate(float(self.stats['tx_pps']), True))
+        print("TX PPS %s            :%s" % (traffic_dir, self.convert_rate(float(self.stats['tx_pps']), True)))
+        print("RX PPS %s            :%s" % (traffic_dir, self.convert_rate(float(self.stats['rx_pps']), True)))
         print("TX Utilization                    :%0.2f %%" % self.stats['tx_util'])
         print("TRex CPU                          :%0.2f %%" % self.stats['cpu_util'])
-        print("Total TX L1                       :%s     " % self.convert_rate(float(self.stats['total_tx_L1'])))
-        print("Total RX L1                       :%s     " % self.convert_rate(float(self.stats['total_rx_L1'])))
-        print("Total TX L2                       :%s     " % self.convert_rate(float(self.stats['tx_bps'])))
-        print("Total RX L2                       :%s     " % self.convert_rate(float(self.stats['rx_bps'])))
+        print("Total TX L1 %s       :%s     " % (traffic_dir, self.convert_rate(float(self.stats['total_tx_L1']))))
+        print("Total RX L1 %s       :%s     " % (traffic_dir, self.convert_rate(float(self.stats['total_rx_L1']))))
+        print("Total TX L2 %s       :%s     " % (traffic_dir, self.convert_rate(float(self.stats['tx_bps']))))
+        print("Total RX L2 %s       :%s     " % (traffic_dir, self.convert_rate(float(self.stats['rx_bps']))))
         if 'rate_diffrential' in self.stats:
             print("Distance from current Optimum     :%0.2f %%" % self.stats['rate_diffrential'])
 
         if latency:
             self.print_latency()
 
-    def print_iteration_data(self, latency):
+    def print_iteration_data(self, latency, bi_dir):
         if 'title' in self.stats:
             print("\nTitle                             :%s" % self.stats['title'])
         if 'iteration' in self.stats:
@@ -224,19 +235,26 @@ class NdrBenchResults:
         print("Running Rate                      :%s" % self.convert_rate(float(self.stats['rate_tx_bps'])))
         print("Running Rate (%% of max)           :%0.2f %%" % self.stats['rate_p'])
         print("Max Rate                          :%s       " % self.convert_rate(float(self.stats['max_rate_bps'])))
-        print("Drop Rate                         :%0.2f %% of oPackets" % self.stats['drop_rate_percentage'])
-        self.print_run_stats(latency)
+        print("Drop Rate                         :%0.5f %% of oPackets" % self.stats['drop_rate_percentage'])
+        print("Queue Full                        :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
+        self.print_run_stats(latency, bi_dir)
 
-    def print_final(self, latency):
+    def print_final(self, latency, bi_dir):
+        if bi_dir:
+            traffic_dir = "bi-directional "
+        else:
+            traffic_dir = "uni-directional"
         print("\nTitle                             :%s" % self.stats['title'])
         print("Total Iterations                  :%d" % self.stats['iteration'])
+        print("Orig Max Rate                     :%s       " % self.convert_rate(float(self.stats['orig_max_rate_bps'])))
         print("Max Rate                          :%s       " % self.convert_rate(float(self.stats['max_rate_bps'])))
         print("Optimal P-Drop Rate               :%s" % self.convert_rate(float(self.stats['rate_tx_bps'])))
         print("P-Drop Rate (%% of max)            :%0.2f %%" % self.stats['rate_p'])
-        print("Drop Rate at Optimal P-Drop Rate  :%0.2f %% of oPackets" % self.stats['drop_rate_percentage'])
-        self.print_run_stats(latency)
+        print("Drop Rate at Optimal P-Drop Rate  :%0.5f %% of oPackets" % self.stats['drop_rate_percentage'])
+        print("Queue Full at Optimal P-Drop Rate :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
+        self.print_run_stats(latency, bi_dir)
         for x in self.stats['ndr_points']:
-            print("NDR(s)                            :%s " % self.convert_rate(x))
+            print("NDR(s) %s            :%s " % (traffic_dir, self.convert_rate(x)))
         # if self.config:
         #     print("Packet Size                       :%s " % self.config.pkt_size)
         #     print("VM                                :%s " % self.config.vm)
@@ -246,9 +264,11 @@ class NdrBenchResults:
     def print_assumed_drop_rate(self, low_bound, high_bound):
         print("\nResult of max rate measurement    :Drops Occured, Assuming NDR in following interval")
         print("Interval                          :[%d,%d]" % (low_bound, high_bound))
+        print("Orig Max Rate                     :%s       " % self.convert_rate(float(self.stats['orig_max_rate_bps'])))
         print("Max Rate                          :%s       " % self.convert_rate(
             float(self.stats['max_rate_bps'])))
-        print("Drop Rate                         :%0.2f %% of oPackets" % self.stats['drop_rate_percentage'])
+        print("Drop Rate                         :%0.5f %% of oPackets" % self.stats['drop_rate_percentage'])
+        print("Queue Full                        :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
         print("Assuming initial no-Drop-Rate     :%0.2f  %% of Max Rate" % self.stats['assumed_drop_rate_percent'])
         print("Assuming initial no-Drop-Rate     :%s" % self.convert_rate(self.stats['assumed_drop_rate']))
 
@@ -277,6 +297,7 @@ class NdrBenchResults:
                    'OPT TX Rate [bps]': self.convert_rate(float(self.stats['rate_tx_bps'])),
                    'OPT RX Rate [bps]': self.convert_rate(float(self.stats['rate_rx_bps'])),
                    'OPT Rate (Multiplier) [%]': str(self.stats['rate_p']),
+                   'Orig Max Rate [bps]': self.convert_rate(float(self.stats['orig_max_rate_bps'])),
                    'Max Rate [bps]': self.convert_rate(float(self.stats['max_rate_bps'])),
                    'Drop Rate [%]': str(round(self.stats['drop_rate_percentage'], 2)),
                    'Elapsed Time [Sec]': str(round(self.stats['Elapsed Time'], 2)),
@@ -296,6 +317,9 @@ class NdrBench:
         self.results.update({'title': self.config.title})
 
     def perf_run(self, rate_mb_percent, run_max=False):
+        self.stl_client.stop(ports=self.config.ports)
+         # allow time for counters to settle from previous runs
+        time.sleep(15)
         self.stl_client.clear_stats()
         if run_max:
             self.stl_client.start(ports=self.config.transmit_ports, mult="100%",
@@ -348,13 +372,14 @@ class NdrBench:
         run_results = self.perf_run(100, True)
         run_results['max_rate_bps'] = min(float(run_results['rate_tx_bps']), float(
             run_results['rate_rx_bps']))
+        run_results['orig_max_rate_bps'] = run_results['max_rate_bps']
         self.results.update(run_results)
         if self.results.stats['drop_rate_percentage'] < 0:
             self.results.stats['drop_rate_percentage'] = 0
         if self.config.verbose:
             if run_results['rate_tx_bps'] < run_results['rate_rx_bps']:
                 self.results.print_state("TX rate is slower than RX rate", None, None)
-            self.results.print_iteration_data(self.config.latencyCalculation)
+            self.results.print_iteration_data(self.config.latencyCalculation, self.config.bi_dir)
 
     def perf_run_interval(self, high_bound, low_bound):
         """
@@ -388,7 +413,7 @@ class NdrBench:
                     current_run_results.print_state("Drops beyond Desired rate occurred", high_bound, low_bound)
                 else:
                     current_run_results.print_state("Looking for NDR", high_bound, low_bound)
-                current_run_results.print_iteration_data(self.config.latencyCalculation)
+                current_run_results.print_iteration_data(self.config.latencyCalculation, self.config.bi_dir)
                 if current_run_stats['iteration'] == self.config.max_iterations:
                     opt_run_stats.update(current_run_stats)
                     self.results.print_state("Max Iterations reached. Results might not be fully accurate", high_bound,
@@ -411,23 +436,25 @@ class NdrBench:
         opt_run_stats['iteration'] = current_run_stats['iteration']
         return opt_run_stats
 
-    def find_ndr(self):
+    def find_ndr(self, bi_dir):
         self.__find_max_rate()
         drop_percent = self.results.stats['drop_rate_percentage']
         q_ful_percent = self.results.stats['queue_full_percentage']
         max_rate = Rate(self.results.stats['max_rate_bps'])
         if drop_percent > self.config.pdr:
-            assumed_rate_percent = 100 - drop_percent  # percent calculation
-            assumed_rate_mb = max_rate.convert_percent_to_rate(assumed_rate_percent)
+            # add drop rate to blast rate
+            assumed_rate_mb = max_rate.convert_percent_to_rate(100 + self.config.drop_rate_interval)
+            self.results.update({'max_rate_bps': assumed_rate_mb})
+            assumed_rate_percent = 100
             self.results.update(
                 {'assumed_drop_rate_percent': assumed_rate_percent, 'assumed_drop_rate': assumed_rate_mb})
             if self.config.verbose:
-                self.results.print_assumed_drop_rate(max(assumed_rate_percent - self.config.drop_rate_interval, 0),
-                                                     min(assumed_rate_percent + self.config.drop_rate_interval, 100))
-                self.results.update(
-                    self.perf_run_interval(min(assumed_rate_percent + self.config.drop_rate_interval, 100),
-                                           max(assumed_rate_percent - self.config.drop_rate_interval, 0)))
+                self.results.print_assumed_drop_rate(0, 100)
+                self.results.update(self.perf_run_interval(100, 0))
         elif q_ful_percent >= self.config.q_ful_resolution:
+            # add drop rate to blast rate
+            assumed_rate_mb = max_rate.convert_percent_to_rate(100 + self.config.drop_rate_interval)
+            self.results.update({'max_rate_bps': assumed_rate_mb})
             if self.config.verbose:
                 self.results.print_state("DUT Queue is Full, Looking for no queue full rate", 100, 0)
             self.results.update(self.perf_run_interval(100.00, 0.00))
@@ -435,12 +462,12 @@ class NdrBench:
             if self.config.verbose:
                 self.results.print_state("NDR may be found at max rate, running extra iteration for validation", None,
                                          None)
-            self.results.update(self.perf_run_interval(100.00, 99.00))
-        ndr_res = [self.results.stats['rate_tx_bps']]
+            self.results.update(self.perf_run_interval(100.00, 0.00))
+        ndr_res = [self.results.stats['tx_bps']]
         if self.config.ndr_results > 1:
             ndr_range = range(1, self.config.ndr_results + 1, 1)
             ndr_range.reverse()
-            ndr_res = [float((self.results.stats['rate_tx_bps'])) / float(t) for t in ndr_range]
+            ndr_res = [float((self.results.stats['tx_bps'])) / float(t) for t in ndr_range]
         self.results.update({'ndr_points': ndr_res})
 
 if __name__ == '__main__':
