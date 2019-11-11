@@ -13,32 +13,47 @@ class CAstfTrafficStats(object):
 
 
     def reset(self):
-        self.is_init = False
         self._ref = {}
         self.tg_names_dict = {}
 
+        self._ref_global = {}
+        self._epoch_global = 0
+        self.is_init = False
 
-    def _init_desc_and_ref(self, pid_input = DEFAULT_PROFILE_ID):
-        if self.is_init:
-            return
+
+    def _init_desc_and_ref(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        if is_sum:
+            if self._ref_global:
+                return
+        else:
+            if pid_input in self._ref.keys():
+                return
+
         params = {'profile_id': pid_input}
         rc = self.rpc.transmit('get_counter_desc', params = params)
-        
         if not rc:
             raise TRexError(rc.err())
 
         data = rc.data()['data']
-        self._desc = [0] * len(data)
-        self._err_desc = {}
-        for section in self.sections:
-            self._ref[section] = [0] * len(data)
-        self._max_desc_name_len = 0
-        for item in data:
-            self._desc[item['id']] = item
-            self._max_desc_name_len = max(self._max_desc_name_len, len(item['name']))
-            if item['info'] == 'error':
-                self._err_desc[item['name']] = item
-        self.is_init = True
+
+        if is_sum:
+            for section in self.sections:
+                self._ref_global[section] = [0] * len(data)
+        else:
+            self._ref[pid_input] = {}
+            for section in self.sections:
+                self._ref[pid_input][section] = [0] * len(data)
+
+        if not self.is_init:
+            self._desc = [0] * len(data)
+            self._err_desc = {}
+            self._max_desc_name_len = 0
+            for item in data:
+                self._desc[item['id']] = item
+                self._max_desc_name_len = max(self._max_desc_name_len, len(item['name']))
+                if item['info'] == 'error':
+                    self._err_desc[item['name']] = item
+            self.is_init = True
 
 
     def _clear_tg_name(self, pid_input = DEFAULT_PROFILE_ID):
@@ -46,12 +61,17 @@ class CAstfTrafficStats(object):
             self.tg_names_dict.pop(pid_input)
 
 
-    def _epoch_changed(self, new_epoch, pid_input = DEFAULT_PROFILE_ID):
-        self._ref.clear()
-        if pid_input in self.tg_names_dict.keys():
-            self.tg_names_dict.pop(pid_input)
-        tg_info = {'epoch' : new_epoch, 'is_init' : False}  
-        self.tg_names_dict[pid_input] = tg_info
+    def _epoch_changed(self, new_epoch, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        if is_sum:
+            self._ref_global.clear()
+            self._epoch_global = new_epoch
+        else:
+            if pid_input in self._ref.keys():
+                self._ref.pop(pid_input)
+            if pid_input in self.tg_names_dict.keys():
+                self.tg_names_dict.pop(pid_input)
+            tg_info = {'epoch' : new_epoch, 'is_init' : False}
+            self.tg_names_dict[pid_input] = tg_info
 
 
     def _translate_names_to_ids(self, tg_names, pid_input = DEFAULT_PROFILE_ID):
@@ -170,20 +190,21 @@ class CAstfTrafficStats(object):
 
 
     def _get_stats_values(self, relative = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
-        self._init_desc_and_ref(pid_input)
+        self._init_desc_and_ref(pid_input, is_sum)
         params = {'profile_id' : pid_input}
         if is_sum:
             rc = self.rpc.transmit('get_total_counter_values', params = params)
+            ref_epoch = self._epoch_global
         else:
             rc = self.rpc.transmit('get_counter_values', params = params)
+            ref_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1
+
         if not rc:
             raise TRexError(rc.err())
 
-        ref_epoch = self.tg_names_dict[pid_input]['epoch'] if pid_input in self.tg_names_dict.keys() else -1
-        
         data_epoch = rc.data()['epoch']
         if data_epoch != ref_epoch:
-            self._epoch_changed(data_epoch, pid_input = pid_input)
+            self._epoch_changed(data_epoch, pid_input = pid_input, is_sum = is_sum)
         data = {'epoch': data_epoch}
         for section in self.sections:
             section_list = [0] * len(self._desc)
@@ -192,8 +213,12 @@ class CAstfTrafficStats(object):
             if relative:
                 for desc in self._desc:
                     id = desc['id']
-                    if self._ref and not desc['abs']: # return relative
-                        section_list[id] -= self._ref[section][id]
+                    if is_sum:
+                        if self._ref_global and not desc['abs']: # return relative
+                            section_list[id] -= self._ref_global[section][id]
+                    else:
+                        if pid_input in self._ref.keys() and not desc['abs']: # return relative
+                            section_list[id] -= self._ref[pid_input][section][id]
             data[section] = section_list
         return data
 
@@ -247,10 +272,16 @@ class CAstfTrafficStats(object):
         return data
 
 
-    def clear_stats(self, pid_input = DEFAULT_PROFILE_ID):
-        data = self._get_stats_values(relative = False, pid_input = pid_input)
-        for section in self.sections:
-            self._ref[section] = data[section]
+    def clear_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        data = self._get_stats_values(relative = False, pid_input = pid_input, is_sum = is_sum)
+        if is_sum:
+            if self._ref_global:
+                for section in self.sections:
+                    self._ref_global[section] = data[section]
+        else:
+            if pid_input in self._ref.keys():
+                for section in self.sections:
+                    self._ref[pid_input][section] = data[section]
 
 
     def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):

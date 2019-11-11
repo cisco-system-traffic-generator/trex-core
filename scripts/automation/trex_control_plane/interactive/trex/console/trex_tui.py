@@ -302,7 +302,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
 
 
     def action_clear(self):
-         self.client.clear_traffic_stats()
+         self.client.clear_stats()
          return ""
 
     def action_up(self):
