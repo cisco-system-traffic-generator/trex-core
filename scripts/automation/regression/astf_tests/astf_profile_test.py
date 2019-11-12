@@ -565,7 +565,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                 break;
         c.stop_latency()
 
-    def __test_random_add_remove_dynamic_profile (self):
+    def test_random_add_remove_dynamic_profile (self):
         if self.weak:
             self.skip('not enough memory for this test')
         if not self.allow_latency():
