@@ -416,7 +416,7 @@ In this example the server IP is taken from the template.
        one_app_server : true       <2>
        w   : 1
 ----
-<1> All templates will use the same server. 
+<1> All flows of this template will use the same server.
 <2> Must be set to "true".
 
 

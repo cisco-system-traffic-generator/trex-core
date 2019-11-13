@@ -940,7 +940,9 @@ class ASTFIPGenGlobal(object):
 
 
         :parameters:
-                  ip_offset  : offset for dual mask ports
+            ip_offset:
+                | Offset for dual mask ports.
+                | This value is added to each next pair of ports - ports 1 and 2 will have ip_offset added to IPs in their pool, ports 3 and 4 will have added ip_offset*2 and so on.
 
         """
 
