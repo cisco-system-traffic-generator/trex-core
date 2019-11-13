@@ -1904,8 +1904,8 @@ see xref:timer_w[Timer Wheel section]
 <3> If the global section of the YAML file includes `cap_ipg    : false`, this line sets the inter-packet gap in microseconds.
 <4> Should be set to the same value as ipg (microseconds).
 <5> Default value: w=1. This indicates to the IP generator how to generate the flows. If w=2, two flows from the same template will be generated in a burst (more for HTTP that has burst of flows).
-<6> If `one_app_server` is set to true, then all templates will use the same server.
-<7> If the same server address is required, set this value to true.
+<6> If `one_app_server` is set to true, then all flows of this template will use the same server.
+<7> If the same server address is required, set this value to true. (Default is false)
 <8> New in version v2.62. When set, allows several flows to be present in template. Requires flows_dirs to be configured to specify direction for *each* flow. +
  Note: IP values from the pool as well as source port will be the same for all flows in the pcap.
 <9> New in version v2.62. Sets direction of flow(s). If set to 0, has no effect. If set to 1, server will initiate the flow (with its IP) towards client with original dest port. +
