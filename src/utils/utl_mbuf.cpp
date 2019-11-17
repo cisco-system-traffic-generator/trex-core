@@ -259,8 +259,9 @@ struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt_no_assert(const char *   buf,
     
     while (size>0) {
         uint16_t alloc_size=std::min((uint32_t)blk_size,size);
-        rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
+        rte_mbuf_t   * m = rte_pktmbuf_alloc_no_assert(mp);
         if ( !m ) {
+            rte_pktmbuf_free(mr);
             return NULL;
         }
         nseg++;

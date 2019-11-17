@@ -98,26 +98,35 @@ class CPlatform(object):
 
         self.cmd_link.run_single_command(cache)
 
-    def configure_ospf(self, ospf_num = 1, networks = None):
+    def configure_ospf(self, ospf_num = 1, networks = None, unconf = False):
         assert(type(ospf_num) == int)
         assert(networks is None or type(networks) == dict)
+        cache = CCommandCache()
+
+        if unconf:
+            cache.add('CONF', ['no router ospf %s' % ospf_num])
+            return self.cmd_link.run_single_command(cache)
 
         commands = ['router ospf %s' % ospf_num]
 
         if networks is None:
             networks = [{'ip': '1.1.1.0', 'wild_card': '0.0.0.255', 'area': 0},
                          {'ip': '1.1.2.0', 'wild_card': '0.0.0.255', 'area': 0}]
-        cache = CCommandCache()
 
         for network in networks:
             commands.append('network {ip} {wild_card} area {area} '.format(**network))
         
         commands.append('exit')
         cache.add('CONF', commands)
-        self.cmd_link.run_single_command(cache)
+        return self.cmd_link.run_single_command(cache)
 
-    def configure_bgp(self, as_num = 65000, neighbors = None):
+    def configure_bgp(self, as_num = 65000, neighbors = None, unconf = False):
         assert(type(as_num) == int)
+        cache = CCommandCache()
+
+        if unconf:
+            cache.add('CONF', ['no router bgp %s' % as_num])
+            return self.cmd_link.run_single_command(cache)
         commands = ['router bgp %s ' % as_num]
 
         if neighbors is None:
@@ -127,19 +136,22 @@ class CPlatform(object):
             commands.append('neighbor {ip} remote-as {as} '.format(**neighbor))
         
         commands.append('exit')
-        cache = CCommandCache()
         cache.add('CONF', commands)
-        self.cmd_link.run_single_command(cache)
+        return self.cmd_link.run_single_command(cache)
 
-    def configure_rip(self, networks = None, ver = 2):
+    def configure_rip(self, networks = None, ver = 2, unconf = False):
         assert(type(ver) == int)
         assert(networks is None or type(networks) == list)
+
+        cache = CCommandCache()
+        if unconf:
+            cache.add('CONF', ['no router rip'])
+            return self.cmd_link.run_single_command(cache)
 
         if networks is None:
             networks = ['1.1.1.3', '1.1.2.3']
 
         commands = []
-        cache = CCommandCache()
         commands.append('router rip')
 
         commands.append('version %s' % ver)
@@ -149,7 +161,7 @@ class CPlatform(object):
         
         commands.append('exit')
         cache.add('CONF', commands)
-        self.cmd_link.run_single_command(cache)
+        return self.cmd_link.run_single_command(cache)
 
     def load_clean_config (self, config_filename = "clean_config.cfg", cfg_drive = "bootflash"):
         for i in range(5):
@@ -778,6 +790,11 @@ class CPlatform(object):
         cache.add("EXEC", ["show ip bgp summary"])
         return self.cmd_link.run_single_command(cache)
 
+    def get_ospf_routing_table(self, ospf_num = 1):
+        cache = CCommandCache()
+        cache.add("EXEC", ["show ip ospf %s" % ospf_num])
+        return self.cmd_link.run_single_command(cache)
+
     def get_routing_stats(self, protocol = None):
         cmd = "show ip route summary"
         cache = CCommandCache()
@@ -818,11 +835,6 @@ class CPlatform(object):
         pre_commit_cache = CCommandCache()
         pre_commit_cache.add('EXEC', ['clear counters', '\r'] )
         self.cmd_link.run_single_command( pre_commit_cache , read_until = ['#', '\[confirm\]'])
-
-    def clear_routes(self):
-        cache = CCommandCache()
-        cache.add('EXEC', ['clear ip route *'] )
-        self.cmd_link.run_single_command(cache)
 
     def clear_nbar_stats(self):
         """ clear_nbar_stats(self) -> None

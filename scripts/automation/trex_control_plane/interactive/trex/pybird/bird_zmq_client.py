@@ -258,16 +258,3 @@ if __name__=='__main__':
                         help='Remote server IP address .\n default is localhost\n',action='store')
 
     args = parser.parse_args()
-
-    pybird = PyBirdClient()
-    pybird.connect()
-    pybird.acquire()
-
-    cfg_creator = BirdCFGCreator()
-    cfg_creator.add_simple_rip()
-    cfg_creator.add_many_routes("10.10.10.0", total_routes = rand.randint(0, 42), next_hop = "1.1.1.3")
-
-    # push conf file
-    print(pybird.set_config(new_cfg = cfg_creator.build_config()))
-    pybird.release()
-    pybird.disconnect()

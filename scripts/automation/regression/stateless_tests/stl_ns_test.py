@@ -22,6 +22,7 @@ class STLNS_Test(CStlGeneral_Test):
 
     def tearDown(self):
         CStlGeneral_Test.tearDown(self)
+        self.stl_trex.namespace_remove_all()    
         self.stl_trex.set_service_mode(enabled = False)
 
     def test_ns_add_remove(self):
@@ -134,7 +135,6 @@ class STLNS_Test(CStlGeneral_Test):
         finally: 
             c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()
 
     def test_ping_with_vlan(self):
 
@@ -164,7 +164,6 @@ class STLNS_Test(CStlGeneral_Test):
         finally: 
             c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()    
 
     def test_many_ns(self):
 
@@ -379,7 +378,6 @@ class STLNS_Test(CStlGeneral_Test):
         finally: 
            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
            c.set_port_attr(promiscuous = False, multicast = False)
-           c.namespace_remove_all()
 
     def test_get_shared_ns_node_info(self):
         c = self.stl_trex

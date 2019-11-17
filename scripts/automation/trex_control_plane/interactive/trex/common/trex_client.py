@@ -1536,7 +1536,6 @@ class TRexClient(object):
             # node with mac addres does not exists, create new one
 
             self.set_port_attr(promiscuous = True)
-            self.namespace_remove_all(ports = [node_port])
 
             cmds = NSCmds()
             cmds.add_node(mac, is_bird = True)
@@ -2325,7 +2324,7 @@ class TRexClient(object):
         rx_ports = listify_if_int(rx_ports)
 
         # check arguments
-        self.psv.validate('start_capture', list_remove_dup(tx_ports + rx_ports), [PSV_SERVICE])
+        self.psv.validate('start_capture', list_remove_dup(tx_ports + rx_ports) )
 
         validate_type('limit', limit, (int))
         if limit < 0:

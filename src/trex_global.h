@@ -900,7 +900,7 @@ public:
     }
 
     static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_no_assert(socket_id_t socket){
-        return ( m_mem_pool[socket].pktmbuf_alloc_small() );
+        return ( m_mem_pool[socket].pktmbuf_alloc_small_no_assert() );
     }
 
     static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_small_by_port(uint8_t port_id) {

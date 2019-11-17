@@ -108,6 +108,7 @@ class BirdWrapper:
         if 'Already configured' in cached:
             return cached
         elif 'Found configuration in cache' in cached:
+            self._current_md5 = md5
             return cached + self.pybird.set_config(self.prev_md5s[md5])
         else:
             res = self.pybird.set_config(config)  # return a string
