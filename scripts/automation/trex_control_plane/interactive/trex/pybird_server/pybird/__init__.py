@@ -89,7 +89,7 @@ class PyBird(object):
         self.log.debug("PyBird: setting new config")
         temp_conf_path = '%s/temp_bird_config.conf' % BIRD_TMP_PATH
         if type(data) != str:
-            data = str(data)
+            data = data.decode("utf-8")
         with open(temp_conf_path, 'w') as f:
             f.write(data)
         os.chmod(temp_conf_path, 777)

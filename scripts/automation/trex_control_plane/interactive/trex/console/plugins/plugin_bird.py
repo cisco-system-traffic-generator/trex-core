@@ -2,6 +2,8 @@
 
 from trex.console.plugins import *
 from trex.stl.api import *
+from trex.pybird.bird_cfg_creator import *
+from trex.pybird.bird_zmq_client import *
 
 '''
 Bird plugin
@@ -42,13 +44,22 @@ class Bird_Plugin(ConsolePlugin):
                 help     = 'tpids for bird node')
 
         self.c = STLClient()
+        self.pybird = PyBirdClient()
+        self.pybird.connect()
+        self.pybird.acquire()
+
+    def plugin_unload(self):
+        try:
+            self.pybird.release()()
+            self.pybird.disconnect()
+        except Exception as e:
+            print('Error while unloading bird plugin: \n' + str(e))        
         
 
     def do_add_bird_node(self, port, mac, ipv4, ipv4_subnet, ipv6_enabled, ipv6_subnet, vlans, tpids):
-        '''
-        Simple adding bird node with arguments.
-        '''
-
+        ''' Simple adding bird node with arguments. '''
+        self.c.connect()
+        self.c.acquire(force = True)
         self.c.set_bird_node(node_port   = port,
                                 mac         = mac,
                                 ipv4        = ipv4,
@@ -57,3 +68,25 @@ class Bird_Plugin(ConsolePlugin):
                                 ipv6_subnet = ipv6_subnet,
                                 vlans       = vlans,
                                 tpids       = tpids)
+
+    def do_add_rip(self):
+        ''' Adding rip protocol to bird configuration file. '''
+        curr_conf = self.pybird.get_config()
+        cfg_creator = BirdCFGCreator(curr_conf)
+        cfg_creator.add_simple_rip()
+        self.pybird.set_config(cfg_creator.build_config())
+    
+    def do_add_bgp(self):
+        ''' Adding bgp protocol to bird configuration file. '''
+        curr_conf = self.pybird.get_config()
+        cfg_creator = BirdCFGCreator(curr_conf)
+        cfg_creator.add_simple_bgp()
+        self.pybird.set_config(cfg_creator.build_config())
+
+    def do_add_ospf(self):
+        ''' Adding ospf protocol to bird configuration file. '''
+        curr_conf = self.pybird.get_config()
+        cfg_creator = BirdCFGCreator(curr_conf)
+        cfg_creator.add_simple_ospf()
+        self.pybird.set_config(cfg_creator.build_config())
+

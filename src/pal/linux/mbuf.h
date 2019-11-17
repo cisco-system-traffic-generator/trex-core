@@ -189,6 +189,7 @@ uint16_t rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags)
 void rte_pktmbuf_free(rte_mbuf_t *m);
 
 rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp);
+rte_mbuf_t *rte_pktmbuf_alloc_no_assert(rte_mempool_t *mp);
 
 char *rte_pktmbuf_append(rte_mbuf_t *m, uint16_t len);
 

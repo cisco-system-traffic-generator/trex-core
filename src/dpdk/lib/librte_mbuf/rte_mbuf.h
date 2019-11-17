@@ -1576,6 +1576,13 @@ static inline struct rte_mbuf *rte_pktmbuf_alloc(struct rte_mempool *mp)
 	return m;
 }
 
+static inline struct rte_mbuf *rte_pktmbuf_alloc_no_assert(struct rte_mempool *mp)
+{
+	struct rte_mbuf *m;
+	if ((m = rte_mbuf_raw_alloc(mp)) != NULL)
+		rte_pktmbuf_reset(m);
+	return m;
+}
 /**
  * Allocate a bulk of mbufs, initialize refcnt and reset the fields to default
  * values.

@@ -52,7 +52,7 @@ char * utl_rte_pktmbuf_to_mem(struct rte_mbuf *m);
 int utl_rte_pktmbuf_deepcmp(struct rte_mbuf *ma,
                             struct rte_mbuf *mb);
 
-
+rte_mbuf_t *rte_pktmbuf_alloc_no_assert(rte_mempool_t *mp);
 
 void  utl_rte_pktmbuf_fill(rte_mbuf_t   * m,
                          uint16_t      b_size,

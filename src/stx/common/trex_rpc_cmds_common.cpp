@@ -1396,13 +1396,6 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
         rx_ports.insert(rx_port);
     }
     
-    /* check that all ports are under service mode */
-    for (uint8_t port_id : ports) {
-        TrexPort *port = get_stx()->get_port_by_id(port_id);
-        if (!port->is_service_mode_on()) {
-            generate_parse_err(result, "start_capture is available only under service mode");
-        }
-    }
     
     static MsgReply<TrexCaptureRCStart> reply;
     reply.reset();
