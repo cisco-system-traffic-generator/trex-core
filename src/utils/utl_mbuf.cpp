@@ -215,10 +215,13 @@ char * utl_rte_pktmbuf_mem_fill(uint32_t size,
 }
 
 /* convert contiguous buffer to chanin of mbuf in the size of pool  */
-struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
+
+static struct rte_mbuf *  _utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
                                               uint32_t size, 
                                               uint16_t mp_blk_size,
-                                              struct  rte_mempool *mp){
+                                              struct  rte_mempool *mp,
+                                              bool assert) {
+
     uint16_t blk_size= mp_blk_size; 
     rte_mbuf * mr=NULL;
     rte_mbuf * mlast=NULL;
@@ -228,7 +231,14 @@ struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
     while (size>0) {
         uint16_t alloc_size=std::min((uint32_t)blk_size,size);
         rte_mbuf_t   * m= rte_pktmbuf_alloc(mp);
-        assert(m);
+        if ( assert ) {
+            assert(m);
+        } else {
+            if ( !m ) {
+                rte_pktmbuf_free(mr);
+                return NULL;
+            }
+        }
         nseg++;
         if (mr==NULL) {
             mr=m;
@@ -245,41 +255,20 @@ struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
     mr->nb_segs = nseg;
     mr->pkt_len = pkt_size;
     return(mr);
+                                                  
+}
+struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt(const char *   buf,
+                                              uint32_t size, 
+                                              uint16_t mp_blk_size,
+                                              struct  rte_mempool *mp){
+    return _utl_rte_pktmbuf_mem_to_pkt(buf, size, mp_blk_size, mp, true);
 }
 
 struct rte_mbuf *  utl_rte_pktmbuf_mem_to_pkt_no_assert(const char *   buf,
                                               uint32_t size, 
                                               uint16_t mp_blk_size,
                                               struct  rte_mempool *mp){
-    uint16_t blk_size= mp_blk_size; 
-    rte_mbuf * mr=NULL;
-    rte_mbuf * mlast=NULL;
-    uint16_t nseg=0;        
-    uint32_t pkt_size=size;
-    
-    while (size>0) {
-        uint16_t alloc_size=std::min((uint32_t)blk_size,size);
-        rte_mbuf_t   * m = rte_pktmbuf_alloc_no_assert(mp);
-        if ( !m ) {
-            rte_pktmbuf_free(mr);
-            return NULL;
-        }
-        nseg++;
-        if (mr==NULL) {
-            mr=m;
-        }
-        if (mlast) {
-            mlast->next=m;
-        }
-        mlast=m;
-        char *p=(char *)rte_pktmbuf_append(m, alloc_size);
-        memcpy(p,buf,alloc_size);
-        buf+=alloc_size;
-        size-=alloc_size;
-    }
-    mr->nb_segs = nseg;
-    mr->pkt_len = pkt_size;
-    return(mr);
+    return _utl_rte_pktmbuf_mem_to_pkt(buf, size, mp_blk_size, mp, false);
 }
 
 __attribute__ ((noinline)) int _utl_rte_pktmbuf_trim_ex(struct rte_mbuf *m, 
