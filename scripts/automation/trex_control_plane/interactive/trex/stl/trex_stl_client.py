@@ -115,7 +115,7 @@ class STLClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'STL', 'major': 4, 'minor': 6}
+        api_ver = {'name': 'STL', 'major': 4, 'minor': 7}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -1934,11 +1934,23 @@ class STLClient(TRexClient):
                                          "service",
                                          self.service_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.SERVICE_BGP_FILTERED,
+                                         parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
+                                         parsing_opts.SERVICE_ALL_FILTERED,
                                          parsing_opts.SERVICE_OFF)
 
         opts = parser.parse_args(line.split())
-            
-        self.set_service_mode(ports = opts.ports, enabled = opts.enabled)
+        # build filter mask
+        if opts.allow_all:
+            mask = 3
+        else:
+            mask = 1 if opts.allow_no_tcp_udp else 0
+            mask = mask | 2 if opts.allow_bgp else mask
+        filtered = True if mask > 0 else False
+        enabled = False if filtered else opts.enabled
+        if not filtered:
+            mask = None
+        self.set_service_mode(ports = opts.ports, enabled = enabled, filtered = filtered, mask = mask)
         
         return True
 

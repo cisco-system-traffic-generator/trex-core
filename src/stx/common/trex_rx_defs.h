@@ -52,11 +52,10 @@ class CRxSlCfg {
  * describes the filter type applied to the RX 
  *  RX_FILTER_MODE_HW - only hardware filtered traffic will
  *  reach the RX core
- *  
  */
 typedef enum rx_filter_mode_ {
     RX_FILTER_MODE_HW,
-    RX_FILTER_MODE_ALL
+    RX_FILTER_MODE_ALL,
 } rx_filter_mode_e;
 
 

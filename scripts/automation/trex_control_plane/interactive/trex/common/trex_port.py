@@ -104,11 +104,13 @@ class Port(object):
 
 
     def __init__ (self, ctx, port_id, rpc, info):
-        self.ctx            = ctx
-        self.port_id        = port_id
+        self.ctx                    = ctx
+        self.port_id                = port_id
 
-        self.state          = self.STATE_IDLE
-        self.service_mode   = False
+        self.state                  = self.STATE_IDLE
+        self.service_mode           = False
+        self.service_mode_filtered  = False
+        self.service_mask           = None
 
         self.handler        = ''
         self.rpc            = rpc

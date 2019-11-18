@@ -14,12 +14,17 @@ class ConfigurationException(Exception): pass
 def rand_32_bit():
     return rand.randint(0, 0xFFFFFFFF)
 
+# TIMEOUTS
+SEND_TIMEOUT      = 3000
+RCV_TIMEOUT       = 3000
+HEARTBEAT_TIMEOUT = 6000
+HEARTBEAT_IVL     = 5000
 
 class PyBirdClient():
 
     CLIENT_VERSION = "1.0"  # need to sync with bird zmq sever
 
-    def __init__(self, ip = 'localhost', port = 4505):
+    def __init__(self, ip = 'localhost', port = 4509):
         self.ip = ip
         self.socket = None
         self.context = None
@@ -28,8 +33,11 @@ class PyBirdClient():
         self.is_connected = False 
 
     def __del__(self):
-        self._close_conn()
-        
+        try:
+            self._close_conn()
+        except zmq.Again:
+            print("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
+
     def _close_conn(self):
         if self.handler is not None:
             self.release()
@@ -65,8 +73,6 @@ class PyBirdClient():
 
     def _call_method(self, method_name, method_params):
         rand_id = rand_32_bit()  # generate 32 bit random id for request
-        if type(method_params) != list:
-            method_params = list(method_params)
         json_rpc_req = { "jsonrpc": "2.0", "method": method_name , "params": method_params, "id": rand_id}
         request = json.dumps(json_rpc_req)
         self.socket.send(request.encode('utf-8'))
@@ -79,6 +85,12 @@ class PyBirdClient():
         if not self.is_connected:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.REQ)
+
+            self.socket.setsockopt(zmq.SNDTIMEO, SEND_TIMEOUT)
+            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT)
+            self.socket.setsockopt(zmq.HEARTBEAT_IVL, HEARTBEAT_IVL)
+            self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, HEARTBEAT_TIMEOUT)
+
             self.socket.connect("tcp://"+str(self.ip)+":"+str(self.port))
             result = self._call_method('connect', [PyBirdClient.CLIENT_VERSION])
             if result:
@@ -171,7 +183,7 @@ class PyBirdClient():
         '''
             Command, setting the minimal bird configuration with no routes and no routing protocols.
         '''
-        return self._call_method('set_empty_config', [self.handler])
+        return self._call_method('set_empty_config', {'handler': self.handler})
 
     def set_config(self, new_cfg):
         '''

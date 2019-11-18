@@ -28,6 +28,7 @@ limitations under the License.
 #include "trex_stl.h"
 #include "trex_stl_port.h"
 #include "trex_stl_streams_compiler.h"
+#include "trex_global.h"
 
 #include <string>
 
@@ -1513,6 +1514,14 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     bool enabled = parse_bool(params, "enabled", result);
+    bool filtered = parse_bool(params, "filtered", result);
+    uint8_t mask = parse_byte(params, "mask", result, 0);
+
+    if ( filtered ) {
+        if ( CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed() ) {
+            generate_execute_err(result, "TRex must be at --software mode for filtered service!");
+        }
+    }
 
     if ( enabled && get_platform_api().hw_rx_stat_supported() ) {
         for (auto &port : get_stateless_obj()->get_port_map()) {
@@ -1526,7 +1535,7 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
     try {
-        port->set_service_mode(enabled);
+        port->set_service_mode(enabled, filtered, mask);
     } catch (TrexException &ex) {
         generate_execute_err(result, ex.what());
     }

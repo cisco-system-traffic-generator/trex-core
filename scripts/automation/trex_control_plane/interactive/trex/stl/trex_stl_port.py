@@ -10,6 +10,11 @@ from ..common.trex_port import Port, owned, writeable, up
 
 from .trex_stl_streams import STLStream
 
+## Filtered Service Mode Mask ##
+NO_MASK         = 0
+NO_TCP_UDP_MASK = 1
+BGP_MASK        = 2
+
 ########## utlity ############
 def mult_to_factor (mult, max_bps_l2, max_pps, line_util):
     if mult['type'] == 'raw':
@@ -507,23 +512,28 @@ class STLPort(Port):
 
 
     @owned
-    def set_service_mode (self, enabled):
+    def set_service_mode (self, enabled, filtered, mask):
         params = {"handler": self.handler,
-                  "port_id": self.port_id,
-                  "enabled": enabled}
+                    "port_id": self.port_id,
+                    "enabled": enabled,
+                    "filtered": filtered}
+        if filtered:
+            params['mask'] = mask
 
         rc = self.transmit("service", params)
         if rc.bad():
             return self.err(rc.err())
 
         self.service_mode = enabled
+        self.service_mode_filtered = filtered
+        self.service_mask = mask
         return self.ok()
         
 
     def is_service_mode_on (self):
         if not self.is_acquired(): # update lazy
             self.sync()
-        return self.service_mode
+        return self.service_mode or self.service_mode_filtered
 
     # take the port
     def acquire(self, force = False):

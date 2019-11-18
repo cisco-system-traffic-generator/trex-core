@@ -82,7 +82,8 @@ class PyBird(object):
     def get_protocols_info(self):
         self.log.debug("PyBird: getting current protocols info")
         data = self._send_query('show protocols')
-        '\n'.join([l.strip() for l in data.splitlines()])  # cleanup data spaces
+        lines = data.splitlines()[1:-1]
+        data = '\n'.join([l.strip() for l in lines])  # cleanup data spaces
         return self._remove_replay_codes(data)
 
     def set_config(self, data):

@@ -78,6 +78,7 @@ public:
         m_bpf_str = filter;
     }
 
+    virtual bool is_bird_node() = 0;
 
 protected:
     void run_in_ns(const string &cmd, const string &err);
@@ -108,11 +109,12 @@ class CLinuxIfNode : public CNamespacedIfNode {
 public:
     CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf,
                  const string &mtu, CMcastFilter &mcast_filter);
-    ~CLinuxIfNode();
+    virtual ~CLinuxIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
     virtual void conf_ip6_internal(bool enabled, const string &ip6_buf);
-    
+    virtual bool is_bird_node() { return false; }
+
 private:
     virtual const char *get_default_bpf();
 };
@@ -121,11 +123,12 @@ class CSharedNSIfNode : public CNamespacedIfNode {
 public:
     CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
                  const string &mtu, CMcastFilter &mcast_filter, bool is_bird);
-    ~CSharedNSIfNode();
+    virtual ~CSharedNSIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet);
     virtual void conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet);
     virtual void set_mtu_internal(const std::string &mtu);
+    virtual bool is_bird_node() { return m_is_bird; };
 
 private:
     void create_veths(const string &mtu);
@@ -169,7 +172,7 @@ public:
     virtual trex_rpc_cmd_rc_e rpc_set_ipv6(const std::string & mac, bool enable, std::string src_ipv6_buf);
     virtual trex_rpc_cmd_rc_e rpc_set_shared_ns_ipv6(const std::string &mac, bool enable, std::string src_ipv6_buf, uint8_t subnet);
     virtual trex_rpc_cmd_rc_e rpc_remove_all();
-    virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result);
+    virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result, bool only_bird = false);
     virtual trex_rpc_cmd_rc_e rpc_get_nodes_info(const Json::Value &params,Json::Value &result);
     virtual trex_rpc_cmd_rc_e rpc_clear_counters();
     virtual trex_rpc_cmd_rc_e rpc_counters_get_meta(const Json::Value &params, Json::Value &result);

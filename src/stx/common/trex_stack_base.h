@@ -317,7 +317,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result){
+    virtual trex_rpc_cmd_rc_e rpc_get_nodes(Json::Value &result, bool only_bird = false) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }

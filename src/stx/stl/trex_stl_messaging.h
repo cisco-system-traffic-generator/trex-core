@@ -308,9 +308,11 @@ private:
 class TrexStatelessDpServiceMode : public TrexCpToDpMsgBase {
 public:
 
-    TrexStatelessDpServiceMode(uint8_t port_id, bool enabled) {
-        m_port_id = port_id;
-        m_enabled = enabled;
+    TrexStatelessDpServiceMode(uint8_t port_id, bool enabled, bool filtered = false, uint8_t mask = 0) {
+        m_port_id  = port_id;
+        m_enabled  = enabled;
+        m_filtered = filtered;
+        m_mask     = mask;
     }
 
     virtual TrexCpToDpMsgBase * clone();
@@ -321,6 +323,8 @@ private:
 
     uint8_t   m_port_id;
     bool      m_enabled;
+    bool      m_filtered;
+    uint8_t   m_mask;
 };
 
 
@@ -334,6 +338,7 @@ public:
     enum query_type_e {
         SERVICE_MODE_ON,
         SERVICE_MODE_OFF,
+        SERVICE_MODE_FILTERED,
     };
     
     /**

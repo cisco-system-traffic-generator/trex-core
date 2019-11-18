@@ -1286,12 +1286,18 @@ TrexStatelessPort::remove_and_delete_all_streams(string profile_id) {
  */
 void 
 TrexStatelessPort::set_service_mode(bool enabled) {
+    set_service_mode(enabled, false, 0);
+}
+
+void 
+TrexStatelessPort::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
 
     static MsgReply<TrexStatelessRxQuery::query_rc_e> reply;
     reply.reset();
     
     TrexStatelessRxQuery::query_type_e query_type = (enabled ? TrexStatelessRxQuery::SERVICE_MODE_ON : TrexStatelessRxQuery::SERVICE_MODE_OFF);
-    
+    query_type = filtered ? TrexStatelessRxQuery::SERVICE_MODE_FILTERED : query_type;
+
     TrexCpToRxMsgBase *msg = new TrexStatelessRxQuery(m_port_id, query_type, reply);
     send_message_to_rx(msg);
 
@@ -1299,7 +1305,7 @@ TrexStatelessPort::set_service_mode(bool enabled) {
     
     switch (rc) {
     case TrexStatelessRxQuery::RC_OK:
-        if (enabled) {
+        if (enabled || filtered) {
             getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_ALL);
         } else {
             getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_HW);
@@ -1324,7 +1330,7 @@ TrexStatelessPort::set_service_mode(bool enabled) {
     }
     
     /* update the all the relevant dp cores to move to service mode */
-    TrexStatelessDpServiceMode *dp_msg = new TrexStatelessDpServiceMode(m_port_id, enabled);
+    TrexStatelessDpServiceMode *dp_msg = new TrexStatelessDpServiceMode(m_port_id, enabled, filtered , mask);
     send_message_to_all_dp(dp_msg);
 }
 

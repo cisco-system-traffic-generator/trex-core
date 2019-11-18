@@ -142,9 +142,9 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_dg(const Json::Value &params, Js
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_mtu(const Json::Value &params, Json::Value &result) {
     debug({"rpc_set_mtu", pretty_json_str(params)});
     string mac  = parse_string(params, "mac", result);
-    string mtu  = parse_string(params, "mtu", result);
+    int mtu     = parse_int(params, "mtu", result);
 
-    return m_obj->rpc_set_mtu(mac, mtu);
+    return m_obj->rpc_set_mtu(mac, std::to_string(mtu));
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params, Json::Value &result){
@@ -167,7 +167,7 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv6(const Json::Value &params, 
         }
     }
     if ( shared_ns ) {
-        uint8_t subnet = parse_int(params, "subnet", result);
+        uint8_t subnet = parse_int(params, "subnet", result, 0);
         return m_obj->rpc_set_shared_ns_ipv6(mac, enable, src_ipv6, subnet);
     } else {
         string shared_ns = parse_string(params, "shared_ns", result, "");
@@ -182,7 +182,9 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_all(const Json::Value &params
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_get_nodes(const Json::Value &params, Json::Value &result){
     debug({"rpc_get_nodes",pretty_json_str(params)});
-    return (m_obj->rpc_get_nodes(result));
+    bool only_bird = parse_bool(params, "only_bird", result, false);
+
+    return (m_obj->rpc_get_nodes(result, only_bird));
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_get_nodes_info(const Json::Value &params, Json::Value &result){

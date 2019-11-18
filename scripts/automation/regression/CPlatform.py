@@ -98,16 +98,19 @@ class CPlatform(object):
 
         self.cmd_link.run_single_command(cache)
 
-    def configure_ospf(self, ospf_num = 1, networks = None, unconf = False):
+    def configure_ospf(self, ospf_num = 1, networks = None, point_to_point = True, unconf = False):
         assert(type(ospf_num) == int)
         assert(networks is None or type(networks) == dict)
         cache = CCommandCache()
-
         if unconf:
             cache.add('CONF', ['no router ospf %s' % ospf_num])
             return self.cmd_link.run_single_command(cache)
 
-        commands = ['router ospf %s' % ospf_num]
+        commands = []
+        if point_to_point:
+            commands = ['int Te0/0/0', 'ip ospf network point-to-point', 'int Te0/0/1', 'ip ospf network point-to-point', 'exit']
+
+        commands.append('router ospf %s' % ospf_num)
 
         if networks is None:
             networks = [{'ip': '1.1.1.0', 'wild_card': '0.0.0.255', 'area': 0},
@@ -790,9 +793,9 @@ class CPlatform(object):
         cache.add("EXEC", ["show ip bgp summary"])
         return self.cmd_link.run_single_command(cache)
 
-    def get_ospf_routing_table(self, ospf_num = 1):
+    def get_ospf_data(self):
         cache = CCommandCache()
-        cache.add("EXEC", ["show ip ospf %s" % ospf_num])
+        cache.add("EXEC", ["show ip ospf"])
         return self.cmd_link.run_single_command(cache)
 
     def get_routing_stats(self, protocol = None):

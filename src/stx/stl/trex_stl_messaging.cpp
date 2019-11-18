@@ -256,14 +256,14 @@ TrexStatelessDpServiceMode::handle(TrexDpCore *dp_core) {
     
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
 
-    stl_core->set_service_mode(m_port_id, m_enabled);
+    stl_core->set_service_mode(m_port_id, m_enabled, m_filtered, m_mask);
     return true;
 }
 
 TrexCpToDpMsgBase *
 TrexStatelessDpServiceMode::clone() {
 
-    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpServiceMode(m_port_id, m_enabled);
+    TrexCpToDpMsgBase *new_msg = new TrexStatelessDpServiceMode(m_port_id, m_enabled, m_filtered, m_mask);
 
     return new_msg;
 }
@@ -278,10 +278,10 @@ TrexStatelessRxQuery::handle(CRxCore *rx_core) {
     switch (m_query_type) {
    
     case SERVICE_MODE_ON:
-        /* for service mode on - always allow this */
+    case SERVICE_MODE_FILTERED:
+        /* for service mode on and filtered - always allow this */
         rc = RC_OK;
         break;
-        
     case SERVICE_MODE_OFF:
         /* cannot leave service mode when RX queue is active */
         if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::QUEUE)) {

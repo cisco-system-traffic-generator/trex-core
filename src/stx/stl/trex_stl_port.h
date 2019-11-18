@@ -455,8 +455,9 @@ public:
      * 
      * @param enabled 
      */
-    void set_service_mode(bool enabled);
-    
+    void set_service_mode(bool enabled); // wraps for backwards compatibility
+    void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+
     bool is_service_mode_on() const {
         return m_is_service_mode_on;
     }
