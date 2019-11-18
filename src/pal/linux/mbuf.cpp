@@ -155,29 +155,6 @@ rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp){
     return (m);
 }
 
-rte_mbuf_t *rte_pktmbuf_alloc_no_assert(rte_mempool_t *mp){
-
-    uint16_t buf_len;
-
-    utl_rte_check(mp);
-
-    buf_len = mp->elt_size ;
-
-    rte_mbuf_t *m =(rte_mbuf_t *)malloc(buf_len );
-    if ( m ) {
-        m->magic  = MAGIC0;
-        m->magic2 = MAGIC2;
-        m->pool   = mp;
-        m->refcnt_reserved = 1;
-        m->buf_len    = buf_len-(sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM);
-        m->buf_addr   =(char *)((char *)m+sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM) ;
-
-        rte_pktmbuf_reset(m);
-    }
-
-    return (m);
-}
-
 void rte_pktmbuf_free_seg(rte_mbuf_t *m) {
 
     utl_rte_pktmbuf_check(m);
