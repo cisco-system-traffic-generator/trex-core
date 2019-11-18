@@ -177,13 +177,14 @@ class BirdCFGCreator:
                 if pro_name_data['from_conf']:
                     continue
                 pro_name_data['data'] = self._fix_protocol_data(pro_name_data['data'])
-                strings_to_merge.append('protocol ' + protocol + ' ' + pro_name + ' ' + pro_name_data['data'])        
+                strings_to_merge.append('\nprotocol ' + protocol + ' ' + pro_name + ' ' + pro_name_data['data'] + '\n')        
         
         # handle static routes #
         all_routes = self.routes + self.extended_routes
         all_routes_string = '\n'.join([str(r) for r in all_routes]) 
+
         if 'static' in self.protocols.keys() and BirdCFGCreator.stat_name in self.protocols['static']:
-            # conf file alredy has our static protcol, just add the routes
+            # conf file already has our static protcol, just add the routes
             cfg_lines = self.cfg.split('\n')
             static_pro_lines = [(index, line) for index, line in enumerate(cfg_lines) if "protocol static %s" % BirdCFGCreator.stat_name in line]
             static_line = static_pro_lines[0][0]
@@ -191,12 +192,12 @@ class BirdCFGCreator:
             while ('}' not in curr_line) or ('};' in curr_line):
                 static_line += 1
                 curr_line = cfg_lines[static_line].strip()
-            cfg_lines.insert(curr_line , all_routes_string)
+            cfg_lines.insert(static_line , all_routes_string)
             self.cfg = '\n'.join(cfg_lines) 
         else:
             ipv4_addition = "ipv4 {\nexport all;\nimport all;\n};"
             # ipv6_addition = "ipv6 {\nexport all;\nimport all;\n};"
-            static_protocol = "protocol static %s {\n%s\n%s\n}" % (BirdCFGCreator.stat_name, ipv4_addition, all_routes_string)
+            static_protocol = "protocol static %s {\n%s\n%s\n}\n" % (BirdCFGCreator.stat_name, ipv4_addition, all_routes_string)
             strings_to_merge.append(static_protocol)
 
         return self.cfg + '\n'.join(strings_to_merge)
@@ -226,9 +227,16 @@ class BirdCFGCreator:
 
         for name, data in zip(names, datas):
             name = name.split(' ')
-            if name[2].startswith('{'):
-                name[2] = name[1]  # if there is no name, take the protocol as name 
-            self.add_protocol(name[1], name[2], data.strip('{/}'), from_conf = True)
+            pro, pro_name = name [1], name[2]
+            if pro_name.startswith('{'):
+                pro_name = pro  # if there is no name, take the protocol as name
+            if self._is_api_static_protocol(pro_name):
+                self.protocols[pro] = {pro_name: {'from_conf': True, 'data': data}}
+            else:
+                self.add_protocol(pro, pro_name, data.strip('{/}'), from_conf = True)
+
+    def _is_api_static_protocol(self, pro_name):
+        return pro_name == BirdCFGCreator.stat_name
 
     def __repr__(self):
         return "Routes: {}\nExtended: {}\nProtocols: {}".format(self.routes, self.extended_routes, self.protocols)
@@ -274,14 +282,14 @@ class BirdCFGCreator:
                             export all;
                     };
                     area 0 {
-                            interface "*" {
-                                    type broadcast;
-                            };
+                        interface "*" {
+                            type pointopoint;
+                        };
                     }; 
         """
         self.add_protocol("ospf", "ospf1", ospf_data)
 
-   
+
 class Route:
 
     ipv4_cidr_re = "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(3[0-2]|[1-2][0-9]|[0-9]))$"

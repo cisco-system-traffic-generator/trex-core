@@ -5532,6 +5532,7 @@ This image shows 2 veth (one per physical interface) that switched throw TRex
 
 Le't start with a simple example, pushing a few BGP routes to ASR1K
 
+anchor:Bird_topo[]
 image::images/TRex_Bird_General_Scheme_With_ips.png[title="TRex Bird General Scheme With ips",align="left",width={p_width}, link="images/TRex_Bird_General_Scheme_With_ips.png"]
 
 - Configure trex yaml file with "stack: linux_based" (see link:trex_manual.html#stacks[Linux Stack]):
@@ -5562,16 +5563,291 @@ asr1001-01(config-router)#neighbor 1.1.2.3 remote-as 65000
 asr1001-01(config-router)#end
 ----
 
-- Run TRex in "ONE_QUEUE" mode and set bird flag on :
+- Run TRex in "ONE_QUEUE \ MULTI_QUEUE" mode and set bird flag on :
 
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -i --bird-server --software -c 1
+
+OR
+
+[bash]>sudo ./t-rex-64 -i --bird-server --software -c 2
 ----
 
 The `--bird-server` will load the bird daemon and the ZMQ server 
 
 - In another shell run python script located at: `scripts/automation/trex_control_plane/interactive/trex/examples/stl/add_bird_node.py` (see link:trex_stateless.html#_tutorial_simple_bird_node_adding[Simple bird node adding])
+
+==== Tutorial: Bird node adding using TRex console
+All the toturial based on the topology xref:Bird_topo[here] +
+
+*Goal*:: 
+    Demonstrate the simple way of adding a bird node.
+
+1) Open TRex console:
+
+[source,bash]
+----
+[bash]> ./trex-console
+----
+
+2) Enable service mode for wanted ports (-a for all) also promiscuous and multicast:
+[source,bash]
+----
+trex>service -a
+trex(service)>portattr -a --prom on --mult on
+----
+
+3) Load bird plugin:
+[source,bash]
+----
+trex(service)>plugins load bird
+----
+
+4) Add bird node using wanted params (need at least port and mac):
+[source,bash]
+----
+trex(service)>plugins bird add_node -p 0 --mac 00:00:00:00:00:06 --ipv4 1.1.1.3 --ipv4-subnet 24
+
+trex(service)>plugins bird show_nodes -p 0
+
+[{u'bpf': u'',
+  u'ether': {u'src': u'00:00:00:00:00:06'},
+  u'ipv4': {u'dst': u'0.190.190.190', u'src': u'1.1.1.3', u'subnet': 24},
+  u'ipv6': {u'enabled': False, u'subnet': 0},
+  u'is-shared-ns': True,
+  u'is_bird': True,
+  u'linux-ns': u'trex-a-bird-ns',
+  u'linux-veth-external': u'bird-0-0-T',
+  u'linux-veth-internal': u'bird-0-0-L',
+  u'vlan': {u'tags': [], u'tpids': []}}]
+----
+
+5) Let's take a look at a simple bgp bird profile:
+
+.Bgp.conf
+[source,bash]
+----
+> more bird/cfg/bgp.conf 
+router id 100.100.100.100;
+
+protocol device {
+    scan time 1;
+}
+
+protocol bgp my_bgp1 {
+    local 1.1.1.3 as 65000;  # put your local ip and as number here
+    neighbor 1.1.1.1 as 65000;  # put your dut ip and as number here
+    ipv4 {
+        import all;
+        export all;
+    };
+}
+
+# using a second interface
+protocol bgp my_bgp2 {
+    local 1.1.2.3 as 65000;  # same for the second interface
+    neighbor 1.1.2.1 as 65000;
+    ipv4 {
+        import all;
+        export all;
+    };
+}
+----
+
+.Ipv4_routes
+[source,bash]
+----
+> more bird/cfg/ipv4_routes.conf 
+
+protocol static {
+    ipv4 {
+        import all;
+        export all;
+    };
+
+    route 42.42.42.0/32 via 1.1.1.3;
+    route 42.42.42.1/32 via 1.1.1.3;
+    route 42.42.42.2/32 via 1.1.1.3;
+    route 42.42.42.3/32 via 1.1.1.3;
+    route 42.42.42.4/32 via 1.1.1.3;
+    route 42.42.42.5/32 via 1.1.1.3;
+    route 42.42.42.6/32 via 1.1.1.3;
+    route 42.42.42.7/32 via 1.1.1.3;
+    route 42.42.42.8/32 via 1.1.1.3;
+    route 42.42.42.9/32 via 1.1.1.3;
+    route 42.42.42.10/32 via 1.1.1.3;
+}
+----
+
+
+
+6) Set your wanted bird config file and your routing file (examples located at "bird/cfg/*.conf"):
+[source,bash]
+----
+trex(service)>plugins bird set_config -f bird/cfg/bgp.conf -r bird/cfg/ipv4_routes.conf
+
+Bird configuration result: Configured successfully
+----
+
+You can also generate your own routes using three flags (all required):
+[source,bash]
+----
+trex(service)>plugins bird set_config -f bird/cfg/bgp.conf --first-ip 42.42.42.0 --total-routes 100 --next-hop 1.1.1.3
+
+Bird configuration result: Configured successfully
+----
+
+That will add 100 routes with next hop of 1.1.1.3 (if the next hop isn't familiar the router probably won't accept it) starting from 42.42.42.0 like:
+42.42.42.0 via 1.1.1.3, 42.42.42.1 via 1.1.1.3, ... , 42.42.42.100 via 1.1.1.3 
+
+
+7) Show the bird config:
+[source,bash]
+----
+trex(service)>plugins bird show_config 
+router id 100.100.100.100;
+
+protocol device {
+    scan time 1;
+}
+
+protocol bgp my_bgp1 {
+    local 1.1.1.3 as 65000;  # put your local ip and as number here
+    neighbor 1.1.1.1 as 65000;  # put your dut ip and as number here
+    ipv4 {
+        import all;
+        export all;
+    };
+}
+
+# using a second interface
+protocol bgp my_bgp2 {
+    local 1.1.2.3 as 65000;  # same for the second interface
+    neighbor 1.1.2.1 as 65000;
+    ipv4 {
+        import all;
+        export all;
+    };
+}
+
+protocol static {
+    ipv4 {
+        import all;
+        export all;
+    };
+
+    route 42.42.42.0/32 via 1.1.1.3;
+    route 42.42.42.1/32 via 1.1.1.3;
+    route 42.42.42.2/32 via 1.1.1.3;
+    route 42.42.42.3/32 via 1.1.1.3;
+    route 42.42.42.4/32 via 1.1.1.3;
+    route 42.42.42.5/32 via 1.1.1.3;
+    route 42.42.42.6/32 via 1.1.1.3;
+    route 42.42.42.7/32 via 1.1.1.3;
+    route 42.42.42.8/32 via 1.1.1.3;
+    route 42.42.42.9/32 via 1.1.1.3;
+    route 42.42.42.10/32 via 1.1.1.3;
+}
+----
+
+8) Show the protocol table as it in bird:
+[source,bash]
+----
+trex(service)>plugins bird show_protocols 
+Name       Proto      Table      State  Since         Info
+device1    Device     ---        up     15:09:24.435
+my_bgp1    BGP        ---        start  15:09:24.435  Connect       Socket: Network is unreachable
+my_bgp2    BGP        ---        start  15:09:24.435  Active        Socket: Connection closed
+static1    Static     master4    up     15:24:44.992
+----
+
+9) (At the router: ASR1001) Show the recived routes:
+
+[source,bash]
+----
+asr1001-01#show ip route 
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area 
+       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2
+       E1 - OSPF external type 1, E2 - OSPF external type 2
+       i - IS-IS, su - IS-IS summary, L1 - IS-IS level-1, L2 - IS-IS level-2
+       ia - IS-IS inter area, * - candidate default, U - per-user static route
+       o - ODR, P - periodic downloaded static route, H - NHRP, l - LISP
+       a - application route
+       + - replicated route, % - next hop override
+
+Gateway of last resort is not set
+
+      1.0.0.0/8 is variably subnetted, 4 subnets, 2 masks
+C        1.1.1.0/24 is directly connected, TenGigabitEthernet0/0/0
+L        1.1.1.1/32 is directly connected, TenGigabitEthernet0/0/0
+C        1.1.2.0/24 is directly connected, TenGigabitEthernet0/0/1
+L        1.1.2.1/32 is directly connected, TenGigabitEthernet0/0/1
+      42.0.0.0/32 is subnetted, 11 subnets
+B        42.42.42.0 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.1 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.2 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.3 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.4 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.5 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.6 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.7 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.8 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.9 [200/0] via 1.1.1.3, 00:00:50
+B        42.42.42.10 [200/0] via 1.1.1.3, 00:00:50
+----
+
+10) Moving to "Service filtered mode" and sending traffic:
+
+.Example
+[source,bash]
+----
+trex(service)>service --bgp --no-tcp-udp
+----
+
+In this mode you can generate tcp/udp traffic while bgp service is on.
+
+11) Removing all nodes:
+
+.Example
+[source,bash]
+----
+trex(service)>ns remove-all
+----
+
+12) Adding bird node with ipv6:
+.Example
+[source,bash]
+----
+trex(service)>plugins bird add_node -p 0 --mac 00:00:00:01:00:07 --ipv6-enable --ipv6 2001:db8:0:2222::3 --ipv6-subnet 64
+----
+
+13) Setting ipv6 bird config:
+[source,bash]
+----
+plugins bird set_config -f bird/cfg/bgp_ipv6.conf
+----
+
+See the ipv6 bgp file:
+[source,bash]
+----
+> cat scripts/bird/cfg/bgp_ipv6.conf 
+router id 100.100.100.100;
+
+protocol device {
+    scan time 1;
+}
+
+protocol bgp my_bgp {
+    local 2001:db8:0:2222::3 as 65000;  # put your local ip and as number here
+    neighbor 2001:db8:0:2222::1 as 65000;  # put your dut ip and as number here
+    ipv6 {
+        import all;
+        export all;
+    };
+}
+----
 
 .Example
 [source,python]

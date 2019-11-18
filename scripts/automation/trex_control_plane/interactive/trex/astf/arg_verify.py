@@ -10,9 +10,11 @@ class ArgVerify(object):
         array=mac.split(':');
         if len(array) !=6:
             return False
-        for obj in array:
+        for i, obj in enumerate(array):
             try:
                a=int("0x"+obj,16)
+               if i == 0 and a & 1:
+                   return False  # reserved for multicast / broadcast
             except Exception as e:
                 return False
             if a>255:

@@ -2,14 +2,15 @@
 import time
 from trex.pybird.bird_cfg_creator import *
 from trex.pybird.bird_zmq_client import *
+from trex.stl.trex_stl_port import *
 from .bird_general_test import CBirdGeneral_Test, CTRexScenario
 
-
 # global configurations
-RIP_ROUTES_NUM   = 10
-BGP_SMALL_ROUTES = 10
-BGP_MANY_ROUTES  = int(1e6)
+RIP_ROUTES_NUM    = 10
+BGP_SMALL_ROUTES  = 10
+BGP_MANY_ROUTES   = int(1e6)
 OSPF_SMALL_ROUTES = 10
+MTU               = 9050  # same as router's interface MTU
 # time in sec
 POLL_TIME        = 1
 SMALL_HANG_TIME  = 12
@@ -22,16 +23,19 @@ class STLBird_Test(CBirdGeneral_Test):
         CBirdGeneral_Test.setUp(self)
 
         self.bird_trex.reset()
-        self.bird_trex.set_service_mode(enabled = True)
         self.bird_trex.set_port_attr(promiscuous = True, multicast = True)
         self.pybird = PyBirdClient()
         self.pybird.connect()
         self.pybird.acquire(force = True)
+        self.bird_trex.set_service_mode()
         self.bird_trex.namespace_remove_all()
+        self.bird_trex.set_service_mode(enabled = False)
 
     def tearDown(self):
         CBirdGeneral_Test.tearDown(self)
         CTRexScenario.router.clear_routes()
+        self.bird_trex.set_service_mode()
+        self.bird_trex.namespace_remove_all()
         self.pybird.release()
         self.pybird.disconnect()
         self.bird_trex.set_service_mode(enabled = False)
@@ -55,17 +59,17 @@ class STLBird_Test(CBirdGeneral_Test):
             return 0
 
     def _check_how_many_rip(self):
-        """ Check how many routes got to rip databse"""
+        """ Check how many routes got to rip database"""
         lines = CTRexScenario.router.get_rip_routes().splitlines()
         routes_line = [l for l in lines if l.strip().startswith("[1]")]
         return len(routes_line)
 
     def _check_how_many_ospf(self):
         routes_line_prefix = "Number of external LSA "
-        lines = CTRexScenario.router.get_ospf_routing_table().splitlines()
-        protocol_line = [l for l in lines if l.strip().stratswith(routes_line_prefix)]
+        lines = CTRexScenario.router.get_ospf_data().splitlines()
+        protocol_line = [l for l in lines if l.strip().startswith(routes_line_prefix)]
         if protocol_line:
-            return int([s.strip('.') for s in protocol_line.split() if s.strip('.').isdigit()][0])
+            return int([s.strip('.') for s in protocol_line[0].split() if s.strip('.').isdigit()][0])
         else:
             return 0
 
@@ -81,19 +85,28 @@ class STLBird_Test(CBirdGeneral_Test):
     def _clear_routes(self, protocol = None):
         CTRexScenario.router.clear_routes(protocol)
 
+    def _create_bird_node(self, mac1, mac2 = None):
+        self.bird_trex.set_service_mode(enabled = True)
+        ports = [0]
+        self.bird_trex.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24, mtu = MTU)
+        if mac2 is not None:
+            self.bird_trex.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24, mtu = MTU)  
+            ports.append(1)
+        self.bird_trex.set_service_mode(ports = ports, enabled = False, filtered = True, mask = (BGP_MASK | NO_TCP_UDP_MASK))
+
+
     ########
     # RIP #
     ########
 
     def test_bird_small_rip(self):
         self._conf_router_rip()
-
         c = self.bird_trex
+
         mac1 = "00:00:00:01:00:06"
 
         try:
-            # add bird node
-            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            self._create_bird_node(mac1)
             
             # make conf file
             cfg_creator = BirdCFGCreator()
@@ -116,7 +129,6 @@ class STLBird_Test(CBirdGeneral_Test):
         finally:
             self._conf_router_rip(unconf = True)
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()
 
     #######
     # BGP #
@@ -128,9 +140,7 @@ class STLBird_Test(CBirdGeneral_Test):
         mac2 = "00:00:00:01:00:07"
 
         try:
-            # add bird node
-            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
-            # c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
+            self._create_bird_node(mac1, mac2)
             
             # make conf file
             cfg_creator = BirdCFGCreator()
@@ -151,9 +161,8 @@ class STLBird_Test(CBirdGeneral_Test):
             assert bgp_routes == BGP_SMALL_ROUTES, "Not all %s routes got to dut after %s min" % (BGP_SMALL_ROUTES, SMALL_HANG_TIME)
 
         finally:
-            # self._conf_router_bgp(unconf = True)
+            self._conf_router_bgp(unconf = True)
             c.set_port_attr(promiscuous = False, multicast = False)
-            # c.namespace_remove_all()
 
     def test_bird_many_bgp(self):
         self._conf_router_bgp()
@@ -162,9 +171,7 @@ class STLBird_Test(CBirdGeneral_Test):
         mac2 = "00:00:00:01:00:07"
 
         try:
-            # add bird node
-            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
-            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
+            self._create_bird_node(mac1, mac2)
 
             # create 1M configuration
             cfg_creator = BirdCFGCreator()
@@ -187,7 +194,6 @@ class STLBird_Test(CBirdGeneral_Test):
         finally:
             self._conf_router_bgp(unconf = True)
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()
 
     def test_bird_bad_filter(self):
         self._conf_router_bgp()
@@ -196,9 +202,7 @@ class STLBird_Test(CBirdGeneral_Test):
         mac2 = "00:00:00:01:00:07"
 
         try:
-            # add bird 2 nodes
-            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
-            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
+            self._create_bird_node(mac1, mac2)
 
             # make conf file with 10 routes
             cfg_creator = BirdCFGCreator()
@@ -234,7 +238,6 @@ class STLBird_Test(CBirdGeneral_Test):
         finally:
             self._conf_router_bgp(unconf = True)
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()
 
     ########
     # OSPF #
@@ -244,25 +247,23 @@ class STLBird_Test(CBirdGeneral_Test):
         self._conf_router_ospf()
         c = self.bird_trex
         mac1 = "00:00:00:01:00:06"
-        mac2 = "00:00:00:01:00:07"
 
         try:
-            # add bird node
-            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
-            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
-            
+            self._create_bird_node(mac1)
+
             # make conf file
             cfg_creator = BirdCFGCreator()
             cfg_creator.add_simple_ospf()
             cfg_creator.add_many_routes("10.10.10.0", total_routes = OSPF_SMALL_ROUTES, next_hop = "1.1.1.3")
 
             # push conf file
-            self.pybird.set_config(new_cfg = cfg_creator.build_config())
+            res = self.pybird.set_config(new_cfg = cfg_creator.build_config())
+            print("Bird configuration result: %s" % res)
 
             # get current routing from DUT
             for _ in range(SMALL_HANG_TIME // POLL_TIME):
                 time.sleep(POLL_TIME)
-                ospf_routes = self._get_routes_num_in_table("ospf 1")
+                ospf_routes = self._check_how_many_ospf()
                 print("Router got %s out of %s routes" % (ospf_routes, OSPF_SMALL_ROUTES))              
                 if ospf_routes == OSPF_SMALL_ROUTES:
                     return 
@@ -271,4 +272,3 @@ class STLBird_Test(CBirdGeneral_Test):
         finally:
             self._conf_router_ospf(unconf = True)
             c.set_port_attr(promiscuous = False, multicast = False)
-            c.namespace_remove_all()

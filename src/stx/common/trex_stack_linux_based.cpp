@@ -725,7 +725,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params
 }
 
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result, bool only_bird){
     try {
         result["nodes"]= Json::arrayValue;
         /* no need for locks */
@@ -733,8 +733,10 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
             CNamespacedIfNode * lp=(CNamespacedIfNode*)iter_pair.second;
             /* add the nodes that are not related to trex physical ports */
             if (!lp->is_associated_trex()){
-                Json::Value json_val=lp->get_src_mac_as_str();
-                result["nodes"].append(json_val);
+                if ( (!only_bird) || (only_bird && lp->is_bird_node()) ) {
+                    Json::Value json_val=lp->get_src_mac_as_str();
+                    result["nodes"].append(json_val);
+                }
             }
         }
     } catch (const TrexException &ex) {
@@ -762,9 +764,12 @@ void CStackLinuxBased::init_bird() {
 *         CNamespacedIfNode            *
 ***************************************/
 
-CNamespacedIfNode::CNamespacedIfNode() {}
+CNamespacedIfNode::CNamespacedIfNode() {
+    debug("Namespaced node ctor");
+}
 
 CNamespacedIfNode::~CNamespacedIfNode() {
+    debug("Namespaced node dtor");
     m_mcast_filter->del_vlan(m_vlan_tags.size());
 }
 
@@ -983,13 +988,19 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
     m_if_name = ns_name;
     m_associated_trex_ports = true;
     m_is_shared_ns = false;
-    create_ns();
-    create_veths(mtu);
-    set_src_mac(mac_str, mac_buf);
-    bind_pair();
-    set_bpf_filter(get_default_bpf());
     m_mcast_filter = &mcast_filter;
     m_mcast_filter->add_empty();
+    create_ns();
+    try {
+        create_veths(mtu);
+        set_src_mac(mac_str, mac_buf);
+        bind_pair();
+        set_bpf_filter(get_default_bpf());
+    } catch (TrexException e) {
+        debug({"Got exception at Linux node ctor!", e.what()});
+        delete_net();
+        throw &e;
+    }
 }
 
 CLinuxIfNode::~CLinuxIfNode() {
@@ -1018,17 +1029,22 @@ CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, c
     m_if_name = if_name;
     m_is_bird = is_bird;
     m_is_shared_ns = true;
-    debug("Initializing Shared namespace veth");
-    m_associated_trex_ports = true;
-    create_veths(mtu);
-    set_src_mac(mac_str, mac_buf);
-    bind_pair();
-    set_bpf_filter(get_default_bpf());
     m_mcast_filter = &mcast_filter;
     m_mcast_filter->add_empty();
-    
+    m_associated_trex_ports = true;
     m_subnet4 = 0;
     m_subnet6 = 0;
+    debug("Initializing Shared namespace veth");
+    try {
+        create_veths(mtu);
+        set_src_mac(mac_str, mac_buf);
+        bind_pair();
+        set_bpf_filter(get_default_bpf());
+    } catch (TrexException e) {
+        debug({"Got exception at Linux node ctor!", e.what()});
+        delete_veth();
+        throw &e;
+    }
 }
 
 CSharedNSIfNode::~CSharedNSIfNode() {
@@ -1063,7 +1079,7 @@ void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t
 
 
 void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
-    if ( subnet < 1 || subnet > 128 ) {
+    if ( ip6_buf.size() && (subnet < 1 || subnet > 128) ) {
         throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
     }
     clear_ip6_internal();
@@ -1074,11 +1090,11 @@ void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip
             inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
             string ip6_str(buf);
             run_in_ns("ip -6 addr add " + ip6_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv6 for veth");
+            m_ip6 = ip6_buf;
+            m_subnet6 = subnet;
         }
     }
     m_ip6_enabled = enabled;
-    m_ip6 = ip6_buf;
-    m_subnet6 = subnet;
 }
 
 void CSharedNSIfNode::set_mtu_internal(const std::string &mtu) {
@@ -1089,6 +1105,7 @@ void CSharedNSIfNode::set_mtu_internal(const std::string &mtu) {
 void CSharedNSIfNode::to_json_node(Json::Value &res) {
     CNamespacedIfNode::to_json_node(res);
     res["ipv4"]["subnet"] = m_subnet4;
+    res["ipv4"].removeMember("dst");
     res["ipv6"]["subnet"] = m_subnet6;
     res["is_bird"] = m_is_bird;
 }

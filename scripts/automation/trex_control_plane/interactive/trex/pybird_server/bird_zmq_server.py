@@ -1,3 +1,5 @@
+import signal
+from functools import partial
 import json
 import logging.handlers
 import logging
@@ -43,7 +45,11 @@ class BirdWrapper:
         except Exception as e:
             print("Error occurred while reading from bird current cfg in the first time: %s" % e)
             self._current_md5 = -1  # signify no md5 loaded
-    
+
+    def __del__(self):
+        self.logger.info('***IN BIRD WRAPPER DTOR***')
+        self.execute('disconnect', [])
+
     def parse_req_msg(self, JSON_req):
         try:
             req = json.loads(JSON_req)
@@ -190,6 +196,7 @@ class BirdServer():
         self.port = port
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
+        
         self.socket.bind("tcp://*:"+str(port))
         self.logger.info('Listening on port: %d' % self.port)
         
@@ -211,14 +218,19 @@ class BirdServer():
         self.logger.info('Server IP address: %s' % self.IP_address)
         
     def __del__(self):
-        self._close_conn()
+        try:
+            self.logger.info('***IN BirdServer DTOR***')
+            self._close_conn()
+            self.logger.info('***DONE DTOR***')
+        except Exception as e:
+            self.logger.warning(e)
 
     def _close_conn(self):
-        if self.bird_wrapper:
-            self.bird_wrapper.execute('disconnect', [])
         if self.socket is not None:
+            self.logger.info('Closing socket!')
             self.socket.close()
         if self.context is not None:
+            self.logger.info('Destroying context!')
             self.context.destroy()
 
     def _build_logger(self):
@@ -346,8 +358,18 @@ class BirdServer():
 
 # arg1 is port number for the server to listen to
 def main(args, port):
-    s = BirdServer(args, port)
-    s.start()
+    server = BirdServer(args, port)
+
+    def cleanup(server, signal, frame):
+        server.logger.info('Got signal, starting cleanup')
+        server._close_conn()
+        server.logger.info('END of cleanup')
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, partial(cleanup, server))
+    signal.signal(signal.SIGTERM, partial(cleanup, server))
+
+    server.start()
 
 
 if __name__ == '__main__':
@@ -361,4 +383,4 @@ if __name__ == '__main__':
                         action='store_true', default=False)
     args = parser.parse_args()
     port = args.bird_port
-    sys.exit(main(args, port))
+    main(args, port)

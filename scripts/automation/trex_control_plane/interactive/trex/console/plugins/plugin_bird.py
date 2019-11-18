@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import pprint
 from trex.console.plugins import *
 from trex.stl.api import *
 from trex.pybird.bird_cfg_creator import *
@@ -22,71 +23,130 @@ class Bird_Plugin(ConsolePlugin):
                 dest     = 'mac', 
                 required = True,
                 help     = 'mac address to use')
+        # ipv4 args
         self.add_argument("--ipv4", type = str,
                 dest     = 'ipv4', 
                 help     = 'src ip to use')
         self.add_argument("--ipv4-subnet", type = int,
                 dest     = 'ipv4_subnet', 
                 help     = 'ipv4 subnet to use')
+        # ipv6 args
         self.add_argument("--ipv6-enable", action = "store_true",
                 dest     = 'ipv6_enabled', 
                 default  = False,
                 help     = 'ipv6 enable, default False')
+        self.add_argument("--ipv6", type = str,
+                dest     = 'ipv6',
+                help     = 'ipv6 enable, default False')
         self.add_argument("--ipv6-subnet", type = int,
                 dest     = 'ipv6_subnet', 
-                default  = 127,
                 help     = 'ipv6 subnet ip to use, default 127')
+        # vlan args        
         self.add_argument("--vlans", type = list,
                 dest     = 'vlans', 
                 help     = 'vlans for bird node')
         self.add_argument("--tpids", type = list,
                 dest     = 'tpids', 
                 help     = 'tpids for bird node')
+        self.add_argument("--mtu", type = int,
+                dest     = 'mtu',
+                help     = 'mtu of the bird node')
 
-        self.c = STLClient()
+        # set_config params
+        self.add_argument("-f", "--file", type = str,
+                required = True,
+                dest     = 'file_path',
+                help     = 'file path where the config file is located')
+
+        self.add_argument("-r", "--routes", type = str,
+                dest     = 'routes_file',
+                help     = 'file path where the routes are located')
+
+        # add_route params
+        self.add_argument("--first-ip", type = str,
+                help     = 'first ip to start enumerating from')
+        self.add_argument("--total-routes", type = int,
+                help     = 'total routes to be added to bird config')
+        self.add_argument("--next-hop", type = str,
+                help     = 'next hop for each route, best practice with current bird interface ip')
+
         self.pybird = PyBirdClient()
         self.pybird.connect()
         self.pybird.acquire()
-
-    def plugin_unload(self):
-        try:
-            self.pybird.release()()
-            self.pybird.disconnect()
-        except Exception as e:
-            print('Error while unloading bird plugin: \n' + str(e))        
         
-
-    def do_add_bird_node(self, port, mac, ipv4, ipv4_subnet, ipv6_enabled, ipv6_subnet, vlans, tpids):
+    # Bird commands
+    def do_add_node(self, port, mac, ipv4, ipv4_subnet, ipv6_enabled, ipv6, ipv6_subnet, vlans, tpids, mtu):
         ''' Simple adding bird node with arguments. '''
-        self.c.connect()
-        self.c.acquire(force = True)
-        self.c.set_bird_node(node_port   = port,
-                                mac         = mac,
-                                ipv4        = ipv4,
-                                ipv4_subnet = ipv4_subnet,
-                                ipv6_enabled = ipv6_enabled,
-                                ipv6_subnet = ipv6_subnet,
-                                vlans       = vlans,
-                                tpids       = tpids)
 
-    def do_add_rip(self):
-        ''' Adding rip protocol to bird configuration file. '''
-        curr_conf = self.pybird.get_config()
-        cfg_creator = BirdCFGCreator(curr_conf)
-        cfg_creator.add_simple_rip()
-        self.pybird.set_config(cfg_creator.build_config())
+        self.trex_client.set_bird_node(node_port   = port,
+                                mac           = mac,
+                                ipv4          = ipv4,
+                                ipv4_subnet   = ipv4_subnet,
+                                ipv6_enabled  = ipv6_enabled,
+                                ipv6          = ipv6,
+                                ipv6_subnet   = ipv6_subnet,
+                                vlans         = vlans,
+                                tpids         = tpids,
+                                mtu           = mtu)
+
+    def do_set_empty_config(self):
+        ''' Set empty bird config with no routing protocols. '''
+        print(self.pybird.set_empty_config())
+
+    def do_show_config(self):
+        ''' Return the current bird configuration as it for now. '''
+        print(self.pybird.get_config())
     
-    def do_add_bgp(self):
-        ''' Adding bgp protocol to bird configuration file. '''
-        curr_conf = self.pybird.get_config()
-        cfg_creator = BirdCFGCreator(curr_conf)
-        cfg_creator.add_simple_bgp()
-        self.pybird.set_config(cfg_creator.build_config())
+    def do_show_protocols(self):
+        ''' Show the bird protocols in a user friendly way. '''
+        print(self.pybird.get_protocols_info())
 
-    def do_add_ospf(self):
-        ''' Adding ospf protocol to bird configuration file. '''
-        curr_conf = self.pybird.get_config()
-        cfg_creator = BirdCFGCreator(curr_conf)
-        cfg_creator.add_simple_ospf()
-        self.pybird.set_config(cfg_creator.build_config())
+    def do_show_nodes(self, port):
+        ''' Show all bird nodes on port '''
+        res = self.trex_client.set_namespace(port, method='get_nodes', only_bird = True)
+        list_of_macs = res['result']['nodes']
+        res = self.trex_client.set_namespace(port, method='get_nodes_info', macs_list = list_of_macs)
+        if len(res['result']['nodes']):
+            pprint(res['result']['nodes'])
+        else:
+            print("No bird nodes on port %s" % port)
 
+    def do_add_routes(self, first_ip, total_routes, next_hop):
+        ''' Adding static routes to bird config. '''
+        cfg_creator = self._get_bird_cfg_with_current_config()
+        cfg_creator.add_many_routes(first_ip, total_routes, next_hop)
+        res = self.pybird.set_config(cfg_creator.build_config())
+        print("Bird configuration result: %s" % res)
+
+    # Adding routing protocols
+    def do_set_config(self, file_path, routes_file, first_ip, total_routes, next_hop):
+        ''' Add wanted config to bird configuration. '''
+        if routes_file and (first_ip or total_routes or next_hop):
+            print("Cannot work with route file and generate routes args, choose only one of them")
+            return
+
+        if not os.path.isfile(file_path):
+            print('The path: "%s" is not a valid file!' % file_path)
+        with open(file_path, 'r') as f:
+            new_config = f.read()
+
+        if routes_file:
+            if not os.path.isfile(routes_file):
+                print('The path: "%s" is not a valid file!' % routes_file)
+            with open(routes_file, 'r') as f:
+                new_config += f.read()
+        else:
+            if first_ip or total_routes or next_hop:
+                if not (first_ip and total_routes and next_hop):
+                    print("Must specify all generate routes args")
+                    return
+                cfg_creator = BirdCFGCreator(new_config)
+                cfg_creator.add_many_routes(first_ip, total_routes, next_hop)
+                new_config = cfg_creator.build_config() 
+
+        res = self.pybird.set_config(new_config)
+        print("Bird configuration result: %s" % res)
+
+    # helper functions
+    def _get_bird_cfg_with_current_config(self):
+        return BirdCFGCreator(self.pybird.get_config())
