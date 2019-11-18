@@ -731,6 +731,9 @@ def build(bld):
     bld(rule=lambda task : convert_to_html_toc_book(task, disqus = True),
         source='trex_astf_vs_nginx.asciidoc waf.css', target='trex_astf_vs_nginx.html',scan=ascii_doc_scan);
 
+    bld(rule=lambda task : convert_to_html_toc_book(task, disqus = True),
+        source='trex_netdev.asciidoc waf.css', target='trex_netdev.html',scan=ascii_doc_scan);
+
     bld(rule=convert_to_pdf_book,source='trex_astf.asciidoc waf.css', target='trex_astf.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_html_toc_book_no_docinfo,
