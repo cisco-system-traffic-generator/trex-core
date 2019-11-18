@@ -1,0 +1,249 @@
+======================
+:email: hhaim@cisco.com
+:quotes.++:
+:numbered:
+:web_server_url: https://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 6
+:tabledef-default.subs: normal,callouts
+======================
+include::trex_ga.asciidoc[]
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 300
+endif::backend-xhtml11[]
+
+= Test Your Limits With TRex traffic generator 
+
+== Abstract
+
+Perfomance measurement tools are an integral part of network testing.
+There is no shortage of open source tools for network performance
+testing in the Linux world. To enumerate a few popular tools in the
+Linux world: Netperf, iperf, Linux kernel based pktgen. 
+
+These tools tend to fall into 2 categories:
+* stateless packet shooting such as the linux kernel pktgen traffic generator
+* stateful client-server tools such as netperf and iperf.
+
+When very high performance network performance testing is required (quantified as
+many 10s of Gigabits per second, and/or hundreds of thousands of flows) the
+classical tools like iperf/netperf and pktgen are insufficient. Most organizations
+will opt for very expensive commercial tools such as Ixia, Spirent and similar
+
+In this paper we will introduce TRex a high performance traffic generator
+and illustrate sample stateless and stateful use cases that apply to testing
+Linux networking. We will also discuss its design and tricks that help us
+achieve such high performance.
+
+TRex has the following interesting features:
+
+ -It leverages COTS x86/ARM servers and NICs (Intel, Mellanox etc).
+
+ -It can serve both stateless and stateful traffic generation.
+  tcp stack for stateful traffic and emulation layer to simulate L7 application 
+
+ -It outperforms all of iperf, netperf and pktgen 
+   a) it can generate upto 200gbps traffic and millions of real
+      world tcp/udp flows.
+   b) High connection rate - order of Millions of Connection/s
+
+ -It is extensible
+   a) Emulate L7 application (on top of TCP/IP),
+       e.g. HTTP/HTTPS/Citrix using a programable language
+   b) Ability to change fields in the L7 application - for example,
+      change HTTP User-Agent field
+
+Although TRex is implemented on top of DPDK, a lot of the issues we had
+to deal with when writting the tool apply equally to scaling Linux networking;
+we share our experiences in that regard and hope to inspire some
+of the techniques to be adopted in Linux.
+
+== Introduction 
+
+TRex stateful features are:
+
+* Performance and scale
+* High bandwidth - 200gb/sec with many realistic flows (not one elephant flow )
+* High connection rate - order of MCPS
+* Scale to millions of active established flows
+* Accurate TCP implementation (not all congestion control are there
+* Emulate L7 application (on top of TCP/IP), e.g. HTTP/HTTPS/Citrix using a programable language  
+* Ability to change fields in the L7 application - for example, change HTTP User-Agent field
+* Automation support
+
+One of the main software challenge is the *scale* requirement meaning to achieve millions active flows in very high rate
+
+== Stateful software design high level 
+
+* User space multi-threaded linux process see Figure 1. DP cores (blue) can scale up
+* One thread per core, event driven, almost no sharing between the cores,no locks. this way multiplex many flows operation without context switch 
+* No syscall into kernel, driver are DPDK PMD for batching operations 
+* Each core has its own context, communication is via fast shared rings (DP->CP, CP->DP, Rx->DP, RX->CP)
+* Application emulation are via programable language that work in async API 
+** Start write buffer
+** Continue write
+** End Write
+** Wait for buffer/timeout
+** OnConnect/OnReset/OnClose
+* Scale with the number of flows by having pull approach instead of push 
+
+The results:
+
+* Very low memory footprint with millions of flows (~1KB per flow)
+* 3-4MPPS/core almost linear scale with cores/flows. 
+* With average packet size of 600B (mix of application) can reach ~200gbps with x86 server with 2 sockets 
+
+image::images/trex_design.png[title="Cores allocation",align="center",width=400, link="images/trex_design.png"]
+
+image::images/t_c4.png[title="Stack",align="center",width=150, link="images/t_c4.png"]
+
+
+== Millions of flows scale 
+
+image::images/t_c5.png[title="TCP Tx side",align="center",width={p_width}, link="images/t_c5.png"]
+
+Most TCP stacks have an API that allow the user to provide a buffer (write operation). The TCP module saves the buffer until the data is acknowledged by the remote side. With big windows (required with high RTT) and many flows this could create a memory scale issue. Figure 3 shows one TCP flow TX queue. For 1M active flows with 64K TX buffer the worst case memory requirement is
+1M x 64K * mbuf-factor (let's assume 2) = 128GB. The mbuf resource is expensive and needs to be allocated ahead of time. The chosen solution for this problem is to change the API to be a poll API, meaning TCP will request the buffers from the application layer only when packets need to be sent (lazy) but virtually have a tx queue only for management of queue (two pointers). Now because most of the traffic is almost constant in traffic generation case and known ahead of time it was possible to implement and save most of the memory.
+
+image::images/t_c6.png[title="Example of multiple streams",align="center",width={p_width}, link="images/t_c6.png"]
+                                            
+The same problem exists in the case of reassembly in the rx side, in worst case there is a need to store a lot of memory in reassembly queue. To fix this a filter API was added for the application layer. 
+
+[NOTE] 
+=====================================================================
+This optimization won't work with TLS since constant sessions will have new data
+=====================================================================
+            
+== Simulation of latency/jitter/drop in high scale
+
+image::images/t_c7.png[title="TCP Rx side",align="center",width={p_width}, link="images/t_c7.png"]
+
+There is a requirement to simulate latency/jitter/drop in the network layer. Simulating drop in high rate it is not a problem, but simulating latency/jitter in high rate is a challenge because there is a need to queue a high number of packets. See figure 5 on the left.
+A better solution is to queue a pointer to both the TCP flow and the TCP descriptor (with TSO information) and only when needed (i.e. when it has already left the tx queue) build the packet again (lazy). The memory footprint in this case can be reduced dramatically.
+
+== Emulation of L7 application
+
+To emulate L7 applications on top of the TCP layer there is a set of simple operations that can be programed via the API. It possible to analyze a pcap file and convert it to L7 async operations via those API. 
+The following is a simple example of a L7 emulation of HTTP Client and HTTP Server:
+
+.HTTP Client
+[source,python]
+----
+send(request,len=100)
+wait_for_response(len<=1000)
+delay(random(100-1000)*usec)
+send(request2,len=200)
+wait_for_response(len<=2000)
+close()
+----
+
+.HTTP Server
+[source,python]
+----
+wait_for_request(len<=100)
+send_response(data,len=1000)
+wait_for_request(len<=200)
+send_response(data,len=2000)
+close()
+----
+ 
+This way both client and server don't need to know the exact application protocol, they just need to have the same program. In real HTTP server, the server parses the HTTP request, learns the `Content-Length` field, waits for the rest of the data and finally retrieves the information from disk. 
+In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
+
+== Benchmark 
+
+To evaluate the performance and memory scale of TRex and compare it against standard linux tools the following was done. Linux `curl` as a client and `nginx` as a server were compared to TRex for stressing a device under test.
+
+== The setup: TRex vs NGINX
+
+image::images/nginx_setup1.png[title="TRex vs NGINX",align="center",width=600, link="images/nginx_setup1.png"]
+
+The benchmark setup was designed to take a good event-driven Linux server application and to test a TRex client against it. TRex is the client requesting the pages. Figure 6 shows the topology in this case.
+TRex generates requests using *one* DP core and exercises the *whole* 16 cores of the NGINX server. The server is installed with the NGINX process on *all* 16 cores.  After some trial and error, it was determined that is is more difficult to separate Linux kernel/IRQ "context" events from user space process CPU%, so it was chosen to give the NGINX all server resources, and monitor to determine the limiting factor.
+
+The objective is to simulate HTTP sessions as it was defined in our benchmark (e.g. new session for each REQ/RES, initwnd=2 etc.) and not to make the fastest most efficient TCP configuration. This might be the main *difference* between NGINX benchmark configuration and this document configuration. 
+
+In both cases (client/server), the same type of x86 server was used:
+
+.x86 server configuration
+[options='header',cols="2,4^",width="50%"]
+|=================
+| Server  | Cisco UCS 240M3 
+| CPU     | 2 sockets x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz, 8 cores
+| NICs    | 1 NIC x 82599 or 2 X710
+| NUMA    | NIC0-NUMA 0 , NIC1-NUMA1
+| Memory  | 2x32GB 
+| PCIe    | 2x PCIe16 + 2xPCIe4
+| OS      | Fedora 18 - baremetal
+|=================
+
+
+== Setup: TRex vs TRex
+
+image::images/nginx_setup2.png[title="C-TRex vs S-TRex",align="center",width=600, link="images/nginx_setup2.png"]
+
+To compare apples to apples, the NGINX server was replaced with a TRex server with *one* DP core, using an XL710 NIC (40Gb). See the figure above.
+
+
+== Traffic pattern 
+
+Typically, web servers are tested with a constant number of active flows that are opened ahead of time. In the NGINX benchmark blog, only 50 TCP constant connections are used with many request/response for each TCP connection see here xref:2[]. In our traffic generation use case, each HTTP request/response (for each new TCP connection) requires opening a *new* TCP connection. A simple HTTP flow with a request of 100B and a response of 32KB (about 32 packets/flow with initwnd=2) was used.
+
+.Benchmark configuration
+[options='header',cols="2,5^",width="30%"]
+|=================
+| Property   | Values
+| HTTP request size   | 100B
+| HTTP response size   | 32KB
+| Request/Response per TCP connection    | 1
+| Average number of packets per TCP connection  | 32
+| Number of clients  | 200
+| Number of servers  | 1
+| initwnd            | 2
+| delay-ack          | 100msec
+|=================
+
+Flow example: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/exp/tcp2_http_simple_c.pcap[tcp2_http_simple_c.pcap]
+
+== Limitations
+
+The comparison is not perfect, as TRex merely emulates HTTP traffic. It is not a real-world web server or HTTP client. 
+For example, currently the TRex client does not parse the HTTP response for the *Length* field. TRex simply waits for a specific data size (32KB) over TCP. However the TCP layer is a full featured TCP (e.g. delay-ack/Retransmission/Reassembly/timers) . However for stressing network gears there is not need for full blown `nginx` 
+
+== Tuning NGINX and Linux TCP kernel 
+
+When using NGINX and a Linux TCP kernel, it was necessary to tune many things before running tests. This is one of the downsides of using the kernel. Each server/NIC type must be tuned carefully for best performance.
+
+== Test results 
+
+Comparing 1 DP core running TRex to NGINX running on 16 cores with a kernel that can interrupt any NGINX process with IRQ. Figure 3 shows the performance of one DP TRex. It can scale to about 25Gb/sec of download of HTTP (total of 3MPPS for one core).
+
+Figure 4 shows the NGINX performance with 16 cores. It scales (or does not scale) up to about 5.4Gb/sec for this type of HTTP.
+
+image::images/nginx_result_trex1.png[title="TRex with 1 DP core",align="center",link="images/nginx_result_trex.png",width=400]
+
+image::images/nginx_result_linux1.png[title="NGINX 16 cores",align="center",link="images/nginx_result_linux.png",width=400]
+
+image::images/nginx_trex_chart.png[title="TRex one core HTTP result",width=300,align="center",link="images/nginx_trex_chart.png"]
+
+
+NGINX installed on a 2-socket setup with 8 cores/socket (total of 16 cores/32 threads) cannot handle more than 20K new flows/sec, due to kernel TCP software interrupt and thread processing. The limitation is the kernel and *not* NGINX server process. With more NICs and optimized distribution, the number of flows could be increased X2, but not more than that. The total number of packets was approximately 600KPPS (Tx+Rx). The number of active flows was 12K.
+
+TRex with one core could scale to about 25Gb/sec, 3MPPS of the same HTTP profile.
+The main issue with NGINX and Linux setup is the tunning. It is very hard to let the hardware utilizing the full server resource (half of the server was idel in this case and still experience a lot of drop). TRex is not perfect too, we couldn't reach 100% CPU utilization without a drop (CPU was 84%). To achieve 100Gb/sec with this profile on the server side requires 4 cores for TRex, vs. 20x16 cores for NGINX servers. TRex is faster by a factor of *~80*.
+
+In this implementation, each flow requires approximately 1K bytes of memory (Regardless of Tx/Rx rings because of TRex architecture). In the kernel, with a real-world server, TRex optimization can't be applied and each TCP connection must save memory in Tx/Rx rings.
+For about 5Gb/sec traffic with this profile, approximately 10GB of memory was required (both NGINX and Kernel). For 100Gb/sec traffic, approximately 200GB is required (If we will do the extrapolation)  With a TRex optimized implementation, approximately 100MB is required. TRex thus provides an improvement by a factor or *2000* in the use of memory resources.
+
+== Conclusion 
+
+TRex user-space TCP implementation along with DPDK library as a stress tool for Stateful network features like Firewall save a lot of memory/CPU resources and is a worthwhile direction for investment.
+
+== References
+
+1. anchor:1[] link:http://trex-tgn.cisco.com/[]
+2. anchor:2[] link:https://www.nginx.com/blog/testing-the-performance-of-nginx-and-nginx-plus-web-servers/[]
+
+   
+
