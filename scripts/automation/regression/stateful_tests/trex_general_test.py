@@ -520,7 +520,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 'total_pkts': 50,
                 'rate_latency': 1,
                 'latency_9k_enable': False,
-                'no_vlan_even_in_software_mode': True,
+                #'no_vlan_even_in_software_mode': True,
             },
 
             'net_vmxnet3': {
