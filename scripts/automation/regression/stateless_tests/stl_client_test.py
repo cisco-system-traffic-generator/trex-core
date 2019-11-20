@@ -1083,6 +1083,11 @@ class STLClient_Test(CStlGeneral_Test):
         if 'no_vlan' in driver_params or 'no_vlan_even_in_software_mode' in driver_params:
             self.skip('Driver does not support VLANs')
 
+        if not self.c.get_port(self.rx_port).is_l3_mode():
+            self.skip('RX port must have IP for this test')
+        if not self.c.get_port(self.tx_port).is_l3_mode():
+            self.skip('TX port must have IP for this test')
+
         rx_port_vlans_orig = self.c.get_port(self.rx_port).get_vlan_cfg()
         port_pair = [self.tx_port, self.rx_port]
         self.c.set_service_mode(port_pair, True)
