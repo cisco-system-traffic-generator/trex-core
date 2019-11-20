@@ -104,6 +104,35 @@ static int af_packet_logtype;
 	rte_log(RTE_LOG_ ## level, af_packet_logtype, \
 		"%s(): " fmt "\n", __func__, ##args)
 
+
+#ifdef TREX_PATCH
+/*
+Inserts VLAN layer into given mbuf (mimic Dot1Q)
+Original:
+-------------------------------------------------------------------
+| Dest MAC | Src MAC | EtherType 1 | VLAN | EtherType 2 | IP etc. |
+-------------------------------------------------------------------
+Stripped:
+----------------------------------------------
+| Dest MAC | Src MAC | EtherType 2 | IP etc. |
+----------------------------------------------
+*/
+static inline void rte_pktmbuf_insert_stripped_vlan_layer(struct rte_mbuf *m, uint16_t vlan_id) {
+    size_t insert_size = 4;
+    size_t skip_size = 12; // dest MAC and src MAC
+    void* res = rte_pktmbuf_prepend(m, insert_size);
+    RTE_ASSERT(res);   // ensure there is enough space
+
+    void *data_start = rte_pktmbuf_mtod(m, void*);
+    memmove(data_start, data_start + insert_size, skip_size);
+
+    uint16_t vlan_protocol = 0x8100; // Dot1Q
+    uint32_t vlan_tag = (vlan_protocol << 16) | vlan_id;
+    vlan_tag = rte_bswap32(vlan_tag);
+    memcpy(data_start + skip_size, &vlan_tag, insert_size);
+}
+#endif
+
 static uint16_t
 eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 {
@@ -143,8 +172,12 @@ eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 
 		/* check for vlan info */
 		if (ppd->tp_status & TP_STATUS_VLAN_VALID) {
+#ifdef TREX_PATCH
+            rte_pktmbuf_insert_stripped_vlan_layer(mbuf, ppd->tp_vlan_tci);
+#else
 			mbuf->vlan_tci = ppd->tp_vlan_tci;
 			mbuf->ol_flags |= (PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED);
+#endif
 		}
 
 		/* release incoming frame and advance ring buffer */
