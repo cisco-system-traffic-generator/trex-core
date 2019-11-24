@@ -5533,6 +5533,7 @@ This image shows 2 veth (one per physical interface) that switched throw TRex
 Le't start with a simple example, pushing a few BGP routes to ASR1K
 
 anchor:Bird_topo[]
+
 image::images/TRex_Bird_General_Scheme_With_ips.png[title="TRex Bird General Scheme With ips",align="left",width={p_width}, link="images/TRex_Bird_General_Scheme_With_ips.png"]
 
 - Configure trex yaml file with "stack: linux_based" (see link:trex_manual.html#stacks[Linux Stack]):
