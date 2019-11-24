@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import pprint
 from trex.console.plugins import *
 from trex.stl.api import *
 from trex.pybird.bird_cfg_creator import *
@@ -40,12 +39,12 @@ class Bird_Plugin(ConsolePlugin):
                 help     = 'ipv6 enable, default False')
         self.add_argument("--ipv6-subnet", type = int,
                 dest     = 'ipv6_subnet', 
-                help     = 'ipv6 subnet ip to use, default 127')
+                help     = 'ipv6 subnet ip to use')
         # vlan args        
-        self.add_argument("--vlans", type = list,
+        self.add_argument("--vlans", type = int, nargs="*",
                 dest     = 'vlans', 
                 help     = 'vlans for bird node')
-        self.add_argument("--tpids", type = list,
+        self.add_argument("--tpids", type = int, nargs="*",
                 dest     = 'tpids', 
                 help     = 'tpids for bird node')
         self.add_argument("--mtu", type = int,
@@ -107,7 +106,7 @@ class Bird_Plugin(ConsolePlugin):
         list_of_macs = res['result']['nodes']
         res = self.trex_client.set_namespace(port, method='get_nodes_info', macs_list = list_of_macs)
         if len(res['result']['nodes']):
-            pprint(res['result']['nodes'])
+            self._print_nodes_info_as_table(res)
         else:
             print("No bird nodes on port %s" % port)
 
@@ -150,3 +149,26 @@ class Bird_Plugin(ConsolePlugin):
     # helper functions
     def _get_bird_cfg_with_current_config(self):
         return BirdCFGCreator(self.pybird.get_config())
+
+    def _print_nodes_info_as_table(self, res):
+        headers = ["Node MAC", "ipv4 address", "ipv4 subnet", "ipv6 enabled", "ipv6 address", "ipv6 subnet", "vlans", "tpids"]
+        table = text_tables.TRexTextTable('Bird nodes information')
+        table.header(headers)
+
+        table.set_cols_align(["c"] * len(headers))
+        table.set_cols_width([17] * len(headers))
+        table.set_cols_dtype(['t'] * len(headers))
+
+
+        for node in res['result']['nodes']:
+            table.add_row([node['ether']['src'],
+            node['ipv4'].get('src', '-'),
+            node['ipv4']['subnet'] if node['ipv4']['subnet'] != 0 else '-',
+            "True" if node['ipv6']['enabled'] else "False",
+            node['ipv6'].get('src', '-'),
+            node['ipv6']['subnet'] if node['ipv6']['subnet'] != 0 else '-',
+            node['vlan']['tags'] if node['vlan']['tags'] else '-',
+            node['vlan']['tpids'] if node['vlan']['tpids'] else '-'
+             ])
+
+        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
