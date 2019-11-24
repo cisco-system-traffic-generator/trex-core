@@ -879,14 +879,14 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'default': False,
          'dest': 'allow_bgp',
-         'help': 'Allow filtering bgp'})
+         'help': 'filter mode with bgp packets forward to rx'})
 
     SERVICE_NO_TCP_UDP_FILTERED = ArgumentPack(
         ['--no-tcp-udp'],
         {'action': 'store_true',
          'default': False,   
          'dest': 'allow_no_tcp_udp',
-         'help': 'Allow filtering no tcp udp packets i.e OSPF'})
+         'help': 'filter mode with no_tcp_udp packets forward to rx'})
 
     SERVICE_ALL_FILTERED = ArgumentPack(
         ['--all'],
