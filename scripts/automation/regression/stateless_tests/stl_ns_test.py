@@ -239,7 +239,7 @@ class STLNS_Test(CStlGeneral_Test):
 
         cmds.add_node(MAC, shared_ns = ns_name)
         cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
-        cmds.set_ipv6(MAC, subnet = 127, enable = True, shared_ns = True)
+        cmds.set_ipv6(MAC enable = True, shared_ns = True)
         cmds.set_vlan(MAC, vlans = [22], tpids = [0x8011])
 
         c.set_namespace_start(port, cmds)
@@ -320,13 +320,13 @@ class STLNS_Test(CStlGeneral_Test):
             MAC_PREFIX = "00:01:02:03"
             IPV4_PREFIX = "1.1"
             IPV4_DG = '1.1.1.2'
-            ipv4_subnet, ipv6_subnet = 24, 127
+            ipv4_subnet = 24
             for i in range(size):
                 mac  =  get_mac(MAC_PREFIX,i+257+1)
                 ipv4 = get_ipv4 (IPV4_PREFIX,259+i)
                 cmds.add_node(mac, shared_ns = ns_name)
                 cmds.set_ipv4(mac, ipv4 = ipv4, subnet = ipv4_subnet, shared_ns = True)
-                cmds.set_ipv6(mac, enable = True, subnet = ipv6_subnet, shared_ns = True)
+                cmds.set_ipv6(mac, enable = True, shared_ns = True)
             return cmds
 
         try:
@@ -365,7 +365,7 @@ class STLNS_Test(CStlGeneral_Test):
            cmds.add_node(MAC, shared_ns = ns_name)
            cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
            cmds.set_dg(shared_ns = ns_name, dg = "1.1.1.2")
-           cmds.set_ipv6(MAC,enable = True, subnet = 127, shared_ns = True)
+           cmds.set_ipv6(MAC,enable = True, shared_ns = True)
 
            c.set_namespace_start(0, cmds)
            c.wait_for_async_results(0)
@@ -389,7 +389,7 @@ class STLNS_Test(CStlGeneral_Test):
             cmds = NSCmds()
             cmds.add_node(MAC, shared_ns = ns_name)
             cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
-            cmds.set_ipv6(MAC, enable = True, subnet = 127, shared_ns = True)
+            cmds.set_ipv6(MAC, enable = True, shared_ns = True)
             cmds.set_vlan(MAC, vlans = [22], tpids = [0x8100])
 
             c.set_namespace_start(0, cmds)
@@ -404,7 +404,6 @@ class STLNS_Test(CStlGeneral_Test):
             assert(node_info['ipv4']['src'] == "1.1.1.3")
             assert(node_info['ipv4']['subnet'] == 24)
             assert(node_info['ipv6']['enabled'] == True)
-            assert(node_info['ipv6']['subnet'] == 127)
             assert(node_info['vlan']['tags'] == [22])
             assert(node_info['vlan']['tpids'] == [0x8100])
             
