@@ -1360,6 +1360,7 @@ client.set_service_mode(port = 0, enabled = False)
 include::trex_port_service_mode.asciidoc[]
 
 
+
 === Packet capturing
 include::trex_packet_capture.asciidoc[]
 
@@ -5468,23 +5469,56 @@ Keyboard commands in the TUI window:
 
 link:trex_stateless_bench.html[TRex stateless benchmarks]
 
-=== Bird intgration (Beta)
+=== Bird intgration 
+
+anchor:bird[]
 
 ==== Overview
-link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional dynamic IP routing daemon. It was integrated into TRex to run alongside in order to exploit it's features together with Python automation API. 
+link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional linux dynamic IP routing daemon. It was integrated into TRex to run alongside in order to exploit it's features together with Python automation API. 
 
 
 ==== High level Features 
 
 * BIRD 2.0 Protocols support link:https://bird.network.cz/?get_doc&f=bird.html&v=20[Bird]
-** Both IPv4 and IPv6 (using kernel veth)
-** BGP (eBGP/iBGP), RPKI (RFC 6480)/RFC 6483
+** Run on top of IPv4 and IPv6 (using kernel veth)
+** BGP (eBGP/iBGP), RPKI (RFC 6480)/RFC 6483 records type are pv4,ipv6,vpn4,vpn6,multicast,flow4,flow6 
+*** RFC 4271 - Border Gateway Protocol 4 (BGP)
+*** RFC 1997 - BGP Communities Attribute
+*** RFC 2385 - Protection of BGP Sessions via TCP MD5 Signature
+*** RFC 2545 - Use of BGP Multiprotocol Extensions for IPv6
+*** RFC 2918 - Route Refresh Capability
+*** RFC 3107 - Carrying Label Information in BGP
+*** RFC 4360 - BGP Extended Communities Attribute
+*** RFC 4364 - BGP/MPLS IPv4 Virtual Private Networks
+*** RFC 4456 - BGP Route Reflection
+*** RFC 4486 - Subcodes for BGP Cease Notification Message
+*** RFC 4659 - BGP/MPLS IPv6 Virtual Private Networks
+*** RFC 4724 - Graceful Restart Mechanism for BGP
+*** RFC 4760 - Multiprotocol extensions for BGP
+*** RFC 4798 - Connecting IPv6 Islands over IPv4 MPLS
+*** RFC 5065 - AS confederations for BGP
+*** RFC 5082 - Generalized TTL Security Mechanism
+*** RFC 5492 - Capabilities Advertisement with BGP
+*** RFC 5549 - Advertising IPv4 NLRI with an IPv6 Next Hop
+*** RFC 5575 - Dissemination of Flow Specification Rules
+*** RFC 5668 - 4-Octet AS Specific BGP Extended Community
+*** RFC 6286 - AS-Wide Unique BGP Identifier
+*** RFC 6608 - Subcodes for BGP Finite State Machine Error
+*** RFC 6793 - BGP Support for 4-Octet AS Numbers
+*** RFC 7311 - Accumulated IGP Metric Attribute for BGP
+*** RFC 7313 - Enhanced Route Refresh Capability for BGP
+*** RFC 7606 - Revised Error Handling for BGP UPDATE Messages
+*** RFC 7911 - Advertisement of Multiple Paths in BGP
+*** RFC 7947 - Internet Exchange BGP Route Server
+*** RFC 8092 - BGP Large Communities Attribute
+*** RFC 8203 - BGP Administrative Shutdown Communication
+*** RFC 8212 - Default EBGP Route Propagation Behavior without Policies
 ** OSPF (v2/v3)  RFC 2328/ RFC 5340
 ** RIP - RIPv1 (RFC 1058),RIPv2 (RFC 2453), RIPng (RFC 2080), and RIP cryptographic authentication (RFC 4822).
 * Scale of Millions of routes (depends on the protocol scale e.g. BGP) in a few seconds 
-* Integration with Multi-RX software model to supprt dynamic filters for BIRD protocols while keeping high rates of traffic 
+* Integration with Multi-RX software model (`-software` and `-c` higher than 1) to supprt dynamic filters for BIRD protocols while keeping high rates of traffic 
 * Can support up to 10K veth (virtual interfaces) each with different QinQ/VLAN configuration 
-
+* Simple automation Python API for pushing configuration and read statistics 
 
 ==== Integration Topology
 
@@ -5808,10 +5842,11 @@ PyBird Client will release & disconnect anyway when the object will be destroyed
 ===== Bird Console
 
 If you want to communicate directly with bird you may use "bird console". simply run:
+
 [source,bash]
 ----
 cd scripts/bird
-./birdcl -s /tmp/trex-bird/bird.ctl  <1>
+./birdcl -s /tmp/trex-bird/bird.ctl  #<1>
 ----
 <1> default bird socket file path
 

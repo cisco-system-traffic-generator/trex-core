@@ -1,11 +1,24 @@
 
+
+anchor:service_mode[]
+
 In 'normal operation mode', to preserve high speed processing of packets, TRex ignores most of the Rx traffic, with the exception of counting/statistic and handling latency flows.
 
+The *modes*: 
+
+1. *On* : All the packets are forward to rx to be processed by Client or capture 
+2. *Off* - Only latency packets are forward. before v2.66 non TCP UDP were forward to rx in software mode after v2.66 (including) only in filter mode those packets are forward for more flexibility  
+3. *Filter* [bgp,no_tcp_udp] - In this case specific packets are forward to rx for example BGP packets for BIRD. It is relevant only for software mode `--software``
+Using filter mode you would be able to run TCP/UDP traffic in high rate while keeping the routing protocols function.  
+
+[NOTE]
+=====================================================================
+Filter mode is new from version v2.66
+=====================================================================
 
 The following illustrates how Rx packets are handled. Only a portion are forwarded to the Rx handling module and none are forwarded back to the Python client.
 
 image::images/port_normal_mode.png[title="Port Under Normal Mode",align="left",width={p_width}, link="images/port_normal_mode.png"]
-
 
 
 In *service mode*, a port responds to ping and ARP requests, and also enables forwarding packets to the Python control plane for applying full duplex protocols (DCHP, IPv6 neighboring, and so on).
@@ -34,6 +47,7 @@ optional arguments:
   -a                    Set this flag to apply the command on all available
                         ports
   --off                 Deactivates services on port(s)
+
 
 
 trex>service

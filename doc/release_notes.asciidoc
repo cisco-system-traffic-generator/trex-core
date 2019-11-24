@@ -28,9 +28,30 @@ endif::backend-docbook[]
 
 == Release 2.66 ==
 
+* BIRD integration see link:trex_stateless.html#bird[bird]. (first release)
+** Routing protocols support BGP/OSPF/RIP and more on top of IPv6/IPv4 using linux namespace with scale of millions of routes and automation API
+** Change in service mode see link:trex_stateless.html#service_mode[service_mode]. with `--software` mode and off mode packets will not forward to Rx.
+* Enhance linux namespace API to support share linux namespace with a few veth's (instead of 1:1) see link:trex_stateless.html#linux_network_namespace[linux_network_namespace]
 * STF:
 ** Add optional flag to keep source TCP/UDP port (per template). link:trex_manual.html#_per_template_section[More info]
+* PF_PACKET PMD support adding dot1q to the receive packet (aligned with physical PMD behavior)
+* ASTF/STF supports more clients, up to 50M instead of 100k
+* ASTF 
+** Better support multi-profile (stability issues)
+** Fix UDP keepalive Python API 
+* improve STL ndr_bench.py utility 
 
+[NOTE]
+=====================================================================
+Breaking change: service mode has 3 state now instead of only off/on +
+
+1. *On* - all the packets are forward to rx 
+
+2. *Off* - default. before v2.66 non TCP UDP were forward to rx in software mode after v2.66 (including) only in filter mode those packets are forward for more flexibility  +
+
+3. *Filter* - in this case specific packets are forward to rx for example BGP packets for BIRD. It is relevant only for software mode `--software`` +
+using this mode you would be able to run TCP/UDP traffic in high rate while keeping the routing protocols function 
+=====================================================================
 
 == Release 2.65  ==
 
