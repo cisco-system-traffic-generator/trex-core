@@ -239,7 +239,7 @@ class STLNS_Test(CStlGeneral_Test):
 
         cmds.add_node(MAC, shared_ns = ns_name)
         cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
-        cmds.set_ipv6(MAC enable = True, shared_ns = True)
+        cmds.set_ipv6(MAC, enable = True, shared_ns = True)
         cmds.set_vlan(MAC, vlans = [22], tpids = [0x8011])
 
         c.set_namespace_start(port, cmds)
