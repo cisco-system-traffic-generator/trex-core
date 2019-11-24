@@ -48,6 +48,9 @@ optional arguments:
                         ports
   --off                 Deactivates services on port(s)
 
+ --bgp                  filter mode with bgp packets forward to rx
+
+ --no-tcp-udp           filter mode with no_tcp_udp packets forward to rx 
 
 
 trex>service
