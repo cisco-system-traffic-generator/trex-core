@@ -916,7 +916,8 @@ TrexStatelessProfile::remove_and_delete_all_streams() {
  **************************/
 TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
 
-    m_is_service_mode_on  = false;
+    m_is_service_mode_on          = false;
+    m_is_service_filtered_mode_on = false;
     TrexStatelessProfile *mprofile = new TrexStatelessProfile(m_port_id, default_profile);
     mprofile->m_dp_profile_id = ++m_dp_profile_id_inc;
     m_profile_table.add_profile(mprofile);
@@ -1311,6 +1312,7 @@ TrexStatelessPort::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
             getPortAttrObj()->set_rx_filter_mode(RX_FILTER_MODE_HW);
         }
         m_is_service_mode_on = enabled;
+        m_is_service_filtered_mode_on = filtered;
         break;
         
     case TrexStatelessRxQuery::RC_FAIL_RX_QUEUE_ACTIVE:

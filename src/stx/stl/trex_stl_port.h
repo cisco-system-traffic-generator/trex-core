@@ -190,6 +190,10 @@ public:
         return false;
     }
 
+    bool is_service_filtered_mode_on() const {
+        return false;
+    }
+
     bool is_running_flow_stats();
     bool has_flow_stats();
 
@@ -462,6 +466,10 @@ public:
         return m_is_service_mode_on;
     }
 
+    bool is_service_filtered_mode_on() const {
+        return m_is_service_filtered_mode_on;
+    }
+
     bool is_running_flow_stats();
     bool has_flow_stats(string profile_id);
 
@@ -604,6 +612,7 @@ private:
     void delete_streams_graph();
 
     bool  m_is_service_mode_on;
+    bool  m_is_service_filtered_mode_on;
 
     TrexProfileTable    m_profile_table;
 

@@ -864,6 +864,30 @@ class TRexClient(object):
             return [port_id
                     for port_id, port_obj in self.ports.items()
                     if port_obj.is_service_mode_on()]
+        
+    @client_api('getter', True)
+    def get_service_filtered_ports(self, owned = True):
+        """ 
+
+        :parameters:
+          owned - bool
+            if 'True' apply only-owned filter
+
+        :return:
+            List of all ports at filtered service mode
+
+        :raises:
+          None
+
+        """
+        if owned:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_service_filtered_mode_on() and port_obj.is_acquired()]
+        else:
+            return [port_id
+                    for port_id, port_obj in self.ports.items()
+                    if port_obj.is_service_filtered_mode_on()]
       
         
     @client_api('getter', True)
