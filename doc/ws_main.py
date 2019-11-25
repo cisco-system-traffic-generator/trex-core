@@ -196,7 +196,7 @@ def create_toc_json (input_file, output_file, link_fmt = None):
 
 
 
-re_xi = re.compile('''^(include|image)::([^.]*.(asciidoc|\\{PIC\\}))\[''', re.M)
+re_xi = re.compile(r'^(include|image)::([^.]*.(asciidoc|\{PIC\}))\[', re.M)
 def ascii_doc_scan(self):
     p = self.inputs[0].parent
     node_lst = [self.inputs[0]]
@@ -452,7 +452,7 @@ def get_sphinx_version(sphinx_path):
     try:
         global sphinx_version
         if not sphinx_version:
-            sphinx_version_regexp = '^Sphinx \(sphinx-build\) (\d+)\.(\d+)\.\d+$'
+            sphinx_version_regexp = r'^Sphinx \(sphinx-build\) (\d+)\.(\d+)\.\d+$'
             cmd = '%s %s --version' % (sys.executable, sphinx_path)
             output = subprocess.check_output(shlex.split(cmd), universal_newlines = True)
             for line in output.splitlines():
@@ -477,9 +477,9 @@ def parse_hlt_args(task):
     header = ['[options="header",cols="<.^1,^.^1,9<.^e"]', '|=================', '^| Argument | Default ^| Comment']
     footer = ['|=================\n']
     hlt_asciidoc = []
-    category_regexp = '^(\S+)_kwargs = {$'
-    comment_line_regexp = '^\s*#\s*(.+)$'
-    arg_line_regexp = "^\s*'([^']+)':\s*'?([^,']+)'?,\s*#?\s*(.+)?$"
+    category_regexp = r'^(\S+)_kwargs = \{$'
+    comment_line_regexp = r'^\s*#\s*(.+)$'
+    arg_line_regexp = r"^\s*'([^']+)':\s*'?([^,']+)'?,\s*#?\s*(.+)?$"
     if not os.path.exists(hltapi_path):
         raise Exception('Could not find hltapi file: %s' % hltapi_path)
     with open(hltapi_path) as f:
@@ -496,12 +496,12 @@ def parse_hlt_args(task):
                 continue
             comment_line = re.match(comment_line_regexp, line)
             if comment_line:
-                hlt_asciidoc.append('3+^.^s| %s' % comment_line.group(1).replace('|', '\|'))
+                hlt_asciidoc.append('3+^.^s| %s' % comment_line.group(1).replace('|', '\\|'))
                 continue
             arg_line = re.match(arg_line_regexp, line)
             if arg_line:
                 arg, default, comment = arg_line.groups()
-                hlt_asciidoc.append('| %s | %s | %s' % (arg, default, comment.replace('|', '\|') if comment else ''))
+                hlt_asciidoc.append('| %s | %s | %s' % (arg, default, comment.replace('|', '\\|') if comment else ''))
                 continue
             if line == '}':
                 hlt_asciidoc += footer
@@ -633,23 +633,23 @@ def build(bld):
     bld(rule=my_copy, target='symbols.lang')
     bld(rule=my_copy, target='nginx_if_cfg.txt')
 
-    for x in bld.path.ant_glob('images\\**\**.png'):
+    for x in bld.path.ant_glob('images\\**\\**.png'):
             bld(rule=my_copy, target=x)
             bld.add_group() 
 
 
-    for x in bld.path.ant_glob('yaml\\**\**.yaml'):
+    for x in bld.path.ant_glob('yaml\\**\\**.yaml'):
             bld(rule=my_copy, target=x)
             bld.add_group() 
 
 
 
-    for x in bld.path.ant_glob('video\\**\**.mp4'):
+    for x in bld.path.ant_glob('video\\**\\**.mp4'):
             bld(rule=my_copy, target=x)
             bld.add_group() 
 
 
-    for x in bld.path.ant_glob('images\\**\**.jpg'):
+    for x in bld.path.ant_glob('images\\**\\**.jpg'):
         bld(rule=my_copy, target=x)
         bld.add_group() 
 

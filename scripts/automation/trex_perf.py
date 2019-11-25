@@ -55,7 +55,7 @@ class TrexRunException(Exception):
 
 def verify_glibc_version ():
     x = subprocess.check_output("/usr/bin/ldd --version", shell=True)
-    m = re.match("^ldd \([^\)]+\) (.*)", x)
+    m = re.match(r"^ldd \([^\)]+\) (.*)", x)
     if not m:
         raise Exception("Cannot determine LDD version")
     current_version = m.group(1)

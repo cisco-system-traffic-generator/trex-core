@@ -47,7 +47,7 @@ if __name__ == "__main__":
     try:
         result = nose.run(argv = nose_argv, addplugins = [RedNose(), TRexCPConfiguringPlugin()])
         if (result == True):
-            print termstyle.green("""
+            print termstyle.green(r"""
                      ..::''''::..
                    .;''        ``;.
                   ::    ::  ::    ::

@@ -1478,7 +1478,7 @@ class CTRexResult(object):
 
         if not len(self._history):
             return -1
-        return len(self.get_last_value('trex-global.data', 'opackets-\d+'))
+        return len(self.get_last_value('trex-global.data', r'opackets-\d+'))
 
 
     def update_result_data (self, latest_dump):
@@ -1502,9 +1502,9 @@ class CTRexResult(object):
             # parse important fields and calculate averages and others
             if self._expected_tx_rate is None:
                 # get the expected data only once since it doesn't change
-                self._expected_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_expected_\w+")
+                self._expected_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", r"m_tx_expected_\w+")
 
-            self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
+            self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", r"m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
                 # check for up to 4% change between expected and actual
                 if (self._current_tx_rate['m_tx_bps'] > self.warmup_max * self._expected_tx_rate['m_tx_expected_bps']):
@@ -1595,7 +1595,7 @@ class CTRexResult(object):
         all_list = src_avg_dict.values()
         dest_port_dict['all'].extend(all_list)
         for key, val in src_avg_dict.items():
-            reg_res = re.match("avg-(\d+)", key)
+            reg_res = re.match(r"avg-(\d+)", key)
             if reg_res:
                 tmp_key = "port"+reg_res.group(1)
                 if tmp_key in dest_port_dict:
@@ -1609,7 +1609,7 @@ class CTRexResult(object):
         all_list  = src_dict.values()
         res['all'] = float("%.3f" % (sum(all_list)/float(len(all_list))) )
         for key, val in src_dict.items():
-            reg_res = re.match("avg-(\d+)", key)
+            reg_res = re.match(r"avg-(\d+)", key)
             if reg_res:
                 tmp_key = "port"+reg_res.group(1)
                 res[tmp_key] = val  # don't touch original fields values

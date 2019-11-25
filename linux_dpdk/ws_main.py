@@ -204,7 +204,7 @@ def check_ofed(ctx):
     ctx.start_msg('Checking for OFED')
     ofed_info='/usr/bin/ofed_info'
 
-    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+    ofed_ver_re = re.compile(r'.*[-](\d)[.](\d)[-].*')
 
     ofed_ver= 42
     ofed_ver_show= '4.2'
@@ -269,7 +269,7 @@ def get_ld_search_path(ctx):
         ctx.fatal('\nCommand: %s\n\nOutput: %s' % (cmd, out))
 
     path_arr = []
-    regex_str = '\s*SEARCH_DIR\("=?([^"]+)"\)\s*'
+    regex_str = r'\s*SEARCH_DIR\("=?([^"]+)"\)\s*'
     regex = re.compile(regex_str)
     for line in out.splitlines():
         if line.startswith('SEARCH_DIR'):

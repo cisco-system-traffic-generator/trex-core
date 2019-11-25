@@ -110,7 +110,7 @@ class CTRexAsyncStatsManager():
         for key, value in snapshot.items():
             
             # match a pattern of ports
-            m = re.search('(.*)\-([0-8])', key)
+            m = re.search(r'(.*)\-([0-8])', key)
             if m:
 
                 port_id = m.group(2)

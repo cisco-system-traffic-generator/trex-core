@@ -61,7 +61,7 @@ def decode_tunables (tunable_str):
 
     # each token is of form X=Y
     for token in tokens:
-        m = re.search('(\S+)=(.+)', token)
+        m = re.search(r'(\S+)=(.+)', token)
         if not m:
             raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
         val = m.group(2)           # string

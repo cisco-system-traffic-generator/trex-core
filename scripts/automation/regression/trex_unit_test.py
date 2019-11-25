@@ -766,7 +766,7 @@ if __name__ == "__main__":
 
     if not CTRexScenario.is_test_list:
         if result == True:
-            print(termstyle.green("""
+            print(termstyle.green(r"""
                  ..::''''::..
                .;''        ``;.
               ::    ::  ::    ::
@@ -786,7 +786,7 @@ if __name__ == "__main__":
         """))
             sys.exit(0)
         else:
-            print(termstyle.red("""
+            print(termstyle.red(r"""
            /\_/\ 
           ( o.o ) 
            > ^ < 

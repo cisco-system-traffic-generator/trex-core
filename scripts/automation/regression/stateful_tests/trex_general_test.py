@@ -398,7 +398,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 if max(trex_res.get_avg_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Average latency exceeds %s (usec)' % allowed_latency)
 
-                ports_names = trex_res.get_last_value('trex-latecny-v2.data', 'port\-\d+')
+                ports_names = trex_res.get_last_value('trex-latecny-v2.data', r'port-\d+')
                 if not ports_names:
                     raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
                 for port_name in ports_names:

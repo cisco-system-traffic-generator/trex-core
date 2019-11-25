@@ -317,7 +317,7 @@ def try_int(i):
 # a2 before a10 in sorting
 # https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/
 def natural_sorted_key(val):
-    return [int(c) if c.isdigit() else c for c in re.split('(\d+)', val)]
+    return [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', val)]
 
 def filter_none(seq):
     return filter(lambda x: x is not None, seq)

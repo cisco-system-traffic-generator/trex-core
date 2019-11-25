@@ -270,7 +270,7 @@ if __name__ == '__main__':
                         type=str)
     parser.add_argument('--ports', dest='ports_list', help='specify an even list of ports for running traffic on',
                         type=int, nargs='*', default=None)
-    parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\TO\YAML.yaml',
+    parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\\TO\\YAML.yaml',
                         type=str, default=None)
     parser.add_argument('--force-map',
                         dest='force_map_table',

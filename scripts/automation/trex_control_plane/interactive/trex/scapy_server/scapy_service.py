@@ -395,7 +395,7 @@ def generate_bytes_from_template(sz, template):
 
 def parse_template_code(template_code):
     template_code = re.sub("0[xX]", '', template_code) # remove 0x
-    template_code = re.sub("[\s]", '', template_code) # remove spaces
+    template_code = re.sub(r"[\s]", '', template_code) # remove spaces
     return bytearray.fromhex(template_code)
 
 def verify_payload_size(size):
@@ -454,7 +454,7 @@ class Scapy_service(Scapy_service_api):
         self.network_protocols = {'IP':self.transport_protocols ,'ARP':''}
         self.low_level_protocols = { 'Ether': self.network_protocols }
         self.regexDB= {'MACField' : self.ScapyFieldDesc('MACField','^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$'),
-              'IPField' : self.ScapyFieldDesc('IPField','^(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9])\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])$')}
+              'IPField' : self.ScapyFieldDesc('IPField', r'^(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9])\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\.(25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])$')}
         self.all_protocols = self._build_lib()
         self.protocol_tree = {'ALL':{'Ether':{'ARP':{},'IP':{'TCP':{'RAW':'payload'},'UDP':{'RAW':'payload'}}}}}
         self.version_major = '1'
