@@ -234,6 +234,7 @@ class Port(object):
         self.update_ts_attr(data['attr'])
 
         self.service_mode = data['service']
+        self.service_mode_filtered = data['service_filtered']
 
         self.synced = True
         return self.ok()

@@ -43,6 +43,11 @@ public:
         return true;
     }
 
+    bool is_service_filtered_mode_on() const {
+        /* for ASTF we do not support filtered mode */
+        return false;
+    }
+
     virtual void change_state(port_state_e state);
 };
 

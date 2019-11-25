@@ -256,11 +256,15 @@ class TRexConsole(TRexGeneralCmd):
             p = prefix
             
             # HACK
-            if self.client.get_mode() == "STL" and self.client.get_service_enabled_ports():
-                if self.client.get_service_enabled_ports() == self.client.get_acquired_ports():
+            service_ports = self.client.get_service_enabled_ports()
+            filtered_ports = self.client.get_service_filtered_ports()
+            if self.client.get_mode() == "STL" and (service_ports or filtered_ports):
+                if filtered_ports == self.client.get_acquired_ports():
+                    p += '(service-filtered)'
+                elif service_ports == self.client.get_acquired_ports():
                     p += '(service)'
                 else:
-                    p += '(service: {0})'.format(', '.join(map(str, self.client.get_service_enabled_ports())))
+                    p += '(service: {0})'.format(', '.join(map(str, service_ports)))
                 
             return "{0}>".format(p)
 

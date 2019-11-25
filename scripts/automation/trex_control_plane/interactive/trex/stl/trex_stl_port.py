@@ -533,7 +533,12 @@ class STLPort(Port):
     def is_service_mode_on (self):
         if not self.is_acquired(): # update lazy
             self.sync()
-        return self.service_mode or self.service_mode_filtered
+        return self.service_mode
+
+    def is_service_filtered_mode_on (self):
+        if not self.is_acquired(): # update lazy
+            self.sync()
+        return self.service_mode_filtered
 
     # take the port
     def acquire(self, force = False):

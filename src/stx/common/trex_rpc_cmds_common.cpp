@@ -258,7 +258,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     }
 
     res["service"]       = port->is_service_mode_on();
-
+    res["service_filtered"] = port->is_service_filtered_mode_on();
     if ( get_is_stateless() ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
         result["result"]["profile_count"] = stl_port->get_profile_count();

@@ -322,6 +322,8 @@ public:
      * 
      */
     virtual bool is_service_mode_on() const = 0;
+    virtual bool is_service_filtered_mode_on() const = 0;
+
 
 protected:
     
