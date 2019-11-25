@@ -43,15 +43,19 @@ endif::backend-docbook[]
 
 [NOTE]
 =====================================================================
-Breaking change: service mode has 3 state now instead of only off/on +
+Breaking change: service mode has 3 states now instead of only off/on:
 
-1. *On* - all the packets are forward to rx 
+1. *On* - all the packets are forwarded to RX core (as before).
 
-2. *Off* - default. before v2.66 non TCP UDP were forward to rx in software mode after v2.66 (including) only in filter mode those packets are forward for more flexibility  +
+2. *Off* - default mode. +
+Before v2.66, non-TCP/UDP packets were forwarded to RX core in multi-core software mode (`--software`). +
+After v2.66 (including), in the mode above, those packets are dropped (for more flexibility).
 
-3. *Filter* - in this case specific packets are forward to rx for example BGP packets for BIRD. It is relevant only for software mode `--software`` +
-using this mode you would be able to run TCP/UDP traffic in high rate while keeping the routing protocols function 
+3. *Filter* - new mode. In this case, specific packets are forwarded to RX core. +
+For example, BGP packets for BIRD. It is relevant only for software mode. +
+Using this mode you would be able to run TCP/UDP traffic in high rate while keeping the routing protocols to function.
 =====================================================================
+
 
 == Release 2.65  ==
 
