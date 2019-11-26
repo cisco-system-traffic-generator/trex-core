@@ -1773,7 +1773,10 @@ class TRexClient(object):
         ports = ports if ports is not None else self.get_acquired_ports()
 
         # validate ports
-        ports = self.psv.validate('set_vlan', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_IDLE))
+        states = [PSV_ACQUIRED, PSV_IDLE]
+        if self._is_service_req():
+            states.append(PSV_SERVICE)
+        ports = self.psv.validate('set_vlan', ports, states)
         
         vlan = VLAN(vlan)
     
@@ -1857,10 +1860,12 @@ class TRexClient(object):
         validate_type('interval_sec', interval_sec, (int, float))
         
         # validate src port
+        states = [PSV_ACQUIRED]
+        if self._is_service_req():
+            states.append(PSV_SERVICE)
         if is_valid_ipv4(dst_ip):
-            self.psv.validate('ping', src_port, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
-        else:
-            self.psv.validate('ping', src_port, (PSV_ACQUIRED, PSV_SERVICE))
+            states.append(PSV_L3)
+        self.psv.validate('ping', src_port, states)
         
         # if vlan was given use it, otherwise generate it from the port
         vlan = VLAN(self.ports[src_port].get_vlan_cfg() if vlan is None else vlan)
@@ -2167,12 +2172,6 @@ class TRexClient(object):
             self.ctx.logger.pre_cmd('Enable filtered service mode on port(s) {0} with mask {1}'.format(ports, mask))
         else:
             self.ctx.logger.pre_cmd('Disabling service mode on port(s): {0}'.format(ports))
-            
-        rc = self._for_each_port('set_service_mode', ports, enabled, filtered, mask)
-        self.ctx.logger.post_cmd(rc)
-        
-        if not rc:
-            raise TRexError(rc)
 
 
     @contextmanager
@@ -2207,7 +2206,10 @@ class TRexClient(object):
         """
         # by default - resolve all the ports that are configured with IPv4 dest
         ports = ports if ports is not None else self.get_resolvable_ports()
-        ports = self.psv.validate('arp', ports, (PSV_ACQUIRED, PSV_SERVICE, PSV_L3))
+        states = [PSV_ACQUIRED, PSV_L3]
+        if self._is_service_req():
+            states.append(PSV_SERVICE)
+        ports = self.psv.validate('arp', ports, states)
         
         # create a VLAN object - might throw exception on error
         vlan = VLAN(vlan)
@@ -2832,6 +2834,8 @@ class TRexClient(object):
         if not rc:
             raise TRexError(rc)
 
+    def _is_service_req(self):
+        return True
 
     @property
     def any_port(self):

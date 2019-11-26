@@ -218,21 +218,23 @@ void TrexStateless::launch_control_plane() {
 /**
 * shutdown the server
 */
-void TrexStateless::shutdown() {
-    /* stop ports */
-    for (auto &port : get_port_map()) {
-        /* safe to call stop even if not active */
-        port.second->stop_traffic("*");
+void TrexStateless::shutdown(bool post_shutdown) {
+    if ( !post_shutdown ) {
+        /* stop ports */
+        for (auto &port : get_port_map()) {
+            /* safe to call stop even if not active */
+            port.second->stop_traffic("*");
+        }
+        
+        /* shutdown the RPC server */
+        m_rpc_server.stop();
+        
+        /* shutdown all DP cores */
+        send_msg_to_all_dp(new TrexDpQuit());
+        
+        /* shutdown RX */
+        send_msg_to_rx(new TrexRxQuit());
     }
-    
-    /* shutdown the RPC server */
-    m_rpc_server.stop();
-    
-    /* shutdown all DP cores */
-    send_msg_to_all_dp(new TrexDpQuit());
-    
-    /* shutdown RX */
-    send_msg_to_rx(new TrexRxQuit());
 }
 
 

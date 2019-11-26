@@ -15,8 +15,8 @@ def rand_32_bit():
     return rand.randint(0, 0xFFFFFFFF)
 
 # TIMEOUTS
-SEND_TIMEOUT        = 5000
-RCV_TIMEOUT         = 5000
+SEND_TIMEOUT        = 10000
+RCV_TIMEOUT         = 10000
 RCV_TIMEOUT_ON_EXIT = 500
 HEARTBEAT_TIMEOUT   = 6000
 HEARTBEAT_IVL       = 5000

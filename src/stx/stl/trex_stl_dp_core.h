@@ -206,12 +206,6 @@ public:
         CAPTURE      = 1 << 1,
     };
 
-    // enum for m_service_mask
-    enum service_filter {
-        SERVICE_OFF = 0,
-        NO_TCP_UDP  = 1,
-        BGP         = 1 << 1,
-    };
  
     TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
 

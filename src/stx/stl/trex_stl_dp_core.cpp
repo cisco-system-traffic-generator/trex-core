@@ -21,6 +21,7 @@ limitations under the License.
 */
 #include "bp_sim.h"
 
+#include "trex_port.h"
 #include "trex_stl_dp_core.h"
 #include "trex_stl_stream_node.h"
 #include "trex_stl_stream.h"
@@ -927,8 +928,8 @@ void TrexStatelessDpPerPort::update_paused(int cnt) {
 TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThread *core) : TrexDpCore(thread_id, core, STATE_IDLE) {
 
     m_duration        = -1;
-    m_is_service_mode        = NULL;
-    m_is_service_mode_filter = NULL;
+    m_is_service_mode        = false;
+    m_is_service_mode_filter = false;
     m_service_mask           = 0;
     m_wrapper         = new ServiceModeWrapper();
     m_need_to_rx = false;
@@ -1053,7 +1054,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
             // try updating latency statistics for unknown ether type packets
             m_ports[dir].m_fs_latency.handle_pkt(m,0);
         }
-        if ( m_is_service_mode || (m_is_service_mode_filter && (m_service_mask & NO_TCP_UDP)) ) {
+        if ( m_is_service_mode || (m_is_service_mode_filter && (m_service_mask & TrexPort::NO_TCP_UDP)) ) {
             drop = false;
         }
         return;
@@ -1090,20 +1091,20 @@ bool TrexStatelessDpCore::check_service_filter(bool &drop) {
     uint8_t proto = m_parser->get_protocol();
 
     // BGP check
-    if ( (m_service_mask & BGP) && (proto == IPPROTO_TCP) ) {
+    if ( (m_service_mask & TrexPort::BGP) && (proto == IPPROTO_TCP) ) {
 
         TCPHeader *l4_header = (TCPHeader *)m_parser->get_l4();
         uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
 
-        if ( src_port == 179 || dst_port == 179 ) {
+        if ( src_port == BGP_PORT || dst_port == BGP_PORT ) {
             drop = false;
             return true;
         }
     }
 
     // OSPF check
-    if ( (m_service_mask & NO_TCP_UDP) && (! ( (proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) ) ) {
+    if ( (m_service_mask & TrexPort::NO_TCP_UDP) && (! ( (proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) ) ) {
         drop = false;
         return true;
     }

@@ -61,6 +61,13 @@ public:
         PORT_STATE_ASTF_CLEANUP = 1 << 9,
     };
     
+    // enum for m_service_mask
+    enum service_filter {
+        SERVICE_OFF = 0,
+        NO_TCP_UDP  = 1,
+        BGP         = 1 << 1,
+    };
+
     TrexPort(uint8_t port_id);
     virtual ~TrexPort() {}
     
@@ -321,8 +328,10 @@ public:
      * implemented by dervied
      * 
      */
-    virtual bool is_service_mode_on() const = 0;
-    virtual bool is_service_filtered_mode_on() const = 0;
+    bool is_service_mode_on() { return m_is_service_mode_on; }
+    bool is_service_filtered_mode_on() { return m_is_service_filtered_mode_on; }
+    uint8_t get_service_mode_filtered_mask() { return m_service_filtered_mask; }
+
 
 
 protected:
@@ -406,6 +415,11 @@ protected:
     uint16_t               m_ip_id_base;
     uint16_t               m_stack_caps;
     bool                   m_synced_stack_caps;
+
+    /* service mode attributes */
+    uint8_t m_service_filtered_mask;
+    bool m_is_service_mode_on;
+    bool m_is_service_filtered_mode_on;
 };
 
 

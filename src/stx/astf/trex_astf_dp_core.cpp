@@ -497,6 +497,22 @@ void TrexAstfDpCore::scheduler(bool activate) {
     report_dp_state();
 }
 
+void TrexAstfDpCore::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
+    service_status status;
+    if ( enabled ) {
+        status = SERVICE_ON;
+    } else if ( filtered ) {
+        status = SERVICE_FILTERED;
+    } else {
+        status = SERVICE_OFF;
+    }
+
+    m_flow_gen->m_c_tcp->m_ft.m_service_status        = status;
+    m_flow_gen->m_c_tcp->m_ft.m_service_filtered_mask = mask;
+    
+    m_flow_gen->m_s_tcp->m_ft.m_service_status        = status;
+    m_flow_gen->m_s_tcp->m_ft.m_service_filtered_mask = mask;
+}
 
 void TrexAstfDpCore::update_rate(profile_id_t profile_id, double old_new_ratio) {
     double fif_d_time = m_flow_gen->m_c_tcp->get_fif_d_time(profile_id);

@@ -225,7 +225,7 @@ public:
      * shutdown ASTF
      * 
      */
-    void shutdown();
+    void shutdown(bool post_shutdown);
 
     void dp_core_finished(int thread_id, uint32_t dp_profile_id);
 
@@ -372,6 +372,9 @@ public:
     void get_profiles_status(Json::Value &result);
 
     void set_barrier(double timeout_sec);
+
+    void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+
     void send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool clone = false);
     void send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool suspend = false);
     bool is_trans_state();

@@ -1890,6 +1890,29 @@ In case it wasn't specified pps=1.
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
 
+=== Port service mode
+include::trex_port_service_mode.asciidoc[]
+
+.Different types of service mode
+|===
+|Service mode type | No TCP UDO | BGP | TCP or UDP
+
+|On
+|Redirect to rx
+|Redirect to rx
+|Only when idle
+
+|Filtered
+|Redirect to rx
+|Redirect to rx only when BGP flag is on
+|Only when idle
+
+|Off
+|Redirect to rx
+|-
+|-
+|===
+
 === Client/Server only mode
 
 With ASTF mode, it is possible to  work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.

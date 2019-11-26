@@ -142,6 +142,23 @@ private:
     profile_id_t m_profile_id;
 };
 
+/**
+* a message to set service mode on / filtered with mask
+*/
+class TrexAstfDpServiceMode : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpServiceMode(bool enabled, bool filtered = false, uint8_t mask = 0) {
+        m_enabled  = enabled;
+        m_filtered = filtered;
+        m_mask     = mask;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    bool      m_enabled;
+    bool      m_filtered;
+    uint8_t   m_mask;
+};
 
 
 #endif /* __TREX_STL_MESSAGING_H__ */

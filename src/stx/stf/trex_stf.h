@@ -77,7 +77,7 @@ public:
     void launch_control_plane() override {}
 
     
-    void shutdown() override;
+    void shutdown(bool clear_db) override;
     
         
     void publish_async_data() override;

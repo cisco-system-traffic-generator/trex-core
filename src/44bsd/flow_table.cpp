@@ -23,8 +23,10 @@ limitations under the License.
 #include "tcp_var.h"
 #include "flow_stat_parser.h"
 #include "flow_table.h"
+#include "../astf/trex_astf.h"
 #include "trex_global.h"
 #include "trex_capture.h"
+#include "trex_port.h"
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -74,6 +76,9 @@ bool CFlowTable::Create(uint32_t size,
     reset_stats();
     m_tcp_api=(CEmulAppApi    *)0;
     m_udp_api=(CEmulAppApi    *)0;
+
+    m_service_status        = SERVICE_OFF;
+    m_service_filtered_mask = 0;
     return(true);
 }
 
@@ -125,6 +130,14 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         return;
     }
     /* TCP/UDP, only supported right now */
+    
+    /* Service filtered check, default is SERVICE OFF */
+    if ( m_service_status != SERVICE_OFF ) {
+        check_service_filter(parser, action);
+        if ( action != tPROCESS ) {
+            return;
+        }
+    }
 
     TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
 
@@ -220,6 +233,23 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     tuple.set_ipv4(lpf->m_ipv4);
 }
 
+void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_action_t & action) {
+    if ( (get_astf_object()->get_state() == AstfProfileState::STATE_IDLE) && (m_service_status == SERVICE_ON) ) {
+        action = tREDIRECT_RX_CORE;
+        return;
+    }
+
+    if ( m_service_status == SERVICE_ON ||
+            (m_service_filtered_mask & TrexPort::BGP) ) {
+        if ( parser.m_protocol == IPPROTO_TCP ) {
+            TCPHeader *l4_header = (TCPHeader *)parser.m_l4;
+            if ( l4_header->getSourcePort() == BGP_PORT || l4_header->getDestPort() == BGP_PORT ) {        
+                action = tREDIRECT_RX_CORE;
+                return;
+            }
+        }
+    }
+}
 
 static void on_flow_free_cb(void *userdata,void  *obh){
     CFlowTable * ft = (CFlowTable *)userdata;

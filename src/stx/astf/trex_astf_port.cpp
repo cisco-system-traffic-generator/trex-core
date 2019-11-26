@@ -23,10 +23,14 @@ limitations under the License.
 
 #include "trex_astf.h"
 #include "trex_astf_port.h"
+#include "stl/trex_stl_dp_core.h"
 
 using namespace std;
 
 TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
+    m_is_service_mode_on          = false;
+    m_is_service_filtered_mode_on = false;
+    m_service_filtered_mask       = 0;
 }
 
 TrexAstfPort::~TrexAstfPort() {
@@ -34,6 +38,12 @@ TrexAstfPort::~TrexAstfPort() {
 
 void TrexAstfPort::change_state(port_state_e state) {
     m_port_state = state;
+}
+
+void TrexAstfPort::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
+    m_is_service_mode_on = enabled;
+    m_is_service_filtered_mode_on = filtered;
+    m_service_filtered_mask = mask;
 }
 
 

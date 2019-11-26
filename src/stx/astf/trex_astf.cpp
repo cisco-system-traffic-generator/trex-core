@@ -46,7 +46,7 @@ using namespace std;
 TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 1;
-    const int API_VER_MINOR = 7;
+    const int API_VER_MINOR = 8;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
@@ -120,15 +120,19 @@ void TrexAstf::launch_control_plane() {
     m_rpc_server.start();
 }
 
-void TrexAstf::shutdown() {
-    /* stop RPC server */
-    m_rpc_server.stop();
+void TrexAstf::shutdown(bool post_shutdown) {
+    if ( !post_shutdown ) {
+        /* stop RPC server */
+        m_rpc_server.stop();
 
-    /* shutdown all DP cores */
-    send_msg_to_all_dp(new TrexDpQuit());
+        /* shutdown all DP cores */
+        send_msg_to_all_dp(new TrexDpQuit());
 
-    /* shutdown RX */
-    send_msg_to_rx(new TrexRxQuit());
+        /* shutdown RX */
+        send_msg_to_rx(new TrexRxQuit());
+    } else {
+        CAstfDB::free_instance();
+    }
 }
 
 bool TrexAstf::is_trans_state() {
@@ -256,6 +260,11 @@ void TrexAstf::set_barrier(double timeout_sec) {
     m_sync_b->reset(timeout_sec);
 }
 
+void TrexAstf::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
+    /* update the all the relevant dp cores to move to service mode */
+    TrexAstfDpServiceMode *dp_msg = new TrexAstfDpServiceMode(enabled, filtered , mask);
+    get_astf_object()->send_message_to_all_dp(dp_msg);
+}
 
 void TrexAstf::check_whitelist_states(const states_t &whitelist) {
     assert(whitelist.size());

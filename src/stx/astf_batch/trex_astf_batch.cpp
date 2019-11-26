@@ -19,6 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "astf/astf_db.h"
 #include "trex_astf_batch.h"
 #include "trex_global.h"
 #include "utl_sync_barrier.h"
@@ -161,13 +162,17 @@ TrexDpCoreAstfBatch::start_astf() {
 
 
 void
-TrexAstfBatch::shutdown() {
-    /* shutdown all DP cores */
-    send_msg_to_all_dp(new TrexDpQuit());
-        
-    /* stop the latency core */
-    get_mg()->stop();
-    delay(1000);
+TrexAstfBatch::shutdown(bool post_shutdown) {
+    if ( !post_shutdown ) {
+        /* shutdown all DP cores */
+        send_msg_to_all_dp(new TrexDpQuit());
+            
+        /* stop the latency core */
+        get_mg()->stop();
+        delay(1000);
+    } else {
+        CAstfDB::free_instance();
+    }
 }
 
 
