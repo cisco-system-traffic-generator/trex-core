@@ -427,6 +427,16 @@ class STLClient(TRexClient):
 
 
     @client_api('command', True)
+    def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
+        # call the father method
+        super(STLClient, self).set_service_mode(ports, enabled, filtered, mask)
+        rc = self._for_each_port('set_service_mode', ports, enabled, filtered, mask)
+        self.ctx.logger.post_cmd(rc)
+        
+        if not rc:
+            raise TRexError(rc)
+
+    @client_api('command', True)
     @validate_port_input("ports")
     def remove_all_streams (self, ports = None):
         """
@@ -1940,16 +1950,17 @@ class STLClient(TRexClient):
                                          parsing_opts.SERVICE_OFF)
 
         opts = parser.parse_args(line.split())
+        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
         # build filter mask
-        if opts.allow_all:
-            mask = 3
+        if filtered:
+            if opts.allow_all:
+                mask = 3
+            else:
+                mask = 1 if opts.allow_no_tcp_udp else 0
+                mask = mask | 2 if opts.allow_bgp else mask
         else:
-            mask = 1 if opts.allow_no_tcp_udp else 0
-            mask = mask | 2 if opts.allow_bgp else mask
-        filtered = True if mask > 0 else False
-        enabled = False if filtered else opts.enabled
-        if not filtered:
             mask = None
+        enabled = False if filtered else opts.enabled
         self.set_service_mode(ports = opts.ports, enabled = enabled, filtered = filtered, mask = mask)
         
         return True

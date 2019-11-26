@@ -107,13 +107,15 @@ TrexDpCoreStf::start_stf() {
 
 
 void
-TrexStateful::shutdown() {
-    /* shutdown all DP cores */
-    send_msg_to_all_dp(new TrexDpQuit());
-        
-    /* stop the latency core */
-    get_mg()->stop();
-    delay(1000);
+TrexStateful::shutdown(bool post_shutdown) {
+    if ( !post_shutdown ) {
+        /* shutdown all DP cores */
+        send_msg_to_all_dp(new TrexDpQuit());
+            
+        /* stop the latency core */
+        get_mg()->stop();
+        delay(1000);
+    }
 }
 
 

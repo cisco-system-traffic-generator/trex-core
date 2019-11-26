@@ -59,6 +59,8 @@ public:
 
     void scheduler(bool activate);
 
+    void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+
 protected:
     virtual bool rx_for_idle();
     void report_finished(profile_id_t profile_id = 0);

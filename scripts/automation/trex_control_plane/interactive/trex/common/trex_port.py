@@ -181,6 +181,12 @@ class Port(object):
     def is_virtual(self):
         return self.info.get('is_virtual')
 
+    def _is_service_req(self):
+        return True
+
+    def support_set_service_mode(self):
+        ''' default is not allowing set service mode, each port who can overrides that method'''
+        return False
 
     def get_owner (self):
         if self.is_acquired():
@@ -417,7 +423,7 @@ class Port(object):
                 
     @writeable
     def set_vlan (self, vlan):
-        if not self.is_service_mode_on():
+        if self._is_service_req() and not self.is_service_mode_on():
             return self.err('port service mode must be enabled for configuring VLAN. Please enable service mode')
         
         params = {"handler" :       self.handler,

@@ -33,7 +33,9 @@ TrexPort::TrexPort(uint8_t port_id) : m_dp_events(this) {
     m_port_id             = port_id;
     m_port_state          = PORT_STATE_IDLE;
     m_synced_stack_caps   = false;
-    
+    m_is_service_mode_on          = false;
+    m_is_service_filtered_mode_on = false;
+    m_service_filtered_mask       = 0;
     /* query RX info from driver */
     get_platform_api().get_port_stat_info(port_id, m_rx_count_num, m_rx_caps, m_ip_id_base);
         

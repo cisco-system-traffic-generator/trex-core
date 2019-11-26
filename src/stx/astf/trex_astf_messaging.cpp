@@ -178,3 +178,23 @@ TrexCpToDpMsgBase* TrexAstfDeleteDB::clone() {
     assert(0); // should not be cloned [and sent to several cores]
     return nullptr;
 }
+
+/****************
+ set service mode
+****************/
+TrexCpToDpMsgBase *
+TrexAstfDpServiceMode::clone() {
+
+    TrexCpToDpMsgBase *new_msg = new TrexAstfDpServiceMode(m_enabled, m_filtered, m_mask);
+
+    return new_msg;
+}
+
+bool
+TrexAstfDpServiceMode::handle(TrexDpCore *dp_core) {
+    
+    TrexAstfDpCore *astf_core = dynamic_cast<TrexAstfDpCore *>(dp_core);
+
+    astf_core->set_service_mode(m_enabled, m_filtered, m_mask);
+    return true;
+}

@@ -258,7 +258,7 @@ class TRexConsole(TRexGeneralCmd):
             # HACK
             service_ports = self.client.get_service_enabled_ports()
             filtered_ports = self.client.get_service_filtered_ports()
-            if self.client.get_mode() == "STL" and (service_ports or filtered_ports):
+            if (self.client.get_mode() == "STL" or self.client.get_mode() == "ASTF") and (service_ports or filtered_ports):
                 if filtered_ports == self.client.get_acquired_ports():
                     p += '(service-filtered)'
                 elif service_ports == self.client.get_acquired_ports():

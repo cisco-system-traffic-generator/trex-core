@@ -29,6 +29,7 @@ limitations under the License.
 #include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
 #include "trex_astf_rx_core.h"
+#include "../common/trex_port.h"
 #include "stt_cp.h"
 #include <set>
 
@@ -96,6 +97,8 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdate, "update");
 
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileList, "get_profile_list");
+
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfServiceMode, "service");
 
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStartLatency, "start_latency");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStopLatency, "stop_latency");
@@ -308,6 +311,39 @@ TrexRpcCmdAstfProfileList::_run(const Json::Value &params, Json::Value &result) 
     }
 
     result["result"] = json_profile_list;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfServiceMode::_run(const Json::Value &params, Json::Value &result) {
+    /* no need for port id, always run on all ports */
+    bool enabled = parse_bool(params, "enabled", result);
+    bool filtered = parse_bool(params, "filtered", result);
+    uint8_t mask = parse_byte(params, "mask", result, 0);
+
+    if ( filtered ) {
+        if ( (mask & TrexPort::NO_TCP_UDP) == 0 ) {
+            generate_execute_err(result, "Cannot disable no_tcp_udp in ASTF!");
+        }
+        if ( CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed() ) {
+            generate_execute_err(result, "TRex must be at --software mode for filtered service!");
+        }
+    }
+
+    get_astf_object()->set_service_mode(enabled, filtered, mask);
+
+    /* Also notify ports for trex-console compatiblity */
+    astf_port_map_t ports_map = get_astf_object()->get_port_map();
+    try {
+        for ( auto& port : ports_map ) {
+            port.second->set_service_mode(enabled, filtered, mask);
+        }
+    } catch (TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    
+    result["result"] = Json::objectValue;
 
     return (TREX_RPC_CMD_OK);
 }
@@ -757,6 +793,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfStop(this));
     m_cmds.push_back(new TrexRpcCmdAstfUpdate(this));
     m_cmds.push_back(new TrexRpcCmdAstfProfileList(this));
+    m_cmds.push_back(new TrexRpcCmdAstfServiceMode(this));
     m_cmds.push_back(new TrexRpcCmdAstfStartLatency(this));
     m_cmds.push_back(new TrexRpcCmdAstfStopLatency(this));
     m_cmds.push_back(new TrexRpcCmdAstfUpdateLatency(this));

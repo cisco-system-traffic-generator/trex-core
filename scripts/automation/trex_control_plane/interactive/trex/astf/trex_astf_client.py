@@ -78,7 +78,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 7}
+        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 8}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -370,7 +370,9 @@ class ASTFClient(TRexClient):
             else:
                 time.sleep(0.1) # 100ms
         self.sync() # guarantee to update profile states
-
+    
+    def _is_service_req(self):
+        return False
 
 ############################       ASTF     #############################
 ############################       API      #############################
@@ -509,6 +511,28 @@ class ASTFClient(TRexClient):
             fragment_length = 500000 # rest of fragments are larger
         return RC_OK()
 
+
+    @client_api('command', True)
+    def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
+        # call the father method
+        super(ASTFClient, self).set_service_mode(ports = ports, enabled = enabled, filtered = filtered, mask = mask)
+        
+        # in ASTF send to all ports with the handler of the ctx
+        params = {"handler": self.handler,
+                    "enabled": enabled,
+                    "filtered": filtered}
+        if filtered:
+            params['mask'] = mask
+        
+        # sending all ports in order to change their attributes
+        self._for_each_port('set_service_mode', None, enabled, filtered, mask)
+        
+        # transmit server once for all the ports
+        rc = self._transmit('service', params)
+
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
 
     @client_api('command', True)
     def load_profile(self, profile, tunables = {}, pid_input = DEFAULT_PROFILE_ID):
@@ -1256,6 +1280,42 @@ class ASTFClient(TRexClient):
         opts = parser.parse_args(shlex.split(line))
         self.update(opts.mult, pid_input = opts.profiles)
 
+
+    @console_api('service', 'ASTF', True)
+    def service_line (self, line):
+        '''Configures port for service mode.
+           In service mode ports will reply to ARP, PING
+           and etc.
+           In ASTF, command will apply on all ports.
+        '''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "service",
+                                         self.service_line.__doc__,
+                                         parsing_opts.SERVICE_BGP_FILTERED,
+                                         parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
+                                         parsing_opts.SERVICE_ALL_FILTERED,
+                                         parsing_opts.SERVICE_OFF)
+
+        opts = parser.parse_args(line.split())
+        # build filter mask
+        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
+        if filtered:
+            if opts.allow_all:
+                mask = 3
+            else:
+                mask = 1 if opts.allow_no_tcp_udp else 0
+                mask = mask | 2 if opts.allow_bgp else mask
+        else:
+            mask = None
+        enabled = False if filtered else opts.enabled
+
+        if mask is not None and ((mask & 1) == 0):
+            raise TRexError('Cannot set NO_TCP_UDP off in ASTF!')
+
+        self.set_service_mode(enabled = enabled, filtered = filtered, mask = mask)
+        
+        return True
 
     @staticmethod
     def _calc_port_mask(ports):

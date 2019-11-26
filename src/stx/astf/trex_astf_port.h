@@ -38,17 +38,8 @@ public:
 
     ~TrexAstfPort();
 
-    bool is_service_mode_on() const {
-        /* for ASTF we under always under service mode */
-        return true;
-    }
-
-    bool is_service_filtered_mode_on() const {
-        /* for ASTF we do not support filtered mode */
-        return false;
-    }
-
     virtual void change_state(port_state_e state);
+    void set_service_mode(bool enabled, bool filtered, uint8_t mask);
 };
 
 

@@ -25,6 +25,7 @@ limitations under the License.
 #include <common/closehash.h>
 #include "flow_stat_parser.h"
 #include "dpdk_port_map.h"
+#include "trex_global.h"
 
 
 typedef uint64_t flow_key_t; 
@@ -349,8 +350,13 @@ private:
 
 private:
     void reset_stats();
+
+    __attribute__ ((noinline)) void check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_action_t & action);
 public:
-      CSttFlowTableStats m_sts;
+    CSttFlowTableStats m_sts;
+
+    service_status m_service_status;
+    uint8_t        m_service_filtered_mask;
 
 private:
     bool            m_verbose;

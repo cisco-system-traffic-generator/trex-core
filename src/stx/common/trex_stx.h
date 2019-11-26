@@ -103,7 +103,7 @@ public:
     /**
      * shutdown the server 
      */
-    virtual void shutdown() = 0;
+    virtual void shutdown(bool post_shutdown) = 0;
     
 
     /**

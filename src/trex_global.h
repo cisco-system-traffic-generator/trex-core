@@ -79,6 +79,11 @@ limitations under the License.
 #define LOWEND_LONG_SLEEP_SEC (1.0 / 1e3)
 #define LOWEND_MEMPOOL_LIMIT_MB (20 * 1e6)
 
+typedef enum {
+        SERVICE_OFF,
+        SERVICE_FILTERED,
+        SERVICE_ON,
+} service_status;
 
 class CGenNode;
 

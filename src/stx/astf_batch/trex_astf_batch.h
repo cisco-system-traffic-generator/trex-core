@@ -94,7 +94,7 @@ public:
      * shutdown for ASTF batch mode
      * 
      */
-    void shutdown() override;
+    void shutdown(bool clear_db) override;
     
   
     void publish_async_data() override;

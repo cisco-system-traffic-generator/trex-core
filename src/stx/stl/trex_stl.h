@@ -99,7 +99,7 @@ public:
      * shutdown
      * 
      */
-    void shutdown();
+    void shutdown(bool clear_db);
     
     
     /**
