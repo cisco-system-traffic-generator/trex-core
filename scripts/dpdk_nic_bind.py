@@ -212,7 +212,7 @@ def find_module(mod):
     # check for a copy based off current path
     drivers_dir = '/lib/modules/%s/kernel/drivers' % kernel_ver
     find_out = check_output(["find", drivers_dir, "-name", mod + ".ko\\*"],
-			    universal_newlines = True)
+                            universal_newlines = True)
     if find_out: #something matched
         path = find_out.splitlines()[0]
         if exists(path):
