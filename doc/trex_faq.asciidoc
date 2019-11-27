@@ -40,16 +40,14 @@ endif::backend-xhtml11[]
 TRex is fast realistic open source traffic generation tool, running on standard Intel processors, based on DPDK. It supports both stateful and stateless traffic generation modes.
 
 ==== What are the common use cases for TRex?
-1. High scale benchmarks for stateful networking gear. For example: Firewall/NAT/DPI.
+1. High scale benchmarks for stateful networking gear with TCP stack. For example: Firewall/NAT/DPI
 2. Generating high scale DDOS attacks. See link:https://www.incapsula.com/blog/trex-traffic-generator-software.html[Why TRex is Our Choice of Traffic Generator Software]
 3. High scale, flexible testing for switchs (e.g. RFC2544)- see link:https://wiki.fd.io/view/CSIT[fd.io]
 4. Scale tests for huge numbers of clients/servers for controller based testing.
 5. EDVT and production tests.
+6. Routing protocols like OSPF/BGP/RIP 
 
-[NOTE]
-=====================================
-Features terminating TCP can not be tested yet.
-=====================================
+
 
 ==== Who uses TRex?
 
@@ -58,6 +56,7 @@ Cisco systems, Intel, Imperva, Melanox, Vasona networks and much more.
 ==== What are the Stateful and Stateless modes of operation?
 
 ``link:trex_manual.html[Stateful]'' mode is meant for testing networking gear which saves state per flow (5 tuple). Usually this is done by injecting pre-recorded capture files on pairs of interfaces of the device under test, and dynamically changing src/dst IP/port.
+With advance Stateful mode it done by injecting L7 data on top of TCP/UDP potocols 
 
 ``link:trex_stateless.html[Stateless]'' mode is meant to test networking gear that does not manage any state per flow (instead operating on a per packet basis). This is usually done by injecting customized packet streams to the device under test.
 
@@ -76,27 +75,28 @@ Limitations:
 * For high performance setup (multi-rx-queue), it is better to add `rx_desc: 4096` in the trexd_cfg.yaml see link:trex_manual.html#_platform_yaml_cfg_argument[platform_yaml_cfg_argument] and link:trex_appendix_software_mode.html[software mode]
           
 ==== Which NICs are supported / Why not all DPDK supported NICs supported by TRex?
-1. We are using specific NIC features. Not all the NICs have the capabilities we need.
+
+1. We are using specific NIC features. Not all the NICs have the capabilities we need for high speed. 
 2. We have regression tests in our lab for each recommended NIC. We do not claim to support NICs we do not have in our lab.
 You can find the list of supported NICs link:trex_manual.html#_hardware_recommendations[here]. Look for ``Supported NIcs'' table. +
-Notice that some unsupported NICs can also be used using --software command line argument. See more details link:trex_manual.html#_command_line_options[here].
+Notice that some unsupported NICs can also be used using --software command line argument. See more details link:trex_manual.html#_command_line_options[here]
+3. You can still use *any* linux NIC using AF_PACKET PMD but it will not have low latency/high performance 
 
 ==== Is Cisco VIC supported?
 Yes. Since version 2.12, with link:trex_manual.html#_cisco_vic_support[these limitations]. Especially note that
-a new firmware version is needed.
+a new firmware version is needed. VIC13xx/VIX12xx/VIX14xx 
 
-==== Is 100Gbs NIC QSFP+ supported?
-Mellanox Connect4 is supported. Connect 3 and 5 still have issues (WIP to fix).
-Support for FM10K is under development.
+=== Is 100Gbs NIC QSFP+ supported?
+Mellanox Connect4/5 and Cisco VIC14xx are supported 
 
 ==== Is there a GUI?
 Yes. It is developed by a different team, and is also open source. +
 You can find GUI for stateless mode and packet editor link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[here].
 
 ==== What is the maximum number of ports per TRex application?
-16 ports
+32 ports
 
-==== I can not see all 16 ports statistics on TRex server .
+==== I can not see all 32 ports statistics on TRex server .
 We present statistics only for first four ports because there is no console space. Global statistics (like total TX) is correct, taking into account all ports.
 You can use the GUI/console or Python API, to see statistics for all ports.
 
@@ -132,16 +132,25 @@ The workaround is to run several TRex instances, see section above.
 The answer depends on your budget and needs. Bare metal will have lower latency and better performance. VM has the advantages you normally get when using VMs.
 
 ==== I want to report an issue.
-
 You have two options: +
 1. Send email to our support group: trex.tgen@gmail.com +
-2. Open a defect at our link:https://trex-tgn.cisco.com/youtrack[youtrack]. You can also influence by voting in youtrack for an
-existing issue. Issues with lots of voters will probably be fixed sooner.
+2. Open an issue in our github page
 
 
 ==== I have Intel X710 NIC with 4x10Gb/sec ports and I can not get line rate.
 x710da4fh with 4 10G ports can reach a maximum of 40MPPS (total for all ports) with 64 bytes packets. (can not reach the theoretical 60MPPS limit).
 This is still better than the Intel x520 (82559 based) which can reach ~30MPPS for two ports with one NIC.
+
+==== Can TRex run on Azure/AWS?
+Yes. Azure uses Mellanox CX-4 with failsafe and it supported see appendix. 
+AWS is supported too but not with the same performance. 
+
+==== Which Mellanox 100gbps it is better to buy?
+
+For CX-4, it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
+For CX-5, it is better to have the ConnectX-5 Ex EN version which run faster(Ex) with *two* ports. Part number is MCX516A-CDAT (PCIe4.0). MCX516A-CCAT and MCX515A-CCAT will be a bit slower. 
+see link:http://www.mellanox.com/related-docs/prod_adapter_cards/PB_ConnectX-5_EN_Card.pdf[ConnectX-5]
+
 
 ==== I have XL710 NIC with 2x40Gb/sec ports and I can not get line rate
 XL710-da2 with 2 40G ports can reach maximum of 40MPPS/50Gb (total for all ports) and not 60MPPS with small packets (64B)
@@ -166,11 +175,11 @@ We do not send an email for every new release, as it could be too frequent for s
 ===  Startup and Installation
 
 ==== Can I experiment with TRex without installing?
-You can. Check the TRex sandbox at Cisco devnet in the following link:https://devnetsandbox.cisco.com/RM/Diagram/Index/2ec5952d-8bc5-4096-b327-c294acd9512d?diagramType=Topology[link].
+You can.there is docker version
 
 ==== How do I obtain TRex, and what kind of hardware do I need?
 You have several options. +
-1. For playing around and experimenting, you can install TRex on VirtualBox by following this link:trex_vm_manual.html[link]. +
+1. For playing around and experimenting, you can install TRex on VirtualBox/Docker by following this link:trex_vm_manual.html[link]. +
 2. To run the real product, check link:trex_manual.html#_download_and_installation[here] for hardware recommendation and
 installation instructions.
 
@@ -178,6 +187,7 @@ installation instructions.
 
         * Fedora - during installation, choose "Troubleshooting" -> Install in basic graphic mode.
         * Ubuntu - try Ubuntu server, which has textual installation.
+        * CentOS 7.x/8.x
 
 ==== How to determine relation between TRex ports and device under test ports?
 
@@ -318,15 +328,16 @@ TRex performance depends on many factors:
 2. More concurrent flows will reduce the performance 
 3. Short flows with one/two packets (e.g. cap2/dns.yaml ) will give the worst performance 
 
-==== Is there a plan to add TCP stack?
-Yes. We know this is something many people would like, and are working on this. No ETA yet. Once a progress is made, we will announce it on the TRex site and mailing list.
+==== On which version TRex TCP stack is based on?
+
+BSD4.3, the code was heavily changed to support high scale of flows and performance
 
 ==== How can I run the YAML profile and capture the results to a pcap file?
 You can use the simulator. see link:trex_manual.html#_simulator[simulator]
 The output of the simulator can be loaded to Excel. The CPS can be tuned.
 
-==== I want to have more acrive flows in TRex, how can I do this?
-Default maximum supported flows is 1M (From TRex prespective. DUT might have much more due to slower aging). When active flows reach higher number, you will get ``out of memory'' error message
+==== I want to have more active flows in TRex, how can I do this?
+Default maximum supported flows is 1M (From TRex perspective. DUT might have much more due to slower aging). When active flows reach higher number, you will get ``out of memory'' error message
 
 To increase the number of supported active flows, you should add ``dp_flows'' arg in config file ``memory'' section.
 Look link:trex_manual.html#_memory_section_configuration[here] for more info.
@@ -363,11 +374,9 @@ You should increse the pool with that raise an error, for example in case of 204
 
 You can run TRex with `-v 7` to verify that the configuration has an effect
 
-
-
 ==== I want to have more active flows on the DUT, how can I do this?
 After stretching TRex to its maximum CPS capacity, consider the following: DUT will have much more active flows in case of a UDP flow due to the nature of aging (DUT does not know when the flow ends while TRex knows).
-In order to artificialy increse the length of the active flows in TRex, you can config larger IPG in the YAML file. This will cause each flow to last longer. Alternatively, you can increase IPG in your PCAP file as well.
+In order to artificially increase the length of the active flows in TRex, you can config larger IPG in the YAML file. This will cause each flow to last longer. Alternatively, you can increase IPG in your PCAP file as well.
 
 ==== I am getting an error: The number of ips should be at least number of threads.
 The range of clients and servers should be at least the number of threads. 
@@ -419,7 +428,7 @@ However, there is no way to create corrupted L1 fields (Like Ethernet FCS), sinc
 ==== Why the performance is low?
 Major things that can reduce the performance are:
 
-1. Many concurent streams.
+1. Many concurrent streams.
 2. Complex field engine program.
 
 Adding ``cache'' directive can improve the performance. See link:trex_stateless.html#_tutorial_field_engine_significantly_improve_performance[here]
@@ -466,37 +475,11 @@ use `random_seed` per stream
                          mode = STLTXCont())
 ----
 
-==== Can I have a synconization betwean different stream variables?
-
-No. each stream has its own, seperate field engine program.
-
-
-==== Is there a plan to have LUAJit as a field engine program?
-
-It is a great idea to add it, we are looking for someone to contribute this support.
+==== Can I have a synchronization between different stream variables?
+No. each stream has its own, separate field engine program.
 
 ==== Java/TCL API instead of Python API 
-
-Q:: I want to use the Python API via Java (with Jython), apparently, I can not import Scapy modules with Jython.
-The way I see it I have two options:
-
-1. Creating python scripts and call them from java (with ProcessBuilder for example)
-2. Call directly to the TRex server over RPC from Java
-
-However, option 2 seems like a re-writing the API for Java (which I am not going to do)
-On the other hand, with option 1, once the script is done, the client object destroyed and I cannot use it anymore in my tests.
-
-Any ideas on what is the best way to use TRex within JAVA?
-
-A:: 
-
-The power of our Python API is the scapy integration for simple building of the packets and the field engine.
-There is a proxy over RPC that you can extend to your use cases. It has basic functionality, like connect/start/stop/get_stats.
-You could use it to send some pcap file via ports, or so-called python profiles, which you can configure by passing different variables (so-called tunabels) via the RPC.
-Take a look at link:trex_stateless.html#_using_stateless_client_via_json_rpc[using_stateless_client_via_json_rpc].
-You can even dump the profile as a string and move it to the proxy to run it (Notice that it is a potential security hole, as you allow outside content to run as root on the TRex server).
-
-See link:https://github.com/zverevalexei/trex-http-proxy[here] an example for simple Web server proxy for interacting with TRex.
+There is an Java SDK 
 
 ==== Where can I find a reference to RFC2544 using TRex
 
@@ -510,7 +493,7 @@ TRex has minimal and basic support for HLTAPI. For simple use cases (without lat
 Yes. Using Field Engine you can build streams with different TOS and get statistic/latency/jitter per stream
 
 ==== What are the supported routing protocols TRex can emulate?
-For now, none. You can connect your router to a switch with TRex and a machine running routem. Then, inject routes using routem, and other traffic using TRex.
+See link:trex_stateless.html#bird[bird] 
 
 ==== Latency and per stream statistics
 ===== Does latency stream support full line rate?
@@ -576,7 +559,5 @@ This is because on these card types, we use hardware counters (as opposed to cou
 While this allows for counting of full 40G line rate streams, this does not allow for counting bytes (only packet
 count available), because the hardware on these NICs lacks this support.
 Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
-
-
 
 

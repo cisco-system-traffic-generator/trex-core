@@ -70,7 +70,7 @@ For information, see the link:trex_manual.html[manual], especially the material 
 ** Python 2.7/3.0 Client API 
 ** Python HLTAPI Client API
 * Multi-user support - multiple users can interact with the same TRex instance simultaneously
-
+* Routing protocols support -- RIP/BGP/OSPF using BIRD 
 
 ==== Traffic profile example
 
@@ -78,12 +78,6 @@ The following example shows three streams configured for Continuous, Burst, and 
 
 image::images/stl_streams_example_02.png[title="Example of multiple streams",align="left",width={p_width}, link="images/stl_streams_example_02.png"]
 
-
-==== High level functionality - Roadmap for future development
-
-* Routing protocol support -- RIP/BGP/ISIS/SPF 
-(no current plan to extend supported protocols)
-                                                                                             
 
 === IXIA IXExplorer vs TRex 
 
@@ -109,7 +103,7 @@ TRex has limited functionality compared to IXIA, but has some advantages. The fo
 | Multi-user support | Yes | Yes |
 | GUI  | Very good | WIP, packet builder, Field Engine, global port statistics, latency, per stream statistics. Differs from IXIA GUI - for details, see: link:https://github.com/cisco-system-traffic-generator/trex-stateless-gui[trex-stateless-gui]  |
 | Cisco pyATS support | Yes | Yes - Python 2.7/Python 3.4 |    
-| Routing Emulation | Yes | WIP. Will integrate Cisco Proprietary tool on top of TRex |
+| Routing Emulation | Yes | Yes |
 | Port IDs  | Based on IXIA numebrs  | Depends on PCI enumeration  
 |=================
 
