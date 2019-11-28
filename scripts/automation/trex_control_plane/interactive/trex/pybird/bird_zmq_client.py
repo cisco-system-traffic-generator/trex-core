@@ -15,10 +15,11 @@ def rand_32_bit():
     return rand.randint(0, 0xFFFFFFFF)
 
 # TIMEOUTS
-SEND_TIMEOUT      = 3000
-RCV_TIMEOUT       = 3000
-HEARTBEAT_TIMEOUT = 6000
-HEARTBEAT_IVL     = 5000
+SEND_TIMEOUT        = 5000
+RCV_TIMEOUT         = 5000
+RCV_TIMEOUT_ON_EXIT = 500
+HEARTBEAT_TIMEOUT   = 6000
+HEARTBEAT_IVL       = 5000
 
 class PyBirdClient():
 
@@ -35,20 +36,25 @@ class PyBirdClient():
     def __del__(self):
         try:
             self._close_conn()
-        except zmq.Again:
-            print("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
+        except Exception as e:
+            print(e.message)
 
     def _close_conn(self):
-        if self.handler is not None:
-            self.release()
-        if self.socket is not None:
-            self.socket.close()
-        if self.context is not None:
-            self.context.destroy()    
+        if not self.socket.close:
+            if self.handler is not None:
+                self.release()
+            if self.socket is not None:
+                self.socket.close()
+            if self.context is not None:
+                self.context.destroy()    
 
     def _get_response(self, id):
         while True:
-            message = self.socket.recv()
+            try:
+                message = self.socket.recv()
+            except zmq.Again:
+                raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
+
             message = message.decode()
             try:
                 message_parsed = json.loads(message)
@@ -75,7 +81,10 @@ class PyBirdClient():
         rand_id = rand_32_bit()  # generate 32 bit random id for request
         json_rpc_req = { "jsonrpc": "2.0", "method": method_name , "params": method_params, "id": rand_id}
         request = json.dumps(json_rpc_req)
-        self.socket.send(request.encode('utf-8'))
+        try:
+            self.socket.send(request.encode('utf-8'))
+        except zmq.Again:
+            raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
         return self._get_response(rand_id)
     
     def connect(self):
@@ -210,7 +219,9 @@ class PyBirdClient():
                 + :exc:`ConnectionError` in case client is not acquired
         '''
         if self.handler is not None:
+            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT_ON_EXIT)
             res = self._call_method('release', [self.handler])
+
             self.handler = None
             return res
         else:
@@ -226,6 +237,7 @@ class PyBirdClient():
         if self.handler is not None:
             raise Exception('Client is acquired! run "release" first')
         if self.is_connected:
+            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT_ON_EXIT)
             return self._call_method('disconnect', [])
         else:
             raise ConnectionException("Cannot disconnect, client is not connected")
@@ -250,7 +262,11 @@ class PyBirdClient():
             # send the fragment
             json_rpc_req = { "jsonrpc":"2.0","method": rpc_cmd ,"params": params, "id": rand_32_bit()}
             request = json.dumps(json_rpc_req)
-            self.socket.send(request.encode('utf-8'))
+
+            try:
+                self.socket.send(request.encode('utf-8'))
+            except zmq.Again:
+                raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
 
             # wait for server response
             respond = self._get_response(json_rpc_req['id'])

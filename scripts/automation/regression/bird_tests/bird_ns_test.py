@@ -224,8 +224,10 @@ class STLBird_Test(CBirdGeneral_Test):
                 assert False, "Not all routes got to dut after %s seconds" % SMALL_HANG_TIME
             
             print('Got all the routes, now setting a bad filter for bird')
+            self.bird_trex.set_service_mode()
             c.set_namespace(0, method = 'set_filter', mac = mac1, bpf_filter = 'not udp and not tcp')
             c.set_namespace(1, method = 'set_filter', mac = mac2, bpf_filter = 'not udp and not tcp') 
+            self.bird_trex.set_service_mode(enabled = False, filtered = True, mask = 2)
             self._clear_routes(protocol = "bgp")
 
             # check no router do not getting routes from bird
