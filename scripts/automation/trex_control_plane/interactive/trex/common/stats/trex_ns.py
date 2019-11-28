@@ -1,6 +1,6 @@
-from trex.common.trex_types import TRexError
-from trex.utils.text_opts import format_num, red, green
-from trex.utils import text_tables
+from ..trex_types import TRexError
+from ...utils.text_opts import format_num, red, green
+from ...utils import text_tables
 import sys
 
 class CNsStats(object):

@@ -90,6 +90,7 @@ This feature is for Stateless features that do routing/switching e.g. Cisco VPP/
 * PCAP file import/export
 * Huge pcap file transmission  (e.g. 1TB pcap file) for DPI
 * Multi-user support
+* Routing protocol support BGP/OSPF/RIP 
 
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
@@ -121,9 +122,7 @@ more information can be found here:
 * link:https://trex-tgn.cisco.com/trex/doc/trex_astf.html[ASTF documentation] 
 * link:https://trex-tgn.cisco.com/trex/doc/trex_astf_vs_nginx.html[ASTF Performance]
 
-=== What it is not
 
-* Routing protocol support integration for BGP/ISIS (routem) is internal.
 
 === What you can do with it
 
@@ -198,7 +197,6 @@ Try the new Devnet Sandbox link:https://devnetsandbox.cisco.com/RM/Topology[TRex
 === Contact Us
 
 Follow us on https://groups.google.com/forum/#!forum/trex-tgn[TRex traffic generator google group],
-
 Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@googlegroups.com)]
 
 
@@ -211,13 +209,6 @@ Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@go
 * Napatech delivers 100Gb/sec link:https://www.prnewswire.com/news-releases/napatech-delivers-stunning-100-gige-performance-for-trex-300601690.html[Napatech]
 * https://community.mellanox.com/docs/DOC-2958[Mellanox]
 
-=== Roadmap
 
-* Improve advanced Stateful capability
-** Simulate latency/jitter/drop in high rate
-** Integration with OpenSSL. Work on top of TLS 
-* Stateless
-** scalable and more flexible per stream statistic
-** mini L2 emulation services.  Will run  in server side for emulation protocols in paralel to traffic
 
 
