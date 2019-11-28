@@ -24,7 +24,7 @@ class STLBird_Test(CBirdGeneral_Test):
 
         self.bird_trex.reset()
         self.bird_trex.set_port_attr(promiscuous = True, multicast = True)
-        self.pybird = PyBirdClient()
+        self.pybird = PyBirdClient(ip = self.configuration.trex['trex_name'])
         self.pybird.connect()
         self.pybird.acquire(force = True)
         self.bird_trex.set_service_mode()
