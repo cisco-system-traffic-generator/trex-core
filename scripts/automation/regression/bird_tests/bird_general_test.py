@@ -68,7 +68,7 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
         start_time = time.time()
         cores = self.configuration.trex.get('trex_cores', 1)
         if not CTRexScenario.no_daemon:
-            self.trex.start_stateless(c = cores, bird_server = True, i = True, cfg = 'automation/regression/setups/trex14/trex14_bird.yaml')
+            self.trex.start_stateless(c = cores, bird_server = True, i = True, software = True, no_scapy = True, cfg = 'automation/regression/setups/trex14/trex14_bird.yaml')
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
