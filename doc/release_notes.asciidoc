@@ -26,7 +26,18 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.67 ==
+
+* Fix ASTF API breakage 
+* Support ASTF service mode filter mode 
+
 == Release 2.66 ==
+
+[NOTE]
+=====================================================================
+This version is broken. ASTF mode does not connect move to v2.67
+=====================================================================
+
 
 * BIRD integration see link:trex_stateless.html#bird[bird]. (first release)
 ** Routing protocols support BGP/OSPF/RIP and more on top of IPv6/IPv4 using linux namespace with scale of millions of routes and automation API
