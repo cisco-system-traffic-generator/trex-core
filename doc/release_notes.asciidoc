@@ -26,7 +26,7 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-== Release 2.67 ==
+== Release 2.70 ==
 
 * Fix ASTF API breakage 
 * Support ASTF service mode filter mode 
