@@ -167,7 +167,7 @@ class PortStateService(PortState):
         # check if service mode validation is required
         if client._is_service_req():
             convert_profile_to_port("ports")  # calling decorator explicitly
-            super(PortStateService, self).validate(self, client, cmd_name, ports, custom_err_msg)
+            super(PortStateService, self).validate(client, cmd_name, ports, custom_err_msg)
 
     def def_err_msg (self):
         return 'must be under service mode'
