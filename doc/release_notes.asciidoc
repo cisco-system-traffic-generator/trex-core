@@ -26,7 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.71 ==
+
+* Fix yet another breakage 
+
 == Release 2.70 ==
+
+[NOTE]
+=====================================================================
+This version is broken. ASTF mode does not connect move to v2.71
+=====================================================================
 
 * Fix ASTF API breakage 
 * Support ASTF service mode filter mode 
@@ -35,7 +44,7 @@ endif::backend-docbook[]
 
 [NOTE]
 =====================================================================
-This version is broken. ASTF mode does not connect move to v2.67
+This version is broken. ASTF mode does not connect move to v2.71
 =====================================================================
 
 
