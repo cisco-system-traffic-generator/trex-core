@@ -372,6 +372,7 @@ class ASTFClient(TRexClient):
         self.sync() # guarantee to update profile states
     
     def _is_service_req(self):
+        ''' Return False as service mode check is not required in ASTF '''
         return False
 
 ############################       ASTF     #############################

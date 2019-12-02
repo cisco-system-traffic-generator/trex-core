@@ -163,9 +163,11 @@ class PortStatePaused(PortState):
 
 
 class PortStateService(PortState):
-    @convert_profile_to_port("ports")
     def validate (self, client, cmd_name, ports, custom_err_msg = None):
-        pass
+        # check if service mode validation is required
+        if client._is_service_req():
+            convert_profile_to_port("ports")  # calling decorator explicitly
+            super(PortStateService, self).validate(self, client, cmd_name, ports, custom_err_msg)
 
     def def_err_msg (self):
         return 'must be under service mode'
@@ -240,7 +242,7 @@ class PortStateValidator(object):
             main validator
             
         '''
-        
+
         # listify
         if isinstance(ports, (int, str, PortProfileID)):
             ports = listify(ports)

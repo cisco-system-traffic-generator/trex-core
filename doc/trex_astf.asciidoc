@@ -1895,7 +1895,7 @@ include::trex_port_service_mode.asciidoc[]
 
 .Different types of service mode
 |===
-|Service mode type | No TCP UDO | BGP | TCP or UDP
+|Service mode type | No TCP UDP | BGP | TCP or UDP
 
 |On
 |Redirect to rx
@@ -1907,7 +1907,7 @@ include::trex_port_service_mode.asciidoc[]
 |Redirect to rx only when BGP flag is on
 |Only when idle
 
-|Off
+|Off (Default mode)
 |Redirect to rx
 |-
 |-
