@@ -104,9 +104,11 @@ def sec_split_usec (ts):
 class PassiveTimer(object):
 
     # timeout_sec = None means forever
-    def __init__ (self, timeout_sec):
+    def __init__ (self, timeout_sec = None):
+        self.time_begin = time.time()
+
         if timeout_sec != None:
-            self.expr_sec = time.time() + timeout_sec
+            self.expr_sec = self.time_begin + timeout_sec
         else:
             self.expr_sec = None
 
@@ -116,6 +118,13 @@ class PassiveTimer(object):
             return False
 
         return (time.time() > self.expr_sec)
+
+    def has_elapsed (self, timegap):
+        if (time.time() - self.time_begin) > timegap:
+            self.time_begin = time.time()
+            return True
+        else:
+            return False
 
 def is_valid_ipv4 (addr):
     try:
