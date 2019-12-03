@@ -5,7 +5,7 @@ import time
 import os
 import shlex
 
-from ..utils.common import get_current_user, user_input
+from ..utils.common import get_current_user, user_input, PassiveTimer
 from ..utils import parsing_opts, text_tables
 
 from ..common.trex_api_annotators import client_api, console_api
@@ -280,26 +280,27 @@ class ASTFClient(TRexClient):
 
 
     def wait_for_steady(self, profile_id=None):
-        time_begin = time.time()
+        timer = PassiveTimer()
         while True:
             state = self._get_profile_state(profile_id) if profile_id else self.state
             if state not in self.transient_states:
                 break
 
-            if (time.time() - time_begin) > 0.1:
+            if timer.has_elapsed(0.1):
                 self.sync()
-                time_begin = time.time()
             else:
                 time.sleep(0.001)
 
-    def wait_for_profile_state(self, profile_id, wait_state):
-        time_begin = time.time()
+    def wait_for_profile_state(self, profile_id, wait_state, timeout = None):
+        timer = PassiveTimer(timeout)
         while self._get_profile_state(profile_id) != wait_state:
-            if (time.time() - time_begin) > 0.1:
+            if timer.has_elapsed(0.1):
                 self.sync()
-                time_begin = time.time()
             else:
                 time.sleep(0.001)
+
+            if timer.has_expired():
+                raise TRexTimeoutError(timeout)
 
     def inc_epoch(self):
         rc = self._transmit('inc_epoch', {'handler': self.handler})
@@ -336,7 +337,7 @@ class ASTFClient(TRexClient):
             if not rc:
                 return rc
 
-            time_begin = time.time()
+            timer = PassiveTimer()
             while True:
                 state = self._get_profile_state(profile_id)
                 if state in ok_states:
@@ -351,9 +352,8 @@ class ASTFClient(TRexClient):
                     general_error = 'Unknown error, state: {}, profile: {}'.format(state, profile_id)
                     return RC_ERR(error or general_error)
 
-                if (time.time() - time_begin) > 0.2:
+                if timer.has_elapsed(0.2):
                     self.sync() # in case state change lost in async(SUB/PUB) channel
-                    time_begin = time.time()
                 else:
                     time.sleep(0.001)
         finally:
@@ -813,7 +813,7 @@ class ASTFClient(TRexClient):
 
 
     @client_api('command', True)
-    def wait_on_traffic(self, timeout = None):
+    def wait_on_traffic(self, timeout = None, profile_id = None):
         """
             Block until traffic stops
 
@@ -822,13 +822,19 @@ class ASTFClient(TRexClient):
                     Timeout in seconds
                     Default is blocking
 
+                profile_id: string
+                    Profile ID
+
             :raises:
                 + :exc:`TRexTimeoutError` - in case timeout has expired
                 + :exc:`TRexError`
         """
 
-        ports = self.get_all_ports()
-        TRexClient.wait_on_traffic(self, ports, timeout)
+        if profile_id is None:
+            ports = self.get_all_ports()
+            TRexClient.wait_on_traffic(self, ports, timeout)
+        else:
+            self.wait_for_profile_state(profile_id, self.STATE_ASTF_LOADED, timeout)
 
 
     # get stats
