@@ -1,0 +1,301 @@
+%Filename: isea.sty
+%
+\typeout{Conference Style for ISEA 2015 for LaTeX 2e -- version of 2nd, December 2014}
+% Modified by B. Bogart and based on the ICCC.sty style file. The original ICCC notice follows
+%
+% NOTICE: DO NOT MODIFY THIS FILE WITHOUT CHANGING ITS NAME.  This style
+% file is called iccc.sty.  It is lifted from the aaai.sty file used by the AAAI
+% and consists of minimal modification to allow its use for ICCC.  These modifications
+% were done by Dan Ventura in September 2010.  The original AAAI notice follows.
+%
+% NOTICE: DO NOT MODIFY THIS FILE WITHOUT CHANGING ITS NAME. This style
+% file is called aaai.sty. Modifications to this file are permitted,
+% provided that your modified version does not include the acronym "aaai"
+% in its name, that credit to the authors and supporting agencies is
+% retained, and that further modification or reuse is not restricted. This
+% file was originally prepared by Peter F. Patel-Schneider, liberally
+% using the ideas of other style hackers, including Barbara Beeton. It was
+% modified in April 1999 by J. Scott Penberthy and George Ferguson. It was
+% modified in 2007 by AAAI. It was modified in February 2009  
+% and in November 2009 by Hans W. Guesgen and Giuseppe De Giacomo. It
+% was further modified in March 2010 by AAAI.
+% The original preparation of this file was supported by 
+% Schlumberger Palo Alto Research, AT\&T Bell Laboratories, AAAI, and 
+% Morgan Kaufmann Publishers.
+% 
+% WARNING: This style is NOT guaranteed to work. It is provided in the
+% hope that it might make the preparation of papers easier, but this style
+% file is provided "as is" without warranty of any kind, either express or
+% implied, including but not limited to the implied warranties of
+% merchantability, fitness for a particular purpose, or noninfringement.
+% You use this style file at your own risk. Standard disclaimers apply.
+% 
+% Do not use this file unless you are an experienced LaTeX user. To
+% satisfy AAAI's requirements, you must change your paper's configuration
+% to use Times fonts. AAAI will not accept your paper if it is formatted
+% using obsolete type 3 Computer Modern bitmapped fonts. Please ensure
+% that your version of dvips maps to type 1 fonts. Place this document in
+% a file called aaai.sty in the TeX search path. (Placing it in the same
+% directory as the paper should also work.)
+%
+% You must also format your paper for US letter-sized paper.
+% 
+% There are undoubtably bugs in this style. If you would like to submit
+% bug fixes, improvements, etc. please let us know. Please use the contact form
+% at www.aaai.org.
+% 
+% \documentclass[letterpaper]{article}
+% \usepackage{aaai}
+% \usepackage{times}
+% \usepackage{helvet}
+% \usepackage{courier}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PDFMARK for TeX and GhostScript
+% Uncomment and complete the following for metadata if
+% your paper is typeset using TeX and GhostScript (e.g
+% if you use .ps or .eps files in your paper):
+% \special{! /pdfmark where
+% {pop} {userdict /pdfmark /cleartomark load put} ifelse
+% [ /Author (John Doe, Jane Doe)
+% /Title (Input Your Paper Title Here)
+% /Subject (Input the Proceedings Title Here)
+% /Keywords (AAAI, artificial intelligence)
+% /DOCINFO pdfmark}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PDFINFO for PDFTeX
+% Uncomment and complete the following for metadata if
+% your paper is typeset using PDFTeX
+% \pdfinfo{
+% /Title (Input Your Paper Title Here)
+% /Subject (Input the Proceedings Title Here)
+% /Author (John Doe, Jane Doe)
+% }
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Uncomment if you want to use section numbers
+% and change the 0 to a 1 or 2
+% \setcounter{secnumdepth}{0}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \title{Title}
+% \author{Author 1 \and Author 2 \\ Address line \\ Address line \And
+% Author 3 \\ Address line \\ Address line}
+% \begin{document}
+% \maketitle
+% ...
+% \bibliography{Bibliography-File}
+% \bibliographystyle{aaai}
+% \end{document}
+% \pubnote{\em To appear, AAAI-10} % optional, remove for submission
+%
+% \pubnote is for printing the paper yourself, and should not be used in
+% submitted versions!!!!
+% Author information can be set in various styles:
+% For several authors from the same institution:
+% \author{Author 1 \and ... \and Author n \\
+% Address line \\ ... \\ Address line}
+% if the names do not fit well on one line use
+% \author{Author 1 \\ {\bf Author 2} \\ ... \\ {\bf Author n} \\
+% Address line \\ ... \\ Address line}
+% For authors from different institutions:
+% \author{Author 1 \\ Address line \\ ... \\ Address line
+% \And ... \And
+% Author n \\ Address line \\ ... \\ Address line}
+% To start a separate ``row'' of authors use \AND, as in
+% \author{Author 1 \\ Address line \\ ... \\ Address line
+% \AND
+% Author 2 \\ Address line \\ ... \\ Address line \And
+% Author 3 \\ Address line \\ ... \\ Address line}
+% If the title and author information does not fit in the area allocated,
+% place \setlength\titlebox{height}
+% after the \documentstyle line
+% where {height} is something like 2.5in
+% PHYSICAL PAGE LAYOUT
+\setlength\topmargin{-0.25in} \setlength\oddsidemargin{-0.25in}
+\setlength\textheight{9.0in} \setlength\textwidth{7.0in}
+\setlength\columnsep{0.25in} \newlength\titlebox \setlength\titlebox{2.25in}
+\setlength\headheight{0pt}  \setlength\headsep{0pt}
+%\setlength\footheight{0pt}  \setlength\footskip{0pt}
+\thispagestyle{empty} \pagestyle{empty}
+\flushbottom \twocolumn \sloppy
+% We're never going to need a table of contents, so just flush it to
+% save space --- suggested by drstrip@sandia-2
+\def\addcontentsline#1#2#3{}
+% gf: PRINT COPYRIGHT NOTICE
+%\def\copyright@year{\number\year}
+%\def\copyright@text{Copyright \copyright\space \copyright@year,
+%Association for the Advancement of Artificial Intelligence (www.aaai.org).
+%All rights reserved.}
+%\def\copyright@on{T}
+%\def\nocopyright{\gdef\copyright@on{}}
+%\def\copyrighttext#1{\gdef\copyright@on{T}\gdef\copyright@text{#1}}
+%\def\copyrightyear#1{\gdef\copyright@on{T}\gdef\copyright@year{#1}}
+% gf: End changes for copyright notice (used in \maketitle, below)
+% Title stuff, taken from deproc.
+\def\maketitle{\par
+\begingroup % to make the footnote style local to the title
+\def\thefootnote{\fnsymbol{footnote}}
+% gf: Don't see why we'd want the footnotemark to be 0pt wide
+%\def\@makefnmark{\hbox to 0pt{$^{\@thefnmark}$\hss}}
+\twocolumn[\@maketitle] \@thanks
+\endgroup
+% gf: Insert copyright slug unless turned off
+%\if T\copyright@on\insert\footins{\noindent\footnotesize\copyright@text}\fi
+% gf: And now back to your regular programming
+\setcounter{footnote}{0}
+\let\maketitle\relax \let\@maketitle\relax
+\gdef\@thanks{}\gdef\@author{}\gdef\@title{}\let\thanks\relax}
+\def\@maketitle{\vbox to \titlebox{\hsize\textwidth
+%%% AAAI changed: 03/05/2010
+%%\linewidth\hsize \vskip 0.625in minus 0.125in \centering
+\linewidth\hsize \vskip 0.625in minus 0.125in \centering
+%%% END changed
+{\LARGE\bf \@title \par} \vskip 0.2in plus 1fil minus 0.1in
+{\def\and{\unskip\enspace{\rm and}\enspace}%
+\def\And{\end{tabular}\hss \egroup \hskip 1in plus 2fil 
+ \hbox to 0pt\bgroup\hss \begin{tabular}[t]{c}\Large\bf}%
+\def\AND{\end{tabular}\hss\egroup \hfil\hfil\egroup
+\vskip 0.25in plus 1fil minus 0.125in
+% hg: Changed Large to normalsize on next line
+ \hbox to \linewidth\bgroup\normalsize \hfil\hfil
+\hbox to 0pt\bgroup\hss \begin{tabular}[t]{c}\Large\bf}
+\hbox to \linewidth\bgroup\normalsize \hfil\hfil
+\hbox to 0pt\bgroup\hss \begin{tabular}[t]{c}\Large\bf\@author 
+\end{tabular}\hss\egroup
+\hfil\hfil\egroup}
+\vskip 0.3in plus 2fil minus 0.1in
+}}
+\renewenvironment{abstract}{\centerline{\bf
+Abstract}\vspace{0.5ex}\begin{quote}\small}{\par\end{quote}\vskip 1ex}
+% jsp added:
+\def\pubnote#1{\thispagestyle{myheadings}
+\pagestyle{myheadings}
+\markboth{#1}{#1}
+\setlength\headheight{10pt}  \setlength\headsep{10pt}
+}
+% SECTIONS with less space
+\def\section{\@startsection {section}{1}{\z@}{-2.0ex plus
+-0.5ex minus -.2ex}{3pt plus 2pt minus 1pt}{\Large\bf\centering}}
+\def\subsection{\@startsection{subsection}{2}{\z@}{-2.0ex plus
+-0.5ex minus -.2ex}{3pt plus 2pt minus 1pt}{\large\bf\raggedright}}
+\def\subsubsection{\@startsection{subparagraph}{3}{\z@}{-6pt plus
+%%% DIEGO changed: 29/11/2009
+%% 2pt minus 1pt}{-1em}{\normalsize\bf}}
+-2pt minus -1pt}{-1em}{\normalsize\bf}}
+%%% END changed
+\setcounter{secnumdepth}{0}
+% add period to section (but not subsection) numbers, reduce space after
+%\renewcommand{\thesection}
+%   {\arabic{section}.\hskip-0.6em}
+%\renewcommand{\thesubsection}
+%   {\arabic{section}.\arabic{subsection}\hskip-0.6em}
+% FOOTNOTES
+\footnotesep 6.65pt %
+\skip\footins 9pt plus 4pt minus 2pt
+\def\footnoterule{\kern-3pt \hrule width 5pc \kern 2.6pt }
+\setcounter{footnote}{0}
+% LISTS AND PARAGRAPHS
+\parindent 10pt
+\topsep 4pt plus 1pt minus 2pt
+\partopsep 1pt plus 0.5pt minus 0.5pt
+\itemsep 2pt plus 1pt minus 0.5pt
+\parsep 2pt plus 1pt minus 0.5pt
+\leftmargin 10pt \leftmargini\leftmargin \leftmarginii 10pt
+\leftmarginiii 5pt \leftmarginiv 5pt \leftmarginv 5pt \leftmarginvi 5pt
+\labelwidth\leftmargini\advance\labelwidth-\labelsep \labelsep 5pt
+\def\@listi{\leftmargin\leftmargini}
+\def\@listii{\leftmargin\leftmarginii
+\labelwidth\leftmarginii\advance\labelwidth-\labelsep
+\topsep 2pt plus 1pt minus 0.5pt
+\parsep 1pt plus 0.5pt minus 0.5pt
+\itemsep \parsep}
+\def\@listiii{\leftmargin\leftmarginiii
+\labelwidth\leftmarginiii\advance\labelwidth-\labelsep
+\topsep 1pt plus 0.5pt minus 0.5pt 
+\parsep \z@ \partopsep 0.5pt plus 0pt minus 0.5pt
+\itemsep \topsep}
+\def\@listiv{\leftmargin\leftmarginiv
+\labelwidth\leftmarginiv\advance\labelwidth-\labelsep}
+\def\@listv{\leftmargin\leftmarginv
+\labelwidth\leftmarginv\advance\labelwidth-\labelsep}
+\def\@listvi{\leftmargin\leftmarginvi
+\labelwidth\leftmarginvi\advance\labelwidth-\labelsep}
+\abovedisplayskip 7pt plus2pt minus5pt%
+\belowdisplayskip \abovedisplayskip
+\abovedisplayshortskip 0pt plus3pt% 
+\belowdisplayshortskip 4pt plus3pt minus3pt%
+% Less leading in most fonts (due to the narrow columns)
+% The choices were between 1-pt and 1.5-pt leading
+\def\normalsize{\@setfontsize\normalsize\@xpt{11}}   % 10 point on 11
+\def\small{\@setfontsize\small\@ixpt{10}}    % 9 point on 10
+\def\footnotesize{\@setfontsize\footnotesize\@ixpt{10}}  % 9 point on 10
+\def\scriptsize{\@setfontsize\scriptsize\@viipt{10}}  % 7 point on 8
+\def\tiny{\@setfontsize\tiny\@vipt{7}}    % 6 point on 7
+\def\large{\@setfontsize\large\@xipt{12}}    % 11 point on 12
+\def\Large{\@setfontsize\Large\@xiipt{14}}    % 12 point on 14
+\def\LARGE{\@setfontsize\LARGE\@xivpt{16}}    % 14 point on 16
+\def\huge{\@setfontsize\huge\@xviipt{20}}    % 17 point on 20
+\def\Huge{\@setfontsize\Huge\@xxpt{23}}    % 20 point on 23
+%%%% named style for aaai, included here for ease of use
+% This section implements citations for the ``named'' bibliography style,
+% modified for AAAI use.
+% This file can be modified and used in other conferences as long
+% as credit to the authors and supporting agencies is retained, this notice
+% is not changed, and further modification or reuse is not restricted.
+% The ``named'' bibliography style creates citations with labels like
+% \citeauthoryear{author-info}{year}
+% these labels are processed by the following commands:
+% \cite{keylist}
+%  which produces citations with both author and year,
+%  enclosed in square brackets
+% \shortcite{keylist}
+%  which produces citations with year only,
+%  enclosed in square brackets
+% \citeauthor{key}
+%  which produces the author information only
+% \citeyear{key}
+%  which produces the year information only
+\def\leftcite{(}\def\rightcite{)}
+\def\cite{\def\citeauthoryear##1##2{\def\@thisauthor{##1}%
+\ifx \@lastauthor \@thisauthor \relax \else##1 \fi ##2}\@icite}
+\def\shortcite{\def\citeauthoryear##1##2{##2}\@icite}
+\def\citeauthor{\def\citeauthoryear##1##2{##1}\@nbcite}
+\def\citeyear{\def\citeauthoryear##1##2{##2}\@nbcite}
+% internal macro for citations with () and with breaks between citations
+% used in \cite and \shortcite
+\def\@icite{\leavevmode\def\@citeseppen{-1000}%
+\def\@cite##1##2{\leftcite\nobreak\hskip 0in{##1\if@tempswa , ##2\fi}\rightcite}%
+\@ifnextchar [{\@tempswatrue\@citex}{\@tempswafalse\@citex[]}}
+% internal macro for citations without [] and with no breaks
+% used in \citeauthor and \citeyear
+\def\@nbcite{\leavevmode\def\@citeseppen{1000}%
+\def\@cite##1##2{{##1\if@tempswa , ##2\fi}}%
+\@ifnextchar [{\@tempswatrue\@citex}{\@tempswafalse\@citex[]}}
+% don't box citations, separate with ; and a space
+% also, make the penalty between citations a parameter, 
+% it may be a good place to break
+\def\@citex[#1]#2{%
+\def\@lastauthor{}\def\@citea{}%
+\@cite{\@for\@citeb:=#2\do
+{\@citea\def\@citea{;\penalty\@citeseppen\ }%
+\if@filesw\immediate\write\@auxout{\string\citation{\@citeb}}\fi
+\@ifundefined{b@\@citeb}{\def\@thisauthor{}{\bf ?}\@warning
+{Citation `\@citeb' on page \thepage \space undefined}}%
+{\csname b@\@citeb\endcsname}\let\@lastauthor\@thisauthor}}{#1}}
+%Ignore the key when generating the Reference section.
+\def\@lbibitem[#1]#2{\item\if@filesw 
+{ \def\protect##1{\string ##1\space}\immediate
+\write\@auxout{\string\bibcite{#2}{#1}}}\fi\ignorespaces}
+\def\thebibliography#1{\section*{References\@mkboth
+{REFERENCES}{REFERENCES}}\list
+{}{\labelwidth 0in\leftmargin\labelwidth
+%%% DIEGO removed
+%%\advance\leftmargin\labelsep
+%%% END removed
+%%% DIEGO changed
+\itemsep .01in % original
+%%\itemsep -.0125in % reduced space between bib entries
+%%% END changed
+}
+\def\newblock{\hskip .11em plus .33em minus .07em}
+\sloppy\clubpenalty4000\widowpenalty4000
+\sfcode`\.=1000\relax}
+\let\endthebibliography=\endlist
