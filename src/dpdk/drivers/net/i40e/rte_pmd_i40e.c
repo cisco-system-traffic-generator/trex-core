@@ -1704,9 +1704,9 @@ rte_pmd_i40e_process_ddp_package(uint16_t port, uint8_t *buff,
 
 	if (op == RTE_PMD_I40E_PKG_OP_WR_ADD) {
 		if (is_exist) {
-			if (is_exist == 1)
-				PMD_DRV_LOG(ERR, "Profile already exists.");
-			else if (is_exist == 2)
+			if (is_exist == 1){
+                // PMD_DRV_LOG(ERR, "Profile already exists.");
+            }else if (is_exist == 2)
 				PMD_DRV_LOG(ERR, "Profile of group 0 already exists.");
 			else if (is_exist == 3)
 				PMD_DRV_LOG(ERR, "Profile of different group already exists");
