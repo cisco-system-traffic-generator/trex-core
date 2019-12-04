@@ -98,13 +98,13 @@ Figure \ref{fig:arch} presents the main processes. TRex server (*1) is a multi-t
 event driven fashion using a user-space scheduler with a few levels of hierarchy. There is one control-plane (CP) thread that handles the RPC over ZMQ requests and maintenance tasks. 
 The RX thread is responsible for accurate latency measurement. This thread usually consumes very low CPU utilization. 
 The DP threads generate the traffic using DPDK to transmit/receive traffic via PMD queues. 
-The number of DP threads can be scale up to the number of available Tx/Rx queues. 
-There is almost no memory sharing data structure and no locks to get to best performance. 
+The number of DP threads can be scaled up to the number of available Tx/Rx queues. 
+There is almost no memory sharing data structure and no locks to achieve the best performance. 
 Almost all the information between the threads is exchanged using a messaging bus which 
-is composed of a shared rings (DP$\rightarrow$CP, CP$\rightarrow$DP, Rx$\rightarrow$DP, RX$\rightarrow$CP).
+is composed of shared rings (DP$\rightarrow$CP, CP$\rightarrow$DP, Rx$\rightarrow$DP, Rx$\rightarrow$CP).
 The system calls to the kernel are kept at minimum(only when required for example with PF\_PACKET/AF\_XDP driver)
-(*4) is a Python wrapper to the JSON-RPC2 API over ZMQ to supply easy automation (e.g. load a profile, get statistics etc)
-on top of Python API there is a Console that can simplify the way to work with the API. 
+(*4) is a Python wrapper to the JSON-RPC2 API over ZMQ to supply easy automation (e.g. load a profile, get statistics etc).
+On top of Python API there is a Console that can simplify the way to work with the API. 
 (*5) is the GUI written in Java that works directly with the JSON-RPC2 and supports only the stateless mode.
 (*2) is a BIRD \cite{b4} process that works inside a Linux namespace and connects to TRex via a programmable veths. Inside TRex's RX thread there is a Switch that forwards packets to/from the veth related to the Linux namespace. 
 BIRD is used to simulate routing protocols like BGP/OSPF/RIP.
@@ -121,8 +121,8 @@ BIRD is used to simulate routing protocols like BGP/OSPF/RIP.
   
 Figure \ref{fig:dp_schduler} presents the schedulers in each DP thread. The priority queue is the low level scheduler that can schedule events at nsec resolution. In addition there are two timer wheels for lower resolution events. The first timer wheel has a resolution of 20usec with 1024 buckets for maximum of 2msec time. 
 The second timer wheel has resolution of 1msec with 1024 buckets and maximum of 1sec which cover most of the timer duration needed. Each event in the second level is spread each 20usec tick to reduce processing spikes. 
-The DPs transmit/receive messages from the share rings using events. 
-This design achieves linear scale with of performance about 4-20MPPS/core and 200gbps for one COGS server. 
+The DPs transmit/receive messages from the shared rings using events. 
+This design achieves linear scale with a performance about 4-20MPPS/core and 200gbps for one COGS server. 
 
 \begin{figure}[h]
 \includegraphics[width=0.4
@@ -171,9 +171,9 @@ Each traffic profile supports one or more streams. Each stream includes the foll
 \end{figure}
 
 Figure \ref{fig:stlhello} shows an example of a profile with three streams.  
-Stream 1 has a rate of 10pps stream 2 has a rate of 20 pps and streams 3 has rate of 40 pps. All are configured for continues mode.
+Stream 1 has a rate of 10pps stream 2 has a rate of 20 pps and streams 3 has rate of 40 pps. All are configured for continuous mode.
 
-Listing \ref{listing:1} shows a simplified profile that match Figure \ref{fig:stlhello}. The mode is Continuous. 
+Listing \ref{listing:1} shows a simplified profile that matches Figure \ref{fig:stlhello}. The mode is Continuous. 
 It uses Scapy for building the template packet. This profile is converted to json and sent to the TRex server for processing. 
 
 \begin{listing}[h]
@@ -224,7 +224,7 @@ def create_stream (self):
 \item Large scale - Supports about 10-22 million packets per second (mpps) per core, scalable with the number of cores
 \item Support for 1, 10, 25, 40, and 100 Gb/sec interfaces with DPDK or PF\_PACKET.
 \item Support for multiple stateless traffic profiles per interface each profile supports multiple streams. 
-\item Programmable Field Engine to change any field inside the packet template i.e. \mint{html}|src_ip=10.0.0.1..10.0.0.255| 
+\item Programmable Field Engine to change any field inside the packet template i.e. \mint{html}|src_ip=10.0.0.1 - 10.0.0.255| 
 \item Ability to change the packet size 
 \item API,Console, GUI
 \item Statistics, per interface,per stream 
@@ -235,8 +235,8 @@ def create_stream (self):
 \subsection{Multi stream profile example}
 
 
-Figure \ref{fig:stlmulti} shows two streams. Stream 0 is a burst that activate a multi-burst Stream 1 (With 5 burst of 4 packets). 
-Listing \ref{listing:4} shows the Python script to create this profile 
+Figure \ref{fig:stlmulti} shows two streams. Stream 0 is a burst that activates a multi-burst Stream 1 (With 5 burst of 4 packets). 
+Listing \ref{listing:4} shows the Python script to create this profile.
 
 \begin{figure}[h]
 \includegraphics[width=0.4
@@ -413,13 +413,13 @@ Figure \ref{fig:stlperf} \cite{b5} shows the measured performance on a Cisco UCS
 \label{fig:stlperf}
 \end{figure}
 
-In Figure \ref{fig:stlperf} IMIX refer to a mix of packets size see \cite{b7} with an average packet size of 364 bytes.
+In Figure \ref{fig:stlperf} IMIX refers to a mix of packets size see \cite{b7} with an average packet size of 364 bytes.
 In case of 64B packet size the maximum L1 utilization is only 52\% due to XL710 chip limitation and not CPU/software. 
 
 \section{Stateful mode} 
 
 The stateful model's objective is to simulate realistic L7 applications on top of a TCP/UDP stack at high scale. A fork of a BSD TCP module running in a user space is used for this purpose. 
-The scale could reach millions of flows and ~100k clients/servers up to 200gbps for one server. 
+The scale could reach millions of flows and around 100k clients/servers up to 200gbps for one server. 
 It is important to test stateful features using realistic traffic scenarios because this is the only way to estimate accurate performance metrics and identify bottlenecks in the design. 
 
 The high level features are:
@@ -446,12 +446,12 @@ Each profile includes:
 \begin{itemize}
 \item \textbf{Client pool}: Range of clients with a distribution model (e.g. random,seq). A profile can include a few pools.
 \item \textbf{Server pool}: Range of servers, profile can include a few pools. 
-\item \textbf{Template}: A model that describes an application on top of TCP/UDP. Each template could be associated with a different pool of clients/servers. The L7 data that can be extracted from a pcap file and converted to emulation program
+\item \textbf{Template}: A model that describes an application on top of TCP/UDP. Each template could be associated with a different pool of clients/servers. The L7 data can be extracted from a pcap file and converted to an emulation program
 \begin{itemize}
-\item \textbf{CPS}: How many connection per second to generate for this template. 
+\item \textbf{CPS}: How many connections per second to generate for this template. 
 \item \textbf{Program}: Emulation instructions to simulate the L7 application e.g. HTTP e.g. writeBuffer/readBuffer
-\item \textbf{Client/Server pool name} Associate with one of the pools 
-\item \textbf{Statistic pool} The index of the TCP/UDP statistic counters pool. Good for QoS scenarios each template could be associated with different pool of counters 
+\item \textbf{Client/Server pool name}: Associated with one of the pools
+\item \textbf{Statistics pool}: The index of the TCP/UDP statistic counters pool. Good for QoS scenarios; each template could be associated with different pool of counters 
 \end{itemize}
 \end{itemize}
 
@@ -468,7 +468,7 @@ In this mode, each core has its own context of TCP/UDP stack with no memory shar
 The most significant changes to the BSD stack were:
 \begin{itemize}
 \item Each stack has a context per thread. No memory sharing, no locks. GRO/LRO/TSO is supported. 
-\item Tx works in pool mode (it builds the packets only when required) and saves reference to the template data. This saves three orders of magnitude of memory resource.
+\item Tx works in pool mode (it builds the packets only when required) and saves a reference to the template data. This saves three orders of magnitude of memory resource.
 \end{itemize}
 
 \begin{figure}[h]
@@ -537,8 +537,8 @@ The pcap file is parsed and the L7 data is converted to instructions on top of t
 
 \subsection{ Emulation layer instructions}
 
-Listing \ref{listing:8} shows a simple example of a low level instructions of the emulation layer. 
-In this example the client sends request and waits for the response while the server waits for request and sends a response. 
+Listing \ref{listing:8} shows a simple example of low level instructions of the emulation layer. 
+In this example the client sends a request and waits for the response while the server waits for the request and sends a response. 
 Listing \ref{listing:client} and Listing \ref{listing:server} shows the pseudo user-space code that is executed for each flow for Listing \ref{listing:8} emulation program to better understand how it works internally. 
 
 \begin{listing}[h]
@@ -730,13 +730,13 @@ finally:
 Most TCP stacks have an API that allow the user to provide a buffer (write operation). 
 The TCP module stores the buffer until the data is acknowledged by the remote side. 
 With big TCP windows (required with high RTT) and many flows this could create a memory scale issue. 
-Figure \ref{fig:tx_ring} shows one TCP flow TX queue and Figure \ref{fig:rx_ring} shows the Rx side of the same flow. For 1M active flows with a 64K TX buffer 
+Figure \ref{fig:tx_ring} shows one TCP flow Tx queue and Figure \ref{fig:rx_ring} shows the Rx side of the same flow. For 1M active flows with a 64K Tx buffer 
 the worst case memory requirement is $1M \cdot 64K \cdot  mbufs  = 128GB$
 The mbuf resource is expensive and needs to be allocated ahead of time (because it is shared with the NIC and translation virtual/physical need to be known). 
 The chosen solution for this problem is to change the API to be a poll API, 
 meaning the TCP Tx queue will just save a reference to the constant traffic and offset. The packets will be assembled with a reference to a constant mbufs only when packets need to be sent (lazy). 
-Now because most of the traffic is almost constant in traffic generation case (per template) and known ahead of time it was possible to implement and save most of the memory.
-The same idea happens in the Rx side with reassembly \footnote{This will not work for TLS streams}
+Now because most of the traffic is almost constant in traffic generation cases (per template) and known ahead of time it was possible to implement and save most of the memory.
+The same idea happens in the Rx side with reassembly. \footnote{This will not work for TLS streams}
 
 \begin{figure}[h]
 \includegraphics[width=0.15
@@ -759,12 +759,12 @@ Linux \texttt{nginx} as a server were compared to TRex for stressing a device un
 \end{figure}
 
 The benchmark setup was designed to take a popular event-driven Linux server application and to test using a TRex client. 
-TRex client requests the pages. Figure \ref{fig:trex_nginx} shows the topology in this case. TRex is in a different server connected to the NGINX server with 10gbps fiber. 
-NGINX is installed on another server. TRex generates requests using one DP core/thread and exercises the whole 16 cores of the NGINX/Linux server. 
+TRex client requests the pages. Figure \ref{fig:trex_nginx} shows the topology in this case. TRex is in a different server connected to the \texttt{nginx} server with 10gbps fiber. 
+\texttt{nginx} is installed on another server. TRex generates requests using one DP core/thread and exercises the whole 16 cores of the \texttt{nginx}/Linux server. 
 After some trial and error, it was determined that it is more difficult to separate Linux kernel/IRQ contexts events from user space process CPU, 
-so it was chosen to give the NGINX all server resources, and monitor to determine the limiting factor.
-The objective is to creates a new TCP flow for each HTTP request/response session instead keeping the same TCP flow opened and just generate a new request/response. 
-This might be the main difference between NGINX benchmark configuration and this document configuration. 
+so it was chosen to give the \texttt{nginx} all the server resources, and monitor to determine the limiting factor.
+The objective is to create a new TCP flow for each HTTP request/response session instead of keeping the same TCP flow opened and just generate a new request/response. 
+This might be the main difference between \texttt{nginx}'s benchmark configuration and this document's configuration. 
 
 \begin{figure}[h]
 \includegraphics[width=0.3
@@ -773,13 +773,13 @@ This might be the main difference between NGINX benchmark configuration and this
 \label{fig:trex_vs_trex}
 \end{figure}
 
-To provide a baseline benchmark, the NGINX server was replaced with a TRex server with one DP core, using an XL710 NIC (40Gb). 
-see Figure \ref{fig:trex_vs_trex}. In this case there was a need for a faster NIC so XL710 NIC was used (40gbps) instead of X710 (10gbps)
+To provide a baseline benchmark, the \texttt{nginx} server was replaced with a TRex server with one DP core, using an XL710 NIC (40Gb). 
+see Figure \ref{fig:trex_vs_trex}. In this case there was need for a faster NIC so XL710 NIC was used (40gbps) instead of X710 (10gbps)
 
 \subsection{Benchmark traffic profile}
 
 Typically, web servers are tested with a constant number of active flows that are opened ahead of time. 
-In the NGINX benchmark blog, only 50 TCP constant connections are used with many requests/responses 
+In the \texttt{nginx} benchmark blog, only 50 TCP constant connections are used with many requests/responses 
 For each TCP connection see here \cite{b6}. In our traffic generation use case, each HTTP request/response (for each new TCP connection) requires opening a \textbf{new} TCP connection. 
 A simple HTTP flow with a request of 100B and a response of 32KB (about 32 packets/flow with initwnd=2) was used.
 We used this profile because it is part of our EMIX profile. 
@@ -789,11 +789,11 @@ We used this profile because it is part of our EMIX profile.
 The comparison is not perfect, as TRex merely emulates HTTP traffic. 
 It is not a real-world web server or HTTP client. For example, currently the TRex client does not parse the HTTP response for the Length field. 
 TRex simply waits for a specific data size (32KB) over TCP. However the TCP layer is a fully featured TCP (e.g. delay-ack/Retransmission/Reassembly/timers) . 
-The benchmark's objective is to compare traffic generation capabilities for stressing network gears and not to replace NGINX server. 
+The benchmark's objective is to compare traffic generation capabilities for stressing network gears and not to replace \texttt{nginx} servers. 
 
 \subsection{Benchmark results}
 
-Comparing 1 DP core running TRex to NGINX running on 16 cores with a kernel that can interrupt any NGINX process with IRQ. Figure \ref{fig:trex_nginx_r1} shows the performance of one DP TRex. \texttt{m} stands for multiplier of the baseline profile. 
+Comparing 1 DP core running TRex to \texttt{nginx} running on 16 cores with a kernel that can interrupt any \texttt{nginx} process with IRQ. Figure \ref{fig:trex_nginx_r1} shows the performance of one DP TRex. \texttt{m} stands for multiplier of the baseline profile. 
 It can scale to about 25Gb/sec of download of HTTP (total of 3MPPS/90KCPS/60k active flows for one core).
 
 \begin{figure}[h]
@@ -810,27 +810,27 @@ It can scale to about 25Gb/sec of download of HTTP (total of 3MPPS/90KCPS/60k ac
 \label{fig:trex_nginx_r2}
 \end{figure}
 
-Nginx cannot handle more than 20K new flows/sec, due to the kernel TCP software IRQ interrupts processing. 
-The limitation is the kernel and not NGINX's user space process.
+\texttt{nginx} cannot handle more than 20K new flows/sec, due to the kernel TCP software IRQ interrupts processing. 
+The limitation is the kernel and not \texttt{nginx}'s user space process.
 With more NICs and optimized distribution, the number of flows could be increased times two, but not more than that. 
 The total number of packets was approximately 600KPPS (Tx+Rx). The number of active flows was 12K.
 
 TRex with one core could scale to about 25Gb/sec, 3MPPS of the same HTTP profile.
-The main issue with NGINX and Linux setup is the tunning (this might be improved with more sophisticated tunning). 
+The main issue with \texttt{nginx} and Linux setup is the tunning (this might be improved with more sophisticated tunning). 
 It is very hard to let the hardware utilize the full server resource (half of the server was idle in this case and still experienced a lot of drop). 
-TRex is not perfect too, we couldn't reach 100\% CPU utilization without a drop (CPU was 84\%). To achieve 100gbps with this profile on the server side requires ~4 cores for TRex, vs. 20x16 cores for NGINX servers. 
+TRex is not perfect too, we couldn't reach 100\% CPU utilization without a drop (CPU was 84\%). To achieve 100gbps with this profile on the server side requires ~4 cores for TRex, vs. 20x16 cores for \texttt{nginx} servers. 
 TRex is faster by a factor of \textbf{80}. In this implementation, each flow requires approximately 1K bytes of memory (regardless of Tx/Rx rings because of TRex architecture). 
 In the kernel, with a real-world server, TRex optimization can't be applied and each TCP connection must save memory in Tx/Rx rings.
-For about 5Gb/sec traffic with this profile, approximately 10GB of memory was required (both NGINX and Kernel). For 100Gb/sec traffic, approximately 200GB is required (extrapolation)  With a TRex optimized implementation, approximately 100MB is required. 
+For about 5Gb/sec traffic with this profile, approximately 10GB of memory was required (both \texttt{nginx} and Kernel). For 100Gb/sec traffic, approximately 200GB is required (extrapolation)  With a TRex optimized implementation, approximately 100MB is required. 
 TRex thus provides an improvement by a factor or \textbf{2000} in the use of memory resources.
 
 \section{Routing protocol using BIRD}
 
-Bird Internet Routing Daemon \cite{b4} is a project aimed to develop a fully functional linux dynamic IP routing daemon for BGP/OSPF/RIP and more. 
+Bird Internet Routing Daemon \cite{b4} is a project aimed to develop a fully functional Linux dynamic IP routing daemon for BGP/OSPF/RIP and more. 
 It was integrated into TRex to run alongside in order to exploit it’s features together with Python automation API using Linux network namespace and veth. 
 In this case the Linux TCP stack is used (e.g. BGP) and packets from the veth is moved from/to to the physical ports. 
-Figure \ref{fig:bird} shows the integration with TRex server. The pyBird server is a daemon that get JSON-RPC2 over ZMQ RPC commands from one side and interact with BIRD daemon using ssh/text protocol. 
-The BIRD automation API expose the daemon capabilities and iteract with TRex for the right filters and veth creation. Using this API's one can push 1M of BGP routes in a few seconds to the DUT.
+Figure \ref{fig:bird} shows the integration with TRex server. The pyBird server is a daemon that receives JSON-RPC2 over ZMQ RPC commands from one side and interact with BIRD daemon using ssh/text protocol. 
+The BIRD automation API interacts with both BIRD and TRex to set the right filters and configure the veth/. Using the API, one can push 1M of BGP routes in a few seconds to the DUT.
 
 \begin{figure}[h]
 \includegraphics[width=0.5
@@ -914,7 +914,7 @@ protocol static {
 
 \section{Acknowledgments}
 This project was incubated inside Cisco Systems with a small team: Lior Katzri, 
-Itay Marom,Ido Barnea, Yaroslav brustinov. Today there are many contributers but I would like to mention Gwangmoon Kim team from Ericsson for the discussions, suggestions 
+Itay Marom, Ido Barnea and Yaroslav Brustinov. Today there are many contributers but I would like to mention Gwangmoon Kim team from Ericsson for the discussions, suggestions 
 and contribution of many complex features. 
 
 \newpage
