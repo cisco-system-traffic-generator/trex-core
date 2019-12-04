@@ -72,15 +72,18 @@ public:
         m_limit=limit+1; /* need to add 1*/
     }
 
+    void dec_limit() {
+        if (m_limit>1) { /* stop at 1 */
+            --m_limit;
+        }
+    }
     bool check_limit(){
         if (m_limit==0){
             return(false);
         }
         if (m_limit>1) {
-            --m_limit;
             return(false);
         }else{
-            /* stop at 1 */
             return(true);
         }
     }
