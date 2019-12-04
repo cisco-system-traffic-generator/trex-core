@@ -525,15 +525,15 @@ class ASTFClient(TRexClient):
         if filtered:
             params['mask'] = mask
         
-        # sending all ports in order to change their attributes
-        self._for_each_port('set_service_mode', None, enabled, filtered, mask)
-        
         # transmit server once for all the ports
         rc = self._transmit('service', params)
 
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
+        else:
+            # sending all ports in order to change their attributes
+            self._for_each_port('set_service_mode', None, enabled, filtered, mask)
 
     @client_api('command', True)
     def load_profile(self, profile, tunables = {}, pid_input = DEFAULT_PROFILE_ID):
