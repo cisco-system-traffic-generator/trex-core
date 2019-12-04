@@ -57,8 +57,7 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
         if not CTRexScenario.router_cfg['no_dut_config']:
             sys.stdout.write('Configuring DUT... ')
             start_time = time.time()
-            if CTRexScenario.router_cfg['forceCleanConfig']:
-                CTRexScenario.router.load_clean_config()
+            CTRexScenario.router.load_clean_config()
             CTRexScenario.router.configure_basic_interfaces()
             sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
