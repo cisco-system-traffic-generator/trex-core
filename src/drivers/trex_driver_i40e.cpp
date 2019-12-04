@@ -20,10 +20,12 @@
 */
 
 #include "trex_driver_i40e.h"
-#include "trex_driver_defines.h"
 #include "dpdk_funcs.h"
-
-
+#include "trex_driver_defines.h"
+#include <iostream> // std::cout
+extern "C" {
+  #include <rte_pmd_i40e.h> 
+}
 
 static uint16_t all_eth_types[]  = {
     0x0800, 0x0806, 0x0842, 0x22F3, 0x22EA, 0x6003, 0x8035, 0x809B, 0x80F3, 0x8100,
@@ -366,21 +368,53 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
     repid_t repid=CTVPort(tvpid).get_repid();
 
     ret = rte_eth_get_fw_ver(repid, &version);
+    
+    if (version == 0x6001) {
+      int ret = -ENOTSUP;
+      printf("Loading DDP profile (%d) ", int(repid));
+      const char *file_fld = "x710_ddp/trex-v0_1.pkg";
+      std::ifstream rfile(file_fld, std::ios::binary | std::ios::ate);
+      if (!rfile.fail()) {
+        std::streamsize size = rfile.tellg();
+        rfile.seekg(0, std::ios::beg);
+        std::vector<char> buffer(size);
+        rfile.read(buffer.data(), size);
+        ret = rte_pmd_i40e_process_ddp_package(
+            repid, (uint8_t *)buffer.data(), size, RTE_PMD_I40E_PKG_OP_WR_ADD);
+        if (ret == -EEXIST) {
+          printf("Profile is already loaded \n");
+        } else if (ret < 0) {
+          printf("Failed to load profile on NIC.\n");
+        } else {
+          printf("Profile is successfully loaded.\n");
+        }
+        rfile.close();
+      } else {
+        printf("Failed to find profile %s on file-system \n", file_fld);
+      }
+    }else{
+      printf(
+          "Port (%d) firmware version 0x%x is not eligible for DDP upgrade \n",
+          int(repid), version);
+    }
 
     if (ret == 0) {
         if (CGlobalInfo::m_options.preview.getVMode() >= 1) {
-            printf("port %d: FW ver %02d.%02d.%02d\n", (int)repid, ((version >> 12) & 0xf), ((version >> 4) & 0xff)
-                   ,(version & 0xf));
+          printf("port %d: FW ver %02d.%02d.%02d\n", (int)repid,
+                 ((version >> 12) & 0xf), ((version >> 4) & 0xff),
+                 (version & 0xf));
         }
 
-        if ((((version >> 12) & 0xf) < 5)  || ((((version >> 12) & 0xf) == 5) && ((version >> 4 & 0xff) == 0)
-                                               && ((version & 0xf) < 4))) {
-            printf("Warning: In this TRex version, X710 firmware must be at least 05.00.04\n");
-            printf(
-                "  Please refer to %s for upgrade instructions\n, this might "
-                "be false positive for some new NICS like XXV710 or x722 ",
-                "https://trex-tgn.cisco.com/trex/doc/"
-                "trex_manual.html#_firmware_update_to_xl710_x710");
+        if ((((version >> 12) & 0xf) < 5) ||
+            ((((version >> 12) & 0xf) == 5) && ((version >> 4 & 0xff) == 0) &&
+             ((version & 0xf) < 4))) {
+          printf(
+              "Warning: In this TRex version, X710 firmware must be at least "
+              "05.00.04\n");
+          printf("  Please refer to %s for upgrade instructions\n, this might "
+                 "be false positive for some new NICS like XXV710 or x722 ",
+                 "https://trex-tgn.cisco.com/trex/doc/"
+                 "trex_manual.html#_firmware_update_to_xl710_x710");
         }
     }
 
