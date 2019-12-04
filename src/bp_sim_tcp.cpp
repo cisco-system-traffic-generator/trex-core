@@ -354,6 +354,8 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
         return;
     }
 
+    cur->dec_limit();
+
     CEmulApp * app_c;
 
     app_c = &c_flow->m_app;
