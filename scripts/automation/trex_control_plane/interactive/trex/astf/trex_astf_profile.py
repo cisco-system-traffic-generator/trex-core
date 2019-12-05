@@ -1292,7 +1292,7 @@ class ASTFCapInfo(object):
     """
 
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None,
-                 s_glob_info=None, c_glob_info=None,limit=None):
+                 s_glob_info=None, c_glob_info=None,limit=None, tg_name=None):
         """
         Define one template information based on pcap file analysis
 
@@ -1330,7 +1330,8 @@ class ASTFCapInfo(object):
                      {"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
                      {"name": "c_glob_info", 'arg': c_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
-                     {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False}]}
+                     {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
+                     {"name": "tg_name", 'arg': tg_name, "t": str, "must": False}]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         if l7_percent is not None:
@@ -1347,6 +1348,8 @@ class ASTFCapInfo(object):
 
         self.file = file
         if assoc is not None:
+            if port is not None:
+                raise ASTFErrorBadParamCombination(self.__class__.__name__, "port", "assoc")
             if type(assoc) is ASTFAssociationRule:
                 self.assoc = ASTFAssociation(assoc)
             else:
@@ -1356,11 +1359,16 @@ class ASTFCapInfo(object):
                 self.assoc = ASTFAssociation(ASTFAssociationRule(port=port))
             else:
                 self.assoc = None
+        
+        if tg_name is not None:
+            if len(tg_name) > 20 or len(tg_name) == 0:
+                raise ASTFError("tg_name is empty or too long")
+        
         self.ip_gen = ip_gen
         self.c_glob_info = c_glob_info
         self.s_glob_info = s_glob_info
         self.limit=limit;
-
+        self.tg_name = tg_name
 
 class ASTFTemplate(object):
     """
@@ -1434,7 +1442,7 @@ class ASTFTemplate(object):
         for field in self.fields.keys():
             if field != 'tg_id':
                 ret[field] = self.fields[field].to_json()
-            else:
+            elif self.fields['tg_id'] != 0:
                 ret['tg_id'] = self.fields['tg_id']
 
         return ret
@@ -1536,14 +1544,7 @@ class ASTFProfile(object):
         if templates is not None:
             self.templates = listify(templates)
             for template in self.templates:
-                if template.tg_name in self.tg_name_to_id:
-                    template.fields['tg_id'] = self.tg_name_to_id[template.tg_name]
-                else:
-                    if template.tg_name is None:
-                        template.fields['tg_id'] = 0
-                    if template.tg_name:
-                            template.fields['tg_id'] = len(self.tg_name_to_id) + 1
-                            self.tg_name_to_id[template.tg_name] = len(self.tg_name_to_id) + 1
+                self._add_tg_id_to_template(template)
             server_ports = []
             for template in self.templates:
                 port = template.fields['server_template'].fields['assoc'].port
@@ -1594,8 +1595,7 @@ class ASTFProfile(object):
                 d_ports[d_port] = cap_file
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
-                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit})
-
+                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit, "tg_name": cap.tg_name})
             # calculate cps from l7 percent
             if mode == "l7_percent":
                 percent_sum = 0
@@ -1609,8 +1609,19 @@ class ASTFProfile(object):
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
                                                cps=c["cps"],limit=c["limit"])
                 temp_s = ASTFTCPServerTemplate(program=c["prog_s"], glob_info=c["glob_s"], assoc=c["my_assoc"])
-                template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
+                template = ASTFTemplate(client_template=temp_c, server_template=temp_s, tg_name=c["tg_name"])
+                self._add_tg_id_to_template(template)
                 self.templates.append(template)
+
+    def _add_tg_id_to_template(self, template):
+        if template.tg_name in self.tg_name_to_id:
+            template.fields['tg_id'] = self.tg_name_to_id[template.tg_name]
+        else:
+            if template.tg_name is None:
+                template.fields['tg_id'] = 0
+            if template.tg_name:
+                template.fields['tg_id'] = len(self.tg_name_to_id) + 1
+                self.tg_name_to_id[template.tg_name] = len(self.tg_name_to_id) + 1
 
     def to_json_str(self, pretty = True, sort_keys = False):
         data = self.to_json()
