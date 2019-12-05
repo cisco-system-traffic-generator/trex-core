@@ -393,7 +393,7 @@ class CAstfDB  : public CTRexDummyCommand  {
         return m_topo_mngr;
     }
 
-    CAstfDB();
+    CAstfDB(profile_id_t profile_id = 0);
     virtual ~CAstfDB();
 
     /***************************/
@@ -594,6 +594,8 @@ private:
     double m_factor; /* initial multiplier factor */
 
     std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
+
+    profile_id_t m_profile_id;
 public:
     bool is_smart_gen(uint16_t thread_id) {
         return (m_smart_gen.find(thread_id) != m_smart_gen.end());

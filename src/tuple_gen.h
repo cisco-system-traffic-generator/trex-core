@@ -38,6 +38,7 @@ limitations under the License.
 #include <bitset>
 #include <yaml-cpp/yaml.h>
 #include "trex_client_config.h"
+#include "trex_defs.h"
 
 #include <random>
 
@@ -636,12 +637,13 @@ class CIpPool {
 class CClientPool : public CIpPool {
 public:
 
-    CClientPool(){
+    CClientPool(profile_id_t profile_id=0){
         m_thread_id=0;
         m_rss_thread_id=0;
         m_rss_thread_max=0;
         m_reta_mask=0;
         m_rss_astf_mode=false;
+        m_profile_id=profile_id;
 
     }
 
@@ -671,7 +673,8 @@ public:
                 double          active_flows,
                 ClientCfgDB     &client_info,
                 uint16_t        tcp_aging,
-                uint16_t        udp_aging); 
+                uint16_t        udp_aging,
+                uint32_t        base_client_id=0);
 
 
     void set_thread_id(uint16_t thread_id){
@@ -694,6 +697,8 @@ public:
     uint16_t m_rss_thread_max;
     uint8_t  m_reta_mask;
     bool     m_rss_astf_mode;
+    profile_id_t m_profile_id;
+    uint32_t     m_base_client_id;
 
 private:
     void allocate_simple_clients(uint32_t  min_ip,
@@ -890,7 +895,8 @@ public:
                          double        active_flows,
                          ClientCfgDB   &client_info,
                          uint16_t      tcp_aging,
-                         uint16_t      udp_aging);
+                         uint16_t      udp_aging,
+                         profile_id_t  profile_id=0);
 
     bool add_server_pool(IP_DIST_t  server_dist,
                          uint32_t   min_server,

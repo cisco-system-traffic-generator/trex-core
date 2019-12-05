@@ -74,7 +74,8 @@ void CClientPool::Create(IP_DIST_t       dist_value,
                          double          active_flows,
                          ClientCfgDB     &client_info,
                          uint16_t        tcp_aging,
-                         uint16_t        udp_aging) {
+                         uint16_t        udp_aging,
+                         uint32_t        base_client_id) {
 
     assert(max_ip >= min_ip);
 
@@ -84,6 +85,7 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     bool is_long_range = _enough_ips(total_ip,active_flows,m_rss_astf_mode);
 
     m_ip_info.resize(total_ip);
+    m_base_client_id = base_client_id;
 
     /* if client info is empty - flat allocation o.w use configured clients */
     if (client_info.is_empty()) {
@@ -106,9 +108,10 @@ static uint16_t generate_rand_sport(uint32_t client_index,
                                     uint16_t rss_thread_id,
                                     uint16_t rss_thread_max,
                                     uint8_t  reta_mask,
-                                    bool     rss_astf_mode){
+                                    bool     rss_astf_mode,
+                                    profile_id_t  profile_id=0){
 
-    uint32_t rand  = ((214013*(client_index + 11213*threadid) + 2531011));
+    uint32_t rand  = ((214013*(client_index + 11213*threadid + 1371*profile_id) + 2531011));
     uint16_t rand16 = ((rand)&0xffff);
     uint16_t port = MIN_PORT+(rand16%(MAX_PORT-MIN_PORT))+1;
 
@@ -147,11 +150,13 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
 
 void CClientPool::configure_client(uint32_t indx){
 
-    uint16_t port = generate_rand_sport(indx,m_thread_id,
+    uint16_t port = generate_rand_sport(indx+m_base_client_id,
+                                             m_thread_id,
                                              m_rss_thread_id,
                                              m_rss_thread_max,
                                              m_reta_mask,
-                                             m_rss_astf_mode);
+                                             m_rss_astf_mode,
+                                             m_profile_id);
     CIpInfoBase* lp=m_ip_info[indx];
     lp->set_start_port(port);
     if (m_rss_astf_mode){
@@ -210,9 +215,10 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                                           double          active_flows,
                                           ClientCfgDB     &client_info,
                                           uint16_t        tcp_aging,
-                                          uint16_t        udp_aging) {
+                                          uint16_t        udp_aging,
+                                          profile_id_t    profile_id) {
     assert(max_client>=min_client);
-    CClientPool* pool = new CClientPool();
+    CClientPool* pool = new CClientPool(profile_id);
     pool->set_thread_id((uint16_t)m_thread_id);
     if (m_rss_astf_mode) {
         pool->set_rss_thread_id(m_rss_thread_id,m_rss_thread_max,m_reta_mask);
@@ -223,7 +229,8 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                  active_flows,
                  client_info,
                  tcp_aging,
-                 udp_aging);
+                 udp_aging,
+                 getTotalClients());
     m_client_pool.push_back(pool);
     return(true);
 }

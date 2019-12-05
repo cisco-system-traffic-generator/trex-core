@@ -39,7 +39,7 @@ inline std::string methodName(const std::string& prettyFunction)
 astf_db_map_t CAstfDB::m_instances;
 
 
-CAstfDB::CAstfDB(){
+CAstfDB::CAstfDB(profile_id_t profile_id){
     m_client_config_info=0;
     m_validator=0;
     m_validator = new CAstfJsonValidator();
@@ -49,6 +49,7 @@ CAstfDB::CAstfDB(){
     }
     m_topo_mngr = new TopoMngr();
     m_factor = -1.0;
+    m_profile_id = profile_id;
 }
 
 
@@ -67,7 +68,7 @@ CAstfDB::~CAstfDB(){
 
 CAstfDB* CAstfDB::instance(profile_id_t profile_id) {
     if ( m_instances.find(profile_id) == m_instances.end() ) {
-        CAstfDB *new_inst = new CAstfDB();
+        CAstfDB *new_inst = new CAstfDB(profile_id);
         new_inst->m_json_initiated = false;
         m_instances[profile_id] = new_inst;
         return new_inst;
@@ -1140,7 +1141,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             gen_idx_trans.push_back(last_c_idx);
             last_c_idx++;
             ClientCfgDB  * cdb=get_client_cfg_db();
-            g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, *cdb, 0, 0);
+            g_gen->add_client_pool(dist, portion.m_ip_start, portion.m_ip_end, active_flows_per_core, *cdb, 0, 0, m_profile_id);
         } else {
             gen_idx_trans.push_back(last_s_idx);
             last_s_idx++;
