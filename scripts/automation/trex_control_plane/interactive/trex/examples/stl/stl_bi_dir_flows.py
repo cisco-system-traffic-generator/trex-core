@@ -1,3 +1,4 @@
+import stl_path
 from trex.stl.api import *
 
 import time

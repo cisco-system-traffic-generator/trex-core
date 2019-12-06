@@ -1,3 +1,4 @@
+import stl_path
 from trex_stl_lib.api import *
 
 class STLS1(object):
