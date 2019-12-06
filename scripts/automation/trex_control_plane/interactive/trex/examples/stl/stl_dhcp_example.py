@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from __future__ import print_function
 
+import stl_path
 from trex.stl.api import *
 from trex.common.services.trex_service_icmp import ServiceICMP
 from trex.common.services.trex_service_dhcp import ServiceDHCP
