@@ -242,8 +242,8 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         default_ip_gen = ASTFIPGenDist(ip_range=['16.0.0.1', '16.0.0.255'])
         non_default_ip_gen = ASTFIPGenDist(ip_range=["1.1.1.1", "1.1.1.255"], distribution="rand")
 
-        gen_dist_cache.add_inner(default_ip_gen)
-        gen_dist_cache.add_inner(non_default_ip_gen)
+        gen_dist_cache._add_inner(default_ip_gen, True)
+        gen_dist_cache._add_inner(non_default_ip_gen, True)
 
         assert(self.compare_json(class_json, gen_dist_cache.to_json()))
         assert(self.compare_json(default_to_json, default_ip_gen.to_json()))
@@ -292,8 +292,7 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.1", "48.0.255.255"], distribution="seq")
         ip_gen = ASTFIPGen(dist_client=ip_gen_c, dist_server=ip_gen_s)
         ip_gen_dist_cache = ASTFIPGenDistCache()
-        ip_gen_dist_cache.add_inner(ip_gen_c)
-        ip_gen_dist_cache.add_inner(ip_gen_s)
+        ip_gen_dist_cache.add_inner(ip_gen)
 
         c_temp = ASTFTCPClientTemplate(ip_gen=ip_gen, program=prog)
         template_cache = ASTFTemplateCache()
