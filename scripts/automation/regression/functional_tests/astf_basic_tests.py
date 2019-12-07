@@ -179,9 +179,6 @@ def register():
 
 @attr('run_on_trex')
 class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
-    def reset(self):
-        ASTFIPGenDist.class_reset()
-        ASTFProgram.class_reset()
 
     def compare_json(self, json1, json2):
         if json1 != json2:
@@ -194,7 +191,8 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         expect_prog_json = {'commands': [{'name': 'tx', 'buf_index': 0}, {'min_bytes': 100, 'name': 'rx'},
                                          {'usec': 3, 'name': 'delay'}, {'name': 'tx', 'buf_index': 0},
                                          {'name': 'tx', 'buf_index': 1}, {'name': 'reset'}]}
-
+        
+        program_cache = ASTFProgramCache()
         prog = ASTFProgram()
         prog.send("aaa")
         prog.recv(100)
@@ -202,10 +200,11 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         prog.send("aaa")
         prog.send("bbb")
         prog.reset()
-        class_json = ASTFProgram.class_to_json()
+
+        program_cache.add_commands_from_program(prog)
+        class_json = program_cache.to_json()
         prog_json = prog.to_json()
 
-        assert(self.compare_json(class_json, expect_class_json))
         assert(self.compare_json(prog_json, expect_prog_json))
 
     def test_ASTFIPGenDist(self):
@@ -214,6 +213,7 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         default_to_json = {'index': 0}
         non_default_to_json = {'index': 1}
+        gen_dist_cache = ASTFIPGenDistCache()
 
         # bad pair
         try:
@@ -242,7 +242,10 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         default_ip_gen = ASTFIPGenDist(ip_range=['16.0.0.1', '16.0.0.255'])
         non_default_ip_gen = ASTFIPGenDist(ip_range=["1.1.1.1", "1.1.1.255"], distribution="rand")
 
-        assert(self.compare_json(class_json, ASTFIPGenDist.class_to_json()))
+        gen_dist_cache.add_inner(default_ip_gen)
+        gen_dist_cache.add_inner(non_default_ip_gen)
+
+        assert(self.compare_json(class_json, gen_dist_cache.to_json()))
         assert(self.compare_json(default_to_json, default_ip_gen.to_json()))
         assert(self.compare_json(non_default_to_json, non_default_ip_gen.to_json()))
 
@@ -288,7 +291,13 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.1", "16.0.0.255"], distribution="seq")
         ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.1", "48.0.255.255"], distribution="seq")
         ip_gen = ASTFIPGen(dist_client=ip_gen_c, dist_server=ip_gen_s)
+        ip_gen_dist_cache = ASTFIPGenDistCache()
+        ip_gen_dist_cache.add_inner(ip_gen_c)
+        ip_gen_dist_cache.add_inner(ip_gen_s)
+
         c_temp = ASTFTCPClientTemplate(ip_gen=ip_gen, program=prog)
+        template_cache = ASTFTemplateCache()
+        template_cache.add_program_from_template(c_temp)
 
         assert(self.compare_json(json, c_temp.to_json()))
 
@@ -296,6 +305,8 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         json = {'program_index': 0, 'assoc': [{'port': 80}]}
         template_json = [{'commands': [{'name': 'tx', 'buf_index': 0}]}, {'commands': [{'name': 'tx', 'buf_index': 1}]}]
         prog_json = [u'eXl5', u'YWFh']
+        program_cache = ASTFProgramCache()
+        template_cache = ASTFTemplateCache()
 
         # no program
         try:
@@ -308,23 +319,33 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
         # Valid server template
         prog = ASTFProgram()
         prog.send("yyy")
+        program_cache.add_commands_from_program(prog)
+
         s_temp = ASTFTCPServerTemplate(program=prog)
+        template_cache.add_program_from_template(s_temp)
         assert(self.compare_json(json, s_temp.to_json()))
 
         # Same template as prev
         prog2 = ASTFProgram()
         prog2.send("yyy")
+        program_cache.add_commands_from_program(prog2)
+
         s_temp2 = ASTFTCPServerTemplate(program=prog2)
+        template_cache.add_program_from_template(s_temp2)
         assert(self.compare_json(json, s_temp2.to_json()))
 
         # Different template
         prog3 = ASTFProgram()
         prog3.send("aaa")
+        program_cache.add_commands_from_program(prog3)
+
         s_temp3 = ASTFTCPServerTemplate(program=prog3)
+        template_cache.add_program_from_template(s_temp3)
+
         json['program_index'] = 1  # now we expect program index to be 1
         assert(self.compare_json(json, s_temp3.to_json()))
-        assert(self.compare_json(template_json, ASTFTCPServerTemplate.class_to_json()))
-        assert(self.compare_json(prog_json, ASTFProgram.class_to_json()))
+        assert(self.compare_json(template_json, template_cache.to_json()))
+        assert(self.compare_json(prog_json, program_cache.to_json()))
 
     def test_ASTFCapInfo(self):
         # no file
@@ -355,10 +376,6 @@ class CAstfBasic_Test(functional_general_test.CGeneralFunctional_Test):
             assert type(e) == ASTFErrorBadParamCombination
         else:
             assert 0, "Bad exception, or no exception"
-
-
-    def setUp(self):
-        self.reset()
 
     def test_astf(self):
         pass
