@@ -225,45 +225,6 @@ class ASTFProgram(object):
     MAX_DELAY = 700000 
     MAX_KEEPALIVE = 500000 
 
-    class BufferList():
-        def __init__(self):
-            self.buf_list = []
-            self.buf_hash = {}
-
-        def get_len(self):
-            return len(self.buf_list)
-
-        # add, and return index of added buffer
-        def add(self, new_buf):
-            m = hashlib.sha256(new_buf.encode()).digest()
-            if m in self.buf_hash:
-                return self.buf_hash[m]
-            else:
-                self.buf_list.append(new_buf)
-                new_index = len(self.buf_list) - 1
-                self.buf_hash[m] = new_index
-                return new_index
-
-            for index in range(0, len(self.buf_list)):
-                if new_buf == self.buf_list[index]:
-                    return index
-
-            self.buf_list.append(new_buf)
-            return len(self.buf_list) - 1
-
-        def to_json(self):
-            return self.buf_list
-
-    buf_list = BufferList()
-
-    @classmethod
-    def class_reset(cls):
-        cls.buf_list = cls.BufferList()
-
-    @classmethod
-    def class_to_json(cls):
-        return cls.buf_list.to_json()
-
     def __init__(self, file=None, side="c", commands=None,stream=True):
         """
 
@@ -410,7 +371,7 @@ class ASTFProgram(object):
 
         cmd = ASTFCmdTxPkt(enc_buf)
         self.total_send_bytes += cmd.buf_len
-        cmd.index = ASTFProgram.buf_list.add(cmd.buf)
+        cmd.index = None
         self.fields['commands'].append(cmd)
 
     def set_send_blocking (self,block):
@@ -509,7 +470,7 @@ class ASTFProgram(object):
         enc_buf=self._c_b (buf)
         cmd = ASTFCmdSend(enc_buf)
         self.total_send_bytes += cmd.buf_len
-        cmd.index = ASTFProgram.buf_list.add(cmd.buf)
+        cmd.index = None
         self.fields['commands'].append(cmd)
 
     def recv(self, bytes,clear=False):
@@ -682,7 +643,7 @@ class ASTFProgram(object):
         for cmd in cmds:
             if cmd.buffer:
                 self.total_send_bytes += cmd.buf_len
-                cmd.index = ASTFProgram.buf_list.add(cmd.buf)
+                cmd.index = None
             self.fields['commands'].append(cmd)
 
     def _create_cmds_from_cap(self, is_tcp, cmds, times, dirs, init_side):
@@ -795,20 +756,6 @@ class ASTFIPGenDist(object):
 
     """
 
-    in_list = []
-
-    @classmethod
-    def class_to_json(cls):
-        ret = []
-        for i in range(0, len(cls.in_list)):
-            ret.append(cls.in_list[i].to_json())
-
-        return ret
-
-    @classmethod
-    def class_reset(cls):
-        cls.in_list = []
-
     class Inner(object):
         def __init__(self, ip_range, distribution="seq",per_core_distribution=None):
             self.fields = {}
@@ -886,41 +833,36 @@ class ASTFIPGenDist(object):
 
         new_inner = self.Inner(ip_range=ip_range, distribution=distribution,per_core_distribution=per_core_distribution)
 
-        for i in range(0, len(self.in_list)):
-            if new_inner == self.in_list[i]:
-                self.index = i
-                return
-
-        self.in_list.append(new_inner)
-        self.index = len(self.in_list) - 1
+        self.inner = new_inner
+        self.index = None
 
     @property
     def ip_start(self):
-        return self.in_list[self.index].ip_start
+        return self.inner.ip_start
 
     @property
     def ip_end(self):
-        return self.in_list[self.index].ip_end
+        return self.inner.ip_end
 
     @property
     def distribution(self):
-        return self.in_list[self.index].distribution
+        return self.inner.distribution
 
     @property
     def direction(self):
-        return self.in_list[self.index].direction
+        return self.inner.direction
 
     @direction.setter
     def direction(self, direction):
-        self.in_list[self.index].direction = direction
+        self.inner.direction = direction
 
     @property
     def ip_offset(self):
-        return self.in_list[self.index].ip_offset
+        return self.inner.ip_offset
 
     @ip_offset.setter
     def ip_offset(self, ip_offset):
-        self.in_list[self.index].ip_offset = ip_offset
+        self.inner.ip_offset = ip_offset
 
     def to_json(self):
         return {"index": self.index}
@@ -1152,44 +1094,12 @@ class ASTFAssociation(object):
 
 
 class _ASTFTemplateBase(object):
-    program_list = []
-    program_hash = {}
-
-    @classmethod
-    def add_program(cls, program):
-        m = program.calc_hash()
-        if m in cls.program_hash:
-            return cls.program_hash[m]
-        else:
-            cls.program_list.append(program)
-            prog_index = len(cls.program_list) - 1
-            cls.program_hash[m] = prog_index
-            return prog_index
-
-    @classmethod
-    def get_total_send_bytes(cls, ind):
-        return cls.program_list[ind].total_send_bytes
-
-    @classmethod
-    def num_programs(cls):
-        return len(cls.program_list)
-
-    @classmethod
-    def class_reset(cls):
-        cls.program_list = []
-        cls.program_hash = {}
-
-    @classmethod
-    def class_to_json(cls):
-        ret = []
-        for i in range(0, len(cls.program_list)):
-            ret.append(cls.program_list[i].to_json())
-        return ret
 
     def __init__(self, program=None):
         self.fields = {}
-        self.fields['program_index'] = _ASTFTemplateBase.add_program(program)
-        self.is_stream = program.is_stream
+        self.fields['program_index'] = None
+        self.program = program
+        self.is_stream = program.is_stream if program is not None else None
 
 
     def is_stream (self):
@@ -1560,12 +1470,6 @@ class ASTFProfile(object):
 
     """
 
-    @staticmethod
-    def clear_cache():
-        ASTFProgram.class_reset()
-        ASTFIPGenDist.class_reset()
-        _ASTFTemplateBase.class_reset()
-
     def __init__(self, default_ip_gen, default_c_glob_info=None, default_s_glob_info=None,
                  templates=None, cap_list=None):
         """
@@ -1604,6 +1508,7 @@ class ASTFProfile(object):
         self.default_s_glob_info = default_s_glob_info
         self.templates = []
         self.tg_name_to_id = collections.OrderedDict()
+        self.cache = ASTFProfileCache(profile = self)
 
         if (templates is None) and (cap_list is None):
              raise ASTFErrorBadParamCombination(self.__class__.__name__, "templates", "cap_list")
@@ -1698,10 +1603,11 @@ class ASTFProfile(object):
 
 
     def to_json(self):
+        self.cache.fill_cache()
         ret = {}
-        ret['buf_list'] = ASTFProgram.class_to_json()
-        ret['ip_gen_dist_list'] = ASTFIPGenDist.class_to_json()
-        ret['program_list'] = _ASTFTemplateBase.class_to_json()
+        ret['buf_list'] = self.cache.program_cache.to_json()
+        ret['ip_gen_dist_list'] = self.cache.gen_dist_cache.to_json()
+        ret['program_list'] = self.cache.template_cache.to_json()
         if self.default_c_glob_info is not None:
             ret['c_glob_info'] = self.default_c_glob_info.to_json()
         if self.default_s_glob_info is not None:
@@ -1716,16 +1622,17 @@ class ASTFProfile(object):
         return ret;
 
     def print_stats(self):
+        self.cache.fill_cache()
         tot_bps = 0
         tot_cps = 0
-        print ("Num buffers: {0}".format(ASTFProgram.buf_list.get_len()))
-        print ("Num programs: {0}".format(_ASTFTemplateBase.num_programs()))
+        print ("Num buffers: {0}".format(self.cache.program_cache.get_len()))
+        print ("Num programs: {0}".format(self.cache.template_cache.num_programs()))
         for i in range(0, len(self.templates)):
             print ("template {0}:".format(i))
             d = self.templates[i].to_json()
             c_prog_ind = d['client_template']['program_index']
             s_prog_ind = d['server_template']['program_index']
-            tot_bytes = _ASTFTemplateBase.get_total_send_bytes(c_prog_ind) + _ASTFTemplateBase.get_total_send_bytes(s_prog_ind)
+            tot_bytes = self.cache.template_cache.get_total_send_bytes(c_prog_ind) + self.cache.template_cache.get_total_send_bytes(s_prog_ind)
             temp_cps = d['client_template']['cps']
             temp_bps = tot_bytes * temp_cps * 8
             print ("  total bytes:{0} cps:{1} bps(bytes * cps * 8):{2}".format(tot_bytes, temp_cps, temp_bps))
@@ -1761,7 +1668,6 @@ class ASTFProfile(object):
         if not os.path.isfile(python_file):
             raise TRexError("File '{0}' does not exist".format(python_file))
 
-        cls.clear_cache()
         basedir = os.path.dirname(python_file)
         sys.path.insert(0, basedir)
 
@@ -1838,3 +1744,146 @@ class ASTFProfile(object):
 
         return profile
 
+class ASTFProfileCache(object):
+    """ Cache for ASTFProfile, using 3 caches: ASTFIPGenDistCache, ASTFProgramCache and ASTFTemplateCache.
+    Every ASTFProfile has a unique cache in order to prevent collisions """
+
+    def __init__(self, profile):
+        self.gen_dist_cache = ASTFIPGenDistCache()
+        self.program_cache = ASTFProgramCache()
+        self.template_cache = ASTFTemplateCache()
+        self.profile = profile
+
+    def clear_all(self):
+        self.gen_dist_cache = ASTFIPGenDistCache()
+        self.program_cache = ASTFProgramCache()
+        self.template_cache = ASTFTemplateCache()
+
+    def fill_cache(self):
+        """ Clear the cache and fill it back using self.profile, iterating through all profile templates """
+        self.clear_all()
+
+        for template in self.profile.templates:
+            client_template = template.fields['client_template']
+            server_template = template.fields['server_template']
+            tcp_templates = [client_template, server_template]
+
+            for tcp_template in tcp_templates:
+                self.program_cache.add_commands_from_program(tcp_template.program)
+                self.template_cache.add_program_from_template(tcp_template)
+
+            ip_gen = client_template.fields['ip_gen']
+            ip_dest_client = ip_gen.fields['dist_client']
+            ip_dest_server = ip_gen.fields['dist_server']
+
+            self.gen_dist_cache.add_inner(ip_dest_client)
+            self.gen_dist_cache.add_inner(ip_dest_server)
+
+class ASTFIPGenDistCache(object):
+    """ Cache all the IP generator inners """
+    def __init__(self):
+        self.in_list = []
+
+    def clear_cache(self):
+        self.in_list = []
+
+    def to_json(self):
+        ret = []
+        for gen_dst in self.in_list:
+            ret.append(gen_dst.to_json())
+        return ret
+
+    def add_inner(self, ip_gen_dist):
+        new_inner = ip_gen_dist.inner
+        for i, inner in enumerate(self.in_list):
+            if new_inner == inner:
+                ip_gen_dist.index = i
+                ip_gen_dist.inner = inner  # reference the inner in cache in order to del the duplicate
+                return
+
+        self.in_list.append(new_inner)
+        ip_gen_dist.index = len(self.in_list) - 1
+
+class ASTFProgramCache(object):
+    """ Cache all the commands from all ASTFPrograms """
+
+    @staticmethod
+    def commands_hash(cmd):
+        return cmd.buf
+
+    def __init__(self):
+        self.buf_list = BufferList(hash_function = ASTFProgramCache.commands_hash)
+
+    def get_len(self):
+        return self.buf_list.get_len()
+
+    def clear_cache(self):
+        self.buf_list = BufferList(hash_function = ASTFProgramCache.commands_hash)
+
+    def to_json(self):
+        return self.buf_list.to_json()
+
+    def add_commands_from_program(self, program):
+        commands = program.fields['commands']
+        for cmd in commands:
+            if cmd.buffer:
+                cmd.index = self.buf_list.add(cmd)
+
+class ASTFTemplateCache(object):
+    """ Cache all the programs in ASTFTemplate """
+
+    @staticmethod
+    def programs_hash(program):
+        return hashlib.sha256(repr(program.to_json()).encode()).digest()
+
+    def __init__(self):
+        self.programs = BufferList(hash_function = ASTFTemplateCache.programs_hash)
+
+    def clear_cache(self):
+        self.programs = BufferList(hash_function = ASTFTemplateCache.programs_hash)
+
+    def to_json(self):
+        ret = []
+        for program in self.programs.buf_list:
+            ret.append(program.to_json())
+        return ret
+
+    def get_total_send_bytes(self, ind):
+        return self.programs.buf_list[ind].total_send_bytes
+
+    def num_programs(self):
+        return self.programs.get_len()
+
+    def add_program_from_template(self, template):
+        template.fields['program_index'] = self.programs.add(template.program)
+
+class BufferList(object):
+    """ Cache implementation for ASTFTemplateCache and ASTFProgramCache, using a different hash function supplied in __init__ """
+
+    def __init__(self, hash_function):
+        self.buf_list = []
+        self.buf_hash = {}
+        self.hash_function = hash_function
+
+    def get_len(self):
+        return len(self.buf_list)
+
+    # add, and return index of added buffer
+    def add(self, new_buf):
+
+        m = self.hash_function(new_buf)
+        if m in self.buf_hash:            
+            return self.buf_hash[m]
+        else:
+            if hasattr(new_buf, 'buf'):
+                # new_buf is a command
+                self.buf_list.append(new_buf.buf)
+            else:
+                # new_buf is a program
+                self.buf_list.append(new_buf)
+            new_index = len(self.buf_list) - 1
+            self.buf_hash[m] = new_index
+            return new_index
+
+    def to_json(self):
+        return self.buf_list

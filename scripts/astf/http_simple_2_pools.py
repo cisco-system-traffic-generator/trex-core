@@ -28,8 +28,8 @@ class Prof1():
 
         return ASTFProfile(default_ip_gen=ip_gen,
                             cap_list=[
-                            ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=2.776,ip_gen=ip_gen2),
-                            ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=2.776,ip_gen=ip_gen1,port=100)
+                            ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=2.776,ip_gen=ip_gen1,port=100),
+                            ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",cps=2.776,ip_gen=ip_gen2)
 
                             ])
 
