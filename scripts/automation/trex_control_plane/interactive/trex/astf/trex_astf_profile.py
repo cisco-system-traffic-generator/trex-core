@@ -3,7 +3,7 @@ from .arg_verify import ArgVerify
 import os
 import sys
 import inspect
-from .trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam
+from .trex_astf_exceptions import ASTFError, ASTFErrorBadParamCombination, ASTFErrorMissingParam, ASTFErrorOverlapIP
 from .trex_astf_global_info import ASTFGlobalInfo, ASTFGlobalInfoPerTemplate
 import json
 import base64
@@ -11,6 +11,7 @@ import hashlib
 import traceback
 from ..common.trex_exceptions import *
 from ..common.trex_types import listify
+from ..utils.common import ip2int
 import imp
 import collections
 
@@ -778,9 +779,13 @@ class ASTFIPGenDist(object):
                 self.fields['per_core_distribution']=per_core_distribution
 
         def __eq__(self, other):
-            if self.fields == other.fields:
-                return True
-            return False
+            return self.fields == other.fields
+
+        def is_overlaps(self, other_inner):
+            my_start, my_end = ip2int(self.ip_start), ip2int(self.ip_end)
+            other_start, other_end = ip2int(other_inner.ip_start), ip2int(other_inner.ip_end)
+
+            return my_start <= other_end and my_end >= other_start 
 
         @property
         def ip_start(self):
@@ -1653,6 +1658,9 @@ class ASTFProfile(object):
             tot_cps += temp_cps
         print("total for all templates - cps:{0} bps:{1}".format(tot_cps, tot_bps))
 
+    def clear_cache(self):
+        self.cache.clear_all()
+
     @staticmethod
     def get_module_tunables(module):
         # remove self and variables
@@ -1777,11 +1785,7 @@ class ASTFProfileCache(object):
                 self.template_cache.add_program_from_template(tcp_template)
 
             ip_gen = client_template.fields['ip_gen']
-            ip_dest_client = ip_gen.fields['dist_client']
-            ip_dest_server = ip_gen.fields['dist_server']
-
-            self.gen_dist_cache.add_inner(ip_dest_client)
-            self.gen_dist_cache.add_inner(ip_dest_server)
+            self.gen_dist_cache.add_inner(ip_gen)
 
 class ASTFIPGenDistCache(object):
     """ Cache all the IP generator inners """
@@ -1797,13 +1801,28 @@ class ASTFIPGenDistCache(object):
             ret.append(gen_dst.to_json())
         return ret
 
-    def add_inner(self, ip_gen_dist):
+    def add_inner(self, ip_gen):
+        ip_dest_client = ip_gen.fields['dist_client']
+        ip_dest_server = ip_gen.fields['dist_server']
+
+        self._add_inner(ip_dest_client, is_client = True)
+        self._add_inner(ip_dest_server, is_client = False)
+
+    def _add_inner(self, ip_gen_dist, is_client):
         new_inner = ip_gen_dist.inner
+        overlap_inner = None
+
         for i, inner in enumerate(self.in_list):
+
             if new_inner == inner:
                 ip_gen_dist.index = i
                 ip_gen_dist.inner = inner  # reference the inner in cache in order to del the duplicate
                 return
+            elif is_client and inner.is_overlaps(new_inner):
+                overlap_inner = inner
+
+        if overlap_inner is not None:
+            raise ASTFErrorOverlapIP([new_inner.ip_start, new_inner.ip_end], [overlap_inner.ip_start, overlap_inner.ip_end])
 
         self.in_list.append(new_inner)
         ip_gen_dist.index = len(self.in_list) - 1
