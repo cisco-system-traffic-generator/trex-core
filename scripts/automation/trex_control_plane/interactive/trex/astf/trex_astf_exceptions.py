@@ -85,3 +85,9 @@ class ASTFErrorBadMac(ASTFError):
 class ASTFErrorBadTG(ASTFError):
     def __init__(self, msg):
         ASTFError.__init__(self, msg)
+
+
+class ASTFErrorOverlapIP(ASTFError):
+    def __init__(self, range1, range2):
+        msg = "Bad IP range! \"{0}\" overlaps with \"{1}\"".format(range1, range2)
+        ASTFError.__init__(self, msg)
