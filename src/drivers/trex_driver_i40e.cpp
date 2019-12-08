@@ -369,7 +369,7 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
 
     ret = rte_eth_get_fw_ver(repid, &version);
     
-    if (version == 0x6001) {
+    if (version > 0x6000) {
       int ret = -ENOTSUP;
       printf("Loading DDP profile (%d) ", int(repid));
       const char *file_fld = "x710_ddp/trex-v0_1.pkg";
