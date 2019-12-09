@@ -996,10 +996,10 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
         set_src_mac(mac_str, mac_buf);
         bind_pair();
         set_bpf_filter(get_default_bpf());
-    } catch (TrexException e) {
+    } catch (TrexException &e) {
         debug({"Got exception at Linux node ctor!", e.what()});
         delete_net();
-        throw &e;
+        throw e;
     }
 }
 
@@ -1040,10 +1040,10 @@ CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, c
         set_src_mac(mac_str, mac_buf);
         bind_pair();
         set_bpf_filter(get_default_bpf());
-    } catch (TrexException e) {
+    } catch (TrexException &e) {
         debug({"Got exception at Linux node ctor!", e.what()});
         delete_veth();
-        throw &e;
+        throw e;
     }
 }
 
@@ -1125,7 +1125,7 @@ bool run_in_ns(const string &cmd, const string &err, const string &ns, bool thro
     // using "cmd" for multiple commands
     try {
         popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, true, out);
-    } catch ( TrexException e ) {
+    } catch ( TrexException &e ) {
         if ( throw_ex ) {
             throw e;
         } else {
