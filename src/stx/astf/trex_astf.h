@@ -161,6 +161,7 @@ private:
 class TrexAstfProfile : public AstfProfileState {
 public:
     typedef std::vector<state_e> states_t;
+    Json::Value m_entry;
 
     TrexAstfProfile();
     ~TrexAstfProfile();
@@ -182,6 +183,7 @@ public:
     std::vector<std::string> get_profile_id_list();
     std::vector<state_e>     get_profile_state_list();
     std::vector<CSTTCp *>    get_sttcp_list();
+    std::vector<CSTTCp *>    get_sttcp_tx_list();
 
     std::vector<std::string> m_states_names;
     std::vector<uint32_t>    m_states_cnt;
@@ -189,6 +191,13 @@ public:
     bool is_another_profile_transmitting(cp_profile_id_t profile_id);
     bool is_safe_update_stats();
 
+    void stats_names_index();
+    void clear_stats_first_start();
+    void accumlate_stats(CSTTCp* lpstt, bool zero_values, Json::Value &entry);
+    void update_stopped_stats(cp_profile_id_t profile_id);
+
+    uint32_t m_avg_size_id, m_tx_ratio_id, m_flow_table_id;
+    std::string m_tx_bw, m_tx_bw_tot, m_rx_bw, m_tx_pps, m_rx_pps, m_avg_size, m_tx_ratio;
 protected:
     std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
     std::unordered_map<uint32_t, cp_profile_id_t> m_profile_id_map;
@@ -353,7 +362,7 @@ public:
         return m_epoch;
     }
 
-    void inc_epoch();
+    void inc_epoch(bool force = false);
 
     CRxAstfCore * get_rx(){
         assert(m_rx);

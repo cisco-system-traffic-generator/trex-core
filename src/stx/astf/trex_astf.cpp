@@ -514,8 +514,8 @@ void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool suspend) {
     msg = nullptr;
 }
 
-void TrexAstf::inc_epoch() {
-    if ( is_trans_state() ) {
+void TrexAstf::inc_epoch(bool force) {
+    if ( is_trans_state() && (force == false) ) {
         throw TrexException("Can't increase epoch in current state: " + m_states_names[m_state]);
     }
     m_epoch++;
@@ -553,6 +553,9 @@ TrexAstfProfile::TrexAstfProfile() {
     m_states_cnt = std::vector<uint32_t> (AMOUNT_OF_STATES);
 
     m_dp_profile_last_id = 0;
+
+    Json::Value m_entry = Json::nullValue;
+    m_avg_size_id = 0, m_tx_ratio_id = 0, m_flow_table_id=0;
 }
 
 TrexAstfProfile::~TrexAstfProfile() {
@@ -611,6 +614,7 @@ bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
     }
 
     auto profile = m_profile_list[profile_id];
+    //update_stopped_stats(profile_id);
     profile->clear_counters(false);
     if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
         profile->profile_change_state(STATE_IDLE);
@@ -676,6 +680,18 @@ vector<CSTTCp *> TrexAstfProfile::get_sttcp_list() {
     return sttcp_list;
 }
 
+vector<CSTTCp *> TrexAstfProfile::get_sttcp_tx_list() {
+    vector<CSTTCp *> sttcp_tx_list;
+
+    for (auto mprofile : m_profile_list) {
+        if (mprofile.second->get_profile_state() == STATE_TX ) {
+            sttcp_tx_list.push_back(mprofile.second->get_stt_cp());
+        }
+    }
+
+    return sttcp_tx_list;
+}
+
 bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id) {
     uint32_t cnt = m_states_cnt[STATE_TX];
     if ((cnt > 0) && get_profile(profile_id)->get_profile_state() == STATE_TX) {
@@ -693,6 +709,133 @@ bool TrexAstfProfile::is_safe_update_stats() {
     return cnt ? false : true;
 }
 
+void TrexAstfProfile::clear_stats_first_start() {
+    Json::Value temp;
+    TrexAstf *stx = get_astf_object();
+    vector<CSTTCp *> sttcp_list = get_sttcp_list();
+
+    if (stx->get_state() == STATE_BUILD) {
+        // Clear all profiles stats
+        for (auto mlpstt : sttcp_list) {
+            mlpstt->clear_counters(false);
+        }
+        // Clear stopped profiles stats
+        sttcp_list[0]->m_dtbl.dump_values("counter vals", true, temp);
+        for (auto i : temp.getMemberNames()) {
+            if (!temp[i].isObject()) {
+                continue;
+            }
+            if (!m_entry.isMember(i)) {
+                m_entry[i] = Json::objectValue;
+            }
+
+            for (auto j : temp[i].getMemberNames()) {
+                m_entry[i][j] = 0;
+            }
+        }
+        // Increase epoch to clear stats in Client
+        stx->inc_epoch(true);
+    }
+}
+
+void TrexAstfProfile::stats_names_index() {
+    vector<string> names;
+    vector<CSTTCp *> sttcp_list = get_sttcp_list();
+
+    if (!sttcp_list.empty() && sttcp_list[0]->m_init) {
+        sttcp_list[0]->m_dtbl.get_counters_names(&names);
+        for (int i = 0; i < names.size(); i++) {
+            if (names[i] == "m_tx_bw_l7_r") {
+                m_tx_bw = to_string(i);
+            } else if (names[i] == "m_tx_bw_l7_total_r") {
+                m_tx_bw_tot = to_string(i);
+            } else if (names[i] == "m_rx_bw_l7_r") {
+                m_rx_bw = to_string(i);
+            } else if (names[i] == "m_tx_pps_r") {
+                m_tx_pps = to_string(i);
+            } else if (names[i] == "m_rx_pps_r") {
+                m_rx_pps = to_string(i);
+            } else if (names[i] == "m_avg_size") {
+                m_avg_size_id = i;
+                m_avg_size = to_string(i);
+            } else if (names[i] == "m_tx_ratio") {
+                m_tx_ratio_id = i;
+                m_tx_ratio = to_string(i);
+            } else if (names[i] == "Flow Table") {
+                m_flow_table_id = i;
+            }
+        }
+    }
+
+}
+
+void TrexAstfProfile::accumlate_stats(CSTTCp* lpstt, bool zero_values, Json::Value &entry) {
+    vector<string> names;
+    uint32_t index;
+    Json::Value temp;
+    double total_pps, total_tx_bw;
+
+    stats_names_index();
+
+    if (lpstt->m_init) {
+        temp.clear();
+        lpstt->m_dtbl.dump_values("counter vals", zero_values, temp);
+
+        /* Member : client, server */
+        for (auto i : temp.getMemberNames()) {
+            if (!temp[i].isObject()) {
+                continue;
+            }
+            if (!entry.isMember(i)) {
+                entry[i] = Json::objectValue;
+            }
+
+            /* Member : counters index */
+            for (auto j : temp[i].getMemberNames()) {
+                if (!entry[i].isMember(j)) {
+                    entry[i][j] = 0;
+                }
+
+                index = atoi(j.c_str());
+                if (index < m_flow_table_id && index != m_avg_size_id && index != m_tx_ratio_id) {
+                    /* externation, TCP and UDP counters */
+                    if (temp[i][j].isInt64()) {
+                        entry[i][j] = entry[i][j].asInt64() + temp[i][j].asInt64();
+                    } else {
+                        entry[i][j] = entry[i][j].asDouble() + temp[i][j].asDouble();
+                    }
+                } else {
+                    /* Flow Table counters */
+                    entry[i][j] = temp[i][j];
+                }
+            }
+            /* counters of m_avg_size and m_tx_ratio
+             *  - m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r))
+             *  - m_tx_ratio = m_tx_bw_l7_r*100.0/m_tx_bw_l7_total_r */
+            total_pps = entry[i][m_tx_pps].asDouble() + entry[i][m_rx_pps].asDouble();
+            total_tx_bw = entry[i][m_tx_bw_tot].asDouble();
+            entry[i][m_avg_size] = 0.0;
+            entry[i][m_tx_ratio] = 0.0;
+            if (total_pps > 0.0) {
+                entry[i][m_avg_size] = (entry[i][m_tx_bw].asDouble()+entry[i][m_rx_bw].asDouble()) /
+                                     (8.0*total_pps);
+            }
+            if (total_tx_bw > 0.0) {
+                entry[i][m_tx_ratio] = entry[i][m_tx_bw].asDouble()*100.0 / total_tx_bw;
+            }
+        }
+    }
+}
+
+/* Align total counters clearing policy in muti-profile scenarios
+ * Reserve statistics for stopped profiles and
+ * Clear statistics if ASTF state change to TRANSMIT
+ */
+void TrexAstfProfile::update_stopped_stats(cp_profile_id_t profile_id) {
+    auto profile = m_profile_list[profile_id];
+    CSTTCp* lpstt = profile->get_stt_cp();
+    accumlate_stats(lpstt, true, m_entry);
+}
 
 /***********************************************************
  * TrexAstfPerProfile
@@ -770,11 +913,12 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = 0;
             break;
         case STATE_LOADED:
-            m_stt_cp->m_update = true;
             m_profile_stopping = false;
+            m_stt_cp->m_update = true;
             m_active_cores = 0;
             break;
         case STATE_PARSE:
+            m_stt_cp->m_update = false;
             m_active_cores = 1;
             break;
         case STATE_BUILD:
@@ -782,6 +926,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_TX:
+            m_stt_cp->m_update = true;
             if (m_astf_obj->is_safe_update_stats()) {
                 m_stt_cp->update_profile_ctx();
             }
@@ -790,6 +935,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
         case STATE_CLEANUP:
             m_stt_cp->Update();
             m_stt_cp->m_update = false;
+            m_astf_obj->update_stopped_stats(m_cp_profile_id);
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_DELETE:
@@ -860,6 +1006,8 @@ void TrexAstfPerProfile::build() {
 }
 
 void TrexAstfPerProfile::transmit() {
+    m_astf_obj->clear_stats_first_start();
+    //m_astf_obj->update_stopped_stats(m_cp_profile_id);
     /* Resize the statistics vector depending on the number of template groups */
     CSTTCp* lpstt = m_stt_cp;
     lpstt->Resize(CAstfDB::instance(m_dp_profile_id)->get_num_of_tg_ids());
