@@ -94,11 +94,11 @@ This feature is for Stateless features that do routing/switching e.g. Cisco VPP/
 
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
-image::https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png[title="",align="center",width=600, link="http://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
+image::https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
 
 A new JSON-RPC2 Architecture  provides support for interactive mode
 
-image::https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title="",align="center",width=600, link="http://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png"]
+image::https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png"]
 
 more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
 
@@ -144,11 +144,11 @@ more information can be found here:
 
 === Presentation
 
-link:http://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[New Stateless support]
+link:https://www.slideshare.net/HanochHaim/trex-realistic-traffic-generator-stateless-support[New Stateless support]
 
-link:http://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit 2015]
+link:https://www.slideshare.net/harryvanhaaren/trex-traffig-gen-hanoch-haim[DPDK summit 2015]
 
-link:http://www.youtube.com/watch?v=U0gRalB7DOs[Video DPDK summit 2015]
+link:https://www.youtube.com/watch?v=U0gRalB7DOs[Video DPDK summit 2015]
 
 link:https://trex-tgn.cisco.com/trex/doc/trex_preso.html[Presentation]
 
@@ -204,7 +204,7 @@ Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@go
 
 * VPP performance/functional tests, link:https://fd.io/[fd.io] 
 * VNF tests link:https://wiki.opnfv.org/display/fds/NFVBENCH+performance+testing+demo+for+FDS[OPNFV-NFVBENCH]
-* link:http://dpdk.org/ml/archives/ci/2017-November/000143.html[DPDK UNH lab]
+* link:https://dpdk.org/ml/archives/ci/2017-November/000143.html[DPDK UNH lab]
 * link:https://developers.redhat.com/blog/2017/09/28/automated-open-vswitch-pvp-testing/[Open vSwitch PVP]
 * Napatech delivers 100Gb/sec link:https://www.prnewswire.com/news-releases/napatech-delivers-stunning-100-gige-performance-for-trex-300601690.html[Napatech]
 * https://community.mellanox.com/docs/DOC-2958[Mellanox]
