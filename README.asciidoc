@@ -94,7 +94,7 @@ This feature is for Stateless features that do routing/switching e.g. Cisco VPP/
 
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
-image::https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
+image::https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png[title="",align="center",width=400, link="https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
 
 A new JSON-RPC2 Architecture  provides support for interactive mode
 
