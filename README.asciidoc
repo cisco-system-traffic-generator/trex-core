@@ -90,15 +90,15 @@ This feature is for Stateless features that do routing/switching e.g. Cisco VPP/
 * PCAP file import/export
 * Huge pcap file transmission  (e.g. 1TB pcap file) for DPI
 * Multi-user support
-* Routing protocol support BGP/OSPF/RIP 
+* Routing protocol support BGP/OSPF/RIP using BIRD integration 
 
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
-image::doc/images/stl_streams_example_02.png[title="",align="center",width=400, link="https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
+image::doc/images/stl_streams_example_02.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/stl_streams_example_02.png"]
 
 A new JSON-RPC2 Architecture  provides support for interactive mode
 
-image::https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png"]
+image::doc/images/trex_architecture_01.png[title="",align="center",width=600, link="https://trex-tgn.cisco.com/trex/doc/images/trex_architecture_01.png"]
 
 more info can be found here link:https://trex-tgn.cisco.com/trex/doc/index.html[Documentation]
 
@@ -121,8 +121,6 @@ more information can be found here:
 * link:https://communities.cisco.com/community/developer/trex/blog/2017/06/20/trex-upcoming-stateful-scalable-tcp-support[scalable TCP]
 * link:https://trex-tgn.cisco.com/trex/doc/trex_astf.html[ASTF documentation] 
 * link:https://trex-tgn.cisco.com/trex/doc/trex_astf_vs_nginx.html[ASTF Performance]
-
-
 
 === What you can do with it
 
@@ -168,8 +166,8 @@ Internal link:https://github.com/cisco-system-traffic-generator/trex-core/wiki[W
 
 === YouTrack
 
-Report bug/request feature link:https://trex-tgn.cisco.com/youtrack/issues[YouTrack]
-
+Our old report bug/request tool  link:https://trex-tgn.cisco.com/youtrack/issues[YouTrack] 
+Better to use github issues 
 
 === Blogs
 
@@ -208,7 +206,5 @@ Or contact via: mailto:trex-tgn@googlegroups.com[Group mailing list (trex-tgn@go
 * link:https://developers.redhat.com/blog/2017/09/28/automated-open-vswitch-pvp-testing/[Open vSwitch PVP]
 * Napatech delivers 100Gb/sec link:https://www.prnewswire.com/news-releases/napatech-delivers-stunning-100-gige-performance-for-trex-300601690.html[Napatech]
 * https://community.mellanox.com/docs/DOC-2958[Mellanox]
-
-
 
 
