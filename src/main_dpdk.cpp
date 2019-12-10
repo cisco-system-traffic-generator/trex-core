@@ -2030,17 +2030,22 @@ void CCoreEthIF::handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t
         switch ( mac_ip_overide_mode ) {
             case 1: /* MAC override, only src at client side */
                 /* client side */
-                if ( node->is_initiator_pkt() ) {
+                if ( dir == CLIENT_SIDE ) {
                     *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_src_ip);
                 }
                 break;
             case 2: /* MAC override, all directions */
-                if ( node->is_initiator_pkt() ) {
+                if ( dir == CLIENT_SIDE ) {
                     *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_src_ip);
                     *((uint32_t*)(p+2)) = PKT_NTOHL(node->m_dest_ip);
                 } else {
                     *((uint32_t*)(p+8)) = PKT_NTOHL(node->m_dest_ip);
                     *((uint32_t*)(p+2)) = PKT_NTOHL(node->m_src_ip);
+                }
+                /* Only in case we override all directions we want to see if the dest mac is broadcast */
+                if (node->get_is_dest_mac_broadcast()) {
+                    MacAddress broadcast_mac = MacAddress(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+                    broadcast_mac.copyToArray(p);
                 }
                 break;
             default:

@@ -158,6 +158,42 @@ public:
     ipaddr_t m_ip;
 } ;
 
+class CMiniVMDHCPPayload : public CMiniVMCmdBase {
+public:
+    CMiniVMDHCPPayload() {
+        m_flags   = 0;
+        m_client_ip.v4 = 0;
+    }
+    inline const uint16_t get_dhcp_client_port() {
+        return m_dhcp_client_port;
+    }
+    inline const uint16_t get_client_ip_start_offset() {
+        return m_client_ip_offset;
+    }
+    inline const uint16_t get_client_ip_end_offset() {
+        return (m_client_ip_offset + sizeof(m_client_ip.v4));
+    }
+    inline const uint16_t get_client_mac_start_offset() {
+        return m_client_mac_offset;
+    }
+    inline const uint16_t get_client_mac_end_offset() {
+        return m_client_mac_offset + ETHER_ADDR_LEN;
+    }
+    inline const uint16_t get_offset_between_client_addresses() {
+        return get_client_mac_start_offset() - get_client_ip_end_offset();
+    }
+
+
+public: 
+    MacAddress     m_client_mac;
+    ipaddr_t       m_client_ip;
+
+private:
+    const uint16_t m_client_mac_offset    = 28;
+    const uint16_t m_client_ip_offset     = 16;
+    const uint16_t m_dhcp_client_port     = 68;
+};
+
 /* VM with SIMD commands for RTSP we can add SIP/FTP  commands too */
 
 typedef enum { VM_REPLACE_IP_OFFSET =0x12, /* fix ip at offset  */
@@ -166,8 +202,7 @@ typedef enum { VM_REPLACE_IP_OFFSET =0x12, /* fix ip at offset  */
                VM_REPLACE_IP_IP_PORT,/* SMID command to replace IPV4 , IPV4, PORT in 3 diffrent location , see CMiniVMReplaceIP_IP_Port*/
                VM_REPLACE_IPVIA_IP_IP_PORT,/* SMID command to replace ip,port IPV4 , IPV4, PORT in 3 diffrent location , see CMiniVMReplaceIP_PORT_IP_IP_Port*/
                VM_DYN_PYLOAD,
-
-
+               VM_DHCP_PAYLOAD, /* command to replace Client Mac Address in a DHCP Payload (Request or ACK) based on the L2 Mac Address */
                VM_EOP /* end of program */
                } mini_vm_op_code_t;
 
@@ -191,6 +226,7 @@ public:
     int mini_vm_replace_ip_ip_ports(CMiniVMReplaceIP_IP_Port * cmd);
     int mini_vm_replace_ip_via_ip_ip_ports(CMiniVMReplaceIP_PORT_IP_IP_Port * cmd);
     int mini_vm_dyn_payload( CMiniVMDynPyload * cmd);
+    int mini_vm_dhcp_payload(CMiniVMDHCPPayload* cmd);
 
 
 private:
@@ -532,7 +568,8 @@ public:
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE = 0x40,
         NODE_FLAGS_ALL_FLOW_SAME_PORT_SIDE     = 0x80,
         NODE_FLAGS_INIT_START_FROM_SERVER_SIDE_SERVER_ADDR = 0x100, /* init packet start from server side with server addr */
-        NODE_FLAGS_SLOW_PATH = 0x200 /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_SLOW_PATH = 0x200, /* used by the nodes to differ between fast path nodes and slow path nodes */
+        NODE_FLAGS_DEST_MAC_BROADCAST = 0x400  /* Used to set the L2 MAC destination address to broadcast */
     };
 
 
@@ -710,6 +747,18 @@ public:
 
     inline bool is_eligible_from_server_side(){
         return ( ( (m_src_ip&1) == 1)?true:false);
+    }
+
+    inline void set_dest_mac_broadcast(bool enable) {
+        if (enable) {
+            m_flags |= NODE_FLAGS_DEST_MAC_BROADCAST;
+        } else {
+            m_flags &=~ NODE_FLAGS_DEST_MAC_BROADCAST;
+        }
+    }
+
+    inline bool get_is_dest_mac_broadcast() {
+        return ((m_flags & NODE_FLAGS_DEST_MAC_BROADCAST) ? true : false);
     }
 
 
@@ -3352,7 +3401,8 @@ enum MINVM_PLUGIN_ID{
     mpRTSP=1,
     mpSIP_VOICE=2,
     mpDYN_PYLOAD=3,
-    mpAVL_HTTP_BROWSIN=4  /* this is a way to change the host ip by client ip */
+    mpAVL_HTTP_BROWSIN=4,  /* this is a way to change the host ip by client ip */
+    mpDHCP_REQ_ACK=5
 };
 
 class CPluginCallback {
@@ -3380,7 +3430,7 @@ private:
     rte_mbuf_t * sip_voice_plugin(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info);
     rte_mbuf_t * dyn_pyload_plugin(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info);
     rte_mbuf_t * http_plugin(uint8_t plugin_id,CGenNode *     node,CFlowPktInfo * pkt_info);
-
+    rte_mbuf_t * dhcp_plugin(uint8_t plugin_id, CGenNode*     node, CFlowPktInfo* pkt_info);
 };
 
 
