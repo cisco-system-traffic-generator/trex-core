@@ -5056,8 +5056,6 @@ void CPluginCallbackSimple::on_node_first(uint8_t plugin_id,
                                           CFlowYamlInfo *  template_info,
                                           CTupleTemplateGeneratorSmart * tuple_gen,
                                           CFlowGenListPerThread  * flow_gen ){
-    //printf(" on on_node_first callback  %d  node %x! \n",(int)plugin_id,node);
-    /* generate 2 ports from client side */
 
     if ( (plugin_id == mpRTSP) || (plugin_id == mpSIP_VOICE) ) {
         CPlugin_rtsp * lpP=new CPlugin_rtsp();
@@ -5076,16 +5074,20 @@ void CPluginCallbackSimple::on_node_first(uint8_t plugin_id,
                 CTcpSeq * lpP=new CTcpSeq();
                 assert(lpP);
                 node->m_plugin_info = (void *)lpP;
-            }else{
-                /* do not support this */
-                assert(0);
+            } else {
+                if (plugin_id == mpDHCP_REQ_ACK) {
+                    /* nothing to do */
+                } else {
+                    /* do not support this */
+                    assert(0);
+                }
             }
         }
     }
 }
 
 void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
-    //printf(" on on_node_last callback  %d  %x! \n",(int)plugin_id,node);
+
     if ( (plugin_id == mpRTSP) || (plugin_id == mpSIP_VOICE) ) {
         CPlugin_rtsp * lpP=(CPlugin_rtsp * )node->m_plugin_info;
         /* free the ports */
@@ -5108,9 +5110,13 @@ void CPluginCallbackSimple::on_node_last(uint8_t plugin_id,CGenNode *     node){
                 CTcpSeq * lpP=(CTcpSeq * )node->m_plugin_info;
                 delete lpP;
                 node->m_plugin_info=0;
-            }else{
-                /* do not support this */
-                assert(0);
+            } else{
+                if (plugin_id == mpDHCP_REQ_ACK) {
+                    /* nothing to do */
+                } else {
+                    /* do not support this */
+                    assert(0);
+                }
             }
         }
     }
@@ -5193,6 +5199,67 @@ rte_mbuf_t * CPluginCallbackSimple::http_plugin(uint8_t plugin_id,
     lpP->update(p, pkt_info, s_size);
 
     return(mbuf);
+}
+
+rte_mbuf_t * CPluginCallbackSimple::dhcp_plugin(uint8_t       plugin_id,
+                                                CGenNode*     node,
+                                                CFlowPktInfo* pkt_info) {
+    CMiniVMCmdBase*    program[2];
+    CMiniVMDHCPPayload dhcp_cmd;
+    CMiniVMCmdBase     eop_cmd;
+
+    CPacketDescriptor* lpd = &pkt_info->m_pkt_indication.m_desc;
+    CFlowInfo flow_info;
+    flow_info.vm_program = 0;
+    int16_t s_size = 0;
+
+    // IPv6 packets are not supported
+    if (CGlobalInfo::is_ipv6_enable() ) {
+         fprintf (stderr," IPv6 is not supported for the DHCP Request-Acknowledge plugin.\n");
+         exit(-1);
+    }
+
+    flow_info.client_ip           = node->m_src_ip;
+    flow_info.server_ip           = node->m_dest_ip;
+    flow_info.client_port         = dhcp_cmd.get_dhcp_client_port();
+    flow_info.replace_server_port = false;
+
+
+    if (lpd->getFlowId() == 0) {
+        // The first flow is a broadcast from C to S
+        flow_info.is_init_ip_dir      = (node->cur_pkt_ip_addr_dir() == CLIENT_SIDE ? true : false);
+        flow_info.is_init_port_dir    = (node->cur_pkt_port_addr_dir() == CLIENT_SIDE ? true : false);
+        node->set_dest_mac_broadcast(true);
+    } else if (lpd->getFlowId() == 1) {
+        // Second flow starts with a unicast from S to C
+        flow_info.is_init_ip_dir      = (node->cur_pkt_ip_addr_dir() == SERVER_SIDE ? true : false);
+        flow_info.is_init_port_dir    = (node->cur_pkt_port_addr_dir() == SERVER_SIDE ? true : false);
+        node->set_initiator_start_from_server(true);
+        node->set_dest_mac_broadcast(false);
+        /* Set Client IP address in L7 DHCP payload */
+        dhcp_cmd.m_client_ip.v4 = PKT_NTOHL(node->m_src_ip);;
+    } else {
+        fprintf (stderr," Too many flows for this plugin.\n");
+        exit(-1);
+    }
+
+    /* First get the src mac of the hardware for the first two bytes, the last 4 bytes are ovewritten,
+    hence the direction is not really important. */
+    dhcp_cmd.m_client_mac.set(CGlobalInfo::m_options.get_src_mac_addr(0)); 
+    /* Override the last 4 bytes of the MAC address with the Client IP after changing the Endianness */
+    uint8_t* mac_add_ptr = dhcp_cmd.m_client_mac.GetBuffer();
+    *(uint32_t*)(mac_add_ptr + 2) = PKT_NTOHL(node->m_src_ip);
+
+    dhcp_cmd.m_cmd     = VM_DHCP_PAYLOAD;
+    eop_cmd.m_cmd      = VM_EOP;
+
+    program[0] = &dhcp_cmd;
+    program[1] = &eop_cmd;
+
+    flow_info.vm_program = program;
+
+    return pkt_info->do_generate_new_mbuf_ex_vm(node,&flow_info, &s_size);
+
 }
 
 rte_mbuf_t * CPluginCallbackSimple::dyn_pyload_plugin(uint8_t plugin_id,
@@ -5890,6 +5957,9 @@ rte_mbuf_t * CPluginCallbackSimple::on_node_generate_mbuf(uint8_t plugin_id,CGen
     case mpAVL_HTTP_BROWSIN:
         m=http_plugin(plugin_id,node,pkt_info);
         break;
+    case mpDHCP_REQ_ACK:
+        m=dhcp_plugin(plugin_id, node, pkt_info);
+        break;
     default:
         assert(0);
     }
@@ -5926,6 +5996,10 @@ int CMiniVM::mini_vm_run(CMiniVMCmdBase * cmds[]){
 
         case VM_DYN_PYLOAD:
             mini_vm_dyn_payload((CMiniVMDynPyload *)cmd);
+            break;
+
+        case VM_DHCP_PAYLOAD:
+            mini_vm_dhcp_payload((CMiniVMDHCPPayload*)cmd);
             break;
 
         case VM_EOP:
@@ -6158,7 +6232,29 @@ int CMiniVM::mini_vm_replace_ip(CMiniVMReplaceIP * cmd){
 
     return (0);
 }
+int CMiniVM::mini_vm_dhcp_payload(CMiniVMDHCPPayload* cmd) {
 
+    uint16_t l7_offset      = m_pkt_info->m_pkt_indication.getFastPayloadOffset();
+    uint16_t packet_len     = m_pkt_info->m_packet->pkt_len;
+    uint16_t len            = packet_len - l7_offset;
+    char * original_l7_ptr  = m_pkt_info->m_packet->raw + l7_offset;
+
+    memcpy(m_pyload_mbuf_ptr, original_l7_ptr, cmd->get_client_ip_start_offset()); // Copy the first part of the payload (unchanged).
+    char* p = m_pyload_mbuf_ptr + cmd->get_client_ip_start_offset(); // Pointer to the Client IP address that will be changed
+    int ipv4_size = cmd->get_client_ip_end_offset() - cmd->get_client_ip_start_offset();
+    *(uint32_t*)p = cmd->m_client_ip.v4; //Copy IPv4
+    p += ipv4_size;
+    uint16_t offset_between_writes = cmd->get_offset_between_client_addresses();
+    memcpy(p, original_l7_ptr + cmd->get_client_ip_end_offset(), offset_between_writes); // Copy the space inbetween the addresses to change.
+    p += offset_between_writes;
+    cmd->m_client_mac.copyToArray((uint8_t*)p); // Change the Client MAC Address in the DHCP Payload
+    p += ETHER_ADDR_LEN;
+    memcpy(p, original_l7_ptr + cmd->get_client_mac_end_offset(), len - cmd->get_client_mac_end_offset()); // Copy the remaining part of the payload (unchanged).
+
+    m_new_pkt_size = packet_len; // Packet size hasn't changed
+
+    return 0;
+}
 
 void CFlowYamlDpPkt::Dump(FILE *fd){
     fprintf(fd," pkt_id   : %d \n",(int)m_pkt_id);
