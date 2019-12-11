@@ -14,6 +14,18 @@ from ..common.trex_types import listify
 import imp
 import collections
 
+def pretty_exceptions(func):
+    def pretty_exceptions_inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            a, b, tb = sys.exc_info()
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
+
+            summary = "\nPython Traceback follows:\n\n" + x
+            raise TRexError(summary)
+    return pretty_exceptions_inner
+
 class _ASTFCapPath(object):
     @classmethod
     def get_pcap_file_path(cls, pcap_file_name):
@@ -1601,7 +1613,7 @@ class ASTFProfile(object):
             return json.dumps(data, indent=4, separators=(',', ': '), sort_keys = sort_keys)
         return json.dumps(data, sort_keys = sort_keys)
 
-
+    @pretty_exceptions
     def to_json(self):
         self.cache.fill_cache()
         ret = {}
@@ -1621,6 +1633,7 @@ class ASTFProfile(object):
         # tg_id = 1.
         return ret;
 
+    @pretty_exceptions
     def print_stats(self):
         self.cache.fill_cache()
         tot_bps = 0
@@ -1661,6 +1674,7 @@ class ASTFProfile(object):
         return output
 
     @classmethod
+    @pretty_exceptions
     def load_py (cls, python_file, **kwargs):
         """ Load from ASTF Python profile """
 
@@ -1682,17 +1696,7 @@ class ASTFProfile(object):
 
             profile.meta = {'type': 'python',
                             'tunables': t}
-
             return profile
-
-        except Exception as e:
-            a, b, tb = sys.exc_info()
-            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
-
-            summary = "\nPython Traceback follows:\n\n" + x
-            raise TRexError(summary)
-
-
         finally:
             sys.path.remove(basedir)
 
