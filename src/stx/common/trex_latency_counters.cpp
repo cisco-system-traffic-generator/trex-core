@@ -147,20 +147,26 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
     int ret2 = parser.get_ip_id(ip_id);
     if (m_rcv_all || (ret2 == 0)) {
       if (m_rcv_all || is_flow_stat_id(ip_id)) {
-        if (is_flow_stat_payload_id(ip_id) ||
-            ((!is_flow_stat_id(ip_id)) && m_rcv_all)) {
+        uint16_t hw_id = get_hw_id((uint16_t)ip_id);
+        if (m_rcv_all || is_flow_stat_payload_id(ip_id)) {
           struct flow_stat_payload_header *fsp_head =
               (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
                   m, sizeof(struct flow_stat_payload_header), tmp_buf);
-          hr_time_t hr_time_now = os_get_hr_tick_64();
-          update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
-        } else {
-          uint16_t hw_id = get_hw_id((uint16_t)ip_id);
-          if (hw_id < MAX_FLOW_STATS) {
-            m_rx_pg_stat[hw_id].add_pkts(1);
-            m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
-                                          4); // +4 for ethernet CRC
+          if (m_rcv_all && (!is_flow_stat_id(ip_id) ||
+              (fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC &&
+               fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD))) {
+            ip_id = FLOW_STAT_PAYLOAD_IP_ID;
           }
+          if (is_flow_stat_payload_id(ip_id)) {
+            hr_time_t hr_time_now = os_get_hr_tick_64();
+            update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
+            hw_id = get_hw_id((uint16_t)ip_id);
+          }
+        }
+        if (hw_id < MAX_FLOW_STATS) {
+          m_rx_pg_stat[hw_id].add_pkts(1);
+          m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
+                                        4); // +4 for ethernet CRC
         }
       }
     }
