@@ -4,7 +4,7 @@ PyBirdClient
 
 :Learn more about Bird:
     - `Bird official documentation <https://bird.network.cz/?get_doc&f=bird.html&v=20>`_
-    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_intgration_beta>`_
+    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_integration_beta>`_
 
 The API was created in order to communicate with PyBirdBirdServer located at the TRex machine.
 Using this API the user can do various of bird commands on the Bird process remotely i.e: send and get current bird configuration.

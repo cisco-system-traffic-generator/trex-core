@@ -560,4 +560,25 @@ While this allows for counting of full 40G line rate streams, this does not allo
 count available), because the hardware on these NICs lacks this support.
 Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
 
+=== Bird Integration
 
+==== What is BIRD?
+BIRD is an "Internet Routing Daemon", a non-interactive program running on background works as a dynamic router in an Internet type network. You can find out more at link:https://bird.network.cz/?get_doc&f=bird.html&v=20[Bird's Doc], or read the link:trex_stateless.html#_Bird_integration[Bird Integration] chapter where you can find out useful tutorials.
+
+==== Where can I find samples of bird configuration files?
+bird/cfg folder contains some simple bird configuration files. Some of the files include routing protocols (RIP, BGP, OSPF..) and others include ipv4 and ipv6 routing sample. You can create your own .conf file, more information may be found at link:https://bird.network.cz/?get_doc&v=20&f=bird-3.html[Bird's Configuration Doc].
+
+==== How can I create a bird node?
+There are 2 ways, using a python script: creatin a client and calling "set_bird_node" see exmple "add_bird_node.py" at trex/examples/stl. Another way is using trex-console, load bird plugin: "plugin load bird" then add the node: "plugin bird add_node -p 0 --mac 00:00:00:01:02:03" use "plugin bird add_node -h" for all the available parameters. 
+
+==== My DUT MTU isn't match bird, what can I do?
+When creating a bird node using "client.set_bird_node(..)" or the plugin command, pass mtu parameter with the wanted mtu value. Another way is using "client.set_mtu(mac, mtu)" method, setting an existing bird node.
+
+==== Do I need "service mode" for bird usage?
+Yes, service mode has to be enabled or at least at "filtered mode" with the right mask and --software flag on. Bird's packets i.e BGP will be redirected to rx, you can find out more on link:trex_stateless.html#_Port_service_mode[Stateless service mode] or at link:trex_astf.html#_Port_service_mode[ASTF service mode].
+
+==== Should I use service mode or service filtered mode?
+Depends, fully service mode will forward all the packets to rx to be processed by client or capture. That will defect performance since rx has to process more packets than usual, but you can be sure you are not loosing any packet during the process. Filtered mode on the other hand preserves the none service performance and filtered the wanted packets to rx using a bit mask. Notice filtered mode requires --software mode.
+
+==== Which TRex version include service filtered mode?
+Filter mode is new from version v2.66
