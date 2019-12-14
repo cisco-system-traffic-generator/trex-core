@@ -4,7 +4,7 @@ Bird CFG Creator
 
 :Learn more about Bird:
     - `Bird configuration docs <https://bird.network.cz/?get_doc&v=20&f=bird-3.html>`_
-    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_intgration_beta>`_
+    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_integration_beta>`_
 
 Using this API the user can create his own custom bird configuration file, adding/removing routes and routing protocols. When the final config file is read to send, you can use PyBirdClient to do so.
 

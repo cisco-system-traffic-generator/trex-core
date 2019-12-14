@@ -4,7 +4,7 @@ Bird Node
 
 :Learn more about Bird:
     - `Bird official documentation <https://bird.network.cz/?get_doc&f=bird.html&v=20>`_
-    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_intgration_beta>`_
+    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_integration_beta>`_
 
 The API works when configuring `stack: linux_based` in trex_cfg and "--bird-server" flag is on when running TRex.
 Using this API the user can add a veth to the bird namespace in TRex.

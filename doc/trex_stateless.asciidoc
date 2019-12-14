@@ -1695,7 +1695,7 @@ Bird node is a specific case of shared namespace node. Bird namespace is created
 
 To learn more on the usage of bird with TRex see:
     
-    - link:trex_stateless.html#_bird_intgration_beta[Bird Integration]
+    - link:trex_stateless.html#_bird_integration_beta[Bird Integration]
 
     - link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/bird_node.html[Stateless Python API - Bird Node]
 
@@ -5463,13 +5463,15 @@ Keyboard commands in the TUI window:
 
 link:trex_stateless_bench.html[TRex stateless benchmarks]
 
-=== Bird intgration 
+=== Bird integration 
 
 anchor:bird[]
 
 ==== Overview
 link:https://bird.network.cz/[Bird Internet Routing Daemon] is a project aimed to develop a fully functional linux dynamic IP routing daemon. It was integrated into TRex to run alongside in order to exploit it's features together with Python automation API. 
 
+==== FAQ
+see: link:trex_faq.html#_Bird_Integration[Bird's FAQ]
 
 ==== High level Features 
 
