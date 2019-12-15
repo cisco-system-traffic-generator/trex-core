@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.72 ==
+
+* Add low_end_core option to platform YAML. More info in link:trex_manual.html#_low_end_machines[manual]
+
 == Release 2.71 ==
 
 * Fix yet another breakage 
