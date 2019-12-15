@@ -469,8 +469,16 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["port_bandwidth_gb"] >> plat_info.m_port_bandwidth_gb;
     }
 
-    if ( node.FindValue("low_end") ){
+    if ( node.FindValue("low_end") ) {
         node["low_end"] >> plat_info.m_is_lowend;
+    }
+
+    if ( node.FindValue("low_end_core") ) {
+        if ( !plat_info.m_is_lowend ) {
+            printf("low_end_core option is valid only with low_end enabled\n");
+            exit(-1);
+        }
+        node["low_end_core"] >> plat_info.m_lowend_core;
     }
 
     if ( node.FindValue("stack") ) {
@@ -572,6 +580,9 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd," prefix              : %s \n",m_prefix.c_str());
     }
     fprintf(fd," is low-end : %d \n", m_is_lowend? 1 : 0 );
+    if ( m_is_lowend ) {
+        fprintf(fd," low-end core : %u\n", m_lowend_core);
+    }
     fprintf(fd," stack type : %s \n", m_stack_type.c_str());
     if ( m_limit_memory.length() ){
         fprintf(fd," limit_memory        : %s \n",m_limit_memory.c_str());

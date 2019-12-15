@@ -555,6 +555,7 @@ public:
         m_astf_mode =OP_ASTF_MODE_NONE;
         m_astf_client_mask=0;
         m_is_lowend           = false;
+        m_lowend_core         = 0;
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
@@ -602,6 +603,7 @@ public:
     trex_astf_mode_e m_astf_mode;
     uint32_t        m_astf_client_mask;
     bool            m_is_lowend;
+    uint32_t        m_lowend_core;
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;

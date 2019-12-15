@@ -548,20 +548,25 @@ anchor:low_end[]
 Starting from version 2.37, was added feature to run TRex on low-end machines like weak laptops.
 
 To enable this mode, define low_end argument in platform config file:
-[source,bash]
+[source,python]
 ----
   - version: 2
     interfaces: ['82:00.0', '82:00.1']
-    low_end: true
-...
+    low_end: true                       <1>
+    low_end_core: 3                     <2>
+    ...
 ----
+<1> Enable low-end mode.
+<2> Set process affinity to this core (default is 0)
 
 This mode implies following:
 
-* All TRex threads will be assigned to core 0
+* All TRex threads will be assigned to single core +
+(by default to 0, configurable via low_end_core)
 * Lower memory allocation/requirement. +
 If you have already started without low_end argument, reboot the Linux to free hugepages.
-* Sleeps in scheduler instead of busy wait (less accurate, but saves power)
+* Sleeps in scheduler instead of busy wait +
+(less accurate, but saves power)
 * Do not retry sending packets in case of queue full.
 * "platform" section in config file is ignored.
 

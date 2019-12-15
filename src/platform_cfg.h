@@ -201,6 +201,7 @@ public:
         m_zmq_pub_port=4500;
         m_zmq_rpc_port = 4501;
         m_is_lowend = false;
+        m_lowend_core = 0;
 
 
         m_telnet_exist=false;
@@ -251,6 +252,7 @@ public:
     uint16_t                      m_zmq_rpc_port;
 
     bool                          m_is_lowend;
+    uint32_t                      m_lowend_core;
     std::string                   m_stack_type;
 
     bool                       m_mac_info_exist;
