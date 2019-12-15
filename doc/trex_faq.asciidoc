@@ -578,7 +578,10 @@ When creating a bird node using "client.set_bird_node(..)" or the plugin command
 Yes, service mode has to be enabled or at least at "filtered mode" with the right mask and --software flag on. Bird's packets i.e BGP will be redirected to rx, you can find out more on link:trex_stateless.html#_Port_service_mode[Stateless service mode] or at link:trex_astf.html#_Port_service_mode[ASTF service mode].
 
 ==== Should I use service mode or service filtered mode?
-Depends, fully service mode will forward all the packets to rx to be processed by client or capture. That will defect performance since rx has to process more packets than usual, but you can be sure you are not loosing any packet during the process. Filtered mode on the other hand preserves the none service performance and filtered the wanted packets to rx using a bit mask. Notice filtered mode requires --software mode.
+Depends, fully service mode will forward all the packets to rx to be processed by client or capture. That will have a performance penalty since rx has to process more packets than usual, but you can be sure you are not loosing any packet during the process. Filtered mode on the other hand preserves the none service performance and filtered the wanted packets to rx using a bit mask. Notice filtered mode requires --software mode. 
+
+==== Is there a performance penalty with the new software mode?
+Yes, beacuse in this mode all the packets are received and inspected with more flexible filters. You can still would be able to reach line rate of 40-100gbps with the right number of cores and the right configuration, this is due to the "service filter" mode which forward only the right packets to the daemon. 
 
 ==== Which TRex version include service filtered mode?
-Filter mode is new from version v2.66
+Filter mode is new from version v2.71
