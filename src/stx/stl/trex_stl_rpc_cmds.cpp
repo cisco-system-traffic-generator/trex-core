@@ -1514,7 +1514,7 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     uint8_t port_id = parse_port(params, result);
     bool enabled = parse_bool(params, "enabled", result);
-    bool filtered = parse_bool(params, "filtered", result);
+    bool filtered = parse_bool(params, "filtered", result, false);
     uint8_t mask = parse_byte(params, "mask", result, 0);
 
     if ( filtered ) {

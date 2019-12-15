@@ -319,7 +319,7 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfServiceMode::_run(const Json::Value &params, Json::Value &result) {
     /* no need for port id, always run on all ports */
     bool enabled = parse_bool(params, "enabled", result);
-    bool filtered = parse_bool(params, "filtered", result);
+    bool filtered = parse_bool(params, "filtered", result, false);
     uint8_t mask = parse_byte(params, "mask", result, 0);
 
     if ( filtered ) {
