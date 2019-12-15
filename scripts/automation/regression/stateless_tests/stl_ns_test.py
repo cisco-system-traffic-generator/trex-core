@@ -400,7 +400,6 @@ class STLNS_Test(CStlGeneral_Test):
             assert(len(nodes) == 1)
             node_info = nodes[0]
             assert(node_info['ether']['src'] == MAC)
-            assert(node_info['bpf'] == "vlan 22 and not udp and not tcp")
             assert(node_info['ipv4']['src'] == "1.1.1.3")
             assert(node_info['ipv4']['subnet'] == 24)
             assert(node_info['ipv6']['enabled'] == True)

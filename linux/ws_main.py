@@ -319,7 +319,8 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_stack_linux_based.cpp',
                                      'trex_stack_legacy.cpp',
                                      'trex_rx_rpc_tunnel.cpp',
-                                     'trex_rpc_cmds_common.cpp'
+                                     'trex_rpc_cmds_common.cpp',
+                                     'trex_vlan_filter.cpp'
                                      ])
 
 

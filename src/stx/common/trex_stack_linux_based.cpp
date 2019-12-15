@@ -55,80 +55,6 @@ void popen_general(const string &cmd, const string &err, bool throw_exception, s
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output);
 bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out);
 
-CMcastFilter::CMcastFilter() {
-    m_vlan_nodes[0] = 0;
-    m_vlan_nodes[1] = 0;
-    m_vlan_nodes[2] = 0;
-    m_multicast_bpf = bpfjit_compile("");
-}
-
-void CMcastFilter::renew_multicast_bpf() {
-    const string emul_pkts = "not udp and not tcp";
-    string bpf_str;
-    bool v0 = m_vlan_nodes[0];
-    bool v1 = m_vlan_nodes[1];
-    bool v2 = m_vlan_nodes[2];
-
-    if ( v0 ) {
-        if ( v1 ) {
-            if ( v2 ) { // all the mix
-                bpf_str = emul_pkts + " or (vlan and " + emul_pkts + " or (vlan and " + emul_pkts + "))";
-            } else { // untagged and 1 VLAN
-                bpf_str = emul_pkts + " or (vlan and " + emul_pkts + ")";
-            }
-        } else {
-            if ( v2 ) { // untagged and 2 VLANs
-                bpf_str = emul_pkts + " or (vlan and vlan and " + emul_pkts + ")";
-            } else { // untagged only
-                bpf_str = emul_pkts;
-            }
-        }
-    } else {
-        if ( v1 ) {
-            if ( v2 ) { // 1 and 2 VLANs only
-                bpf_str = "vlan and " + emul_pkts + " or (vlan and " + emul_pkts + ")";
-            } else { // only 1 VLAN
-                bpf_str = "vlan and " + emul_pkts;
-            }
-        } else {
-            if ( v2 ) { // only 2 VLANs
-                bpf_str = "vlan and vlan and " + emul_pkts;
-            } else { // no nodes
-                bpf_str = "";
-            }
-        }
-    }
-
-    m_multicast_bpf = bpfjit_compile(bpf_str.c_str());
-}
-
-const bpf_h& CMcastFilter::get_bpf() {
-    return m_multicast_bpf;
-}
-
-void CMcastFilter::add_del_vlans(uint8_t add_vlan_size, uint8_t del_vlan_size) {
-    if ( add_vlan_size == del_vlan_size ) {
-        return;
-    }
-    m_vlan_nodes[add_vlan_size]++;
-    m_vlan_nodes[del_vlan_size]--;
-    renew_multicast_bpf();
-}
-
-void CMcastFilter::add_empty() {
-    m_vlan_nodes[0]++;
-    if ( m_vlan_nodes[0] == 1 ) {
-        renew_multicast_bpf();
-    }
-}
-
-void CMcastFilter::del_vlan(uint8_t vlans_count) {
-    m_vlan_nodes[vlans_count]--;
-    if ( m_vlan_nodes[vlans_count] == 0 ) {
-        renew_multicast_bpf();
-    }
-}
-
 /***************************************
 *          CStackLinuxBased            *
 ***************************************/
@@ -187,19 +113,10 @@ void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
         /* TBD need to fix the multicast issue could create bursts */
 
         if ( pkt[0] & 1 ) {
-            bool rc = bpfjit_run(m_mcast_filter.get_bpf(), pkt.c_str(), pkt.size());
-           if ( (uint8_t)pkt[0] == 0xff ) {
-                if ( !rc ) {
-                    m_counters.m_rx_bcast_filtered++;
-                    return;
-                }
+            if ( (uint8_t)pkt[0] == 0xff ) {
                 m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_BROADCAST]++;
                 m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_BROADCAST] += pkt.size();
             } else {
-                if ( !rc ) {
-                    m_counters.m_rx_mcast_filtered++;
-                    return;
-                }
                 m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_PKT][CRxCounters::CNT_MULTICAST]++;
                 m_counters.m_gen_cnt[CRxCounters::CNT_RX][CRxCounters::CNT_BYTE][CRxCounters::CNT_MULTICAST] += pkt.size();
             }
@@ -301,10 +218,10 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_shared_ns(const std::string & sha
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const std::string &filter) {
-    try {
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlan_filter(const std::string &mac, uint8_t mask) {
+     try {
         CNamespacedIfNode * lp = get_node_rpc(mac);
-        lp->set_bpf_filter(filter);
+        lp->set_vlan_filter(mask);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -519,11 +436,11 @@ CNodeBase* CStackLinuxBased::add_shared_ns_node_internal(const string &mac_buf,
     stringstream ss;
     if ( is_bird ) {
         ss << "bird-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_bird_if_id;
-        node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, true);
+        node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, true);
         m_next_bird_if_id++;
     } else {
         ss << "ns-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_if_id;
-        node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, false);
+        node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, false);
         m_next_shared_ns_if_id++;
     }
 
@@ -540,7 +457,7 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
 
     stringstream ss;
     ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_namespace_id;
-    CNamespacedIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter);
+    CNamespacedIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu);
 
     if (node == nullptr) {
         throw TrexException("Could not create node " + mac_str);
@@ -770,7 +687,6 @@ CNamespacedIfNode::CNamespacedIfNode() {
 
 CNamespacedIfNode::~CNamespacedIfNode() {
     debug("Namespaced node dtor");
-    m_mcast_filter->del_vlan(m_vlan_tags.size());
 }
 
 void CNamespacedIfNode::to_json_node(Json::Value &res) {
@@ -779,16 +695,19 @@ void CNamespacedIfNode::to_json_node(Json::Value &res) {
     res["is-shared-ns"] = m_is_shared_ns;
     res["linux-veth-internal"] = m_if_name + "-L";
     res["linux-veth-external"] = m_if_name + "-T";
-    res["bpf"] = m_bpf_str;
+    res["bpf"] = "";
+    string vlan_filter;
+    m_vlan_filter.mask_to_str(vlan_filter);
+    res["vlan_filter"] = vlan_filter;
 }
 
 uint16_t CNamespacedIfNode::filter_and_send(const string &pkt) {
-    bool rc = bpfjit_run(m_bpf, pkt.c_str(), pkt.size());
+    bool rc = m_vlan_filter.is_pkt_pass((uint8_t *)pkt.c_str());
     if ( !rc ) {
-        debug("Packet filtered out by BPF");
+        debug("Packet filtered out by Vlan Filter");
         return 0;
     }
-    debug("Packet was NOT filtered by BPF");
+    debug("Packet was NOT filtered by Vlan Filter");
     if ( m_vlans_insert_to_pkt.size() ) {
         string vlan_pkt(pkt, 0, 12);
         vlan_pkt += pkt.substr(12 + m_vlans_insert_to_pkt.size());
@@ -871,31 +790,27 @@ uint16_t get_tpid(const vlan_list_t &tpids, uint8_t index, uint16_t def) {
 }
 
 void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
-    string bpf_str = "";
-    m_vlans_insert_to_pkt = "";
-    auto default_bpf = string(get_default_bpf());
-
+    VlanFilterCFG cfg = m_vlan_filter.get_cfg();
     uint16_t tpid;
-    for (auto &vlan : vlans) {
-        if ( vlans.size() == 2 && !bpf_str.size() ) {
+    m_vlans_insert_to_pkt = "";
+
+    for(int i = 0; i < vlans.size(); i++) {
+
+        if ( vlans.size() == 2 && i == 0 ) {
             tpid = get_tpid(tpids, 0, EthernetHeader::Protocol::QINQ);
             append_to_str(tpid, m_vlans_insert_to_pkt);
         } else {
             tpid = get_tpid(tpids, 1, EthernetHeader::Protocol::VLAN);
             append_to_str(tpid, m_vlans_insert_to_pkt);
         }
-        append_to_str(vlan, m_vlans_insert_to_pkt);
-        bpf_str += "vlan " + to_string(vlan);
-        if ( vlan != vlans.back() ) {
-            bpf_str += " and ";
-        }
+        append_to_str(vlans[i], m_vlans_insert_to_pkt);
+
+        uint32_t tpid_and_vlan = tpid;
+        tpid_and_vlan = (tpid_and_vlan << (8 * 2)) | vlans[i];
+        cfg.m_vlans[i] = tpid_and_vlan;
     }
 
-    if ( !default_bpf.empty() ) {
-        bpf_str += " and " + default_bpf;
-    }
-    set_bpf_filter(bpf_str);
-    m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
+    m_vlan_filter.set_cfg(cfg);
     m_vlan_tags = vlans;
     m_vlan_tpids = tpids;
 }
@@ -923,6 +838,10 @@ void CNamespacedIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &
 }
 void CNamespacedIfNode::set_mtu_internal(const std::string &mtu) {
     throw TrexException("Wrong node type, must be shared namespace node!");
+}
+
+void CNamespacedIfNode::set_vlan_filter(uint8_t mask) {
+    m_vlan_filter.set_cfg_flag(mask);
 }
 
 void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {
@@ -981,25 +900,22 @@ string &CNamespacedIfNode::get_vlans_insert_to_pkt() {
 *            CLinuxIfNode              *
 ***************************************/
 
-CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf,
-            const string &mtu, CMcastFilter &mcast_filter) {
+CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu) {
     debug("Linux node ctor");
     m_ns_name = ns_name;
     m_if_name = ns_name;
     m_associated_trex_ports = true;
     m_is_shared_ns = false;
-    m_mcast_filter = &mcast_filter;
-    m_mcast_filter->add_empty();
     create_ns();
     try {
         create_veths(mtu);
         set_src_mac(mac_str, mac_buf);
         bind_pair();
-        set_bpf_filter(get_default_bpf());
-    } catch (TrexException e) {
+        set_vlan_filter_mask(get_default_vlan_filter_flag());
+    } catch (TrexException &e) {
         debug({"Got exception at Linux node ctor!", e.what()});
         delete_net();
-        throw &e;
+        throw e;
     }
 }
 
@@ -1008,8 +924,8 @@ CLinuxIfNode::~CLinuxIfNode() {
     delete_net();
 }
 
-const char *CLinuxIfNode::get_default_bpf() {
-    return "not udp and not tcp";
+VlanFilter::FilterFlags CLinuxIfNode::get_default_vlan_filter_flag() {
+    return VlanFilter::FilterFlags::NO_TCP_UDP;
 }
 
 void CLinuxIfNode::to_json_node(Json::Value &res) {
@@ -1023,14 +939,12 @@ void CLinuxIfNode::to_json_node(Json::Value &res) {
 ***************************************/
 
 CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, CMcastFilter &mcast_filter, bool is_bird) {
+                 const string &mtu, bool is_bird) {
     debug("Shared namespace node ctor");
     m_ns_name = ns_name;
     m_if_name = if_name;
     m_is_bird = is_bird;
     m_is_shared_ns = true;
-    m_mcast_filter = &mcast_filter;
-    m_mcast_filter->add_empty();
     m_associated_trex_ports = true;
     m_subnet4 = 0;
     m_subnet6 = 0;
@@ -1039,11 +953,11 @@ CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, c
         create_veths(mtu);
         set_src_mac(mac_str, mac_buf);
         bind_pair();
-        set_bpf_filter(get_default_bpf());
-    } catch (TrexException e) {
+        set_vlan_filter_mask(get_default_vlan_filter_flag());
+    } catch (TrexException &e) {
         debug({"Got exception at Linux node ctor!", e.what()});
         delete_veth();
-        throw &e;
+        throw e;
     }
 }
 
@@ -1058,8 +972,8 @@ void CSharedNSIfNode::create_veths(const string &mtu) {
     "Could not disable rx checksum, tx checksum, and tcp segmentation for bird internal veth");
 }
 
-const char *CSharedNSIfNode::get_default_bpf() {
-    return m_is_bird ? "" : "not udp and not tcp";
+VlanFilter::FilterFlags CSharedNSIfNode::get_default_vlan_filter_flag() {
+    return m_is_bird ? VlanFilter::FilterFlags::ALL : VlanFilter::FilterFlags::NO_TCP_UDP;
 }
 
 void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet) {
@@ -1125,7 +1039,7 @@ bool run_in_ns(const string &cmd, const string &err, const string &ns, bool thro
     // using "cmd" for multiple commands
     try {
         popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, true, out);
-    } catch ( TrexException e ) {
+    } catch ( TrexException &e ) {
         if ( throw_ex ) {
             throw e;
         } else {

@@ -25,25 +25,13 @@
 #include <dirent.h>
 #include <vector>
 #include "trex_stack_base.h"
+#include "trex_vlan_filter.h"
 #include "bpf_api.h"
 #include <rte_spinlock.h>
 #include <sys/epoll.h>
 #include <unordered_set>
 
 using namespace std;
-
-class CMcastFilter {
-    void        renew_multicast_bpf();
-    bpf_h       m_multicast_bpf;
-    uint16_t    m_vlan_nodes[3]; // count of: untagged, 1 VLAN, 2 VLANs
-
-public:
-    CMcastFilter();
-    const bpf_h&    get_bpf();
-    void            add_del_vlans(uint8_t add_vlan_size, uint8_t del_vlan_size);
-    void            add_empty();
-    void            del_vlan(uint8_t vlans_count);
-};
 
 
 class CNamespacedIfNode : public CNodeBase {
@@ -59,6 +47,8 @@ public:
     virtual void conf_ip6_internal(bool enabled, const string &ip6_buf);
     virtual void conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet);
     virtual void set_mtu_internal(const std::string &mtu);
+    virtual void set_vlan_filter(uint8_t mtu);
+
     int  get_pair_id();
     string &get_vlans_insert_to_pkt();
     uint16_t filter_and_send(const string &pkt);
@@ -72,10 +62,8 @@ public:
         return (m_associated_trex_ports);
     }
 
-
-    void set_bpf_filter(const string &filter) {
-        m_bpf = bpfjit_compile(filter.c_str());
-        m_bpf_str = filter;
+    void set_vlan_filter_mask(VlanFilter::FilterFlags mask) {
+        m_vlan_filter.set_cfg_flag(mask);
     }
 
     virtual bool is_bird_node() = 0;
@@ -90,7 +78,7 @@ protected:
     void bind_pair();
     void set_src_mac(const string &mac_str, const string &mac_buf);
     void set_pair_id(int pair_id);
-    virtual const char *get_default_bpf() = 0;
+    virtual VlanFilter::FilterFlags get_default_vlan_filter_flag() = 0;
 
     bool            m_associated_trex_ports; /* associated with TRex physical port*/
     bool            m_is_shared_ns;
@@ -98,17 +86,15 @@ protected:
     string          m_ns_name;
     string          m_if_name;
     bpf_h           m_bpf;
-    string          m_bpf_str;
     string          m_vlans_insert_to_pkt;
-    CMcastFilter   *m_mcast_filter;
+    VlanFilter      m_vlan_filter;
 public:
     struct epoll_event m_event;
 };
 
 class CLinuxIfNode : public CNamespacedIfNode {
 public:
-    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, CMcastFilter &mcast_filter);
+    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu);
     virtual ~CLinuxIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
@@ -116,13 +102,13 @@ public:
     virtual bool is_bird_node() { return false; }
 
 private:
-    virtual const char *get_default_bpf();
+    virtual VlanFilter::FilterFlags get_default_vlan_filter_flag();
 };
 
 class CSharedNSIfNode : public CNamespacedIfNode {
 public:
     CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, CMcastFilter &mcast_filter, bool is_bird);
+                 const string &mtu, bool is_bird);
     virtual ~CSharedNSIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet);
@@ -132,7 +118,7 @@ public:
 
 private:
     void create_veths(const string &mtu);
-    virtual const char *get_default_bpf();
+    virtual VlanFilter::FilterFlags get_default_vlan_filter_flag();
     bool            m_is_bird;
     uint8_t         m_subnet4;
     uint8_t         m_subnet6;
@@ -163,7 +149,7 @@ public:
     virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac);
     virtual trex_rpc_cmd_rc_e rpc_remove_shared_ns(const std::string & shared_ns);
     virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac, const vlan_list_t &vlan_list, const vlan_list_t &tpid_list);
-    virtual trex_rpc_cmd_rc_e rpc_set_filter(const std::string & mac, const std::string &filter);
+    virtual trex_rpc_cmd_rc_e rpc_set_vlan_filter(const std::string &mac, uint8_t mask);
     virtual trex_rpc_cmd_rc_e rpc_set_dg(const std::string & shared_ns, const std::string &dg);
     virtual trex_rpc_cmd_rc_e rpc_set_mtu(const std::string &mac, const std::string &mtu);
     virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string &mac, std::string ip4_buf, std::string gw4_buf);
@@ -209,7 +195,6 @@ private:
     string                  m_bird_path;
     char                    m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
     rte_spinlock_t          m_main_loop; /* protect main loop in case of add/remove ns*/
-    CMcastFilter            m_mcast_filter;
 };
 
 

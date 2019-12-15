@@ -210,6 +210,34 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd('set_ipv4', **cmd_args)
 
+    def set_vlan_filter(self, mac, is_no_tcp_udp = True, is_tcp_udp = False):
+        ''' 
+            Set vlan filter mask according to "trex_vlan_filter.h" file.
+
+            :parameters:
+
+            mac: string
+                Key to the already created namespace in format xx:xx:xx:xx:xx:xx
+
+            is_no_tcp_udp: bool
+                True if the new filter should pass no_tcp_udp traffic i.e ICMP.
+            
+            is_tcp_udp: bool
+                True if the new filter should pass tcp_udp traffic i.e BGP.                
+        '''
+        ver_args = {"types":
+                    [{'name': "mac", 'arg': mac, 't': 'mac'},
+                     {'name': "is_no_tcp_udp", 'arg': is_no_tcp_udp, 't': bool},
+                     {'name': "is_no_tcp_udp", 'arg': is_tcp_udp, 't': bool}]
+                     }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+        
+        vlan_filter_mask = 1 if is_no_tcp_udp else 0
+        vlan_filter_mask = vlan_filter_mask | 2 if is_tcp_udp else vlan_filter_mask
+
+        cmd_args = {'mac': mac, 'filter_mask': vlan_filter_mask}
+        self.add_cmd('set_vlan_filter', **cmd_args)
+    
     def set_filter(self, mac, bpf_filter):
         ''' 
             set or change bpf filter. Warning - bad filter might crash TRex!

@@ -97,7 +97,7 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlans(const Json::Value &params,
     if ( params["tpids"].isArray() ) {
         const Json::Value &tpids = parse_array(params, "tpids", result);
         if ( tpids.size() != vlans.size() ) {
-            generate_parse_err(result, "mismatch between size of vlan tags and pgids");
+            generate_parse_err(result, "mismatch between size of vlan tags and tpids");
         }
         for (int i=0; i<tpids.size(); i++) {
             uint16_t tpid = parse_uint16(tpids, i, result);
@@ -124,11 +124,17 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv4(const Json::Value &params, 
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_filter(const Json::Value &params, Json::Value &result) {
+    /* deprecated */
     debug({"rpc_set_filter", pretty_json_str(params)});
-    string mac     = parse_string(params, "mac", result);
-    string filter  = parse_string(params, "filter", result);
+    return TREX_RPC_CMD_OK;
+}
 
-    return m_obj->rpc_set_filter(mac, filter);
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlan_filter(const Json::Value &params, Json::Value &result) {
+    debug({"rpc_set_vlan_filter", pretty_json_str(params)});
+    string mac     = parse_string(params, "mac", result);
+    uint8_t filter = parse_byte(params, "filter_mask", result);
+
+    return m_obj->rpc_set_vlan_filter(mac, filter);
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_dg(const Json::Value &params, Json::Value &result) {
@@ -248,6 +254,7 @@ void CRpcTunnelCStackBase::register_rpc_functions(){
     register_func("set_vlans",std::bind(&CRpcTunnelCStackBase::rpc_set_vlans, this, _1, _2));
     register_func("set_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv4, this, _1, _2));
     register_func("set_filter",std::bind(&CRpcTunnelCStackBase::rpc_set_filter, this, _1, _2));
+    register_func("set_vlan_filter",std::bind(&CRpcTunnelCStackBase::rpc_set_vlan_filter, this, _1, _2));
     register_func("set_dg",std::bind(&CRpcTunnelCStackBase::rpc_set_dg, this, _1, _2));
     register_func("set_mtu",std::bind(&CRpcTunnelCStackBase::rpc_set_mtu, this, _1, _2));
     register_func("clear_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_clear_ipv4, this, _1, _2));
