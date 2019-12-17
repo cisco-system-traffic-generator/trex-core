@@ -569,7 +569,7 @@ public:
     CParserOption(){
         reset();
     }
-
+    /* IMPORTANT! Every new cold member in this class must be added at the bottom, otherwise performance issue may occur */
     CPreviewMode    preview;
     uint16_t        m_tw_buckets;
     uint16_t        m_tw_levels;
@@ -603,7 +603,6 @@ public:
     trex_astf_mode_e m_astf_mode;
     uint32_t        m_astf_client_mask;
     bool            m_is_lowend;
-    uint32_t        m_lowend_core;
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;
@@ -624,6 +623,7 @@ public:
     double          m_tw_bucket_time_sec;
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
+    uint32_t        m_lowend_core;
     
 
 
