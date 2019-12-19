@@ -115,6 +115,92 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
     }
 }
 
+
+/* Accumulate TCP/UDP counters */
+void CSTTCpPerTGIDPerDir::accumulate_counters(CSTTCpPerTGIDPerDir* lpstt_sts) {
+    tcpstat_int_t *lpt = &m_tcp.m_sts;
+    udp_stat_int_t *lpt_udp = &m_udp.m_sts;
+
+    tcpstat_int_t *lpstt_tcp = &lpstt_sts->m_tcp.m_sts;
+    udp_stat_int_t *lpstt_udp = &lpstt_sts->m_udp.m_sts;
+
+    CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    CGCountersUtl64 tcp_add((uint64_t *)lpstt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp_add((uint64_t *)lpstt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    tcp += tcp_add;
+    udp += udp_add;
+}
+
+/* Calculate FT counters */
+void CSTTCpPerTGIDPerDir::calculate_ft_counters(CSTTCpPerTGIDPerDir* lpstt_sts) {
+    CFlowTableIntStats *lpft = &m_ft.m_sts;
+    CFlowTableIntStats *lpstt_ft = &lpstt_sts->m_ft.m_sts;
+
+    CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
+    CGCountersUtl32 ft_add((uint32_t *)lpstt_ft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
+
+    ft = ft_add;
+}
+
+/* Calculate average and ratio counters */
+void CSTTCpPerTGIDPerDir::calculate_avr_counters() {
+    tcpstat_int_t *lpt = &m_tcp.m_sts;
+    udp_stat_int_t *lpt_udp = &m_udp.m_sts;
+
+    uint64_t udp_active_flows=0;
+    if ( (lpt_udp->udps_connects+
+          lpt_udp->udps_accepts) > lpt_udp->udps_closed) {
+        udp_active_flows =  lpt_udp->udps_connects+
+                            lpt_udp->udps_accepts -
+                            lpt_udp->udps_closed;
+    }
+
+    uint64_t tcp_active_flows=0;
+    if ((lpt->tcps_connattempt + lpt->tcps_accepts) >= lpt->tcps_closed) {
+        tcp_active_flows = lpt->tcps_connattempt + lpt->tcps_accepts - lpt->tcps_closed;
+
+    }
+
+    m_active_flows = tcp_active_flows + udp_active_flows;
+    if (lpt->tcps_connects>lpt->tcps_closed) {
+        m_est_flows = lpt->tcps_connects -
+                      lpt->tcps_closed;
+    }else{
+        m_est_flows=0;
+    }
+    m_est_flows+=udp_active_flows;
+    /* total bytes sent */
+    uint64_t total_tx_bytes =
+            lpt->tcps_sndbyte_ok +
+            lpt->tcps_sndrexmitbyte +
+            lpt->tcps_sndprobe +
+            lpt_udp->udps_sndbyte;
+    m_tx_bw_l7_r = m_tx_bw_l7.add(lpt->tcps_rcvackbyte + lpt_udp->udps_sndbyte)*_1Mb_DOUBLE; /* better to add the acked tx bytes than tcps_sndbyte */
+    m_tx_bw_l7_total_r = m_tx_bw_l7_total.add(total_tx_bytes)*_1Mb_DOUBLE; /* how many L7 bytes sent */
+    m_rx_bw_l7_r = m_rx_bw_l7.add(lpt->tcps_rcvbyte + lpt_udp->udps_rcvbyte)*_1Mb_DOUBLE;
+    m_tx_pps_r = m_tx_pps.add(lpt->tcps_sndtotal + lpt_udp->udps_sndpkt);
+    m_rx_pps_r = m_rx_pps.add(lpt->tcps_rcvpack + lpt->tcps_rcvackpack + lpt_udp->udps_rcvpkt);
+    if ( (m_tx_pps_r+m_rx_pps_r) > 0.0){
+        m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r));
+    } else {
+        m_avg_size = 0.0;
+    }
+
+    m_tx_ratio = 0.0;
+    if (m_tx_bw_l7_total_r > 0.0) {
+        m_tx_ratio = m_tx_bw_l7_r*100.0/m_tx_bw_l7_total_r;
+    }
+}
+
+void CSTTCpPerTGIDPerDir::clear_sum_counters(void) {
+    m_tcp.Clear();
+    m_udp.Clear();
+    m_ft.Clear();
+}
+
 void CSTTCpPerTGIDPerDir::clear_aggregated_counters(void) {
     m_tcp.Clear();
     m_udp.Clear();
@@ -419,6 +505,24 @@ void CSTTCp::Update(){
     }
 }
 
+void CSTTCp::Accumulate(bool clear, bool calculate, CSTTCp* lpstt){
+    for (int i = 0; i < TCP_CS_NUM; i++) {
+        CSTTCpPerTGIDPerDir* lpstt_sts = &lpstt->m_sts[i];
+        //clear m_sts stats
+        if (clear) {
+            m_sts[i].clear_sum_counters();
+        }
+
+        //accumulate for tcp/udp counters
+        m_sts[i].accumulate_counters(lpstt_sts);
+        //caculate for ft and average counters
+        if (calculate) {
+            m_sts[i].calculate_ft_counters(lpstt_sts);
+            m_sts[i].calculate_avr_counters();
+        }
+    }
+}
+
 void CSTTCp::DumpTable(){
     m_dtbl.dump_table(stdout,false,true);
 }
@@ -537,4 +641,3 @@ void CSTTCp::update_profile_ctx() {
     m_profile_ctx_updated = true;
     m_update = true;
 }
-

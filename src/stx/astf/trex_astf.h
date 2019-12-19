@@ -161,6 +161,7 @@ private:
 class TrexAstfProfile : public AstfProfileState {
 public:
     typedef std::vector<state_e> states_t;
+    Json::Value m_entry;
 
     TrexAstfProfile();
     ~TrexAstfProfile();
@@ -182,6 +183,7 @@ public:
     std::vector<std::string> get_profile_id_list();
     std::vector<state_e>     get_profile_state_list();
     std::vector<CSTTCp *>    get_sttcp_list();
+    std::vector<CSTTCp *>    get_sttcp_total_list();
 
     std::vector<std::string> m_states_names;
     std::vector<uint32_t>    m_states_cnt;
@@ -189,6 +191,11 @@ public:
     bool is_another_profile_transmitting(cp_profile_id_t profile_id);
     bool is_safe_update_stats();
 
+    void clear_stats();
+    void Accumulate_stopped(bool clear, bool calculate, CSTTCp *lpstt);
+    void Accumulate_total(bool clear, bool calculate,  CSTTCp *lpstt);
+    CSTTCp* m_stt_stopped_cp;
+    CSTTCp* m_stt_total_cp;
 protected:
     std::unordered_map<std::string, TrexAstfPerProfile *> m_profile_list;
     std::unordered_map<uint32_t, cp_profile_id_t> m_profile_id_map;
@@ -353,7 +360,7 @@ public:
         return m_epoch;
     }
 
-    void inc_epoch();
+    void inc_epoch(bool force = false);
 
     CRxAstfCore * get_rx(){
         assert(m_rx);

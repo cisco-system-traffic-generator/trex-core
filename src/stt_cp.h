@@ -44,14 +44,19 @@ typedef enum {
 
 typedef uint8_t tcp_dir_t;
 
+class CSTTCp;
 
 class CSTTCpPerTGIDPerDir {
 public:
     bool Create(uint32_t time_msec);
     void Delete();
     void update_counters(bool is_sum, uint16_t tg_id=0);
+    void accumulate_counters(CSTTCpPerTGIDPerDir* lpstt_sts);
+    void calculate_ft_counters(CSTTCpPerTGIDPerDir* lpstt_sts);
+    void calculate_avr_counters();
     void clear_counters();
     void create_clm_counters();
+    void clear_sum_counters();
 
 private:
     void clear_aggregated_counters();
@@ -97,6 +102,7 @@ public:
     void Add(tcp_dir_t dir,CTcpPerThreadCtx* ctx);
     void Init(bool first_time=true);
     void Update();
+    void Accumulate(bool clear, bool calculate, CSTTCp* lpstt);
     void DumpTable();
     bool dump_json(std::string &json);
     void clear_counters(bool epoch_increment=true);

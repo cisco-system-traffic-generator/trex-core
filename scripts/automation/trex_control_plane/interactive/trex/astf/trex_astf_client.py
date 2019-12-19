@@ -407,11 +407,11 @@ class ASTFClient(TRexClient):
                 self.stop(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_ASTF_LOADED, self.STATE_IDLE])
                 self.stop_latency()
-                self.clear_stats(ports, pid_input = ALL_PROFILE_ID)
                 self.traffic_stats.reset()
                 self.latency_stats.reset()
                 self.clear_profile(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_IDLE])
+                self.clear_stats(ports, pid_input = ALL_PROFILE_ID)
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
