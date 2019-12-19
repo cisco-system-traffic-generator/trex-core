@@ -514,8 +514,8 @@ void TrexAstf::send_message_to_all_dp(TrexCpToDpMsgBase *msg, bool suspend) {
     msg = nullptr;
 }
 
-void TrexAstf::inc_epoch() {
-    if ( is_trans_state() ) {
+void TrexAstf::inc_epoch(bool force) {
+    if ( is_trans_state() && (force == false) ) {
         throw TrexException("Can't increase epoch in current state: " + m_states_names[m_state]);
     }
     m_epoch++;
@@ -553,12 +553,28 @@ TrexAstfProfile::TrexAstfProfile() {
     m_states_cnt = std::vector<uint32_t> (AMOUNT_OF_STATES);
 
     m_dp_profile_last_id = 0;
+
+    m_stt_stopped_cp = new CSTTCp();
+    m_stt_stopped_cp->Create();
+    m_stt_stopped_cp->Init();
+
+    m_stt_total_cp = new CSTTCp();
+    m_stt_total_cp->Create();
+    m_stt_total_cp->Init();
 }
 
 TrexAstfProfile::~TrexAstfProfile() {
     for (auto mprofile : m_profile_list) {
         delete mprofile.second;
     }
+
+    m_stt_stopped_cp->Delete();
+    delete m_stt_stopped_cp;
+    m_stt_stopped_cp=0;
+
+    m_stt_total_cp->Delete();
+    delete m_stt_total_cp;
+    m_stt_total_cp=0;
 }
 
 void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
@@ -676,6 +692,19 @@ vector<CSTTCp *> TrexAstfProfile::get_sttcp_list() {
     return sttcp_list;
 }
 
+vector<CSTTCp *> TrexAstfProfile::get_sttcp_total_list() {
+    vector<CSTTCp *> sttcp_total_list;
+
+    sttcp_total_list.push_back(m_stt_stopped_cp);
+    for (auto mprofile : m_profile_list) {
+        if (mprofile.second->get_profile_state() == STATE_TX ) {
+            sttcp_total_list.push_back(mprofile.second->get_stt_cp());
+        }
+    }
+
+    return sttcp_total_list;
+}
+
 bool TrexAstfProfile::is_another_profile_transmitting(cp_profile_id_t profile_id) {
     uint32_t cnt = m_states_cnt[STATE_TX];
     if ((cnt > 0) && get_profile(profile_id)->get_profile_state() == STATE_TX) {
@@ -693,6 +722,29 @@ bool TrexAstfProfile::is_safe_update_stats() {
     return cnt ? false : true;
 }
 
+void TrexAstfProfile::clear_stats() {
+    TrexAstf *stx = get_astf_object();
+    vector<CSTTCp *> sttcp_list = get_sttcp_list();
+
+    // Clear all stats inclusing accumulating stats
+    if (stx->get_state() == STATE_BUILD) {
+        for (auto mlpstt : sttcp_list) {
+            mlpstt->clear_counters(false);
+        }
+        m_stt_stopped_cp->clear_counters(false);
+        m_stt_total_cp->clear_counters(false);
+
+        stx->inc_epoch(true);
+    }
+}
+
+void TrexAstfProfile::Accumulate_stopped(bool clear, bool calculate, CSTTCp* lpstt) {
+    m_stt_stopped_cp->Accumulate(clear, calculate, lpstt);
+}
+
+void TrexAstfProfile::Accumulate_total(bool clear, bool calculate, CSTTCp* lpstt) {
+    m_stt_total_cp->Accumulate(clear, calculate, lpstt);
+}
 
 /***********************************************************
  * TrexAstfPerProfile
@@ -775,6 +827,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = 0;
             break;
         case STATE_PARSE:
+            m_stt_cp->m_update = false;
             m_active_cores = 1;
             break;
         case STATE_BUILD:
@@ -782,6 +835,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_TX:
+            m_stt_cp->m_update = true;
             if (m_astf_obj->is_safe_update_stats()) {
                 m_stt_cp->update_profile_ctx();
             }
@@ -790,6 +844,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
         case STATE_CLEANUP:
             m_stt_cp->Update();
             m_stt_cp->m_update = false;
+            m_astf_obj->Accumulate_stopped(false, !m_astf_obj->is_another_profile_transmitting(m_cp_profile_id), m_stt_cp);
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_DELETE:
@@ -860,6 +915,7 @@ void TrexAstfPerProfile::build() {
 }
 
 void TrexAstfPerProfile::transmit() {
+    m_astf_obj->clear_stats();
     /* Resize the statistics vector depending on the number of template groups */
     CSTTCp* lpstt = m_stt_cp;
     lpstt->Resize(CAstfDB::instance(m_dp_profile_id)->get_num_of_tg_ids());
