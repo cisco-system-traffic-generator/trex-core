@@ -45,6 +45,8 @@ public:
 
     CGCountersUtl32 & operator+=(const CGCountersUtl32 &rhs);
 
+    CGCountersUtl32 & operator=(const CGCountersUtl32 &rhs);
+
 
 protected:
       uint32_t *m_base;
