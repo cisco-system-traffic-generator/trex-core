@@ -88,6 +88,15 @@ CGCountersUtl32 & CGCountersUtl32::operator+=(const CGCountersUtl32 &rhs){
     return *this;
 }
 
+CGCountersUtl32 & CGCountersUtl32::operator=(const CGCountersUtl32 &rhs){
+    assert(rhs.m_cnt==m_cnt);
+    int i;
+    for (i=0; i<m_cnt; i++) {
+        m_base[i]=rhs.m_base[i];
+    }
+    return *this;
+}
+
 CTblGCounters::~CTblGCounters(){
     if (m_free_objects){
         int i;

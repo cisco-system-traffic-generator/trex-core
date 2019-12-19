@@ -456,7 +456,6 @@ TrexRpcCmdAstfGetLatencyStats::_run(const Json::Value &params, Json::Value &resu
     return (TREX_RPC_CMD_OK);
 }
 
-
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
@@ -502,7 +501,6 @@ TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &resul
     return (TREX_RPC_CMD_OK);
 }
 
-
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
@@ -513,7 +511,7 @@ TrexRpcCmdAstfCountersDesc::_run(const Json::Value &params, Json::Value &result)
     TrexAstfPerProfile *pid = stx->get_profile(profile_id);
     CSTTCp *lpstt = pid->get_stt_cp();
     if (lpstt && lpstt->m_init) {
-            lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
+        lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
     } else {
         generate_execute_err(result, "Statistics are not initialized yet");
     }
@@ -542,101 +540,23 @@ TrexRpcCmdAstfCountersValues::_run(const Json::Value &params, Json::Value &resul
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfTotalCountersValues::_run(const Json::Value &params, Json::Value &result) {
     TrexAstf *stx = get_astf_object();
-    vector<CSTTCp *> sttcp_list = stx->get_sttcp_list();
-    vector<string> names;
-    uint32_t index, avg_size_id=0, tx_ratio_id=0, flow_table_id=0;
-    string tx_bw, tx_bw_tot, rx_bw, tx_pps, rx_pps, avg_size, tx_ratio;
-    double total_pps, total_tx_bw;
-    Json::Value entry, temp;
+    vector<CSTTCp *> sttcp_total_list = stx->get_sttcp_total_list();
 
-    /* Get index by counters name */
-    if (!sttcp_list.empty() && sttcp_list[0]->m_init) {
-        sttcp_list[0]->m_dtbl.get_counters_names(&names);
-        for (int i = 0; i < names.size(); i++) {
-            if (names[i] == "m_tx_bw_l7_r") {
-                tx_bw = to_string(i);
-            } else if (names[i] == "m_tx_bw_l7_total_r") {
-                tx_bw_tot = to_string(i);
-            } else if (names[i] == "m_rx_bw_l7_r") {
-                rx_bw = to_string(i);
-            } else if (names[i] == "m_tx_pps_r") {
-                tx_pps = to_string(i);
-            } else if (names[i] == "m_rx_pps_r") {
-                rx_pps = to_string(i);
-            } else if (names[i] == "m_avg_size") {
-                avg_size_id = i;
-                avg_size = to_string(i);
-            } else if (names[i] == "m_tx_ratio") {
-                tx_ratio_id = i;
-                tx_ratio = to_string(i);
-            } else if (names[i] == "Flow Table") {
-                flow_table_id = i;
-            }
+    for (auto lpstt : sttcp_total_list) {
+        bool clear = false;
+        if(lpstt == sttcp_total_list.front()) {
+            clear = true;
         }
-    }
 
-    if (!flow_table_id || !avg_size_id || !tx_ratio_id) {
-        generate_execute_err(result, "Statistics are not initialized yet");
-    }
-
-    /* Step1. Accumulate counters of each profile except Flow Table.
-     * Step2. Calculate avg_size and tx_ratio using total counters.
-     *  - m_avg_size = (m_tx_bw_l7_r+m_rx_bw_l7_r)/(8.0*(m_tx_pps_r+m_rx_pps_r))
-     *  - m_tx_ratio = m_tx_bw_l7_r*100.0/m_tx_bw_l7_total_r
-     */
-    for (auto lpstt : sttcp_list) {
-        if (lpstt->m_init) {
-            temp.clear();
-            lpstt->m_dtbl.dump_values("counter vals", false, temp);
-
-            /* Member : client, server */
-            for (auto i : temp.getMemberNames()) {
-                if (!temp[i].isObject()) {
-                    continue;
-                }
-                if (!entry.isMember(i)) {
-                    entry[i] = Json::objectValue;
-                }
-
-                /* Member : counters index */
-                for (auto j : temp[i].getMemberNames()) {
-                    if (!entry[i].isMember(j)) {
-                        entry[i][j] = 0;
-                    }
-
-                    index = atoi(j.c_str());
-                    if (index < flow_table_id && index != avg_size_id && index != tx_ratio_id) {
-                        /* externation, TCP and UDP counters */
-                        if (temp[i][j].isInt64()) {
-                            entry[i][j] = entry[i][j].asInt64() + temp[i][j].asInt64();
-                        } else {
-                            entry[i][j] = entry[i][j].asDouble() + temp[i][j].asDouble();
-                        }
-                    } else {
-                        /* Flow Table counters */
-                        entry[i][j] = temp[i][j];
-                    }
-                }
-
-                total_pps = entry[i][tx_pps].asDouble() + entry[i][rx_pps].asDouble();
-                total_tx_bw = entry[i][tx_bw_tot].asDouble();
-                entry[i][avg_size] = 0.0;
-                entry[i][tx_ratio] = 0.0;
-                if (total_pps > 0.0) {
-                    entry[i][avg_size] = (entry[i][tx_bw].asDouble()+entry[i][rx_bw].asDouble()) /
-                                         (8.0*total_pps);
-                }
-                if (total_tx_bw > 0.0) {
-                    entry[i][tx_ratio] = entry[i][tx_bw].asDouble()*100.0 / total_tx_bw;
-                }
-            }
-            result["result"] = entry;
-        } else {
-            generate_execute_err(result, "Statistics are not initialized yet");
+        bool calculate = false;
+        if(lpstt == sttcp_total_list.back()) {
+            calculate = true;
         }
+
+        stx->Accumulate_total(clear, calculate, lpstt);
     }
 
-    result["result"]["name"] = "counter vals";
+    stx->m_stt_total_cp->m_dtbl.dump_values("counter vals", false, result["result"]);
     result["result"]["epoch"] = stx->get_epoch();
 
     return (TREX_RPC_CMD_OK);
