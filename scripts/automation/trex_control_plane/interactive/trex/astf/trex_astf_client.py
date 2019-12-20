@@ -262,23 +262,6 @@ class ASTFClient(TRexClient):
             port.state = port_state
         return port_state
 
-    def sync(self):
-        self.epoch = None
-        params = {'profile_id': "sync"}
-        rc = self._transmit('sync', params)
-
-        if not rc:
-            raise TRexError(rc.err())
-
-        self.state = rc.data()['state']
-        self.apply_port_states()
-        if self.is_dynamic:
-            self.astf_profile_state = rc.data()['state_profile']
-        else:
-            self.astf_profile_state[DEFAULT_PROFILE_ID] = self.state
-        self.epoch = rc.data()['epoch']
-
-
     def wait_for_steady(self, profile_id=None):
         timer = PassiveTimer()
         while True:
@@ -457,6 +440,26 @@ class ASTFClient(TRexClient):
             self.ports[int(port_id)]._set_handler(port_rc)
 
         self._post_acquire_common(ports)
+
+
+    @client_api('command', True)
+    def sync(self):
+        self.epoch = None
+        params = {'profile_id': "sync"}
+        rc = self._transmit('sync', params)
+
+        if not rc:
+            raise TRexError(rc.err())
+
+        self.state = rc.data()['state']
+        self.apply_port_states()
+        if self.is_dynamic:
+            self.astf_profile_state = rc.data()['state_profile']
+        else:
+            self.astf_profile_state[DEFAULT_PROFILE_ID] = self.state
+        self.epoch = rc.data()['epoch']
+
+        return self.astf_profile_state
 
 
     @client_api('command', True)
