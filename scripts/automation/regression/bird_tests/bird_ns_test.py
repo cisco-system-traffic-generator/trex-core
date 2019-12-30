@@ -225,8 +225,8 @@ class STLBird_Test(CBirdGeneral_Test):
             
             print('Got all the routes, now setting a bad filter for bird')
             self.bird_trex.set_service_mode()
-            c.set_namespace(0, method = 'set_filter', mac = mac1, bpf_filter = 'not udp and not tcp')
-            c.set_namespace(1, method = 'set_filter', mac = mac2, bpf_filter = 'not udp and not tcp') 
+            c.set_namespace(0, method = 'set_vlan_filter', mac = mac1, is_no_tcp_udp = True)
+            c.set_namespace(1, method = 'set_vlan_filter', mac = mac2, is_no_tcp_udp = True) 
             self.bird_trex.set_service_mode(enabled = False, filtered = True, mask = 2)
             self._clear_routes(protocol = "bgp")
 
