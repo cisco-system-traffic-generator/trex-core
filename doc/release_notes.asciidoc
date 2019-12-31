@@ -29,6 +29,12 @@ endif::backend-docbook[]
 == Release 2.72 ==
 
 * Add low_end_core option to platform YAML. More info in link:trex_manual.html#_low_end_machines[manual]
+* Fix crash in case of a BPF filter (adding BIRD node)
+* STF add DHCP plugin 
+* ASTF 
+** Add support for tg_name in case of a pcap template 
+** Multi-profile support bug fix 
+
 
 == Release 2.71 ==
 
