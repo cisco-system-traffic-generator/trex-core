@@ -125,9 +125,9 @@ TrexDpCoreAstfBatch::start_astf() {
         CGenNode::DumpHeader(stdout);
     }
 #endif
-
+    m_core->pre_flush_file();
     m_core->m_node_gen.flush_file(c_stop_sec, d_time_flow, false, m_core, old_offset);
-
+    m_core->post_flush_file();
 
 #ifdef VALG
     CALLGRIND_STOP_INSTRUMENTATION;

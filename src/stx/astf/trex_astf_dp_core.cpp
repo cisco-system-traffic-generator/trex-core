@@ -224,8 +224,10 @@ void TrexAstfDpCore::start_scheduler() {
         node->m_type = CGenNode::FLOW_SYNC;
         node->m_time = now;
         m_flow_gen->m_node_gen.add_node(node);
-
+    
+        m_core->pre_flush_file();
         m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, false, m_flow_gen, old_offset);
+        m_core->post_flush_file();
 
         m_flow_gen->flush_tx_queue();
         m_flow_gen->m_node_gen.close_file(m_flow_gen);

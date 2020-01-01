@@ -75,4 +75,3 @@ void CAstfFifRampup::on_timer_update(CAstfTimerFunctorObj *tmr){
                                  );
     m_cur_tick++;
 }
-
