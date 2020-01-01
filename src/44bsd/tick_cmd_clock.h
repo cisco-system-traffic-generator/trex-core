@@ -1,5 +1,5 @@
-#ifndef __SCHED_RAMPUP_
-#define __SCHED_RAMPUP_
+#ifndef __TICK_CMD_CLOCK_
+#define __TICK_CMD_CLOCK_
 
 /*
  Hanoh Haim
@@ -22,38 +22,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-class CPerProfileCtx;
-class CTcpPerThreadCtx;
-class CAstfTimerFunctorObj;
-
 #include <stdint.h>
 #include <stdlib.h>
 
+class CTcpPerThreadCtx;
+class CAstfTimerFunctorObj;
 
-class CAstfFifRampup {
-
-private:
-    const int TICK_MSEC=1000; /* each 1000msec a tick */
+class CAstfTickCmdClock {
 
 public:
-    CAstfFifRampup(CPerProfileCtx * pctx,
-                   uint16_t           rampup_sec,
-                   double             cps);
-    ~CAstfFifRampup();
+#ifndef TREX_SIM
+    static const int TICK_MSEC = 10; /* each 10 msec a tick */
+#else
+    static const int TICK_MSEC = 500; /* each 500 msec a tick */
+#endif
 
-    /* update dtime_fif in sec and restart the timer if needed */
+public:
+    CAstfTickCmdClock(CTcpPerThreadCtx *ctx);
+    ~CAstfTickCmdClock();
     void on_timer_update(CAstfTimerFunctorObj *tmr);
+    void timer_start();
+    void timer_stop();
+    uint64_t get_curr_tick();
 
 private:
-    CTcpPerThreadCtx * m_ctx;
-    CPerProfileCtx   * m_pctx;
     CAstfTimerFunctorObj  * m_tmr;
-    double             m_cps;
-    uint16_t           m_ticks;
-    uint16_t           m_cur_tick;
-    uint16_t           m_rampup_sec;
+    CTcpPerThreadCtx      * m_ctx;
+    uint64_t           m_cur_tick;
 };
 
 #endif
-
-

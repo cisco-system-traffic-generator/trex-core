@@ -352,7 +352,22 @@
                 "required": ["name","id","val"]
            },
 
-          "program_command_jmp_t" : {
+          "program_command_set_tick_var_t" : {
+            "type": "object",
+             "properties": {
+                   "name": {
+                       "type" : "string",
+                       "enum" : ["set_tick_var"]
+                   },
+
+                  "id" : {
+                       "type" : "integer"
+                   }
+             },
+             "required": ["name", "id"]
+            },
+
+          "program_command_jmpnz_t" : {
                "type": "object",
                 "properties": {
                       "name": {
@@ -370,6 +385,30 @@
                 },
                 "required": ["name","id","offset"]
            },
+
+           "program_command_jmpdp_t" : {
+            "type": "object",
+             "properties": {
+                   "name": {
+                       "type" : "string",
+                       "enum" : ["jmp_dp"]
+                   },
+
+                  "id" : {
+                       "type" : "integer"
+                   },
+
+                  "offset" : {
+                       "type" : "integer"
+                   },
+
+                   "duration" : {
+                    "type" : "number",
+                    "minimum": 0.0
+                   }
+             },
+             "required": ["name", "id", "offset", "duration"]
+        },
 
            "program_command_tx_mode_t" : {
                "type": "object",
@@ -408,7 +447,9 @@
                                     {"$ref": "#/definitions/program_command_delay_t"},
                                     {"$ref": "#/definitions/program_command_delay_rnd_t"},
                                     {"$ref": "#/definitions/program_command_set_val_t"},
-                                    {"$ref": "#/definitions/program_command_jmp_t"},
+                                    {"$ref": "#/definitions/program_command_set_tick_var_t"},
+                                    {"$ref": "#/definitions/program_command_jmpnz_t"},
+                                    {"$ref": "#/definitions/program_command_jmpdp_t"},
                                     {"$ref": "#/definitions/program_command_tx_mode_t"}
                                     
                                     ]

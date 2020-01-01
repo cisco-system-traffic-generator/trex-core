@@ -4354,7 +4354,15 @@ bool CFlowGenListPerThread::check_msgs() {
     return had_msg;
 }
 
+void CFlowGenListPerThread::pre_flush_file(){
+    m_c_tcp->m_tick_var->timer_start();
+    m_s_tcp->m_tick_var->timer_start();
+}
 
+void CFlowGenListPerThread::post_flush_file() {
+    m_c_tcp->m_tick_var->timer_stop();
+    m_s_tcp->m_tick_var->timer_stop();
+}
 
 void CFlowGenListPerThread::start(std::string &erf_file_name, CPreviewMode &preview) {
     
