@@ -392,10 +392,16 @@ void TrexAstf::stop_dp_scheduler() {
 void TrexAstf::profile_clear(cp_profile_id_t profile_id){
     TrexAstfPerProfile* pid = get_profile(profile_id);
     pid->profile_check_whitelist_states({STATE_IDLE, STATE_LOADED});
-    pid->profile_change_state(STATE_DELETE);
+    if (pid->get_profile_state() == STATE_LOADED) {
+        pid->profile_change_state(STATE_DELETE);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(pid->get_dp_profile_id());
-    send_message_to_dp(0, msg);
+        TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(pid->get_dp_profile_id());
+        send_message_to_dp(0, msg);
+    }
+    else { // STATE_IDLE
+        pid->publish_astf_profile_clear();
+        delete_profile(profile_id);
+    }
 }
 
 void TrexAstf::update_rate(cp_profile_id_t profile_id, double mult) {
@@ -1012,10 +1018,6 @@ void TrexAstfPerProfile::dp_core_error(const string &err) {
 }
 
 void TrexAstfPerProfile::publish_astf_profile_state() {
-    if (m_profile_state == STATE_DELETE) {
-        return;
-    }
-
     /* Publish the state change of each profile */
     Json::Value data;
     data["profile_id"] = m_cp_profile_id;
