@@ -161,6 +161,9 @@ class ASTFBasic_Test(CASTFGeneral_Test):
             return
         print('Connected')
 
+        if self.astf_trex.is_connected():
+            self.astf_trex.reset()
+
         if not self.map_ports():
             CTRexScenario.astf_init_error = 'Client could not map ports'
             self.fail(CTRexScenario.astf_init_error)
