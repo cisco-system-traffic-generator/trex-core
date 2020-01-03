@@ -542,9 +542,13 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         FT_INC_SCNT(m_err_no_template);
         return(false);
     }
-    CPerProfileCtx * pctx = ctx->get_profile_by_server_port(dst_port,false);
-    CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
-    CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port,false);
+
+    uint8_t *l7_data = pkt + ftuple.m_l7_offset;
+    uint16_t l7_len = ftuple.m_l7_total_len;
+
+    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,false,dest_ip, l7_data,l7_len);
+    CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
+    CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
     if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
         rte_pktmbuf_free(mbuf);
@@ -552,6 +556,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
     uint16_t c_template_idx = server_info->get_temp_idx();
     uint16_t tg_id = tcp_data_ro->get_template_tg_id(c_template_idx);
 
@@ -707,13 +712,16 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    CPerProfileCtx * pctx = ctx->get_profile_by_server_port(dst_port,true);
-    CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
-    CTcpServreInfo *server_info = tcp_data_ro->get_server_info_by_port(dst_port,true);
+    uint8_t *l7_data = pkt + ftuple.m_l7_offset;
+    uint16_t l7_len = ftuple.m_l7_total_len;
+
+    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip, l7_data,l7_len);
+    CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
+    CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
     if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
         if (ctx->tcp_blackhole ==0 ){
-          generate_rst_pkt(pctx,
+          generate_rst_pkt(pctx ? pctx: FALLBACK_PROFILE_CTX(ctx),
                          dest_ip,
                          tuple.get_ip(),
                          dst_port,
@@ -730,6 +738,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    CAstfDbRO *tcp_data_ro = pctx->m_template_ro;
     uint16_t c_template_idx = server_info->get_temp_idx();
     uint16_t tg_id = tcp_data_ro->get_template_tg_id(c_template_idx);
 

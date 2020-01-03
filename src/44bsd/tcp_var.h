@@ -75,6 +75,7 @@
 
 class CTcpReass;
 class CAstfPerTemplateRW;
+class CTcpServerInfo;
 
 struct CTcpPkt {
     rte_mbuf_t   * m_buf;
@@ -911,6 +912,186 @@ public:
     }
 };
 
+
+class CServerTemplateInfo {
+    CTcpServerInfo* m_server_info;
+    CPerProfileCtx* m_pctx;
+
+public:
+    CServerTemplateInfo() {}
+    CServerTemplateInfo(CTcpServerInfo* info, CPerProfileCtx* pctx) : m_server_info(info), m_pctx(pctx) {}
+
+    CTcpServerInfo* get_server_info() const { return m_server_info; }
+    CPerProfileCtx* get_profile_ctx() const { return m_pctx; }
+};
+
+class CServerIpInfo {
+protected:
+    uint32_t m_ip_start;
+    uint32_t m_ip_end;
+
+public:
+    CServerIpInfo() {}
+    CServerIpInfo(uint32_t start, uint32_t end) : m_ip_start(start), m_ip_end(end) {}
+
+    uint32_t ip_start() const { return m_ip_start; }
+    uint32_t ip_end() const { return m_ip_end; }
+    uint32_t ip_range() const { return m_ip_end - m_ip_start; }
+
+    bool is_overlap(uint32_t start, uint32_t end) const {
+        return (end >= m_ip_start && start <= m_ip_end);
+    }
+    bool is_in(uint32_t ip) const { return is_overlap(ip, ip); }
+    bool is_equal(uint32_t start, uint32_t end) const {
+        return (start == m_ip_start && end == m_ip_end);
+    }
+};
+
+class CServerIpTemplateInfo : CServerIpInfo {
+    CServerTemplateInfo m_template;
+
+public:
+    CServerIpTemplateInfo() {}
+    CServerIpTemplateInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp) : CServerIpInfo(start, end), m_template(temp) {}
+
+    CServerTemplateInfo* get_template_info() { return &m_template; }
+
+    uint32_t ip_start() const { return m_ip_start; }
+    uint32_t ip_end() const { return m_ip_end; }
+
+    bool is_ip_overlap(uint32_t start, uint32_t end) { return is_overlap(start, end); }
+    bool is_ip_overlap(CServerIpTemplateInfo& in) { return is_overlap(in.ip_start(), in.ip_end()); }
+    bool is_ip_in(uint32_t ip) { return is_overlap(ip, ip); }
+
+    std::string to_string() {
+        std::stringstream ss;
+        ss << std::hex << "  ip[" << m_ip_start << ", " << m_ip_end << "]";
+        ss << ", server=" << m_template.get_server_info() << ", pctx=" << m_template.get_profile_ctx();
+        return ss.str();
+    }
+};
+
+struct PayloadRule {
+    uint8_t m_mask;
+    uint8_t m_offset;
+
+    PayloadRule(uint8_t mask, uint8_t offset) : m_mask(mask), m_offset(offset) {}
+    PayloadRule(uint16_t rule) { m_mask = rule >> 8; m_offset = rule & UINT8_MAX; }
+    operator uint16_t() { return ((uint16_t)m_mask << 8) | m_offset; }
+
+    bool operator==(const PayloadRule& rhs) { return m_mask == rhs.m_mask && m_offset == rhs.m_offset; }
+    bool operator<(const PayloadRule& rhs) { return m_mask != rhs.m_mask ? m_mask < rhs.m_mask : m_offset < rhs.m_offset; }
+};
+
+typedef std::vector<uint16_t> payload_rule_t;
+typedef uint64_t payload_value_t;
+
+class CServerIpPayloadInfo : CServerIpInfo {
+    payload_rule_t m_payload_rule;
+    std::unordered_map<payload_value_t,CServerTemplateInfo> m_payload_map;
+
+public:
+    CServerIpPayloadInfo() {}
+    CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp);
+
+    uint32_t ip_start() const { return m_ip_start; }
+    uint32_t ip_end() const { return m_ip_end; }
+
+    bool is_ip_overlap(CServerIpPayloadInfo& in) { return is_overlap(in.ip_start(), in.ip_end()); }
+    bool is_ip_equal(CServerIpPayloadInfo& in) { return is_equal(in.ip_start(), in.ip_end()); }
+    bool is_ip_in(uint32_t ip) { return is_overlap(ip, ip); }
+
+    bool is_rule_equal(const payload_rule_t& rule) { return m_payload_rule == rule; }
+    bool is_rule_equal(CServerIpPayloadInfo& in) { return is_rule_equal(in.m_payload_rule); }
+    bool is_payload_rule() { return !m_payload_rule.empty(); }
+    bool is_payload_enough(uint16_t len) {
+        PayloadRule rule = m_payload_rule.back(); // offset value is ascending order
+        return len > rule.m_offset;
+    }
+
+    payload_value_t get_payload_value(uint8_t* data) {
+        payload_value_t pval = 0;
+        for (auto& it: m_payload_rule) {
+            PayloadRule rule{ it };
+            pval <<= 8;
+            pval |= data[rule.m_offset] & rule.m_mask;
+        }
+        return pval;
+    }
+
+    CServerTemplateInfo* get_template_info(payload_value_t pval) {
+        auto& map = m_payload_map;
+        return (map.find(pval) != map.end()) ? &map[pval]: nullptr;
+    }
+    CServerTemplateInfo* get_template_info(uint8_t* data) {
+        return data ? get_template_info(get_payload_value(data)): nullptr;
+    }
+
+    bool insert_template_info(payload_value_t pval, CTcpServerInfo* server, CPerProfileCtx* pctx) {
+        if (!get_template_info(pval)) {
+            m_payload_map.insert(std::make_pair(pval, CServerTemplateInfo(server, pctx)));
+            return true;
+        }
+        return false;
+    }
+
+    bool insert_template_info(const CServerIpPayloadInfo& in) {
+        assert(is_rule_equal(in.m_payload_rule));
+        assert(in.m_payload_map.size() == 1);
+        auto it = in.m_payload_map.begin();
+        CTcpServerInfo* server = it->second.get_server_info();
+        CPerProfileCtx* pctx = it->second.get_profile_ctx();
+        return insert_template_info(it->first, server, pctx);
+    }
+
+    bool remove_template_info(CPerProfileCtx* pctx);
+
+    std::string to_string() {
+        std::stringstream ss;
+        ss << std::hex << "  ip[" << m_ip_start << ", " << m_ip_end << "]";
+        for (auto it: m_payload_rule) {
+            PayloadRule rule{ it };
+            ss << " " << unsigned(rule.m_offset) << "/" << unsigned(rule.m_mask);
+        }
+        for (auto it: m_payload_map) {
+            ss << std::endl << "    ";
+            ss << "- " << it.first << "(server=" << it.second.get_server_info() << ",pctx=" << it.second.get_profile_ctx() << ")";
+        }
+        return ss.str();
+    }
+};
+
+struct PortParams {
+    bool m_stream;
+    uint16_t m_port;
+
+    PortParams(uint16_t port, bool stream) : m_stream(stream), m_port(port) {}
+    PortParams(uint32_t params) { m_stream = params >> 16; m_port = params & UINT16_MAX; }
+    operator uint32_t() { return ((uint32_t)m_stream << 16) | m_port; }
+
+    bool operator==(const PortParams& rhs) { return m_stream == rhs.m_stream && m_port == rhs.m_port; }
+    bool operator<(const PortParams& rhs) { return m_stream != rhs.m_stream ? m_stream < rhs.m_stream : m_port < rhs.m_port; }
+};
+
+class CServerPortInfo {
+    std::map<uint32_t,CServerIpTemplateInfo> m_ip_map;    // key is m_ip_end
+    std::map<uint32_t,CServerIpPayloadInfo> m_ip_map_payload;
+
+    bool insert_template_payload(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
+    CServerTemplateInfo* get_template_info_by_ip(uint32_t ip);
+    CServerTemplateInfo* get_template_info_by_payload(uint32_t ip, uint8_t* data, uint16_t len);
+public:
+    bool is_empty() { return m_ip_map.empty() && m_ip_map_payload.empty(); }
+
+    bool insert_template_info(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
+    void remove_template_info_by_profile(CPerProfileCtx* pctx);
+
+    CServerTemplateInfo* get_template_info(uint32_t ip, uint8_t* data, uint16_t len);
+
+    void print_server_port();
+};
+
+
 class CTcpPerThreadCtx {
 public:
     bool Create(uint32_t size,
@@ -1038,13 +1219,13 @@ public:
 
     /* server port management */
 private:
-    std::unordered_map<uint16_t,CPerProfileCtx*>   m_udp_server_ports;
-    std::unordered_map<uint16_t,CPerProfileCtx*>   m_tcp_server_ports;
+    std::unordered_map<uint32_t,CServerPortInfo> m_server_ports;
 public:
     void append_server_ports(profile_id_t profile_id);
     void remove_server_ports(profile_id_t profile_id);
-    CPerProfileCtx * get_profile_by_server_port(uint16_t port, bool stream);
-    void print_server_ports(bool stream);
+    CServerTemplateInfo * get_template_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
+    CTcpServerInfo * get_server_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
+    void print_server_ports();
 
     /* profile management */
 private:

@@ -101,7 +101,7 @@ double CAstfDB::cps_factor(double cps){
 void CTcpTuneables::dump(FILE *fd) {
 }
 
-CTcpServreInfo *CTcpDataAssocTranslation::get_server_info(const CTcpDataAssocParams &params) {
+CTcpServerInfo *CTcpDataAssocTranslation::get_server_info(const CTcpDataAssocParams &params) {
     if (m_vec.size() == 0) {
         assoc_map_it_t it = m_map.find(params);
 
@@ -136,18 +136,20 @@ void CTcpDataAssocTranslation::dump(FILE *fd) {
     }
 }
 
-void CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
+CTcpServerInfo* CTcpDataAssocTranslation::insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
                                           , uint32_t temp_idx) {
     CTcpDataAssocTransHelp trans_help(params, prog, tune, temp_idx);
     m_vec.push_back(trans_help);
+    return &m_vec.back().m_server_info;
 }
 
-void CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
+CTcpServerInfo* CTcpDataAssocTranslation::insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune
                                            , uint32_t temp_idx) {
-    CTcpServreInfo *tcp_s_info = new CTcpServreInfo(prog, tune, temp_idx);
+    CTcpServerInfo *tcp_s_info = new CTcpServerInfo(prog, tune, temp_idx);
     assert(tcp_s_info);
 
-    m_map.insert(std::pair<CTcpDataAssocParams, CTcpServreInfo *>(params, tcp_s_info));
+    m_map.insert(std::pair<CTcpDataAssocParams, CTcpServerInfo *>(params, tcp_s_info));
+    return tcp_s_info;
 }
 
 void CTcpDataAssocTranslation::clear() {
@@ -158,16 +160,14 @@ void CTcpDataAssocTranslation::clear() {
     m_vec.clear();
 }
 
-void CTcpDataAssocTranslation::enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
+void CTcpDataAssocTranslation::enumerate_server_ports(std::vector<CTcpDataAssocParams>& ports, std::vector<CTcpServerInfo*>& servers) {
     for (CTcpDataAssocTransHelp& trans_help : m_vec) {
-        if (trans_help.m_params.m_stream == is_stream) {
-            ports.push_back(trans_help.m_params.m_port);
-        }
+        ports.push_back(trans_help.m_params);
+        servers.push_back(&trans_help.m_server_info);
     }
     for (assoc_map_it_t it = m_map.begin(); it != m_map.end(); it++) {
-        if (it->first.m_stream == is_stream) {
-            ports.push_back(it->first.m_port);
-        }
+        ports.push_back(it->first);
+        servers.push_back(it->second);
     }
 }
 
@@ -1288,19 +1288,6 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
         bool is_stream = get_emul_stream(m_val["templates"][index]["server_template"]["program_index"].asInt());
-        if (is_stream) {
-            if (tcp_server_ports.find(port) != tcp_server_ports.end()) {
-                // port already seen for tcp
-                throw TrexException("Two servers with port " + std::to_string(port));
-            }
-            tcp_server_ports.insert(port);
-        } else {
-            if (udp_server_ports.find(port) != udp_server_ports.end()) {
-                // port already seen for udp.
-                throw TrexException("Two servers with port " + std::to_string(port));
-            }
-            udp_server_ports.insert(port);
-        }
         CTcpDataAssocParams tcp_params(port,is_stream);
         CEmulAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
@@ -1309,12 +1296,15 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         assert(s_tuneable);
         read_tunables(s_tuneable, m_val["templates"][index]["server_template"]["glob_info"]);
 
+        CTcpServerInfo* server_info;
         if (is_hash_needed) {
-            m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p, s_tuneable, index);
+            server_info = m_tcp_data[socket_id].m_assoc_trans.insert_hash(tcp_params, prog_p, s_tuneable, index);
         } else {
-            m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p, s_tuneable, index);
+            server_info = m_tcp_data[socket_id].m_assoc_trans.insert_vec(tcp_params, prog_p, s_tuneable, index);
         }
         m_s_tuneables.push_back(s_tuneable);
+
+        update_server_info(server_info);
 
         // build template info
         template_cps = cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
@@ -1339,6 +1329,84 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     m_tcp_data[socket_id].m_cps_sum = cps_sum;
 
     return true;
+}
+
+void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
+    uint32_t temp_idx = server_info->get_temp_idx();
+    Json::Value temp = m_val["templates"][temp_idx];
+    Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
+
+    /* update server ip range */
+    Json::Value assoc = temp["server_template"]["assoc"][0];
+    uint32_t ip_start = assoc["ip_start"] ? ip_from_str(assoc["ip_start"].asString().c_str()): 0;
+    uint32_t ip_end = assoc["ip_end"] ? ip_from_str(assoc["ip_end"].asString().c_str()): UINT32_MAX;
+
+    server_info->set_ip_start(ip_start);
+    server_info->set_ip_end(ip_end);
+
+    /* update payload params */
+    Json::Value l7_map = assoc["l7_map"];
+    if (l7_map == Json::nullValue || l7_map["offset"] == Json::nullValue) {
+        return;
+    }
+    std::vector<uint8_t> l7_map_args;
+    /* prepare buf_list to get the value recursively by specified offset */
+    bool is_stream = false;
+    std::vector<std::string> buf_list;
+    if (l7_map["value"] == Json::nullValue) {
+        int c_prog_idx = temp["client_template"]["program_index"].asInt();
+        is_stream = m_val["program_list"][c_prog_idx]["stream"].asBool();
+
+        Json::Value c_cmds = m_val["program_list"][c_prog_idx]["commands"];
+        for (int cmd_idx = 0; cmd_idx < c_cmds.size(); cmd_idx++) {
+            if (c_cmds[cmd_idx]["buf_index"] != Json::nullValue) {
+                int buf_index = c_cmds[cmd_idx]["buf_index"].asInt();
+                buf_list.push_back(base64_decode(m_val["buf_list"][buf_index].asString()));
+                if (is_stream)  // TCP needs first payload only
+                    break;
+            }
+        }
+        if (buf_list.size() == 0) {
+            throw TrexException("l7_map value should be specified (no buffers to retrieve it by offset)");
+        }
+    }
+    else if (l7_map["offset"].size() != l7_map["value"].size()) {
+        throw TrexException("l7_map value is not matched by offset");
+    }
+
+    uint8_t last_offset = 0;
+    for (int i = 0; i < l7_map["offset"].size(); i++) {
+        uint8_t offset = (uint8_t)l7_map["offset"][i].asInt();
+        if (offset < last_offset) {
+            throw TrexException("l7_map offset should be ascending order");
+        }
+        l7_map_args.push_back(offset);
+
+        uint8_t mask = (l7_map["mask"] && (l7_map["mask"].size() > i))  ?
+                        (uint8_t)l7_map["mask"][i].asInt() : UINT8_MAX;
+        l7_map_args.push_back(mask);
+
+        uint8_t value;
+        if (l7_map["value"] == Json::nullValue) {
+            if (offset >= buf_list[0].length()) {
+                throw TrexException("packet length is short: " + std::to_string(offset) + " >= " + std::to_string(buf_list[0].length()));
+            }
+            value = buf_list[0].c_str()[offset] & mask;
+            /* UDP should have the same value for all the packets */
+            if (!is_stream && buf_list.size() > 1) {
+                for (int buf_index = 1; buf_index < buf_list.size(); buf_index++) {
+                    uint8_t _value = buf_list[buf_index].c_str()[offset] & mask;
+                    if (value != _value) {
+                        throw TrexException("UDP should have the same value for all the packets, " + std::to_string(value) + " != " + std::to_string(_value));
+                    }
+                }
+            }
+        } else {
+            value = (uint8_t)l7_map["value"][i].asInt();
+        }
+        l7_map_args.push_back(value);
+    }
+    server_info->append_payload_params(l7_map_args);
 }
 
 /* Convert list of buffers from json to CMbufBuffer */
@@ -1543,7 +1611,7 @@ void CAstfDB::clear_db_ro_rw(CTupleGeneratorSmart *g_gen, uint16_t thread_id) {
     my_lock.unlock();
 }
 
-CTcpServreInfo * CAstfDbRO::get_server_info_by_port(uint16_t port,bool stream) {
+CTcpServerInfo * CAstfDbRO::get_server_info_by_port(uint16_t port,bool stream) {
     CTcpDataAssocParams params(port,stream);
     return m_assoc_trans.get_server_info(params);
 }
