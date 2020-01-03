@@ -175,32 +175,54 @@ class CTcpDataAssocParams {
  private:
     uint16_t m_port;
     bool     m_stream;
+
+ public:
+    uint16_t get_port() { return m_port; }
+    bool is_stream() { return m_stream; }
 };
 
-class CTcpServreInfo {
+class CTcpServerInfo {
     friend class CTcpDataAssocTransHelp;
 
  public:
-    CTcpServreInfo() {}
-    CTcpServreInfo(CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx) {
+    CTcpServerInfo() {}
+    CTcpServerInfo(CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx) {
         m_prog = prog;
         m_tune = tune;
         m_temp_idx = temp_idx;
+
+        m_ip_start = 0;
+        m_ip_end = UINT32_MAX;
     }
     CEmulAppProgram *get_prog() {return m_prog;}
     CTcpTuneables *get_tuneables() {return m_tune;}
     uint32_t get_temp_idx() {return m_temp_idx;}
 
+    uint32_t get_ip_start() {return m_ip_start;}
+    uint32_t get_ip_end() {return m_ip_end;}
+    void set_ip_start(uint32_t ip) {m_ip_start = ip;}
+    void set_ip_end(uint32_t ip) {m_ip_end = ip;}
+
+    void append_payload_params(std::vector<uint8_t>& params) {
+        m_payload_params.insert(m_payload_params.end(), params.begin(), params.end());
+    }
+    std::vector<uint8_t> get_payload_params() { return m_payload_params; }
+    bool is_payload_params() { return !m_payload_params.empty(); }
+
  private:
     CEmulAppProgram *m_prog;
     CTcpTuneables *m_tune;
     uint32_t m_temp_idx;
+
+    uint32_t m_ip_start;
+    uint32_t m_ip_end;
+    std::vector<uint8_t> m_payload_params;
 };
 
 class CAstfDB;
 typedef std::unordered_map<profile_id_t, CAstfDB*> astf_db_map_t;
-typedef std::map<CTcpDataAssocParams, CTcpServreInfo*> assoc_map_t;
-typedef std::map<CTcpDataAssocParams, CTcpServreInfo*>::iterator assoc_map_it_t;
+typedef std::multimap<CTcpDataAssocParams, CTcpServerInfo*> assoc_map_t;
+typedef std::multimap<CTcpDataAssocParams, CTcpServerInfo*>::iterator assoc_map_it_t;
 
 inline bool operator== (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams& rhs) {
     if (lhs.m_stream != rhs.m_stream){
@@ -234,19 +256,19 @@ class CTcpDataAssocTransHelp {
 
  private:
     CTcpDataAssocParams m_params;
-    CTcpServreInfo m_server_info;
+    CTcpServerInfo m_server_info;
 };
 
 class CTcpDataAssocTranslation {
     friend class CAstfDB;
     friend class CAstfDbRO;
 
-    CTcpServreInfo * get_server_info(const CTcpDataAssocParams& params);
-    void insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
-    void insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
+    CTcpServerInfo * get_server_info(const CTcpDataAssocParams& params);
+    CTcpServerInfo * insert_hash(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
+    CTcpServerInfo * insert_vec(const CTcpDataAssocParams &params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx);
     void dump(FILE *fd);
     void clear();
-    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream);
+    void enumerate_server_ports(std::vector<CTcpDataAssocParams>& ports, std::vector<CTcpServerInfo*>& servers);
 
  private:
     assoc_map_t m_map;
@@ -309,7 +331,7 @@ class CAstfDbRO {
     }
 
 
-    CTcpServreInfo * get_server_info_by_port(uint16_t port,bool stream=true);
+    CTcpServerInfo * get_server_info_by_port(uint16_t port,bool stream=true);
     double  get_total_cps(){
         return (m_cps_sum);
     }
@@ -331,8 +353,9 @@ class CAstfDbRO {
     // for tests in simulation
     void set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune);
 
-    void enumerate_server_ports(std::vector<uint16_t>& ports, bool is_stream) {
-        m_assoc_trans.enumerate_server_ports(ports, is_stream);
+    void enumerate_server_ports(std::vector<CTcpDataAssocParams>& ports,
+                                std::vector<CTcpServerInfo*>& servers) {
+        m_assoc_trans.enumerate_server_ports(ports, servers);
     }
  private:
     uint8_t                         m_init;
@@ -618,6 +641,8 @@ public:
 
     void set_factor(double factor) { m_factor = factor; }
     double cps_factor(double cps);
+
+    void update_server_info(CTcpServerInfo* info);
 };
 
 #endif

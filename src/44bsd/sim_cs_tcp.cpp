@@ -340,6 +340,11 @@ void CClientServerTcp::set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTc
     m_tcp_data_ro.set_test_assoc_table(port, prog, s_tune);
     m_s_ctx.set_template_ro(&m_tcp_data_ro);
     /* We work under the assumption that when you call this we don't need to resize. */
+
+    CTcpServerInfo* server_info = m_tcp_data_ro.get_server_info_by_port(port, true);
+    server_info->set_ip_start(0);
+    server_info->set_ip_end(UINT32_MAX);   // for all ip range
+    m_s_ctx.append_server_ports(0);
 }
 
 void CClientServerTcp::on_tx(int dir,
@@ -1119,7 +1124,6 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
 
     set_assoc_table(80, prog_s, s_tune);
 
-
     m_sim.add_event( new CTcpSimEventTimers(this, (((double)(TCP_TIMER_W_TICK)/((double)TCP_TIMER_W_DIV*1000.0)))));
     m_sim.add_event( new CTcpSimEventStop(10000.0) );
 
@@ -1193,6 +1197,8 @@ int CClientServerTcp::fill_from_file() {
     m_c_ctx.update_tuneables(rw_db->get_c_tuneables());
     m_s_ctx.update_tuneables(rw_db->get_s_tuneables());
 
+    uint32_t dst_ip = 0x30000001;
+    uint32_t src_ip = 0x10000001;
     uint16_t dst_port = ro_db->get_dport(0);
     uint16_t src_port = CLIENT_SIDE_PORT;
     if (src_port == dst_port) {
@@ -1203,10 +1209,10 @@ int CClientServerTcp::fill_from_file() {
     uint16_t temp_index = 0;
     uint16_t tg_id = ro_db->get_template_tg_id(temp_index);
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,src_port,dst_port,m_vlan,false, tg_id);
+    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),src_ip,dst_ip,src_port,dst_port,m_vlan,false, tg_id);
 
     CFlowKeyTuple c_tuple;
-    c_tuple.set_ip(0x10000001);
+    c_tuple.set_ip(src_ip);
     c_tuple.set_port(src_port);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
@@ -1233,9 +1239,10 @@ int CClientServerTcp::fill_from_file() {
     // s_flow->set_c_tcp_info(rw_db, temp_index);
     m_s_ctx.set_template_ro(ro_db);
     m_s_ctx.resize_stats();
+    m_s_ctx.append_server_ports(0);
 
     if (m_debug) {
-        CTcpServreInfo * s_info = ro_db->get_server_info_by_port(dst_port,true);
+        CTcpServerInfo * s_info = m_s_ctx.get_server_info(dst_port,true,dst_ip);
         CEmulAppProgram *prog_s = s_info->get_prog();
         prog_c->Dump(stdout);
         prog_s->Dump(stdout);

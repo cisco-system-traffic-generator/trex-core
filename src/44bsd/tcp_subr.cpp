@@ -766,88 +766,278 @@ void CTcpPerThreadCtx::Delete(){
     }
 }
 
+
+CServerIpPayloadInfo::CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp) : CServerIpInfo(start,end) {
+    auto payload_params = temp.get_server_info()->get_payload_params();
+    assert(payload_params.size() % 3 == 0);
+
+    if (payload_params.size()) {
+        payload_value_t pval = 0;
+        for (int i = 0; i < payload_params.size();) {
+            auto offset = payload_params[i++];
+            auto mask = payload_params[i++];
+            m_payload_rule.push_back(PayloadRule{ mask, offset });
+
+            pval <<= 8;
+            pval |= payload_params[i++];
+        }
+        m_payload_map[pval] = temp;
+    }
+}
+
+bool CServerIpPayloadInfo::remove_template_info(CPerProfileCtx* pctx) {
+    for (auto it = m_payload_map.begin(); it != m_payload_map.end();) {
+        if (it->second.get_profile_ctx() == pctx) {
+            it = m_payload_map.erase(it);
+        }
+        else {
+            it++;
+        }
+    }
+    return m_payload_map.empty();
+}
+
+
+CServerTemplateInfo* CServerPortInfo::get_template_info_by_ip(uint32_t ip) {
+    auto it = m_ip_map.lower_bound(ip);
+    if (it != m_ip_map.end() && it->second.is_ip_in(ip)) {
+        return it->second.get_template_info();
+    }
+    return nullptr;
+}
+
+CServerTemplateInfo* CServerPortInfo::get_template_info_by_payload(uint32_t ip, uint8_t* data, uint16_t len) {
+    auto it = m_ip_map_payload.lower_bound(ip);
+    if (it != m_ip_map_payload.end() && it->second.is_ip_in(ip)) {
+        if (data && len) {
+            if (it->second.is_payload_enough(len)) {
+                return it->second.get_template_info(data);
+            }
+        } else {
+            // TODO: TCP need to return temporary template information
+        }
+    }
+    return nullptr;
+}
+
+CServerTemplateInfo* CServerPortInfo::get_template_info(uint32_t ip, uint8_t* data, uint16_t len) {
+    CServerTemplateInfo* temp = nullptr;
+    if (!m_ip_map_payload.empty()) {
+        temp = get_template_info_by_payload(ip, data, len);
+    }
+    if (!temp) {
+        temp = m_template_cache ? m_template_cache : get_template_info_by_ip(ip);
+    }
+    return temp;
+}
+
+bool CServerPortInfo::insert_template_payload(CTcpServerInfo* server, CPerProfileCtx* pctx, std::string& msg) {
+    auto ip_start = server->get_ip_start();
+    auto ip_end = server->get_ip_end();
+    CServerTemplateInfo temp{ server, pctx };
+    CServerIpPayloadInfo in_payload{ ip_start, ip_end, temp };
+
+    std::stringstream ss;
+    auto it = m_ip_map_payload.lower_bound(ip_start);
+    if (it != m_ip_map_payload.end()) {
+        auto& payload = it->second;
+        if (payload.is_ip_equal(in_payload)) {
+            if (!payload.is_rule_equal(in_payload)) {
+                ss << std::hex;
+                ss << "new rule is different in [" << payload.ip_start() << ", " << payload.ip_end() << "]";
+                msg = ss.str();
+                return false;
+            }
+            else if (!payload.insert_template_info(in_payload)) {
+                ss << std::hex;
+                ss << "already registered in [" << payload.ip_start() << ", " << payload.ip_end() << "]";
+                msg = ss.str();
+                return false;
+            }
+            return true;
+        }
+        else if (payload.is_ip_overlap(in_payload)) {
+            ss << std::hex;
+            ss << "new IP range [" << ip_start << ", " << ip_end << "]";
+            ss << " is different from [" << payload.ip_start() << ", " << payload.ip_end() << "]";
+            ss << " for the same rule.";
+            msg = ss.str();
+            return false;
+        }
+    }
+
+    m_ip_map_payload.emplace(std::make_pair(ip_end, in_payload));
+    return true;
+}
+
+bool CServerPortInfo::insert_template_info(CTcpServerInfo* server, CPerProfileCtx* pctx, std::string& msg) {
+    if (server->is_payload_params()) {
+        return insert_template_payload(server, pctx, msg);
+    }
+    auto ip_start = server->get_ip_start();
+    auto ip_end = server->get_ip_end();
+    auto it = m_ip_map.lower_bound(ip_start);
+    if (it != m_ip_map.end()) {
+        auto& temp = it->second;
+        if (temp.is_ip_overlap(ip_start, ip_end)) {
+            std::stringstream ss;
+            ss << std::hex;
+            ss << "new IP range [" << ip_start << ", " << ip_end << "]";
+            ss << " overlaps [" << temp.ip_start() << ", " << temp.ip_end() << "]";
+            msg = ss.str();
+            return false;
+        }
+    }
+    CServerTemplateInfo temp{ server, pctx };
+    m_ip_map[ip_end] = CServerIpTemplateInfo(ip_start, ip_end, temp);
+    // update template cache for the fast lookup
+    if (ip_start == 0 && ip_end == UINT32_MAX) {
+        assert(m_template_cache == nullptr);
+        if (m_ip_map_payload.empty()) {
+            m_template_cache = m_ip_map[ip_end].get_template_info();
+        }
+    }
+    return true;
+}
+
+void CServerPortInfo::remove_template_info_by_profile(CPerProfileCtx* pctx) {
+    for (auto it = m_ip_map_payload.begin(); it != m_ip_map_payload.end();) {
+        if (it->second.remove_template_info(pctx)) {
+            it = m_ip_map_payload.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
+    for (auto it = m_ip_map.begin(); it != m_ip_map.end();) {
+        if (it->second.get_template_info()->get_profile_ctx() == pctx) {
+            if (it->second.get_template_info() == m_template_cache) {
+                m_template_cache = nullptr;
+            }
+            it = m_ip_map.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
+    if (!m_template_cache && m_ip_map_payload.empty() && (m_ip_map.size() == 1)) {
+        auto it = m_ip_map.begin();
+        if (it->second.ip_start() == 0 && it->second.ip_end() == UINT32_MAX) {
+            m_template_cache = it->second.get_template_info();
+        }
+    }
+}
+
+void CServerPortInfo::print_server_port() {
+    for (auto it : m_ip_map) {
+        std::cout << it.second.to_string() << std::endl;
+    }
+    for (auto it : m_ip_map_payload) {
+        std::cout << it.second.to_string() << std::endl;
+    }
+}
+
+
 void CTcpPerThreadCtx::append_server_ports(profile_id_t profile_id) {
     CPerProfileCtx * pctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = pctx->m_template_ro;
-    std::vector<uint16_t> server_ports;
 
     if (!template_db) {
         return;
     }
+#ifdef DEBUG
+    std::cout << __func__ << " -- " << profile_id << "(" << pctx << ")\n";
+#endif
 
-    server_ports.clear();
-    template_db->enumerate_server_ports(server_ports, true);
-    for (auto port: server_ports) {
-        if (m_tcp_server_ports.find(port) != m_tcp_server_ports.end()) {
-            throw TrexException("Two TCP servers with port " + std::to_string(port));
+    std::vector<CTcpDataAssocParams> ports;
+    std::vector<CTcpServerInfo*> servers;
+
+    template_db->enumerate_server_ports(ports, servers);
+    assert(ports.size() == servers.size());
+    for (int i = 0; i < ports.size(); ++i) {
+        uint16_t port = ports[i].get_port();
+        bool is_stream = ports[i].is_stream();
+        std::string msg = "";
+
+        auto server_info = servers[i];
+        uint32_t params = PortParams(port, is_stream);
+        auto& server_port = m_server_ports[params];
+        if (server_port.insert_template_info(server_info, pctx, msg) == false) {
+            std::string stream = is_stream ? "TCP": "UDP";
+            throw TrexException("Server for " + stream + " port " + std::to_string(port) + ": " + msg + "\n");
         }
-        m_tcp_server_ports[port] = pctx;
     }
-    server_ports.clear();
-    template_db->enumerate_server_ports(server_ports, false);
-    for (auto port: server_ports) {
-        if (m_udp_server_ports.find(port) != m_udp_server_ports.end()) {
-            throw TrexException("Two UDP servers with port " + std::to_string(port));
-        }
-        m_udp_server_ports[port] = pctx;
-    }
+#ifdef DEBUG
+    print_server_ports();
+#endif
 }
 
 void CTcpPerThreadCtx::remove_server_ports(profile_id_t profile_id) {
     CPerProfileCtx * pctx = get_profile_ctx(profile_id);
     CAstfDbRO * template_db = pctx->m_template_ro;
-    std::vector<uint16_t> server_ports;
 
     if (!template_db) {
         return;
     }
+#ifdef DEBUG
+    std::cout << __func__ << " -- " << profile_id << "(" << pctx << ")\n";
+#endif
 
-    server_ports.clear();
-    template_db->enumerate_server_ports(server_ports, true);
-    for (auto port: server_ports) {
-        auto it = m_tcp_server_ports.find(port);
-        if ((it != m_tcp_server_ports.end()) && (it->second == pctx)) {
-            m_tcp_server_ports.erase(port);
+    std::vector<CTcpDataAssocParams> ports;
+    std::vector<CTcpServerInfo*> servers;
+
+    template_db->enumerate_server_ports(ports, servers);
+    assert(ports.size() == servers.size());
+
+    for (auto port: ports) {
+        uint32_t params = PortParams(port.get_port(), port.is_stream());
+        if (m_server_ports.find(params) != m_server_ports.end()) {
+            auto& server_port = m_server_ports[params];
+            server_port.remove_template_info_by_profile(pctx);
+            if (server_port.is_empty()) {
+                m_server_ports.erase(params);
+            }
         }
     }
-    server_ports.clear();
-    template_db->enumerate_server_ports(server_ports, false);
-    for (auto port: server_ports) {
-        auto it = m_udp_server_ports.find(port);
-        if ((it != m_udp_server_ports.end()) && (it->second == pctx)) {
-            m_udp_server_ports.erase(port);
-        }
-    }
+#ifdef DEBUG
+    print_server_ports();
+#endif
 }
 
-void CTcpPerThreadCtx::print_server_ports(bool stream) {
-    if (stream) {
-        for (auto it: m_tcp_server_ports) {
-            std::cout << it.first << ": " << it.second << std::endl;
-        }
-        printf("[%p] TCP(%lu)\n", this, m_tcp_server_ports.size());
+void CTcpPerThreadCtx::print_server_ports() {
+    for (auto it: m_server_ports) {
+        PortParams l4params(it.first);
+        std::string stream = l4params.m_stream ? "TCP": "UDP";
+        std::cout << stream << " " << l4params.m_port << ":\n";
+        it.second.print_server_port();
     }
-    else {
-        for (auto it: m_udp_server_ports) {
-            std::cout << it.first << ": " << it.second << std::endl;
-        }
-        printf("[%p] UDP(%lu)\n", this, m_udp_server_ports.size());
-    }
+    printf("[%p] total number of ports (%lu)\n", this, m_server_ports.size());
 }
 
-CPerProfileCtx * CTcpPerThreadCtx::get_profile_by_server_port(uint16_t port, bool stream) {
-    if (stream) {
-        if (m_tcp_server_ports.find(port) != m_tcp_server_ports.end()) {
-            return m_tcp_server_ports[port];
-        }
+CServerTemplateInfo * CTcpPerThreadCtx::get_template_info_by_port(uint16_t port, bool stream) {
+    uint32_t params = PortParams(port, stream);
+
+    if (m_server_ports.find(params) != m_server_ports.end()) {
+        return m_server_ports[params].get_template_info();
     }
-    else {
-        if (m_udp_server_ports.find(port) != m_udp_server_ports.end()) {
-            return m_udp_server_ports[port];
-        }
-    }
-    return FALLBACK_PROFILE_CTX(this);
+    return nullptr;
 }
+
+CServerTemplateInfo * CTcpPerThreadCtx::get_template_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data, uint16_t len) {
+    uint32_t params = PortParams(port, stream);
+
+    if (m_server_ports.find(params) != m_server_ports.end()) {
+        return m_server_ports[params].get_template_info(ip, data, len);
+    }
+    return nullptr;
+}
+
+
+CTcpServerInfo * CTcpPerThreadCtx::get_server_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data, uint16_t len) {
+    CServerTemplateInfo* temp = get_template_info(port, stream, ip, data, len);
+    return temp ? temp->get_server_info(): nullptr;
+}
+
 
 static void tcp_template_ipv4_update(IPHeader *ipv4,
                                      CPerProfileCtx * pctx,

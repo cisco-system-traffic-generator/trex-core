@@ -157,7 +157,7 @@ def register():
         f.write(p)
         f.close()
 
-        sim_main(args=["-p", "../..", "-f", prof_file_name+".py", "-o", "../../exp/astf_test_out"])
+        sim_main(args=["-p", "../..", "-v", "-f", prof_file_name+".py", "-o", "../../exp/astf_test_out"])
         self.compare_l7("../../" + cap_file_name, "../../exp/astf_test_out_c.pcap")
         self.compare_l7("../../" + cap_file_name, "../../exp/astf_test_out_s.pcap")
         os.remove(prof_file_name + ".py")

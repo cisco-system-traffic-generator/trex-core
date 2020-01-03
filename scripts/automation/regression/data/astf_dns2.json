@@ -5,7 +5,7 @@
                 "program_index": 0,
                 "cluster": {},
                 "cps": 1,
-                "port": 54,
+                "port": 53,
                 "ip_gen": {
                     "dist_client": {
                         "index": 0
@@ -19,7 +19,43 @@
                 "program_index": 1,
                 "assoc": [
                     {
-                        "port": 54
+                        "port": 53,
+                        "ip_end": "48.0.255.255",
+                        "ip_start": "48.0.0.0",
+                        "l7_map": {
+                            "offset": [ 0, 1, 2, 3 ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "client_template": {
+                "program_index": 0,
+                "cluster": {},
+                "cps": 1,
+                "port": 53,
+                "ip_gen": {
+                    "dist_client": {
+                        "index": 0
+                    },
+                    "dist_server": {
+                        "index": 1
+                    }
+                }
+            },
+            "server_template": {
+                "program_index": 1,
+                "assoc": [
+                    {
+                        "port": 53,
+                        "ip_end": "48.0.255.255",
+                        "ip_start": "48.0.0.0",
+                        "l7_map": {
+                            "offset": [ 0, 1, 2, 3 ],
+                            "mask": [ 255 ],
+                            "value": [ 0, 43, 0, 0 ]
+                        }
                     }
                 ]
             }
@@ -28,15 +64,15 @@
     "ip_gen_dist_list": [
         {
             "distribution": "seq",
-            "ip_end": "32.0.0.255",
-            "ip_start": "32.0.0.0",
+            "ip_end": "16.0.0.255",
+            "ip_start": "16.0.0.0",
             "dir": "c",
             "ip_offset": "1.0.0.0"
         },
         {
             "distribution": "seq",
-            "ip_end": "64.0.255.255",
-            "ip_start": "64.0.0.0",
+            "ip_end": "48.0.255.255",
+            "ip_start": "48.0.0.0",
             "dir": "s",
             "ip_offset": "1.0.0.0"
         }
