@@ -149,7 +149,7 @@ class STLCapture_Test(CStlGeneral_Test):
     
             
     # in this test we apply captures under traffic multiple times
-    def _test_stress_capture (self):
+    def test_stress_capture (self):
         pkts_limit = set([40, 70, 100])
         
         try:
@@ -325,8 +325,7 @@ class STLCapture_Test(CStlGeneral_Test):
              
              
     # in this test we stress TX & RX captures in parallel
-
-    def _test_stress_tx_rx(self):
+    def test_stress_tx_rx (self):
         pkt_count = 100
         
         try:
@@ -377,7 +376,8 @@ class STLCapture_Test(CStlGeneral_Test):
         tcp_port = zmq_socket.bind_to_random_port('tcp://*')
         return tcp_port
 
-    def _test_tx_from_capture_port(self):
+
+    def test_tx_from_capture_port (self):
         '''
             test TX packets from the RX core using capture port mechanism
         '''
@@ -442,7 +442,8 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
             zmq_context.destroy()
 
-    def _test_rx_from_capture_port_with_filter(self):
+
+    def test_rx_from_capture_port_with_filter(self):
         '''
             test RX packets from the RX core using capture port mechanism
             and BPF filter on the port
@@ -549,7 +550,7 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.stop()
 
     @nottest
-    def _test_capture_port_stress(self):
+    def test_capture_port_stress (self):
         '''
             test RX & Tx packets from the RX core using capture port mechanism
             while start & stopping the capture port
