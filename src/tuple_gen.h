@@ -312,7 +312,7 @@ class CIpInfo : public CIpInfoBase {
 
     bool is_port_available(uint16_t port) {
         if (!is_port_legal(port)) {
-            return PORT_IN_USE;
+            return false;
         }
         return (m_bitmap_port[port] == PORT_FREE);
     }
@@ -411,7 +411,6 @@ class CIpInfo : public CIpInfoBase {
 
         get_next_free_port_by_bit();
         if (!is_port_available(m_head_port)) {
-            m_head_port = m_min_port ;
             return ILLEGAL_PORT;
         }
 
