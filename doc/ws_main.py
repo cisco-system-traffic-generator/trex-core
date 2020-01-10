@@ -700,6 +700,8 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book,source='trex_stateless.asciidoc waf.css', target='trex_stateless.pdf', scan=ascii_doc_scan)
 
+    bld(rule=convert_to_pdf_book,source='trex_ndr_bench_doc.asciidoc waf.css', target='trex_ndr_bench_doc.pdf', scan=ascii_doc_scan)
+
     #bld(rule=convert_to_pdf_book,source='draft_trex_stateless.asciidoc waf.css', target='draft_trex_stateless.pdf', scan=ascii_doc_scan)
 
     bld(rule=convert_to_pdf_book,source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.pdf', scan=ascii_doc_scan)
@@ -720,6 +722,9 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
+
+    bld(rule=convert_to_html_toc_book,
+        source='trex_ndr_bench_doc.asciidoc waf.css', target='trex_ndr_bench_doc.html',scan=ascii_doc_scan);
 
     # use below rule to build with asciidoctor and the default asciidoctor CSS
     #bld(rule=lambda task : convert_to_html_toc_book(task, generator='asciidoctor'),

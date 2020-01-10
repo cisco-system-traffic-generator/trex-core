@@ -1,0 +1,380 @@
+TRex Non Drop Rate Benchmark
+============================
+:author: Bes Dollma
+:email: <bdollma@cisco.com>
+:revnumber: 1.0
+:revdate: 2020-01-19-a
+:quotes.++:
+:numbered:
+:github_scripts_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts
+:github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
+:toclevels: 2
+
+include::trex_ga.asciidoc[]
+
+// PDF version - image width variable
+ifdef::backend-docbook[]
+:p_width: 450
+:p_width_1: 200
+:p_width_1a: 100
+:p_width_1b: 50
+:p_width_1c: 150
+:p_width_lge: 500
+endif::backend-docbook[]
+
+// HTML version - image width variable
+ifdef::backend-xhtml11[]
+:p_width: 800
+:p_width_1: 400
+:p_width_1a: 650
+:p_width_1a: 400
+:p_width_1b: 200
+:p_width_lge: 900
+endif::backend-xhtml11[]
+
+
+== Introduction
+
+In 1999, link:https://tools.ietf.org/html/rfc2544.html[RFC 2544] proposed a well accepted Benchmarking Methodology for Network Interconnect Devices. Packet and bandwidth throughput are mostly measured in accordance with the 
+aforementioned Request for Comments. 
+It is critically important in terms of benchmarking for a DUT to discover its *Non Drop Rate (NDR)*. The NDR's purpose is to identify the maximal point in terms of packet and bandwidth throughput at which the Packet Loss Ratio (PLR) stands at 0%.
+Hence, identifying the NDR provides us with the optimal packet and bandwidth throughput. However, sometimes a small amount of drops might be allowed. As such, we define *Percent Drop Rate (PDR)*. PDR=1 means that 1% drop rate is allowed.
+
+== Algorithms to find the NDR
+
+The first approach to an algorithm that calculates the NDR would be binary search. This is indeed our first algorithm, and the default mode we implemented. Start transmitting at the maximal rate and perform binary search based on the binary decision of having or not having drops. To stop, we offer some parameter to the user which decides the distance in percent between two valid runs. If the distance is lower than the user provided parameter then the algorithm stops. 
+
+However, one can optimize the algorithm's running time by some constant factor. The binary search halves the interval based on a simple binary decision, were there drops?
+Fortunately, we have more information than this simple binary flag, we know the percentage of drops. As such, we can use this information to make smarter decisions and to converge faster to the NDR.
+TRex offers NDR benchmarking in two modes. The default mode is the well known binary mode and the second mode is an optimized version of binary search which we will discuss in length through out the documentation.
+
+
+== How to run
+
+Navigate to the link:{github_scripts_path}[scripts] folder.
+
+. Run the TRex Server with the flags you would like. For more information on flags use *--help*. The benchmarking is for now supported only for stateless interactive mode, hence run with *-i*.
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -i -c 1
+----
+[start=2]
+. Run the link:{github_scripts_path}/ndr[ndr] bash script. This script will figure out the right version of python (or a version you decide) and run the benchmark tool. Here as well, one can get information on the flags using *--help*.
+[source,bash]
+----
+[bash]>./ndr --python3 --port 0 1 -fe cached --max-iterations 5 -t 10 --verbose --force-map --bi-dir --pdr 0.01 --title 'Documentation'
+----
+Don’t let the many flags scare you. We will explain them in depth. The results look something like this.
+
+
+image:images/ndr_bench_initial_run_1.png[title="Initial run of NDR Benchmark", align="left", width={p_width}, link="images/ndr_bench_initial_run_1.png"]
+
+image::images/ndr_bench_initial_run_2.png[title="Initial run of NDR Benchmark", align="left", width={p_width}, link="images/ndr_bench_initial_run_2.png"]
+
+
+== Tutorials
+
+=== Max Iterations and iteration duration
+
+Probably two of the most important parameters in terms of the algorithm are the number of iterations allowed and the duration of each iteration. The iteration duration mustn't be short,
+since it takes time to transmit at max rate and it takes time for the counters to normalize. The default value is 20 seconds. Max iterations is an upper bound for binary search if it takes too many iterations (logarithmic complexity).
+The benchmark stops if it finds the NDR, or after max iterations, the early of the two. When it reaches the number of max iterations the algorithm stops and results might not be fully accurate. However, sometimes we are bound by some time frame and we want to get the best results in that time frame, and that is why the max iterations flag is offered.
+For example, to run the benchmark with 3 iterations at max, each iteration with a duration of 10 seconds and the first iteration being 20 seconds we can write:
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v -x 3 -t 10 -ft 20
+----
+
+=== Drop rate percentage, allowed error and queuing
+
+Until now we didn't get in the details of how the algorithm stops. If we don't define some criterion of precision, we can, theoretically speaking, run forever. Hence, the following flags:
+
+* *pdr error* represents the allowed error around the best valid result seen so far (current optimum), in percent. Following the aforementioned, it is not recommended to use a 0% pdr error, since it will cause precision problems. The default value is 1%.
+* *pdr (percentage of drop rate)* represents the allowed percentage of drops, out of total traffic. The default value is 0.1%.
+* *q-full* represents the percent of traffic allowed to be queued when transmitting above the DUT's capability. Same as the previous values, it isn't recommended using 0%. The default value is 2%.
+
+A run is considered valid if in that run, the percentage of queue full is lower or equal to *q-full* and the percentage of drop rate is lower or equal than the *pdr*.
+
+To find NDR (*pdr* = 0%) with 3% allowed error and 5.5% queueing capability:
+[source,bash]
+----
+[bash]>./ndr --port 0 1  -v --pdr 0 --pdr-error 3 --q-full 5.5
+----
+
+=== General TRex flags
+
+A good portion of the STL Client's API are offered here too. We will mention some of them here in short but for more information you can refer the link:https://trex-tgn.cisco.com/trex/doc/trex_stateless.html[STL] documentation. For example:
+[source,bash]
+----
+[bash]>./ndr -s csi-trex-07 --port 0 1 --latency-disable --bi-dir --force-map -v
+----
+
+* *-s* or *--server* specifies the TRex server. The default is the local server.
+* *--ports* specifies list of ports for running traffic on.
+* *-ld* or *--latency-disable* disable latency calculations. By default the calculations are enabled.
+* *--bi-dir* specifies bi-directional traffic. By default the traffic is unidirectional.
+* *--force-map* ignores map table configuration and uses the specified port list.
+* *-v* or *--verbose* for verbose mode.
+
+=== Traffic engineering
+
+The type of traffic on which we run the benchmark is also important for the results of the benchmark. Some would debate that link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX] would be the
+ultimate type of traffic to benchmark on. For now we support only IMIX traffic. However, the Field Engine offers us the greatest flexibility, allowing to change any bit in the packet. In this benchmark we provide the field engine partially. Pay attention to the following flags:
+
+* *-fe* offers the following field engines (default is None):
+** var1 - Incremental IP source (combine with *--fe-src-start-ip* and *--fe-src-stop-ip*)
+** var2 - Incremental IP source and destination (combine with *--fe-dst-stop-ip* and *--fe-dst-start-ip*)
+** random - Random IP source
+** tuple - Tuple Generator of IP source and UDP source port
+** size - Size of the packet
+** cached - Use cache to speedup the FE results.
+* *size* - Size of the packet (No connection to FE). The default size of the packet is 64 bytes. You can specify imix to run the traffic with the sizes defined in the imix profile.
+
+For example, to generate predefined packet sizes as in link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX]:
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v -size imix
+----
+To generate traffic that increments IP source, with latency rate of 50 PPS:
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -fe var1 --fe-src-start-ip 16.0.0.1 --fe-src-stop-ip 16.0.0.255 -lr 50
+----
+
+== Running example
+Let us show a running example: We will run the server with 7 cores per interface (a couple of ports) and one interface.
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -i -c 7
+----
+Let's run the benchmarking on IMIX traffic (with defined imix packet sizes), bi-directional and without latency.
+[source,bash]
+----
+[bash]>./ndr --port 0 1 --latency-disable --bi-dir -size imix --verbose
+----
+The first iteration we try to find the maximal running rate.
+
+image::images/ndr_bench_imix_max_rate.png[title="Max Rate, IMIX Traffic", align="left", width={p_width}, link="images/ndr_bench_imix_max_rate.png"]
+
+We see that in this case the device handles well with the drops, it has a relatively a low drop rate. However, a high percentage of packets were queued and therefore the tool will try to find a transmitting rate where the queuing percentage is below the allowed value.
+
+image::images/ndr_bench_imix_1st_iter.png[title="First Iteration, IMIX Traffic", align="left", width={p_width}, link="images/ndr_bench_imix_1st_iter.png"]
+
+The first iteration (finding max rate is not considered an iteration) is run at 50% (simple binary search).
+
+image::images/ndr_bench_imix_last_iter.png[title="Last Iteration, IMIX Traffic",align="left", width={p_width}, link="images/ndr_bench_imix_last_iter.png"]
+
+After 7 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *45.08* Gbps and *90.18* Gbps bi-directional.
+
+
+== Optimized binary search
+
+As we mentioned earlier, we have more information than a simple binary query. We know the exact percentage of drop or the percentage of queue full. So maybe, in the last example, it would be better to start searching for the NDR around 83-84% of the maximal rate (we had 16.64% queue full). The idea of the optimized binary search is simple. Suppose we have *p*% drop or queue full.
+
+Define *assumed ndr* as (100-p)% of max rate.
+
+Define the *expected ndr interval* as [(100-q)% of assumed ndr, (100+q)% of assumed ndr] for some parameter q that the user can configure.
+
+. Transmit at the upper bound of the expected ndr interval, if it is not too close to the max rate else skip to 3a.
+. If there were drops or queue full:
+.. Perform binary search at the following interval: [(100+q)% of assumed ndr, max rate]
+. Else:
+.. Transmit at the lower bound of the expected ndr interval:
+.. If there were drops or queue full:
+... Perform binary search at the expected ndr interval.
+.. Else:
+... Perform binary search at [0, (100-q)% of assumed ndr]
+
+In our tests, the optimized algorithm improves the runtime of the benchmark by some iterations as in almost every possible case we will perform binary search in 2a or 3bi. This intervals are quite small if we keep a small *q* value and it will take us less time to get there than with the normal binary search.
+
+=== How to use
+
+Let us run the example the previous example now with optimized binary search. We will run the server with 7 cores per interface as before.
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -i -c 7
+----
+Same example as before, with optimized binary flag and *q* = 10% (--opt-bin-search-percent). The default value of *q* is 5%.
+[source,bash]
+----
+[bash]>./ndr --port 0 1 --latency-disable --bi-dir -size imix --verbose --opt-bin-search --opt-bin-search-percent 10
+----
+
+The first iteration we try to find the maximal running rate, the same as the normal version, with the same results.
+
+image::images/ndr_bench_imix_max_rate_opt.png[title="Max Rate, IMIX Traffic, Optimized Algorithm", align="left", width={p_width}, link="images/ndr_bench_imix_max_rate_opt.png"]
+
+The algorithm tries the upper bound of the expected ndr interval and the upper bound is below the ndr, hence it will try to search above the upper bound of the expected interval.
+
+image::images/ndr_bench_imix_1st_iter_opt.png[title="First Iteration, IMIX Traffic, Optimized Algorithm", align="left", width={p_width}, link="images/ndr_bench_imix_1st_iter_opt.png"]
+
+After 4 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *44.19* Gbps and *88.41* Gbps bi-directional.
+
+image::images/ndr_bench_imix_last_iter_opt.png[title="Last Iteration, IMIX Traffic, Optimized Algorithm",align="left", width={p_width}, link="images/ndr_bench_imix_last_iter_opt.png"]
+
+*Discussion*::
+
+* The simple binary search took 7 iterations. The optimized binary search took 4 iterations + upper bound = 5 iterations. Hence in this case, (as in most cases) the optimized binary search is faster.
+* We see that the NDR in the two cases are slightly different, being 45.08 Gbit in the binary search and 44.19 Gbit in the optimized binary search. However this nothing to worry about, since as we mentioned we calculate the non drop rate up to a user defined error percentage which can be controlled with *--pdr-error*. It is important to mention that the lower value could be achieved by any of the algorithms.
+
+== API to the NDR Benchmarker
+
+*Goal*:: Introduce the API to the benchmarker, discuss its use cases and how to use. Show simple running tutorial.
+
+The benchmarker is meant to test different DUTs. Each DUT has its own capabilities, specifications and API. We clearly can't support all the DUTs in the world. Hence, we offer the user an API which can help him integrate his DUT with the TRex NDR Benchmarker. The user can control his device before each iteration (pre) and optimize his DUT for maximum performance. He also can get different data from the DUT after (post) the iteration, and decide whether to continue to the next iteration or stop.
+
+=== How to use the API
+
+In order to use the API, you need to provide a Python file just like the one supplied below.
+For more information on each parameter, please read the documentation in the following file.
+
+*File*:: link:{github_stl_examples_path}/ndr_plugin.py[ndr_plugin.py]
+
+[source,python]
+----
+import stl_path
+
+
+class MyNDRPlugin():
+    def __init__(self):
+        # Can initialize the DUT before the benchmarking begins.
+        pass
+
+    def pre_iteration(self, finding_max_rate, run_results=None, **kwargs): <1>
+        # Pre iteration function. This function will run before TRex transmits to the DUT.
+        # Could use this to better prepare the DUT, for example define shapers, policers, increase
+        # buffers and queues.
+        # You can receive tunables in the command line, through the kwargs argument.
+        pass
+
+    def post_iteration(self, finding_max_rate, run_results, **kwargs): <2>
+        # Post iteration function. This function will run after TRex transmits to the DUT.
+        # Could use this to decide if to continue the benchmark after querying the DUT post run. 
+        # The DUT might be overheated or any other thing that might make you want to stop the run.
+        # You can receive tunables in the command line, through the kwargs argument.
+        should_stop = False
+        return should_stop
+        
+
+# dynamic load of python module
+def register(): <3>
+    return MyNDRPlugin()
+----
+<1> Runs before we send traffic to the DUT.
+<2> Runs after finishing sending traffic to the DUT.
+<3> Internal use to load the profile dynamically. Need to provide.
+
+[NOTE]
+=====================================================================
+The function names must be the same as in the code supplied. The class name could be anything.
+=====================================================================
+
+=== TRex offered parameters and tunables
+
+Our plugin will be simple, it will check the CPU utilization of TRex after every run and if exceeds some allowed percentage, it will stop the run. This isn't a very intelligent use of the API because of the following reasons (but it shows how to use the API):
+
+* The first iteration of the algorithm tries to find the max rate, hence it will exhaust the CPU and most likely stop the benchmark.
+* The API is meant to be used together with the DUT and make the decision whether to stop based on the DUT, not on TRex.
+
+*File*:: link:{github_stl_examples_path}/allowed_percentage_ndr_plugin.py[allowed_percentage_ndr_plugin.py]
+
+[source,python]
+----
+import stl_path
+
+
+class CPUAllowedPercentageNDRPlugin():
+    def __init__(self):
+        pass
+
+    def pre_iteration(self, finding_max_rate, run_results=None, **kwargs):
+        pass
+
+    def post_iteration(self, finding_max_rate, run_results, **kwargs):
+        cpu_percentage = run_results['cpu_util']
+        allowed_percentage = kwargs['allowed_percentage']
+        should_stop = True if cpu_percentage > allowed_percentage else False
+        return should_stop
+
+
+# dynamic load of python module
+def register():
+    return CPUAllowedPercentageNDRPlugin()
+----
+
+After starting the server, we run the benchmarking in the following way.
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -ld  --bi-dir -size imix -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
+----
+
+*Output*::
+
+The following picture provides the results:
+
+image::images/ndr_bench_allowed_percentage_plugin.png[title="Allowed Percentage Plugin",align="left", width={p_width}, link="images/ndr_bench_allowed_percentage_plugin.png"]
+
+As mentioned, the run to find the max rate exhausts the CPU (99.49% utilization) and therefore, the plugin decides to stop the run.
+
+
+=== Device under test with optimized binary search
+
+A more useful application of the API would be the following:
+
+Implement a class for a device under test. Connect to the device either by console or ssh, and send to it commands before the iteration. Such a case would be QoS, which might offer bigger buffers, define shapers or policers to lower the drops. Also the decision whether to stop can be a function of the results in the device under test, maybe CPU usage.
+
+We implemented a simple version (without connecting to a real device), just for an example:
+
+*File*:: link:{github_stl_examples_path}/dut_ndr_plugin.py[dut_ndr_plugin.py]
+
+[source,python]
+----
+import stl_path
+
+class DUT():
+    def __init__(self, name):
+        self.counter = 0
+        self.name = name
+
+    def QoS(self, rate_tx_bps, rate_rx_bps):
+        pass
+
+    def prepare(self, rate_tx_bps, rate_rx_bps):
+        self.QoS(rate_tx_bps, rate_rx_bps)
+
+    def should_stop(self, drop_percentage, queue_full_percentage):
+        self.counter += 1
+        if self.counter > 2 and drop_percentage < 3 and queue_full_percentage < 1:
+            return True
+        return False
+
+class DeviceUnderTestNDRPlugin():
+    def __init__(self):
+        self.dut = DUT(name="Cisco Catalyst 3850x")
+
+    def pre_iteration(self, finding_max_rate, run_results=None, **kwargs):
+        if run_results is not None:
+            self.dut.prepare(run_results['rate_tx_bps'], run_results['rate_rx_bps'])
+
+    def post_iteration(self, finding_max_rate, run_results, **kwargs):
+        return self.dut.should_stop(run_results['drop_rate_percentage'],
+                                    run_results['queue_full_percentage'])
+
+
+# dynamic load of python module
+def register():
+    return DeviceUnderTestNDRPlugin()
+
+----
+
+After starting the server, we run the benchmarking in the following way.
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -ld -v -f automation/trex_control_plane/interactive/trex/examples/stl/dut_ndr_plugin.py --opt-bin-search
+----
+
+image:images/ndr_bench_dut_plugin_first.png[title="DUT plugin",align="left", width={p_width}, link="images/ndr_bench_dut_plugin_first.png"]
+
+image::images/ndr_bench_dut_plugin_second.png[title="DUT plugin",align="left", width={p_width}, link="images/ndr_bench_dut_plugin_second.png"]
+
+We can see that the plugin stopped after 3 iterations (finding max rate, upper bound and iteration 0) and the rates were as allowed.
