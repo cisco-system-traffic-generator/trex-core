@@ -1474,7 +1474,7 @@ void StreamDPVmInstructions::clear(){
 }
 
 
-void StreamDPVmInstructions::add_command(void *buffer,uint16_t size){
+void StreamDPVmInstructions::add_command(void *buffer,uint32_t size){
     uint8_t *p= (uint8_t *)buffer;
     std::vector<uint8_t> tmp;
     // push buffer byte by byte in tmp
