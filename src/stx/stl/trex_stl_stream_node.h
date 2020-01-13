@@ -108,7 +108,7 @@ private:
     /* Fast Field VM section */
     uint8_t *            m_vm_flow_var; /* pointer to the vm flow var */
     uint8_t *            m_vm_program;  /* pointer to the program */
-    uint16_t             m_vm_program_size; /* up to 64K op codes */
+    uint32_t             m_vm_program_size; /* op codes can exceed 64K by massive value_list */
     uint16_t             m_cache_size;   /*RO*/ /* the size of the mbuf array */
     uint8_t              m_batch_size;   /*RO*/ /* the batch size */
     uint8_t              m_port_id;
