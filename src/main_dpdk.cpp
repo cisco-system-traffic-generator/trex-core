@@ -215,6 +215,7 @@ enum {
        OPT_SLEEPY_SCHEDULER,
        OPT_UNBIND_UNUSED_PORTS,
        OPT_HDRH,
+       OPT_BNXT_SO,
     
        /* no more pass this */
        OPT_MAX
@@ -306,6 +307,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_TERMIO,              "--no-termio",       SO_NONE},
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
+        { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -713,6 +715,10 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
             case OPT_MLX4_SO:
                 po->preview.set_mlx4_so_mode(true);
+                break;
+
+            case OPT_BNXT_SO:
+                po->preview.set_bnxt_so_mode(true);
                 break;
 
             case OPT_LEARN :
@@ -6124,6 +6130,13 @@ COLD_FUNC int  update_dpdk_args(void){
 
     SET_ARGS((char *)"xx");
     CPreviewMode *lpp=&lpop->preview;
+
+    if ( lpp->get_bnxt_so_mode() ){
+        std::string &bnxt_so_str = get_bnxt_so_string();
+        bnxt_so_str = "libbnxt-64" + std::string(g_image_postfix) + ".so";
+        SET_ARGS("-d");
+        SET_ARGS(bnxt_so_str.c_str());
+    }
 
     if ( lpp->get_ntacc_so_mode() ){
         std::string &ntacc_so_str = get_ntacc_so_string();
