@@ -431,6 +431,14 @@ public:
         }
     }
 
+    void set_bnxt_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0) );
+    }
+
+    bool get_bnxt_so_mode() {
+        return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
