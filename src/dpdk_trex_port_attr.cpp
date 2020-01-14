@@ -188,6 +188,8 @@ void DpdkTRexPortAttr::get_supported_speeds(supp_speeds_t &supp_speeds){
         supp_speeds.push_back(ETH_SPEED_NUM_1G);
     if (speed_capa & ETH_LINK_SPEED_10G)
         supp_speeds.push_back(ETH_SPEED_NUM_10G);
+    if (speed_capa & ETH_LINK_SPEED_25G)
+        supp_speeds.push_back(ETH_SPEED_NUM_25G);
     if (speed_capa & ETH_LINK_SPEED_40G)
         supp_speeds.push_back(ETH_SPEED_NUM_40G);
     if (speed_capa & ETH_LINK_SPEED_100G)
