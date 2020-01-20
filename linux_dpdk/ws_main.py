@@ -2032,7 +2032,8 @@ files_list=[
             'master_daemon.py',
             'astf_schema.json',
             'trex-console',
-            'daemon_server'
+            'daemon_server',
+            'ndr'
             ];
 
 pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp']
