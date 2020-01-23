@@ -1349,20 +1349,25 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
     if (l7_map == Json::nullValue || l7_map["offset"] == Json::nullValue) {
         return;
     }
-    std::vector<uint8_t> l7_map_args;
+
+    int c_prog_idx = temp["client_template"]["program_index"].asInt();
+    bool is_stream = m_val["program_list"][c_prog_idx]["stream"].asBool();
+    if (is_stream) {
+        throw TrexException("TCP L7 map not supported yet.");
+    }
+
     /* prepare buf_list to get the value recursively by specified offset */
-    bool is_stream = false;
     std::vector<std::string> buf_list;
     if (l7_map["value"] == Json::nullValue) {
-        int c_prog_idx = temp["client_template"]["program_index"].asInt();
-        is_stream = m_val["program_list"][c_prog_idx]["stream"].asBool();
-
         Json::Value c_cmds = m_val["program_list"][c_prog_idx]["commands"];
         for (int cmd_idx = 0; cmd_idx < c_cmds.size(); cmd_idx++) {
+            if (is_stream && c_cmds[cmd_idx]["name"] == "rx") {
+                throw TrexException("client should send a message first to use l7_map.");
+            }
             if (c_cmds[cmd_idx]["buf_index"] != Json::nullValue) {
                 int buf_index = c_cmds[cmd_idx]["buf_index"].asInt();
                 buf_list.push_back(base64_decode(m_val["buf_list"][buf_index].asString()));
-                if (is_stream)  // TCP needs first payload only
+                if (is_stream)  // TCP should get the first payload only
                     break;
             }
         }
@@ -1374,6 +1379,7 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
         throw TrexException("l7_map value is not matched by offset");
     }
 
+    std::vector<uint8_t> l7_map_args;
     uint8_t last_offset = 0;
     for (int i = 0; i < l7_map["offset"].size(); i++) {
         uint8_t offset = (uint8_t)l7_map["offset"][i].asInt();
@@ -1381,6 +1387,7 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
             throw TrexException("l7_map offset should be ascending order");
         }
         l7_map_args.push_back(offset);
+        last_offset = offset;
 
         uint8_t mask = (l7_map["mask"] && (l7_map["mask"].size() > i))  ?
                         (uint8_t)l7_map["mask"][i].asInt() : UINT8_MAX;

@@ -1076,6 +1076,7 @@ struct PortParams {
 class CServerPortInfo {
     std::map<uint32_t,CServerIpTemplateInfo> m_ip_map;    // key is m_ip_end
     std::map<uint32_t,CServerIpPayloadInfo> m_ip_map_payload;
+    CServerTemplateInfo *m_template_cache;    // all ip range's template cache for the fast lookup.
 
     bool insert_template_payload(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
     CServerTemplateInfo* get_template_info_by_ip(uint32_t ip);
@@ -1087,6 +1088,7 @@ public:
     void remove_template_info_by_profile(CPerProfileCtx* pctx);
 
     CServerTemplateInfo* get_template_info(uint32_t ip, uint8_t* data, uint16_t len);
+    CServerTemplateInfo* get_template_info() { return m_template_cache; }
 
     void print_server_port();
 };
@@ -1223,6 +1225,7 @@ private:
 public:
     void append_server_ports(profile_id_t profile_id);
     void remove_server_ports(profile_id_t profile_id);
+    CServerTemplateInfo * get_template_info_by_port(uint16_t port, bool stream);
     CServerTemplateInfo * get_template_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
     CTcpServerInfo * get_server_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
     void print_server_ports();

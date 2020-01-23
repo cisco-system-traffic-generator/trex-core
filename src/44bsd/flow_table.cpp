@@ -543,10 +543,12 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    uint8_t *l7_data = pkt + ftuple.m_l7_offset;
-    uint16_t l7_len = ftuple.m_l7_total_len;
-
-    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,false,dest_ip, l7_data,l7_len);
+    CServerTemplateInfo *temp = ctx->get_template_info_by_port(dst_port,false);
+    if (!temp) {
+        uint8_t *l7_data = pkt + ftuple.m_l7_offset;
+        uint16_t l7_len = ftuple.m_l7_total_len;
+        temp = ctx->get_template_info(dst_port,false,dest_ip, l7_data,l7_len);
+    }
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
@@ -712,10 +714,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    uint8_t *l7_data = pkt + ftuple.m_l7_offset;
-    uint16_t l7_len = ftuple.m_l7_total_len;
-
-    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip, l7_data,l7_len);
+    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip);
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 

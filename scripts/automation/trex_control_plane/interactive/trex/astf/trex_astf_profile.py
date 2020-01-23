@@ -1039,9 +1039,15 @@ class ASTFAssociationRule(object):
             # port with range or destination ips
             assoc=ASTFAssociationRule(port=81,ip_start="48.0.0.1",ip_end="48.0.0,16")
 
+            # port with L7 content mapping rule
+            assoc=ASTFAssociationRule(port=81,l7_map=[0,1,2,3])
+
+            # port with L7 content mapping value (server-only mode)
+            assoc=ASTFAssociationRule(port=81,l7_map={ "offset": [0,1], "value": [0,42] })
+
     """
 
-    def __init__(self, port=80, ip_start=None, ip_end=None):
+    def __init__(self, port=80, ip_start=None, ip_end=None, l7_map=None):
         """
 
         :parameters:
@@ -1053,6 +1059,9 @@ class ASTFAssociationRule(object):
 
             ip_end: string
                 ip range end
+
+            l7_map: list or dict
+                L7 mapping content by byte offsets with optional masks and values
 
         """
 
@@ -1068,6 +1077,11 @@ class ASTFAssociationRule(object):
             self.fields['ip_start'] = str(ip_start)
         if ip_end is not None:
             self.fields['ip_end'] = str(ip_end)
+
+        if type(l7_map) is list or type(l7_map) is tuple:
+            l7_map = { "offset": list(l7_map) }
+        if type(l7_map) is dict:
+            self.fields['l7_map'] = l7_map
 
     @property
     def port(self):
@@ -1112,6 +1126,12 @@ class ASTFAssociation(object):
             pass  # exception
 
         return self.rules[0].port
+
+    def is_port_only(self):
+        if len(self.rules) != 1:
+            pass  # exception
+
+        return len(self.rules[0].fields) == 1
 
 
 class _ASTFTemplateBase(object):
@@ -1552,7 +1572,10 @@ class ASTFProfile(object):
             server_ports = []
             for template in self.templates:
                 port = template.fields['server_template'].fields['assoc'].port
-                if port in server_ports:
+                if not template.fields['server_template'].fields['assoc'].is_port_only():
+                    # if assoc is limited by ip range or L7 mapping, it would be checked by server.
+                    pass
+                elif port in server_ports:
                     raise ASTFError("Two server template with port {}".format(port))
                 else:
                     server_ports.append(port)

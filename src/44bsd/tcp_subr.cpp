@@ -804,9 +804,6 @@ CServerTemplateInfo* CServerPortInfo::get_template_info_by_ip(uint32_t ip) {
 }
 
 CServerTemplateInfo* CServerPortInfo::get_template_info_by_payload(uint32_t ip, uint8_t* data, uint16_t len) {
-    if (m_ip_map_payload.empty()) {
-        return nullptr;
-    }
     auto it = m_ip_map_payload.lower_bound(ip);
     if (it != m_ip_map_payload.end() && it->second.is_ip_in(ip)) {
         if (data && len) {
@@ -821,8 +818,14 @@ CServerTemplateInfo* CServerPortInfo::get_template_info_by_payload(uint32_t ip, 
 }
 
 CServerTemplateInfo* CServerPortInfo::get_template_info(uint32_t ip, uint8_t* data, uint16_t len) {
-    CServerTemplateInfo* temp = get_template_info_by_payload(ip, data, len);
-    return temp ? temp: get_template_info_by_ip(ip);
+    CServerTemplateInfo* temp = nullptr;
+    if (!m_ip_map_payload.empty()) {
+        temp = get_template_info_by_payload(ip, data, len);
+    }
+    if (!temp) {
+        temp = m_template_cache ? m_template_cache : get_template_info_by_ip(ip);
+    }
+    return temp;
 }
 
 bool CServerPortInfo::insert_template_payload(CTcpServerInfo* server, CPerProfileCtx* pctx, std::string& msg) {
@@ -884,6 +887,13 @@ bool CServerPortInfo::insert_template_info(CTcpServerInfo* server, CPerProfileCt
     }
     CServerTemplateInfo temp{ server, pctx };
     m_ip_map[ip_end] = CServerIpTemplateInfo(ip_start, ip_end, temp);
+    // update template cache for the fast lookup
+    if (ip_start == 0 && ip_end == UINT32_MAX) {
+        assert(m_template_cache == nullptr);
+        if (m_ip_map_payload.empty()) {
+            m_template_cache = m_ip_map[ip_end].get_template_info();
+        }
+    }
     return true;
 }
 
@@ -898,10 +908,19 @@ void CServerPortInfo::remove_template_info_by_profile(CPerProfileCtx* pctx) {
     }
     for (auto it = m_ip_map.begin(); it != m_ip_map.end();) {
         if (it->second.get_template_info()->get_profile_ctx() == pctx) {
+            if (it->second.get_template_info() == m_template_cache) {
+                m_template_cache = nullptr;
+            }
             it = m_ip_map.erase(it);
         }
         else {
             ++it;
+        }
+    }
+    if (!m_template_cache && m_ip_map_payload.empty() && (m_ip_map.size() == 1)) {
+        auto it = m_ip_map.begin();
+        if (it->second.ip_start() == 0 && it->second.ip_end() == UINT32_MAX) {
+            m_template_cache = it->second.get_template_info();
         }
     }
 }
@@ -990,6 +1009,15 @@ void CTcpPerThreadCtx::print_server_ports() {
         it.second.print_server_port();
     }
     printf("[%p] total number of ports (%lu)\n", this, m_server_ports.size());
+}
+
+CServerTemplateInfo * CTcpPerThreadCtx::get_template_info_by_port(uint16_t port, bool stream) {
+    uint32_t params = PortParams(port, stream);
+
+    if (m_server_ports.find(params) != m_server_ports.end()) {
+        return m_server_ports[params].get_template_info();
+    }
+    return nullptr;
 }
 
 CServerTemplateInfo * CTcpPerThreadCtx::get_template_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data, uint16_t len) {
