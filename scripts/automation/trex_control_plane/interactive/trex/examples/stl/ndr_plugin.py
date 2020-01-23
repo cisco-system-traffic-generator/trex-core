@@ -14,25 +14,40 @@ class MyNDRPlugin():
                 run_results: dict
                     A dictionary that contains the following keys:
                         queue_full_percentage: Percentage of packets that are queued.
+
                         drop_rate_percentage: Percentage of packets that were dropped.
+
                         rate_tx_bps: TX rate in bps.
+
                         rate_rx_bps: RX rate in bps.
+
                         tx_util: TX utilization percentage.
+
                         latency: Latency groups.
+
                         cpu_util: CPU utilization percentage.
+
                         tx_pps: TX in pps.
+
                         rx_pps: RX in pps.
+
                         tx_bps: TX in bps.
+
                         rx_bps: RX in bps.
+
                         bw_per_core: Bandwidth per core.
+
                         rate_p: Running rate in percentage out of max.
+
                         total_tx_L1: Total TX L1.
+
                         total_rx_L1: Total RX L1.
+
                         iteration: Description of iteration (not necessarily a number)
 
                     Pay attention: The rate is of the upcoming iteration. All the rest are of the previous iteration.
 
-                **kwargs: dict
+                kwargs: dict
                     List of tunables passed as parameters.
 
         """
@@ -51,23 +66,38 @@ class MyNDRPlugin():
                 run_results: dict
                     A dictionary that contains the following keys:
                         queue_full_percentage: Percentage of packets that are queued.
+
                         drop_rate_percentage: Percentage of packets that were dropped.
+
                         rate_tx_bps: TX rate in bps.
+
                         rate_rx_bps: RX rate in bps.
+
                         tx_util: TX utilization percentage.
+
                         latency: Latency groups.
+
                         cpu_util: CPU utilization percentage.
+
                         tx_pps: TX in pps.
+
                         rx_pps: RX in pps.
+
                         tx_bps: TX in bps.
+
                         rx_bps: RX in bps.
+
                         bw_per_core: Bandwidth per core.
+
                         rate_p: Running rate in percentage out of max.
+
                         total_tx_L1: Total TX L1.
+
                         total_rx_L1: Total RX L1.
+
                         iteration: Description of iteration (not necessarily a number)
 
-                **kwargs: dict
+                kwargs: dict
                     List of tunables passed as parameters.
 
             :returns:
