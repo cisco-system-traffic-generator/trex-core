@@ -8,48 +8,30 @@ import sys
 import trex.examples.stl.ndr_bench as ndr
 
 
-def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, dest_stop_ip, direction):
-    if vm:
-        stl_bench = ndr.STLBench()
-        if src_start_ip:
-            stl_bench.ip_range['src']['start'] = src_start_ip
-        if src_stop_ip:
-            stl_bench.ip_range['src']['end'] = src_stop_ip
-        if dest_start_ip:
-            stl_bench.ip_range['dst']['start'] = dest_start_ip
-        if dest_stop_ip:
-            stl_bench.ip_range['dst']['end'] = dest_stop_ip
-
-    streams = stl_bench.get_streams(size, vm, direction)
-    return streams
-
-
 # find NDR benchmark test
 # it maps the ports to sides
 # then it loads a predefined profile 'IMIX'
 # and attaches it to both sides and injects
 # then searches for NDR according to specified values
 def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, ndr_results=1,
-                       title='Default Title', first_run_duration=20.00, verbose=False,
-                       pdr_error=1.00, q_full_resolution=2.00, latency=True, vm='cached', pkt_size=64,
-                       fe_src_start_ip=None,
-                       fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None,
-                       output=None, ports_list=[],
-                       latency_rate=1000, max_iterations=10, yaml_file=None,
-                       bi_dir=False, force_map_table=False, plugin_file=None, tunables=None,
-                       opt_binary_search=False, opt_binary_search_percentage=5):
+                       title='Title', first_run_duration=20.00, verbose=False,
+                       pdr_error=1.00, q_full_resolution=2.00, max_iterations=10,
+                       output=None, ports_list=[], yaml_file=None,
+                       bi_dir=False, force_map_table=False, plugin_file=None, tunables={},
+                       opt_binary_search=False, opt_binary_search_percentage=5,
+                       profile='stl/imix.py', profile_tunables={}):
+
+
+    if title == 'Title':
+        title = profile.split('/')[-1].split(".")[0]
     configs = {'server': server, 'pdr': pdr, 'iteration_duration': iteration_duration,
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
-               'pdr_error': pdr_error, 'title': title,
-               'q_full_resolution': q_full_resolution, 'latency': latency,
-               'vm': vm, 'pkt_size': pkt_size,
-               'ports': ports_list, 'latency_rate': latency_rate, 'max_iterations': max_iterations,
-               'fe_src_start_ip': fe_src_start_ip,
-               'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
-               'fe_dst_stop_ip': fe_dst_stop_ip,
+               'pdr_error': pdr_error, 'title': title, 'ports': ports_list,
+               'q_full_resolution': q_full_resolution, 'max_iterations': max_iterations,
                'bi_dir': bi_dir, 'force_map_table': force_map_table,
                'plugin_file': plugin_file, 'tunables': tunables,
                'opt_binary_search': opt_binary_search, 'opt_binary_search_percentage': opt_binary_search_percentage}
+
     passed = True
     if yaml_file:
         try:
@@ -72,63 +54,36 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
     table = stl_map_ports(c)
     # print table
     ports_list = configs['ports']
-    if ports_list:
-        if len(ports_list) % 2 != 0:
-            print("illegal ports list")
-            return
-        if not force_map_table:
-            for i in range(0, len(ports_list), 2):
-                if (ports_list[i],ports_list[i+1]) not in table['bi']:
-                    print("some given ports pairs are not configured properly ")
-                    return
-    if ports_list:
-        dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
-        dir_1 = [ports_list[i] for i in range(1, len(ports_list), 2)]
-        ports = ports_list
-    else:
-        dir_0 = [table['bi'][i][0] for i in range(0, len(table['bi']))]
-        dir_1 = [table['bi'][i][0] for i in range(1, len(table['bi']))]
-        ports = []
-        for port in table['bi']:
-            ports.append(port[0])
-            ports.append(port[1])
-    configs['ports'] = ports
-    streams = build_streams_for_bench(size=pkt_size, vm=vm, src_start_ip=fe_src_start_ip, src_stop_ip=fe_src_stop_ip,
-                                      dest_start_ip=fe_dst_start_ip, dest_stop_ip=fe_dst_stop_ip, direction=0)
-    if latency:
-        burst_size = 1000
-        pps = latency_rate
-        pkt = STLPktBuilder(pkt=Ether() / IP(src="16.0.0.1", dst="48.0.0.1") / UDP(dport=12,
-                                                                                   sport=1025,
-                                                                                   chksum=0) / 'at_least_16_bytes_payload_needed')
-        total_pkts = burst_size
-        for i in dir_0:
-            all_streams = list(streams)
-            latency_stream = STLStream(name='rx' + str(i),
-                                       packet=pkt,
-                                       flow_stats=STLFlowLatencyStats(pg_id=i),
-                                       mode=STLTXSingleBurst(total_pkts=total_pkts,
-                                                             pps=pps))
-            all_streams.append(latency_stream)
-            c.add_streams(all_streams, ports=[i])
-    # add both streams to ports
-    else:
-        c.add_streams(streams, ports=dir_0)
+    if len(ports_list) % 2 != 0:
+        print("Illegal ports list")
+        return
+    if not force_map_table:
+        for i in range(0, len(ports_list), 2):
+            if (ports_list[i],ports_list[i+1]) not in table['bi']:
+                print("Some given port pairs are not configured properly ")
+                return
+    dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
+    dir_1 = [ports_list[i] for i in range(1, len(ports_list), 2)]
 
-    # add bi-directional stream
-    streams = build_streams_for_bench(size=pkt_size, vm=vm, src_start_ip=fe_src_start_ip,
-                                          src_stop_ip=fe_src_stop_ip, dest_start_ip=fe_dst_start_ip,
-                                          dest_stop_ip=fe_dst_stop_ip, direction=1)
-    c.add_streams(streams, ports=dir_1)
+    # transmitting ports 
+    for port_id in dir_0:
+        streams = STLProfile.load_py(profile, direction=0, port_id=port_id, **profile_tunables).get_streams()
+    c.add_streams(streams, ports=dir_0) 
+
+    # if traffic is bi-directional -> add streams to second direction as well.
+    if bi_dir:
+        for port_id in dir_1:
+            streams = STLProfile.load_py(profile, direction=1, port_id=port_id, **profile_tunables).get_streams()
+        c.add_streams(streams, ports=dir_1)
 
     config = ndr.NdrBenchConfig(**configs)
 
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
-        b.find_ndr(bi_dir)
+        b.find_ndr()
         if config.verbose:
-            b.results.print_final(latency, bi_dir)
+            b.results.print_final()
     except STLError as e:
         passed = False
         print(e)
@@ -250,42 +205,6 @@ if __name__ == '__main__':
                              '0%% q-full resolution is not recommended due to precision issues. [percents 0-100]',
                         default=2.00,
                         type=float)
-    parser.add_argument('-ld', '--latency-disable',
-                        dest='latency',
-                        help='Specify this option to disable latency calculations.',
-                        default=True,
-                        action='store_false')
-    parser.add_argument('-lr', '--latency-rate',
-                        dest='latency_rate',
-                        help='Specify the desired latency rate.',
-                        default=100,
-                        type=float)
-    parser.add_argument('-fe',
-                        dest='vm',
-                        help='choose Field Engine Module: var1,var2,random,tuple,size,cached. default is none',
-                        default='cached',
-                        type=str)
-    parser.add_argument('-size',
-                        dest='size',
-                        type=str,
-                        help='choose packet size/imix. default is 64 bytes',
-                        default=64)
-    parser.add_argument('--fe-src-start-ip', dest='fe_src_start_ip',
-                        help='when using FE you can define the start and stop ip addresses.'
-                             'this is valid only when -fe flag is defined',
-                        default=None)
-    parser.add_argument('--fe-src-stop-ip', dest='fe_src_stop_ip',
-                        help='when using FE you can define the start and stop ip addresses.'
-                             'this is valid only when -fe flag is defined',
-                        default=None)
-    parser.add_argument('--fe-dst-start-ip', dest='fe_dst_start_ip',
-                        help='when using FE you can define the start and stop ip addresses.'
-                             'this is valid only when -fe flag is defined',
-                        default=None)
-    parser.add_argument('--fe-dst-stop-ip', dest='fe_dst_stop_ip',
-                        help='when using FE you can define the start and stop ip addresses.'
-                             'this is valid only when -fe flag is defined',
-                        default=None)
     parser.add_argument('-o', '--output', dest='output',
                         help='Desired output format. specify json for JSON output.'
                              'Specify yaml for YAML output.'
@@ -293,7 +212,7 @@ if __name__ == '__main__':
                         default=None,
                         type=str)
     parser.add_argument('--ports', dest='ports_list', help='specify an even list of ports for running traffic on',
-                        type=int, nargs='*', default=None)
+                        type=int, nargs='*', default=None, required=True)
     parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\TO\YAML.yaml',
                         type=str, default=None)
     parser.add_argument('--force-map',
@@ -323,7 +242,7 @@ if __name__ == '__main__':
                              'When drop occurs, the tool tries to find a better (smaller) interval to start the search on.'
                              'If this parameter is true, the default value is 5 percent, the tool will search for ndr in an interval of '
                              '[assumed-rate - 5 percent, assumed rate + 5 percent]'
-                             'where assumed-rate is (100-drop_rate)\% of max_rate',
+                             'where assumed-rate is (100-drop_rate)%% of max_rate',
                         action='store_true',
                         required='--opt-bin-search-percent' in sys.argv,
                         default=False,)
@@ -332,15 +251,24 @@ if __name__ == '__main__':
                         help='Use this to configure the percentage parameter for opt-bin-search.',
                         default=5,
                         type=is_percentage)
+    parser.add_argument('--profile',
+                        dest='profile',
+                        help='Path to the profile we want to load. The profile defines the type of traffic we sent and the drop point differs depending on the traffic type.',
+                        default='stl/imix.py',
+                        type=str)
+    parser.add_argument('--prof-tun',
+                        dest='profile_tunables',
+                        help='Tunables to forward to the profile if it exists. Use: --prof-tun a=1,b=2,c=3 (no spaces)',
+                        default={},
+                        type=decode_tunables)
     args = parser.parse_args()
 
     # run the tests
-    ndr_benchmark_test(args.server, args.pdr, args.iteration_duration, args.ndr_results, args.title,
-                       args.first_run_duration, args.verbose,
-                       args.pdr_error, args.q_full_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
-                       args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip,
-                       args.output,
-                       args.ports_list, args.latency_rate, args.max_iterations, args.yaml,
-                       args.bi_dir, args.force_map_table, args.plugin_file, args.tunables,
-                       args.opt_binary_search, args.opt_binary_search_percentage)
-
+    ndr_benchmark_test(server=args.server, pdr=args.pdr, iteration_duration=args.iteration_duration, 
+                       ndr_results=args.ndr_results, title=args.title, first_run_duration=args.first_run_duration,
+                       verbose=args.verbose, max_iterations= args.max_iterations,pdr_error=args.pdr_error,
+                       q_full_resolution=args.q_full_resolution, output=args.output, ports_list=args.ports_list,
+                       yaml_file=args.yaml, bi_dir=args.bi_dir, force_map_table=args.force_map_table,
+                       plugin_file=args.plugin_file, tunables=args.tunables, opt_binary_search=args.opt_binary_search,
+                       opt_binary_search_percentage=args.opt_binary_search_percentage, profile=args.profile, 
+                       profile_tunables=args.profile_tunables)
