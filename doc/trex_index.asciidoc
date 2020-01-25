@@ -62,6 +62,8 @@ link:cp_stl_docs/index.html[stateless_sdk]
 link:cp_docs/index.html[statelful_sdk] 
 | Advanced Stateful  Python automation API    | 
 link:cp_astf_docs/index.html[astf_sdk] 
+| NDR Python Automation API    | 
+link:cp_ndr_docs/index.html[ndr_sdk] 
 | Stateful API tutorial              | 
 link:trex_control_plane_peek.html[Stateful API]
 | Stateless API tutorial              | 

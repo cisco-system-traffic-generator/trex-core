@@ -1,17 +1,5 @@
-Non Drop Rate
-=======================
-
-The NDR's purpose is to identify the maximal point in terms of packet and bandwidth throughput at which the Packet Loss Ratio (PLR) stands at 0%.
-T-Rex offers a benchmark to find the NDR point.
-The benchmarker is meant to test different DUTs. Each DUT has its own capabilities, specifications and API.
-We clearly can't support all the DUTs in the world.
-Hence, we offer the user an API which can help him integrate his DUT with the TRex NDR Benchmarker. 
-The user can control his device before each iteration (pre) and optimize his DUT for maximum performance.
-He also can get different data from the DUT after (post) the iteration, and decide whether to continue to the next iteration or stop.
-
-
-`Complete Documentation <https://trex-tgn.cisco.com/trex/doc/trex_ndr_bench_doc.html>`_
-
+Non Drop Rate Plugin API
+========================
 
 The following snippet shows a simple yet general implementation of the API ::
 
@@ -51,7 +39,7 @@ The following snippet shows a simple yet general implementation of the API ::
         return DeviceUnderTestNDRPlugin()
 
 
-From MyNDRPlugin class
+MyNDRPlugin class
 ----------------------
 
 .. autoclass:: trex.examples.stl.ndr_plugin.MyNDRPlugin

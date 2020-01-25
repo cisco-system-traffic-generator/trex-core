@@ -61,9 +61,3 @@ TRex Stateless API Reference
     
     bird_node
 
-**Non Drop Rate**
-
-.. toctree::
-    :maxdepth: 4
-    
-    ndr

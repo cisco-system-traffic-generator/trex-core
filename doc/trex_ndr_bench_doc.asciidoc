@@ -62,7 +62,7 @@ Navigate to the link:{github_scripts_path}[scripts] folder.
 . Run the link:{github_scripts_path}/ndr[ndr] bash script. This script will figure out the right version of python (or a version you decide) and run the benchmark tool. Here as well, one can get information on the flags using *--help*.
 [source,bash]
 ----
-[bash]>./ndr --python3 --port 0 1 -fe cached --max-iterations 5 -t 10 --verbose --force-map --bi-dir --pdr 0.01 --title 'Documentation'
+[bash]>./ndr --python3 --port 0 1 --max-iterations 5 -t 10 --verbose --force-map --bi-dir --pdr 0.01 --title 'Documentation'
 ----
 Don’t let the many flags scare you. We will explain them in depth. The results look something like this.
 
@@ -84,6 +84,7 @@ For example, to run the benchmark with 3 iterations at max, each iteration with 
 ----
 [bash]>./ndr --port 0 1 -v -x 3 -t 10 -ft 20
 ----
+We suggest you to be careful with the duration of the iteration. The disadvantage of long durations is quite clear, however short durations might be dangerous. It takes T-Rex a few seconds to normalize after transmitting at a high rate and it also takes a few seconds to start transmitting at a high rate. Hence, try to avoid very short duration or you might suffer from strange results.
 
 === Drop rate percentage, allowed error and queuing
 
@@ -98,47 +99,32 @@ A run is considered valid if in that run, the percentage of queue full is lower 
 To find NDR (*pdr* = 0%) with 3% allowed error and 5.5% queueing capability:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1  -v --pdr 0 --pdr-error 3 --q-full 5.5
+[bash]>./ndr --port 0 1 -v --pdr 0 --pdr-error 3 --q-full 5.5
 ----
-
-=== General TRex flags
-
-A good portion of the STL Client's API are offered here too. We will mention some of them here in short but for more information you can refer the link:https://trex-tgn.cisco.com/trex/doc/trex_stateless.html[STL] documentation. For example:
-[source,bash]
-----
-[bash]>./ndr -s csi-trex-07 --port 0 1 --latency-disable --bi-dir --force-map -v
-----
-
-* *-s* or *--server* specifies the TRex server. The default is the local server.
-* *--ports* specifies list of ports for running traffic on.
-* *-ld* or *--latency-disable* disable latency calculations. By default the calculations are enabled.
-* *--bi-dir* specifies bi-directional traffic. By default the traffic is unidirectional.
-* *--force-map* ignores map table configuration and uses the specified port list.
-* *-v* or *--verbose* for verbose mode.
 
 === Traffic engineering
 
 The type of traffic on which we run the benchmark is also important for the results of the benchmark. Some would debate that link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX] would be the
-ultimate type of traffic to benchmark on. For now we support only IMIX traffic. However, the Field Engine offers us the greatest flexibility, allowing to change any bit in the packet. In this benchmark we provide the field engine partially. Pay attention to the following flags:
+ultimate type of traffic to benchmark on. T-Rex offers to simulate every kind of stateless traffic to run the benchmark. Just write a stateless profile (or use an existing one) and load it into the benchmarker. This offers great flexibility combined with all of possibilities the Field Engine supplies. To read more about profiles, please consult the link::https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_traffic_profile_tutorials[STL documentation]. The default profile is IMIX. To control the profiles use the following flags:
 
-* *-fe* offers the following field engines (default is None):
-** var1 - Incremental IP source (combine with *--fe-src-start-ip* and *--fe-src-stop-ip*)
-** var2 - Incremental IP source and destination (combine with *--fe-dst-stop-ip* and *--fe-dst-start-ip*)
-** random - Random IP source
-** tuple - Tuple Generator of IP source and UDP source port
-** size - Size of the packet
-** cached - Use cache to speedup the FE results.
-* *size* - Size of the packet (No connection to FE). The default size of the packet is 64 bytes. You can specify imix to run the traffic with the sizes defined in the imix profile.
+* *--profile* - The path to the location of the profile.
+* *--prof-tun* - List of tunables to pass along to the profile just as in a normal profile in STL.
 
-For example, to generate predefined packet sizes as in link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX]:
+
+For example, to generate IMIX traffic and pass a few tunables one can write:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v -size imix
+[bash]>./ndr --port 0 1 -v --prof-tun a=1,b=3
 ----
-To generate traffic that increments IP source, with latency rate of 50 PPS:
+To generate IMIX for IPv6 run:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -fe var1 --fe-src-start-ip 16.0.0.1 --fe-src-stop-ip 16.0.0.255 -lr 50
+[bash]>./ndr --port 0 1 -v --profile stl/imix_ipv6.py
+----
+To generate latency traffic (you can write your own profile if this isn't enough):
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v --profile stl/flow_stats_latency.py
 ----
 
 == Running example
@@ -147,10 +133,10 @@ Let us show a running example: We will run the server with 7 cores per interface
 ----
 [bash]>sudo ./t-rex-64 -i -c 7
 ----
-Let's run the benchmarking on IMIX traffic (with defined imix packet sizes), bi-directional and without latency.
+Let's run the benchmarking on IMIX traffic (default), uni-directional.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 --latency-disable --bi-dir -size imix --verbose
+[bash]>./ndr --port 0 1 --verbose
 ----
 The first iteration we try to find the maximal running rate.
 
@@ -160,11 +146,11 @@ We see that in this case the device handles well with the drops, it has a relati
 
 image::images/ndr_bench_imix_1st_iter.png[title="First Iteration, IMIX Traffic", align="left", width={p_width}, link="images/ndr_bench_imix_1st_iter.png"]
 
-The first iteration (finding max rate is not considered an iteration) is run at 50% (simple binary search).
+The first iteration (finding max rate is not considered an iteration) is ran at 50% (simple binary search).
 
 image::images/ndr_bench_imix_last_iter.png[title="Last Iteration, IMIX Traffic",align="left", width={p_width}, link="images/ndr_bench_imix_last_iter.png"]
 
-After 7 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *45.08* Gbps and *90.18* Gbps bi-directional.
+After 7 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *86.98* Gbps.
 
 
 == Optimized binary search
@@ -189,7 +175,7 @@ In our tests, the optimized algorithm improves the runtime of the benchmark by s
 
 === How to use
 
-Let us run the example the previous example now with optimized binary search. We will run the server with 7 cores per interface as before.
+Let us run the example the previous example (IMIX) now with optimized binary search. We will run the server with 7 cores per interface as before.
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -i -c 7
@@ -197,25 +183,27 @@ Let us run the example the previous example now with optimized binary search. We
 Same example as before, with optimized binary flag and *q* = 10% (--opt-bin-search-percent). The default value of *q* is 5%.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 --latency-disable --bi-dir -size imix --verbose --opt-bin-search --opt-bin-search-percent 10
+[bash]>./ndr --port 0 1 --verbose --opt-bin-search --opt-bin-search-percent 10
 ----
 
 The first iteration we try to find the maximal running rate, the same as the normal version, with the same results.
 
 image::images/ndr_bench_imix_max_rate_opt.png[title="Max Rate, IMIX Traffic, Optimized Algorithm", align="left", width={p_width}, link="images/ndr_bench_imix_max_rate_opt.png"]
 
-The algorithm tries the upper bound of the expected ndr interval and the upper bound is below the ndr, hence it will try to search above the upper bound of the expected interval.
+The DUT's queue is full, hence the benchmarker will try to find a point where the DUT's queue is below the allowed rate with the optimized binary search.
 
 image::images/ndr_bench_imix_1st_iter_opt.png[title="First Iteration, IMIX Traffic, Optimized Algorithm", align="left", width={p_width}, link="images/ndr_bench_imix_1st_iter_opt.png"]
 
-After 4 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *44.19* Gbps and *88.41* Gbps bi-directional.
+The algorithm tries the upper bound of the expected ndr interval and the upper bound is below the ndr, hence it will try to search above the upper bound of the expected interval.
 
 image::images/ndr_bench_imix_last_iter_opt.png[title="Last Iteration, IMIX Traffic, Optimized Algorithm",align="left", width={p_width}, link="images/ndr_bench_imix_last_iter_opt.png"]
 
+After 4 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *87.66* Gbps.
+
 *Discussion*::
 
-* The simple binary search took 7 iterations. The optimized binary search took 4 iterations + upper bound = 5 iterations. Hence in this case, (as in most cases) the optimized binary search is faster.
-* We see that the NDR in the two cases are slightly different, being 45.08 Gbit in the binary search and 44.19 Gbit in the optimized binary search. However this nothing to worry about, since as we mentioned we calculate the non drop rate up to a user defined error percentage which can be controlled with *--pdr-error*. It is important to mention that the lower value could be achieved by any of the algorithms.
+* The simple binary search took 7 iterations. The optimized binary search took 7 iterations (including checking the upper bound). Hence in this case, (as in most cases) the optimized binary search is faster.
+* We see that the NDR in the two cases are slightly different, being 87.66 Gbit in the binary search and 87.7 Gbit in the optimized binary search. However this nothing to worry about, since as we mentioned we calculate the non drop rate up to a user defined error percentage which can be controlled with *--pdr-error*. It is important to mention that the lower value could be achieved by any of the algorithms.
 
 == API to the NDR Benchmarker
 
@@ -305,7 +293,7 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -ld  --bi-dir -size imix -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
+[bash]>./ndr --port 0 1 --bi-dir -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
 ----
 
 *Output*::
@@ -370,7 +358,7 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -ld -v -f automation/trex_control_plane/interactive/trex/examples/stl/dut_ndr_plugin.py --opt-bin-search
+[bash]>./ndr --port 0 1 -v -f automation/trex_control_plane/interactive/trex/examples/stl/dut_ndr_plugin.py --opt-bin-search
 ----
 
 image:images/ndr_bench_dut_plugin_first.png[title="DUT plugin",align="left", width={p_width}, link="images/ndr_bench_dut_plugin_first.png"]
