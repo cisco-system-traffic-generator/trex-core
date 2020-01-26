@@ -83,6 +83,8 @@ class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 
 
     def test_nat_simple_mode1(self):
+        if CTRexScenario.setup_name == 'trex14':
+            self.skip('"test_nat_simple_mode1" is disabled for trex14')
         self.nat_simple_helper(learn_mode=1, traffic_file='cap2/http_simple.yaml')
 
     def _test_nat_simple_mode2(self):
