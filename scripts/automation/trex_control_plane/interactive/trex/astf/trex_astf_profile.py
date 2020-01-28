@@ -196,20 +196,41 @@ class ASTFCmdDelayRnd(ASTFCmd):
         self.fields['min_usec'] = min_usec
         self.fields['max_usec'] = max_usec
 
-class ASTFCmdSetVal(ASTFCmd):
-    def __init__(self,id_val,val):
-        super(ASTFCmdSetVal, self).__init__()
-        self.fields['name'] = 'set_var'
+# Set Val Commands #
+class ASTFCmdSetValBase(ASTFCmd):
+    def __init__(self, id_val):
+        super(ASTFCmdSetValBase, self).__init__()
         self.fields['id'] = id_val
-        self.fields['val'] = val
 
-class ASTFCmdJMPNZ(ASTFCmd):
-    def __init__(self,id_val,offset,label):
-        super(ASTFCmdJMPNZ, self).__init__()
-        self.label=label
-        self.fields['name'] = 'jmp_nz'
-        self.fields['id'] = id_val
+class ASTFCmdSetVal(ASTFCmdSetValBase):
+    def __init__(self, id_val, val):
+        super(ASTFCmdSetVal, self).__init__(id_val)
+        self.fields['name'] = 'set_var'
+        self.fields['val']  = val
+
+class ASTFCmdSetTickVar(ASTFCmdSetValBase):
+    def __init__(self, id_val):
+        super(ASTFCmdSetTickVar, self).__init__(id_val)
+        self.fields['name'] = 'set_tick_var'
+
+# Conditional Jump Commands #
+class ASTFCmdJMPBase(ASTFCmd):
+    def __init__(self, id_val, offset, label):
+        super(ASTFCmdJMPBase, self).__init__()
+        self.label            = label
+        self.fields['id']     = id_val
         self.fields['offset'] = offset
+
+class ASTFCmdJMPNZ(ASTFCmdJMPBase):
+    def __init__(self, id_val, offset,label):
+        super(ASTFCmdJMPNZ, self).__init__(id_val, offset, label)
+        self.fields['name'] = 'jmp_nz'
+
+class ASTFCmdJMPDP(ASTFCmdJMPBase):
+    def __init__(self, id_val, offset, label, duration):
+        super(ASTFCmdJMPDP, self).__init__(id_val, offset, label)
+        self.fields['name'] = 'jmp_dp'
+        self.fields['duration'] = duration
 
 class ASTFCmdTxMode(ASTFCmd):
     def __init__(self,flags):
@@ -449,10 +470,10 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        if clear:
-            self.total_rcv_bytes = 0
         self.total_rcv_bytes += pkts
         self.fields['commands'].append(ASTFCmdRecvMsg(self.total_rcv_bytes,clear))
+        if clear:
+            self.total_rcv_bytes = 0
 
 
     def send(self, buf):
@@ -507,10 +528,10 @@ class ASTFProgram(object):
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        if clear:
-            self.total_rcv_bytes = 0
         self.total_rcv_bytes += bytes
         self.fields['commands'].append(ASTFCmdRecv(self.total_rcv_bytes,clear))
+        if clear:
+            self.total_rcv_bytes = 0
 
     def delay(self, usec):
         """
@@ -618,6 +639,23 @@ class ASTFProgram(object):
             self.__add_var(var_id)
         self.fields['commands'].append(ASTFCmdSetVal(var_id,val))
 
+    def set_tick_var(self, var_id):
+        """
+            Set a flow variable used with jmp_nz command. Timer will be started when declaring tick var. 
+
+            :parameters:
+                    var_id  : string
+                        var-id there are limited number of variables
+        """
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if  isinstance(var_id, str):
+            self.__add_var(var_id)
+        self.fields['commands'].append(ASTFCmdSetTickVar(var_id))
+
     def set_label(self, label):
         """
         Set a location label name. used with jmp_nz command 
@@ -654,6 +692,28 @@ class ASTFProgram(object):
 
         self.fields['commands'].append(ASTFCmdJMPNZ(var_id,0,label))
 
+    def jmp_dp(self, var_id, label, duration):
+        """
+            Check the time passed from flow variable, in case of time passed is less then duration jump to label.
+
+            :parameters:
+                    var_id  : int
+                        flow var id 
+
+                    label  : string
+                        label id
+
+                    duration : double
+                        duration of time in seconds
+        """
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "label", 'arg': label, "t": [str]},
+                     {"name": "duration", 'arg': duration, "t": [float, int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+        duration = float(duration)
+        self.fields['commands'].append(ASTFCmdJMPDP(var_id, 0, label, duration))
 
 
     def _set_cmds(self, cmds):
@@ -730,12 +790,12 @@ class ASTFProgram(object):
                 if cmd.stream !=self.stream:
                     raise ASTFError(" Command %s stream mode is %s and different from the flow stream mode %s" % (cmd.fields['name'], cmd.stream, self.stream))
 
-            if isinstance(cmd, ASTFCmdJMPNZ):
+            if isinstance(cmd, ASTFCmdJMPBase):
                 #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
                 cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
                 if isinstance(cmd.fields['id'],str):
                     cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
-            if isinstance(cmd, ASTFCmdSetVal):
+            if isinstance(cmd, ASTFCmdSetValBase):
                 id_name=cmd.fields['id']
                 if isinstance(id_name,str):
                     cmd.fields['id']=self.__get_var_index(id_name)

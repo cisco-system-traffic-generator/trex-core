@@ -215,6 +215,7 @@ main_src = SrcGroup(dir='src',
             '44bsd/tcp_dpdk.cpp',
             '44bsd/sim_cs_tcp.cpp',
             '44bsd/sch_rampup.cpp',
+            '44bsd/tick_cmd_clock.cpp',
             '44bsd/udp.cpp',
 
             'hdrh/hdr_time.c',

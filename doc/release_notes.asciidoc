@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.73 ==
+
+* Support DDP firmware upgrade for XL710/X710 family  to solve #384 (27MPPS limit) 
+
 == Release 2.72 ==
 
 * Add low_end_core option to platform YAML. More info in link:trex_manual.html#_low_end_machines[manual]

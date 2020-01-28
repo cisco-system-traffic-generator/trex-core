@@ -390,7 +390,7 @@ public:
         }
     }
 
-    inline uint16_t get_sizeof_list() {
+    inline uint32_t get_sizeof_list() {
         return sizeof(uint8_t) * m_list_size;
     }
 
@@ -453,7 +453,7 @@ public:
         }
     }
 
-    inline uint16_t get_sizeof_list() {
+    inline uint32_t get_sizeof_list() {
         return sizeof(uint16_t) * m_list_size;
     }
 
@@ -517,7 +517,7 @@ public:
         }
     }
 
-    inline uint16_t get_sizeof_list() {
+    inline uint32_t get_sizeof_list() {
         return sizeof(uint32_t) * m_list_size;
     }
 
@@ -587,7 +587,7 @@ public:
         }
     }
 
-    inline uint16_t get_sizeof_list() {
+    inline uint32_t get_sizeof_list() {
         return sizeof(uint64_t) * m_list_size;
     }
 
@@ -951,7 +951,7 @@ public:
 
 public:
     void clear();
-    void add_command(void *buffer,uint16_t size);
+    void add_command(void *buffer,uint32_t size);
     void build_instruction_list();
     uint8_t * get_program();
     uint32_t get_program_size();
@@ -1950,7 +1950,7 @@ public:
     StreamVmDp( uint8_t * bss,
                 uint16_t bss_size,
                 uint8_t * prog,
-                uint16_t prog_size,
+                uint32_t prog_size,
                 uint16_t max_pkt_offset,
                 uint16_t prefix_size,
                 bool a_is_pkt_size_var,
@@ -2031,7 +2031,7 @@ public:
         return (m_program_ptr);
     }
 
-    uint16_t  get_program_size(){
+    uint32_t  get_program_size(){
         return (m_program_size);
     }
 
@@ -2062,7 +2062,7 @@ private:
     uint8_t *  m_bss_ptr; /* pointer to the data section */
     uint8_t *  m_program_ptr; /* pointer to the program */
     uint16_t   m_bss_size;
-    uint16_t   m_program_size; /* program size*/
+    uint32_t   m_program_size; /* program size*/
     uint16_t   m_max_pkt_offset_change;
     uint16_t   m_prefix_size;
     bool       m_is_pkt_size_var;

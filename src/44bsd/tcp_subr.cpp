@@ -716,7 +716,8 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
         printf("ERROR  can't create flow table \n");
         return(false);
     }
-
+    
+    m_tick_var = new CAstfTickCmdClock(this);
     return(true);
 }
 
@@ -754,6 +755,8 @@ void CTcpPerThreadCtx::delete_startup(profile_id_t profile_id) {
 
 void CTcpPerThreadCtx::Delete(){
     assert(m_rand);
+    delete m_tick_var;
+    m_tick_var = 0;
     delete m_rand;
     m_rand=0;
     m_timer_w.Delete();

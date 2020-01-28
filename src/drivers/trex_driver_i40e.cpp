@@ -368,8 +368,8 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
     repid_t repid=CTVPort(tvpid).get_repid();
 
     ret = rte_eth_get_fw_ver(repid, &version);
-    
-    if ( 0 /*version > 0x6000*/) {
+
+    if ((version > 0x6000) && get_dpdk_mode()->is_drop_rx_queue_needed()) {
       int ret = -ENOTSUP;
       printf("Loading DDP profile (%d) ", int(repid));
       const char *file_fld = "x710_ddp/trex-v0_1.pkg";
@@ -392,10 +392,8 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
       } else {
         printf("Failed to find profile %s on file-system \n", file_fld);
       }
-    }else{
-    /*  printf(
-          "Port (%d) firmware version 0x%x is not eligible for DDP upgrade \n",
-          int(repid), version);*/
+    } else {
+        printf("Port (%d) firmware version 0x%x is not eligible for DDP upgrade \n", int(repid), version);
     }
 
     if (ret == 0) {

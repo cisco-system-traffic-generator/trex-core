@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <functional>
 #include "sch_rampup.h"
+#include "tick_cmd_clock.h"
 #include <algorithm>
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
@@ -1206,6 +1207,7 @@ public:
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
+    CAstfTickCmdClock *m_tick_var;   /* clock for tick var commands */
     uint32_t    m_tick;
     uint8_t     m_mbuf_socket;      /* memory socket */
     uint8_t     m_offload_flags;    /* dev offload flags, see flow def */

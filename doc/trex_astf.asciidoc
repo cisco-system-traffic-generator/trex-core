@@ -1620,6 +1620,135 @@ Have a look at `astf/htttp_eflow2.py` example.
 
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
+==== Tutorial: L7 emulation - Elephant flows with non-blocking send with tick var
+Same as the previous example, only instead of using `loop count` we are using time as a measurement. In the prevous example we calculated the received bytes in advance and use the rcv command with the right bytes values. However, sending & receiving data according to time is tricky and errors/dtops might occur (see stats from runnnig example below).
+
+Have a look at `astf/htttp_eflow4.py` example.
+
+.Tick var
+[source,python]
+----
+        ...
+        # client commands
+        prog_c = ASTFProgram()
+        prog_c.send(http_req)
+        prog_c.set_tick_var("var1")  <1>
+        prog_c.set_label("a:")
+        prog_c.recv(len(http_response), clear = True)
+        prog_c.jmp_dp("var1", "a:", recv_time)  <2>
+        prog_c.reset()
+
+        # server commands
+        prog_s = ASTFProgram()
+        prog_s.recv(len(http_req), clear = True)
+        prog_s.set_tick_var("var2")  <3>
+        prog_s.set_label("b:")
+        prog_s.send(http_response)
+        prog_s.jmp_dp("var2", "b:", send_time)  <4>
+        prog_s.reset()
+        ...
+----
+<1> Start the clock at client side.
+<2> In case time passed since "var1" is less than "recv_time", jump to a:
+<3> Start the clock at server side.
+<4> In case time passed since "var2" is less than "recv_time", jump to b:
+
+[NOTE]
+=====================================================================
+reset() command is required in both sides in order to ignore some ASTF errors.
+=====================================================================
+
+===== Inspecting stats with running example
+Let's test the script using tunables:
+
+[source,bash]
+----
+[bash]> sudo ./t-rex-64 --astf -f astf/http_eflow4.py -t send_time=2,recv_time=5
+----
+
+*TUI stats:*
+[source,bash]
+----
+                    TCP |                   |                   |                         
+                      - |                   |                   |                         
+       tcps_connattempt |                 1 |                 0 | connections initiated   
+           tcps_accepts |                 0 |                 1 | connections accepted    
+          tcps_connects |                 1 |                 1 | connections established 
+            tcps_closed |                 1 |                 1 | conn. closed (includes drops) 
+         tcps_segstimed |                 2 |               998 | segs where we tried to get rtt 
+        tcps_rttupdated |                 2 |               998 | times we succeeded      
+          tcps_sndtotal |               999 |               999 | total packets sent      
+           tcps_sndpack |                 1 |               997 | data packets sent       
+           tcps_sndbyte |               249 |           1138574 | data bytes sent by application 
+        tcps_sndbyte_ok |               249 |           1138574 | data bytes sent by tcp  
+           tcps_sndctrl |                 1 |                 1 | control (SYN|FIN|RST) packets sent 
+           tcps_sndacks |               997 |                 1 | ack-only packets sent   
+           tcps_rcvpack |               997 |                 1 | packets received in sequence 
+           tcps_rcvbyte |           1138574 |               249 | bytes received in sequence 
+        tcps_rcvackpack |                 1 |               998 | rcvd ack packets        
+        tcps_rcvackbyte |               249 |           1138574 | tx bytes acked by rcvd acks  
+     tcps_rcvackbyte_of |                 0 |                 1 | tx bytes acked by rcvd acks - overflow acked 
+           tcps_preddat |               996 |                 0 | times hdr predict ok for data pkts  
+             tcps_drops |                 1 |                 1 | connections dropped     
+           tcps_predack |                 0 |               977 | times hdr predict ok for acks 
+                      - |                   |                   |                         
+                    UDP |                   |                   |                         
+                      - |                   |                   |                         
+                      - |                   |                   |                         
+             Flow Table |                   |                   |                         
+                      - |                   |                   |                         
+
+----
+We got `tcps_drops` error on client side, and `connections dropped` on server side. These can be related as an artifact of synchronize commands.
+
+Let's see the opposite case using tunables: 
+[source,bash]
+----
+[bash]> sudo ./t-rex-64 --astf -f astf/http_eflow4.py -t send_time=5,recv_time=2
+----
+
+*TUI stats:*
+[source,bash]
+----
+                    TCP |                   |                   |                         
+                      - |                   |                   |                         
+       tcps_connattempt |                 1 |                 0 | connections initiated   
+           tcps_accepts |                 0 |                 1 | connections accepted    
+          tcps_connects |                 1 |                 1 | connections established 
+            tcps_closed |                 1 |                 1 | conn. closed (includes drops) 
+         tcps_segstimed |                 2 |              1001 | segs where we tried to get rtt 
+        tcps_rttupdated |                 2 |              1000 | times we succeeded      
+          tcps_sndtotal |              1002 |              1001 | total packets sent      
+           tcps_sndpack |                 1 |              1000 | data packets sent       
+           tcps_sndbyte |               249 |           1142000 | data bytes sent by application 
+        tcps_sndbyte_ok |               249 |           1142000 | data bytes sent by tcp  
+           tcps_sndctrl |                 2 |                 0 | control (SYN|FIN|RST) packets sent 
+           tcps_sndacks |               999 |                 1 | ack-only packets sent   
+           tcps_rcvpack |               999 |                 1 | packets received in sequence 
+           tcps_rcvbyte |           1140858 |               249 | bytes received in sequence 
+        tcps_rcvackpack |                 1 |              1000 | rcvd ack packets        
+        tcps_rcvackbyte |               249 |           1140858 | tx bytes acked by rcvd acks  
+     tcps_rcvackbyte_of |                 0 |                 1 | tx bytes acked by rcvd acks - overflow acked 
+           tcps_preddat |               998 |                 0 | times hdr predict ok for data pkts  
+             tcps_drops |                 1 |                 1 | connections dropped     
+           tcps_predack |                 0 |               979 | times hdr predict ok for acks 
+                      - |                   |                   |                         
+                    UDP |                   |                   |                         
+                      - |                   |                   |                         
+                      - |                   |                   |                         
+             Flow Table |                   |                   |                         
+                      - |                   |                   |                         
+                err_cwf |                 1 |                 0 | client pkt without flow 
+             err_no_syn |                 0 |                 1 | server first flow packet with no SYN 
+----
+In addition to the drops we got `err_cwf` and `err_no_syn` errors, These also can be related as an artifact of synchronize commands.
+
+
+[NOTE]
+=====================================================================
+Depending on time for send/recv commands will almost always cause errors/drops. In most cases the wanted behavior is by loop count with bytes, not time.
+=====================================================================
+
 ==== Tutorial: L7 emulation - http pipeline 
 
 In this example, there would be 5 parallel requests and wait for 5 responses.

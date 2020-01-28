@@ -423,7 +423,15 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         return next_cmd();
         }
         break;
+    case tcSET_TICK_VAR: 
+        {
+            assert(cmd->u.m_tick_var.m_var_id < apVAR_NUM_SIZE);
 
+            /* Save the current tick from ctx */
+            m_tick_vars[cmd->u.m_tick_var.m_var_id] = m_pctx->m_ctx->m_tick_var->get_curr_tick();
+            return next_cmd();
+        }
+        break;
     case tcJMPNZ : 
         {
             assert(cmd->u.m_jmpnz.m_var_id<apVAR_NUM_SIZE);
@@ -439,7 +447,24 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             return next_cmd();
         }
         break;
+    case tcJMPDP : 
+        {
+            uint64_t duration_ticks = cmd->u.m_jmpdp.m_duration;
+            uint64_t start_ticks = m_tick_vars[cmd->u.m_jmpdp.m_var_id];
+            uint64_t curr_ticks = m_pctx->m_ctx->m_tick_var->get_curr_tick();
 
+            if ( curr_ticks - start_ticks < duration_ticks ) {
+                /* action jump  */
+                m_cmd_index += cmd->u.m_jmpdp.m_offset - 1;
+                /* make sure we are not in at the end */
+                int end = m_program->get_size();
+                if (m_cmd_index > end) {
+                    m_cmd_index = end;
+                }
+            }
+            return next_cmd();
+        }
+        break;
     case tcTX_PKT : 
         {
            m_state=te_NONE;

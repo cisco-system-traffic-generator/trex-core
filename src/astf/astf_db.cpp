@@ -401,9 +401,13 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint32_t program_index, uint32_t cmd_index) 
 
     if (cmd["name"] == "set_var")
         return tcSET_VAR;
+    if (cmd["name"] == "set_tick_var")
+        return tcSET_TICK_VAR;
 
     if (cmd["name"] == "jmp_nz")
         return tcJMPNZ;
+    if (cmd["name"] == "jmp_dp")
+        return tcJMPDP;
 
     if (cmd["name"] == "tx_msg")
         return tcTX_PKT;
@@ -438,18 +442,22 @@ uint32_t CAstfDB::get_delay_ticks(uint32_t program_index, uint32_t cmd_index) {
     return tw_time_usec_to_ticks(cmd["usec"].asInt());
 }
 
-void CAstfDB::fill_tx_mode(uint32_t program_index, 
-                            uint32_t cmd_index,
-                            CEmulAppCmd &res) {
-    Json::Value cmd;
-
+void CAstfDB::assert_cmd(uint32_t program_index, uint32_t cmd_index, const std::string &cmd_name, Json::Value &cmd) {
     try {
         cmd = m_val["program_list"][program_index]["commands"][cmd_index];
     } catch(std::exception &e) {
         assert(0);
     }
 
-    assert (cmd["name"] == "tx_mode");
+    assert (cmd["name"] == cmd_name);
+}
+
+
+void CAstfDB::fill_tx_mode(uint32_t program_index, 
+                            uint32_t cmd_index,
+                            CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "tx_mode", cmd);
 
     res.u.m_tx_mode.m_flags = cmd["flags"].asUInt();
 }
@@ -459,14 +467,7 @@ void CAstfDB::fill_delay_rnd(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "delay_rnd");
+    assert_cmd(program_index, cmd_index, "delay_rnd", cmd);
 
     res.u.m_delay_rnd.m_min_ticks = tw_time_usec_to_ticks(cmd["min_usec"].asUInt());
     res.u.m_delay_rnd.m_max_ticks = tw_time_usec_to_ticks(cmd["max_usec"].asUInt());
@@ -476,34 +477,39 @@ void CAstfDB::fill_set_var(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "set_var");
+    assert_cmd(program_index, cmd_index, "set_var", cmd);
 
     res.u.m_var.m_var_id = cmd["id"].asUInt();
     res.u.m_var.m_val    = cmd["val"].asUInt64();
+}
+
+void CAstfDB::fill_set_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "set_tick_var", cmd);
+
+    res.u.m_tick_var.m_var_id = cmd["id"].asUInt();
 }
 
 void CAstfDB::fill_jmpnz(uint32_t program_index, 
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "jmp_nz");
+    assert_cmd(program_index, cmd_index, "jmp_nz", cmd);
 
     res.u.m_jmpnz.m_var_id = cmd["id"].asUInt();
     res.u.m_jmpnz.m_offset = cmd["offset"].asInt();
+}
+
+void CAstfDB::fill_jmpdp(uint32_t program_index,
+                uint32_t cmd_index, 
+                CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "jmp_dp", cmd);
+   
+    res.u.m_jmpdp.m_var_id   = cmd["id"].asUInt();
+    res.u.m_jmpdp.m_offset   = cmd["offset"].asInt();
+    double duration = cmd["duration"].asDouble();
+    res.u.m_jmpdp.m_duration = (uint64_t)(duration * 1000L / CAstfTickCmdClock::TICK_MSEC);
 }
 
 void CAstfDB::fill_tx_pkt(uint32_t program_index, 
@@ -511,14 +517,7 @@ void CAstfDB::fill_tx_pkt(uint32_t program_index,
                             uint8_t socket_id,
                             CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "tx_msg");
+    assert_cmd(program_index, cmd_index, "tx_msg", cmd);
 
     uint32_t indx=cmd["buf_index"].asUInt();
     res.u.m_tx_pkt.m_buf = m_tcp_data[socket_id].m_buf_list[indx];
@@ -528,14 +527,7 @@ void CAstfDB::fill_rx_pkt(uint32_t program_index,
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "rx_msg");
+    assert_cmd(program_index, cmd_index, "rx_msg", cmd);
 
     uint32_t min_pkts=cmd["min_pkts"].asInt();
     res.u.m_rx_pkt.m_rx_pkts =min_pkts;
@@ -552,14 +544,7 @@ void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
                                  uint32_t cmd_index,
                                  CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "keepalive");
+    assert_cmd(program_index, cmd_index, "keepalive", cmd);
 
     res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asInt();
 }
@@ -567,14 +552,7 @@ void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
 
 void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index,CEmulAppCmd &res) {
     Json::Value cmd;
-
-    try {
-        cmd = m_val["program_list"][program_index]["commands"][cmd_index];
-    } catch(std::exception &e) {
-        assert(0);
-    }
-
-    assert (cmd["name"] == "rx");
+    assert_cmd(program_index, cmd_index, "rx", cmd);
 
     res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt();
     if (cmd["clear"] != Json::nullValue) {
@@ -1501,9 +1479,19 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 fill_set_var(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
+            case tcSET_TICK_VAR:
+                cmd.m_cmd = tcSET_TICK_VAR;
+                fill_set_tick_var(program_index, cmd_index, cmd);
+                prog->add_cmd(cmd);
+                break;
             case tcJMPNZ :
                 cmd.m_cmd = tcJMPNZ;
                 fill_jmpnz(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcJMPDP :
+                cmd.m_cmd = tcJMPDP;
+                fill_jmpdp(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
 
@@ -1535,7 +1523,6 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 fill_tx_mode(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
-
 
             default:
                 assert(0);

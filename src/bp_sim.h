@@ -3121,7 +3121,8 @@ public:
         return m_dp_core;
     }
 
-    
+    void pre_flush_file();
+    void post_flush_file();
 private:
 
     FORCE_NO_INLINE void   no_memory_error();

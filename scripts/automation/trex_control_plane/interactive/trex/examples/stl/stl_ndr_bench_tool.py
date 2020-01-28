@@ -26,27 +26,30 @@ def build_streams_for_bench(size, vm, src_start_ip, src_stop_ip, dest_start_ip, 
 
 # find NDR benchmark test
 # it maps the ports to sides
-# then it load a predefind profile 'IMIX'
-# and attach it to both sides and inject
+# then it loads a predefined profile 'IMIX'
+# and attaches it to both sides and injects
 # then searches for NDR according to specified values
-def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1, iteration_duration=20.00, ndr_results=1,
+def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, ndr_results=1,
                        title='Default Title', first_run_duration=20.00, verbose=False,
-                       pdr_error=1.00, q_ful_resolution=2.00, latency=True, vm='cached', pkt_size=64,
+                       pdr_error=1.00, q_full_resolution=2.00, latency=True, vm='cached', pkt_size=64,
                        fe_src_start_ip=None,
-                       fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None, drop_rate_interval=10,
+                       fe_src_stop_ip=None, fe_dst_start_ip=None, fe_dst_stop_ip=None,
                        output=None, ports_list=[],
                        latency_rate=1000, max_iterations=10, yaml_file=None,
-                       bi_dir=False, force_map_table=False):
-    configs = {'server': server, 'core_mask': core_mask, 'pdr': pdr, 'iteration_duration': iteration_duration,
+                       bi_dir=False, force_map_table=False, plugin_file=None, tunables=None,
+                       opt_binary_search=False, opt_binary_search_percentage=5):
+    configs = {'server': server, 'pdr': pdr, 'iteration_duration': iteration_duration,
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
                'pdr_error': pdr_error, 'title': title,
-               'q_ful_resolution': q_ful_resolution, 'latency': latency,
+               'q_full_resolution': q_full_resolution, 'latency': latency,
                'vm': vm, 'pkt_size': pkt_size,
                'ports': ports_list, 'latency_rate': latency_rate, 'max_iterations': max_iterations,
-               'drop rate interval': drop_rate_interval, 'fe_src_start_ip': fe_src_start_ip,
+               'fe_src_start_ip': fe_src_start_ip,
                'fe_src_stop_ip': fe_src_stop_ip, 'fe_dst_start_ip': fe_dst_start_ip,
                'fe_dst_stop_ip': fe_dst_stop_ip,
-               'bi_dir': bi_dir, 'force_map_table': force_map_table}
+               'bi_dir': bi_dir, 'force_map_table': force_map_table,
+               'plugin_file': plugin_file, 'tunables': tunables,
+               'opt_binary_search': opt_binary_search, 'opt_binary_search_percentage': opt_binary_search_percentage}
     passed = True
     if yaml_file:
         try:
@@ -62,7 +65,6 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
     c.connect()
     trex_info = c.get_server_system_info()
     configs['cores'] = trex_info['dp_core_count_per_port']
-    # pprint(c.get_util_stats())
     # take all the ports
     c.reset()
 
@@ -75,7 +77,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
             print("illegal ports list")
             return
         if not force_map_table:
-            for i in range(0,len(ports_list), 2):
+            for i in range(0, len(ports_list), 2):
                 if (ports_list[i],ports_list[i+1]) not in table['bi']:
                     print("some given ports pairs are not configured properly ")
                     return
@@ -107,10 +109,7 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
                                        flow_stats=STLFlowLatencyStats(pg_id=i),
                                        mode=STLTXSingleBurst(total_pkts=total_pkts,
                                                              pps=pps))
-            # print type(latency_stream)
-            # print type(all_streams)
             all_streams.append(latency_stream)
-            # print all_streams
             c.add_streams(all_streams, ports=[i])
     # add both streams to ports
     else:
@@ -123,16 +122,13 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
     c.add_streams(streams, ports=dir_1)
 
     config = ndr.NdrBenchConfig(**configs)
-    # print "config before running: "
-    # pprint(config.core_mask)
-    # pprint(config.ports)
+
     b = ndr.NdrBench(stl_client=c, config=config)
 
     try:
         b.find_ndr(bi_dir)
         if config.verbose:
             b.results.print_final(latency, bi_dir)
-            # pprint(run_results)
     except STLError as e:
         passed = False
         print(e)
@@ -157,6 +153,46 @@ def ndr_benchmark_test(server='127.0.0.1', core_mask=0xffffffffffffffff, pdr=0.1
     return result, hu_dict
 
 
+def decode_tunables(tunable_str):
+
+    tunables = {}
+
+    # split by comma to tokens
+    tokens = tunable_str.split(',')
+
+    # each token is of form X=Y
+    for token in tokens:
+        m = re.search('(\S+)=(.+)', token)
+        if not m:
+            raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
+        val = m.group(2)           # string
+        if val.startswith(("'", '"')) and val.endswith(("'", '"')) and len(val) > 1: # need to remove the quotes from value
+            val = val[1:-1]
+        elif val.startswith('0x'): # hex
+            val = int(val, 16)
+        else:
+            try:
+                if '.' in val:     # float
+                    val = float(val)
+                else:              # int
+                    val = int(val)
+            except:
+                pass
+        tunables[m.group(1)] = val
+
+    return tunables
+
+
+def is_percentage(str):
+    try:
+        num = int(str)
+    except ValueError:
+        raise argparse.ArgumentTypeError('Integer value between 0 and 100 expected.')
+    if not (0 < num <=100):
+        raise argparse.ArgumentTypeError('Integer value between 0 and 100 (exclusive) expected.')
+    return num
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="TRex NDR benchmark tool")
     parser.add_argument('-s', '--server',
@@ -164,12 +200,6 @@ if __name__ == '__main__':
                         help='Remote trex address',
                         default='127.0.0.1',
                         type=str)
-    parser.add_argument('-c', '--core-mask',
-                        dest='core_mask',
-                        help='Determines the allocation of cores per port, see Stateless help for more info',
-                        default=0xffffffffffffffff,
-                        nargs='*',
-                        type=int)
     parser.add_argument('-p', '--pdr',
                         dest='pdr',
                         help='Allowed percentage of drops. (out of total traffic) [0(NDR)-100]',
@@ -182,7 +212,7 @@ if __name__ == '__main__':
                         type=float)
     parser.add_argument('-n', '--ndr-results',
                         dest='ndr_results',
-                        help='calculates the benchmark at each point scaled linearly under NDR [1-10]. '
+                        help='calculates the benchmark at each point scaled linearly under NDR [1-10].'
                              'The results for ndr_results=2 are NDR and NDR/2.',
                         default=1,
                         type=int)
@@ -215,7 +245,7 @@ if __name__ == '__main__':
                         default=1.00,
                         type=float)
     parser.add_argument('-q', '--q-full',
-                        dest='q_ful_resolution',
+                        dest='q_full_resolution',
                         help='percent of traffic allowed to be queued when transmitting above dut capability.\n'
                              '0%% q-full resolution is not recommended due to precision issues. [percents 0-100]',
                         default=2.00,
@@ -256,12 +286,6 @@ if __name__ == '__main__':
                         help='when using FE you can define the start and stop ip addresses.'
                              'this is valid only when -fe flag is defined',
                         default=None)
-    parser.add_argument('-d', '--drop-rate-interval', dest='drop_rate_interval',
-                        help='The tool will search for NDR, when drop occur, the tool searches for ndr between an assumed'
-                             'no drop rate within an interval defined by this parameter.[Percents]'
-                             'Default value is 10 percent, the tool will search for ndr in an interval of '
-                             '[assumed-rate - 10 percent, assumed rate + 10 percent]',
-                        default=10)
     parser.add_argument('-o', '--output', dest='output',
                         help='Desired output format. specify json for JSON output.'
                              'Specify yaml for YAML output.'
@@ -282,13 +306,41 @@ if __name__ == '__main__':
                         help='Specify bi-directional traffic.',
                         default=False,
                         action='store_true')
+    parser.add_argument('-f', '--plugin-file',
+                        dest='plugin_file',
+                        help='Provide the plugin file for the plugin that implements the pre and post iteration functions.',
+                        required='--tunables' in sys.argv,
+                        type=str,
+                        default=None)
+    parser.add_argument('--tunables',
+                        dest='tunables',
+                        help='Tunables to forward to the plugin if it exists. Use: --tunables a=1,b=2,c=3 (no spaces)',
+                        default={},
+                        type=decode_tunables)
+    parser.add_argument('--opt-bin-search',
+                        dest='opt_binary_search',
+                        help='Optimized binary search, makes use of the drop rate to optimize the first search interval. '
+                             'When drop occurs, the tool tries to find a better (smaller) interval to start the search on.'
+                             'If this parameter is true, the default value is 5 percent, the tool will search for ndr in an interval of '
+                             '[assumed-rate - 5 percent, assumed rate + 5 percent]'
+                             'where assumed-rate is (100-drop_rate)\% of max_rate',
+                        action='store_true',
+                        required='--opt-bin-search-percent' in sys.argv,
+                        default=False,)
+    parser.add_argument('--opt-bin-search-percent',
+                        dest='opt_binary_search_percentage',
+                        help='Use this to configure the percentage parameter for opt-bin-search.',
+                        default=5,
+                        type=is_percentage)
     args = parser.parse_args()
+
     # run the tests
-    ndr_benchmark_test(args.server, args.core_mask, args.pdr, args.iteration_duration, args.ndr_results, args.title,
+    ndr_benchmark_test(args.server, args.pdr, args.iteration_duration, args.ndr_results, args.title,
                        args.first_run_duration, args.verbose,
-                       args.pdr_error, args.q_ful_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
-                       args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip, args.drop_rate_interval,
+                       args.pdr_error, args.q_full_resolution, args.latency, args.vm, args.size, args.fe_src_start_ip,
+                       args.fe_src_stop_ip, args.fe_dst_start_ip, args.fe_dst_stop_ip,
                        args.output,
                        args.ports_list, args.latency_rate, args.max_iterations, args.yaml,
-                       args.bi_dir, args.force_map_table)
+                       args.bi_dir, args.force_map_table, args.plugin_file, args.tunables,
+                       args.opt_binary_search, args.opt_binary_search_percentage)
 

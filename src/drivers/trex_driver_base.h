@@ -234,6 +234,7 @@ private:
 
 CTRexExtendedDriverBase * get_ex_drv();
 
+std::string& get_bnxt_so_string(void);
 std::string& get_ntacc_so_string(void);
 std::string& get_mlx5_so_string(void);
 std::string& get_mlx4_so_string(void);

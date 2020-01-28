@@ -508,11 +508,15 @@ private:
     void get_rx_cmd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
     uint32_t get_delay_ticks(uint32_t program_index, uint32_t cmd_index);
+    void assert_cmd(uint32_t program_index, uint32_t cmd_index, const std::string &cmd_name, Json::Value &cmd);
     void fill_tx_mode(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
     void fill_delay_rnd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_set_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpnz(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_jmpdp(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+
     void fill_tx_pkt(uint32_t program_index, 
                      uint32_t cmd_index,
                      uint8_t socket_id,

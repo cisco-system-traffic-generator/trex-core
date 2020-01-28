@@ -266,8 +266,8 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcKEEPALIVE             =12,  /* set keep alive */
                tcCLOSE_PKT             =13,  /* close connection for udp */ 
                tcTX_MODE               =14,  /* TCP send mode, block, none block */ 
-
-
+               tcSET_TICK_VAR          =15,  /*  set tick var, used with jmp_dp */
+               tcJMPDP                 =16,  /* jump in case time passed from var is less than some duration */
                tcNO_CMD                =255  /* explicit reset */
 } tcp_app_cmd_enum_t;
 
@@ -319,10 +319,22 @@ struct CEmulAppCmdSetVar {
     uint64_t    m_val;
 };
 
+//tcSET_TICK_VAR
+struct CEmulAppCmdSetTickVar {
+    uint8_t              m_var_id; /* 2 vars */
+};
+
 //tcJMPNZ
 struct CEmulAppCmdJmpNZ {
     uint8_t     m_var_id; /* 2 vars*/
     int         m_offset; /* command */
+};
+
+//tcJMPDP
+struct CEmulAppCmdJmpDP {
+    uint8_t     m_var_id; /* 2 vars*/
+    int         m_offset; /* command */
+    uint64_t    m_duration; /* duration in ticks */
 };
 
 /* tcTX_PKT . write pkt. valid for UDP only, should be smaller than MTU */
@@ -360,7 +372,9 @@ struct CEmulAppCmd {
         CEmulAppCmdDelay     m_delay_cmd;
         CEmulAppCmdDelayRnd  m_delay_rnd;
         CEmulAppCmdSetVar    m_var;
+        CEmulAppCmdSetTickVar m_tick_var;   
         CEmulAppCmdJmpNZ     m_jmpnz;
+        CEmulAppCmdJmpDP      m_jmpdp;
         CEmulAppCmdTxPkt     m_tx_pkt;
         CEmulAppCmdRxPkt     m_rx_pkt;   
         CEmulAppCmdKeepAlive m_keepalive;   
@@ -861,6 +875,7 @@ private:
 
     /* cache line 3 */
     uint64_t                m_vars[apVAR_NUM_SIZE];
+    uint64_t                m_tick_vars[apVAR_NUM_SIZE];
 };
 
 
