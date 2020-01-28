@@ -78,7 +78,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 8}
+        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 9}
 
         TRexClient.__init__(self,
                             api_ver,
