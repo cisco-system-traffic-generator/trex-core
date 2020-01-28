@@ -1351,7 +1351,7 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
     }
 
     int c_prog_idx = temp["client_template"]["program_index"].asInt();
-    bool is_stream = m_val["program_list"][c_prog_idx]["stream"].asBool();
+    bool is_stream = get_emul_stream(c_prog_idx);   // same as server_template
     if (is_stream) {
         throw TrexException("TCP L7 map not supported yet.");
     }
