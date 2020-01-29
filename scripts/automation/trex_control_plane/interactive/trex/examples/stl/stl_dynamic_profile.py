@@ -30,7 +30,7 @@ class DynamicProfileTest:
         self.duration = duration
 
     def is_profile_end_msg(self,msg):
-        m = re.match("Profile (\d+).profile_(\d+) job done", msg)
+        m = re.match(r"Profile (\d+).profile_(\d+) job done", msg)
         if m:
             return [int(m.group(1)),int(m.group(2))]
         else:

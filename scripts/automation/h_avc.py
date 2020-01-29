@@ -145,7 +145,7 @@ class ASR1k(Router):
         cpu_util = -1.0
         # search for the line 
         for l in lines:
-            m = re.match("\W*Processing: Load\D*(\d+)\D*(\d+)\D*(\d+)\D*(\d+)\D*", l)
+            m = re.match(r"\W*Processing: Load\D*(\d+)\D*(\d+)\D*(\d+)\D*(\d+)\D*", l)
             if m:
                 cpu_util = float(m.group(1))
 
@@ -168,7 +168,7 @@ class ISR(Router):
 
         # search for the line 
         for l in lines:
-            m = re.match("\W*CPU utilization for five seconds: (\d+)%/(\d+)%", l)
+            m = re.match(r"\W*CPU utilization for five seconds: (\d+)%/(\d+)%", l)
             if m:
                 max_cpu_util = float(m.group(1))
                 min_cpu_util = float(m.group(2))

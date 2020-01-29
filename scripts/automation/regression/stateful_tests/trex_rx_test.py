@@ -26,7 +26,7 @@ class CTRexRx_Test(CTRexGeneral_Test):
             # get relevant TRex results
 
             try:
-                ports_names = trex_res.get_last_value('trex-latecny-v2.data', 'port\-\d+')
+                ports_names = trex_res.get_last_value('trex-latecny-v2.data', r'port-\d+')
                 if not ports_names:
                     raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
                 for port_name in ports_names:

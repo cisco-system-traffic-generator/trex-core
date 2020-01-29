@@ -31,7 +31,7 @@ def check_negative(value):
 
 def match_time_unit(val):
     '''match some val against time shortcut inputs '''
-    match = re.match("^(\d+(\.\d+)?)([m|h]?)$", val)
+    match = re.match(r"^(\d+(\.\d+)?)([m|h]?)$", val)
     if match:
         digit = float(match.group(1))
         unit = match.group(3)
@@ -83,7 +83,7 @@ astf_profile_help = """A list of profiles on which to apply the command.
 def decode_multiplier(val, allow_update = False, divide_count = 1):
 
     factor_table = {None: 1, 'k': 1e3, 'm': 1e6, 'g': 1e9}
-    pattern = "^(\d+(\.\d+)?)(((k|m|g)?(bpsl1|pps|bps))|%)?"
+    pattern = r"^(\d+(\.\d+)?)(((k|m|g)?(bpsl1|pps|bps))|%)?"
 
     # do we allow updates ?  +/-
     if not allow_update:
@@ -91,7 +91,7 @@ def decode_multiplier(val, allow_update = False, divide_count = 1):
         match = re.match(pattern, val)
         op = None
     else:
-        pattern += "([\+\-])?$"
+        pattern += r"([\+\-])?$"
         match = re.match(pattern, val)
         if match:
             op  = match.group(7)
@@ -310,7 +310,7 @@ def decode_tunables (tunable_str):
 
     # each token is of form X=Y
     for token in tokens:
-        m = re.search('(\S+)=(.+)', token)
+        m = re.search(r'(\S+)=(.+)', token)
         if not m:
             raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
         val = m.group(2)           # string

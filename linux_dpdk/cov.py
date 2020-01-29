@@ -98,7 +98,7 @@ def upload ():
     print("or visit http://scan.coverity.com/projects/cisco-system-traffic-generator-trex-core?tab=overview")
 
 def check_env (env,err):
-    if  os.environ.has_key(env) == False :
+    if env not in os.environ:
         s= "ERROR you should define %s, %s" % (env,err)
         raise Exception(s);
 

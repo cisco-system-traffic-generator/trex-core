@@ -23,7 +23,7 @@ class CShowParser(object):
         mtch_found   = 0
 
         for line in response_lst:
-            mtch = re.match("^\s*(\w+/\d/\d)\s+(\d+)\s+(\d+)", line)
+            mtch = re.match(r"^\s*(\w+/\d/\d)\s+(\d+)\s+(\d+)", line)
             if mtch:
                 mtch_found += 1
                 if (mtch.group(1) in interfaces_list):
@@ -43,7 +43,7 @@ class CShowParser(object):
         mtch_found   = 0
 
         for line in response_lst:
-            mtch = re.match("\s*([\w-]+)\s*(\d+)\s*(\d+)\s+", line)
+            mtch = re.match(r"\s*([\w-]+)\s*(\d+)\s*(\d+)\s+", line)
             if mtch:
                 mtch_found += 1
                 key     = mtch.group(1)
@@ -77,7 +77,7 @@ class CShowParser(object):
         mtch_found   = 0
 
         for line in response_lst:
-            mtch = re.match("Total (active translations):\s+(\d+).*(\d+)\s+static,\s+(\d+)\s+dynamic", line)
+            mtch = re.match(r"Total (active translations):\s+(\d+).*(\d+)\s+static,\s+(\d+)\s+dynamic", line)
             if mtch:
                 mtch_found += 1
                 res['total_active_trans']   = int(mtch.group(2))
@@ -85,7 +85,7 @@ class CShowParser(object):
                 res['dynamic_active_trans'] = int(mtch.group(4))
                 continue
 
-            mtch = re.match("(Hits):\s+(\d+)\s+(Misses):\s+(\d+)", line)
+            mtch = re.match(r"(Hits):\s+(\d+)\s+(Misses):\s+(\d+)", line)
             if mtch:
                 mtch_found += 1
                 res['num_of_hits']   = int(mtch.group(2))
@@ -103,7 +103,7 @@ class CShowParser(object):
                 'cpu1' : 0 }
         mtch_found = 0
         for line in response_lst:
-            mtch = re.match("\W*Processing: Load\D*(\d+)\D*(\d+)\D*(\d+)\D*(\d+)\D*", line)
+            mtch = re.match(r"\W*Processing: Load\D*(\d+)\D*(\d+)\D*(\d+)\D*(\d+)\D*", line)
             if mtch:
                 mtch_found += 1
                 res['cpu0'] += float(mtch.group(1))
@@ -122,7 +122,7 @@ class CShowParser(object):
         res = {}
         mtch_found = 0
         for line in response_lst:
-            mtch = re.match("\W*(\w+)\W*([:]|[=])\W*(\d+)", line)
+            mtch = re.match(r"\W*(\w+)\W*([:]|[=])\W*(\d+)", line)
             if mtch:
                 mtch_found += 1
                 res[ str( mix_string(m.group(1)) )] = float(m.group(3))
@@ -144,26 +144,26 @@ class CShowParser(object):
 
         for line in response_lst:
             if state == 0:
-                mtch = re.match("\W*Entity name:\W*(\w[^\r\n]+)", line)
+                mtch = re.match(r"\W*Entity name:\W*(\w[^\r\n]+)", line)
                 if mtch:
                     name = misc_methods.mix_string(mtch.group(1))
                     state = 1
                     cnt += 1
             elif state == 1:
-                mtch = re.match("\W*Handle:\W*(\d+)", line)
+                mtch = re.match(r"\W*Handle:\W*(\d+)", line)
                 if mtch:
                     state = state + 1
                 else:
                     state = 0;
             elif state == 2:
-                mtch = re.match("\W*Number of allocations:\W*(\d+)", line)
+                mtch = re.match(r"\W*Number of allocations:\W*(\d+)", line)
                 if mtch:
                     state = state + 1
                     number=float(mtch.group(1))
                 else:
                     state = 0;
             elif state == 3:
-                mtch = re.match("\W*Memory allocated:\W*(\d+)", line)
+                mtch = re.match(r"\W*Memory allocated:\W*(\d+)", line)
                 if mtch:
                     state = 0
                     res[name]   = float(mtch.group(1))
@@ -182,7 +182,7 @@ class CShowParser(object):
         res      = {}
 
         for line in response_lst:
-            mtch = re.match("System image file is \"(\w+):(.*/)?(.+)\"", line)
+            mtch = re.match(r"System image file is \"(\w+):(.*/)?(.+)\"", line)
             if mtch:
                 res['drive'] = mtch.group(1)
                 res['image'] = mtch.group(3)
@@ -214,7 +214,7 @@ class CShowParser(object):
         lines_parsed     = 0
 
         for line in rev_response_lst:
-            mtch = re.match("\[OK - (\d+) bytes\]", line)
+            mtch = re.match(r"\[OK - (\d+) bytes\]", line)
             if mtch:
                 return True
             lines_parsed += 1

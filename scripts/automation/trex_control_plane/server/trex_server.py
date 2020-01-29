@@ -279,7 +279,7 @@ class CTRexServer(object):
             logger.info("Processing get_trex_version() command.")
             if not self.trex_version:
                 ret_code, stdout, stderr = run_command('./t-rex-64 --help', cwd = self.TREX_PATH)
-                search_result = re.search('\n\s*(Version\s*:.+)', stdout, re.DOTALL)
+                search_result = re.search(r'\n\s*(Version\s*:.+)', stdout, re.DOTALL)
                 if not search_result:
                     raise Exception('Could not determine version from ./t-rex-64 --help. Stdout: %s. Stderr: %s' % (stdout, stderr))
                 self.trex_version = binascii.b2a_base64(search_result.group(1).encode(errors='replace'))

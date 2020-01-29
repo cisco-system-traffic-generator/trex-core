@@ -108,7 +108,8 @@ class Setup:
             test_dates.append(test.latest_result_date)
             test_latest_results.append(test.latest_result)
         self.latest_test_results = pd.DataFrame(
-            {'Date': test_dates, 'Test Name': test_names, 'MPPS\Core (Norm)': test_latest_results},
+            {'Date': test_dates, 'Test Name': test_names,
+             'MPPS/Core (Norm)': test_latest_results},
             index=range(1, len(test_latest_results) + 1))
         self.latest_test_results = self.latest_test_results[[2, 1, 0]]  # re-order columns to name|MPPS|date
 
