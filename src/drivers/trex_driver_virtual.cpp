@@ -181,6 +181,25 @@ void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
     cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }
 
+CTRexExtendedDriverMemif::CTRexExtendedDriverMemif() {
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
+}
+
+TRexPortAttr* CTRexExtendedDriverMemif::create_port_attr(tvpid_t tvpid,repid_t repid){
+    return new DpdkTRexPortAttr(tvpid, repid, true, false, true, false, false);
+}
+
+bool CTRexExtendedDriverMemif::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+void CTRexExtendedDriverMemif::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    cfg->m_port_conf.rxmode.offloads = 0;
+    // Memif does not claim as supporting multi-segment send.
+    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+}
+
 ///////////////////////////////////////////////////////// VF
 
 CTRexExtendedDriverI40evf::CTRexExtendedDriverI40evf() {
@@ -215,6 +234,6 @@ void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    // AF Packet does not claim as supporting multi-segment send.
+    // Azure does not claim as supporting multi-segment send.
     cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
 }

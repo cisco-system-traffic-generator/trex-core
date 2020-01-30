@@ -125,6 +125,21 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
 };
 
+class CTRexExtendedDriverMemif : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverMemif();
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverMemif() );
+    }
+    virtual bool is_support_for_rx_scatter_gather(){
+        return (false);
+    }
+
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void update_configuration(port_cfg_t * cfg);
+};
+
 /* specific for Azure with mlx5/tun failsafe */
 class CTRexExtendedDriverAzure : public CTRexExtendedDriverVirtBase {
 public:

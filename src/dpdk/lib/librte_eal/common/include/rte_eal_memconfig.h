@@ -5,6 +5,8 @@
 #ifndef _RTE_EAL_MEMCONFIG_H_
 #define _RTE_EAL_MEMCONFIG_H_
 
+#include <stdbool.h>
+
 #include <rte_config.h>
 #include <rte_tailq.h>
 #include <rte_memory.h>
@@ -99,6 +101,41 @@ rte_eal_mcfg_wait_complete(struct rte_mem_config* mcfg)
 	while(mcfg->magic != RTE_MAGIC)
 		rte_pause();
 }
+
+/**
+ * Lock the internal EAL shared memory configuration for shared access.
+ */
+void
+rte_mcfg_mem_read_lock(void);
+
+/**
+ * Unlock the internal EAL shared memory configuration for shared access.
+ */
+void
+rte_mcfg_mem_read_unlock(void);
+
+/**
+ * Lock the internal EAL shared memory configuration for exclusive access.
+ */
+void
+rte_mcfg_mem_write_lock(void);
+
+/**
+ * Unlock the internal EAL shared memory configuration for exclusive access.
+ */
+void
+rte_mcfg_mem_write_unlock(void);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * If true, pages are put in single files (per memseg list),
+ * as opposed to creating a file per page.
+ */
+__rte_experimental
+bool
+rte_mcfg_get_single_file_segments(void);
 
 #ifdef __cplusplus
 }

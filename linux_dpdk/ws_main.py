@@ -868,6 +868,10 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/igb_pf.c',
                  'drivers/net/e1000/igb_rxtx.c',
 
+                 #memif
+                 'drivers/net/memif/memif_socket.c',
+                 'drivers/net/memif/rte_eth_memif.c',
+
                  #virtio
                  'drivers/net/virtio/virtio_ethdev.c',
                  'drivers/net/virtio/virtio_pci.c',
@@ -904,6 +908,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
+                 'lib/librte_eal/common/eal_common_mcfg.c',
 
                  'lib/librte_eal/common/hotplug_mp.c',
                  'lib/librte_eal/common/malloc_elem.c',
@@ -1077,6 +1082,13 @@ bnxt_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/rte_pmd_bnxt.c',
             ]);
 
+memif_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/memif',
+    src_list = [
+        'memif_socket.c',
+        'rte_eth_memif.c',
+    ]);
+
 if march == 'x86_64':
     bp_dpdk = SrcGroups([
                   dpdk_src,
@@ -1137,6 +1149,10 @@ mlx4_dpdk =SrcGroups([
 
 bnxt_dpdk = SrcGroups([
                 bnxt_dpdk_src,
+                ]);
+
+memif_dpdk = SrcGroups([
+                memif_dpdk_src,
                 ]);
 
 # this is the library dp going to falcon (and maybe other platforms)
@@ -1300,6 +1316,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/vmxnet3/
                         ../src/dpdk/drivers/net/vmxnet3/base
                         ../src/dpdk/drivers/net/bnxt/
+                        ../src/dpdk/drivers/net/memif/
 
                         ../src/dpdk/drivers/net/ena/
                         ../src/dpdk/drivers/net/ena/base/
