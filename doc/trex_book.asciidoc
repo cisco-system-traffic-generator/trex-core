@@ -153,6 +153,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Virtio | paravirtualized    | + | - | KVM
 | Amazon ENA | paravirtualized    | + | - | Amazon Cloud
 | MS Failsafe | paravirtualized    | + | - | Azure with DPDK mlx5 support 
+| memif | shared memory rings | + | - | see link:https://doc.dpdk.org/guides/nics/memif.html[memif] support multi core for STL. ASTF only one core
 |=================
 
 [NOTE]
