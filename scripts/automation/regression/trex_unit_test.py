@@ -326,7 +326,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                             dest="stateful",
                             help="Run stateful tests.")
         parser.add_option('--astf', action="store_true",
-                            help="Run stateful tests.")
+                            help="Run advanced stateful tests.")
         parser.add_option('--wireless', action="store_true",
                             help="Run wireless tests.")
         parser.add_option('--pkg', type = str,
