@@ -642,6 +642,47 @@ Under the hood it's being replaced with the following (this full syntax can also
 ...
 ----
 
+=== memif interfaces
+
+It wraps a share memory infra ring. There is a foursome of arguments to interconnect 2 memifs to communicate: `socket`, `id`, `role` and `secret`.
+
+Socket, id and secret needs to be the same (for pair of connected memifs), role has to differ. 
+
+One of pair needs to have role `master` and second `slave`. 
+
+Socket is for exchange of protocol control messages. (by default /run/vpp/memif.sock in FD.io VPP)
+Id just has to match. it's unique for every pair of memifs.
+Secret is optional string (by default empty) wich has to match.
+
+For example for yaml trex memif interface definition mentioned above:
+
+.trex_cfg.yaml
+[source,bash]
+----
+  - port_limit: 2
+    version: 2
+    interfaces: ["--vdev=net_memif0,socket=/run/vpp/memif.sock,role=slave,id=0", 
+                "--vdev=net_memif1,socket=/run/vpp/memif.sock,role=slave,id=1"]
+----
+
+To create corresponding interfaces in VPP I used following CLI commands:
+
+[source,bash]
+----
+
+vpp# create interface memif id 0 master
+vpp# set interface state memif0/0 up
+vpp# create interface memif id 1 master
+vpp# set interface state memif0/1 up
+----
+
+Then you can check the state by:
+
+----
+vpp# show memif
+----
+
+
 === Emulation stacks
 
 anchor:stacks[]
