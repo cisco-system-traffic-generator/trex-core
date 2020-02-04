@@ -877,16 +877,16 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
                 tunable_min_max_u32("no_delay",tune->m_tcp_no_delay,0,1);
             }
 
-            if (read_tunable_uint8(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
-                tunable_min_max_u32("keepinit",tune->m_tcp_keepinit,2,253);
+            if (read_tunable_uint16(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
+                tunable_min_max_u32("keepinit",tune->m_tcp_keepinit,2, 65533);
             }
 
-            if (read_tunable_uint8(tune,json,"keepidle",CTcpTuneables::tcp_keepidle,tune->m_tcp_keepidle)){
-                tunable_min_max_u32("keepidle",tune->m_tcp_keepidle,2,253);
+            if (read_tunable_uint16(tune,json,"keepidle",CTcpTuneables::tcp_keepidle,tune->m_tcp_keepidle)){
+                tunable_min_max_u32("keepidle",tune->m_tcp_keepidle,2, 65533);
             }
 
-            if (read_tunable_uint8(tune,json,"keepintvl",CTcpTuneables::tcp_keepintvl,tune->m_tcp_keepintvl)){
-                tunable_min_max_u32("keepintvl",tune->m_tcp_keepintvl,2,253);
+            if (read_tunable_uint16(tune,json,"keepintvl",CTcpTuneables::tcp_keepintvl,tune->m_tcp_keepintvl)){
+                tunable_min_max_u32("keepintvl",tune->m_tcp_keepintvl,2, 65533);
             }
 
             if (read_tunable_uint8(tune,json,"blackhole",CTcpTuneables::tcp_blackhole,tune->m_tcp_blackhole)){
