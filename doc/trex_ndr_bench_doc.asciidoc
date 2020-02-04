@@ -126,6 +126,17 @@ To generate latency traffic (you can write your own profile if this isn't enough
 ----
 [bash]>./ndr --port 0 1 -v --profile stl/flow_stats_latency.py
 ----
+Another important profile to keep in mind is the bench profile, build exactly for the purpose of benchmarking. 
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v --profile stl/bench.py
+----
+And lastly, if we want to test with a benchmarking profile build for UDP we can use:
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v --profile stl/udp_for_benchmarks.py
+----
+
 
 == Running example
 Let us show a running example: We will run the server with 7 cores per interface (a couple of ports) and one interface.
