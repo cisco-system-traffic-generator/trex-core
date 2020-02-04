@@ -77,8 +77,9 @@ class NdrBenchConfig:
     def __init__(self, ports, title='Title', cores=1, iteration_duration=20.00,
                  q_full_resolution=2.00, first_run_duration=20.00, pdr=0.1, 
                  pdr_error=1.0, ndr_results=1, max_iterations=10,
-                 verbose=False, bi_dir=False, plugin_file=None, tunables={},
-                 opt_binary_search=False, opt_binary_search_percentage=5, **kwargs):
+                 max_latency=0, lat_tolerance=0, verbose=False, bi_dir=False,
+                 plugin_file=None, tunables={}, opt_binary_search=False,
+                 opt_binary_search_percentage=5, **kwargs):
         """
             Configuration parameters for the benchmark.
 
@@ -112,6 +113,12 @@ class NdrBenchConfig:
 
                 max_iterations: int
                     Max number of iterations allowed.
+
+                max_latency: int
+                    Max value of latency allowed in msec.
+
+                lat_tolerance: int
+                    Percentage of latency packets allowed above max latency. Default value is 0 %. (Max Latency will be compared against total max)
 
                 verbose: boolean
                     Verbose mode
@@ -162,6 +169,9 @@ class NdrBenchConfig:
         self.opt_binary_search = opt_binary_search
         self.opt_binary_search_percentage = opt_binary_search_percentage
         self.latency = False
+        self.max_latency = max_latency
+        self.lat_tolerance = lat_tolerance
+        self.max_latency_set = True if self.max_latency != 0 else False
 
     def get_optimal_core_mask(self, num_of_cores, num_of_ports):
         """
@@ -355,6 +365,8 @@ class NdrBenchResults:
         print("Max Rate                          :%s       " % self.convert_rate(float(self.stats['max_rate_bps'])))
         print("Drop Rate                         :%0.5f %% of oPackets" % self.stats['drop_rate_percentage'])
         print("Queue Full                        :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
+        if self.config.latency and self.config.max_latency_set:
+            print("Valid Latency                     :%s" % self.stats['valid_latency'])
         self.print_run_stats()
 
     def print_final(self):
@@ -373,6 +385,8 @@ class NdrBenchResults:
         print("P-Drop Rate (%% of max)            :%0.2f %%" % self.stats['rate_p'])
         print("Drop Rate at Optimal P-Drop Rate  :%0.5f %% of oPackets" % self.stats['drop_rate_percentage'])
         print("Queue Full at Optimal P-Drop Rate :%0.2f %% of oPackets" % self.stats['queue_full_percentage'])
+        if self.config.latency and self.config.max_latency_set:
+            print("Valid Latency at Opt. P-Drop Rate :%s" % self.stats['valid_latency'])
         self.print_run_stats()
         for x in self.stats['ndr_points']:
             print("NDR(s) %s            :%s " % (traffic_dir, self.convert_rate(x)))
@@ -414,7 +428,8 @@ class NdrBenchResults:
                    'NDR points': [self.convert_rate(float(x)) for x in self.stats['ndr_points']],
                    'Total Iterations': self.stats.get('iteration', None),
                    'Title': self.stats['title'],
-                   'latency': dict(self.stats['latency'])}
+                   'latency': dict(self.stats['latency']),
+                   'valid_latency': self.stats['valid_latency']}
 
         return hu_dict
 
@@ -461,6 +476,70 @@ class NdrBench:
             return True
         return False
 
+    def calculate_max_latency_received(self, latency_data):
+        """
+            Calculates the max latency of a run.
+            Call this only if latency tolerance is 0%.
+
+            :parameters:
+                latency_data: dict
+                    The latency field of get_stats() of the :class:`.STLClient`
+
+            :returns:
+                The max latency in that run.
+        """
+        max_latency = 0
+        for pg_id in latency_data.keys():
+            if type(pg_id) != int:
+                continue
+            max_latency = max(latency_data[pg_id]['latency']['total_max'], max_latency)
+        return max_latency
+
+    def calculate_latency_percentage(self, latency_data):
+        """
+            Calculates the percentage of latency packets beyond the max latency parameter.
+            The percentage is calculated independently for each pg id and the maximal percentage is returned.
+            Call this only if latency tolerance is more than 0%.
+
+            :parameters:
+                latency_data: dict
+                    The latency field of get_stats() of the :class:`.STLClient`
+
+            :returns:
+                A float represeting the percentage of latency packets above max latency.
+        """
+        latency_percentage = 0
+        for pg_id in latency_data.keys():
+            if type(pg_id) != int:
+                continue
+            pg_id_histogram = latency_data[pg_id]['latency']['histogram']
+            total_packets = sum(pg_id_histogram.values())
+            packets_above_max_latency = sum(pg_id_histogram[index] for index in pg_id_histogram.keys() if index >= self.config.max_latency)
+            packets_above_max_latency_percentage = float(packets_above_max_latency) / total_packets * 100
+            latency_percentage = max(latency_percentage, packets_above_max_latency_percentage)
+        return latency_percentage
+
+    def is_valid_latency(self, latency_data):
+        """
+            Returns a boolean flag indicating if the latency of a run is valid.
+            In case latency was not set then it returns True.
+
+            :parameters:
+                latency_data: dict
+                    The latency field of get_stats() of the :class:`.STLClient`
+
+            :returns:
+                A boolean flag indiciating the latency was valid.
+        """
+        if self.config.latency and self.config.max_latency_set:
+            if self.config.lat_tolerance == 0:
+                return self.config.max_latency >= self.calculate_max_latency_received(latency_data)
+            else:
+                return self.config.lat_tolerance >= self.calculate_latency_percentage(latency_data)
+        else:
+            return True
+
+
     def calculate_ndr_points(self):
         """
             Calculates NDR points based on the ndr_results parameter in the :class:`.NdrBenchConfig` object.
@@ -480,7 +559,8 @@ class NdrBench:
                 new_stats: dict
                     Statistics of some run.
         """
-        if new_stats['queue_full_percentage'] <= self.config.q_full_resolution and new_stats['drop_rate_percentage'] <= self.config.pdr:
+        if new_stats['queue_full_percentage'] <= self.config.q_full_resolution and new_stats['drop_rate_percentage'] <= self.config.pdr \
+                                        and new_stats['valid_latency']:
             if new_stats['rate_p'] > self.opt_run_stats['rate_p']:
                 self.opt_run_stats.update(new_stats)
 
@@ -496,8 +576,8 @@ class NdrBench:
                     Percentage/Resolution of allowed drops/queue full.
 
                 stat_type: string
-                    Type of statistic that had drops. stat_type should be either "drop_rate_percentage" or "queue_full_percentage".
-                    Drops have priority over queue full.
+                    Type of statistic that had drops. stat_type should be either "drop_rate_percentage", "queue_full_percentage" or "valid_latency".
+                    Drops have priority over queue full which has priority over valid_latency,
 
             :returns:
                 Dictionary of the optimal run stats found in the interval, based on the criterions defined in :class:`.NdrBenchConfig`,
@@ -534,8 +614,11 @@ class NdrBench:
                     self.results.print_state("Plugin decided to stop trying upper bound of assumed rate!", None, None)
                 return current_run_stats
 
-            upper_bound_lost_percentage = current_run_stats[stat_type]
-            if upper_bound_lost_percentage <= lost_allowed_percentage:
+            if stat_type == "valid_latency":
+                upper_bound_valid = current_run_stats[stat_type]
+            else:
+                upper_bound_valid = current_run_stats[stat_type] <= lost_allowed_percentage
+            if upper_bound_valid:
                 if self.config.verbose:
                     self.results.print_state("Upper bound of assumed NDR drops are below desired rate :)",\
                                              100, upper_bound_percentage_of_max_rate)
@@ -564,8 +647,12 @@ class NdrBench:
                 self.results.print_state("Plugin decided to stop trying lower bound of assumed rate!", None, None)
             return current_run_stats
 
-        lower_bound_lost_percentage = current_run_stats[stat_type]
-        if lower_bound_lost_percentage <= lost_allowed_percentage:
+
+        if stat_type == "valid_latency":
+            lower_bound_valid = current_run_stats[stat_type]
+        else:
+            lower_bound_valid = current_run_stats[stat_type] <= lost_allowed_percentage
+        if lower_bound_valid:
             self.results.print_state("Lower bound of assumed NDR drops are below desired rate :)",\
                                      upper_bound_percentage_of_max_rate, lower_bound_percentage_of_max_rate)
             return self.perf_run_interval(upper_bound_percentage_of_max_rate, lower_bound_percentage_of_max_rate)
@@ -636,6 +723,7 @@ class NdrBench:
         tx_util_norm = sum([stats[x]['tx_util'] for x in self.config.transmit_ports]) / len(self.config.transmit_ports)
         self.results.stats['total_iterations'] = self.results.stats['total_iterations'] + 1 if not run_max else self.results.stats['total_iterations']
         run_results = {'queue_full_percentage': q_full_percentage, 'drop_rate_percentage': lost_p_percentage,
+                       'valid_latency': self.is_valid_latency(latency_stats),
                        'rate_tx_bps': min(tx_bps),
                        'rate_rx_bps': min(rx_bps),
                        'tx_util': tx_util_norm, 'latency': latency_groups,
@@ -699,6 +787,7 @@ class NdrBench:
                 plugin_stop = self.plugin_post_iteration(finding_max_rate=False, run_results=current_run_stats, **self.config.tunables)
             lost_p_percentage = current_run_stats['drop_rate_percentage']
             q_full_percentage = current_run_stats['queue_full_percentage']
+            valid_latency = current_run_stats['valid_latency']
             current_run_stats['rate_difference'] = abs(current_run_stats['rate_p'] - self.opt_run_stats['rate_p'])
             current_run_results.update(current_run_stats)
             if self.config.verbose:
@@ -706,6 +795,8 @@ class NdrBench:
                     current_run_results.print_state("Queue Full Occurred", high_bound, low_bound)
                 elif lost_p_percentage > self.config.pdr:
                     current_run_results.print_state("Drops beyond Desired rate occurred", high_bound, low_bound)
+                elif not valid_latency:
+                    current_run_results.print_state("Invalid Latency", high_bound, low_bound)
                 else:
                     current_run_results.print_state("Looking for NDR", high_bound, low_bound)
                 current_run_results.print_iteration_data()
@@ -715,7 +806,7 @@ class NdrBench:
                 self.update_opt_stats(current_run_stats)
                 break
 
-            if q_full_percentage <= self.config.q_full_resolution and lost_p_percentage <= self.config.pdr:
+            if q_full_percentage <= self.config.q_full_resolution and lost_p_percentage <= self.config.pdr and valid_latency:
                 if current_run_stats['rate_p'] > self.opt_run_stats['rate_p']:
                     self.opt_run_stats.update(current_run_stats)
                     if current_run_stats['rate_difference'] <= self.config.pdr_error:
@@ -765,6 +856,7 @@ class NdrBench:
 
         drop_percent = self.results.stats['drop_rate_percentage']
         q_full_percent = self.results.stats['queue_full_percentage']
+        valid_latency = self.results.stats['valid_latency']
 
         if drop_percent > self.config.pdr:
             if self.config.opt_binary_search:
@@ -784,6 +876,16 @@ class NdrBench:
             else:
                 if self.config.verbose:
                     self.results.print_state("DUT Queue is Full, Looking for no queue full rate", 100, 0)
+                self.results.update(self.perf_run_interval(100.00, 0.00))
+
+        elif not valid_latency:
+            if self.config.opt_binary_search:
+                if self.config.verbose:
+                    self.results.print_state("Invalid Latency, looking for NDR latency with optimized binary search", None, None)
+                self.results.update(self.optimized_binary_search(q_full_percent, 0, 'valid_latency'))
+            else:
+                if self.config.verbose:
+                    self.results.print_state("Invalid Latency, Looking for latency below tolerance", None, None)
                 self.results.update(self.perf_run_interval(100.00, 0.00))
 
         else:

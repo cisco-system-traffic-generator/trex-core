@@ -9,14 +9,10 @@ import trex.examples.stl.ndr_bench as ndr
 
 
 # find NDR benchmark test
-# it maps the ports to sides
-# then it loads a predefined profile 'IMIX'
-# and attaches it to both sides and injects
-# then searches for NDR according to specified values
 def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, ndr_results=1,
                        title='Title', first_run_duration=20.00, verbose=False,
-                       pdr_error=1.00, q_full_resolution=2.00, max_iterations=10,
-                       output=None, ports_list=[], yaml_file=None,
+                       pdr_error=1.00, q_full_resolution=2.00, max_iterations=10, max_latency=0,
+                       lat_tolerance=0, output=None, ports_list=[], yaml_file=None,
                        bi_dir=False, force_map_table=False, plugin_file=None, tunables={},
                        opt_binary_search=False, opt_binary_search_percentage=5,
                        profile='stl/imix.py', profile_tunables={}):
@@ -28,6 +24,7 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
                'ndr_results': ndr_results, 'first_run_duration': first_run_duration, 'verbose': verbose,
                'pdr_error': pdr_error, 'title': title, 'ports': ports_list,
                'q_full_resolution': q_full_resolution, 'max_iterations': max_iterations,
+               'max_latency': max_latency, 'lat_tolerance': lat_tolerance,
                'bi_dir': bi_dir, 'force_map_table': force_map_table,
                'plugin_file': plugin_file, 'tunables': tunables,
                'opt_binary_search': opt_binary_search, 'opt_binary_search_percentage': opt_binary_search_percentage}
@@ -205,6 +202,19 @@ if __name__ == '__main__':
                              '0%% q-full resolution is not recommended due to precision issues. [percents 0-100]',
                         default=2.00,
                         type=float)
+    parser.add_argument('--max-latency', 
+                        dest='max_latency',
+                        help='Maximal latency allowed. If the percent of latency packets above this value pass the latency tolerance,\n'
+                             ' then the rate is considered too high. If the value is 0, then we consider this as unset. Default=0',
+                        default=0,
+                        required='--lat_tolerance' in sys.argv,
+                        type=int)
+    parser.add_argument('--lat-tolerance',
+                        dest='lat_tolerance',
+                        help='Percentage of latency packets allowed beyond max-latency. Default is 0%. In this case we compare max-latency\n'
+                                'to the maximal latency in a run',
+                        default=0,
+                        type=is_percentage)
     parser.add_argument('-o', '--output', dest='output',
                         help='Desired output format. specify json for JSON output.'
                              'Specify yaml for YAML output.'
@@ -267,8 +277,8 @@ if __name__ == '__main__':
     ndr_benchmark_test(server=args.server, pdr=args.pdr, iteration_duration=args.iteration_duration, 
                        ndr_results=args.ndr_results, title=args.title, first_run_duration=args.first_run_duration,
                        verbose=args.verbose, max_iterations= args.max_iterations,pdr_error=args.pdr_error,
-                       q_full_resolution=args.q_full_resolution, output=args.output, ports_list=args.ports_list,
-                       yaml_file=args.yaml, bi_dir=args.bi_dir, force_map_table=args.force_map_table,
-                       plugin_file=args.plugin_file, tunables=args.tunables, opt_binary_search=args.opt_binary_search,
-                       opt_binary_search_percentage=args.opt_binary_search_percentage, profile=args.profile, 
-                       profile_tunables=args.profile_tunables)
+                       q_full_resolution=args.q_full_resolution, max_latency=args.max_latency, lat_tolerance=args.lat_tolerance,
+                       output=args.output, ports_list=args.ports_list, yaml_file=args.yaml, bi_dir=args.bi_dir,
+                       force_map_table=args.force_map_table, plugin_file=args.plugin_file, tunables=args.tunables,
+                       opt_binary_search=args.opt_binary_search, opt_binary_search_percentage=args.opt_binary_search_percentage,
+                       profile=args.profile, profile_tunables=args.profile_tunables)

@@ -86,20 +86,27 @@ For example, to run the benchmark with 3 iterations at max, each iteration with 
 ----
 We suggest you to be careful with the duration of the iteration. The disadvantage of long durations is quite clear, however short durations might be dangerous. It takes T-Rex a few seconds to normalize after transmitting at a high rate and it also takes a few seconds to start transmitting at a high rate. Hence, try to avoid very short duration or you might suffer from strange results.
 
-=== Drop rate percentage, allowed error and queuing
+=== Drop rate percentage, allowed error, queuing and latency tolerance
 
 Until now we didn't get in the details of how the algorithm stops. If we don't define some criterion of precision, we can, theoretically speaking, run forever. Hence, the following flags:
 
 * *pdr error* represents the allowed error around the best valid result seen so far (current optimum), in percent. Following the aforementioned, it is not recommended to use a 0% pdr error, since it will cause precision problems. The default value is 1%.
 * *pdr (percentage of drop rate)* represents the allowed percentage of drops, out of total traffic. The default value is 0.1%.
 * *q-full* represents the percent of traffic allowed to be queued when transmitting above the DUT's capability. Same as the previous values, it isn't recommended using 0%. The default value is 2%.
+* *max-latency* The maximal latency allowed in msec. Default value is 0, it signifies that the max latency is unset. 
+* *lat-tolerance* Percentage of packets allowed with latency beyond max-latency. Default is 0%. In this case the max latency will be compared head on with the highest latency packet in the run.
 
-A run is considered valid if in that run, the percentage of queue full is lower or equal to *q-full* and the percentage of drop rate is lower or equal than the *pdr*.
+A run is considered valid if in that run, the percentage of queue full is lower or equal to *q-full* and the percentage of drop rate is lower or equal than the *pdr* and the percentage of latency packets beyond *max-latency* is below *lat-tolerance*.
 
 To find NDR (*pdr* = 0%) with 3% allowed error and 5.5% queueing capability:
 [source,bash]
 ----
 [bash]>./ndr --port 0 1 -v --pdr 0 --pdr-error 3 --q-full 5.5
+----
+To find NDR with pdr = 2% and a maximal latency of 30 msec with tolerance of 5%:
+[source,bash]
+----
+[bash]>./ndr --port 0 1 -v --profile stl/udp_1pkt_src_ip_split_latency.py --max-latency 30 --lat-tolerance 5
 ----
 
 === Traffic engineering
