@@ -129,11 +129,12 @@ class CTcpTuneables {
  public:
     uint8_t  m_tcp_rexmtthresh; /* ACK retransmition */
     uint8_t  m_tcp_do_rfc1323; /* 1/0 */
+    uint8_t  m_tcp_keepinit;
+    uint8_t  m_tcp_keepidle;
+
+    uint8_t  m_tcp_keepintvl;
     uint8_t  m_tcp_blackhole;
     uint16_t m_tcp_delay_ack_msec; /* 20-500msec */
-    uint16_t  m_tcp_keepinit;
-    uint16_t  m_tcp_keepidle;
-    uint16_t  m_tcp_keepintvl;
 
     uint16_t m_tcp_mss;
     uint16_t m_tcp_initwnd; /* init window*/
