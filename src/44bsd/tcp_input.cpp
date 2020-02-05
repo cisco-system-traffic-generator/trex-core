@@ -348,6 +348,20 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 #endif
 
 
+/* Count current packet and check if ack is needed according to tcp_no_delay_counter tunable */
+inline bool count_and_check_no_delay(CTcpPerThreadCtx * pctx,
+                                    struct tcpcb *tp) {
+    if ( pctx->tcp_no_delay_counter == 0 ) 
+        return false;
+
+    tp->t_pkts_cnt++;
+    if ( tp->t_pkts_cnt >= pctx->tcp_no_delay_counter ) {
+        tp->t_pkts_cnt = 0;
+        return true;
+    }
+    return false;
+}
+
 /*
  * Insert segment ti into reassembly queue of tcp with
  * control block tp.  Return TH_FIN if reassembly now includes
@@ -376,6 +390,11 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
         uint16_t tg_id = tp->m_flow->m_tg_id;
         INC_STAT(pctx, tg_id, tcps_rcvpack);
         INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte,ti->ti_len);
+        
+        if ( count_and_check_no_delay(pctx->m_ctx, tp) ){
+            tp->t_flags |= TF_ACKNOW;
+        }
+
         sbappend(so,
                  &so->so_rcv, m,ti->ti_len); 
         sorwakeup(so); 
@@ -384,6 +403,7 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
         tp->t_flags |= TF_ACKNOW; 
     }
 }
+
 
 
 
@@ -715,7 +735,8 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
              *  congestion avoidance sender won't send more until
              *  he gets an ACK.
              */
-            if (tiflags & TH_PUSH){
+            
+            if (count_and_check_no_delay(pctx->m_ctx, tp) || tiflags & TH_PUSH ) {
                 tp->t_flags |= TF_ACKNOW;
                 tcp_output(pctx,tp);
             }else{

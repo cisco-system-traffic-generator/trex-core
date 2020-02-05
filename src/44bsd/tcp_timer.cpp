@@ -63,6 +63,7 @@ void tcp_fasttimo(CPerProfileCtx * pctx, struct tcpcb *tp){
         if (tp->t_flags & TF_DELACK) {
             tp->t_flags &= ~TF_DELACK;
             tp->t_flags |= TF_ACKNOW;
+            tp->t_pkts_cnt = 0;
             INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_delack);
             (void) tcp_output(pctx,tp);
         }

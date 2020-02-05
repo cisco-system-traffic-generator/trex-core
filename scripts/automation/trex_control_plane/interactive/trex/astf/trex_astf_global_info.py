@@ -122,6 +122,7 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
                 {"name": "blackhole", "type": [int]},
                 {"name": "delay_ack_msec", "type": [int]},
                 {"name": "no_delay", "type": [int]},
+                {"name": "no_delay_counter", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},
@@ -147,6 +148,7 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
                 {"name": "no_delay", "type": [int]},
                 {"name": "rxbufsize", "type": [int]},
                 {"name": "txbufsize", "type": [int]},
+                {"name": "no_delay_counter", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},
