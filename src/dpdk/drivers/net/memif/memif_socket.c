@@ -204,7 +204,7 @@ memif_msg_receive_init(struct memif_control_channel *cc, memif_msg_t *msg)
 		dev = elt->dev;
 		pmd = dev->data->dev_private;
 		if (((pmd->flags & ETH_MEMIF_FLAG_DISABLED) == 0) &&
-		    pmd->id == i->id) {
+		    (pmd->id == i->id) && (pmd->role == MEMIF_ROLE_MASTER)) {
 			/* assign control channel to device */
 			cc->dev = dev;
 			pmd->cc = cc;
@@ -978,20 +978,11 @@ memif_socket_init(struct rte_eth_dev *dev, const char *socket_filename)
 	}
 	pmd->socket_filename = socket->filename;
 
-	if (socket->listener != 0 && pmd->role == MEMIF_ROLE_SLAVE) {
-		MIF_LOG(ERR, "Socket is a listener.");
-		return -1;
-	} else if ((socket->listener == 0) && (pmd->role == MEMIF_ROLE_MASTER)) {
-		MIF_LOG(ERR, "Socket is not a listener.");
-		return -1;
-	}
-
 	TAILQ_FOREACH(elt, &socket->dev_queue, next) {
 		tmp_pmd = elt->dev->data->dev_private;
-		if (tmp_pmd->id == pmd->id) {
-			MIF_LOG(ERR, "Memif device with id %d already "
-				"exists on socket %s",
-				pmd->id, socket->filename);
+		if ((tmp_pmd->id == pmd->id) && (tmp_pmd->role == pmd->role)) {
+			MIF_LOG(ERR, "Two interfaces with the same id (%d) can "
+				"not have the same role.", pmd->id);
 			return -1;
 		}
 	}
