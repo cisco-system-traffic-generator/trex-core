@@ -80,6 +80,7 @@ class CTcpTuneables {
         tcp_blackhole   =  0x10000,
         ip_ttl          =  0x20000,
         ip_tos          =  0x40000,
+        tcp_no_delay_counter = 0x80000,
     };
 
 
@@ -99,6 +100,7 @@ class CTcpTuneables {
         m_tcp_keepintvl=0;
         m_tcp_blackhole=0;
         m_tcp_delay_ack_msec=0;
+        m_tcp_no_delay_counter=0;
         m_tcp_no_delay=0; /* disable nagel */
         m_scheduler_rampup=0;
         m_scheduler_accurate=0;
@@ -130,6 +132,7 @@ class CTcpTuneables {
     uint8_t  m_tcp_rexmtthresh; /* ACK retransmition */
     uint8_t  m_tcp_do_rfc1323; /* 1/0 */
 
+    uint8_t  m_tcp_no_delay_counter; /* number of recv packets to wait until ack them */
     uint8_t  m_tcp_blackhole;
     uint16_t  m_tcp_keepinit;
     uint16_t  m_tcp_keepidle;

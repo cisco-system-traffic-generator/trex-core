@@ -340,6 +340,7 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
 
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
     tp->t_flags |= ctx->tcp_no_delay?(TF_NODELAY):0;
+    tp->t_pkts_cnt = 0;
 
     /*
      * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
@@ -660,6 +661,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_tick_msec);
     }
     #endif
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter)) {
+        tcp_no_delay_counter = (int)tune->m_tcp_no_delay_counter;
+    }
 }
 
 void CTcpPerThreadCtx::resize_stats(profile_id_t profile_id) {
@@ -687,6 +692,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
+    tcp_no_delay_counter = 0;
     tcp_maxidle=0;
     tcp_ttl=0;
     m_disable_new_flow=0;

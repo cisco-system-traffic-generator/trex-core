@@ -534,6 +534,9 @@
                                "enum" : [0,1]
                                
                            },
+                           "no_delay_counter" : {
+                                "type": "integer"
+                           },
 
                            "rexmtthresh" : {
                                "type": "integer"
