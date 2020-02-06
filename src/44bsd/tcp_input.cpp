@@ -164,6 +164,7 @@ int CTcpReass::tcp_reass_no_data(CPerProfileCtx * pctx,
 
     flags = (m_blocks[0].m_flags==1) ? TH_FIN :0;
 
+    tp->add_rx_bytes(m_blocks[0].m_len);    // mbuf already updated to rx_data
     sbappend_bytes(&tp->m_socket,
                    &tp->m_socket.so_rcv ,
                    m_blocks[0].m_len);
@@ -197,6 +198,8 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
 
     assert(ti);
     if (m) {
+        tp->update_rx_data(m, ti->ti_seq, ti->ti_len);
+        /* mbuf updated at seq, no need to keep mbuf any more */
         rte_pktmbuf_free(m);
     }
     uint16_t tg_id = tp->m_flow->m_tg_id;
@@ -376,6 +379,7 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
         uint16_t tg_id = tp->m_flow->m_tg_id;
         INC_STAT(pctx, tg_id, tcps_rcvpack);
         INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte,ti->ti_len);
+        tp->append_rx_data(m, ti->ti_seq, ti->ti_len);
         sbappend(so,
                  &so->so_rcv, m,ti->ti_len); 
         sorwakeup(so); 
@@ -706,6 +710,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
              */
             tcp_pktmbuf_fix_mbuf(m, off,ti->ti_len);
 
+            tp->append_rx_data(m, ti->ti_seq, ti->ti_len);
             sbappend(so,
                      &so->so_rcv, m,ti->ti_len);
             sorwakeup(so);

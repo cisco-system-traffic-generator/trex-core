@@ -130,6 +130,36 @@ TEST_F(gt_tcp, tst4) {
 }
 
 
+class CTcpReassMBuf {
+    rte_mempool_t * m_mempool;
+public:
+    CTcpReassMBuf() {
+        m_mempool = utl_rte_mempool_create("big-const", 10, 9000, 32, 0, false);
+    }
+    ~CTcpReassMBuf() {
+        utl_rte_mempool_delete(m_mempool);
+    }
+
+    struct rte_mbuf* alloc_mbuf(size_t len) {
+        assert(len <= m_mempool->elt_size);
+        struct rte_mbuf* m = rte_pktmbuf_alloc(m_mempool);
+        m->data_len = m->pkt_len = len;
+        return m;
+    }
+};
+
+static CTcpReassMBuf tcp_reass_mbuf;
+
+struct rte_mbuf* tcp_reass_mbuf_alloc(size_t len) {
+    return tcp_reass_mbuf.alloc_mbuf(len);
+}
+
+struct rte_mbuf* tcp_reass_mbuf_alloc(size_t len, std::vector<uint8_t>& data) {
+    auto mbuf = tcp_reass_mbuf.alloc_mbuf(len);
+    uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t *);
+    memcpy(pkt, data.data(), len > data.size() ? data.size() : len);
+    return mbuf;
+}
 
 
 class CTcpReassTest  {
@@ -167,7 +197,7 @@ void CTcpReassTest::add_pkts(vec_tcp_reas_t & lpkt){
         ti.ti_seq  = lpkt[i].m_seq;
         ti.ti_len  = (uint16_t)lpkt[i].m_len;
         ti.ti_flags =lpkt[i].m_flags;
-        m_tcp_res.pre_tcp_reass(&m_ctx,&m_flow.m_tcp,&ti,(struct rte_mbuf *)0);
+        m_tcp_res.pre_tcp_reass(&m_ctx,&m_flow.m_tcp,&ti, tcp_reass_mbuf_alloc(ti.ti_len));
         if (m_verbose) {
             fprintf(stdout," inter %d \n",i);
             m_tcp_res.Dump(stdout);
@@ -176,7 +206,7 @@ void CTcpReassTest::add_pkts(vec_tcp_reas_t & lpkt){
 }
 
 void CTcpReassTest::expect(vec_tcp_reas_t & lpkt,FILE *fd){
-    m_tcp_res.expect(lpkt,fd);
+    EXPECT_TRUE(m_tcp_res.expect(lpkt,fd));
 }
 
 
@@ -1685,39 +1715,38 @@ TEST_F(gt_tcp, tst42) {
     ti.ti_seq = 0x1000+100;
 
     int tiflags=0;
-
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     ti.ih_len = 100;
     ti.ti_seq +=100 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+2000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+3000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+4000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);
@@ -1755,12 +1784,17 @@ TEST_F(gt_tcp, tst43) {
     app_c->set_flow_ctx(&ctx,&flow);
     flow.set_app(app_c);
 
-
     tcpcb * tp=&flow.m_tcp;
 
     tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
 
     tp->t_state = TCPS_SYN_RECEIVED;
+
+    std::vector<uint8_t> cmp_data;
+    for (int i = 0; i <= UINT8_MAX; i++) {
+        cmp_data.push_back(i);
+    }
+    tp->setup_rx_data(cmp_data.size());   /* enable rx data saving */
 
     struct tcpiphdr ti;
     memset(&ti,0,sizeof(struct tcpiphdr));
@@ -1769,38 +1803,53 @@ TEST_F(gt_tcp, tst43) {
 
     int tiflags=0;
 
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    std::vector<uint8_t> rcv_data;
+    rcv_data = std::vector<uint8_t>(cmp_data.begin() + 100, cmp_data.end());
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len, rcv_data));
 
     ti.ih_len = 100;
     ti.ti_seq +=100 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    rcv_data = std::vector<uint8_t>(cmp_data.begin() + 200, cmp_data.end());
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len, rcv_data));
 
     tp->m_tpc_reass->Dump(stdout);
 
+    ti.ih_len = 20;
+    ti.ti_seq =0x1000+180;
+    rcv_data = std::vector<uint8_t>(cmp_data.begin() + 180, cmp_data.end());
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len, rcv_data));
+
     ti.ih_len = 100;
     ti.ti_seq =0x1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len, cmp_data));
 
+    ti.ih_len = 100;
+    ti.ti_seq +=150 ;
+    rcv_data = std::vector<uint8_t>(cmp_data.begin() + 150, cmp_data.end());
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len, rcv_data));
+
+    EXPECT_TRUE(tp->expect_rx_data(cmp_data));
+    tp->clear_rx_data();     /* disable rx data saving */
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+1000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+2000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     tp->m_tpc_reass->Dump(stdout);
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+3000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     ti.ih_len = 100;
     ti.ti_seq =0x1000+4000 ;
-    tiflags = tcp_reass(&ctx,tp, &ti, (struct rte_mbuf *)0); 
+    tiflags = tcp_reass(&ctx,tp, &ti, tcp_reass_mbuf_alloc(ti.ih_len));
 
     ctx.get_tcpstat()->Dump(stdout);
     printf(" tiflags:%x \n",tiflags);

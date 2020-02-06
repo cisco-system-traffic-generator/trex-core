@@ -95,6 +95,31 @@ struct CTcpPkt {
 
 #define PACKET_TEMPLATE_SIZE (128)
 
+class CTcpRxData {
+public:
+    CTcpRxData(uint32_t seq, uint16_t size) {
+        m_size = 0;
+        m_bytes = 0;
+        if (size) {
+            m_data = (uint8_t*)calloc(1, size);
+        }
+        if (m_data) {
+            m_seq = seq;
+            m_size = size;
+        }
+    }
+    CTcpRxData() : CTcpRxData(0, 0) {}
+    ~CTcpRxData() {
+        free(m_data);
+        m_data = nullptr;
+    }
+
+    uint32_t    m_seq;
+    uint16_t    m_size;
+    uint16_t    m_bytes;  // saved bytes
+    uint8_t*    m_data;
+};
+
 
 struct tcpcb {
 
@@ -213,11 +238,17 @@ struct tcpcb {
     CTcpReass * m_tpc_reass; /* tcp reassembley object, allocated only when needed */
     CTcpFlow  * m_flow;      /* back pointer to flow*/
 
+    CTcpRxData* m_rx_data;
+
 public:
 
     
     tcpcb() {
         m_tuneable_flags = 0;
+        m_rx_data = nullptr;
+    }
+    ~tcpcb() {
+        clear_rx_data();
     }
 
     inline bool is_tso(){
@@ -242,7 +273,73 @@ public:
     inline rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
         return (tcp_pktmbuf_alloc(mbuf_socket,size));
     }
-    
+
+public:
+    uint16_t update_rx_data(struct rte_mbuf* m, uint32_t seq, uint16_t len) {
+        if (m_rx_data && (m_rx_data->m_bytes < m_rx_data->m_size)) {
+            assert(m->nb_segs == 1);
+            uint8_t* p = rte_pktmbuf_mtod(m, uint8_t*);
+            int32 q = m_rx_data->m_seq + m_rx_data->m_size - seq;
+            if (q > 0) {
+                uint16_t cp_len = std::min(q, (int32)len);
+                memcpy(m_rx_data->m_data + m_rx_data->m_size - q, p, cp_len);
+                return cp_len;
+            }
+        }
+        return 0;
+    }
+    void append_rx_data(struct rte_mbuf* m, uint32_t seq, uint16_t len) {
+        if (m_rx_data) {
+            m_rx_data->m_bytes += update_rx_data(m, seq, len);
+        }
+    }
+    void add_rx_bytes(uint16_t len) {
+        if (m_rx_data) {
+            m_rx_data->m_bytes += len;
+        }
+    }
+
+    void clear_rx_data() {
+        if (m_rx_data) {
+            delete m_rx_data;
+            m_rx_data = nullptr;
+        }
+    }
+
+    void setup_rx_data(uint16_t size) {
+        clear_rx_data();
+        // NOTE: rx_data may not be filled fully if m_tpc_reass is not nullptr
+        m_rx_data = new CTcpRxData(rcv_nxt, size);
+    }
+
+    inline uint8_t* get_rx_data() const { return m_rx_data ? m_rx_data->m_data: nullptr; }
+    inline uint32_t get_rx_size() const { return m_rx_data ? m_rx_data->m_bytes: 0; }
+
+#ifdef  TREX_SIM
+    inline uint8_t get_rx_byte(uint16_t off) {
+        if (m_rx_data) {
+            return off < m_rx_data->m_size ? m_rx_data->m_data[off]: 0;
+        }
+        return 0;
+    }
+
+    bool expect_rx_data(std::vector<uint8_t>& data) {
+        uint32_t size = data.size();
+        if (get_rx_size() < size) {
+            fprintf(stdout, "rx_data size %u is less than %u.\n", get_rx_size(), size);
+            return false;
+        }
+        for (int i = 0; i < size; i++) {
+            auto cmp_byte = data[i];
+            auto rx_byte = get_rx_byte(i);
+            if (cmp_byte != rx_byte) {
+                fprintf(stdout, "data different between rx(%x) and cmp(%x).\n", cmp_byte, rx_byte);
+                return false;
+            }
+        }
+        return true;
+    }
+#endif
 };
 
 #define intotcpcb(ip)   ((struct tcpcb *)(ip)->inp_ppcb)
