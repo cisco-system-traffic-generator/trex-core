@@ -62,7 +62,7 @@ Navigate to the link:{github_scripts_path}[scripts] folder.
 . Run the link:{github_scripts_path}/ndr[ndr] bash script. This script will figure out the right version of python (or a version you decide) and run the benchmark tool. Here as well, one can get information on the flags using *--help*.
 [source,bash]
 ----
-[bash]>./ndr --python3 --port 0 1 --max-iterations 5 -t 10 --verbose --force-map --bi-dir --pdr 0.01 --title 'Documentation'
+[bash]>./ndr --stl --python3 --port 0 1 --max-iterations 5 -t 10 --verbose --force-map --bi-dir --pdr 0.01 --title 'Documentation'
 ----
 Don’t let the many flags scare you. We will explain them in depth. The results look something like this.
 
@@ -82,7 +82,7 @@ The benchmark stops if it finds the NDR, or after max iterations, the early of t
 For example, to run the benchmark with 3 iterations at max, each iteration with a duration of 10 seconds and the first iteration being 20 seconds we can write:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v -x 3 -t 10 -ft 20
+[bash]>./ndr --stl --port 0 1 -v -x 3 -t 10 -ft 20
 ----
 We suggest you to be careful with the duration of the iteration. The disadvantage of long durations is quite clear, however short durations might be dangerous. It takes T-Rex a few seconds to normalize after transmitting at a high rate and it also takes a few seconds to start transmitting at a high rate. Hence, try to avoid very short duration or you might suffer from strange results.
 
@@ -101,12 +101,12 @@ A run is considered valid if in that run, the percentage of queue full is lower 
 To find NDR (*pdr* = 0%) with 3% allowed error and 5.5% queueing capability:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --pdr 0 --pdr-error 3 --q-full 5.5
+[bash]>./ndr --stl --port 0 1 -v --pdr 0 --pdr-error 3 --q-full 5.5
 ----
 To find NDR with pdr = 2% and a maximal latency of 30 msec with tolerance of 5%:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --profile stl/udp_1pkt_src_ip_split_latency.py --max-latency 30 --lat-tolerance 5
+[bash]>./ndr --stl --port 0 1 -v --profile stl/udp_1pkt_src_ip_split_latency.py --max-latency 30 --lat-tolerance 5
 ----
 
 === Traffic engineering
@@ -121,27 +121,27 @@ ultimate type of traffic to benchmark on. T-Rex offers to simulate every kind of
 For example, to generate IMIX traffic and pass a few tunables one can write:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --prof-tun a=1,b=3
+[bash]>./ndr --stl --port 0 1 -v --prof-tun a=1,b=3
 ----
 To generate IMIX for IPv6 run:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --profile stl/imix_ipv6.py
+[bash]>./ndr --stl --port 0 1 -v --profile stl/imix_ipv6.py
 ----
 To generate latency traffic (you can write your own profile if this isn't enough):
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --profile stl/flow_stats_latency.py
+[bash]>./ndr --stl --port 0 1 -v --profile stl/flow_stats_latency.py
 ----
 Another important profile to keep in mind is the bench profile, build exactly for the purpose of benchmarking. 
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --profile stl/bench.py
+[bash]>./ndr --stl --port 0 1 -v --profile stl/bench.py
 ----
 And lastly, if we want to test with a benchmarking profile build for UDP we can use:
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v --profile stl/udp_for_benchmarks.py
+[bash]>./ndr --stl --port 0 1 -v --profile stl/udp_for_benchmarks.py
 ----
 
 
@@ -154,7 +154,7 @@ Let us show a running example: We will run the server with 7 cores per interface
 Let's run the benchmarking on IMIX traffic (default), uni-directional.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 --verbose
+[bash]>./ndr --stl --port 0 1 --verbose
 ----
 The first iteration we try to find the maximal running rate.
 
@@ -201,7 +201,7 @@ Let us run the example the previous example (IMIX) now with optimized binary sea
 Same example as before, with optimized binary flag and *q* = 10% (--opt-bin-search-percent). The default value of *q* is 5%.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 --verbose --opt-bin-search --opt-bin-search-percent 10
+[bash]>./ndr --stl --port 0 1 --verbose --opt-bin-search --opt-bin-search-percent 10
 ----
 
 The first iteration we try to find the maximal running rate, the same as the normal version, with the same results.
@@ -311,7 +311,7 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 --bi-dir -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
+[bash]>./ndr --stl --port 0 1 --bi-dir -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
 ----
 
 *Output*::
@@ -376,7 +376,7 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --port 0 1 -v -f automation/trex_control_plane/interactive/trex/examples/stl/dut_ndr_plugin.py --opt-bin-search
+[bash]>./ndr --stl --port 0 1 -v -f automation/trex_control_plane/interactive/trex/examples/stl/dut_ndr_plugin.py --opt-bin-search
 ----
 
 image:images/ndr_bench_dut_plugin_first.png[title="DUT plugin",align="left", width={p_width}, link="images/ndr_bench_dut_plugin_first.png"]
