@@ -641,11 +641,11 @@ class ASTFProgram(object):
 
     def set_tick_var(self, var_id):
         """
-            Set a flow variable used with jmp_nz command. Timer will be started when declaring tick var. 
+        Set a flow variable used with jmp_nz command. Timer will be started when declaring tick var. 
 
-            :parameters:
-                    var_id  : string
-                        var-id there are limited number of variables
+        :parameters:
+            var_id  : string
+                var-id there are limited number of variables
         """
         ver_args = {"types":
                     [{"name": "var_id", 'arg': var_id, "t": [str]}]
@@ -694,17 +694,17 @@ class ASTFProgram(object):
 
     def jmp_dp(self, var_id, label, duration):
         """
-            Check the time passed from flow variable, in case of time passed is less then duration jump to label.
+        Check the time passed from flow variable, in case of time passed is less then duration jump to label.
 
-            :parameters:
-                    var_id  : int
-                        flow var id 
+        :parameters:
+            var_id  : int
+                flow var id 
 
-                    label  : string
-                        label id
+            label  : string
+                label id
 
-                    duration : double
-                        duration of time in seconds
+            duration : double
+                duration of time in seconds
         """
         ver_args = {"types":
                     [{"name": "var_id", 'arg': var_id, "t": [str]},

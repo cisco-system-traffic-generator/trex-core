@@ -51,6 +51,7 @@ class CAstfPcapFull_Test(functional_general_test.CGeneralFunctional_Test):
                  "astf/udp_sip.py",
                  "astf/udp1.py",
                  "astf/udp2.py",
+                 "astf/long_keepalive.py"
         ]
 
         _files = [

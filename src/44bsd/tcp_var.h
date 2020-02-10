@@ -102,7 +102,7 @@ struct tcpcb {
 
     /* ====== size 8 bytes  */
 
-    uint8_t t_timer[TCPT_NTIMERS];  /* tcp timers */
+    uint16_t t_timer[TCPT_NTIMERS];  /* tcp timers */
     char    t_force;        /* 1 if forcing out a byte */
     uint8_t mbuf_socket;    /* mbuf socket */
     uint8_t t_dupacks;      /* consecutive dup acks recd */
@@ -391,17 +391,18 @@ public:
 #define TCP_TIMER_LEVEL1_DIV   1
 
 
-#define TCP_TIMER_TICK_BASE_MS 200 
+#define TCP_TIMER_TICK_FAST_MS 200 
 
 /* tick is 50 msec */
 #define TCP_TIMER_W_TICK       50
 
 #define TCP_TIMER_W_DIV        1
 
-#define TCP_FAST_TICK_ (TCP_TIMER_TICK_BASE_MS/TCP_TIMER_W_TICK)
+#define TCP_FAST_TICK_ (TCP_TIMER_TICK_FAST_MS/TCP_TIMER_W_TICK)
 #define TCP_SLOW_RATIO_TICK 1
 #define TCP_SLOW_RATIO_MASTER ((500)/TCP_TIMER_W_TICK)
 #define TCP_SLOW_FAST_RATIO_ 1
+#define TCP_TIMER_TICK_SLOW_MS TCP_TIMER_TICK_FAST_MS * TCP_SLOW_FAST_RATIO_
 
 
 /* main tick in sec */
@@ -452,6 +453,10 @@ static inline uint32_t tw_time_msec_to_ticks(uint32_t msec){
     return (tw_time_usec_to_ticks(1000*msec));
 }
 
+static inline uint32_t convert_slow_sec_to_ticks(uint16_t sec) {
+    float sec_to_ticks = 1000.0f / (TCP_SLOW_FAST_RATIO_ * TCP_TIMER_TICK_FAST_MS);
+    return uint32_t(round(float(sec) * sec_to_ticks));
+}
 
 #include "h_timer.h"
 
@@ -1178,6 +1183,7 @@ private:
     void delete_startup(profile_id_t profile_id);
 
     void init_sch_rampup(profile_id_t profile_id);
+    inline int convert_slow_sec_to_ticks(uint16_t sec);
 
 public:
     /* TUNABLEs */
@@ -1610,7 +1616,7 @@ public:
 
 inline void CTcpFlow::on_tick(){
         on_fast_tick();
-        if (m_tick==m_pctx->m_ctx->tcp_slow_fast_ratio) {
+        if (m_tick == m_pctx->m_ctx->tcp_slow_fast_ratio) {
             m_tick=0;
             on_slow_tick();
         }else{
