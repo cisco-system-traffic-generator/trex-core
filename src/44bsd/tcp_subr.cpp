@@ -639,15 +639,15 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_keepinit)) {
-        tcp_keepinit = (int)tune->m_tcp_keepinit;
+        tcp_keepinit = convert_slow_sec_to_ticks(tune->m_tcp_keepinit);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_keepidle)) {
-        tcp_keepidle = (int)tune->m_tcp_keepidle;
+        tcp_keepidle = convert_slow_sec_to_ticks(tune->m_tcp_keepidle);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_keepintvl)) {
-        tcp_keepintvl = (int)tune->m_tcp_keepintvl;
+        tcp_keepintvl = convert_slow_sec_to_ticks(tune->m_tcp_keepintvl);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_blackhole)) {
@@ -738,7 +738,11 @@ void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
         }
 }
 
-
+int CTcpPerThreadCtx::convert_slow_sec_to_ticks(uint16_t sec) {
+    // tcp_slow_fast_ratio + 1 for the slow_tcp bug (tick starts at 0, ratio at 1)
+    float sec_to_ticks = 1000.0f / ((tcp_slow_fast_ratio + 1) * TCP_TIMER_TICK_FAST_MS);
+    return int(round(float(sec) * sec_to_ticks));
+}
 
 void CTcpPerThreadCtx::call_startup(profile_id_t profile_id){
     if ( is_client_side() ){

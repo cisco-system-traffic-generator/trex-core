@@ -845,7 +845,7 @@ TEST_F(gt_tcp, tst21) {
 void tcp_gen_test(std::string pcap_file,
                   bool debug_mode,
                   cs_sim_test_id_t test_id=tiTEST2,
-                  int valn=0, 
+                  int vlan=0, 
                   cs_sim_mode_t sim_mode=csSIM_NONE,
                   bool is_ipv6=false,
                   uint16_t mss=0,
@@ -857,8 +857,8 @@ void tcp_gen_test(std::string pcap_file,
     if (debug_mode){
         lpt1->set_debug_mode(true);
     }
-    if (valn){
-        lpt1->m_vlan=valn;
+    if (vlan){
+        lpt1->m_vlan=vlan;
     }
 
     if (is_ipv6){
