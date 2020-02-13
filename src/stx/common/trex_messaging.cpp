@@ -237,13 +237,31 @@ bool
 TrexRxStartCapwapProxy::handle(CRxCore *rx_core) {
 
     if (rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::CAPWAP_PROXY)) {
-        m_reply.set_reply("CAPWAP proxy mode is already active at port " + std::to_string(m_port_id) + " !");
+        m_reply.set_reply("CAPWAP proxy mode is already active at port " + std::to_string(m_port_id) + "!");
 
     } else {
         if ( rx_core->start_capwap_proxy(m_port_id, m_pair_port_id, m_is_wireless_side, m_capwap_map, m_wlc_ip) ) {
             m_reply.set_reply("");
         } else {
-            m_reply.set_reply("Could not start CAPWAP proxy on port " + std::to_string(m_port_id) + " !");
+            m_reply.set_reply("Could not start CAPWAP proxy on port " + std::to_string(m_port_id) + "!");
+        }
+    }
+
+    return true;
+}
+
+
+bool
+TrexRxAddToCapwapProxy::handle(CRxCore *rx_core) {
+
+    if ( !rx_core->get_rx_port_mngr(m_port_id).is_feature_set(RXPortManager::CAPWAP_PROXY) ) {
+        m_reply.set_reply("CAPWAP proxy mode is not active at port " + std::to_string(m_port_id) + "!");
+
+    } else {
+        if ( rx_core->add_to_capwap_proxy(m_port_id, m_capwap_map) ) {
+            m_reply.set_reply("");
+        } else {
+            m_reply.set_reply("Could not add to CAPWAP proxy on port " + std::to_string(m_port_id) + "!");
         }
     }
 
@@ -259,7 +277,7 @@ TrexRxStopCapwapProxy::handle(CRxCore *rx_core) {
         m_reply.set_reply("");
 
     } else {
-        m_reply.set_reply("CAPWAP proxy mode is not active at port " + std::to_string(m_port_id) + " !");
+        m_reply.set_reply("CAPWAP proxy mode is not active at port " + std::to_string(m_port_id) + "!");
     }
 
     return true;

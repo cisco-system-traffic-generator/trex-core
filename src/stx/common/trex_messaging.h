@@ -480,6 +480,25 @@ private:
 };
 
 
+class TrexRxAddToCapwapProxy : public TrexCpToRxMsgBase {
+public:
+    TrexRxAddToCapwapProxy(uint8_t port_id,
+                           const Json::Value &capwap_map,
+                           MsgReply<std::string> &reply) : m_reply(reply) {
+
+        m_port_id = port_id;
+        m_capwap_map = capwap_map;
+    }
+
+     bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<std::string>   &m_reply;
+    uint8_t                 m_port_id;
+    Json::Value             m_capwap_map;
+};
+
+
 class TrexRxStopCapwapProxy : public TrexCpToRxMsgBase {
 public:
     TrexRxStopCapwapProxy(uint8_t port_id, MsgReply<std::string> &reply) : m_reply(reply) {

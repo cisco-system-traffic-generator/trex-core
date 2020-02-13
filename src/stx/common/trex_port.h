@@ -149,6 +149,9 @@ public:
      */
     void start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const Json::Value &capwap_map, uint32_t wlc_ip);
 
+    // Add data to table of CAPWAP proxy
+    void add_to_capwap_proxy(const Json::Value &capwap_map);
+
     /**
      * stop proxyifying traffic between STF TRex and WLC
      * 
