@@ -119,12 +119,14 @@ class GlobalStats(AbstractStats):
                                                                     suffix = 'b/sec',
                                                                     opts = 'green' if (self.get("m_rx_drop_bps")== 0) else 'red'),
                                                             )),
-
-                             ("queue_full", "{0}".format( format_num(self.get_rel("m_total_queue_full"),
-                                                                     suffix = 'pkts',
-                                                                     compact = False,
-                                                                     opts = 'green' if (self.get_rel("m_total_queue_full")== 0) else 'red'))),
                              ])
+
+        queue_drop = self.get_rel("m_total_queue_drop")
+        if queue_drop:
+            stats_data_right['queue_drop'] = format_num(queue_drop, suffix = 'pkts', compact = False, opts = 'green' if queue_drop == 0 else 'red')
+        else:
+            queue_full = self.get_rel("m_total_queue_full")
+            stats_data_right['queue_full'] = format_num(queue_full, suffix = 'pkts', compact = False, opts = 'green' if queue_full == 0 else 'red')
 
         # build table representation
         stats_table = text_tables.TRexTextInfo('global statistitcs')
