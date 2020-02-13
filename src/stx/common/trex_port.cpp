@@ -148,6 +148,22 @@ TrexPort::start_capwap_proxy(uint8_t pair_port_id, bool is_wireless_side, const 
     }
 }
 
+void
+TrexPort::add_to_capwap_proxy(const Json::Value &capwap_map) {
+    static MsgReply<std::string> reply;
+    reply.reset();
+
+    TrexRxAddToCapwapProxy *msg = new TrexRxAddToCapwapProxy(m_port_id, capwap_map, reply);
+
+    send_message_to_rx(msg);
+
+    const std::string &err = reply.wait_for_reply();
+
+    if ( err.size() ) {
+        throw TrexException(err);
+    }
+}
+
 
 void
 TrexPort::stop_capwap_proxy() {

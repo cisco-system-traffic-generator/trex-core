@@ -453,6 +453,14 @@ CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wirel
     return rc;
 }
 
+bool
+CRxCore::add_to_capwap_proxy(uint8_t port_id, Json::Value capwap_map) {
+    bool rc;
+    rc = m_rx_port_mngr_vec[port_id]->add_to_capwap_proxy(capwap_map);
+    recalculate_next_state();
+    return rc;
+}
+
 void
 CRxCore::stop_capwap_proxy(uint8_t port_id) {
     m_rx_port_mngr_vec[port_id]->stop_capwap_proxy();

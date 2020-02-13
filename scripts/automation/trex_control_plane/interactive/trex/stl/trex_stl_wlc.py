@@ -1093,17 +1093,36 @@ class AP_Manager:
                 raise TRexError('Could not save config file %s, error: %s' % (self.base_file_path, e))
             self.trex_client.logger.post_cmd(True)
 
-
     @staticmethod
-    def _set_proxy_mode(port, params):
+    def _set_transmit(port, params):
+        rc = port.transmit('set_rx_feature', params)
+        if not rc:
+            raise TRexError(rc.err())
+
+    def _set_proxy_mode(self, port, params, capwap_map):
         params.update({
             'handler': port.handler,
             'port_id': port.port_id,
             'type': 'capwap_proxy',
             })
-        rc = port.transmit('set_rx_feature', params)
-        if not rc:
-            raise TRexError(rc.err())
+
+        params['enabled'] = capwap_map is not None
+        if not capwap_map:
+            return self._set_transmit(port, params)
+
+        table_batch_size = 1000
+        capwap_map_batch = {}
+        params['capwap_map'] = capwap_map_batch
+        for k, v in capwap_map.items():
+            capwap_map_batch[k] = v
+            if len(capwap_map_batch) == table_batch_size:
+                self._set_transmit(port, params)
+                capwap_map_batch.clear()
+                params['is_add'] = True
+
+        if len(capwap_map_batch):
+            self._set_transmit(port, params)
+
 
 
     def enable_proxy_mode(self, wired_port, wireless_port, dest_mac = None, filter = False):
@@ -1136,15 +1155,13 @@ class AP_Manager:
             wlc_ip_num = 0 # IP will not match and not be filtered
 
         params = {
-            'enabled': True,
             'pair_port_id': wired_port,
             'is_wireless_side': True,
-            'capwap_map': capwap_map,
             'wlc_ip': wlc_ip_num,
             }
         self.trex_client.logger.pre_cmd('Setting wireless side')
         try:
-            self._set_proxy_mode(port, params)
+            self._set_proxy_mode(port, params, capwap_map)
         except:
             self.trex_client.logger.post_cmd(False)
             raise
@@ -1160,15 +1177,13 @@ class AP_Manager:
             capwap_map[client.ip] = base64encode(ether_wrapping)
 
         params = {
-            'enabled': True,
             'pair_port_id': wireless_port,
             'is_wireless_side': False,
-            'capwap_map': capwap_map,
             'wlc_ip': wlc_ip_num,
             }
         self.trex_client.logger.pre_cmd('Setting wired side')
         try:
-            self._set_proxy_mode(port, params)
+            self._set_proxy_mode(port, params, capwap_map)
         except:
             self.trex_client.logger.post_cmd(False)
             raise
@@ -1185,7 +1200,7 @@ class AP_Manager:
             try:
                 assert port_id in self.trex_client.ports, 'Invalid port id: %s' % port_id
                 params = {'enabled': False}
-                self._set_proxy_mode(self.trex_client.ports[port_id], params)
+                self._set_proxy_mode(self.trex_client.ports[port_id], params, None)
             except:
                 if not ignore_errors:
                     raise

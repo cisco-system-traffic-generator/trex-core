@@ -851,11 +851,17 @@ TrexRpcCmdSetRxFeature::parse_capwap_proxy_msg(const Json::Value &msg, TrexPort 
             if (!port->is_service_mode_on()) {
                 throw TrexException("Service mode must be enabled on port " + std::to_string(port->get_port_id()) + " for CAPWAP proxy");
             }
-            uint8_t pair_port_id = parse_byte(msg, "pair_port_id", result);
-            bool is_wireless_side = parse_bool(msg, "is_wireless_side", result);
             const Json::Value &capwap_map = parse_object(msg, "capwap_map", result);
-            uint32_t wlc_ip = parse_uint32(msg, "wlc_ip", result, 0);
-            port->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
+
+            bool is_add = parse_bool(msg, "is_add", result, false);
+            if ( is_add ) {
+                port->add_to_capwap_proxy(capwap_map);
+            } else {
+                uint8_t pair_port_id = parse_byte(msg, "pair_port_id", result);
+                bool is_wireless_side = parse_bool(msg, "is_wireless_side", result);
+                uint32_t wlc_ip = parse_uint32(msg, "wlc_ip", result, 0);
+                port->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
+            }
 
         } else {
             port->stop_capwap_proxy();

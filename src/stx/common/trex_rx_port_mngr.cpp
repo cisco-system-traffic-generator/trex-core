@@ -271,6 +271,22 @@ RXCapwapProxy::set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Val
     return true;
 }
 
+bool
+RXCapwapProxy::add_values(Json::Value capwap_map) {
+    std::string wrap_data;
+
+    for (const std::string &client_ip_str : capwap_map.getMemberNames()) {
+        wrap_data = base64_decode(capwap_map[client_ip_str].asString());
+        rc = utl_ipv4_to_uint32(client_ip_str.c_str(), m_client_ip_num);
+        if ( !rc ) {
+            m_ip_convert_err += 1;
+            return false;
+        }
+        m_capwap_map[m_client_ip_num] = wrap_data;
+    }
+    return true;
+}
+
 
 Json::Value
 RXCapwapProxy::to_json() const {

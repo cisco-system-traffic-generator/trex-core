@@ -174,6 +174,7 @@ public:
 
     void create(RXFeatureAPI *api);
     bool set_values(uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
+    bool add_values(Json::Value capwap_map);
     void reset();
     rx_pkt_action_t handle_pkt(rte_mbuf_t *m);
     rx_pkt_action_t handle_wired(rte_mbuf_t *m);
@@ -348,6 +349,13 @@ public:
             return false;
         }
         set_feature(CAPWAP_PROXY);
+        return true;
+    }
+
+    bool add_to_capwap_proxy(Json::Value capwap_map) {
+        if ( !m_capwap_proxy.add_values(capwap_map) ) {
+            return false;
+        }
         return true;
     }
 

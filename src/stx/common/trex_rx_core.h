@@ -100,6 +100,7 @@ protected:
      * 
      */
     bool start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip);
+    bool add_to_capwap_proxy(uint8_t port_id, Json::Value capwap_map);
     void stop_capwap_proxy(uint8_t port_id);
 
     /* enable/disable astf fia */
