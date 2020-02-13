@@ -211,6 +211,7 @@ struct tcpcb {
 
     CTcpReass * m_tpc_reass; /* tcp reassembley object, allocated only when needed */
     CTcpFlow  * m_flow;      /* back pointer to flow*/
+    bool m_reass_disabled;   /* don't reassemble ooo packet, to make payload content in order */
 
 public:
 
