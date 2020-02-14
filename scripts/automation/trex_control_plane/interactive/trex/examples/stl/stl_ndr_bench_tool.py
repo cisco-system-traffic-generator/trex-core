@@ -94,14 +94,14 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
     else:
         print("\nBench Run has failed :-(\n")
 
-    if output == 'json':
-        result = b.results.to_json()
-        if verbose:
-            pprint(result)
-        return result
-
     result = {'results': b.results.stats, 'config': b.config.config_to_dict()}
     hu_dict = {'results': b.results.human_readable_dict(), 'config': b.config.config_to_dict()}
+
+    if output == 'json':
+        pprint(b.results.to_json())
+    elif output == 'hu':
+        pprint(b.results.human_readable_dict())
+
     return result, hu_dict
 
 
@@ -149,12 +149,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="TRex NDR benchmark tool")
     parser.add_argument('-s', '--server',
                         dest='server',
-                        help='Remote trex address',
+                        help='TRex server address. Default is local.',
                         default='127.0.0.1',
                         type=str)
     parser.add_argument('-p', '--pdr',
                         dest='pdr',
-                        help='Allowed percentage of drops. (out of total traffic) [0(NDR)-100]',
+                        help='Allowed percentage of drops. (out of total traffic). [0(NDR)-100]',
                         default=0.1,
                         type=float)
     parser.add_argument('-t', '--iter-time',
@@ -170,7 +170,7 @@ if __name__ == '__main__':
                         type=int)
     parser.add_argument('-ti', '--title',
                         dest='title',
-                        help='Title for this benchmark test',
+                        help='Title for this benchmark test.',
                         default='Title',
                         type=str)
     parser.add_argument('-ft', '--first_run_duration_time',
@@ -182,12 +182,12 @@ if __name__ == '__main__':
                         type=float)
     parser.add_argument('-v', '--verbose',
                         dest='verbose',
-                        help='When verbose is set, prints test results and iteration to stdout',
+                        help='When verbose is set, prints test results and iteration to stdout.',
                         default=False,
                         action='store_true')
     parser.add_argument('-x', '--max-iterations',
                         dest='max_iterations',
-                        help='The bench stops when reaching result or max_iterations, the early of the two [int]',
+                        help='The bench stops when reaching result or max_iterations, the early of the two. [int]',
                         default=10,
                         type=int)
     parser.add_argument('-e', '--pdr-error',
@@ -198,30 +198,29 @@ if __name__ == '__main__':
                         type=float)
     parser.add_argument('-q', '--q-full',
                         dest='q_full_resolution',
-                        help='percent of traffic allowed to be queued when transmitting above dut capability.\n'
+                        help='Percent of traffic allowed to be queued when transmitting above DUT capability.\n'
                              '0%% q-full resolution is not recommended due to precision issues. [percents 0-100]',
                         default=2.00,
                         type=float)
     parser.add_argument('--max-latency', 
                         dest='max_latency',
                         help='Maximal latency allowed. If the percent of latency packets above this value pass the latency tolerance,\n'
-                             ' then the rate is considered too high. If the value is 0, then we consider this as unset. Default=0',
+                             ' then the rate is considered too high. If the value is 0, then we consider this as unset. Default=0. [usec]',
                         default=0,
-                        required='--lat_tolerance' in sys.argv,
+                        required='--lat-tolerance' in sys.argv,
                         type=int)
     parser.add_argument('--lat-tolerance',
                         dest='lat_tolerance',
-                        help='Percentage of latency packets allowed beyond max-latency. Default is 0%. In this case we compare max-latency\n'
-                                'to the maximal latency in a run',
+                        help='Percentage of latency packets allowed beyond max-latency. Default is 0%%. In this case we compare max-latency\n'
+                                'to the maximal latency in a run. [percents 0-100]',
                         default=0,
                         type=is_percentage)
     parser.add_argument('-o', '--output', dest='output',
-                        help='Desired output format. specify json for JSON output.'
-                             'Specify yaml for YAML output.'
-                             'if this flag is unspecified, output will appear to console if the option -v is present',
+                        help='If you specify this flag, after the test is finished, the final results will be printed in the requested format.'
+                             ' Use json for JSON format or hu for human readable format.',
                         default=None,
                         type=str)
-    parser.add_argument('--ports', dest='ports_list', help='specify an even list of ports for running traffic on',
+    parser.add_argument('--ports', dest='ports_list', help='Specify an even list of ports for running traffic on.',
                         type=int, nargs='*', default=None, required=True)
     parser.add_argument('--yaml', dest='yaml', help='use YAML file for configurations, use --yaml PATH\TO\YAML.yaml',
                         type=str, default=None)
@@ -243,7 +242,7 @@ if __name__ == '__main__':
                         default=None)
     parser.add_argument('--tunables',
                         dest='tunables',
-                        help='Tunables to forward to the plugin if it exists. Use: --tunables a=1,b=2,c=3 (no spaces)',
+                        help='Tunables to forward to the plugin if it exists. Use: --tunables a=1,b=2,c=3 (no spaces).',
                         default={},
                         type=decode_tunables)
     parser.add_argument('--opt-bin-search',
@@ -252,7 +251,7 @@ if __name__ == '__main__':
                              'When drop occurs, the tool tries to find a better (smaller) interval to start the search on.'
                              'If this parameter is true, the default value is 5 percent, the tool will search for ndr in an interval of '
                              '[assumed-rate - 5 percent, assumed rate + 5 percent]'
-                             'where assumed-rate is (100-drop_rate)%% of max_rate',
+                             ' where assumed-rate is (100-drop_rate)%% of max_rate.',
                         action='store_true',
                         required='--opt-bin-search-percent' in sys.argv,
                         default=False,)
@@ -268,7 +267,7 @@ if __name__ == '__main__':
                         type=str)
     parser.add_argument('--prof-tun',
                         dest='profile_tunables',
-                        help='Tunables to forward to the profile if it exists. Use: --prof-tun a=1,b=2,c=3 (no spaces)',
+                        help='Tunables to forward to the profile if it exists. Use: --prof-tun a=1,b=2,c=3 (no spaces).',
                         default={},
                         type=decode_tunables)
     args = parser.parse_args()
