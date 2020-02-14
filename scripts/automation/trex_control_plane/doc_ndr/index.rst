@@ -11,6 +11,8 @@ He also can get different data from the DUT after (post) the iteration, and deci
 
 Also, we offer the user the API of the benchmarker. In case someone wants to modify our implementation for their own needs, or create their own scripts that wrap the benchmark.
 
+The NDR script is implemented for STL and ASTF. This modes are different and finding the NDR in each mode is approached differently. Hence consult the API of the mode you are interested in.
+
 
 `Complete Documentation <https://trex-tgn.cisco.com/trex/doc/trex_ndr_bench_doc.html>`_
 
