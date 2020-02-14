@@ -2,13 +2,14 @@ TRex Non Drop Rate Benchmark
 ============================
 :author: Bes Dollma
 :email: <bdollma@cisco.com>
-:revnumber: 1.0
-:revdate: 2020-01-19-a
+:revnumber: 1.1
+:revdate: 2020-02-14-a
 :quotes.++:
 :numbered:
 :github_scripts_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts
 :github_stl_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl
-:toclevels: 2
+:github_astf_examples_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/automation/trex_control_plane/interactive/trex/examples/astf
+:toclevels: 3
 
 include::trex_ga.asciidoc[]
 
@@ -33,14 +34,16 @@ ifdef::backend-xhtml11[]
 endif::backend-xhtml11[]
 
 
-== Introduction
+== STL
+
+=== Introduction
 
 In 1999, link:https://tools.ietf.org/html/rfc2544.html[RFC 2544] proposed a well accepted Benchmarking Methodology for Network Interconnect Devices. Packet and bandwidth throughput are mostly measured in accordance with the 
 aforementioned Request for Comments. 
 It is critically important in terms of benchmarking for a DUT to discover its *Non Drop Rate (NDR)*. The NDR's purpose is to identify the maximal point in terms of packet and bandwidth throughput at which the Packet Loss Ratio (PLR) stands at 0%.
 Hence, identifying the NDR provides us with the optimal packet and bandwidth throughput. However, sometimes a small amount of drops might be allowed. As such, we define *Percent Drop Rate (PDR)*. PDR=1 means that 1% drop rate is allowed.
 
-== Algorithms to find the NDR
+=== Algorithms to find the NDR
 
 The first approach to an algorithm that calculates the NDR would be binary search. This is indeed our first algorithm, and the default mode we implemented. Start transmitting at the maximal rate and perform binary search based on the binary decision of having or not having drops. To stop, we offer some parameter to the user which decides the distance in percent between two valid runs. If the distance is lower than the user provided parameter then the algorithm stops. 
 
@@ -48,13 +51,11 @@ However, one can optimize the algorithm's running time by some constant factor. 
 Fortunately, we have more information than this simple binary flag, we know the percentage of drops. As such, we can use this information to make smarter decisions and to converge faster to the NDR.
 TRex offers NDR benchmarking in two modes. The default mode is the well known binary mode and the second mode is an optimized version of binary search which we will discuss in length through out the documentation.
 
-
-== How to run
+=== How to run
 
 Navigate to the link:{github_scripts_path}[scripts] folder.
 
-. Run the TRex Server with the flags you would like. For more information on flags use *--help*. The benchmarking is for now supported only for stateless interactive mode, hence run with *-i*.
-[source,bash]
+. Run the TRex Server with the flags you would like. For more information on flags use *--help*.
 ----
 [bash]>sudo ./t-rex-64 -i -c 1
 ----
@@ -72,9 +73,9 @@ image:images/ndr_bench_initial_run_1.png[title="Initial run of NDR Benchmark", a
 image::images/ndr_bench_initial_run_2.png[title="Initial run of NDR Benchmark", align="left", width={p_width}, link="images/ndr_bench_initial_run_2.png"]
 
 
-== Tutorials
+=== Tutorials
 
-=== Max Iterations and iteration duration
+==== Max Iterations and iteration duration
 
 Probably two of the most important parameters in terms of the algorithm are the number of iterations allowed and the duration of each iteration. The iteration duration mustn't be short,
 since it takes time to transmit at max rate and it takes time for the counters to normalize. The default value is 20 seconds. Max iterations is an upper bound for binary search if it takes too many iterations (logarithmic complexity).
@@ -86,7 +87,7 @@ For example, to run the benchmark with 3 iterations at max, each iteration with 
 ----
 We suggest you to be careful with the duration of the iteration. The disadvantage of long durations is quite clear, however short durations might be dangerous. It takes T-Rex a few seconds to normalize after transmitting at a high rate and it also takes a few seconds to start transmitting at a high rate. Hence, try to avoid very short duration or you might suffer from strange results.
 
-=== Drop rate percentage, allowed error, queuing and latency tolerance
+==== Drop rate percentage, allowed error, queuing and latency tolerance
 
 Until now we didn't get in the details of how the algorithm stops. If we don't define some criterion of precision, we can, theoretically speaking, run forever. Hence, the following flags:
 
@@ -109,10 +110,10 @@ To find NDR with pdr = 2% and a maximal latency of 30 msec with tolerance of 5%:
 [bash]>./ndr --stl --port 0 1 -v --profile stl/udp_1pkt_src_ip_split_latency.py --max-latency 30 --lat-tolerance 5
 ----
 
-=== Traffic engineering
+==== Traffic engineering
 
 The type of traffic on which we run the benchmark is also important for the results of the benchmark. Some would debate that link:https://en.wikipedia.org/wiki/Internet_Mix[IMIX] would be the
-ultimate type of traffic to benchmark on. T-Rex offers to simulate every kind of stateless traffic to run the benchmark. Just write a stateless profile (or use an existing one) and load it into the benchmarker. This offers great flexibility combined with all of possibilities the Field Engine supplies. To read more about profiles, please consult the link::https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_traffic_profile_tutorials[STL documentation]. The default profile is IMIX. To control the profiles use the following flags:
+ultimate type of traffic to benchmark on. TRex offers to simulate every kind of stateless traffic to run the benchmark. Just write a stateless profile (or use an existing one) and load it into the benchmarker. This offers great flexibility combined with all of possibilities the Field Engine supplies. To read more about profiles, please consult the link::https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_traffic_profile_tutorials[STL documentation]. The default profile is IMIX. To control the profiles use the following flags:
 
 * *--profile* - The path to the location of the profile.
 * *--prof-tun* - List of tunables to pass along to the profile just as in a normal profile in STL.
@@ -145,7 +146,7 @@ And lastly, if we want to test with a benchmarking profile build for UDP we can 
 ----
 
 
-== Running example
+=== Running example
 Let us show a running example: We will run the server with 7 cores per interface (a couple of ports) and one interface.
 [source,bash]
 ----
@@ -171,7 +172,7 @@ image::images/ndr_bench_imix_last_iter.png[title="Last Iteration, IMIX Traffic",
 After 7 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and queue full is 2%) is *86.98* Gbps.
 
 
-== Optimized binary search
+=== Optimized binary search
 
 As we mentioned earlier, we have more information than a simple binary query. We know the exact percentage of drop or the percentage of queue full. So maybe, in the last example, it would be better to start searching for the NDR around 83-84% of the maximal rate (we had 16.64% queue full). The idea of the optimized binary search is simple. Suppose we have *p*% drop or queue full.
 
@@ -191,7 +192,7 @@ Define the *expected ndr interval* as [(100-q)% of assumed ndr, (100+q)% of assu
 
 In our tests, the optimized algorithm improves the runtime of the benchmark by some iterations as in almost every possible case we will perform binary search in 2a or 3bi. This intervals are quite small if we keep a small *q* value and it will take us less time to get there than with the normal binary search.
 
-=== How to use
+==== How to use
 
 Let us run the example the previous example (IMIX) now with optimized binary search. We will run the server with 7 cores per interface as before.
 [source,bash]
@@ -223,7 +224,7 @@ After 4 iterations, we conclude that P-Drop Rate (PDR is 0.1% in our case and qu
 * The simple binary search took 7 iterations. The optimized binary search took 7 iterations (including checking the upper bound). Hence in this case, (as in most cases) the optimized binary search is faster.
 * We see that the NDR in the two cases are slightly different, being 87.66 Gbit in the binary search and 87.7 Gbit in the optimized binary search. However this nothing to worry about, since as we mentioned we calculate the non drop rate up to a user defined error percentage which can be controlled with *--pdr-error*. It is important to mention that the lower value could be achieved by any of the algorithms.
 
-== API to the NDR Benchmarker
+=== API to the NDR Benchmarker, Plugin file
 
 *Goal*:: Introduce the API to the benchmarker, discuss its use cases and how to use. Show simple running tutorial.
 
@@ -311,7 +312,7 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --stl --port 0 1 --bi-dir -v --plugin_file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
+[bash]>./ndr --stl --port 0 1 --bi-dir -v --plugin-file automation/trex_control_plane/interactive/trex/examples/stl/allowed_percentage_ndr_plugin.py --tunables allowed_percentage=95
 ----
 
 *Output*::
@@ -384,3 +385,179 @@ image:images/ndr_bench_dut_plugin_first.png[title="DUT plugin",align="left", wid
 image::images/ndr_bench_dut_plugin_second.png[title="DUT plugin",align="left", width={p_width}, link="images/ndr_bench_dut_plugin_second.png"]
 
 We can see that the plugin stopped after 3 iterations (finding max rate, upper bound and iteration 0) and the rates were as allowed.
+
+
+== ASTF
+
+=== Introduction
+
+We implemented some version of NDR for ASTF mode. However, the script differs as these modes differ. Although many of the functionality of STL will work here, many of it won't. As such, we strongly suggest to read carefully each of the modes and understand the use cases.
+The use case in which this script is meant to work in ASTF mode is simple. We assume a single TRex machine, where even number ports are clients and odd number ports are servers. For example if we have a TRex setup with 4 ports, ports 0, 2 will act as clients while ports 1,3 will act as servers.
+
+=== Main differences from STL
+
+The main difference compared to STL lies in the fact that there is no such thing as drops or drop percentage. You might rightfully question yourself, what is NDR (Non Drop Rate) if there are no drops? ASTF has its own implementation of errors and error validation. The script uses this implementation instead of drops. Hence, the purpose of NDR
+in ASTF is to compute the maximal transmission rate, or in terms of ASTF, the maximal CPS multiplier such that there are no errors.
+
+No drop percentage however means there is no optimized binary search. In ASTF we are back to a simple binary decision, are there errors or not and as such we are limited to a simple binary search.
+
+The other main difference is the inability to run at 100%. As such, when running the script for ASTF, the user must provide two crucial values, *--high-mult* and *--low-mult*. Each of theses values is an integer representing a multiplier of CPS. The binary search is performed in the domain of multipliers provided.
+Hence, if you provide a large domain the results might be less accurate. In spite of this, providing a small domain that doesn't contain the NDR multiplier might provide false results.
+
+=== How to run
+
+Same as in STL, navigate to the link:{github_scripts_path}[scripts] folder.
+
+. Run the TRex Server in ASTF with the flags you would like. For more information on flags use *--help*.
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 --astf -i -c 7
+----
+[start=2]
+. Run the link:{github_scripts_path}/ndr[ndr] bash script. This script will figure out the right version of python (or a version you decide) and run the benchmark tool. Pay attention that you need to specify *--astf* when running the script.
+[source,bash]
+----
+[bash]>./ndr --astf -v -x 5 -e 1 -q 2 -lpps 80 --max-latency 50 --lat-tolerance 10 -o hu -f automation/trex_control_plane/interactive/trex/examples/astf/astf_error_logging_plugin.py --profile astf/udp_mix.py --high-mult 80 --low-mult 20
+----
+You can get detailed information of all the flags using *-h*.
+
+image:images/astf_ndr_help.png[title="ASTF Bench Tool Flags",align="left", width={p_width}, link="images/astf_ndr_help.png"]
+
+After the script finishes, it will print the final results in the following way:
+
+image:images/ndr_astf_how_to_results.png[title="ASTF How to Run Results",align="left", width={p_width}, link="images/ndr_astf_how_to_results.png"]
+
+And because we ran the script with *--o hu* it will print the following dictionary in the end.
+
+image:images/ndr_astf_hu_dict.png[title="ASTF Human Readable Dictionary",align="left", width={p_width}, link="images/ndr_astf_hu_dict.png"]
+
+=== Tutorials
+
+==== Errors, queuing and latency
+
+We mentioned before that in ASTF there are no drops, and the drops are replaced by errors. Errors however, don't have a percentage and once an error happens, it disqualifies that transmission (run) from being valid. At the time this document is written, there is no way to tolerate errors.
+
+Besides this, queuing and the latency functionality are almost the same as in ASTF and can be controlled with the same flags. Pay attention that the *pdr-error* flag from STL is renamed to *allowed-error*.
+
+One can use the following command to run with 70 pps latency, allow a maximal latency of 100 usec and latency tolerance of 10%, while allowing 20% queueing capability.
+
+[source,bash]
+----
+[bash]>./ndr --astf -v -lpps 70 --max-latency 10 --lat-tolerance 10 --q-full 20 --high-mult 60 --low-mult 50
+----
+
+==== Traffic engineering
+
+Same as in STL, we can use profiles to change the type of traffic we want to run. Just write a ASTF profile (or use an existing one) and load it into the benchmarker. To read more about profiles, please consult the link:https://trex-tgn.cisco.com/trex/doc/trex_astf.html[ASTF documentation]. The default profile is link:{github_scripts_path}/astf/udp_mix.py[udp_mix]. To control the profiles use the following flags:
+
+* *--profile* - The path to the location of the profile.
+* *--prof-tun* - List of tunables to pass along to the profile just as in a normal profile in ASTF.
+
+For example, to run link:{github_scripts_path}/astf/http_simple.py[http_simple] with some tunables use:
+[source,bash]
+----
+[bash]>./ndr --astf -v --profile astf/http_simple.py --prof-tun a=1,b=3 --high-mult 1000 --low-mult 500
+----
+To run link:{github_scripts_path}/astf/sfr.py[sfr] use:
+[source,bash]
+----
+[bash]>./ndr --astf -v --profile astf/sfr.py --high-mult 50 --low-mult 0
+----
+
+
+=== Running Example
+
+Let us see and comment a run. Suppose we ran the following way:
+[source,bash]
+----
+[bash]>./ndr --astf -v --high-mult 75 --low-mult 25 -lpps 50 --max-latency 30 --lat-tolerance 10
+----
+
+We are running the default profile, link:{github_scripts_path}/astf/udp_mix.py[udp_mix] with 50 packets per second latency and allowing tolerance of 10% beyond 30 usec. We guessed the maximal multiplier that won't cause errors or queue full or invalid latency to be between 25 and 75.
+
+The first transmission would be at 50%, meaning the multiplier being in the middle of the domain between 25 and 75 which happens to be 50. We can see in the following picture that this run is valid, no errors, valid latency and queue full at 0%.
+
+image:images/ndr_astf_first_iter.png[title="First run",align="left", width={p_width}, link="images/ndr_astf_first_iter.png"]
+
+The second transmission would be at 75%, meaning the multiplier would be 62.5 but since it must be an integer it is 62. The following picture shows that transmitting at this rate produces an invalid run since there are errors:
+
+image:images/ndr_astf_second_iter.png[title="Second run",align="left", width={p_width}, link="images/ndr_astf_second_iter.png"]
+
+After 7 runs, we can get the following results:
+
+image:images/ndr_astf_last_iter.png[title="Last run",align="left", width={p_width}, link="images/ndr_astf_last_iter.png"]
+
+*Discussion*::
+
+The optimal multiplier is found at 55.47% of the domain and the multiplier being 52. At this point, there are no errors and the latency is valid. Wondering why we stopped at 7 iterations? Does this happen usually? The answer lies in the mathematics. The binary search runs in logarithmic complexity. Our allowed error is 1%, and log(100) = 7 where 100 comes from 100%. Say we put the allowed error to be 0.1, in that case, it would take log(100/0.1) = log(1000) = 10 iterations.
+
+=== API to the NDR Benchmarker, Plugin files
+
+Same as in STL, in ASTF we can use plugins to decide what to do pre and post transmission. The only difference is that in ASTF since we don't transmit at maximum capacity, the API doesn't receive that parameter.
+
+A good use case would be for example to log the errors per multiplier since we can't see the errors directly in the benchmarker.
+
+*File*:: link:{github_astf_examples_path}/astf_error_logging_plugin.py[astf_error_logging_plugin.py]
+
+[source,python]
+----
+import astf_path
+
+
+class ErrorLogger():
+    def __init__(self, name, allowed_errors):
+        self.iteration_counter = 0
+        self.name = name
+        self.client_allowed_errors = set(allowed_errors['client'])
+        self.server_allowed_errors = set(allowed_errors['server'])
+        self.iteration_to_mult_map = {}
+        self.iteration_to_error_map = {}
+
+    def increment_iteration_counter(self):
+        self.iteration_counter += 1
+
+    def log(self, errors):
+        self.iteration_to_error_map[self.iteration_counter] = errors
+
+    def log_multiplier(self, mult):
+        self.iteration_to_mult_map[self.iteration_counter] = mult
+
+    def should_stop(self, errors):
+        client_errors = set(errors.get('client', []))
+        server_errors = set(errors.get('server', []))
+        return not (client_errors.issubset(self.client_allowed_errors)  and server_errors.issubset(self.server_allowed_errors))
+
+
+class ErrorLoggingNDRPlugin():
+    def __init__(self, **kwargs):
+        allowed_errors = {'client': {u'tcps_conndrops': u'embryonic connections dropped'},
+                          'server': {u'err_no_template': u"server can't match L7 template",
+                                     u'err_no_syn': u'server first flow packet with no SYN'}
+                         }
+        self.logger = ErrorLogger(name="Plugin Demonstration for ASTF NDR", allowed_errors=allowed_errors)
+
+    def pre_iteration(self, run_results=None, **kwargs):
+        pass
+
+    def post_iteration(self, run_results, **kwargs):
+        if run_results['error_flag']:
+            self.logger.log(run_results['errors'])
+        self.logger.log_multiplier(run_results['mult'])
+        self.logger.increment_iteration_counter()
+        return self.logger.should_stop(run_results['errors'])
+
+
+# dynamic load of python module
+def register():
+    return ErrorLoggingNDRPlugin()
+----
+
+After starting the server, we run the benchmarking in the following way.
+[source,bash]
+----
+[bash]>./ndr --astf -v --plugin-file automation/trex_control_plane/interactive/trex/examples/astf/astf_error_logging_plugin.py --high-mult 60 --low-mult 40
+----
+
+The plugin not only logs the errors and the multipliers but in case it finds out some error that is not allowed happened, it immediately stops the run. For example, in the default profile this won't happen but if we run some other profile, we will get the following results:
+
+image::images/ndr_astf_plugin.png[title="Error Logging Plugin",align="left", width={p_width}, link="images/ndr_astf_plugin.png"]
