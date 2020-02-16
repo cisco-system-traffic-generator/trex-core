@@ -26,6 +26,23 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.74 ==
+
+* ASTF improvement 
+** Delay ack every x packets, see link:https://github.com/cisco-system-traffic-generator/trex-core/issues/417[github-417].
+** Keepable timer is 16 bits and could be up to 65,000 sec see link:https://github.com/cisco-system-traffic-generator/trex-core/issues/425[github-425].
+** New EMU instruction to create eFlow that terminated by timeout instead of total bytes
+
+* NDR benchmark script see link:cp_ndr_docs/index.html[sdk] link:trex_ndr_bench_doc.html[ndr]
+
+* New PMD support 
+** Broadcom NICs
+*** BCM5730X NetXtreme-C
+*** BCM574XX/BCM575XX NetXtreme-Broadcom 
+*** BCM588XX Stingray Family of SmartNIC Adapters
+*** StrataGX BCM5871X 
+** memif PMD share memory interface (does not support loopback)
+
 == Release 2.73 ==
 
 * Support DDP firmware upgrade for XL710/X710 family  to solve #384 (27MPPS limit) 
