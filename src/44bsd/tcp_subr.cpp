@@ -341,13 +341,14 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
     tp->t_flags |= ctx->tcp_no_delay?(TF_NODELAY):0;
     tp->t_pkts_cnt = 0;
+    tp->m_reass_disabled = false;
 
-    /*
-     * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
-     * rtt estimate.  Set rttvar so that srtt + 2 * rttvar gives
-     * reasonable initial retransmit time.
-     */
-    tp->t_srtt = TCPTV_SRTTBASE;
+        /*
+         * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
+         * rtt estimate.  Set rttvar so that srtt + 2 * rttvar gives
+         * reasonable initial retransmit time.
+         */
+        tp->t_srtt = TCPTV_SRTTBASE;
     tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ ;
     tp->t_rttmin = TCPTV_MIN;
     TCPT_RANGESET(tp->t_rxtcur, 
