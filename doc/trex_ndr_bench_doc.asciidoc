@@ -435,7 +435,7 @@ image:images/ndr_astf_hu_dict.png[title="ASTF Human Readable Dictionary",align="
 
 ==== Errors, queuing and latency
 
-We mentioned before that in ASTF there are no drops, and the drops are replaced by errors. Errors however, don't have a percentage and once an error happens, it disqualifies that transmission (run) from being valid. At the time this document is written, there is no way to tolerate errors.
+We mentioned before that in ASTF there are no drops, and the drops are replaced by errors. Errors however, don't have a percentage and once an error happens, it disqualifies that transmission (run) from being valid. You can tolerate errors and decide what to do with them using the plugin feature as we will see later on the documentation.
 
 Besides this, queuing and the latency functionality are almost the same as in ASTF and can be controlled with the same flags. Pay attention that the *pdr-error* flag from STL is renamed to *allowed-error*.
 
@@ -493,7 +493,10 @@ The optimal multiplier is found at 55.47% of the domain and the multiplier being
 
 === API to the NDR Benchmarker, Plugin files
 
-Same as in STL, in ASTF we can use plugins to decide what to do pre and post transmission. The only difference is that in ASTF since we don't transmit at maximum capacity, the API doesn't receive that parameter.
+Same as in STL, in ASTF we can use plugins to decide what to do pre and post transmission. There are two main differences:
+
+* In ASTF since we don't transmit at maximum capacity, the API doesn't receive that parameter.
+* In order to allow the user to tolerate specific ASTF errors, the post iteration must return 2 boolean flags. The first one is the same *should stop* that we know from STL. The second one *invalid errors* (True if invalid, False if valid) overrides the error flag and decides for the script if the errors are allowed, hence a valid iteration or not. Note that you must return both flags.
 
 A good use case would be for example to log the errors per multiplier since we can't see the errors directly in the benchmarker.
 
@@ -522,7 +525,10 @@ class ErrorLogger():
     def log_multiplier(self, mult):
         self.iteration_to_mult_map[self.iteration_counter] = mult
 
-    def should_stop(self, errors):
+    def should_stop(self):
+        return self.iteration_counter == 5
+
+    def invalid_errors(self, errors):
         client_errors = set(errors.get('client', []))
         server_errors = set(errors.get('server', []))
         return not (client_errors.issubset(self.client_allowed_errors)  and server_errors.issubset(self.server_allowed_errors))
@@ -544,7 +550,15 @@ class ErrorLoggingNDRPlugin():
             self.logger.log(run_results['errors'])
         self.logger.log_multiplier(run_results['mult'])
         self.logger.increment_iteration_counter()
-        return self.logger.should_stop(run_results['errors'])
+        should_stop = self.logger.should_stop()
+        invalid_errors = self.logger.invalid_errors(run_results['errors'])
+        return should_stop, invalid_errors
+
+
+# dynamic load of python module
+def register():
+    return ErrorLoggingNDRPlugin()
+
 
 
 # dynamic load of python module
@@ -555,9 +569,9 @@ def register():
 After starting the server, we run the benchmarking in the following way.
 [source,bash]
 ----
-[bash]>./ndr --astf -v --plugin-file automation/trex_control_plane/interactive/trex/examples/astf/astf_error_logging_plugin.py --high-mult 60 --low-mult 40
+[bash]>./ndr --astf -v --plugin-file automation/trex_control_plane/interactive/trex/examples/astf/astf_error_logging_plugin.py --high-mult 600000 --low-mult 400000 --profile astf/http_simple.py
 ----
 
-The plugin not only logs the errors and the multipliers but in case it finds out some error that is not allowed happened, it immediately stops the run. For example, in the default profile this won't happen but if we run some other profile, we will get the following results:
+The plugin not only logs the errors and the multipliers. It decides which errors are tolerated and which not. It also stops the script after 5 runs.
 
 image::images/ndr_astf_plugin.png[title="Error Logging Plugin",align="left", width={p_width}, link="images/ndr_astf_plugin.png"]

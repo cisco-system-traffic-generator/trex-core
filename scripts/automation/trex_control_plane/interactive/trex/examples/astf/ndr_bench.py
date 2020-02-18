@@ -478,7 +478,7 @@ class ASTFNdrBench:
                     Statistics of some run.
         """
         if new_stats['queue_full_percentage'] <= self.config.q_full_resolution and new_stats['valid_latency'] and not new_stats['error_flag']:
-            if new_stats['rate_p'] > self.opt_run_stats['rate_p']:
+            if new_stats['mult_p'] > self.opt_run_stats['mult_p']:
                 self.opt_run_stats.update(new_stats)
 
 
@@ -497,9 +497,9 @@ class ASTFNdrBench:
          # allow time for counters to settle from previous runs
         time.sleep(10)
         self.astf_client.clear_stats()
-        self.astf_client.start(mult=mult, duration=self.config.iteration_duration, nc=True, latency_pps=self.config.latency_pps)
+        self.astf_client.start(mult=mult, nc=True, latency_pps=self.config.latency_pps)
         time_slept = 0
-        sleep_interval = 2 # in seconds
+        sleep_interval = 1 # in seconds
         error_flag = False
         while time_slept < self.config.iteration_duration:
             time.sleep(sleep_interval)
@@ -564,13 +564,13 @@ class ASTFNdrBench:
             if plugin_enabled:
                 self.plugin_pre_iteration(run_results=current_run_stats, **self.config.tunables)
             current_run_stats.update(self.perf_run(current_run_stats['mult']))
-            if plugin_enabled:
-                plugin_stop = self.plugin_post_iteration(run_results=current_run_stats, **self.config.tunables)
             error_flag = current_run_stats['error_flag']
             q_full_percentage = current_run_stats['queue_full_percentage']
             valid_latency = current_run_stats['valid_latency']
             current_run_stats['mult_difference'] = abs(current_run_stats['mult_p'] - self.opt_run_stats['mult_p'])
             current_run_results.update(current_run_stats)
+            if plugin_enabled:
+                plugin_stop, error_flag = self.plugin_post_iteration(run_results=current_run_stats, **self.config.tunables)
             if self.config.verbose:
                 if error_flag:
                     current_run_results.print_state("Errors Occurred", high_bound, low_bound)
