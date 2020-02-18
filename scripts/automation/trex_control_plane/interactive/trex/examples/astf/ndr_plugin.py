@@ -103,14 +103,18 @@ class MyNDRPlugin():
                     List of tunables passed as parameters.
 
             :returns:
-                bool: should stop the benchmarking or not.
+                tuple of booleans: (should stop the benchmarking or not, invalid errors)
+
 
         """
         # Post iteration function. This function will run after TRex transmits to the DUT.
-        # Could use this to decide if to continue the benchmark after querying the DUT post run. The DUT might be overheated or any other thing that might make you want to stop the run.
+        # Could use this to decide if to continue the benchmark after querying the DUT post run.
+        # The DUT might be overheated or any other thing that might make you want to stop the run.
+        # Also can use this to allow specific errors, this will override the normal check that TRex performs on errors.
         # You can receive tunables in the command line, through the kwargs argument.
-        should_stop = False
-        return should_stop
+        should_stop  = False 
+        invalid_errors == True if run_results['errors'] else False
+        return should_stop, invalid_errors
 
 
 # dynamic load of python module

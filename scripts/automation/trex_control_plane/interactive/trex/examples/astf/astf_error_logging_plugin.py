@@ -19,7 +19,10 @@ class ErrorLogger():
     def log_multiplier(self, mult):
         self.iteration_to_mult_map[self.iteration_counter] = mult
 
-    def should_stop(self, errors):
+    def should_stop(self):
+        return self.iteration_counter == 5
+
+    def invalid_errors(self, errors):
         client_errors = set(errors.get('client', []))
         server_errors = set(errors.get('server', []))
         return not (client_errors.issubset(self.client_allowed_errors)  and server_errors.issubset(self.server_allowed_errors))
@@ -41,7 +44,9 @@ class ErrorLoggingNDRPlugin():
             self.logger.log(run_results['errors'])
         self.logger.log_multiplier(run_results['mult'])
         self.logger.increment_iteration_counter()
-        return self.logger.should_stop(run_results['errors'])
+        should_stop = self.logger.should_stop()
+        invalid_errors = self.logger.invalid_errors(run_results['errors'])
+        return should_stop, invalid_errors
 
 
 # dynamic load of python module
