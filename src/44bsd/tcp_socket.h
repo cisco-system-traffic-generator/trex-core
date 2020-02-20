@@ -537,7 +537,7 @@ private:
 class CEmulApp  {
 public:
     enum {
-        apVAR_NUM_SIZE =2
+        apVAR_NUM_SIZE = 5
     };
 
     /* flags */
@@ -579,7 +579,7 @@ public:
         m_cmd_rx_bytes_wm=0;
         m_vars[0]=0; /* unroll*/
         m_vars[1]=0;
-        assert(apVAR_NUM_SIZE==2);
+        assert(apVAR_NUM_SIZE==5);
     }
 
     virtual ~CEmulApp(){
