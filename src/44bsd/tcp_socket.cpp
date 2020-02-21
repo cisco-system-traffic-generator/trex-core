@@ -648,7 +648,7 @@ int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
     set_interrupt(true);
     /* for now do nothing with the mbuf */
     if (m) {
-        rte_pktmbuf_free(m);
+        check_l7_data(m);
     }
 
     if ( get_rx_enabled() ) {
@@ -663,6 +663,20 @@ int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
     set_interrupt(false);
     return(0);
 }
+
+
+void CEmulApp::check_l7_data(struct rte_mbuf * m) {
+    if (unlikely(m_l7check_enable)) {
+        uint8_t* l7_data = rte_pktmbuf_mtod(m, uint8_t*);
+        uint16_t l7_len = rte_pktmbuf_data_len(m);
+
+        if (!m_flow->check_template_assoc_by_l7_data(l7_data, l7_len)) {
+            return; // should keep mbuf for the later use at tcp_respond_rst().
+        }
+    }
+    rte_pktmbuf_free(m);
+}
+
 
 #ifdef  TREX_SIM
 void CEmulApp::set_flow_ctx(CTcpPerThreadCtx * ctx, CTcpFlow * flow) {

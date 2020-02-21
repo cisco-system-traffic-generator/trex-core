@@ -571,6 +571,7 @@ public:
         m_pctx =(CPerProfileCtx *)0;
         m_api=(CEmulAppApi *)0;
         m_program =(CEmulAppProgram *)0;
+        m_l7check_enable = false;
         m_flags=0;
         m_state =te_NONE;
         m_debug_id=0;
@@ -755,6 +756,8 @@ public:
         return((CUdpFlow *)m_flow);
     }
 
+    void set_l7_check(bool enable) { m_l7check_enable = enable; }
+    bool get_l7_check() const { return m_l7check_enable; }
 
 public:
 
@@ -849,6 +852,7 @@ private:
 
     void force_stop_timer();
 
+    void check_l7_data(struct rte_mbuf *m);
 
 private:
     /* cache line 0 */
@@ -860,6 +864,8 @@ private:
 
     /* cache line 1 */
     CEmulAppProgram       * m_program;
+
+    bool                    m_l7check_enable;
 
     uint16_t               m_flags;
     tcp_app_state_t        m_state;

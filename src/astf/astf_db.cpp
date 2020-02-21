@@ -1334,9 +1334,6 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
 
     int c_prog_idx = temp["client_template"]["program_index"].asInt();
     bool is_stream = get_emul_stream(c_prog_idx);   // same as server_template
-    if (is_stream) {
-        throw TrexException("TCP L7 map not supported yet.");
-    }
 
     /* prepare buf_list to get the value recursively by specified offset */
     std::vector<std::string> buf_list;

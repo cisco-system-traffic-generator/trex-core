@@ -739,6 +739,7 @@ public:
 
 /*****************************************************/
 
+class CServerTemplateInfo;
 
 class CTcpFlow : public CFlowBase {
 
@@ -780,10 +781,20 @@ public:
 
     void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
+    CPerProfileCtx* create_on_flow_profile();
+    void start_identifying_template(CPerProfileCtx *pctx);
+    bool new_template_identified();
+    bool is_activated();
+
+    bool check_template_assoc_by_l7_data(uint8_t* l7_data, uint16_t l7_len);
+    void update_new_template_assoc_info();
+
 public:
     CHTimerObj        m_timer; /* 32 bytes */ 
     tcpcb             m_tcp;
     uint8_t           m_tick;
+
+    CServerTemplateInfo*    m_template_info; /* to save the identified template */
 };
 
 /* general timer object used by ASTF, 
@@ -896,6 +907,8 @@ private:
     bool                m_stopped;
     bool                m_nc_flow_close;
 
+    bool                m_on_flow; /* dedicated to a flow */
+
 public:
     ~CPerProfileCtx() {
         if (m_sch_rampup != nullptr) {
@@ -917,6 +930,10 @@ public:
             }
         }
     }
+    void set_on_flow() { m_on_flow = true; }
+    bool is_on_flow() { return m_on_flow; }
+    void update_profile_stats(CPerProfileCtx* pctx);
+    void update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id);
 };
 
 
@@ -930,6 +947,8 @@ public:
 
     CTcpServerInfo* get_server_info() const { return m_server_info; }
     CPerProfileCtx* get_profile_ctx() const { return m_pctx; }
+
+    bool has_payload_params();
 };
 
 class CServerIpInfo {
@@ -1004,6 +1023,7 @@ public:
     uint32_t ip_start() const { return m_ip_start; }
     uint32_t ip_end() const { return m_ip_end; }
 
+    bool is_ip_overlap(uint32_t start, uint32_t end) { return is_overlap(start, end); }
     bool is_ip_overlap(CServerIpPayloadInfo& in) { return is_overlap(in.ip_start(), in.ip_end()); }
     bool is_ip_equal(CServerIpPayloadInfo& in) { return is_equal(in.ip_start(), in.ip_end()); }
     bool is_ip_in(uint32_t ip) { return is_overlap(ip, ip); }
@@ -1015,6 +1035,7 @@ public:
         PayloadRule rule = m_payload_rule.back(); // offset value is ascending order
         return len > rule.m_offset;
     }
+    bool is_server_compatible(CTcpServerInfo* server);
 
     payload_value_t get_payload_value(uint8_t* data) {
         payload_value_t pval = 0;
@@ -1033,6 +1054,7 @@ public:
     CServerTemplateInfo* get_template_info(uint8_t* data) {
         return data ? get_template_info(get_payload_value(data)): nullptr;
     }
+    CServerTemplateInfo* get_reference_template_info();
 
     bool insert_template_info(payload_value_t pval, CTcpServerInfo* server, CPerProfileCtx* pctx) {
         if (!get_template_info(pval)) {
