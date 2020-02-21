@@ -680,7 +680,9 @@ bool CEmulAppProgram::is_common_commands(tcp_app_cmd_t cmd_id){
     if ( (cmd_id==tcDELAY) || 
          (cmd_id==tcDELAY_RAND) ||
          (cmd_id==tcSET_VAR) ||
-         (cmd_id==tcJMPNZ) 
+         (cmd_id==tcJMPNZ) ||
+         (cmd_id==tcSET_TICK_VAR) ||
+         (cmd_id==tcJMPDP)
         ){
         return (true);
     }
@@ -841,6 +843,13 @@ void CEmulAppCmd::Dump(FILE *fd){
 
     case tcTX_MODE:
         fprintf(fd," tcTX_MODE : flags : %x  \n",u.m_tx_mode.m_flags);
+        break;
+
+    case tcSET_TICK_VAR :
+        fprintf(fd," tcSET_TICK_VAR id:%lu\n",(ulong)u.m_var.m_var_id);
+        break;
+    case tcJMPDP :
+        fprintf(fd," tcJMPDP id:%lu, jmp:%d, dur:%lu\n",(ulong)u.m_jmpdp.m_var_id,(int)u.m_jmpdp.m_offset,(ulong)u.m_jmpdp.m_duration);
         break;
 
     default:
