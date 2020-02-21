@@ -282,6 +282,58 @@ HOT_FUNC void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
     free_flow(flow);
 }
 
+void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple) {
+    if ( lpTcp->getAckFlag() ){
+        tcp_respond(flow->m_pctx,
+                     &flow->m_tcp,
+                     0,
+                     lpTcp->getAckNumber(),
+                     TH_RST);
+    }else{
+        int tlen=ftuple.m_l7_total_len;
+        if (lpTcp->getSynFlag()) {
+            tlen++;
+        }
+        if (lpTcp->getFinFlag()) {
+            tlen++;
+        }
+        tcp_seq seq=0;
+        if (tlen==0 && (lpTcp->getFlags()==0)) {
+            /* keep-alive packet  */
+            seq = lpTcp->getAckNumber();
+        }
+        tcp_respond(flow->m_pctx,
+                     &flow->m_tcp,
+                     lpTcp->getSeqNumber()+tlen,
+                     seq,
+                     TH_RST|TH_ACK);
+    }
+}
+
+
+bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
+                                    CTcpFlow *  flow,
+                                    struct rte_mbuf * mbuf,
+                                    TCPHeader    * lpTcp,
+                                    CFlowKeyFullTuple &ftuple){
+    assert(!flow->is_activated());
+    if (flow->m_template_info) {
+        flow->update_new_template_assoc_info();
+        flow->m_app.start(false);
+        assert(flow->is_activated()); /* flow is now activated */
+    } else {    /* no matched template found, now mbuf should be freed */
+        if (ctx->tcp_blackhole == 0) {
+            tcp_respond_rst(flow, lpTcp, ftuple);
+        }
+        rte_pktmbuf_free(mbuf);
+        FT_INC_SCNT(m_err_no_template);
+        handle_close(ctx,flow,true);
+        return false;   /* flow is not available */
+    }
+    return true;
+}
+
+
 void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                                     CTcpFlow *  flow,
                                     struct rte_mbuf * mbuf,
@@ -297,6 +349,13 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                    );
 
     flow->check_defer_function();
+
+    if (unlikely(flow->new_template_identified())) {
+        /* identifying new template has been done */
+        if (!update_new_template(ctx, flow, mbuf, lpTcp, ftuple)) {
+            return; /* when update is failed, flow is not available also. */
+        }
+    }
 
     if (flow->is_can_close()) {
         handle_close(ctx,flow,true);
@@ -345,36 +404,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
         flow->m_template.learn_ipv6_headers_from_network(ipv6);
     }
 
-    if ( lpTcp->getAckFlag() ){
-
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
-                     0, 
-                     lpTcp->getAckNumber(), 
-                     TH_RST);
-
-
-
-    }else{
-        int tlen=ftuple.m_l7_total_len;
-        if (lpTcp->getSynFlag()) {
-            tlen++;
-        }
-        if (lpTcp->getFinFlag()) {
-            tlen++;
-        }
-        tcp_seq seq=0;
-        if (tlen==0 && (lpTcp->getFlags()==0)) {
-            /* keep-alive packet  */
-            seq = lpTcp->getAckNumber();
-        }
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
-                     lpTcp->getSeqNumber()+tlen, 
-                     seq, 
-                     TH_RST|TH_ACK);
-    }
-
+    tcp_respond_rst(flow, lpTcp, ftuple);
 
     free_flow(flow);
 }
@@ -426,6 +456,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
 
 HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
     assert(flow);
+    CPerProfileCtx* pctx = flow->m_pctx;
     flow->m_pctx->m_flow_cnt--;
     flow->m_pctx->on_flow_close();
 
@@ -437,6 +468,11 @@ HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
         CTcpFlow * tcp_flow=(CTcpFlow *)flow;
         tcp_flow->Delete();
         delete tcp_flow;
+    }
+
+    if (pctx->is_on_flow()) {
+        assert(pctx->m_flow_cnt == 0);
+        delete pctx;
     }
 }
 
@@ -767,6 +803,16 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
+    if (unlikely(temp->has_payload_params())) {
+        /* payload params can be checked after it is received */
+        pctx = lptflow->create_on_flow_profile();
+        if (pctx == nullptr) {
+            FT_INC_SCNT(m_err_no_memory);
+            rte_pktmbuf_free(mbuf);
+            return(false);
+        }
+    }
+
     lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
     lptflow->m_template.server_update_mac_from_packet(pkt);
     if (is_ipv6) {
@@ -795,7 +841,12 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     lptflow->set_app(app);
 
-    app->start(true); /* start the application */
+    if (likely(temp->has_payload_params())) {
+        lptflow->start_identifying_template(pctx);
+    } else {
+        app->start(true); /* start the application */
+    }
+
     /* start listen */
     tcp_listen(lptflow->m_pctx,&lptflow->m_tcp);
 

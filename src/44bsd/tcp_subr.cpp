@@ -53,6 +53,7 @@
 #include <astf/astf_template_db.h>
 #include <astf/astf_db.h>
 #include <cmath>
+#include "utl_counter.h"
 
 //extern    struct inpcb *tcp_last_inpcb;
 
@@ -365,6 +366,102 @@ void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
 }
 #endif
 
+
+CPerProfileCtx* CTcpFlow::create_on_flow_profile() {
+    try {
+        auto pctx = new CPerProfileCtx();
+        pctx->set_on_flow();
+
+        pctx->m_profile_id = m_pctx->m_profile_id;
+        pctx->m_ctx = m_pctx->m_ctx;
+        pctx->m_template_rw = m_pctx->m_template_rw;
+
+        return pctx;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx) {
+    assert(pctx->is_on_flow());
+
+    // to collect TCP statistics
+    this->m_pctx->m_flow_cnt--;
+    pctx->m_flow_cnt = 1;
+
+    this->m_pctx = pctx;
+    this->m_tg_id = 0;
+
+    m_app.set_flow_ctx(pctx, this);
+
+    // trigger to identify template by L7 data
+    m_app.set_l7_check(true);
+    m_tcp.m_reass_disabled = true;
+    m_template_info = nullptr;
+}
+
+
+bool CTcpFlow::new_template_identified() {
+    /* template identification is done after l7 data check processed */
+    return m_pctx->is_on_flow() && !m_app.get_l7_check();
+}
+
+bool CTcpFlow::is_activated() {
+    /* active flow should be conneted to real pctx */
+    return !m_pctx->is_on_flow();
+}
+
+
+bool CTcpFlow::check_template_assoc_by_l7_data(uint8_t* l7_data, uint16_t l7_len) {
+    uint16_t server_port = m_template.get_src_port();
+    uint32_t server_ip = m_template.get_src_ipv4();
+
+    auto temp = m_pctx->m_ctx->get_template_info(server_port,true,server_ip, l7_data,l7_len);
+
+    /* to stop identifying template */
+    m_app.set_l7_check(false);
+    m_tcp.m_reass_disabled = false;
+
+    if (temp) {
+        CPerProfileCtx* pctx = temp->get_profile_ctx();
+        if (pctx->is_active() || !pctx->get_nc()) {
+            m_template_info = temp;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+void CTcpFlow::update_new_template_assoc_info() {
+    if(!m_pctx->is_on_flow() || !m_template_info) {
+        return;
+    }
+
+    CPerProfileCtx* pctx = m_template_info->get_profile_ctx();
+    CTcpServerInfo* server_info = m_template_info->get_server_info();
+    m_template_info = nullptr;
+
+    uint16_t c_template_idx = server_info->get_temp_idx();
+    uint16_t tg_id = pctx->m_template_ro->get_template_tg_id(c_template_idx);
+    CTcpTuneables* s_tune = server_info->get_tuneables();
+    CEmulAppProgram* server_prog = server_info->get_prog();
+
+    pctx->update_profile_stats(this->m_pctx);
+    pctx->update_tg_id_stats(tg_id, this->m_pctx, this->m_tg_id);
+    pctx->m_flow_cnt += 1;
+
+    delete this->m_pctx;    // free interim profile
+
+    this->m_pctx = pctx;
+    this->m_tg_id = tg_id;
+    this->m_c_template_idx = c_template_idx;
+
+    set_s_tcp_info(pctx->m_template_ro, s_tune);
+
+    m_app.set_program(server_prog);
+    m_app.set_flow_ctx(pctx, this);
+}
 
 
 void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
@@ -777,6 +874,44 @@ void CTcpPerThreadCtx::Delete(){
     }
 }
 
+void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
+    tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts;
+    udp_stat_int_t *lpt_udp = &m_udpstat.m_sts;
+
+    CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts;
+    uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts;
+
+    CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    tcp += tcp_ctx;
+    udp += udp_ctx;
+}
+
+void CPerProfileCtx::update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id) {
+    tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts_tg_id[tg_id];
+    udp_stat_int_t *lpt_udp = &m_udpstat.m_sts_tg_id[tg_id];
+
+    CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts_tg_id[in_tg_id];
+    uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts_tg_id[in_tg_id];
+
+    CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+
+    tcp += tcp_ctx;
+    udp += udp_ctx;
+}
+
+
+bool CServerTemplateInfo::has_payload_params() {
+    return m_server_info->is_payload_params();
+}
 
 CServerIpPayloadInfo::CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp) : CServerIpInfo(start,end) {
     auto payload_params = temp.get_server_info()->get_payload_params();
@@ -794,6 +929,54 @@ CServerIpPayloadInfo::CServerIpPayloadInfo(uint32_t start, uint32_t end, CServer
         }
         m_payload_map[pval] = temp;
     }
+}
+
+bool CServerIpPayloadInfo::is_server_compatible(CTcpServerInfo* in_server) {
+    auto it = m_payload_map.begin();    // get reference from first entry
+    if (it != m_payload_map.end()) {
+        auto ref_server = it->second.get_server_info();
+        auto ref_tune = ref_server->get_tuneables();
+        auto in_tune = in_server->get_tuneables();
+        if (ref_tune->get_bitfield() != in_tune->get_bitfield()) {
+            return false;
+        }
+        // tcp_template_ipv4_update()
+        if (ref_tune->is_valid_field(CTcpTuneables::ip_ttl) &&
+            (ref_tune->m_ip_ttl != in_tune->m_ip_ttl)) {
+            return false;
+        }
+        if (ref_tune->is_valid_field(CTcpTuneables::ip_tos) &&
+            (ref_tune->m_ip_tos != in_tune->m_ip_tos)) {
+            return false;
+        }
+        // CTcpFlow::set_s_tcp_info()
+        if (ref_tune->is_valid_field(CTcpTuneables::tcp_mss_bit) &&
+            (ref_tune->m_tcp_mss != in_tune->m_tcp_mss)) {
+            return false;
+        }
+        if (ref_tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size) &&
+            (ref_tune->m_tcp_rxbufsize != in_tune->m_tcp_rxbufsize)) {
+            return false;
+        }
+        if (ref_tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size) &&
+            (ref_tune->m_tcp_txbufsize != in_tune->m_tcp_txbufsize)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+CServerTemplateInfo* CServerIpPayloadInfo::get_reference_template_info() {
+    for (auto it = m_payload_map.begin(); it != m_payload_map.end(); it++) {
+        auto pctx = it->second.get_profile_ctx();
+        // use first active entry for the reference
+        if (pctx->is_active() || !pctx->get_nc()) {
+            // the reference can be distinguished by existing payload params.
+            return &it->second;
+        }
+    }
+    return nullptr;
 }
 
 bool CServerIpPayloadInfo::remove_template_info(CPerProfileCtx* pctx) {
@@ -825,7 +1008,7 @@ CServerTemplateInfo* CServerPortInfo::get_template_info_by_payload(uint32_t ip, 
                 return it->second.get_template_info(data);
             }
         } else {
-            // TODO: TCP need to return temporary template information
+            return it->second.get_reference_template_info();
         }
     }
     return nullptr;
@@ -849,6 +1032,19 @@ bool CServerPortInfo::insert_template_payload(CTcpServerInfo* server, CPerProfil
     CServerIpPayloadInfo in_payload{ ip_start, ip_end, temp };
 
     std::stringstream ss;
+
+    /* check server compatibility with m_ip_map entries */
+    for (auto it = m_ip_map.lower_bound(ip_start); it != m_ip_map.end(); it++) {
+        if (!it->second.is_ip_overlap(ip_start, ip_end)) {
+            break;
+        }
+        if (!in_payload.is_server_compatible(it->second.get_template_info()->get_server_info())) {
+            ss << "server tuneables(\"glob_info\") is not compatible with non payload tuneables";
+            msg = ss.str();
+            return false;
+        }
+    }
+
     auto it = m_ip_map_payload.lower_bound(ip_start);
     if (it != m_ip_map_payload.end()) {
         auto& payload = it->second;
@@ -856,6 +1052,11 @@ bool CServerPortInfo::insert_template_payload(CTcpServerInfo* server, CPerProfil
             if (!payload.is_rule_equal(in_payload)) {
                 ss << std::hex;
                 ss << "new rule is different in [" << payload.ip_start() << ", " << payload.ip_end() << "]";
+                msg = ss.str();
+                return false;
+            }
+            else if (!payload.is_server_compatible(server)) {
+                ss << "server tuneables(\"glob_info\") should be compatible with payload tuneables";
                 msg = ss.str();
                 return false;
             }
@@ -887,11 +1088,24 @@ bool CServerPortInfo::insert_template_info(CTcpServerInfo* server, CPerProfileCt
     }
     auto ip_start = server->get_ip_start();
     auto ip_end = server->get_ip_end();
+
+    std::stringstream ss;
+    /* server should be compatible with m_ip_map_payload entries */
+    for (auto it = m_ip_map_payload.lower_bound(ip_start); it != m_ip_map_payload.end(); it++) {
+        if (it->second.is_ip_overlap(ip_start, ip_end)) {
+            break;
+        }
+        if (it->second.is_server_compatible(server)) {
+            ss << "non payload server tuneables(\"glob_info\") is not compatible with existing payload tuneables";
+            msg = ss.str();
+            return false;
+        }
+    }
+
     auto it = m_ip_map.lower_bound(ip_start);
     if (it != m_ip_map.end()) {
         auto& temp = it->second;
         if (temp.is_ip_overlap(ip_start, ip_end)) {
-            std::stringstream ss;
             ss << std::hex;
             ss << "new IP range [" << ip_start << ", " << ip_end << "]";
             ss << " overlaps [" << temp.ip_start() << ", " << temp.ip_end() << "]";

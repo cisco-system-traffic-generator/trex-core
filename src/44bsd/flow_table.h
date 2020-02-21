@@ -258,6 +258,12 @@ public:
                         CFlowBase  * flow,
                         bool remove_from_ft);
 
+      bool update_new_template(CTcpPerThreadCtx * ctx,
+                              CTcpFlow *  flow,
+                              struct rte_mbuf * mbuf,
+                              TCPHeader    * lpTcp,
+                              CFlowKeyFullTuple &ftuple);
+
       void process_tcp_packet(CTcpPerThreadCtx * ctx,
                               CTcpFlow *  flow,
                               struct rte_mbuf * mbuf,
