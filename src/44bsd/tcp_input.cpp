@@ -350,14 +350,17 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 
 /* Count current packet and check if ack is needed according to tcp_no_delay_counter tunable */
 inline bool count_and_check_no_delay(CTcpPerThreadCtx * pctx,
-                                    struct tcpcb *tp) {
+                                    struct tcpcb *tp,int bytes) {
     if ( pctx->tcp_no_delay_counter == 0 ) 
         return false;
 
-    tp->t_pkts_cnt++;
-    if ( tp->t_pkts_cnt >= pctx->tcp_no_delay_counter ) {
-        tp->t_pkts_cnt = 0;
-        return true;
+    tp->t_pkts_cnt += uint16(bytes);
+    if (tp->t_pkts_cnt >= pctx->tcp_no_delay_counter) {
+      tp->t_pkts_cnt -= uint16(pctx->tcp_no_delay_counter);
+      if (tp->t_pkts_cnt >= pctx->tcp_no_delay_counter) { 
+          tp->t_pkts_cnt = 0; 
+      }
+      return true;
     }
     return false;
 }
@@ -390,9 +393,9 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
         uint16_t tg_id = tp->m_flow->m_tg_id;
         INC_STAT(pctx, tg_id, tcps_rcvpack);
         INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte,ti->ti_len);
-        
-        if ( count_and_check_no_delay(pctx->m_ctx, tp) ){
-            tp->t_flags |= TF_ACKNOW;
+
+        if (count_and_check_no_delay(pctx->m_ctx, tp, ti->ti_len)) {
+          tp->t_flags |= TF_ACKNOW;
         }
 
         sbappend(so,
@@ -741,12 +744,13 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
              *  congestion avoidance sender won't send more until
              *  he gets an ACK.
              */
-            
-            if (count_and_check_no_delay(pctx->m_ctx, tp) || tiflags & TH_PUSH ) {
-                tp->t_flags |= TF_ACKNOW;
-                tcp_output(pctx,tp);
-            }else{
-                tp->t_flags |= TF_DELACK;
+
+            if (count_and_check_no_delay(pctx->m_ctx, tp, ti->ti_len) ||
+                tiflags & TH_PUSH) {
+              tp->t_flags |= TF_ACKNOW;
+              tcp_output(pctx, tp);
+            } else {
+              tp->t_flags |= TF_DELACK;
             }
 
             return 0;
