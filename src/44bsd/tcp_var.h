@@ -106,7 +106,7 @@ struct tcpcb {
     char    t_force;        /* 1 if forcing out a byte */
     uint8_t mbuf_socket;    /* mbuf socket */
     uint8_t t_dupacks;      /* consecutive dup acks recd */
-    uint8_t t_pkts_cnt;    /* packets arrived until ack */
+    uint16_t t_pkts_cnt;    /* packets arrived until ack */
 #define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
 #define TUNE_MSS                     0x02
 #define TUNE_INIT_WIN                0x04
@@ -1200,7 +1200,7 @@ public:
     int tcp_rttdflt;
     int tcp_do_rfc1323;
     int tcp_no_delay;
-    int tcp_no_delay_counter; /* number of recv packets to wait until ack them */
+    int tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
     int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */

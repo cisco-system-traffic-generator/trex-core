@@ -132,7 +132,7 @@ class CTcpTuneables {
     uint8_t  m_tcp_rexmtthresh; /* ACK retransmition */
     uint8_t  m_tcp_do_rfc1323; /* 1/0 */
 
-    uint8_t  m_tcp_no_delay_counter; /* number of recv packets to wait until ack them */
+    uint16_t  m_tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
     uint8_t  m_tcp_blackhole;
     uint16_t  m_tcp_keepinit;
     uint16_t  m_tcp_keepidle;

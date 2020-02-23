@@ -10,7 +10,7 @@ class Prof1():
     def get_profile(self, **kwargs):
 
         initwnd          = kwargs.get('initwnd', 10)
-        no_delay_counter = kwargs.get('no_delay_counter', 2)
+        no_delay_counter = kwargs.get('no_delay_counter', 4000)
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
