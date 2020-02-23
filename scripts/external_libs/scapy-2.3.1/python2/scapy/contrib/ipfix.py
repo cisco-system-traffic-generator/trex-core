@@ -9,9 +9,7 @@ https://www.cisco.com/c/en/us/td/docs/routers/access/ISRG2/AVC/api/guide/AVC_Met
 https://www.cisco.com/c/en/us/td/docs/routers/access/ISRG2/AVC/api/guide/AVC_Metric_Definition_Guide/avc_app_exported_fields.html
 
 Not implemented:
-Options Template Set
-Paddings
-Lengths auto-fill at crafting
+Lengths auto-fill at "crafting"
 """
 
 from scapy.layers.netflow import *
@@ -61,6 +59,13 @@ class _IPFIXTemplateRecordHeader(Packet):
             FieldLenField('field_count', None, count_of='field_specifiers') ]
 
 
+class _IPFIXOptionRecordHeader(Packet):
+    fields_desc = [
+            ShortField('template_id', 1),
+            FieldLenField('total_field_count', None, count_of='field_specifiers'),
+            ShortField('scope_field_count', 0) ]
+
+
 class FieldNameByType(BitField):
     def i2repr(self, pkt, x):
         return _get_type_name(pkt.enterprise_bit, x, pkt.enterprise_number)
@@ -97,7 +102,7 @@ class IPFIXTemplateRecord(Packet):
 
 
 class _IPFIXSetHeader(Packet):
-    fields_desc = [ 
+    fields_desc = [
             ShortField('set_id', None),
             FieldLenField('length', None, length_of = 'records', adjust = lambda pkt,x:x+4) ]
 
@@ -113,7 +118,22 @@ class IPFIXSetTemplate(IPFIXSet):
         return '', s
 
 
-class IPFIXOptionRecord(Raw): pass
+class IPFIXOptionRecord(Packet):
+    fields_desc = [
+            _IPFIXOptionRecordHeader,
+            PacketListField('field_specifiers', [], IPFIXFieldSpecifier, count_from = lambda p:p.total_field_count) ]
+
+    def extract_padding(self, s):
+        return '', s
+
+    def post_dissect(self, *a, **k):
+        tmpl_sets[self.template_id] = [field_desc.fields for field_desc in  self.field_specifiers]
+        return Packet.post_dissect(self, *a, **k)
+
+    def post_build(self, *a, **k):
+        assert self.template_id is not None
+        tmpl_sets[self.template_id] = [field_desc.fields for field_desc in  self.field_specifiers]
+        return Packet.post_build(self, *a, **k)
 
 
 class IPFIXSetOption(IPFIXSet):
@@ -135,10 +155,6 @@ class IPFIXSetDataRaw(IPFIXSet):
 
     def extract_padding(self, s):
         return '', s
-
-
-def get_var_length(pkt_buf):
-    return length
 
 
 class VariableLengthField(StrField):
@@ -190,6 +206,8 @@ def generate_data_record(set_id, pkt, *a, **k):
         fields_desc = _fields_desc
 
         def extract_padding(self, s):
+            if len(self.fields_desc) > len(s):
+                return s, None
             return '', s
 
     class IPFIXSetData(IPFIXSetDataRaw):
