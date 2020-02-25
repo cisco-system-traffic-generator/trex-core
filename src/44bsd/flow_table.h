@@ -172,6 +172,8 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_s_nf_throttled;
     uint32_t        m_err_flow_overflow;
     uint32_t        m_err_c_tuple_err;
+    uint32_t        m_defer_template;
+    uint32_t        m_err_defer_no_template;  
 };
 
 class  CSttFlowTableStats {
@@ -260,7 +262,6 @@ public:
 
       bool update_new_template(CTcpPerThreadCtx * ctx,
                               CTcpFlow *  flow,
-                              struct rte_mbuf * mbuf,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
 
