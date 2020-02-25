@@ -53,6 +53,8 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_err_flow_overflow);
     MYC(m_err_c_nf_throttled);
     MYC(m_err_s_nf_throttled);
+    MYC(m_defer_template);
+    MYC(m_err_defer_no_template);             
 }
 
 
@@ -313,7 +315,6 @@ void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple
 
 bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
                                     CTcpFlow *  flow,
-                                    struct rte_mbuf * mbuf,
                                     TCPHeader    * lpTcp,
                                     CFlowKeyFullTuple &ftuple){
     assert(!flow->is_activated());
@@ -325,8 +326,7 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
         if (ctx->tcp_blackhole == 0) {
             tcp_respond_rst(flow, lpTcp, ftuple);
         }
-        rte_pktmbuf_free(mbuf);
-        FT_INC_SCNT(m_err_no_template);
+        FT_INC_SCNT(m_err_defer_no_template);
         handle_close(ctx,flow,true);
         return false;   /* flow is not available */
     }
@@ -339,6 +339,10 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                                     struct rte_mbuf * mbuf,
                                     TCPHeader    * lpTcp,
                                     CFlowKeyFullTuple &ftuple){
+    TCPHeader tcphdr;
+    if (unlikely(!flow->is_activated())) {
+        tcphdr = *lpTcp;
+    }
 
     tcp_flow_input(flow->m_pctx,
                    &flow->m_tcp,
@@ -352,7 +356,7 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
 
     if (unlikely(flow->new_template_identified())) {
         /* identifying new template has been done */
-        if (!update_new_template(ctx, flow, mbuf, lpTcp, ftuple)) {
+        if (!update_new_template(ctx, flow, &tcphdr, ftuple)) {
             return; /* when update is failed, flow is not available also. */
         }
     }
@@ -811,6 +815,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
             rte_pktmbuf_free(mbuf);
             return(false);
         }
+        FT_INC_SCNT(m_defer_template);
     }
 
     lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
@@ -841,7 +846,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     lptflow->set_app(app);
 
-    if (likely(temp->has_payload_params())) {
+    if (unlikely(temp->has_payload_params())) {
         lptflow->start_identifying_template(pctx);
     } else {
         app->start(true); /* start the application */

@@ -442,6 +442,8 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     FT_S_ADD_CNT_E(err_c_tuple_err,"client new flow, not enough clients");
     FT_S_ADD_CNT_E(err_s_nf_throttled,"server new flow throttled");
     FT_S_ADD_CNT_E(err_flow_overflow,"too many flows errors");
+    FT_S_ADD_CNT_OK(defer_template,"tcp L7 template matching deferred (by l7_map)");
+    FT_S_ADD_CNT_E(err_defer_no_template,"server can't match L7 template (deferred by l7_map)");
 }
 
 /**

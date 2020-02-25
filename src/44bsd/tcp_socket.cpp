@@ -646,9 +646,10 @@ int CEmulApp::on_bh_rx_pkts(uint32_t rx_bytes,
 int CEmulApp::on_bh_rx_bytes(uint32_t rx_bytes,
                             struct rte_mbuf * m){
     set_interrupt(true);
-    /* for now do nothing with the mbuf */
     if (m) {
         check_l7_data(m);
+        /* for now do nothing with the mbuf */
+        rte_pktmbuf_free(m);
     }
 
     if ( get_rx_enabled() ) {
@@ -670,11 +671,8 @@ void CEmulApp::check_l7_data(struct rte_mbuf * m) {
         uint8_t* l7_data = rte_pktmbuf_mtod(m, uint8_t*);
         uint16_t l7_len = rte_pktmbuf_data_len(m);
 
-        if (!m_flow->check_template_assoc_by_l7_data(l7_data, l7_len)) {
-            return; // should keep mbuf for the later use at tcp_respond_rst().
-        }
+        m_flow->check_template_assoc_by_l7_data(l7_data, l7_len);
     }
-    rte_pktmbuf_free(m);
 }
 
 
