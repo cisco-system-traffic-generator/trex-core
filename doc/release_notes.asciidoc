@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.75 ==
+
+* Fix wireless simulation for latest eWLC 
+* TCP port sharing link:https://github.com/cisco-system-traffic-generator/trex-core/issues/429[github-429]
+* Minor fix in NDR scripts  
+
 == Release 2.74 ==
 
 * ASTF improvement 
