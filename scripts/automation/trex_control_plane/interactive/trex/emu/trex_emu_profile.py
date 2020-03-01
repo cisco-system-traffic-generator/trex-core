@@ -74,7 +74,7 @@ class EMUNamespaceObj(object):
 
     def _add_one_client(self, client):
         curr_mac = client.fields['mac']
-        if self.mac_map.get(curr_mac) is None:
+        if curr_mac not in self.mac_map:
             self.mac_map[curr_mac] = client
         else:
             raise TRexError("Namespace already has a client with mac: %s" % curr_mac)

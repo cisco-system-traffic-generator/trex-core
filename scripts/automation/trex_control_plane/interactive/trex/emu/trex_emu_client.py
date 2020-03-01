@@ -1,5 +1,5 @@
 from ..astf.arg_verify import ArgVerify
-from ..common.trex_api_annotators import client_api, console_api
+from ..common.trex_api_annotators import client_api, plugin_api
 from ..common.trex_ctx import TRexCtx
 from ..common.trex_exceptions import *
 from ..common.trex_logger import ScreenLogger
@@ -10,13 +10,23 @@ from ..utils.text_opts import format_text, format_num
 from ..utils.text_tables import *
 
 from .trex_emu_conn import RRConnection
-
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
+from emu_plugins.emu_plugin_arp import *
+from trex_emu_counters import *
 from trex_emu_profile import *
+from trex_emu_conversions import *
+
+import glob
+import imp
+import inspect
+import os
+import math
 import pprint
 import sys
 import time
+import yaml
+
 
 NO_ITEM_SYM = '-'
 
@@ -26,8 +36,9 @@ class SimplePolicer:
         self.cir = cir
         self.last_time = 0
 
-    def update(self, size, now_sec):
-        
+    def update(self, size):
+        now_sec = time.time()
+
         if self.last_time == 0:
             self.last_time = now_sec
             return True
@@ -42,13 +53,13 @@ class SimplePolicer:
         else:
             return False
 
-CHUNK_SIZE = 50000
+CHUNK_SIZE = 256  # size of each data chunk sending to emu server
 
 ############################     helper     #############################
 ############################     funcs      #############################
 ############################                #############################
 
-def chunks(lst, n):
+def divide_into_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     if n < len(lst):
         for i in range(0, len(lst), n):
@@ -56,54 +67,14 @@ def chunks(lst, n):
     else:
         yield lst
 
-def _conv_to_bytes(val, val_type):
-    """ 
-        Convert `val` to []bytes for EMU server. 
-        i.e: '00:aa:aa:aa:aa:aa' -> [0, 170, 170, 170, 170, 170]
-    """
-    if val_type == 'ipv4' or val_type == 'ipv4_dg':
-        return [ord(v) for v in socket.inet_pton(socket.AF_INET, val)]
-    elif val_type == 'ipv6':
-        return [ord(v) for v in socket.inet_pton(socket.AF_INET6, val)]
-    elif val_type == 'mac':
-        return [int(v, 16) for v in val.split(':')]
-    else:
-        raise TRexError("Unsupported key for client: %s" % val_type)
-
-def _conv_to_str(val, delim, group_bytes = 1, pad_zeros = False, format_type = 'x'):
-    """
-        Convert bytes format to str.
-
-        :parameters:
-            val: dictionary
-                Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-            
-            delim: list
-                list of dictionaries with the form: {'mac': '00:01:02:03:04:05', 'ipv4': '1.1.1.3', 'ipv4_dg':'1.1.1.2', 'ipv6': '00:00:01:02:03:04'}
-                `mac` is the only required field.
-            
-            group_bytes: int
-                Number of bytes to group together between delimiters.
-                i.e: for mac address is 2 but for IPv6 is 4
-            
-            pad_zeros: bool
-                True if each byte in string should be padded with zeros.
-                i.e: 2 -> 02 
-            
-            format_type: str
-                Type to convert using format, default is 'x' for hex. i.e for ipv4 format = 'd'
-
-        :return:
-            human readable string representation of val. 
-    """
-    bytes_as_str = ['0%s' % format(v, format_type) if pad_zeros and len(format(v, format_type)) < 2 else format(v, format_type) for v in val]
-    
-    n = len(bytes_as_str)
-    grouped = ['' for _ in range(n // group_bytes)]
-    for i in range(len(grouped)):
-        for j in range(group_bytes):
-            grouped[i] += bytes_as_str[j + (i * group_bytes)]
-    return delim.join(grouped)
+def dump_json_yaml(data, to_json, to_yaml):
+    ident_size = 4
+    if to_json:
+        print(json.dumps(data, indent = ident_size))
+        return True
+    elif to_yaml:
+        print(yaml.safe_dump(data, allow_unicode = True, default_flow_style = False, indent = ident_size))
+        return True
 
 class EMUClient(object):
     """
@@ -152,7 +123,8 @@ class EMUClient(object):
         # used for ctx counter meta data
         self.meta_data = None
 
-        self.profile_loaded = False
+        # emu client holds every emu plugin
+        self.general_data_c = DataCounter(self.conn, 'ctx_cnt')
 
     def get_mode (self):
         """
@@ -257,7 +229,7 @@ class EMUClient(object):
 
         return RC_OK()
 
-    def _send_chunks(self, cmd, data_key, data, chunk_size = CHUNK_SIZE, max_data_rate = None, add_data = None):
+    def _send_chunks(self, cmd, data_key, data, chunk_size = CHUNK_SIZE, max_data_rate = None, add_data = None, track_progress = False):
         """
             Send `cmd` to EMU server with `data` over ZMQ separated to chunks using `max_data_rate`.
             
@@ -301,22 +273,40 @@ class EMUClient(object):
             chunk_size = len(data)
             max_data_rate = chunk_size
 
-        policer = SimplePolicer(cir = max_data_rate)
-        for chunked_data in chunks(data, chunk_size):
+        # policer = SimplePolicer(cir = max_data_rate)
+        total_chunks = int(math.ceil(len(data) / chunk_size)) if chunk_size != 0 else 1
+        total_chunks = total_chunks if total_chunks != 0 else 1
+        if track_progress:
+            print('')
+
+        c = 0
+        for chunk_i, chunked_data in enumerate(divide_into_chunks(data, chunk_size)):
+            c += 1
             params = _create_params(chunked_data)
 
-            while not policer.update(len(chunked_data), time.time()):
-                # don't send more requests, let the server process the old ones
-                time.sleep(0.5)
+            # TODO remove policer for now
+            # while not policer.update(len(chunked_data)):
+            #     # don't send more requests, let the server process the old ones
+            #     time.sleep(0.1)
 
             rc = self._transmit(method_name = cmd, params = params)
 
             if not rc:
-                raise TRexError(rc.err())
+                self.err(rc.err())
+            
+            if track_progress:
+                sys.stdout.write((' ' * 50) + '\r')  # clear line
+                dots = '.' * (chunk_i % 5)
+                text = "Sending data: %s out of %s chunks %s\r" % (chunk_i + 1, total_chunks, dots)
+                sys.stdout.write(format_text(text, 'yellow'))
+                sys.stdout.flush()
+        
+        if track_progress:
+            print('')
 
         return RC_OK()
 
-    def _iter_ns(self, cmd, count, reset = False, ns = None):
+    def _iter_ns(self, cmd, count, reset = False, **kwargs):
         """
             Iterate namespace on EMU server.
 
@@ -332,9 +322,7 @@ class EMUClient(object):
             {'name': 'reset', 'arg': reset, 't': bool}]
             }
         params = {'count': count, 'reset': reset}
-        if ns is not None:
-            ver_args['types'].append({'name': 'ns', 'arg': ns, 't': dict})
-            params['tun'] = ns
+        params.update(kwargs)
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         rc = self._transmit(cmd, params)
@@ -349,7 +337,7 @@ class EMUClient(object):
             if c[key] is None:
                 continue
             try:
-                c[key] = _conv_to_bytes(c[key], key)
+                c[key] = conv_to_bytes(c[key], key)
             except Exception as e:
                 print("Cannot convert client's key: %s: %s\nException:\n%s" % (key, c[key], str(e)))
 
@@ -386,6 +374,21 @@ class EMUClient(object):
                 ns_list.append(new_ns)
         
         return ns_list
+
+    def _transmit_and_get_data(self, method_name, params):
+        rc = self._transmit(method_name, params)
+
+        if not rc:
+            self.err(rc.err())
+        return rc.data()
+
+    # Counters
+    def _print_counters(self, data_cnt, tables = None, cnt_type_filter = None, verbose = False, no_zeros = False, to_json = False, to_yaml = False):
+        data = data_cnt.get_counters(tables, cnt_type_filter, no_zeros)
+        DataCounter.print_counters(data, verbose, to_json, to_yaml)
+
+    def err(self, msg):
+        raise TRexError(msg)
 
 ############################   Getters   #############################
 ############################             #############################
@@ -648,59 +651,64 @@ class EMUClient(object):
         return rc.data()
 
     @client_api('getter', True)
-    def get_all_ns_and_clients(self, retry_num = None):
-
-        all_ns = self.get_all_ns(retry_num)
-
-        for ns in all_ns:
-            ns_info = self.get_info_ns(ns)[0]
-            ns.update(ns_info)
-
-            clients_mac = self.get_all_clients_for_ns(ns, retry_num)
-            ns['clients'] = self.get_info_client(ns, clients_mac)
-
-            # convert ns tpids to hex string for readability
-            ns['tpid'] = [hex(tp) for tp in ns['tpid']]
-
-        return all_ns
-
-
-    @client_api('getter', True)
-    def get_all_ns(self, retry_num = None):
+    def yield_n_items(self, cmd, amount = None, retry_num = None, **kwargs):
         """
-            Gets all the namespaces from EMU server.
+            Gets n items by calling `cmd`, iterating items from EMU server.
 
             :parameters:
+                cmd: string
+                    name of the iterator command
+
+                amount: int
+                    Amount of data to fetch, None is default means all.
+                
                 retry_num: int
                     Number of retries in case of failure, Default is None means no retry.
 
             :return:
-                List of all namespaces keys i.e:[{u'tci': [1, 0], u'tpid': [33024, 0], u'vport': 1},
+                yield list of amount namespaces keys i.e:[{u'tci': [1, 0], u'tpid': [33024, 0], u'vport': 1},
                                                     {u'tci': [2, 0], u'tpid': [33024, 0], u'vport': 1}]
 
             :raises:
                 + :exc:`TRexError`
         """
         CHUNK_SIZE = 255  # limited by EMU server
-        done, failed = False, 0
+        done, failed_num = False, 0
 
         while not done:
-            if failed == retry_num:
-                raise TRexError("Reached max retry number, operation failed")
-            all_ns = []
+
+            if failed_num == retry_num:
+                self.err("Reached max retry number, operation failed")
+
             reset = True
+
             while True:
-                res = self._iter_ns('ctx_iter', CHUNK_SIZE, reset = reset)
+                res = self._iter_ns(cmd, amount if amount is not None else CHUNK_SIZE, reset = reset, **kwargs)
                 if 'error' in res.keys():
-                    failed += 1
+                    failed_num += 1
                     break
                 if res['stopped'] or res['empty']:
                     done = True
                     break
-                all_ns.extend(res['data'])
-                reset = False
+                yield res['data']
+                reset = False  # reset only at start
 
-        return all_ns
+    def get_n_ns(self, amount = None):
+        return self.yield_n_items('ctx_iter', amount = amount)
+
+    def get_all_ns_and_clients(self, beautify = True):
+        ns_list = self.get_all_ns()
+        for ns in ns_list:
+            macs_in_ns = self.get_all_clients_for_ns(ns)
+            ns['clients'] = self.get_info_client(ns, macs_in_ns)
+            ns['tpid'] = [hex(t) for t in ns['tpid']]
+        return ns_list
+
+    def get_all_ns(self):
+        res = []
+        for ns in self.get_n_ns(amount = None):
+            res.extend(ns)
+        return res
 
     @client_api('getter', True)    
     def get_info_ns(self, namespaces):
@@ -732,58 +740,11 @@ class EMUClient(object):
             raise TRexError(rc.err())
         return rc.data()
 
-    @client_api('getter', True)
-    def get_all_clients(self):
-        """ Return all the current clients from every namespace in emu server """
-        CHUNK_SIZE = 255  # limited by EMU server
-        done = False
-        ns_keys = self.get_all_ns()        
-        all_clients = {}
-
-        for ns_key in ns_keys:
-            all_clients[str(ns_key)] = self.get_all_clients_for_ns(ns_key)
-
-        return all_clients
-    
-    @client_api('getter', True)
-    def get_all_clients_for_ns(self, namespace, retry_num = None):
-        """
-            Gets all the clients of a specific namespace from EMU server.
-
-            :parameters:
-    
-                namespace: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-                
-                retry_num: int
-                    Number of retries in case of failure, None means no retry.
-
-            :return:
-                List of all clients mac values
-
-            :raises:
-                + :exc:`TRexError`
-        """
-        CHUNK_SIZE = 255  # limited by emu server
-        done, failed = False, 0
-
-        while not done:
-            if failed == retry_num:
-                raise TRexError("Reached max retry number, operation failed")
-            all_clients = []
-            reset = True
-            while True:
-                res = self._iter_ns('ctx_client_iter', CHUNK_SIZE, reset = reset, ns = namespace)
-                if 'error' in res.keys():
-                    failed += 1
-                    break
-                if res['stopped'] or res['empty']:
-                    done = True
-                    break
-                all_clients.extend(res['data'])
-                reset = False
-
-        return all_clients
+    def get_all_clients_for_ns(self, namespace):
+        res = []
+        for c in self.yield_n_items(cmd = 'ctx_client_iter', amount = None, tun = namespace):
+            res.extend(c)
+        return res
 
     @client_api('getter', True)    
     def get_info_client(self, namespace, macs):
@@ -810,7 +771,7 @@ class EMUClient(object):
         
         # convert mac address to bytes if needed
         if len(macs) > 0 and ':' in macs[0]: 
-            macs = [_conv_to_bytes(m, 'mac') for m in macs]
+            macs = [conv_to_bytes(m, 'mac') for m in macs]
 
         params = {'tun': namespace, 'macs': macs}
 
@@ -823,221 +784,17 @@ class EMUClient(object):
         for d in rc.data():
             for key, value in d.items():
                 if key in self.client_keys_map:
-                    d[key] = _conv_to_str(value, **self.client_keys_map[key])
+                    d[key] = conv_to_str(value, **self.client_keys_map[key])
         return rc.data()
 
     # CTX Counters
     @client_api('getter', True)
-    def print_counters(self, tables = None, cnt_filter = None, verbose = False, show_zero = False, to_json = False):
-        """
-            Print tables for each ctx counter/
-
-            :parameters:
-                tables: list of strings
-                    Names of all the wanted counters table. If not supplied, will print all of them.
-
-                cnt_filter: list
-                    List of counters type as strings. i.e: ['INFO', 'ERROR']
-
-                verbose: bool
-                    Show verbose version of counter tables.
-                
-                show_zero: bool
-                    Show zero values, default is False
-
-                to_json: bool
-                    Prints a json with the wanted counters.
-        """
-
-        ver_args = {'types':
-                [{'name': 'tables', 'arg': tables, 't': str, 'allow_list': True, 'must': False},
-                {'name': 'cnt_filter', 'arg': cnt_filter, 't': list, 'must': False},
-                {'name': 'verbose', 'arg': verbose, 't': bool},
-                {'name': 'to_json', 'arg': to_json, 't': bool},]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-        if tables is not None:
-            tables = listify(tables)
-        
-        if self.meta_data is None:
-            self.meta_data = self._get_counters(meta = True)
-        
-        res = self._get_counters(meta = False, mask = tables)
-        self._update_meta_cnt(res)
-        res = self._filter_cnt(tables, cnt_filter, verbose, show_zero)
-
-        if to_json:
-            pprint.pprint(res)
-            return
-
-        if all(len(c) == 0 for c in res.values()):
-            text_tables.print_colored_line('There are no tables to show with current filter', 'yellow', buffer = sys.stdout)   
-            return
-
-        headers = ['name', 'value']
-        if verbose:
-            headers += ['unit', 'zero', 'help']
-
-        for table_name, counters in res.items():
-            if len(counters):
-                self._print_cnt_table(table_name, counters, headers, verbose)
-
-
-    def _update_meta_cnt(self, curr_cnts):
-        ''' Update meta counters with the current values '''
-        for table_name, table_data in self.meta_data.items():
-            curr_table = curr_cnts.get(table_name, {})
-            for cnt in table_data['meta']:
-                cnt_name = cnt['name']
-                cnt['value'] = curr_table.get(cnt_name, 0)
-
-    def _filter_cnt(self, tables, cnt_filter, verbose, show_zero):
-        ''' Return a new list with all the filtered counters '''
-        
-        def _pass_filter(cnt, cnt_filter, show_zero):
-            if cnt_filter is not None and cnt.get('info') not in cnt_filter: 
-                return False
-            if not show_zero and cnt.get('value', 0) == 0:
-                return False
-            return True
-
-        un_verbose_keys = {'name', 'value', 'info'}
-        res = {}
-        for table_name, table_data in self.meta_data.items():
-            # filter tables
-            if tables is None or table_name in tables:
-                new_cnt_list = [] 
-
-                for cnt in table_data['meta']:
-                    if not _pass_filter(cnt, cnt_filter, show_zero):
-                        continue
-                    if verbose:
-                        new_cnt_list.append(cnt)
-                    else:
-                        cnt_dict = {key: value for key, value in cnt.items() if key in un_verbose_keys}
-                        new_cnt_list.append(cnt_dict)
-                if new_cnt_list:
-                    res[table_name] = new_cnt_list
-        return res
-
-    def _print_cnt_table(self, table_name, counters, headers, verbose):
-        """
-            Prints one ctx counter table, using the meta data values to reduce the zero value counters that doesn't send.  
-
-            :parameters:
-                table_name: str
-                    Name of the counters table
-                
-                counters: list
-                    List of dictionaries with data to print about table_name. Keys as counter names and values as counter value. 
-                
-                headers: list
-                    List of all the headers in the table as strings.
-
-                filters: list
-                    List of counters type as strings. i.e: ['INFO', 'ERROR']
-
-                verbose: bool
-                    Show verbose version of counter tables.
-        """
-        def _get_info_postfix(info):
-            info = info.upper()
-            if info == 'INFO':
-                return ''
-            elif info == 'WARNING':
-                return '+'
-            elif info == 'ERROR':
-                return '*'
-            else:
-                return ''
-
-        table = text_tables.TRexTextTable('%s counters' % table_name)
-        table.header(headers)
-        max_lens = [len(h) for h in headers]
-
-        for cnt_info in counters:
-            row_data = []
-            for i, h in enumerate(headers):
-                cnt_val = str(cnt_info.get(h, '-'))
-                if h == 'name':
-                    postfix = _get_info_postfix(cnt_info.get('info'))
-                    cnt_val = cnt_info.get('name', '-') + postfix
-                max_lens[i] = max(max_lens[i], len(cnt_val))
-                row_data.append(cnt_val)
-            table.add_row(row_data)
-
-        # fix table look
-        table.set_cols_align(['l'] + ['c'] * (len(headers) - 2) + ['l'])  # only middle headers are aligned to middle
-        table.set_cols_width(max_lens)
-        table.set_cols_dtype(['a'] * len(headers))
-
-        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
-
-    def _get_counters(self, meta = False, zero = False, mask = None, clear = False):
-        """
-            Gets counters from EMU server.
-
-            :parameters:
-                meta: bool
-                    Get all the meta data.
-                
-                zero: bool
-                    Bring zero values, default is False for optimizations.
-
-                mask: list
-                    list of string, get only specific counters blocks if it is empty get all.
-
-                clear: bool
-                    Clear all current counters.
-            :return:
-                dictionary describing counters of clients, fields that don't appear are treated as zero valued.
-        """
-        def _parse_info(info_code):
-            info_dict = {
-                0x12: 'INFO', 0x13: 'WARNING', 0x14: 'ERROR' 
-            }
-            return info_dict.get(info_code, 'UNKNOWN_TYPE')
-
-        ver_args = {'types':
-                [{'name': 'meta', 'arg': meta, 't': bool},
-                {'name': 'zero', 'arg': zero, 't': bool},
-                {'name': 'mask', 'arg': mask, 't': str, 'allow_list': True, 'must': False}]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-        if mask is not None:
-            mask = listify(mask)
-        params = {'meta': meta, 'zero': zero, 'mask': mask, 'clear': clear}
-
-        rc = self._transmit('ctx_cnt', params)
-
-        if not rc:
-            raise TRexError(rc.err())
-        
-        if meta:
-            # convert info values to string in meta mode
-            for table_data in rc.data().values():
-                table_cnts = table_data['meta'] 
-                for cnt in table_cnts:
-                    cnt['info'] = _parse_info(cnt['info'])
-
-        return rc.data()
-    
-    def get_cnt_headers(self):
-        """ Simply print the counters headers names """
-        if self.meta_data is None:
-            self.meta_data = self._get_counters(meta = True)
-        print('Current counters headers are: %s ' % list(self.meta_data.keys()))
-
-    def clear_counters(self):
-        ''' Clears all the current counters in server'''
-        self.ctx.logger.pre_cmd("Clearing all counters")
-        self._get_counters(clear = True)
-        self.ctx.logger.post_cmd(True)
-
+    def get_counters(self, meta = False, zero = False, mask = None, clear = False):
+        return self.general_data_c._get_counters(meta, zero, mask, clear)
 
     # Ns & Client Table Printing
     @client_api('getter', True)
-    def print_all_ns_clients(self, max_ns_show, max_c_show , to_json = False, filters = None):
+    def print_all_ns_clients(self, max_ns_show, max_c_show , to_json = False, to_yaml = False, filters = None):
         """
             Prints all the namespaces and clients in tables.
 
@@ -1057,44 +814,61 @@ class EMUClient(object):
                     i.e: {'namespace': {port': 1234}, 'client': {'ipv4': '1.1.1.3'}} will leave only ns with 1234 port and clients with 1.1.1.3 ipv4.
 
         """
-        all_data = self.get_all_ns_and_clients()
-        all_data = self._filter_data(all_data, filters)
 
-        if to_json:
-            pprint.pprint(all_data)
-            return
+        if to_json or to_yaml:
+            # gets all data, no pauses
+            all_data = self.get_all_ns_and_clients()
+            all_data = self._filter_data(all_data, filters)
+            return dump_json_yaml(all_data, to_json, to_yaml)
 
-        if len(all_data) == 0:
+        all_ns_gen = self.get_n_ns(amount = max_ns_show)
+
+        glob_ns_num = 0
+        for ns_chunk_i, ns_list in enumerate(all_ns_gen):
+            ns_infos = self.get_info_ns(ns_list)
+
+            if ns_chunk_i != 0:
+                raw_input("Press Enter to see more namespaces")
+            
+            for ns_i, ns in enumerate(ns_list):
+                glob_ns_num += 1
+
+                # add ns info to current namespace
+                ns_info = ns_infos[ns_i]
+                ns.update(ns_info)
+
+                # print namespace table
+                self._print_table_ns(ns, ns_num = glob_ns_num)
+
+                for client_i, clients_mac in enumerate(self.yield_n_items(cmd = 'ctx_client_iter', amount = max_c_show, tun = ns)):                    
+                    is_first_time = client_i == 0
+                    if not is_first_time != 0:
+                        raw_input("Press Enter to see more clients")
+                    ns_clients = self.get_info_client(ns, clients_mac)
+                    self._print_table_client(ns_clients, print_header = is_first_time)
+        
+        # print ns intro
+        if not glob_ns_num:
             text_tables.print_colored_line('There are no namespaces', 'yellow', buffer = sys.stdout)      
-            return
-        else:
-            text_tables.print_colored_line('\tIn this thread ctx there are %s namespaces' % len(all_data), 'yellow', buffer = sys.stdout)      
 
-        for i, ns in enumerate(all_data):
-            if i != 0 and i % max_ns_show == 0 and i != len(all_data) - 1:
-                left_ns = len(all_data) - i 
-                raw_input("There are %s more namespaces, Press Enter to see the next %s" % (left_ns, min(max_ns_show, left_ns)))
-            self._print_table_ns(ns, ns_num = i + 1)
-
-            clients_info = ns['clients']
-
-            first_c_iter = True
-            for j, (table, number_of_clients) in enumerate(self._yield_table_client(clients_info, max_c_show)):
-                text_tables.print_table_with_header(table, table.title if first_c_iter else "", buffer = sys.stdout)
-                if number_of_clients != 0:
-                    raw_input("There are more clients, Press Enter to see the next %s" % number_of_clients)
-                first_c_iter = False
-            print('\n\n')
-
-    def _print_table_ns(self, ns, ns_num):
+    def _print_table_ns(self, ns, ns_num = None):
         headers = ['Port', 'Vlan tags', 'Tpids', '#Plugins' , '#Clients']
-        table = text_tables.TRexTextTable('Namespace #%s information' % ns_num)
+        table = text_tables.TRexTextTable('Namespace information' if ns_num is None else 'Namespace #%s information' % ns_num)
         table.header(headers)
+
+        def check_zeros_val(key):
+            if key not in ns or all([t == 0 for t in ns[key]]):
+                return NO_ITEM_SYM
+            else:
+                return [hex(t) for t in ns[key]]
+
+        correct_tpids = check_zeros_val('tpid')
+        correct_vlan = check_zeros_val('tci')
 
         data = [
                 ns.get('vport', NO_ITEM_SYM),
-                ns.get('tci', NO_ITEM_SYM),
-                ns.get('tpid', NO_ITEM_SYM),
+                correct_vlan,
+                correct_tpids,
                 ns.get('plugins_count', NO_ITEM_SYM),
                 ns.get('active_clients', NO_ITEM_SYM),
         ]
@@ -1106,55 +880,53 @@ class EMUClient(object):
 
         text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
 
-    def _yield_table_client(self, clients, mac_c_show):
+    def _print_table_client(self, clients, print_header):
 
         if len(clients) == 0:
             text_tables.print_colored_line("There are not clients for this namespace", 'yellow', buffer = sys.stdout)      
             return
-        else:
-            text_tables.print_colored_line('\tIn this namespace there are %s clients' % len(clients), 'yellow', buffer = sys.stdout)      
 
         table = text_tables.TRexTextTable('Clients information')
-        headers = ["MAC", "IPv4", "Deafult Gateway", "IPv6"]
+        headers = ['MAC', 'IPv4', 'Deafult Gateway', 'IPv6']
         table.header(headers)
+        max_lens = [len(h) for h in headers]
 
+        client_keys = ('mac', 'ipv4', 'ipv4_dg', 'ipv6')
+
+        for i, client in enumerate(clients):            
+            client_row_data = []
+            for j, key in enumerate(client_keys):
+                val = client.get(key, NO_ITEM_SYM)
+                client_row_data.append(val)
+                max_lens[j] = max(max_lens[j], len(val))
+            table.add_row(client_row_data)
+
+        # fix table look
         table.set_cols_align(["c"] * len(headers))
-        table.set_cols_width([17] * len(headers))
-        table.set_cols_dtype(['t'] * len(headers))
+        table.set_cols_width(max_lens)
+        table.set_cols_dtype(['a'] * len(headers))
+        
+        text_tables.print_table_with_header(table, table.title if print_header else '', buffer = sys.stdout)
 
-        for i, client in enumerate(clients):
-            if i != 0 and i % mac_c_show == 0:
-                # yield small table and how many clients in the next iteration
-                yield table, min(mac_c_show, (len(clients) - i))
-                table.reset()
-                table.header(headers)
-
-            table.add_row([
-                            client.get('mac', NO_ITEM_SYM),
-                            client.get('ipv4', NO_ITEM_SYM),
-                            client.get('ipv4_dg', NO_ITEM_SYM),
-                            client.get('ipv6', NO_ITEM_SYM),
-            ])
-        yield table, 0
+    # Plugins CFG
+    def send_plugin_cmd_to_ns(self, cmd, port, vlan = None, tpid = None, **kwargs):
+        if port is None:
+            self.err('Must specify at least a port number or run with --all-ns')
+        params = conv_ns_for_tunnel(port, vlan, tpid)
+        params.update(kwargs)
+        return self._transmit_and_get_data(cmd, params)
 
     # Default Plugins
     @client_api('getter', True)
     def get_def_ns_plugs(self):
-        """ Gets the namespace default plugin """
-        rc = self._transmit('ctx_get_def_plugins')
-
-        if not rc:
-            raise TRexError(rc.err())
-        return rc.data()
+        ''' Gets the namespace default plugin '''
+        return self._transmit_and_get_data('ctx_get_def_plugins', None)
 
     @client_api('getter', True)
-    def get_def_client_plugs(self, namespace):
-        """ Gets the client default plugin in a specific namespace """
-        rc = self._transmit('ctx_client_get_def_plugins', tun = namespace)
-
-        if not rc:
-            raise TRexError(rc.err())
-        return rc.data()
+    def get_def_client_plugs(self, port, vlan = None, tpid = None):
+        ''' Gets the client default plugin in a specific namespace '''
+        params = conv_ns_for_tunnel(port, vlan, tpid)
+        return self._transmit_and_get_data('ctx_client_get_def_plugins', params)
 
 ############################       EMU      #############################
 ############################       API      #############################
@@ -1247,7 +1019,8 @@ class EMUClient(object):
         for c in clients:
             c = self._client_to_bytes(c)
 
-        self._send_chunks('ctx_client_add', add_data = {'tun': namespace}, data_key = 'clients', data = clients, max_data_rate = max_rate)
+        self._send_chunks('ctx_client_add', add_data = {'tun': namespace}, data_key = 'clients',
+                            data = clients, max_data_rate = max_rate, track_progress = True)
 
         return RC_OK()
 
@@ -1295,7 +1068,7 @@ class EMUClient(object):
             clients = self.get_all_clients_for_ns(ns_key)
             self.remove_clients(ns_key, clients, max_rate)
         
-        self.remove_ns(ns_keys)
+        self.remove_ns(list(ns_keys))
         return RC_OK()
 
 
@@ -1346,7 +1119,7 @@ class EMUClient(object):
     
     # Emu Profile
     @client_api('command', True)
-    def load_profile(self, filename, tunables, max_rate):
+    def load_profile(self, filename, max_rate, tunables):
         """
             Load emu profile from profile by its type. Supported type for now is .py
 
@@ -1363,11 +1136,17 @@ class EMUClient(object):
             :raises:
                 + :exc:`TRexError`
         """
-        validate_type('filename', filename, basestring)
+        if '-h' in tunables:
+            # don't print external messages on help
+            profile = EMUProfile.load(filename, tunables)
+            return
 
         s = time.time()
         self.ctx.logger.pre_cmd("Converting file to profile")
         profile = EMUProfile.load(filename, tunables)
+        if profile is None:            
+            self.ctx.logger.post_cmd(False)
+            self.err('Failed to convert EMU profile')
         self.ctx.logger.post_cmd(True)
         print("Converting profile took: %.3f [sec]" % (time.time() - s))
         self._start_profile(profile, max_rate)
@@ -1386,19 +1165,19 @@ class EMUClient(object):
                 + :exc:`TRexError`
         """
         if not isinstance(profile, EMUProfile):
-            raise TRexError('Profile must be from `EMUProfile` type')
+            self.err('Profile must be from `EMUProfile` type, got: %s' % type(profile))
 
         self.ctx.logger.pre_cmd('Sending emu profile')
         s = time.time()
         try:
             # make sure there are no clients and ns in emu server
-            self.remove_all_clients_and_ns()
+            self.remove_profile(max_rate)
 
             # set the default ns plugins
             if profile.def_ns_plugs is not None:
                 self.set_def_ns_plugs(profile.def_ns_plugs)
 
-            # adding all the namespaces
+            # adding all the namespaces in profile
             self.add_ns(profile.serialize_ns())
 
             # adding all the clients for each namespace
@@ -1410,23 +1189,241 @@ class EMUClient(object):
         except Exception as e:
             self.ctx.logger.post_cmd(False)
             raise TRexError('Could not load profile, error: %s' % str(e))
-        e = time.time()
         self.ctx.logger.post_cmd(True)
-        print("Sending profile took: %.3f [sec]" % (e - s))
-        self.profile_loaded = True
+        print("Sending profile took: %.3f [sec]" % (time.time() - s))
 
     @client_api('command', True)
-    def remove_profile(self):
+    def remove_profile(self, max_rate = None):
         """ Remove current profile from emu server, all namespaces and clients will be removed """
-        if self.profile_loaded:
-            self.ctx.logger.pre_cmd('Removing emu profile')
-            self.remove_all_clients_and_ns()
-        else:
-            raise TRexError('No active profile to remove')
+        self.ctx.logger.pre_cmd('Removing old emu profile')
+        self.remove_all_clients_and_ns(max_rate)
         self.ctx.logger.post_cmd(True)
-        self.profile_loaded = False
         return RC_OK()
 
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @plugin_api('load_profile', 'emu')
+    def load_profile_line(self, line):
+        '''Load a given profile to emu server\n'''
+        
+        parser = parsing_opts.gen_parser(self,
+                                        "load_profile",
+                                        self.load_profile_line.__doc__,
+                                        parsing_opts.FILE_PATH,
+                                        parsing_opts.MAX_CLIENT_RATE,
+                                        parsing_opts.ARGPARSE_TUNABLES
+                                        )
+        opts = parser.parse_args(args = line.split())
+        self.load_profile(opts.file[0], opts.max_rate, opts.tunables)
+        return True
+
+    @plugin_api('remove_profile', 'emu')
+    def remove_profile_line(self, line):
+        '''Remove current profile from emu server\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                        "remove_profile",
+                                        self.remove_profile_line.__doc__,
+                                        parsing_opts.MAX_CLIENT_RATE
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        self.remove_profile(opts.max_rate)
+        return True
+
+    @plugin_api('show_all', 'emu')
+    def show_all_line(self, line):
+        '''Show all current namespaces & clients\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                        "show_all",
+                                        self.show_all_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_CLIENT_GROUP,
+                                        parsing_opts.EMU_MAX_SHOW,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        filters = {'namespace': conv_ns(opts.port, opts.vlan, opts.tpid, allow_none = True),
+                    'client': conv_client(opts.mac, opts.ipv4, opts.dg, opts.ipv6)}
+
+        self.print_all_ns_clients(max_ns_show = opts.max_ns, max_c_show = opts.max_clients, to_json = opts.json,
+                                    to_yaml = opts.yaml, filters  = filters)
+        return True
+
+    @plugin_api('show_ns_info', 'emu')
+    def show_ns_info_line(self, line):
+        '''Show given namespace information\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                        "show_ns_info",
+                                        self.show_ns_info_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        ns_info = self.get_info_ns([conv_ns(opts.port, opts.vlan, opts.tpid)])
+        if len(ns_info):
+            ns_info = ns_info[0]
+        else:
+            self.err('Cannot find any namespace with requested parameters')
+     
+        if opts.json or opts.yaml:
+            return dump_json_yaml(ns_info, opts.json, opts.yaml)
+        
+        self._print_table_ns(ns_info)
+
+        return True
+
+    @plugin_api('show_client_info', 'emu')
+    def show_client_info_line(self, line):
+        '''Show given namespace information\n'''
+
+        parser = parsing_opts.gen_parser(self,
+                                        "show_client_info",
+                                        self.show_client_info_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_CLIENT_GROUP,
+                                        parsing_opts.EMU_DUMPS_OPT   
+                                        )
+
+        opts = parser.parse_args(line.split())
+        c_info = self.get_info_client(conv_ns(opts.port, opts.vlan, opts.tpid), [opts.mac])
+        if not len(c_info):
+            self.err('Cannot find any namespace with requested parameters')
+     
+        if opts.json or opts.yaml:
+            return dump_json_yaml(c_info, opts.json, opts.yaml)
+        
+        table = next(self._yield_table_client(c_info))[0]
+        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
+
+        return True
+
+    def _base_show_counters(self, data_cnt, opts, req_ns = False):
+        '''Base function for every counter using `cnt_cmd`'''
+        def set_ns_params(port, vlan = None, tpid = None):
+            vlan = vlan if vlan is not None else [0, 0]
+            tpid = tpid if tpid is not None else [0, 0]
+            data_cnt.set_add_ns_data(port, vlan, tpid)
+        
+        def run_on_demend(data_cnt, opts):
+            if opts.headers:
+                data_cnt.get_counters_headers()
+            elif opts.clear:
+                self.ctx.logger.pre_cmd("Clearing all counters")
+                data_cnt.clear_counters()
+                self.ctx.logger.post_cmd(True)
+            else:
+                self._print_counters(data_cnt, tables = opts.tables, cnt_type_filter = opts.cnt_types, verbose = opts.verbose,
+                                no_zeros = opts.no_zero, to_json = opts.json, to_yaml = opts.yaml)
+
+        # reset additional data in data counters
+        data_cnt.set_add_ns_data(clear = True)
+
+        if req_ns:
+            if opts.port is not None:
+                set_ns_params(opts.port, opts.vlan, opts.tpid)
+            elif opts.all_ns:
+
+                ns_gen = self.get_n_ns(amount = None)
+                ns_i = 0
+
+                for ns_chunk in ns_gen:
+                    for ns in ns_chunk:
+                        ns_i += 1
+                        self._print_table_ns(ns, ns_i)
+                        set_ns_params(ns.get('vport'), ns.get('tci'), ns.get('tpid'))
+                        run_on_demend(data_cnt, opts)
+                if not ns_i:
+                    self.err('there are no namespaces in emu server')
+                return True
+            else:
+                raise self.err('namespace information required, supply them or run with --all-ns ')
+        
+        run_on_demend(data_cnt, opts)
+
+        return True
+
+    @plugin_api('show_counters', 'emu')
+    def show_counters_ctx_line(self, line):
+        '''Show counters data from ctx according to given tables, add --no-zero flag to hide zero values.\n
+           Counter postfix: INFO - no postfix, WARNING - '+', ERROR - '*'\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "show_counters_ctx",
+                                        self.show_counters_ctx_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        return self._base_show_counters(self.general_data_c, opts)
+
+
+    def get_plugin_methods (self):
+        ''' Register all plugin methods from all plugins '''
+        # Get all emu client plugin methods
+        all_plugin_methods = self._get_plugin_methods_by_obj(self)
+
+        # Get all plugins plugin methods
+        current_plugins_dict = self._get_plugins()
+
+        for plug_name, filename in current_plugins_dict.items():
+            plugin_instance = self._create_plugin_inst_by_name(plug_name, filename)
+            setattr(self, plug_name, plugin_instance)  # add plugin to emu client dynamically
+
+            plug_methods = self._get_plugin_methods_by_obj(plugin_instance)
+            all_plugin_methods.update(plug_methods)  # add plugin methods from plugin file
+
+        return all_plugin_methods
+
+    def _get_plugin_methods_by_obj(self, obj):
+        def predicate (x):
+            return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'plugin'
+    
+        return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(obj, predicate = predicate)}
+        
+    def _get_plugins(self):
+            plugins = {}
+            cur_dir = os.path.dirname(__file__)
+            emu_plug_prefix = 'emu_plugin_'
+
+            for f in glob.glob(os.path.join(cur_dir, 'emu_plugins', '%s*.py' % emu_plug_prefix)):
+                module = os.path.basename(f)[:-3]
+                plugin_name = module[len(emu_plug_prefix):]
+                if plugin_name and plugin_name != 'base':
+                    plugins[plugin_name] = f
+            return plugins
+
+    def _create_plugin_inst_by_name(self, name, filename):
+            
+            import_path = 'trex.emu.emu_plugins'
+
+            try:
+                m = imp.load_source(import_path, filename)
+            except BaseException as e:
+                self.err('Exception during import of %s: %s' % (import_path, e))
+            
+            # format for plugin name with uppercase i.e: "ARPPlugin"
+            plugins_cls_name = '%sPlugin' % name.upper()
+            
+            plugin_class = vars(m).get(plugins_cls_name)
+            if plugin_class is EMUPluginBase:
+                self.err("Cannot load EMUPluginBase, inherit from this class") 
+            if not issubclass(plugin_class, EMUPluginBase):
+                self.err('Plugin "%s" class should inherit from EMUPluginBase' % name) 
+
+            try:
+                plug_inst = plugin_class(emu_client = self)
+            except BaseException as e:
+                self.err('Could not initialize the plugin "%s", error: %s' % (name, e))
+            
+            return plug_inst
