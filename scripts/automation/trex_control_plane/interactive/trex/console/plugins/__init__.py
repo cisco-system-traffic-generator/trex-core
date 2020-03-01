@@ -25,4 +25,6 @@ class ConsolePlugin(object):
             raise Exception('Duplicate argument dest ("%s"), please use unique names' % name)
         self._args[name] = {'a': a, 'k': k}
 
-
+    def set_plugin_console(self, trex_console):
+        '''set the trex_console object, should be override in derived class'''
+        pass

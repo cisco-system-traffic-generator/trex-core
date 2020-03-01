@@ -111,12 +111,13 @@ class PluginsManager:
             plugin_class.trex_client = self.client
             plugin_obj = plugin_class()
         except BaseException as e:
-            self.err('Could not initialize the plugin, error: %s' % e)
+            self.err('Could not initialize the plugin "%s", error: %s' % (name, e))
 
         try:
+            plugin_obj.set_plugin_console(self.console)
             plugin_obj.plugin_load()
         except BaseException as e:
-            self.err('Could not run plugin_load() of plugin, error: %s' % e)
+            self.err('Could not run "plugin_load()" of plugin "%s", error: %s' % (name, e))
 
         try:
             parser = parsing_opts.gen_parser(self.client, name, None)
@@ -152,7 +153,7 @@ class PluginsManager:
         except BaseException as e:
             import traceback
             traceback.print_exc()
-            self.err('Could not create parser of plugin, error: %s' % e)
+            self.err('Could not create parser of plugin "%s", error: %s' % (name,e))
 
         self.loaded_plugins[name] = plugin_obj
 

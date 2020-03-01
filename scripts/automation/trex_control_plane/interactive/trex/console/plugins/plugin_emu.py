@@ -1,30 +1,52 @@
 #!/usr/bin/python
 import pprint
 import argparse
+import inspect
+
 from trex.utils import parsing_opts
 from trex.emu.trex_emu_client import EMUClient
 from trex.console.plugins import *
+from trex.common.trex_exceptions import TRexError
 
 '''
 EMU plugin
 '''
 
-# helper function
-def _conv_ns(port, vlans, tpids):
-    return {'vport': port, 'tci': vlans, 'tpid': tpids}
-
-def _conv_client(mac, ipv4, dg, ipv6):
-    return {'mac': mac, 'ipv4': ipv4, 'ipv4_dg': dg, 'ipv6': ipv6}
-
 class Emu_Plugin(ConsolePlugin):
+
+    EMU_PREFIX = 'emu_'  # prefix for every registered method in trex_console
+
     def plugin_description(self):
-        return 'Emu plugin is used in order to communicate with emulation server, i.e loading emu profiles'
+        return 'Emu plugin is used in order to communicate with emulation server, i.e loading emu profile'
 
     def __init__(self):
         super(Emu_Plugin, self).__init__()
-        self.c = self.trex_client
+        self.console = None
 
     def plugin_load(self):
+        
+        if self.console is None:
+            raise TRexError("Trex console must be provided in order to load emu plugin")
+        
+        client_logger = self.console.client.logger
+
+        verbose = client_logger.get_verbose()
+        self.c = EMUClient(verbose_level = verbose, logger = client_logger)  # taking console logger
+        self.c.connect()
+
+        self.console.load_client_plugin_functions(self.c, func_prefix = Emu_Plugin.EMU_PREFIX)
+
+    def plugin_unload(self):
+        if self.console is None:
+            raise TRexError("Trex console must be provided in order to unload emu plugin")
+        
+        self.console.unload_client_plugin_functions(func_prefix = Emu_Plugin.EMU_PREFIX)
+
+    def set_plugin_console(self, trex_console):
+        self.console = trex_console
+
+
+    """
         # Namespace's args
         self.add_argument('-p', '--port', type = int,
             help = 'Port identifying the namespace')
@@ -62,7 +84,7 @@ class Emu_Plugin(ConsolePlugin):
         
         # Show counters args
         self.add_argument('--tables', type = str, nargs = '+', default = None,
-                            help = 'Names of specific tables to show, i.e: ctx, mbuf-pool, mbuf-1024...')
+                            help = 'Names of specific tables to show, i.e: ctx, mbuf-pool, mbuf-1024..')
         self.add_argument('--headers', action = 'store_true', default = False, dest = 'show_headers',
                             help = 'Only show the counters headers names')
         self.add_argument('--clear', action = 'store_true', default = False,
@@ -71,15 +93,15 @@ class Emu_Plugin(ConsolePlugin):
                             help = 'Show verbose view of all the counters')
         self.add_argument('--filter', type = str, default = None, nargs = '*', dest = 'cnt_filter',
                             help = 'Filters counters by their type. Example: "show_counters --filter info warning"')
-        self.add_argument('--zero', action = 'store_true', default = False,
-                            help = 'Show the zeros counters as well')
-        
+        self.add_argument('--no-zero', action = 'store_true', default = False,
+                            help = 'Hide all the zeros counters')
+        """
 
-
+"""
     # Profile commands
     def do_load_profile(self, file_path, tunables, max_rate):
         ''' Loads an emu profile from a given file into emu server '''
-        self.c.load_profile(file_path, tunables, max_rate)
+        self.c.load_profile(file_path, max_rate, tunables)
 
     def do_remove_profile(self):
         ''' Remove all namespaces and clients from emu server '''
@@ -139,17 +161,30 @@ class Emu_Plugin(ConsolePlugin):
         filters = {'namespace': _conv_ns(port, vlans, tpids), 'client': _conv_client(mac, ipv4, dg, ipv6)}
         self.c.print_all_ns_clients(max_ns_show, max_c_show, to_json, filters)
 
-    def do_show_counters(self, tables, show_headers, clear, verbose, cnt_filter, zero, to_json):
-        ''' 
-            Show counters data from ctx according to given tables.
-            INFO - no postfix, WARNING - '+', ERROR - '*'
-        '''
+
+    # Show counters
+    def general_counters(self, cnt_type, tables, show_headers, clear, verbose, cnt_filter, no_zero, to_json):
+        ''' General function for show counters, works with all types of counters '''
         if show_headers:
-            self.c.get_cnt_headers()
-            return
+            self.c.get_counters_headers(cnt_type)
         elif clear:
-            self.c.clear_counters()
+            self.c.clear_counters(cnt_type)
         else:
             if cnt_filter is not None:
                 cnt_filter = [f.upper() for f in cnt_filter]
-            self.c.print_counters(tables, cnt_filter, verbose, zero, to_json)
+            self.c.print_counters(cnt_type, tables, cnt_filter, verbose, no_zero, to_json)
+
+    def do_show_counters_ctx(self, tables, show_headers, clear, verbose, cnt_filter, no_zero, to_json):
+        ''' 
+            Show ctx counters data from ctx according to given tables, add --no-zero flag to hide zero values.
+            Counter postfix: INFO - no postfix, WARNING - '+', ERROR - '*'
+        '''
+        self.general_counters('ctx', tables, show_headers, clear, verbose, cnt_filter, no_zero, to_json)
+
+    def do_show_counters_igmp(self, tables, show_headers, clear, verbose, cnt_filter, no_zero, to_json):
+        ''' 
+            Show IGMP counters data from ctx according to given tables, add --no-zero flag to hide zero values.
+            Counter postfix: INFO - no postfix, WARNING - '+', ERROR - '*'
+        '''
+        self.general_counters('igmp', tables, show_headers, clear, verbose, cnt_filter, no_zero, to_json)
+"""

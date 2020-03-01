@@ -192,7 +192,7 @@ class TRexConsole(TRexGeneralCmd):
 
         self.plugins_mngr = PluginsManager(self)
         if emu:
-            self.plugins_mngr.do_plugins('load emu')
+           self.do_plugins('load emu')
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
@@ -255,7 +255,26 @@ class TRexConsole(TRexGeneralCmd):
                 setattr(self.__class__, 'do_' + cmd_name, cmd_func)
             setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
 
-
+    def load_client_plugin_functions (self, client, func_prefix):
+        for cmd_name, cmd_func in client.get_plugin_methods().items():
+            cmd_name = func_prefix + cmd_name
+            # register the function and its help
+            if cmd_func.preserve_history:
+                f = partial(self.history_preserver, cmd_func)
+                f.__doc__ = cmd_func.__doc__
+                f.name    = cmd_func.name
+                f.group   = cmd_func.group
+                setattr(self.__class__, 'do_' + cmd_name, f)
+            else:
+                setattr(self.__class__, 'do_' + cmd_name, cmd_func)
+            setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
+    
+    def unload_client_plugin_functions (self, func_prefix):
+        do_func_pre, help_func_pre = 'do_%s' % func_prefix, 'help_%s' % func_prefix
+        
+        for cmd_name, cmd_func in inspect.getmembers(self.__class__, predicate=inspect.ismethod):
+            if cmd_name.startswith(do_func_pre) or cmd_name.startswith(help_func_pre):
+                delattr(self.__class__, cmd_name)
 
     def generate_prompt (self, prefix = 'trex'):
         if self.skip_mode:
@@ -505,6 +524,8 @@ class TRexConsole(TRexGeneralCmd):
     def complete_plugins(self, text, line, start_index, end_index):
         return self.plugins_mngr.complete_plugins(text, line, start_index, end_index)
 
+    def complete_emu_load_profile(self, text, line, start_index, end_index):
+        return self.complete_start(text, line, start_index, end_index)
 
     ############### connect
     @verify_not_skip
@@ -643,7 +664,9 @@ class TRexConsole(TRexGeneralCmd):
 
          if 'ASTF' in categories:
              self._help_cmds('Advanced Stateful Commands', categories['ASTF'])
-
+            
+         if 'emu' in categories:
+             self._help_cmds('Emulation Commands', categories['emu'])
 
     def _help_cmds (self, title, cmds):
 
@@ -970,14 +993,6 @@ def main():
                             async_timeout = async_timeout)
     elif options.skip:
         client = None
-        if options.emu:
-            client = EMUClient(username = options.user,
-                                server = options.server,
-                                sync_port = options.port,
-                                logger = logger,
-                                verbose_level = verbose_level,
-                                sync_timeout = sync_timeout)
-            client.connect()
         run_console(client, logger, options)
         return
     else:
