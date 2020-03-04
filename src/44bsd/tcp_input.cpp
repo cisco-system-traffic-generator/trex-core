@@ -406,6 +406,9 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
             uint16_t tg_id = tp->m_flow->m_tg_id;
             INC_STAT(pctx, tg_id, tcps_rcvoopackdrop);
             INC_STAT_CNT(pctx, tg_id, tcps_rcvoobytesdrop,ti->ti_len);
+            if (m) { 
+                rte_pktmbuf_free(m); 
+            }
        } else { 
            tiflags = tcp_reass(pctx,tp, ti, m);
        }
@@ -1554,6 +1557,7 @@ drop:
 
 findpcb:
     /* SYN packet that need to reopen the flow as the flow was closed already and free .. */
+    rte_pktmbuf_free(m);
     return 1;
 }
 
