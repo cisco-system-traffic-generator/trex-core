@@ -1011,7 +1011,7 @@ trimthenstep6:
                 SEQ_GT(ti->ti_seq, tp->rcv_nxt)) {
                 iss = tp->snd_nxt + TCP_ISSINCR;
                 tp = tcp_close(pctx,tp);
-                goto findpcb;
+                goto drop;
             }
             /*
              * If window is closed can only take segments at
@@ -1554,10 +1554,6 @@ drop:
     }
     rte_pktmbuf_free(m);
     /* destroy temporarily created socket */
-
-findpcb:
-    /* SYN packet that need to reopen the flow as the flow was closed already and free .. */
-    rte_pktmbuf_free(m);
     return 1;
 }
 
