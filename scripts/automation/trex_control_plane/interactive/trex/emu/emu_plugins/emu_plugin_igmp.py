@@ -29,10 +29,8 @@ class IGMPPlugin(EMUPluginBase):
 
     @client_api('command', True)
     def iter_mc(self, port, vlan, tpid, ipv4_amount = None):
-        if port is None:
-            self.err("Must specify at least a port number or run with --all-ns")
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        return self.emu_c.yield_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
+        return self.emu_c.get_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
 
 
     # Plugins methods
@@ -40,10 +38,10 @@ class IGMPPlugin(EMUPluginBase):
     def igmp_show_counters_line(self, line):
         '''Show IGMP counters data from igmp table, add --no-zero flag to hide zero values.\n'''
         parser = parsing_opts.gen_parser(self,
-                                        "show_counters_igmp",
+                                        "igmp_show_counters",
                                         self.igmp_show_counters_line.__doc__,
                                         parsing_opts.EMU_SHOW_CNT_GROUP,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_DUMPS_OPT
                                         )
 
@@ -57,17 +55,17 @@ class IGMPPlugin(EMUPluginBase):
         parser = parsing_opts.gen_parser(self,
                                         "igmp_get_cfg",
                                         self.igmp_get_cfg_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS
                                         )
 
         opts = parser.parse_args(line.split())
 
         if opts.all_ns:
-            self.run_on_all_ns(self.get_cfg, print_ns_info = True, func_on_res = self._print_plug_cfg)
+            self.run_on_all_ns(self.get_cfg, print_ns_info = True, func_on_res = self.print_plug_cfg)
         else:
             res = self.get_cfg(opts.port, opts.vlan, opts.tpid)
-            self._print_plug_cfg(res)
+            self.print_plug_cfg(res)
         return True
 
     @plugin_api('igmp_set_cfg', 'emu')
@@ -76,7 +74,7 @@ class IGMPPlugin(EMUPluginBase):
         parser = parsing_opts.gen_parser(self,
                                         "igmp_set_cfg",
                                         self.igmp_set_cfg_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
                                         parsing_opts.MTU,
                                         parsing_opts.MAC_ADDRESS
@@ -85,7 +83,7 @@ class IGMPPlugin(EMUPluginBase):
         opts = parser.parse_args(line.split())
 
         if opts.mac is not None:
-            opts.mac = conv_to_bytes(val = opts.mac, val_type = 'mac')
+            opts.mac = conv_to_bytes(opts.mac, 'mac')
 
         if opts.all_ns:
             self.run_on_all_ns(self.set_cfg, mtu = opts.mtu, dmac = opts.mac)
@@ -99,7 +97,7 @@ class IGMPPlugin(EMUPluginBase):
         parser = parsing_opts.gen_parser(self,
                                         "igmp_add_mc",
                                         self.igmp_add_mc_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
                                         parsing_opts.IPV4_VEC
                                         )
@@ -121,7 +119,7 @@ class IGMPPlugin(EMUPluginBase):
         parser = parsing_opts.gen_parser(self,
                                         "igmp_remove_mc",
                                         self.igmp_remove_mc_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
                                         parsing_opts.IPV4_VEC
                                         )
@@ -139,20 +137,20 @@ class IGMPPlugin(EMUPluginBase):
 
     @plugin_api('igmp_show_mc', 'emu')
     def igmp_show_mc_line(self, line):
-        '''IGMP remove mc command\n'''
+        '''IGMP show mc command\n'''
         parser = parsing_opts.gen_parser(self,
                                         "igmp_show_mc",
                                         self.igmp_show_mc_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS
                                         )
 
         opts = parser.parse_args(line.split())
-
+        args = {'title': 'Current mc:', 'empty_msg': 'there are no mc'}
         if opts.all_ns:
-            self.run_on_all_ns(self.iter_mc, print_ns_info = True, func_on_res = self.print_gen_data)
+            self.run_on_all_ns(self.iter_mc, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:
             res = self.iter_mc(opts.port, opts.vlan, opts.tpid)
-            self.print_gen_data(data_iter = res, title = 'current mc:', empty_msg = 'there are no mc')
+            self.print_gen_data(data = res, **args)
            
         return True

@@ -22,41 +22,52 @@ def pretty_exceptions(func):
 
 class EMUClientObj(object):
     
-    def __init__(self, mac, ipv4 = None, ipv4_dg = None, ipv6 = None):
+    def __init__(self, mac, **kwargs):  #, ipv4 = None, ipv4_dg = None, ipv6 = None, plugs = None):
         
         ver_args = {'types':[
                 {'name': 'mac', 'arg': mac, 't': 'mac'},
-                {'name': 'ipv4', 'arg': ipv4, 't': "ip address", 'must': False},
-                {'name': 'ipv4_dg', 'arg': ipv4_dg, 't': "ip address", 'must': False},
-                {'name': 'ipv6', 'arg': ipv6, 't': "ipv6_addr", 'must': False}
                 ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        
-        self.fields = {'mac': mac, 'ipv4': ipv4, 'ipv4_dg': ipv4_dg, 'ipv6': ipv6}
+
+        self.fields = {'mac': mac}
+        self.fields.update(kwargs)
     
     def __hash__(self):
         return hash(self.mac)
 
+    def __getattr__(self, name):
+        if name in self.fields:
+            return self.fields[name]
+        else:
+            raise AttributeError
+
 class EMUNamespaceObj(object):
 
-    def __init__(self, vport, tci = None, tpid = None, clients = None, def_client_plugs = None):
+    def __init__(self, vport, tci = None, tpid = None, clients = None, plugs = None, def_c_plugs = None):
         ver_args = {'types':[
                 {'name': 'vport', 'arg': vport, 't': int},
                 {'name': 'tci', 'arg': tci, 't': int, 'allow_list': True, 'must': False},
                 {'name': 'tpid', 'arg': tpid, 't': int, 'allow_list': True, 'must': False},
-                {'name': 'def_client_plugs', 'arg': def_client_plugs, 't': dict, 'must': False},
+                {'name': 'def_c_plugs', 'arg': def_c_plugs, 't': dict, 'must': False},
                 ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         
-        self.fields = {'vport': vport, 'tci': tci, 'tpid': tpid}
+        self.fields = {'vport': vport, 'tci': tci, 'tpid': tpid, 'plugs': plugs}
         self.mac_map = {}
-        self.def_client_plugs = def_client_plugs
+        self.def_c_plugs = def_c_plugs
 
         if clients is not None:
             self.add_clients(clients)
 
-    def set_def_client_plugs(self, plugs):
-        self.def_client_plugs = plugs
+    def __getattr__(self, name):
+        if name in self.fields:
+            return self.fields[name]
+        else:
+            raise AttributeError
+
+
+    def set_def_c_plugs(self, plugs):
+        self.def_c_plugs = plugs
 
     def add_clients(self, clients):
         ver_args = {'types':[
@@ -73,11 +84,17 @@ class EMUNamespaceObj(object):
             self._add_one_client(clients)
 
     def _add_one_client(self, client):
-        curr_mac = client.fields['mac']
-        if curr_mac not in self.mac_map:
-            self.mac_map[curr_mac] = client
-        else:
-            raise TRexError("Namespace already has a client with mac: %s" % curr_mac)
+        c_mac = client.mac
+        if c_mac in self.mac_map:
+            raise TRexError("Namespace already has a client with mac: %s" % c_mac)
+        
+        if client.plugs is not None:
+            for k in self.def_c_plugs.keys():
+                # adding from default only plugins that aren't already in client
+                if k not in client.plugs:  
+                    client.plugs[k] = self.def_c_plugs[k]
+        self.mac_map[c_mac] = client
+
 
     def get_clients(self):
         return [c.fields for c in self.mac_map.values()]
@@ -105,9 +122,19 @@ class EMUProfile(object):
 
     def add_ns(self, ns):
         try:
-            self.ns_list.extend(ns)
+            for one_ns in ns:
+                self._add_one_ns(one_ns)
         except TypeError:
-            self.ns_list.append(ns)
+            self._add_one_ns(ns)
+
+    def _add_one_ns(self, ns):
+        # adding to each ns with plugins, the default ctx plugins
+        if ns.plugs is not None:
+            for k in self.def_ns_plugs:
+                if k not in ns.plugs:
+                    ns.plugs[k] = self.def_ns_plugs[k]
+        
+        self.ns_list.append(ns)
 
     def serialize_ns(self):
         """ Return a list with all the ns dictionaries serialized for transmition """

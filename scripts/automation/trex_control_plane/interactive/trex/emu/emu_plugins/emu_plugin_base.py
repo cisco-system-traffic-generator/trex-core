@@ -25,7 +25,10 @@ class EMUPluginBase(object):
         DataCounter.print_counters(data, verbose, to_json, to_yaml)
 
     # Common helper functions
-    def run_on_all_ns(self, func, print_ns_info = False, func_on_res = None, **kwargs):
+    def run_on_all_ns(self, func, print_ns_info = False, func_on_res = None, func_on_res_args = None, **kwargs):
+        if func_on_res_args is None:
+            func_on_res_args = {}
+
         ns_gen = self.emu_c.get_n_ns(amount = None)
         glob_ns_num = 0
 
@@ -43,30 +46,30 @@ class EMUPluginBase(object):
                     self.emu_c._print_table_ns(ns, glob_ns_num)
                 res = func(ns.get('vport'), ns.get('tci'), ns.get('tpid'), **kwargs)            
                 if func_on_res is not None:
-                    func_on_res(res)
+                    func_on_res(res, **func_on_res_args)
                     print('\n')  # new line between each info 
         if not glob_ns_num:
             self.err('there are no namespaces in emu server')
 
-    def _print_plug_cfg(self, cfg):
-        print('Plugin "%s" cfg:' % self.plugin_name)
-        print(json.dumps(cfg, indent = 4))
+    def print_plug_cfg(self, cfg):
+        self.emu_c.print_dict_as_table(cfg, title = 'Plugin "%s" cfg:' % self.plugin_name)
 
-    def print_gen_data(self, data_iter, title = None, empty_msg = 'empty'):
-        try:
-            first = data_iter.next()
-        except StopIteration:
+    def print_gen_data(self, data, title = None, empty_msg = 'empty'):
+
+        if not data:
             print(empty_msg)
             return
 
-        data_iter = itertools.chain([first], data_iter)
-        
-        if title is not None:
-            print(title)
-        for chunk in data_iter:
-            for mc in chunk:
-                mc = [str(v) for v in mc]
-                print('\t' + '.'.join(mc))
+        first_iter = True
+
+        for data in data:
+            if type(data) is dict:
+                self.emu_c.print_dict_as_table(data, title)
+            else:
+                if first_iter and title is not None:
+                    print(title)
+                    first_iter = False
+                print(conv_unknown_to_str(data))
 
     @property
     def logger(self):

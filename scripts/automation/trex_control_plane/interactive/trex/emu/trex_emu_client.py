@@ -368,8 +368,7 @@ class EMUClient(object):
                 new_clients = []
                 # filter clients
                 for client in ns['clients']:
-                    if all(client[k] == v for k, v in filters['client'].items() if v is not None):
-                        new_clients.append(client)
+                    new_clients.append(client)
                 new_ns['clients'] = new_clients
                 ns_list.append(new_ns)
         
@@ -382,9 +381,35 @@ class EMUClient(object):
             self.err(rc.err())
         return rc.data()
 
+    # Print table
+    def print_dict_as_table(self, data, title = None):
+        unconverted_keys = get_val_types()
+
+        for k in unconverted_keys:
+            if k in data:
+                data[k] = conv_to_str(data[k], k)
+
+        headers = list(data.keys())
+        table = text_tables.TRexTextTable('' if title is None else title)
+        table.header(headers)
+
+        table_data = []
+        for h in headers:
+            h_value = data.get(h, '-')
+            table_data.append(str(h_value))
+
+        table.add_row(table_data)
+
+        table.set_cols_align(['c'] * len(headers))
+        table.set_cols_width([max(len(h), len(str(d))) for h, d in zip(headers, table_data)])
+        table.set_cols_dtype(['a'] * len(headers))
+
+        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
+
+
     # Counters
-    def _print_counters(self, data_cnt, tables = None, cnt_type_filter = None, verbose = False, no_zeros = False, to_json = False, to_yaml = False):
-        data = data_cnt.get_counters(tables, cnt_type_filter, no_zeros)
+    def _print_counters(self, data_cnt, tables = None, cnt_type_filter = None, verbose = False, zero = False, to_json = False, to_yaml = False):
+        data = data_cnt.get_counters(tables, cnt_type_filter, zero)
         DataCounter.print_counters(data, verbose, to_json, to_yaml)
 
     def err(self, msg):
@@ -693,6 +718,13 @@ class EMUClient(object):
                 yield res['data']
                 reset = False  # reset only at start
 
+    def get_n_items(self, cmd, amount = None, retry_num = None, **kwargs):
+        res = []
+        gen = self.yield_n_items(cmd, amount, retry_num, **kwargs)
+        for item in gen:
+            res.extend(item)
+        return res
+
     def get_n_ns(self, amount = None):
         return self.yield_n_items('ctx_iter', amount = amount)
 
@@ -783,8 +815,8 @@ class EMUClient(object):
         # converting data from bytes to str
         for d in rc.data():
             for key, value in d.items():
-                if key in self.client_keys_map:
-                    d[key] = conv_to_str(value, **self.client_keys_map[key])
+                if key in get_val_types():
+                    d[key] = conv_to_str(value, key)
         return rc.data()
 
     # CTX Counters
@@ -794,7 +826,7 @@ class EMUClient(object):
 
     # Ns & Client Table Printing
     @client_api('getter', True)
-    def print_all_ns_clients(self, max_ns_show, max_c_show , to_json = False, to_yaml = False, filters = None):
+    def print_all_ns_clients(self, max_ns_show, max_c_show , to_json = False, to_yaml = False, ipv6 = False):
         """
             Prints all the namespaces and clients in tables.
 
@@ -808,17 +840,13 @@ class EMUClient(object):
 
                 to_json: bool
                     Print the data in a json format.
-                
-                filters: dictionary
-                    Dictionary with keys "namespace" and "client" and values to filter from `data_list`. Default is `None` means no filter.
-                    i.e: {'namespace': {port': 1234}, 'client': {'ipv4': '1.1.1.3'}} will leave only ns with 1234 port and clients with 1.1.1.3 ipv4.
+
 
         """
 
         if to_json or to_yaml:
             # gets all data, no pauses
             all_data = self.get_all_ns_and_clients()
-            all_data = self._filter_data(all_data, filters)
             return dump_json_yaml(all_data, to_json, to_yaml)
 
         all_ns_gen = self.get_n_ns(amount = max_ns_show)
@@ -845,7 +873,7 @@ class EMUClient(object):
                     if not is_first_time != 0:
                         raw_input("Press Enter to see more clients")
                     ns_clients = self.get_info_client(ns, clients_mac)
-                    self._print_table_client(ns_clients, print_header = is_first_time)
+                    self._print_table_client(ns_clients, print_header = is_first_time, ipv6 = ipv6)
         
         # print ns intro
         if not glob_ns_num:
@@ -880,18 +908,22 @@ class EMUClient(object):
 
         text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
 
-    def _print_table_client(self, clients, print_header):
+    def _print_table_client(self, clients, print_header = True, ipv6 = False):
 
         if len(clients) == 0:
             text_tables.print_colored_line("There are not clients for this namespace", 'yellow', buffer = sys.stdout)      
             return
 
         table = text_tables.TRexTextTable('Clients information')
-        headers = ['MAC', 'IPv4', 'Deafult Gateway', 'IPv6']
+        headers = ['MAC', 'IPv4', 'Deafult Gateway']
+        if ipv6:
+            headers.append('IPv6')
         table.header(headers)
         max_lens = [len(h) for h in headers]
 
-        client_keys = ('mac', 'ipv4', 'ipv4_dg', 'ipv6')
+        client_keys = ['mac', 'ipv4', 'ipv4_dg']
+        if ipv6:
+            client_keys.append('ipv6')
 
         for i, client in enumerate(clients):            
             client_row_data = []
@@ -910,8 +942,6 @@ class EMUClient(object):
 
     # Plugins CFG
     def send_plugin_cmd_to_ns(self, cmd, port, vlan = None, tpid = None, **kwargs):
-        if port is None:
-            self.err('Must specify at least a port number or run with --all-ns')
         params = conv_ns_for_tunnel(port, vlan, tpid)
         params.update(kwargs)
         return self._transmit_and_get_data(cmd, params)
@@ -923,7 +953,7 @@ class EMUClient(object):
         return self._transmit_and_get_data('ctx_get_def_plugins', None)
 
     @client_api('getter', True)
-    def get_def_client_plugs(self, port, vlan = None, tpid = None):
+    def get_def_c_plugs(self, port, vlan = None, tpid = None):
         ''' Gets the client default plugin in a specific namespace '''
         params = conv_ns_for_tunnel(port, vlan, tpid)
         return self._transmit_and_get_data('ctx_client_get_def_plugins', params)
@@ -1094,7 +1124,7 @@ class EMUClient(object):
         return RC_OK()
 
     @client_api('command', True)
-    def set_def_client_plugs(self, namespace, def_plugs):
+    def set_def_c_plugs(self, namespace, def_plugs):
         """
             Set the client default plugins. Every new client in that namesapce will have that plugin.
 
@@ -1183,8 +1213,8 @@ class EMUClient(object):
             # adding all the clients for each namespace
             for ns in profile.ns_list:
                 # set client default plugins 
-                if ns.def_client_plugs is not None:
-                    self.set_def_client_plugs(ns.conv_to_key(), ns.def_client_plugs)
+                if ns.def_c_plugs is not None:
+                    self.set_def_c_plugs(ns.conv_to_key(), ns.def_c_plugs)
                 self.add_clients(ns.fields, ns.get_clients(), max_rate = max_rate)
         except Exception as e:
             self.ctx.logger.post_cmd(False)
@@ -1241,19 +1271,15 @@ class EMUClient(object):
         parser = parsing_opts.gen_parser(self,
                                         "show_all",
                                         self.show_all_line.__doc__,
-                                        parsing_opts.EMU_NS_GROUP,
-                                        parsing_opts.EMU_CLIENT_GROUP,
                                         parsing_opts.EMU_MAX_SHOW,
+                                        parsing_opts.SHOW_IPV6,
                                         parsing_opts.EMU_DUMPS_OPT
                                         )
 
         opts = parser.parse_args(line.split())
 
-        filters = {'namespace': conv_ns(opts.port, opts.vlan, opts.tpid, allow_none = True),
-                    'client': conv_client(opts.mac, opts.ipv4, opts.dg, opts.ipv6)}
-
         self.print_all_ns_clients(max_ns_show = opts.max_ns, max_c_show = opts.max_clients, to_json = opts.json,
-                                    to_yaml = opts.yaml, filters  = filters)
+                                    to_yaml = opts.yaml, ipv6 = opts.ipv6)
         return True
 
     @plugin_api('show_ns_info', 'emu')
@@ -1301,9 +1327,8 @@ class EMUClient(object):
      
         if opts.json or opts.yaml:
             return dump_json_yaml(c_info, opts.json, opts.yaml)
-        
-        table = next(self._yield_table_client(c_info))[0]
-        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
+
+        self._print_table_client(clients = c_info, ipv6 = True)
 
         return True
 
@@ -1323,7 +1348,7 @@ class EMUClient(object):
                 self.ctx.logger.post_cmd(True)
             else:
                 self._print_counters(data_cnt, tables = opts.tables, cnt_type_filter = opts.cnt_types, verbose = opts.verbose,
-                                no_zeros = opts.no_zero, to_json = opts.json, to_yaml = opts.yaml)
+                                zero = opts.zero, to_json = opts.json, to_yaml = opts.yaml)
 
         # reset additional data in data counters
         data_cnt.set_add_ns_data(clear = True)

@@ -47,12 +47,12 @@ class ClientGen:
 
 class Prof1():
     def __init__(self):
-        self.def_ns_plugs  = None
+        self.def_ns_plugs  = {'ipv6': {'enable': True},
+                            'dhcp': {'enable': True, 'timerd': 1, 'timero': 2}}
         self.def_c_plugs  = {'arp': {'enable': True},
                              'igmp': {'enable': True},
                              'icmp': {'enable': True},
                              'ipv6': {'enable': True},
-                             'dhcp': {'enable': True}
                              }
 
     def create_profile(self, ns_size, clients_size):
@@ -65,21 +65,24 @@ class Prof1():
             ns = EMUNamespaceObj(vport  = vport,
                                 tci     = tci,
                                 tpid    = tpid,
-                                def_client_plugs = self.def_c_plugs
+                                def_c_plugs = self.def_c_plugs
                                 )
 
             mac = '00:00:00:00:00:01'
             ipv4 = '1.1.1.1'
             dg = '1.1.1.2'
-            ipv6 = generate_ipv6(mac)
+            ipv6 = '00::aaaa'  # generate_ipv6(mac)
 
             c_gen = ClientGen(mac, ipv4, dg, clients_size, mac_inc = 2, ipv4_inc = 5)
             # create a different client each time
-            for mac, ipv4, dg, ipv6 in c_gen:
+            for i, (mac, ipv4, dg, ipv6) in enumerate(c_gen):
                 client = EMUClientObj(mac     = mac,
                                       ipv4    = ipv4,
                                       ipv4_dg = dg,
-                                      ipv6    = ipv6
+                                      ipv6    = ipv6,
+                                      plugs   = None if i != 0 else {'arp': {'enable': False},
+                                                                   'dhcp': {'timerd': 100}
+                                                                    }
                                       )
                 ns.add_clients(client)
 
