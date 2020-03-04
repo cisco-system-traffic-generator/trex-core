@@ -186,6 +186,10 @@ def action_check_min_max():
             self.max_val = max_val
 
         def __call__(self, parser, args, values, option_string=None):
+            try:
+                values = int(values)
+            except ValueError:
+                parser.error('Value "%s" must be an integer' % values)
             if self.min_val <= values <= self.max_val:
                 setattr(args, self.dest, values)
             else:
@@ -1065,10 +1069,16 @@ class OPTIONS_DB_ARGS:
          'help': "Template group name"})
 
     # Emu Args
+    SINGLE_PORT_REQ = ArgumentPack(
+        ['-p', '--port'],
+        {'type': int,
+         'metavar': 'PORT',
+         'help': 'Port for the action',
+         'required': True})
+        
     SINGLE_PORT_NOT_REQ = ArgumentPack(
         ['-p', '--port'],
-        {'dest':'port',
-         'type': int,
+        {'type': int,
          'metavar': 'PORT',
          'help': 'Port for the action',
          'required': False})
@@ -1105,6 +1115,13 @@ class OPTIONS_DB_ARGS:
          'min_val': 1, 'max_val': 255,
          'help': "Max namespaces to show each time"})
 
+    SHOW_IPV6 = ArgumentPack(
+        ['-6'],
+        {'default': False,
+         'dest': 'ipv6',
+         'action': 'store_true',
+         'help': "Show ipv6"})
+
     ARGPARSE_TUNABLES = ArgumentPack(
         ['-t', '--tunables'],
         {'default': '',
@@ -1116,6 +1133,7 @@ class OPTIONS_DB_ARGS:
     MAC_ADDRESS = ArgumentPack(
         ['--mac'],
         {'help': "MAC address",
+         'required': True,
          'dest': 'mac',
          'type': check_mac_addr})
 
@@ -1164,10 +1182,11 @@ class OPTIONS_DB_ARGS:
         'type': str.upper,
         'help': 'Filters counters by their type. Example: "--filter info warning"'})
     
-    COUNTERS_NO_ZERO = ArgumentPack(
-        ['--no-zero'],
+    COUNTERS_SHOW_ZERO = ArgumentPack(
+        ['--zero'],
         {'action': 'store_true',
-        'help': 'Hide all the zero values'})
+         'default': False,
+        'help': 'Show all the zero values'})
 
     EMU_ALL_NS = ArgumentPack(
         ['--all-ns'],
@@ -1194,11 +1213,20 @@ class OPTIONS_DB_ARGS:
          'help': 'Maximum transmission unit'})
 
     IPV4_VEC = ArgumentPack(
-        ['--ipv4'],
+        ['-4'],
         {'help': "IPv4 addresses",
+         'dest': 'ipv4',
          'nargs': '+',
          'required': True,
          'type': check_ipv4_addr})
+
+    IPV6_VEC = ArgumentPack(
+        ['-6'],
+        {'help': "IPv6 addresses",
+         'dest': 'ipv6',
+         'nargs': '+',
+         'required': True,
+         'type': check_ipv6_addr})
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1330,6 +1358,14 @@ class OPTIONS_DB_GROUPS:
     EMU_NS_GROUP = ArgumentGroup(
         NON_MUTEX,
         [
+            SINGLE_PORT_REQ,
+            VLAN_TAGS,
+            VLAN_TPIDS,
+        ],{})
+
+    EMU_NS_GROUP_NOT_REQ = ArgumentGroup(
+        NON_MUTEX,
+        [
             SINGLE_PORT_NOT_REQ,
             VLAN_TAGS,
             VLAN_TPIDS,
@@ -1351,6 +1387,18 @@ class OPTIONS_DB_GROUPS:
             SHOW_MAX_NS,
         ],{})
  
+    EMU_SHOW_CNT_GLOBAL_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MONITOR_TYPE_VERBOSE,
+            COUNTERS_TABLES,
+            COUNTERS_HEADERS,
+            COUNTERS_CLEAR,
+            COUNTERS_TYPE,
+            COUNTERS_SHOW_ZERO,
+        ], {}
+    )
+
     EMU_SHOW_CNT_GROUP = ArgumentGroup(
         NON_MUTEX,
         [
@@ -1359,7 +1407,7 @@ class OPTIONS_DB_GROUPS:
             COUNTERS_HEADERS,
             COUNTERS_CLEAR,
             COUNTERS_TYPE,
-            COUNTERS_NO_ZERO,
+            COUNTERS_SHOW_ZERO,
             EMU_ALL_NS,
         ], {}
     )

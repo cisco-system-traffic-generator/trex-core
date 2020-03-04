@@ -20,7 +20,7 @@ class DataCounter(object):
         self.add_data = None  # additional data, attached to every counters command
 
     # API #
-    def get_counters(self, tables = None, cnt_filter = None, no_zeros = True):
+    def get_counters(self, tables = None, cnt_filter = None, zero = True):
         """ 
             Get the wanted counters from server.
 
@@ -39,7 +39,7 @@ class DataCounter(object):
         """
         self._get_meta()
         self._update_meta_vals(tables)
-        return self._filter_cnt(tables, cnt_filter, no_zeros)
+        return self._filter_cnt(tables, cnt_filter, zero)
 
     def get_counters_headers(self):
         """ Simply print the counters headers names """
@@ -78,7 +78,7 @@ class DataCounter(object):
             return
 
         if all(len(c) == 0 for c in data.values()):
-            text_tables.print_colored_line('There are no tables to show with current filter', 'yellow', buffer = sys.stdout)   
+            text_tables.print_colored_line('There is no information to show with current filter', 'yellow', buffer = sys.stdout)   
             return
 
         headers = list(DataCounter.un_verbose_keys)
@@ -191,13 +191,13 @@ class DataCounter(object):
                     cnt['info'] = _parse_info(cnt.get('info'))
         return rc.data()
 
-    def _filter_cnt(self, tables, cnt_filter, no_zeros):
+    def _filter_cnt(self, tables, cnt_filter, zero):
         ''' Return a new dict with all the filtered counters '''
         
-        def _pass_filter(cnt, cnt_filter, no_zeros):
+        def _pass_filter(cnt, cnt_filter, zero):
             if cnt_filter is not None and cnt.get('info') not in cnt_filter: 
                 return False
-            if no_zeros and cnt.get('value', 0) == 0:
+            if not zero and cnt.get('value', 0) == 0:
                 return False
             return True
 
@@ -208,7 +208,7 @@ class DataCounter(object):
 
             new_cnt_list = [] 
             for cnt in table_data['meta']:
-                if not _pass_filter(cnt, cnt_filter, no_zeros):
+                if not _pass_filter(cnt, cnt_filter, zero):
                     continue
 
                 new_cnt_list.append(cnt)
