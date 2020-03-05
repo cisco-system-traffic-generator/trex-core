@@ -21,9 +21,9 @@ def conv_to_bytes(val, key):
     val_type = _get_key_type(key)
 
     if val_type == 'ipv4': 
-        return [ord(v) for v in socket.inet_pton(socket.AF_INET, val)]
+        return [ord(v) if type(v) is str else v for v in socket.inet_pton(socket.AF_INET, val)]
     elif val_type == 'ipv6':
-        return [ord(v) for v in socket.inet_pton(socket.AF_INET6, val)]
+        return [ord(v) if type(v) is str else v for v in socket.inet_pton(socket.AF_INET6, val)]
     elif val_type == 'mac':
         return [int(v, 16) for v in val.split(':')]
     else:
