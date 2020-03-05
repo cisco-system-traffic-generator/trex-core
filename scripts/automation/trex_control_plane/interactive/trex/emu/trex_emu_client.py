@@ -383,6 +383,12 @@ class EMUClient(object):
         if not rc:
             self.err(rc.err())
         return rc.data()
+    
+    def _wait_for_pressed_key(self, msg):
+        try:
+            raw_input(msg)
+        except NameError:
+            input(msg)
 
     # Print table
     def print_dict_as_table(self, data, title = None):
@@ -849,7 +855,7 @@ class EMUClient(object):
             ns_infos = self.get_info_ns(ns_list)
 
             if ns_chunk_i != 0:
-                raw_input("Press Enter to see more namespaces")
+                self._wait_for_pressed_key('Press Enter to see more namespaces')
             
             for ns_i, ns in enumerate(ns_list):
                 glob_ns_num += 1
@@ -864,7 +870,7 @@ class EMUClient(object):
                 for client_i, clients_mac in enumerate(self.yield_n_items(cmd = 'ctx_client_iter', amount = max_c_show, tun = ns)):                    
                     is_first_time = client_i == 0
                     if not is_first_time != 0:
-                        raw_input("Press Enter to see more clients")
+                        self._wait_for_pressed_key("Press Enter to see more clients")
                     ns_clients = self.get_info_client(ns, clients_mac)
                     self._print_table_client(ns_clients, print_header = is_first_time, ipv6 = ipv6)
         
@@ -1394,9 +1400,8 @@ class EMUClient(object):
         # Get all plugins plugin methods
         current_plugins_dict = self._get_plugins()
 
-        for plug_name, tup in current_plugins_dict.items():
-            filename, module = tup 
-            plugin_instance = self._create_plugin_inst_by_name(plug_name, filename, module)
+        for plug_name, filename in current_plugins_dict.items():
+            plugin_instance = self._create_plugin_inst_by_name(plug_name, filename)
             setattr(self, plug_name, plugin_instance)  # add plugin to emu client dynamically
 
             plug_methods = self._get_plugin_methods_by_obj(plugin_instance)
@@ -1419,12 +1424,12 @@ class EMUClient(object):
                 module = os.path.basename(f)[:-3]
                 plugin_name = module[len(emu_plug_prefix):]
                 if plugin_name and plugin_name != 'base':
-                    plugins[plugin_name] = (f, module)
+                    plugins[plugin_name] = f
             return plugins
 
-    def _create_plugin_inst_by_name(self, name, filename, module):
+    def _create_plugin_inst_by_name(self, name, filename):
             
-            import_path = 'trex.emu.emu_plugins.%s' % module
+            import_path = 'trex.emu.emu_plugins'
 
             try:
                 m = imp.load_source(import_path, filename)
