@@ -107,6 +107,7 @@ class WLC_Plugin(ConsolePlugin):
             import traceback
             traceback.print_exc()
             raise
+        del self.ap_manager
 
 
     def do_close(self, port_list):
@@ -374,9 +375,8 @@ class WLC_Plugin(ConsolePlugin):
             else:
                 if proxy_wireless_port not in self.trex_client.ports:
                     raise TRexError('Invalid wireless port ID: %s' % proxy_wireless_port)
-                port = self.trex_client.ports[proxy_wireless_port]
-                if not port.is_service_mode_on():
-                    port.set_service_mode(True)
+                if proxy_wireless_port not in self.trex_client.get_service_enabled_ports():
+                    self.trex_client.set_service_mode(proxy_wireless_port)
                 self.ap_manager.enable_proxy_mode(proxy_wired_port, proxy_wireless_port, proxy_dest_mac, proxy_filter_wlc_packets)
         else:
             counters_dict = {
