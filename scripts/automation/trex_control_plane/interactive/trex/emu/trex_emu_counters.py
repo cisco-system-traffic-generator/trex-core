@@ -3,7 +3,7 @@ from ..utils import text_tables
 from ..utils.text_tables import *
 from ..common.trex_exceptions import *
 from ..common.trex_types import *
-from trex_emu_conversions import *
+from .trex_emu_conversions import *
 
 import yaml
 import json

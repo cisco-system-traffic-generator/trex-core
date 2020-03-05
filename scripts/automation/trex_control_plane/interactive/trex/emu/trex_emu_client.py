@@ -1,3 +1,4 @@
+raise Exception("BAD!")
 from ..astf.arg_verify import ArgVerify
 from ..common.trex_api_annotators import client_api, plugin_api
 from ..common.trex_ctx import TRexCtx
@@ -12,10 +13,10 @@ from ..utils.text_tables import *
 from .trex_emu_conn import RRConnection
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
-from emu_plugins.emu_plugin_arp import *
-from trex_emu_counters import *
-from trex_emu_profile import *
-from trex_emu_conversions import *
+from .emu_plugins.emu_plugin_base import *
+from .trex_emu_counters import *
+from .trex_emu_profile import *
+from .trex_emu_conversions import *
 
 import glob
 import imp
@@ -125,6 +126,9 @@ class EMUClient(object):
 
         # emu client holds every emu plugin
         self.general_data_c = DataCounter(self.conn, 'ctx_cnt')
+
+    def __del__(self):
+        self.disconnect()
 
     def get_mode (self):
         """
@@ -625,25 +629,15 @@ class EMUClient(object):
         pass
 
     @client_api('command', False)
-    def disconnect (self, stop_traffic = True, release_ports = True):
+    def disconnect (self, release_ports = True):
         """
             Disconnects from the server
 
             :parameters:
-                stop_traffic : bool
-                    Attempts to stop traffic before disconnecting.
                 release_ports : bool
                     Attempts to release all the acquired ports.
 
         """
-
-        # try to stop ports but do nothing if not possible
-        if stop_traffic:
-            try:
-                self.stop()
-            except TRexError:
-                pass
-
 
         self.ctx.logger.pre_cmd("Disconnecting from server at '{0}':'{1}'".format(self.ctx.server,
                                                                                   self.ctx.sync_port))
@@ -1401,8 +1395,9 @@ class EMUClient(object):
         # Get all plugins plugin methods
         current_plugins_dict = self._get_plugins()
 
-        for plug_name, filename in current_plugins_dict.items():
-            plugin_instance = self._create_plugin_inst_by_name(plug_name, filename)
+        for plug_name, tup in current_plugins_dict.items():
+            filename, module = tup 
+            plugin_instance = self._create_plugin_inst_by_name(plug_name, filename, module)
             setattr(self, plug_name, plugin_instance)  # add plugin to emu client dynamically
 
             plug_methods = self._get_plugin_methods_by_obj(plugin_instance)
@@ -1425,12 +1420,12 @@ class EMUClient(object):
                 module = os.path.basename(f)[:-3]
                 plugin_name = module[len(emu_plug_prefix):]
                 if plugin_name and plugin_name != 'base':
-                    plugins[plugin_name] = f
+                    plugins[plugin_name] = (f, module)
             return plugins
 
-    def _create_plugin_inst_by_name(self, name, filename):
+    def _create_plugin_inst_by_name(self, name, filename, module):
             
-            import_path = 'trex.emu.emu_plugins'
+            import_path = 'trex.emu.emu_plugins.%s' % module
 
             try:
                 m = imp.load_source(import_path, filename)

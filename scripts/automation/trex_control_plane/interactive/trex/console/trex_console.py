@@ -42,7 +42,6 @@ if __package__ == None:
 
 from ..stl.api import *
 from ..astf.api import *
-from ..emu.api import *
 
 from ..common.trex_client import TRexClient
 

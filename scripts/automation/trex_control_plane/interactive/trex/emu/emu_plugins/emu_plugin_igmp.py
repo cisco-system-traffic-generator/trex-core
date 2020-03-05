@@ -1,5 +1,5 @@
 from trex.emu.api import *
-from emu_plugin_base import *
+from .emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
 
 class IGMPPlugin(EMUPluginBase):
