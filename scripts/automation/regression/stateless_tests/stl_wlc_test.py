@@ -10,6 +10,18 @@ from trex.common.trex_exceptions import TRexError
 class CTRexWLC_Test(CStlGeneral_Test):
     """This class tests TRex WLC related code"""
 
+    is_init_wlc = False
+    def init(self):
+        if not self.is_init_wlc:
+            self.start_trex()
+            self.connect()
+            self.is_init_wlc = True
+        self.client = CTRexScenario.stl_trex
+        self.client.reset()
+        if self.elk:
+            self.update_elk_obj()
+
+
     def get_pkts(self):
         stats = self.client.get_stats()
         return stats[0]['opackets'], stats[1]['ipackets']
@@ -22,14 +34,10 @@ class CTRexWLC_Test(CStlGeneral_Test):
     def test_basic_wlc(self):
         ''' Joins 1 AP, 1 client, sends traffic '''
 
+        self.init()
         ap_count = 1
         client_count = 1
 
-        self.start_trex()
-        self.connect()
-        if self.elk:
-            self.update_elk_obj()
-        self.client = CTRexScenario.stl_trex
         from trex.stl.trex_stl_wlc import AP_Manager
         ap_manager = AP_Manager(self.client)
 
@@ -123,5 +131,40 @@ class CTRexWLC_Test(CStlGeneral_Test):
             ap_manager.close()
 
 
+    def test_basic_wlc_plugin(self):
+        ''' Joins 1 AP, 1 client, sends traffic '''
+
+        self.init()
+        ap_count = 1
+        client_count = 1
+
+        from trex.console.trex_console import TRexConsole
+        console = TRexConsole(self.client)
+        print('Showing plugins:')
+        console.plugins_mngr.do_plugins('show')
+
+        print('Loading WLC plugin:')
+        console.plugins_mngr.do_plugins('load wlc')
+        wlc_plugin = console.plugins_mngr.loaded_plugins['wlc']
+
+        print('Setting base values:')
+        base_data = CTRexScenario.config_dict['base']
+        wlc_plugin.do_base(base_data['ap_mac'], base_data['ap_ip'], base_data['client_mac'], base_data['client_ip'], wlc_ip = None, base_save = None, base_load = None)
+
+        try:
+            print('Creating AP:')
+            wlc_plugin.do_create_ap(port_list = [0], count = ap_count, verbose_level = 2, ap_cert = None, ap_privkey = None, ap_ca_priv = None)
+
+            print('Creating client:')
+            with assert_raises(TRexError):
+                wlc_plugin.do_add_client(ap_ids = 'sfgsdfgsdfg', count = client_count)
+            wlc_plugin.do_add_client(ap_ids = None, count = client_count)
+
+            print('Starting proxy:')
+            with assert_raises(AssertionError):
+                wlc_plugin.do_proxy(proxy_wired_port = 1, proxy_wireless_port = 0, proxy_dest_mac = None, proxy_filter_wlc_packets = None, proxy_disable = None, proxy_clear = None)
+            wlc_plugin.do_proxy(proxy_wired_port = 0, proxy_wireless_port = 1, proxy_dest_mac = None, proxy_filter_wlc_packets = None, proxy_disable = None, proxy_clear = None)
+        finally:
+            wlc_plugin.plugin_unload()
 
 
