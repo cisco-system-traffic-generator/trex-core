@@ -1,4 +1,3 @@
-raise Exception("BAD!")
 from ..astf.arg_verify import ArgVerify
 from ..common.trex_api_annotators import client_api, plugin_api
 from ..common.trex_ctx import TRexCtx
