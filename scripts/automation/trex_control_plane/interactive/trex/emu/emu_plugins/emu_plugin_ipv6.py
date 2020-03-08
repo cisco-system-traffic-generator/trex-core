@@ -41,7 +41,7 @@ class IPV6Plugin(EMUPluginBase):
     # Plugins methods
     @plugin_api('ipv6_show_counters', 'emu')
     def ipv6_show_counters_line(self, line):
-        '''Show IPV6 counters data from ipv6 table, add --no-zero flag to hide zero values.\n'''
+        '''Show IPV6 counters data from ipv6 table.\n'''
         parser = parsing_opts.gen_parser(self,
                                         "ipv6_show_counters",
                                         self.ipv6_show_counters_line.__doc__,
@@ -153,7 +153,7 @@ class IPV6Plugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        args = {'title': 'Current mld:', 'empty_msg': 'there are no mld'}
+        args = {'title': 'Current mld:', 'empty_msg': 'There are no mld in namespace'}
         if opts.all_ns:
             self.run_on_all_ns(self.iter_mld, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:
@@ -175,7 +175,7 @@ class IPV6Plugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
 
-        args = {'title': 'Ipv6 cache', 'empty_msg': 'no ipv6 cache'}
+        args = {'title': 'Ipv6 cache', 'empty_msg': 'No ipv6 cache in namespace'}
         if opts.all_ns:
             self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:

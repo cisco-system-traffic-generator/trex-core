@@ -40,7 +40,7 @@ class ARPPlugin(EMUPluginBase):
     # Plugins methods
     @plugin_api('arp_show_counters', 'emu')
     def arp_show_counters_line(self, line):
-        '''Show arp counters data from arp table, add --no-zero flag to hide zero values.\n'''
+        '''Show arp counters data from arp table.\n'''
         parser = parsing_opts.gen_parser(self,
                                         "show_counters_arp",
                                         self.arp_show_counters_line.__doc__,
@@ -123,7 +123,7 @@ class ARPPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
 
-        args = {'title': 'Arp cache', 'empty_msg': 'no arp cache'}
+        args = {'title': 'Arp cache', 'empty_msg': 'No arp cache in namespace'}
         if opts.all_ns:
             self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:

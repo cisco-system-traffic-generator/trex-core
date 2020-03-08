@@ -36,7 +36,7 @@ class IGMPPlugin(EMUPluginBase):
     # Plugins methods
     @plugin_api('igmp_show_counters', 'emu')
     def igmp_show_counters_line(self, line):
-        '''Show IGMP counters data from igmp table, add --no-zero flag to hide zero values.\n'''
+        '''Show IGMP counters data from igmp table.\n'''
         parser = parsing_opts.gen_parser(self,
                                         "igmp_show_counters",
                                         self.igmp_show_counters_line.__doc__,
@@ -146,7 +146,7 @@ class IGMPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        args = {'title': 'Current mc:', 'empty_msg': 'there are no mc'}
+        args = {'title': 'Current mc:', 'empty_msg': 'There are no mc in namespace'}
         if opts.all_ns:
             self.run_on_all_ns(self.iter_mc, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:

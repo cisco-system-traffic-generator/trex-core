@@ -2,11 +2,15 @@
 from ..common.trex_exceptions import *
 
 import socket
+import ipaddress
 
+# taken from emu server RPC
+IPV4_TYPES = {'ipv4', 'ipv4_dg'}
+IPV6_TYPES = {'ipv6', 'dg_ipv6', 'dhcp_dg_ipv6', 'prefix'}
+MAC_TYPES  = {'mac', 'dmac', 'dgmac', 'rmac', 'ipv4_force_mac', 'ipv6_force_mac'}
 
-ipv4_types = {'ipv4', 'ipv4_dg'}
-ipv6_types = {'ipv6', 'dg_ipv6', 'dhcp_dg_ipv6', 'prefix'}
-mac_types  = {'mac', 'dmac', 'dgmac', 'rmac', 'ipv4_force_mac', 'ipv6_force_mac'}
+# these keys are struct
+STRUCTURED_KEYS = {'ipv6_router','ipv6_dgw', 'dgw'}
 
 TYPES_DICT = {'ipv4': {'delim': '.', 'pad_zeros': False, 'format_type': 'd'},
                 'mac': {'delim': ':', 'pad_zeros': True},
@@ -30,12 +34,19 @@ def conv_to_bytes(val, key):
         return val
 
 def conv_to_str(val, key):
-    val_type = _get_key_type(key)
-    if val_type not in TYPES_DICT.keys():
-        print('Unknown type: "%s"' % val_type) 
-    return _conv_to_str(val, **TYPES_DICT[val_type])
+    if val is None:
+        return 'None'
 
-def _conv_to_str(val, delim, group_bytes = 1, pad_zeros = False, format_type = 'x'):
+    val_type = _get_key_type(key)
+    if val_type in TYPES_DICT.keys():
+        val = _conv_to_str(val, val_type, **TYPES_DICT[val_type])
+    elif val_type in STRUCTURED_KEYS:
+        for k, v in val.items():
+            val[k] = conv_to_str(v, k)
+
+    return val
+
+def _conv_to_str(val, val_type, delim, group_bytes = 1, pad_zeros = False, format_type = 'x'):
     """
         Convert bytes format to str.
 
@@ -68,22 +79,34 @@ def _conv_to_str(val, delim, group_bytes = 1, pad_zeros = False, format_type = '
     for i in range(len(grouped)):
         for j in range(group_bytes):
             grouped[i] += bytes_as_str[j + (i * group_bytes)]
-    return delim.join(grouped)
+
+    res = delim.join(grouped)
+
+    if val_type == 'ipv6':
+        try:
+            # python 2
+            res = res.decode()
+        except AttributeError:
+            pass
+        ipv6 = ipaddress.ip_address(res)
+        return ipv6.compressed
+
+    return res
 
 def _get_key_type(val_key):
-    if val_key in ipv4_types: 
+    if val_key in IPV4_TYPES: 
         return 'ipv4'
-    elif val_key in ipv6_types:
+    elif val_key in IPV6_TYPES:
         return 'ipv6'
-    elif val_key in mac_types:
+    elif val_key in MAC_TYPES:
         return 'mac'
     else:
-        return 'Unknown'
+        return val_key
 
 def get_val_types():
-    copy = set(ipv4_types)
-    copy.update(ipv6_types)
-    copy.update(mac_types)
+    copy = set(IPV4_TYPES)
+    copy.update(IPV6_TYPES)
+    copy.update(MAC_TYPES)
     return copy
 
 def conv_unknown_to_str(val):
