@@ -71,18 +71,18 @@ class Prof1():
             mac = '00:00:00:00:00:01'
             ipv4 = '1.1.1.1'
             dg = '1.1.1.2'
-            ipv6 = '00::aaaa'  # generate_ipv6(mac)
+            ipv6 = generate_ipv6(mac)
 
             c_gen = ClientGen(mac, ipv4, dg, clients_size, mac_inc = 2, ipv4_inc = 5)
             # create a different client each time
             for i, (mac, ipv4, dg, ipv6) in enumerate(c_gen):
                 client = EMUClientObj(mac     = mac,
                                       ipv4    = ipv4,
-                                      ipv4_dg = dg,
+                                      ipv4_dg = None if i != 0 else dg,
                                       ipv6    = ipv6,
-                                      plugs   = None if i != 0 else {'arp': {'enable': False},
-                                                                   'dhcp': {'timerd': 100}
-                                                                    }
+                                      plugs   = {'arp': {'enable': True},
+                                                'dhcp': {'timerd': 100}
+                                                }
                                       )
                 ns.add_clients(client)
 

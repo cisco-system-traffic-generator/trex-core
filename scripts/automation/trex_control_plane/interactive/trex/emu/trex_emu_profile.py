@@ -22,7 +22,7 @@ def pretty_exceptions(func):
 
 class EMUClientObj(object):
     
-    def __init__(self, mac, **kwargs):  #, ipv4 = None, ipv4_dg = None, ipv6 = None, plugs = None):
+    def __init__(self, mac, **kwargs):
         
         ver_args = {'types':[
                 {'name': 'mac', 'arg': mac, 't': 'mac'},

@@ -1,5 +1,7 @@
 from ..trex_emu_counters import DataCounter
 from ..trex_emu_conversions import *
+from trex.utils import text_tables
+
 from trex.emu.api import *
 
 import itertools
@@ -43,7 +45,7 @@ class EMUPluginBase(object):
                 ns.update(ns_info)
 
                 if print_ns_info:
-                    self.emu_c._print_table_ns(ns, glob_ns_num)
+                    self.emu_c._print_ns_table(ns, glob_ns_num)
                 res = func(ns.get('vport'), ns.get('tci'), ns.get('tpid'), **kwargs)            
                 if func_on_res is not None:
                     func_on_res(res, **func_on_res_args)
@@ -57,18 +59,15 @@ class EMUPluginBase(object):
     def print_gen_data(self, data, title = None, empty_msg = 'empty'):
 
         if not data:
-            print(empty_msg)
+            text_tables.print_colored_line(empty_msg, 'yellow', buffer = sys.stdout)
             return
 
-        first_iter = True
-
-        for data in data:
+        for data_i, data in enumerate(data):
             if type(data) is dict:
                 self.emu_c.print_dict_as_table(data, title)
             else:
-                if first_iter and title is not None:
-                    print(title)
-                    first_iter = False
+                if data_i == 0 and title is not None:
+                    text_tables.print_colored_line(title, 'yellow', buffer = sys.stdout)
                 print(conv_unknown_to_str(data))
 
     @property

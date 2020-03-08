@@ -1145,8 +1145,9 @@ class OPTIONS_DB_ARGS:
          'type': check_mac_addr})
 
     CLIENT_IPV4 = ArgumentPack(
-        ['--ipv4'],
+        ['-4'],
         {'help': "Client's destination IPv4 address",
+         'dest': 'ipv4',
          'type': check_ipv4_addr})
 
     CLIENT_DG = ArgumentPack(
@@ -1155,8 +1156,9 @@ class OPTIONS_DB_ARGS:
          'type': check_ipv4_addr})
 
     CLIENT_IPV6 = ArgumentPack(
-        ['--ipv6'],
+        ['-6'],
         {'help': "Client's IPv6 address",
+         'dest': 'ipv6',
          'type': check_ipv6_addr})
 
     # Emu counters args
@@ -1177,9 +1179,10 @@ class OPTIONS_DB_ARGS:
          'action': 'store_true'})
     
     COUNTERS_TYPE = ArgumentPack(
-        ['--cnt-types'],
+        ['--types'],
         {'nargs': '*',
         'type': str.upper,
+        'dest': 'cnt_types',
         'help': 'Filters counters by their type. Example: "--filter info warning"'})
     
     COUNTERS_SHOW_ZERO = ArgumentPack(
