@@ -248,6 +248,12 @@ def is_valid_ipv6_ret(ipv6_addr):
     except:
         raise TypeError('Not valid IPv6 format: %s' % ipv6_addr)
 
+def compress_ipv6(ipv6_addr):
+    """
+    Compress ipv6 address, i.e: compress_ipv6(0001:0001:0000:0000:0000:1111:0000:0000') -> '1:1::1111:0:0'
+    """
+    ipv6_addr = is_valid_ipv6_ret(ipv6_addr)
+    return socket.inet_ntop(socket.AF_INET6, ipv6_addr)
 
 def list_remove_dup (l):
     tmp = list()

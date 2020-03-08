@@ -1296,7 +1296,7 @@ class EMUClient(object):
     @client_api('command', True)
     def set_def_c_plugs(self, namespace, def_plugs):
         """
-            Set the client default plugins. Every new client in that namesapce will have that plugin.
+            Set the client default plugins. Every new client in that namespace will have that plugin.
 
             :parameters:
 
@@ -1394,7 +1394,13 @@ class EMUClient(object):
 
     @client_api('command', True)
     def remove_profile(self, max_rate = None):
-        """ Remove current profile from emu server, all namespaces and clients will be removed """
+        """
+            Remove current profile from emu server, all namespaces and clients will be removed 
+        
+            :parameters:
+                max_rate: int
+                    Max rate of client / sec for removing clients, defaults to None.
+        """        
         self.ctx.logger.pre_cmd('Removing old emu profile')
         self.remove_all_clients_and_ns(max_rate)
         self.ctx.logger.post_cmd(True)
@@ -1506,10 +1512,6 @@ class EMUClient(object):
 
     def _base_show_counters(self, data_cnt, opts, req_ns = False):
         '''Base function for every counter using `cnt_cmd`'''
-        def set_ns_params(port, vlan = None, tpid = None):
-            vlan = vlan if vlan is not None else [0, 0]
-            tpid = tpid if tpid is not None else [0, 0]
-            data_cnt.set_add_ns_data(port, vlan, tpid)
         
         def run_on_demend(data_cnt, opts):
             if opts.headers:
@@ -1523,11 +1525,15 @@ class EMUClient(object):
                 DataCounter.print_counters(data, opts.verbose, opts.json, opts.yaml)
 
         # reset additional data in data counters
-        data_cnt.set_add_ns_data(clear = True)
+        data_cnt.set_add_data(reset = True)
 
         if req_ns:
             if opts.port is not None:
-                set_ns_params(opts.port, opts.vlan, opts.tpid)
+                try:
+                    mac = opts.mac
+                except AttributeError:
+                    mac = None
+                data_cnt.set_add_data(opts.port, opts.vlan, opts.tpid, mac)
             elif opts.all_ns:
 
                 ns_gen = self.get_n_ns(amount = None)
@@ -1537,7 +1543,7 @@ class EMUClient(object):
                     for ns in ns_chunk:
                         ns_i += 1
                         self._print_ns_table(ns, ns_i)
-                        set_ns_params(ns.get('vport'), ns.get('tci'), ns.get('tpid'))
+                        data_cnt.set_add_data(ns.get('vport'), ns.get('tci'), ns.get('tpid'))
                         run_on_demend(data_cnt, opts)
                 if not ns_i:
                     self.err('there are no namespaces in emu server')
@@ -1613,6 +1619,8 @@ class EMUClient(object):
             plugins_cls_name = '%sPlugin' % name.upper()
             
             plugin_class = vars(m).get(plugins_cls_name)
+            if plugin_class is None:
+                self.err('Plugin "%s" classname is not valid, should be: %s' % (name, plugins_cls_name) )
             if plugin_class is EMUPluginBase:
                 self.err("Cannot load EMUPluginBase, inherit from this class") 
             if not issubclass(plugin_class, EMUPluginBase):

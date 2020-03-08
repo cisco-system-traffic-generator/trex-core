@@ -1411,7 +1411,6 @@ class OPTIONS_DB_GROUPS:
             COUNTERS_CLEAR,
             COUNTERS_TYPE,
             COUNTERS_SHOW_ZERO,
-            EMU_ALL_NS,
         ], {}
     )
 

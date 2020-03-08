@@ -1,8 +1,8 @@
 ''' This class aggregates all conversions functions used in EMU '''
 from ..common.trex_exceptions import *
+from trex.utils.common import compress_ipv6
 
 import socket
-import ipaddress
 
 # taken from emu server RPC
 IPV4_TYPES = {'ipv4', 'ipv4_dg'}
@@ -83,13 +83,7 @@ def _conv_to_str(val, val_type, delim, group_bytes = 1, pad_zeros = False, forma
     res = delim.join(grouped)
 
     if val_type == 'ipv6':
-        try:
-            # python 2
-            res = res.decode()
-        except AttributeError:
-            pass
-        ipv6 = ipaddress.ip_address(res)
-        return ipv6.compressed
+        res = compress_ipv6(res)
 
     return res
 
