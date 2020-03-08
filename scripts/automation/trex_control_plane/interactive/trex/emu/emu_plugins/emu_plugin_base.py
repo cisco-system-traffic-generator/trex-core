@@ -19,7 +19,7 @@ class EMUPluginBase(object):
     # Common API
     @client_api('getter', True)
     def get_counters(self, port, vlan = None, tpid = None, meta = False, zero = False, mask = None, clear = False):
-        self.data_c.set_add_ns_data(port, vlan, tpid)
+        self.data_c.set_add_data(port, vlan, tpid)
         return self.data_c._get_counters(meta, zero, mask, clear)
 
     @client_api('getter', False)
@@ -69,6 +69,7 @@ class EMUPluginBase(object):
                 if data_i == 0 and title is not None:
                     text_tables.print_colored_line(title, 'yellow', buffer = sys.stdout)
                 print(conv_unknown_to_str(data))
+        print()  # new line for seperation 
 
     @property
     def logger(self):

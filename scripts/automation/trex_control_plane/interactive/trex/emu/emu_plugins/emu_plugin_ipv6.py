@@ -46,6 +46,7 @@ class IPV6Plugin(EMUPluginBase):
                                         "ipv6_show_counters",
                                         self.ipv6_show_counters_line.__doc__,
                                         parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_ALL_NS,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_DUMPS_OPT
                                         )

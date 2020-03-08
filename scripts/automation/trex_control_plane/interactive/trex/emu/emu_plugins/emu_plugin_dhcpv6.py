@@ -1,0 +1,30 @@
+from trex.emu.api import *
+from trex.emu.emu_plugins.emu_plugin_base import *
+import trex.utils.parsing_opts as parsing_opts
+import json
+
+class DHCPV6Plugin(EMUPluginBase):
+    '''Defines DHCPV6 plugin'''
+
+    plugin_name = 'DHCPV6'
+
+    def __init__(self, emu_client):
+        super(DHCPV6Plugin, self).__init__(emu_client, 'dhcpv6_client_cnt')
+
+    # Plugins methods
+
+    @plugin_api('dhcpv6_show_counters', 'emu')
+    def dhcpv6_show_counters_line(self, line):
+        '''Show dhcpv6 counters (per client).\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "show_counters_dhcpv6",
+                                        self.dhcpv6_show_counters_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_NS_GROUP,
+                                        parsing_opts.EMU_CLIENT_GROUP,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        return True

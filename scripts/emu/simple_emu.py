@@ -48,11 +48,13 @@ class ClientGen:
 class Prof1():
     def __init__(self):
         self.def_ns_plugs  = {'ipv6': {'enable': True},
-                            'dhcp': {'enable': True, 'timerd': 1, 'timero': 2}}
+                            'dhcp': {'enable': True, 'timerd': 1, 'timero': 2},
+                            }
         self.def_c_plugs  = {'arp': {'enable': True},
                              'igmp': {'enable': True},
                              'icmp': {'enable': True},
                              'ipv6': {'enable': True},
+                             'dhcpv6': {'enable': True, 'timerd': 11, 'timero': 12},
                              }
 
     def create_profile(self, ns_size, clients_size):
@@ -78,7 +80,7 @@ class Prof1():
             for i, (mac, ipv4, dg, ipv6) in enumerate(c_gen):
                 client = EMUClientObj(mac     = mac,
                                       ipv4    = ipv4,
-                                      ipv4_dg = None if i != 0 else dg,
+                                      ipv4_dg = dg,
                                       ipv6    = ipv6,
                                       plugs   = {'arp': {'enable': True},
                                                 'dhcp': {'timerd': 100}

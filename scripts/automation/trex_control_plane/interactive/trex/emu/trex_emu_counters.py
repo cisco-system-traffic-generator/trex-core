@@ -54,11 +54,29 @@ class DataCounter(object):
     def clear_counters(self):
         return self._get_counters(clear = True)
 
-    def set_add_ns_data(self, port = None, vlan = None, tpid = None, clear = False):
-        if clear:
+    def set_add_data(self, port = None, vlan = None, tpid = None, mac = None, reset = False):
+        """
+            Set additional data to each request. 
+        
+            :parameters:
+                port: int
+                    Port of namespace, defaults to None.
+                vlan: list
+                    Vlan tags of namespace, defaults to None.
+                tpid: list
+                    Vlan tpids of namespace, defaults to None.
+                mac: string
+                    Mac address of client in namespace.
+                reset: bool
+                    Reset additional data to None, defaults to False.
+        """        
+        if reset:
             self.add_data = None
         else:
             self.add_data = conv_ns_for_tunnel(port, vlan, tpid)
+        if mac is not None:
+            mac = conv_to_bytes(val = mac, key = 'mac')
+            self.add_data.update({'mac': mac})
 
     @staticmethod
     def print_counters(data, verbose = False, to_json = False, to_yaml = False):
