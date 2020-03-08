@@ -10,13 +10,13 @@ from trex.common.trex_exceptions import TRexError
 class CTRexWLC_Test(CStlGeneral_Test):
     """This class tests TRex WLC related code"""
 
-    is_init_wlc = False
+    is_trex_server_started = False
     def init(self):
-        if not self.is_init_wlc:
+        if not CTRexWLC_Test.is_trex_server_started:
             self.start_trex()
-            self.connect()
-            self.is_init_wlc = True
+            CTRexWLC_Test.is_trex_server_started = True
         self.client = CTRexScenario.stl_trex
+        self.client.connect()
         self.client.reset()
         if self.elk:
             self.update_elk_obj()
