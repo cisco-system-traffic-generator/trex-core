@@ -987,6 +987,16 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
                                     uint32_t size,
                                     bool mbuf_const=false);
 
+int utl_mbuf_buffer_create_and_copy(uint8_t socket,
+                                    CMbufBuffer * buf,
+                                    uint32_t blk_size,
+                                    uint8_t *d,
+                                    uint32_t d_size,
+                                    uint32_t size,
+                                    uint8_t *f,
+                                    uint32_t f_size,
+                                    bool mbuf_const=false);
+
 
 #endif
 

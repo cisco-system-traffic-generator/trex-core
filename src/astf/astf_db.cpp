@@ -1346,7 +1346,14 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
             }
             if (c_cmds[cmd_idx]["buf_index"] != Json::nullValue) {
                 int buf_index = c_cmds[cmd_idx]["buf_index"].asInt();
-                buf_list.push_back(base64_decode(m_val["buf_list"][buf_index].asString()));
+                Json::Value tmp_buf = m_val["buf_list"][buf_index];
+                if (tmp_buf.type() == Json::objectValue) {
+                    if (tmp_buf["base"] == Json::nullValue) {
+                        throw TrexException("base message is mandatory to use l7_map.");
+                    }
+                    tmp_buf = tmp_buf["base"];
+                }
+                buf_list.push_back(base64_decode(tmp_buf.asString()));
                 if (is_stream)  // TCP should get the first payload only
                     break;
             }
@@ -1408,10 +1415,29 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
     for (int buf_index = 0; buf_index < m_val["buf_list"].size(); buf_index++) {
         tcp_buf = new CMbufBuffer();
         assert(tcp_buf);
-        json_buf = m_val["buf_list"][buf_index].asString();
-        std::string temp_str = base64_decode(json_buf);
-        buf_len = temp_str.size();
-        utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len,true);
+        std::string temp_str;
+        if (m_val["buf_list"][buf_index].type() == Json::objectValue) {
+            Json::Value buf_obj = m_val["buf_list"][buf_index];
+            if (buf_obj["base"] != Json::nullValue) {
+                json_buf = buf_obj["base"].asString();
+                temp_str = base64_decode(json_buf);
+            }
+            if (buf_obj["size"] != Json::nullValue) {
+                buf_len = buf_obj["size"].asInt();
+            } else {
+                buf_len = temp_str.size();
+            }
+            std::string fill_data;
+            if (buf_obj["fill"] != Json::nullValue) {
+                fill_data = base64_decode(buf_obj["fill"].asString());
+            }
+            utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), temp_str.size(),buf_len,(uint8_t*)(fill_data.c_str()),fill_data.size(),true);
+        } else {
+            json_buf = m_val["buf_list"][buf_index].asString();
+            temp_str = base64_decode(json_buf);
+            buf_len = temp_str.size();
+            utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), buf_len,true);
+        }
         m_tcp_data[socket_id].m_buf_list.push_back(tcp_buf);
     }
 
