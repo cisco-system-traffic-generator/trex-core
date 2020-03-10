@@ -901,6 +901,62 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
 }
 
 
+int utl_mbuf_buffer_create_and_copy(uint8_t socket,
+                                    CMbufBuffer * buf,
+                                    uint32_t blk_size,
+                                    uint8_t *d,
+                                    uint32_t d_size,
+                                    uint32_t size,
+                                    uint8_t *f,
+                                    uint32_t f_size,
+                                    bool mbuf_const){
+
+    buf->Create(blk_size);
+    uint8_t cnt = 0;
+    rte_mbuf_t* mbuf_fill = nullptr;
+    while (size>0) {
+        uint32_t alloc_size = bsd_umin(blk_size,size);
+        auto copy_size = bsd_umin(d_size, alloc_size);
+        rte_mbuf_t* m;
+        if (copy_size || !mbuf_fill) {
+            m = tcp_pktmbuf_alloc(socket,alloc_size);
+            assert(m);
+            char *p = (char *)rte_pktmbuf_append(m, alloc_size);
+            if (copy_size) {
+                memcpy(p,d,copy_size);
+                d += copy_size;
+                p += copy_size;
+                d_size -= copy_size;
+            } else {
+                rte_mbuf_set_as_core_local(m);
+                mbuf_fill = m; // filled data reference mbuf
+            }
+            for (auto i = 0; i < (alloc_size-copy_size); i++ ) {
+                *p = (f_size>0) ? f[cnt%f_size]: cnt;
+                cnt++;
+                p++;
+            }
+        } else if (alloc_size == blk_size) {
+            m = mbuf_fill;
+            rte_mbuf_refcnt_update(m, 1);
+        } else {
+            m = tcp_pktmbuf_alloc_small(socket);
+            assert(m);
+            rte_mbuf_set_as_core_local(m);
+            rte_pktmbuf_attach(m, mbuf_fill);
+            rte_pktmbuf_trim(m, blk_size-alloc_size);
+        }
+        CMbufObject obj;
+        obj.m_type =MO_CONST;
+        obj.m_mbuf=m;
+
+        buf->Add_mbuf(obj);
+        size-=alloc_size;
+    }
+    return(0);
+}
+
+
 int utl_mbuf_buffer_create_and_fill(uint8_t socket,
                                     CMbufBuffer * buf,
                                     uint32_t blk_size,
