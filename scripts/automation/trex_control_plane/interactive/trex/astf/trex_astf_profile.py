@@ -63,12 +63,17 @@ class ASTFCmd(object):
 
 
 class ASTFCmdTxPkt(ASTFCmd):
-    def __init__(self, buf):
+    def __init__(self, buf, size=0, fill=None):
         super(ASTFCmdTxPkt, self).__init__()
         self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx_msg'
         self.fields['buf_index'] = -1
         self.buffer_len = len(buf)  # buf len before decode
+        if size > len(buf):
+            self._buf = { "base": self._buf, "size": size }
+            if fill is not None:
+                self._buf["fill"] = fill
+            self.buffer_len = size
         self.stream=False
         self.buffer=True;
 
@@ -94,12 +99,17 @@ class ASTFCmdTxPkt(ASTFCmd):
 
 
 class ASTFCmdSend(ASTFCmd):
-    def __init__(self, buf):
+    def __init__(self, buf, size=0, fill=None):
         super(ASTFCmdSend, self).__init__()
         self._buf = base64.b64encode(buf).decode()
         self.fields['name'] = 'tx'
         self.fields['buf_index'] = -1
         self.buffer_len = len(buf)  # buf len before decode
+        if size > len(buf):
+            self._buf = { "base": self._buf, "size": size }
+            if fill is not None:
+                self._buf["fill"] = fill
+            self.buffer_len = size
         self.stream=True
         self.buffer=True;
 
@@ -381,7 +391,7 @@ class ASTFProgram(object):
             raise ASTFError("If buf is a string, it must contain only ascii")
 
 
-    def send_msg (self, buf):
+    def send_msg (self, buf, size=0, fill=None):
         """
         send UDP message (buf) 
 
@@ -393,6 +403,10 @@ class ASTFProgram(object):
         :parameters:
                   buf : string
                      l7 stream as string 
+                  size : uint32_t
+                     total size of l7 stream, effective only when size > len(buf).
+                  fill : string
+                     l7 stream filled by string, only if size is effective.
 
         """
         ver_args = {"types":
@@ -403,7 +417,7 @@ class ASTFProgram(object):
         # we support bytes or ascii strings
         enc_buf=self._c_b (buf)
 
-        cmd = ASTFCmdTxPkt(enc_buf)
+        cmd = ASTFCmdTxPkt(enc_buf, size, fill)
         self.total_send_bytes += cmd.buf_len
         cmd.index = None
         self.fields['commands'].append(cmd)
@@ -476,7 +490,7 @@ class ASTFProgram(object):
             self.total_rcv_bytes = 0
 
 
-    def send(self, buf):
+    def send(self, buf, size=0, fill=None):
         """
         send (l7_buffer) over TCP and wait for the buffer to be acked by peer. Rx side could work in parallel
 
@@ -494,17 +508,23 @@ class ASTFProgram(object):
         :parameters:
                   buf : string
                      l7 stream as string 
+                  size : uint32_t
+                     total size of l7 stream, effective only when size > len(buf).
+                  fill : string
+                     l7 stream filled by string, only if size is effective.
 
         """
 
         ver_args = {"types":
-                    [{"name": "buf", 'arg': buf, "t": [bytes, str]}]
+                    [ {"name": "buf", 'arg': buf, "t": [bytes, str]},
+                      {"name": "size", 'arg': size, "t": int, "must": False}
+                    ]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         # we support bytes or ascii strings
         enc_buf=self._c_b (buf)
-        cmd = ASTFCmdSend(enc_buf)
+        cmd = ASTFCmdSend(enc_buf, size, fill)
         self.total_send_bytes += cmd.buf_len
         cmd.index = None
         self.fields['commands'].append(cmd)
@@ -1930,7 +1950,7 @@ class ASTFProgramCache(object):
 
     @staticmethod
     def commands_hash(cmd):
-        return cmd.buf
+        return cmd.buf if type(cmd.buf) is not dict else tuple(cmd.buf.items())
 
     def __init__(self):
         self.buf_list = BufferList(hash_function = ASTFProgramCache.commands_hash)
