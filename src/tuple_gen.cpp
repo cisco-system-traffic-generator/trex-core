@@ -348,7 +348,7 @@ bool CTupleGenYamlInfo::find_port(uint32_t ip_start, uint32_t ip_end, uint8_t &p
 }
 
 void CTupleGenPoolYaml::Dump(FILE *fd){
-    fprintf(fd," Pool %s:\n", (m_name.size() == 0) ? "default":m_name.c_str());
+    fprintf(fd," Pool %s:\n", m_name.c_str());
     fprintf(fd,"  dist           : %d \n",m_dist);
     fprintf(fd,"  IPs            : %s - %s \n",ip_to_str(m_ip_start).c_str(), ip_to_str(m_ip_end).c_str());
     fprintf(fd,"  dual_port_mask : %s \n",ip_to_str(m_dual_interface_mask).c_str());
@@ -356,18 +356,29 @@ void CTupleGenPoolYaml::Dump(FILE *fd){
     fprintf(fd,"  min clients    : %d  \n",m_min_clients);
     fprintf(fd,"  tcp aging      : %d sec \n",m_tcp_aging_sec);
     fprintf(fd,"  udp aging      : %d sec \n",m_udp_aging_sec);
+    fprintf(fd,"  split to ports : %d \n", m_split_to_ports);
 }
 
 bool CTupleGenPoolYaml::is_valid(uint32_t num_threads,bool is_plugins){
     if ( m_ip_start > m_ip_end ){
-        printf(" ERROR The ip_start must be bigger than ip_end \n");
+        printf(" ERROR In pool %s, ip_start is bigger than ip_end \n", m_name.c_str());
         return(false);
     }
     
-    uint32_t ips= (m_ip_end - m_ip_start +1);
-    if ( ips < num_threads ) {
-        printf(" ERROR The number of ips should be at least number of threads %d \n",num_threads);
-        return (false);
+    uint32_t ips = getTotalIps();
+    if ( m_split_to_ports ) {
+        if ( ips < num_threads ) {
+            printf(" ERROR In pool %s, the number of ips is %d. Should be at least number of threads (%d) \n",
+                    m_name.c_str(), ips, num_threads);
+            return (false);
+        }
+    } else {
+        uint32_t threads_per_dual_if = num_threads / CGlobalInfo::m_options.get_expected_dual_ports();
+        if ( ips < threads_per_dual_if ) {
+            printf(" ERROR In pool %s, the number of ips is %d. Should be at least number of threads per dual interface (%d) \n",
+                    m_name.c_str(), ips, threads_per_dual_if);
+            return (false);
+        }
     }
 
     if (ips > MAX_CLIENTS) {
@@ -405,6 +416,14 @@ void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
     UTL_YAML_READ_NO_MSG(uint16, udp_aging, fi.m_udp_aging_sec);
 }
 
+void get_split_to_ports(const YAML::Node &node, CTupleGenPoolYaml &fi) {
+    if (node.FindValue("split_to_ports")) {
+        node["split_to_ports"] >> fi.m_split_to_ports;
+    } else {
+        fi.m_split_to_ports = true;
+    }
+}
+
 void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     if (node.FindValue("name")) {
         node["name"] >> fi.m_name;
@@ -421,7 +440,8 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
     fi.m_number_of_clients_per_gb = 0;
     fi.m_min_clients = 0;
     fi.m_is_bundling = false;
-    fi.m_per_core_distro =false;
+    fi.m_per_core_distro = false;
+    get_split_to_ports(node, fi);
     fi.m_tcp_aging_sec = 0;
     fi.m_udp_aging_sec = 0;
     fi.m_dual_interface_mask = 0;
@@ -430,6 +450,7 @@ void operator >> (const YAML::Node& node, CTupleGenPoolYaml & fi) {
         node["track_ports"] >> fi.m_is_bundling;
     }
 }
+
 void copy_global_pool_para(CTupleGenPoolYaml & src, CTupleGenPoolYaml & dst) {
     if (src.m_number_of_clients_per_gb == 0)
         src.m_number_of_clients_per_gb = dst.m_number_of_clients_per_gb;
@@ -450,6 +471,8 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     CTupleGenPoolYaml s_pool;
     
     if (node.FindValue("distribution")) {
+        c_pool.m_name = "default";
+        s_pool.m_name = "default";
         c_pool.m_dist = convert_distribution(node); 
         s_pool.m_dist = c_pool.m_dist;
         UTL_YAML_READ(ip_addr, clients_start, c_pool.m_ip_start);
@@ -459,7 +482,9 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
         read_tuple_para(node, c_pool);
         s_pool.m_dual_interface_mask = c_pool.m_dual_interface_mask;
         s_pool.m_is_bundling = false;
-        s_pool.m_per_core_distro =false;
+        s_pool.m_per_core_distro = false;
+        get_split_to_ports(node, c_pool);
+        get_split_to_ports(node, s_pool);
         fi.m_client_pool.push_back(c_pool);
         fi.m_server_pool.push_back(s_pool);
     } else {
