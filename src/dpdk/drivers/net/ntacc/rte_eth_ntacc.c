@@ -89,25 +89,6 @@ struct supportedDriver_s supportedDriver = {3, 11, 0};
 #define PCI_VENDOR_ID_INTEL          0x8086
 #define PCIE_DEVICE_ID_PF_DSC_1_X    0x09C4
 
-struct supportedAdapters_s supportedAdapters[NB_SUPPORTED_FPGAS] =
-{
-  { 200, 9500, 9, 8, 0 },
-  { 200, 9501, 9, 8, 0 },
-  { 200, 9502, 9, 8, 0 },
-  { 200, 9503, 9, 8, 0 },
-  { 200, 9505, 9, 8, 0 },
-  { 200, 9512, 9, 8, 0 },
-  { 200, 9515, 9, 8, 0 },
-  { 200, 9516, 9, 8, 0 },
-  { 200, 9517, 9, 8, 0 },
-  { 200, 9519, 10, 7, 0 },
-  { 200, 9523, 10, 7, 0 },
-  { 200, 7000, 12, 0, 0 },
-  { 200, 7001, 12, 0, 0 },
-  { 200, 9521, 18, 11, 0 },
-  { 200, 9526, 18, 10, 0 },
-};
-
 static void *_libnt;
 
 /* NTAPI library functions */
@@ -322,13 +303,14 @@ static int eth_ntacc_rx_jumbo(struct rte_mempool *mb_pool,
   struct rte_mbuf *m = mbuf;
 
   /* Copy the first segment. */
-  uint16_t len = rte_pktmbuf_tailroom(mbuf);
+  uint16_t len = RTE_MIN(rte_pktmbuf_tailroom(mbuf), data_len);
   uint16_t total_len = data_len;
 
   rte_memcpy((u_char *)mbuf->buf_addr + mbuf->data_off, data, len);
   data_len -= len;
   data += len;
   mbuf->pkt_len = total_len;
+  mbuf->data_len = len;
 
   while (data_len > 0) {
     /* Allocate next mbuf and point to that. */
@@ -1373,6 +1355,9 @@ static int eth_link_update(struct rte_eth_dev *dev,
     break;
   case NT_LINK_SPEED_10G:
     dev->data->dev_link.link_speed = ETH_SPEED_NUM_10G;
+    break;
+  case NT_LINK_SPEED_25G:
+    dev->data->dev_link.link_speed = ETH_SPEED_NUM_25G;
     break;
   case NT_LINK_SPEED_40G:
     dev->data->dev_link.link_speed = ETH_SPEED_NUM_40G;
@@ -2751,6 +2736,7 @@ enum property_type_s {
   ZERO_COPY_TX,
   RX_SEGMENT_SIZE,
   TX_SEGMENT_SIZE,
+	NT_4GENERATION,
 };
 
 static int _readProperty(uint8_t adapterNo, enum property_type_s type, int *pValue)
@@ -2785,6 +2771,9 @@ static int _readProperty(uint8_t adapterNo, enum property_type_s type, int *pVal
   case TX_SEGMENT_SIZE:
     snprintf(pInfo->u.property.path, sizeof(pInfo->u.property.path), "ini.Adapter%d.HostBufferSegmentSizeTx", adapterNo);
     break;
+	case NT_4GENERATION:
+		snprintf(pInfo->u.property.path, sizeof(pInfo->u.property.path), "Adapter%d.FpgaGeneration", adapterNo);
+		break;
   default:
     rte_free(pInfo);
     return 0;
@@ -2819,6 +2808,7 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
   uint8_t offset = 0;
   uint8_t localPort = 0;
   struct version_s version;
+  int value;
 
   pInfo = (NtInfo_t *)rte_malloc(internals->name, sizeof(NtInfo_t), 0);
   if (!pInfo) {
@@ -2906,44 +2896,17 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
 #endif
     PMD_NTACC_LOG(INFO, "Port: %u - %s\n", offset + localPort, name);
 
-    // Check if FPGA is supported
-    for (i = 0; i < NB_SUPPORTED_FPGAS; i++) {
-      if (supportedAdapters[i].item == pInfo->u.port_v7.data.adapterInfo.fpgaid.s.item &&
-          supportedAdapters[i].product == pInfo->u.port_v7.data.adapterInfo.fpgaid.s.product) {
-        if (((supportedAdapters[i].ver * 100) + supportedAdapters[i].rev) >
-            ((pInfo->u.port_v7.data.adapterInfo.fpgaid.s.ver * 100) + pInfo->u.port_v7.data.adapterInfo.fpgaid.s.rev)) {
-          PMD_NTACC_LOG(ERR, "ERROR: NT adapter firmware %03d-%04d-%02d-%02d-%02d is not supported. The firmware must be %03d-%04d-%02d-%02d-%02d.\n",
-                  pInfo->u.port_v7.data.adapterInfo.fpgaid.s.item,
-                  pInfo->u.port_v7.data.adapterInfo.fpgaid.s.product,
-                  pInfo->u.port_v7.data.adapterInfo.fpgaid.s.ver,
-                  pInfo->u.port_v7.data.adapterInfo.fpgaid.s.rev,
-                  pInfo->u.port_v7.data.adapterInfo.fpgaid.s.build,
-                  supportedAdapters[i].item,
-                  supportedAdapters[i].product,
-                  supportedAdapters[i].ver,
-                  supportedAdapters[i].rev,
-                  supportedAdapters[i].build);
-          iRet = NT_ERROR_NTPL_FILTER_UNSUPP_FPGA;
-          goto error;
-        }
-        break;
-      }
-    }
+		// Check if adapter is supported
+		if ((status = _readProperty(pInfo->u.port_v7.data.adapterNo, NT_4GENERATION, &value)) != 0) {
+			iRet = status;
+			goto error;
+		}
+		if (value != 4) {
+			PMD_NTACC_LOG(ERR, "ERROR: Adapter is not support. It must be a Napatech 4Generation adapterd\n");
+			iRet = NT_ERROR_ADAPTER_NOT_SUPPORTED;
+			goto error;
+		}
 
-    if (i == NB_SUPPORTED_FPGAS) {
-      // No matching adapter is found
-      PMD_NTACC_LOG(ERR, ">>> ERROR: Not supported NT adapter is found. Following adapters are supported:\n");
-      for (i = 0; i < NB_SUPPORTED_FPGAS; i++) {
-        PMD_NTACC_LOG(ERR, "           %03d-%04d-%02d-%02d-%02d\n",
-                supportedAdapters[i].item,
-                supportedAdapters[i].product,
-                supportedAdapters[i].ver,
-                supportedAdapters[i].rev,
-                supportedAdapters[i].build);
-      }
-      iRet = NT_ERROR_NTPL_FILTER_UNSUPP_FPGA;
-      goto error;
-    }
     if (RTE_ETHDEV_QUEUE_STAT_CNTRS > (256 / nbPortsInSystem)) {
       PMD_NTACC_LOG(ERR, ">>> Error: This adapter can only support %u queues\n", STREAMIDS_PER_PORT);
       PMD_NTACC_LOG(ERR, "           Set RTE_ETHDEV_QUEUE_STAT_CNTRS to %u or less\n", STREAMIDS_PER_PORT);
@@ -3034,6 +2997,9 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
     case NT_LINK_SPEED_10G:
       pmd_link.link_speed = ETH_SPEED_NUM_10G;
       break;
+    case NT_LINK_SPEED_25G:
+      pmd_link.link_speed = ETH_SPEED_NUM_25G;
+      break;
     case NT_LINK_SPEED_40G:
       pmd_link.link_speed = ETH_SPEED_NUM_40G;
       break;
@@ -3094,7 +3060,6 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
       internals->keyMatcher = 1;
     }
     else {
-      int value;
       // Check the capability of the adapter/port
       // Do we have the key matcher
       if ((status = _readProperty(pInfo->u.port_v7.data.adapterNo, KEY_MATCH, &value)) != 0) {

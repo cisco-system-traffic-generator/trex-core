@@ -256,9 +256,6 @@ struct externalBufferInfo_s {
 };
 #endif
 
-
-#define NB_SUPPORTED_FPGAS 16
-
 int DoNtpl(const char *ntplStr, uint32_t *pNtplID, struct pmd_internals *internals, struct rte_flow_error *error);
 
 extern int ntacc_logtype;
