@@ -148,7 +148,6 @@ static struct {
   struct pmd_internals *pInternals;
 } _PmdInternals[RTE_MAX_ETHPORTS];
 
-
 /**
  * Log nt errors (Napatech adapter errors)
  *
