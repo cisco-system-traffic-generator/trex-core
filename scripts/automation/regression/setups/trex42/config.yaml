@@ -8,5 +8,5 @@ trex:
   hostname       : SuperBK
   cores          : 4
   astf_cores     : 1
-  modes          : ['loopback', 'dummy']
+  modes          : ['loopback']
 
