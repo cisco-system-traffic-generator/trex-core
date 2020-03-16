@@ -6,80 +6,78 @@
 
 
 test_short_flow:
-    multiplier          : 20000
-    cores               : 7
+    multiplier          : 2000
+    cores               : 4
     bw_per_core         : 1000
 
 test_short_flow_high_active:
-    multiplier          : 20000
-    cores               : 7
+    multiplier          : 2000
+    cores               : 4
     bw_per_core         : 1000
-    active_flows        : 4000000
+    active_flows        : 400000
 
 test_short_flow_high_active2:
-    multiplier          : 10000
-    cores               : 7
+    multiplier          : 2000
+    cores               : 4
     bw_per_core         : 1000
-    active_flows        : 4000000
+    active_flows        : 400000
 
 
 test_jumbo:
-    multiplier          : 100
-    cores               : 10
-    bw_per_core         : 962.464
+    multiplier          : 1
+    cores               : 1
+    bw_per_core         : 443.970
 
 
 test_routing_imix:
-    multiplier          : 80
-    cores               : 10
-    bw_per_core         : 48.130
+    multiplier          : 4
+    cores               : 1
+    bw_per_core         : 26.509
 
 
 test_routing_imix_64:
-    multiplier          : 4000
-    cores               : 10
-    bw_per_core         : 12.699
+    multiplier          : 60
+    cores               : 1
+    bw_per_core         : 6.391
 
 
 test_static_routing_imix_asymmetric:
-    multiplier          : 100
-    cores               : 10
-    bw_per_core         : 50.561
+    multiplier          : 3.2
+    cores               : 1
+    bw_per_core         : 28.229
 
 
 test_ipv6_simple:
-    multiplier          : 50
-    cores               : 5
-    bw_per_core         : 19.5
+    multiplier          : 6
+    cores               : 1
+    bw_per_core         : 19.185
 
 
 test_rx_check_http: &rx_http
-    multiplier          : 180000
-    cores               : 10
-    rx_sample_rate      : 128
-    bw_per_core         : 49.464
-    error_tolerance     : 5
+    multiplier          : 8800
+    cores               : 1
+    rx_sample_rate      : 16
+    bw_per_core         : 31.389
 
 test_rx_check_http_ipv6:
     <<                  : *rx_http
-    bw_per_core         : 49.237
+    bw_per_core         : 37.114
 
 test_rx_check_sfr: &rx_sfr
-    multiplier          : 70
-    cores               : 10
-    rx_sample_rate      : 128
-    bw_per_core         : 20.871
-    error_tolerance     : 5
+    multiplier          : 3.2
+    cores               : 1
+    rx_sample_rate      : 16
+    bw_per_core         : 16.063
 
 test_rx_check_sfr_ipv6:
     <<                  : *rx_sfr
-    bw_per_core         : 19.198
+    bw_per_core         : 19.663
 
 
 ############### ASTF ################
 
 test_tcp_http : &tcp_http
-    multiplier          : 20000
+    multiplier          : 200
     cores               : 1
     bw_per_core         : 25
     bypass_result       : 1
@@ -89,7 +87,7 @@ test_ipv6_tcp_http :
     bw_per_core         : 20
 
 test_tcp_sfr :
-    multiplier          : 20
+    multiplier          : 2
     cores               : 1
     bw_per_core         : 20
 
@@ -220,8 +218,8 @@ test_CPU_benchmark:
 
 test_performance_syn_attack_multi_cpus:
     cfg:
-        core_count             : 10
-        mult                   : "25%"
+        core_count             : 4
+        mult                   : "40%"
         mpps_per_core_golden   : # avg 7.6
                                   min: 6.6
                                   max: 8.6
@@ -229,7 +227,7 @@ test_performance_syn_attack_multi_cpus:
 
 test_performance_syn_attack_single_cpu:
      cfg:
-        mult                    : "2.5%"
+        mult                    : "40%"
         mpps_per_core_golden    : # avg 8
                                   min: 7
                                   max: 9
@@ -237,8 +235,8 @@ test_performance_syn_attack_single_cpu:
 
 test_performance_vm_multi_cpus:
     cfg:
-        core_count             : 10
-        mult                   : "25%"
+        core_count             : 4
+        mult                   : "40%"
         mpps_per_core_golden   : # avg 9
                                   min: 8
                                   max: 10
@@ -246,8 +244,8 @@ test_performance_vm_multi_cpus:
 
 test_performance_vm_multi_cpus_cached:
     cfg:
-        core_count             : 10
-        mult                   : "50%"
+        core_count             : 4
+        mult                   : "40%"
         mpps_per_core_golden   : # avg 16
                                   min: 13
                                   max: 17
@@ -255,7 +253,8 @@ test_performance_vm_multi_cpus_cached:
 
 test_performance_vm_single_cpu:
     cfg:
-        mult                    : "2.5%"
+        core_count              : 4
+        mult                    : "40%"
         mpps_per_core_golden    : # avg 9.7
                                    min: 8.7
                                    max: 10.7
@@ -263,7 +262,8 @@ test_performance_vm_single_cpu:
 
 test_performance_vm_single_cpu_cached:
     cfg:
-        mult                    : "5%"
+        core_count              : 4
+        mult                    : "40%"
         mpps_per_core_golden    : # avg 16.4, sometimes 13...
                                    min: 12.4
                                    max: 17.4
