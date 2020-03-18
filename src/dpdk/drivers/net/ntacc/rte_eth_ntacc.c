@@ -89,6 +89,11 @@ struct supportedDriver_s supportedDriver = {3, 11, 0};
 #define PCI_VENDOR_ID_INTEL          0x8086
 #define PCIE_DEVICE_ID_PF_DSC_1_X    0x09C4
 
+// for backward  compatible 
+#ifndef NT_LINK_SPEED_25G
+#define NT_LINK_SPEED_25G 25
+#endif
+
 static void *_libnt;
 
 /* NTAPI library functions */
