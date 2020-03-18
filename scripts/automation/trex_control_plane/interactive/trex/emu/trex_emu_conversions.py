@@ -4,13 +4,82 @@ from trex.utils.common import compress_ipv6
 
 import socket
 
-# taken from emu server RPC
-IPV4_TYPES = {'ipv4', 'ipv4_dg'}
-IPV6_TYPES = {'ipv6', 'dg_ipv6', 'dhcp_dg_ipv6', 'prefix'}
-MAC_TYPES  = {'mac', 'dmac', 'dgmac', 'rmac', 'ipv4_force_mac', 'ipv6_force_mac'}
+EMPTY_IPV4 = '0.0.0.0'
+EMPTY_IPV6 = '::'
+EMPTY_MAC = '00:00:00:00:00:00'
 
-# these keys are struct
-STRUCTURED_KEYS = {'ipv6_router','ipv6_dgw', 'dgw'}
+##############################
+# KEYS AND HEADERS META-DATA #
+##############################
+# key: key name
+# header: header name
+# empty_val: empty value(will not be shown if all col is empty)
+# type: type of the record, used in conversion to/from bytes i.e: ipv4, ipv6, mac..
+# relates: will be shown only if this tag will be passed to print function
+# hide_from_table: will not show the record, default is False.
+
+CLIENT_KEYS_AND_HEADERS = [
+            # ipv4
+            {'key': 'ipv4'    , 'header': 'IPv4' , 'empty_val': EMPTY_IPV4, 'type': 'ipv4'},
+            {'key': 'ipv4_dg' , 'header': 'DG-IPv4', 'empty_val': EMPTY_IPV4, 'type': 'ipv4'},
+            {'key': 'ipv4_mtu', 'header': 'MTU' , 'empty_val': 0, 'key_dependent': ['ipv4', 'ipv4_dg']},
+            
+            # ipv6
+            {'key': 'ipv6'      , 'header': 'IPv6', 'empty_val': EMPTY_IPV6, 'relates': 'ipv6', 'type': 'ipv6'},
+            {'key': 'dg_ipv6'   , 'header': 'DG-IPv6', 'empty_val': EMPTY_IPV6, 'relates': 'ipv6', 'type': 'ipv6'},
+            {'key': 'dhcp_ipv6' , 'header': 'DHCPv6', 'empty_val': EMPTY_IPV6, 'relates': 'ipv6', 'type': 'ipv6'},
+            {'key': 'ipv6_local', 'header': 'IPv6-Local', 'empty_val': EMPTY_IPV6, 'relates': 'ipv6', 'type': 'ipv6'},
+            {'key': 'ipv6_slaac', 'header': 'IPv6-Slaac', 'empty_val': EMPTY_IPV6, 'relates': 'ipv6', 'type': 'ipv6'},
+
+            # plugins
+            {'key': 'plug_names' , 'header': 'Plugins', 'empty_val': '', 'type': 'list_of_string'},
+
+            # forced
+            {'key': 'ipv4_force_dg', 'header': 'IPv4 Force DG' , 'empty_val': False},
+            {'key': 'ipv4_force_mac', 'header': 'IPv4 Force MAC' , 'empty_val': EMPTY_MAC, 'type': 'mac'},
+            {'key': 'ipv6_force_dg' , 'header': 'IPv6 Force DG', 'empty_val': False},
+            {'key': 'ipv6_force_mac', 'header': 'IPv6 Force MAC', 'empty_val': EMPTY_MAC, 'type': 'mac'},
+
+            # structured
+            {'key': 'dgw', 'header': '', 'type': 'structured', 'hide_from_table': True},
+            {'key': 'ipv6_router' , 'header': '', 'type': 'structured', 'hide_from_table': True},
+            {'key': 'ipv6_dgw', 'header': '', 'type': 'structured', 'hide_from_table': True},
+]
+
+DG_KEYS_AND_HEADERS = [
+    {'key': 'resolve', 'header': 'Resolve', 'empty_val': False},
+    {'key': 'rmac'   , 'header': 'Resolved-Mac', 'empty_val': EMPTY_MAC, 'type': 'mac'},
+]
+
+IPV6_ND_KEYS_AND_HEADERS = [
+    {'key': 'mtu'  , 'header': 'MTU', 'empty_val': 0},
+    {'key': 'dgmac', 'header': 'DG-MAC', 'empty_val': EMPTY_MAC, 'type': 'mac'},
+    {'key': 'prefix', 'header': 'Prefix', 'empty_val': EMPTY_IPV6, 'type': 'ipv6'},
+    {'key': 'prefix_len', 'header': 'Prefix Length', 'empty_val': 0},
+]
+
+ALL_KEYS_AND_HEADERS = CLIENT_KEYS_AND_HEADERS + DG_KEYS_AND_HEADERS + IPV6_ND_KEYS_AND_HEADERS
+
+
+def _get_keys_with_type(t):
+    return {record['key'] for record in ALL_KEYS_AND_HEADERS if record.get('type') == t}
+
+# taken from emu server RPC
+IPV4_TYPES = _get_keys_with_type('ipv4')
+IPV6_TYPES = _get_keys_with_type('ipv6')
+MAC_TYPES  = _get_keys_with_type('mac')
+
+# these keys are structs
+STRUCTURED_KEYS = _get_keys_with_type('structured') 
+
+# these keys are lists of strings
+LIST_OF_STR = _get_keys_with_type('list_of_string')
+
+# these keys are lists of hex
+LIST_OF_HEX = {'tpid'}
+
+# these keys will not be shown in case of zero values
+REMOVE_ZERO_VALS = {'tpid', 'tci'}
 
 TYPES_DICT = {'ipv4': {'delim': '.', 'pad_zeros': False, 'format_type': 'd'},
                 'mac': {'delim': ':', 'pad_zeros': True},
@@ -34,15 +103,33 @@ def conv_to_bytes(val, key):
         return val
 
 def conv_to_str(val, key):
+    
+    def _add_comma(lst):
+        return ', '.join(lst)
+
     if val is None:
-        return 'None'
+        return None
 
     val_type = _get_key_type(key)
+
+    if val_type in REMOVE_ZERO_VALS and all(v == 0 for v in val):
+        return None
+
     if val_type in TYPES_DICT.keys():
         val = _conv_to_str(val, val_type, **TYPES_DICT[val_type])
     elif val_type in STRUCTURED_KEYS:
         for k, v in val.items():
             val[k] = conv_to_str(v, k)
+
+    elif val_type in LIST_OF_STR:
+        sorted_list = sorted([str(v) for v in val])
+        val = _add_comma(sorted_list)
+    elif val_type in LIST_OF_HEX:
+        val = _add_comma([hex(v) for v in val])
+
+    # replace [data1, data2] -> data1, data2
+    if type(val) is list:
+        val = _add_comma([str(v) for v in val])
 
     return val
 

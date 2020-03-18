@@ -4,6 +4,7 @@ import string
 import random
 import time
 import socket
+import struct
 import re
 import cProfile, pstats
 
@@ -188,6 +189,16 @@ def int2ip(val):
 def ip2int(ip):
     return ipv4_str_to_num(is_valid_ipv4_ret(ip))
 
+def ipv62int(ip):
+    ''' Convert ipv6 to 2 numbers, 8 bytes each'''
+    ip = inet_pton(socket.AF_INET6, ip)
+    a, b =  struct.unpack("!QQ", ip)
+    return a, b
+
+def int2ipv6(a, b):
+    ''' Convert the two 8bytes numbers to IPv6 human readable string '''
+    return socket.inet_ntop(socket.AF_INET6, struct.pack('!QQ', a, b))
+
 def increase_mac(mac_str, val = 1):
     if ':' in mac_str:
         mac_str = mac2str(mac_str)
@@ -197,6 +208,12 @@ def increase_mac(mac_str, val = 1):
 def increase_ip(ip_str, val = 1):
     ip_val = ipv4_str_to_num(is_valid_ipv4_ret(ip_str))
     return int2ip((ip_val + val) % (1 << 32))
+
+def increase_ipv6(ipv6, val = 1):
+    ''' Increase `ipv6` address by `val`, notice this will increase only the lower 8 bytes. '''
+    assert is_valid_ipv6(ipv6)
+    a, b = ipv62int(ipv6)
+    return int2ipv6(a, b + val)
 
 # RFC 3513
 def generate_ipv6(mac_str, prefix = 'fe80'):

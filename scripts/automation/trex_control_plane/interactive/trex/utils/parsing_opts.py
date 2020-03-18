@@ -913,6 +913,20 @@ class OPTIONS_DB_ARGS:
          'dest': 'allow_bgp',
          'help': 'filter mode with bgp packets forward to rx'})
 
+    SERVICE_DHCP_FILTERED = ArgumentPack(
+        ['--dhcp'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_dhcp',
+         'help': 'filter mode with dhcpv4/dhcpv6 packets forward to rx'})
+
+    SERVICE_EMU_FILTERED = ArgumentPack(
+        ['--emu'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_emu',
+         'help': 'filter mode for all emu services rx'})
+
     SERVICE_NO_TCP_UDP_FILTERED = ArgumentPack(
         ['--no-tcp-udp'],
         {'action': 'store_true',
@@ -1084,9 +1098,8 @@ class OPTIONS_DB_ARGS:
          'required': False})
 
     MAX_CLIENT_RATE = ArgumentPack(
-        ['--max-rate'],
+        ['-m', '--max-rate'],
         {'dest': 'max_rate',
-         'default': 2048,
          'type': int,
          'help': "Max clients rate, clients per second"})
     
@@ -1115,12 +1128,34 @@ class OPTIONS_DB_ARGS:
          'min_val': 1, 'max_val': 255,
          'help': "Max namespaces to show each time"})
 
-    SHOW_IPV6 = ArgumentPack(
-        ['-6'],
+    SHOW_IPV6_DATA = ArgumentPack(
+        ['--6'],
         {'default': False,
          'dest': 'ipv6',
          'action': 'store_true',
-         'help': "Show ipv6"})
+         'help': "Show ipv6 information in table, i.e: IPv6 Local, IPv6 Slaac.."})
+
+    SHOW_IPV6_ROUTER = ArgumentPack(
+        ['--6-router'],
+        {'default': False,
+         'dest': 'ipv6_router',
+         'action': 'store_true',
+         'help': "Show ipv6 router table"})
+
+    SHOW_IPV4_DG = ArgumentPack(
+        ['--4-dg'],
+        {'default': False,
+         'dest': 'ipv4_dg',
+         'action': 'store_true',
+         'help': "Show ipv4 default gateway table"})
+
+    SHOW_IPV6_DG = ArgumentPack(
+        ['--6-dg'],
+        {'default': False,
+         'dest': 'ipv6_dg',
+         'action': 'store_true',
+         'help': "Show ipv6 default gateway table"})
+
 
     ARGPARSE_TUNABLES = ArgumentPack(
         ['-t', '--tunables'],
@@ -1128,6 +1163,13 @@ class OPTIONS_DB_ARGS:
          'type': str,
          'nargs': argparse.REMAINDER,
          'help': 'Sets tunables for a profile. -t MUST be the last flag. Example: "load_profile -f emu/simple_emu.py -t -h" to see tunables help'})
+
+    EMU_DRY_RUN_JSON = ArgumentPack(
+        ['-d', '--dry-run'],
+        {'default': False,
+         'action': 'store_true',
+         'dest': 'dry',
+         'help': 'Dry run, only prints profile as JSON'})
 
     #Emu Client Args
     MAC_ADDRESS = ArgumentPack(
@@ -1164,9 +1206,8 @@ class OPTIONS_DB_ARGS:
     # Emu counters args
     COUNTERS_TABLES = ArgumentPack(
         ['--tables'],
-        {'nargs': '+',
-         'type': str,
-         'help': 'Names of specific tables to show, i.e: --tables ctx mbuf-pool mbuf-1024..'})
+        {'type': str,
+         'help': 'Tables to show as a reg expression, i.e: --tables mbuf-*..'})
     
     COUNTERS_HEADERS = ArgumentPack(
         ['--headers'],
@@ -1197,15 +1238,17 @@ class OPTIONS_DB_ARGS:
         'help': 'Use all namespaces for the action'})
 
     # Plugins cfg args
-    CFG_ENABLE = ArgumentPack(
+    ARP_ENABLE = ArgumentPack(
         ['--enable'],
-        {'action': 'store_true',
-         'help': 'Enable the operation, running with no flag means disable'})
-    
+        {'choices': ON_OFF_DICT,
+         'required': True,
+         'help': 'Enable ARP'})
+
     ARP_GARP = ArgumentPack(
         ['--garp'],
-        {'action': 'store_true',
-         'help': 'Enable gratuitous ARP, running with no flag means disable'})
+        {'choices': ON_OFF_DICT,
+         'required': True,
+         'help': 'Enable gratuitous ARP'})
 
     MTU = ArgumentPack(
         ['--mtu'],
@@ -1215,21 +1258,35 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'help': 'Maximum transmission unit'})
 
-    IPV4_VEC = ArgumentPack(
-        ['-4'],
-        {'help': "IPv4 addresses",
-         'dest': 'ipv4',
-         'nargs': '+',
+    IPV4_START = ArgumentPack(
+        ['--4'],
+        {'help': "IPv4 start address",
+         'dest': 'ipv4_start',
          'required': True,
          'type': check_ipv4_addr})
 
-    IPV6_VEC = ArgumentPack(
-        ['-6'],
-        {'help': "IPv6 addresses",
-         'dest': 'ipv6',
-         'nargs': '+',
+    IPV4_COUNT = ArgumentPack(
+        ['--4-count'],
+        {'help': "Number of IPv4 addresses to generate from start",
+         'dest': 'ipv4_count',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    IPV6_START = ArgumentPack(
+        ['--6'],
+        {'help': "IPv6 start address",
+         'dest': 'ipv6_start',
          'required': True,
          'type': check_ipv6_addr})
+
+    IPV6_COUNT = ArgumentPack(
+        ['--6-count'],
+        {'help': "Number of IPv6 addresses to generate from start",
+         'dest': 'ipv6_count',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1389,7 +1446,16 @@ class OPTIONS_DB_GROUPS:
             SHOW_MAX_CLIENTS,
             SHOW_MAX_NS,
         ],{})
- 
+
+    EMU_SHOW_CLIENT_OPTIONS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SHOW_IPV6_DATA,
+            SHOW_IPV6_ROUTER,
+            SHOW_IPV4_DG,
+            SHOW_IPV6_DG 
+        ],{})
+
     EMU_SHOW_CNT_GLOBAL_GROUP = ArgumentGroup(
         NON_MUTEX,
         [

@@ -77,30 +77,53 @@ CRxCoreErrCntrs::CRxCoreErrCntrs() {
     reset();
 }
 
-uint64_t CRxCoreErrCntrs::get_bad_header() {
-    return m_bad_header;
+#define ADD_CNT(f)  { if (m_##f) {(*data_section)[#f] = Json::Value::UInt64(m_##f);  } } 
+#define PLUS_CNT(f)  { this->m_##f += in.m_##f;}
+
+void CRxCoreErrCntrs::ToJson(Json::Value *data_section){
+    ADD_CNT(bad_header);
+    ADD_CNT(old_flow);
+    ADD_CNT(ezmq_tx_to_emu);
+    ADD_CNT(ezmq_tx_to_emu_err);
+    ADD_CNT(ezmq_tx_to_emu_restart);
+    ADD_CNT(ezmq_tx_fe_dropped_no_mbuf);
+    ADD_CNT(ezmq_tx_fe_wrong_vport);
+    ADD_CNT(ezmq_tx_fe_err_send);
+    ADD_CNT(ezmq_tx_fe_ok_send);
+    ADD_CNT(ezmq_rx_fe_err_buffer_len_high);
+    ADD_CNT(ezmq_rx_fe_err_len_zero);
 }
 
-uint64_t CRxCoreErrCntrs::get_old_flow() {
-    return m_old_flow;
-}
 
 void CRxCoreErrCntrs::reset() {
-        m_bad_header = 0;
-        m_old_flow = 0;
+    m_bad_header = 0;
+    m_old_flow = 0;
+    m_ezmq_tx_to_emu =0;
+    m_ezmq_tx_to_emu_err =0;
+    m_ezmq_tx_to_emu_restart =0;
+    m_ezmq_tx_fe_dropped_no_mbuf =0;
+    m_ezmq_tx_fe_wrong_vport =0;
+    m_ezmq_tx_fe_err_send =0;
+    m_ezmq_tx_fe_ok_send =0;
+    m_ezmq_rx_fe_err_buffer_len_high =0;
+    m_ezmq_rx_fe_err_len_zero =0;
 }
 
 CRxCoreErrCntrs CRxCoreErrCntrs::operator+= (const CRxCoreErrCntrs& in) {
-    this->m_bad_header += in.m_bad_header;
-    this->m_old_flow += in.m_old_flow;
+    PLUS_CNT(bad_header);
+    PLUS_CNT(old_flow);
+    PLUS_CNT(ezmq_tx_to_emu);
+    PLUS_CNT(ezmq_tx_to_emu_err);
+    PLUS_CNT(ezmq_tx_to_emu_restart);
+    PLUS_CNT(ezmq_tx_fe_dropped_no_mbuf);
+    PLUS_CNT(ezmq_tx_fe_wrong_vport);
+    PLUS_CNT(ezmq_tx_fe_err_send);
+    PLUS_CNT(ezmq_tx_fe_ok_send);
+    PLUS_CNT(ezmq_rx_fe_err_buffer_len_high);
+    PLUS_CNT(ezmq_rx_fe_err_len_zero);
     return *this;
 }
 
-std::ostream& operator<<(std::ostream& os, const CRxCoreErrCntrs& in) {
-    os << "m_bad_header = " << in.m_bad_header << std::endl;
-    os << "m_old_flow = " << in.m_old_flow << std::endl;
-    return os;
-}
 
 /**************************************
  * RXLatency

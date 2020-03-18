@@ -2043,8 +2043,10 @@ files_list=[
             'dpdk_setup_ports.py',
             'doc_process.py',
             'trex_daemon_server',
+            'trex-emu',
             'scapy_daemon_server',
             'pybird_daemon_server',
+            'emu_daemon_server',
             'master_daemon.py',
             'astf_schema.json',
             'trex-console',
@@ -2052,7 +2054,7 @@ files_list=[
             'ndr'
             ];
 
-pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp','trex_emu','emu']
 pkg_exclude = ['*.pyc', '__pycache__']
 pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
@@ -2164,7 +2166,9 @@ def release(ctx, custom_dir = None):
         src_file =  '../scripts/'+obj
         dest_file = exec_p +'/'+obj
         os.system("cp %s %s " %(src_file,dest_file));
-
+    
+    os.system("chmod 755 %s " % (exec_p +'/trex-emu'));
+    
     exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
     fix_pkg_include(bld)
     for obj in pkg_include:

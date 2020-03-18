@@ -24,6 +24,12 @@ from ..utils.common import  is_valid_ipv4, is_valid_ipv6
 from ..utils.text_opts import format_text
 from ..astf.trex_astf_exceptions import ASTFErrorBadTG
 
+## Filtered Service Mode Mask ##
+NO_MASK         = 0
+NO_TCP_UDP_MASK = 1
+BGP_MASK        = 2
+DHCP_MASK       = 4
+
 astf_states = [
     'STATE_IDLE',
     'STATE_ASTF_LOADED',
@@ -1302,6 +1308,8 @@ class ASTFClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "service",
                                          self.service_line.__doc__,
+                                         parsing_opts.SERVICE_DHCP_FILTERED,
+                                         parsing_opts.SERVICE_EMU_FILTERED,
                                          parsing_opts.SERVICE_BGP_FILTERED,
                                          parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
                                          parsing_opts.SERVICE_ALL_FILTERED,
@@ -1309,13 +1317,19 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(line.split())
         # build filter mask
-        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
+        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all or opts.allow_emu or opts.allow_dhcp
+        mask =0
         if filtered:
+            if opts.allow_dhcp:
+                mask |= DHCP_MASK
+            if opts.allow_emu:
+                mask |= ( DHCP_MASK | NO_TCP_UDP_MASK )
             if opts.allow_all:
-                mask = 3
-            else:
-                mask = 1 if opts.allow_no_tcp_udp else 0
-                mask = mask | 2 if opts.allow_bgp else mask
+                mask = ( DHCP_MASK | NO_TCP_UDP_MASK | BGP_MASK )
+            if opts.allow_bgp:
+                mask |= BGP_MASK
+            if opts.allow_no_tcp_udp:
+                mask |= NO_TCP_UDP_MASK
         else:
             mask = None
         enabled = False if filtered else opts.enabled

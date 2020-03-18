@@ -65,6 +65,7 @@ protected:
      
     CRxCore() {
         m_is_active = false;
+        m_ex_zmq_enabled = false;
     }
     ~CRxCore();
     
@@ -158,6 +159,15 @@ protected:
     uint32_t handle_msg_packets(void);
     uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing *r);
 
+    void  delete_zmq();
+
+    void  create_zmq();
+    
+    void restart_zmq();
+
+
+    bool  create_zmq(void *   &socket,std::string port);
+
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
 
     bool periodic_check_for_cp_messages();
@@ -215,5 +225,18 @@ protected:
 
     /* accessed from control core */
     volatile bool    m_is_active;
+
+    void *          m_zmq_ctx;
+    
+    void *          m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
+
+    void *          m_zmq_tx_socket; // // in respect to TRex interface (emu->tx)
+
+    CZmqPacketWriter  m_zmq_wr;
+
+    CZmqPacketReader  m_zmq_rd;
+
+    bool              m_ex_zmq_enabled;
+
 };
 #endif

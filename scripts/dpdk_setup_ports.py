@@ -763,6 +763,12 @@ Other network devices
                 print("Could not start bird_server\nIf you don't need it, don't use --bird-server flag.")
                 sys.exit(-1)
         
+        if pa().emu:
+            ret = os.system('%s emu_daemon_server restart' % sys.executable)
+            if ret:
+                print("Could not start emu service\nIf you don't need it, don't use -emu flag.")
+                sys.exit(-1)
+        
         
 
     # check vdev Linux interfaces status
@@ -1380,6 +1386,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--no-ofed-check', action = 'store_true')
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--bird-server', action = 'store_true', default=False)
+    parent_parser.add_argument('--emu', action = 'store_true', default=False)
     parent_parser.add_argument('--scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')
@@ -1543,13 +1550,21 @@ def kill_pybird():
         if ret:
             print("Could not stop bird daemon server.")
             sys.exit(-1)
-   
+
+def kill_emu():
+        ret = os.system('%s emu_daemon_server stop' % sys.executable)
+        if ret:
+            print("Could not stop bird daemon server.")
+            sys.exit(-1)
+
 def cleanup_servers():
     ''' cleanup scapy and bird servers '''
     if should_scapy_server_run():
         kill_scapy()
     if pa().bird_server:
         kill_pybird()
+    if pa().emu:
+        kill_emu()
 
 
 def main ():
