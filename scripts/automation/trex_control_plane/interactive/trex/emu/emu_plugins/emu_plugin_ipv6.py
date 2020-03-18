@@ -6,6 +6,7 @@ class IPV6Plugin(EMUPluginBase):
     '''Defines ipv6 plugin'''
 
     plugin_name = 'IPV6'
+    IPV6_STATES = {16: 'Learned', 17: 'Incomplete', 18: 'Complete', 19: 'Refresh'}
 
     def __init__(self, emu_client):
         super(IPV6Plugin, self).__init__(emu_client, 'ipv6_ns_cnt')
@@ -20,11 +21,15 @@ class IPV6Plugin(EMUPluginBase):
         return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
     
     @client_api('command', True)
-    def add_mld(self, port, vlan, tpid, ipv6_vec):
+    def add_mld(self, port, vlan, tpid, ipv6_start, ipv6_count):
+        ipv6_vec = self.create_ip_vec(ipv6_start, ipv6_count, 'ipv6')
+        ipv6_vec = [conv_to_bytes(ip, 'ipv6') for ip in ipv6_vec]
         return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_add', port, vlan, tpid, vec = ipv6_vec)
 
     @client_api('command', True)
-    def remove_mld(self, port, vlan, tpid, ipv6_vec):
+    def remove_mld(self, port, vlan, tpid, ipv6_start, ipv6_count):
+        ipv6_vec = self.create_ip_vec(ipv6_start, ipv6_count, 'ipv6')
+        ipv6_vec = [conv_to_bytes(ip, 'ipv6') for ip in ipv6_vec]
         return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = ipv6_vec)
 
     @client_api('command', True)
@@ -32,11 +37,21 @@ class IPV6Plugin(EMUPluginBase):
         params = conv_ns_for_tunnel(port, vlan, tpid)
         return self.emu_c.get_n_items(cmd = 'ipv6_mld_ns_iter', amount = ipv6_amount, **params)
 
+    @client_api('command', True)
+    def remove_all_mld(self, port, vlan, tpid):
+        mlds = self.iter_mld(port, vlan, tpid)
+        mlds = [m['ipv6'] for m in mlds if m['management']]
+        if mlds:
+            self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = mlds)
+
     @client_api('getter', True)
     def show_cache(self, port, vlan, tpid):
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        return self.emu_c.get_n_items(cmd = 'ipv6_nd_ns_iter', **params)
-
+        res = self.emu_c.get_n_items(cmd = 'ipv6_nd_ns_iter', **params)
+        for r in res:
+            if 'state' in r:
+                r['state'] = IPV6Plugin.IPV6_STATES.get(r['state'], 'Unknown state')
+        return res
 
     # Plugins methods
     @plugin_api('ipv6_show_counters', 'emu')
@@ -107,18 +122,16 @@ class IPV6Plugin(EMUPluginBase):
                                         self.ipv6_add_mld_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.IPV6_VEC
+                                        parsing_opts.IPV6_START,
+                                        parsing_opts.IPV6_COUNT
                                         )
 
         opts = parser.parse_args(line.split())
 
-        if opts.ipv6 is not None:
-            opts.ipv6 = [conv_to_bytes(ipv6, 'ipv6') for ipv6 in opts.ipv6]
-
         if opts.all_ns:
-            self.run_on_all_ns(self.add_mld, ipv6_vec = opts.ipv6)
+            self.run_on_all_ns(self.add_mld, ipv6_start = opts.ipv6_start, ipv6_count = opts.ipv6_count)
         else:
-            res = self.add_mld(opts.port, opts.vlan, opts.tpid, ipv6_vec = opts.ipv6)
+            res = self.add_mld(opts.port, opts.vlan, opts.tpid, ipv6_start = opts.ipv6_start, ipv6_count = opts.ipv6_count)
         return True
       
     @plugin_api('ipv6_remove_mld', 'emu')
@@ -129,18 +142,16 @@ class IPV6Plugin(EMUPluginBase):
                                         self.ipv6_remove_mld_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.IPV6_VEC
+                                        parsing_opts.IPV6_START,
+                                        parsing_opts.IPV6_COUNT
                                         )
 
         opts = parser.parse_args(line.split())
 
-        if opts.ipv6 is not None:
-            opts.ipv6 = [conv_to_bytes(ipv6, 'ipv6') for ipv6 in opts.ipv6]
-
         if opts.all_ns:
-            self.run_on_all_ns(self.remove_mld, ipv6_vec = opts.ipv6)
+            self.run_on_all_ns(self.remove_mld, ipv6_start = opts.ipv6_start, ipv6_count = opts.ipv6_count)
         else:
-            res = self.remove_mld(opts.port, opts.vlan, opts.tpid, ipv6_vec = opts.ipv6)
+            res = self.remove_mld(opts.port, opts.vlan, opts.tpid, ipv6_start = opts.ipv6_start, ipv6_count = opts.ipv6_count)
         return True
 
     @plugin_api('ipv6_show_mld', 'emu')
@@ -154,34 +165,69 @@ class IPV6Plugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        args = {'title': 'Current mld:', 'empty_msg': 'There are no mld in namespace'}
+        keys_to_headers = [{'key': 'ipv6',        'header': 'IPv6'},
+                            {'key': 'refc',       'header': 'Ref.Count'},
+                            {'key': 'management', 'header': 'From RPC'}]
+        args = {'title': 'Current mld:', 'empty_msg': 'There are no mld in namespace', 'keys_to_headers': keys_to_headers}
         if opts.all_ns:
-            self.run_on_all_ns(self.iter_mld, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
+            self.run_on_all_ns(self.iter_mld, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
         else:
             res = self.iter_mld(opts.port, opts.vlan, opts.tpid)
-            self.print_gen_data(data = res, **args)
+            self.print_table_by_keys(data = res, **args)
            
+        return True
+
+    @plugin_api('ipv6_remove_all_mld', 'emu')
+    def ipv6_remove_all_mld_line(self, line):
+        '''IPV6 remove all mld command\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "ipv6_remove_all_mld",
+                                        self.ipv6_remove_all_mld_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_ALL_NS,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.all_ns:
+            self.run_on_all_ns(self.remove_all_mld)
+        else:
+            res = self.remove_all_mld(opts.port, opts.vlan, opts.tpid)
         return True
 
     # cache
     @plugin_api('ipv6_show_cache', 'emu')
-    def ipv6_show_cache(self, line):
+    def ipv6_show_cache_line(self, line):
         '''IPV6 show cache command\n'''
         parser = parsing_opts.gen_parser(self,
                                         "ipv6_show_cache",
-                                        self.ipv6_show_cache.__doc__,
+                                        self.ipv6_show_cache_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS
                                         )
 
         opts = parser.parse_args(line.split())
 
-        args = {'title': 'Ipv6 cache', 'empty_msg': 'No ipv6 cache in namespace'}
+        keys_to_headers = [{'key': 'mac',      'header': 'MAC'},
+                            {'key': 'ipv6',    'header': 'IPv6'},
+                            {'key': 'refc',    'header': 'Ref.Count'},
+                            {'key': 'resolve', 'header': 'Resolve'},
+                            {'key': 'state',   'header': 'State'},
+                        ]
+        args = {'title': 'Ipv6 cache', 'empty_msg': 'No ipv6 cache in namespace', 'keys_to_headers': keys_to_headers}
         if opts.all_ns:
-            self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
+            self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
         else:
             res = self.show_cache(opts.port, opts.vlan, opts.tpid)
-            self.print_gen_data(data = res, **args)
+            self.print_table_by_keys(data = res, **args)
 
         return True
     
+    # Override functions
+    @client_api('getter', True)
+    def tear_down_ns(self, port, vlan, tpid):
+        ''' This function will be called before removing this plugin from namespace'''
+        try:
+            self.remove_all_mld(port, vlan, tpid)
+        except:
+            pass

@@ -1,0 +1,16 @@
+#! /bin/bash
+INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
+EXTRA_INPUT_ARGS=""
+ARCH=$(uname -m)
+export LD_LIBRARY_PATH=$PWD/so/
+
+if [[ "$ARCH" == "x86_64" ]] ; then
+    ./trex_emu/trex-emu $INPUT_ARGS
+else 
+    echo "Default package support only x86_64. try compile trex-emu for your platform. "
+    echo "https://github.com/cisco-system-traffic-generator/trex-emu "
+fi 
+RESULT=$?
+
+exit $RESULT
+

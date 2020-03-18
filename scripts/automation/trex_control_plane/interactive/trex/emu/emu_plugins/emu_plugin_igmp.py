@@ -20,11 +20,15 @@ class IGMPPlugin(EMUPluginBase):
         return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
   
     @client_api('command', True)
-    def add_mc(self, port, vlan, tpid, ipv4_vec):
+    def add_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
+        ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
+        ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
         return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_add', port, vlan, tpid, vec = ipv4_vec)
 
     @client_api('command', True)
-    def remove_mc(self, port, vlan, tpid, ipv4_vec):
+    def remove_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
+        ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
+        ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
         return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = ipv4_vec)
 
     @client_api('command', True)
@@ -32,6 +36,11 @@ class IGMPPlugin(EMUPluginBase):
         params = conv_ns_for_tunnel(port, vlan, tpid)
         return self.emu_c.get_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
 
+    @client_api('command', True)
+    def remove_all_mc(self, port, vlan, tpid):
+        mcs = self.iter_mc(port, vlan, tpid)
+        if mcs:
+            self.emu_c.send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = mcs)
 
     # Plugins methods
     @plugin_api('igmp_show_counters', 'emu')
@@ -100,18 +109,16 @@ class IGMPPlugin(EMUPluginBase):
                                         self.igmp_add_mc_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.IPV4_VEC
+                                        parsing_opts.IPV4_START,
+                                        parsing_opts.IPV4_COUNT,
                                         )
 
         opts = parser.parse_args(line.split())
 
-        if opts.ipv4 is not None:
-            opts.ipv4 = [conv_to_bytes(ipv4, 'ipv4') for ipv4 in opts.ipv4]
-
         if opts.all_ns:
-            self.run_on_all_ns(self.add_mc, ipv4_vec = opts.ipv4)
+            self.run_on_all_ns(self.add_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         else:
-            res = self.add_mc(opts.port, opts.vlan, opts.tpid, ipv4_vec = opts.ipv4)
+            res = self.add_mc(opts.port, opts.vlan, opts.tpid, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         return True
 
     @plugin_api('igmp_remove_mc', 'emu')
@@ -122,19 +129,37 @@ class IGMPPlugin(EMUPluginBase):
                                         self.igmp_remove_mc_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.IPV4_VEC
+                                        parsing_opts.IPV4_START,
+                                        parsing_opts.IPV4_COUNT,
                                         )
 
         opts = parser.parse_args(line.split())
 
-        if opts.ipv4 is not None:
-            opts.ipv4 = [conv_to_bytes(ipv4, 'ipv4') for ipv4 in opts.ipv4]
+        if opts.all_ns:
+            self.run_on_all_ns(self.remove_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+        else:
+            res = self.remove_mc(opts.port, opts.vlan, opts.tpid, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+        return True
+
+
+    @plugin_api('igmp_remove_all_mc', 'emu')
+    def igmp_remove_all_mc_line(self, line):
+        '''IGMP remove all mc command\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "igmp_remove_all_mc",
+                                        self.igmp_remove_all_mc_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_ALL_NS,
+                                        )
+
+        opts = parser.parse_args(line.split())
 
         if opts.all_ns:
-            self.run_on_all_ns(self.remove_mc, ipv4_vec = opts.ipv4)
+            self.run_on_all_ns(self.remove_all_mc)
         else:
-            res = self.remove_mc(opts.port, opts.vlan, opts.tpid, ipv4_vec = opts.ipv4)
+            res = self.remove_all_mc(opts.port, opts.vlan, opts.tpid)
         return True
+
 
     @plugin_api('igmp_show_mc', 'emu')
     def igmp_show_mc_line(self, line):
@@ -155,3 +180,11 @@ class IGMPPlugin(EMUPluginBase):
             self.print_gen_data(data = res, **args)
            
         return True
+
+    # Override functions
+    def tear_down_ns(self, port, vlan, tpid):
+        ''' This function will be called before removing this plugin from namespace'''
+        try:
+            self.remove_all_mc(port, vlan, tpid)
+        except:
+            pass

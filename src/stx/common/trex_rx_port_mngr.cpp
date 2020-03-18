@@ -25,10 +25,7 @@
 #include "pkt_gen.h"
 #include "trex_capture.h"
 #include "utl_mbuf.h"
-
 #include <zmq.h>
-
-
 
 
 
@@ -460,6 +457,7 @@ RXPortManager::RXPortManager() : m_feature_api(this) {
 
 RXPortManager::~RXPortManager(void) {
     delete m_stack;
+    delete m_parser;
     m_stack = nullptr;
 }
 
@@ -492,6 +490,8 @@ RXPortManager::create_async(uint32_t port_id,
     m_stack = CStackFactory::create(stack_type, &m_feature_api, &m_ign_stats);
     m_stack->add_port_node_async();
     m_stack->run_pending_tasks_async(0,false);
+    m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
+
     set_feature(STACK);
 }
 
@@ -595,6 +595,13 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
         m_stack->handle_pkt(m);
     }
 
+
+    if ( is_feature_set(EZMQ) ){
+        if (is_emu_filter(m) ) {
+            m_zmq_wr->write_pkt(m,m_port_id);
+        }
+    }
+
     if (is_feature_set(CAPTURE_PORT)) {
         m_capture_port.handle_pkt(m);
     }
@@ -612,6 +619,37 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
     }
 
     rte_pktmbuf_free(m);
+}
+
+/* quick filter to verify that the packet is eligible for emu. in case of multi-core the filter is done in 
+DP cores and this is just a quick filter */    
+bool RXPortManager::is_emu_filter(rte_mbuf_t *m){
+    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size= rte_pktmbuf_data_len(m);
+    CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
+    if (res != FSTAT_PARSER_E_OK){
+        return true;
+    }
+    uint8_t proto = m_parser->get_protocol();
+    bool tcp_udp=false;
+
+    if ((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)){
+        tcp_udp = true;
+    }
+    if (!tcp_udp){
+        return true;
+    }
+
+    if  (proto == IPPROTO_UDP) {
+        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
+        uint16_t dst_port = l4_header->getDestPort();
+        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+             (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 uint16_t RXPortManager::handle_tx(void) {
@@ -691,7 +729,6 @@ RXPortManager::tx_pkt(const std::string &pkt) {
             /* allocate */
             uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt.size());
             assert(p);
-
             /* copy */
             memcpy(p, pkt.c_str(), pkt.size());
         }
@@ -802,3 +839,210 @@ uint8_t
 RXFeatureAPI::get_port_id() {
     return m_port_mngr->m_port_id;
 }
+
+
+//#########################################################
+
+
+bool  CZmqPacketWriter::flush(){
+    if ( m_pkts_cnt == 0 ){
+        return false; 
+    }
+    bool r=false; 
+    char * p = &m_buf[0];
+    uint32_t pkt_header;
+    pkt_header = PAL_NTOHL((ZMQ_HEADER_MAGIC +  (m_pkts_cnt &0xffff) ));
+    memcpy(p,(char*)&pkt_header,sizeof(pkt_header));
+
+    // dump the buffer 
+    int res;
+    res = zmq_send(m_socket, &m_buf[0], m_b_size, ZMQ_DONTWAIT);
+    if (res < 0) {
+        m_cnt->m_ezmq_tx_to_emu_err++;
+        if (errno == EAGAIN){
+            cnt_err++;
+            if (cnt_err > 10) {
+                r = true; 
+                m_cnt->m_ezmq_tx_to_emu_restart++;
+            }
+        }
+    }else{
+        cnt_err = 0;
+        m_cnt->m_ezmq_tx_to_emu++;
+    }        
+
+    m_pkts_cnt=0;
+    m_b_size=4;
+    return (r);
+}
+
+    
+void CZmqPacketWriter::write_pkt(struct rte_mbuf  *m,uint8_t vport){
+    uint32_t pkt_header;
+    uint32_t pkt_len = rte_pktmbuf_pkt_len(m);
+    if ((pkt_len + m_b_size + 4) > ZMQ_BUFFER_SIZE) {
+       flush();
+    }
+
+    uint32_t s_pkt_len = pkt_len;
+
+    pkt_header = PAL_NTOHL((0xAA000000 + uint32(vport<<16) + (s_pkt_len &0xffff) ));
+
+
+    char * p = &m_buf[m_b_size];
+    memcpy(p,(char*)&pkt_header,sizeof(pkt_header));
+    p+=sizeof(pkt_header);
+
+    while (m) {
+        uint16_t seg_len=m->data_len;
+        memcpy(p,rte_pktmbuf_mtod(m,char *),seg_len);
+        p+=seg_len;
+        assert(pkt_len>=seg_len);
+        pkt_len-=seg_len;
+        m = m->next;
+        if (pkt_len==0) {
+            assert(m==0);
+        }
+    }
+
+    m_b_size += (s_pkt_len + 4);
+    m_pkts_cnt++;
+    if (m_pkts_cnt > 63){
+       flush();
+    }
+}
+    
+bool CZmqPacketWriter::Create(void * socket,CRxCoreErrCntrs * cnt){
+    m_socket = socket;
+    m_pkts_cnt =0;
+    m_b_size = 4; 
+    cnt_err =0;
+    m_cnt = cnt;
+    return true;
+}
+
+bool CZmqPacketReader::Create(void * socket, CRxCore * rx,CRxCoreErrCntrs * cnt){
+    m_rx = rx;
+    m_socket = socket;
+    m_cnt = cnt; 
+    return false;
+}
+  
+void CZmqPacketReader::tx_buffer(char *pkt,int pkt_size,uint8_t vport) {
+        uint8_t port_id = vport;
+        rte_mbuf_t *m;
+        uint8_t num_ports = CGlobalInfo::m_options.get_expected_ports();
+        if ( port_id > num_ports ) {
+            m_cnt->m_ezmq_tx_fe_wrong_vport++;
+            return ;
+        }
+        socket_id_t socket = CGlobalInfo::m_socket.port_to_socket(vport);
+
+        if (pkt_size <= _2048_MBUF_SIZE) {
+
+            m = CGlobalInfo::pktmbuf_alloc_no_assert(socket, pkt_size);
+            if ( m ) {
+                /* allocate */
+                uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt_size);
+                assert(p);
+                /* copy */
+                memcpy(p, pkt, pkt_size);
+            }
+        }else{
+            /*  creating chaning of mbuf in the size of pool */
+            rte_mempool *pool_2k = CGlobalInfo::pktmbuf_get_pool(socket, _2048_MBUF_SIZE);
+            m = utl_rte_pktmbuf_mem_to_pkt_no_assert(pkt, pkt_size, _2048_MBUF_SIZE, pool_2k);
+        }
+
+        if ( !m ) {
+            m_cnt->m_ezmq_tx_fe_dropped_no_mbuf++;
+            return;
+        }
+
+        if (!m_rx->tx_pkt(m, port_id)) {
+            m_cnt->m_ezmq_tx_fe_err_send++;
+            rte_pktmbuf_free(m);
+        }else{
+            m_cnt->m_ezmq_tx_fe_ok_send++;
+        }
+}
+
+int CZmqPacketReader::pool_msg(void){
+
+    int cnt=1;
+    while ( cnt > 0 ){
+        int len = zmq_recv(m_socket, m_buf,ZMQ_BUFFER_SIZE,ZMQ_NOBLOCK);
+        
+        if (len < 0 ){
+            return 0;
+        }else{
+            if (len > 0 ) {
+                if (len<=ZMQ_BUFFER_SIZE) {
+                   parse_msg(m_buf,len);
+                }else{
+                    m_cnt->m_ezmq_rx_fe_err_buffer_len_high++;
+                    break;
+                }
+            }else{
+                m_cnt->m_ezmq_rx_fe_err_len_zero++;
+                break;
+            }
+        }
+        cnt--;
+    }
+    return (0);
+}
+
+
+int CZmqPacketReader::parse_msg(char *buf,int size){
+    char *p = buf;
+    if (size < 4) {
+        return -1;
+    }
+    uint32_t header = PAL_NTOHL(*((uint32*)p));
+    if ((header& 0xFFFF0000) != ZMQ_HEADER_MAGIC ){
+        return -1;
+    }
+    uint16_t pkts = uint16_t((header&0xffff));
+    p+=sizeof(header);
+    size-=sizeof(header);
+
+    int i;
+    for (i=0; i<(int)pkts; i++){
+        if (size < 4) {
+            return -1;
+        }
+        uint32_t pkt_header = PAL_NTOHL(*((uint32*)p));
+        
+        if ((pkt_header& 0xFF000000) != ZMQ_PKT_HEADER_MAGIC ){
+            return -1;
+        }
+        uint8_t vport = uint8_t(((pkt_header& 0x00FF0000)>>16));
+        uint16_t pkt_size = uint16_t(((pkt_header& 0xFFFF)));
+
+        size -= sizeof(pkt_header);
+        p += sizeof(pkt_header);
+
+        if (size < int(pkt_size)) {
+            return -1;
+        }
+
+        tx_buffer(p,int(pkt_size),vport);
+
+        size-=int(pkt_size);
+        p += int(pkt_size);
+    }
+    if (size !=0) {
+        // counter 
+    }
+    return 0;
+}
+
+
+
+
+
+
+
+
+

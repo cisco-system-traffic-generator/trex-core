@@ -16,7 +16,7 @@ def pretty_exceptions(func):
             a, b, tb = sys.exc_info()
             x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
 
-            summary = "\nPython Traceback follows:\n\n" + x
+            summary = "\nEmu profile loading failed! Traceback:\n%s" % x
             raise TRexError(summary)
     return pretty_exceptions_inner
 
@@ -36,10 +36,20 @@ class EMUClientObj(object):
         return hash(self.mac)
 
     def __getattr__(self, name):
-        if name in self.fields:
+        try:
             return self.fields[name]
-        else:
-            raise AttributeError
+        except KeyError:
+            raise AttributeError('EMUClientObj has no attribute: "%s"' % name)
+
+    def to_json(self):
+        return self.fields
+
+    @property
+    def plugs(self):
+        try:
+            return self.fields['plugs']
+        except KeyError:
+            return None
 
 class EMUNamespaceObj(object):
 
@@ -51,7 +61,16 @@ class EMUNamespaceObj(object):
                 {'name': 'def_c_plugs', 'arg': def_c_plugs, 't': dict, 'must': False},
                 ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
-        
+
+        if tpid is not None and tci is None:
+            raise TRexError('Cannot supply tpid without tci to namespace!')
+
+        if tpid is not None and tci is not None:
+            if len(tpid) != len(tci):
+                raise TRexError('tci & tpid length must be equal!')
+            elif any([tc == 0 and tp !=0 for tc, tp in zip(tci, tpid)]):
+                raise TRexError('Cannot supply tpid to zero vlan tag!')
+
         self.fields = {'vport': vport, 'tci': tci, 'tpid': tpid, 'plugs': plugs}
         self.mac_map = {}
         self.def_c_plugs = def_c_plugs
@@ -60,10 +79,10 @@ class EMUNamespaceObj(object):
             self.add_clients(clients)
 
     def __getattr__(self, name):
-        if name in self.fields:
+        try:
             return self.fields[name]
-        else:
-            raise AttributeError
+        except KeyError:
+            raise AttributeError('EMUNamespaceObj has no attribute: "%s"' % name)
 
 
     def set_def_c_plugs(self, plugs):
@@ -95,6 +114,12 @@ class EMUNamespaceObj(object):
                     client.plugs[k] = self.def_c_plugs[k]
         self.mac_map[c_mac] = client
 
+    def to_json(self):
+        res = {'def_c_plugs': self.def_c_plugs, 'clients': []}
+        res.update(self.fields)
+        for c in self.mac_map.values():
+            res['clients'].append(c.to_json())
+        return res
 
     def get_clients(self):
         return [c.fields for c in self.mac_map.values()]
@@ -139,6 +164,12 @@ class EMUProfile(object):
     def serialize_ns(self):
         """ Return a list with all the ns dictionaries serialized for transmition """
         return [ns.fields for ns in self.ns_list]
+
+    def to_json(self):
+        res = {'def_ns_plugs': self.def_ns_plugs, 'namespaces': []}
+        for ns in self.ns_list:
+            res['namespaces'].append(ns.to_json())
+        return res
 
     @classmethod
     def load(cls, filename, tunables):

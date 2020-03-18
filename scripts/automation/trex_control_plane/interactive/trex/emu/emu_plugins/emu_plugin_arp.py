@@ -81,11 +81,12 @@ class ARPPlugin(EMUPluginBase):
                                         self.arp_set_cfg_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.CFG_ENABLE
+                                        parsing_opts.ARP_ENABLE
                                         )
 
         opts = parser.parse_args(line.split())
-
+        opts.enable = parsing_opts.ON_OFF_DICT.get(opts.enable)
+        
         if opts.all_ns:
             self.run_on_all_ns(self.set_cfg, enable = opts.enable)
         else:
@@ -105,6 +106,7 @@ class ARPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
+        opts.garp = parsing_opts.ON_OFF_DICT.get(opts.garp)
 
         if opts.all_ns:
             self.run_on_all_ns(self.cmd_query, mac = opts.mac, garp = opts.garp)
@@ -124,12 +126,18 @@ class ARPPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
 
-        args = {'title': 'Arp cache', 'empty_msg': 'No arp cache in namespace'}
+        keys_to_headers = [{'key': 'mac',      'header': 'MAC'},
+                            {'key': 'ipv4',    'header': 'IPv4'},
+                            {'key': 'refc',    'header': 'Ref.Count'},
+                            {'key': 'resolve', 'header': 'Resolve'},
+                            {'key': 'state',   'header': 'State'},
+                            ]
+        args = {'title': 'Arp cache', 'empty_msg': 'No arp cache in namespace', 'keys_to_headers': keys_to_headers}
         if opts.all_ns:
-            self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
+            self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
         else:
             res = self.show_cache(opts.port, opts.vlan, opts.tpid)
-            self.print_gen_data(data = res, **args)
+            self.print_table_by_keys(data = res, **args)
 
         return True
     

@@ -101,16 +101,16 @@ class ConsoleLogger(Logger):
 
 
 class TRexGeneralCmd(cmd.Cmd):
-    def __init__(self, client_mode, skip = False):
+    def __init__(self, client_mode):
         cmd.Cmd.__init__(self)
-        if not skip:
-            # configure history behaviour
-            self._history_file_dir = "/tmp/trex/console/"
-            self._history_file = self.get_history_file_full_path(client_mode)
-            readline.set_history_length(100)
-            # load history, if any
-            self.load_console_history()
-            atexit.register(self.save_console_history)
+
+        # configure history behaviour
+        self._history_file_dir = "/tmp/trex/console/"
+        self._history_file = self.get_history_file_full_path(client_mode)
+        readline.set_history_length(100)
+        # load history, if any
+        self.load_console_history()
+        atexit.register(self.save_console_history)
 
 
     def get_history_file_full_path(self, client_mode):
@@ -176,31 +176,27 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, client, verbose = False, skip = False, emu = False):
+    def __init__(self, client, verbose = False):
 
         # cmd lock is used to make sure background job
         # of the console is not done while the user excutes commands
         self.cmd_lock = Lock()
         
         self.client = client
-        self.skip_mode = skip
-        self.emu = emu
         self.verbose = verbose
 
-        TRexGeneralCmd.__init__(self, '' if skip else client.get_mode(), skip)
+        TRexGeneralCmd.__init__(self, client.get_mode())
 
         self.plugins_mngr = PluginsManager(self)
-        if emu:
-           self.do_plugins('load emu')
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
         self.terminal = None
-        if not skip: 
-            self.tui = trex_tui.TrexTUI(self)
-            self.cap_mngr = CaptureManager(client, self.cmd_lock)
-            self.load_client_console_functions()
+
+        self.tui = trex_tui.TrexTUI(self)
+        self.cap_mngr = CaptureManager(client, self.cmd_lock)
+        self.load_client_console_functions()
         self.postcmd(False, "")
 
 
@@ -223,14 +219,6 @@ class TRexConsole(TRexGeneralCmd):
 
         return wrap
 
-    def verify_not_skip(f):
-        def wrap(*args, **kwargs):
-            # args[0] == self
-            if args[0].skip_mode:
-                print('"%s" command is not supported on skip mode' % f.__name__[3:]) # remove 'do_'
-            else:
-                return f(*args, **kwargs)
-        return wrap
 
     def history_preserver(self, func, line):
         filename = self._push_history()
@@ -276,8 +264,6 @@ class TRexConsole(TRexGeneralCmd):
                 delattr(self.__class__, cmd_name)
 
     def generate_prompt (self, prefix = 'trex'):
-        if self.skip_mode:
-            return '(skip mode)>'
         if not self.client.is_connected():
             return "{0}(offline)>".format(prefix)
 
@@ -408,7 +394,6 @@ class TRexConsole(TRexGeneralCmd):
     def help_plugins(self):
         self.do_plugins('-h')
 
-    @verify_not_skip
     @verify_connected
     def do_capture (self, line):
         '''Manage PCAP captures'''
@@ -430,7 +415,6 @@ class TRexConsole(TRexGeneralCmd):
         readline.read_history_file(tmp_file.name)
         tmp_file.close()
 
-    @verify_not_skip
     def do_debug(self, line):
         '''Internal debugger for development.
            Requires IPython module installed
@@ -482,7 +466,6 @@ class TRexConsole(TRexGeneralCmd):
 
         self.client.logger.info(format_text("\n*** Leaving Python shell ***\n"))
 
-    @verify_not_skip
     def do_history (self, line):
         '''Manage the command history\n'''
 
@@ -527,21 +510,18 @@ class TRexConsole(TRexGeneralCmd):
         return self.complete_start(text, line, start_index, end_index)
 
     ############### connect
-    @verify_not_skip
     def do_connect (self, line):
         '''Connects to the server and acquire ports\n'''
 
         self.client.connect_line(line)
     
-    @verify_not_skip
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
         
         # stop any monitors before disconnecting
         self.plugins_mngr._unload_plugin()
-        if not self.skip_mode:
-            self.cap_mngr.stop()
-            self.client.disconnect_line(line)
+        self.cap_mngr.stop()
+        self.client.disconnect_line(line)
 
 
     ############### start
@@ -566,7 +546,6 @@ class TRexConsole(TRexGeneralCmd):
         return self.complete_start(text,line, begidx, endidx)
 
     # tui
-    @verify_not_skip
     @verify_connected
     def do_tui (self, line):
         '''Shows a graphical console\n'''
@@ -633,12 +612,7 @@ class TRexConsole(TRexGeneralCmd):
              func()
              return
     
-         if not self.skip_mode:
-            cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
-         else:
-             cmds = ['plugins', 'quit']
-             if self.emu:
-                 cmds.append('verbose')
+         cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
          hidden = ['EOF', 'q', 'exit', 'h', 'shell']
 
          categories = collections.defaultdict(list)
@@ -704,8 +678,7 @@ class TRexConsole(TRexGeneralCmd):
         finally:
             # capture manager is not presistent - kill it before going out
             self.plugins_mngr._unload_plugin()
-            if not self.skip_mode:
-                self.cap_mngr.stop()
+            self.cap_mngr.stop()
 
         if self.terminal:
             self.terminal.kill()
@@ -809,14 +782,13 @@ def setParserOptions():
                        action="store_true",
                        help="Starts console in a read only mode",
                        default = False)
-
-    parser.add_argument("--skip", action="store_true",
-                        help="Skip connection with server, useful for checking plugins",
-                        default = False)
     
     parser.add_argument("--emu", action="store_true",
-                        help="Run emulation client, only with skip flag on",
+                        help="Run emulation client on startup",
                         default = False)
+
+    parser.add_argument("--emu-server",
+                        help="Emulation client server, default is TRex server address")
 
     parser.add_argument("-f", "--force", dest="force",
                         action="store_true",
@@ -848,10 +820,7 @@ def setParserOptions():
     return parser
 
 # a simple info printed on log on
-def show_intro (logger, c, skip):
-    if skip:
-        logger.critical(format_text('**Console running in skip mode, there is no connection to server**', 'bold', 'yellow'))
-        return
+def show_intro (logger, c):
 
     modes = {'STL': 'Stateless', 'ASTF': 'Advanced Stateful'}
     
@@ -898,7 +867,7 @@ def probe_server_mode (options):
 def run_console(client, logger, options):
     # console
     try:
-        show_intro(logger, client , options.skip)
+        show_intro(logger, client)
 
         # a script mode
         if options.batch:
@@ -906,7 +875,13 @@ def run_console(client, logger, options):
             if not cont:
                 return
 
-        console = TRexConsole(client, options.verbose, options.skip, options.emu)
+        console = TRexConsole(client, options.verbose)
+
+        # run emu if needed
+        console.emu_server = options.emu_server
+        if options.emu:
+            console.do_plugins('load emu')
+
         logger.prompt_redraw = console.prompt_redraw
 
         # TUI
@@ -920,15 +895,16 @@ def run_console(client, logger, options):
         print("\n\n*** Caught Ctrl + C... Exiting...\n\n")
 
     finally:
-        if not options.skip:
-            with client.logger.supress():
-                client.disconnect(stop_traffic = False)
+        with client.logger.supress():
+            client.disconnect(stop_traffic = False)
 
 
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
 
+    if options.emu_server is None:
+        options.emu_server = options.server
 
     if options.xtui:
         options.tui = True
@@ -990,10 +966,6 @@ def main():
                             verbose_level = verbose_level,
                             sync_timeout = sync_timeout,
                             async_timeout = async_timeout)
-    elif options.skip:
-        client = None
-        run_console(client, logger, options)
-        return
     else:
         logger.critical("Unknown server mode: '{0}'".format(mode))
         return

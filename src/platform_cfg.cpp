@@ -452,6 +452,11 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_telnet_exist=true;
     }
 
+    if ( node.FindValue("ezqm_ch_port") ){
+        node["ezqm_ch_port"] >> plat_info.m_ezmq_ch_port;
+        plat_info.m_ezmq_ch_exist=true;
+    }
+
     if ( node.FindValue("rx_desc") ){
         node["rx_desc"] >> plat_info.m_rx_desc;
     }
@@ -620,6 +625,10 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd," telnet_port    :  %d \n",m_telnet_port);
 
     }
+    if ( m_ezmq_ch_exist ){
+        fprintf(fd," ezqm_port    :  %d \n",m_ezmq_ch_port);
+    }
+
     fprintf(fd," m_zmq_rpc_port    :  %d \n",m_zmq_rpc_port);
 
     if (m_rx_desc) {

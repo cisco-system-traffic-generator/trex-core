@@ -17,7 +17,8 @@ from ..common.trex_types import PortProfileID, ALL_PROFILE_ID
 from ..common.trex_psv import *
 from ..common.trex_api_annotators import client_api, console_api
 
-from .trex_stl_port import STLPort
+from .trex_stl_port import STLPort, DHCP_MASK, NO_TCP_UDP_MASK, BGP_MASK 
+
 from .trex_stl_streams import STLStream, STLProfile
 from .trex_stl_stats import CPgIdStats
 
@@ -1944,20 +1945,28 @@ class STLClient(TRexClient):
                                          "service",
                                          self.service_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
+                                         parsing_opts.SERVICE_DHCP_FILTERED,
+                                         parsing_opts.SERVICE_EMU_FILTERED,
                                          parsing_opts.SERVICE_BGP_FILTERED,
                                          parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
                                          parsing_opts.SERVICE_ALL_FILTERED,
                                          parsing_opts.SERVICE_OFF)
 
         opts = parser.parse_args(line.split())
-        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
+        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all or opts.allow_emu or opts.allow_dhcp
         # build filter mask
+        mask =0
         if filtered:
+            if opts.allow_dhcp:
+                mask |= DHCP_MASK
+            if opts.allow_emu:
+                mask |= ( DHCP_MASK | NO_TCP_UDP_MASK )
             if opts.allow_all:
-                mask = 3
-            else:
-                mask = 1 if opts.allow_no_tcp_udp else 0
-                mask = mask | 2 if opts.allow_bgp else mask
+                mask = ( DHCP_MASK | NO_TCP_UDP_MASK | BGP_MASK )
+            if opts.allow_bgp:
+                mask |= BGP_MASK
+            if opts.allow_no_tcp_udp:
+                mask |= NO_TCP_UDP_MASK
         else:
             mask = None
         enabled = False if filtered else opts.enabled

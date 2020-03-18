@@ -28,10 +28,11 @@ class Emu_Plugin(ConsolePlugin):
         if self.console is None:
             raise TRexError("Trex console must be provided in order to load emu plugin")
         
-        client_logger = self.console.client.logger
-
-        verbose = client_logger.get_verbose()
-        self.c = EMUClient(verbose_level = verbose, logger = client_logger)  # taking console logger
+        client = self.console.client
+        verbose = client.logger.get_verbose()
+        
+        # taking parameters from original 
+        self.c = EMUClient(server = self.console.emu_server, verbose_level = verbose, logger = client.logger)
         self.c.connect()
 
         self.console.load_client_plugin_functions(self.c, func_prefix = Emu_Plugin.EMU_PREFIX)

@@ -201,6 +201,8 @@ enum {
        OPT_BIRD_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
+       OPT_EZMQ_CH,
+       OPT_EZMQ_CH1,
        OPT_TCP_MODE,
        OPT_STL_MODE,
        OPT_MLX4_SO,
@@ -295,6 +297,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server",  SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server",     SO_NONE    },
         { OPT_BIRD_SERVER,            "--bird-server",      SO_NONE    },
+        { OPT_EZMQ_CH,                "--emu",      SO_NONE    },
+        { OPT_EZMQ_CH1,               "--emu-zmq",      SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
         { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
@@ -402,6 +406,9 @@ static int COLD_FUNC  usage() {
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf(" --emu                      : Load emu server \n");
+    printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
+    printf(" --bird-server              : Enabel bird service \n");
     
 
     printf("\n");
@@ -910,6 +917,12 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_BIRD_SERVER:
                 po->m_is_bird_enabled = true;
                 break;
+            case OPT_EZMQ_CH:
+                po->m_ezmq_ch_enabled = true;
+              break;
+            case OPT_EZMQ_CH1:
+                po->m_ezmq_ch_enabled = true;
+              break;
             case OPT_QUEUE_DROP:
                 CGlobalInfo::m_options.m_is_queuefull_retry = false;
                 break;
@@ -5921,6 +5934,10 @@ COLD_FUNC int update_global_info_from_platform_file(){
         g_opts->m_telnet_port = cg->m_telnet_port;
     }
 
+    if ( cg->m_ezmq_ch_exist ){
+        g_opts->m_ezmq_ch_port = cg->m_ezmq_ch_port;
+    }
+
     if ( cg->m_mac_info_exist ){
         int i;
         /* cop the file info */
@@ -6473,6 +6490,15 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     }
 
     time_init();
+
+    if (po->m_ezmq_ch_enabled){
+        if (get_dpdk_mode()->is_drop_rx_queue_needed() ){
+           /* not a software mode*/  
+           printf(" emu server should work in software mode, try adding --software  \n");
+           return (-1);
+        }
+    }
+
 
     /* check if we are in simulation mode */
     if ( CGlobalInfo::m_options.out_file != "" ){

@@ -1103,6 +1103,19 @@ bool TrexStatelessDpCore::check_service_filter(bool &drop) {
         }
     }
 
+    if  ( (m_service_mask & TrexPort::DHCP) && (proto == IPPROTO_UDP) ) {
+        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
+        uint16_t dst_port = l4_header->getDestPort();
+
+        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+            (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+            drop = false;
+            return true;
+        }
+    }
+
+
     // OSPF check
     if ( (m_service_mask & TrexPort::NO_TCP_UDP) && (! ( (proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) ) ) {
         drop = false;

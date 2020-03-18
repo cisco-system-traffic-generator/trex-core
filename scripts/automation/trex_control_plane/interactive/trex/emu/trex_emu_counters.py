@@ -7,6 +7,7 @@ from .trex_emu_conversions import *
 
 import yaml
 import json
+import re
 
 class DataCounter(object):
 
@@ -20,13 +21,13 @@ class DataCounter(object):
         self.add_data = None  # additional data, attached to every counters command
 
     # API #
-    def get_counters(self, tables = None, cnt_filter = None, zero = True):
+    def get_counters(self, table_regex = None, cnt_filter = None, zero = True):
         """ 
             Get the wanted counters from server.
 
             :parameters:
-                tables: list of strings
-                    Names of all the wanted counters table. If not supplied, will get all of them.
+                table_regex: string
+                    Table regular expression to filter. If not supplied, will get all of them.
 
                 cnt_filter: list
                     List of counters type as strings. i.e: ['INFO', 'ERROR']. default is None means no filter
@@ -38,8 +39,8 @@ class DataCounter(object):
                     Get zero values, default is True.
         """
         self._get_meta()
-        self._update_meta_vals(tables)
-        return self._filter_cnt(tables, cnt_filter, zero)
+        self._update_meta_vals()
+        return self._filter_cnt(table_regex, cnt_filter, zero)
 
     def get_counters_headers(self):
         """ Simply print the counters headers names """
@@ -209,7 +210,7 @@ class DataCounter(object):
                     cnt['info'] = _parse_info(cnt.get('info'))
         return rc.data()
 
-    def _filter_cnt(self, tables, cnt_filter, zero):
+    def _filter_cnt(self, table_regex, cnt_filter, zero):
         ''' Return a new dict with all the filtered counters '''
         
         def _pass_filter(cnt, cnt_filter, zero):
@@ -221,7 +222,7 @@ class DataCounter(object):
 
         res = {}
         for table_name, table_data in self.meta.items():
-            if tables is not None and table_name not in tables:
+            if table_regex is not None and not re.search(table_regex, table_name):
                 continue
 
             new_cnt_list = [] 
@@ -235,17 +236,10 @@ class DataCounter(object):
                 res[table_name] = new_cnt_list
         return res
 
-    def _update_meta_vals(self, tables = None):
-        ''' 
-            Update meta counters with the current values.
+    def _update_meta_vals(self):
+        ''' Update meta counters with the current values. '''
 
-            :parameters:
-
-                tables: list of strings
-                    Names of all the wanted counters table. If not supplied, will print all of them.   
-        '''
-
-        curr_cnts = self._get_counters(mask = tables)
+        curr_cnts = self._get_counters()
 
         for table_name, table_data in self.meta.items():
             curr_table = curr_cnts.get(table_name, {})

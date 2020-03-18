@@ -26,6 +26,8 @@
 #include "stateful_rx_core.h"
 #include "trex_rx_core.h"
 #include "trex_messaging.h"
+#include <zmq.h>
+
 
 CRxCore::~CRxCore(void) {
     for (auto &iter_pair : m_rx_port_mngr_map) {
@@ -95,6 +97,14 @@ void CRxCore::create(const CRxSlCfg &cfg) {
 
     m_cpu_cp_u.Create(&m_cpu_dp_u);
 
+    CParserOption * po =&CGlobalInfo::m_options;
+
+    m_ex_zmq_enabled = po->m_ezmq_ch_enabled;
+
+    if (m_ex_zmq_enabled) {
+        create_zmq();
+    }
+
     uint8_t max_port_id = 0;
     for (auto &port : cfg.m_ports) {
         max_port_id = std::max(max_port_id, port.first);
@@ -114,6 +124,10 @@ void CRxCore::create(const CRxSlCfg &cfg) {
                            &m_cpu_dp_u);
         m_rx_port_mngr_map[port.first] = mngr;
         m_rx_port_mngr_vec[port.first] = mngr;
+        if (m_ex_zmq_enabled) {
+            mngr->set_zmq_cn(&m_zmq_wr,&m_zmq_rd);
+            mngr->set_feature(RXPortManager::EZMQ); /* enable the feature*/
+        }
     }
 
     for (auto &iter_pair : m_rx_port_mngr_map) {
@@ -122,6 +136,74 @@ void CRxCore::create(const CRxSlCfg &cfg) {
 
     /* create a TX queue */
     m_tx_queue.create(this, 5000);
+
+}
+
+void  CRxCore::restart_zmq()  {
+    delete_zmq();
+    create_zmq();
+}
+
+void  CRxCore::create_zmq()  {
+    // create zmq ch 
+    m_zmq_ctx = zmq_ctx_new();
+    CParserOption * po =&CGlobalInfo::m_options;
+
+    char buffer[100];
+    sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port);
+
+    create_zmq(m_zmq_rx_socket,buffer);
+    sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port+1);
+
+    create_zmq(m_zmq_tx_socket,buffer);
+
+    m_zmq_wr.Create(m_zmq_rx_socket,&m_err_cntrs);
+    m_zmq_rd.Create(m_zmq_tx_socket,this,&m_err_cntrs);
+}
+
+
+void  CRxCore::delete_zmq()  {
+
+    if (m_zmq_rx_socket) {
+        zmq_close(m_zmq_rx_socket);
+        m_zmq_rx_socket=0;
+    }
+    if (m_zmq_tx_socket) {
+        zmq_close(m_zmq_tx_socket);
+        m_zmq_tx_socket=0;
+    }
+
+    if (m_zmq_ctx){
+        zmq_ctx_term(m_zmq_ctx);
+        m_zmq_ctx=0;
+    }
+}
+
+
+bool  CRxCore::create_zmq(void *   &socket,std::string server)  {
+    int rc;
+    socket = zmq_socket(m_zmq_ctx, ZMQ_PAIR);
+
+    if (!socket) {
+      printf("unable to create socket server at:%s \n", server.c_str());
+      return false;
+    }
+    int linger = 0;
+    rc = zmq_setsockopt(socket, ZMQ_LINGER, &linger, sizeof(linger));
+    
+    if (rc != 0) {
+      printf("unable to set linger server at:%s \n", server.c_str());
+      return false;
+    }
+
+    rc = zmq_bind(socket, server.c_str());
+
+    if (rc != 0) {
+      printf("unable to bind ZMQ server at:%s \n", server.c_str());
+      return false;
+    }
+
+    return true; 
 }
 
 void CRxCore::handle_cp_msg(TrexCpToRxMsgBase *msg) {
@@ -356,7 +438,10 @@ void CRxCore::start() {
     m_monitor.disable();
 
     m_is_active = false;
-    
+
+    if (m_ex_zmq_enabled){
+       delete_zmq();
+    }
 }
 
 void CRxCore::handle_astf_latency_pkt(const rte_mbuf_t *m,
@@ -371,9 +456,14 @@ int CRxCore::process_all_pending_pkts(bool flush_rx) {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         total_pkts += mngr_pair.second->process_all_pending_pkts(flush_rx);
     }
+    if (m_ex_zmq_enabled){
+        if (m_zmq_wr.flush() ) {
+            restart_zmq();
+        }
+        m_zmq_rd.pool_msg();
+    }
 
     return total_pkts;
-
 }
 
 void CRxCore::reset_rx_stats(uint8_t port_id) {

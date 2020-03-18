@@ -1307,15 +1307,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
     }
 
     // payload rules rx errors
-    uint64_t tmp_cnt;
-    tmp_cnt = rx_err_cntrs.get_bad_header();
-    if (tmp_cnt) {
-        l_data_section["g"]["bad_hdr"] = Json::Value::UInt64(tmp_cnt);
-    }
-    tmp_cnt = rx_err_cntrs.get_old_flow();
-    if (tmp_cnt) {
-        l_data_section["g"]["old_flow"] = Json::Value::UInt64(tmp_cnt);
-    }
+    rx_err_cntrs.ToJson(&l_data_section["g"]);
 
     // If given vector of pgids, create json containing only them, otherwise, use all pgids
     flow_stat_user_id_map_it_t it_all;

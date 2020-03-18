@@ -14,6 +14,7 @@ from .trex_stl_streams import STLStream
 NO_MASK         = 0
 NO_TCP_UDP_MASK = 1
 BGP_MASK        = 2
+DHCP_MASK       = 4
 
 ########## utlity ############
 def mult_to_factor (mult, max_bps_l2, max_pps, line_util):

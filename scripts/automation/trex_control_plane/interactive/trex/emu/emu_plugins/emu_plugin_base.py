@@ -1,11 +1,7 @@
 from ..trex_emu_counters import DataCounter
 from ..trex_emu_conversions import *
 from trex.utils import text_tables
-
 from trex.emu.api import *
-
-import itertools
-import json
 
 class EMUPluginBase(object):
     ''' Every object inherit from this class can implement a plugin method with decorator @plugin_api('cmd_name', 'emu')'''
@@ -26,6 +22,11 @@ class EMUPluginBase(object):
     def print_all_ns_clients(self, data, verbose = False, to_json = False, to_yaml = False):
         DataCounter.print_counters(data, verbose, to_json, to_yaml)
 
+    # Override functions
+    def tear_down_ns(self, port, vlan, tpid):
+        ''' This function will be called before removing this plugin from namespace'''
+        pass
+
     # Common helper functions
     def run_on_all_ns(self, func, print_ns_info = False, func_on_res = None, func_on_res_args = None, **kwargs):
         if func_on_res_args is None:
@@ -39,13 +40,9 @@ class EMUPluginBase(object):
 
             for ns_i, ns in enumerate(ns_chunk):
                 glob_ns_num += 1
-                
-                # add ns info to current namespace
-                ns_info = ns_infos[ns_i]
-                ns.update(ns_info)
 
                 if print_ns_info:
-                    self.emu_c._print_ns_table(ns, glob_ns_num)
+                    self.emu_c._print_ns_table(ns_infos[ns_i], glob_ns_num)
                 res = func(ns.get('vport'), ns.get('tci'), ns.get('tpid'), **kwargs)            
                 if func_on_res is not None:
                     func_on_res(res, **func_on_res_args)
@@ -62,14 +59,71 @@ class EMUPluginBase(object):
             text_tables.print_colored_line(empty_msg, 'yellow', buffer = sys.stdout)
             return
 
-        for data_i, data in enumerate(data):
-            if type(data) is dict:
-                self.emu_c.print_dict_as_table(data, title)
+        if title is not None:
+            text_tables.print_colored_line(title, 'yellow', buffer = sys.stdout)
+
+        for one_data in data:
+            print(conv_unknown_to_str(one_data))
+        print('')  # new line for seperation 
+
+    def print_table_by_keys(self, data, keys_to_headers, title = None, empty_msg = 'empty'):
+
+        if len(data) == 0:
+            text_tables.print_colored_line(empty_msg, 'yellow', buffer = sys.stdout)      
+            return
+
+        table = text_tables.TRexTextTable(title)
+        headers = [e.get('header') for e in keys_to_headers]
+        keys = [e.get('key') for e in keys_to_headers]
+        
+        max_lens = [len(h) for h in headers]
+        table.header(headers)
+
+        for i, one_record in enumerate(data):
+            row_data = []
+            for j, key in enumerate(keys):
+                val = str(conv_to_str(one_record.get(key), key))
+                row_data.append(val)
+                max_lens[j] = max(max_lens[j], len(val))
+            table.add_row(row_data)
+
+        # fix table look
+        table.set_cols_align(["c"] * len(headers))
+        table.set_cols_width(max_lens)
+        table.set_cols_dtype(['a'] * len(headers))
+        
+        text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
+
+
+    def create_ip_vec(self, ip_start, ip_count, ip_type = 'ipv4'):
+        """
+        Helper function, creates a vector for ipv4 or 6.
+        Notice: create_ip_vec('1.0.0.0', 0) -> ['1.0.0.0']
+        
+            :parameters:
+                ip_start: string
+                    First ip in vector.
+                ip_count: int
+                    Total ip's to add.
+                ip_type: str
+                    ipv4 / ipv6, defaults to 'ipv4'.
+        
+            :raises:
+                + :exe:'TRexError'
+        
+            :returns:
+                list: list of ip's as strings
+        """
+        vec = [ip_start]
+        for _ in range(ip_count):
+            if ip_type == 'ipv4':
+                new_ip = increase_ip(vec[-1])
+            elif ip_type == 'ipv6':
+                new_ip = increase_ipv6(vec[-1])
             else:
-                if data_i == 0 and title is not None:
-                    text_tables.print_colored_line(title, 'yellow', buffer = sys.stdout)
-                print(conv_unknown_to_str(data))
-        print()  # new line for seperation 
+                raise TRexError('Unknown ip type: "%s", use ipv4 or ipv6' % ip_type)
+            vec.append(new_ip)
+        return vec
 
     @property
     def logger(self):

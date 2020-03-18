@@ -240,17 +240,36 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         action = tREDIRECT_RX_CORE;
         return;
     }
+    if ( m_service_status == SERVICE_ON ){
+                action = tREDIRECT_RX_CORE;
+                return;
+    }
 
-    if ( m_service_status == SERVICE_ON ||
-            (m_service_filtered_mask & TrexPort::BGP) ) {
+    if (m_service_filtered_mask & TrexPort::BGP ) {
         if ( parser.m_protocol == IPPROTO_TCP ) {
             TCPHeader *l4_header = (TCPHeader *)parser.m_l4;
-            if ( l4_header->getSourcePort() == BGP_PORT || l4_header->getDestPort() == BGP_PORT ) {        
+            uint16_t src_port = l4_header->getSourcePort();
+            uint16_t dst_port = l4_header->getDestPort();
+            if ( src_port == BGP_PORT || dst_port == BGP_PORT ) {
                 action = tREDIRECT_RX_CORE;
                 return;
             }
         }
     }
+
+    if (m_service_filtered_mask & TrexPort::DHCP ) {
+        if ( parser.m_protocol == IPPROTO_UDP ) {
+            UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+            uint16_t src_port = l4_header->getSourcePort();
+            uint16_t dst_port = l4_header->getDestPort();
+            if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+                 (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+                action = tREDIRECT_RX_CORE;
+                return;
+            }
+        }
+    }
+
 }
 
 static void on_flow_free_cb(void *userdata,void  *obh){
