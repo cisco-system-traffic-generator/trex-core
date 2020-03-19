@@ -939,7 +939,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'default': False,   
          'dest': 'allow_all',
-         'help': 'Allow filtering bgp and no tcp udp'})
+         'help': 'Allow every filter possible'})
 
     SERVICE_OFF = ArgumentPack(
         ['--off'],
@@ -1413,6 +1413,17 @@ class OPTIONS_DB_GROUPS:
             MONITOR_TYPE_VERBOSE,
             MONITOR_TYPE_PIPE],
         {'required': False})
+
+    SERVICE_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SERVICE_BGP_FILTERED,
+            SERVICE_DHCP_FILTERED,
+            SERVICE_EMU_FILTERED,
+            SERVICE_NO_TCP_UDP_FILTERED,
+            SERVICE_ALL_FILTERED,
+            SERVICE_OFF
+        ],{})
 
     # EMU Groups
     EMU_NS_GROUP = ArgumentGroup(
