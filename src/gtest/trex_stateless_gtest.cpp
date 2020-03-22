@@ -4806,11 +4806,6 @@ class flow_stat_pkt_parse  : public trexStlTest {
 };
 
 
-TEST_F(flow_stat_pkt_parse, parser) {
-    CFlowStatParserTest parser;
-
-    parser.test();
-}
 
 class flow_stat  : public trexStlTest {
     protected:

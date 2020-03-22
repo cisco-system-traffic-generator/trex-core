@@ -25,11 +25,27 @@ limitations under the License.
 static uint16_t default_ipv6[8] = { 0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF,
                                     0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF };
 
+class IPv6ExtHeader {
+    
+public:
+    inline uint8_t getNextHeader() {
+        return (myNextHdr);
+    }
+
+    inline uint16_t getHeaderLen() {
+        return ((myHeaderLen<<3) +8);
+    }
+
+    uint8_t  myNextHdr;
+    uint8_t  myHeaderLen;
+};
+
 class IPv6Header
 {
 /*
  *      IPV6 extension headers
  */
+public:
     enum ext_headers_e {
         IPPROTO_HOPOPTS   = 0,       /* IPv6 hop-by-hop options      */
         IPPROTO_ROUTING   = 43,      /* IPv6 routing header          */
@@ -40,6 +56,10 @@ class IPv6Header
         IPPROTO_NONE      = 59,      /* IPv6 no next header          */
         IPPROTO_DSTOPTS   = 60,      /* IPv6 destination options     */
         IPPROTO_MH        = 135,     /* IPv6 mobility header         */
+	    IPPROTO_EXT_MOBILE     = 135,
+	    IPPROTO_EXT_HOST       = 139,
+	    IPPROTO_EXT_SHIM       = 140,
+	    IPPROTO_EXT_JUMBO      = 194,
     };
 
 public:
