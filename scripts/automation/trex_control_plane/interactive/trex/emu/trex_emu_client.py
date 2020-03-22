@@ -1203,7 +1203,7 @@ class EMUClient(object):
         max_lens = [len(h) for h in headers]
         max_lens[0] = len('Cache Allocations')  # longest attribute in table
 
-        for table_i, current_table in enumerate(mbuf_tables):
+        for table_i, current_table in enumerate(mbuf_tables, start = 1):
             table_info = current_table.get('mbuf_info')
             if table_info is None:
                 continue
@@ -1225,8 +1225,8 @@ class EMUClient(object):
             mbufFreeCache.append(mbuf_free_cache)
 
             total_alloc = mbuf_alloc_cache + mbuf_alloc
-            hit_rate = 0 if total_alloc == 0 else mbuf_alloc_cache / total_alloc * 100
-            hit_rate = '{}%'.format(hit_rate)
+            hit_rate = 0 if total_alloc == 0 else float(mbuf_alloc_cache) / total_alloc * 100.0
+            hit_rate = '{:.1f}%'.format(hit_rate) 
             _update_max_len(max_lens, table_i, hit_rate)
             hitRate.append(hit_rate)
 
