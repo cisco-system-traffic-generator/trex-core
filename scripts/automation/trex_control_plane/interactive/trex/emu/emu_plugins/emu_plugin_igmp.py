@@ -2,6 +2,26 @@ from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
 
+# init jsons example for SDK
+INIT_JSON_NS = {'dhcpv6': {'mtu': 1500, 'dmac': [1, 2, 3, 4, 5 ,6], 'vec': [244, 0, 0, 0]}}
+"""
+:parameters:
+    mtu: uint16
+        Maximun transmission unit.
+
+    dmac: [6]byte
+        Designator mac.
+
+    vec: list of [4]byte
+        IPv4 vector representing multicast addresses.
+"""
+
+INIT_JSON_CLIENT = {'dhcpv6': {}}
+"""
+:parameters:
+    Empty.
+"""
+
 class IGMPPlugin(EMUPluginBase):
     '''Defines igmp plugin'''
 
@@ -13,34 +33,34 @@ class IGMPPlugin(EMUPluginBase):
     # API methods
     @client_api('getter', True)
     def get_cfg(self, port, vlan, tpid):
-        return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_get_cfg', port, vlan, tpid)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_get_cfg', port, vlan, tpid)
 
     @client_api('command', True)
     def set_cfg(self, port, vlan, tpid, mtu, dmac):
-        return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
   
     @client_api('command', True)
     def add_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
         ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
         ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
-        return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_add', port, vlan, tpid, vec = ipv4_vec)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_add', port, vlan, tpid, vec = ipv4_vec)
 
     @client_api('command', True)
     def remove_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
         ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
         ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
-        return self.emu_c.send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = ipv4_vec)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = ipv4_vec)
 
     @client_api('command', True)
     def iter_mc(self, port, vlan, tpid, ipv4_amount = None):
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        return self.emu_c.get_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
+        return self.emu_c._get_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
 
     @client_api('command', True)
     def remove_all_mc(self, port, vlan, tpid):
         mcs = self.iter_mc(port, vlan, tpid)
         if mcs:
-            self.emu_c.send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = mcs)
+            self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = mcs)
 
     # Plugins methods
     @plugin_api('igmp_show_counters', 'emu')

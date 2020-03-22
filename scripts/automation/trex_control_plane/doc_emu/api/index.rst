@@ -15,3 +15,10 @@ TRex Emulation API Reference
     :maxdepth: 4
     
     profile_code
+
+**Plugin Init Json**
+
+.. toctree::
+    :maxdepth: 4
+    
+    init_json

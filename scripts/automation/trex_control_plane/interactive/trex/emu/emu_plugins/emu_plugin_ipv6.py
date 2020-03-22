@@ -2,6 +2,30 @@ from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
 
+# init jsons example for SDK
+INIT_JSON_NS = {'ipv6': {'mtu': 1500, 'dmac': [1, 2, 3, 4, 5 ,6], 'vec': [244, 0, 0, 0]}}
+"""
+:parameters:
+    mtu: uint16
+        Maximun transmission unit.
+
+    dmac: [6]byte
+        Designator mac.
+
+    vec: list of [4]byte
+        IPv4 vector representing multicast addresses.
+"""
+
+INIT_JSON_CLIENT = {'ipv6': {'nd_timer': 29, 'nd_timer_disable': False}}
+"""
+:parameters:
+    nd_timer: uint32
+        IPv6-nd timer.
+
+    nd_timer_disable: bool
+        Enable/Disable IPv6-nd timer.
+"""
+
 class IPV6Plugin(EMUPluginBase):
     '''Defines ipv6 plugin'''
 
@@ -14,40 +38,40 @@ class IPV6Plugin(EMUPluginBase):
     # API methods
     @client_api('getter', True)
     def get_cfg(self, port, vlan, tpid):
-        return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_get_cfg', port, vlan, tpid)
+        return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_get_cfg', port, vlan, tpid)
 
     @client_api('command', True)
     def set_cfg(self, port, vlan, tpid, mtu, dmac):
-        return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
+        return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
     
     @client_api('command', True)
     def add_mld(self, port, vlan, tpid, ipv6_start, ipv6_count):
         ipv6_vec = self.create_ip_vec(ipv6_start, ipv6_count, 'ipv6')
         ipv6_vec = [conv_to_bytes(ip, 'ipv6') for ip in ipv6_vec]
-        return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_add', port, vlan, tpid, vec = ipv6_vec)
+        return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_add', port, vlan, tpid, vec = ipv6_vec)
 
     @client_api('command', True)
     def remove_mld(self, port, vlan, tpid, ipv6_start, ipv6_count):
         ipv6_vec = self.create_ip_vec(ipv6_start, ipv6_count, 'ipv6')
         ipv6_vec = [conv_to_bytes(ip, 'ipv6') for ip in ipv6_vec]
-        return self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = ipv6_vec)
+        return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = ipv6_vec)
 
     @client_api('command', True)
     def iter_mld(self, port, vlan, tpid, ipv6_amount = None):
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        return self.emu_c.get_n_items(cmd = 'ipv6_mld_ns_iter', amount = ipv6_amount, **params)
+        return self.emu_c._get_n_items(cmd = 'ipv6_mld_ns_iter', amount = ipv6_amount, **params)
 
     @client_api('command', True)
     def remove_all_mld(self, port, vlan, tpid):
         mlds = self.iter_mld(port, vlan, tpid)
         mlds = [m['ipv6'] for m in mlds if m['management']]
         if mlds:
-            self.emu_c.send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = mlds)
+            self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_remove', port, vlan, tpid, vec = mlds)
 
     @client_api('getter', True)
     def show_cache(self, port, vlan, tpid):
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        res = self.emu_c.get_n_items(cmd = 'ipv6_nd_ns_iter', **params)
+        res = self.emu_c._get_n_items(cmd = 'ipv6_nd_ns_iter', **params)
         for r in res:
             if 'state' in r:
                 r['state'] = IPV6Plugin.IPV6_STATES.get(r['state'], 'Unknown state')
