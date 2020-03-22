@@ -9,7 +9,7 @@ class EMUPluginBase(object):
     def __init__(self, emu_client, cnt_rpc_cmd):
         self.emu_c  = emu_client
         self.conn   = emu_client.conn
-        self.err    = emu_client.err  # simple err method
+        self.err    = emu_client._err  # simple err method
         self.data_c = DataCounter(emu_client.conn, cnt_rpc_cmd)
 
     # Common API
@@ -32,7 +32,7 @@ class EMUPluginBase(object):
         if func_on_res_args is None:
             func_on_res_args = {}
 
-        ns_gen = self.emu_c.get_n_ns(amount = None)
+        ns_gen = self.emu_c._get_n_ns(amount = None)
         glob_ns_num = 0
 
         for ns_chunk in ns_gen:
@@ -51,7 +51,7 @@ class EMUPluginBase(object):
             self.err('there are no namespaces in emu server')
 
     def print_plug_cfg(self, cfg):
-        self.emu_c.print_dict_as_table(cfg, title = 'Plugin "%s" cfg:' % self.plugin_name)
+        self.emu_c._print_dict_as_table(cfg, title = 'Plugin "%s" cfg:' % self.plugin_name)
 
     def print_gen_data(self, data, title = None, empty_msg = 'empty'):
 

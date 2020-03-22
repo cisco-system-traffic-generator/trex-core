@@ -3,6 +3,22 @@ from trex.emu.emu_plugins.emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
 import json
 
+# init jsons example for SDK
+INIT_JSON_NS = {'arp': {}}
+"""
+:parameters:
+    Empty.
+"""
+
+INIT_JSON_CLIENT = {'arp': {'timer': 60, 'timer_disable': False}}
+"""
+:parameters:
+    timer: uint32
+        Arp timer.
+    timer_disable: bool
+        Is timer disable.
+"""
+
 class ARPPlugin(EMUPluginBase):
     '''Defines arp plugin'''
 
@@ -15,11 +31,11 @@ class ARPPlugin(EMUPluginBase):
     # API methods
     @client_api('getter', True)
     def get_cfg(self, port, vlan, tpid):
-        return self.emu_c.send_plugin_cmd_to_ns('arp_ns_get_cfg', port, vlan, tpid)
+        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_get_cfg', port, vlan, tpid)
 
     @client_api('command', True)
     def set_cfg(self, port, vlan, tpid, enable):
-        return self.emu_c.send_plugin_cmd_to_ns('arp_ns_set_cfg', port, vlan, tpid, enable = enable)
+        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_set_cfg', port, vlan, tpid, enable = enable)
 
     @client_api('command', True)
     def cmd_query(self, port, vlan, tpid, mac, garp):
@@ -31,7 +47,7 @@ class ARPPlugin(EMUPluginBase):
     @client_api('getter', True)
     def show_cache(self, port, vlan, tpid):
         params = conv_ns_for_tunnel(port, vlan, tpid)
-        res = self.emu_c.get_n_items(cmd = 'arp_ns_iter', **params)
+        res = self.emu_c._get_n_items(cmd = 'arp_ns_iter', **params)
         for r in res:
             if 'state' in r:
                 r['state'] = ARPPlugin.ARP_STATES.get(r['state'], 'Unknown state')

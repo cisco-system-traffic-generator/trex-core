@@ -42,6 +42,12 @@ class EMUClientObj(object):
             raise AttributeError('EMUClientObj has no attribute: "%s"' % name)
 
     def to_json(self):
+        """
+        Convert client into a JSON format. 
+        
+            :returns:
+                dict: Client's data in a dictionary format.
+        """        
         return self.fields
 
     @property
@@ -86,9 +92,23 @@ class EMUNamespaceObj(object):
 
 
     def set_def_c_plugs(self, plugs):
+        """
+        Set default client plugins. 
+        
+            :parameters:
+                plugs: dict
+                    Dictonary with keys as plug names and values as plug info.
+        """        
         self.def_c_plugs = plugs
 
     def add_clients(self, clients):
+        """
+        Add clients to namespace. 
+        
+            :parameters:
+                clients: EMUClientObj / list of EMUClientObj
+                    Clients to add, may be a list or just one.
+        """        
         ver_args = {'types':[
                 {'name': 'clients', 'arg': clients, 't': EMUClientObj, 'allow_list': True},
                 ]}
@@ -115,6 +135,12 @@ class EMUNamespaceObj(object):
         self.mac_map[c_mac] = client
 
     def to_json(self):
+        """
+        Convert namespace to a json. 
+                        
+            :returns:
+                dict: Namespace data in dictionary format 
+        """        
         res = {'def_c_plugs': self.def_c_plugs, 'clients': []}
         res.update(self.fields)
         for c in self.mac_map.values():
@@ -143,6 +169,13 @@ class EMUProfile(object):
             self.add_ns(ns)
 
     def set_def_ns_plugs(self, plugs):
+        """
+        Set default namespace plugins (every namespace from this profile will have them by default). 
+        
+            :parameters:
+                plugs: dict
+                    Dictonary with keys as plug names and values as plug info.
+        """        
         self.def_ns_plugs = plugs
 
     def add_ns(self, ns):
@@ -166,6 +199,12 @@ class EMUProfile(object):
         return [ns.fields for ns in self.ns_list]
 
     def to_json(self):
+        """
+        Convert profile to a json. 
+                
+            :returns:
+                dict: Namespace data in dictionary format 
+        """ 
         res = {'def_ns_plugs': self.def_ns_plugs, 'namespaces': []}
         for ns in self.ns_list:
             res['namespaces'].append(ns.to_json())
@@ -177,7 +216,7 @@ class EMUProfile(object):
 
            :Parameters:
               filename  : string as filename 
-              kwargs    : forward those key-value pairs to the profile
+              tunables  : string, line of tunables data
         """
 
         x = os.path.basename(filename).split('.')
@@ -193,8 +232,21 @@ class EMUProfile(object):
     @classmethod
     @pretty_exceptions
     def load_py(cls, filename, tunables):
-        """ Loads EMU profile from file with tunables, returns None if called only for help """
-
+        """
+        Loads EMU profile from file with tunables, returns None if called only for help.
+        
+            :parameters:
+                filename: string
+                    Path to a valid Python file describing emu profile.
+                tunables: string
+                    Line of tunables data.
+        
+            :raises:
+                + :exe:'TRexError': In any case loading profile fails
+        
+            :returns:
+                EMUProfile: EMUProfile object.
+        """
         # check filename
         if not os.path.isfile(filename):
             raise TRexError("File '{0}' does not exist".format(filename))
