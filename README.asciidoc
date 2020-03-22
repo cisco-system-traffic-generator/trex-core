@@ -188,6 +188,86 @@ Github is here link:https://github.com/cisco-system-traffic-generator/trex-state
 
 image::doc/images/t_g1.gif[title="",align="center",width=300, link="https://github.com/cisco-system-traffic-generator/trex-core/tree/master/doc/images/t_g1.gif"]
 
+
+=== TRex EMU 
+
+The objective is to implement client side L3 protocols i.e ARP, IPv6, ND, MLD, IGMP in order to simulate a scale of clients and servers.
+This project is not limited to client protocols, but it is a good start. The project provides a framework to implement and use client protocols.
+
+The framework is fast enough for control plane protocols and will work with TRex server. Very fast L7 applications (on top of TCP/UDP) will run on TRex server.  One single thread of TRex-EMU can achieve a high rate of client creation/teardown.
+Each of the aforementioned protocol is implemented as a plugin. These plugins are self contained and can signal events one to the other, or to the framework, using an event-bus. (e.g. DHCP signals that it has a new IPv6 address).
+The framework has an event driven architecture, this way it can scale. The framework also provides to a protocol plugin infrastructure, for example RPC, timers, packet parsers, simulation and more.
+
+
+**The main properties**:
+
+* Fast client creation/teardown. ~3K/sec for one thread.
+* Number of active client/namespace is limited only by the memory on the server.
+* Packet per second (PPS) in the range of 3-5 MPPS.
+* Python 2.7/3.0 Client API exposed through JSON-RPC.
+* Interactive support - Integrated with the TRex console.
+* Modular design. Each plugin is self contained and can be tested on its own.
+* TRex-EMU supports the following protocols:
+
+[options="header",cols="1,2",width="60%"]
+|=================
+| Plug-in | Description
+| ARP     | RFC 826
+| ICMP    | RFC 777
+| DHCPv4  | RFC 2131 client side
+| IGMP    | IGMP v3/v2/v1 RFC3376
+| IPv6    | IPv6 ND, RFC 4443, RFC 4861, RFC 4862 and MLD and MLDv2 RFC 3810
+| DHCPv6  | RFC 8415 client side
+|=================
+
+more infor here link:https://github.com/cisco-system-traffic-generator/trex-emu[trex-emu]
+
+
+== TRex BIRD integration 
+
+Bird Internet Routing Daemon is a project aimed to develop a fully functional linux dynamic IP routing daemon.
+It was integrated into TRex to run alongside in order to exploit it’s features together with Python automation API.
+
+* Run on top of IPv4 and IPv6 (using kernel veth)
+** BGP (eBGP/iBGP), RPKI (RFC 6480)/RFC 6483 records type are pv4,ipv6,vpn4,vpn6,multicast,flow4,flow6
+** RFC 4271 - Border Gateway Protocol 4 (BGP)
+** RFC 1997 - BGP Communities Attribute
+** RFC 2385 - Protection of BGP Sessions via TCP MD5 Signature
+** RFC 2545 - Use of BGP Multiprotocol Extensions for IPv6
+** RFC 2918 - Route Refresh Capability
+** RFC 3107 - Carrying Label Information in BGP
+** RFC 4360 - BGP Extended Communities Attribute
+** RFC 4364 - BGP/MPLS IPv4 Virtual Private Networks
+** RFC 4456 - BGP Route Reflection
+** RFC 4486 - Subcodes for BGP Cease Notification Message
+** RFC 4659 - BGP/MPLS IPv6 Virtual Private Networks
+** RFC 4724 - Graceful Restart Mechanism for BGP
+** RFC 4760 - Multiprotocol extensions for BGP
+** RFC 4798 - Connecting IPv6 Islands over IPv4 MPLS
+** RFC 5065 - AS confederations for BGP
+** RFC 5082 - Generalized TTL Security Mechanism
+** RFC 5492 - Capabilities Advertisement with BGP
+** RFC 5549 - Advertising IPv4 NLRI with an IPv6 Next Hop
+** RFC 5575 - Dissemination of Flow Specification Rules
+** RFC 5668 - 4-Octet AS Specific BGP Extended Community
+** RFC 6286 - AS-Wide Unique BGP Identifier
+** RFC 6608 - Subcodes for BGP Finite State Machine Error
+** RFC 6793 - BGP Support for 4-Octet AS Numbers
+** RFC 7311 - Accumulated IGP Metric Attribute for BGP
+** RFC 7313 - Enhanced Route Refresh Capability for BGP
+** RFC 7606 - Revised Error Handling for BGP UPDATE Messages
+** RFC 7911 - Advertisement of Multiple Paths in BGP
+** RFC 7947 - Internet Exchange BGP Route Server
+** RFC 8092 - BGP Large Communities Attribute
+** RFC 8203 - BGP Administrative Shutdown Communication
+** RFC 8212 - Default EBGP Route Propagation Behavior without Policies
+** OSPF (v2/v3) RFC 2328/ RFC 5340
+** RIP - RIPv1 (RFC 1058),RIPv2 (RFC 2453), RIPng (RFC 2080), and RIP cryptographic authentication (RFC 4822).
+* Scale of Millions of routes (depends on the protocol scale e.g. BGP) in a few seconds
+* Integration with Multi-RX software model (-software and -c higher than 1) to supprt dynamic filters for BIRD protocols while keeping high rates of traffic
+* Can support up to 10K veth (virtual interfaces) each with different QinQ/VLAN configuration
+* Simple automation Python API for pushing configuration and read statistics
+
 === Sandbox for evaluation
 
 Try the new Devnet Sandbox link:https://devnetsandbox.cisco.com/RM/Topology[TRex Sandbox]
