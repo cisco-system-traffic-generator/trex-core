@@ -51,14 +51,14 @@ class ClientGen:
 class Prof1():
     def __init__(self):
         self.def_ns_plugs  = None
-                                # {'ipv6': {'enable': True},
-        #                     'dhcp': {'enable': True, 'timerd': 1, 'timero': 2},
+                                # {'ipv6': {'mtu': 1500, 'dmac': [1, 2, 3, 4, 5 ,6], 'vec': [244, 0, 0, 0]}},
+        #                     'dhcp': {},
         #                     }
-        self.def_c_plugs  = {'arp': {},
-                            #  'igmp': {'enable': True},
-                            #  'icmp': {'enable': True},
-                            #  'ipv6': {'enable': True},
-                            #  'dhcpv6': {'enable': True, 'timerd': 11, 'timero': 12},
+        self.def_c_plugs  = {'arp': {'timer': 50},
+                             'igmp': {},
+                            #  'icmp': {},
+                            #  'ipv6': {'nd_timer': 20, 'nd_timer_disable': False},
+                            #  'dhcpv6': {'timerd': 11, 'timero': 12},
                              }
 
     def create_profile(self, ns_size, clients_size, mac, ipv4, dg, ipv6):
