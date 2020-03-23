@@ -45,7 +45,7 @@ link:trex_stateless.html[trex_stateless.html] link:trex_stateless.pdf[trex_state
 link:trex_astf.html[trex_astf.html] link:trex_astf.pdf[trex_astf.pdf] link:trex_astf_vs_nginx.html[trex_astf_performance.html]
 // trex_emu.html is created by trem-emu git repo
 | Emulation Manual    | 
-link:https://trex-tgn.cisco.com/trex/doc/trex_emu.html[trex_emu.html] 
+link:trex_emu.html[trex_emu.html] 
 | Tutorial TRex on VirtualBox/Docker    | 
 link:trex_vm_manual.html[trex_vm_manual.html] link:trex_vm_manual.pdf[trex_vm_manual.pdf]
 | Cisco Devnet SandBox   | 
