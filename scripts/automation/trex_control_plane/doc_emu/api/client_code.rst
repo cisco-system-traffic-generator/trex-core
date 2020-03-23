@@ -12,14 +12,6 @@ Python-like example::
     
    c.load_profile('path/to/profile')
    
-Console-like example ::
-
-  $ > ./trex-console --emu 
-  (trex)> plugins emu load_profile -f emu/simple_emu.py -t --ns 2 --clients 5
-
-This example will load the profile at: "emu/simple_emu.py" with tunnables of 2 namespace with 5 clients in each one.
-You can explore more emu commands by entering "?" to the console and look under "Emulation Commands". 
-
 Example - Typical Python API::
 
     c = EMUClient(username = "elad", server = '10.0.0.10', sync_port = 4510, verbose_level = "error")
@@ -36,6 +28,17 @@ Example - Typical Python API::
     # print all the ctx counters
     res = c.get_counters()
     print(res)
+
+**NOTICE**: More emu_examples can be found at: `scripts/automation/trex_control_plane/interactive/trex/examples/emu`
+
+Console-like example ::
+
+  $ > ./trex-console --emu 
+  (trex)> plugins emu load_profile -f emu/simple_emu.py -t --ns 2 --clients 5
+
+This example will load the profile at: "emu/simple_emu.py" with tunnables of 2 namespace with 5 clients in each one.
+You can explore more emu commands by entering "?" to the console and look under "Emulation Commands". 
+
 
 Plugins Methods
 ---------------

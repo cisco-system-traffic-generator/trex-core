@@ -171,6 +171,7 @@ class EMUClient(object):
         self.general_data_c = DataCounter(self.conn, 'ctx_cnt')
 
         self.registered_plugs = {}  # keys as names values as emu_plugin objects i.e: {'arp': ARPPlugin, ...} 
+        self.get_plugin_methods()  # important, bind emu_plugins to client
 
     def __del__(self):
         self.disconnect()
