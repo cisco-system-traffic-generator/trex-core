@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.77 ==
+
+* minor version, fix EMU documentation and minor things 
+
 == Release 2.76 ==
 
 trex-emu server support. link:https://github.com/cisco-system-traffic-generator/trex-emu[trex-emu]
