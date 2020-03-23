@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import time
+from trex.common.trex_client import NO_MASK, NO_TCP_UDP_MASK, BGP_MASK, DHCP_MASK, ALL_MASK
 from trex.pybird.bird_cfg_creator import *
 from trex.pybird.bird_zmq_client import *
 from trex.stl.trex_stl_port import *
