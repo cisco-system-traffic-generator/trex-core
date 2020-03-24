@@ -519,8 +519,10 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
-        # call the father method
-        super(ASTFClient, self).set_service_mode(ports = ports, enabled = enabled, filtered = filtered, mask = mask)
+        ''' based on :meth:`trex.astf.trex_astf_client.ASTFClient.set_service_mode_base` '''
+        
+        # call the base method
+        self.set_service_mode_base(ports = ports, enabled = enabled, filtered = filtered, mask = mask)
         
         # in ASTF send to all ports with the handler of the ctx
         params = {"handler": self.handler,

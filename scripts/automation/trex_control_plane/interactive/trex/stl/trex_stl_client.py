@@ -429,8 +429,11 @@ class STLClient(TRexClient):
 
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
-        # call the father method
-        super(STLClient, self).set_service_mode(ports, enabled, filtered, mask)
+        ''' based on :meth:`trex.stl.trex_stl_client.STLClient.set_service_mode_base` '''
+
+        # call the base method
+        self.set_service_mode_base(ports, enabled, filtered, mask)
+        
         rc = self._for_each_port('set_service_mode', ports, enabled, filtered, mask)
         self.ctx.logger.post_cmd(rc)
         

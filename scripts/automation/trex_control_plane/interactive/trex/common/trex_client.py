@@ -45,6 +45,7 @@ from scapy.utils import RawPcapWriter
 import pprint
 
 ## Filtered Service Mode Mask ##
+## IMPORTANT - UPDATE ALSO in set_service_mode() docstring! ##
 NO_MASK         = 0
 NO_TCP_UDP_MASK = 1
 BGP_MASK        = 2
@@ -2129,7 +2130,7 @@ class TRexClient(object):
 
 
     @client_api('command', True)
-    def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
+    def set_service_mode_base (self, ports = None, enabled = True, filtered = False, mask = None):
         """
             Set service mode for port(s)
             In service mode ports will respond to ARP, PING and etc. "enable" and "filtered" are mutual exclusive,
@@ -2143,12 +2144,17 @@ class TRexClient(object):
                 filtered: bool
                     True for activating service filtered mode, False for disabling. Mutual exclusive with "enabled"
                 mask: int
-                    mask to apply on each port in ports while filtered mode is on. Only packets that are correspond
-                    to the port mask will be transferred
+                    Mask to apply on each port in ports while filtered mode is on. Only packets that are correspond
+                    to the port mask will be transferred. 
+                    Masks flags:
+                    NO_MASK         = 0
+                    NO_TCP_UDP_MASK = 1
+                    BGP_MASK        = 2
+                    DHCP_MASK       = 4
+                    ALL_MASK        = 255
 
             :raises:
                 + :exe:'TRexError'
-
         """
         # by default take all acquired ports
         ports = ports if ports is not None else self.get_acquired_ports()
