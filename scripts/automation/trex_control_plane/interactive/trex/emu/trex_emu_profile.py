@@ -23,7 +23,15 @@ def pretty_exceptions(func):
 class EMUClientObj(object):
     
     def __init__(self, mac, **kwargs):
+        """
+        Create a new Emu client object. 
         
+            :parameters:
+                mac: str
+                    Mac Address for the client.
+        
+            :raises:
+        """        
         ver_args = {'types':[
                 {'name': 'mac', 'arg': mac, 't': 'mac'},
                 ]}
@@ -60,10 +68,34 @@ class EMUClientObj(object):
 class EMUNamespaceObj(object):
 
     def __init__(self, vport, tci = None, tpid = None, clients = None, plugs = None, def_c_plugs = None):
+        """
+        Create Emu Namespace object. 
+        
+            :parameters:
+                vport: int
+                    Port for the namespace.
+                tci: int or list of 2 ints.
+                    Tci/s for the namespace (up to 2), defaults to None means no Vlan.
+                tpid: int or 2 ints.
+                    Tpid/s for the tci/s (up to 2), defaults to None means no vlan.
+                    If tci supplied without tpid, it will set tpid to 0x8100.
+                clients: EMUClientObj or list of EMUClientObjs
+                    Client/s for namespace, defaults to None.
+                plugs: dictionary
+                    Plugins for namespace, not to be confused with `def_c_plugs` plugs are namespace plugins, defaults to None.
+                def_c_plugs: dictionary
+                    Default client plugins, defaults to None.
+                    Every client in the namespace gets those default plugins, If a client has his own plugs it will be merged with the default one
+                    and overide duplicates giving favor to the client.
+        
+            :raises:
+                + :exe:'TRexError': [description]
+        """        
         ver_args = {'types':[
                 {'name': 'vport', 'arg': vport, 't': int},
                 {'name': 'tci', 'arg': tci, 't': int, 'allow_list': True, 'must': False},
                 {'name': 'tpid', 'arg': tpid, 't': int, 'allow_list': True, 'must': False},
+                {'name': 'clients', 'arg': clients, 't': EMUClientObj, 'allow_list': True, 'must': False},
                 {'name': 'def_c_plugs', 'arg': def_c_plugs, 't': dict, 'must': False},
                 ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
@@ -156,6 +188,21 @@ class EMUNamespaceObj(object):
 class EMUProfile(object):
 
     def __init__(self, ns = None, def_ns_plugs = None):
+        """
+        Create an Emu profile. 
+
+            :parameters:
+                ns: EmuNamespaceObj or list of EmuNamespaceObj
+                    The namespace/s to use in profile, defaults to None.
+                def_ns_plugs: dict
+                    Dictionary with all the default namespace plugins. If a namespace hasn't plugins it will take the default, defaults to None.
+        
+            :raises:
+                + :exe:'TRexError': [description]
+        
+            :returns:
+                EMUProfile: Emu profile object.
+        """
         ver_args = {'types':[
                 {'name': 'ns', 'arg': ns, 't': EMUNamespaceObj, 'allow_list': True, 'must': False},
                 {'name': 'def_ns_plugs', 'arg': def_ns_plugs, 't': dict, 'must': False},
@@ -216,7 +263,7 @@ class EMUProfile(object):
 
            :Parameters:
               filename  : string as filename 
-              tunables  : string, line of tunables data
+              tunables  : list of strings, list of tunables data. i.e: ['--clients', '10']
         """
 
         x = os.path.basename(filename).split('.')
@@ -238,8 +285,8 @@ class EMUProfile(object):
             :parameters:
                 filename: string
                     Path to a valid Python file describing emu profile.
-                tunables: string
-                    Line of tunables data.
+                tunables: list of strings
+                    List of tunables. i.e: ['--clients', '10']
         
             :raises:
                 + :exe:'TRexError': In any case loading profile fails

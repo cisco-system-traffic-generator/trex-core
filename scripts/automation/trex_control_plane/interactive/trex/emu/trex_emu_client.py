@@ -1039,35 +1039,47 @@ class EMUClient(object):
     
     # Emu Profile
     @client_api('command', True)
-    def load_profile(self, filename, max_rate, tunables, dry = False):
+    def load_profile(self, profile, max_rate = None, tunables = None, dry = False):
         """
             Load emu profile from profile by its type. Supported type for now is .py
 
             :parameters:
-                filename : string
-                    filename (with path) of the profile
-
-                tunables : string
-                    tunables line. i.e: ".. -t --ns 1 --clients 10"
+                profile : string or EMUProfile
+                    Filename (with path) of the profile or a valid EMUProfile object.
 
                 max_rate : int
-                    max clients rate to send (clients/sec), "None" means all clients in 1 request.
+                    Max clients rate to send (clients/sec), "None" means with no policer interference.
 
+                tunables : list of strings
+                    Tunables line as list of strings. i.e: ['--ns', '1', '--clients', '10'].
+                
                 dry: bool
                     True will not send the profile, only print as JSON.
 
             :raises:
                 + :exc:`TRexError`
         """
+        if tunables is None:
+            tunables = ['']
+
+        ver_args = {'types':
+            [{'name': 'profile', 'arg': profile, 't': [EMUProfile, str]},
+            {'name': 'max_rate', 'arg': max_rate, 't': int, 'must': False},
+            {'name': 'tunables', 'arg': tunables, 't': list},
+            {'name': 'dry', 'arg': dry, 't': bool}]
+        }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+
         help_flags = ('-h', '--help')
         if any(h in tunables for h in help_flags):
             # don't print external messages on help
-            profile = EMUProfile.load(filename, tunables)
+            profile = EMUProfile.load(profile, tunables)
             return
 
         s = time.time()
         self.ctx.logger.pre_cmd("Converting file to profile")
-        profile = EMUProfile.load(filename, tunables)
+        if type(profile) is str:
+            profile = EMUProfile.load(profile, tunables)
         if profile is None:            
             self.ctx.logger.post_cmd(False)
             self._err('Failed to convert EMU profile')
@@ -1187,7 +1199,7 @@ class EMUClient(object):
                     `mac` is the only required field.
 
                 max_rate: int
-                    Max rate of clients, measured by number of clients per second. Default is all clients in 1 request.
+                    Max clients rate to send (clients/sec), "None" means with no policer interference.
 
             :raises:
                 + :exc:`TRexError`
@@ -1219,7 +1231,7 @@ class EMUClient(object):
                     i.e: ['00:aa:aa:aa:aa:aa', '00:aa:aa:aa:aa:ab']
                 
                 max_rate: int
-                    Max rate of clients to remove each time, measured by clients / sec.
+                    Max clients rate to send (clients/sec), "None" means with no policer interference.
 
             :raises:
                 + :exc:`TRexError`
@@ -1242,7 +1254,7 @@ class EMUClient(object):
 
             :parameters:
                 max_rate: int
-                    Max rate of clients to send each time, measured by clients / sec.
+                    Max clients rate to send (clients/sec), "None" means with no policer interference.
         """
         ns_keys_gen = self._get_n_ns()
 
