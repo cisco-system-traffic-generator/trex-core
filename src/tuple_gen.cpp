@@ -289,6 +289,11 @@ void CTupleGenYamlInfo::dump(FILE *fd) {
     }
 }
 
+CTupleGenPoolYaml::CTupleGenPoolYaml() {
+    m_name = "default";
+    m_split_to_ports = true;
+}
+
 // Find out matching port for given ip range.
 // If found, port is returned in port, otherwise port is set to UINT8_MAX
 // Return false in case of error. True otherwise. Port not found is not considered error.
@@ -419,8 +424,6 @@ void read_tuple_para(const YAML::Node& node, CTupleGenPoolYaml & fi) {
 void get_split_to_ports(const YAML::Node &node, CTupleGenPoolYaml &fi) {
     if (node.FindValue("split_to_ports")) {
         node["split_to_ports"] >> fi.m_split_to_ports;
-    } else {
-        fi.m_split_to_ports = true;
     }
 }
 
@@ -471,8 +474,6 @@ void operator >> (const YAML::Node& node, CTupleGenYamlInfo & fi) {
     CTupleGenPoolYaml s_pool;
     
     if (node.FindValue("distribution")) {
-        c_pool.m_name = "default";
-        s_pool.m_name = "default";
         c_pool.m_dist = convert_distribution(node); 
         s_pool.m_dist = c_pool.m_dist;
         UTL_YAML_READ(ip_addr, clients_start, c_pool.m_ip_start);

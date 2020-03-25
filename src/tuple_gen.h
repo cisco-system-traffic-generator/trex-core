@@ -1051,6 +1051,8 @@ struct CTupleGenPoolYaml {
     bool            m_per_core_distro;
     bool            m_split_to_ports;
 
+    CTupleGenPoolYaml();
+
     uint32_t getTotalIps(void){
         return ( m_ip_end-m_ip_start+1);
     }
