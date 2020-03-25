@@ -11,7 +11,7 @@ from ..utils import parsing_opts, text_tables
 from ..common.trex_api_annotators import client_api, console_api
 from ..common.trex_client import TRexClient, NO_TCP_UDP_MASK
 from ..common.trex_events import Event
-from ..common.trex_exceptions import TRexError
+from ..common.trex_exceptions import TRexError, TRexTimeoutError
 from ..common.trex_types import *
 from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 
