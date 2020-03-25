@@ -21,9 +21,10 @@ args = parser.parse_args()
 
 c.connect()
 
-# start the emu profile
-print("Loading profile from: %s" % args.file)
-c.load_profile(filename = args.file, max_rate = 2048, tunables = '')
+print("loading profile from: %s" % args.file)
+
+# start the emu profile using tunables
+c.load_profile(profile = args.file, max_rate = 2048, tunables = ['--ns', '1', '--clients', '10'])
 
 # print tables of namespaces and clients
 c.print_all_ns_clients(max_ns_show = 1, max_c_show = 10)

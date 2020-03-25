@@ -19,11 +19,12 @@ Example - Typical Python API::
     # connect to server
     c.connect()
 
-    # start the emu profile
+    # start the emu profile, NOTICE if profile has many clients is recommended to use `max_rate` param
     c.load_profile('emu/simple_emu.py')
 
     # print tables of namespaces and clients
-    c.print_all_ns_clients()
+    res = c.get_all_ns_and_clients()
+    print(res)
 
     # print all the ctx counters
     res = c.get_counters()
