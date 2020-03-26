@@ -505,7 +505,13 @@ PLATFORM_ppc64le = "ppc64le"
 
 class build_option:
 
-    def __init__(self, name, src, debug_mode, is_pie, use = [], flags = [], rpath = []):
+    def __init__(self, name, src, debug_mode, is_pie, use = None, flags = None, rpath = None):
+      if use is None:
+          use = []
+      if flags is None:
+          flags = []
+      if rpath is None:
+          rpath = []      
       self.mode     = debug_mode;   ##debug,release
       self.platform = march  # aarch64 or x86_64 or ppc64le
       self.is_pie = is_pie
