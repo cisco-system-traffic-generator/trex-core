@@ -290,7 +290,17 @@ void CTupleGenYamlInfo::dump(FILE *fd) {
 }
 
 CTupleGenPoolYaml::CTupleGenPoolYaml() {
+    m_dist = IP_DIST_t(0);
+    m_ip_start = 0;
+    m_ip_end = 0;
+    m_number_of_clients_per_gb = 0;
+    m_min_clients = 0;
+    m_dual_interface_mask = 0;
+    m_tcp_aging_sec = 0;
+    m_udp_aging_sec = 0;
     m_name = "default";
+    m_is_bundling = false;
+    m_per_core_distro = false;
     m_split_to_ports = true;
 }
 
