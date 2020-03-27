@@ -1169,13 +1169,17 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_stream = get_emul_stream(c_temp["program_index"].asInt());
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
 
+        bool is_cont = false;
+        if (c_temp["cont"] != Json::nullValue ) {
+            is_cont = c_temp["cont"].asBool(); // set continuous flows
+        }
         if (c_temp["limit"] != Json::nullValue ){
             uint32_t cnt= utl_split_int(c_temp["limit"].asUInt(),
                                         thread_id, 
                                         max_threads);
 
             /* there is a limit */
-            temp_rw->set_limit(cnt);
+            temp_rw->set_limit(cnt, is_cont);
         }
 
         CTcpTuneables *s_tuneable;
