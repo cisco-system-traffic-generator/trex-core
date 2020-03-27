@@ -68,13 +68,24 @@ public:
     uint16_t get_dest_port(){
         return(m_dest_port);
     }
-    void set_limit(uint32_t limit){
+    void set_limit(uint32_t limit, bool is_cont){
         m_limit=limit+1; /* need to add 1*/
+        m_is_cont=is_cont;
     }
 
     void dec_limit() {
         if (m_limit>1) { /* stop at 1 */
             --m_limit;
+        }
+    }
+    void try_dec_limit() {
+        if (m_is_cont) {
+            dec_limit();
+        }
+    }
+    void try_inc_limit() {
+        if (m_is_cont && m_limit>0) {
+            ++m_limit;
         }
     }
     bool check_limit(){
@@ -104,7 +115,8 @@ public:
     astf_thread_id_t              m_thread_id;
     CTcpTuneables               * m_c_tune;
     CTcpTuneables               * m_s_tune;
-    uint32_t                      m_limit;
+    uint32_t                      m_limit;      /* limit the generated flows */
+    bool                          m_is_cont;    /* continue flow generation to the limit */
     bool                         m_is_udp;
 } ;
 

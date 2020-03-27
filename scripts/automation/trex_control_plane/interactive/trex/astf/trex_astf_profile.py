@@ -1272,7 +1272,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
      """
 
     def __init__(self, ip_gen, cluster=ASTFCluster(), program=None,
-                 port=80, cps=1, glob_info=None,limit=None):
+                 port=80, cps=1, glob_info=None,limit=None,cont=None):
         """
 
         :parameters:
@@ -1293,6 +1293,9 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   limit    : uint32_t 
                         limit the number of flows. default is None which means zero (there is no limit)
 
+                  cont     : bool
+                        try to keep the number of flows up to limit.
+
                   glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
         """
@@ -1301,6 +1304,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                     [{"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen},
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
+                     {"name": "cont", 'arg': cont, "t": bool, "must": False},
                      {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
@@ -1312,6 +1316,8 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
         self.fields['glob_info'] = glob_info
         if limit:
             self.fields['limit'] = limit
+            if cont:
+                self.fields['cont'] = cont
 
     def to_json(self):
         ret = super(ASTFTCPClientTemplate, self).to_json()
@@ -1319,6 +1325,8 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
         ret['cps'] = self.fields['cps']
         if 'limit' in self.fields:
             ret['limit'] = self.fields['limit']
+            if 'cont' in self.fields:
+                ret['cont'] = self.fields['cont']
 
         if self.fields['glob_info'] is not None:
             ret['glob_info'] = self.fields['glob_info'].to_json()
@@ -1396,7 +1404,7 @@ class ASTFCapInfo(object):
     """
 
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None,
-                 s_glob_info=None, c_glob_info=None,limit=None, tg_name=None):
+                 s_glob_info=None, c_glob_info=None,limit=None, cont=None, tg_name=None):
         """
         Define one template information based on pcap file analysis
 
@@ -1422,6 +1430,9 @@ class ASTFCapInfo(object):
                   limit     : uint32_t 
                         Limit the number of flows 
 
+                  cont     : bool
+                        try to keep the number of flows up to limit.
+
                   s_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
                   c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
@@ -1434,6 +1445,7 @@ class ASTFCapInfo(object):
                      {"name": "ip_gen", 'arg': ip_gen, "t": ASTFIPGen, "must": False},
                      {"name": "c_glob_info", 'arg': c_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
+                     {"name": "cont", 'arg': cont, "t": bool, "must": False},
                      {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "tg_name", 'arg': tg_name, "t": str, "must": False}]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
@@ -1471,7 +1483,8 @@ class ASTFCapInfo(object):
         self.ip_gen = ip_gen
         self.c_glob_info = c_glob_info
         self.s_glob_info = s_glob_info
-        self.limit=limit;
+        self.limit = limit
+        self.cont = cont
         self.tg_name = tg_name
 
 class ASTFTemplate(object):
@@ -1702,7 +1715,7 @@ class ASTFProfile(object):
                 d_ports[d_port] = cap_file
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
-                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit, "tg_name": cap.tg_name})
+                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit, "cont":cap.cont, "tg_name": cap.tg_name})
             # calculate cps from l7 percent
             if mode == "l7_percent":
                 percent_sum = 0
@@ -1714,7 +1727,7 @@ class ASTFProfile(object):
 
             for c in all_cap_info:
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
-                                               cps=c["cps"],limit=c["limit"])
+                                               cps=c["cps"],limit=c["limit"],cont=c["cont"])
                 temp_s = ASTFTCPServerTemplate(program=c["prog_s"], glob_info=c["glob_s"], assoc=c["my_assoc"])
                 template = ASTFTemplate(client_template=temp_c, server_template=temp_s, tg_name=c["tg_name"])
                 self._add_tg_id_to_template(template)
