@@ -1,4 +1,3 @@
-from ..astf.arg_verify import ArgVerify
 from ..utils import text_tables
 from ..utils.text_tables import *
 from ..common.trex_exceptions import *
@@ -55,29 +54,26 @@ class DataCounter(object):
     def clear_counters(self):
         return self._get_counters(clear = True)
 
-    def set_add_data(self, port = None, vlan = None, tpid = None, mac = None, reset = False):
+    def set_add_data(self, ns_key = None, c_key = None, reset = False):
         """
             Set additional data to each request. 
         
             :parameters:
-                port: int
-                    Port of namespace, defaults to None.
-                vlan: list
-                    Vlan tags of namespace, defaults to None.
-                tpid: list
-                    Vlan tpids of namespace, defaults to None.
-                mac: string
-                    Mac address of client in namespace.
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                c_key: EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
                 reset: bool
                     Reset additional data to None, defaults to False.
-        """        
+        """
         if reset:
             self.add_data = None
+        elif c_key is not None:
+            self.add_data = c_key.conv_to_dict(add_ns = True, to_bytes = True)
+        elif ns_key is not None:
+            self.add_data = ns_key.conv_to_dict(True)
         else:
-            self.add_data = conv_ns_for_tunnel(port, vlan, tpid)
-        if mac is not None:
-            mac = conv_to_bytes(val = mac, key = 'mac')
-            self.add_data.update({'mac': mac})
+            raise TRexError('Must provide ns_key or c_key to set_add_data, if you want to reset use reset = True')
 
     @staticmethod
     def print_counters(data, verbose = False, to_json = False, to_yaml = False):
@@ -185,12 +181,6 @@ class DataCounter(object):
             }
             return info_dict.get(info_code, 'UNKNOWN_TYPE')
 
-        ver_args = {'types':
-                [{'name': 'meta', 'arg': meta, 't': bool},
-                {'name': 'zero', 'arg': zero, 't': bool},
-                {'name': 'mask', 'arg': mask, 't': str, 'allow_list': True, 'must': False}]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
         if mask is not None:
             mask = listify(mask)
         

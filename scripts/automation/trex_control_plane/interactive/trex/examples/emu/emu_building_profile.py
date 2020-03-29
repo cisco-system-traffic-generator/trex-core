@@ -1,8 +1,8 @@
 #!/usr/bin/python
 import emu_path
 
-from itertools import chain, combinations
 from trex.emu.api import *
+from trex.emu.trex_emu_conversions import Mac, Ipv4
 
 import pprint
 
@@ -14,20 +14,20 @@ c = EMUClient(server          = 'localhost',
 
 c.connect()
 
-mac_1, mac_2   = '00:00:00:70:00:01', '00:00:00:70:00:02'
-ipv4_1, ipv4_2 = '1.1.1.3', '1.1.1.4'
-ipv4_dg        = '1.1.1.1'
+mac_1, mac_2   = Mac('00:00:00:70:00:01'), Mac('00:00:00:70:00:02')
+ipv4_1, ipv4_2 = Ipv4('1.1.1.3'), Ipv4('1.1.1.4')
+ipv4_dg        = Ipv4('1.1.1.1')
 
-emu_client1 = EMUClientObj(mac = mac_1, ipv4 = ipv4_1, ipv4_dg = ipv4_dg)
+emu_client1 = EMUClientObj(mac = mac_1.V(), ipv4 = ipv4_1.V(), ipv4_dg = ipv4_dg.V())
 
 # plugins only for c2, will override default
 c2_plugs = {'arp': {'timer': 30},
             'igmp': {}
 }
 
-emu_client2 = EMUClientObj(mac     = mac_2,
-                           ipv4    = ipv4_2,
-                           ipv4_dg = ipv4_dg,
+emu_client2 = EMUClientObj(mac     = mac_2.V(),
+                           ipv4    = ipv4_2.V(),
+                           ipv4_dg = ipv4_dg.V(),
                            plugs   = c2_plugs)
 
 # Default plugin for all clients in the ns
@@ -36,19 +36,21 @@ def_c_plugs = {'arp': {'timer': 50},
 }
 
 emu_clients = [emu_client1, emu_client2]
-emu_ns = EMUNamespaceObj(vport       = 0,
+ns_key = EMUNamespaceKey(vport = 0)
+emu_ns = EMUNamespaceObj(ns_key      = ns_key,
                          clients     = emu_clients,
                          def_c_plugs = def_c_plugs)
 
 profile = EMUProfile(ns = emu_ns)
 
 # start the emu profile
-c.load_profile(profile = profile, max_rate = 2048)
+c.load_profile(profile = profile, max_rate = 2048, verbose = True)
 
 # print tables of namespaces and clients
 list_of_ns = c.get_all_ns_and_clients()
 
 # Notice, you can use: "c.print_all_ns_clients(max_ns_show = 1, max_c_show = 10)" to print info in a table.
+print("Let's see the profile we have created:")
 for ns in list_of_ns:
     pprint.pprint(ns)
 

@@ -1,52 +1,123 @@
 from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
+from trex.emu.trex_emu_validator import EMUValidator
 import trex.utils.parsing_opts as parsing_opts
-import json
 
-# init jsons example for SDK
-INIT_JSON_NS = {'arp': {}}
-"""
-:parameters:
-    Empty.
-"""
-
-INIT_JSON_CLIENT = {'arp': {'timer': 60, 'timer_disable': False}}
-"""
-:parameters:
-    timer: uint32
-        Arp timer.
-    timer_disable: bool
-        Is timer disable.
-"""
 
 class ARPPlugin(EMUPluginBase):
     '''Defines arp plugin'''
 
     plugin_name = 'ARP'
-    ARP_STATES = {16: 'Learned', 17: 'Incomplete', 18: 'Complete', 19: 'Refresh'}
+
+    # init jsons example for SDK
+    INIT_JSON_NS = {'arp': {}}
+    """
+    :parameters:
+        Empty.
+    """
+
+    INIT_JSON_CLIENT = {'arp': {'timer': 60, 'timer_disable': False}}
+    """
+    :parameters:
+        timer: uint32
+            Arp timer.
+        timer_disable: bool
+            Is timer disable.
+    """
+
+    ARP_STATES = {
+        16: 'Learned',
+        17: 'Incomplete',
+        18: 'Complete',
+        19: 'Refresh'
+    }
+
 
     def __init__(self, emu_client):
+        """
+        Init ArpPlugin. 
+        
+            :parameters:
+                emu_client: EMUClient
+                    Valid emu client.
+        """        
         super(ARPPlugin, self).__init__(emu_client, 'arp_ns_cnt')
 
     # API methods
     @client_api('getter', True)
-    def get_cfg(self, port, vlan, tpid):
-        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_get_cfg', port, vlan, tpid)
+    def get_cfg(self, ns_key):
+        """
+        Get arp configurations. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+            :returns:
+               | dict :
+               | {
+               |    "enable": true
+               | }
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
+        EMUValidator.verify(ver_args)
+        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_get_cfg', ns_key)
 
     @client_api('command', True)
-    def set_cfg(self, port, vlan, tpid, enable):
-        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_set_cfg', port, vlan, tpid, enable = enable)
+    def set_cfg(self, ns_key, enable):
+        """
+        Set arp configurations. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                enable: bool
+                    True for enabling arp.
+        
+            :returns:
+               bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'enable', 'arg': enable, 't': bool}]
+        EMUValidator.verify(ver_args)
+        return self.emu_c._send_plugin_cmd_to_ns('arp_ns_set_cfg', ns_key, enable = enable)
 
     @client_api('command', True)
-    def cmd_query(self, port, vlan, tpid, mac, garp):
-        params = conv_ns_for_tunnel(port, vlan, tpid)
-        mac = conv_to_bytes(mac, 'mac')
-        params.update({'mac': mac, 'garp': garp})
-        return self.emu_c._transmit_and_get_data('arp_c_cmd_query', params)
+    def cmd_query(self, c_key, garp):
+        """
+        Query command for arp. 
+        
+            :parameters:
+                c_key: EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                garp: bool
+                    True for gratuitous arp.
+
+            :returns:
+               bool : True on success.
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
+        {'name': 'garp', 'arg': garp, 't': bool}]
+        EMUValidator.verify(ver_args)
+        return self.emu_c._send_plugin_cmd_to_client('arp_c_cmd_query', c_key, garp = garp)
 
     @client_api('getter', True)
-    def show_cache(self, port, vlan, tpid):
-        params = conv_ns_for_tunnel(port, vlan, tpid)
+    def show_cache(self, ns_key):
+        """
+        Show arp cache. 
+
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+            :returns:
+               | list : List of cache records looks like:
+               |    [{'mac': [68, 3, 0, 23, 0, 1], 'refc': 0, 'resolve': True, 'ipv4': [10, 111, 168, 31], 'state': 'Learned'},
+               |    {'mac': [68, 3, 0, 23, 0, 2], 'refc': 0, 'resolve': True, 'ipv4': [10, 111, 168, 32], 'state': 'Learned'}]
+               |
+               | Notice - addresses are in bytes arrays.
+        """  
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
+        EMUValidator.verify(ver_args)
+        params = ns_key.conv_to_dict(add_tunnel_key = True)
         res = self.emu_c._get_n_items(cmd = 'arp_ns_iter', **params)
         for r in res:
             if 'state' in r:
@@ -85,7 +156,9 @@ class ARPPlugin(EMUPluginBase):
         if opts.all_ns:
             self.run_on_all_ns(self.get_cfg, print_ns_info = True, func_on_res = self.print_plug_cfg)
         else:
-            res = self.get_cfg(opts.port, opts.vlan, opts.tpid)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.get_cfg(ns_key)
             self.print_plug_cfg(res)
         return True
 
@@ -106,7 +179,8 @@ class ARPPlugin(EMUPluginBase):
         if opts.all_ns:
             self.run_on_all_ns(self.set_cfg, enable = opts.enable)
         else:
-            self.set_cfg(opts.port, opts.vlan, opts.tpid, opts.enable)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            self.set_cfg(ns_key, opts.enable)
         return True
     
     @plugin_api('arp_cmd_query', 'emu')
@@ -116,26 +190,25 @@ class ARPPlugin(EMUPluginBase):
                                         "arp_cmd_query",
                                         self.arp_cmd_query_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
-                                        parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.MAC_REQ,
+                                        parsing_opts.MAC_ADDRESS,
                                         parsing_opts.ARP_GARP
                                         )
 
         opts = parser.parse_args(line.split())
         opts.garp = parsing_opts.ON_OFF_DICT.get(opts.garp)
 
-        if opts.all_ns:
-            self.run_on_all_ns(self.cmd_query, mac = opts.mac, garp = opts.garp)
-        else:
-            self.cmd_query(opts.port, opts.vlan, opts.tpid, opts.mac, opts.garp)
+        self._validate_port(opts)
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = EMUClientKey(ns_key, opts.mac)
+        self.cmd_query(c_key, opts.garp)
         return True
 
     @plugin_api('arp_show_cache', 'emu')
-    def arp_show_cache(self, line):
+    def arp_show_cache_line(self, line):
         '''Arp show cache command\n'''
         parser = parsing_opts.gen_parser(self,
                                         "arp_show_cache",
-                                        self.arp_show_cache.__doc__,
+                                        self.arp_show_cache_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.EMU_ALL_NS
                                         )
@@ -152,7 +225,8 @@ class ARPPlugin(EMUPluginBase):
         if opts.all_ns:
             self.run_on_all_ns(self.show_cache, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
         else:
-            res = self.show_cache(opts.port, opts.vlan, opts.tpid)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.show_cache(ns_key)
             self.print_table_by_keys(data = res, **args)
 
         return True

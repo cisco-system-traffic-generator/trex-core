@@ -1,73 +1,37 @@
-
 Client Module 
 ==================
 
 The EMUClient provides access to the TRex emulation server.
 
-User can interact with TRex emulation server. The protocol is JSON-RPC2 over ZMQ transport.
-
-In addition to the Python API, a console-based API interface is also available.
-
-Python-like example::
-    
-   c.load_profile('path/to/profile')
+User can interact with TRex emulation server using this client. The protocol is JSON-RPC2 over ZMQ transport.
    
-Example - Typical Python API::
+Adding and removing clients example:
 
-    c = EMUClient(username = "elad", server = '10.0.0.10', sync_port = 4510, verbose_level = "error")
+.. literalinclude:: ../../interactive/trex/examples/emu/emu_add_remove_clients.py
 
-    # connect to server
-    c.connect()
+Wrapping up example:
 
-    # start the emu profile, NOTICE if profile has many clients is recommended to use `max_rate` param
-    c.load_profile('emu/simple_emu.py')
-
-    # print tables of namespaces and clients
-    res = c.get_all_ns_and_clients()
-    print(res)
-
-    # print all the ctx counters
-    res = c.get_counters()
-    print(res)
+.. literalinclude:: ../../interactive/trex/examples/emu/emu_building_profile.py
 
 **NOTICE**: More emu_examples can be found at: `scripts/automation/trex_control_plane/interactive/trex/examples/emu`
+
+In addition to the Python API, a console-based API interface is also available.
 
 Console-like example ::
 
   $ > ./trex-console --emu 
-  (trex)> plugins emu load_profile -f emu/simple_emu.py -t --ns 2 --clients 5
+  (trex)> emu_load_profile -f emu/simple_emu.py -t --ns 2 --clients 5
+  ...
+  (trex)> emu_show_all
 
-This example will load the profile at: "emu/simple_emu.py" with tunnables of 2 namespace with 5 clients in each one.
-You can explore more emu commands by entering "?" to the console and look under "Emulation Commands". 
+This example will load the profile at: "emu/simple_emu.py" with tunnables of 2 namespace with 5 clients in each one. Emu profiles have their own argparse so if you aren't sure whats
+the right tunnables, you may check them running: "emu_load_profile -f emu/simple_emu.py -t --help"
 
+**IMPORTANT** -t must located at the end of the command.
 
-Plugins Methods
----------------
-You may also use emu API in order to applay plugins methods. The general pattern will be:
+You can explore more emu commands by entering "?" to the console and look under "Emulation Commands". Some of the commands have additional flags, you can check them
+by entering "--help" at the end of the command.
 
-`client.xxx.yyy()`
-
-xxx - plugin name
-
-yyy - plugin method
-
-For example::
-
-    c = EMUClient(username = "elad", server = '10.0.0.10', sync_port = 4510, verbose_level = "error")
-
-    # connect to server
-    c.connect()
-
-    # start the emu profile
-    c.load_profile('emu/simple_emu.py')
-
-    # show arp cache
-    res = c.arp.show_cache(port = 0)
-    print(res)
-
-**NOTICE**
-The emu client will load dynamically every plugin under: `scripts/automation/trex_control_plane/interactive/trex/emu/emu_plugins`
-Calling a plugin that isn't exists there will cause an error. 
 
 EMUClient class
 ---------------

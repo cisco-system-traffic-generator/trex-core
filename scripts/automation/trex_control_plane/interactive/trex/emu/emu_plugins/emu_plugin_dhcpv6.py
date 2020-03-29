@@ -1,28 +1,28 @@
 from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
-import json
 
-# init jsons example for SDK
-INIT_JSON_NS = {'dhcpv6': {}}
-"""
-:parameters:
-    Empty.
-"""
-
-INIT_JSON_CLIENT = {'dhcpv6': {'timerd': 5, 'timero': 10}}
-"""
-:parameters:
-    timerd: uint32
-        DHCP timer discover in sec.
-    timero: uint32
-        DHCP timer offer in sec.
-"""
 
 class DHCPV6Plugin(EMUPluginBase):
     '''Defines DHCPV6 plugin'''
 
     plugin_name = 'DHCPV6'
+
+    # init jsons example for SDK
+    INIT_JSON_NS = {'dhcpv6': {}}
+    """
+    :parameters:
+        Empty.
+    """
+
+    INIT_JSON_CLIENT = {'dhcpv6': {'timerd': 5, 'timero': 10}}
+    """
+    :parameters:
+        timerd: uint32
+            DHCP timer discover in sec.
+        timero: uint32
+            DHCP timer offer in sec.
+    """
 
     def __init__(self, emu_client):
         super(DHCPV6Plugin, self).__init__(emu_client, 'dhcpv6_client_cnt')
