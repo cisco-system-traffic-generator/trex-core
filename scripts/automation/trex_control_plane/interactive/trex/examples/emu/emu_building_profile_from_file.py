@@ -6,7 +6,7 @@ from trex.emu.api import *
 import argparse
 import pprint
 
-EMU_SERVER = "localhost"
+EMU_SERVER = "10.56.199.218"
 
 c = EMUClient(server=EMU_SERVER,
                 sync_port=4510,
@@ -24,10 +24,16 @@ c.connect()
 print("loading profile from: %s" % args.file)
 
 # start the emu profile using tunables
-c.load_profile(profile = args.file, max_rate = 2048, tunables = ['--ns', '1', '--clients', '10'])
+c.load_profile(profile = args.file)
 
 # print tables of namespaces and clients
+print("Current ns and clients:")
 c.print_all_ns_clients(max_ns_show = 1, max_c_show = 10)
 
-# print arp counters
-pprint.pprint(c.arp.get_counters(port = 1, zero = True))
+# removing profile
+print("Removing profile..")
+c.remove_all_clients_and_ns()
+
+# print tables of namespaces and clients after removal
+print("After removal ns and clients:")
+c.print_all_ns_clients(max_ns_show = 1, max_c_show = 10)

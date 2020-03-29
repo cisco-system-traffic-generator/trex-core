@@ -2,6 +2,7 @@ import argparse
 from collections import namedtuple, OrderedDict
 from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_remove_dup
 from .text_opts import format_text
+from trex.emu.trex_emu_validator import Ipv4, Ipv6, Mac
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
@@ -178,6 +179,25 @@ def hex_int (val):
     return int(val, 16)
 
 
+def action_conv_type_to_bytes():
+    class IPConv(argparse.Action):
+        def __init__(self, conv_type, mc = False, *args, **kwargs):
+            super(IPConv, self).__init__(*args, **kwargs)
+            self.conv_type = conv_type
+            self.mc   = mc
+
+        def __call__(self, parser, args, values, option_string=None):
+            if self.conv_type == 'ipv4':
+                res = Ipv4(values, mc = self.mc) 
+            elif self.conv_type == 'ipv6':
+                res = Ipv6(values, mc = self.mc)
+            elif self.conv_type == 'mac':
+                res = Mac(values)
+            setattr(args, self.dest, res.V())
+
+    return IPConv
+
+
 def action_check_min_max():
     class MinMaxValidate(argparse.Action):
         def __init__(self, min_val = float('-inf'), max_val = float('inf'), *args, **kwargs):
@@ -328,8 +348,15 @@ def check_pkt_size (pkt_size):
     return pkt_size
     
 def check_mac_addr (addr):
-    if not is_valid_mac(addr):
-        raise argparse.ArgumentTypeError("not a valid MAC address: '{0}'".format(addr))
+    def _check_one_mac(m):
+        if not is_valid_mac(m):
+            raise argparse.ArgumentTypeError("Not a valid MAC address: '{0}'".format(m))
+    
+    if isinstance(addr, list):
+        for m in addr:
+            _check_one_mac(m)
+    else:
+        _check_one_mac(addr)
         
     return addr
 
@@ -1159,7 +1186,7 @@ class OPTIONS_DB_ARGS:
 
     ARGPARSE_TUNABLES = ArgumentPack(
         ['-t', '--tunables'],
-        {'default': '',
+        {'default': [],
          'type': str,
          'nargs': argparse.REMAINDER,
          'help': 'Sets tunables for a profile. -t MUST be the last flag. Example: "load_profile -f emu/simple_emu.py -t -h" to see tunables help'})
@@ -1176,14 +1203,15 @@ class OPTIONS_DB_ARGS:
         ['--mac'],
         {'help': "MAC address",
          'required': True,
-         'dest': 'mac',
-         'type': check_mac_addr})
-
-    MAC_REQ = ArgumentPack(
-        ['--mac'],
-        {'help': "MAC address",
-         'dest': 'mac',
+         'conv_type': 'mac',
+         'action': action_conv_type_to_bytes()})
+    
+    MAC_ADDRESSES = ArgumentPack(
+        ['--macs'],
+        {'help': "MAC addresses",
          'required': True,
+         'dest': 'macs',
+         'nargs': '+',
          'type': check_mac_addr})
 
     CLIENT_IPV4 = ArgumentPack(
@@ -1263,7 +1291,8 @@ class OPTIONS_DB_ARGS:
         {'help': "IPv4 start address",
          'dest': 'ipv4_start',
          'required': True,
-         'type': check_ipv4_addr})
+         'mc': True, 'conv_type': 'ipv4',  # params for action 
+         'action': action_conv_type_to_bytes()})
 
     IPV4_COUNT = ArgumentPack(
         ['--4-count'],
@@ -1278,7 +1307,8 @@ class OPTIONS_DB_ARGS:
         {'help': "IPv6 start address",
          'dest': 'ipv6_start',
          'required': True,
-         'type': check_ipv6_addr})
+         'mc': True, 'conv_type': 'ipv6', # params for action 
+         'action': action_conv_type_to_bytes()})
 
     IPV6_COUNT = ArgumentPack(
         ['--6-count'],
@@ -1287,6 +1317,46 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'action': action_check_min_max(),
          'min_val': 0})
+
+    # ICMP Start Ping
+    PING_AMOUNT = ArgumentPack(
+        ['--amount'],
+        {'help': 'Amount of pings to sent. Default is 5.',
+         'dest': 'ping_amount',
+         'required': False,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    PING_PACE = ArgumentPack(
+        ['--pace'],
+        {'help': 'Pace of pings, in pps. Default is 1.',
+         'dest': 'ping_pace',
+         'required': False,
+         'type': float})
+
+    PING_DST = ArgumentPack(
+        ['--dst'],
+        {'help': 'Destination address. Default is Default Gateway.',
+         'dest': 'ping_dst',
+         'required': False,
+         'type': check_ipv4_addr})
+
+    PING_TIMEOUT = ArgumentPack(
+        ['--timeout'],
+        {'help': 'Timeout for collecting the statistics in sec. Default is 5.',
+         'dest': 'ping_timeout',
+         'required': False,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    PING_SIZE = ArgumentPack(
+        ['--size'],
+        {'help': 'Size of ping packet in bytes. Default is 64.',
+         'dest': 'ping_size',
+         'required': False,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1496,6 +1566,17 @@ class OPTIONS_DB_GROUPS:
         [
             TO_JSON,
             TO_YAML
+        ], {}
+    )
+
+    EMU_ICMP_PING_PARAMS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            PING_AMOUNT,
+            PING_PACE,
+            PING_DST,
+            PING_TIMEOUT,
+            PING_SIZE,
         ], {}
     )
 

@@ -1,12 +1,12 @@
 from trex.emu.api import *
-from trex.utils.common import increase_mac, increase_ip, generate_ipv6
+from trex.emu.trex_emu_conversions import Mac, Ipv4
+
 import argparse
 
 
 class Prof1():
     def __init__(self):
-        self.def_ns_plugs  = {'ipv6': {'dmac':[0,0,0,0x70,0,1]}, # mac of one of the clients, this will be removed in the future
-                            }
+        self.def_ns_plugs  = None
         self.def_c_plugs  = None
 
     def create_profile(self, ns_size, clients_size):
@@ -15,27 +15,29 @@ class Prof1():
         # create different namespace each time
         vport, tci, tpid = 0, [0, 0], [0x00, 0x00]
         for i in range(vport, ns_size + vport):
-            ns_key = EMUNamespaceKey(vport  = i,
-                                    tci     = tci,
-                                    tpid    = tpid)
-            ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
+            ns = EMUNamespaceObj(vport  = i,
+                                tci     = tci,
+                                tpid    = tpid,
+                                def_c_plugs = self.def_c_plugs
+                                )
 
             mac = Mac('00:00:00:70:00:01')
-            ipv4 = Ipv4('0.0.0.0')
-            dg = Ipv4('0.0.0.0')
-            ipv6 = Ipv6("2001:DB8:1::2") 
-
+            ipv4 = Ipv4('1.1.1.3')
+            dg = Ipv4('1.1.1.2')
+           
             # create a different client each time
-            for j in range(clients_size):                
+            for j in range(clients_size):               
+                u = "hhaim{}".format(j + 1)
                 client = EMUClientObj(mac     = mac[j].V(),
-                                      ipv4    = ipv4.V(),
+                                      ipv4    = ipv4[i].V(),
                                       ipv4_dg = dg.V(),
-                                      ipv6    = ipv6[j].V(),
-                                      plugs   = {'ipv6': {},
-                                                 'dhcpv6': {},
+                                      plugs   = {'arp': {},
+                                                 'dot1x': {'user':u,'password':u,'flags':1},
+                                                'icmp':{}
                                                 },
                                       )
                 ns.add_clients(client)
+
             ns_list.append(ns)
 
         return EMUProfile(ns = ns_list, def_ns_plugs = self.def_ns_plugs)
@@ -55,3 +57,5 @@ class Prof1():
 
 def register():
     return Prof1()
+
+

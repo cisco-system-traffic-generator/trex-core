@@ -1,66 +1,218 @@
 from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
+from trex.emu.trex_emu_conversions import Mac, Ipv4
+from trex.emu.trex_emu_validator import EMUValidator
+
 import trex.utils.parsing_opts as parsing_opts
 
-# init jsons example for SDK
-INIT_JSON_NS = {'dhcpv6': {'mtu': 1500, 'dmac': [1, 2, 3, 4, 5 ,6], 'vec': [244, 0, 0, 0]}}
-"""
-:parameters:
-    mtu: uint16
-        Maximun transmission unit.
-
-    dmac: [6]byte
-        Designator mac.
-
-    vec: list of [4]byte
-        IPv4 vector representing multicast addresses.
-"""
-
-INIT_JSON_CLIENT = {'dhcpv6': {}}
-"""
-:parameters:
-    Empty.
-"""
 
 class IGMPPlugin(EMUPluginBase):
     '''Defines igmp plugin'''
 
     plugin_name = 'IGMP'
 
+    # init jsons example for SDK
+    INIT_JSON_NS = {'igmp': {'mtu': 1500, 'dmac': [1, 2, 3, 4, 5 ,6], 'vec': [[244, 0, 0, 0], [244, 0, 0, 1]], 'version': 1}}
+    """
+    :parameters:
+        mtu: uint16
+            Maximun transmission unit. (Required)
+        dmac: [6]byte
+            Designator mac.
+        vec: list of [4]byte
+            IPv4 vector representing multicast addresses.
+        version: uint16
+            The init version of IGMP, it will learn from Query.
+    """
+
+    INIT_JSON_CLIENT = {'igmp': {}}
+    """
+    :parameters:
+        Empty.
+    """
+
     def __init__(self, emu_client):
+        """
+        Init IGMPPlugin. 
+
+            :parameters:
+                emu_client: EMUClient
+                    Valid emu client.
+        """        
         super(IGMPPlugin, self).__init__(emu_client, 'igmp_ns_cnt')
 
     # API methods
     @client_api('getter', True)
-    def get_cfg(self, port, vlan, tpid):
-        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_get_cfg', port, vlan, tpid)
+    def get_cfg(self, ns_key):
+        """
+        Get igmp configurations. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+            :returns:
+               | dict :
+               | {
+               |    "dmac": [0, 0, 0, 0, 0, 0],
+               |    "version": 3,
+               |    "mtu": 1500
+               | }
+        """          
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
+        EMUValidator.verify(ver_args)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_get_cfg', ns_key)
 
     @client_api('command', True)
-    def set_cfg(self, port, vlan, tpid, mtu, dmac):
-        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_set_cfg', port, vlan, tpid, mtu = mtu, dmac = dmac)
-  
-    @client_api('command', True)
-    def add_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
-        ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
-        ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
-        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_add', port, vlan, tpid, vec = ipv4_vec)
+    def set_cfg(self, ns_key, mtu, dmac):
+        """
+        Set arp configurations in namespace. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                mtu: bool
+                    True for enabling arp.
+                dmac: list of bytes
+                    Designator mac.
+        
+            :returns:
+               bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'mtu', 'arg': mtu, 't': 'mtu'},
+        {'name': 'dmac', 'arg': dmac, 't': 'mac'},]
+        EMUValidator.verify(ver_args)
+        dmac = Mac(dmac)
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_set_cfg', ns_key, mtu = mtu, dmac = dmac.V())
 
     @client_api('command', True)
-    def remove_mc(self, port, vlan, tpid, ipv4_start, ipv4_count = 1):
-        ipv4_vec = self.create_ip_vec(ipv4_start, ipv4_count)
-        ipv4_vec = [conv_to_bytes(ip, 'ipv4') for ip in ipv4_vec]
-        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = ipv4_vec)
+    def add_mc(self, ns_key, ipv4_vec):
+        """
+        Add multicast addresses in namespace.
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                ipv4_vec: list of lists of bytes
+                    IPv4 addresses.
+
+            :returns:
+                bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'ipv4_vec', 'arg': ipv4_vec, 't': 'ipv4_mc', 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+        ipv4_vec = [Ipv4(ip, mc = True) for ip in ipv4_vec]
+        ipv4_vec = [ipv4.V() for ipv4 in ipv4_vec]
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_add', ns_key, vec = ipv4_vec)
 
     @client_api('command', True)
-    def iter_mc(self, port, vlan, tpid, ipv4_amount = None):
-        params = conv_ns_for_tunnel(port, vlan, tpid)
+    def add_gen_mc(self, ns_key, ipv4_start, ipv4_count = 1):
+        """
+        Add multicast addresses in namespace, generating sequence of addresses.
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                ipv4_start: lists of bytes
+                    IPv4 address of the first multicast address.
+                ipv4_count: int
+                    | Amount of ips to continue from `ipv4_start`, defaults to 0. 
+                    | i.e: ipv4_start = [1, 0, 0, 0] , ipv4_count = 2 -> [[1, 0, 0, 0], [1, 0, 0, 1]]
+        
+            :returns:
+                bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'ipv4_start', 'arg': ipv4_start, 't': 'ipv4_mc'},
+        {'name': 'ipv4_count', 'arg': ipv4_count, 't': int}]
+        EMUValidator.verify(ver_args)
+        ipv4_vec = self._create_ip_vec(ipv4_start, ipv4_count, 'ipv4', True)
+        ipv4_vec = [ip.V() for ip in ipv4_vec]
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_add', ns_key, vec = ipv4_vec)
+
+    @client_api('command', True)
+    def remove_mc(self, ns_key, ipv4_vec):
+        """
+        Remove multicast addresses in namespace. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                ipv4_vec: list of lists of bytes
+                    IPv4 multicast addresses.
+
+            :returns:
+                bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'ipv4_vec', 'arg': ipv4_vec, 't': 'ipv4_mc', 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+        ipv4_vec = [Ipv4(ip, mc = True) for ip in ipv4_vec]
+        ipv4_vec = [ipv4.V() for ipv4 in ipv4_vec]
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', ns_key, vec = ipv4_vec)
+
+    @client_api('command', True)
+    def remove_gen_mc(self, ns_key, ipv4_start, ipv4_count = 1):
+        """
+        Remove multicast addresses in namespace, generating sequence of addresses.        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                ipv4_start: list of bytes
+                    IPv4 address of the first multicast address.
+                ipv4_count: int
+                    | Amount of ips to continue from `ipv4_start`, defaults to 0. 
+                    | i.e: ipv4_start = [1, 0, 0, 0] , ipv4_count = 2 -> [[1, 0, 0, 0], [1, 0, 0, 1]]
+        
+            :returns:
+                bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'ipv4_start', 'arg': ipv4_start, 't': 'ipv4_mc'},
+        {'name': 'ipv4_count', 'arg': ipv4_count, 't': int}]
+        EMUValidator.verify(ver_args)    
+        ipv4_vec = self._create_ip_vec(ipv4_start, ipv4_count, 'ipv4', True)
+        ipv4_vec = [ip.V() for ip in ipv4_vec]
+        return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', ns_key, vec = ipv4_vec)
+
+    @client_api('command', True)
+    def iter_mc(self, ns_key, ipv4_amount = None):
+        """
+        Iterate multicast addresses in namespace. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                ipv4_count: int
+                    Amount of ips to get from emu server, defaults to None means all. 
+        
+            :returns:
+                list : List of ips as list of bytes. i.e: [[224, 0, 0, 1], [224, 0, 0, 1]]
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'ipv4_amount', 'arg': ipv4_amount, 't': int, 'must': False},]
+        EMUValidator.verify(ver_args)
+        params = ns_key.conv_to_dict(True)
         return self.emu_c._get_n_items(cmd = 'igmp_ns_iter', amount = ipv4_amount, **params)
 
     @client_api('command', True)
-    def remove_all_mc(self, port, vlan, tpid):
-        mcs = self.iter_mc(port, vlan, tpid)
+    def remove_all_mc(self, ns_key):
+        """
+        Remove all multicast addresses in namespace.
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+        
+            :return:
+               bool : True on success.
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},]
+        EMUValidator.verify(ver_args)    
+        mcs = self.iter_mc(ns_key)
         if mcs:
-            self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', port, vlan, tpid, vec = mcs)
+            self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', ns_key, vec = mcs)
 
     # Plugins methods
     @plugin_api('igmp_show_counters', 'emu')
@@ -91,11 +243,19 @@ class IGMPPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
 
+        keys_to_headers = [{'key': 'dmac',     'header': 'Designator MAC'},
+                            {'key': 'version', 'header': 'Version'},
+                            {'key': 'mtu',    'header': 'MTU'},
+                            ]
+        args = {'title': 'IGMP Configuration', 'empty_msg': 'No IGMP Configuration', 'keys_to_headers': keys_to_headers}
+
         if opts.all_ns:
-            self.run_on_all_ns(self.get_cfg, print_ns_info = True, func_on_res = self.print_plug_cfg)
+            self.run_on_all_ns(self.get_cfg, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
         else:
-            res = self.get_cfg(opts.port, opts.vlan, opts.tpid)
-            self.print_plug_cfg(res)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.get_cfg(ns_key)
+            self.print_table_by_keys(data = res, **args)
         return True
 
     @plugin_api('igmp_set_cfg', 'emu')
@@ -112,13 +272,12 @@ class IGMPPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
 
-        if opts.mac is not None:
-            opts.mac = conv_to_bytes(opts.mac, 'mac')
-
         if opts.all_ns:
             self.run_on_all_ns(self.set_cfg, mtu = opts.mtu, dmac = opts.mac)
         else:
-            self.set_cfg(opts.port, opts.vlan, opts.tpid, mtu = opts.mtu, dmac = opts.mac)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            self.set_cfg(ns_key, mtu = opts.mtu, dmac = opts.mac)
         return True
 
     @plugin_api('igmp_add_mc', 'emu')
@@ -136,9 +295,11 @@ class IGMPPlugin(EMUPluginBase):
         opts = parser.parse_args(line.split())
 
         if opts.all_ns:
-            self.run_on_all_ns(self.add_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+            self.run_on_all_ns(self.add_gen_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         else:
-            res = self.add_mc(opts.port, opts.vlan, opts.tpid, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.add_gen_mc(ns_key, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         return True
 
     @plugin_api('igmp_remove_mc', 'emu')
@@ -156,11 +317,12 @@ class IGMPPlugin(EMUPluginBase):
         opts = parser.parse_args(line.split())
 
         if opts.all_ns:
-            self.run_on_all_ns(self.remove_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+            self.run_on_all_ns(self.remove_gen_mc, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         else:
-            res = self.remove_mc(opts.port, opts.vlan, opts.tpid, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.remove_gen_mc(ns_key, ipv4_start = opts.ipv4_start, ipv4_count = opts.ipv4_count)
         return True
-
 
     @plugin_api('igmp_remove_all_mc', 'emu')
     def igmp_remove_all_mc_line(self, line):
@@ -177,9 +339,10 @@ class IGMPPlugin(EMUPluginBase):
         if opts.all_ns:
             self.run_on_all_ns(self.remove_all_mc)
         else:
-            res = self.remove_all_mc(opts.port, opts.vlan, opts.tpid)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.remove_all_mc(ns_key)
         return True
-
 
     @plugin_api('igmp_show_mc', 'emu')
     def igmp_show_mc_line(self, line):
@@ -192,19 +355,27 @@ class IGMPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
+
         args = {'title': 'Current mc:', 'empty_msg': 'There are no mc in namespace'}
         if opts.all_ns:
             self.run_on_all_ns(self.iter_mc, print_ns_info = True, func_on_res = self.print_gen_data, func_on_res_args = args)
         else:
-            res = self.iter_mc(opts.port, opts.vlan, opts.tpid)
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.iter_mc(ns_key)
             self.print_gen_data(data = res, **args)
            
         return True
 
     # Override functions
-    def tear_down_ns(self, port, vlan, tpid):
-        ''' This function will be called before removing this plugin from namespace'''
+    def tear_down_ns(self, ns_key):
+        ''' 
+        This function will be called before removing this plugin from namespace
+            :parameters:
+                ns_key: EMUNamespaceKey
+                see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+        '''
         try:
-            self.remove_all_mc(port, vlan, tpid)
+            self.remove_all_mc(ns_key)
         except:
             pass

@@ -1,4 +1,3 @@
-from ..astf.arg_verify import ArgVerify
 from ..common.trex_api_annotators import client_api, plugin_api
 from ..common.trex_ctx import TRexCtx
 from ..common.trex_exceptions import *
@@ -10,19 +9,17 @@ from ..utils.text_opts import format_text, format_time
 from ..utils.text_tables import *
 
 from .trex_emu_conn import RRConnection
-from collections import OrderedDict, defaultdict
-from contextlib import contextmanager
 from .emu_plugins.emu_plugin_base import *
 from .trex_emu_counters import *
 from .trex_emu_profile import *
 from .trex_emu_conversions import *
+from .trex_emu_validator import EMUValidator
 
 import glob
 import imp
 import inspect
 import os
 import math
-import pprint
 import sys
 import time
 import yaml
@@ -74,20 +71,45 @@ class SimplePolicer:
 ############################     funcs      #############################
 ############################                #############################
 
-def divide_into_chunks(lst, n):
+def divide_into_chunks(data, n):
     """
-        Yield successive n-sized chunks from lst.
-        :parameters:
-            lst: list
-                List of elements.
-            n: int
-                Length of each chunk to yield.
+        Yield successive n-sized chunks from data if data is a list. In case data isn't list type, just yield data.
+            :parameters:
+                data: list or anything else
+                    In case of a list divide it into chunks with length n. Any other type will just yield itself.
+                n: int
+                    Length of each chunk to yield.
+                :yield:
+                    list sized n with elements from data, or just data if data is not list.
     """
-    if n < len(lst):
-        for i in range(0, len(lst), n):
-            yield lst[i:i + n]
+    if type(data) is list and n < len(data):
+        for i in range(0, len(data), n):
+            yield data[i:i + n]
     else:
-        yield lst
+        yield data
+
+
+def divide_dict_into_chunks(d, n):
+    if max([len(v) if type(v) is list else 1 for v in d.values()]) <= n:
+        yield d
+    else:
+        # creating the generators
+        gens = {}
+        for k, v in d.items():
+            gens[k] = divide_into_chunks(v, n)
+        
+        while True:
+            d_chunked = {}
+            for k, g in gens.items():
+                try:
+                    chunk = next(g)
+                    d_chunked[k] = chunk
+                except StopIteration:
+                    pass
+            if len(d_chunked) > 0:
+                yield d_chunked
+            else:
+                break
 
 def dump_json_yaml(data, to_json = False, to_yaml = False, ident_size = 4):
     """
@@ -279,7 +301,7 @@ class EMUClient(object):
 
         return RC_OK()
 
-    def _send_chunks(self, cmd, data_key, data, chunk_size = SEND_CHUNK_SIZE, max_data_rate = None, add_data = None, track_progress = False):
+    def _send_chunks(self, cmd, data, chunk_size = SEND_CHUNK_SIZE, max_data_rate = None, track_progress = False):
         """
             Send `cmd` to EMU server with `data` over ZMQ separated to chunks using `max_data_rate`.
             i.e: self._send_chunks('ctx_client_add', data_key = 'clients', data = clients_data, max_data_rate = 100, add_data = namespace)
@@ -289,12 +311,10 @@ class EMUClient(object):
                 cmd: string
                     Name of command.
                 
-                data_key: string
-                    Key for data, i.e: `tun` for namespace sending.
-
-                data: list
-                    List with data to send, i.e: [{key: value..}, ... ,{key: value}]
+                data: dict
+                    Dict with data to send, i.e: {key1: [values..], ... ,key2: [values]}}
                     This will be separated into chunks according to max_data_rate.
+                    Notice that if values are lists, they will be divided into chunks any other case will send them as is.
                 
                 chunk_size: int
                     Size of every chunk to send.
@@ -302,68 +322,67 @@ class EMUClient(object):
                 max_data_rate: int
                     Rate as an upper bound of data information per second.
 
-                add_data: dictionary
-                    Dictionary representing additional data to send in each separate chunk.
-                    i.e: {'tun': {'vport': 10, ...}}   
-
                 track_progress: bool
                     True will show a progress bar of the sending, defaults to False.
         
             :raises:
-                + :exc: `TRexError`
-        """        
-        def _create_params(data):
-            if add_data is not None:
-                params = dict(add_data)
+                + :exc: `TRexError` in case of invalid command
+            :return:
+                list: Server response data. Depends on the command.
+        """
+        
+        def _check_rc(rc, response):
+            if not rc:
+                self._err(rc.err())
             else:
-                params = {}
-            params.update({data_key: data})
-            return params
+                d = listify(rc.data())
+                response.extend(d)
+        def _get_max_len(data):
+            return max([len(v) if type(v) is list else 1 for v in data.values()])
+
+        response = []
 
         # data has no length
         if data is None:
-            params = _create_params(data)
-            rc = self._transmit(method_name = cmd, params = params)
-            if not rc:
-                self._err(rc.err())
-            return RC_OK()
+            rc = self._transmit(method_name = cmd, params = {})
+            _check_rc(rc, response)
+            return response
 
         # unlimited rate send everyting
         if max_data_rate is None:
-            max_data_rate = len(data)
+            max_data_rate = float('inf')
     
         policer = SimplePolicer(cir = max_data_rate, level = SEND_CHUNK_SIZE, bucket_size = SEND_CHUNK_SIZE * 4)
         chunk_size = min(max_data_rate, chunk_size)
-        total_chunks = int(math.ceil(len(data) / float(chunk_size))) if chunk_size != 0 else 1
+        data_max_len = _get_max_len(data)
+        total_chunks = int(math.ceil(data_max_len / float(chunk_size))) if chunk_size != 0 else 1
         total_chunks = total_chunks if total_chunks != 0 else 1
         if track_progress:
             print('')
+        data_gen = divide_dict_into_chunks(data, chunk_size)
+        for chunk_i, chunked_data in enumerate(data_gen):
 
-        for chunk_i, chunked_data in enumerate(divide_into_chunks(data, chunk_size)):
-            params = _create_params(chunked_data)
-
-            while not policer.update(len(chunked_data)):
+            while not policer.update(chunk_size):
                 # don't send more requests, let the server process the old ones
                 time.sleep(0.001)
 
-            rc = self._transmit(method_name = cmd, params = params)
+            rc = self._transmit(method_name = cmd, params = chunked_data)
 
-            if not rc:
-                self._err(rc.err())
-            
+            _check_rc(rc, response)
+
             if track_progress:
                 dots = '.' * (chunk_i % 7)
                 percent = (chunk_i + 1) / float(total_chunks) * 100.0
                 text = "Progress: {0:.2f}% {1}".format(percent, dots)
                 
-                sys.stdout.write('\r' + (' ' * 25) + '\r')  # clear line
+                sys.stdout.write('\r' + (' ' * 40) + '\r')  # clear line
                 sys.stdout.write(format_text(text, 'yellow'))
                 sys.stdout.flush()
         
         if track_progress:
-            sys.stdout.write('\r' + (' ' * 25) + '\r')  # clear line
+            sys.stdout.write('\r' + (' ' * 40) + '\r')  # clear line
 
-        return RC_OK()
+        return response
 
     def _iter_ns(self, cmd, count, reset = False, **kwargs):
         """
@@ -386,56 +405,16 @@ class EMUClient(object):
                 + :'TRexError'
         
             :returns:
-                Returns the data of server response.
+                dict: Returns the data of cmd in form: {'empty': False, 'stopped': True, 'data': [..]}.
         """
-        ver_args = {'types':
-            [{'name': 'count', 'arg': count, 't': int},
-            {'name': 'reset', 'arg': reset, 't': bool}]
-            }
         params = {'count': count, 'reset': reset}
         params.update(kwargs)
-        ArgVerify.verify(self.__class__.__name__, ver_args)
 
         rc = self._transmit(cmd, params)
 
         if not rc:
             raise TRexError(rc.err())
 
-        return rc.data()
-
-    def _client_to_bytes(self, c):
-        """
-        Convert client into bytes, ready for sending to emu server. 
-        
-            :parameters:
-                c: dictionary
-                    Valid client dictionary.
-        """        
-        for key in c:
-            if c[key] is None:
-                continue
-            try:
-                c[key] = conv_to_bytes(c[key], key)
-            except Exception as e:
-                print("Cannot convert client's key: %s: %s\nException:\n%s" % (key, c[key], str(e)))
-
-    def _transmit_and_get_data(self, method_name, params):
-        """
-        Trassmit method name with params and returns the data. 
-        
-            :parameters:
-                method_name: string
-                    Name of method to send.
-                params: dictionary
-                    Parameters for method.
-        
-            :returns:
-                Data recived from emu server.
-        """
-        rc = self._transmit(method_name, params)
-
-        if not rc:
-            self._err(rc.err())
         return rc.data()
     
     def _wait_for_pressed_key(self, msg):
@@ -499,13 +478,35 @@ class EMUClient(object):
         """        
         raise TRexError(msg)
 
+    def _conv_macs_and_validate_ns(self, c_keys):
+        '''
+        Get all macs in bytes and validate same ns for all client keys.
+        :parameters:
+            clients: list of EMUClientKey
+                clients to work on.
+        :return:
+            dict: Dictionary ready to send to emu server for multi-client commands. 
+        '''
+        first_ns_key = c_keys[0].ns_key.conv_to_dict(add_tunnel_key = False)
+        # gather all macs
+        macs = []
+        for k in c_keys:
+            macs.append(k.mac.V())
+            ns_key = k.ns_key.conv_to_dict(False)
+            if first_ns_key != ns_key:
+                self.err('Cannot get info for clients from different namespaces')
+        data = {'macs': macs}
+        data.update(c_keys[0].ns_key.conv_to_dict(add_tunnel_key = True))
+        return data
+
 ############################   Getters   #############################
 ############################             #############################
 ############################             #############################
     
     def _yield_n_items(self, cmd, amount = None, retry_num = 1, **kwargs):
         """
-            Gets n items by calling `cmd`, iterating items from EMU server.
+            Gets n items by calling `cmd`, iterating items from EMU server. This is a generic function for every iterator command
+            such as ctx_iter, ctx_client_iter.. 
 
             :parameters:
                 cmd: string
@@ -517,8 +518,8 @@ class EMUClient(object):
                 retry_num: int
                     Number of retries in case of failure, Default is 1.
 
-            :return:
-                yield list of amount namespaces keys i.e:[{u'tci': [1, 0], u'tpid': [33024, 0], u'vport': 1},
+            :yield:
+                yield a list of `amount` namespaces keys i.e:[{u'tci': [1, 0], u'tpid': [33024, 0], u'vport': 1},
                                                     {u'tci': [2, 0], u'tpid': [33024, 0], u'vport': 1}]
 
             :raises:
@@ -581,8 +582,14 @@ class EMUClient(object):
 
             :returns:
                 list: List of namespaces.
-        """        
-        return self._yield_n_items('ctx_iter', amount = amount)
+        """
+        res_gen = self._yield_n_items('ctx_iter', amount = amount)
+        
+        for chunk in res_gen:
+            # conv data to EMUNamespaceKey
+            for i, ns_entry in enumerate(chunk):
+                chunk[i] = EMUNamespaceKey(**ns_entry)
+            yield chunk
 
     def _get_all_ns(self):
         """
@@ -602,99 +609,83 @@ class EMUClient(object):
         Gets all the namespaces and clients from emu server. No yield, eager approach.
         
             :returns:
-                list: List of all namespaces and clients.
+                | list: List of dictionaries with all namespaces and clients.
+                | i.e: [{'vport': 0, 'tci': [1, 0], 'tpid': [33024, 0],
+                |        'clients': [{'mac': '00:00:00:70:00:01', 'ipv4': '1.1.2.3', 'ipv4_dg': '1.1.2.1', 'ipv4_mtu': 1500, 'ipv6_local': 'fe80::200:ff:fe70:1', 'ipv6_slaac': '::', 'ipv6': '2001:db8:1::2', 'dg_ipv6': '::', 'dhcp_ipv6': '::', 'ipv4_force_dg': False, 'ipv4_force_mac': '00:00:00:00:00:00', 'ipv6_force_dg': False, 'ipv6_force_mac': '00:00:00:00:00:00', 'dgw': {'resolve': False, 'rmac': '00:00:00:00:00:00'}, 'ipv6_router': None, 'ipv6_dgw': None, 'plug_names': 'arp, igmp'}
+                | ]}]
         """        
-        ns_list = self._get_all_ns()
-        for ns in ns_list:
-            macs_in_ns = self.get_all_clients_for_ns(ns)
-            ns['clients'] = self.get_info_client(ns, macs_in_ns)
-            ns['tpid'] = [hex(t) for t in ns['tpid']]
-        return ns_list
+        ns_keys_list = self._get_all_ns()
+        res = []
+        for ns_key in ns_keys_list:
+            ns_dict = ns_key.conv_to_dict(False)
+            macs_in_ns = self.get_all_clients_for_ns(ns_key)
+            ns_dict['clients'] = self.get_info_clients(macs_in_ns)
+            res.append(ns_dict)
+        return res
 
     @client_api('getter', True)
-    def get_all_clients_for_ns(self, namespace):
+    def get_all_clients_for_ns(self, ns_key):
         """
         Gets all clients for a given namespace. No yield, eager approach.
         
             :parameters:
-                namespace: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-        
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+
             :returns:
-                list: List of all clients in namespace.
-        """        
+                list: List of EMUClientKey represeting all clients in namespace.
+        """
+        ver_args = [{'name': 'ns_keys', 'arg': ns_key, 't': EMUNamespaceKey, 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+
         res = []
-        for c in self._yield_n_items(cmd = 'ctx_client_iter', amount = RECV_CHUNK_SIZE, tun = namespace):
-            res.extend(c)
+        ns_fields = ns_key.conv_to_dict(False)
+        for c in self._yield_n_items(cmd = 'ctx_client_iter', amount = RECV_CHUNK_SIZE, tun = ns_fields):
+            c_keys = [EMUClientKey(ns_key, mac) for mac in c]
+            res.extend(c_keys)
         return res
 
     @client_api('getter', True)
     @conv_return_val_to_str
-    def get_info_ns(self, namespaces):
+    def get_info_ns(self, ns_keys):
         """
-            Return information about a given namespace.
+            Return information about a given namespace/s.
         
             :parameters:
-                namespace: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-        
-            :raises:
-                + :exe:'TRexError': [description]
+                ns_keys: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
         
             :return:
                 List of all namespaces with additional information i.e:[{'tci': [1, 0], 'tpid': [33024, 0], 'vport': 1,
                                                                         'number of plugins': 2, 'number of clients': 5}]
         """
-        ver_args = {'types':
-                [{'name': 'namespaces', 'arg': namespaces, 't': dict, 'allow_list': True},]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
+        ver_args = [{'name': 'ns_keys', 'arg': ns_keys, 't': EMUNamespaceKey, 'allow_list': True},]
+        EMUValidator.verify(ver_args)
         
-        namespaces = listify(namespaces)
-        params = {'tunnels': namespaces}
-
-        rc = self._transmit('ctx_get_info', params)
-
-        if not rc:
-            raise TRexError(rc.err())
-        return rc.data()
+        ns_keys = listify(ns_keys)
+        ns_keys = [k.conv_to_dict(False) for k in ns_keys]
+        return self._send_chunks(cmd = 'ctx_get_info', data = {'tunnels': ns_keys})
 
     @client_api('getter', True)
     @conv_return_val_to_str
-    def get_info_client(self, namespace, macs):
+    def get_info_clients(self, c_keys):
         """
             Get information for a list of clients from a specific namespace.
 
             :parameters:
-                namespaces: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-                
-                macs: list
-                    list of dictionaries with the form: {'mac': '00:01:02:03:04:05', 'ipv4': '1.1.1.3', 'ipv4_dg':'1.1.1.2', 'ipv6': '00:00:01:02:03:04'}
-                    `mac` is the only required field.
+                c_keys: list of EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
             
             :return:
-                list of dictionaries with data for each client, the order is the same order of macs.
+                | List of dictionaries with data for each client, the order is the same order of macs.
+                | i.e: [{'mac': '00:00:00:70:00:01', 'ipv4': '1.1.2.3', 'ipv4_dg': '1.1.2.1', 'ipv4_mtu': 1500, 'ipv6_local': 'fe80::200:ff:fe70:1', 'ipv6_slaac': '::', 'ipv6': '2001:db8:1::2', 'dg_ipv6': '::', 'dhcp_ipv6': '::', 'ipv4_force_dg': False, 'ipv4_force_mac': '00:00:00:00:00:00', 'ipv6_force_dg': False, 'ipv6_force_mac': '00:00:00:00:00:00', 'dgw': {'resolve': False, 'rmac': '00:00:00:00:00:00'}, 'ipv6_router': None, 'ipv6_dgw': None, 'plug_names': 'arp, igmp'}]
         """
+        ver_args = [{'name': 'c_keys', 'arg': c_keys, 't': EMUClientKey, 'allow_list': True},]
+        EMUValidator.verify(ver_args)
         
-        ver_args = {'types':
-                [{'name': 'namespace', 'arg': namespace, 't': dict},
-                {'name': 'macs', 'arg': macs, 't': list}]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-        
-        # convert mac address to bytes if needed
-        if len(macs) > 0 and ':' in macs[0]: 
-            macs = [conv_to_bytes(m, 'mac') for m in macs]
+        data = self._conv_macs_and_validate_ns(c_keys)
+        return self._send_chunks(cmd = 'ctx_client_get_info', data = data)
 
-        params = {'tun': namespace, 'macs': macs}
-
-        rc = self._transmit('ctx_client_get_info', params)
-
-        if not rc:
-            raise TRexError(rc.err())
-
-        return rc.data()
 
     # CTX Counters
     @client_api('getter', True)
@@ -705,16 +696,43 @@ class EMUClient(object):
             :parameters:
                 meta: bool
                     True will get the meta data, defaults to False.
+                
                 zero: bool
                     True will send also zero values in request, defaults to False.
+                
                 mask: list of strings
                     List of wanted tables, defaults to None means all.
+                
                 clear: bool
                     Clear the counters and exit, defaults to False.
         
             :returns:
-                List: List of all wanted counters.
-        """        
+                | dict: Dictionary of all wanted counters. Keys as tables names and values as dictionaries with data.
+                | example when meta = True, all counters will be held in res['table_name']['meta'] as a list.
+                | {
+                |    'parser': {
+                |       'meta': [{
+                |           "info": "INFO",
+                |            "name": "eventsChangeSrc",
+                |            "value": 1,
+                |            "zero": false,
+                |           "unit": "ops",
+                |            "help": "change src ipv4 events"
+                |            }],
+                |    'name': 'parser'}
+                | }
+                | 
+                | example when meta = False, all counters will be held in res['table_name'] as a dict, counter name as a keys and numeric value as values.
+                | {
+                |     'parser': {'eventsChangeSrc': 1, ...}
+                | }
+        """
+        ver_args = [{'name': 'meta', 'arg': meta, 't': bool},
+            {'name': 'zero', 'arg': zero, 't': bool},
+            {'name': 'mask', 'arg': mask, 't': str, 'allow_list': True, 'must': False},
+            {'name': 'clear', 'arg': clear, 't': bool},
+        ]
+        EMUValidator.verify(ver_args)
         return self.general_data_c._get_counters(meta, zero, mask, clear)
 
     # Ns & Client Table Printing
@@ -748,11 +766,17 @@ class EMUClient(object):
 
                 ipv6_router: bool
                     Show client's ipv6 router table.
-
-            :return:
-                None
         """
-
+        ver_args = [{'name': 'max_ns_show', 'arg': max_ns_show, 't': int},
+            {'name': 'max_c_show', 'arg': max_c_show, 't': int},
+            {'name': 'to_json', 'arg': to_json, 't': bool},
+            {'name': 'to_yaml', 'arg': to_yaml, 't': bool},
+            {'name': 'ipv6', 'arg': ipv6, 't': bool},
+            {'name': 'dg4', 'arg': dg4, 't': bool},
+            {'name': 'dg6', 'arg': dg6, 't': bool},
+            {'name': 'ipv6_router', 'arg': ipv6_router, 't': bool},
+        ]
+        EMUValidator.verify(ver_args)
         if to_json or to_yaml:
             # gets all data, no pauses
             all_data = self.get_all_ns_and_clients()
@@ -767,25 +791,27 @@ class EMUClient(object):
             if ns_chunk_i != 0:
                 self._wait_for_pressed_key('Press Enter to see more namespaces')
             
-            for ns_i, ns in enumerate(ns_list):
+            for ns_i, ns_key in enumerate(ns_list):
                 glob_ns_num += 1
 
                 # print namespace table
                 self._print_ns_table(ns_infos[ns_i], ns_num = glob_ns_num)
 
-                for client_i, clients_mac in enumerate(self._yield_n_items(cmd = 'ctx_client_iter', amount = max_c_show, tun = ns)):                    
-                    is_first_time = client_i == 0
-                    if not is_first_time != 0:
+                c_gen = self._yield_n_items(cmd = 'ctx_client_iter', amount = max_c_show, tun = ns_key.conv_to_dict(False))
+                for c_i, c_mac in enumerate(c_gen):                    
+                    first_iter = c_i == 0 
+                    if not first_iter:
                         self._wait_for_pressed_key("Press Enter to see more clients")
-                    clients = self.get_info_client(ns, clients_mac)
+                    c_keys = [EMUClientKey(ns_key, m) for m in c_mac]
+                    clients = self.get_info_clients(c_keys)
                     # sort by mac address
                     clients.sort(key = lambda x: mac_str_to_num(mac2str(x['mac'])))
-                    self._print_clients_chunk(clients, ipv6, dg4, dg6, ipv6_router)
+                    self._print_clients_chunk(clients, ipv6, dg4, dg6, ipv6_router, first_iter)
         
         if not glob_ns_num:
             text_tables.print_colored_line('There are no namespaces', 'yellow', buffer = sys.stdout)      
 
-    def _print_clients_chunk(self, clients, ipv6, dg4, dg6, ipv6_router):
+    def _print_clients_chunk(self, clients, ipv6, dg4, dg6, ipv6_router, show_title = True):
         """
         Print clients with all the wanted flags.
         
@@ -811,7 +837,7 @@ class EMUClient(object):
         if ipv6_router:
             self._print_clients_table(clients, IPV6_ND_KEYS_AND_HEADERS, inner_key = 'ipv6_router', title = 'IPv6 Router Table', empty_msg = 'IPv6 Router Table is empty')
         relates = ['ipv6'] if ipv6 else None
-        self._print_clients_table(clients, CLIENT_KEYS_AND_HEADERS, show_relates = relates, title = 'Clients information',
+        self._print_clients_table(clients, CLIENT_KEYS_AND_HEADERS, show_relates = relates, title = 'Clients information' if show_title else '',
                                     empty_msg = "There is no client with these parameters")
 
     def _print_ns_table(self, ns, ns_num = None):
@@ -819,8 +845,8 @@ class EMUClient(object):
         Print namespace table. 
         
             :parameters:
-                ns: dictionary
-                    Namespace as a dictionary.
+                ns: dict
+                    namespace info as dict
                 ns_num: int
                     Number of namespace to print as a title, defaults to None.
                 
@@ -1000,38 +1026,74 @@ class EMUClient(object):
         text_tables.print_table_with_header(mbuf_table, header = table_header, buffer = sys.stdout)
 
     # Plugins CFG
-    def _send_plugin_cmd_to_ns(self, cmd, port, vlan = None, tpid = None, **kwargs):
+    def _send_plugin_cmd_to_ns(self, cmd, ns_key, **kwargs):
         """
         Generic function for plugins, send `cmd` to a given namespace i.e get_cfg for plugin. 
         
             :parameters:
                 cmd: string
                     Command to send.
-                port: int
-                    Port of namespace.
-                vlan: list
-                    List of vlan tags, defaults to None.
-                tpid: list
-                    List of vlan tpids, defaults to None.
-        
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
             :returns:
                 The requested data for command.
-        """        
-        params = conv_ns_for_tunnel(port, vlan, tpid)
-        params.update(kwargs)
-        return self._transmit_and_get_data(cmd, params)
+        """
+        data = ns_key.conv_to_dict(add_tunnel_key = True)
+        data.update(kwargs)
+        return self._send_chunks(cmd, data = data)
+
+    def _send_plugin_cmd_to_client(self, cmd, c_key, **kwargs):
+        """
+        Generic function for plugins, send `cmd` to 1 client useage in arp cmd_query.
+        
+            :parameters:
+                cmd: string
+                    Command to send.
+                c_key: EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
+            :returns:
+                The requested data for command.
+        """
+        data = c_key.conv_to_dict(add_ns = True, to_bytes = True)
+        data.update(kwargs)
+        return self._send_chunks(cmd, data = data)
+
+
+    def _send_plugin_cmd_to_clients(self, cmd, c_keys, **kwargs):
+        """
+        Generic function for plugins, send `cmd` to a list of clients keys i.e dot1x get_clients_info cmd. 
+        
+            :parameters:
+                cmd: string
+                    Command to send.
+                c_keys: list of EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
+            :returns:
+                The requested data for command.
+        """
+        c_keys = listify(c_keys)
+        data = self._conv_macs_and_validate_ns(c_keys)
+        return self._send_chunks(cmd, data = data)
 
     # Default Plugins
     @client_api('getter', True)
     def get_def_ns_plugs(self):
         ''' Gets the namespace default plugin '''
-        return self._transmit_and_get_data('ctx_get_def_plugins', None)
+        return self._send_chunks('ctx_get_def_plugins', data = None)[0]['def_plugs']
 
     @client_api('getter', True)
-    def get_def_c_plugs(self, port, vlan = None, tpid = None):
-        ''' Gets the client default plugin in a specific namespace '''
-        params = conv_ns_for_tunnel(port, vlan, tpid)
-        return self._transmit_and_get_data('ctx_client_get_def_plugins', params)
+    def get_def_c_plugs(self, ns_key):
+        '''
+        Gets the client default plugin in a specific namespace 
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+        '''
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},]
+        EMUValidator.verify(ver_args)
+        data = ns_key.conv_to_dict(True)
+        return self._send_chunks(cmd = 'ctx_client_get_def_plugins', data = data)[0]['def_plugs']
+
 
 ############################       EMU      #############################
 ############################       API      #############################
@@ -1039,16 +1101,52 @@ class EMUClient(object):
     
     # Emu Profile
     @client_api('command', True)
-    def load_profile(self, profile, max_rate = None, tunables = None, dry = False):
+    def load_profile(self, profile, max_rate = None, tunables = None, dry = False, verbose = False):
         """
-            Load emu profile from profile by its type. Supported type for now is .py
+            .. code-block:: python
 
+                ### Creating a profile and loading it ###
+
+                # creating a namespace key with no vlans
+                ns_key = EMUNamespaceKey(vport = 0)
+
+                # plugs for namespace
+                plugs = {'igmp': {}}
+
+                # default plugins for each client in the namespace
+                def_c_plugs = {'arp': {}}
+
+                # creating a simple client
+                mac = Mac('00:00:00:70:00:01)   # creating Mac obj
+                kwargs = {
+                    'ipv4': [1, 1, 1, 3], 'ipv4_dg': [1, 1, 1, 1],
+                    'plugs': {'icmp': {}}
+                }
+                client = EMUClientObj(mac.V(), **kwargs)  # converting mac to list of bytes
+
+                # creating the namespace with 1 client
+                ns = EMUNamespaceObj(ns_key = ns_key, clients = [client], plugs = plugs, def_c_plugs = def_c_plugs)
+
+                # every ns in the profile will have by default ipv6 plugin
+                def_ns_plugs = {'ipv6': {}}
+
+                # creating the profile and send it
+                profile = EMUProfile(ns = ns, def_ns_plugs = def_ns_plugs)
+                emu_client.load_profile(profile = profile)  # using EMUClient
+
+                ### loading from a file ###
+                # loading profile from a file, creating 10K clients, sending 1K clients per second.
+                emu_client.load_profile(profile = 'emu/simple_emu.py', max_rate = 1000, tunables = ['--clients', '10000'])
+
+            Load emu profile, might be EMUProfile object or a path to a valid profile. Supported type for now is .py
+            **Pay attention** sending many clients with no `max_rate` may cause connection error, if you are going to send more than 10K clients perhaps you should limit `max_rate` to 1000~.
+            
             :parameters:
                 profile : string or EMUProfile
-                    Filename (with path) of the profile or a valid EMUProfile object.
+                    Filename (with path) of the profile or a valid EMUProfile object. 
 
                 max_rate : int
-                    Max clients rate to send (clients/sec), "None" means with no policer interference.
+                    Max clients rate to send (clients/sec), "None" means with no policer interference. see :class:`trex.emu.trex_emu_profile.EMUProfile`
 
                 tunables : list of strings
                     Tunables line as list of strings. i.e: ['--ns', '1', '--clients', '10'].
@@ -1056,19 +1154,23 @@ class EMUClient(object):
                 dry: bool
                     True will not send the profile, only print as JSON.
 
+                verbose: bool
+                    True will print timings for converting and sending profile.
+
             :raises:
-                + :exc:`TRexError`
+                + :exc:`TRexError` In any case of invalid profile.
         """
         if tunables is None:
-            tunables = ['']
+            tunables = []
 
-        ver_args = {'types':
-            [{'name': 'profile', 'arg': profile, 't': [EMUProfile, str]},
+        ver_args =[
+            {'name': 'profile', 'arg': profile, 't': [EMUProfile, str]},
             {'name': 'max_rate', 'arg': max_rate, 't': int, 'must': False},
-            {'name': 'tunables', 'arg': tunables, 't': list},
-            {'name': 'dry', 'arg': dry, 't': bool}]
-        }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
+            {'name': 'tunables', 'arg': tunables, 't': 'tunables'},
+            {'name': 'dry', 'arg': dry, 't': bool},
+            {'name': 'verbose', 'arg': verbose, 't': bool},
+        ]
+        EMUValidator.verify(ver_args)
 
         help_flags = ('-h', '--help')
         if any(h in tunables for h in help_flags):
@@ -1084,22 +1186,26 @@ class EMUClient(object):
             self.ctx.logger.post_cmd(False)
             self._err('Failed to convert EMU profile')
         self.ctx.logger.post_cmd(True)
-        print("Converting profile took: %s" % (format_time(time.time() - s)))
+        if verbose:
+            print("Converting profile took: %s" % (format_time(time.time() - s)))
         if not dry:
-            self._start_profile(profile, max_rate)
+            self._start_profile(profile, max_rate, verbose = verbose)
         else:
             dump_json_yaml(profile.to_json(), to_json = True)
 
-    def _start_profile(self, profile, max_rate):
+    def _start_profile(self, profile, max_rate, verbose = False):
         """
             Start EMU profile with all the required commands to the server.
 
             :parameters:
                 profile: EMUProfile
-                    Emu profile, define all namespaces and clients.
+                    Emu profile, define all namespaces and clients. see :class:`trex.emu.trex_emu_profile.EMUProfile`
                 
                 max_rate : int
                     max clients rate to send (clients/sec)
+
+                verbose: bool
+                    True will print more messages and a progress bar.
             :raises:
                 + :exc:`TRexError`
         """
@@ -1115,18 +1221,21 @@ class EMUClient(object):
             self.set_def_ns_plugs(profile.def_ns_plugs)
 
             # adding all the namespaces in profile
-            self.add_ns(profile.serialize_ns())
+            self.add_ns(profile.ns_list)
 
             # adding all the clients for each namespace
             for ns in profile.ns_list:
-                # set client default plugins 
-                self.set_def_c_plugs(ns.conv_to_key(), ns.def_c_plugs)
-                self.add_clients(ns.fields, ns.get_clients(), max_rate = max_rate)
+                # set client default plugins
+                ns_key = ns.key
+                self.set_def_c_plugs(ns_key, ns.def_c_plugs)
+                clients_list = list(ns.c_map.values())
+                self.add_clients(ns_key, clients_list, max_rate = max_rate, verbose = verbose)
         except Exception as e:
             self.ctx.logger.post_cmd(False)
             raise TRexError('Could not load profile, error: %s' % str(e))
         self.ctx.logger.post_cmd(True)
-        print("Sending profile took: %s" % (format_time(time.time() - s)))
+        if verbose:
+            print("Sending profile took: %s" % (format_time(time.time() - s)))
 
     @client_api('command', True)
     def remove_profile(self, max_rate = None):
@@ -1143,92 +1252,92 @@ class EMUClient(object):
         return RC_OK()
 
     @client_api('command', True)
-    def add_ns(self, namespaces):
+    def add_ns(self, ns_list):
         """
             Add namespaces to EMU server.
 
             :parameters:
-                namespaces: list
-                    List of dictionaries with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-    
+                ns_list: list of EMUNamespaceObj
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceObj`
+
             :raises:
                 + :exc:`TRexError`
         """
-        ver_args = {'types':
-                [{'name': 'namespaces', 'arg': namespaces, 't': list},
-                ]}
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-                
-        self._send_chunks('ctx_add', data_key = 'tunnels', data = namespaces)
+        ver_args = [{'name': 'ns_list', 'arg': ns_list, 't': EMUNamespaceObj, 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+        ns_list = listify(ns_list)
+        namespaces_fields = [ns.get_fields() for ns in ns_list]
+        data = {'tunnels': namespaces_fields}
+        self._send_chunks('ctx_add', data = data)
 
         return RC_OK()
 
     @client_api('command', True)
-    def remove_ns(self, namespaces):
+    def remove_ns(self, ns_keys):
         """
             Remove namespaces from EMU server.
 
             :parameters:
-                namespaces: list
-                    list of dictionaries with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-
+                ns_keys: list of EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
             :raises:
                 + :exc:`TRexError`
         """
+        ver_args = [{'name': 'ns_keys', 'arg': ns_keys, 't': EMUNamespaceKey, 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+        ns_keys = listify(ns_keys)
         # tear down all plugins
-        for ns in namespaces:
+        for ns_key in ns_keys:
             for pl_obj in self.registered_plugs.values():
-                pl_obj.tear_down_ns(ns.get('vport'), ns.get('tci'), ns.get('tpid'))
+                pl_obj.tear_down_ns(ns_key)
 
-        self._send_chunks('ctx_remove', data_key = 'tunnels', data = namespaces)
+        namespaces_keys = [k.conv_to_dict(False) for k in ns_keys]
+        self._send_chunks('ctx_remove', data = {'tunnels': namespaces_keys})
 
         return RC_OK()
 
     @client_api('command', True)
-    def add_clients(self, namespace, clients, max_rate = None):
+    def add_clients(self, ns_key, clients, max_rate = None, verbose = False):
         """
             Add client to EMU server.
 
             :parameters:
 
-                namespaces: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-                
-                clients: list
-                    List of dictionaries with the form: {'mac': '00:01:02:03:04:05', 'ipv4': '1.1.1.3', 'ipv4_dg':'1.1.1.2', 'ipv6': '00:00:01:02:03:04'}
-                    `mac` is the only required field.
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+
+                clients: list of EMUClientObj
+                    see :class:`trex.emu.trex_emu_profile.EMUClientObj`
 
                 max_rate: int
                     Max clients rate to send (clients/sec), "None" means with no policer interference.
 
+                verbose: bool
+                    True will print messages to screen as well as a progress bar.
+
             :raises:
                 + :exc:`TRexError`
         """
-        ver_args = {'types':
-                [{'name': 'namespace', 'arg': namespace, 't': dict},
-                {'name': 'clients', 'arg': clients, 't': list}]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-        for c in clients:
-            c = self._client_to_bytes(c)
-
-        self._send_chunks('ctx_client_add', add_data = {'tun': namespace}, data_key = 'clients',
-                            data = clients, max_data_rate = max_rate, track_progress = True)
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+                {'name': 'clients', 'arg': clients, 't': EMUClientObj, 'allow_list': True},
+                {'name': 'max_rate', 'arg': max_rate, 't': int, 'must': False},]
+        EMUValidator.verify(ver_args)
+        clients = listify(clients)
+        clients_fields = [c.get_fields(to_bytes = True) for c in clients]
+        data = {'clients': clients_fields}
+        data.update(ns_key.conv_to_dict(add_tunnel_key = True))
+        self._send_chunks('ctx_client_add', data = data, max_data_rate = max_rate, track_progress = verbose)
 
         return RC_OK()
 
     @client_api('command', True)
-    def remove_clients(self, namespace, macs, max_rate):
+    def remove_clients(self, c_keys, max_rate):
         """
             Remove clients from a specific namespace.
 
             :parameters:
-                namespace: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
-
-                macs: list
-                    List of clients macs to remove.
-                    i.e: ['00:aa:aa:aa:aa:aa', '00:aa:aa:aa:aa:ab']
+                c_keys: list of EMUClientKey
+                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
                 
                 max_rate: int
                     Max clients rate to send (clients/sec), "None" means with no policer interference.
@@ -1236,14 +1345,14 @@ class EMUClient(object):
             :raises:
                 + :exc:`TRexError`
         """
-        ver_args = {'types':
-                [{'name': 'namespace', 'arg': namespace, 't': dict},
-                {'name': 'macs', 'arg': macs, 't': list}]
-                }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-
-        self._send_chunks('ctx_client_remove', add_data = {'tun': namespace}, data_key = 'macs', data = macs,
-                            max_data_rate = max_rate, track_progress = True)
+        ver_args = [{'name': 'c_keys', 'arg': c_keys, 't': EMUClientKey, 'allow_list': True},
+                {'name': 'max_rate', 'arg': max_rate, 't': int, 'must': False}]
+        EMUValidator.verify(ver_args)
+        c_keys = listify(c_keys)
+        if len(c_keys) == 0:
+            return RC_OK()
+        data = self._conv_macs_and_validate_ns(c_keys)
+        self._send_chunks('ctx_client_remove', data = data, max_data_rate = max_rate, track_progress = True)
 
         return RC_OK()
 
@@ -1256,13 +1365,15 @@ class EMUClient(object):
                 max_rate: int
                     Max clients rate to send (clients/sec), "None" means with no policer interference.
         """
+        ver_args = [{'name': 'max_rate', 'arg': max_rate, 't': int, 'must': False}]
+        EMUValidator.verify(ver_args)
         ns_keys_gen = self._get_n_ns()
 
         for ns_chunk in ns_keys_gen:
-            for ns_key in ns_chunk: 
-                clients = self.get_all_clients_for_ns(ns_key)
-                self.remove_clients(ns_key, clients, max_rate)
-            self.remove_ns(list(ns_chunk))
+            for ns_key in ns_chunk:
+                c_keys = self.get_all_clients_for_ns(ns_key)
+                self.remove_clients(c_keys, max_rate)
+            self.remove_ns(ns_chunk)
     
         return RC_OK()
 
@@ -1279,36 +1390,34 @@ class EMUClient(object):
                     Map plugin_name -> plugin_data, each plugin here will be added to every new namespace.
                     If new namespace will provide a plugin, it will override the default one. 
         """
-        ver_args = {'types':
-                [{'name': 'def_plugs', 'arg': def_plugs, 't': dict, 'must': False},
-                ]}
-        ArgVerify.verify(self.__class__.__name__, ver_args)
+        ver_args = [{'name': 'def_plugs', 'arg': def_plugs, 't': dict, 'must': False},]
+        EMUValidator.verify(ver_args)
 
-        self._send_chunks('ctx_set_def_plugins', data_key = 'def_plugs', data = def_plugs)
+        self._send_chunks('ctx_set_def_plugins', data = {'def_plugs': def_plugs})
 
         return RC_OK()
 
     @client_api('command', True)
-    def set_def_c_plugs(self, namespace, def_plugs):
+    def set_def_c_plugs(self, ns_key, def_plugs):
         """
             Set the client default plugins. Every new client in that namespace will have that plugin.
 
             :parameters:
 
-                namespace: dictionary
-                    Dictionary with the form: {'vport': 4040, tci': [10, 11], 'tpid': [0x8100, 0x8100]}
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
 
                 def_plugs: dictionary
                     Map plugin_name -> plugin_data, each plugin here will be added to every new client.
                     If new client will provide a plugin, it will override the default one. 
         """
-        ver_args = {'types':
-                [{'name': 'def_plugs', 'arg': def_plugs, 't': dict, 'must': False},
-                {'name': 'namespace', 'arg': namespace, 't': dict},
-                ]}
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-
-        self._send_chunks('ctx_client_set_def_plugins', add_data = {'tun': namespace}, data_key = 'def_plugs', data = def_plugs)
+        ver_args =[{'name': 'def_plugs', 'arg': def_plugs, 't': dict, 'must': False},
+                {'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey, 'allow_list': True},
+        ]
+        EMUValidator.verify(ver_args)
+        data = {'def_plugs': def_plugs}
+        data.update(ns_key.conv_to_dict(add_tunnel_key = True))
+        self._send_chunks('ctx_client_set_def_plugins', data = data)
 
         return RC_OK()
     
@@ -1354,7 +1463,7 @@ class EMUClient(object):
                                         parsing_opts.EMU_DRY_RUN_JSON
                                         )
         opts = parser.parse_args(args = line.split())
-        self.load_profile(opts.file[0], opts.max_rate, opts.tunables, opts.dry)
+        self.load_profile(opts.file[0], opts.max_rate, opts.tunables, opts.dry, verbose = True)
         return True
 
     @plugin_api('remove_profile', 'emu')
@@ -1402,8 +1511,8 @@ class EMUClient(object):
                                         )
 
         opts = parser.parse_args(line.split())
-
-        ns_info = self.get_info_ns([conv_ns(opts.port, opts.vlan, opts.tpid)])
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        ns_info = self.get_info_ns([ns_key])
         if len(ns_info):
             ns_info = ns_info[0]
         else:
@@ -1430,7 +1539,9 @@ class EMUClient(object):
                                         )
 
         opts = parser.parse_args(line.split())
-        c_info = self.get_info_client(conv_ns(opts.port, opts.vlan, opts.tpid), [opts.mac])
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = [EMUClientKey(ns_key = ns_key, mac = opts.mac)]
+        c_info = self.get_info_clients(c_key)
         if not len(c_info):
             self._err('Cannot find any client with requested parameters')
         else:
@@ -1494,23 +1605,25 @@ class EMUClient(object):
                     mac = opts.mac
                 except AttributeError:
                     mac = None
-                data_cnt.set_add_data(opts.port, opts.vlan, opts.tpid, mac)
+                ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+                c_key = None if mac is None else EMUClientKey(ns_key, mac)
+                data_cnt.set_add_data(ns_key = ns_key, c_key = c_key)
             elif opts.all_ns:
 
                 ns_gen = self._get_n_ns(amount = None)
                 ns_i = 0
 
                 for ns_chunk in ns_gen:
-                    for ns in ns_chunk:
+                    for ns_key in ns_chunk:
                         ns_i += 1
-                        self._print_ns_table(ns, ns_i)
-                        data_cnt.set_add_data(ns.get('vport'), ns.get('tci'), ns.get('tpid'))
+                        self._print_ns_table(ns_key.conv_to_dict(False), ns_i)
+                        data_cnt.set_add_data(ns_key = ns_key)
                         run_on_demend(data_cnt, opts)
                 if not ns_i:
                     self._err('there are no namespaces in emu server')
                 return True
             else:
-                raise self._err('namespace information required, supply them or run with --all-ns ')
+                raise self._err('Namespace information required, supply them or run with --all-ns ')
         
         run_on_demend(data_cnt, opts)
 
@@ -1558,7 +1671,7 @@ class EMUClient(object):
             try:
                 m = imp.load_source(import_path, filename)
             except BaseException as e:
-                self._err('Exception during import of %s: %s' % (import_path, e.msg))
+                self._err('Exception during import of %s, filename: "%s", message: %s' % (import_path, filename, e))
             
             # format for plugin name with uppercase i.e: "ARPPlugin"
             plugins_cls_name = '%sPlugin' % name.upper()

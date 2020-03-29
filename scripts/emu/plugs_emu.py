@@ -1,53 +1,7 @@
 from trex.emu.api import *
-from trex.utils.common import increase_mac, increase_ip, increase_ipv6
-from trex.emu.trex_emu_conversions import conv_to_bytes
+from trex.emu.trex_emu_conversions import Mac, Ipv4, Ipv6
 import argparse
 
-MAX_UINT16 = (2 ** 16) - 1
-MAX_TCI    = (2 ** 12) - 1 
-
-class NsGen:
-    def __init__(self, vport, tci, tpid, total, p_inc = 0, tci_inc = 0):
-        self.vport    = vport
-        self.tci      = tci
-        self.tpid     = tpid
-        self.p_inc    = p_inc
-        self.tci_inc  = tci_inc 
-        self.total    = total
-
-    def __iter__(self):
-        for _ in range(self.total):
-            yield self.vport, self.tci, self.tpid
-            if self.vport < MAX_UINT16:
-                self.vport += self.p_inc
-            else:
-                self.vport = 1
-                self.tci = list(self.tci)
-                if self.tci[0] < MAX_TCI:
-                    self.tci[0] += self.tci_inc
-                elif self.tci[1] < MAX_TCI:
-                    self.tci[0] = 0
-                    self.tci[1] += self.tci_inc
-
-class ClientGen:
-    def __init__(self, mac, ipv4, dg, ipv6, total_clients, mac_inc = 0, ipv4_inc = 0, dg_inc = 0, ipv6_inc = 0):
-        self.mac      = mac
-        self.ipv4     = ipv4
-        self.dg       = dg
-        self.ipv6     = ipv6
-        self.mac_inc  = mac_inc
-        self.ipv4_inc = ipv4_inc
-        self.dg_inc   = dg_inc
-        self.ipv6_inc = ipv6_inc
-        self.total    = total_clients
-
-    def __iter__(self):
-        for _ in range(self.total):
-            yield self.mac, self.ipv4, self.dg, self.ipv6
-            self.mac  = increase_mac(self.mac, self.mac_inc)
-            self.ipv4 = increase_ip(self.ipv4, self.ipv4_inc)
-            self.dg   = increase_ip(self.dg, self.dg_inc)
-            self.ipv6 = increase_ipv6(self.ipv6, self.ipv6_inc)
 
 class Prof1():
     def __init__(self):
@@ -56,7 +10,8 @@ class Prof1():
 
     def create_profile(self, ns_size, clients_size, plug, mac, ipv4, dg, ipv6):
         empty_ipv4 = '0.0.0.0'
-        mac_as_bytes = conv_to_bytes(mac, 'mac')
+        mac_obj = Mac(mac)
+        mac_as_bytes = mac_obj.V()
 
         PLUGS_MAP = {
         'ipv4': {'def_c': {'arp': {'enable': True}, 'icmp': {}},
@@ -65,7 +20,7 @@ class Prof1():
         'igmp': {'def_c': {'arp': {'enable': True}, 'icmp': {}, 'igmp': {'dmac': mac_as_bytes}}
                 },
 
-        'ipv6': {'def_c': {'ipv6': {'enable': True}},
+        'ipv6': {'def_c': {'ipv6': {}},
                 'def_ns': {'ipv6': {'dmac': mac_as_bytes}},
                 'ipv4': empty_ipv4, 'dg': empty_ipv4
                 },
@@ -74,12 +29,15 @@ class Prof1():
                 'ipv4': empty_ipv4
                 },
 
-        'dhcpv6': {'def_c': {'ipv6': {'enable': True}, 'dhcpv6': {}},
+        'dhcpv6': {'def_c': {'ipv6': {}, 'dhcpv6': {}},
                 'def_ns': {'ipv6': {'dmac': mac_as_bytes}},
                 'ipv4': empty_ipv4, 'dg': empty_ipv4
                 },
 
-        'all': {'def_c': {'arp':{'enable': True}, 'icmp': {}, 'igmp': {'dmac': mac_as_bytes}, 'ipv6': {'enable': True}, 'dhcpv6': {}},
+        'dot1x': {'def_c': {'dot1x': {}},
+                'def_ns': {},},
+
+        'all': {'def_c': {'arp':{'enable': True}, 'icmp': {}, 'igmp': {'dmac': mac_as_bytes}, 'ipv6': {}, 'dhcpv6': {}, 'dot1x': {}},
                 'def_ns': {'ipv6': {'dmac': mac_as_bytes}},
                 'ipv4': empty_ipv4, 'dg': empty_ipv4}
         }
@@ -94,24 +52,23 @@ class Prof1():
 
         # create different namespace each time
         vport, tci, tpid = 0, [0, 0], [0, 0]
-        ns_gen = NsGen(vport, tci, tpid, ns_size, p_inc = 1, tci_inc = 1)
-        for vport, tci, tpid in ns_gen:
-            ns = EMUNamespaceObj(vport  = vport,
-                                tci     = tci,
-                                tpid    = tpid,
-                                def_c_plugs = self.def_c_plugs
-                                )
+        for i in range(vport, ns_size + vport):
+            ns_key = EMUNamespaceKey(vport  = i,
+                                    tci     = tci,
+                                    tpid    = tpid)
+            ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
 
-
-            c_gen = ClientGen(mac, ipv4, dg, ipv6, clients_size, 
-                                mac_inc = 1, ipv4_inc = 0 if ipv4 == empty_ipv4 else 1, ipv6_inc = 1)
+            mac  = Mac(mac)
+            ipv4 = Ipv4(ipv4)
+            dg   = Ipv4(dg)
+            ipv6 = Ipv6(ipv6)
             
             # create a different client each time
-            for i, (mac, ipv4, dg, ipv6) in enumerate(c_gen):
-                client = EMUClientObj(mac     = mac,
-                                      ipv4    = ipv4,
-                                      ipv4_dg = dg,
-                                      ipv6    = ipv6,
+            for j in range(clients_size):
+                client = EMUClientObj(mac     = mac[j].V(),
+                                      ipv4    = ipv4[j].V(),
+                                      ipv4_dg = dg.V(),
+                                      ipv6    = ipv6[j].V(),
                                       )
                 ns.add_clients(client)
 
@@ -127,7 +84,7 @@ class Prof1():
                     help='Number of namespaces to create')
         parser.add_argument('--clients', type = int, default = 15,
                     help='Number of clients to create in each namespace')
-        parser.add_argument('--plugs', type = str.lower, choices = {'all', 'ipv4', 'ipv6', 'igmp', 'dhcpv4', 'dhcpv6'},
+        parser.add_argument('--plugs', type = str.lower, choices = {'all', 'ipv4', 'ipv6', 'igmp', 'dhcpv4', 'dhcpv6', 'dot1x'},
                     help='''Set the wanted plugins in the profile:
                     ipv4: arp, icmp
                     igmp: arp, icmp, igmp
