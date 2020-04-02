@@ -24,10 +24,14 @@
 36008,waasConnectionMode
 36009,waasInputBytes
 36010,waasOutputBytes
+37019,rtpPacketsLost
+37022,rtpSsrc
+37041,rtpPayloadType
 37083,tcpWindowSizeMin
 37084,tcpWindowSizeMax
 37086,tcpMaximumSegmentSize
 37092,tcpWindowSizeSum
+37093,rtpJitterMeanSum
 40285,maxLongLivedClientNwkTime
 40286,minLongLivedClientNwkTime
 40288,maxLongLivedServerNwkTime
