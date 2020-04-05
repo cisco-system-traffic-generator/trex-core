@@ -2112,6 +2112,7 @@ HOT_FUNC bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
 }
 
 
+
 HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
 
 
@@ -2119,10 +2120,11 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
     rte_mbuf_t *    m=lp->generate_new_mbuf(node);
 
     pkt_dir_t       dir;
+    pkt_dir_t       odir; // original dir 
     bool            single_port;
 
     dir         = node->cur_interface_dir();
-    single_port = node->get_is_all_flow_from_same_dir() ;
+    single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
 
 
     if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
@@ -2149,6 +2151,11 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
 
         add_vlan(m, vlan_id);
     }
+    odir  = dir;
+
+    if (single_port){
+        odir = node->cur_pkt_port_addr_dir();
+    }
 
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
@@ -2162,11 +2169,18 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
     uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
     uint8_t p_id = lp_port->m_port->get_tvpid();
 
-    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    if (single_port){
+        CCorePerPort *lp_port1 = &m_ports[odir];
+        uint8_t id = lp_port1->m_port->get_tvpid();
+        // takes the mac from the original 
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(id),12);
+    } else{
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    }
 
      /* when slowpath features are on */
     if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
-        handle_slowpath_features(node, m, p, dir);
+        handle_slowpath_features(node, m, p, odir);
     }
 
 
@@ -2177,7 +2191,9 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
     }
 
     /*printf("send packet -- \n");
-      rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));*/
+    if (dir == 0 ){
+        utl_rte_pktmbuf_dump_k12(stdout,m);
+    }*/
 
     /* send the packet */
     send_pkt(lp_port,m,lp_stats);
