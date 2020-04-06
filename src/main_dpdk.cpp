@@ -2113,93 +2113,6 @@ HOT_FUNC bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
 
 
 
-HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
-
-
-    CFlowPktInfo *  lp=node->m_pkt_info;
-    rte_mbuf_t *    m=lp->generate_new_mbuf(node);
-
-    pkt_dir_t       dir;
-    pkt_dir_t       odir; // original dir 
-    bool            single_port;
-
-    dir         = node->cur_interface_dir();
-    single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
-
-
-    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
-                  != CPreviewMode::VLAN_MODE_NONE) ) {
-        uint16_t vlan_id=0;
-
-        if (CGlobalInfo::m_options.preview.get_vlan_mode()
-            == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
-            /* which vlan to choose 0 or 1*/
-            uint8_t vlan_port = (node->m_src_ip & 1);
-            vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
-            if (likely( vlan_id > 0 ) ) {
-                dir = dir ^ vlan_port;
-            } else {
-                /* both from the same dir but with VLAN0 */
-                vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
-            }
-        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
-            == CPreviewMode::VLAN_MODE_NORMAL) {
-            CCorePerPort *lp_port = &m_ports[dir];
-            uint8_t port_id = lp_port->m_port->get_tvpid();
-            vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
-        }
-
-        add_vlan(m, vlan_id);
-    }
-    odir  = dir;
-
-    if (single_port){
-        odir = node->cur_pkt_port_addr_dir();
-    }
-
-    CCorePerPort *lp_port = &m_ports[dir];
-    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-
-    if (unlikely(m==0)) {
-        lp_stats->m_tx_alloc_error++;
-        return(0);
-    }
-
-    /* update mac addr dest/src 12 bytes */
-    uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
-    uint8_t p_id = lp_port->m_port->get_tvpid();
-
-    if (single_port){
-        CCorePerPort *lp_port1 = &m_ports[odir];
-        uint8_t id = lp_port1->m_port->get_tvpid();
-        // takes the mac from the original 
-        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(id),12);
-    } else{
-        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
-    }
-
-     /* when slowpath features are on */
-    if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
-        handle_slowpath_features(node, m, p, odir);
-    }
-
-
-    if ( unlikely( node->is_rx_check_enabled() ) ) {
-        lp_stats->m_tx_rx_check_pkt++;
-        lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
-        lp_stats->m_template.inc_template( node->get_template_id( ));
-    }
-
-    /*printf("send packet -- \n");
-    if (dir == 0 ){
-        utl_rte_pktmbuf_dump_k12(stdout,m);
-    }*/
-
-    /* send the packet */
-    send_pkt(lp_port,m,lp_stats);
-    return (0);
-}
-
 
 int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
     assert(p);
@@ -7236,4 +7149,92 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
   shutdown();
 
   return (0);
+}
+
+
+HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
+
+
+    CFlowPktInfo *  lp=node->m_pkt_info;
+    rte_mbuf_t *    m=lp->generate_new_mbuf(node);
+
+    pkt_dir_t       dir;
+    pkt_dir_t       odir; // original dir 
+    bool            single_port;
+
+    dir         = node->cur_interface_dir();
+    single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
+
+
+    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
+                  != CPreviewMode::VLAN_MODE_NONE) ) {
+        uint16_t vlan_id=0;
+
+        if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
+            /* which vlan to choose 0 or 1*/
+            uint8_t vlan_port = (node->m_src_ip & 1);
+            vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+            if (likely( vlan_id > 0 ) ) {
+                dir = dir ^ vlan_port;
+            } else {
+                /* both from the same dir but with VLAN0 */
+                vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
+            }
+        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_NORMAL) {
+            CCorePerPort *lp_port = &m_ports[dir];
+            uint8_t port_id = lp_port->m_port->get_tvpid();
+            vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+        }
+
+        add_vlan(m, vlan_id);
+    }
+    odir  = dir;
+
+    if (single_port){
+        odir = node->cur_pkt_port_addr_dir();
+    }
+
+    CCorePerPort *lp_port = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+
+    if (unlikely(m==0)) {
+        lp_stats->m_tx_alloc_error++;
+        return(0);
+    }
+
+    /* update mac addr dest/src 12 bytes */
+    uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id = lp_port->m_port->get_tvpid();
+
+    if (single_port){
+        CCorePerPort *lp_port1 = &m_ports[odir];
+        uint8_t id = lp_port1->m_port->get_tvpid();
+        // takes the mac from the original 
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(id),12);
+    } else{
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    }
+
+     /* when slowpath features are on */
+    if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
+        handle_slowpath_features(node, m, p, odir);
+    }
+
+
+    if ( unlikely( node->is_rx_check_enabled() ) ) {
+        lp_stats->m_tx_rx_check_pkt++;
+        lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
+        lp_stats->m_template.inc_template( node->get_template_id( ));
+    }
+
+    /*printf("send packet -- \n");
+    if (dir == 0 ){
+        utl_rte_pktmbuf_dump_k12(stdout,m);
+    }*/
+
+    /* send the packet */
+    send_pkt(lp_port,m,lp_stats);
+    return (0);
 }
