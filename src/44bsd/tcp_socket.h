@@ -850,6 +850,8 @@ private:
 
     void tcp_udp_close();
 
+    void tcp_udp_close_dpc();
+
     void force_stop_timer();
 
     void check_l7_data(struct rte_mbuf *m);
