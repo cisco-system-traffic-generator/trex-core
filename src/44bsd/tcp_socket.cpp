@@ -265,9 +265,27 @@ void CEmulApp::tcp_udp_close(){
         tcp_usrclosed(m_pctx,&m_flow->m_tcp);
         if (get_interrupt()==false) {
             m_api->tx_tcp_output(m_pctx,m_flow);
+        }else{
+            // in case we have somthing in the queue there is no need to mark it
+            // the current function will take over 
+            if (m_flow->m_tcp.m_socket.so_snd.sb_cc == 0) {
+                set_do_close(true);
+            }
         }
     }
 }
+
+void CEmulApp::tcp_udp_close_dpc(){
+    if (is_udp_flow()) {
+        m_api->disconnect(m_pctx,m_flow);
+    } else{
+        if (!m_flow->is_close_was_called()){
+            tcp_usrclosed(m_pctx,&m_flow->m_tcp);
+        }
+        m_api->tx_tcp_output(m_pctx,m_flow);
+    }
+}
+
 
 /* on tick */
 void CEmulApp::on_tick(){
@@ -584,9 +602,7 @@ void CEmulApp::do_disconnect(){
 }
 
 void CEmulApp::do_close(){
-    if (!m_flow->is_close_was_called()){
-        tcp_udp_close();
-    }
+    tcp_udp_close_dpc();
 }
 
 
