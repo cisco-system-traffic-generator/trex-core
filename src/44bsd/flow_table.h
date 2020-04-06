@@ -27,8 +27,19 @@ limitations under the License.
 #include "dpdk_port_map.h"
 #include "trex_global.h"
 
+struct flow_key_t {
+  bool operator==(const flow_key_t &k) const {
+    return as_uint64[0] == k.as_uint64[0] && as_uint64[1] == k.as_uint64[1];
+  };
 
-typedef uint64_t flow_key_t; 
+  union {
+    struct {
+      uint64_t m_src_ip : 32, m_dst_ip : 32;
+      uint64_t m_sport : 16, m_dport : 16, m_proto : 8, m_ipv4 : 1, m_spare : 7;
+    };
+    uint64_t as_uint64[2];
+  };
+};
 
 static inline uint32_t ft_hash_rot(uint32_t v,uint16_t r ){
     return ( (v<<r) | ( v>>(32-(r))) );
@@ -62,68 +73,73 @@ static inline uint32_t ft_hash2(uint64_t in){
 class CFlowKeyTuple {
 public:
     CFlowKeyTuple(){
-        u.m_raw=0;
+	memset(&m_bf, 0, sizeof(m_bf));
     }
 
-    void set_ip(uint32_t ip){
-        u.m_bf.m_ip = ip;
+    void set_src_ip(uint32_t ip){
+        m_bf.m_src_ip = ip;
     }
 
-    void set_port(uint16_t port){
-        u.m_bf.m_port = port;
+    void set_dst_ip(uint32_t ip){
+        m_bf.m_dst_ip = ip;
+    }
+
+    void set_sport(uint16_t port){
+        m_bf.m_sport = port;
+    }
+
+    void set_dport(uint16_t port){
+        m_bf.m_dport = port;
     }
 
     void set_proto(uint8_t proto){
-        u.m_bf.m_proto = proto;
+        m_bf.m_proto = proto;
     }
 
     void set_ipv4(bool ipv4){
-        u.m_bf.m_ipv4 = ipv4?1:0;
+        m_bf.m_ipv4 = ipv4?1:0;
     }
 
-    uint32_t get_ip(){
-        return(u.m_bf.m_ip);
+    uint32_t get_src_ip(){
+        return(m_bf.m_src_ip);
     }
 
-    uint32_t get_port(){
-        return(u.m_bf.m_port);
+    uint32_t get_dst_ip(){
+        return(m_bf.m_dst_ip);
     }
 
+    uint32_t get_sport(){
+        return(m_bf.m_sport);
+    }
+
+    uint32_t get_dport(){
+        return(m_bf.m_dport);
+    }
     uint8_t get_proto(){
-        return(u.m_bf.m_proto);
+        return(m_bf.m_proto);
     }
 
     bool get_is_ipv4(){
-        return(u.m_bf.m_ipv4?true:false);
+        return(m_bf.m_ipv4?true:false);
     }
 
-    uint64_t get_as_uint64(){
-        return (u.m_raw);
+    flow_key_t get_flow_key(){
+	return m_bf;
     }
 
     uint32_t get_hash_worse(){
-        uint16_t p = get_port();
-        uint32_t res = ft_hash_rot(get_ip(),((p %16)+1)) ^ (p + get_proto()) ;
+        uint16_t p = get_sport() ^ get_dport();
+        uint32_t res = ft_hash_rot(get_src_ip() ^ get_dst_ip(),((p %16)+1)) ^ (p + get_proto()) ;
         return (res);
     }
 
     uint32_t get_hash(){
-        return ( ft_hash2(get_as_uint64()) );
+        return ( ft_hash2(m_bf.as_uint64[0]) ^ m_bf.as_uint64[1]);
     }
 
     void dump(FILE *fd);
 private:
-    union {
-        struct {
-            uint64_t m_ip:32,
-                     m_port:16,
-                     m_proto:8,
-                     m_ipv4:1,
-                     m_spare:7;
-        }        m_bf;
-        uint64_t m_raw;
-    } u;
-
+    flow_key_t m_bf;
 };
 
 /* full tuple -- for directional flow */
