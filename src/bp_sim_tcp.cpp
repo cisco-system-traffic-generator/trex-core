@@ -339,8 +339,10 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
     }
 
     CFlowKeyTuple   c_tuple;
-    c_tuple.set_ip(tuple.getClient());
-    c_tuple.set_port(tuple.getClientPort());
+    c_tuple.set_src_ip(tuple.getClient());
+    c_tuple.set_sport(tuple.getClientPort());
+    c_tuple.set_dst_ip(tuple.getServer());
+    c_tuple.set_dport(tuple.getServerPort());
     if (is_udp){
         c_tuple.set_proto(IPHeader::Protocol::UDP);
     }else{
