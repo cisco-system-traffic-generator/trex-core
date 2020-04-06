@@ -59,8 +59,10 @@ void CSttFlowTableStats::Dump(FILE *fd){
 
 
 void CFlowKeyTuple::dump(FILE *fd){
-    fprintf(fd,"m_ip       : %lu \n",(ulong)get_ip());
-    fprintf(fd,"m_port     : %lu \n",(ulong)get_port());
+    fprintf(fd,"m_src_ip   : %lu \n",(ulong)get_src_ip());
+    fprintf(fd,"m_sport    : %lu \n",(ulong)get_sport());
+    fprintf(fd,"m_dst_ip   : %lu \n",(ulong)get_dst_ip());
+    fprintf(fd,"m_dport    : %lu \n",(ulong)get_dport());
     fprintf(fd,"m_proto    : %lu \n",(ulong)get_proto());
     fprintf(fd,"m_ipv4     : %lu \n",(ulong)get_is_ipv4());
     fprintf(fd,"hash       : %u \n",get_hash());
@@ -156,11 +158,15 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         IPHeader *   ipv4= parser.m_ipv4;
         TCPUDPHeaderBase    * lpL4 = (TCPUDPHeaderBase *)parser.m_l4;
         if ( m_client_side ) {
-            tuple.set_ip(ipv4->getDestIp());
-            tuple.set_port(lpL4->getDestPort());
+            tuple.set_src_ip(ipv4->getDestIp());
+            tuple.set_sport(lpL4->getDestPort());
+            tuple.set_dst_ip(ipv4->getSourceIp());
+            tuple.set_dport(lpL4->getSourcePort());
         }else{
-            tuple.set_ip(ipv4->getSourceIp());
-            tuple.set_port(lpL4->getSourcePort());
+            tuple.set_dst_ip(ipv4->getDestIp());
+            tuple.set_dport(lpL4->getDestPort());
+            tuple.set_src_ip(ipv4->getSourceIp());
+            tuple.set_sport(lpL4->getSourcePort());
         }
         if (ipv4->getTotalLength()<IPV4_HDR_LEN) {
             FT_INC_SCNT(m_err_len_err);
@@ -180,11 +186,15 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         TCPUDPHeaderBase    * lpL4 = (TCPUDPHeaderBase *)parser.m_l4;
 
         if ( m_client_side ) {
-            tuple.set_ip(ipv6->getDestIpv6LSB());
-            tuple.set_port(lpL4->getDestPort());
+            tuple.set_src_ip(ipv6->getDestIpv6LSB());
+            tuple.set_sport(lpL4->getDestPort());
+            tuple.set_dst_ip(ipv6->getSourceIpv6LSB());
+            tuple.set_dport(lpL4->getSourcePort());
         }else{
-            tuple.set_ip(ipv6->getSourceIpv6LSB());
-            tuple.set_port(lpL4->getSourcePort());
+            tuple.set_src_ip(ipv6->getSourceIpv6LSB());
+            tuple.set_sport(lpL4->getSourcePort());
+            tuple.set_dst_ip(ipv6->getDestIpv6LSB());
+            tuple.set_dport(lpL4->getDestPort());
         }
         /* TBD need to find the last IPv6 header and skip  */
         pkt_len = ipv6->getPayloadLen()+ lpf->m_l3_offset + IPV6_HDR_LEN;
@@ -507,7 +517,7 @@ HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
 bool CFlowTable::insert_new_flow(CFlowBase *  flow,
                                  CFlowKeyTuple  & tuple){
 
-    flow_key_t key=tuple.get_as_uint64();
+    flow_key_t key=tuple.get_flow_key();
     uint32_t  hash=tuple.get_hash();
     flow->m_hash.key =key;
 
@@ -635,16 +645,10 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     CEmulAppProgram *server_prog = server_info->get_prog();
     //CTcpTuneables *s_tune = server_info->get_tuneables();
 
-    flow = ctx->m_ft.alloc_flow_udp(pctx,
-                                   dest_ip,
-                                   tuple.get_ip(),
-                                   dst_port,
-                                   tuple.get_port(),
-                                   vlan,
-                                   is_ipv6,
-                                   false,
-                                   tg_id,
-                                   c_template_idx);
+    flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
+				    dst_port, tuple.get_sport(),
+				    vlan, is_ipv6, false, tg_id,
+				    c_template_idx);
 
 
 
@@ -661,7 +665,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     flow->m_c_template_idx = c_template_idx;
 
-    flow_key_t key=tuple.get_as_uint64();
+    flow_key_t key=tuple.get_flow_key();
     /* add to flow-table */
     flow->m_hash.key = key;
 
@@ -763,9 +767,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         if ( ctx->tcp_blackhole !=2 ){
             generate_rst_pkt(FALLBACK_PROFILE_CTX(ctx),
                              dest_ip,
-                             tuple.get_ip(),
+                             tuple.get_src_ip(),
                              dst_port,
-                             tuple.get_port(),
+                             tuple.get_sport(),
                              vlan,
                              is_ipv6,
                              lpTcp,
@@ -787,9 +791,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         if (ctx->tcp_blackhole ==0 ){
           generate_rst_pkt(pctx ? pctx: FALLBACK_PROFILE_CTX(ctx),
                          dest_ip,
-                         tuple.get_ip(),
+                         tuple.get_src_ip(),
                          dst_port,
-                         tuple.get_port(),
+                         tuple.get_sport(),
                          vlan,
                          is_ipv6,
                          lpTcp,
@@ -817,9 +821,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     lptflow = ctx->m_ft.alloc_flow(pctx,
                                    dest_ip,
-                                   tuple.get_ip(),
+                                   tuple.get_src_ip(),
                                    dst_port,
-                                   tuple.get_port(),
+                                   tuple.get_sport(),
                                    vlan,
                                    is_ipv6,
                                    tg_id,
@@ -852,7 +856,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     lptflow->m_c_template_idx = c_template_idx;
 
-    flow_key_t key=tuple.get_as_uint64();
+    flow_key_t key=tuple.get_flow_key();
     /* add to flow-table */
     lptflow->m_hash.key = key;
 
@@ -935,7 +939,7 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     rte_mbuf_set_as_core_local(mbuf);
 
 
-    flow_key_t key=tuple.get_as_uint64();
+    flow_key_t key=tuple.get_flow_key();
     uint32_t  hash=tuple.get_hash();
    #ifdef FLOW_TABLE_DEBUG
     tuple.dump(stdout);
