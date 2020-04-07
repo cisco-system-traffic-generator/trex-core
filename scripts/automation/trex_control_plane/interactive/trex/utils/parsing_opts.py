@@ -1342,17 +1342,25 @@ class OPTIONS_DB_ARGS:
          'conv_type': 'ipv4',
          'action': action_conv_type_to_bytes()})
 
-    PING_TIMEOUT = ArgumentPack(
-        ['--timeout'],
-        {'help': 'Timeout for collecting the statistics in sec. Default is 5.',
-         'dest': 'ping_timeout',
+    PING_DST_V6 = ArgumentPack(
+        ['--dst'],
+        {'help': 'Destination address. Default is Default Gateway.',
+         'dest': 'pingv6_dst',
          'required': False,
-         'action': action_check_min_max(),
-         'min_val': 0})
+         'conv_type': 'ipv6',
+         'action': action_conv_type_to_bytes()})
+
+    PING_SRC_V6 = ArgumentPack(
+        ['--src'],
+        {'help': 'Source address.',
+         'dest': 'pingv6_src',
+         'required': False,
+         'conv_type': 'ipv6',
+         'action': action_conv_type_to_bytes()})
 
     PING_SIZE = ArgumentPack(
         ['--size'],
-        {'help': 'Size of ping packet in bytes. Default is 64.',
+        {'help': 'Size of the ICMPv4/v6 payload, in bytes. Minimal and default is 16.',
          'dest': 'ping_size',
          'required': False,
          'action': action_check_min_max(),
@@ -1576,7 +1584,17 @@ class OPTIONS_DB_GROUPS:
             PING_AMOUNT,
             PING_PACE,
             PING_DST,
-            PING_TIMEOUT,
+            PING_SIZE,
+        ], {}
+    )
+
+    EMU_ICMPv6_PING_PARAMS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            PING_AMOUNT,
+            PING_PACE,
+            PING_DST_V6,
+            PING_SRC_V6,
             PING_SIZE,
         ], {}
     )

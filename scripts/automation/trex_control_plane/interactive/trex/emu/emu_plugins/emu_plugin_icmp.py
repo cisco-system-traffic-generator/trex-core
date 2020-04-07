@@ -25,21 +25,14 @@ class ICMPPlugin(EMUPluginBase):
         Empty.
     """
 
+    MIN_ROWS = 5
+    MIN_COLS = 120
+
     def __init__(self, emu_client):
         super(ICMPPlugin, self).__init__(emu_client, 'icmp_ns_cnt')
 
-    def __icmp_start_ping_print(self, c_key, amount, pace, dst, timeout, pkt_size):
-        res = False
-        self.emu_c.logger.pre_cmd('Starting to ping : ')
-        res = self.start_ping(c_key=c_key, amount=amount, pace=pace, dst=dst, timeout=timeout, pkt_size=pkt_size)
-        self.emu_c.logger.post_cmd(res)
-        if not res:
-            text_tables.print_colored_line("Client is already pinging on in timeout.", 'yellow', buffer=sys.stdout)
-        return res
-
-
     @client_api('command', True)
-    def start_ping(self, c_key, amount=None, pace=None, dst=None, timeout=None, pkt_size=None):
+    def start_ping(self, c_key, amount=None, pace=None, dst=None, timeout=None, payload_size=None):
         """
             Start pinging, sending Echo Requests.
 
@@ -54,20 +47,16 @@ class ICMPPlugin(EMUPluginBase):
                     Pace in which to send the packets in pps (packets per second).
 
                 dst: list of bytes
-                    Destination IPv4. [1, 1, 1, 3]
+                    Destination IPv4. For example: [1, 1, 1, 3]
 
                 timeout: int
                     Time to collect the results in seconds, starting when the last Echo Request is sent.
 
-                pkt_size: int
-                    Size of the Echo Request packet, in bytes.
+                payload_size: int
+                    Size of the ICMP payload, in bytes.
 
             :returns:
-                Boolean representing the status of the command.
-
-            :raises:
-                + :exc:`TRexError`
-                    In case of failure.
+                (RPC Response, TRexError), one of the entries is None.
 
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey, 'must': True},
@@ -75,17 +64,19 @@ class ICMPPlugin(EMUPluginBase):
                     {'name': 'pace', 'arg': pace, 't': float,'must': False},
                     {'name': 'dst', 'arg': dst, 't': 'ipv4', 'must': False},
                     {'name': 'timeout', 'arg': timeout, 't': int, 'must': False},
-                    {'name': 'pkt_size', 'arg': pkt_size, 't': int, 'must': False}]
-
-
+                    {'name': 'payload_size', 'arg': payload_size, 't': int, 'must': False}]
         EMUValidator.verify(ver_args)
-        return self.emu_c._send_plugin_cmd_to_client(cmd='icmp_c_start_ping', c_key=c_key, amount=amount, pace=pace, 
-                                                     dst=dst, timeout=timeout, pktSize=pkt_size)
+        try:
+            success = self.emu_c._send_plugin_cmd_to_client(cmd='icmp_c_start_ping', c_key=c_key, amount=amount, pace=pace,
+                                                            dst=dst, timeout=timeout, payloadSize=payload_size)
+            return success, None
+        except TRexError as err:
+            return None, err
 
     @client_api('command', True)
     def get_ping_stats(self, c_key, zero=True):
         """
-            Start pinging, sending Echo Requests.
+            Get the stats of an active ping.
 
             :parameters:
                 c_key: EMUClientKey
@@ -95,11 +86,11 @@ class ICMPPlugin(EMUPluginBase):
                     Get values that equal zero aswell.
 
             :returns:
-                (RPC answer, Error), one of the entries is None.
+                (RPC Response, TRexError), one of the entries is None.
 
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey, 'must': True},
-                    {'name': 'zero', 'arg': zero, 't': bool, '': False}]
+                    {'name': 'zero', 'arg': zero, 't': bool, 'must': False}]
         EMUValidator.verify(ver_args)
         try:
             data = self.emu_c._send_plugin_cmd_to_client(cmd='icmp_c_get_ping_stats', c_key=c_key, zero=zero)
@@ -117,15 +108,16 @@ class ICMPPlugin(EMUPluginBase):
                     see :class:`trex.emu.trex_emu_profile.EMUClientKey`
 
             :returns:
-                Boolean representing the status of the command.
+                (RPC Response, TRexError), one of the entries is None.
 
-            :raises:
-                + :exc:`TRexError`
-                    In case of failure.
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey, 'must': True}]
         EMUValidator.verify(ver_args)
-        return self.emu_c._send_plugin_cmd_to_client('icmp_c_stop_ping', c_key=c_key)
+        try:
+            success = self.emu_c._send_plugin_cmd_to_client('icmp_c_stop_ping', c_key=c_key)
+            return success, None
+        except TRexError as err:
+            return None, err
 
     # Plugins methods
     @plugin_api('icmp_show_counters', 'emu')
@@ -143,128 +135,79 @@ class ICMPPlugin(EMUPluginBase):
         self.emu_c._base_show_counters(self.data_c, opts, req_ns=True)
         return True
 
-    @plugin_api('icmp_start_ping', 'emu')
-    def icmp_start_ping(self, line):
-        """ICMP start pinging (per client).\n"""
+    @plugin_api('icmp_ping', 'emu')
+    def icmp_ping(self, line):
+        """ICMP ping utility (per client).\n"""
         parser = parsing_opts.gen_parser(self,
-                                         "icmp_start_ping",
-                                         self.icmp_start_ping.__doc__,
-                                         parsing_opts.MAC_ADDRESS,
-                                         parsing_opts.EMU_NS_GROUP,
-                                         parsing_opts.EMU_ICMP_PING_PARAMS
-                                         )
-        opts = parser.parse_args(line.split())
-        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
-        c_key = EMUClientKey(ns_key, opts.mac)
-
-        self.__icmp_start_ping_print(c_key=c_key, amount=opts.ping_amount, pace=opts.ping_pace, dst=opts.ping_dst,
-                            timeout=opts.ping_timeout, pkt_size=opts.ping_size)
-
-    @plugin_api('icmp_start_ping_wait', 'emu')
-    def icmp_start_ping_wait(self, line):
-        """ICMP start pinging and wait to finish (per client).\n"""
-        parser = parsing_opts.gen_parser(self,
-                                         "icmp_start_ping_wait",
-                                         self.icmp_start_ping_wait.__doc__,
+                                         "icmp_ping",
+                                         self.icmp_ping.__doc__,
                                          parsing_opts.MAC_ADDRESS,
                                          parsing_opts.EMU_NS_GROUP,
                                          parsing_opts.EMU_ICMP_PING_PARAMS,
-                                         parsing_opts.MONITOR_TYPE_VERBOSE
                                          )
+
+        rows, cols = os.popen('stty size', 'r').read().split()
+        if (int(rows) < self.MIN_ROWS) or (int(cols) < self.MIN_COLS):
+            msg = "\nPing requires console screen size of at least {0}x{1}, current is {2}x{3}".format(self.MIN_COLS,
+                                                                                                    self.MIN_ROWS,
+                                                                                                    cols,
+                                                                                                    rows)
+            text_tables.print_colored_line(msg, 'red', buffer=sys.stdout)
+            return
 
         opts = parser.parse_args(line.split())
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        res = self.__icmp_start_ping_print(c_key=c_key, amount=opts.ping_amount, pace=opts.ping_pace, dst=opts.ping_dst,
-                            timeout=opts.ping_timeout, pkt_size=opts.ping_size)
-        amount = opts.ping_amount if opts.ping_amount is not None else 5  # default is 5 packets
-        pace = opts.ping_pace if opts.ping_pace is not None else 1  # default is 1
-        if res:
+
+        self.emu_c.logger.pre_cmd('Starting to ping : ')
+        success, err = self.start_ping(c_key=c_key, amount=opts.ping_amount, pace=opts.ping_pace, dst=opts.ping_dst,
+                                       payload_size=opts.ping_size, timeout=1)
+        if err is not None:
+            self.emu_c.logger.post_cmd(False)
+            text_tables.print_colored_line(err.msg, 'yellow', buffer=sys.stdout)
+        else:
+            self.emu_c.logger.post_cmd(True)
+            amount = opts.ping_amount if opts.ping_amount is not None else 5  # default is 5 packets
+            pace = opts.ping_pace if opts.ping_pace is not None else 1  # default is 1
             try:
                 while True:
                     time.sleep(min(1, 100/pace))
                     stats, err = self.get_ping_stats(c_key=c_key)
                     if err is None:
-                        completed = stats['icmp_ping_stats']['requestsSent']
-                        percent = completed / float(amount) * 100.0
-                        dots = '.' * int(percent / 10)
-                        text = "Progress: {0:.2f}% {1}".format(percent, dots)
-                        sys.stdout.write('\r' + (' ' * 25) +
-                                         '\r')  # clear line
+                        stats = stats['icmp_ping_stats']
+                        sent = stats['requestsSent']
+                        rcv = stats['repliesInOrder']
+                        percent = sent / float(amount) * 100.0
+                        # the latency from the server is in usec
+                        min_lat_msec = float(stats['minLatency']) / 1000
+                        max_lat_msec = float(stats['maxLatency']) / 1000
+                        avg_lat_msec = float(stats['avgLatency']) / 1000
+                        err = int(stats['repliesOutOfOrder']) + int(stats['repliesMalformedPkt']) + \
+                              int(stats['repliesBadLatency']) + int(stats['repliesBadIdentifier']) + \
+                              int (stats['dstUnreachable'])
+                        
+                        text = "Progress: {0:.2f}%, Sent: {1}/{2}, Rcv: {3}/{2}, Err: {4}/{2}, RTT min/avg/max = {5:.2f}/{6:.2f}/{7:.2f} ms" \
+                                                            .format(percent, sent, amount, rcv, err, min_lat_msec, avg_lat_msec, max_lat_msec)
+
+                        sys.stdout.write('\r' + (' ' * self.MIN_COLS) +'\r')  # clear line
                         sys.stdout.write(format_text(text, 'yellow'))
                         sys.stdout.flush()
-                        if opts.verbose:
-                            sys.stdout.flush()
-                            stats_text = "\n"
-                            for key, value in stats['icmp_ping_stats'].items():
-                                stats_text += "{0} {1}: {2:.2f}\n".format(
-                                    key, ' ' * (20 - len(key)), value)
-                            sys.stdout.write(format_text(stats_text, 'green'))
-                            sys.stdout.flush()
-                        if completed == amount:
-                            sys.stdout.write(format_text(
-                                '\n\nCompleted\n\n', 'yellow'))
+                        if sent == amount:
+                            sys.stdout.write(format_text('\n\nCompleted\n\n', 'yellow'))
                             sys.stdout.flush()
                             break
                     else:
-                        # Could get here if timeout is too short, but shouldn't happen.
+                        # Trying to collect stats after completion.
                         break
             except KeyboardInterrupt:
-                text_tables.print_colored_line(
-                    '\nInterrupted by a keyboard signal (probably ctrl + c).', 'yellow', buffer=sys.stdout)
-                self.emu_c.logger.pre_cmd('Attempting to stop ping :')
-                res_stop = self.stop_ping(c_key=c_key)
-                self.emu_c.logger.post_cmd(res_stop)
-                return res_stop
+                text_tables.print_colored_line('\nInterrupted by a keyboard signal (probably ctrl + c).', 'yellow', buffer=sys.stdout)
+                self.emu_c.logger.pre_cmd('Attempting to stop ping : ')
+                success, err = self.stop_ping(c_key=c_key)
+                if err is None:
+                    self.emu_c.logger.post_cmd(True)
+                else:
+                    self.emu_c.logger.post_cmd(False)
+                    text_tables.print_colored_line(err.msg, 'yellow', buffer=sys.stdout)
 
-    @plugin_api('icmp_get_ping_stats', 'emu')
-    def icmp_get_ping_stats(self, line):
-        """ICMP get ping stats (per client).\n"""
-        parser = parsing_opts.gen_parser(self,
-                                         "icmp_get_ping_stats",
-                                         self.icmp_get_ping_stats.__doc__,
-                                         parsing_opts.MAC_ADDRESS,
-                                         parsing_opts.EMU_NS_GROUP,
-                                         parsing_opts.EMU_SHOW_CNT_GROUP,
-                                         parsing_opts.EMU_DUMPS_OPT
-                                         )
 
-        opts = parser.parse_args(line.split())
-        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
-        c_key = EMUClientKey(ns_key, opts.mac)
-        data_cnt = DataCounter(self.emu_c.conn, 'icmp_c_get_ping_stats')
-        data_cnt.set_add_data(c_key=c_key)
-        try:
-            if opts.headers:
-                data_cnt.get_counters_headers()
-            elif opts.clear:
-                self.emu_c.logger.pre_cmd("Clearing all counters :")
-                data_cnt.clear_counters()
-                self.emu_c.logger.post_cmd(True)
-            else:
-                data = data_cnt.get_counters(
-                    opts.tables, opts.cnt_types, opts.zero)
-                DataCounter.print_counters(
-                    data, opts.verbose, opts.json, opts.yaml)
-        except TRexError as err:
-            text_tables.print_colored_line(
-                '\n' + err.msg, 'yellow', buffer=sys.stdout)
 
-    @plugin_api('icmp_stop_ping', 'emu')
-    def icmp_stop_ping(self, line):
-        """ICMP stop pinging (per client).\n"""
-        parser = parsing_opts.gen_parser(self,
-                                         "icmp_stop_ping",
-                                         self.icmp_stop_ping.__doc__,
-                                         parsing_opts.MAC_ADDRESS,
-                                         parsing_opts.EMU_NS_GROUP,
-                                         )
-
-        opts = parser.parse_args(line.split())
-        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
-        c_key = EMUClientKey(ns_key, opts.mac)
-        self.emu_c.logger.pre_cmd('Attempting to stop ping :')
-        res = self.stop_ping(c_key=c_key)
-        self.emu_c.logger.post_cmd(res)
-        if not res:
-            text_tables.print_colored_line("No active pinging.", 'yellow', buffer=sys.stdout)
