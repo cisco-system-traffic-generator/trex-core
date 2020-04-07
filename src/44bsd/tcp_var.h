@@ -740,6 +740,7 @@ public:
 /*****************************************************/
 
 class CServerTemplateInfo;
+class CServerIpPayloadInfo;
 
 class CTcpFlow : public CFlowBase {
 
@@ -782,7 +783,7 @@ public:
     void set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune);
 
     CPerProfileCtx* create_on_flow_profile();
-    void start_identifying_template(CPerProfileCtx *pctx);
+    void start_identifying_template(CPerProfileCtx *pctx, CServerIpPayloadInfo* payload_info);
     bool new_template_identified();
     bool is_activated();
 
@@ -795,6 +796,7 @@ public:
     uint8_t           m_tick;
 
     CServerTemplateInfo*    m_template_info; /* to save the identified template */
+    CServerIpPayloadInfo*   m_payload_info; /* to manage template during identifying */
 };
 
 /* general timer object used by ASTF, 
@@ -1018,6 +1020,9 @@ class CServerIpPayloadInfo : CServerIpInfo {
     payload_rule_t m_payload_rule;
     std::unordered_map<payload_value_t,CServerTemplateInfo> m_payload_map;
 
+    CServerTemplateInfo* m_template_ref;    // IP only template >> latest payload template
+    std::set<CTcpFlow*> m_template_flows;   // flows to update reference template info
+
 public:
     CServerIpPayloadInfo() {}
     CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp);
@@ -1056,11 +1061,13 @@ public:
     CServerTemplateInfo* get_template_info(uint8_t* data) {
         return data ? get_template_info(get_payload_value(data)): nullptr;
     }
+    void set_reference_template_info(CServerTemplateInfo* temp) { m_template_ref = temp; }
     CServerTemplateInfo* get_reference_template_info();
 
     bool insert_template_info(payload_value_t pval, CTcpServerInfo* server, CPerProfileCtx* pctx) {
         if (!get_template_info(pval)) {
             m_payload_map.insert(std::make_pair(pval, CServerTemplateInfo(server, pctx)));
+            m_template_ref = &m_payload_map[pval];  // updated by recently added one
             return true;
         }
         return false;
@@ -1076,6 +1083,17 @@ public:
     }
 
     bool remove_template_info(CPerProfileCtx* pctx);
+
+    void insert_template_flow(CTcpFlow* flow) {
+        m_template_flows.insert(flow);
+    }
+    void remove_template_flow(CTcpFlow* flow) {
+        auto it = m_template_flows.find(flow);
+        if (it != m_template_flows.end()) {
+            m_template_flows.erase(it);
+        }
+    }
+    void update_template_flows(CPerProfileCtx* pctx);
 
     std::string to_string() {
         std::stringstream ss;
@@ -1109,6 +1127,7 @@ class CServerPortInfo {
     std::map<uint32_t,CServerIpPayloadInfo> m_ip_map_payload;
     CServerTemplateInfo *m_template_cache;    // all ip range's template cache for the fast lookup.
 
+    void update_payload_template_reference(CServerTemplateInfo* temp);
     bool insert_template_payload(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
     CServerTemplateInfo* get_template_info_by_ip(uint32_t ip);
     CServerTemplateInfo* get_template_info_by_payload(uint32_t ip, uint8_t* data, uint16_t len);
@@ -1118,7 +1137,12 @@ public:
     bool insert_template_info(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
     void remove_template_info_by_profile(CPerProfileCtx* pctx);
 
+    CServerIpPayloadInfo* get_ip_payload_info(uint32_t ip);
+
     CServerTemplateInfo* get_template_info(uint32_t ip, uint8_t* data, uint16_t len);
+    CServerTemplateInfo* get_template_info(uint32_t ip) {
+        return m_template_cache ? m_template_cache : get_template_info_by_ip(ip);
+    }
     CServerTemplateInfo* get_template_info() { return m_template_cache; }
 
     void print_server_port();
@@ -1261,6 +1285,7 @@ public:
     void remove_server_ports(profile_id_t profile_id);
     CServerTemplateInfo * get_template_info_by_port(uint16_t port, bool stream);
     CServerTemplateInfo * get_template_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
+    CServerTemplateInfo * get_template_info(uint16_t port, bool stream, uint32_t ip, CServerIpPayloadInfo** payload_info_p);
     CTcpServerInfo * get_server_info(uint16_t port, bool stream, uint32_t ip, uint8_t* data=nullptr, uint16_t len=0);
     void print_server_ports();
 
