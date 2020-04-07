@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.78 ==
+
+* EMU server/Python API 
+** Add dot1x support 
+** Add utility like ping 
+** Better API documentation  link:cp_emu_docs/index.html[emu-sdk] 
+* ASTF fix #435/#436 
+
 == Release 2.77 ==
 
 * minor version, fix EMU documentation and minor things 

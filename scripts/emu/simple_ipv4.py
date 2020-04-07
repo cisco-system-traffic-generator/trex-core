@@ -5,8 +5,7 @@ import get_args
 
 class Prof1():
     def __init__(self):
-        self.mac = Mac('00:00:00:70:00:01')
-        self.def_ns_plugs  = {'ipv6' : {'dmac':self.mac.V()}} 
+        self.def_ns_plugs  = None
         self.def_c_plugs  = None
 
     def create_profile(self, ns_size, clients_size):
@@ -20,16 +19,17 @@ class Prof1():
                                     tpid    = tpid)
             ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
 
-            mac = self.mac
-            ipv6 = Ipv6("2001:DB8:1::2")
+            mac = Mac('00:00:00:70:00:01')
+            ipv4 = Ipv4('1.1.5.2')
+            dg = Ipv4('1.1.5.1')
 
             # create a different client each time
             for i in range(clients_size):       
                 client = EMUClientObj(mac     = mac[i].V(),
-                                      ipv6    = ipv6[i].V(),  
-
-                                      plugs   = {'ipv6': {},
-                                                 'dhcpv6': {},
+                                      ipv4    = ipv4[i].V(),
+                                      ipv4_dg = dg.V(),
+                                      plugs   = {'arp': {},
+                                                 'icmp': {},
                                                 },
                                       )
                 ns.add_clients(client)

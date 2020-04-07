@@ -27,6 +27,16 @@ emu_ns = EMUNamespaceObj(ns_key  = ns_key,
                          clients = emu_client)
 profile = EMUProfile(ns = emu_ns, def_ns_plugs = {'ipv6':{}})
 
+
+#  MAKE sure the TRex server is in --software mode promiscuous and to get multicast enabled 
+# trex_c.connect()
+# trex_c.acquire(ports = my_ports)
+# trex_c.set_port_attr(promiscuous=True)  << get all the packets
+# # move the mode to service mode in case DHCP is enabled  
+# trex_c.set_service_mode(ports = my_ports, enabled = False, filtered = True, mask = (NO_TCP_UDP_MASK | DHCP_MASK ))
+# 
+
+
 # connect and load profile
 c.connect()
 c.load_profile(profile = profile)

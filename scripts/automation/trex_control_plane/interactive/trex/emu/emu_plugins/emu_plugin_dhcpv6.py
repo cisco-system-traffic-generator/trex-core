@@ -4,7 +4,9 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class DHCPV6Plugin(EMUPluginBase):
-    '''Defines DHCPV6 plugin'''
+    '''Defines DHCPV6 plugin
+        RFC 8415  DHCPv6 client
+    '''
 
     plugin_name = 'DHCPV6'
 

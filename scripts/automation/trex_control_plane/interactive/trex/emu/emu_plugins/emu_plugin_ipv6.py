@@ -6,7 +6,17 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class IPV6Plugin(EMUPluginBase):
-    '''Defines ipv6 plugin'''
+    '''Defines ipv6 plugin  
+
+        RFC 4443: Internet Control Message Protocol (ICMPv6) for the Internet Protocol Version 6 (IPv6)
+        RFC 4861: Neighbor Discovery for IP Version 6 (IPv6)
+        RFC 4862: IPv6 Stateless Address Autoconfiguration.
+
+        not implemented:
+
+        RFC4941: random local ipv6 using md5
+
+    '''
 
     plugin_name = 'IPV6'
     IPV6_STATES = {
@@ -23,11 +33,11 @@ class IPV6Plugin(EMUPluginBase):
         mtu: uint16
             Maximun transmission unit.
         dmac: [6]byte
-            Designator mac.
-        vec: list of [4]byte
+            Designator mac. IMPORTANT !!
+        vec: list of [16]byte
             IPv4 vector representing multicast addresses.
         version: uint16 
-            The init version, 1 or 2 (default)
+            The init version, 1 or 2 (default). It learns the version from the first Query.
     """
 
     INIT_JSON_CLIENT = {'ipv6': {'nd_timer': 29, 'nd_timer_disable': False}}
@@ -88,7 +98,7 @@ class IPV6Plugin(EMUPluginBase):
                 ns_key: EMUNamespaceKey
                     see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
                 ipv6_vec: list of lists of bytes
-                    List of ipv6 addresses. Must be a valid ipv6 mld address.
+                    List of ipv6 addresses. Must be a valid ipv6 mld address. .e.g.[[0xff,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1] ]
         """
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
         {'name': 'ipv6_vec', 'arg': ipv6_vec, 't': 'ipv6_mc', 'allow_list': True},]
