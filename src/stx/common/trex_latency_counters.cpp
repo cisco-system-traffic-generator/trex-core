@@ -268,7 +268,7 @@ RXLatency::check_seq_number_and_update_stats(
     uint32_t pkt_seq = fsp_head->seq;
     uint32_t exp_seq = curr_rfc2544->get_seq();
     if (unlikely(pkt_seq != exp_seq)) {
-        if (pkt_seq < exp_seq) {
+        if ((int32_t)(pkt_seq - exp_seq) < 0) {
             handle_seq_number_smaller_than_expected(
                 curr_rfc2544, pkt_seq, exp_seq);
         } else {
@@ -285,21 +285,14 @@ RXLatency::handle_seq_number_smaller_than_expected(
         CRFC2544Info *curr_rfc2544,
         uint32_t &pkt_seq,
         uint32_t &exp_seq) {
-    if (exp_seq - pkt_seq > 100000) {
-        // packet loss while we had wrap around
-        curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-        curr_rfc2544->inc_seq_err_too_big();
-        curr_rfc2544->set_seq(pkt_seq + 1);
+    if (pkt_seq == (exp_seq - 1)) {
+        curr_rfc2544->inc_dup();
     } else {
-        if (pkt_seq == (exp_seq - 1)) {
-            curr_rfc2544->inc_dup();
-        } else {
-            curr_rfc2544->inc_ooo();
-            // We thought it was lost, but it was just out of order
-            curr_rfc2544->dec_seq_err();
-        }
-        curr_rfc2544->inc_seq_err_too_low();
+        curr_rfc2544->inc_ooo();
+        // We thought it was lost, but it was just out of order
+        curr_rfc2544->dec_seq_err();
     }
+    curr_rfc2544->inc_seq_err_too_low();
 }
 
 void
@@ -307,22 +300,10 @@ RXLatency::handle_seq_number_bigger_than_expected(
         CRFC2544Info *curr_rfc2544,
         uint32_t &pkt_seq,
         uint32_t &exp_seq) {
-    if (unlikely (pkt_seq - exp_seq > 100000)) {
-        // packet reorder while we had wrap around
-        if (pkt_seq == (exp_seq - 1)) {
-            curr_rfc2544->inc_dup();
-        } else {
-            curr_rfc2544->inc_ooo();
-            // We thought it was lost, but it was just out of order
-            curr_rfc2544->dec_seq_err();
-        }
-        curr_rfc2544->inc_seq_err_too_low();
-    } else {
-        // seq > curr_rfc2544->seq. Assuming lost packets
-        curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
-        curr_rfc2544->inc_seq_err_too_big();
-        curr_rfc2544->set_seq(pkt_seq + 1);
-    }
+    // seq > curr_rfc2544->seq. Assuming lost packets
+    curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
+    curr_rfc2544->inc_seq_err_too_big();
+    curr_rfc2544->set_seq(pkt_seq + 1);
 }
 
 void
