@@ -283,8 +283,13 @@ void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
                                 bool remove_from_ft){
     uint16_t tg_id = flow->m_tg_id;
     if ( !flow->is_udp() ){
-        INC_STAT(flow->m_pctx, tg_id, tcps_testdrops);
-        INC_STAT(flow->m_pctx, tg_id, tcps_closed);
+        if ( !((CTcpFlow*)flow)->is_activated() ) {
+            FT_INC_SCNT(m_err_defer_no_template);
+        }
+        else {
+            INC_STAT(flow->m_pctx, tg_id, tcps_testdrops);
+            INC_STAT(flow->m_pctx, tg_id, tcps_closed);
+        }
     }
     handle_close(ctx, flow, remove_from_ft);
 }
@@ -773,7 +778,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip);
+    CServerIpPayloadInfo *payload_info = nullptr;
+    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip, &payload_info);
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
@@ -866,7 +872,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     lptflow->set_app(app);
 
     if (unlikely(temp->has_payload_params())) {
-        lptflow->start_identifying_template(pctx);
+        lptflow->start_identifying_template(pctx, payload_info);
     } else {
         app->start(true); /* start the application */
     }
