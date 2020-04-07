@@ -93,10 +93,13 @@ def divide_dict_into_chunks(d, n):
     if max([len(v) if type(v) is list else 1 for v in d.values()]) <= n:
         yield d
     else:
-        # creating the generators
-        gens = {}
+        gens = {}  # creating the generators for large values
+        small_values = {}  # storing the smaller values separately
         for k, v in d.items():
-            gens[k] = divide_into_chunks(v, n)
+            if isinstance(v, list) and len(v) > n:
+                gens[k] = divide_into_chunks(v, n)
+            else: 
+                small_values[k] = v
         
         while True:
             d_chunked = {}
@@ -107,6 +110,7 @@ def divide_dict_into_chunks(d, n):
                 except StopIteration:
                     pass
             if len(d_chunked) > 0:
+                d_chunked.update(small_values)  # adding the small values, like tunnel key in clients adding
                 yield d_chunked
             else:
                 break
@@ -141,6 +145,7 @@ def conv_return_val_to_str(f):
     def inner(*args, **kwargs):
         res = f(*args, **kwargs)
 
+        res = listify(res)
         for d in res:
             for key, value in d.items():
                 d[key] = conv_to_str(value, key)
@@ -328,7 +333,7 @@ class EMUClient(object):
             :raises:
                 + :exc: `TRexError` in case of invalid command
             :return:
-                list: Server response data. Depends on the command.
+                Depends: Depends on the command. return rc.data(), check what the server returns.
         """
         
         def _check_rc(rc, response):
@@ -382,7 +387,7 @@ class EMUClient(object):
         if track_progress:
             sys.stdout.write('\r' + (' ' * 40) + '\r')  # clear line
 
-        return response
+        return response[0] if len(response) == 1 else response
 
     def _iter_ns(self, cmd, count, reset = False, **kwargs):
         """
@@ -1139,7 +1144,7 @@ class EMUClient(object):
                 emu_client.load_profile(profile = 'emu/simple_emu.py', max_rate = 1000, tunables = ['--clients', '10000'])
 
             Load emu profile, might be EMUProfile object or a path to a valid profile. Supported type for now is .py
-            **Pay attention** sending many clients with no `max_rate` may cause connection error, if you are going to send more than 10K clients perhaps you should limit `max_rate` to 1000~.
+            **Pay attention** sending many clients with no `max_rate` may cause the router to crash, if you are going to send more than 10K clients perhaps you should limit `max_rate` using the plicer to 1000/sec ~.
             
             :parameters:
                 profile : string or EMUProfile

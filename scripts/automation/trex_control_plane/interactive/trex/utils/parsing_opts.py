@@ -1339,7 +1339,8 @@ class OPTIONS_DB_ARGS:
         {'help': 'Destination address. Default is Default Gateway.',
          'dest': 'ping_dst',
          'required': False,
-         'type': check_ipv4_addr})
+         'conv_type': 'ipv4',
+         'action': action_conv_type_to_bytes()})
 
     PING_TIMEOUT = ArgumentPack(
         ['--timeout'],

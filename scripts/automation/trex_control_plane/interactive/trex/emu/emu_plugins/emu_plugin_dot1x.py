@@ -6,7 +6,10 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class DOT1XPlugin(EMUPluginBase):
-    '''Defines DOT1x plugin'''
+    '''Defines DOT1x plugin  RFC 8415  dot1x client with
+        EAP-MD5
+        EAP-MSCHAPv2
+     '''
 
     plugin_name = 'DOT1X'
 

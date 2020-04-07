@@ -1,10 +1,11 @@
 Plugins
 =======
 
-Plugins are extentions for each EmuClient. They are emulating famous protocols like: arp, igmp, dhcp.. 
+Plugins are extensions for each EmuClient. They are emulating protocols like: arp, igmp, dhcp.
 
-Every plugin is created with a json format, allowing alter some of the plugin's parameters. You can find the init JSON for each plugin, whether it's "INIT_JSON_NS" or "INIT_JSON_CLIENT" .
-There is a seperation between init JSON of plugin namespace and plugin client. Pay attintion if your plugin will be created in the namespace or client contex.
+Every plugin is has a init json, allowing alter some of the plugin's parameters. The init json could be applied to client, namespace and thread level.  
+You can find the init json for each plugin, whether it's "INIT_JSON_NS" (namespace) or "INIT_JSON_CLIENT" (client) .
+There is a separation between init JSON of plugin namespace and plugin client. 
 
 **NOTICE**: Although sending a JSON with redundant parameters will not cause an error whatsoever, it's recommended to follow the init JSON structure.
 

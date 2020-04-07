@@ -4,8 +4,13 @@ Client Module
 The EMUClient provides access to the TRex emulation server.
 
 User can interact with TRex emulation server using this client. The protocol is JSON-RPC2 over ZMQ transport.
+for EMU to work, you must move the port to promiscuous and to get multicast  packet. You should be enable --software mode too 
    
 Adding and removing clients example:
+
+arp example:
+
+.. literalinclude:: ../../interactive/trex/examples/emu/emu_arp.py
 
 .. literalinclude:: ../../interactive/trex/examples/emu/emu_add_remove_clients.py
 

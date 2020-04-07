@@ -5,7 +5,7 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class ARPPlugin(EMUPluginBase):
-    '''Defines arp plugin'''
+    '''Defines arp plugin  RFC 826 '''
 
     plugin_name = 'ARP'
 
@@ -103,7 +103,7 @@ class ARPPlugin(EMUPluginBase):
     @client_api('getter', True)
     def show_cache(self, ns_key):
         """
-        Show arp cache. 
+        get arp cache (per namespace) shared by all clients 
 
             :parameters:
                 ns_key: EMUNamespaceKey

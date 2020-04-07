@@ -1,7 +1,6 @@
 from trex.emu.api import *
-from trex.emu.trex_emu_conversions import Mac, Ipv4
-
 import argparse
+import get_args 
 
 
 class Prof1():
@@ -14,48 +13,36 @@ class Prof1():
 
         # create different namespace each time
         vport, tci, tpid = 0, [0, 0], [0x00, 0x00]
-        for i in range(vport, ns_size + vport):
-            ns = EMUNamespaceObj(vport  = i,
-                                tci     = tci,
-                                tpid    = tpid,
-                                def_c_plugs = self.def_c_plugs
-                                )
+        for j in range(vport, ns_size + vport):
+            ns_key = EMUNamespaceKey(vport  = j,
+                                    tci     = tci,
+                                    tpid    = tpid)
+            ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
 
             mac = Mac('00:00:00:70:00:01')
-            ipv4 = Ipv4('1.1.1.3')
-            dg = Ipv4('1.1.1.2')
-           
+            ipv4 = Ipv4('1.1.5.2')
+            dg = Ipv4('1.1.5.1')
+            u = "hhaim{}".format(i+1)
+
             # create a different client each time
-            for j in range(clients_size):               
-                u = "hhaim{}".format(j + 1)
-                client = EMUClientObj(mac     = mac[j].V(),
+            for i in range(clients_size):       
+                client = EMUClientObj(mac     = mac[i].V(),
                                       ipv4    = ipv4[i].V(),
                                       ipv4_dg = dg.V(),
                                       plugs   = {'arp': {},
+                                                 'icmp': {},
                                                  'dot1x': {'user':u,'password':u,'flags':1},
-                                                'icmp':{}
                                                 },
                                       )
                 ns.add_clients(client)
-
             ns_list.append(ns)
 
         return EMUProfile(ns = ns_list, def_ns_plugs = self.def_ns_plugs)
 
     def get_profile(self, tuneables):
-        # Argparse for tunables
-        parser = argparse.ArgumentParser(description='Argparser for simple emu profile.')
-        parser.add_argument('--ns', type = int, default = 1,
-                    help='Number of namespaces to create')
-        parser.add_argument('--clients', type = int, default = 15,
-                    help='Number of clients to create in each namespace')
-
-        args = parser.parse_args(tuneables)
-
+        args = get_args.get_args(tuneables)
         return self.create_profile(args.ns, args.clients)
 
 
 def register():
     return Prof1()
-
-

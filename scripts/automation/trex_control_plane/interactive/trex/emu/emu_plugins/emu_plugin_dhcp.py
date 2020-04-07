@@ -5,7 +5,7 @@ import json
 
 
 class DHCPPlugin(EMUPluginBase):
-    '''Defines DHCP plugin'''
+    '''Defines DHCP plugin  RFC 2131 DHCP client side'''
 
     plugin_name = 'DHCP'
 

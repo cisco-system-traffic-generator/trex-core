@@ -7,7 +7,15 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class IGMPPlugin(EMUPluginBase):
-    '''Defines igmp plugin'''
+    '''Defines igmp plugin 
+
+    Support a simplified version of IPv4 IGMP v3/v2  RFC3376
+    v3 does not support EXCLUDE/INCLUDE per client
+    The implementation is in the namespace domain (shared for all the clients on the same network)
+    One client ipv4/mac is the designator to answer the queries for all the clients.
+    This implementation can scale with the number of mc 
+    don't forget to set the designator client
+   '''
 
     plugin_name = 'IGMP'
 
@@ -18,11 +26,11 @@ class IGMPPlugin(EMUPluginBase):
         mtu: uint16
             Maximun transmission unit. (Required)
         dmac: [6]byte
-            Designator mac.
+            Designator mac. IMPORTANT !! can be set by the API set_cfg too 
         vec: list of [4]byte
             IPv4 vector representing multicast addresses.
         version: uint16
-            The init version of IGMP, it will learn from Query.
+            The init version of IGMP 2 or 3 (default). After the first query it learns the version from the Query.
     """
 
     INIT_JSON_CLIENT = {'igmp': {}}
