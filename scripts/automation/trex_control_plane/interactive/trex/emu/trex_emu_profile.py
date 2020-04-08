@@ -176,7 +176,7 @@ class EMUClientObj(object):
                     Mac address for a client. see :class:`trex.emu.trex_emu_conversions.Mac`
                 
                 kwargs: dict
-                    Additional parameters for client, besides the mac. Those may be found in emu docs under `CClientCmd struct <https://trex-tgn.cisco.com/trex/doc/trex_emu.html#_emu_client>`_	
+                    Additional parameters for client, besides the mac. Those may be found in emu docs under `CClientCmd struct <https://trex-tgn.cisco.com/trex/doc/trex_emu.html#_emu_client>`_
                     
                     Here are some of the useful ones:
                 
