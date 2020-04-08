@@ -1,4 +1,3 @@
-import sys
 import zmq
 import json
 import time
@@ -6,7 +5,6 @@ import hashlib
 import random as rand
 from argparse import *
 from trex.pybird.bird_cfg_creator import *
-from pprint import pprint
 
 class ConnectionException(Exception): pass
 class ConfigurationException(Exception): pass
