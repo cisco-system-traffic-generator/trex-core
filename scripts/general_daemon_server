@@ -106,41 +106,49 @@ def is_running():
 
 def show_daemon_status():
     if is_running():
-        print(termstyle.green('Scapy server is running'))
+        print(termstyle.green('{name} server is running'.format(name=args.name)))
     else:
-        print(termstyle.red('Scapy server is NOT running'))
+        print(termstyle.red('{name} server is NOT running'.format(name=args.name)))
 
 
 def start_daemon():
     if is_running():
-        print(termstyle.red('Scapy server is already running'))
+        print(termstyle.red('{name} server is already running'.format(args.name)))
         return
-    check_path = cur_dir
-    last_err_path = None
-    ret = -1
-    while ret and check_path != '/':
-        ret, out = run_command("ls %s" % check_path, demote = True)
-        if ret:
-            last_err_path = check_path
-            check_path = os.path.abspath(os.path.join(check_path, '..'))
-    if last_err_path:
-        msg = '''
-Error: current path is not readable by user "nobody" (starting at {path}).
-Two possible solutions:
+    if args.check_readable:
+        check_path = cur_dir
+        last_err_path = None
+        ret = -1
+        while ret and check_path != '/':
+            ret, out = run_command("ls %s" % check_path, demote = args.demote)
+            if ret:
+                last_err_path = check_path
+                check_path = os.path.abspath(os.path.join(check_path, '..'))
+        if last_err_path:
+            msg = '''
+    Error: current path is not readable by user "nobody" (starting at {path}).
+    Two possible solutions:
 
-  1. (Recommended)
-     Copy TRex to some public location (/tmp or /scratch, assuming it has proper permissions (chmod 777 etc.))
+    1. (Recommended)
+        Copy TRex to some public location (/tmp or /scratch, assuming it has proper permissions (chmod 777 etc.))
 
-  2. (Not recommended)
-     Change permissions of current path. (Starting from directory {path}).
-     chmod 777 {path} -R
-'''.format(path = last_err_path)
-        fail(msg)
+    2. (Not recommended)
+        Change permissions of current path. (Starting from directory {path}).
+        chmod 777 {path} -R
+    '''.format(path = last_err_path)
+            fail(msg)
 
-    server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'interactive')
-    cmd = 'taskset -c {core} {python} -m trex.scapy_server.scapy_zmq_server -s {port}'.format(core = args.core, python = sys.executable, port = args.port)
-    proc, stdout_file = run_command(cmd, demote = True, is_daemon = True, cwd = server_path)
-    ret = progress(is_running, 'Starting Scapy server', 'Scapy server is started', 'Scapy server failed to run', fail_check = proc.poll)
+    if args.interactive:
+        server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'interactive')
+    else:
+        server_path = cur_dir
+    assert args.exe is not None, 'Must provide -e with an executable string for start command'
+    sudo   = 'sudo' if args.sudo else ''
+    python = sys.executable if args.py else ''
+    cmd = '{sudo} taskset -c {core} {python} {exe} -p {port}'.format(sudo = sudo, core = args.core, python = python, exe = args.exe,port = args.port)
+
+    proc, stdout_file = run_command(cmd, demote = args.demote, is_daemon = True, cwd = server_path)
+    ret = progress(is_running, 'Starting {name} server'.format(name=args.name), '{name} server is started'.format(name=args.name), '{name} server failed to run'.format(name=args.name), fail_check = proc.poll)
     if proc.poll():
         stdout_file.seek(0)
         print('Output: %s' % stdout_file.read())
@@ -158,16 +166,24 @@ def restart_daemon():
 def kill_daemon():
     pid = get_daemon_pid()
     if not pid:
-        print(termstyle.red('Scapy server is NOT running'))
+        print(termstyle.red('{name} server is NOT running'.format(name=args.name)))
         return True
     run_command('kill %s' % pid) # usual kill
-    ret = progress(inv(is_running), 'Killing Scapy server', 'Scapy server is killed', 'failed', timeout = 15)
+    ret = progress(inv(is_running), 'Killing {name} server'.format(name=args.name), '{name} server is killed'.format(name=args.name), 'failed', timeout = 15)
     if not ret:
         return
     _, out = run_command('kill -9 %s' % pid) # unconditional kill
-    ret = progress(inv(is_running), 'Killing Scapy server with -9', 'Scapy server is killed', 'failed', timeout = 15)
+    ret = progress(inv(is_running), 'Killing {name} server with -9'.format(name=args.name), '{name} server is killed'.format(name=args.name), 'failed', timeout = 15)
     if ret:
-        fail('Failed to kill Scapy server, even with -9. Please review manually.\nOutput: %s' % out)
+        fail('Failed to kill {name} server, even with -9. Please review manually.\nOutput: {out}'.format(name=args.name, out=out))
+
+
+def get_default_port(server_name):
+    name_2_port = {'Scapy': 4507, 'PyBird': 4509, 'Emu': 4510}
+    port = name_2_port.get(server_name)
+    if port is None:
+        raise Exception('Unknown server name: "{0}". Choose one of: {1}'.format(server_name, list(name_2_port.keys())))
+    return port
 
 
 ### Main ###
@@ -176,7 +192,7 @@ if __name__ == '__main__':
     actions_help = '''Specify action command to be applied on server.
         (*) start      : start the application in as a daemon process.
         (*) show       : prompt an updated status of daemon process (running/ not running).
-        (*) stop       : exit Scapy server daemon process.
+        (*) stop       : exit server daemon process.
         (*) restart    : stop, then start again the application as daemon process
         '''
     action_funcs = {'start': start_daemon,
@@ -185,19 +201,33 @@ if __name__ == '__main__':
                     'restart': restart_daemon,
                     }
     
-    parser = ArgumentParser(description = 'Runs Scapy server application.',
+    parser = ArgumentParser(description = 'Runs General server application.',
         formatter_class = RawTextHelpFormatter,
     )
     
-    parser.add_argument('-p', '--port', type = int, default = 4507,
-            help='Select tcp port on which Scapy server will listen.\nDefault is 4507.')
+    parser.add_argument('-n', '--name', type = str, required = True,
+        help='Server name i.e: Scapy, Emu or PyBird')
+    parser.add_argument('-p', '--port', type = int,
+        help='Select tcp port on which server will listen.\nDefault is using script default.')
     parser.add_argument('-c', '--core', type = int, default = 0,
-            help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
-    parser.add_argument('action', choices=action_funcs.keys(),
-                            action='store', help=actions_help)
+        help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
+    parser.add_argument('--sudo', action = 'store_true', default = False,
+        help='Run taskset with sudo')
+    parser.add_argument('action', choices=action_funcs.keys(), action='store', help=actions_help)
+    parser.add_argument('--py', action = 'store_true', default = False,
+        help='True will run execute command with python, false as a bash')
+    parser.add_argument('-e', '--exe', type = str,
+        help='Command to execute, starting the server')
+    parser.add_argument('-d', '--demote', action = 'store_true', default = False,
+        help='Demote with commands, used in Scapy server')
+    parser.add_argument('-r', '--readable', action = 'store_true', default = False, dest = 'check_readable',
+        help='Check readable path, used in Scapy server')
+    parser.add_argument('-i', '--interactive', action = 'store_true', default = False,
+        help='True will run command from interactive path, false from scripts')
     parser.usage = None
     args = parser.parse_args()
     
+    if args.port is None:
+        args.port = get_default_port(args.name)
+
     action_funcs[args.action]()
-
-

@@ -64,7 +64,7 @@ Print current configuration ::
 PyBirdClient class
 ------------------
 
-.. autoclass:: trex.pybird.bird_zmq_client.PyBirdClient
+.. autoclass:: trex.pybird.pybird_zmq_client.PyBirdClient
     :members: 
     :inherited-members:
     :member-order: bysource

@@ -752,22 +752,29 @@ Other network devices
             master_core = 0
 
         if should_scapy_server_run():
-            ret = os.system('%s scapy_daemon_server restart -c %s' % (sys.executable, master_core))
+            ret = os.system('{sys_exe} general_daemon_server restart -c {cores} -n {name} --py -e "{exe}" -r -d -i'.format(sys_exe=sys.executable,
+                                                                                                                cores=master_core,
+                                                                                                                name='Scapy',
+                                                                                                                exe='-m trex.scapy_server.scapy_zmq_server'))
             if ret:
-                print("Could not start scapy_daemon_server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
+                print("Could not start scapy daemon server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(-1)
 
         if pa().bird_server:
-            ret = os.system('%s pybird_daemon_server restart' % sys.executable)
+            ret = os.system('{sys_exe} general_daemon_server restart -n {name} --py -e "{exe}" -i'.format(sys_exe=sys.executable,
+                                                                                    name='PyBird',
+                                                                                    exe='-m trex.pybird_server.pybird_zmq_server'))
             if ret:
-                print("Could not start bird_server\nIf you don't need it, don't use --bird-server flag.")
+                print("Could not start bird server\nIf you don't need it, don't use --bird-server flag.")
                 sys.exit(-1)
 
         if pa().emu:
-            emu_zmq_tcp_flag = ""
-            if pa().emu_zmq_tcp:
-                emu_zmq_tcp_flag = "--emu-zmq-tcp"
-            ret = os.system('%s emu_daemon_server restart %s' % (sys.executable, emu_zmq_tcp_flag))
+            emu_zmq_tcp_flag = '--emu-zmq-tcp' if pa().emu_zmq_tcp else ''
+            exe = './trex-emu {emu_zmq_tcp}'.format(emu_zmq_tcp =  emu_zmq_tcp_flag)
+            
+            ret = os.system('{sys_exe} general_daemon_server restart -n {name} --sudo -e "{exe}"'.format(sys_exe=sys.executable,
+                                                                                    name='Emu',
+                                                                                    exe=exe))
             if ret:
                 print("Could not start emu service\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
@@ -1543,19 +1550,19 @@ def should_scapy_server_run():
     return not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf)
 
 def kill_scapy():
-    ret = os.system('%s scapy_daemon_server stop' % sys.executable)
+    ret = os.system('%s general_daemon_server stop -n Scapy' % sys.executable)
     if ret:
         print("Could not stop scapy daemon server.")
         sys.exit(-1)
 
 def kill_pybird():
-        ret = os.system('%s pybird_daemon_server stop' % sys.executable)
+        ret = os.system('%s general_daemon_server stop -n PyBird' % sys.executable)
         if ret:
             print("Could not stop bird daemon server.")
             sys.exit(-1)
 
 def kill_emu():
-        ret = os.system('%s emu_daemon_server stop' % sys.executable)
+        ret = os.system('%s general_daemon_server stop -n Emu' % sys.executable)
         if ret:
             print("Could not stop bird daemon server.")
             sys.exit(-1)

@@ -6,12 +6,9 @@ import logging
 import socket
 import hashlib
 from argparse import *
-from collections import OrderedDict
 import errno
 import traceback
-import os
 import sys
-import time
 import random as rand
 
 import zmq

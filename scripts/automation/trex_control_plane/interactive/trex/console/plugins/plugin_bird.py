@@ -3,7 +3,7 @@
 from trex.console.plugins import *
 from trex.stl.api import *
 from trex.pybird.bird_cfg_creator import *
-from trex.pybird.bird_zmq_client import *
+from trex.pybird.pybird_zmq_client import *
 
 '''
 Bird plugin

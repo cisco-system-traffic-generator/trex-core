@@ -188,7 +188,7 @@ def main(args,port):
 if __name__=='__main__':
     
         parser = ArgumentParser(description=' Runs Scapy Server ')
-        parser.add_argument('-s','--scapy-port',type=int, default = 4507, dest='scapy_port',
+        parser.add_argument('-p','--scapy-port',type=int, default = 4507, dest='scapy_port',
                             help='Select port to which Scapy Server will listen to.\n default is 4507.',action='store')
         parser.add_argument('-v','--verbose',help='Print Client-Server Request-Reply information to console.',action='store_true',default = False)
         parser.add_argument('-l','--log',help='Log every activity of the server to the log file scapy_server.log .The log does not discard older entries, the file is not limited by size.',
