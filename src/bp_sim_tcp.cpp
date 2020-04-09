@@ -224,13 +224,13 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
     done=false;
 
-    if ( m_c_tcp->is_open_flow_enabled()==false ){
-        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
+    if (!pctx || !pctx->is_active()) { // transmit stopped
+        done=true;
         return;
     }
 
-    if (!pctx->is_active()) { // transmit stopped
-        done=true;
+    if ( m_c_tcp->is_open_flow_enabled()==false ){
+        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
         return;
     }
 
