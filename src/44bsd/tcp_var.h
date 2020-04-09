@@ -903,6 +903,8 @@ public:
     on_stopped_cb_t     m_on_stopped_cb;
     void              * m_cb_data;
 
+    void              * m_tx_node;  /* to make CGenNodeTXFIF stop safe */
+
 private:
     bool                m_stopped;
     bool                m_nc_flow_close;
