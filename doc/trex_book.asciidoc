@@ -1673,6 +1673,11 @@ groups:
 
 === NAT support
 
+[NOTE]
+===============================================================
+NAT support in statefull mode was deprecated. Use ASTF instead.
+===============================================================
+
 TRex can learn dynamic NAT/PAT translation. To enable this feature, use the +
 `--learn-mode <mode>` +
 switch at the command line. To learn the NAT translation, TRex must embed information describing which flow a packet belongs to, in the first packet of each flow. TRex can do this using one of several methods, depending on the chosen <mode>.
