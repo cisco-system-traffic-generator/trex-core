@@ -29,6 +29,7 @@ def validate_port_input(port_arg):
        Convert int,str argument to PortProfileID type
     """
     def wrap (func):
+        @wraps(func)
         def wrapper(self, *args, **kwargs):
             code = func.__code__
             fname = func.__name__
