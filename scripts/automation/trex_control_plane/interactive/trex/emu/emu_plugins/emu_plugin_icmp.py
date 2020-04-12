@@ -168,10 +168,9 @@ class ICMPPlugin(EMUPluginBase):
         else:
             self.emu_c.logger.post_cmd(True)
             amount = opts.ping_amount if opts.ping_amount is not None else 5  # default is 5 packets
-            pace = opts.ping_pace if opts.ping_pace is not None else 1  # default is 1
             try:
                 while True:
-                    time.sleep(min(1, 100/pace))
+                    time.sleep(1) # Don't get statistics too often as RPC requests might overload the Emu Server.
                     stats, err = self.get_ping_stats(c_key=c_key)
                     if err is None:
                         stats = stats['icmp_ping_stats']
@@ -185,7 +184,7 @@ class ICMPPlugin(EMUPluginBase):
                         err = int(stats['repliesOutOfOrder']) + int(stats['repliesMalformedPkt']) + \
                               int(stats['repliesBadLatency']) + int(stats['repliesBadIdentifier']) + \
                               int (stats['dstUnreachable'])
-                        
+
                         text = "Progress: {0:.2f}%, Sent: {1}/{2}, Rcv: {3}/{2}, Err: {4}/{2}, RTT min/avg/max = {5:.2f}/{6:.2f}/{7:.2f} ms" \
                                                             .format(percent, sent, amount, rcv, err, min_lat_msec, avg_lat_msec, max_lat_msec)
 
