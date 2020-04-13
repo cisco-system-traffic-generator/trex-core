@@ -762,14 +762,16 @@ Other network devices
             if ret:
                 print("Could not start bird_server\nIf you don't need it, don't use --bird-server flag.")
                 sys.exit(-1)
-        
+
         if pa().emu:
-            ret = os.system('%s emu_daemon_server restart' % sys.executable)
+            emu_zmq_tcp_flag = ""
+            if pa().emu_zmq_tcp:
+                emu_zmq_tcp_flag = "--emu-zmq-tcp"
+            ret = os.system('%s emu_daemon_server restart %s' % (sys.executable, emu_zmq_tcp_flag))
             if ret:
                 print("Could not start emu service\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
-        
-        
+
 
     # check vdev Linux interfaces status
     # return True if interfaces are vdev
@@ -1387,6 +1389,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('--no-scapy-server', action = 'store_true')
     parent_parser.add_argument('--bird-server', action = 'store_true', default=False)
     parent_parser.add_argument('--emu', action = 'store_true', default=False)
+    parent_parser.add_argument('--emu-zmq-tcp', action = 'store_true', default=False)
     parent_parser.add_argument('--scapy-server', action = 'store_true')
     parent_parser.add_argument('--no-watchdog', action = 'store_true')
     parent_parser.add_argument('--astf', action = 'store_true')

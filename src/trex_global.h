@@ -569,7 +569,9 @@ public:
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
         m_is_bird_enabled     = false;
-        m_ezmq_ch_enabled      = false;
+        m_ezmq_ch_enabled     = false;
+        m_emzq_ch_tcp         = false;
+        m_emzq_ipc_file_path  = "/tmp/emu";
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
@@ -620,6 +622,9 @@ public:
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
     bool            m_ezmq_ch_enabled;
+
+    bool            m_emzq_ch_tcp;
+    std::string     m_emzq_ipc_file_path;
     std::string     m_stack_type;
 
     

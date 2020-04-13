@@ -203,6 +203,7 @@ enum {
        OPT_RT,
        OPT_EZMQ_CH,
        OPT_EZMQ_CH1,
+       OPT_EZMQ_TCP,
        OPT_TCP_MODE,
        OPT_STL_MODE,
        OPT_MLX4_SO,
@@ -297,8 +298,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server",  SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server",     SO_NONE    },
         { OPT_BIRD_SERVER,            "--bird-server",      SO_NONE    },
-        { OPT_EZMQ_CH,                "--emu",      SO_NONE    },
-        { OPT_EZMQ_CH1,               "--emu-zmq",      SO_NONE    },
+        { OPT_EZMQ_CH,                "--emu",              SO_NONE    },
+        { OPT_EZMQ_CH1,               "--emu-zmq",          SO_NONE    },
+        { OPT_EZMQ_TCP,               "--emu-zmq-tcp",      SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
         { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
@@ -408,7 +410,8 @@ static int COLD_FUNC  usage() {
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
     printf(" --emu                      : Load emu server \n");
     printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
-    printf(" --bird-server              : Enabel bird service \n");
+    printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
+    printf(" --bird-server              : Enable bird service \n");
     
 
     printf("\n");
@@ -919,10 +922,13 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_EZMQ_CH:
                 po->m_ezmq_ch_enabled = true;
-              break;
+                break;
             case OPT_EZMQ_CH1:
                 po->m_ezmq_ch_enabled = true;
-              break;
+                break;
+            case OPT_EZMQ_TCP:
+                po->m_emzq_ch_tcp = true;
+                break;
             case OPT_QUEUE_DROP:
                 CGlobalInfo::m_options.m_is_queuefull_retry = false;
                 break;

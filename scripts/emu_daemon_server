@@ -104,7 +104,10 @@ def start_emu():
         return
 
     server_path = cur_dir
-    cmd = 'sudo taskset -c {core} {app} '.format(core = args.core, app = "./trex-emu")
+    emu_zmq_tcp_flag = ""
+    if args.emu_zmq_tcp:
+        emu_zmq_tcp_flag = "--emu-zmq-tcp"
+    cmd = 'sudo taskset -c {core} {app} {emu_zmq_tcp_flag}'.format(core = args.core, app = "./trex-emu", emu_zmq_tcp_flag = emu_zmq_tcp_flag)
     proc, stdout_file = run_command(cmd, is_daemon = True, cwd = server_path)
     ret = progress(is_emu_running, 'Starting emu server', 'emu server is started', 'emu server failed to run', fail_check = proc.poll)
     if proc.poll():
@@ -159,7 +162,8 @@ if __name__ == '__main__':
             help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
     parser.add_argument('action', choices=action_funcs.keys(),
                             action='store', help=actions_help)
+    parser.add_argument('--emu-zmq-tcp', action = 'store_true', default=False)
     parser.usage = None
     args = parser.parse_args()
-    
+
     action_funcs[args.action]()
