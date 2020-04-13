@@ -100,6 +100,7 @@ void CRxCore::create(const CRxSlCfg &cfg) {
     CParserOption * po =&CGlobalInfo::m_options;
 
     m_ex_zmq_enabled = po->m_ezmq_ch_enabled;
+    m_ezmq_use_tcp = po->m_emzq_ch_tcp;
 
     if (m_ex_zmq_enabled) {
         create_zmq();
@@ -150,10 +151,19 @@ void  CRxCore::create_zmq()  {
     CParserOption * po =&CGlobalInfo::m_options;
 
     char buffer[100];
-    sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port);
+    if (m_ezmq_use_tcp) {
+        sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port);
+    } else {
+        sprintf(buffer,"ipc://%s-%d.ipc", po->m_emzq_ipc_file_path.c_str(), po->m_ezmq_ch_port);
+    }
 
     create_zmq(m_zmq_rx_socket,buffer);
-    sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port+1);
+
+    if (m_ezmq_use_tcp) {
+        sprintf(buffer,"tcp://*:%d",po->m_ezmq_ch_port+1);
+    } else {
+        sprintf(buffer,"ipc://%s-%d.ipc", po->m_emzq_ipc_file_path.c_str(), po->m_ezmq_ch_port + 1);
+    }
 
     create_zmq(m_zmq_tx_socket,buffer);
 

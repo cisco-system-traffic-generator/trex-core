@@ -64,8 +64,9 @@ protected:
 
      
     CRxCore() {
-        m_is_active = false;
+        m_is_active      = false;
         m_ex_zmq_enabled = false;
+        m_ezmq_use_tcp   = false;
     }
     ~CRxCore();
     
@@ -237,6 +238,7 @@ protected:
     CZmqPacketReader  m_zmq_rd;
 
     bool              m_ex_zmq_enabled;
+    bool              m_ezmq_use_tcp;
 
 };
 #endif
