@@ -133,6 +133,7 @@ struct tcpcb {
 #define TF_REQ_TSTMP    0x0080      /* have/will request timestamps */
 #define TF_RCVD_TSTMP   0x0100      /* a timestamp was received in SYN */
 #define TF_SACK_PERMIT  0x0200      /* other side said I could SACK */
+#define TF_NODELAY_PUSH 0x0400      /* other side said I could SACK */
 
     uint16_t  m_max_tso;        /* maximum packet size input to TSO */
 

@@ -82,6 +82,11 @@ class CTcpTuneables {
         ip_tos          =  0x40000,
         tcp_no_delay_counter = 0x80000,
     };
+    enum {
+        no_delay_mask_nagle = 0x1,
+        no_delay_mask_push  = 0x2,
+    };
+
 
 
  public:
@@ -147,7 +152,7 @@ class CTcpTuneables {
 
     uint8_t  m_ipv6_src[16];
     uint8_t  m_ipv6_dst[16];
-    uint8_t  m_tcp_no_delay; /* 1/0 */
+    uint8_t  m_tcp_no_delay; /* 0, 1 - NO_DELAY , 2 - FORCE_PUSH */
     uint8_t  m_scheduler_accurate; /* more accorate  */
     uint16_t m_scheduler_rampup; /* time in sec for rampup*/
     uint8_t  m_ip_ttl;
