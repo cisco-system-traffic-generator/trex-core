@@ -1700,10 +1700,16 @@ int tcp_mss(CPerProfileCtx * pctx,
         }
 
         if (tune->is_valid_field(CTcpTuneables::tcp_no_delay)){
-            if (tune->m_tcp_no_delay) {
+            if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_nagle) {
                 tp->t_flags |= TF_NODELAY;
             }else{
                 tp->t_flags &= ~TF_NODELAY;
+            }
+
+            if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_push) {
+                tp->t_flags |= TF_NODELAY_PUSH;
+            }else{
+                tp->t_flags &= ~TF_NODELAY_PUSH;
             }
         }
 

@@ -342,7 +342,13 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     tp->mbuf_socket = ctx->m_mbuf_socket;
 
     tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
-    tp->t_flags |= ctx->tcp_no_delay?(TF_NODELAY):0;
+    if (ctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
+        tp->t_flags |= TF_NODELAY;
+    }
+    if (ctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push){
+        tp->t_flags |= TF_NODELAY_PUSH;
+    }
+    
     tp->t_pkts_cnt = 0;
     tp->m_reass_disabled = false;
 

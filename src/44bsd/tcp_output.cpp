@@ -680,7 +680,7 @@ send:
          * a PUSH comes in.)
          */
         /* Force PUSH in case of NODELAY of client side */
-        if ((off + len == so->so_snd.sb_cc) || (tp->t_flags & TF_NODELAY))
+        if ((off + len == so->so_snd.sb_cc) || (tp->t_flags & TF_NODELAY_PUSH))
             flags |= TH_PUSH;
     } else {
         if (tp->t_flags & TF_ACKNOW){

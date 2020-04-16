@@ -874,7 +874,7 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
             }
 
             if (read_tunable_uint8(tune,json,"no_delay",CTcpTuneables::tcp_no_delay,tune->m_tcp_no_delay)){
-                tunable_min_max_u32("no_delay",tune->m_tcp_no_delay,0,1);
+                tunable_min_max_u32("no_delay",tune->m_tcp_no_delay,0,3);
             }
 
             if (read_tunable_uint16(tune,json,"keepinit",CTcpTuneables::tcp_keepinit,tune->m_tcp_keepinit)){
