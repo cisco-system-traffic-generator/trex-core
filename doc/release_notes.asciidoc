@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.79 ==
+
+* EMU 
+** Better performance using ZMQ IPC
+** Add ping for ipv6 
+* ASTF
+** Split the tcp.no_delay flag into two flags no_nagle, force_push
+
 == Release 2.78 ==
 
 * EMU server/Python API 
