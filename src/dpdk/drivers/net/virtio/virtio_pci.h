@@ -135,6 +135,12 @@ struct virtnet_ctl;
  */
 #define VIRTIO_F_ORDER_PLATFORM 36
 
+/*
+ * This feature indicates that the driver passes extra data (besides
+ * identifying the virtqueue) in its device notifications.
+ */
+#define VIRTIO_F_NOTIFICATION_DATA 38
+
 /* The Guest publishes the used index for which it expects an interrupt
  * at the end of the avail ring. Host should ignore the avail->flags field. */
 /* The Host publishes the avail index for which it expects a kick
@@ -251,7 +257,7 @@ struct virtio_hw {
 	bool        has_tx_offload;
 	bool        has_rx_offload;
 	uint16_t    port_id;
-	uint8_t     mac_addr[ETHER_ADDR_LEN];
+	uint8_t     mac_addr[RTE_ETHER_ADDR_LEN];
 	uint32_t    notify_off_multiplier;
 	uint8_t     *isr;
 	uint16_t    *notify_base;
@@ -294,7 +300,7 @@ extern struct virtio_hw_internal virtio_hw_internal[RTE_MAX_ETHPORTS];
  */
 struct virtio_net_config {
 	/* The config defining mac address (if VIRTIO_NET_F_MAC) */
-	uint8_t    mac[ETHER_ADDR_LEN];
+	uint8_t    mac[RTE_ETHER_ADDR_LEN];
 	/* See VIRTIO_NET_F_STATUS and VIRTIO_NET_S_* above */
 	uint16_t   status;
 	uint16_t   max_virtqueue_pairs;

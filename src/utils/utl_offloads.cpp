@@ -68,7 +68,6 @@ void check_offloads(const struct rte_eth_dev_info *dev_info, const struct rte_et
         {"UDP_TNL_TSO",      DEV_TX_OFFLOAD_UDP_TNL_TSO},
         {"IP_TNL_TSO",       DEV_TX_OFFLOAD_IP_TNL_TSO},
         {"OUTER_UDP_CKSUM",  DEV_TX_OFFLOAD_OUTER_UDP_CKSUM},
-        {"MATCH_METADATA",   DEV_TX_OFFLOAD_MATCH_METADATA},
     };
 
     success &= _check_offloads(dev_info->tx_offload_capa, m_port_conf->txmode.offloads, offload_names, "TX");

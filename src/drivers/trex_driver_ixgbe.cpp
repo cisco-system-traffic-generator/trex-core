@@ -226,11 +226,11 @@ int CTRexExtendedDriverBase10G::add_del_eth_filter(CPhyEthIF * _if, bool is_add,
 
 int CTRexExtendedDriverBase10G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     int res = 0;
-    res = add_del_eth_filter(_if, set_on, ETHER_TYPE_ARP);
-    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv4);
-    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_IPv6);
-    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_VLAN);
-    res |= add_del_eth_filter(_if, set_on, ETHER_TYPE_QINQ);
+    res = add_del_eth_filter(_if, set_on, RTE_ETHER_TYPE_ARP);
+    res |= add_del_eth_filter(_if, set_on, RTE_ETHER_TYPE_IPV4);
+    res |= add_del_eth_filter(_if, set_on, RTE_ETHER_TYPE_IPV6);
+    res |= add_del_eth_filter(_if, set_on, RTE_ETHER_TYPE_VLAN);
+    res |= add_del_eth_filter(_if, set_on, RTE_ETHER_TYPE_QINQ);
 
     return res;
 }

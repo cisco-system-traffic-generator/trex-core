@@ -1,41 +1,12 @@
-/*-
-* BSD LICENSE
-*
-* Copyright (c) 2015-2016 Amazon.com, Inc. or its affiliates.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-*
-* * Redistributions of source code must retain the above copyright
-* notice, this list of conditions and the following disclaimer.
-* * Redistributions in binary form must reproduce the above copyright
-* notice, this list of conditions and the following disclaimer in
-* the documentation and/or other materials provided with the
-* distribution.
-* * Neither the name of copyright holder nor the names of its
-* contributors may be used to endorse or promote products derived
-* from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2015-2019 Amazon.com, Inc. or its affiliates.
+ * All rights reserved.
+ */
 
 #ifndef ENA_COM
 #define ENA_COM
 
 #include "ena_plat.h"
-#include "ena_includes.h"
 
 #define ENA_MAX_NUM_IO_QUEUES		128U
 /* We need to queues for each IO (on for Tx and one for Rx) */
@@ -140,7 +111,6 @@ struct ena_com_tx_meta {
 };
 
 struct ena_com_llq_info {
-	bool inline_header;
 	u16 header_location_ctrl;
 	u16 desc_stride_ctrl;
 	u16 desc_list_entry_size_ctrl;
@@ -275,6 +245,9 @@ struct ena_com_admin_queue {
 
 	/* Indicate if the admin queue should poll for completion */
 	bool polling;
+
+	/* Define if fallback to polling mode should occur */
+	bool auto_polling;
 
 	u16 curr_cmd_id;
 
@@ -540,7 +513,7 @@ bool ena_com_get_admin_running_state(struct ena_com_dev *ena_dev);
  */
 void ena_com_set_admin_polling_mode(struct ena_com_dev *ena_dev, bool polling);
 
-/* ena_com_set_admin_polling_mode - Get the admin completion queue polling mode
+/* ena_com_get_admin_polling_mode - Get the admin completion queue polling mode
  * @ena_dev: ENA communication layer struct
  *
  * Get the admin completion mode.
@@ -550,7 +523,18 @@ void ena_com_set_admin_polling_mode(struct ena_com_dev *ena_dev, bool polling);
  *
  * @return state
  */
-bool ena_com_get_ena_admin_polling_mode(struct ena_com_dev *ena_dev);
+bool ena_com_get_admin_polling_mode(struct ena_com_dev *ena_dev);
+
+/* ena_com_set_admin_auto_polling_mode - Enable autoswitch to polling mode
+ * @ena_dev: ENA communication layer struct
+ * @polling: Enable/Disable polling mode
+ *
+ * Set the autopolling mode.
+ * If autopolling is on:
+ * In case of missing interrupt when data is available switch to polling.
+ */
+void ena_com_set_admin_auto_polling_mode(struct ena_com_dev *ena_dev,
+					 bool polling);
 
 /* ena_com_admin_q_comp_intr_handler - admin queue interrupt handler
  * @ena_dev: ENA communication layer struct
@@ -1013,10 +997,10 @@ void ena_com_get_intr_moderation_entry(struct ena_com_dev *ena_dev,
 				       enum ena_intr_moder_level level,
 				       struct ena_intr_moder_entry *entry);
 
-
 /* ena_com_config_dev_mode - Configure the placement policy of the device.
  * @ena_dev: ENA communication layer struct
- * @llq_features: LLQ feature descriptor, retrieve via ena_com_get_dev_attr_feat.
+ * @llq_features: LLQ feature descriptor, retrieve via
+ *		   ena_com_get_dev_attr_feat.
  * @ena_llq_config: The default driver LLQ parameters configurations
  */
 int ena_com_config_dev_mode(struct ena_com_dev *ena_dev,
@@ -1143,7 +1127,7 @@ static inline u8 *ena_com_get_next_bounce_buffer(struct ena_com_io_bounce_buffer
 	buf = bounce_buf_ctrl->base_buffer +
 		(bounce_buf_ctrl->next_to_use++ & (buffers_num - 1)) * size;
 
-	prefetch(bounce_buf_ctrl->base_buffer +
+	prefetchw(bounce_buf_ctrl->base_buffer +
 		(bounce_buf_ctrl->next_to_use & (buffers_num - 1)) * size);
 
 	return buf;

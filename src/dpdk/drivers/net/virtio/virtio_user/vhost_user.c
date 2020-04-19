@@ -13,7 +13,6 @@
 
 #include <rte_string_fns.h>
 #include <rte_fbarray.h>
-#include <rte_eal_memconfig.h>
 
 #include "vhost.h"
 #include "virtio_user_dev.h"
@@ -457,6 +456,9 @@ vhost_user_enable_queue_pair(struct virtio_user_dev *dev,
 {
 	int i;
 
+	if (dev->qp_enabled[pair_idx] == enable)
+		return 0;
+
 	for (i = 0; i < 2; ++i) {
 		struct vhost_vring_state state = {
 			.index = pair_idx * 2 + i,
@@ -467,6 +469,7 @@ vhost_user_enable_queue_pair(struct virtio_user_dev *dev,
 			return -1;
 	}
 
+	dev->qp_enabled[pair_idx] = enable;
 	return 0;
 }
 

@@ -6,12 +6,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#ifndef RTE_EXEC_ENV_WINDOWS
 #include <syslog.h>
+#endif
 #include <ctype.h>
 #include <limits.h>
 #include <errno.h>
 #include <getopt.h>
+#ifndef RTE_EXEC_ENV_WINDOWS
 #include <dlfcn.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -20,6 +24,7 @@
 #include <rte_eal.h>
 #include <rte_log.h>
 #include <rte_lcore.h>
+#include <rte_memory.h>
 #include <rte_tailq.h>
 #include <rte_version.h>
 #include <rte_devargs.h>
@@ -204,7 +209,9 @@ eal_reset_internal_config(struct internal_config *internal_cfg)
 	}
 	internal_cfg->base_virtaddr = 0;
 
+#ifdef LOG_DAEMON
 	internal_cfg->syslog_facility = LOG_DAEMON;
+#endif
 
 	/* if set to NONE, interrupt mode is determined automatically */
 	internal_cfg->vfio_intr_mode = RTE_INTR_MODE_NONE;
@@ -260,8 +267,7 @@ eal_plugindir_init(const char *path)
 	while ((dent = readdir(d)) != NULL) {
 		struct stat sb;
 
-		snprintf(sopath, PATH_MAX-1, "%s/%s", path, dent->d_name);
-		sopath[PATH_MAX-1] = 0;
+		snprintf(sopath, sizeof(sopath), "%s/%s", path, dent->d_name);
 
 		if (!(stat(sopath, &sb) == 0 && S_ISREG(sb.st_mode)))
 			continue;
@@ -278,6 +284,7 @@ eal_plugindir_init(const char *path)
 int
 eal_plugins_init(void)
 {
+#ifndef RTE_EXEC_ENV_WINDOWS
 	struct shared_driver *solib = NULL;
 	struct stat sb;
 
@@ -306,6 +313,7 @@ eal_plugins_init(void)
 
 	}
 	return 0;
+#endif
 }
 
 /*
@@ -373,7 +381,7 @@ eal_parse_service_coremask(const char *coremask)
 					return -1;
 				}
 
-				if (!lcore_config[idx].detected) {
+				if (eal_cpu_detected(idx) == 0) {
 					RTE_LOG(ERR, EAL,
 						"lcore %u unavailable\n", idx);
 					return -1;
@@ -429,7 +437,7 @@ update_lcore_config(int *cores)
 
 	for (i = 0; i < RTE_MAX_LCORE; i++) {
 		if (cores[i] != -1) {
-			if (!lcore_config[i].detected) {
+			if (eal_cpu_detected(i) == 0) {
 				RTE_LOG(ERR, EAL, "lcore %u unavailable\n", i);
 				ret = -1;
 				continue;
@@ -658,14 +666,14 @@ eal_parse_master_lcore(const char *arg)
  *                       ',' used for a single number.
  */
 static int
-eal_parse_set(const char *input, uint16_t set[], unsigned num)
+eal_parse_set(const char *input, rte_cpuset_t *set)
 {
 	unsigned idx;
 	const char *str = input;
 	char *end = NULL;
 	unsigned min, max;
 
-	memset(set, 0, num * sizeof(uint16_t));
+	CPU_ZERO(set);
 
 	while (isblank(*str))
 		str++;
@@ -678,7 +686,7 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 	if (*str != '(') {
 		errno = 0;
 		idx = strtoul(str, &end, 10);
-		if (errno || end == NULL || idx >= num)
+		if (errno || end == NULL || idx >= CPU_SETSIZE)
 			return -1;
 		else {
 			while (isblank(*end))
@@ -696,7 +704,7 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 
 				errno = 0;
 				idx = strtoul(end, &end, 10);
-				if (errno || end == NULL || idx >= num)
+				if (errno || end == NULL || idx >= CPU_SETSIZE)
 					return -1;
 				max = idx;
 				while (isblank(*end))
@@ -711,7 +719,7 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 
 			for (idx = RTE_MIN(min, max);
 			     idx <= RTE_MAX(min, max); idx++)
-				set[idx] = 1;
+				CPU_SET(idx, set);
 
 			return end - input;
 		}
@@ -736,7 +744,7 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 		/* get the digit value */
 		errno = 0;
 		idx = strtoul(str, &end, 10);
-		if (errno || end == NULL || idx >= num)
+		if (errno || end == NULL || idx >= CPU_SETSIZE)
 			return -1;
 
 		/* go ahead to separator '-',',' and ')' */
@@ -753,7 +761,7 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 				min = idx;
 			for (idx = RTE_MIN(min, max);
 			     idx <= RTE_MAX(min, max); idx++)
-				set[idx] = 1;
+				CPU_SET(idx, set);
 
 			min = RTE_MAX_LCORE;
 		} else
@@ -772,28 +780,21 @@ eal_parse_set(const char *input, uint16_t set[], unsigned num)
 	return str - input;
 }
 
-/* convert from set array to cpuset bitmap */
 static int
-convert_to_cpuset(rte_cpuset_t *cpusetp,
-	      uint16_t *set, unsigned num)
+check_cpuset(rte_cpuset_t *set)
 {
-	unsigned idx;
+	unsigned int idx;
 
-	CPU_ZERO(cpusetp);
-
-	for (idx = 0; idx < num; idx++) {
-		if (!set[idx])
+	for (idx = 0; idx < CPU_SETSIZE; idx++) {
+		if (!CPU_ISSET(idx, set))
 			continue;
 
-		if (!lcore_config[idx].detected) {
+		if (eal_cpu_detected(idx) == 0) {
 			RTE_LOG(ERR, EAL, "core %u "
 				"unavailable\n", idx);
 			return -1;
 		}
-
-		CPU_SET(idx, cpusetp);
 	}
-
 	return 0;
 }
 
@@ -815,7 +816,8 @@ static int
 eal_parse_lcores(const char *lcores)
 {
 	struct rte_config *cfg = rte_eal_get_configuration();
-	static uint16_t set[RTE_MAX_LCORE];
+	rte_cpuset_t lcore_set;
+	unsigned int set_count;
 	unsigned idx = 0;
 	unsigned count = 0;
 	const char *lcore_start = NULL;
@@ -864,18 +866,13 @@ eal_parse_lcores(const char *lcores)
 		lcores += strcspn(lcores, "@,");
 
 		if (*lcores == '@') {
-			/* explicit assign cpu_set */
-			offset = eal_parse_set(lcores + 1, set, RTE_DIM(set));
+			/* explicit assign cpuset and update the end cursor */
+			offset = eal_parse_set(lcores + 1, &cpuset);
 			if (offset < 0)
-				goto err;
-
-			/* prepare cpu_set and update the end cursor */
-			if (0 > convert_to_cpuset(&cpuset,
-						  set, RTE_DIM(set)))
 				goto err;
 			end = lcores + 1 + offset;
 		} else { /* ',' or '\0' */
-			/* haven't given cpu_set, current loop done */
+			/* haven't given cpuset, current loop done */
 			end = lcores;
 
 			/* go back to check <number>-<number> */
@@ -889,18 +886,19 @@ eal_parse_lcores(const char *lcores)
 			goto err;
 
 		/* parse lcore_set from start point */
-		if (0 > eal_parse_set(lcore_start, set, RTE_DIM(set)))
+		if (eal_parse_set(lcore_start, &lcore_set) < 0)
 			goto err;
 
-		/* without '@', by default using lcore_set as cpu_set */
-		if (*lcores != '@' &&
-		    0 > convert_to_cpuset(&cpuset, set, RTE_DIM(set)))
-			goto err;
+		/* without '@', by default using lcore_set as cpuset */
+		if (*lcores != '@')
+			rte_memcpy(&cpuset, &lcore_set, sizeof(cpuset));
 
+		set_count = CPU_COUNT(&lcore_set);
 		/* start to update lcore_set */
 		for (idx = 0; idx < RTE_MAX_LCORE; idx++) {
-			if (!set[idx])
+			if (!CPU_ISSET(idx, &lcore_set))
 				continue;
+			set_count--;
 
 			if (cfg->lcore_role[idx] != ROLE_RTE) {
 				lcore_config[idx].core_index = count;
@@ -912,9 +910,16 @@ eal_parse_lcores(const char *lcores)
 				CPU_ZERO(&cpuset);
 				CPU_SET(idx, &cpuset);
 			}
+
+			if (check_cpuset(&cpuset) < 0)
+				goto err;
 			rte_memcpy(&lcore_config[idx].cpuset, &cpuset,
 				   sizeof(rte_cpuset_t));
 		}
+
+		/* some cores from the lcore_set can't be handled by EAL */
+		if (set_count != 0)
+			goto err;
 
 		lcores = end + 1;
 	} while (*end != '\0');
@@ -930,6 +935,7 @@ err:
 	return ret;
 }
 
+#ifndef RTE_EXEC_ENV_WINDOWS
 static int
 eal_parse_syslog(const char *facility, struct internal_config *conf)
 {
@@ -968,6 +974,7 @@ eal_parse_syslog(const char *facility, struct internal_config *conf)
 	}
 	return -1;
 }
+#endif
 
 static int
 eal_parse_log_priority(const char *level)
@@ -1096,6 +1103,36 @@ eal_parse_iova_mode(const char *name)
 	return 0;
 }
 
+static int
+eal_parse_base_virtaddr(const char *arg)
+{
+	char *end;
+	uint64_t addr;
+
+	errno = 0;
+	addr = strtoull(arg, &end, 16);
+
+	/* check for errors */
+	if ((errno != 0) || (arg[0] == '\0') || end == NULL || (*end != '\0'))
+		return -1;
+
+	/* make sure we don't exceed 32-bit boundary on 32-bit target */
+#ifndef RTE_ARCH_64
+	if (addr >= UINTPTR_MAX)
+		return -1;
+#endif
+
+	/* align the addr on 16M boundary, 16MB is the minimum huge page
+	 * size on IBM Power architecture. If the addr is aligned to 16MB,
+	 * it can align to 2MB for x86. So this alignment can also be used
+	 * on x86 and other architectures.
+	 */
+	internal_config.base_virtaddr =
+		RTE_PTR_ALIGN_CEIL((uintptr_t)addr, (size_t)RTE_PGSIZE_16M);
+
+	return 0;
+}
+
 /* caller is responsible for freeing the returned string */
 static char *
 available_cores(void)
@@ -1108,7 +1145,7 @@ available_cores(void)
 
 	/* find the first available cpu */
 	for (idx = 0; idx < RTE_MAX_LCORE; idx++) {
-		if (!lcore_config[idx].detected)
+		if (eal_cpu_detected(idx) == 0)
 			continue;
 		break;
 	}
@@ -1122,7 +1159,7 @@ available_cores(void)
 	sequence = 0;
 
 	for (idx++ ; idx < RTE_MAX_LCORE; idx++) {
-		if (!lcore_config[idx].detected)
+		if (eal_cpu_detected(idx) == 0)
 			continue;
 
 		if (idx == previous + 1) {
@@ -1362,6 +1399,7 @@ eal_parse_common_option(int opt, const char *optarg,
 		}
 		break;
 
+#ifndef RTE_EXEC_ENV_WINDOWS
 	case OPT_SYSLOG_NUM:
 		if (eal_parse_syslog(optarg, conf) < 0) {
 			RTE_LOG(ERR, EAL, "invalid parameters for --"
@@ -1369,6 +1407,7 @@ eal_parse_common_option(int opt, const char *optarg,
 			return -1;
 		}
 		break;
+#endif
 
 	case OPT_LOG_LEVEL_NUM: {
 		if (eal_parse_log_level(optarg) < 0) {
@@ -1406,6 +1445,13 @@ eal_parse_common_option(int opt, const char *optarg,
 		if (eal_parse_iova_mode(optarg) < 0) {
 			RTE_LOG(ERR, EAL, "invalid parameters for --"
 				OPT_IOVA_MODE "\n");
+			return -1;
+		}
+		break;
+	case OPT_BASE_VIRTADDR_NUM:
+		if (eal_parse_base_virtaddr(optarg) < 0) {
+			RTE_LOG(ERR, EAL, "invalid parameter for --"
+					OPT_BASE_VIRTADDR "\n");
 			return -1;
 		}
 		break;
@@ -1453,11 +1499,11 @@ compute_ctrl_threads_cpuset(struct internal_config *internal_cfg)
 	unsigned int lcore_id;
 
 	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-		if (eal_cpu_detected(lcore_id) &&
-				rte_lcore_has_role(lcore_id, ROLE_OFF)) {
-			CPU_SET(lcore_id, cpuset);
-		}
+		if (rte_lcore_has_role(lcore_id, ROLE_OFF))
+			continue;
+		RTE_CPU_OR(cpuset, cpuset, &lcore_config[lcore_id].cpuset);
 	}
+	RTE_CPU_NOT(cpuset, cpuset);
 
 	if (pthread_getaffinity_np(pthread_self(), sizeof(rte_cpuset_t),
 				&default_set))
@@ -1465,9 +1511,11 @@ compute_ctrl_threads_cpuset(struct internal_config *internal_cfg)
 
 	RTE_CPU_AND(cpuset, cpuset, &default_set);
 
-	/* if no detected CPU is off, use master core */
-	if (!CPU_COUNT(cpuset))
-		CPU_SET(rte_get_master_lcore(), cpuset);
+	/* if no remaining cpu, use master lcore cpu affinity */
+	if (!CPU_COUNT(cpuset)) {
+		memcpy(cpuset, &lcore_config[rte_get_master_lcore()].cpuset,
+			sizeof(*cpuset));
+	}
 }
 
 int
@@ -1590,6 +1638,11 @@ eal_check_common_options(struct internal_config *internal_cfg)
 				"with --"OPT_MATCH_ALLOCATIONS"\n");
 		return -1;
 	}
+	if (internal_cfg->legacy_mem && internal_cfg->memory == 0) {
+		RTE_LOG(NOTICE, EAL, "Static memory layout is selected, "
+			"amount of reserved memory can be adjusted with "
+			"-m or --"OPT_SOCKET_MEM"\n");
+	}
 
 	return 0;
 }
@@ -1634,7 +1687,9 @@ eal_common_usage(void)
 	       "                      (can be used multiple times)\n"
 	       "  --"OPT_VMWARE_TSC_MAP"    Use VMware TSC map instead of native RDTSC\n"
 	       "  --"OPT_PROC_TYPE"         Type of this process (primary|secondary|auto)\n"
+#ifndef RTE_EXEC_ENV_WINDOWS
 	       "  --"OPT_SYSLOG"            Set syslog facility\n"
+#endif
 	       "  --"OPT_LOG_LEVEL"=<int>   Set global log level\n"
 	       "  --"OPT_LOG_LEVEL"=<type-match>:<int>\n"
 	       "                      Set specific log level\n"
@@ -1642,6 +1697,7 @@ eal_common_usage(void)
 	       "  -h, --help          This help\n"
 	       "  --"OPT_IN_MEMORY"   Operate entirely in memory. This will\n"
 	       "                      disable secondary process support\n"
+	       "  --"OPT_BASE_VIRTADDR"     Base virtual address\n"
 	       "\nEAL options for DEBUG use only:\n"
 	       "  --"OPT_HUGE_UNLINK"       Unlink hugepage files after init\n"
 	       "  --"OPT_NO_HUGE"           Use malloc instead of hugetlbfs\n"

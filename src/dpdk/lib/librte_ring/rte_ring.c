@@ -30,8 +30,10 @@
 #include <rte_errno.h>
 #include <rte_string_fns.h>
 #include <rte_spinlock.h>
+#include <rte_tailq.h>
 
 #include "rte_ring.h"
+#include "rte_ring_elem.h"
 
 TAILQ_HEAD(rte_ring_list, rte_tailq_entry);
 
@@ -45,21 +47,43 @@ EAL_REGISTER_TAILQ(rte_ring_tailq)
 
 /* return the size of memory occupied by a ring */
 ssize_t
-rte_ring_get_memsize(unsigned count)
+rte_ring_get_memsize_elem(unsigned int esize, unsigned int count)
 {
 	ssize_t sz;
+
+	/* Check if element size is a multiple of 4B */
+	if (esize % 4 != 0) {
+		RTE_LOG(ERR, RING, "element size is not a multiple of 4\n");
+
+		return -EINVAL;
+	}
 
 	/* count must be a power of 2 */
 	if ((!POWEROF2(count)) || (count > RTE_RING_SZ_MASK )) {
 		RTE_LOG(ERR, RING,
-			"Requested size is invalid, must be power of 2, and "
-			"do not exceed the size limit %u\n", RTE_RING_SZ_MASK);
+			"Requested number of elements is invalid, must be power of 2, and not exceed %u\n",
+			RTE_RING_SZ_MASK);
+
 		return -EINVAL;
 	}
 
-	sz = sizeof(struct rte_ring) + count * sizeof(void *);
+	sz = sizeof(struct rte_ring) + count * esize;
 	sz = RTE_ALIGN(sz, RTE_CACHE_LINE_SIZE);
 	return sz;
+}
+
+/* return the size of memory occupied by a ring */
+ssize_t
+rte_ring_get_memsize(unsigned int count)
+{
+	return rte_ring_get_memsize_elem(sizeof(void *), count);
+}
+
+void
+rte_ring_reset(struct rte_ring *r)
+{
+	r->prod.head = r->cons.head = 0;
+	r->prod.tail = r->cons.tail = 0;
 }
 
 int
@@ -106,10 +130,10 @@ rte_ring_init(struct rte_ring *r, const char *name, unsigned count,
 	return 0;
 }
 
-/* create the ring */
+/* create the ring for a given element size */
 struct rte_ring *
-rte_ring_create(const char *name, unsigned count, int socket_id,
-		unsigned flags)
+rte_ring_create_elem(const char *name, unsigned int esize, unsigned int count,
+		int socket_id, unsigned int flags)
 {
 	char mz_name[RTE_MEMZONE_NAMESIZE];
 	struct rte_ring *r;
@@ -127,7 +151,7 @@ rte_ring_create(const char *name, unsigned count, int socket_id,
 	if (flags & RING_F_EXACT_SZ)
 		count = rte_align32pow2(count + 1);
 
-	ring_size = rte_ring_get_memsize(count);
+	ring_size = rte_ring_get_memsize_elem(esize, count);
 	if (ring_size < 0) {
 		rte_errno = ring_size;
 		return NULL;
@@ -147,7 +171,7 @@ rte_ring_create(const char *name, unsigned count, int socket_id,
 		return NULL;
 	}
 
-	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_lock();
 
 	/* reserve a memory zone for this ring. If we can't get rte_config or
 	 * we are secondary process, the memzone_reserve function will set
@@ -169,9 +193,18 @@ rte_ring_create(const char *name, unsigned count, int socket_id,
 		RTE_LOG(ERR, RING, "Cannot reserve memory\n");
 		rte_free(te);
 	}
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	return r;
+}
+
+/* create the ring */
+struct rte_ring *
+rte_ring_create(const char *name, unsigned int count, int socket_id,
+		unsigned int flags)
+{
+	return rte_ring_create_elem(name, sizeof(void *), count, socket_id,
+		flags);
 }
 
 /* free the ring */
@@ -200,7 +233,7 @@ rte_ring_free(struct rte_ring *r)
 	}
 
 	ring_list = RTE_TAILQ_CAST(rte_ring_tailq.head, rte_ring_list);
-	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_lock();
 
 	/* find out tailq entry */
 	TAILQ_FOREACH(te, ring_list, next) {
@@ -209,13 +242,13 @@ rte_ring_free(struct rte_ring *r)
 	}
 
 	if (te == NULL) {
-		rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+		rte_mcfg_tailq_write_unlock();
 		return;
 	}
 
 	TAILQ_REMOVE(ring_list, te, next);
 
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	rte_free(te);
 }
@@ -245,13 +278,13 @@ rte_ring_list_dump(FILE *f)
 
 	ring_list = RTE_TAILQ_CAST(rte_ring_tailq.head, rte_ring_list);
 
-	rte_rwlock_read_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_lock();
 
 	TAILQ_FOREACH(te, ring_list, next) {
 		rte_ring_dump(f, (struct rte_ring *) te->data);
 	}
 
-	rte_rwlock_read_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_unlock();
 }
 
 /* search a ring from its name */
@@ -264,7 +297,7 @@ rte_ring_lookup(const char *name)
 
 	ring_list = RTE_TAILQ_CAST(rte_ring_tailq.head, rte_ring_list);
 
-	rte_rwlock_read_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_lock();
 
 	TAILQ_FOREACH(te, ring_list, next) {
 		r = (struct rte_ring *) te->data;
@@ -272,7 +305,7 @@ rte_ring_lookup(const char *name)
 			break;
 	}
 
-	rte_rwlock_read_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_unlock();
 
 	if (te == NULL) {
 		rte_errno = ENOENT;

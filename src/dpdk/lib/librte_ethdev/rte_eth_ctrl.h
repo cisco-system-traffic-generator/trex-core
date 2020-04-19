@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 #include <rte_common.h>
-#include "rte_ether.h"
+#include <rte_ether.h>
 #include "rte_flow.h"
 
 /**
@@ -75,7 +75,7 @@ struct rte_eth_mac_filter {
 	uint8_t is_vf; /**< 1 for VF, 0 for port dev */
 	uint16_t dst_id; /**< VF ID, available when is_vf is 1*/
 	enum rte_mac_filter_type filter_type; /**< MAC filter type */
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 };
 
 /**
@@ -91,7 +91,7 @@ struct rte_eth_mac_filter {
  * RTE_ETH_FILTER_DELETE and RTE_ETH_FILTER_GET operations.
  */
 struct rte_eth_ethertype_filter {
-	struct ether_addr mac_addr;   /**< Mac address to match. */
+	struct rte_ether_addr mac_addr;   /**< Mac address to match. */
 	uint16_t ether_type;          /**< Ether type to match */
 	uint16_t flags;               /**< Flags from RTE_ETHTYPE_FLAGS_* */
 	uint16_t queue;               /**< Queue assigned to when match*/
@@ -149,13 +149,7 @@ struct rte_eth_syn_filter {
 		RTE_NTUPLE_FLAGS_DST_PORT | \
 		RTE_NTUPLE_FLAGS_PROTO)
 
-#define TCP_URG_FLAG 0x20
-#define TCP_ACK_FLAG 0x10
-#define TCP_PSH_FLAG 0x08
-#define TCP_RST_FLAG 0x04
-#define TCP_SYN_FLAG 0x02
-#define TCP_FIN_FLAG 0x01
-#define TCP_FLAG_ALL 0x3F
+#define RTE_NTUPLE_TCP_FLAGS_MASK 0x3F /**< TCP flags filter can match. */
 
 /**
  * A structure used to define the ntuple filter entry
@@ -216,8 +210,8 @@ enum rte_tunnel_iptype {
  * Tunneling Packet filter configuration.
  */
 struct rte_eth_tunnel_filter_conf {
-	struct ether_addr outer_mac;    /**< Outer MAC address to match. */
-	struct ether_addr inner_mac;    /**< Inner MAC address to match. */
+	struct rte_ether_addr outer_mac;    /**< Outer MAC address to match. */
+	struct rte_ether_addr inner_mac;    /**< Inner MAC address to match. */
 	uint16_t inner_vlan;            /**< Inner VLAN to match. */
 	enum rte_tunnel_iptype ip_type; /**< IP address type. */
 	/** Outer destination IP address to match if ETH_TUNNEL_FILTER_OIP
@@ -430,7 +424,7 @@ struct rte_eth_sctpv6_flow {
  * A structure used to define the input for MAC VLAN flow
  */
 struct rte_eth_mac_vlan_flow {
-	struct ether_addr mac_addr;  /**< Mac address to match. */
+	struct rte_ether_addr mac_addr;  /**< Mac address to match. */
 };
 
 /**
@@ -450,7 +444,7 @@ struct rte_eth_tunnel_flow {
 	enum rte_eth_fdir_tunnel_type tunnel_type; /**< Tunnel type to match. */
 	/** Tunnel ID to match. TNI, VNI... in big endian. */
 	uint32_t tunnel_id;
-	struct ether_addr mac_addr;                /**< Mac address to match. */
+	struct rte_ether_addr mac_addr;            /**< Mac address to match. */
 };
 
 /**

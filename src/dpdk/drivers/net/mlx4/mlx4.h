@@ -101,7 +101,7 @@ struct txq;
 struct rte_flow;
 
 /**
- * Type of objet being allocated.
+ * Type of object being allocated.
  */
 enum mlx4_verbs_alloc_type {
 	MLX4_VERBS_ALLOC_TYPE_NONE,
@@ -159,6 +159,7 @@ struct mlx4_priv {
 	struct ibv_device_attr device_attr; /**< Device properties. */
 	struct ibv_pd *pd; /**< Protection Domain. */
 	/* Device properties. */
+	unsigned int if_index;	/**< Associated network device index */
 	uint16_t mtu; /**< Configured MTU. */
 	uint8_t port; /**< Physical port number. */
 	uint32_t started:1; /**< Device started, flows enabled. */
@@ -186,7 +187,7 @@ struct mlx4_priv {
 	} mr;
 	LIST_HEAD(, mlx4_rss) rss; /**< Shared targets for Rx flow rules. */
 	LIST_HEAD(, rte_flow) flows; /**< Configured flow rule handles. */
-	struct ether_addr mac[MLX4_MAX_MAC_ADDRESSES];
+	struct rte_ether_addr mac[MLX4_MAX_MAC_ADDRESSES];
 	/**< Configured MAC addresses. Unused entries are zeroed. */
 	uint32_t mac_mc; /**< Number of trailing multicast entries in mac[]. */
 	struct mlx4_verbs_alloc_ctx verbs_alloc_ctx;
@@ -199,27 +200,27 @@ struct mlx4_priv {
 /* mlx4_ethdev.c */
 
 int mlx4_get_ifname(const struct mlx4_priv *priv, char (*ifname)[IF_NAMESIZE]);
-int mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[ETHER_ADDR_LEN]);
+int mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[RTE_ETHER_ADDR_LEN]);
 int mlx4_mtu_get(struct mlx4_priv *priv, uint16_t *mtu);
 int mlx4_mtu_set(struct rte_eth_dev *dev, uint16_t mtu);
 int mlx4_dev_set_link_down(struct rte_eth_dev *dev);
 int mlx4_dev_set_link_up(struct rte_eth_dev *dev);
-void mlx4_promiscuous_enable(struct rte_eth_dev *dev);
-void mlx4_promiscuous_disable(struct rte_eth_dev *dev);
-void mlx4_allmulticast_enable(struct rte_eth_dev *dev);
-void mlx4_allmulticast_disable(struct rte_eth_dev *dev);
+int mlx4_promiscuous_enable(struct rte_eth_dev *dev);
+int mlx4_promiscuous_disable(struct rte_eth_dev *dev);
+int mlx4_allmulticast_enable(struct rte_eth_dev *dev);
+int mlx4_allmulticast_disable(struct rte_eth_dev *dev);
 void mlx4_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index);
-int mlx4_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac_addr,
+int mlx4_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 		      uint32_t index, uint32_t vmdq);
-int mlx4_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr);
-int mlx4_set_mc_addr_list(struct rte_eth_dev *dev, struct ether_addr *list,
+int mlx4_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr);
+int mlx4_set_mc_addr_list(struct rte_eth_dev *dev, struct rte_ether_addr *list,
 			  uint32_t num);
 int mlx4_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on);
 int mlx4_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats);
-void mlx4_stats_reset(struct rte_eth_dev *dev);
+int mlx4_stats_reset(struct rte_eth_dev *dev);
 int mlx4_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size);
-void mlx4_dev_infos_get(struct rte_eth_dev *dev,
-			struct rte_eth_dev_info *info);
+int mlx4_dev_infos_get(struct rte_eth_dev *dev,
+		       struct rte_eth_dev_info *info);
 int mlx4_link_update(struct rte_eth_dev *dev, int wait_to_complete);
 int mlx4_flow_ctrl_get(struct rte_eth_dev *dev,
 		       struct rte_eth_fc_conf *fc_conf);
@@ -242,9 +243,9 @@ void mlx4_mp_req_start_rxtx(struct rte_eth_dev *dev);
 void mlx4_mp_req_stop_rxtx(struct rte_eth_dev *dev);
 int mlx4_mp_req_mr_create(struct rte_eth_dev *dev, uintptr_t addr);
 int mlx4_mp_req_verbs_cmd_fd(struct rte_eth_dev *dev);
-void mlx4_mp_init_primary(void);
+int mlx4_mp_init_primary(void);
 void mlx4_mp_uninit_primary(void);
-void mlx4_mp_init_secondary(void);
+int mlx4_mp_init_secondary(void);
 void mlx4_mp_uninit_secondary(void);
 
 #endif /* RTE_PMD_MLX4_H_ */

@@ -10,8 +10,6 @@ ARCH_DIR ?= $(RTE_ARCH)
 EXPORT_MAP := ../../rte_eal_version.map
 VPATH += $(RTE_SDK)/lib/librte_eal/common/arch/$(ARCH_DIR)
 
-LIBABIVER := 10
-
 VPATH += $(RTE_SDK)/lib/librte_eal/common
 
 CFLAGS += -DALLOW_EXPERIMENTAL_API
@@ -52,6 +50,7 @@ SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_timer.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_memzone.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_log.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_launch.c
+SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_mcfg.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_memalloc.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_memory.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += eal_common_tailqs.c
@@ -77,6 +76,7 @@ SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += malloc_mp.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += rte_keepalive.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += rte_option.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += rte_service.c
+SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += rte_random.c
 SRCS-$(CONFIG_RTE_EXEC_ENV_LINUX) += rte_reciprocal.c
 
 # from arch dir

@@ -25,6 +25,7 @@
 #if defined(RTE_ARCH_X86)
 #include <sys/io.h>
 #endif
+#include <linux/version.h>
 
 #include <rte_compat.h>
 #include <rte_common.h>
@@ -32,7 +33,6 @@
 #include <rte_memory.h>
 #include <rte_launch.h>
 #include <rte_eal.h>
-#include <rte_eal_memconfig.h>
 #include <rte_errno.h>
 #include <rte_per_lcore.h>
 #include <rte_lcore.h>
@@ -57,12 +57,16 @@
 #include "eal_internal_cfg.h"
 #include "eal_filesystem.h"
 #include "eal_hugepages.h"
+#include "eal_memcfg.h"
 #include "eal_options.h"
 #include "eal_vfio.h"
+#include "hotplug_mp.h"
 
 #define MEMSIZE_IF_NO_HUGE_PAGE (64ULL * 1024ULL * 1024ULL)
 
 #define SOCKET_MEM_STRLEN (RTE_MAX_NUMA_NODES * 10)
+
+#define KERNEL_IOMMU_GROUPS_PATH "/sys/kernel/iommu_groups"
 
 /* Allow the application to print its usage message too if set */
 static rte_usage_hook_t	rte_application_usage_hook = NULL;
@@ -300,50 +304,77 @@ eal_parse_sysfs_value(const char *filename, unsigned long *val)
  * We also don't lock the whole file, so that in future we can use read-locks
  * on other parts, e.g. memzones, to detect if there are running secondary
  * processes. */
-static void
+static int
 rte_eal_config_create(void)
 {
-	void *rte_mem_cfg_addr;
+	size_t page_sz = sysconf(_SC_PAGE_SIZE);
+	size_t cfg_len = sizeof(*rte_config.mem_config);
+	size_t cfg_len_aligned = RTE_ALIGN(cfg_len, page_sz);
+	void *rte_mem_cfg_addr, *mapped_mem_cfg_addr;
 	int retval;
 
 	const char *pathname = eal_runtime_config_path();
 
 	if (internal_config.no_shconf)
-		return;
+		return 0;
 
 	/* map the config before hugepage address so that we don't waste a page */
 	if (internal_config.base_virtaddr != 0)
 		rte_mem_cfg_addr = (void *)
 			RTE_ALIGN_FLOOR(internal_config.base_virtaddr -
-			sizeof(struct rte_mem_config), sysconf(_SC_PAGE_SIZE));
+			sizeof(struct rte_mem_config), page_sz);
 	else
 		rte_mem_cfg_addr = NULL;
 
 	if (mem_cfg_fd < 0){
 		mem_cfg_fd = open(pathname, O_RDWR | O_CREAT, 0600);
-		if (mem_cfg_fd < 0)
-			rte_panic("Cannot open '%s' for rte_mem_config\n", pathname);
+		if (mem_cfg_fd < 0) {
+			RTE_LOG(ERR, EAL, "Cannot open '%s' for rte_mem_config\n",
+				pathname);
+			return -1;
+		}
 	}
 
-	retval = ftruncate(mem_cfg_fd, sizeof(*rte_config.mem_config));
+	retval = ftruncate(mem_cfg_fd, cfg_len);
 	if (retval < 0){
 		close(mem_cfg_fd);
-		rte_panic("Cannot resize '%s' for rte_mem_config\n", pathname);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot resize '%s' for rte_mem_config\n",
+			pathname);
+		return -1;
 	}
 
 	retval = fcntl(mem_cfg_fd, F_SETLK, &wr_lock);
 	if (retval < 0){
 		close(mem_cfg_fd);
-		rte_exit(EXIT_FAILURE, "Cannot create lock on '%s'. Is another primary "
-				"process running?\n", pathname);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot create lock on '%s'. Is another primary "
+			"process running?\n", pathname);
+		return -1;
 	}
 
-	rte_mem_cfg_addr = mmap(rte_mem_cfg_addr, sizeof(*rte_config.mem_config),
-				PROT_READ | PROT_WRITE, MAP_SHARED, mem_cfg_fd, 0);
-
-	if (rte_mem_cfg_addr == MAP_FAILED){
-		rte_panic("Cannot mmap memory for rte_config\n");
+	/* reserve space for config */
+	rte_mem_cfg_addr = eal_get_virtual_area(rte_mem_cfg_addr,
+			&cfg_len_aligned, page_sz, 0, 0);
+	if (rte_mem_cfg_addr == NULL) {
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config\n");
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		return -1;
 	}
+
+	/* remap the actual file into the space we've just reserved */
+	mapped_mem_cfg_addr = mmap(rte_mem_cfg_addr,
+			cfg_len_aligned, PROT_READ | PROT_WRITE,
+			MAP_SHARED | MAP_FIXED, mem_cfg_fd, 0);
+	if (mapped_mem_cfg_addr == MAP_FAILED) {
+		munmap(rte_mem_cfg_addr, cfg_len);
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot remap memory for rte_config\n");
+		return -1;
+	}
+
 	memcpy(rte_mem_cfg_addr, &early_mem_config, sizeof(early_mem_config));
 	rte_config.mem_config = rte_mem_cfg_addr;
 
@@ -353,10 +384,11 @@ rte_eal_config_create(void)
 
 	rte_config.mem_config->dma_maskbits = 0;
 
+	return 0;
 }
 
 /* attach to an existing shared memory config */
-static void
+static int
 rte_eal_config_attach(void)
 {
 	struct rte_mem_config *mem_config;
@@ -364,33 +396,42 @@ rte_eal_config_attach(void)
 	const char *pathname = eal_runtime_config_path();
 
 	if (internal_config.no_shconf)
-		return;
+		return 0;
 
 	if (mem_cfg_fd < 0){
 		mem_cfg_fd = open(pathname, O_RDWR);
-		if (mem_cfg_fd < 0)
-			rte_panic("Cannot open '%s' for rte_mem_config\n", pathname);
+		if (mem_cfg_fd < 0) {
+			RTE_LOG(ERR, EAL, "Cannot open '%s' for rte_mem_config\n",
+				pathname);
+			return -1;
+		}
 	}
 
 	/* map it as read-only first */
 	mem_config = (struct rte_mem_config *) mmap(NULL, sizeof(*mem_config),
 			PROT_READ, MAP_SHARED, mem_cfg_fd, 0);
-	if (mem_config == MAP_FAILED)
-		rte_panic("Cannot mmap memory for rte_config! error %i (%s)\n",
-			  errno, strerror(errno));
+	if (mem_config == MAP_FAILED) {
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config! error %i (%s)\n",
+			errno, strerror(errno));
+		return -1;
+	}
 
 	rte_config.mem_config = mem_config;
+
+	return 0;
 }
 
 /* reattach the shared config at exact memory location primary process has it */
-static void
+static int
 rte_eal_config_reattach(void)
 {
 	struct rte_mem_config *mem_config;
 	void *rte_mem_cfg_addr;
 
 	if (internal_config.no_shconf)
-		return;
+		return 0;
 
 	/* save the address primary process has mapped shared config to */
 	rte_mem_cfg_addr = (void *) (uintptr_t) rte_config.mem_config->mem_cfg_addr;
@@ -402,19 +443,27 @@ rte_eal_config_reattach(void)
 	mem_config = (struct rte_mem_config *) mmap(rte_mem_cfg_addr,
 			sizeof(*mem_config), PROT_READ | PROT_WRITE, MAP_SHARED,
 			mem_cfg_fd, 0);
-	if (mem_config == MAP_FAILED || mem_config != rte_mem_cfg_addr) {
-		if (mem_config != MAP_FAILED)
-			/* errno is stale, don't use */
-			rte_panic("Cannot mmap memory for rte_config at [%p], got [%p]"
-				  " - please use '--base-virtaddr' option\n",
-				  rte_mem_cfg_addr, mem_config);
-		else
-			rte_panic("Cannot mmap memory for rte_config! error %i (%s)\n",
-				  errno, strerror(errno));
-	}
+
 	close(mem_cfg_fd);
+	mem_cfg_fd = -1;
+
+	if (mem_config == MAP_FAILED || mem_config != rte_mem_cfg_addr) {
+		if (mem_config != MAP_FAILED) {
+			/* errno is stale, don't use */
+			RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config at [%p], got [%p]"
+				" - please use '--" OPT_BASE_VIRTADDR
+				"' option\n", rte_mem_cfg_addr, mem_config);
+			munmap(mem_config, sizeof(struct rte_mem_config));
+			return -1;
+		}
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config! error %i (%s)\n",
+			errno, strerror(errno));
+		return -1;
+	}
 
 	rte_config.mem_config = mem_config;
+
+	return 0;
 }
 
 /* Detect if we are a primary or a secondary process */
@@ -442,45 +491,38 @@ eal_proc_type_detect(void)
 	return ptype;
 }
 
-/* copies data from internal config to shared config */
-static void
-eal_update_mem_config(void)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	mcfg->legacy_mem = internal_config.legacy_mem;
-	mcfg->single_file_segments = internal_config.single_file_segments;
-}
-
-/* copies data from shared config to internal config */
-static void
-eal_update_internal_config(void)
-{
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	internal_config.legacy_mem = mcfg->legacy_mem;
-	internal_config.single_file_segments = mcfg->single_file_segments;
-}
-
 /* Sets up rte_config structure with the pointer to shared memory config.*/
-static void
+static int
 rte_config_init(void)
 {
 	rte_config.process_type = internal_config.process_type;
 
 	switch (rte_config.process_type){
 	case RTE_PROC_PRIMARY:
-		rte_eal_config_create();
-		eal_update_mem_config();
+		if (rte_eal_config_create() < 0)
+			return -1;
+		eal_mcfg_update_from_internal();
 		break;
 	case RTE_PROC_SECONDARY:
-		rte_eal_config_attach();
-		rte_eal_mcfg_wait_complete(rte_config.mem_config);
-		rte_eal_config_reattach();
-		eal_update_internal_config();
+		if (rte_eal_config_attach() < 0)
+			return -1;
+		eal_mcfg_wait_complete();
+		if (eal_mcfg_check_version() < 0) {
+			RTE_LOG(ERR, EAL, "Primary and secondary process DPDK version mismatch\n");
+			return -1;
+		}
+		if (rte_eal_config_reattach() < 0)
+			return -1;
+		eal_mcfg_update_internal();
 		break;
 	case RTE_PROC_AUTO:
 	case RTE_PROC_INVALID:
-		rte_panic("Invalid process type\n");
+		RTE_LOG(ERR, EAL, "Invalid process type %d\n",
+			rte_config.process_type);
+		return -1;
 	}
+
+	return 0;
 }
 
 /* Unlocks hugepage directories that were locked by eal_hugepage_info_init */
@@ -513,7 +555,6 @@ eal_usage(const char *prgname)
 	       "  --"OPT_SOCKET_LIMIT"      Limit memory allocation on sockets (comma separated values)\n"
 	       "  --"OPT_HUGE_DIR"          Directory where hugetlbfs is mounted\n"
 	       "  --"OPT_FILE_PREFIX"       Prefix for hugepage filenames\n"
-	       "  --"OPT_BASE_VIRTADDR"     Base virtual address\n"
 	       "  --"OPT_CREATE_UIO_DEV"    Create /dev/uioX (usually done by hotplug)\n"
 	       "  --"OPT_VFIO_INTR"         Interrupt mode for VFIO (legacy|msi|msix)\n"
 	       "  --"OPT_LEGACY_MEM"        Legacy memory mode (no dynamic allocation, contiguous segments)\n"
@@ -581,35 +622,6 @@ eal_parse_socket_arg(char *strval, volatile uint64_t *socket_arg)
 		total_mem += val;
 		socket_arg[i] = val;
 	}
-
-	return 0;
-}
-
-static int
-eal_parse_base_virtaddr(const char *arg)
-{
-	char *end;
-	uint64_t addr;
-
-	errno = 0;
-	addr = strtoull(arg, &end, 16);
-
-	/* check for errors */
-	if ((errno != 0) || (arg[0] == '\0') || end == NULL || (*end != '\0'))
-		return -1;
-
-	/* make sure we don't exceed 32-bit boundary on 32-bit target */
-#ifndef RTE_ARCH_64
-	if (addr >= UINTPTR_MAX)
-		return -1;
-#endif
-
-	/* align the addr on 16M boundary, 16MB is the minimum huge page
-	 * size on IBM Power architecture. If the addr is aligned to 16MB,
-	 * it can align to 2MB for x86. So this alignment can also be used
-	 * on x86 */
-	internal_config.base_virtaddr =
-		RTE_PTR_ALIGN_CEIL((uintptr_t)addr, (size_t)RTE_PGSIZE_16M);
 
 	return 0;
 }
@@ -772,16 +784,6 @@ eal_parse_args(int argc, char **argv)
 			internal_config.force_socket_limits = 1;
 			break;
 
-		case OPT_BASE_VIRTADDR_NUM:
-			if (eal_parse_base_virtaddr(optarg) < 0) {
-				RTE_LOG(ERR, EAL, "invalid parameter for --"
-						OPT_BASE_VIRTADDR "\n");
-				eal_usage(prgname);
-				ret = -1;
-				goto out;
-			}
-			break;
-
 		case OPT_VFIO_INTR_NUM:
 			if (eal_parse_vfio_intr(optarg) < 0) {
 				RTE_LOG(ERR, EAL, "invalid parameters for --"
@@ -896,16 +898,6 @@ sync_func(__attribute__((unused)) void *arg)
 	return 0;
 }
 
-inline static void
-rte_eal_mcfg_complete(void)
-{
-	/* ALL shared mem_config related INIT DONE */
-	if (rte_config.process_type == RTE_PROC_PRIMARY)
-		rte_config.mem_config->magic = RTE_MAGIC;
-
-	internal_config.init_complete = 1;
-}
-
 /*
  * Request iopl privilege for all RPL, returns 0 on success
  * iopl() call is mostly for the i386 architecture. For other architectures,
@@ -937,6 +929,33 @@ static void rte_eal_init_alert(const char *msg)
 	RTE_LOG(ERR, EAL, "%s\n", msg);
 }
 
+/*
+ * On Linux 3.6+, even if VFIO is not loaded, whenever IOMMU is enabled in the
+ * BIOS and in the kernel, /sys/kernel/iommu_groups path will contain kernel
+ * IOMMU groups. If IOMMU is not enabled, that path would be empty.
+ * Therefore, checking if the path is empty will tell us if IOMMU is enabled.
+ */
+static bool
+is_iommu_enabled(void)
+{
+	DIR *dir = opendir(KERNEL_IOMMU_GROUPS_PATH);
+	struct dirent *d;
+	int n = 0;
+
+	/* if directory doesn't exist, assume IOMMU is not enabled */
+	if (dir == NULL)
+		return false;
+
+	while ((d = readdir(dir)) != NULL) {
+		/* skip dot and dot-dot */
+		if (++n > 2)
+			break;
+	}
+	closedir(dir);
+
+	return n > 2;
+}
+
 /* Launch threads, called at application init(). */
 int
 rte_eal_init(int argc, char **argv)
@@ -948,6 +967,7 @@ rte_eal_init(int argc, char **argv)
 	static char logid[PATH_MAX];
 	char cpuset[RTE_CPU_AFFINITY_STR_LEN];
 	char thread_name[RTE_MAX_THREAD_NAME_LEN];
+	bool phys_addrs;
 
 	/* checks if the machine is adequate */
 	if (!rte_cpu_is_supported()) {
@@ -998,7 +1018,10 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	rte_config_init();
+	if (rte_config_init() < 0) {
+		rte_eal_init_alert("Cannot init config");
+		return -1;
+	}
 
 	if (rte_eal_intr_init() < 0) {
 		rte_eal_init_alert("Cannot init interrupt-handling thread");
@@ -1006,7 +1029,7 @@ rte_eal_init(int argc, char **argv)
 	}
 
 	if (rte_eal_alarm_init() < 0) {
-		rte_eal_init_alert("Cannot init interrupt-handling thread");
+		rte_eal_init_alert("Cannot init alarm");
 		/* rte_eal_alarm_init sets rte_errno on failure. */
 		return -1;
 	}
@@ -1014,7 +1037,7 @@ rte_eal_init(int argc, char **argv)
 	/* Put mp channel init before bus scan so that we can init the vdev
 	 * bus through mp channel in the secondary process before the bus scan.
 	 */
-	if (rte_mp_channel_init() < 0) {
+	if (rte_mp_channel_init() < 0 && rte_errno != ENOTSUP) {
 		rte_eal_init_alert("failed to init mp channel");
 		if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 			rte_errno = EFAULT;
@@ -1023,7 +1046,7 @@ rte_eal_init(int argc, char **argv)
 	}
 
 	/* register multi-process action callbacks for hotplug */
-	if (rte_mp_dev_hotplug_init() < 0) {
+	if (eal_mp_dev_hotplug_init() < 0) {
 		rte_eal_init_alert("failed to register mp callback for hotplug");
 		return -1;
 	}
@@ -1035,24 +1058,67 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
+	phys_addrs = rte_eal_using_phys_addrs() != 0;
+
 	/* if no EAL option "--iova-mode=<pa|va>", use bus IOVA scheme */
 	if (internal_config.iova_mode == RTE_IOVA_DC) {
-		/* autodetect the IOVA mapping mode (default is RTE_IOVA_PA) */
-		rte_eal_get_configuration()->iova_mode =
-			rte_bus_get_iommu_class();
+		/* autodetect the IOVA mapping mode */
+		enum rte_iova_mode iova_mode = rte_bus_get_iommu_class();
 
-		/* Workaround for KNI which requires physical address to work */
-		if (rte_eal_get_configuration()->iova_mode == RTE_IOVA_VA &&
-				rte_eal_check_module("rte_kni") == 1) {
-			rte_eal_get_configuration()->iova_mode = RTE_IOVA_PA;
-			RTE_LOG(WARNING, EAL,
-				"Some devices want IOVA as VA but PA will be used because.. "
-				"KNI module inserted\n");
+		if (iova_mode == RTE_IOVA_DC) {
+			RTE_LOG(DEBUG, EAL, "Buses did not request a specific IOVA mode.\n");
+
+			if (!phys_addrs) {
+				/* if we have no access to physical addresses,
+				 * pick IOVA as VA mode.
+				 */
+				iova_mode = RTE_IOVA_VA;
+				RTE_LOG(DEBUG, EAL, "Physical addresses are unavailable, selecting IOVA as VA mode.\n");
+#if defined(RTE_LIBRTE_KNI) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+			} else if (rte_eal_check_module("rte_kni") == 1) {
+				iova_mode = RTE_IOVA_PA;
+				RTE_LOG(DEBUG, EAL, "KNI is loaded, selecting IOVA as PA mode for better KNI perfomance.\n");
+#endif
+			} else if (is_iommu_enabled()) {
+				/* we have an IOMMU, pick IOVA as VA mode */
+				iova_mode = RTE_IOVA_VA;
+				RTE_LOG(DEBUG, EAL, "IOMMU is available, selecting IOVA as VA mode.\n");
+			} else {
+				/* physical addresses available, and no IOMMU
+				 * found, so pick IOVA as PA.
+				 */
+				iova_mode = RTE_IOVA_PA;
+				RTE_LOG(DEBUG, EAL, "IOMMU is not available, selecting IOVA as PA mode.\n");
+			}
 		}
+#if defined(RTE_LIBRTE_KNI) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+		/* Workaround for KNI which requires physical address to work
+		 * in kernels < 4.10
+		 */
+		if (iova_mode == RTE_IOVA_VA &&
+				rte_eal_check_module("rte_kni") == 1) {
+			if (phys_addrs) {
+				iova_mode = RTE_IOVA_PA;
+				RTE_LOG(WARNING, EAL, "Forcing IOVA as 'PA' because KNI module is loaded\n");
+			} else {
+				RTE_LOG(DEBUG, EAL, "KNI can not work since physical addresses are unavailable\n");
+			}
+		}
+#endif
+		rte_eal_get_configuration()->iova_mode = iova_mode;
 	} else {
 		rte_eal_get_configuration()->iova_mode =
 			internal_config.iova_mode;
 	}
+
+	if (rte_eal_iova_mode() == RTE_IOVA_PA && !phys_addrs) {
+		rte_eal_init_alert("Cannot use IOVA as 'PA' since physical addresses are not available");
+		rte_errno = EINVAL;
+		return -1;
+	}
+
+	RTE_LOG(INFO, EAL, "Selected IOVA mode '%s'\n",
+		rte_eal_iova_mode() == RTE_IOVA_PA ? "PA" : "VA");
 
 	if (internal_config.no_hugetlbfs == 0) {
 		/* rte_config isn't initialized yet */
@@ -1082,8 +1148,6 @@ rte_eal_init(int argc, char **argv)
 				"RTE_LIBRTE_EAL_VMWARE_TSC_MAP_SUPPORT is not set\n");
 #endif
 	}
-
-	rte_srand(rte_rdtsc());
 
 	if (rte_eal_log_init(logid, internal_config.syslog_facility) < 0) {
 		rte_eal_init_alert("Cannot init logging.");
@@ -1228,7 +1292,7 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	rte_eal_mcfg_complete();
+	eal_mcfg_complete();
 
 	/* Call each registered callback, if enabled */
 	rte_option_init();
@@ -1265,13 +1329,6 @@ rte_eal_cleanup(void)
 	rte_mp_channel_cleanup();
 	eal_cleanup_config(&internal_config);
 	return 0;
-}
-
-/* get core role */
-enum rte_lcore_role_t
-rte_eal_lcore_role(unsigned lcore_id)
-{
-	return rte_config.lcore_role[lcore_id];
 }
 
 enum rte_proc_type_t

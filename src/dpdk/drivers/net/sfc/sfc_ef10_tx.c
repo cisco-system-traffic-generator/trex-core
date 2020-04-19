@@ -373,7 +373,7 @@ sfc_ef10_xmit_tso_pkt(struct sfc_ef10_txq * const txq, struct rte_mbuf *m_seg,
 	size_t header_len = tcph_off + m_seg->l4_len;
 	/* Offset of the payload in the last segment that contains the header */
 	size_t in_off = 0;
-	const struct tcp_hdr *th;
+	const struct rte_tcp_hdr *th;
 	uint16_t packet_id = 0;
 	uint16_t outer_packet_id = 0;
 	uint32_t sent_seq;
@@ -489,7 +489,7 @@ sfc_ef10_xmit_tso_pkt(struct sfc_ef10_txq * const txq, struct rte_mbuf *m_seg,
 		outer_packet_id = sfc_tso_ip4_get_ipid(hdr_addr,
 						first_m_seg->outer_l2_len);
 
-	th = (const struct tcp_hdr *)(hdr_addr + tcph_off);
+	th = (const struct rte_tcp_hdr *)(hdr_addr + tcph_off);
 	rte_memcpy(&sent_seq, &th->sent_seq, sizeof(uint32_t));
 	sent_seq = rte_be_to_cpu_32(sent_seq);
 
@@ -1098,12 +1098,15 @@ struct sfc_dp_tx sfc_ef10_tx = {
 		.type		= SFC_DP_TX,
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF10,
 	},
-	.features		= SFC_DP_TX_FEAT_TSO |
-				  SFC_DP_TX_FEAT_TSO_ENCAP |
-				  SFC_DP_TX_FEAT_MULTI_SEG |
-				  SFC_DP_TX_FEAT_MULTI_POOL |
-				  SFC_DP_TX_FEAT_REFCNT |
-				  SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.dev_offload_capa	= DEV_TX_OFFLOAD_MULTI_SEGS,
+	.queue_offload_capa	= DEV_TX_OFFLOAD_IPV4_CKSUM |
+				  DEV_TX_OFFLOAD_UDP_CKSUM |
+				  DEV_TX_OFFLOAD_TCP_CKSUM |
+				  DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+				  DEV_TX_OFFLOAD_TCP_TSO |
+				  DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
+				  DEV_TX_OFFLOAD_GENEVE_TNL_TSO,
 	.get_dev_info		= sfc_ef10_get_dev_info,
 	.qsize_up_rings		= sfc_ef10_tx_qsize_up_rings,
 	.qcreate		= sfc_ef10_tx_qcreate,
@@ -1123,6 +1126,11 @@ struct sfc_dp_tx sfc_ef10_simple_tx = {
 		.type		= SFC_DP_TX,
 	},
 	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.dev_offload_capa	= DEV_TX_OFFLOAD_MBUF_FAST_FREE,
+	.queue_offload_capa	= DEV_TX_OFFLOAD_IPV4_CKSUM |
+				  DEV_TX_OFFLOAD_UDP_CKSUM |
+				  DEV_TX_OFFLOAD_TCP_CKSUM |
+				  DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM,
 	.get_dev_info		= sfc_ef10_get_dev_info,
 	.qsize_up_rings		= sfc_ef10_tx_qsize_up_rings,
 	.qcreate		= sfc_ef10_tx_qcreate,

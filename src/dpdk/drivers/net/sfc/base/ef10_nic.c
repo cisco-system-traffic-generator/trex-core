@@ -223,7 +223,7 @@ fail1:
 	return (rc);
 }
 
-static	__checkReturn		efx_rc_t
+	__checkReturn		efx_rc_t
 efx_mcdi_vadaptor_alloc(
 	__in			efx_nic_t *enp,
 	__in			uint32_t port_id)
@@ -232,8 +232,6 @@ efx_mcdi_vadaptor_alloc(
 	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_VADAPTOR_ALLOC_IN_LEN,
 		MC_CMD_VADAPTOR_ALLOC_OUT_LEN);
 	efx_rc_t rc;
-
-	EFSYS_ASSERT3U(enp->en_vport_id, ==, EVB_PORT_ID_NULL);
 
 	req.emr_cmd = MC_CMD_VADAPTOR_ALLOC;
 	req.emr_in_buf = payload;
@@ -261,7 +259,7 @@ fail1:
 	return (rc);
 }
 
-static	__checkReturn		efx_rc_t
+	__checkReturn		efx_rc_t
 efx_mcdi_vadaptor_free(
 	__in			efx_nic_t *enp,
 	__in			uint32_t port_id)
@@ -1110,6 +1108,12 @@ ef10_get_datapath_caps(
 	else
 		encp->enc_datapath_cap_evb = B_FALSE;
 
+	/* Check if the firmware supports vport reconfiguration */
+	if (CAP_FLAGS1(req, VPORT_RECONFIGURE))
+		encp->enc_vport_reconfigure_supported = B_TRUE;
+	else
+		encp->enc_vport_reconfigure_supported = B_FALSE;
+
 	/* Check if the firmware supports VLAN insertion */
 	if (CAP_FLAGS1(req, TX_VLAN_INSERTION))
 		encp->enc_hw_tx_insert_vlan_enabled = B_TRUE;
@@ -1215,6 +1219,19 @@ ef10_get_datapath_caps(
 		encp->enc_nvram_update_verify_result_supported = B_TRUE;
 	else
 		encp->enc_nvram_update_verify_result_supported = B_FALSE;
+
+	if (CAP_FLAGS2(req, NVRAM_UPDATE_POLL_VERIFY_RESULT))
+		encp->enc_nvram_update_poll_verify_result_supported = B_TRUE;
+	else
+		encp->enc_nvram_update_poll_verify_result_supported = B_FALSE;
+
+	/*
+	 * Check if firmware update via the BUNDLE partition is supported
+	 */
+	if (CAP_FLAGS2(req, BUNDLE_UPDATE))
+		encp->enc_nvram_bundle_update_supported = B_TRUE;
+	else
+		encp->enc_nvram_bundle_update_supported = B_FALSE;
 
 	/*
 	 * Check if firmware provides packet memory and Rx datapath
@@ -1753,6 +1770,56 @@ fail1:
 }
 
 static	__checkReturn	efx_rc_t
+ef10_set_workaround_bug26807(
+	__in		efx_nic_t *enp)
+{
+	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
+	uint32_t flags;
+	efx_rc_t rc;
+
+	/*
+	 * If the bug26807 workaround is enabled, then firmware has enabled
+	 * support for chained multicast filters. Firmware will reset (FLR)
+	 * functions which have filters in the hardware filter table when the
+	 * workaround is enabled/disabled.
+	 *
+	 * We must recheck if the workaround is enabled after inserting the
+	 * first hardware filter, in case it has been changed since this check.
+	 */
+	rc = efx_mcdi_set_workaround(enp, MC_CMD_WORKAROUND_BUG26807,
+	    B_TRUE, &flags);
+	if (rc == 0) {
+		encp->enc_bug26807_workaround = B_TRUE;
+		if (flags & (1 << MC_CMD_WORKAROUND_EXT_OUT_FLR_DONE_LBN)) {
+			/*
+			 * Other functions had installed filters before the
+			 * workaround was enabled, and they have been reset
+			 * by firmware.
+			 */
+			EFSYS_PROBE(bug26807_workaround_flr_done);
+			/* FIXME: bump MC warm boot count ? */
+		}
+	} else if (rc == EACCES) {
+		/*
+		 * Unprivileged functions cannot enable the workaround in older
+		 * firmware.
+		 */
+		encp->enc_bug26807_workaround = B_FALSE;
+	} else if ((rc == ENOTSUP) || (rc == ENOENT)) {
+		encp->enc_bug26807_workaround = B_FALSE;
+	} else {
+		goto fail1;
+	}
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
 ef10_nic_board_cfg(
 	__in		efx_nic_t *enp)
 {
@@ -1776,6 +1843,8 @@ ef10_nic_board_cfg(
 
 	/* EFX MCDI interface uses one-based port numbers */
 	emip->emi_port = port + 1;
+
+	encp->enc_assigned_port = port;
 
 	if ((rc = ef10_external_port_mapping(enp, port,
 		    &encp->enc_external_port)) != 0)
@@ -1886,7 +1955,7 @@ ef10_nic_board_cfg(
 	encp->enc_rxq_limit = EFX_RXQ_LIMIT_TARGET;
 	encp->enc_txq_limit = EFX_TXQ_LIMIT_TARGET;
 
-	encp->enc_buftbl_limit = 0xFFFFFFFF;
+	encp->enc_buftbl_limit = UINT32_MAX;
 
 	/* Get interrupt vector limits */
 	if ((rc = efx_mcdi_get_vector_cfg(enp, &base, &nvec, NULL)) != 0) {
@@ -1910,13 +1979,18 @@ ef10_nic_board_cfg(
 		goto fail10;
 	encp->enc_privilege_mask = mask;
 
+	if ((rc = ef10_set_workaround_bug26807(enp)) != 0)
+		goto fail11;
+
 	/* Get remaining controller-specific board config */
 	if ((rc = enop->eno_board_cfg(enp)) != 0)
 		if (rc != EACCES)
-			goto fail11;
+			goto fail12;
 
 	return (0);
 
+fail12:
+	EFSYS_PROBE(fail12);
 fail11:
 	EFSYS_PROBE(fail11);
 fail10:
@@ -2150,6 +2224,58 @@ fail1:
 	return (rc);
 }
 
+static	__checkReturn	efx_rc_t
+ef10_upstream_port_vadaptor_alloc(
+	__in		efx_nic_t *enp)
+{
+	uint32_t retry;
+	uint32_t delay_us;
+	efx_rc_t rc;
+
+	/*
+	 * On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
+	 * driver has yet to bring up the EVB port. See bug 56147. In this case,
+	 * retry the request several times after waiting a while. The wait time
+	 * between retries starts small (10ms) and exponentially increases.
+	 * Total wait time is a little over two seconds. Retry logic in the
+	 * client driver may mean this whole loop is repeated if it continues to
+	 * fail.
+	 */
+	retry = 0;
+	delay_us = 10000;
+	while ((rc = efx_mcdi_vadaptor_alloc(enp, EVB_PORT_ID_ASSIGNED)) != 0) {
+		if (EFX_PCI_FUNCTION_IS_PF(&enp->en_nic_cfg) ||
+		    (rc != ENOENT)) {
+			/*
+			 * Do not retry alloc for PF, or for other errors on
+			 * a VF.
+			 */
+			goto fail1;
+		}
+
+		/* VF startup before PF is ready. Retry allocation. */
+		if (retry > 5) {
+			/* Too many attempts */
+			rc = EINVAL;
+			goto fail2;
+		}
+		EFSYS_PROBE1(mcdi_no_evb_port_retry, int, retry);
+		EFSYS_SLEEP(delay_us);
+		retry++;
+		if (delay_us < 500000)
+			delay_us <<= 2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 	__checkReturn	efx_rc_t
 ef10_nic_init(
 	__in		efx_nic_t *enp)
@@ -2158,12 +2284,13 @@ ef10_nic_init(
 	uint32_t min_vi_count, max_vi_count;
 	uint32_t vi_count, vi_base, vi_shift;
 	uint32_t i;
-	uint32_t retry;
-	uint32_t delay_us;
 	uint32_t vi_window_size;
 	efx_rc_t rc;
+	boolean_t alloc_vadaptor = B_TRUE;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/* Enable reporting of some events (e.g. link change) */
 	if ((rc = efx_mcdi_log_ctrl(enp)) != 0)
@@ -2260,48 +2387,29 @@ ef10_nic_init(
 	}
 
 	/*
-	 * Allocate a vAdaptor attached to our upstream vPort/pPort.
-	 *
-	 * On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
-	 * driver has yet to bring up the EVB port. See bug 56147. In this case,
-	 * retry the request several times after waiting a while. The wait time
-	 * between retries starts small (10ms) and exponentially increases.
-	 * Total wait time is a little over two seconds. Retry logic in the
-	 * client driver may mean this whole loop is repeated if it continues to
-	 * fail.
+	 * For SR-IOV use case, vAdaptor is allocated for PF and associated VFs
+	 * during NIC initialization when vSwitch is created and vports are
+	 * allocated. Hence, skip vAdaptor allocation for EVB and update vport
+	 * id in NIC structure with the one allocated for PF.
 	 */
-	retry = 0;
-	delay_us = 10000;
-	while ((rc = efx_mcdi_vadaptor_alloc(enp, EVB_PORT_ID_ASSIGNED)) != 0) {
-		if (EFX_PCI_FUNCTION_IS_PF(&enp->en_nic_cfg) ||
-		    (rc != ENOENT)) {
-			/*
-			 * Do not retry alloc for PF, or for other errors on
-			 * a VF.
-			 */
-			goto fail5;
-		}
-
-		/* VF startup before PF is ready. Retry allocation. */
-		if (retry > 5) {
-			/* Too many attempts */
-			rc = EINVAL;
-			goto fail6;
-		}
-		EFSYS_PROBE1(mcdi_no_evb_port_retry, int, retry);
-		EFSYS_SLEEP(delay_us);
-		retry++;
-		if (delay_us < 500000)
-			delay_us <<= 2;
-	}
 
 	enp->en_vport_id = EVB_PORT_ID_ASSIGNED;
+#if EFSYS_OPT_EVB
+	if ((enp->en_vswitchp != NULL) && (enp->en_vswitchp->ev_evcp != NULL)) {
+		/* For EVB use vport allocated on vswitch */
+		enp->en_vport_id = enp->en_vswitchp->ev_evcp->evc_vport_id;
+		alloc_vadaptor = B_FALSE;
+	}
+#endif
+	if (alloc_vadaptor != B_FALSE) {
+		/* Allocate a vAdaptor attached to our upstream vPort/pPort */
+		if ((rc = ef10_upstream_port_vadaptor_alloc(enp)) != 0)
+			goto fail5;
+	}
 	enp->en_nic_cfg.enc_mcdi_max_payload_length = MCDI_CTL_SDU_LEN_MAX_V2;
 
 	return (0);
 
-fail6:
-	EFSYS_PROBE(fail6);
 fail5:
 	EFSYS_PROBE(fail5);
 fail4:
@@ -2413,9 +2521,21 @@ ef10_nic_fini(
 {
 	uint32_t i;
 	efx_rc_t rc;
+	boolean_t do_vadaptor_free = B_TRUE;
 
-	(void) efx_mcdi_vadaptor_free(enp, enp->en_vport_id);
-	enp->en_vport_id = 0;
+#if EFSYS_OPT_EVB
+	if (enp->en_vswitchp != NULL) {
+		/*
+		 * For SR-IOV the vAdaptor is freed with the vswitch,
+		 * so do not free it here.
+		 */
+		do_vadaptor_free = B_FALSE;
+	}
+#endif
+	if (do_vadaptor_free != B_FALSE) {
+		(void) efx_mcdi_vadaptor_free(enp, enp->en_vport_id);
+		enp->en_vport_id = EVB_PORT_ID_NULL;
+	}
 
 	/* Unlink piobufs from extra VIs in WC mapping */
 	if (enp->en_arch.ef10.ena_piobuf_count > 0) {

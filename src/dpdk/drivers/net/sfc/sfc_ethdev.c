@@ -34,6 +34,10 @@ uint32_t sfc_logtype_driver;
 static struct sfc_dp_list sfc_dp_head =
 	TAILQ_HEAD_INITIALIZER(sfc_dp_head);
 
+
+static void sfc_eth_dev_clear_ops(struct rte_eth_dev *dev);
+
+
 static int
 sfc_fw_version_get(struct rte_eth_dev *dev, char *fw_version, size_t fw_size)
 {
@@ -82,7 +86,7 @@ sfc_fw_version_get(struct rte_eth_dev *dev, char *fw_version, size_t fw_size)
 		return 0;
 }
 
-static void
+static int
 sfc_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 {
 	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
@@ -93,7 +97,7 @@ sfc_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	sfc_log_init(sa, "entry");
 
-	dev_info->min_mtu = ETHER_MIN_MTU;
+	dev_info->min_mtu = RTE_ETHER_MIN_MTU;
 	dev_info->max_mtu = EFX_MAC_SDU_MAX;
 
 	dev_info->max_rx_pktlen = EFX_MAC_PDU_MAX;
@@ -180,6 +184,8 @@ sfc_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	dev_info->dev_capa = RTE_ETH_DEV_CAPA_RUNTIME_RX_QUEUE_SETUP |
 			     RTE_ETH_DEV_CAPA_RUNTIME_TX_QUEUE_SETUP;
+
+	return 0;
 }
 
 static const uint32_t *
@@ -335,12 +341,32 @@ sfc_dev_close(struct rte_eth_dev *dev)
 		sfc_err(sa, "unexpected adapter state %u on close", sa->state);
 		break;
 	}
+
+	/*
+	 * Cleanup all resources in accordance with RTE_ETH_DEV_CLOSE_REMOVE.
+	 * Rollback primary process sfc_eth_dev_init() below.
+	 */
+
+	sfc_eth_dev_clear_ops(dev);
+
+	sfc_detach(sa);
+	sfc_unprobe(sa);
+
+	sfc_kvargs_cleanup(sa);
+
 	sfc_adapter_unlock(sa);
+	sfc_adapter_lock_fini(sa);
 
 	sfc_log_init(sa, "done");
+
+	/* Required for logging, so cleanup last */
+	sa->eth_dev = NULL;
+
+	dev->process_private = NULL;
+	free(sa);
 }
 
-static void
+static int
 sfc_dev_filter_set(struct rte_eth_dev *dev, enum sfc_dev_filter_mode mode,
 		   boolean_t enabled)
 {
@@ -349,6 +375,7 @@ sfc_dev_filter_set(struct rte_eth_dev *dev, enum sfc_dev_filter_mode mode,
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	boolean_t allmulti = (mode == SFC_DEV_FILTER_MODE_ALLMULTI);
 	const char *desc = (allmulti) ? "all-multi" : "promiscuous";
+	int rc = 0;
 
 	sfc_adapter_lock(sa);
 
@@ -364,7 +391,7 @@ sfc_dev_filter_set(struct rte_eth_dev *dev, enum sfc_dev_filter_mode mode,
 				     "start provided that isolated mode is "
 				     "disabled prior the next start");
 		} else if ((sa->state == SFC_ADAPTER_STARTED) &&
-			   (sfc_set_rx_mode(sa) != 0)) {
+			   ((rc = sfc_set_rx_mode(sa)) != 0)) {
 			*toggle = !(enabled);
 			sfc_warn(sa, "Failed to %s %s mode",
 				 ((enabled) ? "enable" : "disable"), desc);
@@ -372,30 +399,31 @@ sfc_dev_filter_set(struct rte_eth_dev *dev, enum sfc_dev_filter_mode mode,
 	}
 
 	sfc_adapter_unlock(sa);
+	return rc;
 }
 
-static void
+static int
 sfc_dev_promisc_enable(struct rte_eth_dev *dev)
 {
-	sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_PROMISC, B_TRUE);
+	return sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_PROMISC, B_TRUE);
 }
 
-static void
+static int
 sfc_dev_promisc_disable(struct rte_eth_dev *dev)
 {
-	sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_PROMISC, B_FALSE);
+	return sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_PROMISC, B_FALSE);
 }
 
-static void
+static int
 sfc_dev_allmulti_enable(struct rte_eth_dev *dev)
 {
-	sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_ALLMULTI, B_TRUE);
+	return sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_ALLMULTI, B_TRUE);
 }
 
-static void
+static int
 sfc_dev_allmulti_disable(struct rte_eth_dev *dev)
 {
-	sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_ALLMULTI, B_FALSE);
+	return sfc_dev_filter_set(dev, SFC_DEV_FILTER_MODE_ALLMULTI, B_FALSE);
 }
 
 static int
@@ -609,7 +637,7 @@ unlock:
 	return -ret;
 }
 
-static void
+static int
 sfc_stats_reset(struct rte_eth_dev *dev)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
@@ -622,12 +650,15 @@ sfc_stats_reset(struct rte_eth_dev *dev)
 		 * will be scheduled to be done during the next port start
 		 */
 		port->mac_stats_reset_pending = B_TRUE;
-		return;
+		return 0;
 	}
 
 	rc = sfc_port_reset_mac_stats(sa);
 	if (rc != 0)
 		sfc_err(sa, "failed to reset statistics (rc = %d)", rc);
+
+	SFC_ASSERT(rc >= 0);
+	return -rc;
 }
 
 static int
@@ -913,7 +944,7 @@ sfc_dev_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 	if (pdu > EFX_MAC_PDU_MAX) {
 		sfc_err(sa, "too big MTU %u (PDU size %u greater than max %u)",
 			(unsigned int)mtu, (unsigned int)pdu,
-			EFX_MAC_PDU_MAX);
+			(unsigned int)EFX_MAC_PDU_MAX);
 		goto fail_inval;
 	}
 
@@ -941,7 +972,7 @@ sfc_dev_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 	 * The driver does not use it, but other PMDs update jumbo frame
 	 * flag and max_rx_pkt_len when MTU is set.
 	 */
-	if (mtu > ETHER_MAX_LEN) {
+	if (mtu > RTE_ETHER_MAX_LEN) {
 		struct rte_eth_rxmode *rxmode = &dev->data->dev_conf.rxmode;
 		rxmode->offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	}
@@ -969,12 +1000,12 @@ fail_inval:
 	return -rc;
 }
 static int
-sfc_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
+sfc_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	struct sfc_port *port = &sa->port;
-	struct ether_addr *old_addr = &dev->data->mac_addrs[0];
+	struct rte_ether_addr *old_addr = &dev->data->mac_addrs[0];
 	int rc = 0;
 
 	sfc_adapter_lock(sa);
@@ -983,7 +1014,7 @@ sfc_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 	 * Copy the address to the device private data so that
 	 * it could be recalled in the case of adapter restart.
 	 */
-	ether_addr_copy(mac_addr, &port->default_mac_addr);
+	rte_ether_addr_copy(mac_addr, &port->default_mac_addr);
 
 	/*
 	 * Neither of the two following checks can return
@@ -1043,7 +1074,7 @@ sfc_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 
 unlock:
 	if (rc != 0)
-		ether_addr_copy(old_addr, &port->default_mac_addr);
+		rte_ether_addr_copy(old_addr, &port->default_mac_addr);
 
 	sfc_adapter_unlock(sa);
 
@@ -1053,8 +1084,8 @@ unlock:
 
 
 static int
-sfc_set_mc_addr_list(struct rte_eth_dev *dev, struct ether_addr *mc_addr_set,
-		     uint32_t nb_mc_addr)
+sfc_set_mc_addr_list(struct rte_eth_dev *dev,
+		struct rte_ether_addr *mc_addr_set, uint32_t nb_mc_addr)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_port *port = &sa->port;
@@ -1489,7 +1520,7 @@ sfc_dev_rss_hash_update(struct rte_eth_dev *dev,
 
 	if ((rss_conf->rss_key != NULL) &&
 	    (rss_conf->rss_key_len != sizeof(rss->key))) {
-		sfc_err(sa, "RSS key size is wrong (should be %lu)",
+		sfc_err(sa, "RSS key size is wrong (should be %zu)",
 			sizeof(rss->key));
 		return -EINVAL;
 	}
@@ -1713,6 +1744,32 @@ sfc_pool_ops_supported(struct rte_eth_dev *dev, const char *pool)
 	return sap->dp_rx->pool_ops_supported(pool);
 }
 
+static int
+sfc_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
+{
+	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
+	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	struct sfc_rxq_info *rxq_info;
+
+	SFC_ASSERT(queue_id < sas->rxq_count);
+	rxq_info = &sas->rxq_info[queue_id];
+
+	return sap->dp_rx->intr_enable(rxq_info->dp);
+}
+
+static int
+sfc_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id)
+{
+	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
+	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	struct sfc_rxq_info *rxq_info;
+
+	SFC_ASSERT(queue_id < sas->rxq_count);
+	rxq_info = &sas->rxq_info[queue_id];
+
+	return sap->dp_rx->intr_disable(rxq_info->dp);
+}
+
 static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.dev_configure			= sfc_dev_configure,
 	.dev_start			= sfc_dev_start,
@@ -1743,6 +1800,8 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.rx_descriptor_done		= sfc_rx_descriptor_done,
 	.rx_descriptor_status		= sfc_rx_descriptor_status,
 	.tx_descriptor_status		= sfc_tx_descriptor_status,
+	.rx_queue_intr_enable		= sfc_rx_queue_intr_enable,
+	.rx_queue_intr_disable		= sfc_rx_queue_intr_disable,
 	.tx_queue_setup			= sfc_tx_queue_setup,
 	.tx_queue_release		= sfc_tx_queue_release,
 	.flow_ctrl_get			= sfc_flow_ctrl_get,
@@ -2053,7 +2112,7 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	struct sfc_adapter *sa;
 	int rc;
 	const efx_nic_cfg_t *encp;
-	const struct ether_addr *from;
+	const struct rte_ether_addr *from;
 
 	sfc_register_dp();
 
@@ -2095,7 +2154,9 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 
 	sfc_log_init(sa, "entry");
 
-	dev->data->mac_addrs = rte_zmalloc("sfc", ETHER_ADDR_LEN, 0);
+	dev->data->dev_flags |= RTE_ETH_DEV_CLOSE_REMOVE;
+
+	dev->data->mac_addrs = rte_zmalloc("sfc", RTE_ETHER_ADDR_LEN, 0);
 	if (dev->data->mac_addrs == NULL) {
 		rc = ENOMEM;
 		goto fail_mac_addrs;
@@ -2125,8 +2186,8 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	 * The arguments are really reverse order in comparison to
 	 * Linux kernel. Copy from NIC config to Ethernet device data.
 	 */
-	from = (const struct ether_addr *)(encp->enc_mac_addr);
-	ether_addr_copy(from, &dev->data->mac_addrs[0]);
+	from = (const struct rte_ether_addr *)(encp->enc_mac_addr);
+	rte_ether_addr_copy(from, &dev->data->mac_addrs[0]);
 
 	sfc_adapter_unlock(sa);
 
@@ -2161,35 +2222,12 @@ fail_alloc_sa:
 static int
 sfc_eth_dev_uninit(struct rte_eth_dev *dev)
 {
-	struct sfc_adapter *sa;
-
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
 		sfc_eth_dev_secondary_clear_ops(dev);
 		return 0;
 	}
 
-	sa = sfc_adapter_by_eth_dev(dev);
-	sfc_log_init(sa, "entry");
-
-	sfc_adapter_lock(sa);
-
-	sfc_eth_dev_clear_ops(dev);
-
-	sfc_detach(sa);
-	sfc_unprobe(sa);
-
-	sfc_kvargs_cleanup(sa);
-
-	sfc_adapter_unlock(sa);
-	sfc_adapter_lock_fini(sa);
-
-	sfc_log_init(sa, "done");
-
-	/* Required for logging, so cleanup last */
-	sa->eth_dev = NULL;
-
-	dev->process_private = NULL;
-	free(sa);
+	sfc_dev_close(dev);
 
 	return 0;
 }

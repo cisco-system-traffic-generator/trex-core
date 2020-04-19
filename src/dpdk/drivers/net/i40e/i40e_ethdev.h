@@ -268,16 +268,17 @@ enum i40e_flxpld_layer_idx {
  * Considering QinQ packet, the VLAN tag needs to be counted twice.
  */
 #define I40E_ETH_OVERHEAD \
-	(ETHER_HDR_LEN + ETHER_CRC_LEN + I40E_VLAN_TAG_SIZE * 2)
+	(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + I40E_VLAN_TAG_SIZE * 2)
 
 struct i40e_adapter;
+struct rte_pci_driver;
 
 /**
  * MAC filter structure
  */
 struct i40e_mac_filter_info {
 	enum rte_mac_filter_type filter_type;
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 };
 
 TAILQ_HEAD(i40e_mac_filter_list, i40e_mac_filter);
@@ -330,7 +331,7 @@ struct i40e_veb {
 
 /* i40e MACVLAN filter structure */
 struct i40e_macvlan_filter {
-	struct ether_addr macaddr;
+	struct rte_ether_addr macaddr;
 	enum rte_mac_filter_type filter_type;
 	uint16_t vlan_id;
 };
@@ -421,10 +422,27 @@ struct i40e_pf_vf {
 	uint16_t vf_idx; /* VF index in pf->vfs */
 	uint16_t lan_nb_qps; /* Actual queues allocated */
 	uint16_t reset_cnt; /* Total vf reset times */
-	struct ether_addr mac_addr;  /* Default MAC address */
+	struct rte_ether_addr mac_addr;  /* Default MAC address */
 	/* version of the virtchnl from VF */
 	struct virtchnl_version_info version;
 	uint32_t request_caps; /* offload caps requested from VF */
+	uint64_t num_mdd_events; /* num of mdd events detected */
+
+	/*
+	 * Variables for store the arrival timestamp of VF messages.
+	 * If the timestamp of latest message stored at
+	 * `msg_timestamps[index % max]` then the timestamp of
+	 * earliest message stored at `msg_time[(index + 1) % max]`.
+	 * When a new message come, the timestamp of this message
+	 * will be stored at `msg_timestamps[(index + 1) % max]` and the
+	 * earliest message timestamp is at
+	 * `msg_timestamps[(index + 2) % max]` now...
+	 */
+	uint32_t msg_index;
+	uint64_t *msg_timestamps;
+
+	/* cycle of stop ignoring VF message */
+	uint64_t ignore_end_cycle;
 };
 
 /*
@@ -484,6 +502,29 @@ struct i40e_gtp_ipv6_flow {
 	struct rte_eth_ipv6_flow ip6;
 };
 
+/* A structure used to define the input for ESP IPV4 flow */
+struct i40e_esp_ipv4_flow {
+	struct rte_eth_ipv4_flow ipv4;
+	uint32_t spi;	/* SPI in big endian. */
+};
+
+/* A structure used to define the input for ESP IPV6 flow */
+struct i40e_esp_ipv6_flow {
+	struct rte_eth_ipv6_flow ipv6;
+	uint32_t spi;	/* SPI in big endian. */
+};
+/* A structure used to define the input for ESP IPV4 UDP flow */
+struct i40e_esp_ipv4_udp_flow {
+	struct rte_eth_udpv4_flow udp;
+	uint32_t spi;	/* SPI in big endian. */
+};
+
+/* A structure used to define the input for ESP IPV6 UDP flow */
+struct i40e_esp_ipv6_udp_flow {
+	struct rte_eth_udpv6_flow udp;
+	uint32_t spi;	/* SPI in big endian. */
+};
+
 /* A structure used to define the input for raw type flow */
 struct i40e_raw_flow {
 	uint16_t pctype;
@@ -491,24 +532,42 @@ struct i40e_raw_flow {
 	uint32_t length;
 };
 
+/* A structure used to define the input for L2TPv3 over IPv4 flow */
+struct i40e_ipv4_l2tpv3oip_flow {
+	struct rte_eth_ipv4_flow ip4;
+	uint32_t session_id; /* Session ID in big endian. */
+};
+
+/* A structure used to define the input for L2TPv3 over IPv6 flow */
+struct i40e_ipv6_l2tpv3oip_flow {
+	struct rte_eth_ipv6_flow ip6;
+	uint32_t session_id; /* Session ID in big endian. */
+};
+
 /*
  * A union contains the inputs for all types of flow
  * items in flows need to be in big endian
  */
 union i40e_fdir_flow {
-	struct rte_eth_l2_flow     l2_flow;
-	struct rte_eth_udpv4_flow  udp4_flow;
-	struct rte_eth_tcpv4_flow  tcp4_flow;
-	struct rte_eth_sctpv4_flow sctp4_flow;
-	struct rte_eth_ipv4_flow   ip4_flow;
-	struct rte_eth_udpv6_flow  udp6_flow;
-	struct rte_eth_tcpv6_flow  tcp6_flow;
-	struct rte_eth_sctpv6_flow sctp6_flow;
-	struct rte_eth_ipv6_flow   ipv6_flow;
-	struct i40e_gtp_flow       gtp_flow;
-	struct i40e_gtp_ipv4_flow  gtp_ipv4_flow;
-	struct i40e_gtp_ipv6_flow  gtp_ipv6_flow;
-	struct i40e_raw_flow       raw_flow;
+	struct rte_eth_l2_flow          l2_flow;
+	struct rte_eth_udpv4_flow       udp4_flow;
+	struct rte_eth_tcpv4_flow       tcp4_flow;
+	struct rte_eth_sctpv4_flow      sctp4_flow;
+	struct rte_eth_ipv4_flow        ip4_flow;
+	struct rte_eth_udpv6_flow       udp6_flow;
+	struct rte_eth_tcpv6_flow       tcp6_flow;
+	struct rte_eth_sctpv6_flow      sctp6_flow;
+	struct rte_eth_ipv6_flow        ipv6_flow;
+	struct i40e_gtp_flow            gtp_flow;
+	struct i40e_gtp_ipv4_flow       gtp_ipv4_flow;
+	struct i40e_gtp_ipv6_flow       gtp_ipv6_flow;
+	struct i40e_raw_flow            raw_flow;
+	struct i40e_ipv4_l2tpv3oip_flow ip4_l2tpv3oip_flow;
+	struct i40e_ipv6_l2tpv3oip_flow ip6_l2tpv3oip_flow;
+	struct i40e_esp_ipv4_flow       esp_ipv4_flow;
+	struct i40e_esp_ipv6_flow       esp_ipv6_flow;
+	struct i40e_esp_ipv4_udp_flow   esp_ipv4_udp_flow;
+	struct i40e_esp_ipv6_udp_flow   esp_ipv6_udp_flow;
 };
 
 enum i40e_fdir_ip_type {
@@ -525,8 +584,10 @@ struct i40e_fdir_flow_ext {
 	uint16_t dst_id; /* VF ID, available when is_vf is 1*/
 	bool inner_ip;   /* If there is inner ip */
 	enum i40e_fdir_ip_type iip_type; /* ip type for inner ip */
+	enum i40e_fdir_ip_type oip_type; /* ip type for outer ip */
 	bool customized_pctype; /* If customized pctype is used */
 	bool pkt_template; /* If raw packet template is used */
+	bool is_udp; /* ipv4|ipv6 udp flow */
 };
 
 /* A structure used to define the input for a flow director filter entry */
@@ -641,7 +702,7 @@ struct i40e_fdir_info {
 
 /* Ethertype filter struct */
 struct i40e_ethertype_filter_input {
-	struct ether_addr mac_addr;   /* Mac address to match */
+	struct rte_ether_addr mac_addr;   /* Mac address to match */
 	uint16_t ether_type;          /* Ether type to match */
 };
 
@@ -752,6 +813,8 @@ enum i40e_tunnel_type {
 	I40E_TUNNEL_TYPE_QINQ,
 	I40E_TUNNEL_TYPE_GTPC,
 	I40E_TUNNEL_TYPE_GTPU,
+	I40E_TUNNEL_TYPE_ESPoUDP,
+	I40E_TUNNEL_TYPE_ESPoIP,
 	I40E_TUNNEL_TYPE_MAX,
 };
 
@@ -759,8 +822,8 @@ enum i40e_tunnel_type {
  * Tunneling Packet filter configuration.
  */
 struct i40e_tunnel_filter_conf {
-	struct ether_addr outer_mac;    /**< Outer MAC address to match. */
-	struct ether_addr inner_mac;    /**< Inner MAC address to match. */
+	struct rte_ether_addr outer_mac;    /**< Outer MAC address to match. */
+	struct rte_ether_addr inner_mac;    /**< Inner MAC address to match. */
 	uint16_t inner_vlan;            /**< Inner VLAN to match. */
 	uint32_t outer_vlan;            /**< Outer VLAN to match */
 	enum i40e_tunnel_iptype ip_type; /**< IP address type. */
@@ -880,6 +943,14 @@ enum i40e_new_pctype {
 	I40E_CUSTOMIZED_GTPU_IPV4,
 	I40E_CUSTOMIZED_GTPU_IPV6,
 	I40E_CUSTOMIZED_GTPU,
+	I40E_CUSTOMIZED_IPV4_L2TPV3,
+	I40E_CUSTOMIZED_IPV6_L2TPV3,
+	I40E_CUSTOMIZED_ESP_IPV4,
+	I40E_CUSTOMIZED_ESP_IPV6,
+	I40E_CUSTOMIZED_ESP_IPV4_UDP,
+	I40E_CUSTOMIZED_ESP_IPV6_UDP,
+	I40E_CUSTOMIZED_AH_IPV4,
+	I40E_CUSTOMIZED_AH_IPV6,
 	I40E_CUSTOMIZED_MAX,
 };
 
@@ -897,6 +968,20 @@ struct i40e_rte_flow_rss_conf {
 		     I40E_VFQF_HKEY_MAX_INDEX : I40E_PFQF_HKEY_MAX_INDEX + 1) *
 		    sizeof(uint32_t)]; /* Hash key. */
 	uint16_t queue[I40E_MAX_Q_PER_TC]; /**< Queues indices to use. */
+};
+
+struct i40e_vf_msg_cfg {
+	/* maximal VF message during a statistic period */
+	uint32_t max_msg;
+
+	/* statistic period, in second */
+	uint32_t period;
+	/*
+	 * If message statistics from a VF exceed the maximal limitation,
+	 * the PF will ignore any new message from that VF for
+	 * 'ignor_second' time.
+	 */
+	uint32_t ignore_second;
 };
 
 /*
@@ -919,7 +1004,7 @@ struct i40e_pf {
 	bool offset_loaded;
 
 	struct rte_eth_dev_data *dev_data; /* Pointer to the device data */
-	struct ether_addr dev_addr; /* PF device mac address */
+	struct rte_ether_addr dev_addr; /* PF device mac address */
 	uint64_t flags; /* PF feature flags */
 	/* All kinds of queue pair setting for different VSIs */
 	struct i40e_pf_vf *vfs;
@@ -970,10 +1055,13 @@ struct i40e_pf {
 
 	/* Dynamic Device Personalization */
 	bool gtp_support; /* 1 - support GTP-C and GTP-U */
+	bool esp_support; /* 1 - support ESP SPI */
 	/* customer customized pctype */
 	struct i40e_customized_pctype customized_pctype[I40E_CUSTOMIZED_MAX];
 	/* Switch Domain Id */
 	uint16_t switch_domain_id;
+
+	struct i40e_vf_msg_cfg vf_msg_cfg;
 };
 
 enum pending_msg {
@@ -1023,7 +1111,8 @@ struct i40e_vf {
 	uint16_t promisc_flags; /* Promiscuous setting */
 	uint32_t vlan[I40E_VFTA_SIZE]; /* VLAN bit map */
 
-	struct ether_addr mc_addrs[I40E_NUM_MACADDR_MAX]; /* Multicast addrs */
+	/* Multicast addrs */
+	struct rte_ether_addr mc_addrs[I40E_NUM_MACADDR_MAX];
 	uint16_t mc_addrs_num;   /* Multicast mac addresses number */
 
 	/* Event from pf */
@@ -1131,7 +1220,7 @@ int i40e_switch_tx_queue(struct i40e_hw *hw, uint16_t q_idx, bool on);
 int i40e_vsi_add_vlan(struct i40e_vsi *vsi, uint16_t vlan);
 int i40e_vsi_delete_vlan(struct i40e_vsi *vsi, uint16_t vlan);
 int i40e_vsi_add_mac(struct i40e_vsi *vsi, struct i40e_mac_filter_info *filter);
-int i40e_vsi_delete_mac(struct i40e_vsi *vsi, struct ether_addr *addr);
+int i40e_vsi_delete_mac(struct i40e_vsi *vsi, struct rte_ether_addr *addr);
 void i40e_update_vsi_stats(struct i40e_vsi *vsi);
 void i40e_pf_disable_irq0(struct i40e_hw *hw);
 void i40e_pf_enable_irq0(struct i40e_hw *hw);
@@ -1151,6 +1240,7 @@ const struct rte_memzone *i40e_memzone_reserve(const char *name,
 					uint32_t len,
 					int socket_id);
 int i40e_fdir_configure(struct rte_eth_dev *dev);
+void i40e_fdir_rx_proc_enable(struct rte_eth_dev *dev, bool on);
 void i40e_fdir_teardown(struct i40e_pf *pf);
 enum i40e_filter_pctype
 	i40e_flowtype_to_pctype(const struct i40e_adapter *adapter,
@@ -1175,6 +1265,10 @@ void i40e_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_rxq_info *qinfo);
 void i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_txq_info *qinfo);
+int i40e_rx_burst_mode_get(struct rte_eth_dev *dev, uint16_t queue_id,
+			   struct rte_eth_burst_mode *mode);
+int i40e_tx_burst_mode_get(struct rte_eth_dev *dev, uint16_t queue_id,
+			   struct rte_eth_burst_mode *mode);
 struct i40e_ethertype_filter *
 i40e_sw_ethertype_filter_lookup(struct i40e_ethertype_rule *ethertype_rule,
 			const struct i40e_ethertype_filter_input *input);
@@ -1206,7 +1300,7 @@ int i40e_dev_consistent_tunnel_filter_set(struct i40e_pf *pf,
 int i40e_fdir_flush(struct rte_eth_dev *dev);
 int i40e_find_all_vlan_for_mac(struct i40e_vsi *vsi,
 			       struct i40e_macvlan_filter *mv_f,
-			       int num, struct ether_addr *addr);
+			       int num, struct rte_ether_addr *addr);
 int i40e_remove_macvlan_filters(struct i40e_vsi *vsi,
 				struct i40e_macvlan_filter *filter,
 				int total);
@@ -1214,7 +1308,9 @@ void i40e_set_vlan_filter(struct i40e_vsi *vsi, uint16_t vlan_id, bool on);
 int i40e_add_macvlan_filters(struct i40e_vsi *vsi,
 			     struct i40e_macvlan_filter *filter,
 			     int total);
+bool is_device_supported(struct rte_eth_dev *dev, struct rte_pci_driver *drv);
 bool is_i40e_supported(struct rte_eth_dev *dev);
+bool is_i40evf_supported(struct rte_eth_dev *dev);
 
 int i40e_validate_input_set(enum i40e_filter_pctype pctype,
 			    enum rte_filter_type filter, uint64_t inset);
