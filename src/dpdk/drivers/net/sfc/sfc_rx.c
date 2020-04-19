@@ -52,6 +52,19 @@ sfc_rx_qflush_failed(struct sfc_rxq_info *rxq_info)
 	rxq_info->state &= ~SFC_RXQ_FLUSHING;
 }
 
+static int
+sfc_efx_rx_qprime(struct sfc_efx_rxq *rxq)
+{
+	int rc = 0;
+
+	if (rxq->evq->read_ptr_primed != rxq->evq->read_ptr) {
+		rc = efx_ev_qprime(rxq->evq->common, rxq->evq->read_ptr);
+		if (rc == 0)
+			rxq->evq->read_ptr_primed = rxq->evq->read_ptr;
+	}
+	return rc;
+}
+
 static void
 sfc_efx_rx_qrefill(struct sfc_efx_rxq *rxq)
 {
@@ -306,6 +319,9 @@ discard:
 
 	sfc_efx_rx_qrefill(rxq);
 
+	if (rxq->flags & SFC_EFX_RXQ_FLAG_INTR_EN)
+		sfc_efx_rx_qprime(rxq);
+
 	return done_pkts;
 }
 
@@ -493,6 +509,12 @@ sfc_efx_rx_qdestroy(struct sfc_dp_rxq *dp_rxq)
 	rte_free(rxq);
 }
 
+
+/* Use qstop and qstart functions in the case of qstart failure */
+static sfc_dp_rx_qstop_t sfc_efx_rx_qstop;
+static sfc_dp_rx_qpurge_t sfc_efx_rx_qpurge;
+
+
 static sfc_dp_rx_qstart_t sfc_efx_rx_qstart;
 static int
 sfc_efx_rx_qstart(struct sfc_dp_rxq *dp_rxq,
@@ -501,6 +523,7 @@ sfc_efx_rx_qstart(struct sfc_dp_rxq *dp_rxq,
 	/* libefx-based datapath is specific to libefx-based PMD */
 	struct sfc_efx_rxq *rxq = sfc_efx_rxq_by_dp_rxq(dp_rxq);
 	struct sfc_rxq *crxq = sfc_rxq_by_dp_rxq(dp_rxq);
+	int rc;
 
 	rxq->common = crxq->common;
 
@@ -510,10 +533,20 @@ sfc_efx_rx_qstart(struct sfc_dp_rxq *dp_rxq,
 
 	rxq->flags |= (SFC_EFX_RXQ_FLAG_STARTED | SFC_EFX_RXQ_FLAG_RUNNING);
 
+	if (rxq->flags & SFC_EFX_RXQ_FLAG_INTR_EN) {
+		rc = sfc_efx_rx_qprime(rxq);
+		if (rc != 0)
+			goto fail_rx_qprime;
+	}
+
 	return 0;
+
+fail_rx_qprime:
+	sfc_efx_rx_qstop(dp_rxq, NULL);
+	sfc_efx_rx_qpurge(dp_rxq);
+	return rc;
 }
 
-static sfc_dp_rx_qstop_t sfc_efx_rx_qstop;
 static void
 sfc_efx_rx_qstop(struct sfc_dp_rxq *dp_rxq,
 		 __rte_unused unsigned int *evq_read_ptr)
@@ -528,7 +561,6 @@ sfc_efx_rx_qstop(struct sfc_dp_rxq *dp_rxq,
 	 */
 }
 
-static sfc_dp_rx_qpurge_t sfc_efx_rx_qpurge;
 static void
 sfc_efx_rx_qpurge(struct sfc_dp_rxq *dp_rxq)
 {
@@ -551,14 +583,43 @@ sfc_efx_rx_qpurge(struct sfc_dp_rxq *dp_rxq)
 	rxq->flags &= ~SFC_EFX_RXQ_FLAG_STARTED;
 }
 
+static sfc_dp_rx_intr_enable_t sfc_efx_rx_intr_enable;
+static int
+sfc_efx_rx_intr_enable(struct sfc_dp_rxq *dp_rxq)
+{
+	struct sfc_efx_rxq *rxq = sfc_efx_rxq_by_dp_rxq(dp_rxq);
+	int rc = 0;
+
+	rxq->flags |= SFC_EFX_RXQ_FLAG_INTR_EN;
+	if (rxq->flags & SFC_EFX_RXQ_FLAG_STARTED) {
+		rc = sfc_efx_rx_qprime(rxq);
+		if (rc != 0)
+			rxq->flags &= ~SFC_EFX_RXQ_FLAG_INTR_EN;
+	}
+	return rc;
+}
+
+static sfc_dp_rx_intr_disable_t sfc_efx_rx_intr_disable;
+static int
+sfc_efx_rx_intr_disable(struct sfc_dp_rxq *dp_rxq)
+{
+	struct sfc_efx_rxq *rxq = sfc_efx_rxq_by_dp_rxq(dp_rxq);
+
+	/* Cannot disarm, just disable rearm */
+	rxq->flags &= ~SFC_EFX_RXQ_FLAG_INTR_EN;
+	return 0;
+}
+
 struct sfc_dp_rx sfc_efx_rx = {
 	.dp = {
 		.name		= SFC_KVARG_DATAPATH_EFX,
 		.type		= SFC_DP_RX,
 		.hw_fw_caps	= 0,
 	},
-	.features		= SFC_DP_RX_FEAT_SCATTER |
-				  SFC_DP_RX_FEAT_CHECKSUM,
+	.features		= SFC_DP_RX_FEAT_INTR,
+	.dev_offload_capa	= DEV_RX_OFFLOAD_CHECKSUM |
+				  DEV_RX_OFFLOAD_RSS_HASH,
+	.queue_offload_capa	= DEV_RX_OFFLOAD_SCATTER,
 	.qsize_up_rings		= sfc_efx_rx_qsize_up_rings,
 	.qcreate		= sfc_efx_rx_qcreate,
 	.qdestroy		= sfc_efx_rx_qdestroy,
@@ -568,6 +629,8 @@ struct sfc_dp_rx sfc_efx_rx = {
 	.supported_ptypes_get	= sfc_efx_supported_ptypes_get,
 	.qdesc_npending		= sfc_efx_rx_qdesc_npending,
 	.qdesc_status		= sfc_efx_rx_qdesc_status,
+	.intr_enable		= sfc_efx_rx_intr_enable,
+	.intr_disable		= sfc_efx_rx_intr_disable,
 	.pkt_burst		= sfc_efx_recv_pkts,
 };
 
@@ -806,36 +869,32 @@ sfc_rx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 	sfc_ev_qstop(rxq->evq);
 }
 
+static uint64_t
+sfc_rx_get_offload_mask(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	uint64_t no_caps = 0;
+
+	if (encp->enc_tunnel_encapsulations_supported == 0)
+		no_caps |= DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM;
+
+	return ~no_caps;
+}
+
 uint64_t
 sfc_rx_get_dev_offload_caps(struct sfc_adapter *sa)
 {
-	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
-	uint64_t caps = 0;
+	uint64_t caps = sa->priv.dp_rx->dev_offload_capa;
 
 	caps |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 
-	if (sa->priv.dp_rx->features & SFC_DP_RX_FEAT_CHECKSUM) {
-		caps |= DEV_RX_OFFLOAD_IPV4_CKSUM;
-		caps |= DEV_RX_OFFLOAD_UDP_CKSUM;
-		caps |= DEV_RX_OFFLOAD_TCP_CKSUM;
-	}
-
-	if (encp->enc_tunnel_encapsulations_supported &&
-	    (sa->priv.dp_rx->features & SFC_DP_RX_FEAT_TUNNELS))
-		caps |= DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM;
-
-	return caps;
+	return caps & sfc_rx_get_offload_mask(sa);
 }
 
 uint64_t
 sfc_rx_get_queue_offload_caps(struct sfc_adapter *sa)
 {
-	uint64_t caps = 0;
-
-	if (sa->priv.dp_rx->features & SFC_DP_RX_FEAT_SCATTER)
-		caps |= DEV_RX_OFFLOAD_SCATTER;
-
-	return caps;
+	return sa->priv.dp_rx->queue_offload_capa & sfc_rx_get_offload_mask(sa);
 }
 
 static int
@@ -962,7 +1021,7 @@ sfc_rx_mb_pool_buf_size(struct sfc_adapter *sa, struct rte_mempool *mb_pool)
 		 * Start is aligned the same or better than end,
 		 * just align length.
 		 */
-		buf_size = P2ALIGN(buf_size, nic_align_end);
+		buf_size = EFX_P2ALIGN(uint32_t, buf_size, nic_align_end);
 	}
 
 	return buf_size;
@@ -1048,7 +1107,8 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 		EFX_RXQ_FLAG_SCATTER : EFX_RXQ_FLAG_NONE;
 
 	if ((encp->enc_tunnel_encapsulations_supported != 0) &&
-	    (sa->priv.dp_rx->features & SFC_DP_RX_FEAT_TUNNELS))
+	    (sfc_dp_rx_offload_capa(sa->priv.dp_rx) &
+	     DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM) != 0)
 		rxq_info->type_flags |= EFX_RXQ_FLAG_INNER_CLASSES;
 
 	rc = sfc_ev_qinit(sa, SFC_EVQ_TYPE_RX, sw_index,
@@ -1097,6 +1157,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 
 	info.rxq_entries = rxq_info->entries;
 	info.rxq_hw_ring = rxq->mem.esm_base;
+	info.evq_hw_index = sfc_evq_index_by_rxq_sw_index(sa, sw_index);
 	info.evq_entries = evq_entries;
 	info.evq_hw_ring = evq->mem.esm_base;
 	info.hw_index = rxq->hw_index;
@@ -1343,7 +1404,7 @@ sfc_rx_process_adv_conf_rss(struct sfc_adapter *sa,
 
 	if (conf->rss_key != NULL) {
 		if (conf->rss_key_len != sizeof(rss->key)) {
-			sfc_err(sa, "RSS key size is wrong (should be %lu)",
+			sfc_err(sa, "RSS key size is wrong (should be %zu)",
 				sizeof(rss->key));
 			return EINVAL;
 		}
@@ -1496,6 +1557,10 @@ sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 		sfc_warn(sa, "Rx outer IPv4 checksum offload cannot be disabled - always on");
 		rxmode->offloads |= DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM;
 	}
+
+	if ((offloads_supported & DEV_RX_OFFLOAD_RSS_HASH) &&
+	    (rxmode->mq_mode & ETH_MQ_RX_RSS_FLAG))
+		rxmode->offloads |= DEV_RX_OFFLOAD_RSS_HASH;
 
 	return rc;
 }

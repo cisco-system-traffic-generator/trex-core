@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <rte_eal.h>
+#include <rte_errno.h>
 #include <rte_alarm.h>
 #include <rte_string_fns.h>
 #include <rte_devargs.h>
@@ -404,7 +405,11 @@ int eal_dev_hotplug_request_to_secondary(struct eal_dev_mp_req *req)
 
 	ret = rte_mp_request_sync(&mp_req, &mp_reply, &ts);
 	if (ret != 0) {
-		RTE_LOG(ERR, EAL, "rte_mp_request_sync failed\n");
+		/* if IPC is not supported, behave as if the call succeeded */
+		if (rte_errno != ENOTSUP)
+			RTE_LOG(ERR, EAL, "rte_mp_request_sync failed\n");
+		else
+			ret = 0;
 		return ret;
 	}
 
@@ -433,14 +438,15 @@ int eal_dev_hotplug_request_to_secondary(struct eal_dev_mp_req *req)
 	return 0;
 }
 
-int rte_mp_dev_hotplug_init(void)
+int eal_mp_dev_hotplug_init(void)
 {
 	int ret;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 		ret = rte_mp_action_register(EAL_DEV_MP_ACTION_REQUEST,
 					handle_secondary_request);
-		if (ret != 0) {
+		/* primary is allowed to not support IPC */
+		if (ret != 0 && rte_errno != ENOTSUP) {
 			RTE_LOG(ERR, EAL, "Couldn't register '%s' action\n",
 				EAL_DEV_MP_ACTION_REQUEST);
 			return ret;

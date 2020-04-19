@@ -195,6 +195,16 @@ ef10_intr_fini(
 /* NIC */
 
 extern	__checkReturn	efx_rc_t
+efx_mcdi_vadaptor_alloc(
+	__in		efx_nic_t *enp,
+	__in		uint32_t port_id);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_vadaptor_free(
+	__in		efx_nic_t *enp,
+	__in		uint32_t port_id);
+
+extern	__checkReturn	efx_rc_t
 ef10_nic_probe(
 	__in		efx_nic_t *enp);
 
@@ -450,6 +460,12 @@ ef10_nvram_partn_size(
 	__in			efx_nic_t *enp,
 	__in			uint32_t partn,
 	__out			size_t *sizep);
+
+extern	__checkReturn		efx_rc_t
+ef10_nvram_partn_info(
+	__in			efx_nic_t *enp,
+	__in			uint32_t partn,
+	__out			efx_nvram_info_t * enip);
 
 extern	__checkReturn		efx_rc_t
 ef10_nvram_partn_rw_start(
@@ -1256,6 +1272,153 @@ efx_mcdi_set_nic_global(
 
 #endif	/* EFSYS_OPT_FW_SUBVARIANT_AWARE */
 
+#if EFSYS_OPT_EVB
+extern	__checkReturn	efx_rc_t
+ef10_evb_init(
+	__in		efx_nic_t *enp);
+
+extern			void
+ef10_evb_fini(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vswitch_alloc(
+	__in		efx_nic_t *enp,
+	__out		efx_vswitch_id_t *vswitch_idp);
+
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vswitch_free(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_alloc(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_type_t vport_type,
+	__in		uint16_t vid,
+	__in		boolean_t vlan_restrict,
+	__out		efx_vport_id_t *vport_idp);
+
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_free(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_mac_addr_add(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id,
+	__in_ecount(6)	uint8_t *addrp);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_mac_addr_del(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id,
+	__in_ecount(6)	uint8_t *addrp);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vadaptor_alloc(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id);
+
+
+extern __checkReturn	efx_rc_t
+ef10_evb_vadaptor_free(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_assign(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id,
+	__in		uint32_t vf_index);
+
+extern	__checkReturn				efx_rc_t
+ef10_evb_vport_reconfigure(
+	__in					efx_nic_t *enp,
+	__in					efx_vswitch_id_t vswitch_id,
+	__in					efx_vport_id_t vport_id,
+	__in_opt				uint16_t *vidp,
+	__in_bcount_opt(EFX_MAC_ADDR_LEN)	uint8_t *addrp,
+	__out_opt				boolean_t *fn_resetp);
+
+extern	__checkReturn	efx_rc_t
+ef10_evb_vport_stats(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_id_t vswitch_id,
+	__in		efx_vport_id_t vport_id,
+	__out		efsys_mem_t *esmp);
+
+#endif  /* EFSYS_OPT_EVB */
+
+#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
+extern	__checkReturn	efx_rc_t
+ef10_proxy_auth_init(
+	__in		efx_nic_t *enp);
+
+extern			void
+ef10_proxy_auth_fini(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn		efx_rc_t
+ef10_proxy_auth_mc_config(
+	__in			efx_nic_t *enp,
+	__in			efsys_mem_t *request_bufferp,
+	__in			efsys_mem_t *response_bufferp,
+	__in			efsys_mem_t *status_bufferp,
+	__in			uint32_t block_cnt,
+	__in_ecount(op_count)	uint32_t *op_listp,
+	__in			size_t op_count);
+
+extern	__checkReturn	efx_rc_t
+ef10_proxy_auth_disable(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
+ef10_proxy_auth_privilege_modify(
+	__in		efx_nic_t *enp,
+	__in		uint32_t fn_group,
+	__in		uint32_t pf_index,
+	__in		uint32_t vf_index,
+	__in		uint32_t add_privileges_mask,
+	__in		uint32_t remove_privileges_mask);
+
+	__checkReturn	efx_rc_t
+ef10_proxy_auth_set_privilege_mask(
+	__in		efx_nic_t *enp,
+	__in		uint32_t vf_index,
+	__in		uint32_t mask,
+	__in		uint32_t value);
+
+	__checkReturn	efx_rc_t
+ef10_proxy_auth_complete_request(
+	__in		efx_nic_t *enp,
+	__in		uint32_t fn_index,
+	__in		uint32_t proxy_result,
+	__in		uint32_t handle);
+
+	__checkReturn	efx_rc_t
+ef10_proxy_auth_exec_cmd(
+	__in		efx_nic_t *enp,
+	__inout		efx_proxy_cmd_params_t *paramsp);
+
+	__checkReturn	efx_rc_t
+ef10_proxy_auth_get_privilege_mask(
+	__in		efx_nic_t *enp,
+	__in		uint32_t pf_index,
+	__in		uint32_t vf_index,
+	__out		uint32_t *maskp);
+
+#endif  /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
 #if EFSYS_OPT_RX_PACKED_STREAM
 
@@ -1276,10 +1439,11 @@ efx_mcdi_set_nic_global(
 #define	EFX_RX_PACKED_STREAM_RX_PREFIX_SIZE 8
 
 /* Minimum space for packet in packed stream mode */
-#define	EFX_RX_PACKED_STREAM_MIN_PACKET_SPACE		     \
-	P2ROUNDUP(EFX_RX_PACKED_STREAM_RX_PREFIX_SIZE +	     \
-	    EFX_MAC_PDU_MIN +				     \
-	    EFX_RX_PACKED_STREAM_ALIGNMENT,		     \
+#define	EFX_RX_PACKED_STREAM_MIN_PACKET_SPACE		\
+	EFX_P2ROUNDUP(size_t,				\
+	    EFX_RX_PACKED_STREAM_RX_PREFIX_SIZE +	\
+	    EFX_MAC_PDU_MIN +				\
+	    EFX_RX_PACKED_STREAM_ALIGNMENT,		\
 	    EFX_RX_PACKED_STREAM_ALIGNMENT)
 
 /* Maximum number of credits */

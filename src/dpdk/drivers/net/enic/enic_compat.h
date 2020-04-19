@@ -14,26 +14,9 @@
 #include <rte_log.h>
 #include <rte_io.h>
 
-#define ENIC_PAGE_ALIGN 4096UL
-#define ENIC_ALIGN      ENIC_PAGE_ALIGN
-#define NAME_MAX        255
 #define ETH_ALEN        6
 
 #define __iomem
-
-#define rmb()     rte_rmb() /* dpdk rte provided rmb */
-#define wmb()     rte_wmb() /* dpdk rte provided wmb */
-
-#define le16_to_cpu
-#define le32_to_cpu
-#define le64_to_cpu
-#define cpu_to_le16
-#define cpu_to_le32
-#define cpu_to_le64
-
-#ifndef offsetof
-#define offsetof(t, m) ((size_t) &((t *)0)->m)
-#endif
 
 #define pr_err(y, args...) dev_err(0, y, ##args)
 #define pr_warn(y, args...) dev_warning(0, y, ##args)
@@ -41,35 +24,23 @@
 
 #define VNIC_ALIGN(x, a)         __ALIGN_MASK(x, (typeof(x))(a)-1)
 #define __ALIGN_MASK(x, mask)    (((x)+(mask))&~(mask))
-#define udelay usleep
-#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 
-#define kzalloc(size, flags) calloc(1, size)
-#define kfree(x) free(x)
+extern int enic_pmd_logtype;
 
 #define dev_printk(level, fmt, args...)	\
-	RTE_LOG(level, PMD, "rte_enic_pmd: " fmt, ## args)
+	rte_log(RTE_LOG_ ## level, enic_pmd_logtype, \
+		"PMD: rte_enic_pmd: " fmt, ##args)
 
 #define dev_err(x, args...) dev_printk(ERR, args)
 #define dev_info(x, args...) dev_printk(INFO,  args)
 #define dev_warning(x, args...) dev_printk(WARNING, args)
 #define dev_debug(x, args...) dev_printk(DEBUG, args)
 
-extern int enicpmd_logtype_flow;
-extern int enicpmd_logtype_init;
+#define ENICPMD_LOG(level, fmt, args...) \
+	rte_log(RTE_LOG_ ## level, enic_pmd_logtype, \
+		"%s " fmt "\n", __func__, ##args)
+#define ENICPMD_FUNC_TRACE() ENICPMD_LOG(DEBUG, ">>")
 
-#define PMD_INIT_LOG(level, fmt, args...) \
-	rte_log(RTE_LOG_ ## level, enicpmd_logtype_init, \
-		"%s" fmt "\n", __func__, ##args)
-
-#define __le16 u16
-#define __le32 u32
-#define __le64 u64
-
-typedef		unsigned char       u8;
-typedef		unsigned short      u16;
-typedef		unsigned int        u32;
-typedef         unsigned long long  u64;
 typedef         unsigned long long  dma_addr_t;
 
 static inline uint32_t ioread32(volatile void *addr)
@@ -101,15 +72,5 @@ static inline void writel(unsigned int val, volatile void __iomem *addr)
 {
 	rte_write32(val, addr);
 }
-
-#define min_t(type, x, y) ({                    \
-	type __min1 = (x);                      \
-	type __min2 = (y);                      \
-	__min1 < __min2 ? __min1 : __min2; })
-
-#define max_t(type, x, y) ({                    \
-	type __max1 = (x);                      \
-	type __max2 = (y);                      \
-	__max1 > __max2 ? __max1 : __max2; })
 
 #endif /* _ENIC_COMPAT_H_ */

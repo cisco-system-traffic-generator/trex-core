@@ -14,8 +14,6 @@ CFLAGS += $(WERROR_FLAGS)
 
 EXPORT_MAP := rte_pmd_ixgbe_version.map
 
-LIBABIVER := 2
-
 ifeq ($(CONFIG_RTE_TOOLCHAIN_ICC),y)
 #
 # CFLAGS for icc
@@ -59,6 +57,7 @@ endif
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_ring
 LDLIBS += -lrte_ethdev -lrte_net -lrte_kvargs -lrte_hash
 LDLIBS += -lrte_bus_pci
+LDLIBS += -lpthread
 
 #
 # Add extra flags for base driver files (also known as shared code)
@@ -91,9 +90,9 @@ SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_fdir.c
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_pf.c
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_flow.c
 ifeq ($(CONFIG_RTE_ARCH_ARM64),y)
-SRCS-$(CONFIG_RTE_IXGBE_INC_VECTOR) += ixgbe_rxtx_vec_neon.c
-else
-SRCS-$(CONFIG_RTE_IXGBE_INC_VECTOR) += ixgbe_rxtx_vec_sse.c
+SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_rxtx_vec_neon.c
+else ifeq ($(CONFIG_RTE_ARCH_X86),y)
+SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_rxtx_vec_sse.c
 endif
 ifeq ($(CONFIG_RTE_LIBRTE_IXGBE_BYPASS),y)
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_bypass.c

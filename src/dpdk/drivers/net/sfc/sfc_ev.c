@@ -420,7 +420,7 @@ sfc_ev_link_change(void *arg, efx_link_mode_t link_mode)
 	struct rte_eth_link new_link;
 
 	sfc_port_link_mode_to_info(link_mode, &new_link);
-	if (rte_eth_linkstatus_set(sa->eth_dev, &new_link))
+	if (rte_eth_linkstatus_set(sa->eth_dev, &new_link) == 0)
 		evq->sa->port.lsc_seq++;
 
 	return B_FALSE;
@@ -602,7 +602,8 @@ sfc_ev_qstart(struct sfc_evq *evq, unsigned int hw_index)
 	(void)memset((void *)esmp->esm_base, 0xff,
 		     efx_evq_size(sa->nic, evq->entries));
 
-	if (sa->intr.lsc_intr && hw_index == sa->mgmt_evq_index)
+	if ((sa->intr.lsc_intr && hw_index == sa->mgmt_evq_index) ||
+	    (sa->intr.rxq_intr && evq->dp_rxq != NULL))
 		evq_flags |= EFX_EVQ_FLAGS_NOTIFY_INTERRUPT;
 	else
 		evq_flags |= EFX_EVQ_FLAGS_NOTIFY_DISABLED;

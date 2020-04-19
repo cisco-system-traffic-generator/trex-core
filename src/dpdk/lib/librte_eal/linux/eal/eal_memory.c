@@ -3,7 +3,6 @@
  * Copyright(c) 2013 6WIND S.A.
  */
 
-#define _FILE_OFFSET_BITS 64
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -39,7 +38,6 @@
 #include <rte_memory.h>
 #include <rte_launch.h>
 #include <rte_eal.h>
-#include <rte_eal_memconfig.h>
 #include <rte_per_lcore.h>
 #include <rte_lcore.h>
 #include <rte_common.h>
@@ -47,6 +45,7 @@
 
 #include "eal_private.h"
 #include "eal_memalloc.h"
+#include "eal_memcfg.h"
 #include "eal_internal_cfg.h"
 #include "eal_filesystem.h"
 #include "eal_hugepages.h"
@@ -66,32 +65,28 @@
  * zone as well as a physical contiguous zone.
  */
 
-static bool phys_addrs_available = true;
+static int phys_addrs_available = -1;
 
 #define RANDOMIZE_VA_SPACE_FILE "/proc/sys/kernel/randomize_va_space"
 
-static void
-test_phys_addrs_available(void)
+uint64_t eal_get_baseaddr(void)
 {
-	uint64_t tmp = 0;
-	phys_addr_t physaddr;
-
-	if (!rte_eal_has_hugepages()) {
-		RTE_LOG(ERR, EAL,
-			"Started without hugepages support, physical addresses not available\n");
-		phys_addrs_available = false;
-		return;
-	}
-
-	physaddr = rte_mem_virt2phy(&tmp);
-	if (physaddr == RTE_BAD_PHYS_ADDR) {
-		if (rte_eal_iova_mode() == RTE_IOVA_PA)
-			RTE_LOG(ERR, EAL,
-				"Cannot obtain physical addresses: %s. "
-				"Only vfio will function.\n",
-				strerror(errno));
-		phys_addrs_available = false;
-	}
+	/*
+	 * Linux kernel uses a really high address as starting address for
+	 * serving mmaps calls. If there exists addressing limitations and IOVA
+	 * mode is VA, this starting address is likely too high for those
+	 * devices. However, it is possible to use a lower address in the
+	 * process virtual address space as with 64 bits there is a lot of
+	 * available space.
+	 *
+	 * Current known limitations are 39 or 40 bits. Setting the starting
+	 * address at 4GB implies there are 508GB or 1020GB for mapping the
+	 * available hugepages. This is likely enough for most systems, although
+	 * a device with addressing limitations should call
+	 * rte_mem_check_dma_mask for ensuring all memory is within supported
+	 * range.
+	 */
+	return 0x100000000ULL;
 }
 
 /*
@@ -106,8 +101,7 @@ rte_mem_virt2phy(const void *virtaddr)
 	int page_size;
 	off_t offset;
 
-	/* Cannot parse /proc/self/pagemap, no need to log errors everywhere */
-	if (!phys_addrs_available)
+	if (phys_addrs_available == 0)
 		return RTE_BAD_IOVA;
 
 	/* standard page size */
@@ -713,7 +707,7 @@ remap_segment(struct hugepage_file *hugepages, int seg_start, int seg_end)
 		return -1;
 	}
 
-#ifdef RTE_ARCH_PPC64
+#ifdef RTE_ARCH_PPC_64
 	/* for PPC64 we go through the list backwards */
 	for (cur_page = seg_end - 1; cur_page >= seg_start;
 			cur_page--, ms_idx++) {
@@ -843,6 +837,7 @@ alloc_memseg_list(struct rte_memseg_list *msl, uint64_t page_sz,
 	msl->page_sz = page_sz;
 	msl->socket_id = socket_id;
 	msl->base_va = NULL;
+	msl->heap = 1; /* mark it as a heap segment */
 
 	RTE_LOG(DEBUG, EAL, "Memseg list allocated: 0x%zxkB at socket %i\n",
 			(size_t)page_sz >> 10, socket_id);
@@ -864,7 +859,8 @@ alloc_va_space(struct rte_memseg_list *msl)
 	addr = eal_get_virtual_area(msl->base_va, &mem_sz, page_sz, 0, flags);
 	if (addr == NULL) {
 		if (rte_errno == EADDRNOTAVAIL)
-			RTE_LOG(ERR, EAL, "Could not mmap %llu bytes at [%p] - please use '--base-virtaddr' option\n",
+			RTE_LOG(ERR, EAL, "Could not mmap %llu bytes at [%p] - "
+				"please use '--" OPT_BASE_VIRTADDR "' option\n",
 				(unsigned long long)mem_sz, msl->base_va);
 		else
 			RTE_LOG(ERR, EAL, "Cannot reserve memory\n");
@@ -1095,6 +1091,7 @@ remap_needed_hugepages(struct hugepage_file *hugepages, int n_pages)
 	return 0;
 }
 
+__rte_unused /* function is unused on 32-bit builds */
 static inline uint64_t
 get_socket_mem_size(int socket)
 {
@@ -1342,8 +1339,6 @@ eal_legacy_hugepage_init(void)
 	int nr_hugefiles, nr_hugepages = 0;
 	void *addr;
 
-	test_phys_addrs_available();
-
 	memset(used_hp, 0, sizeof(used_hp));
 
 	/* get pointer to global configuration */
@@ -1417,6 +1412,7 @@ eal_legacy_hugepage_init(void)
 		msl->page_sz = page_sz;
 		msl->socket_id = 0;
 		msl->len = internal_config.memory;
+		msl->heap = 1;
 
 		/* we're in single-file segments mode, so only the segment list
 		 * fd needs to be set up.
@@ -1522,7 +1518,7 @@ eal_legacy_hugepage_init(void)
 				continue;
 		}
 
-		if (phys_addrs_available &&
+		if (rte_eal_using_phys_addrs() &&
 				rte_eal_iova_mode() != RTE_IOVA_VA) {
 			/* find physical addresses for each hugepage */
 			if (find_physaddrs(&tmp_hp[hp_offset], hpi) < 0) {
@@ -1689,6 +1685,7 @@ eal_legacy_hugepage_init(void)
 		mem_sz = msl->len;
 		munmap(msl->base_va, mem_sz);
 		msl->base_va = NULL;
+		msl->heap = 0;
 
 		/* destroy backing fbarray */
 		rte_fbarray_destroy(&msl->memseg_arr);
@@ -1740,8 +1737,6 @@ eal_hugepage_init(void)
 	struct hugepage_info used_hp[MAX_HUGEPAGE_SIZES];
 	uint64_t memory[RTE_MAX_NUMA_NODES];
 	int hp_sz_idx, socket_id;
-
-	test_phys_addrs_available();
 
 	memset(used_hp, 0, sizeof(used_hp));
 
@@ -1885,8 +1880,6 @@ eal_legacy_hugepage_attach(void)
 				"into secondary processes\n");
 	}
 
-	test_phys_addrs_available();
-
 	fd_hugepage = open(eal_hugepage_data_path(), O_RDONLY);
 	if (fd_hugepage < 0) {
                 printf("Second open error\n");
@@ -1943,7 +1936,7 @@ eal_legacy_hugepage_attach(void)
 		if (flock(fd, LOCK_SH) < 0) {
 			RTE_LOG(DEBUG, EAL, "%s(): Locking file failed: %s\n",
 				__func__, strerror(errno));
-			goto fd_error;
+			goto mmap_error;
 		}
 
 		/* find segment data */
@@ -1951,13 +1944,13 @@ eal_legacy_hugepage_attach(void)
 		if (msl == NULL) {
 			RTE_LOG(DEBUG, EAL, "%s(): Cannot find memseg list\n",
 				__func__);
-			goto fd_error;
+			goto mmap_error;
 		}
 		ms = rte_mem_virt2memseg(map_addr, msl);
 		if (ms == NULL) {
 			RTE_LOG(DEBUG, EAL, "%s(): Cannot find memseg\n",
 				__func__);
-			goto fd_error;
+			goto mmap_error;
 		}
 
 		msl_idx = msl - mcfg->memsegs;
@@ -1965,7 +1958,7 @@ eal_legacy_hugepage_attach(void)
 		if (ms_idx < 0) {
 			RTE_LOG(DEBUG, EAL, "%s(): Cannot find memseg idx\n",
 				__func__);
-			goto fd_error;
+			goto mmap_error;
 		}
 
 		/* store segment fd internally */
@@ -1978,18 +1971,15 @@ eal_legacy_hugepage_attach(void)
 	close(fd_hugepage);
 	return 0;
 
+mmap_error:
+	munmap(hp[i].final_va, hp[i].size);
 fd_error:
 	close(fd);
 error:
-	/* map all segments into memory to make sure we get the addrs */
-	cur_seg = 0;
-	for (cur_seg = 0; cur_seg < i; cur_seg++) {
-		struct hugepage_file *hf = &hp[i];
-		size_t map_sz = hf->size;
-		void *map_addr = hf->final_va;
+	/* unwind mmap's done so far */
+	for (cur_seg = 0; cur_seg < i; cur_seg++)
+		munmap(hp[cur_seg].final_va, hp[cur_seg].size);
 
-		munmap(map_addr, map_sz);
-	}
 	if (hp != NULL && hp != MAP_FAILED)
 		munmap(hp, size);
 	if (fd_hugepage >= 0)
@@ -2028,6 +2018,15 @@ rte_eal_hugepage_attach(void)
 int
 rte_eal_using_phys_addrs(void)
 {
+	if (phys_addrs_available == -1) {
+		uint64_t tmp = 0;
+
+		if (rte_eal_has_hugepages() != 0 &&
+		    rte_mem_virt2phy(&tmp) != RTE_BAD_PHYS_ADDR)
+			phys_addrs_available = 1;
+		else
+			phys_addrs_available = 0;
+	}
 	return phys_addrs_available;
 }
 

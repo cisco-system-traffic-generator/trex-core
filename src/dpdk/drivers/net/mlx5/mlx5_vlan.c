@@ -5,8 +5,9 @@
 
 #include <stddef.h>
 #include <errno.h>
-#include <assert.h>
 #include <stdint.h>
+#include <unistd.h>
+
 
 /*
  * Not needed by this file; included to work around the lack of off_t
@@ -26,10 +27,15 @@
 
 #include <rte_ethdev_driver.h>
 #include <rte_common.h>
+#include <rte_malloc.h>
+#include <rte_hypervisor.h>
+
+#include <mlx5_glue.h>
+#include <mlx5_devx_cmds.h>
+#include <mlx5_nl.h>
 
 #include "mlx5.h"
 #include "mlx5_autoconf.h"
-#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_utils.h"
 
@@ -54,7 +60,7 @@ mlx5_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 
 	DRV_LOG(DEBUG, "port %u %s VLAN filter ID %" PRIu16,
 		dev->data->port_id, (on ? "enable" : "disable"), vlan_id);
-	assert(priv->vlan_filter_n <= RTE_DIM(priv->vlan_filter));
+	MLX5_ASSERT(priv->vlan_filter_n <= RTE_DIM(priv->vlan_filter));
 	for (i = 0; (i != priv->vlan_filter_n); ++i)
 		if (priv->vlan_filter[i] == vlan_id)
 			break;
@@ -64,7 +70,7 @@ mlx5_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 		return -rte_errno;
 	}
 	if (i < priv->vlan_filter_n) {
-		assert(priv->vlan_filter_n != 0);
+		MLX5_ASSERT(priv->vlan_filter_n != 0);
 		/* Enabling an existing VLAN filter has no effect. */
 		if (on)
 			goto out;
@@ -76,7 +82,7 @@ mlx5_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 			(priv->vlan_filter_n - i));
 		priv->vlan_filter[priv->vlan_filter_n] = 0;
 	} else {
-		assert(i == priv->vlan_filter_n);
+		MLX5_ASSERT(i == priv->vlan_filter_n);
 		/* Disabling an unknown VLAN filter has no effect. */
 		if (!on)
 			goto out;
@@ -111,7 +117,7 @@ mlx5_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 	uint16_t vlan_offloads =
 		(on ? IBV_WQ_FLAGS_CVLAN_STRIPPING : 0) |
 		0;
-	int ret;
+	int ret = 0;
 
 	/* Validate hw support */
 	if (!priv->config.hw_vlan_strip) {
@@ -127,20 +133,32 @@ mlx5_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 	}
 	DRV_LOG(DEBUG, "port %u set VLAN offloads 0x%x for port %uqueue %d",
 		dev->data->port_id, vlan_offloads, rxq->port_id, queue);
-	if (!rxq_ctrl->ibv) {
+	if (!rxq_ctrl->obj) {
 		/* Update related bits in RX queue. */
 		rxq->vlan_strip = !!on;
 		return;
 	}
-	mod = (struct ibv_wq_attr){
-		.attr_mask = IBV_WQ_ATTR_FLAGS,
-		.flags_mask = IBV_WQ_FLAGS_CVLAN_STRIPPING,
-		.flags = vlan_offloads,
-	};
-	ret = mlx5_glue->modify_wq(rxq_ctrl->ibv->wq, &mod);
+	if (rxq_ctrl->obj->type == MLX5_RXQ_OBJ_TYPE_IBV) {
+		mod = (struct ibv_wq_attr){
+			.attr_mask = IBV_WQ_ATTR_FLAGS,
+			.flags_mask = IBV_WQ_FLAGS_CVLAN_STRIPPING,
+			.flags = vlan_offloads,
+		};
+		ret = mlx5_glue->modify_wq(rxq_ctrl->obj->wq, &mod);
+	} else if (rxq_ctrl->obj->type == MLX5_RXQ_OBJ_TYPE_DEVX_RQ) {
+		struct mlx5_devx_modify_rq_attr rq_attr;
+
+		memset(&rq_attr, 0, sizeof(rq_attr));
+		rq_attr.rq_state = MLX5_RQC_STATE_RDY;
+		rq_attr.state = MLX5_RQC_STATE_RDY;
+		rq_attr.vsd = (on ? 0 : 1);
+		rq_attr.modify_bitmask = MLX5_MODIFY_RQ_IN_MODIFY_BITMASK_VSD;
+		ret = mlx5_devx_cmd_modify_rq(rxq_ctrl->obj->rq, &rq_attr);
+	}
 	if (ret) {
-		DRV_LOG(ERR, "port %u failed to modified stripping mode: %s",
-			dev->data->port_id, strerror(rte_errno));
+		DRV_LOG(ERR, "port %u failed to modify object %d stripping "
+			"mode: %s", dev->data->port_id,
+			rxq_ctrl->obj->type, strerror(rte_errno));
 		return;
 	}
 	/* Update related bits in RX queue. */
@@ -178,4 +196,132 @@ mlx5_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 			mlx5_vlan_strip_queue_set(dev, i, hw_vlan_strip);
 	}
 	return 0;
+}
+
+/*
+ * Release VLAN network device, created for VM workaround.
+ *
+ * @param[in] dev
+ *   Ethernet device object, Netlink context provider.
+ * @param[in] vlan
+ *   Object representing the network device to release.
+ */
+void mlx5_vlan_vmwa_release(struct rte_eth_dev *dev,
+			    struct mlx5_vf_vlan *vlan)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_nl_vlan_vmwa_context *vmwa = priv->vmwa_context;
+	struct mlx5_nl_vlan_dev *vlan_dev = &vmwa->vlan_dev[0];
+
+	MLX5_ASSERT(vlan->created);
+	MLX5_ASSERT(priv->vmwa_context);
+	if (!vlan->created || !vmwa)
+		return;
+	vlan->created = 0;
+	MLX5_ASSERT(vlan_dev[vlan->tag].refcnt);
+	if (--vlan_dev[vlan->tag].refcnt == 0 &&
+	    vlan_dev[vlan->tag].ifindex) {
+		mlx5_nl_vlan_vmwa_delete(vmwa, vlan_dev[vlan->tag].ifindex);
+		vlan_dev[vlan->tag].ifindex = 0;
+	}
+}
+
+/**
+ * Acquire VLAN interface with specified tag for VM workaround.
+ *
+ * @param[in] dev
+ *   Ethernet device object, Netlink context provider.
+ * @param[in] vlan
+ *   Object representing the network device to acquire.
+ */
+void mlx5_vlan_vmwa_acquire(struct rte_eth_dev *dev,
+			    struct mlx5_vf_vlan *vlan)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_nl_vlan_vmwa_context *vmwa = priv->vmwa_context;
+	struct mlx5_nl_vlan_dev *vlan_dev = &vmwa->vlan_dev[0];
+
+	MLX5_ASSERT(!vlan->created);
+	MLX5_ASSERT(priv->vmwa_context);
+	if (vlan->created || !vmwa)
+		return;
+	if (vlan_dev[vlan->tag].refcnt == 0) {
+		MLX5_ASSERT(!vlan_dev[vlan->tag].ifindex);
+		vlan_dev[vlan->tag].ifindex =
+			mlx5_nl_vlan_vmwa_create(vmwa, vmwa->vf_ifindex,
+						 vlan->tag);
+	}
+	if (vlan_dev[vlan->tag].ifindex) {
+		vlan_dev[vlan->tag].refcnt++;
+		vlan->created = 1;
+	}
+}
+
+/*
+ * Create per ethernet device VLAN VM workaround context
+ */
+struct mlx5_nl_vlan_vmwa_context *
+mlx5_vlan_vmwa_init(struct rte_eth_dev *dev, uint32_t ifindex)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_dev_config *config = &priv->config;
+	struct mlx5_nl_vlan_vmwa_context *vmwa;
+	enum rte_hypervisor hv_type;
+
+	/* Do not engage workaround over PF. */
+	if (!config->vf)
+		return NULL;
+	/* Check whether there is desired virtual environment */
+	hv_type = rte_hypervisor_get();
+	switch (hv_type) {
+	case RTE_HYPERVISOR_UNKNOWN:
+	case RTE_HYPERVISOR_VMWARE:
+		/*
+		 * The "white list" of configurations
+		 * to engage the workaround.
+		 */
+		break;
+	default:
+		/*
+		 * The configuration is not found in the "white list".
+		 * We should not engage the VLAN workaround.
+		 */
+		return NULL;
+	}
+	vmwa = rte_zmalloc(__func__, sizeof(*vmwa), sizeof(uint32_t));
+	if (!vmwa) {
+		DRV_LOG(WARNING,
+			"Can not allocate memory"
+			" for VLAN workaround context");
+		return NULL;
+	}
+	vmwa->nl_socket = mlx5_nl_init(NETLINK_ROUTE);
+	if (vmwa->nl_socket < 0) {
+		DRV_LOG(WARNING,
+			"Can not create Netlink socket"
+			" for VLAN workaround context");
+		rte_free(vmwa);
+		return NULL;
+	}
+	vmwa->vf_ifindex = ifindex;
+	/* Cleanup for existing VLAN devices. */
+	return vmwa;
+}
+
+/*
+ * Destroy per ethernet device VLAN VM workaround context
+ */
+void mlx5_vlan_vmwa_exit(struct mlx5_nl_vlan_vmwa_context *vmwa)
+{
+	unsigned int i;
+
+	/* Delete all remaining VLAN devices. */
+	for (i = 0; i < RTE_DIM(vmwa->vlan_dev); i++) {
+		if (vmwa->vlan_dev[i].ifindex)
+			mlx5_nl_vlan_vmwa_delete(vmwa,
+						 vmwa->vlan_dev[i].ifindex);
+	}
+	if (vmwa->nl_socket >= 0)
+		close(vmwa->nl_socket);
+	rte_free(vmwa);
 }

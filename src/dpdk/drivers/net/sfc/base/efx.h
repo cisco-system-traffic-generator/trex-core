@@ -9,6 +9,7 @@
 
 #include "efx_annote.h"
 #include "efsys.h"
+#include "efx_types.h"
 #include "efx_check.h"
 #include "efx_phy_ids.h"
 
@@ -27,6 +28,18 @@ extern "C" {
 
 /* The macro expands divider twice */
 #define	EFX_DIV_ROUND_UP(_n, _d)		(((_n) + (_d) - 1) / (_d))
+
+/* Round value up to the nearest power of two. */
+#define	EFX_P2ROUNDUP(_type, _value, _align)	\
+	(-(-(_type)(_value) & -(_type)(_align)))
+
+/* Align value down to the nearest power of two. */
+#define	EFX_P2ALIGN(_type, _value, _align)	\
+	((_type)(_value) & -(_type)(_align))
+
+/* Test if value is power of 2 aligned. */
+#define	EFX_IS_P2ALIGNED(_type, _value, _align)	\
+	((((_type)(_value)) & ((_type)(_align) - 1)) == 0)
 
 /* Return codes */
 
@@ -242,6 +255,9 @@ typedef struct efx_mcdi_transport_s {
 #if EFSYS_OPT_MCDI_PROXY_AUTH
 	void		(*emt_ev_proxy_response)(void *, uint32_t, efx_rc_t);
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH */
+#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
+	void		(*emt_ev_proxy_request)(void *, uint32_t);
+#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 } efx_mcdi_transport_t;
 
 extern	__checkReturn	efx_rc_t
@@ -494,10 +510,10 @@ typedef enum efx_link_mode_e {
 	    + /* bug16011 */ 16)				\
 
 #define	EFX_MAC_PDU(_sdu)					\
-	P2ROUNDUP((_sdu) + EFX_MAC_PDU_ADJUSTMENT, 8)
+	EFX_P2ROUNDUP(size_t, (_sdu) + EFX_MAC_PDU_ADJUSTMENT, 8)
 
 /*
- * Due to the P2ROUNDUP in EFX_MAC_PDU(), EFX_MAC_SDU_FROM_PDU() may give
+ * Due to the EFX_P2ROUNDUP in EFX_MAC_PDU(), EFX_MAC_SDU_FROM_PDU() may give
  * the SDU rounded up slightly.
  */
 #define	EFX_MAC_SDU_FROM_PDU(_pdu)	((_pdu) - EFX_MAC_PDU_ADJUSTMENT)
@@ -583,8 +599,9 @@ efx_mac_stat_name(
 
 #define	EFX_MAC_STATS_MASK_BITS_PER_PAGE	(8 * sizeof (uint32_t))
 
-#define	EFX_MAC_STATS_MASK_NPAGES	\
-	(P2ROUNDUP(EFX_MAC_NSTATS, EFX_MAC_STATS_MASK_BITS_PER_PAGE) / \
+#define	EFX_MAC_STATS_MASK_NPAGES				\
+	(EFX_P2ROUNDUP(uint32_t, EFX_MAC_NSTATS,		\
+		       EFX_MAC_STATS_MASK_BITS_PER_PAGE) /	\
 	    EFX_MAC_STATS_MASK_BITS_PER_PAGE)
 
 /*
@@ -1366,6 +1383,8 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_hw_pf_count;
 	/* Datapath firmware vadapter/vport/vswitch support */
 	boolean_t		enc_datapath_cap_evb;
+	/* Datapath firmware vport reconfigure support */
+	boolean_t		enc_vport_reconfigure_supported;
 	boolean_t		enc_rx_disable_scatter_supported;
 	boolean_t		enc_allow_set_mac_with_installed_filters;
 	boolean_t		enc_enhanced_set_mac_supported;
@@ -1393,7 +1412,11 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_required_pcie_bandwidth_mbps;
 	uint32_t		enc_max_pcie_link_gen;
 	/* Firmware verifies integrity of NVRAM updates */
-	uint32_t		enc_nvram_update_verify_result_supported;
+	boolean_t		enc_nvram_update_verify_result_supported;
+	/* Firmware supports polled NVRAM updates on select partitions */
+	boolean_t		enc_nvram_update_poll_verify_result_supported;
+	/* Firmware accepts updates via the BUNDLE partition */
+	boolean_t		enc_nvram_bundle_update_supported;
 	/* Firmware support for extended MAC_STATS buffer */
 	uint32_t		enc_mac_stats_nstats;
 	boolean_t		enc_fec_counters;
@@ -1402,7 +1425,12 @@ typedef struct efx_nic_cfg_s {
 	boolean_t		enc_filter_action_flag_supported;
 	boolean_t		enc_filter_action_mark_supported;
 	uint32_t		enc_filter_action_mark_max;
+	/* Port assigned to this PCI function */
+	uint32_t		enc_assigned_port;
 } efx_nic_cfg_t;
+
+#define	EFX_VPORT_PCI_FUNCTION_IS_PF(configp) \
+	((configp)->evc_function == 0xffff)
 
 #define	EFX_PCI_FUNCTION_IS_PF(_encp)	((_encp)->enc_vf == 0xffff)
 #define	EFX_PCI_FUNCTION_IS_VF(_encp)	((_encp)->enc_vf != 0xffff)
@@ -1461,6 +1489,19 @@ extern	__checkReturn	efx_rc_t
 efx_nic_set_drv_limits(
 	__inout		efx_nic_t *enp,
 	__in		efx_drv_limits_t *edlp);
+
+/*
+ * Register the OS driver version string for management agents
+ * (e.g. via NC-SI). The content length is provided (i.e. no
+ * NUL terminator). Use length 0 to indicate no version string
+ * should be advertised. It is valid to set the version string
+ * only before efx_nic_probe() is called.
+ */
+extern	__checkReturn	efx_rc_t
+efx_nic_set_drv_version(
+	__inout			efx_nic_t *enp,
+	__in_ecount(length)	char const *verp,
+	__in			size_t length);
 
 typedef enum efx_nic_region_e {
 	EFX_REGION_VI,			/* Memory BAR UC mapping */
@@ -1587,8 +1628,19 @@ typedef enum efx_nvram_type_e {
 	EFX_NVRAM_DYNCONFIG_DEFAULTS,
 	EFX_NVRAM_ROMCONFIG_DEFAULTS,
 	EFX_NVRAM_BUNDLE,
+	EFX_NVRAM_BUNDLE_METADATA,
 	EFX_NVRAM_NTYPES,
 } efx_nvram_type_t;
+
+typedef struct efx_nvram_info_s {
+	uint32_t eni_flags;
+	uint32_t eni_partn_size;
+	uint32_t eni_address;
+	uint32_t eni_erase_size;
+	uint32_t eni_write_size;
+} efx_nvram_info_t;
+
+#define	EFX_NVRAM_FLAG_READ_ONLY	(1 << 0)
 
 extern	__checkReturn		efx_rc_t
 efx_nvram_init(
@@ -1607,6 +1659,12 @@ efx_nvram_size(
 	__in			efx_nic_t *enp,
 	__in			efx_nvram_type_t type,
 	__out			size_t *sizep);
+
+extern	__checkReturn		efx_rc_t
+efx_nvram_info(
+	__in			efx_nic_t *enp,
+	__in			efx_nvram_type_t type,
+	__out			efx_nvram_info_t *enip);
 
 extern	__checkReturn		efx_rc_t
 efx_nvram_rw_start(
@@ -1857,6 +1915,7 @@ typedef enum efx_image_format_e {
 	EFX_IMAGE_FORMAT_INVALID,
 	EFX_IMAGE_FORMAT_UNSIGNED,
 	EFX_IMAGE_FORMAT_SIGNED,
+	EFX_IMAGE_FORMAT_SIGNED_PACKAGE
 } efx_image_format_t;
 
 typedef struct efx_image_info_s {
@@ -3308,6 +3367,181 @@ efx_phy_link_state_get(
 	__in		efx_nic_t *enp,
 	__out		efx_phy_link_state_t  *eplsp);
 
+
+#if EFSYS_OPT_EVB
+
+typedef uint32_t efx_vswitch_id_t;
+typedef uint32_t efx_vport_id_t;
+
+typedef enum efx_vswitch_type_e {
+	EFX_VSWITCH_TYPE_VLAN = 1,
+	EFX_VSWITCH_TYPE_VEB,
+	/* VSWITCH_TYPE_VEPA: obsolete */
+	EFX_VSWITCH_TYPE_MUX = 4,
+} efx_vswitch_type_t;
+
+typedef enum efx_vport_type_e {
+	EFX_VPORT_TYPE_NORMAL = 4,
+	EFX_VPORT_TYPE_EXPANSION,
+	EFX_VPORT_TYPE_TEST,
+} efx_vport_type_t;
+
+/* Unspecified VLAN ID to support disabling of VLAN filtering */
+#define	EFX_FILTER_VID_UNSPEC	0xffff
+#define	EFX_DEFAULT_VSWITCH_ID	1
+
+/* Default VF VLAN ID on creation */
+#define		EFX_VF_VID_DEFAULT	EFX_FILTER_VID_UNSPEC
+#define		EFX_VPORT_ID_INVALID	0
+
+typedef struct efx_vport_config_s {
+	/* Either VF index or 0xffff for PF */
+	uint16_t	evc_function;
+	/* VLAN ID of the associated function */
+	uint16_t	evc_vid;
+	/* vport id shared with client driver */
+	efx_vport_id_t	evc_vport_id;
+	/* MAC address of the associated function */
+	uint8_t		evc_mac_addr[EFX_MAC_ADDR_LEN];
+	/*
+	 * vports created with this flag set may only transfer traffic on the
+	 * VLANs permitted by the vport. Also, an attempt to install filter with
+	 * VLAN will be refused unless requesting function has VLAN privilege.
+	 */
+	boolean_t	evc_vlan_restrict;
+	/* Whether this function is assigned or not */
+	boolean_t	evc_vport_assigned;
+} efx_vport_config_t;
+
+typedef	struct	efx_vswitch_s	efx_vswitch_t;
+
+extern	__checkReturn	efx_rc_t
+efx_evb_init(
+	__in		efx_nic_t *enp);
+
+extern			void
+efx_evb_fini(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
+efx_evb_vswitch_create(
+	__in				efx_nic_t *enp,
+	__in				uint32_t num_vports,
+	__inout_ecount(num_vports)	efx_vport_config_t *vport_configp,
+	__deref_out			efx_vswitch_t **evpp);
+
+extern	__checkReturn	efx_rc_t
+efx_evb_vswitch_destroy(
+	__in				efx_nic_t *enp,
+	__in				efx_vswitch_t *evp);
+
+extern	__checkReturn			efx_rc_t
+efx_evb_vport_mac_set(
+	__in				efx_nic_t *enp,
+	__in				efx_vswitch_t *evp,
+	__in				efx_vport_id_t vport_id,
+	__in_bcount(EFX_MAC_ADDR_LEN)	uint8_t *addrp);
+
+extern	__checkReturn	efx_rc_t
+efx_evb_vport_vlan_set(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_t *evp,
+	__in		efx_vport_id_t vport_id,
+	__in		uint16_t vid);
+
+extern	__checkReturn			efx_rc_t
+efx_evb_vport_reset(
+	__in				efx_nic_t *enp,
+	__in				efx_vswitch_t *evp,
+	__in				efx_vport_id_t vport_id,
+	__in_bcount(EFX_MAC_ADDR_LEN)	uint8_t *addrp,
+	__in				uint16_t vid,
+	__out				boolean_t *is_fn_resetp);
+
+extern	__checkReturn	efx_rc_t
+efx_evb_vport_stats(
+	__in		efx_nic_t *enp,
+	__in		efx_vswitch_t *evp,
+	__in		efx_vport_id_t vport_id,
+	__out		efsys_mem_t *stats_bufferp);
+
+#endif /* EFSYS_OPT_EVB */
+
+#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
+
+typedef struct efx_proxy_auth_config_s {
+	efsys_mem_t	*request_bufferp;
+	efsys_mem_t	*response_bufferp;
+	efsys_mem_t	*status_bufferp;
+	uint32_t	block_cnt;
+	uint32_t	*op_listp;
+	size_t		op_count;
+	uint32_t	handled_privileges;
+} efx_proxy_auth_config_t;
+
+typedef struct efx_proxy_cmd_params_s {
+	uint32_t	pf_index;
+	uint32_t	vf_index;
+	uint8_t		*request_bufferp;
+	size_t		request_size;
+	uint8_t		*response_bufferp;
+	size_t		response_size;
+	size_t		*response_size_actualp;
+} efx_proxy_cmd_params_t;
+
+extern	__checkReturn	efx_rc_t
+efx_proxy_auth_init(
+	__in		efx_nic_t *enp);
+
+extern			void
+efx_proxy_auth_fini(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
+efx_proxy_auth_configure(
+	__in		efx_nic_t *enp,
+	__in		efx_proxy_auth_config_t *configp);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_destroy(
+	__in		efx_nic_t *enp,
+	__in		uint32_t handled_privileges);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_complete_request(
+	__in		efx_nic_t *enp,
+	__in		uint32_t fn_index,
+	__in		uint32_t proxy_result,
+	__in		uint32_t handle);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_exec_cmd(
+	__in		efx_nic_t *enp,
+	__inout		efx_proxy_cmd_params_t *paramsp);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_set_privilege_mask(
+	__in		efx_nic_t *enp,
+	__in		uint32_t vf_index,
+	__in		uint32_t mask,
+	__in		uint32_t value);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_privilege_mask_get(
+	__in		efx_nic_t *enp,
+	__in		uint32_t pf_index,
+	__in		uint32_t vf_index,
+	__out		uint32_t *maskp);
+
+	__checkReturn	efx_rc_t
+efx_proxy_auth_privilege_modify(
+	__in		efx_nic_t *enp,
+	__in		uint32_t pf_index,
+	__in		uint32_t vf_index,
+	__in		uint32_t add_privileges_mask,
+	__in		uint32_t remove_privileges_mask);
+
+#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
 #ifdef	__cplusplus
 }

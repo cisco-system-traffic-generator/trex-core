@@ -106,7 +106,7 @@ efx_mcdi_init_rxq(
 	    INIT_RXQ_EXT_IN_FLAG_WANT_OUTER_CLASSES, want_outer_classes,
 	    INIT_RXQ_EXT_IN_FLAG_NO_CONT_EV, no_cont_ev);
 	MCDI_IN_SET_DWORD(req, INIT_RXQ_EXT_IN_OWNER_ID, 0);
-	MCDI_IN_SET_DWORD(req, INIT_RXQ_EXT_IN_PORT_ID, EVB_PORT_ID_ASSIGNED);
+	MCDI_IN_SET_DWORD(req, INIT_RXQ_EXT_IN_PORT_ID, enp->en_vport_id);
 
 	if (es_bufs_per_desc > 0) {
 		MCDI_IN_SET_DWORD(req,
@@ -233,7 +233,7 @@ efx_mcdi_rss_context_alloc(
 	req.emr_out_length = MC_CMD_RSS_CONTEXT_ALLOC_OUT_LEN;
 
 	MCDI_IN_SET_DWORD(req, RSS_CONTEXT_ALLOC_IN_UPSTREAM_PORT_ID,
-	    EVB_PORT_ID_ASSIGNED);
+		enp->en_vport_id);
 	MCDI_IN_SET_DWORD(req, RSS_CONTEXT_ALLOC_IN_TYPE, context_type);
 
 	/*
@@ -859,7 +859,7 @@ ef10_rx_qpush(
 	efx_dword_t dword;
 
 	/* Hardware has alignment restriction for WPTR */
-	wptr = P2ALIGN(added, EF10_RX_WPTR_ALIGN);
+	wptr = EFX_P2ALIGN(unsigned int, added, EF10_RX_WPTR_ALIGN);
 	if (pushed == wptr)
 		return;
 
@@ -947,8 +947,9 @@ ef10_rx_qps_packet_info(
 	*lengthp   = EFX_QWORD_FIELD(*qwordp, ES_DZ_PS_RX_PREFIX_ORIG_LEN);
 	buf_len    = EFX_QWORD_FIELD(*qwordp, ES_DZ_PS_RX_PREFIX_CAP_LEN);
 
-	buf_len = P2ROUNDUP(buf_len + EFX_RX_PACKED_STREAM_RX_PREFIX_SIZE,
-			    EFX_RX_PACKED_STREAM_ALIGNMENT);
+	buf_len = EFX_P2ROUNDUP(uint16_t,
+	    buf_len + EFX_RX_PACKED_STREAM_RX_PREFIX_SIZE,
+	    EFX_RX_PACKED_STREAM_ALIGNMENT);
 	*next_offsetp =
 	    current_offset + buf_len + EFX_RX_PACKED_STREAM_ALIGNMENT;
 
@@ -1118,12 +1119,12 @@ ef10_rx_qcreate(
 			rc = ENOTSUP;
 			goto fail9;
 		}
-		if (!IS_P2ALIGNED(es_max_dma_len,
+		if (!EFX_IS_P2ALIGNED(uint32_t, es_max_dma_len,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
 			goto fail10;
 		}
-		if (!IS_P2ALIGNED(es_buf_stride,
+		if (!EFX_IS_P2ALIGNED(uint32_t, es_buf_stride,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
 			goto fail11;

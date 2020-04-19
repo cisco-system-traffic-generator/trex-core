@@ -780,16 +780,16 @@ public:
          if (m_ol_flags & PKT_TX_IPV4 ){ /* splitting to 4 instructions didn't improve performance .. */
              ipv4->ClearCheckSum();
              if ((m_ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM ){
-                 u.tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
+                 u.tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)ipv4,m_ol_flags));
              }else{
-                 u.udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4,m_ol_flags));
+                 u.udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)ipv4,m_ol_flags));
              }
 
          }else{
              if ((m_ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM ){
-                 u.tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));
+                 u.tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4,m_ol_flags));
              }else{
-                 u.udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4,m_ol_flags));
+                 u.udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4,m_ol_flags));
              }
          }
     }

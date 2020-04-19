@@ -6,18 +6,17 @@ include $(RTE_SDK)/mk/rte.vars.mk
 # library name
 LIB = librte_ring.a
 
-CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR) -O3
+CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR) -O3 -DALLOW_EXPERIMENTAL_API
 LDLIBS += -lrte_eal
 
 EXPORT_MAP := rte_ring_version.map
-
-LIBABIVER := 2
 
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_RING) := rte_ring.c
 
 # install includes
 SYMLINK-$(CONFIG_RTE_LIBRTE_RING)-include := rte_ring.h \
+					rte_ring_elem.h \
 					rte_ring_generic.h \
 					rte_ring_c11_mem.h
 

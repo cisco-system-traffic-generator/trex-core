@@ -26,7 +26,6 @@
 #include <rte_memory.h>
 #include <rte_launch.h>
 #include <rte_eal.h>
-#include <rte_eal_memconfig.h>
 #include <rte_errno.h>
 #include <rte_per_lcore.h>
 #include <rte_lcore.h>
@@ -52,6 +51,7 @@
 #include "eal_filesystem.h"
 #include "eal_hugepages.h"
 #include "eal_options.h"
+#include "eal_memcfg.h"
 
 #define MEMSIZE_IF_NO_HUGE_PAGE (64ULL * 1024ULL * 1024ULL)
 
@@ -215,69 +215,165 @@ eal_parse_sysfs_value(const char *filename, unsigned long *val)
  * We also don't lock the whole file, so that in future we can use read-locks
  * on other parts, e.g. memzones, to detect if there are running secondary
  * processes. */
-static void
+static int
 rte_eal_config_create(void)
 {
-	void *rte_mem_cfg_addr;
+	size_t page_sz = sysconf(_SC_PAGE_SIZE);
+	size_t cfg_len = sizeof(*rte_config.mem_config);
+	size_t cfg_len_aligned = RTE_ALIGN(cfg_len, page_sz);
+	void *rte_mem_cfg_addr, *mapped_mem_cfg_addr;
 	int retval;
 
 	const char *pathname = eal_runtime_config_path();
 
 	if (internal_config.no_shconf)
-		return;
+		return 0;
+
+	/* map the config before base address so that we don't waste a page */
+	if (internal_config.base_virtaddr != 0)
+		rte_mem_cfg_addr = (void *)
+			RTE_ALIGN_FLOOR(internal_config.base_virtaddr -
+			sizeof(struct rte_mem_config), page_sz);
+	else
+		rte_mem_cfg_addr = NULL;
 
 	if (mem_cfg_fd < 0){
 		mem_cfg_fd = open(pathname, O_RDWR | O_CREAT, 0600);
-		if (mem_cfg_fd < 0)
-			rte_panic("Cannot open '%s' for rte_mem_config\n", pathname);
+		if (mem_cfg_fd < 0) {
+			RTE_LOG(ERR, EAL, "Cannot open '%s' for rte_mem_config\n",
+				pathname);
+			return -1;
+		}
 	}
 
-	retval = ftruncate(mem_cfg_fd, sizeof(*rte_config.mem_config));
+	retval = ftruncate(mem_cfg_fd, cfg_len);
 	if (retval < 0){
 		close(mem_cfg_fd);
-		rte_panic("Cannot resize '%s' for rte_mem_config\n", pathname);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot resize '%s' for rte_mem_config\n",
+			pathname);
+		return -1;
 	}
 
 	retval = fcntl(mem_cfg_fd, F_SETLK, &wr_lock);
 	if (retval < 0){
 		close(mem_cfg_fd);
-		rte_exit(EXIT_FAILURE, "Cannot create lock on '%s'. Is another primary "
-				"process running?\n", pathname);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot create lock on '%s'. Is another primary "
+			"process running?\n", pathname);
+		return -1;
 	}
 
-	rte_mem_cfg_addr = mmap(NULL, sizeof(*rte_config.mem_config),
-				PROT_READ | PROT_WRITE, MAP_SHARED, mem_cfg_fd, 0);
-
-	if (rte_mem_cfg_addr == MAP_FAILED){
-		rte_panic("Cannot mmap memory for rte_config\n");
+	/* reserve space for config */
+	rte_mem_cfg_addr = eal_get_virtual_area(rte_mem_cfg_addr,
+			&cfg_len_aligned, page_sz, 0, 0);
+	if (rte_mem_cfg_addr == NULL) {
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config\n");
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		return -1;
 	}
+
+	/* remap the actual file into the space we've just reserved */
+	mapped_mem_cfg_addr = mmap(rte_mem_cfg_addr,
+			cfg_len_aligned, PROT_READ | PROT_WRITE,
+			MAP_SHARED | MAP_FIXED, mem_cfg_fd, 0);
+	if (mapped_mem_cfg_addr == MAP_FAILED) {
+		RTE_LOG(ERR, EAL, "Cannot remap memory for rte_config\n");
+		munmap(rte_mem_cfg_addr, cfg_len);
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		return -1;
+	}
+
 	memcpy(rte_mem_cfg_addr, &early_mem_config, sizeof(early_mem_config));
 	rte_config.mem_config = rte_mem_cfg_addr;
+
+	/* store address of the config in the config itself so that secondary
+	 * processes could later map the config into this exact location
+	 */
+	rte_config.mem_config->mem_cfg_addr = (uintptr_t) rte_mem_cfg_addr;
+
+	return 0;
 }
 
 /* attach to an existing shared memory config */
-static void
+static int
 rte_eal_config_attach(void)
 {
 	void *rte_mem_cfg_addr;
 	const char *pathname = eal_runtime_config_path();
 
 	if (internal_config.no_shconf)
-		return;
+		return 0;
 
 	if (mem_cfg_fd < 0){
 		mem_cfg_fd = open(pathname, O_RDWR);
-		if (mem_cfg_fd < 0)
-			rte_panic("Cannot open '%s' for rte_mem_config\n", pathname);
+		if (mem_cfg_fd < 0) {
+			RTE_LOG(ERR, EAL, "Cannot open '%s' for rte_mem_config\n",
+				pathname);
+			return -1;
+		}
 	}
 
 	rte_mem_cfg_addr = mmap(NULL, sizeof(*rte_config.mem_config),
-				PROT_READ | PROT_WRITE, MAP_SHARED, mem_cfg_fd, 0);
-	close(mem_cfg_fd);
-	if (rte_mem_cfg_addr == MAP_FAILED)
-		rte_panic("Cannot mmap memory for rte_config\n");
+				PROT_READ, MAP_SHARED, mem_cfg_fd, 0);
+	/* don't close the fd here, it will be closed on reattach */
+	if (rte_mem_cfg_addr == MAP_FAILED) {
+		close(mem_cfg_fd);
+		mem_cfg_fd = -1;
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config! error %i (%s)\n",
+			errno, strerror(errno));
+		return -1;
+	}
 
 	rte_config.mem_config = rte_mem_cfg_addr;
+
+	return 0;
+}
+
+/* reattach the shared config at exact memory location primary process has it */
+static int
+rte_eal_config_reattach(void)
+{
+	struct rte_mem_config *mem_config;
+	void *rte_mem_cfg_addr;
+
+	if (internal_config.no_shconf)
+		return 0;
+
+	/* save the address primary process has mapped shared config to */
+	rte_mem_cfg_addr =
+			(void *)(uintptr_t)rte_config.mem_config->mem_cfg_addr;
+
+	/* unmap original config */
+	munmap(rte_config.mem_config, sizeof(struct rte_mem_config));
+
+	/* remap the config at proper address */
+	mem_config = (struct rte_mem_config *) mmap(rte_mem_cfg_addr,
+			sizeof(*mem_config), PROT_READ | PROT_WRITE, MAP_SHARED,
+			mem_cfg_fd, 0);
+	close(mem_cfg_fd);
+	mem_cfg_fd = -1;
+
+	if (mem_config == MAP_FAILED || mem_config != rte_mem_cfg_addr) {
+		if (mem_config != MAP_FAILED) {
+			/* errno is stale, don't use */
+			RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config at [%p], got [%p]"
+					  " - please use '--" OPT_BASE_VIRTADDR
+					  "' option\n",
+				rte_mem_cfg_addr, mem_config);
+			munmap(mem_config, sizeof(struct rte_mem_config));
+			return -1;
+		}
+		RTE_LOG(ERR, EAL, "Cannot mmap memory for rte_config! error %i (%s)\n",
+			errno, strerror(errno));
+		return -1;
+	}
+
+	rte_config.mem_config = mem_config;
+
+	return 0;
 }
 
 /* Detect if we are a primary or a secondary process */
@@ -306,23 +402,37 @@ eal_proc_type_detect(void)
 }
 
 /* Sets up rte_config structure with the pointer to shared memory config.*/
-static void
+static int
 rte_config_init(void)
 {
 	rte_config.process_type = internal_config.process_type;
 
 	switch (rte_config.process_type){
 	case RTE_PROC_PRIMARY:
-		rte_eal_config_create();
+		if (rte_eal_config_create() < 0)
+			return -1;
+		eal_mcfg_update_from_internal();
 		break;
 	case RTE_PROC_SECONDARY:
-		rte_eal_config_attach();
-		rte_eal_mcfg_wait_complete(rte_config.mem_config);
+		if (rte_eal_config_attach() < 0)
+			return -1;
+		eal_mcfg_wait_complete();
+		if (eal_mcfg_check_version() < 0) {
+			RTE_LOG(ERR, EAL, "Primary and secondary process DPDK version mismatch\n");
+			return -1;
+		}
+		if (rte_eal_config_reattach() < 0)
+			return -1;
+		eal_mcfg_update_internal();
 		break;
 	case RTE_PROC_AUTO:
 	case RTE_PROC_INVALID:
-		rte_panic("Invalid process type\n");
+		RTE_LOG(ERR, EAL, "Invalid process type %d\n",
+			rte_config.process_type);
+		return -1;
 	}
+
+	return 0;
 }
 
 /* display usage */
@@ -560,14 +670,6 @@ sync_func(__attribute__((unused)) void *arg)
 	return 0;
 }
 
-inline static void
-rte_eal_mcfg_complete(void)
-{
-	/* ALL shared mem_config related INIT DONE */
-	if (rte_config.process_type == RTE_PROC_PRIMARY)
-		rte_config.mem_config->magic = RTE_MAGIC;
-}
-
 /* return non-zero if hugepages are enabled. */
 int rte_eal_has_hugepages(void)
 {
@@ -655,7 +757,10 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	rte_config_init();
+	if (rte_config_init() < 0) {
+		rte_eal_init_alert("Cannot init config");
+		return -1;
+	}
 
 	if (rte_eal_intr_init() < 0) {
 		rte_eal_init_alert("Cannot init interrupt-handling thread");
@@ -663,7 +768,7 @@ rte_eal_init(int argc, char **argv)
 	}
 
 	if (rte_eal_alarm_init() < 0) {
-		rte_eal_init_alert("Cannot init interrupt-handling thread");
+		rte_eal_init_alert("Cannot init alarm");
 		/* rte_eal_alarm_init sets rte_errno on failure. */
 		return -1;
 	}
@@ -671,7 +776,7 @@ rte_eal_init(int argc, char **argv)
 	/* Put mp channel init before bus scan so that we can init the vdev
 	 * bus through mp channel in the secondary process before the bus scan.
 	 */
-	if (rte_mp_channel_init() < 0) {
+	if (rte_mp_channel_init() < 0 && rte_errno != ENOTSUP) {
 		rte_eal_init_alert("failed to init mp channel");
 		if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 			rte_errno = EFAULT;
@@ -689,12 +794,18 @@ rte_eal_init(int argc, char **argv)
 	/* if no EAL option "--iova-mode=<pa|va>", use bus IOVA scheme */
 	if (internal_config.iova_mode == RTE_IOVA_DC) {
 		/* autodetect the IOVA mapping mode (default is RTE_IOVA_PA) */
-		rte_eal_get_configuration()->iova_mode =
-			rte_bus_get_iommu_class();
+		enum rte_iova_mode iova_mode = rte_bus_get_iommu_class();
+
+		if (iova_mode == RTE_IOVA_DC)
+			iova_mode = RTE_IOVA_PA;
+		rte_eal_get_configuration()->iova_mode = iova_mode;
 	} else {
 		rte_eal_get_configuration()->iova_mode =
 			internal_config.iova_mode;
 	}
+
+	RTE_LOG(INFO, EAL, "Selected IOVA mode '%s'\n",
+		rte_eal_iova_mode() == RTE_IOVA_PA ? "PA" : "VA");
 
 	if (internal_config.no_hugetlbfs == 0) {
 		/* rte_config isn't initialized yet */
@@ -726,8 +837,6 @@ rte_eal_init(int argc, char **argv)
 				"RTE_LIBRTE_EAL_VMWARE_TSC_MAP_SUPPORT is not set\n");
 #endif
 	}
-
-	rte_srand(rte_rdtsc());
 
 	/* in secondary processes, memory init may allocate additional fbarrays
 	 * not present in primary processes, so to avoid any potential issues,
@@ -844,7 +953,7 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
-	rte_eal_mcfg_complete();
+	eal_mcfg_complete();
 
 	/* Call each registered callback, if enabled */
 	rte_option_init();
@@ -852,20 +961,13 @@ rte_eal_init(int argc, char **argv)
 	return fctret;
 }
 
-int __rte_experimental
+int
 rte_eal_cleanup(void)
 {
 	rte_service_finalize();
 	rte_mp_channel_cleanup();
 	eal_cleanup_config(&internal_config);
 	return 0;
-}
-
-/* get core role */
-enum rte_lcore_role_t
-rte_eal_lcore_role(unsigned lcore_id)
-{
-	return rte_config.lcore_role[lcore_id];
 }
 
 enum rte_proc_type_t
@@ -923,20 +1025,6 @@ int rte_vfio_noiommu_is_enabled(void)
 int rte_vfio_clear_group(__rte_unused int vfio_group_fd)
 {
 	return 0;
-}
-
-int
-rte_vfio_dma_map(uint64_t __rte_unused vaddr, __rte_unused uint64_t iova,
-		  __rte_unused uint64_t len)
-{
-	return -1;
-}
-
-int
-rte_vfio_dma_unmap(uint64_t __rte_unused vaddr, uint64_t __rte_unused iova,
-		    __rte_unused uint64_t len)
-{
-	return -1;
 }
 
 int

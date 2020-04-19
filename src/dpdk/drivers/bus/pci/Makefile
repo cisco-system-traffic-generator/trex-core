@@ -4,7 +4,6 @@
 include $(RTE_SDK)/mk/rte.vars.mk
 
 LIB = librte_bus_pci.a
-LIBABIVER := 2
 EXPORT_MAP := rte_bus_pci_version.map
 
 CFLAGS := -I$(SRCDIR) $(CFLAGS)
@@ -25,7 +24,7 @@ CFLAGS += -I$(RTE_SDK)/lib/librte_eal/common
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_ring
-LDLIBS += -lrte_ethdev -lrte_pci -lrte_kvargs
+LDLIBS += -lrte_pci -lrte_kvargs
 
 include $(RTE_SDK)/drivers/bus/pci/$(SYSTEM)/Makefile
 SRCS-$(CONFIG_RTE_LIBRTE_PCI_BUS) := $(addprefix $(SYSTEM)/,$(SRCS))

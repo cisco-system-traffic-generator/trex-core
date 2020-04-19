@@ -20,11 +20,14 @@
 #include <rte_string_fns.h>
 #include <rte_spinlock.h>
 #include <rte_memcpy.h>
+#include <rte_memzone.h>
 #include <rte_atomic.h>
 #include <rte_fbarray.h>
 
 #include "eal_internal_cfg.h"
 #include "eal_memalloc.h"
+#include "eal_memcfg.h"
+#include "eal_private.h"
 #include "malloc_elem.h"
 #include "malloc_heap.h"
 #include "malloc_mp.h"
@@ -485,10 +488,9 @@ try_expand_heap(struct malloc_heap *heap, uint64_t pg_sz, size_t elt_size,
 		int socket, unsigned int flags, size_t align, size_t bound,
 		bool contig)
 {
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	int ret;
 
-	rte_rwlock_write_lock(&mcfg->memory_hotplug_lock);
+	rte_mcfg_mem_write_lock();
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 		ret = try_expand_heap_primary(heap, pg_sz, elt_size, socket,
@@ -498,7 +500,7 @@ try_expand_heap(struct malloc_heap *heap, uint64_t pg_sz, size_t elt_size,
 				flags, align, bound, contig);
 	}
 
-	rte_rwlock_write_unlock(&mcfg->memory_hotplug_lock);
+	rte_mcfg_mem_write_unlock();
 	return ret;
 }
 
@@ -821,7 +823,6 @@ malloc_heap_free_pages(void *aligned_start, size_t aligned_len)
 int
 malloc_heap_free(struct malloc_elem *elem)
 {
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	struct malloc_heap *heap;
 	void *start, *aligned_start, *end, *aligned_end;
 	size_t len, aligned_len, page_sz;
@@ -935,7 +936,7 @@ malloc_heap_free(struct malloc_elem *elem)
 
 	/* now we can finally free us some pages */
 
-	rte_rwlock_write_lock(&mcfg->memory_hotplug_lock);
+	rte_mcfg_mem_write_lock();
 
 	/*
 	 * we allow secondary processes to clear the heap of this allocated
@@ -990,7 +991,7 @@ malloc_heap_free(struct malloc_elem *elem)
 	RTE_LOG(DEBUG, EAL, "Heap on socket %d was shrunk by %zdMB\n",
 		msl->socket_id, aligned_len >> 20ULL);
 
-	rte_rwlock_write_unlock(&mcfg->memory_hotplug_lock);
+	rte_mcfg_mem_write_unlock();
 free_unlock:
 	rte_spinlock_unlock(&(heap->lock));
 	return ret;
@@ -1118,7 +1119,7 @@ malloc_heap_create_external_seg(void *va_addr, rte_iova_t iova_addrs[],
 		return NULL;
 	}
 
-	snprintf(fbarray_name, sizeof(fbarray_name) - 1, "%s_%p",
+	snprintf(fbarray_name, sizeof(fbarray_name), "%s_%p",
 			seg_name, va_addr);
 
 	/* create the backing fbarray */
@@ -1334,7 +1335,7 @@ rte_eal_malloc_heap_init(void)
 			char heap_name[RTE_HEAP_NAME_MAX_LEN];
 			int socket_id = rte_socket_id_by_idx(i);
 
-			snprintf(heap_name, sizeof(heap_name) - 1,
+			snprintf(heap_name, sizeof(heap_name),
 					"socket_%i", socket_id);
 			strlcpy(heap->name, heap_name, RTE_HEAP_NAME_MAX_LEN);
 			heap->socket_id = socket_id;
@@ -1344,7 +1345,7 @@ rte_eal_malloc_heap_init(void)
 
 	if (register_mp_requests()) {
 		RTE_LOG(ERR, EAL, "Couldn't register malloc multiprocess actions\n");
-		rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
+		rte_mcfg_mem_read_unlock();
 		return -1;
 	}
 
@@ -1352,7 +1353,7 @@ rte_eal_malloc_heap_init(void)
 	 * even come before primary itself is fully initialized, and secondaries
 	 * do not need to initialize the heap.
 	 */
-	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
+	rte_mcfg_mem_read_unlock();
 
 	/* secondary process does not need to initialize anything */
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)

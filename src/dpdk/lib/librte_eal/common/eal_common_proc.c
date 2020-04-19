@@ -197,13 +197,19 @@ validate_action_name(const char *name)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_mp_action_register(const char *name, rte_mp_t action)
 {
 	struct action_entry *entry;
 
 	if (validate_action_name(name) != 0)
 		return -1;
+
+	if (internal_config.no_shconf) {
+		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC is disabled\n");
+		rte_errno = ENOTSUP;
+		return -1;
+	}
 
 	entry = malloc(sizeof(struct action_entry));
 	if (entry == NULL) {
@@ -225,13 +231,18 @@ rte_mp_action_register(const char *name, rte_mp_t action)
 	return 0;
 }
 
-void __rte_experimental
+void
 rte_mp_action_unregister(const char *name)
 {
 	struct action_entry *entry;
 
 	if (validate_action_name(name) != 0)
 		return;
+
+	if (internal_config.no_shconf) {
+		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC is disabled\n");
+		return;
+	}
 
 	pthread_mutex_lock(&mp_mutex_action);
 	entry = find_action_entry_by_name(name);
@@ -272,7 +283,7 @@ read_msg(struct mp_msg_internal *m, struct sockaddr_un *s)
 	}
 
 	if (msglen != buflen || (msgh.msg_flags & (MSG_TRUNC | MSG_CTRUNC))) {
-		RTE_LOG(ERR, EAL, "truncted msg\n");
+		RTE_LOG(ERR, EAL, "truncated msg\n");
 		return -1;
 	}
 
@@ -576,7 +587,8 @@ rte_mp_channel_init(void)
 	 */
 	if (internal_config.no_shconf) {
 		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC will be disabled\n");
-		return 0;
+		rte_errno = ENOTSUP;
+		return -1;
 	}
 
 	/* create filter path */
@@ -789,11 +801,17 @@ check_input(const struct rte_mp_msg *msg)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_mp_sendmsg(struct rte_mp_msg *msg)
 {
 	if (check_input(msg) != 0)
 		return -1;
+
+	if (internal_config.no_shconf) {
+		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC is disabled\n");
+		rte_errno = ENOTSUP;
+		return -1;
+	}
 
 	RTE_LOG(DEBUG, EAL, "sendmsg: %s\n", msg->name);
 	return mp_send(msg, NULL, MP_MSG);
@@ -930,7 +948,7 @@ mp_request_sync(const char *dst, struct rte_mp_msg *req,
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_mp_request_sync(struct rte_mp_msg *req, struct rte_mp_reply *reply,
 		const struct timespec *ts)
 {
@@ -951,7 +969,8 @@ rte_mp_request_sync(struct rte_mp_msg *req, struct rte_mp_reply *reply,
 
 	if (internal_config.no_shconf) {
 		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC is disabled\n");
-		return 0;
+		rte_errno = ENOTSUP;
+		return -1;
 	}
 
 	if (gettimeofday(&now, NULL) < 0) {
@@ -1025,7 +1044,7 @@ end:
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_mp_request_async(struct rte_mp_msg *req, const struct timespec *ts,
 		rte_mp_async_reply_t clb)
 {
@@ -1047,11 +1066,12 @@ rte_mp_request_async(struct rte_mp_msg *req, const struct timespec *ts,
 
 	if (internal_config.no_shconf) {
 		RTE_LOG(DEBUG, EAL, "No shared files mode enabled, IPC is disabled\n");
-		return 0;
+		rte_errno = ENOTSUP;
+		return -1;
 	}
 
 	if (gettimeofday(&now, NULL) < 0) {
-		RTE_LOG(ERR, EAL, "Faile to get current time\n");
+		RTE_LOG(ERR, EAL, "Failed to get current time\n");
 		rte_errno = errno;
 		return -1;
 	}
@@ -1174,7 +1194,7 @@ fail:
 	return -1;
 }
 
-int __rte_experimental
+int
 rte_mp_reply(struct rte_mp_msg *msg, const char *peer)
 {
 	RTE_LOG(DEBUG, EAL, "reply: %s\n", msg->name);

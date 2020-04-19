@@ -33,7 +33,7 @@
 
 #define RTE_IXGBE_DESCS_PER_LOOP    4
 
-#ifdef RTE_IXGBE_INC_VECTOR
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
 #define RTE_IXGBE_RXQ_REARM_THRESH      32
 #define RTE_IXGBE_MAX_RX_BURST          RTE_IXGBE_RXQ_REARM_THRESH
 #endif
@@ -52,6 +52,8 @@
 #define RTE_IXGBE_VMTXSW_REGISTER_COUNT     2
 
 #define IXGBE_TX_MAX_SEG                    40
+
+#define IXGBE_TX_MIN_PKT_LEN		     14
 
 #define IXGBE_PACKET_TYPE_MASK_82599        0X7F
 #define IXGBE_PACKET_TYPE_MASK_X550         0X10FF
@@ -115,7 +117,7 @@ struct ixgbe_rx_queue {
 	uint8_t            using_ipsec;
 	/**< indicates that IPsec RX feature is in use */
 #endif
-#ifdef RTE_IXGBE_INC_VECTOR
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
 	uint16_t            rxrearm_nb;     /**< number of remaining to be re-armed */
 	uint16_t            rxrearm_start;  /**< the idx we start the re-arming from */
 #endif
@@ -284,16 +286,14 @@ uint16_t ixgbe_recv_scattered_pkts_vec(void *rx_queue,
 int ixgbe_rx_vec_dev_conf_condition_check(struct rte_eth_dev *dev);
 int ixgbe_rxq_vec_setup(struct ixgbe_rx_queue *rxq);
 void ixgbe_rx_queue_release_mbufs_vec(struct ixgbe_rx_queue *rxq);
+int ixgbe_dev_tx_done_cleanup(void *tx_queue, uint32_t free_cnt);
 
 extern const uint32_t ptype_table[IXGBE_PACKET_TYPE_MAX];
 extern const uint32_t ptype_table_tn[IXGBE_PACKET_TYPE_TN_MAX];
 
-#ifdef RTE_IXGBE_INC_VECTOR
-
 uint16_t ixgbe_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 				    uint16_t nb_pkts);
 int ixgbe_txq_vec_setup(struct ixgbe_tx_queue *txq);
-#endif /* RTE_IXGBE_INC_VECTOR */
 
 uint64_t ixgbe_get_tx_port_offloads(struct rte_eth_dev *dev);
 uint64_t ixgbe_get_rx_queue_offloads(struct rte_eth_dev *dev);

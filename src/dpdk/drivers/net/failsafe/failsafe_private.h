@@ -3,8 +3,8 @@
  * Copyright 2017 Mellanox Technologies, Ltd
  */
 
-#ifndef _RTE_ETH_FAILSAFE_PRIVATE_H_
-#define _RTE_ETH_FAILSAFE_PRIVATE_H_
+#ifndef _ETH_FAILSAFE_PRIVATE_H_
+#define _ETH_FAILSAFE_PRIVATE_H_
 
 #include <stdint.h>
 #include <sys/queue.h>
@@ -152,12 +152,11 @@ struct fs_priv {
 	TAILQ_HEAD(sub_flows, rte_flow) flow_list;
 	/* current number of mac_addr slots allocated. */
 	uint32_t nb_mac_addr;
-	struct ether_addr mac_addrs[FAILSAFE_MAX_ETHADDR];
+	struct rte_ether_addr mac_addrs[FAILSAFE_MAX_ETHADDR];
 	uint32_t mac_addr_pool[FAILSAFE_MAX_ETHADDR];
 	uint32_t nb_mcast_addr;
-	struct ether_addr *mcast_addrs;
+	struct rte_ether_addr *mcast_addrs;
 	/* current capabilities */
-	struct rte_eth_dev_info infos;
 	struct rte_eth_dev_owner my_owner; /* Unique owner. */
 	struct rte_intr_handle intr_handle; /* Port interrupt handle. */
 	/*
@@ -494,4 +493,4 @@ fs_err(struct sub_device *sdev, int err)
 		return rte_errno = 0;
 	return err;
 }
-#endif /* _RTE_ETH_FAILSAFE_PRIVATE_H_ */
+#endif /* _ETH_FAILSAFE_PRIVATE_H_ */

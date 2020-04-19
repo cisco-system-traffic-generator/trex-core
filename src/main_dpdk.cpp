@@ -1379,7 +1379,8 @@ COLD_FUNC void CPhyEthIF::disable_flow_control() {
 }
 
 COLD_FUNC int DpdkTRexPortAttr::add_mac(char * mac){
-    struct ether_addr mac_addr;
+    struct rte_ether_addr mac_addr;
+
     for (int i=0; i<6;i++) {
         mac_addr.addr_bytes[i] =mac[i];
     }
@@ -3802,7 +3803,7 @@ static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
 }
 
 COLD_FUNC void  dump_dpdk_devices(void){
-        printf(" DPDK devices %d : %d \n", rte_eth_dev_count(),
+        printf(" DPDK devices %d : %d \n", rte_eth_dev_count_avail(),
          rte_eth_dev_count_total());
         printf("-----\n");  
         char name[100];
@@ -3823,7 +3824,7 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
     }
 
    if (CGlobalInfo::m_options.m_is_vdev) {
-      m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+      m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
     }
     else {
       m_max_ports = port_map.get_max_num_ports();
@@ -5639,7 +5640,7 @@ COLD_FUNC bool CPhyEthIF::Create(tvpid_t  tvpid,
         uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
         if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
             rte_eth_macaddr_get(m_repid,
-                                (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
+                                (struct rte_ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
         }
     }
 
@@ -6256,9 +6257,9 @@ COLD_FUNC int sim_load_list_of_cap_files(CParserOption * op){
 
 COLD_FUNC void dump_interfaces_info() {
     printf("Showing interfaces info.\n");
-    uint8_t m_max_ports = rte_eth_dev_count();
-    struct ether_addr mac_addr;
-    char mac_str[ETHER_ADDR_FMT_SIZE];
+    uint8_t m_max_ports = rte_eth_dev_count_avail();
+    struct rte_ether_addr mac_addr;
+    char mac_str[RTE_ETHER_ADDR_FMT_SIZE];
     struct rte_eth_dev_info dev_info;
     struct rte_pci_device pci_dev;
 
@@ -6266,7 +6267,7 @@ COLD_FUNC void dump_interfaces_info() {
         // PCI, MAC and Driver
         rte_eth_dev_info_get(port_id, &dev_info);
         rte_eth_macaddr_get(port_id, &mac_addr);
-        ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
+        rte_ether_format_addr(mac_str, sizeof (mac_str), &mac_addr);
         bool ret = fill_pci_dev(&dev_info, &pci_dev);
         if ( ret ) {
             struct rte_pci_addr *pci_addr = &pci_dev.addr;
@@ -6581,7 +6582,7 @@ COLD_FUNC void wait_x_sec(int sec) {
 COLD_FUNC void set_driver() {
     uint8_t m_max_ports;
     if ( CGlobalInfo::m_options.m_is_vdev ) {
-        m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+        m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
     } else {
         m_max_ports = port_map.get_max_num_ports();
     }
@@ -6702,7 +6703,7 @@ COLD_FUNC void reorder_dpdk_ports() {
     std::string err;
 
     /* build list of dpdk devices */
-    uint8_t cnt = rte_eth_dev_count();
+    uint8_t cnt = rte_eth_dev_count_avail();
     int i;
     for (i=0; i<cnt; i++) {
         if (rte_eth_dev_pci_addr((repid_t)i,buf,BUF_MAX)!=0){
@@ -6805,7 +6806,7 @@ COLD_FUNC void TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vecto
 
 
 COLD_FUNC void TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
-    struct ether_addr rte_mac_addr = {{0}};
+    struct rte_ether_addr rte_mac_addr = {{0}};
 
     if ( g_trex.m_ports[port_id]->is_dummy() ) {
         info.driver_name = "Dummy";

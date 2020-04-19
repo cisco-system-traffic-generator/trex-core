@@ -36,7 +36,7 @@ typedef void (*rte_intr_unregister_callback_fn)(struct rte_intr_handle *intr_han
 
 /**
  * It registers the callback for the specific interrupt. Multiple
- * callbacks cal be registered at the same time.
+ * callbacks can be registered at the same time.
  * @param intr_handle
  *  Pointer to the interrupt handle.
  * @param cb
@@ -88,7 +88,8 @@ int rte_intr_callback_unregister(const struct rte_intr_handle *intr_handle,
  *  - On success, return the number of callback entities marked for remove.
  *  - On failure, a negative value.
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_intr_callback_unregister_pending(const struct rte_intr_handle *intr_handle,
 				rte_intr_callback_fn cb_fn, void *cb_arg,
 				rte_intr_unregister_callback_fn ucb_fn);
@@ -116,6 +117,26 @@ int rte_intr_enable(const struct rte_intr_handle *intr_handle);
  *  - On failure, a negative value.
  */
 int rte_intr_disable(const struct rte_intr_handle *intr_handle);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * It acknowledges an interrupt raised for the specified handle.
+ *
+ * This function should be called at the end of each interrupt handler either
+ * from application or driver, so that currently raised interrupt is acked and
+ * further new interrupts are raised.
+ *
+ * @param intr_handle
+ *  pointer to the interrupt handle.
+ *
+ * @return
+ *  - On success, zero.
+ *  - On failure, a negative value.
+ */
+__rte_experimental
+int rte_intr_ack(const struct rte_intr_handle *intr_handle);
 
 #ifdef __cplusplus
 }

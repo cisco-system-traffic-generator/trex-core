@@ -96,6 +96,11 @@ struct rte_flow_ops {
 		(struct rte_eth_dev *,
 		 int,
 		 struct rte_flow_error *);
+	/** See rte_flow_dev_dump(). */
+	int (*dev_dump)
+		(struct rte_eth_dev *dev,
+		 FILE *file,
+		 struct rte_flow_error *error);
 };
 
 /**
@@ -171,7 +176,8 @@ struct rte_flow_expand_rss {
  *
  *   -E2BIG: graph-depth @p graph is too deep.
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_flow_expand_rss(struct rte_flow_expand_rss *buf, size_t size,
 		    const struct rte_flow_item *pattern, uint64_t types,
 		    const struct rte_flow_expand_node graph[],

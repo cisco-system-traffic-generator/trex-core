@@ -2,7 +2,6 @@
  * Copyright(c) 2017-2018 Intel Corporation
  */
 
-#define _FILE_OFFSET_BITS 64
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -36,7 +35,6 @@
 
 #include <rte_common.h>
 #include <rte_log.h>
-#include <rte_eal_memconfig.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
 #include <rte_memory.h>
@@ -45,6 +43,7 @@
 #include "eal_filesystem.h"
 #include "eal_internal_cfg.h"
 #include "eal_memalloc.h"
+#include "eal_memcfg.h"
 #include "eal_private.h"
 
 const int anonymous_hugepages_supported =
@@ -600,9 +599,13 @@ alloc_seg(struct rte_memseg *ms, void *addr, int socket_id,
 	}
 
 #ifdef RTE_EAL_NUMA_AWARE_HUGEPAGES
-	move_pages(getpid(), 1, &addr, NULL, &cur_socket_id, 0);
-
-	if (cur_socket_id != socket_id) {
+	ret = get_mempolicy(&cur_socket_id, NULL, 0, addr,
+			    MPOL_F_NODE | MPOL_F_ADDR);
+	if (ret < 0) {
+		RTE_LOG(DEBUG, EAL, "%s(): get_mempolicy: %s\n",
+			__func__, strerror(errno));
+		goto mapped;
+	} else if (cur_socket_id != socket_id) {
 		RTE_LOG(DEBUG, EAL,
 				"%s(): allocation happened on wrong socket (wanted %d, got %d)\n",
 			__func__, socket_id, cur_socket_id);

@@ -16,6 +16,87 @@
 #include "eal_private.h"
 #include "eal_thread.h"
 
+unsigned int rte_get_master_lcore(void)
+{
+	return rte_eal_get_configuration()->master_lcore;
+}
+
+unsigned int rte_lcore_count(void)
+{
+	return rte_eal_get_configuration()->lcore_count;
+}
+
+int rte_lcore_index(int lcore_id)
+{
+	if (unlikely(lcore_id >= RTE_MAX_LCORE))
+		return -1;
+
+	if (lcore_id < 0)
+		lcore_id = (int)rte_lcore_id();
+
+	return lcore_config[lcore_id].core_index;
+}
+
+int rte_lcore_to_cpu_id(int lcore_id)
+{
+	if (unlikely(lcore_id >= RTE_MAX_LCORE))
+		return -1;
+
+	if (lcore_id < 0)
+		lcore_id = (int)rte_lcore_id();
+
+	return lcore_config[lcore_id].core_id;
+}
+
+rte_cpuset_t rte_lcore_cpuset(unsigned int lcore_id)
+{
+	return lcore_config[lcore_id].cpuset;
+}
+
+enum rte_lcore_role_t
+rte_eal_lcore_role(unsigned int lcore_id)
+{
+	struct rte_config *cfg = rte_eal_get_configuration();
+
+	if (lcore_id >= RTE_MAX_LCORE)
+		return ROLE_OFF;
+	return cfg->lcore_role[lcore_id];
+}
+
+int rte_lcore_is_enabled(unsigned int lcore_id)
+{
+	struct rte_config *cfg = rte_eal_get_configuration();
+
+	if (lcore_id >= RTE_MAX_LCORE)
+		return 0;
+	return cfg->lcore_role[lcore_id] == ROLE_RTE;
+}
+
+unsigned int rte_get_next_lcore(unsigned int i, int skip_master, int wrap)
+{
+	i++;
+	if (wrap)
+		i %= RTE_MAX_LCORE;
+
+	while (i < RTE_MAX_LCORE) {
+		if (!rte_lcore_is_enabled(i) ||
+		    (skip_master && (i == rte_get_master_lcore()))) {
+			i++;
+			if (wrap)
+				i %= RTE_MAX_LCORE;
+			continue;
+		}
+		break;
+	}
+	return i;
+}
+
+unsigned int
+rte_lcore_to_socket_id(unsigned int lcore_id)
+{
+	return lcore_config[lcore_id].socket_id;
+}
+
 static int
 socket_id_cmp(const void *a, const void *b)
 {
@@ -56,20 +137,9 @@ rte_eal_cpu_init(void)
 
 		/* find socket first */
 		socket_id = eal_cpu_socket_id(lcore_id);
-		if (socket_id >= RTE_MAX_NUMA_NODES) {
-#ifdef RTE_EAL_ALLOW_INV_SOCKET_ID
-			socket_id = 0;
-#else
-			RTE_LOG(ERR, EAL, "Socket ID (%u) is greater than RTE_MAX_NUMA_NODES (%d)\n",
-					socket_id, RTE_MAX_NUMA_NODES);
-			return -1;
-#endif
-		}
 		lcore_to_socket_id[lcore_id] = socket_id;
 
-		/* in 1:1 mapping, record related cpu detected state */
-		lcore_config[lcore_id].detected = eal_cpu_detected(lcore_id);
-		if (lcore_config[lcore_id].detected == 0) {
+		if (eal_cpu_detected(lcore_id) == 0) {
 			config->lcore_role[lcore_id] = ROLE_OFF;
 			lcore_config[lcore_id].core_index = -1;
 			continue;
@@ -89,6 +159,14 @@ rte_eal_cpu_init(void)
 				lcore_config[lcore_id].socket_id);
 		count++;
 	}
+	for (; lcore_id < CPU_SETSIZE; lcore_id++) {
+		if (eal_cpu_detected(lcore_id) == 0)
+			continue;
+		RTE_LOG(DEBUG, EAL, "Skipped lcore %u as core %u on socket %u\n",
+			lcore_id, eal_cpu_core_id(lcore_id),
+			eal_cpu_socket_id(lcore_id));
+	}
+
 	/* Set the count of enabled logical cores of the EAL configuration */
 	config->lcore_count = count;
 	RTE_LOG(DEBUG, EAL,

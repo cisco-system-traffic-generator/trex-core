@@ -376,7 +376,7 @@ uint64_t rte_rand(void){
 #define DEV_TX_OFFLOAD_UDP_CKSUM   0x00000004
 #define DEV_TX_OFFLOAD_TCP_CKSUM   0x00000008
 
-struct tcp_hdr {
+struct rte_tcp_hdr {
 	uint16_t src_port;  /**< TCP source port. */
 	uint16_t dst_port;  /**< TCP destination port. */
 	uint32_t sent_seq;  /**< TX data sequence number. */
@@ -389,14 +389,14 @@ struct tcp_hdr {
 } __attribute__((__packed__));
 
 
-struct udp_hdr {
+struct rte_udp_hdr {
 	uint16_t src_port;    /**< UDP source port. */
 	uint16_t dst_port;    /**< UDP destination port. */
 	uint16_t dgram_len;   /**< UDP datagram length */
 	uint16_t dgram_cksum; /**< UDP datagram checksum */
 } __attribute__((__packed__));
 
-struct ipv4_hdr {
+struct rte_ipv4_hdr {
 	uint8_t  version_ihl;		/**< version and header length */
 	uint8_t  type_of_service;	/**< type of service */
 	uint16_t total_length;		/**< length of packet */
@@ -409,7 +409,7 @@ struct ipv4_hdr {
 	uint32_t dst_addr;		/**< destination address */
 } __attribute__((__packed__));
 
-struct ipv6_hdr {
+struct rte_ipv6_hdr {
 	uint32_t vtc_flow;     /**< IP version, traffic class & flow label. */
 	uint16_t payload_len;  /**< IP packet length - includes sizeof(ip_header). */
 	uint8_t  proto;        /**< Protocol, next header. */
@@ -530,7 +530,7 @@ rte_raw_cksum_mbuf(const struct rte_mbuf *m, uint32_t off, uint32_t len,
 	return 0;
 }
 
-static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
+static inline uint16_t rte_ipv4_header_len(const struct rte_ipv4_hdr *ipv4_hdr){
    return((ipv4_hdr->version_ihl &0xf)<<2);
 }
 
@@ -538,7 +538,7 @@ static inline uint16_t rte_ipv4_header_len(const struct ipv4_hdr *ipv4_hdr){
 
 
 static inline uint16_t
-rte_ipv4_cksum(const struct ipv4_hdr *ipv4_hdr)
+rte_ipv4_cksum(const struct rte_ipv4_hdr *ipv4_hdr)
 {
 	uint16_t cksum;
 	cksum = rte_raw_cksum(ipv4_hdr, rte_ipv4_header_len(ipv4_hdr));
@@ -547,7 +547,7 @@ rte_ipv4_cksum(const struct ipv4_hdr *ipv4_hdr)
 
 
 
-uint16_t rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags)
+uint16_t rte_ipv4_phdr_cksum(const struct rte_ipv4_hdr *ipv4_hdr, uint64_t ol_flags)
 {
 	struct ipv4_psd_header {
 		uint32_t src_addr; /* IP address of source host. */
@@ -571,7 +571,7 @@ uint16_t rte_ipv4_phdr_cksum(const struct ipv4_hdr *ipv4_hdr, uint64_t ol_flags)
 	return rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 }
 
-uint16_t rte_ipv6_phdr_cksum(const struct ipv6_hdr *ipv6_hdr, uint64_t ol_flags)
+uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_flags)
 {
 	uint32_t sum;
 	struct {
@@ -607,13 +607,13 @@ static void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
 
         if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) &&
             !(tx_offload & DEV_TX_OFFLOAD_TCP_CKSUM)) {
-            struct tcp_hdr *tcp_hdr = rte_pktmbuf_mtod_offset(m, struct tcp_hdr *, csum_start);
+            struct rte_tcp_hdr * tcp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_tcp_hdr *, csum_start);
 
             tcp_hdr->cksum = csum;
             m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
         } else if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM) &&
                     !(tx_offload & DEV_TX_OFFLOAD_UDP_CKSUM)) {
-            struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct udp_hdr *, csum_start);
+            struct rte_udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_udp_hdr *, csum_start);
 
             udp_hdr->dgram_cksum = csum;
             m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
@@ -621,7 +621,7 @@ static void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
 
         if ((m->ol_flags & PKT_TX_IPV4) && (m->ol_flags & PKT_TX_IP_CKSUM) &&
             !(tx_offload & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
-            struct ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct ipv4_hdr *, m->l2_len);
+            struct rte_ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, m->l2_len);
 
             if (!iph->hdr_checksum) {
                 iph->hdr_checksum = rte_ipv4_cksum(iph);

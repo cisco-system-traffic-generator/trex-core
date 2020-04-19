@@ -193,7 +193,7 @@ fail:
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_intr_callback_unregister_pending(const struct rte_intr_handle *intr_handle,
 				rte_intr_callback_fn cb_fn, void *cb_arg,
 				rte_intr_unregister_callback_fn ucb_fn)
@@ -385,6 +385,15 @@ rte_intr_disable(const struct rte_intr_handle *intr_handle)
 	}
 
 	return 0;
+}
+
+int
+rte_intr_ack(const struct rte_intr_handle *intr_handle)
+{
+	if (intr_handle && intr_handle->type == RTE_INTR_HANDLE_VDEV)
+		return 0;
+
+	return -1;
 }
 
 static void
@@ -661,4 +670,9 @@ void
 rte_intr_free_epoll_fd(struct rte_intr_handle *intr_handle)
 {
 	RTE_SET_USED(intr_handle);
+}
+
+int rte_thread_is_intr(void)
+{
+	return pthread_equal(intr_thread, pthread_self());
 }

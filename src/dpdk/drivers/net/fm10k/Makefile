@@ -10,10 +10,9 @@ LIB = librte_pmd_fm10k.a
 
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
+CFLAGS += -DALLOW_EXPERIMENTAL_API
 
 EXPORT_MAP := rte_pmd_fm10k_version.map
-
-LIBABIVER := 1
 
 ifeq ($(CONFIG_RTE_TOOLCHAIN_ICC),y)
 #
@@ -30,7 +29,6 @@ else ifeq ($(CONFIG_RTE_TOOLCHAIN_CLANG),y)
 CFLAGS_BASE_DRIVER = -Wno-unused-parameter -Wno-unused-value
 CFLAGS_BASE_DRIVER += -Wno-strict-aliasing -Wno-format-extra-args
 CFLAGS_BASE_DRIVER += -Wno-unused-variable
-CFLAGS_BASE_DRIVER += -Wno-missing-field-initializers
 
 else
 #
@@ -39,7 +37,6 @@ else
 CFLAGS_BASE_DRIVER = -Wno-unused-parameter -Wno-unused-value
 CFLAGS_BASE_DRIVER += -Wno-strict-aliasing -Wno-format-extra-args
 CFLAGS_BASE_DRIVER += -Wno-unused-variable
-CFLAGS_BASE_DRIVER += -Wno-missing-field-initializers
 
 ifeq ($(shell test $(GCC_VERSION) -ge 44 && echo 1), 1)
 CFLAGS     += -Wno-deprecated
@@ -74,6 +71,8 @@ SRCS-$(CONFIG_RTE_LIBRTE_FM10K_PMD) += fm10k_common.c
 SRCS-$(CONFIG_RTE_LIBRTE_FM10K_PMD) += fm10k_mbx.c
 SRCS-$(CONFIG_RTE_LIBRTE_FM10K_PMD) += fm10k_vf.c
 SRCS-$(CONFIG_RTE_LIBRTE_FM10K_PMD) += fm10k_api.c
+ifeq ($(CONFIG_RTE_ARCH_X86), y)
 SRCS-$(CONFIG_RTE_LIBRTE_FM10K_INC_VECTOR) += fm10k_rxtx_vec.c
+endif
 
 include $(RTE_SDK)/mk/rte.lib.mk

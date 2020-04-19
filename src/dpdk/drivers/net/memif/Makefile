@@ -10,8 +10,6 @@ LIB = librte_pmd_memif.a
 
 EXPORT_MAP := rte_pmd_memif_version.map
 
-LIBABIVER := 1
-
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 CFLAGS += -DALLOW_EXPERIMENTAL_API
@@ -20,6 +18,7 @@ CFLAGS += -DALLOW_EXPERIMENTAL_API
 # - rte_mp_action_register
 # - rte_mp_reply
 # - rte_mp_request_sync
+# - rte_mcfg_get_single_file_segments
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool
 LDLIBS += -lrte_ethdev -lrte_kvargs -lrte_net
 LDLIBS += -lrte_hash

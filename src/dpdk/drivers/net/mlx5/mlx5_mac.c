@@ -4,7 +4,6 @@
  */
 
 #include <stddef.h>
-#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
@@ -27,10 +26,10 @@
 #include <rte_ethdev_driver.h>
 #include <rte_common.h>
 
+#include "mlx5_defs.h"
 #include "mlx5.h"
 #include "mlx5_utils.h"
 #include "mlx5_rxtx.h"
-#include "mlx5_defs.h"
 
 /**
  * Get MAC address by querying netdevice.
@@ -44,7 +43,7 @@
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx5_get_mac(struct rte_eth_dev *dev, uint8_t (*mac)[ETHER_ADDR_LEN])
+mlx5_get_mac(struct rte_eth_dev *dev, uint8_t (*mac)[RTE_ETHER_ADDR_LEN])
 {
 	struct ifreq request;
 	int ret;
@@ -52,7 +51,7 @@ mlx5_get_mac(struct rte_eth_dev *dev, uint8_t (*mac)[ETHER_ADDR_LEN])
 	ret = mlx5_ifreq(dev, SIOCGIFHWADDR, &request);
 	if (ret)
 		return ret;
-	memcpy(mac, request.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
+	memcpy(mac, request.ifr_hwaddr.sa_data, RTE_ETHER_ADDR_LEN);
 	return 0;
 }
 
@@ -70,13 +69,14 @@ mlx5_internal_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 	struct mlx5_priv *priv = dev->data->dev_private;
 	const int vf = priv->config.vf;
 
-	assert(index < MLX5_MAX_MAC_ADDRESSES);
-	if (is_zero_ether_addr(&dev->data->mac_addrs[index]))
+	MLX5_ASSERT(index < MLX5_MAX_MAC_ADDRESSES);
+	if (rte_is_zero_ether_addr(&dev->data->mac_addrs[index]))
 		return;
 	if (vf)
-		mlx5_nl_mac_addr_remove(dev, &dev->data->mac_addrs[index],
-					index);
-	memset(&dev->data->mac_addrs[index], 0, sizeof(struct ether_addr));
+		mlx5_nl_mac_addr_remove(priv->nl_socket_route,
+					mlx5_ifindex(dev), priv->mac_own,
+					&dev->data->mac_addrs[index], index);
+	memset(&dev->data->mac_addrs[index], 0, sizeof(struct rte_ether_addr));
 }
 
 /**
@@ -93,15 +93,15 @@ mlx5_internal_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 static int
-mlx5_internal_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
+mlx5_internal_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac,
 			   uint32_t index)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
 	const int vf = priv->config.vf;
 	unsigned int i;
 
-	assert(index < MLX5_MAX_MAC_ADDRESSES);
-	if (is_zero_ether_addr(mac)) {
+	MLX5_ASSERT(index < MLX5_MAX_MAC_ADDRESSES);
+	if (rte_is_zero_ether_addr(mac)) {
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
@@ -117,7 +117,9 @@ mlx5_internal_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
 		return -rte_errno;
 	}
 	if (vf) {
-		int ret = mlx5_nl_mac_addr_add(dev, mac, index);
+		int ret = mlx5_nl_mac_addr_add(priv->nl_socket_route,
+					       mlx5_ifindex(dev), priv->mac_own,
+					       mac, index);
 
 		if (ret)
 			return ret;
@@ -166,7 +168,7 @@ mlx5_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx5_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
+mlx5_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac,
 		  uint32_t index, uint32_t vmdq __rte_unused)
 {
 	int ret;
@@ -195,8 +197,29 @@ mlx5_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
 int
-mlx5_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
+mlx5_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
 {
+	uint16_t port_id;
+	struct mlx5_priv *priv = dev->data->dev_private;
+
+	/* Configuring the VF instead of its representor. */
+	if (priv->representor) {
+		DRV_LOG(DEBUG, "VF represented by port %u setting primary MAC address",
+			dev->data->port_id);
+		RTE_ETH_FOREACH_DEV_SIBLING(port_id, dev->data->port_id) {
+			priv = rte_eth_devices[port_id].data->dev_private;
+			if (priv->master == 1) {
+				priv = dev->data->dev_private;
+				return mlx5_nl_vf_mac_addr_modify
+				       (priv->nl_socket_route,
+					mlx5_ifindex(&rte_eth_devices[port_id]),
+					mac_addr, priv->representor_id);
+			}
+		}
+		rte_errno = -ENOTSUP;
+		return rte_errno;
+	}
+
 	DRV_LOG(DEBUG, "port %u setting primary MAC address",
 		dev->data->port_id);
 	return mlx5_mac_addr_add(dev, mac_addr, 0, 0);
@@ -209,7 +232,7 @@ mlx5_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
  */
 int
 mlx5_set_mc_addr_list(struct rte_eth_dev *dev,
-		      struct ether_addr *mc_addr_set, uint32_t nb_mc_addr)
+		      struct rte_ether_addr *mc_addr_set, uint32_t nb_mc_addr)
 {
 	uint32_t i;
 	int ret;
