@@ -534,7 +534,7 @@ void CFlowGenListPerThread::Create_tcp_ctx(void) {
     m_s_tcp->m_ft.set_udp_api(&m_udp_bh_api_impl_c);
 }
 
-void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_first) {
+void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_first, CAstfDB* astf_db) {
     /* clear global statistics when new profile is started only */
     if (is_first) {
         m_stats.clear();    // moved from TrexAstfDpCore::create_tcp_batch()
@@ -546,7 +546,7 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_s_tcp->create_profile_ctx(profile_id);
 
     uint8_t mem_socket_id = get_memory_socket_id();
-    CAstfDbRO *template_db = CAstfDB::instance(profile_id)->get_db_ro(mem_socket_id);
+    CAstfDbRO *template_db = astf_db->get_db_ro(mem_socket_id);
     if ( !template_db ) {
         throw TrexException("Could not create RO template database");
     }
@@ -555,7 +555,7 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_s_tcp->set_template_ro(template_db, profile_id);
     m_s_tcp->resize_stats(profile_id);
     m_s_tcp->append_server_ports(profile_id);
-    CAstfTemplatesRW * rw = CAstfDB::instance(profile_id)->get_db_template_rw(
+    CAstfTemplatesRW * rw = astf_db->get_db_template_rw(
             mem_socket_id,
             nullptr, /* use CAstfDB's internal generator */
             m_thread_id,
@@ -585,15 +585,18 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_c_tcp->call_startup(profile_id);
     m_s_tcp->call_startup(profile_id);
 }
+void CFlowGenListPerThread::load_tcp_profile() {
+    load_tcp_profile(0, true, CAstfDB::instance());
+}
 
-void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last) {
+void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last, CAstfDB* astf_db) {
     m_s_tcp->remove_server_ports(profile_id);
 
     m_c_tcp->remove_active_profile(profile_id);
     m_s_tcp->remove_active_profile(profile_id);
 
-    if ( CAstfDB::has_instance(profile_id) ) {
-        CAstfDB::instance(profile_id)->clear_db_ro_rw(nullptr, m_thread_id);
+    if (astf_db) {
+        astf_db->clear_db_ro_rw(nullptr, m_thread_id);
 
         m_c_tcp->set_template_ro(nullptr, profile_id);
         m_c_tcp->set_template_rw(nullptr, profile_id);
@@ -607,6 +610,9 @@ void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_
 
         m_sched_accurate = false;
     }
+}
+void CFlowGenListPerThread::unload_tcp_profile() {
+    unload_tcp_profile(0, true, CAstfDB::instance());
 }
 
 void CFlowGenListPerThread::remove_tcp_profile(profile_id_t profile_id) {
