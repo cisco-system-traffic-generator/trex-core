@@ -313,21 +313,26 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
     }
 }
 
-void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer) {
+void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB *astf_db) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
-    CAstfDB *db = CAstfDB::instance(profile_id);
+    if (!astf_db) {
+        report_error(profile_id, "ASTF DB should be given.");
+        return;
+    }
+    astf_db->Create();  // initialize CAstfDB instance
+
     string err = "";
     bool rc;
 
     if ( topo_buffer ) {
         try {
-            TopoMngr *topo_mngr = db->get_topo();
+            TopoMngr *topo_mngr = astf_db->get_topo();
             topo_mngr->from_json_str(*topo_buffer);
             ClientCfgDB &m_cc_db = m_flow_gen->m_flow_list->m_client_config_info;
             m_cc_db.load_from_topo(topo_mngr);
-            db->set_client_cfg_db(&m_cc_db);
+            astf_db->set_client_cfg_db(&m_cc_db);
             //topo_mngr->dump();
         } catch (const TopoError &ex) {
             report_error(profile_id, ex.what());
@@ -340,7 +345,7 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
         return;
     }
 
-    rc = db->set_profile_one_msg(*profile_buffer, err);
+    rc = astf_db->set_profile_one_msg(*profile_buffer, err);
     if ( !rc ) {
         report_error(profile_id, "Profile parsing error: " + err);
         return;
@@ -349,7 +354,7 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
     // once we support specifying number of cores in start,
     // this should not be disabled by cache of profile hash
     int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
-    CJsonData_err err_obj = db->verify_data(num_dp_cores);
+    CJsonData_err err_obj = astf_db->verify_data(num_dp_cores);
 
     if ( err_obj.is_error() ) {
         report_error(profile_id, "Profile split to DP cores error: " + err_obj.description());
@@ -358,7 +363,7 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
     }
 }
 
-void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id) {
+void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -369,12 +374,12 @@ void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id) {
     // try removing the profile_ctx which contains statistics.
     m_flow_gen->remove_tcp_profile(profile_id);
 
-    CAstfDB::free_instance(profile_id);
+    astf_db->Delete();
     report_finished(profile_id);
 }
 
 
-void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor) {
+void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -387,19 +392,19 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor) {
         return;
     }
 
-    if (!CAstfDB::has_instance(profile_id)) {
-        report_error(profile_id, "No ASTF DB exist");
+    if (!astf_db) {
+        report_error(profile_id, "ASTF DB should be given");
         return;
     } else {
-        CAstfDB::instance(profile_id)->set_factor(factor);
+        astf_db->set_factor(factor);
     }
 
     try {
         create_profile_state(profile_id);
-        m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1);
+        m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1, astf_db);
     } catch (const TrexException &ex) {
         remove_profile_state(profile_id);
-        m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
+        m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0, astf_db);
         m_flow_gen->remove_tcp_profile(profile_id);
         report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
         return;
@@ -409,7 +414,7 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor) {
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove) {
+void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -420,7 +425,7 @@ void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove) {
             }
 
             remove_profile_state(profile_id);
-            m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0);
+            m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0, astf_db);
         }
 
         if (do_remove) {

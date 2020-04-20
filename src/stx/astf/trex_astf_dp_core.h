@@ -26,6 +26,8 @@ limitations under the License.
 #include <algorithm>
 #include "trex_dp_core.h"
 
+class CAstfDB;
+
 struct profile_param {
     profile_id_t    m_profile_id;
     double          m_duration;
@@ -52,10 +54,10 @@ public:
     void start_transmit(profile_id_t profile_id, double duration, bool nc);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id);
     void update_rate(profile_id_t profile_id, double ratio);
-    void create_tcp_batch(profile_id_t profile_id, double factor);
-    void delete_tcp_batch(profile_id_t profile_id, bool do_remove);
-    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer);
-    void remove_astf_json(profile_id_t profile_id);
+    void create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db);
+    void delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db);
+    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
+    void remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db);
 
     void scheduler(bool activate);
 
