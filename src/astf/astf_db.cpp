@@ -39,9 +39,11 @@ inline std::string methodName(const std::string& prettyFunction)
 astf_db_map_t CAstfDB::m_instances;
 
 
-CAstfDB::CAstfDB(){
+void CAstfDB::Create(){
+    if (m_validator && m_topo_mngr) {
+        return;
+    }
     m_client_config_info=0;
-    m_validator=0;
     m_validator = new CAstfJsonValidator();
     if (!m_validator->Create("astf_schema.json")) {
         printf("Could not create ASTF validator using file astf_schema.json\n");
@@ -49,35 +51,51 @@ CAstfDB::CAstfDB(){
     }
     m_topo_mngr = new TopoMngr();
     m_factor = -1.0;
+    m_json_initiated = false;
 }
 
 
-CAstfDB::~CAstfDB(){
+void CAstfDB::Delete(){
     if ( m_validator ) {
         m_validator->Delete();
         delete m_validator;
+        m_validator = nullptr;
     }
     delete m_topo_mngr;
+    m_topo_mngr = nullptr;
     for (auto it : m_smart_gen) {
         delete it.second;
     }
     m_smart_gen.clear();
 }
 
+CAstfDB::~CAstfDB(){
+    this->Delete();
+}
 
-CAstfDB* CAstfDB::instance(profile_id_t profile_id) {
-    if ( m_instances.find(profile_id) == m_instances.end() ) {
-        CAstfDB *new_inst = new CAstfDB();
-        new_inst->m_json_initiated = false;
-        m_instances[profile_id] = new_inst;
-        return new_inst;
+CAstfDB* CAstfDB::get_instance(profile_id_t profile_id) {
+    if (m_instances.find(profile_id) == m_instances.end()) {
+        m_instances[profile_id] = new CAstfDB();
     }
     return m_instances[profile_id];
+}
+CAstfDB* CAstfDB::instance(profile_id_t profile_id) {
+    return m_instances[profile_id];
+}
+
+CAstfDB* CAstfDB::instance() {
+    if (!has_instance()) {
+        CAstfDB* new_inst = get_instance(0);
+        new_inst->Create();
+        return new_inst;
+    }
+    return instance(0);
 }
 
 void CAstfDB::free_instance(profile_id_t profile_id) {
     if ( m_instances.find(profile_id) != m_instances.end() ){
-        delete m_instances[profile_id];
+        auto inst = m_instances[profile_id];
+        delete inst;
         m_instances.erase(profile_id);
     }
 }
