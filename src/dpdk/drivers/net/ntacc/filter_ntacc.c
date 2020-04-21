@@ -1195,8 +1195,8 @@ int SetEthernetFilter(const struct rte_flow_item *item,
     if (spec && NON_ZERO6(spec->src.addr_bytes)) {
       if (last && NON_ZERO6(last->src.addr_bytes)) {
         /* Setup source range filter */
-        uint8_t addr0[ETHER_ADDR_LEN];
-        uint8_t addr1[ETHER_ADDR_LEN];
+        uint8_t addr0[RTE_ETHER_ADDR_LEN];
+        uint8_t addr1[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->src.addr_bytes,addr0);
         MAC_ADDRESS_SWAP(last->src.addr_bytes,addr1);
         const uint64_t *tmp0 = (const uint64_t *)addr0;
@@ -1210,8 +1210,8 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       }
       else if (mask && CHECKETHER(mask->src.addr_bytes)) {
         /* Setup source mask filter */
-        uint8_t addr0[ETHER_ADDR_LEN];
-        uint8_t addr1[ETHER_ADDR_LEN];
+        uint8_t addr0[RTE_ETHER_ADDR_LEN];
+        uint8_t addr1[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->src.addr_bytes,addr0);
         MAC_ADDRESS_SWAP(mask->src.addr_bytes,addr1);
         const uint64_t *tmp0 = (const uint64_t *)addr0;
@@ -1225,7 +1225,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       }
       else {
         /* Setup source simpel filter */
-        uint8_t addr[ETHER_ADDR_LEN];
+        uint8_t addr[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->src.addr_bytes,addr);
         const uint64_t *tmp0 = (const uint64_t *)addr;
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
@@ -1238,8 +1238,8 @@ int SetEthernetFilter(const struct rte_flow_item *item,
     if (spec && NON_ZERO6(spec->dst.addr_bytes)) {
       if (last && NON_ZERO6(last->dst.addr_bytes)) {
         /* Setup destination range filter */
-        uint8_t addr0[ETHER_ADDR_LEN];
-        uint8_t addr1[ETHER_ADDR_LEN];
+        uint8_t addr0[RTE_ETHER_ADDR_LEN];
+        uint8_t addr1[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->dst.addr_bytes,addr0);
         MAC_ADDRESS_SWAP(last->dst.addr_bytes,addr1);
         const uint64_t *tmp0 = (const uint64_t *)addr0;
@@ -1253,8 +1253,8 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       }
       else if (mask && CHECKETHER(mask->dst.addr_bytes)) {
         /* Setup destination mask filter */
-        uint8_t addr0[ETHER_ADDR_LEN];
-        uint8_t addr1[ETHER_ADDR_LEN];
+        uint8_t addr0[RTE_ETHER_ADDR_LEN];
+        uint8_t addr1[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->dst.addr_bytes,addr0);
         MAC_ADDRESS_SWAP(mask->dst.addr_bytes,addr1);
         const uint64_t *tmp0 = (const uint64_t *)addr0;
@@ -1268,7 +1268,7 @@ int SetEthernetFilter(const struct rte_flow_item *item,
       }
       else {
         /* Setup destination simpel filter */
-        uint8_t addr[ETHER_ADDR_LEN];
+        uint8_t addr[RTE_ETHER_ADDR_LEN];
         MAC_ADDRESS_SWAP(spec->dst.addr_bytes,addr);
         const uint64_t *tmp0 = (const uint64_t *)addr;
         uint64_t vSpec = ((*tmp0) << 16) & 0xFFFFFFFFFFFF0000;
