@@ -134,6 +134,9 @@ do {                                                               \
 	(in) = end + 1;                                         \
 } while(0)
 
+
+
+
 /**
  * Utility function to produce a PCI Bus-Device-Function value
  * given a string representation. Assumes that the BDF is provided without
@@ -179,6 +182,22 @@ eal_parse_pci_DomBDF(const char *input, struct rte_pci_addr *dev_addr)
 	return 0;
 }
 #undef GET_PCIADDR_FIELD
+
+
+static inline int
+rte_pci_addr_parse(const char *input, struct rte_pci_addr *dev_addr){
+
+	if (eal_parse_pci_BDF(input, dev_addr) == 0) {
+		return 0;
+	}
+
+	if (eal_parse_pci_DomBDF(input, dev_addr) == 0) {
+		return 0;
+	}
+	
+	return -1;
+}
+
 
 /**
  * Utility function to write a pci device name, this device name can later be

@@ -291,6 +291,63 @@ rte_is_aligned(void *ptr, unsigned align)
  */
 #define RTE_BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 
+/*********** Cache line related macros ********/
+
+/** Cache line mask. */
+#define RTE_CACHE_LINE_MASK (RTE_CACHE_LINE_SIZE-1)
+
+/** Return the first cache-aligned value greater or equal to size. */
+#define RTE_CACHE_LINE_ROUNDUP(size) \
+	(RTE_CACHE_LINE_SIZE * ((size + RTE_CACHE_LINE_SIZE - 1) / \
+	RTE_CACHE_LINE_SIZE))
+
+/** Cache line size in terms of log2 */
+#if RTE_CACHE_LINE_SIZE == 64
+#define RTE_CACHE_LINE_SIZE_LOG2 6
+#elif RTE_CACHE_LINE_SIZE == 128
+#define RTE_CACHE_LINE_SIZE_LOG2 7
+#else
+#error "Unsupported cache line size"
+#endif
+
+/** Minimum Cache line size. */
+#define RTE_CACHE_LINE_MIN_SIZE 64
+
+/** Force alignment to cache line. */
+#define __rte_cache_aligned __rte_aligned(RTE_CACHE_LINE_SIZE)
+
+/** Force minimum cache line alignment. */
+#define __rte_cache_min_aligned __rte_aligned(RTE_CACHE_LINE_MIN_SIZE)
+
+/*********** PA/IOVA type definitions ********/
+
+/** Physical address */
+typedef uint64_t phys_addr_t;
+#define RTE_BAD_PHYS_ADDR ((phys_addr_t)-1)
+
+/**
+ * IO virtual address type.
+ * When the physical addressing mode (IOVA as PA) is in use,
+ * the translation from an IO virtual address (IOVA) to a physical address
+ * is a direct mapping, i.e. the same value.
+ * Otherwise, in virtual mode (IOVA as VA), an IOMMU may do the translation.
+ */
+typedef uint64_t rte_iova_t;
+#define RTE_BAD_IOVA ((rte_iova_t)-1)
+
+/*********** Structure alignment markers ********/
+
+/** Generic marker for any place in a structure. */
+__extension__ typedef void    *RTE_MARKER[0];
+/** Marker for 1B alignment in a structure. */
+__extension__ typedef uint8_t  RTE_MARKER8[0];
+/** Marker for 2B alignment in a structure. */
+__extension__ typedef uint16_t RTE_MARKER16[0];
+/** Marker for 4B alignment in a structure. */
+__extension__ typedef uint16_t RTE_MARKER32[0];
+/** Marker for 8B alignment in a structure. */
+__extension__ typedef uint64_t RTE_MARKER64[0];
+
 /**
  * Combines 32b inputs most significant set bits into the least
  * significant bits to construct a value with the same MSBs as x
@@ -493,6 +550,9 @@ rte_bsf32_safe(uint64_t v, uint32_t *pos)
 /**
  * Return the rounded-up log2 of a integer.
  *
+ * @note Contrary to the logarithm mathematical operation,
+ * rte_log2_u32(0) == 0 and not -inf.
+ *
  * @param v
  *     The input parameter.
  * @return
@@ -587,6 +647,9 @@ rte_fls_u64(uint64_t x)
 /**
  * Return the rounded-up log2 of a 64-bit integer.
  *
+ * @note Contrary to the logarithm mathematical operation,
+ * rte_log2_u64(0) == 0 and not -inf.
+ *
  * @param v
  *     The input parameter.
  * @return
@@ -629,6 +692,18 @@ rte_log2_u64(uint64_t v)
 			(type *)(((uintptr_t)_ptr) - offsetof(type, member)); \
 		})
 #endif
+
+/**
+ * Get the size of a field in a structure.
+ *
+ * @param type
+ *   The type of the structure.
+ * @param field
+ *   The field in the structure.
+ * @return
+ *   The size of the field in the structure, in bytes.
+ */
+#define RTE_SIZEOF_FIELD(type, field) (sizeof(((type *)0)->field))
 
 #define _RTE_STR(x) #x
 /** Take a macro value and get a string version of it */

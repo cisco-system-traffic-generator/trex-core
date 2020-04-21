@@ -1,35 +1,7 @@
-/*-
-* BSD LICENSE
-*
-* Copyright (c) 2015-2016 Amazon.com, Inc. or its affiliates.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-*
-* * Redistributions of source code must retain the above copyright
-* notice, this list of conditions and the following disclaimer.
-* * Redistributions in binary form must reproduce the above copyright
-* notice, this list of conditions and the following disclaimer in
-* the documentation and/or other materials provided with the
-* distribution.
-* * Neither the name of copyright holder nor the names of its
-* contributors may be used to endorse or promote products derived
-* from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2015-2019 Amazon.com, Inc. or its affiliates.
+ * All rights reserved.
+ */
 
 #ifndef DPDK_ENA_COM_ENA_PLAT_DPDK_H_
 #define DPDK_ENA_COM_ENA_PLAT_DPDK_H_
@@ -38,6 +10,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <errno.h>
 
@@ -98,11 +71,13 @@ typedef uint64_t dma_addr_t;
 #define ENA_GET_SYSTEM_USECS()						\
 	(rte_get_timer_cycles() * US_PER_S / rte_get_timer_hz())
 
+extern int ena_logtype_com;
 #if RTE_LOG_DP_LEVEL >= RTE_LOG_DEBUG
 #define ENA_ASSERT(cond, format, arg...)				\
 	do {								\
 		if (unlikely(!(cond))) {				\
-			RTE_LOG(ERR, PMD, format, ##arg);		\
+			rte_log(RTE_LOGTYPE_ERR, ena_logtype_com,	\
+				format, ##arg);				\
 			rte_panic("line %d\tassert \"" #cond "\""	\
 					"failed\n", __LINE__);		\
 		}							\
@@ -127,14 +102,14 @@ typedef uint64_t dma_addr_t;
 			  (~0ULL >> (BITS_PER_LONG_LONG - 1 - (h))))
 
 #ifdef RTE_LIBRTE_ENA_COM_DEBUG
-#define ena_trc_dbg(format, arg...)					\
-	RTE_LOG(DEBUG, PMD, "[ENA_COM: %s] " format, __func__, ##arg)
-#define ena_trc_info(format, arg...)					\
-	RTE_LOG(INFO, PMD, "[ENA_COM: %s] " format, __func__, ##arg)
-#define ena_trc_warn(format, arg...)					\
-	RTE_LOG(ERR, PMD, "[ENA_COM: %s] " format, __func__, ##arg)
-#define ena_trc_err(format, arg...)					\
-	RTE_LOG(ERR, PMD, "[ENA_COM: %s] " format, __func__, ##arg)
+#define ena_trc_log(level, fmt, arg...) \
+	rte_log(RTE_LOG_ ## level, ena_logtype_com, \
+		"[ENA_COM: %s]" fmt, __func__, ##arg)
+
+#define ena_trc_dbg(format, arg...)	ena_trc_log(DEBUG, format, ##arg)
+#define ena_trc_info(format, arg...)	ena_trc_log(INFO, format, ##arg)
+#define ena_trc_warn(format, arg...)	ena_trc_log(WARNING, format, ##arg)
+#define ena_trc_err(format, arg...)	ena_trc_log(ERR, format, ##arg)
 #else
 #define ena_trc_dbg(format, arg...) do { } while (0)
 #define ena_trc_info(format, arg...) do { } while (0)
@@ -196,6 +171,7 @@ do {                                                                   \
 #define ena_wait_event_t ena_wait_queue_t
 #define ENA_MIGHT_SLEEP()
 
+#define ena_time_t uint64_t
 #define ENA_TIME_EXPIRE(timeout)  (timeout < rte_get_timer_cycles())
 #define ENA_GET_SYSTEM_TIMEOUT(timeout_us)                             \
        (timeout_us * rte_get_timer_hz() / 1000000 + rte_get_timer_cycles())
@@ -258,7 +234,8 @@ extern uint32_t ena_alloc_cnt;
 	} while (0)
 
 #define ENA_MEM_ALLOC(dmadev, size) rte_zmalloc(NULL, size, 1)
-#define ENA_MEM_FREE(dmadev, ptr) ({ENA_TOUCH(dmadev); rte_free(ptr); })
+#define ENA_MEM_FREE(dmadev, ptr, size)					\
+	({ ENA_TOUCH(dmadev); ENA_TOUCH(size); rte_free(ptr); })
 
 #define ENA_DB_SYNC(mem_handle) ((void)mem_handle)
 
@@ -286,6 +263,7 @@ extern uint32_t ena_alloc_cnt;
 #define might_sleep()
 
 #define prefetch(x) rte_prefetch0(x)
+#define prefetchw(x) prefetch(x)
 
 #define lower_32_bits(x) ((uint32_t)(x))
 #define upper_32_bits(x) ((uint32_t)(((x) >> 16) >> 16))
@@ -315,5 +293,7 @@ extern uint32_t ena_alloc_cnt;
 	} while(0)
 
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+
+#include "ena_includes.h"
 
 #endif /* DPDK_ENA_COM_ENA_PLAT_DPDK_H_ */

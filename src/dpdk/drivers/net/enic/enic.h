@@ -6,8 +6,11 @@
 #ifndef _ENIC_H_
 #define _ENIC_H_
 
+#include <rte_vxlan.h>
+#include <rte_ether.h>
 #include "vnic_enet.h"
 #include "vnic_dev.h"
+#include "vnic_flowman.h"
 #include "vnic_wq.h"
 #include "vnic_rq.h"
 #include "vnic_cq.h"
@@ -37,22 +40,18 @@
 #define PAGE_ROUND_UP(x) \
 	((((unsigned long)(x)) + ENIC_PAGE_SIZE-1) & (~(ENIC_PAGE_SIZE-1)))
 
-/* must be >= VNIC_COUNTER_DMA_MIN_PERIOD */
-#define VNIC_FLOW_COUNTER_UPDATE_MSECS 500
-
 #define ENICPMD_VFIO_PATH          "/dev/vfio/vfio"
 /*#define ENIC_DESC_COUNT_MAKE_ODD (x) do{if ((~(x)) & 1) { (x)--; } }while(0)*/
 
 #define PCI_DEVICE_ID_CISCO_VIC_ENET         0x0043  /* ethernet vnic */
 #define PCI_DEVICE_ID_CISCO_VIC_ENET_VF      0x0071  /* enet SRIOV VF */
+/* enet SRIOV Standalone vNic VF */
+#define PCI_DEVICE_ID_CISCO_VIC_ENET_SN      0x02B7
 
 /* Special Filter id for non-specific packet flagging. Don't change value */
 #define ENIC_MAGIC_FILTER_ID 0xffff
 
 #define ENICPMD_FDIR_MAX           64
-
-/* HW default VXLAN port */
-#define ENIC_DEFAULT_VXLAN_PORT	   4789
 
 /*
  * Interrupt 0: LSC and errors
@@ -65,16 +64,16 @@
 
 struct enic_fdir_node {
 	struct rte_eth_fdir_filter filter;
-	u16 fltr_id;
-	u16 rq_index;
+	uint16_t fltr_id;
+	uint16_t rq_index;
 };
 
 struct enic_fdir {
 	struct rte_eth_fdir_stats stats;
 	struct rte_hash *hash;
 	struct enic_fdir_node *nodes[ENICPMD_FDIR_MAX];
-	u32 modes;
-	u32 types_mask;
+	uint32_t modes;
+	uint32_t types_mask;
 	void (*copy_fltr_fn)(struct filter_v2 *filt,
 			     const struct rte_eth_fdir_input *input,
 			     const struct rte_eth_fdir_masks *masks);
@@ -91,11 +90,17 @@ struct enic_memzone_entry {
 	LIST_ENTRY(enic_memzone_entry) entries;
 };
 
+/* Defined in enic_fm_flow.c */
+struct enic_flowman;
+struct enic_fm_flow;
+
 struct rte_flow {
 	LIST_ENTRY(rte_flow) next;
-	u16 enic_filter_id;
+	/* Data for filter API based flow (enic_flow.c) */
+	uint16_t enic_filter_id;
 	struct filter_v2 enic_filter;
-	int counter_idx; /* NIC allocated counter index (-1 = invalid) */
+	/* Data for flow manager based flow (enic_fm_flow.c) */
+	struct enic_fm_flow *fm;
 };
 
 /* Per-instance private data structure */
@@ -114,30 +119,35 @@ struct enic {
 	unsigned int port_id;
 	bool overlay_offload;
 	struct rte_eth_dev *rte_dev;
+	struct rte_eth_dev_data *dev_data;
 	struct enic_fdir fdir;
 	char bdf_name[ENICPMD_BDF_LENGTH];
 	int dev_fd;
 	int iommu_group_fd;
 	int iommu_groupid;
 	int eventfd;
-	uint8_t mac_addr[ETH_ALEN];
+	uint8_t mac_addr[RTE_ETHER_ADDR_LEN];
 	pthread_t err_intr_thread;
 	int promisc;
 	int allmulti;
-	u8 ig_vlan_strip_en;
+	uint8_t ig_vlan_strip_en;
 	int link_status;
-	u8 hw_ip_checksum;
-	u16 max_mtu;
-	u8 adv_filters;
-	u32 flow_filter_mode;
-	u8 filter_actions; /* HW supported actions */
+	uint8_t hw_ip_checksum;
+	uint16_t max_mtu;
+	uint8_t adv_filters;
+	uint32_t flow_filter_mode;
+	uint8_t filter_actions; /* HW supported actions */
 	bool vxlan;
 	bool disable_overlay; /* devargs disable_overlay=1 */
 	uint8_t enable_avx2_rx;  /* devargs enable-avx2-rx=1 */
+	uint8_t geneve_opt_avail;    /* Geneve with options offload available */
+	uint8_t geneve_opt_enabled;  /* Geneve with options offload enabled */
+	uint8_t geneve_opt_request;  /* devargs geneve-opt=1 */
 	bool nic_cfg_chk;     /* NIC_CFG_CHK available */
 	bool udp_rss_weak;    /* Bodega style UDP RSS */
 	uint8_t ig_vlan_rewrite_mode; /* devargs ig-vlan-rewrite */
 	uint16_t vxlan_port;  /* current vxlan port pushed to NIC */
+	int use_simple_tx_handler;
 
 	unsigned int flags;
 	unsigned int priv_flags;
@@ -173,8 +183,6 @@ struct enic {
 	rte_spinlock_t mtu_lock;
 
 	LIST_HEAD(enic_flows, rte_flow) flows;
-	int max_flow_counter;
-	rte_spinlock_t flows_lock;
 
 	/* RSS */
 	uint16_t reta_size;
@@ -197,14 +205,17 @@ struct enic {
 
 	/* Multicast MAC addresses added to the NIC */
 	uint32_t mc_count;
-	struct ether_addr mc_addrs[ENIC_MULTICAST_PERFECT_FILTERS];
+	struct rte_ether_addr mc_addrs[ENIC_MULTICAST_PERFECT_FILTERS];
+
+	/* Flow manager API */
+	struct enic_flowman *fm;
 };
 
 /* Compute ethdev's max packet size from MTU */
 static inline uint32_t enic_mtu_to_max_rx_pktlen(uint32_t mtu)
 {
 	/* ethdev max size includes eth whereas NIC MTU does not */
-	return mtu + ETHER_HDR_LEN;
+	return mtu + RTE_ETHER_HDR_LEN;
 }
 
 /* Get the CQ index from a Start of Packet(SOP) RQ index */
@@ -252,7 +263,7 @@ static inline unsigned int enic_cq_wq(struct enic *enic, unsigned int wq)
 
 static inline struct enic *pmd_priv(struct rte_eth_dev *eth_dev)
 {
-	return (struct enic *)eth_dev->data->dev_private;
+	return eth_dev->data->dev_private;
 }
 
 static inline uint32_t
@@ -279,6 +290,7 @@ enic_ring_incr(uint32_t n_descriptors, uint32_t idx)
 	return idx;
 }
 
+int dev_is_enic(struct rte_eth_dev *dev);
 void enic_fdir_stats_get(struct enic *enic,
 			 struct rte_eth_fdir_stats *stats);
 int enic_fdir_add_fltr(struct enic *enic,
@@ -310,8 +322,8 @@ void enic_remove(struct enic *enic);
 int enic_get_link_status(struct enic *enic);
 int enic_dev_stats_get(struct enic *enic,
 		       struct rte_eth_stats *r_stats);
-void enic_dev_stats_clear(struct enic *enic);
-void enic_add_packet_filter(struct enic *enic);
+int enic_dev_stats_clear(struct enic *enic);
+int enic_add_packet_filter(struct enic *enic);
 int enic_set_mac_address(struct enic *enic, uint8_t *mac_addr);
 int enic_del_mac_address(struct enic *enic, int mac_index);
 unsigned int enic_cleanup_wq(struct enic *enic, struct vnic_wq *wq);
@@ -324,6 +336,12 @@ void enic_post_wq_index(struct vnic_wq *wq);
 int enic_probe(struct enic *enic);
 int enic_clsf_init(struct enic *enic);
 void enic_clsf_destroy(struct enic *enic);
+int enic_fm_init(struct enic *enic);
+void enic_fm_destroy(struct enic *enic);
+void *enic_alloc_consistent(void *priv, size_t size, dma_addr_t *dma_handle,
+			    uint8_t *name);
+void enic_free_consistent(void *priv, size_t size, void *vaddr,
+			  dma_addr_t dma_handle);
 uint16_t enic_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 			uint16_t nb_pkts);
 uint16_t enic_noscatter_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
@@ -338,9 +356,12 @@ uint16_t enic_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 uint16_t enic_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
 int enic_set_mtu(struct enic *enic, uint16_t new_mtu);
-int enic_link_update(struct enic *enic);
-bool enic_use_vector_rx_handler(struct enic *enic);
+int enic_link_update(struct rte_eth_dev *eth_dev);
+bool enic_use_vector_rx_handler(struct rte_eth_dev *eth_dev);
+void enic_pick_rx_handler(struct rte_eth_dev *eth_dev);
+void enic_pick_tx_handler(struct rte_eth_dev *eth_dev);
 void enic_fdir_info(struct enic *enic);
 void enic_fdir_info_get(struct enic *enic, struct rte_eth_fdir_info *stats);
 extern const struct rte_flow_ops enic_flow_ops;
+extern const struct rte_flow_ops enic_fm_flow_ops;
 #endif /* _ENIC_H_ */

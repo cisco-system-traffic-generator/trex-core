@@ -172,12 +172,6 @@ i40e_get_iee15888_flags(struct rte_mbuf *mb, uint64_t qword)
 }
 #endif
 
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_MASK   0x03
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_FD_ID  0x01
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_FLEX   0x02
-#define I40E_RX_DESC_EXT_STATUS_FLEXBL_MASK   0x03
-#define I40E_RX_DESC_EXT_STATUS_FLEXBL_FLEX   0x01
-
 static inline uint64_t
 i40e_rxd_build_fdir(volatile union i40e_rx_desc *rxdp, struct rte_mbuf *mb)
 {
@@ -302,17 +296,17 @@ i40e_txd_enable_checksum(uint64_t ol_flags,
 	switch (ol_flags & PKT_TX_L4_MASK) {
 	case PKT_TX_TCP_CKSUM:
 		*td_cmd |= I40E_TX_DESC_CMD_L4T_EOFT_TCP;
-		*td_offset |= (sizeof(struct tcp_hdr) >> 2) <<
+		*td_offset |= (sizeof(struct rte_tcp_hdr) >> 2) <<
 				I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 		break;
 	case PKT_TX_SCTP_CKSUM:
 		*td_cmd |= I40E_TX_DESC_CMD_L4T_EOFT_SCTP;
-		*td_offset |= (sizeof(struct sctp_hdr) >> 2) <<
+		*td_offset |= (sizeof(struct rte_sctp_hdr) >> 2) <<
 				I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 		break;
 	case PKT_TX_UDP_CKSUM:
 		*td_cmd |= I40E_TX_DESC_CMD_L4T_EOFT_UDP;
-		*td_offset |= (sizeof(struct udp_hdr) >> 2) <<
+		*td_offset |= (sizeof(struct rte_udp_hdr) >> 2) <<
 				I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 		break;
 	default:
@@ -564,8 +558,7 @@ i40e_rx_alloc_bufs(struct i40e_rx_queue *rxq)
 	}
 
 	/* Update rx tail regsiter */
-	rte_wmb();
-	I40E_PCI_REG_WRITE_RELAXED(rxq->qrx_tail, rxq->rx_free_trigger);
+	I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->rx_free_trigger);
 
 	rxq->rx_free_trigger =
 		(uint16_t)(rxq->rx_free_trigger + rxq->rx_free_thresh);
@@ -889,17 +882,17 @@ i40e_recv_scattered_pkts(void *rx_queue,
 		 */
 		rxm->next = NULL;
 		if (unlikely(rxq->crc_len > 0)) {
-			first_seg->pkt_len -= ETHER_CRC_LEN;
-			if (rx_packet_len <= ETHER_CRC_LEN) {
+			first_seg->pkt_len -= RTE_ETHER_CRC_LEN;
+			if (rx_packet_len <= RTE_ETHER_CRC_LEN) {
 				rte_pktmbuf_free_seg(rxm);
 				first_seg->nb_segs--;
 				last_seg->data_len =
 					(uint16_t)(last_seg->data_len -
-					(ETHER_CRC_LEN - rx_packet_len));
+					(RTE_ETHER_CRC_LEN - rx_packet_len));
 				last_seg->next = NULL;
 			} else
 				rxm->data_len = (uint16_t)(rx_packet_len -
-								ETHER_CRC_LEN);
+							RTE_ETHER_CRC_LEN);
 		}
 
 		first_seg->port = rxq->port_id;
@@ -981,15 +974,9 @@ i40e_set_tso_ctx(struct rte_mbuf *mbuf, union i40e_tx_offload tx_offload)
 		return ctx_desc;
 	}
 
-	/**
-	 * in case of non tunneling packet, the outer_l2_len and
-	 * outer_l3_len must be 0.
-	 */
-	hdr_len = tx_offload.outer_l2_len +
-		tx_offload.outer_l3_len +
-		tx_offload.l2_len +
-		tx_offload.l3_len +
-		tx_offload.l4_len;
+	hdr_len = tx_offload.l2_len + tx_offload.l3_len + tx_offload.l4_len;
+	hdr_len += (mbuf->ol_flags & PKT_TX_TUNNEL_MASK) ?
+		   tx_offload.outer_l2_len + tx_offload.outer_l3_len : 0;
 
 	cd_cmd = I40E_TX_CTX_DESC_TSO;
 	cd_tso_len = mbuf->pkt_len - hdr_len;
@@ -1000,6 +987,24 @@ i40e_set_tso_ctx(struct rte_mbuf *mbuf, union i40e_tx_offload tx_offload)
 		 I40E_TXD_CTX_QW1_MSS_SHIFT);
 
 	return ctx_desc;
+}
+
+/* HW requires that Tx buffer size ranges from 1B up to (16K-1)B. */
+#define I40E_MAX_DATA_PER_TXD \
+	(I40E_TXD_QW1_TX_BUF_SZ_MASK >> I40E_TXD_QW1_TX_BUF_SZ_SHIFT)
+/* Calculate the number of TX descriptors needed for each pkt */
+static inline uint16_t
+i40e_calc_pkt_desc(struct rte_mbuf *tx_pkt)
+{
+	struct rte_mbuf *txd = tx_pkt;
+	uint16_t count = 0;
+
+	while (txd != NULL) {
+		count += DIV_ROUND_UP(txd->data_len, I40E_MAX_DATA_PER_TXD);
+		txd = txd->next;
+	}
+
+	return count;
 }
 
 uint16_t
@@ -1034,7 +1039,7 @@ i40e_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 	/* Check if the descriptor ring needs to be cleaned. */
 	if (txq->nb_tx_free < txq->tx_free_thresh)
-		i40e_xmit_cleanup(txq);
+		(void)i40e_xmit_cleanup(txq);
 
 	for (nb_tx = 0; nb_tx < nb_pkts; nb_tx++) {
 		td_cmd = 0;
@@ -1059,8 +1064,15 @@ i40e_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		 * The number of descriptors that must be allocated for
 		 * a packet equals to the number of the segments of that
 		 * packet plus 1 context descriptor if needed.
+		 * Recalculate the needed tx descs when TSO enabled in case
+		 * the mbuf data size exceeds max data size that hw allows
+		 * per tx desc.
 		 */
-		nb_used = (uint16_t)(tx_pkt->nb_segs + nb_ctx);
+		if (ol_flags & PKT_TX_TCP_SEG)
+			nb_used = (uint16_t)(i40e_calc_pkt_desc(tx_pkt) +
+					     nb_ctx);
+		else
+			nb_used = (uint16_t)(tx_pkt->nb_segs + nb_ctx);
 		tx_last = (uint16_t)(tx_id + nb_used - 1);
 
 		/* Circular ring */
@@ -1173,6 +1185,24 @@ i40e_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			slen = m_seg->data_len;
 			buf_dma_addr = rte_mbuf_data_iova(m_seg);
 
+			while ((ol_flags & PKT_TX_TCP_SEG) &&
+				unlikely(slen > I40E_MAX_DATA_PER_TXD)) {
+				txd->buffer_addr =
+					rte_cpu_to_le_64(buf_dma_addr);
+				txd->cmd_type_offset_bsz =
+					i40e_build_ctob(td_cmd,
+					td_offset, I40E_MAX_DATA_PER_TXD,
+					td_tag);
+
+				buf_dma_addr += I40E_MAX_DATA_PER_TXD;
+				slen -= I40E_MAX_DATA_PER_TXD;
+
+				txe->last_id = tx_last;
+				tx_id = txe->next_id;
+				txe = txn;
+				txd = &txr[tx_id];
+				txn = &sw_ring[txe->next_id];
+			}
 			PMD_TX_LOG(DEBUG, "mbuf: %p, TDD[%u]:\n"
 				"buf_dma_addr: %#"PRIx64";\n"
 				"td_cmd: %#x;\n"
@@ -1214,13 +1244,11 @@ i40e_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	}
 
 end_of_tx:
-	rte_wmb();
-
 	PMD_TX_LOG(DEBUG, "port_id=%u queue_id=%u tx_tail=%u nb_tx=%u",
 		   (unsigned) txq->port_id, (unsigned) txq->queue_id,
 		   (unsigned) tx_id, (unsigned) nb_tx);
 
-	I40E_PCI_REG_WRITE_RELAXED(txq->qtx_tail, tx_id);
+	I40E_PCI_REG_WRITE(txq->qtx_tail, tx_id);
 	txq->tx_tail = tx_id;
 
 	return nb_tx;
@@ -1371,8 +1399,7 @@ tx_xmit_pkts(struct i40e_tx_queue *txq,
 		txq->tx_tail = 0;
 
 	/* Update the tx tail register */
-	rte_wmb();
-	I40E_PCI_REG_WRITE_RELAXED(txq->qtx_tail, txq->tx_tail);
+	I40E_PCI_REG_WRITE(txq->qtx_tail, txq->tx_tail);
 
 	return nb_pkts;
 }
@@ -1446,7 +1473,7 @@ i40e_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 		if (!(ol_flags & PKT_TX_TCP_SEG)) {
 			if (m->nb_segs > I40E_TX_MAX_MTU_SEG ||
 			    m->pkt_len > I40E_FRAME_SIZE_MAX) {
-				rte_errno = -EINVAL;
+				rte_errno = EINVAL;
 				return i;
 			}
 		} else if (m->nb_segs > I40E_TX_MAX_SEG ||
@@ -1456,31 +1483,31 @@ i40e_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 			/* MSS outside the range (256B - 9674B) are considered
 			 * malicious
 			 */
-			rte_errno = -EINVAL;
+			rte_errno = EINVAL;
 			return i;
 		}
 
 		if (ol_flags & I40E_TX_OFFLOAD_NOTSUP_MASK) {
-			rte_errno = -ENOTSUP;
+			rte_errno = ENOTSUP;
 			return i;
 		}
 
 		/* check the size of packet */
 		if (m->pkt_len < I40E_TX_MIN_PKT_LEN) {
-			rte_errno = -EINVAL;
+			rte_errno = EINVAL;
 			return i;
 		}
 
 #ifdef RTE_LIBRTE_ETHDEV_DEBUG
 		ret = rte_validate_tx_offload(m);
 		if (ret != 0) {
-			rte_errno = ret;
+			rte_errno = -ret;
 			return i;
 		}
 #endif
 		ret = rte_net_intel_cksum_prepare(m);
 		if (ret != 0) {
-			rte_errno = ret;
+			rte_errno = -ret;
 			return i;
 		}
 	}
@@ -1549,8 +1576,6 @@ i40e_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		PMD_DRV_LOG(ERR, "Failed to allocate RX queue mbuf");
 		return err;
 	}
-
-	rte_wmb();
 
 	/* Init the RX tail regieter. */
 	I40E_PCI_REG_WRITE(rxq->qrx_tail, rxq->nb_rx_desc - 1);
@@ -1845,7 +1870,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	rxq->reg_idx = reg_idx;
 	rxq->port_id = dev->data->port_id;
 	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)
-		rxq->crc_len = ETHER_CRC_LEN;
+		rxq->crc_len = RTE_ETHER_CRC_LEN;
 	else
 		rxq->crc_len = 0;
 	rxq->drop_en = rx_conf->rx_drop_en;
@@ -2196,15 +2221,30 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	 *  - tx_rs_thresh must be a divisor of the ring size.
 	 *  - tx_free_thresh must be greater than 0.
 	 *  - tx_free_thresh must be less than the size of the ring minus 3.
+	 *  - tx_free_thresh + tx_rs_thresh must not exceed nb_desc.
 	 *
 	 * One descriptor in the TX ring is used as a sentinel to avoid a H/W
 	 * race condition, hence the maximum threshold constraints. When set
 	 * to zero use default values.
 	 */
-	tx_rs_thresh = (uint16_t)((tx_conf->tx_rs_thresh) ?
-		tx_conf->tx_rs_thresh : DEFAULT_TX_RS_THRESH);
 	tx_free_thresh = (uint16_t)((tx_conf->tx_free_thresh) ?
 		tx_conf->tx_free_thresh : DEFAULT_TX_FREE_THRESH);
+	/* force tx_rs_thresh to adapt an aggresive tx_free_thresh */
+	tx_rs_thresh = (DEFAULT_TX_RS_THRESH + tx_free_thresh > nb_desc) ?
+		nb_desc - tx_free_thresh : DEFAULT_TX_RS_THRESH;
+	if (tx_conf->tx_rs_thresh > 0)
+		tx_rs_thresh = tx_conf->tx_rs_thresh;
+	if (tx_rs_thresh + tx_free_thresh > nb_desc) {
+		PMD_INIT_LOG(ERR, "tx_rs_thresh + tx_free_thresh must not "
+				"exceed nb_desc. (tx_rs_thresh=%u "
+				"tx_free_thresh=%u nb_desc=%u port=%d queue=%d)",
+				(unsigned int)tx_rs_thresh,
+				(unsigned int)tx_free_thresh,
+				(unsigned int)nb_desc,
+				(int)dev->data->port_id,
+				(int)queue_idx);
+		return I40E_ERR_PARAM;
+	}
 	if (tx_rs_thresh >= (nb_desc - 2)) {
 		PMD_INIT_LOG(ERR, "tx_rs_thresh must be less than the "
 			     "number of TX descriptors minus 2. "
@@ -2499,6 +2539,113 @@ i40e_tx_queue_release_mbufs(struct i40e_tx_queue *txq)
 	}
 }
 
+static int
+i40e_tx_done_cleanup_full(struct i40e_tx_queue *txq,
+			uint32_t free_cnt)
+{
+	struct i40e_tx_entry *swr_ring = txq->sw_ring;
+	uint16_t i, tx_last, tx_id;
+	uint16_t nb_tx_free_last;
+	uint16_t nb_tx_to_clean;
+	uint32_t pkt_cnt;
+
+	/* Start free mbuf from the next of tx_tail */
+	tx_last = txq->tx_tail;
+	tx_id  = swr_ring[tx_last].next_id;
+
+	if (txq->nb_tx_free == 0 && i40e_xmit_cleanup(txq))
+		return 0;
+
+	nb_tx_to_clean = txq->nb_tx_free;
+	nb_tx_free_last = txq->nb_tx_free;
+	if (!free_cnt)
+		free_cnt = txq->nb_tx_desc;
+
+	/* Loop through swr_ring to count the amount of
+	 * freeable mubfs and packets.
+	 */
+	for (pkt_cnt = 0; pkt_cnt < free_cnt; ) {
+		for (i = 0; i < nb_tx_to_clean &&
+			pkt_cnt < free_cnt &&
+			tx_id != tx_last; i++) {
+			if (swr_ring[tx_id].mbuf != NULL) {
+				rte_pktmbuf_free_seg(swr_ring[tx_id].mbuf);
+				swr_ring[tx_id].mbuf = NULL;
+
+				/*
+				 * last segment in the packet,
+				 * increment packet count
+				 */
+				pkt_cnt += (swr_ring[tx_id].last_id == tx_id);
+			}
+
+			tx_id = swr_ring[tx_id].next_id;
+		}
+
+		if (txq->tx_rs_thresh > txq->nb_tx_desc -
+			txq->nb_tx_free || tx_id == tx_last)
+			break;
+
+		if (pkt_cnt < free_cnt) {
+			if (i40e_xmit_cleanup(txq))
+				break;
+
+			nb_tx_to_clean = txq->nb_tx_free - nb_tx_free_last;
+			nb_tx_free_last = txq->nb_tx_free;
+		}
+	}
+
+	return (int)pkt_cnt;
+}
+
+static int
+i40e_tx_done_cleanup_simple(struct i40e_tx_queue *txq,
+			uint32_t free_cnt)
+{
+	int i, n, cnt;
+
+	if (free_cnt == 0 || free_cnt > txq->nb_tx_desc)
+		free_cnt = txq->nb_tx_desc;
+
+	cnt = free_cnt - free_cnt % txq->tx_rs_thresh;
+
+	for (i = 0; i < cnt; i += n) {
+		if (txq->nb_tx_desc - txq->nb_tx_free < txq->tx_rs_thresh)
+			break;
+
+		n = i40e_tx_free_bufs(txq);
+
+		if (n == 0)
+			break;
+	}
+
+	return i;
+}
+
+static int
+i40e_tx_done_cleanup_vec(struct i40e_tx_queue *txq __rte_unused,
+			uint32_t free_cnt __rte_unused)
+{
+	return -ENOTSUP;
+}
+int
+i40e_tx_done_cleanup(void *txq, uint32_t free_cnt)
+{
+	struct i40e_tx_queue *q = (struct i40e_tx_queue *)txq;
+	struct rte_eth_dev *dev = &rte_eth_devices[q->port_id];
+	struct i40e_adapter *ad =
+		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+
+	if (ad->tx_simple_allowed) {
+		if (ad->tx_vec_allowed)
+			return i40e_tx_done_cleanup_vec(q, free_cnt);
+		else
+			return i40e_tx_done_cleanup_simple(q, free_cnt);
+	} else {
+		return i40e_tx_done_cleanup_full(q, free_cnt);
+	}
+}
+
 void
 i40e_reset_tx_queue(struct i40e_tx_queue *txq)
 {
@@ -2634,7 +2781,7 @@ i40e_rx_queue_config(struct i40e_rx_queue *rxq)
 	struct i40e_pf *pf = I40E_VSI_TO_PF(rxq->vsi);
 	struct i40e_hw *hw = I40E_VSI_TO_HW(rxq->vsi);
 	struct rte_eth_dev_data *data = pf->dev_data;
-	uint16_t buf_size, len;
+	uint16_t buf_size;
 
 	buf_size = (uint16_t)(rte_pktmbuf_data_room_size(rxq->mp) -
 		RTE_PKTMBUF_HEADROOM);
@@ -2657,26 +2804,27 @@ i40e_rx_queue_config(struct i40e_rx_queue *rxq)
 		break;
 	}
 
-	len = hw->func_caps.rx_buf_chain_len * rxq->rx_buf_len;
-	rxq->max_pkt_len = RTE_MIN(len, data->dev_conf.rxmode.max_rx_pkt_len);
+	rxq->max_pkt_len =
+		RTE_MIN((uint32_t)(hw->func_caps.rx_buf_chain_len *
+			rxq->rx_buf_len), data->dev_conf.rxmode.max_rx_pkt_len);
 	if (data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (rxq->max_pkt_len <= ETHER_MAX_LEN ||
+		if (rxq->max_pkt_len <= RTE_ETHER_MAX_LEN ||
 			rxq->max_pkt_len > I40E_FRAME_SIZE_MAX) {
 			PMD_DRV_LOG(ERR, "maximum packet length must "
 				    "be larger than %u and smaller than %u,"
 				    "as jumbo frame is enabled",
-				    (uint32_t)ETHER_MAX_LEN,
+				    (uint32_t)RTE_ETHER_MAX_LEN,
 				    (uint32_t)I40E_FRAME_SIZE_MAX);
 			return I40E_ERR_CONFIG;
 		}
 	} else {
-		if (rxq->max_pkt_len < ETHER_MIN_LEN ||
-			rxq->max_pkt_len > ETHER_MAX_LEN) {
+		if (rxq->max_pkt_len < RTE_ETHER_MIN_LEN ||
+			rxq->max_pkt_len > RTE_ETHER_MAX_LEN) {
 			PMD_DRV_LOG(ERR, "maximum packet length must be "
 				    "larger than %u and smaller than %u, "
 				    "as jumbo frame is disabled",
-				    (uint32_t)ETHER_MIN_LEN,
-				    (uint32_t)ETHER_MAX_LEN);
+				    (uint32_t)RTE_ETHER_MIN_LEN,
+				    (uint32_t)RTE_ETHER_MAX_LEN);
 			return I40E_ERR_CONFIG;
 		}
 	}
@@ -2960,7 +3108,7 @@ i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 static eth_rx_burst_t
 i40e_get_latest_rx_vec(bool scatter)
 {
-#ifdef RTE_ARCH_X86
+#if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
 	if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2))
 		return scatter ? i40e_recv_scattered_pkts_vec_avx2 :
 				 i40e_recv_pkts_vec_avx2;
@@ -2972,7 +3120,7 @@ i40e_get_latest_rx_vec(bool scatter)
 static eth_rx_burst_t
 i40e_get_recommend_rx_vec(bool scatter)
 {
-#ifdef RTE_ARCH_X86
+#if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
 	/*
 	 * since AVX frequency can be different to base frequency, limit
 	 * use of AVX2 version to later plaforms, not all those that could
@@ -3060,6 +3208,47 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 	}
 }
 
+static const struct {
+	eth_rx_burst_t pkt_burst;
+	const char *info;
+} i40e_rx_burst_infos[] = {
+	{ i40e_recv_scattered_pkts,          "Scalar Scattered" },
+	{ i40e_recv_pkts_bulk_alloc,         "Scalar Bulk Alloc" },
+	{ i40e_recv_pkts,                    "Scalar" },
+#ifdef RTE_ARCH_X86
+	{ i40e_recv_scattered_pkts_vec_avx2, "Vector AVX2 Scattered" },
+	{ i40e_recv_pkts_vec_avx2,           "Vector AVX2" },
+	{ i40e_recv_scattered_pkts_vec,      "Vector SSE Scattered" },
+	{ i40e_recv_pkts_vec,                "Vector SSE" },
+#elif defined(RTE_ARCH_ARM64)
+	{ i40e_recv_scattered_pkts_vec,      "Vector Neon Scattered" },
+	{ i40e_recv_pkts_vec,                "Vector Neon" },
+#elif defined(RTE_ARCH_PPC_64)
+	{ i40e_recv_scattered_pkts_vec,      "Vector AltiVec Scattered" },
+	{ i40e_recv_pkts_vec,                "Vector AltiVec" },
+#endif
+};
+
+int
+i40e_rx_burst_mode_get(struct rte_eth_dev *dev, __rte_unused uint16_t queue_id,
+		       struct rte_eth_burst_mode *mode)
+{
+	eth_rx_burst_t pkt_burst = dev->rx_pkt_burst;
+	int ret = -EINVAL;
+	unsigned int i;
+
+	for (i = 0; i < RTE_DIM(i40e_rx_burst_infos); ++i) {
+		if (pkt_burst == i40e_rx_burst_infos[i].pkt_burst) {
+			snprintf(mode->info, sizeof(mode->info), "%s",
+				 i40e_rx_burst_infos[i].info);
+			ret = 0;
+			break;
+		}
+	}
+
+	return ret;
+}
+
 void __attribute__((cold))
 i40e_set_tx_function_flag(struct rte_eth_dev *dev, struct i40e_tx_queue *txq)
 {
@@ -3089,7 +3278,7 @@ i40e_set_tx_function_flag(struct rte_eth_dev *dev, struct i40e_tx_queue *txq)
 static eth_tx_burst_t
 i40e_get_latest_tx_vec(void)
 {
-#ifdef RTE_ARCH_X86
+#if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
 	if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2))
 		return i40e_xmit_pkts_vec_avx2;
 #endif
@@ -3099,7 +3288,7 @@ i40e_get_latest_tx_vec(void)
 static eth_tx_burst_t
 i40e_get_recommend_tx_vec(void)
 {
-#ifdef RTE_ARCH_X86
+#if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
 	/*
 	 * since AVX frequency can be different to base frequency, limit
 	 * use of AVX2 version to later plaforms, not all those that could
@@ -3153,6 +3342,42 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 	}
 }
 
+static const struct {
+	eth_tx_burst_t pkt_burst;
+	const char *info;
+} i40e_tx_burst_infos[] = {
+	{ i40e_xmit_pkts_simple,   "Scalar Simple" },
+	{ i40e_xmit_pkts,          "Scalar" },
+#ifdef RTE_ARCH_X86
+	{ i40e_xmit_pkts_vec_avx2, "Vector AVX2" },
+	{ i40e_xmit_pkts_vec,      "Vector SSE" },
+#elif defined(RTE_ARCH_ARM64)
+	{ i40e_xmit_pkts_vec,      "Vector Neon" },
+#elif defined(RTE_ARCH_PPC_64)
+	{ i40e_xmit_pkts_vec,      "Vector AltiVec" },
+#endif
+};
+
+int
+i40e_tx_burst_mode_get(struct rte_eth_dev *dev, __rte_unused uint16_t queue_id,
+		       struct rte_eth_burst_mode *mode)
+{
+	eth_tx_burst_t pkt_burst = dev->tx_pkt_burst;
+	int ret = -EINVAL;
+	unsigned int i;
+
+	for (i = 0; i < RTE_DIM(i40e_tx_burst_infos); ++i) {
+		if (pkt_burst == i40e_tx_burst_infos[i].pkt_burst) {
+			snprintf(mode->info, sizeof(mode->info), "%s",
+				 i40e_tx_burst_infos[i].info);
+			ret = 0;
+			break;
+		}
+	}
+
+	return ret;
+}
+
 void __attribute__((cold))
 i40e_set_default_ptype_table(struct rte_eth_dev *dev)
 {
@@ -3200,7 +3425,8 @@ i40e_set_default_pctype_table(struct rte_eth_dev *dev)
 	ad->pctypes_tbl[RTE_ETH_FLOW_L2_PAYLOAD] =
 				(1ULL << I40E_FILTER_PCTYPE_L2_PAYLOAD);
 
-	if (hw->mac.type == I40E_MAC_X722) {
+	if (hw->mac.type == I40E_MAC_X722 ||
+		hw->mac.type == I40E_MAC_X722_VF) {
 		ad->pctypes_tbl[RTE_ETH_FLOW_NONFRAG_IPV4_UDP] |=
 			(1ULL << I40E_FILTER_PCTYPE_NONF_UNICAST_IPV4_UDP);
 		ad->pctypes_tbl[RTE_ETH_FLOW_NONFRAG_IPV4_UDP] |=
@@ -3222,14 +3448,15 @@ i40e_set_default_pctype_table(struct rte_eth_dev *dev)
 	}
 }
 
+#ifndef RTE_LIBRTE_I40E_INC_VECTOR
 /* Stubs needed for linkage when CONFIG_RTE_LIBRTE_I40E_INC_VECTOR is set to 'n' */
-__rte_weak int
+int
 i40e_rx_vec_dev_conf_condition_check(struct rte_eth_dev __rte_unused *dev)
 {
 	return -1;
 }
 
-__rte_weak uint16_t
+uint16_t
 i40e_recv_pkts_vec(
 	void __rte_unused *rx_queue,
 	struct rte_mbuf __rte_unused **rx_pkts,
@@ -3238,7 +3465,7 @@ i40e_recv_pkts_vec(
 	return 0;
 }
 
-__rte_weak uint16_t
+uint16_t
 i40e_recv_scattered_pkts_vec(
 	void __rte_unused *rx_queue,
 	struct rte_mbuf __rte_unused **rx_pkts,
@@ -3269,30 +3496,49 @@ i40e_rxq_vec_setup(struct i40e_rx_queue __rte_unused *rxq)
 	return -1;
 }
 
-__rte_weak int
+int
 i40e_txq_vec_setup(struct i40e_tx_queue __rte_unused *txq)
 {
 	return -1;
 }
 
-__rte_weak void
+void
 i40e_rx_queue_release_mbufs_vec(struct i40e_rx_queue __rte_unused*rxq)
 {
 	return;
 }
 
-__rte_weak uint16_t
+uint16_t
 i40e_xmit_fixed_burst_vec(void __rte_unused * tx_queue,
 			  struct rte_mbuf __rte_unused **tx_pkts,
 			  uint16_t __rte_unused nb_pkts)
 {
 	return 0;
 }
+#endif /* ifndef RTE_LIBRTE_I40E_INC_VECTOR */
 
-__rte_weak uint16_t
+#ifndef CC_AVX2_SUPPORT
+uint16_t
+i40e_recv_pkts_vec_avx2(void __rte_unused *rx_queue,
+			struct rte_mbuf __rte_unused **rx_pkts,
+			uint16_t __rte_unused nb_pkts)
+{
+	return 0;
+}
+
+uint16_t
+i40e_recv_scattered_pkts_vec_avx2(void __rte_unused *rx_queue,
+			struct rte_mbuf __rte_unused **rx_pkts,
+			uint16_t __rte_unused nb_pkts)
+{
+	return 0;
+}
+
+uint16_t
 i40e_xmit_pkts_vec_avx2(void __rte_unused * tx_queue,
 			  struct rte_mbuf __rte_unused **tx_pkts,
 			  uint16_t __rte_unused nb_pkts)
 {
     return(i40e_xmit_pkts_vec(tx_queue,tx_pkts,nb_pkts));
 }
+#endif /* ifndef CC_AVX2_SUPPORT */

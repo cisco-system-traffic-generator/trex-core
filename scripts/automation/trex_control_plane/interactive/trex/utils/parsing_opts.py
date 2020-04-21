@@ -2,6 +2,7 @@ import argparse
 from collections import namedtuple, OrderedDict
 from .common import list_intersect, list_difference, is_valid_ipv4, is_valid_ipv6, is_valid_mac, list_remove_dup
 from .text_opts import format_text
+from trex.emu.trex_emu_validator import Ipv4, Ipv6, Mac
 
 from ..common.trex_vlan import VLAN
 from ..common.trex_types import *
@@ -176,8 +177,46 @@ def hex_int (val):
         raise argparse.ArgumentTypeError("{0} is not a valid positive HEX formatted number".format(val))
     
     return int(val, 16)
-    
-    
+
+
+def action_conv_type_to_bytes():
+    class IPConv(argparse.Action):
+        def __init__(self, conv_type, mc = False, *args, **kwargs):
+            super(IPConv, self).__init__(*args, **kwargs)
+            self.conv_type = conv_type
+            self.mc   = mc
+
+        def __call__(self, parser, args, values, option_string=None):
+            if self.conv_type == 'ipv4':
+                res = Ipv4(values, mc = self.mc) 
+            elif self.conv_type == 'ipv6':
+                res = Ipv6(values, mc = self.mc)
+            elif self.conv_type == 'mac':
+                res = Mac(values)
+            setattr(args, self.dest, res.V())
+
+    return IPConv
+
+
+def action_check_min_max():
+    class MinMaxValidate(argparse.Action):
+        def __init__(self, min_val = float('-inf'), max_val = float('inf'), *args, **kwargs):
+            super(MinMaxValidate, self).__init__(*args, **kwargs)
+            self.min_val = min_val
+            self.max_val = max_val
+
+        def __call__(self, parser, args, values, option_string=None):
+            try:
+                values = int(values)
+            except ValueError:
+                parser.error('Value "%s" must be an integer' % values)
+            if self.min_val <= values <= self.max_val:
+                setattr(args, self.dest, values)
+            else:
+                parser.error('Value "%s" must be between %s and %s' % (option_string, self.min_val, self.max_val))
+
+    return MinMaxValidate
+
 def action_check_vlan():
     class VLANCheck(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
@@ -192,8 +231,21 @@ def action_check_vlan():
        
             
     return VLANCheck
-      
-    
+
+
+def action_check_tpid():
+    class TPIDCheck(argparse.Action):
+        TPIDS = ["0x8100", "0x88A8"]
+        
+        def __call__(self, parser, args, values, option_string=None):
+            if any(v not in TPIDCheck.TPIDS for v in values):
+                err = 'tpid value is not one of the valid tpids: %s' % TPIDCheck.TPIDS
+                parser.error(err)
+            
+            setattr(args, self.dest, values)
+    return TPIDCheck
+
+
 def action_bpf_filter_merge():
     class BPFFilterMerge(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
@@ -296,8 +348,15 @@ def check_pkt_size (pkt_size):
     return pkt_size
     
 def check_mac_addr (addr):
-    if not is_valid_mac(addr):
-        raise argparse.ArgumentTypeError("not a valid MAC address: '{0}'".format(addr))
+    def _check_one_mac(m):
+        if not is_valid_mac(m):
+            raise argparse.ArgumentTypeError("Not a valid MAC address: '{0}'".format(m))
+    
+    if isinstance(addr, list):
+        for m in addr:
+            _check_one_mac(m)
+    else:
+        _check_one_mac(addr)
         
     return addr
 
@@ -881,6 +940,20 @@ class OPTIONS_DB_ARGS:
          'dest': 'allow_bgp',
          'help': 'filter mode with bgp packets forward to rx'})
 
+    SERVICE_DHCP_FILTERED = ArgumentPack(
+        ['--dhcp'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_dhcp',
+         'help': 'filter mode with dhcpv4/dhcpv6 packets forward to rx'})
+
+    SERVICE_EMU_FILTERED = ArgumentPack(
+        ['--emu'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_emu',
+         'help': 'filter mode for all emu services rx'})
+
     SERVICE_NO_TCP_UDP_FILTERED = ArgumentPack(
         ['--no-tcp-udp'],
         {'action': 'store_true',
@@ -893,7 +966,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'default': False,   
          'dest': 'allow_all',
-         'help': 'Allow filtering bgp and no tcp udp'})
+         'help': 'Allow every filter possible'})
 
     SERVICE_OFF = ArgumentPack(
         ['--off'],
@@ -967,13 +1040,22 @@ class OPTIONS_DB_ARGS:
          'help': "Show all registered layers / inspect a specific layer"})
 
     VLAN_TAGS = ArgumentPack(
-        ['--vlan', '-v'],
+        ['--vlan'],
         {'dest':'vlan',
          'action': action_check_vlan(),
          'type': int,
          'nargs': '*',
          'metavar': 'VLAN',
          'help': 'single or double VLAN tags'})
+
+    VLAN_TPIDS = ArgumentPack(
+        ['--tpid'],
+        {'dest':'tpid',
+         'action': action_check_tpid(),
+         'type': str,
+         'nargs': '*',
+         'metavar': 'TPID',
+         'help': 'single or double VLAN tpids'})
 
     CLEAR_VLAN = ArgumentPack(
         ['-c'],
@@ -1026,6 +1108,264 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'type': str,
          'help': "Template group name"})
+
+    # Emu Args
+    SINGLE_PORT_REQ = ArgumentPack(
+        ['-p', '--port'],
+        {'type': int,
+         'metavar': 'PORT',
+         'help': 'Port for the action',
+         'required': True})
+        
+    SINGLE_PORT_NOT_REQ = ArgumentPack(
+        ['-p', '--port'],
+        {'type': int,
+         'metavar': 'PORT',
+         'help': 'Port for the action',
+         'required': False})
+
+    MAX_CLIENT_RATE = ArgumentPack(
+        ['-m', '--max-rate'],
+        {'dest': 'max_rate',
+         'type': int,
+         'help': "Max clients rate, clients per second"})
+    
+    TO_JSON = ArgumentPack(
+        ['--json'],
+        {'action': 'store_true',
+         'help': "Prompt info into a JSON format"})
+
+    TO_YAML = ArgumentPack(
+        ['--yaml'],
+        {'action': 'store_true',
+         'help': "Prompt info into a YAML format"})
+
+
+    SHOW_MAX_CLIENTS = ArgumentPack(
+        ['--max-clients'],
+        {'default': 15,
+         'action': action_check_min_max(),
+         'min_val': 1, 'max_val': 255,
+         'help': "Max clients to show each time"})
+
+    SHOW_MAX_NS = ArgumentPack(
+        ['--max-ns'],
+        {'default': 1,
+         'action': action_check_min_max(),
+         'min_val': 1, 'max_val': 255,
+         'help': "Max namespaces to show each time"})
+
+    SHOW_IPV6_DATA = ArgumentPack(
+        ['--6'],
+        {'default': False,
+         'dest': 'ipv6',
+         'action': 'store_true',
+         'help': "Show ipv6 information in table, i.e: IPv6 Local, IPv6 Slaac.."})
+
+    SHOW_IPV6_ROUTER = ArgumentPack(
+        ['--6-router'],
+        {'default': False,
+         'dest': 'ipv6_router',
+         'action': 'store_true',
+         'help': "Show ipv6 router table"})
+
+    SHOW_IPV4_DG = ArgumentPack(
+        ['--4-dg'],
+        {'default': False,
+         'dest': 'ipv4_dg',
+         'action': 'store_true',
+         'help': "Show ipv4 default gateway table"})
+
+    SHOW_IPV6_DG = ArgumentPack(
+        ['--6-dg'],
+        {'default': False,
+         'dest': 'ipv6_dg',
+         'action': 'store_true',
+         'help': "Show ipv6 default gateway table"})
+
+
+    ARGPARSE_TUNABLES = ArgumentPack(
+        ['-t', '--tunables'],
+        {'default': [],
+         'type': str,
+         'nargs': argparse.REMAINDER,
+         'help': 'Sets tunables for a profile. -t MUST be the last flag. Example: "load_profile -f emu/simple_emu.py -t -h" to see tunables help'})
+
+    EMU_DRY_RUN_JSON = ArgumentPack(
+        ['-d', '--dry-run'],
+        {'default': False,
+         'action': 'store_true',
+         'dest': 'dry',
+         'help': 'Dry run, only prints profile as JSON'})
+
+    #Emu Client Args
+    MAC_ADDRESS = ArgumentPack(
+        ['--mac'],
+        {'help': "MAC address",
+         'required': True,
+         'conv_type': 'mac',
+         'action': action_conv_type_to_bytes()})
+    
+    MAC_ADDRESSES = ArgumentPack(
+        ['--macs'],
+        {'help': "MAC addresses",
+         'required': True,
+         'dest': 'macs',
+         'nargs': '+',
+         'type': check_mac_addr})
+
+    CLIENT_IPV4 = ArgumentPack(
+        ['-4'],
+        {'help': "Client's destination IPv4 address",
+         'dest': 'ipv4',
+         'type': check_ipv4_addr})
+
+    CLIENT_DG = ArgumentPack(
+        ['--dg'],
+        {'help': "Client's default gateway IPv4 address",
+         'type': check_ipv4_addr})
+
+    CLIENT_IPV6 = ArgumentPack(
+        ['-6'],
+        {'help': "Client's IPv6 address",
+         'dest': 'ipv6',
+         'type': check_ipv6_addr})
+
+    # Emu counters args
+    COUNTERS_TABLES = ArgumentPack(
+        ['--tables'],
+        {'type': str,
+         'help': 'Tables to show as a reg expression, i.e: --tables mbuf-*..'})
+    
+    COUNTERS_HEADERS = ArgumentPack(
+        ['--headers'],
+        {'action': 'store_true',
+         'help': 'Only show the counters headers names and exit'})
+
+    COUNTERS_CLEAR = ArgumentPack(
+        ['--clear'],
+        {'help': 'Clear all counters',
+         'action': 'store_true'})
+    
+    COUNTERS_TYPE = ArgumentPack(
+        ['--types'],
+        {'nargs': '*',
+        'type': str.upper,
+        'dest': 'cnt_types',
+        'help': 'Filters counters by their type. Example: "--filter info warning"'})
+    
+    COUNTERS_SHOW_ZERO = ArgumentPack(
+        ['--zero'],
+        {'action': 'store_true',
+         'default': False,
+        'help': 'Show all the zero values'})
+
+    EMU_ALL_NS = ArgumentPack(
+        ['--all-ns'],
+        {'action': 'store_true',
+        'help': 'Use all namespaces for the action'})
+
+    # Plugins cfg args
+    ARP_ENABLE = ArgumentPack(
+        ['--enable'],
+        {'choices': ON_OFF_DICT,
+         'required': True,
+         'help': 'Enable ARP'})
+
+    ARP_GARP = ArgumentPack(
+        ['--garp'],
+        {'choices': ON_OFF_DICT,
+         'required': True,
+         'help': 'Enable gratuitous ARP'})
+
+    MTU = ArgumentPack(
+        ['--mtu'],
+        {'type': int,
+         'action': action_check_min_max(),
+         'min_val': 256, 'max_val': 9000,
+         'required': True,
+         'help': 'Maximum transmission unit'})
+
+    IPV4_START = ArgumentPack(
+        ['--4'],
+        {'help': "IPv4 start address",
+         'dest': 'ipv4_start',
+         'required': True,
+         'mc': True, 'conv_type': 'ipv4',  # params for action 
+         'action': action_conv_type_to_bytes()})
+
+    IPV4_COUNT = ArgumentPack(
+        ['--4-count'],
+        {'help': "Number of IPv4 addresses to generate from start",
+         'dest': 'ipv4_count',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    IPV6_START = ArgumentPack(
+        ['--6'],
+        {'help': "IPv6 start address",
+         'dest': 'ipv6_start',
+         'required': True,
+         'mc': True, 'conv_type': 'ipv6', # params for action 
+         'action': action_conv_type_to_bytes()})
+
+    IPV6_COUNT = ArgumentPack(
+        ['--6-count'],
+        {'help': "Number of IPv6 addresses to generate from start",
+         'dest': 'ipv6_count',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    # ICMP Start Ping
+    PING_AMOUNT = ArgumentPack(
+        ['--amount'],
+        {'help': 'Amount of pings to sent. Default is 5.',
+         'dest': 'ping_amount',
+         'required': False,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    PING_PACE = ArgumentPack(
+        ['--pace'],
+        {'help': 'Pace of pings, in pps. Default is 1.',
+         'dest': 'ping_pace',
+         'required': False,
+         'type': float})
+
+    PING_DST = ArgumentPack(
+        ['--dst'],
+        {'help': 'Destination address. Default is Default Gateway.',
+         'dest': 'ping_dst',
+         'required': False,
+         'conv_type': 'ipv4',
+         'action': action_conv_type_to_bytes()})
+
+    PING_DST_V6 = ArgumentPack(
+        ['--dst'],
+        {'help': 'Destination address. Default is Default Gateway.',
+         'dest': 'pingv6_dst',
+         'required': False,
+         'conv_type': 'ipv6',
+         'action': action_conv_type_to_bytes()})
+
+    PING_SRC_V6 = ArgumentPack(
+        ['--src'],
+        {'help': 'Source address.',
+         'dest': 'pingv6_src',
+         'required': False,
+         'conv_type': 'ipv6',
+         'action': action_conv_type_to_bytes()})
+
+    PING_SIZE = ArgumentPack(
+        ['--size'],
+        {'help': 'Size of the ICMPv4/v6 payload, in bytes. Minimal and default is 16.',
+         'dest': 'ping_size',
+         'required': False,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1152,6 +1492,112 @@ class OPTIONS_DB_GROUPS:
             MONITOR_TYPE_VERBOSE,
             MONITOR_TYPE_PIPE],
         {'required': False})
+
+    SERVICE_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SERVICE_BGP_FILTERED,
+            SERVICE_DHCP_FILTERED,
+            SERVICE_EMU_FILTERED,
+            SERVICE_NO_TCP_UDP_FILTERED,
+            SERVICE_ALL_FILTERED,
+            SERVICE_OFF
+        ],{})
+
+    # EMU Groups
+    EMU_NS_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SINGLE_PORT_REQ,
+            VLAN_TAGS,
+            VLAN_TPIDS,
+        ],{})
+
+    EMU_NS_GROUP_NOT_REQ = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SINGLE_PORT_NOT_REQ,
+            VLAN_TAGS,
+            VLAN_TPIDS,
+        ],{})
+
+    EMU_CLIENT_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MAC_ADDRESS,
+            CLIENT_IPV4,
+            CLIENT_DG,
+            CLIENT_IPV6,
+        ],{})
+
+    EMU_MAX_SHOW = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SHOW_MAX_CLIENTS,
+            SHOW_MAX_NS,
+        ],{})
+
+    EMU_SHOW_CLIENT_OPTIONS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            SHOW_IPV6_DATA,
+            SHOW_IPV6_ROUTER,
+            SHOW_IPV4_DG,
+            SHOW_IPV6_DG 
+        ],{})
+
+    EMU_SHOW_CNT_GLOBAL_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MONITOR_TYPE_VERBOSE,
+            COUNTERS_TABLES,
+            COUNTERS_HEADERS,
+            COUNTERS_CLEAR,
+            COUNTERS_TYPE,
+            COUNTERS_SHOW_ZERO,
+        ], {}
+    )
+
+    EMU_SHOW_CNT_GROUP = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MONITOR_TYPE_VERBOSE,
+            COUNTERS_TABLES,
+            COUNTERS_HEADERS,
+            COUNTERS_CLEAR,
+            COUNTERS_TYPE,
+            COUNTERS_SHOW_ZERO,
+        ], {}
+    )
+
+    EMU_DUMPS_OPT = ArgumentGroup(
+        MUTEX,
+        [
+            TO_JSON,
+            TO_YAML
+        ], {}
+    )
+
+    EMU_ICMP_PING_PARAMS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            PING_AMOUNT,
+            PING_PACE,
+            PING_DST,
+            PING_SIZE,
+        ], {}
+    )
+
+    EMU_ICMPv6_PING_PARAMS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            PING_AMOUNT,
+            PING_PACE,
+            PING_DST_V6,
+            PING_SRC_V6,
+            PING_SIZE,
+        ], {}
+    )
 
 for var_name in dir(OPTIONS_DB_GROUPS):
     var = getattr(OPTIONS_DB_GROUPS, var_name)

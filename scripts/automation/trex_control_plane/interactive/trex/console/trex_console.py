@@ -103,6 +103,7 @@ class ConsoleLogger(Logger):
 class TRexGeneralCmd(cmd.Cmd):
     def __init__(self, client_mode):
         cmd.Cmd.__init__(self)
+
         # configure history behaviour
         self._history_file_dir = "/tmp/trex/console/"
         self._history_file = self.get_history_file_full_path(client_mode)
@@ -182,23 +183,21 @@ class TRexConsole(TRexGeneralCmd):
         self.cmd_lock = Lock()
         
         self.client = client
+        self.verbose = verbose
 
         TRexGeneralCmd.__init__(self, client.get_mode())
 
-        self.tui = trex_tui.TrexTUI(self)
-        self.terminal = None
-
-        self.verbose = verbose
+        self.plugins_mngr = PluginsManager(self)
 
         self.intro  = "\n-=TRex Console v{ver}=-\n".format(ver=__version__)
         self.intro += "\nType 'help' or '?' for supported actions\n"
 
+        self.terminal = None
+
+        self.tui = trex_tui.TrexTUI(self)
         self.cap_mngr = CaptureManager(client, self.cmd_lock)
-        self.plugins_mngr = PluginsManager(self)
-
-        self.postcmd(False, "")
-
         self.load_client_console_functions()
+        self.postcmd(False, "")
 
 
     ################### internal section ########################
@@ -219,6 +218,7 @@ class TRexConsole(TRexGeneralCmd):
             return ret
 
         return wrap
+
 
     def history_preserver(self, func, line):
         filename = self._push_history()
@@ -242,7 +242,26 @@ class TRexConsole(TRexGeneralCmd):
                 setattr(self.__class__, 'do_' + cmd_name, cmd_func)
             setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
 
-
+    def load_client_plugin_functions (self, client, func_prefix):
+        for cmd_name, cmd_func in client.get_plugin_methods().items():
+            cmd_name = func_prefix + cmd_name
+            # register the function and its help
+            if cmd_func.preserve_history:
+                f = partial(self.history_preserver, cmd_func)
+                f.__doc__ = cmd_func.__doc__
+                f.name    = cmd_func.name
+                f.group   = cmd_func.group
+                setattr(self.__class__, 'do_' + cmd_name, f)
+            else:
+                setattr(self.__class__, 'do_' + cmd_name, cmd_func)
+            setattr(self.__class__, 'help_' + cmd_name, lambda _, func = cmd_func: func('-h'))
+    
+    def unload_client_plugin_functions (self, func_prefix):
+        do_func_pre, help_func_pre = 'do_%s' % func_prefix, 'help_%s' % func_prefix
+        
+        for cmd_name, cmd_func in inspect.getmembers(self.__class__, predicate=inspect.ismethod):
+            if cmd_name.startswith(do_func_pre) or cmd_name.startswith(help_func_pre):
+                delattr(self.__class__, cmd_name)
 
     def generate_prompt (self, prefix = 'trex'):
         if not self.client.is_connected():
@@ -447,7 +466,6 @@ class TRexConsole(TRexGeneralCmd):
 
         self.client.logger.info(format_text("\n*** Leaving Python shell ***\n"))
 
-
     def do_history (self, line):
         '''Manage the command history\n'''
 
@@ -488,13 +506,15 @@ class TRexConsole(TRexGeneralCmd):
     def complete_plugins(self, text, line, start_index, end_index):
         return self.plugins_mngr.complete_plugins(text, line, start_index, end_index)
 
+    def complete_emu_load_profile(self, text, line, start_index, end_index):
+        return self.complete_start(text, line, start_index, end_index)
 
     ############### connect
     def do_connect (self, line):
         '''Connects to the server and acquire ports\n'''
 
         self.client.connect_line(line)
-
+    
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
         
@@ -592,7 +612,6 @@ class TRexConsole(TRexGeneralCmd):
              func()
              return
     
-    
          cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
          hidden = ['EOF', 'q', 'exit', 'h', 'shell']
 
@@ -618,7 +637,9 @@ class TRexConsole(TRexGeneralCmd):
 
          if 'ASTF' in categories:
              self._help_cmds('Advanced Stateful Commands', categories['ASTF'])
-
+            
+         if 'emu' in categories:
+             self._help_cmds('Emulation Commands', categories['emu'])
 
     def _help_cmds (self, title, cmds):
 
@@ -761,7 +782,13 @@ def setParserOptions():
                        action="store_true",
                        help="Starts console in a read only mode",
                        default = False)
+    
+    parser.add_argument("--emu", action="store_true",
+                        help="Run emulation client on startup",
+                        default = False)
 
+    parser.add_argument("--emu-server",
+                        help="Emulation client server, default is TRex server address")
 
     parser.add_argument("-f", "--force", dest="force",
                         action="store_true",
@@ -794,6 +821,7 @@ def setParserOptions():
 
 # a simple info printed on log on
 def show_intro (logger, c):
+
     modes = {'STL': 'Stateless', 'ASTF': 'Advanced Stateful'}
     
     x    = c.get_server_system_info()
@@ -836,11 +864,47 @@ def probe_server_mode (options):
 
     return client.probe_server()['mode']
 
+def run_console(client, logger, options):
+    # console
+    try:
+        show_intro(logger, client)
+
+        # a script mode
+        if options.batch:
+            cont = run_script_file(options.batch[0], client)
+            if not cont:
+                return
+
+        console = TRexConsole(client, options.verbose)
+
+        # run emu if needed
+        console.emu_server = options.emu_server
+        if options.emu:
+            console.do_plugins('load emu')
+
+        logger.prompt_redraw = console.prompt_redraw
+
+        # TUI
+        if options.tui:
+            console.do_tui("-x" if options.xtui else "-l")
+
+        else:
+            console.start()
+            
+    except KeyboardInterrupt as e:
+        print("\n\n*** Caught Ctrl + C... Exiting...\n\n")
+
+    finally:
+        with client.logger.supress():
+            client.disconnect(stop_traffic = False)
+
 
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
 
+    if options.emu_server is None:
+        options.emu_server = options.server
 
     if options.xtui:
         options.tui = True
@@ -902,7 +966,6 @@ def main():
                             verbose_level = verbose_level,
                             sync_timeout = sync_timeout,
                             async_timeout = async_timeout)
-
     else:
         logger.critical("Unknown server mode: '{0}'".format(mode))
         return
@@ -927,32 +990,7 @@ def main():
     if options.readonly:
         logger.info(format_text("\nRead only mode - only few commands will be available", 'bold'))
 
-    # console
-    try:
-        show_intro(logger, client)
-
-        # a script mode
-        if options.batch:
-            cont = run_script_file(options.batch[0], client)
-            if not cont:
-                return
-
-        console = TRexConsole(client, options.verbose)
-        logger.prompt_redraw = console.prompt_redraw
-
-        # TUI
-        if options.tui:
-            console.do_tui("-x" if options.xtui else "-l")
-
-        else:
-            console.start()
-            
-    except KeyboardInterrupt as e:
-        print("\n\n*** Caught Ctrl + C... Exiting...\n\n")
-
-    finally:
-        with client.logger.supress():
-            client.disconnect(stop_traffic = False)
+    run_console(client, logger, options)
 
 
 if __name__ == '__main__':

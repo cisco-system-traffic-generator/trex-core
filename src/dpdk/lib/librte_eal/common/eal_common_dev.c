@@ -172,6 +172,9 @@ local_dev_probe(const char *devargs, struct rte_device **new_dev)
 	 */
 
 	ret = dev->bus->plug(dev);
+	if (ret > 0)
+		ret = -ENOTSUP;
+
 	if (ret && !rte_dev_is_probed(dev)) { /* if hasn't ever succeeded */
 		RTE_LOG(ERR, EAL, "Driver cannot attach the device (%s)\n",
 			dev->name);
@@ -319,7 +322,7 @@ local_dev_remove(struct rte_device *dev)
 	if (ret) {
 		RTE_LOG(ERR, EAL, "Driver cannot detach the device (%s)\n",
 			dev->name);
-		return ret;
+		return (ret < 0) ? ret : -ENOENT;
 	}
 
 	return 0;
@@ -422,7 +425,7 @@ rollback:
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_dev_event_callback_register(const char *device_name,
 				rte_dev_event_cb_fn cb_fn,
 				void *cb_arg)
@@ -488,7 +491,7 @@ error:
 	return ret;
 }
 
-int __rte_experimental
+int
 rte_dev_event_callback_unregister(const char *device_name,
 				  rte_dev_event_cb_fn cb_fn,
 				  void *cb_arg)
@@ -533,7 +536,7 @@ rte_dev_event_callback_unregister(const char *device_name,
 	return ret;
 }
 
-void __rte_experimental
+void
 rte_dev_event_callback_process(const char *device_name,
 			       enum rte_dev_event_type event)
 {
@@ -559,7 +562,6 @@ rte_dev_event_callback_process(const char *device_name,
 	rte_spinlock_unlock(&dev_event_lock);
 }
 
-__rte_experimental
 int
 rte_dev_iterator_init(struct rte_dev_iterator *it,
 		      const char *dev_str)
@@ -712,7 +714,6 @@ end:
 	it->device = dev;
 	return dev == NULL;
 }
-__rte_experimental
 struct rte_device *
 rte_dev_iterator_next(struct rte_dev_iterator *it)
 {

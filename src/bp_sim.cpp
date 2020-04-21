@@ -2967,29 +2967,36 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
 
         /* split the clients to threads using the mask */
         CIpPortion  portion;
-        for (int i=0;i<tuple_gen->m_client_pool.size();i++) {
-            split_ips(m_thread_id, m_max_threads, getDualPortId(),
-                      tuple_gen->m_client_pool[i],
-                      portion);
+        for ( CTupleGenPoolYaml &poolinfo : tuple_gen->m_client_pool ) {
+            if ( poolinfo.m_split_to_ports ) {
+                split_ips(m_thread_id, m_max_threads, getDualPortId(), poolinfo, portion);
+            } else {
+                uint32_t dual_port_cnt = CGlobalInfo::m_options.get_expected_dual_ports();
+                split_ips(m_thread_id / dual_port_cnt, m_max_threads / dual_port_cnt, getDualPortId(), poolinfo, portion);
+            }
 
-            m_smart_gen.add_client_pool(tuple_gen->m_client_pool[i].m_dist,
+            m_smart_gen.add_client_pool(poolinfo.m_dist,
                                         portion.m_ip_start,
                                         portion.m_ip_end,
                                         active_flows_per_core,
                                         m_flow_list->m_client_config_info,
-                                        tuple_gen->m_client_pool[i].m_tcp_aging_sec,
-                                        tuple_gen->m_client_pool[i].m_udp_aging_sec
+                                        poolinfo.m_tcp_aging_sec,
+                                        poolinfo.m_udp_aging_sec
                                         );
         }
-        for (int i=0;i<tuple_gen->m_server_pool.size();i++) {
-            split_ips(m_thread_id, m_max_threads, getDualPortId(),
-                      tuple_gen->m_server_pool[i],
-                      portion);
-            m_smart_gen.add_server_pool(tuple_gen->m_server_pool[i].m_dist,
+
+        for ( CTupleGenPoolYaml &poolinfo : tuple_gen->m_server_pool ) {
+            if ( poolinfo.m_split_to_ports ) {
+                split_ips(m_thread_id, m_max_threads, getDualPortId(), poolinfo, portion);
+            } else {
+                uint32_t dual_port_cnt = CGlobalInfo::m_options.get_expected_dual_ports();
+                split_ips(m_thread_id / dual_port_cnt, m_max_threads / dual_port_cnt, getDualPortId(), poolinfo, portion);
+            }
+            m_smart_gen.add_server_pool(poolinfo.m_dist,
                                         portion.m_ip_start,
                                         portion.m_ip_end,
                                         active_flows_per_core,
-                                        tuple_gen->m_server_pool[i].m_is_bundling);
+                                        poolinfo.m_is_bundling);
         }
 
         init_from_global();

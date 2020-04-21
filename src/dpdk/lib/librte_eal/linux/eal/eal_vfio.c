@@ -15,6 +15,7 @@
 #include <rte_vfio.h>
 
 #include "eal_filesystem.h"
+#include "eal_memcfg.h"
 #include "eal_vfio.h"
 #include "eal_private.h"
 
@@ -263,7 +264,7 @@ vfio_open_group_fd(int iommu_group_num)
 	int vfio_group_fd;
 	char filename[PATH_MAX];
 	struct rte_mp_msg mp_req, *mp_rep;
-	struct rte_mp_reply mp_reply;
+	struct rte_mp_reply mp_reply = {0};
 	struct timespec ts = {.tv_sec = 5, .tv_nsec = 0};
 	struct vfio_mp_param *p = (struct vfio_mp_param *)mp_req.param;
 
@@ -319,9 +320,9 @@ vfio_open_group_fd(int iommu_group_num)
 			RTE_LOG(ERR, EAL, "  bad VFIO group fd\n");
 			vfio_group_fd = 0;
 		}
-		free(mp_reply.msgs);
 	}
 
+	free(mp_reply.msgs);
 	if (vfio_group_fd < 0)
 		RTE_LOG(ERR, EAL, "  cannot request group fd\n");
 	return vfio_group_fd;
@@ -410,6 +411,9 @@ static struct vfio_config *
 get_vfio_cfg_by_container_fd(int container_fd)
 {
 	int i;
+
+	if (container_fd == RTE_VFIO_DEFAULT_CONTAINER_FD)
+		return default_vfio_cfg;
 
 	for (i = 0; i < VFIO_MAX_CONTAINERS; i++) {
 		if (vfio_cfgs[i].vfio_container_fd == container_fd)
@@ -528,6 +532,17 @@ vfio_mem_event_callback(enum rte_mem_event type, const void *addr, size_t len,
 		return;
 	}
 
+#ifdef RTE_ARCH_PPC_64
+	ms = rte_mem_virt2memseg(addr, msl);
+	while (cur_len < len) {
+		int idx = rte_fbarray_find_idx(&msl->memseg_arr, ms);
+
+		rte_fbarray_set_free(&msl->memseg_arr, idx);
+		cur_len += ms->len;
+		++ms;
+	}
+	cur_len = 0;
+#endif
 	/* memsegs are contiguous in memory */
 	ms = rte_mem_virt2memseg(addr, msl);
 	while (cur_len < len) {
@@ -547,13 +562,24 @@ next:
 		cur_len += ms->len;
 		++ms;
 	}
+#ifdef RTE_ARCH_PPC_64
+	cur_len = 0;
+	ms = rte_mem_virt2memseg(addr, msl);
+	while (cur_len < len) {
+		int idx = rte_fbarray_find_idx(&msl->memseg_arr, ms);
+
+		rte_fbarray_set_used(&msl->memseg_arr, idx);
+		cur_len += ms->len;
+		++ms;
+	}
+#endif
 }
 
 static int
 vfio_sync_default_container(void)
 {
 	struct rte_mp_msg mp_req, *mp_rep;
-	struct rte_mp_reply mp_reply;
+	struct rte_mp_reply mp_reply = {0};
 	struct timespec ts = {.tv_sec = 5, .tv_nsec = 0};
 	struct vfio_mp_param *p = (struct vfio_mp_param *)mp_req.param;
 	int iommu_type_id;
@@ -583,8 +609,8 @@ vfio_sync_default_container(void)
 		p = (struct vfio_mp_param *)mp_rep->param;
 		if (p->result == SOCKET_OK)
 			iommu_type_id = p->iommu_type_id;
-		free(mp_reply.msgs);
 	}
+	free(mp_reply.msgs);
 	if (iommu_type_id < 0) {
 		RTE_LOG(ERR, EAL, "Could not get IOMMU type for default container\n");
 		return -1;
@@ -635,8 +661,6 @@ int
 rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 		int *vfio_dev_fd, struct vfio_device_info *device_info)
 {
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	rte_rwlock_t *mem_lock = &mcfg->memory_hotplug_lock;
 	struct vfio_group_status group_status = {
 			.argsz = sizeof(group_status)
 	};
@@ -739,7 +763,7 @@ rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 			/* lock memory hotplug before mapping and release it
 			 * after registering callback, to prevent races
 			 */
-			rte_rwlock_read_lock(mem_lock);
+			rte_mcfg_mem_read_lock();
 			if (vfio_cfg == default_vfio_cfg)
 				ret = t->dma_map_func(vfio_container_fd);
 			else
@@ -750,7 +774,7 @@ rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 					dev_addr, errno, strerror(errno));
 				close(vfio_group_fd);
 				rte_vfio_clear_group(vfio_group_fd);
-				rte_rwlock_read_unlock(mem_lock);
+				rte_mcfg_mem_read_unlock();
 				return -1;
 			}
 
@@ -781,7 +805,7 @@ rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 							map->len);
 					rte_spinlock_recursive_unlock(
 							&user_mem_maps->lock);
-					rte_rwlock_read_unlock(mem_lock);
+					rte_mcfg_mem_read_unlock();
 					return -1;
 				}
 			}
@@ -795,7 +819,7 @@ rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 			else
 				ret = 0;
 			/* unlock memory hotplug */
-			rte_rwlock_read_unlock(mem_lock);
+			rte_mcfg_mem_read_unlock();
 
 			if (ret && rte_errno != ENOTSUP) {
 				RTE_LOG(ERR, EAL, "Could not install memory event callback for VFIO\n");
@@ -862,8 +886,6 @@ int
 rte_vfio_release_device(const char *sysfs_base, const char *dev_addr,
 		    int vfio_dev_fd)
 {
-	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
-	rte_rwlock_t *mem_lock = &mcfg->memory_hotplug_lock;
 	struct vfio_group_status group_status = {
 			.argsz = sizeof(group_status)
 	};
@@ -876,7 +898,7 @@ rte_vfio_release_device(const char *sysfs_base, const char *dev_addr,
 	 * VFIO device, because this might be the last device and we might need
 	 * to unregister the callback.
 	 */
-	rte_rwlock_read_lock(mem_lock);
+	rte_mcfg_mem_read_lock();
 
 	/* get group number */
 	ret = rte_vfio_get_group_num(sysfs_base, dev_addr, &iommu_group_num);
@@ -947,7 +969,7 @@ rte_vfio_release_device(const char *sysfs_base, const char *dev_addr,
 	ret = 0;
 
 out:
-	rte_rwlock_read_unlock(mem_lock);
+	rte_mcfg_mem_read_unlock();
 	return ret;
 }
 
@@ -1024,7 +1046,7 @@ int
 vfio_get_default_container_fd(void)
 {
 	struct rte_mp_msg mp_req, *mp_rep;
-	struct rte_mp_reply mp_reply;
+	struct rte_mp_reply mp_reply = {0};
 	struct timespec ts = {.tv_sec = 5, .tv_nsec = 0};
 	struct vfio_mp_param *p = (struct vfio_mp_param *)mp_req.param;
 
@@ -1052,9 +1074,9 @@ vfio_get_default_container_fd(void)
 			free(mp_reply.msgs);
 			return mp_rep->fds[0];
 		}
-		free(mp_reply.msgs);
 	}
 
+	free(mp_reply.msgs);
 	RTE_LOG(ERR, EAL, "  cannot request default container fd\n");
 	return -1;
 }
@@ -1130,7 +1152,7 @@ rte_vfio_get_container_fd(void)
 {
 	int ret, vfio_container_fd;
 	struct rte_mp_msg mp_req, *mp_rep;
-	struct rte_mp_reply mp_reply;
+	struct rte_mp_reply mp_reply = {0};
 	struct timespec ts = {.tv_sec = 5, .tv_nsec = 0};
 	struct vfio_mp_param *p = (struct vfio_mp_param *)mp_req.param;
 
@@ -1184,9 +1206,9 @@ rte_vfio_get_container_fd(void)
 			free(mp_reply.msgs);
 			return vfio_container_fd;
 		}
-		free(mp_reply.msgs);
 	}
 
+	free(mp_reply.msgs);
 	RTE_LOG(ERR, EAL, "  cannot request container fd\n");
 	return -1;
 }
@@ -1235,12 +1257,34 @@ rte_vfio_get_group_num(const char *sysfs_base,
 }
 
 static int
+type1_map_contig(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
+		size_t len, void *arg)
+{
+	int *vfio_container_fd = arg;
+
+	if (msl->external)
+		return 0;
+
+	return vfio_type1_dma_mem_map(*vfio_container_fd, ms->addr_64, ms->iova,
+			len, 1);
+}
+
+static int
 type1_map(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
 		void *arg)
 {
 	int *vfio_container_fd = arg;
 
-	if (msl->external)
+	/* skip external memory that isn't a heap */
+	if (msl->external && !msl->heap)
+		return 0;
+
+	/* skip any segments with invalid IOVA addresses */
+	if (ms->iova == RTE_BAD_IOVA)
+		return 0;
+
+	/* if IOVA mode is VA, we've already mapped the internal segments */
+	if (!msl->external && rte_eal_iova_mode() == RTE_IOVA_VA)
 		return 0;
 
 	return vfio_type1_dma_mem_map(*vfio_container_fd, ms->addr_64, ms->iova,
@@ -1272,7 +1316,7 @@ vfio_type1_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 			 */
 			if (errno == EEXIST) {
 				RTE_LOG(DEBUG, EAL,
-					" Memory segment is allready mapped,"
+					" Memory segment is already mapped,"
 					" skipping");
 			} else {
 				RTE_LOG(ERR, EAL,
@@ -1303,6 +1347,18 @@ vfio_type1_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 static int
 vfio_type1_dma_map(int vfio_container_fd)
 {
+	if (rte_eal_iova_mode() == RTE_IOVA_VA) {
+		/* with IOVA as VA mode, we can get away with mapping contiguous
+		 * chunks rather than going page-by-page.
+		 */
+		int ret = rte_memseg_contig_walk(type1_map_contig,
+				&vfio_container_fd);
+		if (ret)
+			return ret;
+		/* we have to continue the walk because we've skipped the
+		 * external segments during the config walk.
+		 */
+	}
 	return rte_memseg_walk(type1_map, &vfio_container_fd);
 }
 
@@ -1345,7 +1401,7 @@ vfio_spapr_dma_do_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 			 */
 			if (errno == EBUSY) {
 				RTE_LOG(DEBUG, EAL,
-					" Memory segment is allready mapped,"
+					" Memory segment is already mapped,"
 					" skipping");
 			} else {
 				RTE_LOG(ERR, EAL,
@@ -1357,14 +1413,6 @@ vfio_spapr_dma_do_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 		}
 
 	} else {
-		ret = ioctl(vfio_container_fd,
-				VFIO_IOMMU_SPAPR_UNREGISTER_MEMORY, &reg);
-		if (ret) {
-			RTE_LOG(ERR, EAL, "  cannot unregister vaddr for IOMMU, error %i (%s)\n",
-					errno, strerror(errno));
-			return -1;
-		}
-
 		memset(&dma_unmap, 0, sizeof(dma_unmap));
 		dma_unmap.argsz = sizeof(struct vfio_iommu_type1_dma_unmap);
 		dma_unmap.size = len;
@@ -1374,6 +1422,14 @@ vfio_spapr_dma_do_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 				&dma_unmap);
 		if (ret) {
 			RTE_LOG(ERR, EAL, "  cannot clear DMA remapping, error %i (%s)\n",
+					errno, strerror(errno));
+			return -1;
+		}
+
+		ret = ioctl(vfio_container_fd,
+				VFIO_IOMMU_SPAPR_UNREGISTER_MEMORY, &reg);
+		if (ret) {
+			RTE_LOG(ERR, EAL, "  cannot unregister vaddr for IOMMU, error %i (%s)\n",
 					errno, strerror(errno));
 			return -1;
 		}
@@ -1388,17 +1444,41 @@ vfio_spapr_map_walk(const struct rte_memseg_list *msl,
 {
 	int *vfio_container_fd = arg;
 
-	if (msl->external)
+	/* skip external memory that isn't a heap */
+	if (msl->external && !msl->heap)
+		return 0;
+
+	/* skip any segments with invalid IOVA addresses */
+	if (ms->iova == RTE_BAD_IOVA)
 		return 0;
 
 	return vfio_spapr_dma_do_map(*vfio_container_fd, ms->addr_64, ms->iova,
 			ms->len, 1);
 }
 
+static int
+vfio_spapr_unmap_walk(const struct rte_memseg_list *msl,
+		const struct rte_memseg *ms, void *arg)
+{
+	int *vfio_container_fd = arg;
+
+	/* skip external memory that isn't a heap */
+	if (msl->external && !msl->heap)
+		return 0;
+
+	/* skip any segments with invalid IOVA addresses */
+	if (ms->iova == RTE_BAD_IOVA)
+		return 0;
+
+	return vfio_spapr_dma_do_map(*vfio_container_fd, ms->addr_64, ms->iova,
+			ms->len, 0);
+}
+
 struct spapr_walk_param {
 	uint64_t window_size;
 	uint64_t hugepage_sz;
 };
+
 static int
 vfio_spapr_window_size_walk(const struct rte_memseg_list *msl,
 		const struct rte_memseg *ms, void *arg)
@@ -1406,7 +1486,12 @@ vfio_spapr_window_size_walk(const struct rte_memseg_list *msl,
 	struct spapr_walk_param *param = arg;
 	uint64_t max = ms->iova + ms->len;
 
-	if (msl->external)
+	/* skip external memory that isn't a heap */
+	if (msl->external && !msl->heap)
+		return 0;
+
+	/* skip any segments with invalid IOVA addresses */
+	if (ms->iova == RTE_BAD_IOVA)
 		return 0;
 
 	if (max > param->window_size) {
@@ -1448,9 +1533,22 @@ vfio_spapr_create_new_dma_window(int vfio_container_fd,
 	/* create new DMA window */
 	ret = ioctl(vfio_container_fd, VFIO_IOMMU_SPAPR_TCE_CREATE, create);
 	if (ret) {
-		RTE_LOG(ERR, EAL, "  cannot create new DMA window, "
-				"error %i (%s)\n", errno, strerror(errno));
-		return -1;
+#ifdef VFIO_IOMMU_SPAPR_INFO_DDW
+		/* try possible page_shift and levels for workaround */
+		uint32_t levels;
+
+		for (levels = create->levels + 1;
+			ret && levels <= info.ddw.levels; levels++) {
+			create->levels = levels;
+			ret = ioctl(vfio_container_fd,
+				VFIO_IOMMU_SPAPR_TCE_CREATE, create);
+		}
+#endif
+		if (ret) {
+			RTE_LOG(ERR, EAL, "  cannot create new DMA window, "
+					"error %i (%s)\n", errno, strerror(errno));
+			return -1;
+		}
 	}
 
 	if (create->start_addr != 0) {
@@ -1497,7 +1595,7 @@ vfio_spapr_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 	for (i = 0; i < user_mem_maps->n_maps; i++) {
 		uint64_t max = user_mem_maps->maps[i].iova +
 				user_mem_maps->maps[i].len;
-		create.window_size = RTE_MAX(create.window_size, max);
+		param.window_size = RTE_MAX(param.window_size, max);
 	}
 
 	/* sPAPR requires window size to be a power of 2 */
@@ -1506,9 +1604,28 @@ vfio_spapr_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 	create.levels = 1;
 
 	if (do_map) {
-		void *addr;
 		/* re-create window and remap the entire memory */
-		if (iova > create.window_size) {
+		if (iova + len > create.window_size) {
+			/* release all maps before recreating the window */
+			if (rte_memseg_walk_thread_unsafe(vfio_spapr_unmap_walk,
+					&vfio_container_fd) < 0) {
+				RTE_LOG(ERR, EAL, "Could not release DMA maps\n");
+				ret = -1;
+				goto out;
+			}
+			/* release all user maps */
+			for (i = 0; i < user_mem_maps->n_maps; i++) {
+				struct user_mem_map *map =
+						&user_mem_maps->maps[i];
+				if (vfio_spapr_dma_do_map(vfio_container_fd,
+						map->addr, map->iova, map->len,
+						0)) {
+					RTE_LOG(ERR, EAL, "Could not release user DMA maps\n");
+					ret = -1;
+					goto out;
+				}
+			}
+			create.window_size = rte_align64pow2(iova + len);
 			if (vfio_spapr_create_new_dma_window(vfio_container_fd,
 					&create) < 0) {
 				RTE_LOG(ERR, EAL, "Could not create new DMA window\n");
@@ -1536,23 +1653,8 @@ vfio_spapr_dma_mem_map(int vfio_container_fd, uint64_t vaddr, uint64_t iova,
 				}
 			}
 		}
-
-		/* now that we've remapped all of the memory that was present
-		 * before, map the segment that we were requested to map.
-		 *
-		 * however, if we were called by the callback, the memory we
-		 * were called with was already in the memseg list, so previous
-		 * mapping should've mapped that segment already.
-		 *
-		 * virt2memseg_list is a relatively cheap check, so use that. if
-		 * memory is within any memseg list, it's a memseg, so it's
-		 * already mapped.
-		 */
-		addr = (void *)(uintptr_t)vaddr;
-		if (rte_mem_virt2memseg_list(addr) == NULL &&
-				vfio_spapr_dma_do_map(vfio_container_fd,
-					vaddr, iova, len, 1) < 0) {
-			RTE_LOG(ERR, EAL, "Could not map segment\n");
+		if (vfio_spapr_dma_do_map(vfio_container_fd, vaddr, iova, len, 1)) {
+			RTE_LOG(ERR, EAL, "Failed to map DMA\n");
 			ret = -1;
 			goto out;
 		}
@@ -1756,28 +1858,6 @@ out:
 }
 
 int
-rte_vfio_dma_map(uint64_t vaddr, uint64_t iova, uint64_t len)
-{
-	if (len == 0) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	return container_dma_map(default_vfio_cfg, vaddr, iova, len);
-}
-
-int
-rte_vfio_dma_unmap(uint64_t vaddr, uint64_t iova, uint64_t len)
-{
-	if (len == 0) {
-		rte_errno = EINVAL;
-		return -1;
-	}
-
-	return container_dma_unmap(default_vfio_cfg, vaddr, iova, len);
-}
-
-int
 rte_vfio_noiommu_is_enabled(void)
 {
 	int fd;
@@ -1834,7 +1914,7 @@ rte_vfio_container_create(void)
 	return vfio_cfgs[i].vfio_container_fd;
 }
 
-int __rte_experimental
+int
 rte_vfio_container_destroy(int container_fd)
 {
 	struct vfio_config *vfio_cfg;
@@ -1953,20 +2033,6 @@ rte_vfio_container_dma_unmap(int container_fd, uint64_t vaddr, uint64_t iova,
 }
 
 #else
-
-int
-rte_vfio_dma_map(uint64_t __rte_unused vaddr, __rte_unused uint64_t iova,
-		  __rte_unused uint64_t len)
-{
-	return -1;
-}
-
-int
-rte_vfio_dma_unmap(uint64_t __rte_unused vaddr, uint64_t __rte_unused iova,
-		    __rte_unused uint64_t len)
-{
-	return -1;
-}
 
 int
 rte_vfio_setup_device(__rte_unused const char *sysfs_base,

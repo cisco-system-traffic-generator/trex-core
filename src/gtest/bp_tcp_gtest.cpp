@@ -2964,7 +2964,6 @@ TEST_F(gt_tcp, tst80) {
 }
 
 
-
 #if 0
 
 TEST_F(gt_tcp, tst100) {

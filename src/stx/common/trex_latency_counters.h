@@ -59,15 +59,30 @@ class CRxCoreErrCntrs {
 
  public:
     CRxCoreErrCntrs();
-    uint64_t get_bad_header();
-    uint64_t get_old_flow();
     void reset();
     CRxCoreErrCntrs operator+= (const CRxCoreErrCntrs& in);
-    friend std::ostream& operator<<(std::ostream& os, const CRxCoreErrCntrs& in);
+    void ToJson (Json::Value *data_section);
+
 
  public:
-    uint64_t m_bad_header;
-    uint64_t m_old_flow;
+   uint64_t m_bad_header;
+   uint64_t m_old_flow;
+
+   uint64_t     m_ezmq_tx_to_emu;
+   uint64_t     m_ezmq_tx_to_emu_err;
+   uint64_t     m_ezmq_tx_to_emu_restart;
+
+   uint64_t     m_ezmq_tx_fe_dropped_no_mbuf;
+   uint64_t     m_ezmq_tx_fe_wrong_vport;
+
+   uint64_t     m_ezmq_tx_fe_err_send;
+
+   uint64_t     m_ezmq_tx_fe_ok_send;
+
+   uint64_t     m_ezmq_rx_fe_err_buffer_len_high;
+
+   uint64_t     m_ezmq_rx_fe_err_len_zero;
+
 };
 
 std::ostream& operator<<(std::ostream& os, const CRxCoreErrCntrs& in);

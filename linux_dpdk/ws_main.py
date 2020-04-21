@@ -69,7 +69,7 @@ GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
 GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
 
-MAX_PKG_SIZE = 250 # MB
+MAX_PKG_SIZE = 290 # MB
 
 
 #######################################
@@ -346,7 +346,7 @@ def configure(conf):
     conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
 
-    if with_ntacc:
+    if with_ntacc :
         ntapi_ok = conf.check_ntapi(mandatory = False)
         if not ntapi_ok:
             Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
@@ -704,6 +704,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/enic/base/vnic_wq.c',
                  'drivers/net/enic/enic_clsf.c',
                  'drivers/net/enic/enic_flow.c',
+                 'drivers/net/enic/enic_fm_flow.c',
                  'drivers/net/enic/enic_ethdev.c',
                  'drivers/net/enic/enic_main.c',
                  'drivers/net/enic/enic_res.c',
@@ -841,6 +842,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/bnxt_util.c',
                  'drivers/net/bnxt/bnxt_vnic.c',
                  'drivers/net/bnxt/rte_pmd_bnxt.c',
+                 'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
 
                  #e1000
                  'drivers/net/e1000/base/e1000_80003es2lan.c',
@@ -902,6 +904,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_memalloc.c',
                  'lib/librte_eal/common/eal_common_memory.c',
                  'lib/librte_eal/common/eal_common_memzone.c',
+                 'lib/librte_eal/common/eal_common_mcfg.c',
                  'lib/librte_eal/common/eal_common_options.c',
                  'lib/librte_eal/common/eal_common_proc.c',
                  'lib/librte_eal/common/eal_common_string_fns.c',
@@ -917,6 +920,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/rte_malloc.c',
                  'lib/librte_eal/common/rte_option.c',
                  'lib/librte_eal/common/rte_service.c',
+                 'lib/librte_eal/common/rte_random.c',
                  'lib/librte_eal/linux/eal/eal.c',
                  'lib/librte_eal/linux/eal/eal_alarm.c',
                  'lib/librte_eal/linux/eal/eal_cpuflags.c',
@@ -938,11 +942,13 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
+                 'lib/librte_mbuf/rte_mbuf_dyn.c',
                  'lib/librte_mbuf/rte_mbuf_ptype.c',
                  'lib/librte_mbuf/rte_mbuf_pool_ops.c',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
                  'lib/librte_mempool/rte_mempool_ops_default.c',
+                 'lib/librte_net/rte_ether.c',
                  'lib/librte_net/rte_net.c',
                  'lib/librte_net/rte_net_crc.c',
                  'lib/librte_net/rte_arp.c',
@@ -995,29 +1001,32 @@ i40e_dpdk_src = SrcGroup(
     ]);
 
 mlx5_x86_64_dpdk_src = SrcGroup(
-    dir = 'src/dpdk/drivers/net/mlx5',
+    dir = 'src/dpdk/drivers/',
     src_list = [
-        'mlx5.c',
-        'mlx5_devx_cmds.c',
-        'mlx5_ethdev.c',
-        'mlx5_flow.c',
-        'mlx5_flow_dv.c',
-        'mlx5_flow_tcf.c',
-        'mlx5_flow_verbs.c',
-        'mlx5_glue.c',
-        'mlx5_mac.c',
-        'mlx5_mp.c',
-        'mlx5_mr.c',
-        'mlx5_nl.c',
-        'mlx5_rss.c',
-        'mlx5_rxmode.c',
-        'mlx5_rxq.c',
-        'mlx5_rxtx.c',
-        'mlx5_rxtx_vec.c',
-        'mlx5_stats.c',
-        'mlx5_trigger.c',
-        'mlx5_txq.c',
-        'mlx5_vlan.c',
+        'common/mlx5/mlx5_glue.c',
+        'common/mlx5/mlx5_devx_cmds.c',
+        'common/mlx5/mlx5_common.c',
+        'common/mlx5/mlx5_nl.c',
+        'net/mlx5/mlx5.c',
+        'net/mlx5/mlx5_rxq.c',
+        'net/mlx5/mlx5_txq.c',
+        'net/mlx5/mlx5_rxtx.c',
+        'net/mlx5/mlx5_rxtx_vec.c',
+        'net/mlx5/mlx5_trigger.c',
+        'net/mlx5/mlx5_ethdev.c',
+        'net/mlx5/mlx5_mac.c',
+        'net/mlx5/mlx5_rxmode.c',
+        'net/mlx5/mlx5_vlan.c',
+        'net/mlx5/mlx5_stats.c',
+        'net/mlx5/mlx5_rss.c',
+        'net/mlx5/mlx5_mr.c',
+        'net/mlx5/mlx5_flow.c',
+        'net/mlx5/mlx5_flow_meter.c',
+        'net/mlx5/mlx5_flow_dv.c',
+        'net/mlx5/mlx5_flow_verbs.c',
+        'net/mlx5/mlx5_mp.c',
+        'net/mlx5/mlx5_utils.c',
+        'net/mlx5/mlx5_socket.c'
     ]);
 
 mlx5_ppc64le_dpdk_src = SrcGroup(
@@ -1078,6 +1087,7 @@ bnxt_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/bnxt_txr.c',
                  'drivers/net/bnxt/bnxt_util.c',
                  'drivers/net/bnxt/bnxt_vnic.c',
+                 'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
                  'drivers/net/bnxt/rte_pmd_bnxt.c',
             ]);
 
@@ -1292,8 +1302,9 @@ dpdk_includes_path_ppc64le ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk1905_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk2002_'''+ march +'''/
                         ../src/dpdk/drivers/
+                        ../src/dpdk/drivers/common/mlx5/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
                         ../src/dpdk/drivers/net/tap/
@@ -1387,11 +1398,11 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march == 'x86_64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk2002_x86_64/rte_config.h'];
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk1905_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk2002_aarch64/rte_config.h'];
 elif march == 'ppc64le':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk1905_ppc64le/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk2002_ppc64le/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
@@ -2007,8 +2018,8 @@ def _copy_single_system (bld, exec_p, build_obj):
     print(src_file)
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()
-        print(dest_file)
         os.system("cp %s %s " %(src_file,dest_file));
+        os.system("strip %s " %(dest_file));
         os.system("chmod +x %s " %(dest_file));
 
 def _copy_single_system1 (bld, exec_p, build_obj):
@@ -2043,8 +2054,8 @@ files_list=[
             'dpdk_setup_ports.py',
             'doc_process.py',
             'trex_daemon_server',
-            'scapy_daemon_server',
-            'pybird_daemon_server',
+            'trex-emu',
+            'general_daemon_server',
             'master_daemon.py',
             'astf_schema.json',
             'trex-console',
@@ -2052,7 +2063,7 @@ files_list=[
             'ndr'
             ];
 
-pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp']
+pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp','trex_emu','emu']
 pkg_exclude = ['*.pyc', '__pycache__']
 pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interactive/profiles']
 
@@ -2164,7 +2175,9 @@ def release(ctx, custom_dir = None):
         src_file =  '../scripts/'+obj
         dest_file = exec_p +'/'+obj
         os.system("cp %s %s " %(src_file,dest_file));
-
+    
+    os.system("chmod 755 %s " % (exec_p +'/trex-emu'));
+    
     exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
     fix_pkg_include(bld)
     for obj in pkg_include:
@@ -2278,16 +2291,3 @@ def test (ctx):
     r=getstatusoutput("git log --pretty=format:'%H' -n 1")
     if r[0]==0:
         print(r[1])
-
-
-
-
-
-
-
-
-
-
-
-
-

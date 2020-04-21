@@ -14,6 +14,7 @@
 #include <rte_esp.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 #include <rte_cryptodev.h>
 #include <rte_cryptodev_pmd.h>
 
@@ -401,7 +402,6 @@ pkt_work_tm(struct rte_mbuf *mbuf,
 {
 	struct dscp_table_entry_data *dscp_entry = &dscp_table->entry[dscp];
 	uint32_t queue_id = data->queue_id |
-				(dscp_entry->tc << 2) |
 				dscp_entry->tc_queue;
 	rte_mbuf_sched_set(mbuf, queue_id, dscp_entry->tc,
 				(uint8_t)dscp_entry->color);
@@ -438,8 +438,8 @@ encap_cfg_check(struct rte_table_action_encap_config *encap)
 }
 
 struct encap_ether_data {
-	struct ether_hdr ether;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+};
 
 #define VLAN(pcp, dei, vid)                                \
 	((uint16_t)((((uint64_t)(pcp)) & 0x7LLU) << 13) |  \
@@ -447,15 +447,15 @@ struct encap_ether_data {
 	(((uint64_t)(vid)) & 0xFFFLLU))                    \
 
 struct encap_vlan_data {
-	struct ether_hdr ether;
-	struct vlan_hdr vlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_vlan_hdr vlan;
+};
 
 struct encap_qinq_data {
-	struct ether_hdr ether;
-	struct vlan_hdr svlan;
-	struct vlan_hdr cvlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_vlan_hdr svlan;
+	struct rte_vlan_hdr cvlan;
+};
 
 #define ETHER_TYPE_MPLS_UNICAST                            0x8847
 
@@ -468,10 +468,10 @@ struct encap_qinq_data {
 	(((uint64_t)(ttl)) & 0xFFLLU)))
 
 struct encap_mpls_data {
-	struct ether_hdr ether;
+	struct rte_ether_hdr ether;
 	uint32_t mpls[RTE_TABLE_ACTION_MPLS_LABELS_MAX];
 	uint32_t mpls_count;
-} __attribute__((__packed__));
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 #define PPP_PROTOCOL_IP                                    0x0021
 
@@ -480,51 +480,51 @@ struct pppoe_ppp_hdr {
 	uint16_t session_id;
 	uint16_t length;
 	uint16_t protocol;
-} __attribute__((__packed__));
+};
 
 struct encap_pppoe_data {
-	struct ether_hdr ether;
+	struct rte_ether_hdr ether;
 	struct pppoe_ppp_hdr pppoe_ppp;
-} __attribute__((__packed__));
+};
 
 #define IP_PROTO_UDP                                       17
 
 struct encap_vxlan_ipv4_data {
-	struct ether_hdr ether;
-	struct ipv4_hdr ipv4;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_ipv4_hdr ipv4;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 struct encap_vxlan_ipv4_vlan_data {
-	struct ether_hdr ether;
-	struct vlan_hdr vlan;
-	struct ipv4_hdr ipv4;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_vlan_hdr vlan;
+	struct rte_ipv4_hdr ipv4;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 struct encap_vxlan_ipv6_data {
-	struct ether_hdr ether;
-	struct ipv6_hdr ipv6;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_ipv6_hdr ipv6;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 struct encap_vxlan_ipv6_vlan_data {
-	struct ether_hdr ether;
-	struct vlan_hdr vlan;
-	struct ipv6_hdr ipv6;
-	struct udp_hdr udp;
-	struct vxlan_hdr vxlan;
-} __attribute__((__packed__));
+	struct rte_ether_hdr ether;
+	struct rte_vlan_hdr vlan;
+	struct rte_ipv6_hdr ipv6;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 struct encap_qinq_pppoe_data {
-	struct ether_hdr ether;
-	struct vlan_hdr svlan;
-	struct vlan_hdr cvlan;
+	struct rte_ether_hdr ether;
+	struct rte_vlan_hdr svlan;
+	struct rte_vlan_hdr cvlan;
 	struct pppoe_ppp_hdr pppoe_ppp;
-} __attribute__((__packed__));
+} __attribute__((__packed__)) __attribute__((aligned(2)));
 
 static size_t
 encap_data_size(struct rte_table_action_encap_config *encap)
@@ -611,12 +611,12 @@ encap_ether_apply(void *data,
 {
 	struct encap_ether_data *d = data;
 	uint16_t ethertype = (common_cfg->ip_version) ?
-		ETHER_TYPE_IPv4 :
-		ETHER_TYPE_IPv6;
+		RTE_ETHER_TYPE_IPV4 :
+		RTE_ETHER_TYPE_IPV6;
 
 	/* Ethernet */
-	ether_addr_copy(&p->ether.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->ether.ether.sa, &d->ether.s_addr);
+	rte_ether_addr_copy(&p->ether.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->ether.ether.sa, &d->ether.s_addr);
 	d->ether.ether_type = rte_htons(ethertype);
 
 	return 0;
@@ -629,13 +629,13 @@ encap_vlan_apply(void *data,
 {
 	struct encap_vlan_data *d = data;
 	uint16_t ethertype = (common_cfg->ip_version) ?
-		ETHER_TYPE_IPv4 :
-		ETHER_TYPE_IPv6;
+		RTE_ETHER_TYPE_IPV4 :
+		RTE_ETHER_TYPE_IPV6;
 
 	/* Ethernet */
-	ether_addr_copy(&p->vlan.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->vlan.ether.sa, &d->ether.s_addr);
-	d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
+	rte_ether_addr_copy(&p->vlan.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->vlan.ether.sa, &d->ether.s_addr);
+	d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 	/* VLAN */
 	d->vlan.vlan_tci = rte_htons(VLAN(p->vlan.vlan.pcp,
@@ -653,19 +653,19 @@ encap_qinq_apply(void *data,
 {
 	struct encap_qinq_data *d = data;
 	uint16_t ethertype = (common_cfg->ip_version) ?
-		ETHER_TYPE_IPv4 :
-		ETHER_TYPE_IPv6;
+		RTE_ETHER_TYPE_IPV4 :
+		RTE_ETHER_TYPE_IPV6;
 
 	/* Ethernet */
-	ether_addr_copy(&p->qinq.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->qinq.ether.sa, &d->ether.s_addr);
-	d->ether.ether_type = rte_htons(ETHER_TYPE_QINQ);
+	rte_ether_addr_copy(&p->qinq.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->qinq.ether.sa, &d->ether.s_addr);
+	d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_QINQ);
 
 	/* SVLAN */
 	d->svlan.vlan_tci = rte_htons(VLAN(p->qinq.svlan.pcp,
 		p->qinq.svlan.dei,
 		p->qinq.svlan.vid));
-	d->svlan.eth_proto = rte_htons(ETHER_TYPE_VLAN);
+	d->svlan.eth_proto = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 	/* CVLAN */
 	d->cvlan.vlan_tci = rte_htons(VLAN(p->qinq.cvlan.pcp,
@@ -683,21 +683,21 @@ encap_qinq_pppoe_apply(void *data,
 	struct encap_qinq_pppoe_data *d = data;
 
 	/* Ethernet */
-	ether_addr_copy(&p->qinq.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->qinq.ether.sa, &d->ether.s_addr);
-	d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
+	rte_ether_addr_copy(&p->qinq.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->qinq.ether.sa, &d->ether.s_addr);
+	d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 	/* SVLAN */
 	d->svlan.vlan_tci = rte_htons(VLAN(p->qinq.svlan.pcp,
 		p->qinq.svlan.dei,
 		p->qinq.svlan.vid));
-	d->svlan.eth_proto = rte_htons(ETHER_TYPE_VLAN);
+	d->svlan.eth_proto = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 	/* CVLAN */
 	d->cvlan.vlan_tci = rte_htons(VLAN(p->qinq.cvlan.pcp,
 		p->qinq.cvlan.dei,
 		p->qinq.cvlan.vid));
-	d->cvlan.eth_proto = rte_htons(ETHER_TYPE_PPPOE_SESSION);
+	d->cvlan.eth_proto = rte_htons(RTE_ETHER_TYPE_PPPOE_SESSION);
 
 	/* PPPoE and PPP*/
 	d->pppoe_ppp.ver_type_code = rte_htons(0x1100);
@@ -719,8 +719,8 @@ encap_mpls_apply(void *data,
 	uint32_t i;
 
 	/* Ethernet */
-	ether_addr_copy(&p->mpls.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->mpls.ether.sa, &d->ether.s_addr);
+	rte_ether_addr_copy(&p->mpls.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->mpls.ether.sa, &d->ether.s_addr);
 	d->ether.ether_type = rte_htons(ethertype);
 
 	/* MPLS */
@@ -746,9 +746,9 @@ encap_pppoe_apply(void *data,
 	struct encap_pppoe_data *d = data;
 
 	/* Ethernet */
-	ether_addr_copy(&p->pppoe.ether.da, &d->ether.d_addr);
-	ether_addr_copy(&p->pppoe.ether.sa, &d->ether.s_addr);
-	d->ether.ether_type = rte_htons(ETHER_TYPE_PPPOE_SESSION);
+	rte_ether_addr_copy(&p->pppoe.ether.da, &d->ether.d_addr);
+	rte_ether_addr_copy(&p->pppoe.ether.sa, &d->ether.s_addr);
+	d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_PPPOE_SESSION);
 
 	/* PPPoE and PPP*/
 	d->pppoe_ppp.ver_type_code = rte_htons(0x1100);
@@ -776,15 +776,17 @@ encap_vxlan_apply(void *data,
 			struct encap_vxlan_ipv4_vlan_data *d = data;
 
 			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
+			rte_ether_addr_copy(&p->vxlan.ether.da,
+					&d->ether.d_addr);
+			rte_ether_addr_copy(&p->vxlan.ether.sa,
+					&d->ether.s_addr);
+			d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 			/* VLAN */
 			d->vlan.vlan_tci = rte_htons(VLAN(p->vxlan.vlan.pcp,
 				p->vxlan.vlan.dei,
 				p->vxlan.vlan.vid));
-			d->vlan.eth_proto = rte_htons(ETHER_TYPE_IPv4);
+			d->vlan.eth_proto = rte_htons(RTE_ETHER_TYPE_IPV4);
 
 			/* IPv4*/
 			d->ipv4.version_ihl = 0x45;
@@ -815,9 +817,11 @@ encap_vxlan_apply(void *data,
 			struct encap_vxlan_ipv4_data *d = data;
 
 			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_IPv4);
+			rte_ether_addr_copy(&p->vxlan.ether.da,
+					&d->ether.d_addr);
+			rte_ether_addr_copy(&p->vxlan.ether.sa,
+					&d->ether.s_addr);
+			d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_IPV4);
 
 			/* IPv4*/
 			d->ipv4.version_ihl = 0x45;
@@ -850,15 +854,17 @@ encap_vxlan_apply(void *data,
 			struct encap_vxlan_ipv6_vlan_data *d = data;
 
 			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_VLAN);
+			rte_ether_addr_copy(&p->vxlan.ether.da,
+					&d->ether.d_addr);
+			rte_ether_addr_copy(&p->vxlan.ether.sa,
+					&d->ether.s_addr);
+			d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_VLAN);
 
 			/* VLAN */
 			d->vlan.vlan_tci = rte_htons(VLAN(p->vxlan.vlan.pcp,
 				p->vxlan.vlan.dei,
 				p->vxlan.vlan.vid));
-			d->vlan.eth_proto = rte_htons(ETHER_TYPE_IPv6);
+			d->vlan.eth_proto = rte_htons(RTE_ETHER_TYPE_IPV6);
 
 			/* IPv6*/
 			d->ipv6.vtc_flow = rte_htonl((6 << 28) |
@@ -889,9 +895,11 @@ encap_vxlan_apply(void *data,
 			struct encap_vxlan_ipv6_data *d = data;
 
 			/* Ethernet */
-			ether_addr_copy(&p->vxlan.ether.da, &d->ether.d_addr);
-			ether_addr_copy(&p->vxlan.ether.sa, &d->ether.s_addr);
-			d->ether.ether_type = rte_htons(ETHER_TYPE_IPv6);
+			rte_ether_addr_copy(&p->vxlan.ether.da,
+					&d->ether.d_addr);
+			rte_ether_addr_copy(&p->vxlan.ether.sa,
+					&d->ether.s_addr);
+			d->ether.ether_type = rte_htons(RTE_ETHER_TYPE_IPV6);
 
 			/* IPv6*/
 			d->ipv6.vtc_flow = rte_htonl((6 << 28) |
@@ -997,14 +1005,14 @@ pkt_work_encap_vxlan_ipv4(struct rte_mbuf *mbuf,
 
 	ether_length = (uint16_t)mbuf->pkt_len;
 	ipv4_total_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr) +
-		sizeof(struct ipv4_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr) +
+		sizeof(struct rte_ipv4_hdr));
 	ipv4_hdr_cksum = encap_vxlan_ipv4_checksum_update(vxlan_tbl->ipv4.hdr_checksum,
 		rte_htons(ipv4_total_length));
 	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 
 	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
 	vxlan_pkt->ipv4.total_length = rte_htons(ipv4_total_length);
@@ -1027,14 +1035,14 @@ pkt_work_encap_vxlan_ipv4_vlan(struct rte_mbuf *mbuf,
 
 	ether_length = (uint16_t)mbuf->pkt_len;
 	ipv4_total_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr) +
-		sizeof(struct ipv4_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr) +
+		sizeof(struct rte_ipv4_hdr));
 	ipv4_hdr_cksum = encap_vxlan_ipv4_checksum_update(vxlan_tbl->ipv4.hdr_checksum,
 		rte_htons(ipv4_total_length));
 	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 
 	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
 	vxlan_pkt->ipv4.total_length = rte_htons(ipv4_total_length);
@@ -1057,11 +1065,11 @@ pkt_work_encap_vxlan_ipv6(struct rte_mbuf *mbuf,
 
 	ether_length = (uint16_t)mbuf->pkt_len;
 	ipv6_payload_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 
 	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
 	vxlan_pkt->ipv6.payload_len = rte_htons(ipv6_payload_length);
@@ -1083,11 +1091,11 @@ pkt_work_encap_vxlan_ipv6_vlan(struct rte_mbuf *mbuf,
 
 	ether_length = (uint16_t)mbuf->pkt_len;
 	ipv6_payload_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 	udp_length = ether_length +
-		(sizeof(struct vxlan_hdr) +
-		sizeof(struct udp_hdr));
+		(sizeof(struct rte_vxlan_hdr) +
+		sizeof(struct rte_udp_hdr));
 
 	vxlan_pkt = encap(ether, vxlan_tbl, sizeof(*vxlan_tbl));
 	vxlan_pkt->ipv6.payload_len = rte_htons(ipv6_payload_length);
@@ -1133,7 +1141,7 @@ pkt_work_encap(struct rte_mbuf *mbuf,
 	case 1LLU << RTE_TABLE_ACTION_ENCAP_MPLS:
 	{
 		struct encap_mpls_data *mpls = data;
-		size_t size = sizeof(struct ether_hdr) +
+		size_t size = sizeof(struct rte_ether_hdr) +
 			mpls->mpls_count * 4;
 
 		encap(ip, data, size);
@@ -1334,13 +1342,13 @@ nat_ipv6_tcp_udp_checksum_update(uint16_t cksum0,
 }
 
 static __rte_always_inline void
-pkt_ipv4_work_nat(struct ipv4_hdr *ip,
+pkt_ipv4_work_nat(struct rte_ipv4_hdr *ip,
 	struct nat_ipv4_data *data,
 	struct rte_table_action_nat_config *cfg)
 {
 	if (cfg->source_nat) {
 		if (cfg->proto == 0x6) {
-			struct tcp_hdr *tcp = (struct tcp_hdr *) &ip[1];
+			struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *) &ip[1];
 			uint16_t ip_cksum, tcp_cksum;
 
 			ip_cksum = nat_ipv4_checksum_update(ip->hdr_checksum,
@@ -1358,7 +1366,7 @@ pkt_ipv4_work_nat(struct ipv4_hdr *ip,
 			tcp->src_port = data->port;
 			tcp->cksum = tcp_cksum;
 		} else {
-			struct udp_hdr *udp = (struct udp_hdr *) &ip[1];
+			struct rte_udp_hdr *udp = (struct rte_udp_hdr *) &ip[1];
 			uint16_t ip_cksum, udp_cksum;
 
 			ip_cksum = nat_ipv4_checksum_update(ip->hdr_checksum,
@@ -1379,7 +1387,7 @@ pkt_ipv4_work_nat(struct ipv4_hdr *ip,
 		}
 	} else {
 		if (cfg->proto == 0x6) {
-			struct tcp_hdr *tcp = (struct tcp_hdr *) &ip[1];
+			struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *) &ip[1];
 			uint16_t ip_cksum, tcp_cksum;
 
 			ip_cksum = nat_ipv4_checksum_update(ip->hdr_checksum,
@@ -1397,7 +1405,7 @@ pkt_ipv4_work_nat(struct ipv4_hdr *ip,
 			tcp->dst_port = data->port;
 			tcp->cksum = tcp_cksum;
 		} else {
-			struct udp_hdr *udp = (struct udp_hdr *) &ip[1];
+			struct rte_udp_hdr *udp = (struct rte_udp_hdr *) &ip[1];
 			uint16_t ip_cksum, udp_cksum;
 
 			ip_cksum = nat_ipv4_checksum_update(ip->hdr_checksum,
@@ -1420,13 +1428,13 @@ pkt_ipv4_work_nat(struct ipv4_hdr *ip,
 }
 
 static __rte_always_inline void
-pkt_ipv6_work_nat(struct ipv6_hdr *ip,
+pkt_ipv6_work_nat(struct rte_ipv6_hdr *ip,
 	struct nat_ipv6_data *data,
 	struct rte_table_action_nat_config *cfg)
 {
 	if (cfg->source_nat) {
 		if (cfg->proto == 0x6) {
-			struct tcp_hdr *tcp = (struct tcp_hdr *) &ip[1];
+			struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *) &ip[1];
 			uint16_t tcp_cksum;
 
 			tcp_cksum = nat_ipv6_tcp_udp_checksum_update(tcp->cksum,
@@ -1439,7 +1447,7 @@ pkt_ipv6_work_nat(struct ipv6_hdr *ip,
 			tcp->src_port = data->port;
 			tcp->cksum = tcp_cksum;
 		} else {
-			struct udp_hdr *udp = (struct udp_hdr *) &ip[1];
+			struct rte_udp_hdr *udp = (struct rte_udp_hdr *) &ip[1];
 			uint16_t udp_cksum;
 
 			udp_cksum = nat_ipv6_tcp_udp_checksum_update(udp->dgram_cksum,
@@ -1454,7 +1462,7 @@ pkt_ipv6_work_nat(struct ipv6_hdr *ip,
 		}
 	} else {
 		if (cfg->proto == 0x6) {
-			struct tcp_hdr *tcp = (struct tcp_hdr *) &ip[1];
+			struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *) &ip[1];
 			uint16_t tcp_cksum;
 
 			tcp_cksum = nat_ipv6_tcp_udp_checksum_update(tcp->cksum,
@@ -1467,7 +1475,7 @@ pkt_ipv6_work_nat(struct ipv6_hdr *ip,
 			tcp->dst_port = data->port;
 			tcp->cksum = tcp_cksum;
 		} else {
-			struct udp_hdr *udp = (struct udp_hdr *) &ip[1];
+			struct rte_udp_hdr *udp = (struct rte_udp_hdr *) &ip[1];
 			uint16_t udp_cksum;
 
 			udp_cksum = nat_ipv6_tcp_udp_checksum_update(udp->dgram_cksum,
@@ -1528,7 +1536,7 @@ ttl_apply(void *data,
 }
 
 static __rte_always_inline uint64_t
-pkt_ipv4_work_ttl(struct ipv4_hdr *ip,
+pkt_ipv4_work_ttl(struct rte_ipv4_hdr *ip,
 	struct ttl_data *data)
 {
 	uint32_t drop;
@@ -1549,7 +1557,7 @@ pkt_ipv4_work_ttl(struct ipv4_hdr *ip,
 }
 
 static __rte_always_inline uint64_t
-pkt_ipv6_work_ttl(struct ipv6_hdr *ip,
+pkt_ipv6_work_ttl(struct rte_ipv6_hdr *ip,
 	struct ttl_data *data)
 {
 	uint32_t drop;
@@ -2885,16 +2893,16 @@ pkt_work(struct rte_mbuf *mbuf,
 	uint16_t total_length;
 
 	if (cfg->common.ip_version) {
-		struct ipv4_hdr *hdr = ip;
+		struct rte_ipv4_hdr *hdr = ip;
 
 		dscp = hdr->type_of_service >> 2;
 		total_length = rte_ntohs(hdr->total_length);
 	} else {
-		struct ipv6_hdr *hdr = ip;
+		struct rte_ipv6_hdr *hdr = ip;
 
 		dscp = (rte_ntohl(hdr->vtc_flow) & 0x0F600000) >> 18;
-		total_length =
-			rte_ntohs(hdr->payload_len) + sizeof(struct ipv6_hdr);
+		total_length = rte_ntohs(hdr->payload_len) +
+			sizeof(struct rte_ipv6_hdr);
 	}
 
 	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_LB)) {
@@ -3033,10 +3041,10 @@ pkt4_work(struct rte_mbuf **mbufs,
 	uint16_t total_length0, total_length1, total_length2, total_length3;
 
 	if (cfg->common.ip_version) {
-		struct ipv4_hdr *hdr0 = ip0;
-		struct ipv4_hdr *hdr1 = ip1;
-		struct ipv4_hdr *hdr2 = ip2;
-		struct ipv4_hdr *hdr3 = ip3;
+		struct rte_ipv4_hdr *hdr0 = ip0;
+		struct rte_ipv4_hdr *hdr1 = ip1;
+		struct rte_ipv4_hdr *hdr2 = ip2;
+		struct rte_ipv4_hdr *hdr3 = ip3;
 
 		dscp0 = hdr0->type_of_service >> 2;
 		dscp1 = hdr1->type_of_service >> 2;
@@ -3048,24 +3056,24 @@ pkt4_work(struct rte_mbuf **mbufs,
 		total_length2 = rte_ntohs(hdr2->total_length);
 		total_length3 = rte_ntohs(hdr3->total_length);
 	} else {
-		struct ipv6_hdr *hdr0 = ip0;
-		struct ipv6_hdr *hdr1 = ip1;
-		struct ipv6_hdr *hdr2 = ip2;
-		struct ipv6_hdr *hdr3 = ip3;
+		struct rte_ipv6_hdr *hdr0 = ip0;
+		struct rte_ipv6_hdr *hdr1 = ip1;
+		struct rte_ipv6_hdr *hdr2 = ip2;
+		struct rte_ipv6_hdr *hdr3 = ip3;
 
 		dscp0 = (rte_ntohl(hdr0->vtc_flow) & 0x0F600000) >> 18;
 		dscp1 = (rte_ntohl(hdr1->vtc_flow) & 0x0F600000) >> 18;
 		dscp2 = (rte_ntohl(hdr2->vtc_flow) & 0x0F600000) >> 18;
 		dscp3 = (rte_ntohl(hdr3->vtc_flow) & 0x0F600000) >> 18;
 
-		total_length0 =
-			rte_ntohs(hdr0->payload_len) + sizeof(struct ipv6_hdr);
-		total_length1 =
-			rte_ntohs(hdr1->payload_len) + sizeof(struct ipv6_hdr);
-		total_length2 =
-			rte_ntohs(hdr2->payload_len) + sizeof(struct ipv6_hdr);
-		total_length3 =
-			rte_ntohs(hdr3->payload_len) + sizeof(struct ipv6_hdr);
+		total_length0 = rte_ntohs(hdr0->payload_len) +
+			sizeof(struct rte_ipv6_hdr);
+		total_length1 = rte_ntohs(hdr1->payload_len) +
+			sizeof(struct rte_ipv6_hdr);
+		total_length2 = rte_ntohs(hdr2->payload_len) +
+			sizeof(struct rte_ipv6_hdr);
+		total_length3 = rte_ntohs(hdr3->payload_len) +
+			sizeof(struct rte_ipv6_hdr);
 	}
 
 	if (cfg->action_mask & (1LLU << RTE_TABLE_ACTION_LB)) {

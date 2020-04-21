@@ -9,7 +9,6 @@
  */
 
 #include <arpa/inet.h>
-#include <assert.h>
 #include <errno.h>
 #include <stdalign.h>
 #include <stddef.h>
@@ -224,7 +223,7 @@ mlx4_flow_merge_eth(struct rte_flow *flow,
 				goto error;
 			}
 			flow->allmulti = 1;
-		} else if (sum_dst != (UINT8_C(0xff) * ETHER_ADDR_LEN)) {
+		} else if (sum_dst != (UINT8_C(0xff) * RTE_ETHER_ADDR_LEN)) {
 			msg = "mlx4 does not support matching partial"
 				" Ethernet fields";
 			goto error;
@@ -252,12 +251,12 @@ mlx4_flow_merge_eth(struct rte_flow *flow,
 		flow->promisc = 1;
 		return 0;
 	}
-	memcpy(eth->val.dst_mac, spec->dst.addr_bytes, ETHER_ADDR_LEN);
-	memcpy(eth->mask.dst_mac, mask->dst.addr_bytes, ETHER_ADDR_LEN);
+	memcpy(eth->val.dst_mac, spec->dst.addr_bytes, RTE_ETHER_ADDR_LEN);
+	memcpy(eth->mask.dst_mac, mask->dst.addr_bytes, RTE_ETHER_ADDR_LEN);
 	/* Remove unwanted bits from values. */
-	for (i = 0; i < ETHER_ADDR_LEN; ++i) {
+	for (i = 0; i < RTE_ETHER_ADDR_LEN; ++i)
 		eth->val.dst_mac[i] &= eth->mask.dst_mac[i];
-	}
+
 	return 0;
 error:
 	return rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM,
@@ -547,7 +546,7 @@ mlx4_flow_item_check(const struct rte_flow_item *item,
 	mask = item->mask ?
 		(const uint8_t *)item->mask :
 		(const uint8_t *)proc->mask_default;
-	assert(mask);
+	MLX4_ASSERT(mask);
 	/*
 	 * Single-pass check to make sure that:
 	 * - Mask is supported, no bits are set outside proc->mask_support.
@@ -954,8 +953,8 @@ mlx4_drop_get(struct mlx4_priv *priv)
 	struct mlx4_drop *drop = priv->drop;
 
 	if (drop) {
-		assert(drop->refcnt);
-		assert(drop->priv == priv);
+		MLX4_ASSERT(drop->refcnt);
+		MLX4_ASSERT(drop->priv == priv);
 		++drop->refcnt;
 		return drop;
 	}
@@ -1000,7 +999,7 @@ error:
 static void
 mlx4_drop_put(struct mlx4_drop *drop)
 {
-	assert(drop->refcnt);
+	MLX4_ASSERT(drop->refcnt);
 	if (--drop->refcnt)
 		return;
 	drop->priv->drop = NULL;
@@ -1045,7 +1044,7 @@ mlx4_flow_toggle(struct mlx4_priv *priv,
 			mlx4_rss_detach(flow->rss);
 		return 0;
 	}
-	assert(flow->ibv_attr);
+	MLX4_ASSERT(flow->ibv_attr);
 	if (!flow->internal &&
 	    !priv->isolated &&
 	    flow->ibv_attr->priority == MLX4_FLOW_PRIORITY_LAST) {
@@ -1111,7 +1110,7 @@ mlx4_flow_toggle(struct mlx4_priv *priv,
 		}
 		qp = priv->drop->qp;
 	}
-	assert(qp);
+	MLX4_ASSERT(qp);
 	if (flow->ibv_flow)
 		return 0;
 	flow->ibv_flow = mlx4_glue->create_flow(qp, flow->ibv_attr);
@@ -1354,7 +1353,7 @@ mlx4_flow_internal(struct mlx4_priv *priv, struct rte_flow_error *error)
 			.type = RTE_FLOW_ACTION_TYPE_END,
 		},
 	};
-	struct ether_addr *rule_mac = &eth_spec.dst;
+	struct rte_ether_addr *rule_mac = &eth_spec.dst;
 	rte_be16_t *rule_vlan =
 		(ETH_DEV(priv)->data->dev_conf.rxmode.offloads &
 		 DEV_RX_OFFLOAD_VLAN_FILTER) &&
@@ -1391,14 +1390,14 @@ next_vlan:
 		}
 	}
 	for (i = 0; i != RTE_DIM(priv->mac) + 1; ++i) {
-		const struct ether_addr *mac;
+		const struct rte_ether_addr *mac;
 
 		/* Broadcasts are handled by an extra iteration. */
 		if (i < RTE_DIM(priv->mac))
 			mac = &priv->mac[i];
 		else
 			mac = &eth_mask.dst;
-		if (is_zero_ether_addr(mac))
+		if (rte_is_zero_ether_addr(mac))
 			continue;
 		/* Check if MAC flow rule is already present. */
 		for (flow = LIST_FIRST(&priv->flows);
@@ -1411,10 +1410,11 @@ next_vlan:
 
 			if (!flow->mac)
 				continue;
-			assert(flow->ibv_attr->type == IBV_FLOW_ATTR_NORMAL);
-			assert(flow->ibv_attr->num_of_specs == 1);
-			assert(eth->type == IBV_FLOW_SPEC_ETH);
-			assert(flow->rss);
+			MLX4_ASSERT(flow->ibv_attr->type ==
+				    IBV_FLOW_ATTR_NORMAL);
+			MLX4_ASSERT(flow->ibv_attr->num_of_specs == 1);
+			MLX4_ASSERT(eth->type == IBV_FLOW_SPEC_ETH);
+			MLX4_ASSERT(flow->rss);
 			if (rule_vlan &&
 			    (eth->val.vlan_tag != *rule_vlan ||
 			     eth->mask.vlan_tag != RTE_BE16(0x0fff)))
@@ -1463,13 +1463,13 @@ next_vlan:
 				if (flow->promisc)
 					break;
 			} else {
-				assert(ETH_DEV(priv)->data->all_multicast);
+				MLX4_ASSERT(ETH_DEV(priv)->data->all_multicast);
 				if (flow->allmulti)
 					break;
 			}
 		}
 		if (flow && flow->internal) {
-			assert(flow->rss);
+			MLX4_ASSERT(flow->rss);
 			if (flow->rss->queues != queues ||
 			    memcmp(flow->rss->queue_id, action_rss.queue,
 				   queues * sizeof(flow->rss->queue_id[0])))
@@ -1481,7 +1481,7 @@ next_vlan:
 				pattern[1].spec = NULL;
 				pattern[1].mask = NULL;
 			} else {
-				assert(ETH_DEV(priv)->data->all_multicast);
+				MLX4_ASSERT(ETH_DEV(priv)->data->all_multicast);
 				pattern[1].spec = &eth_allmulti;
 				pattern[1].mask = &eth_allmulti;
 			}
@@ -1493,7 +1493,7 @@ next_vlan:
 				goto error;
 			}
 		}
-		assert(flow->promisc || flow->allmulti);
+		MLX4_ASSERT(flow->promisc || flow->allmulti);
 		flow->select = 1;
 	}
 error:
@@ -1557,7 +1557,7 @@ mlx4_flow_sync(struct mlx4_priv *priv, struct rte_flow_error *error)
 			return ret;
 	}
 	if (!priv->started)
-		assert(!priv->drop);
+		MLX4_ASSERT(!priv->drop);
 	return 0;
 }
 
@@ -1577,7 +1577,7 @@ mlx4_flow_clean(struct mlx4_priv *priv)
 
 	while ((flow = LIST_FIRST(&priv->flows)))
 		mlx4_flow_destroy(ETH_DEV(priv), flow, NULL);
-	assert(LIST_EMPTY(&priv->rss));
+	MLX4_ASSERT(LIST_EMPTY(&priv->rss));
 }
 
 static const struct rte_flow_ops mlx4_flow_ops = {

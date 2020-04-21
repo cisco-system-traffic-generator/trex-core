@@ -15,7 +15,6 @@
 #include <rte_memory.h>
 #include <rte_memzone.h>
 #include <rte_eal.h>
-#include <rte_eal_memconfig.h>
 #include <rte_per_lcore.h>
 #include <rte_errno.h>
 #include <rte_string_fns.h>
@@ -24,6 +23,7 @@
 #include "malloc_heap.h"
 #include "malloc_elem.h"
 #include "eal_private.h"
+#include "eal_memcfg.h"
 
 static inline const struct rte_memzone *
 memzone_lookup_thread_unsafe(const char *name)
@@ -71,7 +71,9 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 
 	/* no more room in config */
 	if (arr->count >= arr->len) {
-		RTE_LOG(ERR, EAL, "%s(): No more room in config\n", __func__);
+		RTE_LOG(ERR, EAL,
+		"%s(): Number of requested memzone segments exceeds RTE_MAX_MEMZONE\n",
+			__func__);
 		rte_errno = ENOSPC;
 		return NULL;
 	}

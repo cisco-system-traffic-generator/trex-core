@@ -207,6 +207,9 @@ public:
         m_telnet_exist=false;
         m_telnet_port=4502  ;
 
+        m_ezmq_ch_exist=false;
+        m_ezmq_ch_port = 4511;
+
         m_mac_info_exist=false;
         m_port_bandwidth_gb = 10;
         m_memory.reset();
@@ -245,6 +248,9 @@ public:
 
     bool                          m_telnet_exist;
     uint16_t                      m_telnet_port;
+
+    bool                          m_ezmq_ch_exist;
+    uint16_t                      m_ezmq_ch_port;
 
     uint16_t                      m_rx_desc;
     uint16_t                      m_tx_desc;

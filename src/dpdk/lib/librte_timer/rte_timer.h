@@ -147,7 +147,8 @@ struct rte_timer
  *   - 0: Success
  *   - -ENOSPC: maximum number of timer data instances already allocated
  */
-int __rte_experimental rte_timer_data_alloc(uint32_t *id_ptr);
+__rte_experimental
+int rte_timer_data_alloc(uint32_t *id_ptr);
 
 /**
  * @warning
@@ -162,7 +163,8 @@ int __rte_experimental rte_timer_data_alloc(uint32_t *id_ptr);
  *   - 0: Success
  *   - -EINVAL: invalid timer data instance identifier
  */
-int __rte_experimental rte_timer_data_dealloc(uint32_t id);
+__rte_experimental
+int rte_timer_data_dealloc(uint32_t id);
 
 /**
  * Initialize the timer library.
@@ -170,16 +172,15 @@ int __rte_experimental rte_timer_data_dealloc(uint32_t id);
  * Initializes internal variables (list, locks and so on) for the RTE
  * timer library.
  *
+ * @note
+ *   This function must be called in every process before using the library.
+ *
  * @return
  *   - 0: Success
- *   - -EEXIST: Returned in secondary process when primary process has not
- *      yet initialized the timer subsystem
  *   - -ENOMEM: Unable to allocate memory needed to initialize timer
  *      subsystem
  */
 int rte_timer_subsystem_init(void);
-int rte_timer_subsystem_init_v1905(void);
-void rte_timer_subsystem_init_v20(void);
 
 /**
  * @warning
@@ -187,7 +188,8 @@ void rte_timer_subsystem_init_v20(void);
  *
  * Free timer subsystem resources.
  */
-void __rte_experimental rte_timer_subsystem_finalize(void);
+__rte_experimental
+void rte_timer_subsystem_finalize(void);
 
 /**
  * Initialize a timer handle.
@@ -246,13 +248,6 @@ void rte_timer_init(struct rte_timer *tim);
 int rte_timer_reset(struct rte_timer *tim, uint64_t ticks,
 		    enum rte_timer_type type, unsigned tim_lcore,
 		    rte_timer_cb_t fct, void *arg);
-int rte_timer_reset_v1905(struct rte_timer *tim, uint64_t ticks,
-			  enum rte_timer_type type, unsigned int tim_lcore,
-			  rte_timer_cb_t fct, void *arg);
-int rte_timer_reset_v20(struct rte_timer *tim, uint64_t ticks,
-			enum rte_timer_type type, unsigned int tim_lcore,
-			rte_timer_cb_t fct, void *arg);
-
 
 /**
  * Loop until rte_timer_reset() succeeds.
@@ -309,8 +304,6 @@ rte_timer_reset_sync(struct rte_timer *tim, uint64_t ticks,
  *   - (-1): The timer is in the RUNNING or CONFIG state.
  */
 int rte_timer_stop(struct rte_timer *tim);
-int rte_timer_stop_v1905(struct rte_timer *tim);
-int rte_timer_stop_v20(struct rte_timer *tim);
 
 /**
  * Loop until rte_timer_stop() succeeds.
@@ -339,6 +332,22 @@ void rte_timer_stop_sync(struct rte_timer *tim);
 int rte_timer_pending(struct rte_timer *tim);
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Time until the next timer on the current lcore
+ * This function gives the ticks until the next timer will be active.
+ *
+ * @return
+ *   - -EINVAL: invalid timer data instance identifier
+ *   - -ENOENT: no timer pending
+ *   - 0: a timer is pending and will run at next rte_timer_manage()
+ *   - >0: ticks until the next timer is ready
+ */
+__rte_experimental
+int64_t rte_timer_next_ticks(void);
+
+/**
  * Manage the timer list and execute callback functions.
  *
  * This function must be called periodically from EAL lcores
@@ -354,8 +363,6 @@ int rte_timer_pending(struct rte_timer *tim);
  *   - -EINVAL: timer subsystem not yet initialized
  */
 int rte_timer_manage(void);
-int rte_timer_manage_v1905(void);
-void rte_timer_manage_v20(void);
 
 /**
  * Dump statistics about timers.
@@ -367,8 +374,6 @@ void rte_timer_manage_v20(void);
  *   - -EINVAL: timer subsystem not yet initialized
  */
 int rte_timer_dump_stats(FILE *f);
-int rte_timer_dump_stats_v1905(FILE *f);
-void rte_timer_dump_stats_v20(FILE *f);
 
 /**
  * @warning
@@ -408,7 +413,8 @@ void rte_timer_dump_stats_v20(FILE *f);
  *   - (-1): Timer is in the RUNNING or CONFIG state.
  *   - -EINVAL: invalid timer_data_id
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_timer_alt_reset(uint32_t timer_data_id, struct rte_timer *tim,
 		    uint64_t ticks, enum rte_timer_type type,
 		    unsigned int tim_lcore, rte_timer_cb_t fct, void *arg);
@@ -433,7 +439,8 @@ rte_timer_alt_reset(uint32_t timer_data_id, struct rte_timer *tim,
  *   - (-1): The timer is in the RUNNING or CONFIG state.
  *   - -EINVAL: invalid timer_data_id
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_timer_alt_stop(uint32_t timer_data_id, struct rte_timer *tim);
 
 /**
@@ -469,7 +476,8 @@ typedef void (*rte_timer_alt_manage_cb_t)(struct rte_timer *tim);
  *   - 0: success
  *   - -EINVAL: invalid timer_data_id
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_timer_alt_manage(uint32_t timer_data_id, unsigned int *poll_lcores,
 		     int n_poll_lcores, rte_timer_alt_manage_cb_t f);
 
@@ -501,7 +509,8 @@ typedef void (*rte_timer_stop_all_cb_t)(struct rte_timer *tim, void *arg);
  *   - 0: success
  *   - EINVAL: invalid timer_data_id
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_timer_stop_all(uint32_t timer_data_id, unsigned int *walk_lcores,
 		   int nb_walk_lcores, rte_timer_stop_all_cb_t f, void *f_arg);
 
@@ -523,7 +532,8 @@ rte_timer_stop_all(uint32_t timer_data_id, unsigned int *walk_lcores,
  *   - 0: success
  *   - -EINVAL: invalid timer_data_id
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_timer_alt_dump_stats(uint32_t timer_data_id, FILE *f);
 
 #ifdef __cplusplus

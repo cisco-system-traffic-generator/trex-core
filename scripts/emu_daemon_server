@@ -1,0 +1,169 @@
+#! /bin/bash
+"source" "find_python.sh" "--local"
+"exec" "$PYTHON" "$0" "$@"
+
+import os, sys
+import tempfile
+import time
+import subprocess, shlex
+from argparse import ArgumentParser, RawTextHelpFormatter
+import errno
+import pwd
+
+DEFAULT_ZMQ_PORT=4510
+
+def fail(msg):
+    print(msg)
+    sys.exit(-1)
+
+if os.getuid() != 0:
+    fail('Please run this program as root/with sudo')
+
+cur_dir = os.path.abspath(os.path.dirname(__file__))
+ext_libs_path = os.path.join(cur_dir, 'external_libs')
+if ext_libs_path not in sys.path:
+    sys.path.append(ext_libs_path)
+
+from netstat import netstat
+from termstyle import termstyle
+
+
+def inv(f):
+    return lambda *a, **k: not f(*a, **k)
+
+
+def progress(success_check, start_msg, success_msg, fail_msg, timeout = 35, poll_rate = 0.5, fail_check = None):
+    sys.stdout.write('%s...' % start_msg)
+    sys.stdout.flush()
+    for i in range(int(timeout/poll_rate)):
+        if success_check():
+            print(termstyle.green(' ' + success_msg))
+            return 0
+        if fail_check and fail_check():
+            print(termstyle.red(' ' + fail_msg))
+            return 1
+        time.sleep(poll_rate)
+        sys.stdout.write('.')
+        sys.stdout.flush()
+    print(termstyle.red(' Timeout'))
+    return 1
+
+
+def run_command(command, timeout = 30, poll_rate = 0.1, cwd = None, is_daemon = False):
+    if not is_daemon:
+        assert timeout > 0, 'Timeout should be positive'
+        assert poll_rate > 0, 'Poll rate should be positive'
+
+    try: # P2
+        stdout_file = tempfile.TemporaryFile(bufsize = 0)
+    except: # P3
+        stdout_file = tempfile.TemporaryFile(buffering = 0)
+
+    try:
+        proc = subprocess.Popen(shlex.split(command), stdout = stdout_file, stderr = subprocess.STDOUT, cwd = cwd,
+                                close_fds = True, universal_newlines = True)
+        if is_daemon:
+            return proc, stdout_file
+        for i in range(int(timeout/poll_rate)):
+            time.sleep(poll_rate)
+            if proc.poll() is not None: # process stopped
+                break
+        if proc.poll() is None:
+            proc.kill() # timeout
+            stdout_file.seek(0)
+            return (errno.ETIMEDOUT, '%s\n\n...Timeout of %s second(s) is reached!' % (stdout_file.read(), timeout))
+        stdout_file.seek(0)
+        return (proc.returncode, stdout_file.read())
+    finally:
+        if not is_daemon:
+            stdout_file.close()
+
+def get_emu_pid():
+    pid = None
+    for conn in netstat.netstat(with_pid = True, search_local_port = DEFAULT_ZMQ_PORT):
+        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
+            pid = conn[7]
+            if pid is None:
+                raise Exception('Found the connection, but could not determine pid: %s' % conn)
+            break
+    return pid
+
+
+def is_emu_running():
+    return get_emu_pid() is not None
+
+def show_daemon_status():
+    if is_emu_running():
+        print(termstyle.green('emu server is running'))
+    else:
+        print(termstyle.red('emu server is NOT running'))
+
+def start_emu():
+    if is_emu_running():
+        print(termstyle.red('emu server is already running'))
+        return
+
+    server_path = cur_dir
+    emu_zmq_tcp_flag = ""
+    if args.emu_zmq_tcp:
+        emu_zmq_tcp_flag = "--emu-zmq-tcp"
+    cmd = 'sudo taskset -c {core} {app} {emu_zmq_tcp_flag}'.format(core = args.core, app = "./trex-emu", emu_zmq_tcp_flag = emu_zmq_tcp_flag)
+    proc, stdout_file = run_command(cmd, is_daemon = True, cwd = server_path)
+    ret = progress(is_emu_running, 'Starting emu server', 'emu server is started', 'emu server failed to run', fail_check = proc.poll)
+    if proc.poll():
+        stdout_file.seek(0)
+        print('Output: %s' % stdout_file.read())
+        stdout_file.close()
+        sys.exit(1)
+
+def restart_all():
+    need_to_sleep = False
+    if is_emu_running():
+        need_to_sleep = True
+        kill_emu()
+    if need_to_sleep:
+        time.sleep(0.5)
+    start_emu()
+
+def kill_emu():
+    pid = get_emu_pid()
+    if pid is None:
+        print(termstyle.red('emu server is NOT running'))
+        return True
+    run_command('kill %s' % pid) # usual kill
+    ret = progress(inv(is_emu_running), 'Killing emu server', 'emu server is killed', 'failed', timeout = 15)
+    if not ret:
+        return
+    _, out = run_command('kill -9 %s' % pid) # unconditional kill
+    ret = progress(inv(is_emu_running), 'Killing emu server with -9', 'emu server is killed', 'failed', timeout = 15)
+    if ret:
+        fail('Failed to kill emu server, even with -9. Please review manually.\nOutput: %s' % out)
+
+### Main ###
+
+if __name__ == '__main__':
+    actions_help = '''Specify action command to be applied on server.
+        (*) start      : start the application in as a daemon process.
+        (*) show       : prompt an updated status of daemon (running/ not running).
+        (*) stop       : exit emu server daemon process.
+        (*) restart    : stop, then start again the application as daemon process.
+        '''
+    action_funcs = {'start': start_emu,
+                    'show': show_daemon_status,
+                    'stop': kill_emu,
+                    'restart': restart_all,
+                    }
+    
+    parser = ArgumentParser(description = 'Runs trex-emu server application.',
+        formatter_class = RawTextHelpFormatter,
+    )
+    
+    parser.add_argument('-c', '--core', type = int, default = 0,
+            help='Core number to set affinity.\nAdvised to set on free core or TRex master thread core\nDefault is 0.')
+    parser.add_argument('action', choices=action_funcs.keys(),
+                            action='store', help=actions_help)
+    parser.add_argument('--emu-zmq-tcp', action = 'store_true', default=False)
+    parser.usage = None
+    args = parser.parse_args()
+
+    action_funcs[args.action]()

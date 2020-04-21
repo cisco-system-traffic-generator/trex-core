@@ -66,6 +66,8 @@ public:
         SERVICE_OFF = 0,
         NO_TCP_UDP  = 1,
         BGP         = 1 << 1,
+
+        DHCP         = 1 << 2, /* both for v4 and v6 */
     };
 
     TrexPort(uint8_t port_id);

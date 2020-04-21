@@ -38,7 +38,8 @@ rte_lcore_has_role(unsigned int lcore_id, enum rte_lcore_role_t role)
 	return cfg->lcore_role[lcore_id] == role;
 }
 
-int eal_cpuset_socket_id(rte_cpuset_t *cpusetp)
+static int
+eal_cpuset_socket_id(rte_cpuset_t *cpusetp)
 {
 	unsigned cpu = 0;
 	int socket_id = SOCKET_ID_ANY;
@@ -60,7 +61,7 @@ int eal_cpuset_socket_id(rte_cpuset_t *cpusetp)
 			break;
 		}
 
-	} while (++cpu < RTE_MAX_LCORE);
+	} while (++cpu < CPU_SETSIZE);
 
 	return socket_id;
 }
@@ -117,7 +118,7 @@ eal_thread_dump_affinity(char *str, unsigned size)
 
 	rte_thread_get_affinity(&cpuset);
 
-	for (cpu = 0; cpu < RTE_MAX_LCORE; cpu++) {
+	for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
 		if (!CPU_ISSET(cpu, &cpuset))
 			continue;
 

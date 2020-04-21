@@ -38,7 +38,7 @@
 #define I40E_MAX_PF_VSI			64
 #define I40E_MAX_PF_QP			128
 #define I40E_MAX_VSI_QP			16
-#define I40E_MAX_VF_VSI			3
+#define I40E_MAX_VF_VSI			4
 #define I40E_MAX_CHAINED_RX_BUFFERS	5
 #define I40E_MAX_PF_UDP_OFFLOAD_PORTS	16
 
@@ -79,8 +79,8 @@ typedef void (*I40E_ADMINQ_CALLBACK)(struct i40e_hw *, struct i40e_aq_desc *);
 #define I40E_HI_BYTE(x)		((u8)(((x) >> 8) & 0xFF))
 #define I40E_LO_BYTE(x)		((u8)((x) & 0xFF))
 
-/* Number of Transmit Descriptors must be a multiple of 8. */
-#define I40E_REQ_TX_DESCRIPTOR_MULTIPLE	8
+/* Number of Transmit Descriptors must be a multiple of 32. */
+#define I40E_REQ_TX_DESCRIPTOR_MULTIPLE	32
 /* Number of Receive Descriptors must be a multiple of 32 if
  * the number of descriptors is greater than 32.
  */
@@ -329,14 +329,12 @@ struct i40e_phy_info {
 					     I40E_PHY_TYPE_OFFSET)
 #define I40E_CAP_PHY_TYPE_25GBASE_ACC BIT_ULL(I40E_PHY_TYPE_25GBASE_ACC + \
 					     I40E_PHY_TYPE_OFFSET)
-#ifdef CARLSVILLE_HW
 /* Offset for 2.5G/5G PHY Types value to bit number conversion */
 #define I40E_PHY_TYPE_OFFSET2 (-10)
 #define I40E_CAP_PHY_TYPE_2_5GBASE_T BIT_ULL(I40E_PHY_TYPE_2_5GBASE_T + \
 					     I40E_PHY_TYPE_OFFSET2)
 #define I40E_CAP_PHY_TYPE_5GBASE_T BIT_ULL(I40E_PHY_TYPE_5GBASE_T + \
 					     I40E_PHY_TYPE_OFFSET2)
-#endif
 #define I40E_HW_CAP_MAX_GPIO			30
 #define I40E_HW_CAP_MDIO_PORT_MODE_MDIO		0
 #define I40E_HW_CAP_MDIO_PORT_MODE_I2C		1
@@ -480,6 +478,7 @@ enum i40e_nvmupd_cmd {
 	I40E_NVMUPD_EXEC_AQ,
 	I40E_NVMUPD_GET_AQ_RESULT,
 	I40E_NVMUPD_GET_AQ_EVENT,
+	I40E_NVMUPD_FEATURES,
 };
 
 enum i40e_nvmupd_state {
@@ -515,6 +514,10 @@ enum i40e_nvmupd_state {
 #define I40E_NVM_AQE				0xe
 #define I40E_NVM_EXEC				0xf
 
+#define I40E_NVM_EXEC_GET_AQ_RESULT		0x0
+#define I40E_NVM_EXEC_FEATURES			0xe
+#define I40E_NVM_EXEC_STATUS			0xf
+
 #define I40E_NVM_ADAPT_SHIFT	16
 #define I40E_NVM_ADAPT_MASK	(0xffffULL << I40E_NVM_ADAPT_SHIFT)
 
@@ -527,6 +530,20 @@ struct i40e_nvm_access {
 	u32 offset;	/* in bytes */
 	u32 data_size;	/* in bytes */
 	u8 data[1];
+};
+
+/* NVMUpdate features API */
+#define I40E_NVMUPD_FEATURES_API_VER_MAJOR		0
+#define I40E_NVMUPD_FEATURES_API_VER_MINOR		14
+#define I40E_NVMUPD_FEATURES_API_FEATURES_ARRAY_LEN	12
+
+#define I40E_NVMUPD_FEATURE_FLAT_NVM_SUPPORT		BIT(0)
+
+struct i40e_nvmupd_features {
+	u8 major;
+	u8 minor;
+	u16 size;
+	u8 features[I40E_NVMUPD_FEATURES_API_FEATURES_ARRAY_LEN];
 };
 
 /* (Q)SFP module access definitions */
@@ -662,6 +679,9 @@ struct i40e_hw {
 	struct i40e_nvm_info nvm;
 	struct i40e_fc_info fc;
 
+	/* switch device is used to get link status when i40e is in ipn3ke */
+	struct rte_eth_dev *switch_dev;
+
 	/* pci info */
 	u16 device_id;
 	u16 vendor_id;
@@ -722,12 +742,18 @@ struct i40e_hw {
 #define I40E_HW_FLAG_AQ_PHY_ACCESS_CAPABLE  BIT_ULL(2)
 #define I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK BIT_ULL(3)
 #define I40E_HW_FLAG_FW_LLDP_STOPPABLE	    BIT_ULL(4)
+#define I40E_HW_FLAG_FW_LLDP_PERSISTENT     BIT_ULL(5)
+#define I40E_HW_FLAG_AQ_PHY_ACCESS_EXTENDED BIT_ULL(6)
+#define I40E_HW_FLAG_DROP_MODE		    BIT_ULL(7)
 	u64 flags;
 
 	/* Used in set switch config AQ command */
 	u16 switch_tag;
 	u16 first_tag;
 	u16 second_tag;
+
+	/* NVMUpdate features */
+	struct i40e_nvmupd_features nvmupd_features;
 
 	/* debug mask */
 	u32 debug_mask;
@@ -1472,6 +1498,8 @@ struct i40e_hw_port_stats {
 	u32 rx_lpi_status;
 	u64 tx_lpi_count;		/* etlpic */
 	u64 rx_lpi_count;		/* erlpic */
+	u64 tx_lpi_duration;
+	u64 rx_lpi_duration;
 };
 
 /* Checksum and Shadow RAM pointers */
@@ -2014,4 +2042,10 @@ struct i40e_profile_info {
 	u8 reserved[7];
 	u8 name[I40E_DDP_NAME_SIZE];
 };
+
+#define I40E_BCM_PHY_PCS_STATUS1_PAGE	0x3
+#define I40E_BCM_PHY_PCS_STATUS1_REG	0x0001
+#define I40E_BCM_PHY_PCS_STATUS1_RX_LPI	BIT(8)
+#define I40E_BCM_PHY_PCS_STATUS1_TX_LPI	BIT(9)
+
 #endif /* _I40E_TYPE_H_ */

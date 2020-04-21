@@ -20,7 +20,6 @@
 #include <rte_log.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
-#include <rte_eal_memconfig.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
 
@@ -315,12 +314,11 @@ pci_uio_map_resource_by_index(struct rte_pci_device *dev, int res_idx,
 			loc->domain, loc->bus, loc->devid,
 			loc->function, res_idx);
 
-		if (access(devname, R_OK|W_OK) != -1) {
-			fd = open(devname, O_RDWR);
-			if (fd < 0)
-				RTE_LOG(INFO, EAL, "%s cannot be mapped. "
-					"Fall-back to non prefetchable mode.\n",
-					devname);
+		fd = open(devname, O_RDWR);
+		if (fd < 0 && errno != ENOENT) {
+			RTE_LOG(INFO, EAL, "%s cannot be mapped. "
+				"Fall-back to non prefetchable mode.\n",
+				devname);
 		}
 	}
 
@@ -353,6 +351,8 @@ pci_uio_map_resource_by_index(struct rte_pci_device *dev, int res_idx,
 	pci_map_addr = RTE_PTR_ADD(mapaddr,
 			(size_t)dev->mem_resource[res_idx].len);
 
+	pci_map_addr = RTE_PTR_ALIGN(pci_map_addr, sysconf(_SC_PAGE_SIZE));
+
 	maps[map_idx].phaddr = dev->mem_resource[res_idx].phys_addr;
 	maps[map_idx].size = dev->mem_resource[res_idx].len;
 	maps[map_idx].addr = mapaddr;
@@ -376,6 +376,12 @@ pci_uio_ioport_map(struct rte_pci_device *dev, int bar,
 	char filename[PATH_MAX];
 	int uio_num;
 	unsigned long start;
+
+	if (rte_eal_iopl_init() != 0) {
+		RTE_LOG(ERR, EAL, "%s(): insufficient ioport permissions for PCI device %s\n",
+			__func__, dev->name);
+		return -1;
+	}
 
 	uio_num = pci_get_uio_dev(dev, dirname, sizeof(dirname), 0);
 	if (uio_num < 0)

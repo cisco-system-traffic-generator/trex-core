@@ -26,6 +26,63 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.80 ==
+
+* DPDK 20.02 - the performance is lower for i40e and higher for Mellanox (mlx5)
+* Update igb_uio kernel share object. Remove the old compiled objects. Suggest to remove the old igb_uio using `sudo rmmod igb_uio` and load the server again. 
+** Napatech broken 
+** Azure and ENA were not verified  
+
+== Release 2.79 ==
+
+* EMU 
+** Better performance using ZMQ IPC
+** Add ping for ipv6 
+* ASTF
+** Split the tcp.no_delay flag into two flags no_nagle, force_push
+
+== Release 2.78 ==
+
+* EMU server/Python API 
+** Add dot1x support 
+** Add utility like ping 
+** Better API documentation  link:cp_emu_docs/index.html[emu-sdk] 
+* ASTF fix #435/#436 
+
+== Release 2.77 ==
+
+* minor version, fix EMU documentation and minor things 
+
+== Release 2.76 ==
+
+trex-emu server support. link:https://github.com/cisco-system-traffic-generator/trex-emu[trex-emu]
+
+* Fast client creation/teardown. ~3K/sec for one thread.
+* Number of active client/namespace is limited only by the memory on the server.
+* Packet per second (PPS) in the range of 3-5 MPPS.
+* Python 2.7/3.0 Client API exposed through JSON-RPC.
+* Interactive support - Integrated with the TRex console.
+* Modular design. Each plugin is self contained and can be tested on its own.
+* TRex-EMU supports the following protocols:
+
+[options="header",cols="1,2",width="60%"]
+|=================
+| Plug-in | Description
+| ARP     | RFC 826
+| ICMP    | RFC 777
+| DHCPv4  | RFC 2131 client side
+| IGMP    | IGMP v3/v2/v1 RFC3376
+| IPv6    | IPv6 ND, RFC 4443, RFC 4861, RFC 4862 and MLD and MLDv2 RFC 3810
+| DHCPv6  | RFC 8415 client side
+|=================
+
+see link:trex_emu.html[trex_emu]
+
+* bug fixes 
+** Astf mbuf leakage in a corner case. 
+** memif support loopback 
+** Napatech driver 
+
 == Release 2.75 ==
 
 * Fix wireless simulation for latest eWLC 

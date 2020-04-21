@@ -1,0 +1,51 @@
+DPDK_20.0.1 {
+	global:
+
+	mlx5_class_get;
+
+	mlx5_devx_cmd_create_cq;
+	mlx5_devx_cmd_create_qp;
+	mlx5_devx_cmd_create_rq;
+	mlx5_devx_cmd_create_rqt;
+	mlx5_devx_cmd_create_sq;
+	mlx5_devx_cmd_create_tir;
+	mlx5_devx_cmd_create_td;
+	mlx5_devx_cmd_create_tis;
+	mlx5_devx_cmd_create_virtq;
+	mlx5_devx_cmd_destroy;
+	mlx5_devx_cmd_flow_counter_alloc;
+	mlx5_devx_cmd_flow_counter_query;
+	mlx5_devx_cmd_flow_dump;
+	mlx5_devx_cmd_mkey_create;
+	mlx5_devx_cmd_modify_qp_state;
+	mlx5_devx_cmd_modify_rq;
+	mlx5_devx_cmd_modify_rqt;
+	mlx5_devx_cmd_modify_sq;
+	mlx5_devx_cmd_modify_virtq;
+	mlx5_devx_cmd_qp_query_tis_td;
+	mlx5_devx_cmd_query_hca_attr;
+	mlx5_devx_cmd_query_virtq;
+	mlx5_devx_get_out_command_status;
+
+	mlx5_dev_to_pci_addr;
+
+	mlx5_nl_allmulti;
+	mlx5_nl_devlink_family_id_get;
+	mlx5_nl_driver_reload;
+	mlx5_nl_enable_roce_get;
+	mlx5_nl_enable_roce_set;
+	mlx5_nl_ifindex;
+	mlx5_nl_init;
+	mlx5_nl_mac_addr_add;
+	mlx5_nl_mac_addr_flush;
+	mlx5_nl_mac_addr_remove;
+	mlx5_nl_mac_addr_sync;
+	mlx5_nl_portnum;
+	mlx5_nl_promisc;
+	mlx5_nl_switch_info;
+	mlx5_nl_vf_mac_addr_modify;
+	mlx5_nl_vlan_vmwa_create;
+	mlx5_nl_vlan_vmwa_delete;
+
+	mlx5_translate_port_name;
+};

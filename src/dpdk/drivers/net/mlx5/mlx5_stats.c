@@ -13,9 +13,12 @@
 #include <rte_common.h>
 #include <rte_malloc.h>
 
+#include <mlx5_common.h>
+
+#include "mlx5_defs.h"
 #include "mlx5.h"
 #include "mlx5_rxtx.h"
-#include "mlx5_defs.h"
+
 
 static const struct mlx5_counter_ctrl mlx5_counters_init[] = {
 	{
@@ -303,7 +306,7 @@ mlx5_stats_init(struct rte_eth_dev *dev)
 			xstats_ctrl->info[idx] = mlx5_counters_init[i];
 		}
 	}
-	assert(xstats_ctrl->mlx5_stats_n <= MLX5_MAX_XSTATS);
+	MLX5_ASSERT(xstats_ctrl->mlx5_stats_n <= MLX5_MAX_XSTATS);
 	xstats_ctrl->stats_n = dev_stats_n;
 	/* Copy to base at first time. */
 	ret = mlx5_read_dev_counters(dev, xstats_ctrl->base);
@@ -413,7 +416,6 @@ mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 			tmp.q_opackets[idx] += txq->stats.opackets;
 			tmp.q_obytes[idx] += txq->stats.obytes;
 #endif
-			tmp.q_errors[idx] += txq->stats.oerrors;
 		}
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		tmp.opackets += txq->stats.opackets;
@@ -435,8 +437,11 @@ mlx5_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
+ *
+ * @return
+ *   always 0 on success and stats is reset
  */
-void
+int
 mlx5_stats_reset(struct rte_eth_dev *dev)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
@@ -459,6 +464,8 @@ mlx5_stats_reset(struct rte_eth_dev *dev)
 #ifndef MLX5_PMD_SOFT_COUNTERS
 	/* FIXME: reset hardware counters. */
 #endif
+
+	return 0;
 }
 
 /**
@@ -466,8 +473,12 @@ mlx5_stats_reset(struct rte_eth_dev *dev)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
+ *
+ * @return
+ *   0 on success and stats is reset, negative errno value otherwise and
+ *   rte_errno is set.
  */
-void
+int
 mlx5_xstats_reset(struct rte_eth_dev *dev)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
@@ -482,7 +493,7 @@ mlx5_xstats_reset(struct rte_eth_dev *dev)
 	if (stats_n < 0) {
 		DRV_LOG(ERR, "port %u cannot get stats: %s", dev->data->port_id,
 			strerror(-stats_n));
-		return;
+		return stats_n;
 	}
 	if (xstats_ctrl->stats_n != stats_n)
 		mlx5_stats_init(dev);
@@ -490,10 +501,12 @@ mlx5_xstats_reset(struct rte_eth_dev *dev)
 	if (ret) {
 		DRV_LOG(ERR, "port %u cannot read device counters: %s",
 			dev->data->port_id, strerror(rte_errno));
-		return;
+		return ret;
 	}
 	for (i = 0; i != n; ++i)
 		xstats_ctrl->base[i] = counters[i];
+
+	return 0;
 }
 
 /**

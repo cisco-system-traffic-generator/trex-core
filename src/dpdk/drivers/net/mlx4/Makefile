@@ -57,8 +57,6 @@ LDLIBS += -lrte_bus_pci
 CFLAGS += -Wno-error=cast-qual
 
 EXPORT_MAP := rte_pmd_mlx4_version.map
-LIBABIVER := 1
-
 # DEBUG which is usually provided on the command-line may enable
 # CONFIG_RTE_LIBRTE_MLX4_DEBUG.
 ifeq ($(DEBUG),1)
@@ -67,9 +65,13 @@ endif
 
 # User-defined CFLAGS.
 ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DEBUG),y)
-CFLAGS += -pedantic -UNDEBUG -DPEDANTIC
+CFLAGS += -pedantic
+ifneq ($(CONFIG_RTE_TOOLCHAIN_ICC),y)
+CFLAGS += -DPEDANTIC
+endif
+AUTO_CONFIG_CFLAGS += -Wno-pedantic
 else
-CFLAGS += -DNDEBUG -UPEDANTIC
+CFLAGS += -UPEDANTIC
 endif
 
 include $(RTE_SDK)/mk/rte.lib.mk
@@ -77,7 +79,7 @@ include $(RTE_SDK)/mk/rte.lib.mk
 # Generate and clean-up mlx4_autoconf.h.
 
 export CC CFLAGS CPPFLAGS EXTRA_CFLAGS EXTRA_CPPFLAGS
-export AUTO_CONFIG_CFLAGS = -Wno-error
+export AUTO_CONFIG_CFLAGS += -Wno-error
 
 ifndef V
 AUTOCONF_OUTPUT := >/dev/null

@@ -2286,9 +2286,9 @@ inline void CFlowPktInfo::update_tcp_cs(TCPHeader * tcp,
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
-            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *)ipv4->getPointer(), PKT_TX_IPV6 |PKT_TX_TCP_CKSUM));
+            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4->getPointer(), PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
         }else{
-            tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *)ipv4->getPointer(),
+            tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)ipv4->getPointer(),
                                                              PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM));
         }
     }
@@ -2300,10 +2300,10 @@ inline void CFlowPktInfo::update_udp_cs(UDPHeader * udp,
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
-            udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct ipv6_hdr *) ipv4->getPointer(),
+            udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *) ipv4->getPointer(),
                                                          PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
         }else{
-            udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct ipv4_hdr *) ipv4->getPointer(),
+            udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *) ipv4->getPointer(),
                                                          PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM));
         }
     } else {

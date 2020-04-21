@@ -84,6 +84,12 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
     set_profile_state(profile_id, pSTATE_WAIT);
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
     m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
+
+    CPerProfileCtx* pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+    CGenNodeTXFIF* tx_node = (CGenNodeTXFIF*)pctx->m_tx_node;
+    if (tx_node) {
+        tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
+    }
 }
 
 void TrexAstfDpCore::on_profile_stop_event(profile_id_t profile_id) {
@@ -267,6 +273,7 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
         tx_node->m_type = CGenNode::TCP_TX_FIF;
         tx_node->m_time = m_core->m_cur_time_sec + d_phase + 0.1; /* phase the transmit a bit */
         tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+        tx_node->m_pctx->m_tx_node = tx_node;
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
     }
 
@@ -354,6 +361,13 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
 void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
+
+    if (is_profile(profile_id)) {
+        report_error(profile_id, "Cannot delete ASTF DB on existing profile: state " + std::to_string(get_profile_state(profile_id)));
+        return;
+    }
+    // try removing the profile_ctx which contains statistics.
+    m_flow_gen->remove_tcp_profile(profile_id);
 
     CAstfDB::free_instance(profile_id);
     report_finished(profile_id);

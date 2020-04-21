@@ -201,6 +201,9 @@ enum {
        OPT_BIRD_SERVER,
        OPT_ACTIVE_FLOW,
        OPT_RT,
+       OPT_EZMQ_CH,
+       OPT_EZMQ_CH1,
+       OPT_EZMQ_TCP,
        OPT_TCP_MODE,
        OPT_STL_MODE,
        OPT_MLX4_SO,
@@ -295,6 +298,9 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server",  SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server",     SO_NONE    },
         { OPT_BIRD_SERVER,            "--bird-server",      SO_NONE    },
+        { OPT_EZMQ_CH,                "--emu",              SO_NONE    },
+        { OPT_EZMQ_CH1,               "--emu-zmq",          SO_NONE    },
+        { OPT_EZMQ_TCP,               "--emu-zmq-tcp",      SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
         { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
@@ -402,6 +408,10 @@ static int COLD_FUNC  usage() {
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
     printf(" -w  <num>                  : Wait num seconds between init of interfaces and sending traffic, default is 1 \n");
+    printf(" --emu                      : Load emu server \n");
+    printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
+    printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
+    printf(" --bird-server              : Enable bird service \n");
     
 
     printf("\n");
@@ -910,6 +920,15 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_BIRD_SERVER:
                 po->m_is_bird_enabled = true;
                 break;
+            case OPT_EZMQ_CH:
+                po->m_ezmq_ch_enabled = true;
+                break;
+            case OPT_EZMQ_CH1:
+                po->m_ezmq_ch_enabled = true;
+                break;
+            case OPT_EZMQ_TCP:
+                po->m_emzq_ch_tcp = true;
+                break;
             case OPT_QUEUE_DROP:
                 CGlobalInfo::m_options.m_is_queuefull_retry = false;
                 break;
@@ -1360,7 +1379,8 @@ COLD_FUNC void CPhyEthIF::disable_flow_control() {
 }
 
 COLD_FUNC int DpdkTRexPortAttr::add_mac(char * mac){
-    struct ether_addr mac_addr;
+    struct rte_ether_addr mac_addr;
+
     for (int i=0; i<6;i++) {
         mac_addr.addr_bytes[i] =mac[i];
     }
@@ -2099,77 +2119,6 @@ HOT_FUNC bool CCoreEthIF::redirect_to_rx_core(pkt_dir_t   dir,
 }
 
 
-HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
-
-
-    CFlowPktInfo *  lp=node->m_pkt_info;
-    rte_mbuf_t *    m=lp->generate_new_mbuf(node);
-
-    pkt_dir_t       dir;
-    bool            single_port;
-
-    dir         = node->cur_interface_dir();
-    single_port = node->get_is_all_flow_from_same_dir() ;
-
-
-    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
-                  != CPreviewMode::VLAN_MODE_NONE) ) {
-        uint16_t vlan_id=0;
-
-        if (CGlobalInfo::m_options.preview.get_vlan_mode()
-            == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
-            /* which vlan to choose 0 or 1*/
-            uint8_t vlan_port = (node->m_src_ip & 1);
-            vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
-            if (likely( vlan_id > 0 ) ) {
-                dir = dir ^ vlan_port;
-            } else {
-                /* both from the same dir but with VLAN0 */
-                vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
-            }
-        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
-            == CPreviewMode::VLAN_MODE_NORMAL) {
-            CCorePerPort *lp_port = &m_ports[dir];
-            uint8_t port_id = lp_port->m_port->get_tvpid();
-            vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
-        }
-
-        add_vlan(m, vlan_id);
-    }
-
-    CCorePerPort *lp_port = &m_ports[dir];
-    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-
-    if (unlikely(m==0)) {
-        lp_stats->m_tx_alloc_error++;
-        return(0);
-    }
-
-    /* update mac addr dest/src 12 bytes */
-    uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
-    uint8_t p_id = lp_port->m_port->get_tvpid();
-
-    memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
-
-     /* when slowpath features are on */
-    if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
-        handle_slowpath_features(node, m, p, dir);
-    }
-
-
-    if ( unlikely( node->is_rx_check_enabled() ) ) {
-        lp_stats->m_tx_rx_check_pkt++;
-        lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
-        lp_stats->m_template.inc_template( node->get_template_id( ));
-    }
-
-    /*printf("send packet -- \n");
-      rte_pktmbuf_dump(stdout,m, rte_pktmbuf_pkt_len(m));*/
-
-    /* send the packet */
-    send_pkt(lp_port,m,lp_stats);
-    return (0);
-}
 
 
 int CCoreEthIF::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
@@ -3854,7 +3803,7 @@ static bool is_val_not_in_range_dpdk_limits(struct rte_eth_desc_lim * lim,
 }
 
 COLD_FUNC void  dump_dpdk_devices(void){
-        printf(" DPDK devices %d : %d \n", rte_eth_dev_count(),
+        printf(" DPDK devices %d : %d \n", rte_eth_dev_count_avail(),
          rte_eth_dev_count_total());
         printf("-----\n");  
         char name[100];
@@ -3875,7 +3824,7 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
     }
 
    if (CGlobalInfo::m_options.m_is_vdev) {
-      m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+      m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
     }
     else {
       m_max_ports = port_map.get_max_num_ports();
@@ -5691,7 +5640,7 @@ COLD_FUNC bool CPhyEthIF::Create(tvpid_t  tvpid,
         uint8_t empty_mac[ETHER_ADDR_LEN] = {0,0,0,0,0,0};
         if (! memcmp( CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src, empty_mac, ETHER_ADDR_LEN)) {
             rte_eth_macaddr_get(m_repid,
-                                (struct ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
+                                (struct rte_ether_addr *)&CGlobalInfo::m_options.m_mac_addr[m_tvpid].u.m_mac.src);
         }
     }
 
@@ -5919,6 +5868,10 @@ COLD_FUNC int update_global_info_from_platform_file(){
     }
     if ( cg->m_telnet_exist ){
         g_opts->m_telnet_port = cg->m_telnet_port;
+    }
+
+    if ( cg->m_ezmq_ch_exist ){
+        g_opts->m_ezmq_ch_port = cg->m_ezmq_ch_port;
     }
 
     if ( cg->m_mac_info_exist ){
@@ -6304,9 +6257,9 @@ COLD_FUNC int sim_load_list_of_cap_files(CParserOption * op){
 
 COLD_FUNC void dump_interfaces_info() {
     printf("Showing interfaces info.\n");
-    uint8_t m_max_ports = rte_eth_dev_count();
-    struct ether_addr mac_addr;
-    char mac_str[ETHER_ADDR_FMT_SIZE];
+    uint8_t m_max_ports = rte_eth_dev_count_avail();
+    struct rte_ether_addr mac_addr;
+    char mac_str[RTE_ETHER_ADDR_FMT_SIZE];
     struct rte_eth_dev_info dev_info;
     struct rte_pci_device pci_dev;
 
@@ -6314,7 +6267,7 @@ COLD_FUNC void dump_interfaces_info() {
         // PCI, MAC and Driver
         rte_eth_dev_info_get(port_id, &dev_info);
         rte_eth_macaddr_get(port_id, &mac_addr);
-        ether_format_addr(mac_str, sizeof mac_str, &mac_addr);
+        rte_ether_format_addr(mac_str, sizeof (mac_str), &mac_addr);
         bool ret = fill_pci_dev(&dev_info, &pci_dev);
         if ( ret ) {
             struct rte_pci_addr *pci_addr = &pci_dev.addr;
@@ -6474,6 +6427,15 @@ COLD_FUNC int main_test(int argc , char * argv[]){
 
     time_init();
 
+    if (po->m_ezmq_ch_enabled){
+        if (get_dpdk_mode()->is_drop_rx_queue_needed() ){
+           /* not a software mode*/  
+           printf(" emu server should work in software mode, try adding --software  \n");
+           return (-1);
+        }
+    }
+
+
     /* check if we are in simulation mode */
     if ( CGlobalInfo::m_options.out_file != "" ){
         printf(" t-rex simulation mode into %s \n",CGlobalInfo::m_options.out_file.c_str());
@@ -6620,7 +6582,7 @@ COLD_FUNC void wait_x_sec(int sec) {
 COLD_FUNC void set_driver() {
     uint8_t m_max_ports;
     if ( CGlobalInfo::m_options.m_is_vdev ) {
-        m_max_ports = rte_eth_dev_count() + CGlobalInfo::m_options.m_dummy_count;
+        m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
     } else {
         m_max_ports = port_map.get_max_num_ports();
     }
@@ -6741,7 +6703,7 @@ COLD_FUNC void reorder_dpdk_ports() {
     std::string err;
 
     /* build list of dpdk devices */
-    uint8_t cnt = rte_eth_dev_count();
+    uint8_t cnt = rte_eth_dev_count_avail();
     int i;
     for (i=0; i<cnt; i++) {
         if (rte_eth_dev_pci_addr((repid_t)i,buf,BUF_MAX)!=0){
@@ -6844,7 +6806,7 @@ COLD_FUNC void TrexDpdkPlatformApi::port_id_to_cores(uint8_t port_id, std::vecto
 
 
 COLD_FUNC void TrexDpdkPlatformApi::get_port_info(uint8_t port_id, intf_info_st &info) const {
-    struct ether_addr rte_mac_addr = {{0}};
+    struct rte_ether_addr rte_mac_addr = {{0}};
 
     if ( g_trex.m_ports[port_id]->is_dummy() ) {
         info.driver_name = "Dummy";
@@ -7194,4 +7156,92 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
   shutdown();
 
   return (0);
+}
+
+
+HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
+
+
+    CFlowPktInfo *  lp=node->m_pkt_info;
+    rte_mbuf_t *    m=lp->generate_new_mbuf(node);
+
+    pkt_dir_t       dir;
+    pkt_dir_t       odir; // original dir 
+    bool            single_port;
+
+    dir         = node->cur_interface_dir();
+    single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
+
+
+    if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
+                  != CPreviewMode::VLAN_MODE_NONE) ) {
+        uint16_t vlan_id=0;
+
+        if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_LOAD_BALANCE) {
+            /* which vlan to choose 0 or 1*/
+            uint8_t vlan_port = (node->m_src_ip & 1);
+            vlan_id = CGlobalInfo::m_options.m_vlan_port[vlan_port];
+            if (likely( vlan_id > 0 ) ) {
+                dir = dir ^ vlan_port;
+            } else {
+                /* both from the same dir but with VLAN0 */
+                vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
+            }
+        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::VLAN_MODE_NORMAL) {
+            CCorePerPort *lp_port = &m_ports[dir];
+            uint8_t port_id = lp_port->m_port->get_tvpid();
+            vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+        }
+
+        add_vlan(m, vlan_id);
+    }
+    odir  = dir;
+
+    if (single_port){
+        odir = node->cur_pkt_port_addr_dir();
+    }
+
+    CCorePerPort *lp_port = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+
+    if (unlikely(m==0)) {
+        lp_stats->m_tx_alloc_error++;
+        return(0);
+    }
+
+    /* update mac addr dest/src 12 bytes */
+    uint8_t *p   = rte_pktmbuf_mtod(m, uint8_t*);
+    uint8_t p_id = lp_port->m_port->get_tvpid();
+
+    if (single_port){
+        CCorePerPort *lp_port1 = &m_ports[odir];
+        uint8_t id = lp_port1->m_port->get_tvpid();
+        // takes the mac from the original 
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(id),12);
+    } else{
+        memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(p_id),12);
+    }
+
+     /* when slowpath features are on */
+    if ( unlikely( CGlobalInfo::m_options.preview.get_is_slowpath_features_on() ) ) {
+        handle_slowpath_features(node, m, p, odir);
+    }
+
+
+    if ( unlikely( node->is_rx_check_enabled() ) ) {
+        lp_stats->m_tx_rx_check_pkt++;
+        lp->do_generate_new_mbuf_rxcheck(m, node, single_port);
+        lp_stats->m_template.inc_template( node->get_template_id( ));
+    }
+
+    /*printf("send packet -- \n");
+    if (dir == 0 ){
+        utl_rte_pktmbuf_dump_k12(stdout,m);
+    }*/
+
+    /* send the packet */
+    send_pkt(lp_port,m,lp_stats);
+    return (0);
 }

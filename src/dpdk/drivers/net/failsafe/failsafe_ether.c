@@ -126,9 +126,13 @@ fs_eth_dev_conf_apply(struct rte_eth_dev *dev,
 	if (dev->data->promiscuous != edev->data->promiscuous) {
 		DEBUG("Configuring promiscuous");
 		if (dev->data->promiscuous)
-			rte_eth_promiscuous_enable(PORT_ID(sdev));
+			ret = rte_eth_promiscuous_enable(PORT_ID(sdev));
 		else
-			rte_eth_promiscuous_disable(PORT_ID(sdev));
+			ret = rte_eth_promiscuous_disable(PORT_ID(sdev));
+		if (ret != 0) {
+			ERROR("Failed to apply promiscuous mode");
+			return ret;
+		}
 	} else {
 		DEBUG("promiscuous already set");
 	}
@@ -136,9 +140,13 @@ fs_eth_dev_conf_apply(struct rte_eth_dev *dev,
 	if (dev->data->all_multicast != edev->data->all_multicast) {
 		DEBUG("Configuring all_multicast");
 		if (dev->data->all_multicast)
-			rte_eth_allmulticast_enable(PORT_ID(sdev));
+			ret = rte_eth_allmulticast_enable(PORT_ID(sdev));
 		else
-			rte_eth_allmulticast_disable(PORT_ID(sdev));
+			ret = rte_eth_allmulticast_disable(PORT_ID(sdev));
+		if (ret != 0) {
+			ERROR("Failed to apply allmulticast mode");
+			return ret;
+		}
 	} else {
 		DEBUG("all_multicast already set");
 	}
@@ -166,15 +174,16 @@ fs_eth_dev_conf_apply(struct rte_eth_dev *dev,
 		DEBUG("Configure additional MAC address%s",
 			(PRIV(dev)->nb_mac_addr > 2 ? "es" : ""));
 	for (i = 1; i < PRIV(dev)->nb_mac_addr; i++) {
-		struct ether_addr *ea;
+		struct rte_ether_addr *ea;
 
 		ea = &dev->data->mac_addrs[i];
 		ret = rte_eth_dev_mac_addr_add(PORT_ID(sdev), ea,
 				PRIV(dev)->mac_addr_pool[i]);
 		if (ret) {
-			char ea_fmt[ETHER_ADDR_FMT_SIZE];
+			char ea_fmt[RTE_ETHER_ADDR_FMT_SIZE];
 
-			ether_format_addr(ea_fmt, ETHER_ADDR_FMT_SIZE, ea);
+			rte_ether_format_addr(ea_fmt,
+					RTE_ETHER_ADDR_FMT_SIZE, ea);
 			ERROR("Adding MAC address %s failed", ea_fmt);
 			return ret;
 		}
@@ -283,7 +292,7 @@ fs_dev_remove(struct sub_device *sdev)
 		/* fallthrough */
 	case DEV_PROBED:
 		ret = rte_dev_remove(sdev->dev);
-		if (ret) {
+		if (ret < 0) {
 			ERROR("Bus detach failed for sub_device %u",
 			      SUB_ID(sdev));
 		} else {

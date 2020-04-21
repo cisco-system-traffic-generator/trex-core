@@ -240,17 +240,36 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         action = tREDIRECT_RX_CORE;
         return;
     }
+    if ( m_service_status == SERVICE_ON ){
+                action = tREDIRECT_RX_CORE;
+                return;
+    }
 
-    if ( m_service_status == SERVICE_ON ||
-            (m_service_filtered_mask & TrexPort::BGP) ) {
+    if (m_service_filtered_mask & TrexPort::BGP ) {
         if ( parser.m_protocol == IPPROTO_TCP ) {
             TCPHeader *l4_header = (TCPHeader *)parser.m_l4;
-            if ( l4_header->getSourcePort() == BGP_PORT || l4_header->getDestPort() == BGP_PORT ) {        
+            uint16_t src_port = l4_header->getSourcePort();
+            uint16_t dst_port = l4_header->getDestPort();
+            if ( src_port == BGP_PORT || dst_port == BGP_PORT ) {
                 action = tREDIRECT_RX_CORE;
                 return;
             }
         }
     }
+
+    if (m_service_filtered_mask & TrexPort::DHCP ) {
+        if ( parser.m_protocol == IPPROTO_UDP ) {
+            UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+            uint16_t src_port = l4_header->getSourcePort();
+            uint16_t dst_port = l4_header->getDestPort();
+            if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+                 (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+                action = tREDIRECT_RX_CORE;
+                return;
+            }
+        }
+    }
+
 }
 
 static void on_flow_free_cb(void *userdata,void  *obh){
@@ -264,8 +283,13 @@ void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
                                 bool remove_from_ft){
     uint16_t tg_id = flow->m_tg_id;
     if ( !flow->is_udp() ){
-        INC_STAT(flow->m_pctx, tg_id, tcps_testdrops);
-        INC_STAT(flow->m_pctx, tg_id, tcps_closed);
+        if ( !((CTcpFlow*)flow)->is_activated() ) {
+            FT_INC_SCNT(m_err_defer_no_template);
+        }
+        else {
+            INC_STAT(flow->m_pctx, tg_id, tcps_testdrops);
+            INC_STAT(flow->m_pctx, tg_id, tcps_closed);
+        }
     }
     handle_close(ctx, flow, remove_from_ft);
 }
@@ -754,7 +778,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip);
+    CServerIpPayloadInfo *payload_info = nullptr;
+    CServerTemplateInfo *temp = ctx->get_template_info(dst_port,true,dest_ip, &payload_info);
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
@@ -847,7 +872,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     lptflow->set_app(app);
 
     if (unlikely(temp->has_payload_params())) {
-        lptflow->start_identifying_template(pctx);
+        lptflow->start_identifying_template(pctx, payload_info);
     } else {
         app->start(true); /* start the application */
     }

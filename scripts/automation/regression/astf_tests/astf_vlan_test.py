@@ -104,6 +104,9 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
 
     def test_latency_vlan(self):
+        if CTRexScenario.setup_name in ['trex24']:
+            self.skip('Skip frpm dpdk virtio stop supporting vlan')
+
         print('')
         c = self.astf_trex
         src_ip = '123.123.123.123'

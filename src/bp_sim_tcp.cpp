@@ -82,6 +82,8 @@ int CTcpIOCb::on_flow_close(CTcpPerThreadCtx *ctx,
 
     CAstfPerTemplateRW * cur = flow->m_pctx->m_template_rw->get_template_by_id(c_template_id);
 
+    cur->try_inc_limit(); /* allow new flow when flows are limited */
+
     CTupleGeneratorSmart * lpgen= cur->m_tuple_gen.get_gen();
     if ( lpgen->IsFreePortRequired(c_pool_idx) ){
         lpgen->FreePort(c_pool_idx,c_idx,flow->m_template.m_src_port);
@@ -222,13 +224,13 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
     done=false;
 
-    if ( m_c_tcp->is_open_flow_enabled()==false ){
-        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
+    if (!pctx || !pctx->is_active()) { // transmit stopped
+        done=true;
         return;
     }
 
-    if (!pctx->is_active()) { // transmit stopped
-        done=true;
+    if ( m_c_tcp->is_open_flow_enabled()==false ){
+        m_c_tcp->m_ft.inc_err_c_new_flow_throttled_cnt();
         return;
     }
 
@@ -349,6 +351,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
     m_stats.m_total_open_flows += 1;
 
     if (!m_c_tcp->m_ft.insert_new_flow(c_flow,c_tuple)){
+        cur->try_dec_limit();   // flow close will increase value by try_inc_limit()
         /* need to free the tuple */
         m_c_tcp->m_ft.handle_close(m_c_tcp,c_flow,false);
         return;

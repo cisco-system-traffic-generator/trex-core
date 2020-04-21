@@ -542,6 +542,7 @@ public:
         m_wait_before_traffic = 1;
         m_zmq_port = 4500;
         m_telnet_port = 4501;
+        m_ezmq_ch_port = 4511; 
         m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less. includes dummy ports */
         m_io_mode = 1;
         m_run_flags = 0;
@@ -568,6 +569,9 @@ public:
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
         m_is_bird_enabled     = false;
+        m_ezmq_ch_enabled     = false;
+        m_emzq_ch_tcp         = false;
+        m_emzq_ipc_file_path  = "/tmp/emu";
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
@@ -598,6 +602,7 @@ public:
     uint16_t        m_rx_check_hops;
     uint16_t        m_zmq_port;
     uint16_t        m_telnet_port;
+    uint16_t        m_ezmq_ch_port; 
     uint16_t        m_expected_portd;
     uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short
     uint16_t        m_run_flags;
@@ -616,6 +621,10 @@ public:
     bool            m_is_vdev;
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
+    bool            m_ezmq_ch_enabled;
+
+    bool            m_emzq_ch_tcp;
+    std::string     m_emzq_ipc_file_path;
     std::string     m_stack_type;
 
     

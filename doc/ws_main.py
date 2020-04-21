@@ -634,6 +634,36 @@ def build_ndr_cp_docs (task):
         print('Failed command: %s\nError: %s' % (build_doc_cmd, e))
         return 1
 
+def build_emu_cp_docs (task):
+    out_dir = task.outputs[0].abspath()
+    export_path = os.path.join(os.getcwd(), 'build', 'cp_emu_docs')
+    trex_core_git_path = get_trex_core_git()
+    if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
+        return 1
+    trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_emu'))
+    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
+    if not sphinx_version:
+        return 1
+    if sphinx_version < 1.3:
+        additional_args = '-D html_theme=default'
+    else:
+        additional_args = ''
+    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
+        pyt= sys.executable,
+        sph= task.env['SPHINX'][0],
+        add= additional_args,
+        ver= '' if Logs.verbose else '-q',
+        bld= "html", 
+        src= ".", 
+        dst= out_dir)
+    if Logs.verbose:
+        print(build_doc_cmd)
+    try:
+        return subprocess.call(shlex.split(build_doc_cmd), cwd = trex_core_docs_path)
+    except OSError as e:
+        print('Failed command: %s\nError: %s' % (build_doc_cmd, e))
+        return 1
+
 
 def build_cp(bld,dir,root,callback):
     export_path = os.path.join(os.getcwd(), 'build', dir)
@@ -848,6 +878,7 @@ def build(bld):
 
     build_cp(bld,'cp_ndr_docs','doc_ndr',build_ndr_cp_docs)
 
+    build_cp(bld,'cp_emu_docs','doc_emu',build_emu_cp_docs)
 
 class Env(object):
     @staticmethod

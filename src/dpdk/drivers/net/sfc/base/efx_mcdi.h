@@ -31,7 +31,7 @@ struct efx_mcdi_req_s {
 	unsigned int	emr_cmd;
 	uint8_t		*emr_in_buf;
 	size_t		emr_in_length;
-	/* Outputs: retcode, buffer, length, and length used */
+	/* Outputs: retcode, buffer, length and length used */
 	efx_rc_t	emr_rc;
 	uint8_t		*emr_out_buf;
 	size_t		emr_out_length;
@@ -86,6 +86,13 @@ efx_mcdi_ev_proxy_response(
 	__in		unsigned int handle,
 	__in		unsigned int status);
 #endif
+
+#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
+extern			void
+efx_mcdi_ev_proxy_request(
+	__in		efx_nic_t *enp,
+	__in		unsigned int index);
+#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
 extern			void
 efx_mcdi_ev_death(
@@ -384,6 +391,11 @@ efx_mcdi_phy_module_get_info(
 	(((mask) & (MC_CMD_PRIVILEGE_MASK_IN_GRP_ ## priv)) ==		\
 	(MC_CMD_PRIVILEGE_MASK_IN_GRP_ ## priv))
 
+#define	EFX_MCDI_BUF_SIZE(_in_len, _out_len)				\
+	EFX_P2ROUNDUP(size_t,						\
+		MAX(MAX(_in_len, _out_len), (2 * sizeof (efx_dword_t))),\
+		sizeof (efx_dword_t))
+
 /*
  * The buffer size must be a multiple of dword to ensure that MCDI works
  * properly with Siena based boards (which use on-chip buffer). Also, it
@@ -391,9 +403,7 @@ efx_mcdi_phy_module_get_info(
  * error responses if the request/response buffer sizes are smaller.
  */
 #define EFX_MCDI_DECLARE_BUF(_name, _in_len, _out_len)			\
-	uint8_t _name[P2ROUNDUP(MAX(MAX(_in_len, _out_len),		\
-				    (2 * sizeof (efx_dword_t))),	\
-				sizeof (efx_dword_t))] = {0}
+	uint8_t _name[EFX_MCDI_BUF_SIZE(_in_len, _out_len)] = {0}
 
 typedef enum efx_mcdi_feature_id_e {
 	EFX_MCDI_FEATURE_FW_UPDATE = 0,

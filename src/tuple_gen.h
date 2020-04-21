@@ -1049,7 +1049,10 @@ struct CTupleGenPoolYaml {
     std::string     m_name;
     bool            m_is_bundling;
     bool            m_per_core_distro;
-    public:
+    bool            m_split_to_ports;
+
+    CTupleGenPoolYaml();
+
     uint32_t getTotalIps(void){
         return ( m_ip_end-m_ip_start+1);
     }

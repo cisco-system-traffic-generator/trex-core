@@ -18,6 +18,7 @@ from ..common.trex_psv import *
 from ..common.trex_api_annotators import client_api, console_api
 
 from .trex_stl_port import STLPort
+
 from .trex_stl_streams import STLStream, STLProfile
 from .trex_stl_stats import CPgIdStats
 
@@ -28,6 +29,7 @@ def validate_port_input(port_arg):
        Convert int,str argument to PortProfileID type
     """
     def wrap (func):
+        @wraps(func)
         def wrapper(self, *args, **kwargs):
             code = func.__code__
             fname = func.__name__
@@ -428,8 +430,11 @@ class STLClient(TRexClient):
 
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
-        # call the father method
-        super(STLClient, self).set_service_mode(ports, enabled, filtered, mask)
+        ''' based on :meth:`trex.stl.trex_stl_client.STLClient.set_service_mode_base` '''
+
+        # call the base method
+        self.set_service_mode_base(ports, enabled, filtered, mask)
+        
         rc = self._for_each_port('set_service_mode', ports, enabled, filtered, mask)
         self.ctx.logger.post_cmd(rc)
         
@@ -1944,23 +1949,11 @@ class STLClient(TRexClient):
                                          "service",
                                          self.service_line.__doc__,
                                          parsing_opts.PORT_LIST_WITH_ALL,
-                                         parsing_opts.SERVICE_BGP_FILTERED,
-                                         parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
-                                         parsing_opts.SERVICE_ALL_FILTERED,
-                                         parsing_opts.SERVICE_OFF)
+                                         parsing_opts.SERVICE_GROUP)
 
         opts = parser.parse_args(line.split())
-        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
-        # build filter mask
-        if filtered:
-            if opts.allow_all:
-                mask = 3
-            else:
-                mask = 1 if opts.allow_no_tcp_udp else 0
-                mask = mask | 2 if opts.allow_bgp else mask
-        else:
-            mask = None
-        enabled = False if filtered else opts.enabled
+        enabled, filtered, mask = self._get_service_params(opts)
+
         self.set_service_mode(ports = opts.ports, enabled = enabled, filtered = filtered, mask = mask)
         
         return True

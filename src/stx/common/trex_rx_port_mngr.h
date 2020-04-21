@@ -220,6 +220,50 @@ private:
 
 };
 
+class CRxCore;
+#define ZMQ_BUFFER_SIZE (32*1024)
+#define ZMQ_HEADER_MAGIC (0xBEEF0000)
+#define ZMQ_PKT_HEADER_MAGIC (0xAA000000)
+
+class CZmqPacketWriter {
+
+public:
+    bool Create(void * socket,CRxCoreErrCntrs * cnt);
+    bool  flush();
+    
+    void write_pkt(struct rte_mbuf  *m,uint8_t vport);
+
+public:
+
+   void * m_socket; 
+   int    m_pkts_cnt;
+   int    m_b_size; 
+   char   m_buf[ZMQ_BUFFER_SIZE];
+   int   cnt_err; 
+
+   CRxCoreErrCntrs * m_cnt;
+    
+};
+
+
+class CZmqPacketReader {
+
+public:
+    bool Create(void * socket,CRxCore * rx,CRxCoreErrCntrs * cnt);
+    
+    int pool_msg(void);
+    int parse_msg(char *p,int size);
+    void tx_buffer(char *pkt,int pkt_size,uint8_t vport);
+
+private:
+
+   void * m_socket; 
+   char   m_buf[ZMQ_BUFFER_SIZE];
+   CRxCore * m_rx;
+   CRxCoreErrCntrs * m_cnt;
+
+};
+
 
 /************************ manager ***************************/
 
@@ -241,7 +285,10 @@ public:
         STACK        = 1 << 2,
         CAPTURE_PORT = 1 << 3,
         CAPWAP_PROXY = 1 << 4,
-        ASTF_LATENCY = 1 << 5
+        ASTF_LATENCY = 1 << 5,
+        
+        EZMQ = 1 << 6,
+
     };
 
     RXPortManager();
@@ -270,7 +317,12 @@ public:
         
         return m_latency.get_stats(rx_stats, min, max, reset, type);
     }
-    
+
+    void set_zmq_cn(CZmqPacketWriter * wr,CZmqPacketReader * rd){
+        m_zmq_rd = rd;
+        m_zmq_wr = wr;
+    }
+
     RXLatency & get_latency() {
         return m_latency;
     }
@@ -413,6 +465,8 @@ public:
     void to_json(Json::Value &feat_res) const;
 
 private:
+    // is this packet eligible for emu 
+    bool is_emu_filter(rte_mbuf_t *m);
 
     // currently read from Linux sockets and send through port
     // might be extended later to other features
@@ -455,6 +509,12 @@ private:
     CRXCoreIgnoreStat            m_ign_stats_prev;
 
     RXFeatureAPI                 m_feature_api;
+
+    CZmqPacketWriter *           m_zmq_wr;
+    CZmqPacketReader *           m_zmq_rd;
+    
+    CFlowStatParser *             m_parser;
+
 };
 
 

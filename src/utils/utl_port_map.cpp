@@ -42,9 +42,8 @@ void CPciPortCfgDesc::dump(FILE *fd){
     char buf[BUF_MAX];
     const char *p= pci_n.c_str();
 
-    rte_pci_addr addr;
-    if (eal_parse_pci_BDF(p, &addr) != 0 && 
-        eal_parse_pci_DomBDF(p, &addr) != 0) {
+    struct rte_pci_addr addr;
+    if (rte_pci_addr_parse(p, &addr) != 0) {
         snprintf(buf,BUF_MAX,"ERROR not valid PCI addr %s", p);
         err=std::string(buf);
         return(0);

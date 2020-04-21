@@ -277,7 +277,7 @@ sfc_flow_parse_eth(const struct rte_flow_item *item,
 	if (spec == NULL)
 		return 0;
 
-	if (is_same_ether_addr(&mask->dst, &supp_mask.dst)) {
+	if (rte_is_same_ether_addr(&mask->dst, &supp_mask.dst)) {
 		efx_spec->efs_match_flags |= is_ifrm ?
 			EFX_FILTER_MATCH_IFRM_LOC_MAC :
 			EFX_FILTER_MATCH_LOC_MAC;
@@ -285,7 +285,7 @@ sfc_flow_parse_eth(const struct rte_flow_item *item,
 			   EFX_MAC_ADDR_LEN);
 	} else if (memcmp(mask->dst.addr_bytes, ig_mask,
 			  EFX_MAC_ADDR_LEN) == 0) {
-		if (is_unicast_ether_addr(&spec->dst))
+		if (rte_is_unicast_ether_addr(&spec->dst))
 			efx_spec->efs_match_flags |= is_ifrm ?
 				EFX_FILTER_MATCH_IFRM_UNKNOWN_UCAST_DST :
 				EFX_FILTER_MATCH_UNKNOWN_UCAST_DST;
@@ -293,7 +293,7 @@ sfc_flow_parse_eth(const struct rte_flow_item *item,
 			efx_spec->efs_match_flags |= is_ifrm ?
 				EFX_FILTER_MATCH_IFRM_UNKNOWN_MCAST_DST :
 				EFX_FILTER_MATCH_UNKNOWN_MCAST_DST;
-	} else if (!is_zero_ether_addr(&mask->dst)) {
+	} else if (!rte_is_zero_ether_addr(&mask->dst)) {
 		goto fail_bad_mask;
 	}
 
@@ -302,11 +302,11 @@ sfc_flow_parse_eth(const struct rte_flow_item *item,
 	 * ethertype masks are equal to zero in inner frame,
 	 * so these fields are filled in only for the outer frame
 	 */
-	if (is_same_ether_addr(&mask->src, &supp_mask.src)) {
+	if (rte_is_same_ether_addr(&mask->src, &supp_mask.src)) {
 		efx_spec->efs_match_flags |= EFX_FILTER_MATCH_REM_MAC;
 		rte_memcpy(efx_spec->efs_rem_mac, spec->src.addr_bytes,
 			   EFX_MAC_ADDR_LEN);
-	} else if (!is_zero_ether_addr(&mask->src)) {
+	} else if (!rte_is_zero_ether_addr(&mask->src)) {
 		goto fail_bad_mask;
 	}
 
@@ -951,7 +951,7 @@ sfc_flow_parse_geneve(const struct rte_flow_item *item,
 		return 0;
 
 	if (mask->protocol == supp_mask.protocol) {
-		if (spec->protocol != rte_cpu_to_be_16(ETHER_TYPE_TEB)) {
+		if (spec->protocol != rte_cpu_to_be_16(RTE_ETHER_TYPE_TEB)) {
 			rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_ITEM, item,
 				"GENEVE encap. protocol must be Ethernet "
@@ -2315,9 +2315,9 @@ sfc_flow_create(struct rte_eth_dev *dev,
 	if (rc != 0)
 		goto fail_bad_value;
 
-	TAILQ_INSERT_TAIL(&sa->filter.flow_list, flow, entries);
-
 	sfc_adapter_lock(sa);
+
+	TAILQ_INSERT_TAIL(&sa->filter.flow_list, flow, entries);
 
 	if (sa->state == SFC_ADAPTER_STARTED) {
 		rc = sfc_flow_filter_insert(sa, flow);

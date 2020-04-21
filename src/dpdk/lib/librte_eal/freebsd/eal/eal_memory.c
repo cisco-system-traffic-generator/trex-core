@@ -11,15 +11,27 @@
 #include <fcntl.h>
 
 #include <rte_eal.h>
-#include <rte_eal_memconfig.h>
 #include <rte_errno.h>
 #include <rte_log.h>
 #include <rte_string_fns.h>
+
 #include "eal_private.h"
 #include "eal_internal_cfg.h"
 #include "eal_filesystem.h"
+#include "eal_memcfg.h"
+#include "eal_options.h"
 
 #define EAL_PAGE_SIZE (sysconf(_SC_PAGESIZE))
+
+uint64_t eal_get_baseaddr(void)
+{
+	/*
+	 * FreeBSD may allocate something in the space we will be mapping things
+	 * before we get a chance to do that, so use a base address that's far
+	 * away from where malloc() et al usually map things.
+	 */
+	return 0x1000000000ULL;
+}
 
 /*
  * Get physical address of any mapped virtual address in the current process.
@@ -81,6 +93,7 @@ rte_eal_hugepage_init(void)
 		msl->page_sz = page_sz;
 		msl->len = internal_config.memory;
 		msl->socket_id = 0;
+		msl->heap = 1;
 
 		/* populate memsegs. each memseg is 1 page long */
 		for (cur_seg = 0; cur_seg < n_segs; cur_seg++) {
@@ -367,7 +380,8 @@ alloc_va_space(struct rte_memseg_list *msl)
 	addr = eal_get_virtual_area(msl->base_va, &mem_sz, page_sz, 0, flags);
 	if (addr == NULL) {
 		if (rte_errno == EADDRNOTAVAIL)
-			RTE_LOG(ERR, EAL, "Could not mmap %llu bytes at [%p] - please use '--base-virtaddr' option\n",
+			RTE_LOG(ERR, EAL, "Could not mmap %llu bytes at [%p] - "
+				"please use '--" OPT_BASE_VIRTADDR "' option\n",
 				(unsigned long long)mem_sz, msl->base_va);
 		else
 			RTE_LOG(ERR, EAL, "Cannot reserve memory\n");

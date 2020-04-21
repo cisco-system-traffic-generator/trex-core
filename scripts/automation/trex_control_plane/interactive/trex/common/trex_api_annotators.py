@@ -153,3 +153,65 @@ def console_api (name, group, require_connect = True, preserve_history = False):
 
     return wrap
 
+def plugin_api (name, group, require_connect = False, preserve_history = False):
+    """
+        plugin decorator
+
+        any function decorated will be exposed by the console 
+
+        name: str
+            command name (used by the console)
+
+        group: str
+            group name for the console help
+
+        require_connect: bool
+            require client to be connected
+
+        preserve_history: bool
+            preserve readline history
+    """
+
+    def wrap (f):
+        @wraps(f)
+        def wrap2(*args, **kwargs):
+            client = args[0]
+
+            # check connection if needed
+            if require_connect and not client.conn.is_connected():
+                client.logger.error(format_text("\n'{0}' cannot be executed in offline mode\n".format(name), 'bold'))
+                return
+
+            time1 = time.time()
+
+            rc = None
+            try:
+                rc = f(*args)
+            except TRexConsoleNoAction as e:
+                return RC_ERR(e)
+
+            except TRexConsoleError as e:
+                return RC_ERR(e)
+
+            except TRexError as e:
+                client.logger.debug('\nAction has failed with the following error:\n')
+                client.logger.debug(e.get_tb())
+                client.logger.error("\n%s - " % name + format_text(e.brief() + "\n", 'bold'))
+                return RC_ERR(e.brief())
+
+            # if got true - print time
+            if rc:
+                delta = time.time() - time1
+                client.logger.error(format_time(delta) + "\n")
+
+            return
+
+        wrap2.api_type          = 'plugin'
+        wrap2.name              = name
+        wrap2.group             = group
+        wrap2.preserve_history  = preserve_history
+
+        return wrap2
+
+
+    return wrap

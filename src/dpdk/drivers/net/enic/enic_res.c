@@ -61,14 +61,15 @@ int enic_get_vnic_config(struct enic *enic)
 	 * and will be 0 for legacy firmware and VICs
 	 */
 	if (c->max_pkt_size > ENIC_DEFAULT_RX_MAX_PKT_SIZE)
-		enic->max_mtu = c->max_pkt_size - ETHER_HDR_LEN;
+		enic->max_mtu = c->max_pkt_size - RTE_ETHER_HDR_LEN;
 	else
-		enic->max_mtu = ENIC_DEFAULT_RX_MAX_PKT_SIZE - ETHER_HDR_LEN;
+		enic->max_mtu = ENIC_DEFAULT_RX_MAX_PKT_SIZE -
+			RTE_ETHER_HDR_LEN;
 	if (c->mtu == 0)
 		c->mtu = 1500;
 
-	enic->rte_dev->data->mtu = min_t(u16, enic->max_mtu,
-					 max_t(u16, ENIC_MIN_MTU, c->mtu));
+	enic->rte_dev->data->mtu = RTE_MIN(enic->max_mtu,
+				RTE_MAX((uint16_t)ENIC_MIN_MTU, c->mtu));
 
 	enic->adv_filters = vnic_dev_capable_adv_filters(enic->vdev);
 	dev_info(enic, "Advanced Filters %savailable\n", ((enic->adv_filters)
@@ -85,10 +86,11 @@ int enic_get_vnic_config(struct enic *enic)
 				      &enic->udp_rss_weak);
 
 	dev_info(enic, "Flow api filter mode: %s Actions: %s%s%s%s\n",
+		((enic->flow_filter_mode == FILTER_FLOWMAN) ? "FLOWMAN" :
 		((enic->flow_filter_mode == FILTER_DPDK_1) ? "DPDK" :
 		((enic->flow_filter_mode == FILTER_USNIC_IP) ? "USNIC" :
 		((enic->flow_filter_mode == FILTER_IPV4_5TUPLE) ? "5TUPLE" :
-		"NONE"))),
+		"NONE")))),
 		((enic->filter_actions & FILTER_ACTION_RQ_STEERING_FLAG) ?
 		 "steer " : ""),
 		((enic->filter_actions & FILTER_ACTION_FILTER_ID_FLAG) ?
@@ -98,20 +100,16 @@ int enic_get_vnic_config(struct enic *enic)
 		((enic->filter_actions & FILTER_ACTION_COUNTER_FLAG) ?
 		 "count " : ""));
 
-	c->wq_desc_count =
-		min_t(u32, ENIC_MAX_WQ_DESCS,
-		max_t(u32, ENIC_MIN_WQ_DESCS,
-		c->wq_desc_count));
+	c->wq_desc_count = RTE_MIN((uint32_t)ENIC_MAX_WQ_DESCS,
+			RTE_MAX((uint32_t)ENIC_MIN_WQ_DESCS, c->wq_desc_count));
 	c->wq_desc_count &= 0xffffffe0; /* must be aligned to groups of 32 */
 
-	c->rq_desc_count =
-		min_t(u32, ENIC_MAX_RQ_DESCS,
-		max_t(u32, ENIC_MIN_RQ_DESCS,
-		c->rq_desc_count));
+	c->rq_desc_count = RTE_MIN((uint32_t)ENIC_MAX_RQ_DESCS,
+			RTE_MAX((uint32_t)ENIC_MIN_RQ_DESCS, c->rq_desc_count));
 	c->rq_desc_count &= 0xffffffe0; /* must be aligned to groups of 32 */
 
-	c->intr_timer_usec = min_t(u32, c->intr_timer_usec,
-		vnic_dev_get_intr_coal_timer_max(enic->vdev));
+	c->intr_timer_usec = RTE_MIN(c->intr_timer_usec,
+				  vnic_dev_get_intr_coal_timer_max(enic->vdev));
 
 	dev_info(enic_get_dev(enic),
 		"vNIC MAC addr %02x:%02x:%02x:%02x:%02x:%02x "
@@ -189,6 +187,10 @@ int enic_get_vnic_config(struct enic *enic)
 
 	enic->vxlan = ENIC_SETTING(enic, VXLAN) &&
 		vnic_dev_capable_vxlan(enic->vdev);
+	if (vnic_dev_capable_geneve(enic->vdev)) {
+		dev_info(NULL, "Geneve with options offload available\n");
+		enic->geneve_opt_avail = 1;
+	}
 	/*
 	 * Default hardware capabilities. enic_dev_init() may add additional
 	 * flags if it enables overlay offloads.
@@ -208,7 +210,8 @@ int enic_get_vnic_config(struct enic *enic)
 		DEV_RX_OFFLOAD_VLAN_STRIP |
 		DEV_RX_OFFLOAD_IPV4_CKSUM |
 		DEV_RX_OFFLOAD_UDP_CKSUM |
-		DEV_RX_OFFLOAD_TCP_CKSUM;
+		DEV_RX_OFFLOAD_TCP_CKSUM |
+		DEV_RX_OFFLOAD_RSS_HASH;
 	enic->tx_offload_mask =
 		PKT_TX_IPV6 |
 		PKT_TX_IPV4 |
@@ -220,13 +223,14 @@ int enic_get_vnic_config(struct enic *enic)
 	return 0;
 }
 
-int enic_set_nic_cfg(struct enic *enic, u8 rss_default_cpu, u8 rss_hash_type,
-	u8 rss_hash_bits, u8 rss_base_cpu, u8 rss_enable, u8 tso_ipid_split_en,
-	u8 ig_vlan_strip_en)
+int enic_set_nic_cfg(struct enic *enic, uint8_t rss_default_cpu,
+		     uint8_t rss_hash_type, uint8_t rss_hash_bits,
+		     uint8_t rss_base_cpu, uint8_t rss_enable,
+		     uint8_t tso_ipid_split_en, uint8_t ig_vlan_strip_en)
 {
 	enum vnic_devcmd_cmd cmd;
-	u64 a0, a1;
-	u32 nic_cfg;
+	uint64_t a0, a1;
+	uint32_t nic_cfg;
 	int wait = 1000;
 
 	vnic_set_nic_cfg(&nic_cfg, rss_default_cpu,
@@ -239,17 +243,17 @@ int enic_set_nic_cfg(struct enic *enic, u8 rss_default_cpu, u8 rss_hash_type,
 	return vnic_dev_cmd(enic->vdev, cmd, &a0, &a1, wait);
 }
 
-int enic_set_rss_key(struct enic *enic, dma_addr_t key_pa, u64 len)
+int enic_set_rss_key(struct enic *enic, dma_addr_t key_pa, uint64_t len)
 {
-	u64 a0 = (u64)key_pa, a1 = len;
+	uint64_t a0 = (uint64_t)key_pa, a1 = len;
 	int wait = 1000;
 
 	return vnic_dev_cmd(enic->vdev, CMD_RSS_KEY, &a0, &a1, wait);
 }
 
-int enic_set_rss_cpu(struct enic *enic, dma_addr_t cpu_pa, u64 len)
+int enic_set_rss_cpu(struct enic *enic, dma_addr_t cpu_pa, uint64_t len)
 {
-	u64 a0 = (u64)cpu_pa, a1 = len;
+	uint64_t a0 = (uint64_t)cpu_pa, a1 = len;
 	int wait = 1000;
 
 	return vnic_dev_cmd(enic->vdev, CMD_RSS_CPU, &a0, &a1, wait);

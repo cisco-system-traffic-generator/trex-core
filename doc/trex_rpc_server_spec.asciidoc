@@ -1663,6 +1663,12 @@ This could be stream_id different from the stream object which contains the rx_s
                 "binary": "AAAAAQAAAAAAAgAACABFAAAuAAEAAEAROr0QAAABMAAAAQQBAAwAGn9veHh4eHh4eHh4eHh4eHh4eHh4",
                 "meta": ""
             },
+            "rx_stats": {
+                "enabled": true,
+                "latency_enabled": true,
+                "seq_enabled": true,
+                "stream_id": 18
+            },
             "self_start": true,
             "start_paused": false,
             "vm": {
@@ -1683,7 +1689,7 @@ This could be stream_id different from the stream object which contains the rx_s
 
 ----
 
-This request-reply sequence demonstrate a method in which rx_stats are diabled.
+This request-reply sequence demonstrate a method in which rx_stats are disabled.
 In case rx_stats feature is enabled, rx_object **must include** all rx_stats object fields as described above.
 
 

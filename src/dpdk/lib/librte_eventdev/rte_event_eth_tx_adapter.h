@@ -300,6 +300,11 @@ rte_event_eth_tx_adapter_txq_get(struct rte_mbuf *pkt)
 int
 rte_event_eth_tx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id);
 
+#define RTE_EVENT_ETH_TX_ADAPTER_ENQUEUE_SAME_DEST	0x1
+/**< This flag is used when all the packets enqueued in the tx adapter are
+ * destined for the same Ethernet port & Tx queue.
+ */
+
 /**
  * Enqueue a burst of events objects or an event object supplied in *rte_event*
  * structure on an  event device designated by its *dev_id* through the event
@@ -324,6 +329,10 @@ rte_event_eth_tx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id);
  *  The number of event objects to enqueue, typically number of
  *  rte_event_port_attr_get(...RTE_EVENT_PORT_ATTR_ENQ_DEPTH...)
  *  available for this port.
+ * @param flags
+ *  RTE_EVENT_ETH_TX_ADAPTER_ENQUEUE_ flags.
+ *  #RTE_EVENT_ETH_TX_ADAPTER_ENQUEUE_SAME_DEST signifies that all the packets
+ *  which are enqueued are destined for the same Ethernet port & Tx queue.
  *
  * @return
  *   The number of event objects actually enqueued on the event device. The
@@ -332,10 +341,10 @@ rte_event_eth_tx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id);
  *   *rte_event*. If the return value is less than *nb_events*, the remaining
  *   events at the end of ev[] are not consumed and the caller has to take care
  *   of them, and rte_errno is set accordingly. Possible errno values include:
- *   - -EINVAL  The port ID is invalid, device ID is invalid, an event's queue
+ *   - EINVAL   The port ID is invalid, device ID is invalid, an event's queue
  *              ID is invalid, or an event's sched type doesn't match the
  *              capabilities of the destination queue.
- *   - -ENOSPC  The event port was backpressured and unable to enqueue
+ *   - ENOSPC   The event port was backpressured and unable to enqueue
  *              one or more events. This error code is only applicable to
  *              closed systems.
  */
@@ -343,23 +352,29 @@ static inline uint16_t
 rte_event_eth_tx_adapter_enqueue(uint8_t dev_id,
 				uint8_t port_id,
 				struct rte_event ev[],
-				uint16_t nb_events)
+				uint16_t nb_events,
+				const uint8_t flags)
 {
 	const struct rte_eventdev *dev = &rte_eventdevs[dev_id];
 
 #ifdef RTE_LIBRTE_EVENTDEV_DEBUG
 	if (dev_id >= RTE_EVENT_MAX_DEVS ||
 		!rte_eventdevs[dev_id].attached) {
-		rte_errno = -EINVAL;
+		rte_errno = EINVAL;
 		return 0;
 	}
 
 	if (port_id >= dev->data->nb_ports) {
-		rte_errno = -EINVAL;
+		rte_errno = EINVAL;
 		return 0;
 	}
 #endif
-	return dev->txa_enqueue(dev->data->ports[port_id], ev, nb_events);
+	if (flags)
+		return dev->txa_enqueue_same_dest(dev->data->ports[port_id],
+						  ev, nb_events);
+	else
+		return dev->txa_enqueue(dev->data->ports[port_id], ev,
+					nb_events);
 }
 
 /**

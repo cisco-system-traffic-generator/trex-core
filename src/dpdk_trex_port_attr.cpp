@@ -287,7 +287,7 @@ bool DpdkTRexPortAttr::get_multicast(){
 }
 
 
-void DpdkTRexPortAttr::get_hw_src_mac(struct ether_addr *mac_addr){
+void DpdkTRexPortAttr::get_hw_src_mac(struct rte_ether_addr *mac_addr){
     rte_eth_macaddr_get(m_repid, mac_addr);
 }
 

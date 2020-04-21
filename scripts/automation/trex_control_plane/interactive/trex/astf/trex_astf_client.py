@@ -9,9 +9,9 @@ from ..utils.common import get_current_user, user_input, PassiveTimer
 from ..utils import parsing_opts, text_tables
 
 from ..common.trex_api_annotators import client_api, console_api
-from ..common.trex_client import TRexClient
+from ..common.trex_client import TRexClient, NO_TCP_UDP_MASK
 from ..common.trex_events import Event
-from ..common.trex_exceptions import TRexError
+from ..common.trex_exceptions import TRexError, TRexTimeoutError
 from ..common.trex_types import *
 from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 
@@ -23,6 +23,7 @@ from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
 from ..utils.text_opts import format_text
 from ..astf.trex_astf_exceptions import ASTFErrorBadTG
+
 
 astf_states = [
     'STATE_IDLE',
@@ -518,8 +519,10 @@ class ASTFClient(TRexClient):
 
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
-        # call the father method
-        super(ASTFClient, self).set_service_mode(ports = ports, enabled = enabled, filtered = filtered, mask = mask)
+        ''' based on :meth:`trex.astf.trex_astf_client.ASTFClient.set_service_mode_base` '''
+        
+        # call the base method
+        self.set_service_mode_base(ports = ports, enabled = enabled, filtered = filtered, mask = mask)
         
         # in ASTF send to all ports with the handler of the ctx
         params = {"handler": self.handler,
@@ -1302,25 +1305,12 @@ class ASTFClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "service",
                                          self.service_line.__doc__,
-                                         parsing_opts.SERVICE_BGP_FILTERED,
-                                         parsing_opts.SERVICE_NO_TCP_UDP_FILTERED,
-                                         parsing_opts.SERVICE_ALL_FILTERED,
-                                         parsing_opts.SERVICE_OFF)
+                                         parsing_opts.SERVICE_GROUP)
 
         opts = parser.parse_args(line.split())
-        # build filter mask
-        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all
-        if filtered:
-            if opts.allow_all:
-                mask = 3
-            else:
-                mask = 1 if opts.allow_no_tcp_udp else 0
-                mask = mask | 2 if opts.allow_bgp else mask
-        else:
-            mask = None
-        enabled = False if filtered else opts.enabled
+        enabled, filtered, mask = self._get_service_params(opts)
 
-        if mask is not None and ((mask & 1) == 0):
+        if mask is not None and ((mask & NO_TCP_UDP_MASK) == 0):
             raise TRexError('Cannot set NO_TCP_UDP off in ASTF!')
 
         self.set_service_mode(enabled = enabled, filtered = filtered, mask = mask)

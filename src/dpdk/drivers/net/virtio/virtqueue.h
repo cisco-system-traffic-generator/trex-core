@@ -54,6 +54,53 @@ virtio_wmb(uint8_t weak_barriers)
 		rte_cio_wmb();
 }
 
+static inline uint16_t
+virtqueue_fetch_flags_packed(struct vring_packed_desc *dp,
+			      uint8_t weak_barriers)
+{
+	uint16_t flags;
+
+	if (weak_barriers) {
+/* x86 prefers to using rte_smp_rmb over __atomic_load_n as it reports
+ * a better perf(~1.5%), which comes from the saved branch by the compiler.
+ * The if and else branch are identical with the smp and cio barriers both
+ * defined as compiler barriers on x86.
+ */
+#ifdef RTE_ARCH_X86_64
+		flags = dp->flags;
+		rte_smp_rmb();
+#else
+		flags = __atomic_load_n(&dp->flags, __ATOMIC_ACQUIRE);
+#endif
+	} else {
+		flags = dp->flags;
+		rte_cio_rmb();
+	}
+
+	return flags;
+}
+
+static inline void
+virtqueue_store_flags_packed(struct vring_packed_desc *dp,
+			      uint16_t flags, uint8_t weak_barriers)
+{
+	if (weak_barriers) {
+/* x86 prefers to using rte_smp_wmb over __atomic_store_n as it reports
+ * a better perf(~1.5%), which comes from the saved branch by the compiler.
+ * The if and else branch are identical with the smp and cio barriers both
+ * defined as compiler barriers on x86.
+ */
+#ifdef RTE_ARCH_X86_64
+		rte_smp_wmb();
+		dp->flags = flags;
+#else
+		__atomic_store_n(&dp->flags, flags, __ATOMIC_RELEASE);
+#endif
+	} else {
+		rte_cio_wmb();
+		dp->flags = flags;
+	}
+}
 #ifdef RTE_PMD_PACKET_PREFETCH
 #define rte_packet_prefetch(p)  rte_prefetch1(p)
 #else
@@ -134,7 +181,7 @@ enum { VTNET_RQ = 0, VTNET_TQ = 1, VTNET_CQ = 2 };
  */
 struct virtio_net_ctrl_mac {
 	uint32_t entries;
-	uint8_t macs[][ETHER_ADDR_LEN];
+	uint8_t macs[][RTE_ETHER_ADDR_LEN];
 } __attribute__((__packed__));
 
 #define VIRTIO_NET_CTRL_MAC    1
@@ -286,7 +333,7 @@ desc_is_used(struct vring_packed_desc *desc, struct virtqueue *vq)
 {
 	uint16_t used, avail, flags;
 
-	flags = desc->flags;
+	flags = virtqueue_fetch_flags_packed(desc, vq->hw->weak_barriers);
 	used = !!(flags & VRING_PACKED_DESC_F_USED);
 	avail = !!(flags & VRING_PACKED_DESC_F_AVAIL);
 
@@ -395,6 +442,10 @@ struct rte_mbuf *virtqueue_detach_unused(struct virtqueue *vq);
 
 /* Flush the elements in the used ring. */
 void virtqueue_rxvq_flush(struct virtqueue *vq);
+
+int virtqueue_rxvq_reset_packed(struct virtqueue *vq);
+
+int virtqueue_txvq_reset_packed(struct virtqueue *vq);
 
 static inline int
 virtqueue_full(const struct virtqueue *vq)
