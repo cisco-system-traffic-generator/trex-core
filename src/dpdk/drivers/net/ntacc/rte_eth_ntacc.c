@@ -1051,7 +1051,7 @@ static int eth_dev_configure(struct rte_eth_dev *dev)
   return 0;
 }
 
-static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
+static int eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 {
   struct pmd_internals *internals = dev->data->dev_private;
   NtInfoStream_t hInfo;
@@ -1108,14 +1108,14 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   pInfo = (NtInfo_t *)rte_malloc(internals->name, sizeof(NtInfo_t), 0);
   if (!pInfo) {
     _log_out_of_memory_errors(__func__);
-    return;
+    return 0;
   }
 
   // Read speed capabilities for the port
   if ((status = (*_NT_InfoOpen)(&hInfo, "DPDK Info stream")) != NT_SUCCESS) {
     _log_nt_errors(status, "NT_InfoOpen failed", __func__, __LINE__);
     rte_free(pInfo);
-    return;
+    return 0;
   }
 
   pInfo->cmd = NT_INFO_CMD_READ_PORT_V8;
@@ -1123,7 +1123,7 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
   if ((status = (*_NT_InfoRead)(hInfo, pInfo)) != 0) {
     _log_nt_errors(status, "NT_InfoRead failed", __func__, __LINE__);
     rte_free(pInfo);
-    return;
+    return 0;
   }
   (void)(*_NT_InfoClose)(hInfo);
 
@@ -1151,6 +1151,7 @@ static void eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_i
     dev_info->speed_capa |= ETH_LINK_SPEED_50G;
   }
   rte_free(pInfo);
+  return (0);
 }
 
 #ifdef USE_SW_STAT
@@ -1260,7 +1261,7 @@ static void eth_stats_reset(struct rte_eth_dev *dev)
   }
 }
 #else
-static void eth_stats_reset(struct rte_eth_dev *dev)
+static int eth_stats_reset(struct rte_eth_dev *dev)
 {
   struct pmd_internals *internals = dev->data->dev_private;
   int status;
@@ -1269,7 +1270,7 @@ static void eth_stats_reset(struct rte_eth_dev *dev)
   pStatData = (NtStatistics_t *)rte_malloc(internals->name, sizeof(NtStatistics_t), 0);
   if (!pStatData) {
     _log_out_of_memory_errors(__func__);
-    return;
+    return 0;
   }
 
   pStatData->cmd = NT_STATISTICS_READ_CMD_QUERY_V2;
@@ -1280,10 +1281,11 @@ static void eth_stats_reset(struct rte_eth_dev *dev)
     NTACC_UNLOCK(&internals->statlock);
     _log_nt_errors(status, "NT_StatRead failed", __func__, __LINE__);
     rte_free(pStatData);
-    return;
+    return 0;
   }
   NTACC_UNLOCK(&internals->statlock);
   rte_free(pStatData);
+  return 0;
 }
 #endif
 
