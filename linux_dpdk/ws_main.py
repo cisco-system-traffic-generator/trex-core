@@ -343,12 +343,10 @@ def configure(conf):
     if not no_bnxt:
         Logs.pprint('YELLOW', 'Building bnxt PMD')
 
-    conf.env.WITH_NTACC = False
+    conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
 
-    # dpdk2002 does not support ntacc yet! 
-    #with_ntacc
-    if False :
+    if with_ntacc:
         ntapi_ok = conf.check_ntapi(mandatory = False)
         if not ntapi_ok:
             Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +

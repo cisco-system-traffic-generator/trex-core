@@ -68,7 +68,7 @@ int ntacc_logtype;
 #define ETH_NTACC_NTPL_ARG "ntpl"
 
 #define HW_MAX_PKT_LEN  10000
-#define HW_MTU    (HW_MAX_PKT_LEN - ETHER_HDR_LEN - ETHER_CRC_LEN) /**< MTU */
+#define HW_MTU    (HW_MAX_PKT_LEN - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN) /**< MTU */
 
 #define MAX_NTACC_PORTS 32
 #define STREAMIDS_PER_PORT  (256 / internals->nbPortsInSystem)
@@ -147,7 +147,7 @@ static const char *valid_arguments[] = {
   NULL
 };
 
-static struct ether_addr eth_addr[MAX_NTACC_PORTS];
+static struct rte_ether_addr eth_addr[MAX_NTACC_PORTS];
 
 static struct {
   struct pmd_internals *pInternals;
