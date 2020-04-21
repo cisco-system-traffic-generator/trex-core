@@ -746,7 +746,7 @@ static int ena_link_update(struct rte_eth_dev *dev,
 	struct ena_adapter *adapter = dev->data->dev_private;
 
 	link->link_status = adapter->link_status ? ETH_LINK_UP : ETH_LINK_DOWN;
-	link->link_speed = ETH_SPEED_NUM_NONE;
+	link->link_speed = ETH_SPEED_NUM_50G;
 	link->link_duplex = ETH_LINK_FULL_DUPLEX;
 
 	return 0;
