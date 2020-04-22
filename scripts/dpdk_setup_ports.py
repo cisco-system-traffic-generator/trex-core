@@ -572,6 +572,16 @@ Other network devices
         if pa() and pa().limit_ports is not None and pa().limit_ports > len(if_list):
             raise DpdkSetup('Error: --limit-ports CLI argument (%s) must not be higher than number of interfaces (%s) in config file: %s\n' % (pa().limit_ports, len(if_list), fcfg))
 
+        if cfg_dict.get('stack') == 'linux_based':
+            self.verify_ethtool()
+
+    def verify_ethtool(self):
+        try:
+            FNULL = open(os.devnull, 'w')
+            subprocess.check_call(['ethtool', '--version'], stdout=FNULL, stderr=subprocess.STDOUT)
+        except Exception as e:
+            raise DpdkSetup('Error: "linux_based" stack mode requires ethtool installed on your machine. Install it or do not use this mode.')
+
 
     def do_bind_all(self, drv, pci, force = False):
         assert type(pci) is list
@@ -752,18 +762,19 @@ Other network devices
             master_core = 0
 
         if should_scapy_server_run():
-            ret = os.system('{sys_exe} general_daemon_server restart -c {cores} -n {name} --py -e "{exe}" -r -d -i'.format(sys_exe=sys.executable,
-                                                                                                                cores=master_core,
-                                                                                                                name='Scapy',
-                                                                                                                exe='-m trex.scapy_server.scapy_zmq_server'))
+            ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -r -d -i'.format(sys_exe = sys.executable,
+                                                                                                                             core = master_core,
+                                                                                                                             name = 'Scapy',
+                                                                                                                             exe  = '-m trex.scapy_server.scapy_zmq_server'))
             if ret:
                 print("Could not start scapy daemon server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(-1)
 
         if pa().bird_server:
-            ret = os.system('{sys_exe} general_daemon_server restart -n {name} --py -e "{exe}" -i'.format(sys_exe=sys.executable,
-                                                                                    name='PyBird',
-                                                                                    exe='-m trex.pybird_server.pybird_zmq_server'))
+            ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -i'.format(sys_exe = sys.executable,
+                                                                                                                       name = 'PyBird',
+                                                                                                                       core = master_core,
+                                                                                                                       exe  = '-m trex.pybird_server.pybird_zmq_server'))
             if ret:
                 print("Could not start bird server\nIf you don't need it, don't use --bird-server flag.")
                 sys.exit(-1)
@@ -772,9 +783,10 @@ Other network devices
             emu_zmq_tcp_flag = '--emu-zmq-tcp' if pa().emu_zmq_tcp else ''
             exe = './trex-emu {emu_zmq_tcp}'.format(emu_zmq_tcp =  emu_zmq_tcp_flag)
             
-            ret = os.system('{sys_exe} general_daemon_server restart -n {name} --sudo -e "{exe}"'.format(sys_exe=sys.executable,
-                                                                                    name='Emu',
-                                                                                    exe=exe))
+            ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --sudo -e "{exe}"'.format(sys_exe = sys.executable,
+                                                                                                                      core = master_core,
+                                                                                                                      name = 'Emu',
+                                                                                                                       exe = exe))
             if ret:
                 print("Could not start emu service\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
