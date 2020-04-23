@@ -2013,18 +2013,19 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
        #tx_desc         : 1024 # optional <16>
        c               : 4 #optional <8>
        port_bandwidth_gb : 10 #optional <9>
+       services_core     : 0 #optional <10>
        port_info       :  # set eh mac addr  mandatory
-            - default_gw : 1.1.1.1   # port 0 <10>
-              dest_mac   : '00:00:00:01:00:00' # Either default_gw or dest_mac is mandatory <10>
-              src_mac    : '00:00:00:02:00:00' # optional <11>
-              ip         : 2.2.2.2 # optional <12>
-              vlan       : 15 # optional <13>
+            - default_gw : 1.1.1.1   # port 0 <11>
+              dest_mac   : '00:00:00:01:00:00' # Either default_gw or dest_mac is mandatory <11>
+              src_mac    : '00:00:00:02:00:00' # optional <12>
+              ip         : 2.2.2.2 # optional <13>
+              vlan       : 15 # optional <14>
             - dest_mac   : '00:00:00:03:00:00'  # port 1
               src_mac    : '00:00:00:04:00:00'
             - dest_mac   : '00:00:00:05:00:00'  # port 2
               src_mac    : '00:00:00:06:00:00'
-            - dest_mac   :   [0x0,0x0,0x0,0x7,0x0,0x01]  # port 3 <14>
-              src_mac    :   [0x0,0x0,0x0,0x8,0x0,0x02] # <14>
+            - dest_mac   :   [0x0,0x0,0x0,0x7,0x0,0x01]  # port 3 <15>
+              src_mac    :   [0x0,0x0,0x0,0x8,0x0,0x02] # <16>
 ----
 <1>  Number of ports. Should be equal to the number of interfaces listed in 3. - mandatory
 <2>  Must be set to 2. - mandatory
@@ -2035,20 +2036,21 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 <7>  Limit the amount of packet memory used. (Passed to dpdk as -m arg)
 <8> Number of threads (cores) TRex will use per interface pair ( Can be overridden by -c command line option )
 <9> The bandwidth of each interface in Gbs. In this example we have 10Gbs interfaces. For VM, put 1. Used to tune the amount of memory allocated by TRex.
-<10> TRex need to know the destination MAC address to use on each port. You can specify this in one of two ways: +
+<10> Core to run services on (Scapy, PyBird and Emu). If not given it will use 'low_end_core', if not given it will use 'master_thread_id' and if all wasn't supplied it will use core 0.
+<11> TRex need to know the destination MAC address to use on each port. You can specify this in one of two ways: +
 Specify dest_mac directly. +
 Specify default_gw (since version 2.10). In this case (only if no dest_mac given), TRex will issue ARP request to this IP, and will use
 the result as dest MAC. If no dest_mac given, and no ARP response received, TRex will exit.
 
-<11> Source MAC to use when sending packets from this interface. If not given (since version 2.10), MAC address of the port will be used.
-<12> If given (since version 2.10), TRex will issue gratitues ARP for the ip + src MAC pair on appropriate port. In stateful mode,
+<12> Source MAC to use when sending packets from this interface. If not given (since version 2.10), MAC address of the port will be used.
+<13> If given (since version 2.10), TRex will issue gratitues ARP for the ip + src MAC pair on appropriate port. In stateful mode,
 gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
-<13> If given (since version 2.18), all traffic on the port will be sent with this VLAN tag.
-<14> Old MAC address format. New format is supported since version v2.09.
-<15> Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
-<16> Override the default number of Rx/TX dpdk driver descriptors. For better performance on virtual interfaces better to enlarge these numbers to Rx=4096
-<17> Advance DPDK options, used by Azure/failsafe driver 
-<18> In case of failsafe choose the right drivers 
+<14> If given (since version 2.18), all traffic on the port will be sent with this VLAN tag.
+<15> Old MAC address format. New format is supported since version v2.09.
+<16> Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
+<17> Override the default number of Rx/TX dpdk driver descriptors. For better performance on virtual interfaces better to enlarge these numbers to Rx=4096
+<18> Advance DPDK options, used by Azure/failsafe driver 
+<19> In case of failsafe choose the right drivers 
 
 
 [NOTE]
