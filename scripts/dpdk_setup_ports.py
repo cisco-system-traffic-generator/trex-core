@@ -751,19 +751,32 @@ Other network devices
                 if configured_hugepages < wanted_count:
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (wanted_count, socket_id, configured_hugepages))
 
+    def get_core_for_services(self):
+        try:
+            # 1st priority from services_core
+            return self.m_cfg_dict[0]['services_core']
+        except KeyError:
+            try:
+                # 2nd priority from low_end_core
+                return self.m_cfg_dict[0]['low_end_core']
+            except KeyError:
+                try:
+                    # 3rd priority from master_core
+                    return self.m_cfg_dict[0]['platform']['master_thread_id']
+                except KeyError:
+                    # 4rd priority is zero core
+                    return 0
 
     def run_servers(self):
-        ''' Run both scapy & bird server according to pa'''
+        ''' Run both scapy, bird & Emu servers according to pa'''
         if not pa():
             return
-        try:
-            master_core = self.m_cfg_dict[0]['platform']['master_thread_id']
-        except:
-            master_core = 0
+
+        services_core = self.get_core_for_services()
 
         if should_scapy_server_run():
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -r -d -i'.format(sys_exe = sys.executable,
-                                                                                                                             core = master_core,
+                                                                                                                             core = services_core,
                                                                                                                              name = 'Scapy',
                                                                                                                              exe  = '-m trex.scapy_server.scapy_zmq_server'))
             if ret:
@@ -773,7 +786,7 @@ Other network devices
         if pa().bird_server:
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -i'.format(sys_exe = sys.executable,
                                                                                                                        name = 'PyBird',
-                                                                                                                       core = master_core,
+                                                                                                                       core = services_core,
                                                                                                                        exe  = '-m trex.pybird_server.pybird_zmq_server'))
             if ret:
                 print("Could not start bird server\nIf you don't need it, don't use --bird-server flag.")
@@ -784,7 +797,7 @@ Other network devices
             exe = './trex-emu {emu_zmq_tcp}'.format(emu_zmq_tcp =  emu_zmq_tcp_flag)
             
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --sudo -e "{exe}"'.format(sys_exe = sys.executable,
-                                                                                                                      core = master_core,
+                                                                                                                      core = services_core,
                                                                                                                       name = 'Emu',
                                                                                                                        exe = exe))
             if ret:
