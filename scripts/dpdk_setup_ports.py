@@ -753,24 +753,23 @@ Other network devices
 
     def get_core_for_services(self):
         default_core = 0
+        cfg_dict = self.m_cfg_dict[0]
 
-        try:
+        if 'services_core' in cfg_dict:
             # 1st priority from services_core
-            return self.m_cfg_dict[0]['services_core']
-        except:
-            if self.m_cfg_dict[0].get('low_end', False):
-                # if low_end, search for 'low_end_core'
-                try:
-                    return self.m_cfg_dict[0]['low_end_core']
-                except:
-                    return default_core
+            return cfg_dict['services_core']
+        elif cfg_dict.get('low_end', False):
+            # if low_end, search for 'low_end_core'
+            if 'low_end_core' in cfg_dict:
+                return cfg_dict['low_end_core']
             else:
-                try:
-                    # 2nd priority from master_core
-                    return self.m_cfg_dict[0]['platform']['master_thread_id']
-                except:
-                    # 3rd priority is zero core
-                    return default_core
+                return default_core
+        elif 'platform' in cfg_dict and 'master_thread_id' in cfg_dict['platform']:
+            # 2nd priority from master_core
+            return cfg_dict['platform']['master_thread_id']
+        else:
+            # 3rd priority is zero core
+            return default_core
 
     def run_servers(self):
         ''' Run both scapy, bird & Emu servers according to pa'''
