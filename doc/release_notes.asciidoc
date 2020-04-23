@@ -30,8 +30,7 @@ endif::backend-docbook[]
 
 * DPDK 20.02 - the performance is lower for i40e and higher for Mellanox (mlx5)
 * Update igb_uio kernel share object. Remove the old compiled objects. Suggest to remove the old igb_uio using `sudo rmmod igb_uio` and load the server again. 
-** Napatech broken 
-** Azure and ENA were not verified  
+* Azure and ENA were not verified  
 
 == Release 2.79 ==
 
