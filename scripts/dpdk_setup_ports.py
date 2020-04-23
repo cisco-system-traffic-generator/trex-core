@@ -752,20 +752,25 @@ Other network devices
                     print('WARNING: tried to configure %d hugepages for socket %d, but result is: %d' % (wanted_count, socket_id, configured_hugepages))
 
     def get_core_for_services(self):
+        default_core = 0
+
         try:
             # 1st priority from services_core
             return self.m_cfg_dict[0]['services_core']
-        except KeyError:
-            try:
-                # 2nd priority from low_end_core
-                return self.m_cfg_dict[0]['low_end_core']
-            except KeyError:
+        except:
+            if self.m_cfg_dict[0].get('low_end', False):
+                # if low_end, search for 'low_end_core'
                 try:
-                    # 3rd priority from master_core
+                    return self.m_cfg_dict[0]['low_end_core']
+                except:
+                    return default_core
+            else:
+                try:
+                    # 2nd priority from master_core
                     return self.m_cfg_dict[0]['platform']['master_thread_id']
-                except KeyError:
-                    # 4rd priority is zero core
-                    return 0
+                except:
+                    # 3rd priority is zero core
+                    return default_core
 
     def run_servers(self):
         ''' Run both scapy, bird & Emu servers according to pa'''
