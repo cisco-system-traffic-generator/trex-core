@@ -14,7 +14,7 @@ class ASTFResilience_Test(CASTFGeneral_Test):
         CASTFGeneral_Test.setUp(self)
         self.weak = self.is_VM
         setup = CTRexScenario.setup_name
-        if setup in ['trex11', 'trex16']:
+        if 'no_resilience' in CTRexScenario.modes:
             self.skip('not enough memory for this test')
         if setup in ['trex12']:
             self.weak = True

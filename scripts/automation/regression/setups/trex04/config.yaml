@@ -39,4 +39,4 @@ trex:
   hostname       : csi-trex-04
   cores          : 2 
   astf_cores     : 1
-  modes          : [loopback, virt_nics, VM]
+  modes          : [loopback, virt_nics, VM, 'no_resilience']

@@ -288,7 +288,7 @@ class STLRX_Test(CStlGeneral_Test):
                                          
         for key in err_latency :
             error +=err_latency[key]
-        if error !=0 :
+        if error > self.allow_drop:
             pprint.pprint(err_latency)
             return ERROR_CNTR_NOT_0
 
@@ -745,6 +745,7 @@ class STLRX_Test(CStlGeneral_Test):
         for i in range(0,5):
             print("Iteration {0}".format(i));
             duration=random.randint(10, 70);
+            duration = 10
             pgid=random.randint(1, 65000);
             pkt_size=random.randint(1000, 9000);
             all_ports = list(CTRexScenario.ports_map['map'].keys());
