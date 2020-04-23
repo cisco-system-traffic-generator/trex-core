@@ -755,18 +755,15 @@ Other network devices
         default_core = 0
         cfg_dict = self.m_cfg_dict[0]
 
-        if 'services_core' in cfg_dict:
+        if cfg_dict.get('services_core', False):
             # 1st priority from services_core
             return cfg_dict['services_core']
         elif cfg_dict.get('low_end', False):
-            # if low_end, search for 'low_end_core'
-            if 'low_end_core' in cfg_dict:
-                return cfg_dict['low_end_core']
-            else:
-                return default_core
-        elif 'platform' in cfg_dict and 'master_thread_id' in cfg_dict['platform']:
+            # if low_end, use low_end_core or default if not supplied
+            return cfg_dict.get('low_end_core', default_core)
+        elif cfg_dict.get('platform', False):
             # 2nd priority from master_core
-            return cfg_dict['platform']['master_thread_id']
+            return cfg_dict['platform'].get('master_thread_id', default_core)
         else:
             # 3rd priority is zero core
             return default_core
