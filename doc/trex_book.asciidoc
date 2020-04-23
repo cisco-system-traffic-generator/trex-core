@@ -2036,7 +2036,7 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 <7>  Limit the amount of packet memory used. (Passed to dpdk as -m arg)
 <8> Number of threads (cores) TRex will use per interface pair ( Can be overridden by -c command line option )
 <9> The bandwidth of each interface in Gbs. In this example we have 10Gbs interfaces. For VM, put 1. Used to tune the amount of memory allocated by TRex.
-<10> Core to run services on (Scapy, PyBird and Emu). If not given it will use 'low_end_core', if not given it will use 'master_thread_id' and if all wasn't supplied it will use core 0.
+<10> Core to run services on (Scapy, PyBird and Emu). If not given and 'low_end' enables, it will use 'low_end_core' if not given it will use 0. When "low_end" isn't enable it will use 'master_thread_id' and if all wasn't supplied it will use core 0.
 <11> TRex need to know the destination MAC address to use on each port. You can specify this in one of two ways: +
 Specify dest_mac directly. +
 Specify default_gw (since version 2.10). In this case (only if no dest_mac given), TRex will issue ARP request to this IP, and will use
