@@ -4,13 +4,13 @@
 Utility methods, for compatibility between Python version
 
 :author: Thomas Calmant
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -25,8 +25,12 @@ Utility methods, for compatibility between Python version
     limitations under the License.
 """
 
+import sys
+
+# ------------------------------------------------------------------------------
+
 # Module version
-__version_info__ = (0, 2, 5)
+__version_info__ = (0, 4, 1)
 __version__ = ".".join(str(x) for x in __version_info__)
 
 # Documentation strings format
@@ -34,23 +38,20 @@ __docformat__ = "restructuredtext en"
 
 # ------------------------------------------------------------------------------
 
-import sys
-
-# ------------------------------------------------------------------------------
-
 if sys.version_info[0] < 3:
     # Python 2
+    # pylint: disable=E1101
     import types
     try:
-        string_types = (
+        STRING_TYPES = (
             types.StringType,
             types.UnicodeType
         )
     except NameError:
         # Python built without unicode support
-        string_types = (types.StringType,)
+        STRING_TYPES = (types.StringType,)
 
-    numeric_types = (
+    NUMERIC_TYPES = (
         types.IntType,
         types.LongType,
         types.FloatType
@@ -60,6 +61,7 @@ if sys.version_info[0] < 3:
         """
         Converts the given string into bytes
         """
+        # pylint: disable=E0602
         if type(string) is unicode:
             return str(string)
         return string
@@ -71,15 +73,15 @@ if sys.version_info[0] < 3:
         if type(data) is str:
             return data
         return str(data)
-
 else:
     # Python 3
-    string_types = (
+    # pylint: disable=E1101
+    STRING_TYPES = (
         bytes,
         str
     )
 
-    numeric_types = (
+    NUMERIC_TYPES = (
         int,
         float
     )
@@ -101,6 +103,31 @@ else:
         return str(data, "UTF-8")
 
 # ------------------------------------------------------------------------------
+# Enumerations
+
+try:
+    import enum
+
+    def is_enum(obj):
+        """
+        Checks if an object is from an enumeration class
+
+        :param obj: Object to test
+        :return: True if the object is an enumeration item
+        """
+        return isinstance(obj, enum.Enum)
+except ImportError:
+    # Pre-Python 3.4
+    def is_enum(_):
+        """
+        Before Python 3.4, enumerations didn't exist.
+
+        :param _: Object to test
+        :return: Always False
+        """
+        return False
+
+# ------------------------------------------------------------------------------
 # Common
 
 DictType = dict
@@ -108,15 +135,15 @@ DictType = dict
 ListType = list
 TupleType = tuple
 
-iterable_types = (
+ITERABLE_TYPES = (
     list,
     set, frozenset,
     tuple
 )
 
-value_types = (
+VALUE_TYPES = (
     bool,
     type(None)
 )
 
-primitive_types = string_types + numeric_types + value_types
+PRIMITIVE_TYPES = STRING_TYPES + NUMERIC_TYPES + VALUE_TYPES

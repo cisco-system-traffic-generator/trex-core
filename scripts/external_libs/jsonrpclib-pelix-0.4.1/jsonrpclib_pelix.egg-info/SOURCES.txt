@@ -1,6 +1,6 @@
-LICENSE.txt
+LICENSE
 MANIFEST.in
-README.rst
+README.md
 setup.cfg
 setup.py
 jsonrpclib/SimpleJSONRPCServer.py

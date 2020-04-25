@@ -8,7 +8,7 @@ from pprint import pprint
 
 # ext libs
 import stl_path
-sys.path.append(os.path.join(stl_path.EXT_LIBS_PATH, 'jsonrpclib-pelix-0.2.5'))
+sys.path.append(os.path.join(stl_path.EXT_LIBS_PATH, 'jsonrpclib-pelix-0.4.1'))
 import jsonrpclib
 
 def fail(msg):

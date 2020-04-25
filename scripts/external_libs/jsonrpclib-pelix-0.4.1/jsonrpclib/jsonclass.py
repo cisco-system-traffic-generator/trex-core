@@ -4,13 +4,13 @@
 The serialization module
 
 :authors: Josh Marshall, Thomas Calmant
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -25,8 +25,18 @@ The serialization module
     limitations under the License.
 """
 
+# Standard library
+import inspect
+import re
+
+# Local package
+import jsonrpclib.config
+import jsonrpclib.utils as utils
+
+# ------------------------------------------------------------------------------
+
 # Module version
-__version_info__ = (0, 2, 5)
+__version_info__ = (0, 4, 1)
 __version__ = ".".join(str(x) for x in __version_info__)
 
 # Documentation strings format
@@ -34,19 +44,9 @@ __docformat__ = "restructuredtext en"
 
 # ------------------------------------------------------------------------------
 
-# Local package
-import jsonrpclib.config
-import jsonrpclib.utils as utils
-
-# Standard library
-import inspect
-import re
-
-# ------------------------------------------------------------------------------
-
 # Supported transmitted code
-SUPPORTED_TYPES = (utils.DictType,) + utils.iterable_types \
-    + utils.primitive_types
+SUPPORTED_TYPES = (utils.DictType,) + utils.ITERABLE_TYPES \
+    + utils.PRIMITIVE_TYPES
 
 # Regex of invalid module characters
 INVALID_MODULE_CHARS = r'[^a-zA-Z0-9\_\.]'
@@ -56,7 +56,7 @@ INVALID_MODULE_CHARS = r'[^a-zA-Z0-9\_\.]'
 
 class TranslationError(Exception):
     """
-    Unmarshaling exception
+    Unmarshalling exception
     """
     pass
 
@@ -134,20 +134,20 @@ def dump(obj, serialize_method=None, ignore_attribute=None, ignore=None,
                               ignore, config)
 
     # Primitive
-    if isinstance(obj, utils.primitive_types):
+    if isinstance(obj, utils.PRIMITIVE_TYPES):
         return obj
 
     # Iterative
-    elif isinstance(obj, utils.iterable_types):
+    elif isinstance(obj, utils.ITERABLE_TYPES):
         # List, set or tuple
         return [dump(item, serialize_method, ignore_attribute, ignore, config)
                 for item in obj]
 
     elif isinstance(obj, utils.DictType):
         # Dictionary
-        return dict((key, dump(value, serialize_method,
-                               ignore_attribute, ignore, config))
-                    for key, value in obj.items())
+        return {key: dump(value, serialize_method, ignore_attribute,
+                          ignore, config)
+                for key, value in obj.items()}
 
     # It's not a standard type, so it needs __jsonclass__
     module_name = inspect.getmodule(type(obj)).__name__
@@ -167,8 +167,9 @@ def dump(obj, serialize_method=None, ignore_attribute=None, ignore=None,
         params, attrs = serialize()
         return_obj['__jsonclass__'].append(params)
         return_obj.update(attrs)
-        return return_obj
-
+    elif utils.is_enum(obj):
+        # Add parameters for enumerations
+        return_obj['__jsonclass__'].append([obj.value])
     else:
         # Otherwise, try to figure it out
         # Obviously, we can't assume to know anything about the
@@ -192,7 +193,8 @@ def dump(obj, serialize_method=None, ignore_attribute=None, ignore=None,
                 attrs[attr_name] = dump(attr_value, serialize_method,
                                         ignore_attribute, ignore, config)
         return_obj.update(attrs)
-        return return_obj
+
+    return return_obj
 
 # ------------------------------------------------------------------------------
 
@@ -207,17 +209,17 @@ def load(obj, classes=None):
     :return: The loaded object
     """
     # Primitive
-    if isinstance(obj, utils.primitive_types):
+    if isinstance(obj, utils.PRIMITIVE_TYPES):
         return obj
 
     # List, set or tuple
-    elif isinstance(obj, utils.iterable_types):
+    elif isinstance(obj, utils.ITERABLE_TYPES):
         # This comes from a JSON parser, so it can only be a list...
         return [load(entry) for entry in obj]
 
     # Otherwise, it's a dict type
     elif '__jsonclass__' not in obj:
-        return dict((key, load(value)) for key, value in obj.items())
+        return {key: load(value) for key, value in obj.items()}
 
     # It's a dictionary, and it has a __jsonclass__
     orig_module_name = obj['__jsonclass__'][0]
@@ -234,7 +236,6 @@ def load(obj, classes=None):
 
     # Load the class
     json_module_parts = json_module_clean.split('.')
-    json_class = None
     if classes and len(json_module_parts) == 1:
         # Local class name -- probably means it won't work
         try:
@@ -242,7 +243,6 @@ def load(obj, classes=None):
         except KeyError:
             raise TranslationError('Unknown class or module {0}.'
                                    .format(json_module_parts[0]))
-
     else:
         # Module + class
         json_class_name = json_module_parts.pop()
@@ -262,21 +262,18 @@ def load(obj, classes=None):
                                    .format(json_module_tree, json_class_name))
 
     # Create the object
-    new_obj = None
     if isinstance(params, utils.ListType):
         try:
             new_obj = json_class(*params)
         except TypeError as ex:
             raise TranslationError("Error instantiating {0}: {1}"
                                    .format(json_class.__name__, ex))
-
     elif isinstance(params, utils.DictType):
         try:
             new_obj = json_class(**params)
         except TypeError as ex:
             raise TranslationError("Error instantiating {0}: {1}"
                                    .format(json_class.__name__, ex))
-
     else:
         raise TranslationError("Constructor args must be a dict or a list, "
                                "not {0}".format(type(params).__name__))

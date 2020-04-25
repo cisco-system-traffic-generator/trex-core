@@ -36,13 +36,13 @@ appropriately.
 See https://github.com/tcalmant/jsonrpclib for more info.
 
 :authors: Josh Marshall, Thomas Calmant
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -57,63 +57,61 @@ See https://github.com/tcalmant/jsonrpclib for more info.
     limitations under the License.
 """
 
+# Standard library
+import contextlib
+import logging
+import os
+import socket
+import sys
+import uuid
+from functools import wraps
+
+try:
+    # Python 3
+    # pylint: disable=F0401,E0611
+    from http.client import HTTPConnection
+    from urllib.parse import splittype, splithost
+    from xmlrpc.client import Transport as XMLTransport
+    from xmlrpc.client import SafeTransport as XMLSafeTransport
+    from xmlrpc.client import ServerProxy as XMLServerProxy
+    from xmlrpc.client import _Method as XML_Method
+except ImportError:
+    # Python 2
+    # pylint: disable=F0401,E0611
+    from httplib import HTTPConnection
+    from urllib import splittype, splithost
+    from xmlrpclib import Transport as XMLTransport
+    from xmlrpclib import SafeTransport as XMLSafeTransport
+    from xmlrpclib import ServerProxy as XMLServerProxy
+    from xmlrpclib import _Method as XML_Method
+
+try:
+    # Check GZip support
+    import gzip
+except ImportError:
+    # Python can be built without zlib/gzip support
+    # pylint: disable=C0103
+    gzip = None
+
+# Library includes
+import jsonrpclib.config
+import jsonrpclib.jsonclass as jsonclass
+import jsonrpclib.utils as utils
+
+# ------------------------------------------------------------------------------
+
 # Module version
-__version_info__ = (0, 2, 5)
+__version_info__ = (0, 4, 1)
 __version__ = ".".join(str(x) for x in __version_info__)
 
 # Documentation strings format
 __docformat__ = "restructuredtext en"
 
-# ------------------------------------------------------------------------------
-
-# Library includes
-import jsonrpclib.config
-import jsonrpclib.utils as utils
-
-# Standard library
-import contextlib
-import logging
-import sys
-import uuid
-
 # Create the logger
 _logger = logging.getLogger(__name__)
 
-try:
-    # Python 3
-    # pylint: disable=F0401,E0611
-    from urllib.parse import splittype
-    from urllib.parse import splithost
-    from xmlrpc.client import Transport as XMLTransport
-    from xmlrpc.client import SafeTransport as XMLSafeTransport
-    from xmlrpc.client import ServerProxy as XMLServerProxy
-    from xmlrpc.client import _Method as XML_Method
-    from http.client import HTTPConnection
-    try:
-        from http.client import HTTPSConnection
-    except:
-        HTTPSConnection = None
-
-except ImportError:
-    # Python 2
-    # pylint: disable=F0401,E0611
-    from urllib import splittype
-    from urllib import splithost
-    from xmlrpclib import Transport as XMLTransport
-    from xmlrpclib import SafeTransport as XMLSafeTransport
-    from xmlrpclib import ServerProxy as XMLServerProxy
-    from xmlrpclib import _Method as XML_Method
-    from httplib import HTTPConnection
-    try:
-        from httplib import HTTPSConnection
-    except:
-        HTTPSConnection = None
-
 # ------------------------------------------------------------------------------
 # JSON library import
-
-# JSON class serialization
-from jsonrpclib import jsonclass
 
 try:
     # pylint: disable=F0401,E0611
@@ -134,14 +132,12 @@ try:
         to a Python object, using cjson.
         """
         return cjson.decode(json_string)
-
 except ImportError:
     # pylint: disable=F0401,E0611
     # Use json or simplejson
     try:
         import json
         _logger.debug("Using json as JSON library")
-
     except ImportError:
         try:
             import simplejson as json
@@ -159,7 +155,6 @@ except ImportError:
             """
             # Python 2 (explicit encoding)
             return json.dumps(obj, encoding=encoding)
-
     else:
         # Python 3
         def jdumps(obj, encoding='utf-8'):
@@ -226,7 +221,8 @@ class JSONParser(object):
         """
         self.target.feed(data)
 
-    def close(self):
+    @staticmethod
+    def close():
         """
         Does nothing
         """
@@ -270,7 +266,7 @@ class JSONTarget(object):
 
 
 class TransportMixIn(object):
-    """ Just extends the XMLRPC transport where necessary. """
+    """ Just extends the XML-RPC transport where necessary. """
     # for Python 2.7 support
     _connection = None
 
@@ -278,7 +274,7 @@ class TransportMixIn(object):
     # Use the configuration to change the content-type
     readonly_headers = ('content-length', 'content-type')
 
-    def __init__(self, config=jsonrpclib.config.DEFAULT, context=None, timeout = None):
+    def __init__(self, config=jsonrpclib.config.DEFAULT, context=None):
         """
         Sets up the transport
 
@@ -296,8 +292,9 @@ class TransportMixIn(object):
         # Additional headers: list of dictionaries
         self.additional_headers = []
 
-        # Timeout for http connection
-        self._timeout_kw = {'timeout': timeout} if timeout else {}
+        # Avoid a pep-8 error
+        self.accept_gzip_encoding = True
+        self.verbose = False
 
     def push_headers(self, headers):
         """
@@ -324,12 +321,30 @@ class TransportMixIn(object):
         Puts headers as is in the request, filtered read only headers
 
         :param connection: The request connection
+        :return: The dictionary of headers added to the connection
         """
         additional_headers = {}
+
+        # Setup extra headers
+        # (list of tuples, inherited from xmlrpclib.client.Transport)
+        # Authentication headers are stored there
+        try:
+            extra_headers = self._extra_headers or []
+        except AttributeError:
+            # Not available this version of Python (should not happen)
+            pass
+        else:
+            for (key, value) in extra_headers:
+                additional_headers[key] = value
 
         # Prepare the merged dictionary
         for headers in self.additional_headers:
             additional_headers.update(headers)
+
+        # Normalize keys and values
+        additional_headers = dict(
+            (str(key).lower(), str(value))
+            for key, value in additional_headers.items())
 
         # Remove forbidden keys
         for forbidden in self.readonly_headers:
@@ -338,10 +353,65 @@ class TransportMixIn(object):
         # Reversed order: in the case of multiple headers value definition,
         # the latest pushed has priority
         for key, value in additional_headers.items():
-            key = str(key)
-            if key.lower() not in self.readonly_headers:
-                # Only accept replaceable headers
-                connection.putheader(str(key), str(value))
+            connection.putheader(key, value)
+
+        return additional_headers
+
+    def single_request(self, host, handler, request_body, verbose=0):
+        """
+        Send a complete request, and parse the response.
+
+        From xmlrpclib in Python 2.7
+
+        :param host: Target host.
+        :param handler: Target RPC handler.
+        :param request_body: JSON-RPC request body.
+        :param verbose: Debugging flag.
+        :return: Parsed response.
+        """
+        connection = self.make_connection(host)
+        try:
+            self.send_request(connection, handler, request_body, verbose)
+            self.send_content(connection, request_body)
+
+            response = connection.getresponse()
+            if response.status == 200:
+                self.verbose = verbose
+                return self.parse_response(response)
+        except:
+            # All unexpected errors leave connection in
+            # a strange state, so we clear it.
+            self.close()
+            raise
+
+        # Discard any response data and raise exception
+        if response.getheader("content-length", 0):
+            response.read()
+        raise ProtocolError(host + handler,
+                            response.status, response.reason,
+                            response.msg)
+
+    def send_request(self, connection, handler, request_body, debug=0):
+        """
+        Send HTTP request.
+
+        From xmlrpc.client in Python 3.4
+
+        :param connection: Connection handle.
+        :param handler: Target RPC handler (a path relative to host)
+        :param request_body: The JSON-RPC request body
+        :param debug: Enable debugging if debug is true.
+        :return: An HTTPConnection.
+        """
+        if debug:
+            connection.set_debuglevel(1)
+        if self.accept_gzip_encoding and gzip:
+            connection.putrequest("POST", handler, skip_accept_encoding=True)
+            connection.putheader("Accept-Encoding", "gzip")
+        else:
+            connection.putrequest("POST", handler)
+
+        return connection
 
     def send_content(self, connection, request_body):
         """
@@ -359,13 +429,18 @@ class TransportMixIn(object):
         connection.putheader("Content-Length", str(len(request_body)))
 
         # Emit additional headers here in order not to override content-length
-        self.emit_additional_headers(connection)
+        additional_headers = self.emit_additional_headers(connection)
+
+        # Add the user agent, if not overridden
+        if "user-agent" not in additional_headers:
+            connection.putheader("User-Agent", self.user_agent)
 
         connection.endheaders()
         if request_body:
             connection.send(request_body)
 
-    def getparser(self):
+    @staticmethod
+    def getparser():
         """
         Create an instance of the parser, and attach it to an unmarshalling
         object. Return both objects.
@@ -380,40 +455,102 @@ class Transport(TransportMixIn, XMLTransport):
     """
     Mixed-in HTTP transport
     """
-
-    # adds timeout usage from TransportMixIn
-    def make_connection(self, host):
-        if self._connection and host == self._connection[0]:
-            return self._connection[1]
-
-        chost, self._extra_headers, x509 = self.get_host_info(host)
-        self._connection = host, HTTPConnection(chost, **self._timeout_kw)
-        return self._connection[1]
+    def __init__(self, config):
+        TransportMixIn.__init__(self, config)
+        XMLTransport.__init__(self)
 
 
 class SafeTransport(TransportMixIn, XMLSafeTransport):
     """
     Mixed-in HTTPS transport
     """
+    def __init__(self, config, context):
+        TransportMixIn.__init__(self, config, context)
+        try:
+            # Give the context to XMLSafeTransport, to avoid it setting the
+            # context to None.
+            # See https://github.com/tcalmant/jsonrpclib/issues/39
+            XMLSafeTransport.__init__(self, context=context)
+        except TypeError:
+            # On old versions of Python (Pre-2014), the context argument
+            # wasn't available
+            XMLSafeTransport.__init__(self)
 
-    # adds timeout usage from TransportMixIn
+# ------------------------------------------------------------------------------
+
+
+class UnixHTTPConnection(HTTPConnection):
+    """
+    Replaces the connect() method of HTTPConnection to use a Unix socket
+    """
+    def __init__(self, path, *args, **kwargs):
+        """
+        Constructs the HTTP connection.
+
+        Forwards all given arguments except ``path`` to the constructor of
+        HTTPConnection
+
+        :param path: Path to the Unix socket
+        """
+        HTTPConnection.__init__(self, path, *args, **kwargs)
+        self.path = path
+
+    def connect(self):
+        """
+        Connects to the described server
+        """
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(self.path)
+
+
+class UnixTransport(TransportMixIn, XMLTransport):
+    """
+    Mixed-in HTTP transport over a UNIX socket
+    """
+    def __init__(self, config, path=None):
+        """
+        :param config: The jsonrpclib configuration
+        :param path: Path to the Unix socket (overrides the host name later)
+        """
+        TransportMixIn.__init__(self, config)
+        XMLTransport.__init__(self)
+        # Keep track of the given path, if any
+        self.__unix_path = os.path.abspath(path) if path else None
+
     def make_connection(self, host):
-        if not HTTPSConnection:
-            raise Exception('Your Python does not have HTTPSConnection!')
+        """
+        Connect to server.
+
+        Return an existing connection if possible.
+        This allows HTTP/1.1 keep-alive.
+
+        Code copied from xmlrpc.client (Python 3)
+
+        :param host: Target host (ignored if a path was given)
+        :return A UnixHTTPConnection object
+        """
+        if self.__unix_path:
+            host = self.__unix_path
+
         if self._connection and host == self._connection[0]:
             return self._connection[1]
 
-        chost, self._extra_headers, x509 = self.get_host_info(host)
-        kw = {}
-        kw.update(self._timeout_kw)
-        kw.update(x509)
-        if sys.version_info[0] < 3:
-            self._connection = host, HTTPSConnection(chost, None, **kw)
-        else:
-            self._connection = host, HTTPSConnection(chost, None, context=self.context, **kw)
+        # create a HTTP connection object from a host descriptor
+        path, self._extra_headers, _ = self.get_host_info(host)
+        self._connection = host, UnixHTTPConnection(path)
         return self._connection[1]
 
 # ------------------------------------------------------------------------------
+
+def patch_transport_timeout(transport, timeout):
+    orig_make_connection = transport.make_connection
+    @wraps(orig_make_connection)
+    def make_connection_timeout(host):
+        connection = orig_make_connection(host)
+        assert hasattr(connection, 'timeout'), 'Connection %s does not have timeout attribute' % connection.__class__.__name__
+        connection.timeout = timeout
+        return connection
+    transport.make_connection = make_connection_timeout
 
 
 class ServerProxy(XMLServerProxy):
@@ -423,7 +560,7 @@ class ServerProxy(XMLServerProxy):
     """
     def __init__(self, uri, transport=None, encoding=None,
                  verbose=0, version=None, headers=None, history=None,
-                 config=jsonrpclib.config.DEFAULT, context=None, timeout = None):
+                 config=jsonrpclib.config.DEFAULT, context=None, timeout=None):
         """
         Sets up the server proxy
 
@@ -442,21 +579,46 @@ class ServerProxy(XMLServerProxy):
         self.__version = version or config.version
 
         schema, uri = splittype(uri)
+        use_unix = False
+        if schema.startswith("unix+"):
+            schema = schema[len("unix+"):]
+            use_unix = True
+
         if schema not in ('http', 'https'):
             _logger.error("jsonrpclib only support http(s) URIs, not %s",
                           schema)
             raise IOError('Unsupported JSON-RPC protocol.')
 
         self.__host, self.__handler = splithost(uri)
-        if not self.__handler:
+        if use_unix:
+            unix_path = self.__handler
+            self.__handler = '/'
+        elif not self.__handler:
             # Not sure if this is in the JSON spec?
             self.__handler = '/'
 
         if transport is None:
-            if schema == 'https':
-                transport = SafeTransport(config=config, context=context, timeout = timeout)
+            if use_unix:
+                if schema == "http":
+                    # In Unix mode, we use the path part of the URL (handler)
+                    # as the path to the socket file
+                    transport = UnixTransport(
+                        config=config, path=unix_path
+                    )
+            elif schema == 'https':
+                transport = SafeTransport(config=config, context=context)
             else:
-                transport = Transport(config=config, timeout = timeout)
+                transport = Transport(config=config)
+
+            if transport is None:
+                raise IOError(
+                    "Unhandled combination: UNIX={}, protocol={}"
+                    .format(use_unix, schema)
+                )
+
+        if timeout is not None:
+            patch_transport_timeout(transport, timeout)
+
         self.__transport = transport
 
         self.__encoding = encoding
@@ -533,6 +695,9 @@ class ServerProxy(XMLServerProxy):
         """
         Returns a callable object to call the remote service
         """
+        if name.startswith("__") and name.endswith("__"):
+            # Don't proxy special methods.
+            raise AttributeError("ServerProxy has no attribute '%s'" % name)
         # Same as original, just with new _Method reference
         return _Method(self._request, name)
 
@@ -540,11 +705,7 @@ class ServerProxy(XMLServerProxy):
         """
         Closes the transport layer
         """
-        try:
-            self.__transport.close()
-        except AttributeError:
-            # Not available in Python 2.6
-            pass
+        self.__transport.close()
 
     def __call__(self, attr):
         """
@@ -555,7 +716,6 @@ class ServerProxy(XMLServerProxy):
         """
         if attr == "close":
             return self.__close
-
         elif attr == "transport":
             return self.__transport
 
@@ -610,6 +770,13 @@ class _Method(XML_Method):
         if name == "__name__":
             return self.__name
         return _Method(self.__send, "{0}.{1}".format(self.__name, name))
+
+    def __repr__(self):
+        """
+        Returns a string representation of the method
+        """
+        # Must use __class__ here because the base class is old-style.
+        return "<{0} {1}>".format(self.__class__, self.__name)
 
 
 class _Notify(object):
@@ -717,7 +884,8 @@ class MultiCallIterator(object):
         """
         self.results = results
 
-    def __get_result(self, item):
+    @staticmethod
+    def __get_result(item):
         """
         Checks for error and returns the "real" result stored in a MultiCall
         result.
@@ -731,7 +899,10 @@ class MultiCallIterator(object):
         """
         for item in self.results:
             yield self.__get_result(item)
-        raise StopIteration
+
+        # Since Python 3.7, we must return instead of raising a StopIteration
+        # (see PEP-479)
+        return
 
     def __getitem__(self, i):
         """
@@ -912,7 +1083,7 @@ class Payload(object):
         :param params: Method parameters
         :return: A JSON-RPC request dictionary
         """
-        if not isinstance(method, utils.string_types):
+        if not isinstance(method, utils.STRING_TYPES):
             raise ValueError('Method name must be a string.')
 
         if not self.id:
@@ -969,6 +1140,7 @@ class Payload(object):
 
         :param code: Error code
         :param message: Error message
+        :param data: Extra data to associate to the error
         :return: A JSON-RPC error dictionary
         """
         error = self.response()
@@ -1010,7 +1182,7 @@ def dump(params=None, methodname=None, rpcid=None, version=None,
     if is_response:
         valid_params.append(type(None))
 
-    if isinstance(methodname, utils.string_types) and \
+    if isinstance(methodname, utils.STRING_TYPES) and \
             not isinstance(params, tuple(valid_params)):
         """
         If a method, and params are not in a listish or a Fault,
@@ -1027,7 +1199,7 @@ def dump(params=None, methodname=None, rpcid=None, version=None,
         # pylint: disable=E1103
         return payload.error(params.faultCode, params.faultString, params.data)
 
-    if not isinstance(methodname, utils.string_types) and not is_response:
+    if not isinstance(methodname, utils.STRING_TYPES) and not is_response:
         # Neither a request nor a response
         raise ValueError('Method name must be a string, or is_response '
                          'must be set to True.')

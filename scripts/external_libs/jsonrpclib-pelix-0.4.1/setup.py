@@ -4,13 +4,13 @@
 Installation script
 
 :authors: Josh Marshall, Thomas Calmant
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -26,15 +26,13 @@ Installation script
 """
 
 # Module version
-__version_info__ = (0, 2, 5)
+__version_info__ = (0, 4, 1)
 __version__ = ".".join(str(x) for x in __version_info__)
 
 # Documentation strings format
 __docformat__ = "restructuredtext en"
 
 # ------------------------------------------------------------------------------
-
-import sys
 
 try:
     from setuptools import setup
@@ -43,6 +41,10 @@ except ImportError:
 
 # ------------------------------------------------------------------------------
 
+# Read the description file
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name="jsonrpclib-pelix",
     version=__version__,
@@ -50,25 +52,25 @@ setup(
     author="Thomas Calmant",
     author_email="thomas.calmant+github@gmail.com",
     url="http://github.com/tcalmant/jsonrpclib/",
-    description=
-    "This project is an implementation of the JSON-RPC v2.0 specification "
-    "(backwards-compatible) as a client library, for Python 2.6+ and Python 3."
-    "This version is a fork of jsonrpclib by Josh Marshall, "
-    "usable with Pelix remote services.",
-    long_description=open("README.rst").read(),
+    description="This project is an implementation of the JSON-RPC v2.0 "
+    "specification (backwards-compatible) as a client library, for Python 2.7 "
+    "and Python 3. This version is a fork of jsonrpclib by Josh Marshall, "
+    "made to be also usable with Pelix/iPOPO remote services.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=["jsonrpclib"],
+    test_suite="tests",
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python :: 2.6',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.0',
-        'Programming Language :: Python :: 3.1',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4'],
-    tests_require=['unittest2'] if sys.version_info < (2, 7) else []
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+    ],
 )
