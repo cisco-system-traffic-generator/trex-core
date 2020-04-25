@@ -1406,7 +1406,7 @@ elif march == 'ppc64le':
 
 client_external_libs = [
         'simple_enum',
-        'jsonrpclib-pelix-0.2.5',
+        'jsonrpclib-pelix-0.4.1',
         'pyyaml-3.11',
         'pyzmq-ctypes',
         'scapy-2.3.1',
