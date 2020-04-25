@@ -3,13 +3,13 @@
 """
 The configuration module.
 
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -24,16 +24,16 @@ The configuration module.
     limitations under the License.
 """
 
+import sys
+
+# ------------------------------------------------------------------------------
+
 # Module version
-__version_info__ = (0, 2, 5)
+__version_info__ = (0, 4, 1)
 __version__ = ".".join(str(x) for x in __version_info__)
 
 # Documentation strings format
 __docformat__ = "restructuredtext en"
-
-# ------------------------------------------------------------------------------
-
-import sys
 
 # ------------------------------------------------------------------------------
 
@@ -49,9 +49,7 @@ class LocalClasses(dict):
         :param cls: A class
         :param name: Custom name used in the __jsonclass__ attribute
         """
-        if not name:
-            name = cls.__name__
-        self[name] = cls
+        self[name or cls.__name__] = cls
 
 # ------------------------------------------------------------------------------
 
@@ -100,8 +98,8 @@ class Config(object):
         # Default user agent
         if user_agent is None:
             user_agent = 'jsonrpclib/{0} (Python {1})'.format(
-                __version__, '.'.join(str(ver)
-                                      for ver in sys.version_info[0:3]))
+                __version__,
+                '.'.join(str(ver) for ver in sys.version_info[0:3]))
         self.user_agent = user_agent
 
         # The list of classes to use for jsonclass translation.

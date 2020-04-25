@@ -6,7 +6,7 @@ import os
 _ext_libs = [ {'name': 'simple_enum'},
               {'name': 'pyyaml-3.11', 'py-dep': True},
               {'name': 'pyzmq-ctypes'},
-              {'name': 'jsonrpclib-pelix-0.2.5'},
+              {'name': 'jsonrpclib-pelix-0.4.1'},
               {'name': 'termstyle'},
               {'name': 'netstat'}
             ]

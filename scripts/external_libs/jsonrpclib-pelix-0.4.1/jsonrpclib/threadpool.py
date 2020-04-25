@@ -4,13 +4,13 @@
 Cached thread pool, inspired from Pelix/iPOPO Thread Pool
 
 :author: Thomas Calmant
-:copyright: Copyright 2015, isandlaTech
+:copyright: Copyright 2020, Thomas Calmant
 :license: Apache License 2.0
-:version: 0.2.5
+:version: 0.4.1
 
 ..
 
-    Copyright 2015 isandlaTech
+    Copyright 2020 Thomas Calmant
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -25,15 +25,6 @@ Cached thread pool, inspired from Pelix/iPOPO Thread Pool
     limitations under the License.
 """
 
-# Documentation strings format
-__docformat__ = "restructuredtext en"
-
-# Module version
-__version_info__ = (0, 2, 5)
-__version__ = ".".join(str(x) for x in __version_info__)
-
-# ------------------------------------------------------------------------------
-
 # Standard library
 import logging
 import threading
@@ -46,6 +37,15 @@ except ImportError:
     # Python 2
     # pylint: disable=F0401
     import Queue as queue
+
+# ------------------------------------------------------------------------------
+
+# Module version
+__version_info__ = (0, 4, 1)
+__version__ = ".".join(str(x) for x in __version_info__)
+
+# Documentation strings format
+__docformat__ = "restructuredtext en"
 
 # ------------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ class EventData(object):
         :return: True if the event as been set, else False
         """
         # The 'or' part is for Python 2.6
-        result = self.__event.wait(timeout) or self.__event.is_set()
+        result = self.__event.wait(timeout)
         # pylint: disable=E0702
         # Pylint seems to miss the "is None" check below
         if self.__exception is None:
@@ -284,9 +284,11 @@ class ThreadPool(object):
         # Thread count
         self._thread_id = 0
 
-        # Current number of threads, active and alive
+        # Current number of threads, active and alive,
+        # and number of task waiting
         self.__nb_threads = 0
         self.__nb_active_threads = 0
+        self.__nb_pending_task = 0
 
     def start(self):
         """
@@ -303,13 +305,17 @@ class ThreadPool(object):
         nb_pending_tasks = self._queue.qsize()
         if nb_pending_tasks > self._max_threads:
             nb_threads = self._max_threads
+            nb_pending_tasks = self._max_threads
         elif nb_pending_tasks < self._min_threads:
             nb_threads = self._min_threads
         else:
             nb_threads = nb_pending_tasks
 
         # Create the threads
-        for _ in range(nb_threads):
+        for _ in range(nb_pending_tasks):
+            self.__nb_pending_task += 1
+            self.__start_thread()
+        for _ in range(nb_threads-nb_pending_tasks):
             self.__start_thread()
 
     def __start_thread(self):
@@ -331,9 +337,14 @@ class ThreadPool(object):
 
             thread = threading.Thread(target=self.__run, name=name)
             thread.daemon = True
-            self._threads.append(thread)
-            thread.start()
-            return True
+            try:
+                self.__nb_threads += 1
+                thread.start()
+                self._threads.append(thread)
+                return True
+            except (RuntimeError, OSError):
+                self.__nb_threads -= 1
+                return False
 
     def stop(self):
         """
@@ -393,8 +404,9 @@ class ThreadPool(object):
             # Add the task to the queue
             self._queue.put((method, args, kwargs, future), True,
                             self._timeout)
+            self.__nb_pending_task += 1
 
-            if self.__nb_active_threads == self.__nb_threads:
+            if self.__nb_pending_task > self.__nb_threads:
                 # All threads are taken: start a new one
                 self.__start_thread()
 
@@ -442,49 +454,62 @@ class ThreadPool(object):
         """
         The main loop
         """
-        with self.__lock:
-            self.__nb_threads += 1
-
-        while not self._done_event.is_set():
-            try:
-                # Wait for an action (blocking)
-                task = self._queue.get(True, self._timeout)
-                if task is self._done_event:
-                    # Stop event in the queue: get out
-                    self._queue.task_done()
-                    with self.__lock:
-                        self.__nb_threads -= 1
-                        return
-            except queue.Empty:
-                # Nothing to do yet
-                pass
-            else:
-                with self.__lock:
-                    self.__nb_active_threads += 1
-
-                # Extract elements
-                method, args, kwargs, future = task
+        already_cleaned = False
+        try:
+            while not self._done_event.is_set():
                 try:
-                    # Call the method
-                    future.execute(method, args, kwargs)
-                except Exception as ex:
-                    self._logger.exception("Error executing %s: %s",
-                                           method.__name__, ex)
-                finally:
-                    # Mark the action as executed
-                    self._queue.task_done()
+                    # Wait for an action (blocking)
+                    task = self._queue.get(True, self._timeout)
+                    if task is self._done_event:
+                        # Stop event in the queue: get out
+                        self._queue.task_done()
+                        return
+                except queue.Empty:
+                    # Nothing to do yet
+                    pass
+                else:
+                    with self.__lock:
+                        self.__nb_active_threads += 1
+                    # Extract elements
+                    method, args, kwargs, future = task
+                    try:
+                        # Call the method
+                        future.execute(method, args, kwargs)
+                    except Exception as ex:
+                        self._logger.exception("Error executing %s: %s",
+                                               method.__name__, ex)
+                    finally:
+                        # Mark the action as executed
+                        self._queue.task_done()
 
-                    # Thread is not active anymore
-                    self.__nb_active_threads -= 1
+                        # Thread is not active anymore
+                        with self.__lock:
+                            self.__nb_pending_task -= 1
+                            self.__nb_active_threads -= 1
 
-            # Clean up thread if necessary
+                # Clean up thread if necessary
+                with self.__lock:
+                    extra_threads = self.__nb_threads - self.__nb_active_threads
+                    if self.__nb_threads > self._min_threads \
+                            and extra_threads > self._queue.qsize():
+                        # No more work for this thread
+                        # if there are more non active_thread than task
+                        # and we're above the  minimum number of threads:
+                        # stop this one
+                        self.__nb_threads -= 1
+
+                        # To avoid a race condition: decrease the number of
+                        # threads here and mark it as already accounted for
+                        already_cleaned = True
+                        return
+        finally:
+            # Always clean up
             with self.__lock:
-                if self.__nb_threads > self._min_threads:
-                    # No more work for this thread, and we're above the
-                    # minimum number of threads: stop this one
-                    self.__nb_threads -= 1
-                    return
+                # Thread stops: clean up references
+                try:
+                    self._threads.remove(threading.current_thread())
+                except ValueError:
+                    pass
 
-        with self.__lock:
-            # Thread stops
-            self.__nb_threads -= 1
+                if not already_cleaned:
+                    self.__nb_threads -= 1

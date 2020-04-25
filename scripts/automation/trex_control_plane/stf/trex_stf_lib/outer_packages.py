@@ -10,7 +10,7 @@ SCRIPTS_PATH = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, 
 
 CLIENT_MODULES = [
                   'simple_enum',
-                  'jsonrpclib-pelix-0.2.5',
+                  'jsonrpclib-pelix-0.4.1',
 #                  'termstyle',
 #                  'yaml-3.11'
                   ]
