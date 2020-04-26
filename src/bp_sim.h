@@ -2993,7 +2993,6 @@ class CEmulAppProgram;
 class CMbufBuffer;
 class CTcpCtxCb;
 class CSyncBarrier;
-class CAstfDB;
 
 class CFlowGenListPerThread {
 
@@ -3232,10 +3231,8 @@ public:
     double tcp_get_tw_tick_in_sec();
 
     void Create_tcp_ctx();
-    void load_tcp_profile(profile_id_t profile_id, bool is_first, CAstfDB* astf_db);
-    void load_tcp_profile();
-    void unload_tcp_profile(profile_id_t profile_id, bool is_last, CAstfDB* astf_db);
-    void unload_tcp_profile();
+    void load_tcp_profile(profile_id_t profile_id = 0, bool is_first = true);
+    void unload_tcp_profile(profile_id_t profile_id = 0, bool is_last = true);
     void remove_tcp_profile(profile_id_t profile_id);
     void Delete_tcp_ctx();
 

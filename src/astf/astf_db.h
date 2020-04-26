@@ -411,9 +411,7 @@ class CAstfDB  : public CTRexDummyCommand  {
 
  public:
     // make the class singelton
-    static CAstfDB *get_instance(profile_id_t profile_id);
-    static CAstfDB *instance(profile_id_t profile_id);
-    static CAstfDB *instance();
+    static CAstfDB *instance(profile_id_t profile_id = 0);
 
     static void free_instance(profile_id_t profile_id = 0);
 
@@ -426,10 +424,8 @@ class CAstfDB  : public CTRexDummyCommand  {
         return m_topo_mngr;
     }
 
+    CAstfDB();
     virtual ~CAstfDB();
-
-    void Create();
-    void Delete();
 
     /***************************/
 

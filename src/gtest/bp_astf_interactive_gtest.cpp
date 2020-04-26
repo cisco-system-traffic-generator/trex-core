@@ -175,13 +175,12 @@ TEST_F(gt_astf_inter, astf_positive_7) {
 
     profile_id_t profile_id_1 = 0x12345678;
 
-    lpastf = CAstfDB::get_instance(profile_id_1);
-    lpastf->Create();
+    lpastf = CAstfDB::instance(profile_id_1);
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");
     EXPECT_EQ(success, true);
 
     try {
-        lpt->load_tcp_profile(profile_id_1, true, lpastf); // DB 1 loaded
+        lpt->load_tcp_profile(profile_id_1); // DB 1 loaded
         success = true;
     } catch (const TrexException &ex) {
         std::cerr << "ERROR in ASTF object creation: " << ex.what();
@@ -189,10 +188,10 @@ TEST_F(gt_astf_inter, astf_positive_7) {
     }
     EXPECT_EQ(success, true);
 
-    lpt->unload_tcp_profile(profile_id_1, true, lpastf);
+    lpt->unload_tcp_profile(profile_id_1);
 
     try {
-        lpt->load_tcp_profile(profile_id_1, true, lpastf); // DB 1 loaded
+        lpt->load_tcp_profile(profile_id_1); // DB 1 loaded
         success = true;
     } catch (const TrexException &ex) {
         std::cerr << "ERROR in ASTF object creation: " << ex.what();
@@ -202,17 +201,16 @@ TEST_F(gt_astf_inter, astf_positive_7) {
 
     profile_id_t profile_id_2 = 0xfedcba98;
 
-    lpastf = CAstfDB::get_instance(profile_id_2);
-    lpastf->Create();
+    lpastf = CAstfDB::instance(profile_id_2);
     success = lpastf->parse_file("automation/regression/data/astf_dns.json");
     EXPECT_EQ(success, true);
 
     try {
-        lpt->load_tcp_profile(profile_id_2, false, lpastf); // DB 1 loaded again
+        lpt->load_tcp_profile(profile_id_2); // DB 1 loaded again
         success = true;
     } catch (const TrexException &ex) {
         std::cerr << "ERROR (as expected) in ASTF object creation: " << ex.what();
-        lpt->unload_tcp_profile(profile_id_2, false, lpastf);
+        lpt->unload_tcp_profile(profile_id_2);
         success = false;
     }
     EXPECT_EQ(success, false);
@@ -222,7 +220,7 @@ TEST_F(gt_astf_inter, astf_positive_7) {
     EXPECT_EQ(success, true);
 
     try {
-        lpt->load_tcp_profile(profile_id_2, true, lpastf); // DB 2 loaded
+        lpt->load_tcp_profile(profile_id_2); // DB 2 loaded
         success = true;
     } catch (const TrexException &ex) {
         std::cerr << "ERROR in ASTF object creation: " << ex.what();
@@ -232,11 +230,11 @@ TEST_F(gt_astf_inter, astf_positive_7) {
 
     /* TODO: run simulation of traffic here with --nc */
 
-    lpt->unload_tcp_profile(profile_id_1, false, CAstfDB::instance(profile_id_1));
-    lpt->unload_tcp_profile(profile_id_2, true, CAstfDB::instance(profile_id_2));
+    lpt->unload_tcp_profile(profile_id_1);
+    lpt->unload_tcp_profile(profile_id_2);
 
-    CAstfDB::free_instance(profile_id_1);
-    CAstfDB::free_instance(profile_id_2);
+    lpastf->free_instance(profile_id_1);
+    lpastf->free_instance(profile_id_2);
     fl.clean_p_thread_info();
     fl.Delete();
 }
