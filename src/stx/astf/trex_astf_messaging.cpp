@@ -111,52 +111,49 @@ TrexCpToDpMsgBase* TrexAstfDpUpdate::clone() {
 /*************************
   create tcp batch
  ************************/
-TrexAstfDpCreateTcp::TrexAstfDpCreateTcp(profile_id_t profile_id, double factor, CAstfDB* astf_db) {
+TrexAstfDpCreateTcp::TrexAstfDpCreateTcp(profile_id_t profile_id, double factor) {
     m_profile_id = profile_id;
     m_factor = factor;
-    m_astf_db = astf_db;
 }
 
 bool TrexAstfDpCreateTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->create_tcp_batch(m_profile_id, m_factor, m_astf_db);
+    astf_core(dp_core)->create_tcp_batch(m_profile_id, m_factor);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpCreateTcp::clone() {
-    return new TrexAstfDpCreateTcp(m_profile_id, m_factor, m_astf_db);
+    return new TrexAstfDpCreateTcp(m_profile_id, m_factor);
 }
 
 /*************************
   delete tcp batch
  ************************/
-TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db) {
+TrexAstfDpDeleteTcp::TrexAstfDpDeleteTcp(profile_id_t profile_id, bool do_remove) {
     m_profile_id = profile_id;
     m_do_remove = do_remove;
-    m_astf_db = astf_db;
 }
 
 bool TrexAstfDpDeleteTcp::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->delete_tcp_batch(m_profile_id, m_do_remove, m_astf_db);
+    astf_core(dp_core)->delete_tcp_batch(m_profile_id, m_do_remove);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
-    return new TrexAstfDpDeleteTcp(m_profile_id, m_do_remove, m_astf_db);
+    return new TrexAstfDpDeleteTcp(m_profile_id, m_do_remove);
 }
 
 
 /*************************
   parse ASTF JSON from string
  ************************/
-TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB* astf_db) {
+TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer) {
     m_profile_id     = profile_id;
     m_profile_buffer = profile_buffer;
     m_topo_buffer    = topo_buffer;
-    m_astf_db        = astf_db;
 }
 
 bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer, m_astf_db);
+    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer);
     return true;
 }
 
@@ -168,13 +165,12 @@ TrexCpToDpMsgBase* TrexAstfLoadDB::clone() {
 /*************************
   remove ASTF JSON and DB
  ************************/
-TrexAstfDeleteDB::TrexAstfDeleteDB(profile_id_t profile_id, CAstfDB* astf_db) {
+TrexAstfDeleteDB::TrexAstfDeleteDB(profile_id_t profile_id) {
     m_profile_id     = profile_id;
-    m_astf_db        = astf_db;
 }
 
 bool TrexAstfDeleteDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->remove_astf_json(m_profile_id, m_astf_db);
+    astf_core(dp_core)->remove_astf_json(m_profile_id);
     return true;
 }
 

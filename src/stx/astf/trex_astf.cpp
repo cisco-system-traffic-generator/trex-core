@@ -395,9 +395,7 @@ void TrexAstf::profile_clear(cp_profile_id_t profile_id){
     if (pid->get_profile_state() == STATE_LOADED) {
         pid->profile_change_state(STATE_DELETE);
 
-        auto dp_profile_id = pid->get_dp_profile_id();
-        auto astf_db = CAstfDB::instance(dp_profile_id);
-        TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(dp_profile_id, astf_db);
+        TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(pid->get_dp_profile_id());
         send_message_to_dp(0, msg);
     }
     else { // STATE_IDLE
@@ -911,16 +909,14 @@ void TrexAstfPerProfile::parse() {
 
     profile_change_state(STATE_PARSE);
 
-    auto astf_db = CAstfDB::get_instance(m_dp_profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db);
+    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo);
     m_astf_obj->send_message_to_dp(0, msg);
 }
 
 void TrexAstfPerProfile::build() {
     profile_change_state(STATE_BUILD);
 
-    auto astf_db = CAstfDB::instance(m_dp_profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor, astf_db);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor);
     m_astf_obj->send_message_to_all_dp(msg);
 }
 
@@ -954,8 +950,7 @@ void TrexAstfPerProfile::cleanup() {
 
     m_astf_obj->handle_stop_latency();
 
-    auto astf_db = CAstfDB::instance(m_dp_profile_id);
-    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id, false, astf_db);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id, false);
     m_astf_obj->send_message_to_all_dp(msg);
 }
 
@@ -984,7 +979,6 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
             profile_change_state(STATE_LOADED);
             break;
         case STATE_DELETE:
-            CAstfDB::free_instance(m_dp_profile_id);
             publish_astf_profile_clear();
             {
                 auto astf = m_astf_obj;
