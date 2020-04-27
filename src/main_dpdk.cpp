@@ -7170,6 +7170,7 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
     bool            single_port;
 
     dir         = node->cur_interface_dir();
+    odir  = dir;
     single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
 
 
@@ -7197,7 +7198,6 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
 
         add_vlan(m, vlan_id);
     }
-    odir  = dir;
 
     if (single_port){
         odir = node->cur_pkt_port_addr_dir();
