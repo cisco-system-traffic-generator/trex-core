@@ -25,29 +25,30 @@ limitations under the License.
 #include "trex_messaging.h"
 #include "trex_defs.h"
 
+class CAstfDB;
 
 // create tcp batch per DP core
 class TrexAstfDpCreateTcp : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpCreateTcp(profile_id_t profile_id, double factor);
-    TrexAstfDpCreateTcp() : TrexAstfDpCreateTcp(0, -1) {}
+    TrexAstfDpCreateTcp(profile_id_t profile_id, double factor, CAstfDB* astf_db);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     profile_id_t m_profile_id;
     double m_factor;
+    CAstfDB* m_astf_db;
 };
 
 // delete tcp batch per DP core
 class TrexAstfDpDeleteTcp : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpDeleteTcp(profile_id_t profile_id, bool do_remove);
-    TrexAstfDpDeleteTcp() : TrexAstfDpDeleteTcp(0, false) {}
+    TrexAstfDpDeleteTcp(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     profile_id_t m_profile_id;
     bool m_do_remove;   // to remove profile context explicitly
+    CAstfDB* m_astf_db;
 };
 
 /**
@@ -57,7 +58,6 @@ private:
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
     TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc);
-    TrexAstfDpStart() : TrexAstfDpStart(0, -1, false) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
@@ -74,7 +74,6 @@ class TrexAstfDpStop : public TrexCpToDpMsgBase {
 public:
     TrexAstfDpStop(profile_id_t profile_id, uint32_t stop_id);
     TrexAstfDpStop(profile_id_t profile_id) : TrexAstfDpStop(profile_id, 0) {}
-    TrexAstfDpStop() : TrexAstfDpStop(0, 0) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
     virtual void on_node_remove();
@@ -105,7 +104,6 @@ private:
 class TrexAstfDpUpdate : public TrexCpToDpMsgBase {
 public:
     TrexAstfDpUpdate(profile_id_t profile_id, double old_new_ratio);
-    TrexAstfDpUpdate(double old_new_ratio) : TrexAstfDpUpdate(0, old_new_ratio) {}
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
@@ -119,14 +117,14 @@ private:
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer);
-    TrexAstfLoadDB(std::string *profile_buffer, std::string *topo_buffer) : TrexAstfLoadDB(0, profile_buffer, topo_buffer) {}
+    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     profile_id_t m_profile_id;
     std::string *m_profile_buffer;
     std::string *m_topo_buffer;
+    CAstfDB* m_astf_db;
 };
 
 /**
@@ -135,11 +133,12 @@ private:
  */
 class TrexAstfDeleteDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDeleteDB(profile_id_t profile_id);
+    TrexAstfDeleteDB(profile_id_t profile_id, CAstfDB* astf_db);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     profile_id_t m_profile_id;
+    CAstfDB* m_astf_db;
 };
 
 /**
