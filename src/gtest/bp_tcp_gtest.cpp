@@ -1294,17 +1294,7 @@ TEST_F(gt_tcp, tst32) {
 #include <common/closehash.h>
 
 
-TEST_F(gt_tcp, tst33) {
-    CFlowKeyTuple key;
-    key.dump(stdout);
-    key.set_ip(0x12345678);
-    key.set_port(1025);
-    key.set_proto(06);
-    key.set_ipv4(true);
-    key.dump(stdout);
-    printf(" %lx \n",(ulong)key.get_as_uint64());
-}
-
+#if 0
 #include <algorithm>
 #include <map>
 
@@ -1367,6 +1357,7 @@ int hash_func_test(uint32_t mask,int clients,int ports,chash_result & res){
     printf(" lookup factor %.1f %% \n",res.lookup_hit);
     return (0);
 }
+#endif
 
 #if 0
 
@@ -1413,7 +1404,7 @@ public:
     uint32_t        m_id;
 };
 
-
+#if 0
 TEST_F(gt_tcp, tst36) {
 
     test_hash_t   ht;
@@ -1493,6 +1484,7 @@ TEST_F(gt_tcp, tst37) {
 
     ht.Delete();
 }
+#endif
 
 class MyTestVirt {
 public:
