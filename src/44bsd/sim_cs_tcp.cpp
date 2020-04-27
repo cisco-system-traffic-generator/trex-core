@@ -582,10 +582,13 @@ int CClientServerTcp::test2(){
 
     c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,false);
     CFlowKeyTuple   c_tuple;
-    c_tuple.set_ip(0x10000001);
-    c_tuple.set_port(1025);
+    c_tuple.set_src_ip(0x10000001);
+    c_tuple.set_dst_ip(0x30000001);
+    c_tuple.set_dport(80);
+    c_tuple.set_sport(1025);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
+
 
     assert(m_c_ctx.m_ft.insert_new_flow(c_flow,c_tuple)==true);
 
@@ -1076,8 +1079,10 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
 
     c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,m_ipv6);
     CFlowKeyTuple   c_tuple;
-    c_tuple.set_ip(0x10000001);
-    c_tuple.set_port(1025);
+    c_tuple.set_src_ip(0x10000001);
+    c_tuple.set_sport(1025);
+    c_tuple.set_dst_ip(0x30000001);
+    c_tuple.set_dport(80);
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(m_ipv6?false:true);
 
@@ -1212,8 +1217,11 @@ int CClientServerTcp::fill_from_file() {
     c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),src_ip,dst_ip,src_port,dst_port,m_vlan,false, tg_id);
 
     CFlowKeyTuple c_tuple;
-    c_tuple.set_ip(src_ip);
-    c_tuple.set_port(src_port);
+    c_tuple.set_src_ip(src_ip);
+    c_tuple.set_sport(src_port);
+    c_tuple.set_dst_ip(dst_ip);
+    c_tuple.set_dport(dst_port);
+
     c_tuple.set_proto(6);
     c_tuple.set_ipv4(true);
 
