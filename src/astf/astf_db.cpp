@@ -80,6 +80,9 @@ CAstfDB* CAstfDB::get_instance(profile_id_t profile_id) {
     return m_instances[profile_id];
 }
 CAstfDB* CAstfDB::instance(profile_id_t profile_id) {
+    if (m_instances.find(profile_id) == m_instances.end()) {
+        return nullptr;
+    }
     return m_instances[profile_id];
 }
 
