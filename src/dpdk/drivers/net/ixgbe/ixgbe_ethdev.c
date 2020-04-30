@@ -1307,7 +1307,10 @@ eth_ixgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 	/* enable support intr */
 	ixgbe_enable_intr(eth_dev);
 
+#ifndef TREX_PATCH
+/* some SFP+ are sensetive to this */
 	ixgbe_dev_set_link_down(eth_dev);
+#endif 
 
 	/* initialize filter info */
 	memset(filter_info, 0,
