@@ -22,10 +22,10 @@ class Prof1():
             mac = Mac('00:00:00:70:00:01')
             ipv4 = Ipv4('1.1.5.2')
             dg = Ipv4('1.1.5.1')
-            u = "hhaim{}".format(i+1)
 
             # create a different client each time
             for i in range(clients_size):       
+                u = "hhaim{}".format(i+1)
                 client = EMUClientObj(mac     = mac[i].V(),
                                       ipv4    = ipv4[i].V(),
                                       ipv4_dg = dg.V(),

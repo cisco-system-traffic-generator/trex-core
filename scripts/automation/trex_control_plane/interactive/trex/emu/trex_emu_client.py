@@ -154,6 +154,20 @@ def conv_return_val_to_str(f):
 
     return inner
 
+def wait_for_pressed_key(msg):
+    """
+    Wait for enter key. Works with Python 2 & 3.
+    
+        :parameters:
+            msg: string
+                Message to show until user will press enter.
+    
+    """
+    try:
+        raw_input(msg)
+    except NameError:
+        input(msg)
+
 class EMUClient(object):
     """
         Request Response abstract client. Does not support Async events like TRex Client 
@@ -421,20 +435,6 @@ class EMUClient(object):
             raise TRexError(rc.err())
 
         return rc.data()
-    
-    def _wait_for_pressed_key(self, msg):
-        """
-        Wait for enter key. Works with Python 2 & 3.
-        
-            :parameters:
-                msg: string
-                    Message to show until user will press enter.
-        
-        """
-        try:
-            raw_input(msg)
-        except NameError:
-            input(msg)
 
     # Print table
     def _print_dict_as_table(self, data, title = None):
@@ -574,6 +574,27 @@ class EMUClient(object):
             res.extend(item)
         return res
 
+    def _yield_n_clients_for_ns(self, ns_key, amount = None):
+        """
+        Gets n namespaces. yield data, lazy approach.
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                amount: int
+                    Amount of namespaces to request each time, defaults to None means max as you can.
+
+            :yields:
+                list: List of `amount` EMUClientKeys in namespace.
+        """
+        ns_tunnel = ns_key.conv_to_dict(True)
+        res = self._yield_n_items(cmd = 'ctx_client_iter', amount = amount, **ns_tunnel)
+        for r in res:
+            c_keys = []
+            for mac in r:
+                c_keys.append(EMUClientKey(ns_key, mac))
+            yield c_keys
+
     def _get_n_ns(self, amount = None):
         """
         Gets n namespaces. yield data, lazy approach.
@@ -644,9 +665,7 @@ class EMUClient(object):
         EMUValidator.verify(ver_args)
 
         res = []
-        ns_fields = ns_key.conv_to_dict(False)
-        for c in self._yield_n_items(cmd = 'ctx_client_iter', amount = RECV_CHUNK_SIZE, tun = ns_fields):
-            c_keys = [EMUClientKey(ns_key, mac) for mac in c]
+        for c_keys in self._yield_n_clients_for_ns(ns_key, amount = RECV_CHUNK_SIZE):
             res.extend(c_keys)
         return res
 
@@ -794,7 +813,7 @@ class EMUClient(object):
             ns_infos = self.get_info_ns(ns_list)
 
             if ns_chunk_i != 0:
-                self._wait_for_pressed_key('Press Enter to see more namespaces')
+                wait_for_pressed_key('Press Enter to see more namespaces')
             
             for ns_i, ns_key in enumerate(ns_list):
                 glob_ns_num += 1
@@ -802,12 +821,11 @@ class EMUClient(object):
                 # print namespace table
                 self._print_ns_table(ns_infos[ns_i], ns_num = glob_ns_num)
 
-                c_gen = self._yield_n_items(cmd = 'ctx_client_iter', amount = max_c_show, tun = ns_key.conv_to_dict(False))
-                for c_i, c_mac in enumerate(c_gen):                    
+                c_gen = self._yield_n_clients_for_ns(ns_key, amount = max_c_show)
+                for c_i, c_keys in enumerate(c_gen):                    
                     first_iter = c_i == 0 
                     if not first_iter:
-                        self._wait_for_pressed_key("Press Enter to see more clients")
-                    c_keys = [EMUClientKey(ns_key, m) for m in c_mac]
+                        wait_for_pressed_key("Press Enter to see more clients")
                     clients = self.get_info_clients(c_keys)
                     # sort by mac address
                     clients.sort(key = lambda x: mac_str_to_num(mac2str(x['mac'])))
