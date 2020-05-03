@@ -269,7 +269,7 @@ class ASTFProgram(object):
     MAX_DELAY = 700000 
     MAX_KEEPALIVE = 500000 
 
-    def __init__(self, file=None, side="c", commands=None,stream=True):
+    def __init__(self, file=None, side="c", commands=None,stream=True, s_delay=None, udp_mtu=None):
         """
 
         :parameters:
@@ -284,11 +284,19 @@ class ASTFProgram(object):
 
                   stream    : bool
                      is stream based (TCP) or packet based (UDP)
+                    
+                  s_delay : ASTFCmdDelay or ASTFCmdDelayRnd see :class:`trex.astf.trex_astf_profile.ASTFCmdDelay` and :class:`trex.astf.trex_astf_profile.ASTFCmdDelayRnd`
+                      Server delay command before sending response back to client. This will override ASTFProfile s_delay if supplied. defaults to None means no delay.
+
+                  udp_mtu: int or None
+                      MTU for udp packets, if packets exceeding the specified value they will be cut down from L7 in order to fit. defaults to None.
         """
 
         ver_args = {"types":
                     [{"name": "file", 'arg': file, "t": str, "must": False},
                      {"name": "commands", 'arg': commands, "t": ASTFCmd, "must": False, "allow_list": True},
+                     {"name": "s_delay", 'arg': s_delay, "t": [ASTFCmdDelay, ASTFCmdDelayRnd], "must": False},
+                     {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         side_vals = ["c", "s"]
@@ -302,6 +310,8 @@ class ASTFProgram(object):
         self.fields['commands'] = []
         self.total_send_bytes = 0
         self.total_rcv_bytes = 0
+        self.udp_mtu = udp_mtu
+        self.s_delay = s_delay
         if file is not None:
             cap = pcap_reader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
@@ -313,9 +323,8 @@ class ASTFProgram(object):
                 self.stream=False
             
             self._create_cmds_from_cap(is_tcp,cap.pkts,cap.pkt_times,cap.pkt_dirs, side)
-        else:
-            if commands is not None:
-                self._set_cmds(listify(commands))
+        elif commands is not None:
+            self._set_cmds(listify(commands))
 
     def update_keepalive (self,prog_s):
         """ in case of pcap file need to copy the keepalive command from client to server side 
@@ -768,7 +777,14 @@ class ASTFProgram(object):
         else:
             assert len(cmds) == len(times)
             last_dir=None
+            non_l7_len = 14 + 20 + 8  # Ethernet, IP, UDP
+            if self.udp_mtu is not None:
+                assert self.udp_mtu > non_l7_len, 'udp_mtu cannot be smaller than 42! (sum of L2-4)'
+            max_payload_allowed = float('inf') if self.udp_mtu is None else self.udp_mtu - (non_l7_len)
             for cmd, time, dir in zip(cmds, times, dirs):
+                if len(cmd.payload) > max_payload_allowed:
+                    cmd.payload = cmd.payload[:max_payload_allowed]
+
                 if dir == init_side:
                     if last_dir == init_side:
                         dusec=int(time*1000000)
@@ -798,7 +814,24 @@ class ASTFProgram(object):
           new_cmds.append(ncmd)
         if max_delay> ASTFProgram.MAX_KEEPALIVE:
             new_cmds.insert(0,ASTFCmdKeepaliveMsg(max_delay*2))
+        if self.s_delay is not None and init_side == 's':
+            cmds = self._add_server_delay(cmds)
         self._set_cmds(new_cmds)
+
+    def _add_server_delay(self, cmds):
+        rx_cmds = ('rx', 'rx_msg')
+        tx_cmds = ('tx', 'tx_msg')
+        last_rx_cmd = None
+        new_cmds = []
+        for cmd in cmds:
+            curr_cmd = cmd.fields['name']
+            if curr_cmd in rx_cmds: 
+                last_rx_cmd = curr_cmd
+            if curr_cmd in tx_cmds and last_rx_cmd == curr_cmd.replace('tx', 'rx'):
+                new_cmds.append(self.s_delay)
+                last_rx_cmd = None
+            new_cmds.append(cmd)
+        return new_cmds
 
     def __compile(self):
         # update offsets for  ASTFCmdJMPNZ
@@ -1404,7 +1437,7 @@ class ASTFCapInfo(object):
     """
 
     def __init__(self, file=None, cps=None, assoc=None, ip_gen=None, port=None, l7_percent=None,
-                 s_glob_info=None, c_glob_info=None,limit=None, cont=None, tg_name=None):
+                 s_glob_info=None, c_glob_info=None,limit=None, cont=None, tg_name=None, s_delay=None, udp_mtu=None):
         """
         Define one template information based on pcap file analysis
 
@@ -1437,6 +1470,16 @@ class ASTFCapInfo(object):
 
                   c_glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
 
+                  tg_names : string or None
+                        All the templates within the tg_name (template group name) will have shared statistics. 
+                        All the templates that haven't defined tg_name are collected under the same group.
+
+                  s_delay : ASTFCmdDelay or ASTFCmdDelayRnd see :class:`trex.astf.trex_astf_profile.ASTFCmdDelay` and :class:`trex.astf.trex_astf_profile.ASTFCmdDelayRnd`
+                      Server delay command before sending response back to client. defaults to None means no delay.
+                  
+                  udp_mtu: int or None
+                      MTU for udp packets, if packets exceeding the specified value they will be cut down from L7 in order to fit. defaults to None.
+        
         """
 
         ver_args = {"types":
@@ -1447,7 +1490,10 @@ class ASTFCapInfo(object):
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "cont", 'arg': cont, "t": bool, "must": False},
                      {"name": "s_glob_info", 'arg': s_glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
-                     {"name": "tg_name", 'arg': tg_name, "t": str, "must": False}]}
+                     {"name": "tg_name", 'arg': tg_name, "t": str, "must": False},
+                     {"name": "s_delay", 'arg': s_delay, "t": [ASTFCmdDelay, ASTFCmdDelayRnd], "must": False},
+                     {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},
+                     ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         if l7_percent is not None:
@@ -1486,6 +1532,8 @@ class ASTFCapInfo(object):
         self.limit = limit
         self.cont = cont
         self.tg_name = tg_name
+        self.s_delay = s_delay
+        self.udp_mtu = udp_mtu
 
 class ASTFTemplate(object):
     """
@@ -1613,7 +1661,7 @@ class ASTFProfile(object):
     """
 
     def __init__(self, default_ip_gen, default_c_glob_info=None, default_s_glob_info=None,
-                 templates=None, cap_list=None):
+                 templates=None, cap_list=None, s_delay=None, udp_mtu=None):
         """
         Define a ASTF profile
 
@@ -1635,6 +1683,14 @@ class ASTFProfile(object):
 
                   cap_list  : ASTFCapInfo see :class:`trex.astf.trex_astf_profile.ASTFCapInfo`
                       define a list of pcap files list in case there is no templates
+
+                  s_delay : ASTFCmdDelay or ASTFCmdDelayRnd see :class:`trex.astf.trex_astf_profile.ASTFCmdDelay` and :class:`trex.astf.trex_astf_profile.ASTFCmdDelayRnd`
+                      Server delay command before sending response back to client.
+                      This will be applied on all cap in cap list, unless cap specified his own s_delay. defaults to None means no delay.
+                  
+                  udp_mtu: int or None
+                      MTU for udp packets, if packets exceeding the specified value they will be cut down from L7 in order to fit.
+                      This will be applied on all cap in cap list, unless cap specified his own udp_mtu. defaults to None.
         """
 
         ver_args = {"types":
@@ -1642,7 +1698,9 @@ class ASTFProfile(object):
                      {"name": "cap_list", 'arg': cap_list, "t": ASTFCapInfo, "allow_list": True, "must": False},
                      {"name": "default_ip_gen", 'arg': default_ip_gen, "t": ASTFIPGen},
                      {"name": "default_c_glob_info", 'arg': default_c_glob_info, "t": ASTFGlobalInfo, "must": False},
-                     {"name": "default_s_glob_info", 'arg': default_s_glob_info, "t": ASTFGlobalInfo, "must": False}]
+                     {"name": "default_s_glob_info", 'arg': default_s_glob_info, "t": ASTFGlobalInfo, "must": False},
+                    {"name": "s_delay", 'arg': s_delay, "t": [ASTFCmdDelay, ASTFCmdDelayRnd], "must": False},
+                    {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -1683,8 +1741,10 @@ class ASTFProfile(object):
                 ip_gen = cap.ip_gen if cap.ip_gen is not None else default_ip_gen
                 glob_c = cap.c_glob_info
                 glob_s = cap.s_glob_info
-                prog_c = ASTFProgram(file=cap_file, side="c")
-                prog_s = ASTFProgram(file=cap_file, side="s")
+                cap_udp_mtu = cap.udp_mtu if cap.udp_mtu is not None else udp_mtu
+                prog_c = ASTFProgram(file=cap_file, side="c", udp_mtu = cap_udp_mtu)
+                server_delay = cap.s_delay if cap.s_delay is not None else s_delay
+                prog_s = ASTFProgram(file=cap_file, side="s", udp_mtu = cap_udp_mtu, s_delay=server_delay)
                 prog_c.update_keepalive(prog_s)
 
                 tcp_c = _ASTFTCPInfo(file=cap_file)
