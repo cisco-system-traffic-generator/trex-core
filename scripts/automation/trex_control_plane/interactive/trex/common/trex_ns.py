@@ -10,7 +10,7 @@ import json
 from ..astf.arg_verify import ArgVerify
 from ..astf.trex_astf_exceptions import ASTFErrorBadIp
 from ..common.trex_exceptions import TRexError
-from ..common.trex_types import validate_type
+from ..common.trex_types import validate_type, listify
 
 class NSCmd(object):
     def __init__(self):
@@ -156,11 +156,12 @@ class NSCmds(object):
 
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"},
-                     {"name": "vlans", 'arg': vlans, "t": list}]
-                     }
-
+                     {"name": "vlans", 'arg': vlans, "t": int, 'allow_list': True},
+                     {"name": "tpids", 'arg': tpids, "t": int, 'allow_list': True, 'must': False}
+                     ]}
+        vlans = listify(vlans)
         if tpids is not None:
-            validate_type('tpids', tpids, list)
+            tpids = listify(tpids)
             if len(tpids) != len(vlans):
                 raise TRexError('Size of vlan tags %s must match tpids %s' % (vlans, tpids))
 
@@ -198,13 +199,15 @@ class NSCmds(object):
   
         if shared_ns:
             if subnet is None:
-                raise TRexError('Must specify subnet!')
+                raise TRexError('Must specify subnet for shared namespace!')
             ver_args['types'].append({"name": "subnet", 'arg': subnet, "t": int})
             cmd_args['subnet'] = subnet
             cmd_args['shared_ns'] = True
         else:
             if dg is None:
                 raise TRexError('Must specify default gateway!')
+            if subnet is not None:
+                raise TRexError('Must NOT specify subnet for non shared namespace!')
             ver_args['types'].append({"name": "dg", 'arg': dg, "t": "ip address"})
             cmd_args['dg'] = dg
         ArgVerify.verify(self.__class__.__name__, ver_args)

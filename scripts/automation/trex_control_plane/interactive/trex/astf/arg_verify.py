@@ -73,7 +73,7 @@ class ArgVerify(object):
                     raise ASTFErrorMissingParam(f_name, name)
                 else:
                     continue
-            if allow_list and isinstance(given_arg, list):
+            if allow_list and (isinstance(given_arg, list) or isinstance(given_arg, tuple)):
                 given_arg = given_arg[0]
             type_ok = False
             for one_type in needed_type:

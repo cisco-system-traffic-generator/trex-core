@@ -3025,7 +3025,7 @@ class TRexClient(object):
 
         if opts.off:
             self.conf_ipv6(opts.ports[0], False)
-        elif opts.auto:
+        elif opts.auto_ipv6:
             self.conf_ipv6(opts.ports[0], True)
         else:
             self.conf_ipv6(opts.ports[0], True, opts.src_ipv6)
@@ -3142,15 +3142,23 @@ class TRexClient(object):
 
 
     def _ns_add(self,opts):
+        port = opts.ports[0]
+        is_shared = opts.shared_ns is not None
+        cmds = NSCmds()
+        MAC = opts.mac
+        cmds.add_node(MAC, shared_ns = opts.shared_ns)
+        
+        if not is_shared:
+            cmds.set_ipv4(MAC, opts.src_ipv4, opts.dst_ipv4, opts.subnet, is_shared)
+        else:
+            cmds.set_ipv4(MAC, opts.src_ipv4, subnet = opts.subnet, shared_ns = is_shared)
+            cmds.set_dg(opts.shared_ns, opts.dst_ipv4)
 
-        port= opts.ports[0]
-
-        cmds=NSCmds()
-        MAC=opts.mac
-        cmds.add_node(MAC)
-        cmds.set_ipv4(MAC,opts.src_ipv4,opts.dst_ipv4)
-        if opts.ipv6:
-           cmds.set_ipv6(MAC,True)
+        if opts.vlan:
+            cmds.set_vlan(MAC, opts.vlan, opts.tpid)
+    
+        if opts.auto_ipv6:
+           cmds.set_ipv6(MAC, True, shared_ns = is_shared)
 
         self.set_namespace_start(port, cmds)
         self.wait_for_async_results(port);
@@ -3254,9 +3262,13 @@ class TRexClient(object):
         add_parser.add_arg_list(
             parsing_opts.SINGLE_PORT,
             parsing_opts.NODE_MAC,
+            parsing_opts.VLAN_TAGS,
+            parsing_opts.VLAN_TPIDS,
             parsing_opts.SRC_IPV4,
-            parsing_opts.DST_IPV4,
-            parsing_opts.ASTF_IPV6
+            parsing_opts.DST_IPV4_NOT_REQ,
+            parsing_opts.IPV6_AUTO,
+            parsing_opts.SHARED_NS,
+            parsing_opts.SUBNET,
             )
 
         remove_parser.add_arg_list(
