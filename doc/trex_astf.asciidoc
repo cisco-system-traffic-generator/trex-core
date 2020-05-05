@@ -2153,7 +2153,8 @@ Another fact is the TRex ports is behaving like trunk ports with all VLAN allowe
 For interactive mode, Python profiles of topology can be used. +
 This topology consists of set of two objects:
 
-* Virtual interface defining src MAC and optional VLAN
+* Virtual interface defining src MAC and optional VLAN. Not to be confused with linux vifs, topo vifs cannot answer to ARP. You can create a link:trex_stateless.html#_linux_network_namespace[Linux network namespace] or using our new link:trex_astf.html#_trex_emulation_client_clustering[TRex-emu nodes].
+
 * Route table for traffic (GW). It can be applied for both TRex port or Virtual interface mentioned above.
 
 Using this method along with linux network namespace (see STL spec for more info) it is possible to create a client side network with many clients on the same network each client with different:
@@ -2316,6 +2317,276 @@ image::images/astf_topo.png[title="Produced traffic using topology"]
 This feature does not work in the astf-sim tool beacuse there is a need to resolve destination MAC
 =====================================================================
 
+==== TRex emulation client clustering
+
+===== Background
+link:https://trex-tgn.cisco.com/trex/doc/trex_emu.html[TRex emulation] server is able to build clients network fast and in high scale. We will create a simple namespace on port 0 with 3 emu clients. We will generate traffic from clients through DUT back to second TRex port and all the way back.
+
+[NOTE] 
+==========
+Namespace port must be even (client side) 
+==========
+
+Our setup will look like that:
+
+image::images/trex_emu_setup.png[title="TRex Emu setup", width={p_width}]
+
+
+===== Preparation
+
+1) Starting TRex server with --astf mode and --emu.
+[source,bash]
+----
+[bash]> sudo ./t-rex-64 -i --astf --emu
+----
+
+2) In another shell, connect with trex console with --emu.
+[source,bash]
+----
+[bash]> ./trex-console --emu
+----
+
+3) Enable promiscuous mode on clients port/s.
+[source,bash]
+----
+trex> portattr -p 0 --prom on
+----
+
+4) Load emu profile with at least arp and icmp plugins, we will use 3 clients as follows:
+
+.simple_icmp.py emu profile
+[source, python]
+----
+include::../scripts/emu/simple_icmp.py[]
+----
+
+.Loading the emu profile with tuneables:
+[source,bash]
+----
+trex>emu_load_profile -f emu/simple_icmp.py -t --ns 1 --cl 3
+trex>emu_show_all
+Namespace #1 Information
+
+Port | Vlan tags | Tpids |  Plugins  | #Clients
+-----+-----------+-------+-----------+---------
+ 0   |     -     |   -   | arp, icmp |    3
+
+Clients Information
+
+       MAC        |  IPv4   | DG-IPv4 | MTU  |  Plugins
+------------------+---------+---------+------+----------
+00:00:00:70:00:03 | 1.1.1.3 | 1.1.1.1 | 1500 | arp, icmp
+00:00:00:70:00:04 | 1.1.1.4 | 1.1.1.1 | 1500 | arp, icmp
+00:00:00:70:00:05 | 1.1.1.5 | 1.1.1.1 | 1500 | arp, icmp
+----
+
+5) Load `emu_astf` plugin and sync topo. It's necessary because TRex must change the client's mac addresses. It requires all clients to have a resolved default gateway mac. Notice how each client has it's own vif and gateway.
+
+[NOTE] 
+=============================================================================
+`sync_topo` command will load client's information (**not the traffic**) from trex-emu into ASTF topo.
+=============================================================================
+
+[source,bash]
+----
+trex>plugins load emu_astf
+trex>plugins emu_astf sync_topo
+
+No need to resolve anything, uploading to server
+emu topo synced
+
+trex> topo show
+None
+[0, 1]
+Virtual interfaces
+
+Port |        MAC        | VLAN |      IPv4       | IPv6
+-----+-------------------+------+-----------------+------
+0.1  | 00:00:00:70:00:03 |  -   |     1.1.1.3     |  ::
+0.2  | 00:00:00:70:00:04 |  -   |     1.1.1.4     |  ::
+0.3  | 00:00:00:70:00:05 |  -   |     1.1.1.5     |  ::
+
+Gateways for traffic
+
+Port  |   Range start   |    Range end    |       Dest        |     Resolved
+------+-----------------+-----------------+-------------------+------------------
+ 0.1  |     1.1.1.3     |     1.1.1.3     | 00:00:00:01:00:02 | 00:00:00:01:00:02
+ 0.2  |     1.1.1.4     |     1.1.1.4     | 00:00:00:01:00:02 | 00:00:00:01:00:02
+ 0.3  |     1.1.1.5     |     1.1.1.5     | 00:00:00:01:00:02 | 00:00:00:01:00:02
+----
+
+6) Make sure your DUT is configured with no_pbr and static routes in order to ensure routing from one port to another.
+
+==== Sending traffic
+
+1) Start traffic where clients pool ranged: [1.1.1.3 - 1.1.1.5]. We will use http_simple_emu profile.
+
+.http_simple_emu profile
+[source, python]
+----
+include::../scripts/astf/http_simple_emu.py[]
+----
+
+.Starting http_simple_emu profile
+[source,bash]
+----
+trex> start -f astf/http_simple_emu.py
+----
+
+Let's observe the capture on port 0:
+
+image::images/trex_emu_topo_cap.png[title="TRex emu topo capture",align="center",width={p_width}, link="images/trex_emu_topo_cap.png"]
+
+Notice how TRex uses client's mac addresses (00:00:00:70:00:03-5) according to our topo.
+
+[NOTE] 
+=============================================================================
+Currently DHCP plugin isn't supported because ip range must be continuous.
+=============================================================================
+
+==== IPv6 Example
+
+Our final setup will look like that:
+
+image::images/trex_emu_setup_ipv6.png[title="TRex emu topo capture",align="center",width={p_width}, link="images/trex_emu_setup_ipv6.png"]
+
+We can easily generate Ipv6 traffic as we did earlier with some minor changes:
+
+1) Run TRex server on link:trex_manual.html#stacks[linux based stack mode] and enable promiscuous mode at trex-console.
+
+[source,bash]
+----
+trex> portattr -a --prom on
+----
+
+2) Configure IPv6 on both ports in the same subnet of the DUT (2001:DB8:0:2222::/64 and 2001:DB8:1:2222::/64):
+
+[source,bash]
+----
+trex>ipv6 -p 0 -s 2001:DB8:0:2222::2
+
+Configuring IPv6 on port 0                                   [SUCCESS]
+
+trex>ipv6 -p 1 -s 2001:DB8:1:2222::2
+
+Configuring IPv6 on port 1                                   [SUCCESS]
+----
+
+3) Add a static route at DUT for our server:
+
+[source,bash]
+----
+asr1001-01#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+asr1001-01(config)#ipv6 route 2001:DB8:2:2222::/64 2001:db8:1:2222::2
+----
+
+4) Load `simple_icmp.py` profile with IPv6 configured on same subnet (2001:db8::) and ipv6 plugin by default:
+
+[source,python]
+----
+    def __init__(self):
+        self.def_ns_plugs  = {'icmp': {},
+                              'arp' : {'enable': True}}
+
+        self.def_c_plugs  = {'arp':  {'enable': True},
+                             'icmp': {}, 'ipv6': {},  # Must enable IPv6 plugin on all clients
+                             }
+
+    def create_profile(self, ns_size, clients_size, mac, ipv4, dg, ipv6):
+        ns_list = []
+
+        # create different namespace each time
+        vport, tci, tpid = 0, [0, 0], [0x00, 0x00]
+        for i in range(vport, ns_size + vport):
+            ns_key = EMUNamespaceKey(vport  = i,
+                                    tci     = tci,
+                                    tpid    = tpid)
+            ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
+
+            mac  = Mac(mac)
+            ipv4 = Ipv4(ipv4)
+            dg   = Ipv4(dg)
+            ipv6 = Ipv6("2001:DB8:0:2222::1.1.1.3")  # our first client
+
+            # create a different client each time
+            for j in range(clients_size):
+                client = EMUClientObj(mac     = mac[j].V(),
+                                      ipv4    = ipv4[j].V(),
+                                      ipv4_dg = dg.V(),
+                                      ipv6    = ipv6[j].V(),
+                                      )
+                ns.add_clients(client)
+            ns_list.append(ns)
+
+        return EMUProfile(ns = ns_list, def_ns_plugs = self.def_ns_plugs)
+----
+.Loading sim
+[source,bash]
+----
+trex>emu_load_profile -f emu/simple_icmp.py -t --ns 1 --cl 3
+trex>emu_show_all --6
+Namespace #1 Information
+
+Port | Vlan tags | Tpids | Plugins | #Clients
+-----+-----------+-------+---------+---------
+ 0   |     -     |   -   |  ipv6   |    2
+
+Clients Information
+
+       MAC        |    IPv6     |     IPv6-Local      |          IPv6-Slaac           | Plugins
+------------------+-------------+---------------------+-------------------------------+--------
+00:00:00:70:00:01 | 2001:db8::3 | fe80::200:ff:fe70:1 | 2001:db8:0:2222:200:ff:fe70:1 |  ipv6
+00:00:00:70:00:02 | 2001:db8::4 | fe80::200:ff:fe70:2 | 2001:db8:0:2222:200:ff:fe70:2 |  ipv6
+00:00:00:70:00:03 | 2001:db8::5 | fe80::200:ff:fe70:3 | 2001:db8:0:2222:200:ff:fe70:3 |  ipv6
+----
+
+5) Load `emu_astf` plugin and sync topo as we did in IPv4:
+[source, bash]
+----
+trex>plugins load emu_astf
+
+Loading plugin: emu_astf                                     [SUCCESS]
+
+trex>plugins emu_astf sync_topo
+
+No need to resolve anything, uploading to server
+emu topo synced
+----
+
+6) You can generate IPv6 traffic using one of the methods:
+
+* Start command with "--ipv6", i.e: "start -f astf/http_simple_emu.py --ipv6" this will generate ips: "::x.x.x.x" where LSB is the IPv4 addrees.
+* Use tunables in your profile for altering src / dst MSB as described bellow.
+
+For more information about IPv6 in ASTF check link:trex_astf.html#_tutorial_ipv6_traffic[Tutorial: IPv6 traffic]
+
+We will use the second method for changing the MSB correctly:
+
+.http_simple_emu_ipv6
+[source, python]
+----
+include::../scripts/astf/http_simple_emu_ipv6.py[]
+----
+
+[source, bash]
+----
+trex>start -f astf/http_simple_emu_ipv6.py
+----
+
+Let's observe the capture on port 0:
+
+image::images/trex_emu_topo_traffic_ipv6.png[title="TRex emu topo capture",align="center",width={p_width}, link="images/trex_emu_topo_traffic_ipv6.png"]
+
+Notice the mac addresses changed as well to our client's mac.
+
+==== Scaling clients
+
+You can scale your clients in order to make a stress test, just notice:
+
+* DUT interfaces might require changes in their subnet mask in order to avoid ip conflicts.
+* TRex cfg might change as well for the same reason.
+
 === Multi core support 
 
 Distribution to multi core is done using RSS hardware assist. Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
@@ -2464,7 +2735,7 @@ link:cp_astf_docs/index.html[python index]
 |   ip.tos    | uint8 |0 |+|+| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs 
 |   ip.ttl    | uint8 |0 |+|+| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs 
 |   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
-|   ipv6.dst_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
+|   ipv6.dst_msb    | string |0 |+|+| default IPv6.dst MSB address. see Priority in ipv6 enable
 |   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used   
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  

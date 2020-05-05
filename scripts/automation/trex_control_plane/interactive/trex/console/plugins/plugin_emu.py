@@ -36,6 +36,7 @@ class Emu_Plugin(ConsolePlugin):
         self.c.connect()
 
         self.console.load_client_plugin_functions(self.c, func_prefix = Emu_Plugin.EMU_PREFIX)
+        self.console.emu_client = self.c  # adding a ref to EMUClient in console
 
     def plugin_unload(self):
         if self.console is None:

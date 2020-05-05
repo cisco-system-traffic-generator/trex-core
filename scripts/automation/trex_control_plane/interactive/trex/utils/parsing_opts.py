@@ -241,7 +241,7 @@ def action_check_tpid():
             if any(v not in TPIDCheck.TPIDS for v in values):
                 err = 'tpid value is not one of the valid tpids: %s' % TPIDCheck.TPIDS
                 parser.error(err)
-            
+            values = [int(v, 16) for v in values]
             setattr(args, self.dest, values)
     return TPIDCheck
 
@@ -492,6 +492,13 @@ class OPTIONS_DB_ARGS:
         {'help': 'Configure destination IPv4 address',
          'dest': 'dst_ipv4',
          'required': True,
+         'type': check_ipv4_addr})
+
+    DST_IPV4_NOT_REQ = ArgumentPack(
+        ['--dst'],
+        {'help': 'Configure destination IPv4 address',
+         'dest': 'dst_ipv4',
+         'required': False,
          'type': check_ipv4_addr})
 
     DUAL_IPV4 = ArgumentPack(
@@ -1076,7 +1083,7 @@ class OPTIONS_DB_ARGS:
         'action': 'store_true'})
 
     IPV6_AUTO = ArgumentPack(
-        ['--auto'],
+        ['--auto-ipv6'],
         {'help': 'Enable IPv6 on port with automatic address.',
          'action': 'store_true'})
 
@@ -1140,6 +1147,19 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'help': "Prompt info into a YAML format"})
 
+    SHARED_NS = ArgumentPack(
+        ['--shared-ns'],
+        {'type': str,
+         'default': None,
+         'help': "Create a node in this shared namespace"})
+
+    SUBNET = ArgumentPack(
+        ['--subnet'],
+        {'type': int,
+         'default': None,
+         'action': action_check_min_max(),
+         'min_val': 1, 'max_val': 32,
+         'help': "IPv4 subnet mask for shared ns as a CIDR number [1-32]"})
 
     SHOW_MAX_CLIENTS = ArgumentPack(
         ['--max-clients'],
