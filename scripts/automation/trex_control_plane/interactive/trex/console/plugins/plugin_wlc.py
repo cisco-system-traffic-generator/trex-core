@@ -4,6 +4,7 @@ from trex.console.plugins import *
 from trex.common.trex_exceptions import TRexError
 from trex.utils.common import natural_sorted_key, list_intersect
 from trex.stl.trex_stl_packet_builder_scapy import ipv4_str_to_num, is_valid_ipv4_ret
+from trex.stl.trex_stl_streams import STLProfile
 
 
 class WLC_Plugin(ConsolePlugin):
