@@ -11,6 +11,8 @@ APPNAME='cxx_test'
 import os
 import shutil
 import copy
+import subprocess
+
 
 from distutils.version import StrictVersion
 from waflib import Logs
@@ -100,8 +102,50 @@ def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
 
     return (ver >= min_ver, ver, min_ver)
 
+def getstatusoutput(cmd):
+    """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""
+    try:
+        data = subprocess.check_output(cmd, shell=True, universal_newlines=True, stderr=subprocess.STDOUT)
+        status = 0
+    except subprocess.CalledProcessError as ex:
+        data = ex.output
+        status = ex.returncode
+    if data[-1:] == '\n':
+        data = data[:-1]
+    return status, data
+
+def check_version_glibc(lib_so):
+    max_num =0
+    for so in lib_so:
+        cmd = 'strings {}'.format(so)
+        s, lines = getstatusoutput(cmd)
+        if s ==0: 
+            ls= lines.split('\n')  
+            for line in ls:
+                prefix = 'GLIBCXX_'
+                if line.startswith(prefix):
+                    fix = line[len(prefix):]
+                    d=fix.split('.')
+                    if len(d) == 3:
+                        num = int(d[0])*1000 +int(d[1])*100+int(d[2])
+                        if num >max_num:
+                            max_num = num 
+    return max_num
+
     
 def configure(conf):
+    conf.find_program('strings')
+    so = ['/usr/lib/x86_64-linux-gnu/libstdc++.so.6','/usr/lib64/libstdc++.so.6']
+    our_so =  '../scripts/so/x86_64/libstdc++.so.6'
+    d_so =  '../scripts/so/x86_64/_libstdc++.so.6'
+    ver = check_version_glibc(so)
+    if ver > 3424:
+        Logs.pprint('YELLOW', 'you have newer {} libstdc++.so remove the old one\n'.format(ver))
+        try:
+           os.system("mv %s %s " %(our_so,d_so))
+        except Exception as ex:
+           pass 
+
     if int(conf.options.gcc6) + int(conf.options.gcc7) + int(conf.options.gcc8) > 1:
         conf.fatal('--gcc6, --gcc7 and --gcc8 are mutual exclusive')
 
