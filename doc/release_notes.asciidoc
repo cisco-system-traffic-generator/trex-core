@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.81 ==
+
+* Bug fixes 
+* ASTF 
+** Add profile features udp_mtu to reduce pcap mtu and delay command
+** Add a plugin to build ASTFTopo base on EMU 
+* fox DPDK 20.02 ixgbe link issue 
+
 == Release 2.80 ==
 
 * DPDK 20.02 - the performance is lower for i40e and higher for Mellanox (mlx5)
