@@ -394,7 +394,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_eflow3.py',
                     'wrapping_it_up_example.py',
                     'udp_topo.py', # Not traffic profile, but topology
-                    'udp_topo_traffic.py'
+                    'udp_topo_traffic.py',
+                    'http_simple_emu.py',  # Emu profiles
+                    'http_simple_emu_ipv6.py',
                     ]
         self.duration=1
         try:
@@ -433,7 +435,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_eflow3.py',
                     'wrapping_it_up_example.py',
                     'udp_topo.py', # Not traffic profile, but topology
-                    'udp_topo_traffic.py'
+                    'udp_topo_traffic.py',
+                    'http_simple_emu.py',  # Emu profiles
+                    'http_simple_emu_ipv6.py',
                     ]
         self.duration=1
         try:
