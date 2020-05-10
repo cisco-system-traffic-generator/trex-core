@@ -36,4 +36,4 @@
 trex:
   hostname       : csi-trex-06
   cores          : 1
-  modes          : [loopback, virt_nics, VM]
+  modes          : [loopback, virt_nics, VM, switch]

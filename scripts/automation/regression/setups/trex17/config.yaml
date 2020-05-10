@@ -5,4 +5,4 @@
 trex:
   hostname       : csi-trex-17
   cores          : 1
-  modes          : [loopback, virt_nics, VM, linux_stack]
+  modes          : [loopback, virt_nics, VM, linux_stack, switch]

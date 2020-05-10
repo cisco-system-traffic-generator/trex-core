@@ -5,5 +5,5 @@
 trex:
   hostname       : csi-trex-23
   cores          : 1
-  modes          : [loopback, VM, vf_nics]
+  modes          : [loopback, VM, vf_nics, switch]
 

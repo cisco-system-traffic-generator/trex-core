@@ -68,6 +68,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         cls.is_bird           = 'bird' in cls.modes
         cls.is_loopback       = 'loopback' in cls.modes
         cls.is_lowend         = 'lowend' in cls.modes
+        cls.is_switch         = 'switch' in cls.modes
         cls.is_vdev           = 'vdev' in cls.modes
         cls.is_vf_nics        = 'vf_nics' in cls.modes
         cls.is_virt_nics      = 'virt_nics' in cls.modes
