@@ -6,5 +6,5 @@ trex:
   hostname       : csi-trex-22
   cores          : 2
   astf_cores     : 1
-  modes          : [VM, loopback, vf_nics]
+  modes          : [VM, loopback, vf_nics, switch]
 

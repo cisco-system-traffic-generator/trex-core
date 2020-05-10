@@ -32,7 +32,8 @@ class DynamicProfileTest:
                  min_tick,
                  max_tick,
                  duration,
-                 rate
+                 rate,
+                 allowed_ex_pkts
                  ):
 
         self.rate =rate
@@ -45,6 +46,7 @@ class DynamicProfileTest:
         self.duration = duration
         self.tx_port = tx_port
         self.rx_port = rx_port
+        self.allowed_ex_pkts = allowed_ex_pkts
 
     def is_profile_end_msg(self,msg):
         m = re.match("Profile (\d+).profile_(\d+) job done", msg)
@@ -144,7 +146,7 @@ class DynamicProfileTest:
 
             extra_packets = -dropped_packets
             print('extra_packets %s ' % extra_packets)
-            assert extra_packets <= 0
+            assert extra_packets <= self.allowed_ex_pkts
 
 
         except STLError as e:
@@ -1068,8 +1070,11 @@ class STLClient_Test(CStlGeneral_Test):
             rate = "1kpps"
         else:
             rate = "10kpps"
-
-        test = DynamicProfileTest(self.c, self.tx_port, self.rx_port, 100,1,50,1,2,120,rate);
+        if self.is_switch:
+            allowed_ex_pkts = 20
+        else:
+            allowed_ex_pkts = 0
+        test = DynamicProfileTest(self.c, self.tx_port, self.rx_port, 100,1,50,1,2,120,rate, allowed_ex_pkts)
 
         test.run_test()
 
