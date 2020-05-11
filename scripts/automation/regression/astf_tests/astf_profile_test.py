@@ -245,6 +245,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             cnt =0;
             for i in range(0,5):
                self.latency_error = 0
+               self.clear_fails()
                func(self, *args, **kwargs)
                if self.latency_error==0:
                    break;

@@ -447,6 +447,11 @@ class CTRexGeneral_Test(unittest.TestCase):
         print('Error: %s' % reason)
         self.fail_reasons.append(reason)
 
+    def clear_fails(self):
+        if len(self.fail_reasons):
+            print('Clearing fail reasons: %s' % self.fail_reasons)
+            self.fail_reasons = []
+
     # skip running of the test, counts as 'passed' but prints 'skipped'
     @classmethod
     def skip(cls, message = 'Unknown reason'):
