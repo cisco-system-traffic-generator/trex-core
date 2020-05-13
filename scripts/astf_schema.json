@@ -531,7 +531,7 @@
                            },
                            "no_delay" : {
                                "type": "integer",
-                               "enum" : [0,1]
+                               "enum" : [0,1,2,3]
                                
                            },
                            "no_delay_counter" : {
