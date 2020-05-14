@@ -5,6 +5,7 @@ from pprint import pprint
 
 from trex.common.trex_types import ALL_PROFILE_ID
 
+import json
 import random
 import string
 
@@ -98,29 +99,31 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
             self.fail('counter {0} expect {1} value {2}  '.format(name,val,c[name]) )
 
 
-    def validate_cnt (self,val1,val2,str_err):
+    def validate_cnt (self, val1, val2, str_err, summary_stats, stats):
         if val1 !=val2:
-            self.fail('%s ' %(str_err))
+            stats_fail_msg = 'summary_stats:\n%s\nstats:%s\n' %(json.dumps(summary_stats, indent=4), json.dumps(stats, indent=4)) 
+            self.fail('%s\n%s' % (str_err, stats_fail_msg))
 
 
     def verify_cnt_and_summary(self, names, summary_stats, stats, load=False):
         sum_all = {'udps_sndpkt': 0, 'udps_sndbyte':0, 'udps_rcvpkt': 0,
                     'udps_rcvbyte': 0, 'tcps_sndbyte': 0, 'tcps_rcvbyte': 0}
+
         for name in names:
             c = stats[name]['client']
             s = stats[name]['server']
             if not load:
-                self.validate_cnt(c.get('udps_sndpkt', 0), s.get('udps_rcvpkt', 0), "udps_sndpkt != udps_rcvpkt")
-                self.validate_cnt(s.get('udps_sndpkt', 0), c.get('udps_rcvpkt', 0), "udps_sndpkt != udps_rcvpkt")
-                self.validate_cnt(c.get('udps_sndbyte', 0), s.get('udps_rcvbyte', 0), "udps_sndbyte != udps_rcvbyte")
-                self.validate_cnt(s.get('udps_sndbyte', 0), c.get('udps_rcvbyte', 0), "udps_sndbyte != udps_rcvbyte")
-                self.validate_cnt(c.get('tcps_sndbyte', 0), s.get('tcps_rcvbyte', 0), "tcps_sndbyte != tcps_rcvbyte")
-                self.validate_cnt(s.get('tcps_sndbyte', 0), c.get('tcps_rcvbyte', 0), "tcps_sndbyte != tcps_rcvbyte")
+                self.validate_cnt(c.get('udps_sndpkt', 0), s.get('udps_rcvpkt', 0), "udps_sndpkt != udps_rcvpkt", summary_stats, stats)
+                self.validate_cnt(s.get('udps_sndpkt', 0), c.get('udps_rcvpkt', 0), "udps_sndpkt != udps_rcvpkt", summary_stats, stats)
+                self.validate_cnt(c.get('udps_sndbyte', 0), s.get('udps_rcvbyte', 0), "udps_sndbyte != udps_rcvbyte", summary_stats, stats)
+                self.validate_cnt(s.get('udps_sndbyte', 0), c.get('udps_rcvbyte', 0), "udps_sndbyte != udps_rcvbyte", summary_stats, stats)
+                self.validate_cnt(c.get('tcps_sndbyte', 0), s.get('tcps_rcvbyte', 0), "tcps_sndbyte != tcps_rcvbyte", summary_stats, stats)
+                self.validate_cnt(s.get('tcps_sndbyte', 0), c.get('tcps_rcvbyte', 0), "tcps_sndbyte != tcps_rcvbyte", summary_stats, stats)
             for cnt in sum_all.keys():
                 sum_all[cnt] += c.get(cnt, 0)
         
         for cnt in sum_all.keys():
-            self.validate_cnt(summary_stats['client'].get(cnt, 0), sum_all[cnt], "summary" + cnt + "!= sum of " + cnt)
+            self.validate_cnt(summary_stats['client'].get(cnt, 0), sum_all[cnt], "summary" + cnt + "!= sum of " + cnt, summary_stats, stats)
 
 
     def coincident(self, a, b):
