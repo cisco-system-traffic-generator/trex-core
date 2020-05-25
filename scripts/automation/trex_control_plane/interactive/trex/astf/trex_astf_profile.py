@@ -72,7 +72,9 @@ class ASTFCmdTxPkt(ASTFCmd):
         if size > len(buf):
             self._buf = { "base": self._buf, "size": size }
             if fill is not None:
-                self._buf["fill"] = fill
+                if type(fill) is not bytes:
+                    fill = fill.encode('ascii')
+                self._buf["fill"] = base64.b64encode(fill).decode()
             self.buffer_len = size
         self.stream=False
         self.buffer=True;
@@ -108,7 +110,9 @@ class ASTFCmdSend(ASTFCmd):
         if size > len(buf):
             self._buf = { "base": self._buf, "size": size }
             if fill is not None:
-                self._buf["fill"] = fill
+                if type(fill) is not bytes:
+                    fill = fill.encode('ascii')
+                self._buf["fill"] = base64.b64encode(fill).decode()
             self.buffer_len = size
         self.stream=True
         self.buffer=True;
@@ -419,7 +423,10 @@ class ASTFProgram(object):
 
         """
         ver_args = {"types":
-                    [{"name": "buf", 'arg': buf, "t": [bytes, str]}]
+                    [ {"name": "buf", 'arg': buf, "t": [bytes, str]},
+                      {"name": "size", 'arg': size, "t": int, "must": False},
+                      {"name": "fill", 'arg': fill, "t": [bytes, str], "must": False}
+                    ]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
@@ -526,7 +533,8 @@ class ASTFProgram(object):
 
         ver_args = {"types":
                     [ {"name": "buf", 'arg': buf, "t": [bytes, str]},
-                      {"name": "size", 'arg': size, "t": int, "must": False}
+                      {"name": "size", 'arg': size, "t": int, "must": False},
+                      {"name": "fill", 'arg': fill, "t": [bytes, str], "must": False}
                     ]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
