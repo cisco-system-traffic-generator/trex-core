@@ -815,7 +815,20 @@ class ASTFProgram(object):
         if max_delay> ASTFProgram.MAX_KEEPALIVE:
             new_cmds.insert(0,ASTFCmdKeepaliveMsg(max_delay*2))
         if self.s_delay is not None and init_side == 's':
-            cmds = self._add_server_delay(cmds)
+            new_cmds = self._add_server_delay(new_cmds)                
+
+        if not is_tcp:
+            max_delay = 0
+            for cmd in new_cmds:
+                if isinstance(cmd, ASTFCmdDelay):
+                    max_delay = max(max_delay, cmd.fields['usec'])
+                if isinstance(cmd, ASTFCmdDelayRnd):
+                    max_delay = max(max_delay, cmd.fields['max_usec'])
+
+            if max_delay >= 900000:
+                ka = int(max_delay / 1000 * 1.5)
+                new_cmds.insert(0, ASTFCmdKeepaliveMsg(ka))
+
         self._set_cmds(new_cmds)
 
     def _add_server_delay(self, cmds):
@@ -1746,6 +1759,9 @@ class ASTFProfile(object):
                 server_delay = cap.s_delay if cap.s_delay is not None else s_delay
                 prog_s = ASTFProgram(file=cap_file, side="s", udp_mtu = cap_udp_mtu, s_delay=server_delay)
                 prog_c.update_keepalive(prog_s)
+                if not prog_c.stream:
+                    # update client's keepalive if udp
+                    prog_s.update_keepalive(prog_c)
 
                 tcp_c = _ASTFTCPInfo(file=cap_file)
                 tcp_c_port = tcp_c.port
