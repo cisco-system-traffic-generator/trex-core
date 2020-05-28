@@ -299,6 +299,7 @@ void CFlowTable::terminate_flow(CTcpPerThreadCtx * ctx,
         else {
             INC_STAT(flow->m_pctx, tg_id, tcps_testdrops);
             INC_STAT(flow->m_pctx, tg_id, tcps_closed);
+            flow->m_pctx->set_time_closed();
         }
     }
     handle_close(ctx, flow, remove_from_ft);

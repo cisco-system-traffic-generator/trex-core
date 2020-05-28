@@ -912,6 +912,10 @@ void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
 
     tcp += tcp_ctx;
     udp += udp_ctx;
+
+    if (pctx->get_time_connects()) {
+        update_time_connects(pctx->get_time_connects());
+    }
 }
 
 void CPerProfileCtx::update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id) {
@@ -1795,6 +1799,7 @@ tcp_close(CPerProfileCtx * pctx,
     tp->t_state = TCPS_CLOSED;
     /* TBD -- back pointer to flow and delete it */
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_closed);
+    pctx->set_time_closed();
     return((struct tcpcb *)tp);
 }
 
