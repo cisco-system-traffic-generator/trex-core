@@ -281,7 +281,7 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
     set_profile_nc(profile_id, nc);
 
     if ( duration > 0 ) {
-        add_profile_duration(profile_id, d_phase + duration);
+        add_profile_duration(profile_id, duration + d_phase + 1.0);
     }
 }
 

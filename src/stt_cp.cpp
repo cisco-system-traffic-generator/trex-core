@@ -45,6 +45,7 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
     clear_aggregated_counters();
     CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    double lap_time = 0.0;
     CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
 
     for (int i = 0; i < m_profile_ctx.size(); i++) {
@@ -62,6 +63,8 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
         tcp += tcp_ctx;
         udp += udp_ctx;
+
+        lap_time = std::max(lap_time, pctx->get_time_lap());
     }
 
     for (int i = 0; i < m_tcp_ctx.size(); i++) {
@@ -69,6 +72,8 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         CGCountersUtl32 ft_ctx((uint32_t *)&lpctx->m_ft.m_sts,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
         ft += ft_ctx;
     }
+
+    m_traffic_duration = lap_time;
 
     uint64_t udp_active_flows=0;
     if ( (lpt_udp->udps_connects+
@@ -198,12 +203,14 @@ void CSTTCpPerTGIDPerDir::calculate_avr_counters() {
 void CSTTCpPerTGIDPerDir::clear_sum_counters(void) {
     m_tcp.Clear();
     m_udp.Clear();
+    m_traffic_duration = 0.0;
     m_ft.Clear();
 }
 
 void CSTTCpPerTGIDPerDir::clear_aggregated_counters(void) {
     m_tcp.Clear();
     m_udp.Clear();
+    m_traffic_duration = 0.0;
     m_ft.Clear();
 }
 
@@ -329,6 +336,8 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     CMN_S_ADD_CNT_d(m_rx_pps_r,"rx pps",true,"pps");
     CMN_S_ADD_CNT_d(m_avg_size,"average pkt size",true,"B");
     CMN_S_ADD_CNT_d(m_tx_ratio,"Tx acked/sent ratio",true,"%");
+    create_bar(&m_clm,"-");
+    CMN_S_ADD_CNT_d(m_traffic_duration,"measured traffic duration",false,"sec");
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"TCP");
     create_bar(&m_clm,"-");

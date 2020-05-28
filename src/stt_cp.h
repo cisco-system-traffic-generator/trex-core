@@ -84,6 +84,7 @@ public:
     double              m_avg_size;
     double              m_tx_ratio;
 
+    double              m_traffic_duration;
 
     /* externation counters --end */
 
