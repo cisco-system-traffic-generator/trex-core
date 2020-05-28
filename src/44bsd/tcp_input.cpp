@@ -851,6 +851,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
         tp->t_flags |= TF_ACKNOW;
         if (tiflags & TH_ACK && SEQ_GT(tp->snd_una, tp->iss)) {
             INC_STAT(pctx, tg_id, tcps_connects);
+            pctx->set_time_connects();
             soisconnected(so);
             tp->t_state = TCPS_ESTABLISHED;
             /* Do window scaling on this connection? */
@@ -1110,6 +1111,7 @@ trimthenstep6:
             SEQ_GT(ti->ti_ack, tp->snd_max))
             goto dropwithreset;
         INC_STAT(pctx, tg_id, tcps_connects);
+        pctx->set_time_connects();
         soisconnected(so);
         tp->t_state = TCPS_ESTABLISHED;
         /* Do window scaling? */

@@ -27,6 +27,7 @@
 #include <functional>
 #include "sch_rampup.h"
 #include "tick_cmd_clock.h"
+#include "os_time.h"
 #include <algorithm>
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
@@ -914,6 +915,9 @@ private:
 
     bool                m_on_flow; /* dedicated to a flow */
 
+    hr_time_t           m_base_time; /* first flow connected time */
+    hr_time_t           m_last_time; /* last flow closed time */
+
 public:
     ~CPerProfileCtx() {
         if (m_sch_rampup != nullptr) {
@@ -939,6 +943,26 @@ public:
     bool is_on_flow() { return m_on_flow; }
     void update_profile_stats(CPerProfileCtx* pctx);
     void update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id);
+
+    void set_time_connects() {
+        if (m_base_time == 0) {
+            m_base_time = os_get_hr_tick_64();
+        }
+    }
+    hr_time_t get_time_connects() { return m_base_time; }
+    void update_time_connects(hr_time_t new_time) {
+        if (m_base_time == 0) {
+            m_base_time = new_time;
+        }
+    }
+    void set_time_closed() { m_last_time = os_get_hr_tick_64(); }
+    double get_time_lap() {
+        auto last_time = m_last_time;
+        if (m_flow_cnt) {   // ongoing traffic exists
+            last_time = os_get_hr_tick_64();
+        }
+        return m_base_time ? ptime_convert_hr_dsec(last_time - m_base_time): 0.0;
+    }
 };
 
 

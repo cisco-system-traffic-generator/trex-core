@@ -54,11 +54,13 @@ void CUdpFlow::Create(CPerProfileCtx *pctx,
     }else{
         INC_UDP_STAT(m_pctx, m_tg_id, udps_accepts);
     }
+    m_pctx->set_time_connects();
 }
 
 void CUdpFlow::Delete(){
     INC_UDP_STAT(m_pctx, m_tg_id, udps_closed);
     disconnect();
+    m_pctx->set_time_closed();
 }
 
 void CUdpFlow::init(){
