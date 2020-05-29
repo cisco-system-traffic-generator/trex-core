@@ -2015,6 +2015,81 @@ In the end we create a profile with two templates (could be much more).
 <1> pps is a tunable like the ones shown in the previous tutorials. You can add it while using the CLI with -t pps=20. 
 In case it wasn't specified pps=1.
 
+==== Tutorial: Server port sharing between templates
+
+In the test environment with firewalls, the number of ports can be limited. In this situation, a server port needs to be shared by multiple templates from multiple profiles.
+
+In general, different templates should use different port numbers for their different actions.
+
+.Typical server port usage
+[source,python]
+----
+ASTFAssociationRule()           # for template 1, default port is 80
+ASTFAssociationRule(port=81)    # for template 2
+----
+
+This example will show how to share a server port between templates.
+
+*File*:: link:{github_astf_path}/shared_port.py[astf/shared_port.py]
+
+*By different IP range*
+
+On the server port sharing, different templates can use the same port. At first, they are differentiated by IPs. `ip_start` and `ip_end` parameters can be used for this.
+
+.Server port sharing by different IP range
+[source,python]
+----
+ASTFAssociationRule(ip_start="48.0.0.0", ip_end="48.0.0.255")   # for template 1
+ASTFAssociationRule(ip_start="48.0.1.0", ip_end="48.0.255.255") # for template 2
+----
+
+*By different L7 contents*
+
+If multiple templates need to use the same port and IP for their different actions, the `l7_map` parameter can be used. It can specify the L7 contents to distinguish the template.
+
+.Server port sharing by different L7 contents
+[source,python]
+----
+prog_c1.send(b"GET /3384 HTTP/1.1....")     # for template 1 -- <1>
+prog_c2.send(b"POST /3384 HTTP/1.1....")    # for template 2 -- <1>
+
+ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
+                    l7_map={"offset":[0,1,2,3],         # -- <2>
+                            "mask":[255,255,255,255]    # -- <3>
+                            }                           # -- <4>
+                    )
+----
+
+<1> The client program should send diffent L7 contents in the specified `"offset"`. The value is `"GET "` for template 1 and `"POST"` for template 2.
+<2> mandatory, increment offsets is available up to 8.
+<3> optional, default is `255` for each offset value. The value at each offset can be masked. `value = <value at offset> & mask`
+<4> For short, `l7_map=[0,1,2,3]`.
+
+In addition, all the TCP tuneable should be the same for server port sharing. The TCP protocol action needs to be the same until the first TCP payload delivered and a template is identified.
+For UDP, it is recommended that all the UDP payloads have the same contents at the specified `"offset"`. Packet loss should be considered for UDP.
+
+*Server Mode*
+
+If you want to use it for the server mode, `"value"` should be used. The sizes of `"offset"` and `"value"` should be the same.
+
+.Server port sharing by specific offset and value
+[source,python]
+----
+ASTFAssociationRule(l7_map={"offset":[0,1,2,3], "value":[71,69,84,32]}) # port=80, "GET "
+ASTFAssociationRule(l7_map={"offset":[0,1,2,3], "value":[80,79,83,84]}) # port=80, "POST"
+----
+
+*Mixed usage by IP range and L7 contents*
+
+You can use the IP range and L7 contents for the same port. At first, the L7 contents matching will be performed. If there is no matching, then the IP address will be matched.
+
+[source,python]
+----
+ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255")  # for template 1
+ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
+                    l7_map=[0,1,2,3])                                   # for template 2
+----
+
 === Performance 
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
