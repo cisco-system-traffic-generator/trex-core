@@ -1582,6 +1582,9 @@ public:
     }
     __attribute__ ((noinline)) int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
                                                        , CCorePerPort *  lp_port
+                                                       , CVirtualIFPerSideStats  * lp_stats);
+    __attribute__ ((noinline)) rte_mbuf * update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
+                                                       , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats, bool is_const);
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m);
@@ -1630,6 +1633,9 @@ protected:
 class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+                                    , CVirtualIFPerSideStats  * lp_stats);
+
+    virtual rte_mbuf* update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
 
      /* works in sw multi core only, need to verify it */
@@ -1892,7 +1898,7 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
 }
 
 
-HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
 # ifdef ERR_CNTRS_TEST
@@ -1933,9 +1939,18 @@ HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeState
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();
-        send_pkt_lat(lp_port, mi, lp_stats);
+    }
+
+    return mi;
+}
+
+HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
+                                             , CVirtualIFPerSideStats  * lp_stats) {
+    uint16_t hw_id = node_sl->get_stat_hw_id();
+    if (hw_id >= MAX_FLOW_STATS) {
+        send_pkt_lat(lp_port, m, lp_stats);
     } else {
-        send_pkt(lp_port, mi, lp_stats);
+        send_pkt(lp_port, m, lp_stats);
     }
     return 0;
 }
@@ -1974,12 +1989,7 @@ CCoreEthIFStateless::send_node_packet(CGenNodeStateless      *node_sl,
                                       CVirtualIFPerSideStats *lp_stats) {
 
     if (unlikely(node_sl->is_stat_needed())) {
-        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
-            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
-            // assert here just to make sure.
-            assert(1);
-        }
-        return send_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
+        return send_node_flow_stat(m, node_sl, lp_port, lp_stats);
     } else {
         return send_pkt(lp_port, m, lp_stats);
     }
@@ -2016,6 +2026,15 @@ int CCoreEthIFStateless::send_node_common(CGenNode *node) {
 
     /* generate packet (can never fail) */
     rte_mbuf_t *m = generate_node_pkt(node_sl);
+
+    if (unlikely(node_sl->is_stat_needed())) {
+        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
+            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
+            // assert here just to make sure.
+            assert(1);
+        }
+        m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
+    }
 
     /* template boolean - this will be removed at compile time */
     if (SERVICE_MODE) {
