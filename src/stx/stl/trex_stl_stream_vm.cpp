@@ -707,6 +707,7 @@ void StreamVm::build_program(){
     /* build the commands into a buffer */
     m_instructions.clear();
     int var_cnt=0;
+    int var_ref_cnt=0;
     clean_max_field_cnt();
     uint32_t ins_id=0;
     uint32_t skip=0;
@@ -1113,6 +1114,8 @@ void StreamVm::build_program(){
         if (ins_type == StreamVmInstruction::itPKT_WR) {
             StreamVmInstructionWriteToPkt *lpPkt =(StreamVmInstructionWriteToPkt *)inst;
 
+            var_ref_cnt++;
+
             VmFlowVarRec var;
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
@@ -1180,6 +1183,8 @@ void StreamVm::build_program(){
 
         if (ins_type == StreamVmInstruction::itPKT_WR_MASK) {
             StreamVmInstructionWriteMaskToPkt *lpPkt =(StreamVmInstructionWriteMaskToPkt *)inst;
+
+            var_ref_cnt++;
 
             VmFlowVarRec var;
 
@@ -1278,6 +1283,8 @@ void StreamVm::build_program(){
         if (ins_type == StreamVmInstruction::itPKT_SIZE_CHANGE ) {
             StreamVmInstructionChangePktSize *lpPkt =(StreamVmInstructionChangePktSize *)inst;
 
+            var_ref_cnt++;
+
             VmFlowVarRec var;
             if ( var_lookup(lpPkt->m_flow_var_name ,var) == false){
 
@@ -1306,7 +1313,7 @@ void StreamVm::build_program(){
     m_instructions.build_instruction_list();
 
 
-    if ( var_cnt ==0 ){
+    if ( var_ref_cnt > 0 && var_cnt ==0 ){
         std::stringstream ss;
         ss << "It is not valid to have a VM program without a variable  or tuple generator ";
         err(ss.str());

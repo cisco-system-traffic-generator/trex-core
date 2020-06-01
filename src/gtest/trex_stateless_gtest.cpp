@@ -1600,6 +1600,24 @@ TEST_F(basic_vm, vm7) {
 
 ////////////////////////////////////////////////////////
 
+TEST_F(basic_vm, vm_no_flow_var) {
+
+    bool fail=false;
+    /* should not be failed */
+
+    try {
+        StreamVm vm;
+        vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+        vm.compile(128);
+        uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+        printf(" program_size : %lu \n",(ulong)program_size);
+     } catch (const TrexException &ex) {
+        fail=true;
+    }
+
+     EXPECT_EQ(false, fail);
+}
+
 TEST_F(basic_vm, vm_mask_err) {
 
     bool fail=false;
@@ -1607,7 +1625,7 @@ TEST_F(basic_vm, vm_mask_err) {
 
     try {
         StreamVm vm;
-        vm.add_instruction( new StreamVmInstructionFixChecksumIpv4(14) );
+        vm.add_instruction( new StreamVmInstructionWriteMaskToPkt("var1", 36,2,0x00ff,0,0,1) );
         vm.compile(128);
         uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
         printf(" program_size : %lu \n",(ulong)program_size);
