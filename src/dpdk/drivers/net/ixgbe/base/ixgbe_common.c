@@ -5003,7 +5003,7 @@ void ixgbe_get_orom_version(struct ixgbe_hw *hw,
 	hw->eeprom.ops.read(hw, NVM_OROM_OFFSET, &offset);
 
 	/* make sure offset is valid */
-	if ((offset == 0x0) || (offset == NVM_INVALID_PTR))
+	if ((offset == 0x0) && (offset == NVM_INVALID_PTR))
 		return;
 
 	hw->eeprom.ops.read(hw, offset + NVM_OROM_BLK_HI, &eeprom_cfg_blkh);
