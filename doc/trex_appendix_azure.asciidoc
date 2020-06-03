@@ -18,54 +18,19 @@ This is from the Azure website: +
 
 In high level there is a need to work with two network interfaces for each application high level interface (PMD) to support fail-safe. The PMD decides which flow to optimized and to redirect to the fast path (Mellanox VF) or slow path (TAP on top Linux NetVSC)
 
-Both DPDK TAP and DPDK MLX5 that used by the failsafe PMD are highly dependent on the kernel version and external library so it is not that simple to make it work. The dependency matrix is complex. Try to follow what worked for us. If something else works for you please send email. 
- 
-It was tested with TRex v2.64 (the first version that supports failsafe PMD driver)
+Both DPDK TAP and DPDK MLX5 that used by the failsafe PMD are highly dependent on the kernel version and external library so it is not that simple to make it work. The dependency matrix is complex. Try to follow what worked for us. 
 
+To make it works you will need to compile TRex and DPDK from source on the Azure distro. 
+
+See here how to do it link:https://github.com/cisco-system-traffic-generator/trex-core/wiki/Build-For-Azure-Ubuntu-(mlx5)[azure compile from source]
+
+ 
 [IMPORTANT]
 =====================================
 This configuration is not tested in our regression so it could be broken in newer versions of TRex. We hope someone can help with that
 =====================================
 
-== Azure Linux Distro Installation
-
-Azure cloud VMs CentOS Azure-Tuned 7.5.1804 (This is the *only* verified distro)
-
-.Create a marketplace provided CentOS
-[source,bash]
-----
-[bash]$az vm create --resource-group mygroup --location eastus --name TrexCentOs --size Standard_DS5_v2 --admin-username testing --admin-password example  --nics myNIC1 myNIC2 myNIC3 --image CentOS
-----
-
-.Verify it is CentOS with the right version
-[source,bash]
-----
-[bash]$ cat /etc/redhat-release
-CentOS Linux release 7.5.1804 (Core)
-----
-
-== Installing DPDK support 
-
-See Microsoft Azure document link:https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk[setup-dpdk]
-
-.Add DPDK MLX support
-[source,bash]
-----
-[bash]$sudo yum -y groupinstall "Infiniband Support" -y
-[bash]$sudo dracut --add-drivers "mlx4_en mlx4_ib mlx5_ib" -f
-[bash]$sudo yum install -y gcc kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel libmnl-devel
-----
-
-.Add huge pages to cmdline & fstab
-[source,bash]
-----
-[bash]$sudo vi /etc/default/grub
-# hugepages=4096
-[bash]$sudo grub2-mkconfig -o /boot/grub2/grub.cfg
-[bash]$sudo vi /etc/fstab
-# nodev /mnt/huge hugetlbfs defaults 0 0
-----
-
+== Verifying DPDK support 
 
 .Look for Mellanox CX-5/4 NICs 
 [source,bash]
@@ -252,7 +217,7 @@ EAL: Failed to attach device on primary process
 ----
 [bash]$sudo ./t-rex-64  -i -c 1  --no-ofed-check
 
-tui>start -f stl/bench.py -t vm=cached
+tui>start -f stl/bench_azure.py -t vm=cached
 ,size=68 -m 2mpps --port 0 1 –force
 
    port    |         0         |         1         |       total      
@@ -291,7 +256,7 @@ ierrors    |            82,491 |            81,817 |           164,308
 ----
 [bash]$sudo ./t-rex-64  -i -c 1  --no-ofed-check
 
-tui>start -f stl/bench.py -t vm=cached,size=68 -m 2mpps --port 0 1 –force
+tui>start -f stl/bench_azure.py -t vm=cached,size=68 -m 2mpps --port 0 1 –force
 
    port    |         0         |         1         |       total      
 -----------+-------------------+-------------------+------------------
@@ -336,10 +301,9 @@ You should see something like this in the log with ```ifconfig -a``` should show
 
 == Known issues (per v2.64 and up)
 
-* The trex image was build with TAP interfaces support for CentOs kernel (linux headers), it might not work on different distro/os 
 * In case of very high rate of taffic without network seperation it was noticed that the management ports could lost (ZMQ/ssh) don't push it in this case. ` ZMQ unhandled error code 14`
 * Multi core (for example `-c 2`) does not work for some reason. 
-* There is no need to compile or install the DPDK drivers (only Mellanox as specified above) - TRex has it own DPDK driver statically linked
+* There is no need to install the DPDK drivers (only Mellanox as specified above) - TRex has it own DPDK driver statically linked - you just need to update autoconf files for build
 * You should change the MTU manualy for both TAP and MLX (`--no-ofed-check` skip this step,TRex by default change the MTU to 9k but not in this case)
 * MLX5/MLX4 has different default/max MTU 
 
@@ -402,7 +366,4 @@ eth2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 ----
 
-== For developers 
-
-* DPDK TAP interfaces is compiled with CentOS Linux headers to be able to be cross compiled it. If you want to complie it on the machine nativly you will need to replace ```#include <linux_tap/>``` with ```#include <linux/..> 
 
