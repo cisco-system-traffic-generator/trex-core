@@ -1615,7 +1615,7 @@ TEST_F(basic_vm, vm_no_flow_var) {
         fail=true;
     }
 
-     EXPECT_EQ(false, fail);
+    EXPECT_EQ(fail,false);
 }
 
 TEST_F(basic_vm, vm_mask_err) {
