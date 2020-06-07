@@ -127,9 +127,6 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
             m_ipv4 = (IPHeader *) p;
             m_l4 = ((uint8_t *)m_ipv4) + m_ipv4->getHeaderLength();
             m_l4_proto = m_ipv4->getProtocol();
-            if (( m_ipv4->getTotalLength() +  (p - m_start)) > len ){
-                return FSTAT_PARSER_E_SHORT_IP_HDR;
-            }
             finished = true;
             break;
         case EthernetHeader::Protocol::IPv6 :
