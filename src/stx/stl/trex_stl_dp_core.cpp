@@ -1063,7 +1063,7 @@ void TrexStatelessDpCore::_rx_handle_packet(int dir,
     uint8_t proto = m_parser->get_protocol();
     bool tcp_udp=false;
 
-    if (m_parser->is_fs_latency()) {
+    if (m_parser->is_fs_latency(m)) {
         m_ports[dir].m_fs_latency.handle_pkt(m,0);
     }
 

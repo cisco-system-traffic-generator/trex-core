@@ -340,15 +340,23 @@ uint8_t CFlowStatParser::get_protocol(){
     return (proto);
 }
 
-bool CFlowStatParser::is_fs_latency(){
-    uint8_t tos = 0;
-    if (m_ipv4) {
-        tos = m_ipv4->getTOS();
+bool CFlowStatParser::is_fs_latency(rte_mbuf_t *m){
+    // in case of flow stats
+    uint32_t ip_id = 0;
+    get_ip_id(ip_id);
+
+    if (ip_id > IP_ID_RESERVE_BASE) {
+        return true;
     }
-    if (m_ipv6) {
-        tos = m_ipv6->getTrafficClass();
-    }
-    return ((tos&0x01)==0x01)?true:false;
+
+    // in case of flow stats latency
+    uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+    struct flow_stat_payload_header *fsp_head =
+        (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
+            m, sizeof(struct flow_stat_payload_header), tmp_buf);
+
+    return ((fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) &&
+            (fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD));
 }
 
 uint8_t CFlowStatParser::get_ttl(){
