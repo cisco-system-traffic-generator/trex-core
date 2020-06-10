@@ -6192,6 +6192,10 @@ COLD_FUNC int  update_dpdk_args(void){
         for (int i=0; i<(int)dif.size(); i++) {
             if ( dif[i] != "dummy" ) {
                 SET_ARGS("-w");
+                /* dpdk devargs */
+                for (std::string &opts : cg->m_dpdk_devargs) {
+                    dif[i] += "," + opts;
+                }
                 SET_ARGS(dif[i].c_str());
             }
         }
