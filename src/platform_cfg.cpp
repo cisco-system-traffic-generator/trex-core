@@ -395,6 +395,17 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         plat_info.m_if_list.push_back(fi);
     }
 
+    if (node.FindValue("dpdk_devargs") ){
+      const YAML::Node &devargs = node["dpdk_devargs"];
+
+      for (unsigned i = 0; i < devargs.size(); i++) {
+        std::string fi;
+        const YAML::Node &node = devargs;
+        node[i] >> fi;
+        plat_info.m_dpdk_devargs.push_back(fi);
+      }
+    }
+
     if (node.FindValue("ext_dpdk_opt") ){
       const YAML::Node &dpdks = node["ext_dpdk_opt"];
 
@@ -605,6 +616,14 @@ void CPlatformYamlInfo::Dump(FILE *fd){
       fprintf(fd, " ext_dpdk  : ");
       for (i = 0; i < (int)m_ext_dpdk.size(); i++) {
         fprintf(fd, " %s,", m_ext_dpdk[i].c_str());
+      }
+      fprintf(fd, "\n");
+    }
+
+    if (m_dpdk_devargs.size()) {
+      fprintf(fd, " dpdk_devargs  : ");
+      for (i = 0; i < (int)m_dpdk_devargs.size(); i++) {
+        fprintf(fd, " %s,", m_dpdk_devargs[i].c_str());
       }
       fprintf(fd, "\n");
     }

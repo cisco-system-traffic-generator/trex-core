@@ -2001,19 +2001,20 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 ----
      - port_limit    : 2    #mandatory <1>
        version       : 2    #mandatory <2>
-       interfaces    : ["03:00.0", "03:00.1"]   #mandatory <3>
-       #ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe #<17>
-       #interfaces_vdevs : ['net_failsafe_vsc0','net_failsafe_vsc1'] # use failsafe  #<18>
-       #enable_zmq_pub  : true #optional <4>
-       #zmq_pub_port    : 4500 #optional <5>
-       #zmq_rpc_port    : 4501 #optional <15>
-       #prefix          : setup1 #optional <6>
-       #limit_memory    : 1024 #optional <7>
-       #rx_desc         : 1024 # optional <16>
-       #tx_desc         : 1024 # optional <16>
-       c               : 4 #optional <8>
-       port_bandwidth_gb : 10 #optional <9>
-       services_core     : 0 #optional <10>
+       interfaces    : ['03:00.0', '03:00.1']   #mandatory <3>
+       #dpdk_devargs : ['txq_inline_min=1','txq_inline_max=700'] # optional devargs <20>
+       #ext_dpdk_opt: ['--vdev=net_vdev_netvsc0,iface=eth1', '--vdev=net_vdev_netvsc1,iface=eth2'] # ask DPDK for failsafe # <18>
+       #interfaces_vdevs : ['net_failsafe_vsc0','net_failsafe_vsc1'] # use failsafe  # <19>
+       #enable_zmq_pub  : true # optional <4>
+       #zmq_pub_port    : 4500 # optional <5>
+       #zmq_rpc_port    : 4501 # optional <16>
+       #prefix          : setup1 # optional <6>
+       #limit_memory    : 1024 # optional <7>
+       #rx_desc         : 1024 # optional <17>
+       #tx_desc         : 1024 # optional <17>
+       c               : 4 # optional <8>
+       port_bandwidth_gb : 10 # optional <9>
+       services_core     : 0 # optional <10>
        port_info       :  # set eh mac addr  mandatory
             - default_gw : 1.1.1.1   # port 0 <11>
               dest_mac   : '00:00:00:01:00:00' # Either default_gw or dest_mac is mandatory <11>
@@ -2024,8 +2025,8 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
               src_mac    : '00:00:00:04:00:00'
             - dest_mac   : '00:00:00:05:00:00'  # port 2
               src_mac    : '00:00:00:06:00:00'
-            - dest_mac   :   [0x0,0x0,0x0,0x7,0x0,0x01]  # port 3 <15>
-              src_mac    :   [0x0,0x0,0x0,0x8,0x0,0x02] # <16>
+            - dest_mac   :   [0x0,0x0,0x0,0x7,0x0,0x01] # port 3 <15>
+              src_mac    :   [0x0,0x0,0x0,0x8,0x0,0x02]
 ----
 <1>  Number of ports. Should be equal to the number of interfaces listed in 3. - mandatory
 <2>  Must be set to 2. - mandatory
@@ -2041,7 +2042,6 @@ Configuration file examples can be found in the `$TREX_ROOT/scripts/cfg` folder.
 Specify dest_mac directly. +
 Specify default_gw (since version 2.10). In this case (only if no dest_mac given), TRex will issue ARP request to this IP, and will use
 the result as dest MAC. If no dest_mac given, and no ARP response received, TRex will exit.
-
 <12> Source MAC to use when sending packets from this interface. If not given (since version 2.10), MAC address of the port will be used.
 <13> If given (since version 2.10), TRex will issue gratitues ARP for the ip + src MAC pair on appropriate port. In stateful mode,
 gratitues ARP for each ip will be sent every 120 seconds (Can be changed using --arp-refresh-period argument).
@@ -2050,7 +2050,8 @@ gratitues ARP for each ip will be sent every 120 seconds (Can be changed using -
 <16> Stateless ZMQ RPC port number. Default value is good. If running two TRex instances on the same machine, each should be given distinct number. Otherwise, can remove this line.
 <17> Override the default number of Rx/TX dpdk driver descriptors. For better performance on virtual interfaces better to enlarge these numbers to Rx=4096
 <18> Advance DPDK options, used by Azure/failsafe driver 
-<19> In case of failsafe choose the right drivers 
+<19> In case of failsafe choose the right drivers
+<20> DPDK driver options specified as devargs
 
 
 [NOTE]
