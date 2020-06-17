@@ -89,6 +89,7 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
     CGenNodeTXFIF* tx_node = (CGenNodeTXFIF*)pctx->m_tx_node;
     if (tx_node) {
         tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
+        pctx->m_tx_node = nullptr;  // prevent from unexpected reference.
     }
 }
 
