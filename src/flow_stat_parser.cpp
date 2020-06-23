@@ -345,7 +345,7 @@ bool CFlowStatParser::is_fs_latency(rte_mbuf_t *m){
     uint32_t ip_id = 0;
     get_ip_id(ip_id);
 
-    if (ip_id > IP_ID_RESERVE_BASE) {
+    if (ip_id >= IP_ID_RESERVE_BASE) {
         return true;
     }
 
