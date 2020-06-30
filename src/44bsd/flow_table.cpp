@@ -411,7 +411,8 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                         TCPHeader    * lpTcp,
                                         uint8_t *   pkt,
                                         IPv6Header *    ipv6,
-                                        CFlowKeyFullTuple &ftuple){
+                                        CFlowKeyFullTuple &ftuple,
+                                        tvpid_t port_id){
    /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
       allocate flow, 
       fill information
@@ -437,7 +438,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
         return;
     }
 
-    flow->m_template.server_update_mac_from_packet(pkt);
+    flow->m_template.server_update_mac(pkt, pctx->m_ctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         flow->m_template.learn_ipv6_headers_from_network(ipv6);
@@ -575,7 +576,8 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
                                               CSimplePacketParser & parser,
                                               CFlowKeyTuple & tuple,
                                               CFlowKeyFullTuple & ftuple,
-                                              uint32_t  hash
+                                              uint32_t  hash,
+                                              tvpid_t port_id
                                               ){
     CUdpFlow * flow;
 
@@ -658,7 +660,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    flow->m_template.server_update_mac_from_packet(pkt);
+    flow->m_template.server_update_mac(pkt, ctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         flow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
@@ -695,7 +697,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                               CSimplePacketParser & parser,
                                               CFlowKeyTuple & tuple,
                                               CFlowKeyFullTuple & ftuple,
-                                              uint32_t  hash
+                                              uint32_t  hash,
+                                              tvpid_t port_id
                                       ){
     CTcpFlow * lptflow;
 
@@ -753,7 +756,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                            is_ipv6,
                            lpTcp,
                            pkt,parser.m_ipv6,
-                           ftuple);
+                           ftuple,
+                           port_id);
         }
 
         FT_INC_SCNT(m_err_client_pkt_without_flow);
@@ -775,7 +779,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                              is_ipv6,
                              lpTcp,
                              pkt,parser.m_ipv6,
-                             ftuple);
+                             ftuple,
+                             port_id);
 
         }
         rte_pktmbuf_free(mbuf);
@@ -799,7 +804,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                          is_ipv6,
                          lpTcp,
                          pkt,parser.m_ipv6,
-                         ftuple);
+                         ftuple,
+                         port_id);
         }
 
         rte_pktmbuf_free(mbuf);
@@ -849,7 +855,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     }
 
     lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
-    lptflow->m_template.server_update_mac_from_packet(pkt);
+    lptflow->m_template.server_update_mac(pkt, ctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         lptflow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
@@ -967,10 +973,10 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
 
     if ( tuple.get_proto() == IPHeader::Protocol::UDP ){
-        return (rx_handle_packet_udp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
+        return (rx_handle_packet_udp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash,port_id));
     }else{
         /* TCP */
-        return (rx_handle_packet_tcp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash));
+        return (rx_handle_packet_tcp_no_flow(ctx,mbuf,lpflow,parser,tuple,ftuple,hash,port_id));
     }
 }
 

@@ -126,7 +126,8 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
             ],
         "ip": [
             {"name": "tos", "type": [int]},
-            {"name": "ttl", "type": [int]}
+            {"name": "ttl", "type": [int]},
+            {"name": "dont_use_inbound_mac", "type": [int]}
         ],
     }
 
@@ -152,7 +153,8 @@ class ASTFGlobalInfoPerTemplate(ASTFGlobalInfoBase):
             ],
         "ip": [
             {"name": "tos", "type": [int]},
-            {"name": "ttl", "type": [int]}
+            {"name": "ttl", "type": [int]},
+            {"name": "dont_use_inbound_mac", "type": [int]}
         ],
 
        "ipv6": [

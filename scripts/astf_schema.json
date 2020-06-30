@@ -574,6 +574,9 @@
                            },
                            "ttl" : {
                                "type": "integer"
+                           },
+                           "dont_use_inbound_mac" : {
+                                "type": "integer"
                            }
                         }
                     }

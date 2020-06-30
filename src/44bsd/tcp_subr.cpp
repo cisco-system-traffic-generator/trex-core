@@ -721,6 +721,7 @@ void CTcpPerThreadCtx::reset_tuneables() {
     tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_tx_socket_bsize = 32*1024;
     tcprexmtthresh = 3;
+    use_inbound_mac = 1;
 }
 
 void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
@@ -785,6 +786,10 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter)) {
         tcp_no_delay_counter = (int)tune->m_tcp_no_delay_counter;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::dont_use_inbound_mac)) {
+        use_inbound_mac = ((int)tune->m_dont_use_inbound_mac == 0);
     }
 }
 
@@ -1516,10 +1521,15 @@ void CFlowTemplate::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
 }
 
 
-void CFlowTemplate::server_update_mac_from_packet(uint8_t *pkt){
-    /* copy thr MAC from the packet in reverse order */
-    memcpy(m_template_pkt+6,pkt,6);
-    memcpy(m_template_pkt,pkt+6,6);
+void CFlowTemplate::server_update_mac(uint8_t *pkt, CTcpPerThreadCtx * ctx, tvpid_t port_id){
+    if (ctx->use_inbound_mac) {
+        /* copy the MAC from the incoming packet in reverse order */
+        memcpy(m_template_pkt+6,pkt,6);
+        memcpy(m_template_pkt,pkt+6,6);
+    } else {
+        /* otherwise, use macs configured and/or resolved from gateway */
+        memcpy(m_template_pkt,CGlobalInfo::m_options.get_dst_src_mac_addr(port_id),12);
+    }
 }
 
 void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,

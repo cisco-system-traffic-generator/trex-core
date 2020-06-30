@@ -867,6 +867,10 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
             if (tune->m_ip_ttl>0x7f) {
                 tune->m_ip_ttl = 0x7f;
             }
+
+            if (read_tunable_uint8(tune,json,"dont_use_inbound_mac",CTcpTuneables::dont_use_inbound_mac,tune->m_dont_use_inbound_mac)){
+                tunable_min_max_u32("dont_use_inbound_mac",tune->m_dont_use_inbound_mac,0,1);
+            }
         }
 
         if (tune_json["tcp"] != Json::nullValue) {
