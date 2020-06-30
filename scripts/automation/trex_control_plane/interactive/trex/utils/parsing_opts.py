@@ -1298,6 +1298,29 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'help': 'Enable gratuitous ARP'})
 
+    GEN_NAME = ArgumentPack(
+        ['-g', '--gen'],
+        {'type': str,
+         'dest': 'gen_name',
+         'required': True,
+         'help': 'Name of ipfix generator'})
+
+    GEN_NAMES = ArgumentPack(
+        ['-g', '--gens'],
+        {'type': str,
+         'nargs': '+',
+         'dest': 'gen_names',
+         'required': True,
+         'help': 'Names of ipfix generators i.e: gen1 gen2..'})
+
+    GEN_RATE = ArgumentPack(
+        ['-r', '--rate'],
+        {'type': int,
+         'dest': 'rate',
+         'required': True,
+         'help': 'New data rate (in pps) to set for ipfix generator'})
+
+
     MTU = ArgumentPack(
         ['--mtu'],
         {'type': int,
