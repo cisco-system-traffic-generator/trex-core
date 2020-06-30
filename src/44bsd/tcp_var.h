@@ -489,7 +489,7 @@ public:
         m_proto    = proto;
     }
 
-    void server_update_mac_from_packet(uint8_t *pkt);
+    void server_update_mac(uint8_t *pkt, CTcpPerThreadCtx * ctx, tvpid_t port_id);
 
     void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 
@@ -1284,6 +1284,8 @@ public:
     uint16_t tcp_fast_tick_msec;
     uint16_t tcp_slow_fast_ratio;
     int tcp_ttl;            /* time to live for TCP segs */
+
+    uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
 
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */

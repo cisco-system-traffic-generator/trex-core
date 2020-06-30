@@ -81,6 +81,7 @@ class CTcpTuneables {
         ip_ttl          =  0x20000,
         ip_tos          =  0x40000,
         tcp_no_delay_counter = 0x80000,
+        dont_use_inbound_mac = 0x100000,
     };
     enum {
         no_delay_mask_nagle = 0x1,
@@ -111,6 +112,7 @@ class CTcpTuneables {
         m_scheduler_accurate=0;
         m_ip_ttl=0;
         m_ip_tos=0;
+        m_dont_use_inbound_mac=0;
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -157,7 +159,7 @@ class CTcpTuneables {
     uint16_t m_scheduler_rampup; /* time in sec for rampup*/
     uint8_t  m_ip_ttl;
     uint8_t  m_ip_tos;
-    
+    uint8_t  m_dont_use_inbound_mac;
 
  private:
     uint32_t m_bitfield;

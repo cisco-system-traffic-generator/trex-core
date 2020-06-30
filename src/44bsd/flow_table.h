@@ -244,7 +244,8 @@ public:
                                         CSimplePacketParser & parser,
                                         CFlowKeyTuple & tuple,
                                         CFlowKeyFullTuple & ftuple,
-                                        uint32_t  hash
+                                        uint32_t  hash,
+                                        tvpid_t port_id
                                         );
 
       void process_udp_packet(CTcpPerThreadCtx * ctx,
@@ -260,7 +261,8 @@ public:
                                         CSimplePacketParser & parser,
                                         CFlowKeyTuple & tuple,
                                         CFlowKeyFullTuple & ftuple,
-                                        uint32_t  hash
+                                        uint32_t  hash,
+                                        tvpid_t port_id
                                         );
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
@@ -325,7 +327,8 @@ public:
                       TCPHeader    * lpTcp,
                       uint8_t *   pkt,
                       IPv6Header *    ipv6,
-                      CFlowKeyFullTuple &ftuple);
+                      CFlowKeyFullTuple &ftuple,
+                      tvpid_t port_id);
 
 
     CTcpFlow * alloc_flow(CPerProfileCtx * pctx,
