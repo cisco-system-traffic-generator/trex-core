@@ -625,7 +625,7 @@ class STLStream(object):
         if name in inst:
             ret = pkt.get_field_by_offset(inst[name])
             if ret:
-                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw'): # do not include field name
+                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw', 'fix_checksum_icmpv6'): # do not include field name
                     if ret[1] == 0: # layer index is redundant
                         inst[name] = "'%s'" % ret[0]
                     else: 
@@ -695,6 +695,12 @@ class STLStream(object):
                 self.__fix_offset_by_name(pkt, inst, 'l3_offset')
                 self.__fix_offset_by_name(pkt, inst, 'l4_offset')
                 vm_list.append("vm.fix_chksum_hw(l3_offset={l3_offset}, l4_offset={l4_offset}, l4_type={l4_type})".format(**inst))
+            elif inst['type'] == 'fix_checksum_icmpv6':
+                inst['l3_offset'] = inst['l2_len']
+                inst['l4_offset'] = inst['l2_len'] + inst['l3_len']
+                self.__fix_offset_by_name(pkt, inst, 'l3_offset')
+                self.__fix_offset_by_name(pkt, inst, 'l4_offset')
+                vm_list.append("vm.fix_chksum_icmpv6(l3_offset={l3_offset}, l4_offset={l4_offset})".format(**inst))
             elif inst['type'] == 'trim_pkt_size':
                 vm_list.append("vm.trim(fv_name='{name}')".format(**inst))
             elif inst['type'] == 'tuple_flow_var':

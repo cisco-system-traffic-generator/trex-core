@@ -370,6 +370,27 @@ class CTRexPktBuilderSanitySCapy_Test(pkt_bld_general_test.CGeneralPktBld_Test):
 
         assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "value_list": [268435457,268435460,268435461,268435458,268435459,268435462], 'size': 4, 'type': 'flow_var', 'step':1,'op': 'inc', 'split_to_cores': True, 'next_var': None}, {'is_big_endian': True, 'pkt_offset': 26, 'type': 'write_flow_var',  'name': 'a', 'add_value': 0}, {'pkt_offset': 14, 'type': 'fix_checksum_ipv4'}]} )
 
+    def test_simple_fix_icmp(self):
+        raw1 = STLScVmRaw( [ STLVmFlowVar(name="a",min_value=1, max_value=4, size=4, op="inc"),
+                             STLVmWrFlowVar(fv_name="a", pkt_offset="IPv6.src", offset_fixup=15),
+                             STLVmFixIcmpv6(l3_offset="IPv6", l4_offset=ICMPv6ND_NS().name)]
+                          )
+
+        pkt_builder = STLPktBuilder();
+
+        pkt=Ether()/IPv6(src="2001:db8::100", dst="2001:db8::1")/ICMPv6ND_NS(tgt='2001:db8::1')
+
+        # set packet
+        pkt_builder.set_packet(pkt);
+        pkt_builder.add_command(raw1)
+        pkt_builder.compile();
+
+        pkt_builder.dump_scripts()
+
+        print(pkt_builder.get_vm_data())
+
+        assert_equal( pkt_builder.get_vm_data(), {'instructions': [{'name': 'a',  "init_value": 1, "min_value": 1, "max_value": 4, 'size': 4, 'type': 'flow_var', 'step': 1, 'op': 'inc', 'split_to_cores': True, 'next_var': None}, {'is_big_endian': True, 'pkt_offset': 37, 'type': 'write_flow_var', 'name': 'a', 'add_value': 0}, {'l2_len': 14, 'l3_len': 40, 'type': 'fix_checksum_icmpv6'}]} )
+
     def test_simple_random_pkt_size_list(self):
 
         ip_pkt_size = 9*1024

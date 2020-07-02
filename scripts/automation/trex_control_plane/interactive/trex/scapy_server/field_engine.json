@@ -31,6 +31,10 @@
     {
       "id": "STLVmFixChecksumHw",
       "parameters": ["l3_offset","l4_offset","l4_type"]
+    },
+    {
+      "id": "STLVmFixIcmpv6",
+      "parameters": ["l3_offset", "l4_offset"]
     }
   ],
 

@@ -2559,6 +2559,84 @@ TEST_F(basic_vm, vm_random_size_500b_0_9k) {
 
 }
 
+TEST_F(basic_vm, vm_fix_icmpv6) {
+    const uint8_t PKT_SIZE = 14+40+32;
+
+    StreamVm vm;
+    vm.add_instruction(new StreamVmInstructionFlowMan("ip_src",
+                                                       1,
+                                                       StreamVmInstructionFlowMan::FLOW_VAR_OP_INC,
+                                                       1,
+                                                       1,
+                                                       10));
+    vm.add_instruction(new StreamVmInstructionWriteToPkt("ip_src", 37, 0, true));
+    vm.add_instruction(new StreamVmInstructionFixChecksumIcmpv6(14, 40));
+    vm.compile(PKT_SIZE);
+
+
+    uint32_t program_size=vm.get_dp_instruction_buffer()->get_program_size();
+
+    printf (" program size : %lu \n",(ulong)program_size);
+
+    vm.Dump(stdout);
+
+    
+    uint8_t test_icmpv6_pkt[PKT_SIZE]={
+
+        0x33, 0x33, 0x00, 0x01, 0x00, 0x01, // Ether dst
+        0x08, 0x00, 0x27, 0x1c, 0x77, 0x79, // Ether src
+        0x86, 0xdd, // l2_len is 14
+        
+
+        0x60, 0x00, 0x00, 0x00, 0x00, 0x20, 0x3a, 0xff,
+        // IPv6 src
+        0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 
+
+        // IPv6 dst
+        0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x01, 0xff, 0x01, 0x00, 0x01,
+
+
+        0x87, 0x00, 0x76, 0x91, 0x00, 0x00, 0x00, 0x00,
+        // ICMPv6 tgt
+        0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01,
+
+        0x01, 0x01, 0x08, 0x00, 0x27, 0x1c, 0x77, 0x79
+    };
+
+
+    StreamDPVmInstructionsRunner runner;
+    uint16_t ex_checksum[] = {
+        0x7691,
+        0x7690,
+        0x768f,
+        0x768e,
+        0x768d,
+        0x768c,
+        0x768b,
+        0x768a,
+        0x7689,
+        0x7688,
+    };
+
+    uint32_t random_per_thread=0;
+
+    int i;
+    for (i=0; i<10; i++) {
+        runner.run(&random_per_thread,
+                   program_size,
+                   vm.get_dp_instruction_buffer()->get_program(),
+                   vm.get_bss_ptr(),
+                   test_icmpv6_pkt);
+
+        /* validate checksum is correct */
+        uint16_t result_checksum = test_icmpv6_pkt[56] << 8 | test_icmpv6_pkt[57];
+        fprintf(stdout, " %d: checksum %x, expected %x \n", i, result_checksum, ex_checksum[i]);
+        EXPECT_EQ(result_checksum, ex_checksum[i]);
+    }
+}
 
 
 //////////////////////////////////////////////////////

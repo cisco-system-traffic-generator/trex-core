@@ -202,6 +202,14 @@ class CTRexVmInsFixIpv4(CTRexVmInsBase):
         self.pkt_offset = offset
         validate_type('offset', offset, int)
 
+class CTRexVmInsFixIcmpv6(CTRexVmInsBase):
+    def __init__(self, l2_len, l3_len):
+        super(CTRexVmInsFixIcmpv6, self).__init__("fix_checksum_icmpv6")
+        self.l2_len = l2_len
+        validate_type('l2_len', l2_len, int)
+        self.l3_len = l3_len
+        validate_type('l3_len', l3_len, int)
+
 class CTRexVmInsFixHwCs(CTRexVmInsBase):
     L4_TYPE_UDP = 11
     L4_TYPE_TCP = 13
@@ -1036,6 +1044,70 @@ class STLVmFixIpv4(CTRexVmDescBase):
         if type(self.offset)==str:
             self.offset = parent._pkt_layer_offset(self.offset);
 
+
+class STLVmFixIcmpv6(CTRexVmDescBase):
+    def __init__(self, l3_offset, l4_offset):
+        """
+        Fix ICMPv6 header checksum
+        Use this if the packet header has changed or data payload has changed as it is necessary to fix the checksums.
+        
+        example for supported packets
+
+        Ether()/IPv6()/ICMPv6ND_NS()
+        Ether()/IPv6()/ICMPv6ND_NA()
+        Ether()/IPv6()/ICMPv6ND_NS()/ICMPv6NDOptDstLLAddr()
+        Ether()Dot1Q()/IPv6()/ICMPv6ND_NS()/ICMPv6NDOptDstLLAddr()
+        Ether()Dot1Q()/Dot1Q()/IPv6()/ICMPv6ND_NS()
+        SomeTunnel()/IPv6()/ICMPv6ND_NS()
+
+        Ether()/(IPv4|IPv6)/(UDP|TCP)
+        Ether()/(IPv4|IPv6)/(UDP|TCP)
+        SomeTunnel()/(IPv4|IPv6)/(UDP|TCP)
+        SomeTunnel()/(IPv4|IPv6)/(UDP|TCP)
+
+
+        :parameters:
+             l3_offset : offset in bytes 
+                **IPv6 header** offset from packet start. It is **not** the offset of the checksum field itself.
+                it could be string in case of scapy packet. format IPv6[:[id]]
+
+             l4_offset : offset in bytes to ICMPv6 header.
+
+        .. code-block:: python
+
+            # Example
+
+            pkt = Ether()/Dot1Q()/Dot1Q()/IPv6(src='::1', dst='::2')/ICMPv6ND_NS()
+
+            # by offset name 
+            STLVmFixIcmpv6(l3_offset='IPv6', l4_offset=ICMPv6ND_NS().name)
+
+            # manually
+            STLVmFixIcmpv6(l3_offset=22, l4_offset=62)
+
+        """
+
+        super(STLVmFixIcmpv6, self).__init__()
+        self.l3_offset = l3_offset; # could be a name of offset
+        self.l4_offset = l4_offset; # could be a name of offset
+
+    def get_obj (self):
+        return CTRexVmInsFixIcmpv6(self.l2_len, self.l3_len)
+
+    def compile(self, parent):
+        self.l3_offset = self._compile_offset(parent, self.l3_offset)
+        self.l4_offset = self._compile_offset(parent, self.l4_offset)
+
+        self.l2_len = self.l3_offset
+        self.l3_len = self.l4_offset - self.l2_len
+
+    def _compile_offset(self, parent, offset):
+        if isinstance(offset, str):
+            return parent._pkt_layer_offset(offset)
+
+        return offset
+
+
 class STLVmWrFlowVar(CTRexVmDescBase):
     def __init__(self, fv_name, pkt_offset, offset_fixup=0, add_val=0, is_big=True):
         """
@@ -1781,6 +1853,10 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                     vm_obj.fix_chksum_hw(l3_offset  = instr['l2_len'],
                                          l4_offset  = instr['l2_len'] + instr['l3_len'],
                                          l4_type    = instr['l4_type'])
+
+                elif instr['type'] == 'fix_checksum_icmpv6':
+                    vm_obj.fix_chksum_icmpv6(l3_offset  = instr['l2_len'],
+                                               l4_offset  = instr['l2_len'] + instr['l3_len'])
                     
                     
                 # tuple flow var
@@ -2209,8 +2285,25 @@ class STLVM(STLScVmRaw):
         self.add_cmd(STLVmFixChecksumHw(l3_offset = l3_offset,
                                         l4_offset = l4_offset,
                                         l4_type   = l4_type))
+
+    def fix_chksum_icmpv6 (self, l3_offset, l4_offset):
+        """
+        Fix ICMPv6 header checksum using software.
+        Use this if the IPv6 or ICMPv6 header has changed as it is necessary to fix the checksums.
         
-                     
+        :parameters:
+             l3_offset : offset in bytes 
+                **IPv6 header** offset from packet start.
+                It may be string in case of scapy packet. Format IPv6[:[id]]
+
+             l4_offset : offset in bytes to ICMPv6 header. It is **not** the offset of the checksum field itself.
+
+             see full example stl/icpmv6_fix_cs.py
+
+        """
+        self.add_cmd(STLVmFixIcmpv6(l3_offset = l3_offset,
+                                    l4_offset = l4_offset))
+
     def trim (self, fv_name):
         """
         Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
