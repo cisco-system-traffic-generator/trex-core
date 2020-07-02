@@ -30,6 +30,7 @@ limitations under the License.
 #include "common/Network/Packet/IPHeader.h"
 #include "common/Network/Packet/UdpHeader.h"
 #include "common/Network/Packet/TcpHeader.h"
+#include "common/Network/Packet/IcmpHeader.h"
 #include "pal_utl.h"
 #include "mbuf.h"
 #include "hot_section.h"
@@ -718,7 +719,18 @@ public:
 } __attribute__((packed));
 
 
-static inline HOT_FUNC uint16_t fast_csum(const void *iph, unsigned int ihl) {
+
+
+static inline HOT_FUNC uint16_t csum_reduce(uint32_t sum)
+{
+     /* two folds are required */
+    sum = (sum & 0xffff) + (sum >> 16);
+    sum = (sum & 0xffff) + (sum >> 16);
+    return (uint16_t)sum;
+}
+
+
+static inline HOT_FUNC uint16_t fast_ones_comp_sum(const void *iph, unsigned int ihl) {
     const uint16_t *ipv4 = (const uint16_t *)iph;
 
     uint32_t sum = 0;
@@ -726,13 +738,31 @@ static inline HOT_FUNC uint16_t fast_csum(const void *iph, unsigned int ihl) {
         sum += ipv4[i];
     }
 
-    /* two folds are required */
-    sum = (sum & 0xffff) + (sum >> 16);
-    sum = (sum & 0xffff) + (sum >> 16);
-
-    return (uint16_t)(~sum);
+    return csum_reduce(sum);
 }
 
+
+static inline HOT_FUNC uint16_t fast_csum(const void *iph, unsigned int ihl) {
+    return (uint16_t)(~fast_ones_comp_sum(iph, ihl));
+}
+
+
+static inline HOT_FUNC uint16_t
+csum_ipv6_psd_raw(IPv6Header* ipv6) {
+    struct {
+        uint8_t src_addr[16];
+        uint8_t dst_addr[16];
+        uint32_t len;
+        uint32_t proto;
+    } __attribute__((packed)) ipv6_psdhdr;
+
+    memcpy(&ipv6_psdhdr.src_addr, &ipv6->mySource, sizeof(ipv6_psdhdr.src_addr));
+    memcpy(&ipv6_psdhdr.dst_addr, &ipv6->myDestination, sizeof(ipv6_psdhdr.dst_addr));
+    ipv6_psdhdr.len = ipv6->myPayloadLen;
+    ipv6_psdhdr.proto = (uint32_t)(ipv6->myNextHdr << 24);
+
+    return fast_ones_comp_sum((void*)&ipv6_psdhdr, sizeof(ipv6_psdhdr));
+}
 
 struct StreamDPOpIpv4Fix {
     uint8_t   m_op;
@@ -755,6 +785,23 @@ public:
 
 } __attribute__((packed));
 
+struct StreamDPOpIcmpv6Fix {
+    uint8_t   m_op;
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+public:
+    void dump(FILE *fd, std::string opt);
+    inline void HOT_FUNC run(uint8_t * pkt_base) {
+        IPv6Header * ipv6 = (IPv6Header *)(pkt_base + m_l2_len);
+        ICMPHeader * icmp = (ICMPHeader*)(pkt_base + m_l2_len + m_l3_len);
+        icmp->setChecksum(0);
+
+        uint32_t sum = csum_ipv6_psd_raw(ipv6);
+        sum += fast_ones_comp_sum((void*)icmp, ipv6->getPayloadLen());
+        icmp->setChecksumRaw((uint16_t)~csum_reduce(sum));
+    }
+
+} __attribute__((packed));
 
 /* fix checksum using hardware */
 struct StreamDPOpHwCsFix {
@@ -919,6 +966,7 @@ public:
         ditRANDOM64     ,
 
         ditFIX_IPV4_CS  ,
+        ditFIX_ICMPV6_CS,
         ditFIX_HW_CS  ,
 
         itPKT_WR8       ,
@@ -1005,6 +1053,7 @@ private:
 typedef union  ua_ {
         StreamDPOpHwCsFix  * lpHwFix;
         StreamDPOpIpv4Fix   *lpIpv4Fix;
+        StreamDPOpIcmpv6Fix   *lpIcmpv6Fix;
         StreamDPOpPktWr8     *lpw8;
         StreamDPOpPktWr16    *lpw16;
         StreamDPOpPktWr32    *lpw32;
@@ -1135,6 +1184,12 @@ inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_ran
             p+=sizeof(StreamDPOpIpv4Fix);
             break;
 
+        case  StreamDPVmInstructions::ditFIX_ICMPV6_CS :
+            ua.lpIcmpv6Fix =(StreamDPOpIcmpv6Fix *)p;
+            ua.lpIcmpv6Fix->run(pkt);
+            p+=sizeof(StreamDPOpIcmpv6Fix);
+            break;
+
         case  StreamDPVmInstructions::ditFIX_HW_CS :
             ua.lpHwFix =(StreamDPOpHwCsFix *)p;
             ua.lpHwFix->run(pkt,m_m);
@@ -1197,9 +1252,8 @@ public:
         itPKT_SIZE_CHANGE = 8,
         itPKT_WR_MASK     = 9,
         itFLOW_RAND_LIMIT = 10, /* random with limit & seed */
-        itFIX_HW_CS       =11
-
-
+        itFIX_HW_CS       = 11,
+        itFIX_ICMPV6_CS   = 12,
     };
 
     typedef uint8_t instruction_type_t ;
@@ -1286,6 +1340,32 @@ public:
 public:
     uint16_t m_pkt_offset; /* the offset of IPv4 header from the start of the packet  */
 };
+
+/**
+ * Fix checksum for ICMPv6
+ *
+ */
+class StreamVmInstructionFixChecksumIcmpv6 : public StreamVmInstruction {
+public:
+    StreamVmInstructionFixChecksumIcmpv6(uint16_t l2_len, uint16_t l3_len)
+        : m_l2_len(l2_len)
+        , m_l3_len(l3_len)
+    {}
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itFIX_ICMPV6_CS);
+    }
+
+    virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFixChecksumIcmpv6(m_l2_len, m_l3_len);
+    }
+
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+};
+
 
 /**
  * fix Ipv6/Ipv6 TCP/UDP L4 headers using HW ofload to fix only IPv6 header use software it would be faster 

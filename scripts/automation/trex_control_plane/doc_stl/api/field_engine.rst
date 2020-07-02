@@ -148,6 +148,16 @@ STLVmFixIpv4
     :members: 
     :member-order: bysource
  
+ 
+
+STLVmFixIcmpv6
+------------------
+
+.. autoclass:: trex.stl.trex_stl_packet_builder_scapy.STLVmFixIcmpv6
+    :members: 
+    :member-order: bysource
+ 
+
 
 STLVmTrimPktSize
 ------------------

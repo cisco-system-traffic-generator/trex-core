@@ -98,6 +98,10 @@ void StreamVmInstructionFixChecksumIpv4::Dump(FILE *fd){
     fprintf(fd," fix_check_sum , %lu \n",(ulong)m_pkt_offset);
 }
 
+void StreamVmInstructionFixChecksumIcmpv6::Dump(FILE *fd){
+    fprintf(fd," fix_checksum_icmpv6 , %lu:%lu \n", (ulong)m_l2_len, (ulong)m_l3_len);
+}
+
 void StreamVmInstructionFixHwChecksum::Dump(FILE *fd){
     fprintf(fd," fix_hw_cs  %lu:%lu \n",(ulong)m_l2_len,(ulong)m_l3_len);
 }
@@ -865,6 +869,38 @@ void StreamVm::build_program(){
             m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
         }
 
+        /* itFIX_ICMPV6_CS */
+        if (ins_type == StreamVmInstruction::itFIX_ICMPV6_CS) {
+            StreamVmInstructionFixChecksumIcmpv6* icmpv6Fix =(StreamVmInstructionFixChecksumIcmpv6 *)inst;
+            std::stringstream errorBase;
+            errorBase << "instruction id '" << ins_id << "' fix icmpv6 checksum command ";
+
+            if (m_pkt) {
+                IPv6Header * ipv6 = (IPv6Header *)(m_pkt+icmpv6Fix->m_l2_len);
+                if (ipv6->getVersion() != 6) {
+                    errorBase << " works only with IPv6";
+                    err(errorBase.str());
+                }
+
+                if (ipv6->getNextHdr() != IPHeader::Protocol::IPV6_ICMP) {
+                    errorBase << " didn't find ICMPv6 layer, IPv6's next header type is " << (uint16_t)ipv6->getNextHdr();
+                    err(errorBase.str());
+                }
+
+            }
+
+            const uint16_t ICMP_CHECKSUM_OFFSET = 2;
+            const uint16_t ICMP_CHECKSUM_SIZE = 2;
+
+            add_field_cnt(icmpv6Fix->m_l2_len + icmpv6Fix->m_l3_len + ICMP_CHECKSUM_OFFSET + ICMP_CHECKSUM_SIZE);
+
+            StreamDPOpIcmpv6Fix ipv_fix;
+            ipv_fix.m_l2_len = icmpv6Fix->m_l2_len;
+            ipv_fix.m_l3_len = icmpv6Fix->m_l3_len;
+            ipv_fix.m_op = StreamDPVmInstructions::ditFIX_ICMPV6_CS;
+            m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
+        }
+
         if (ins_type == StreamVmInstruction::itFLOW_RAND_LIMIT) {
             StreamVmInstructionFlowRandLimit *lpMan =(StreamVmInstructionFlowRandLimit *)inst;
             var_cnt++;
@@ -1524,6 +1560,7 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpHwCsFix   *lpHwFix;
 
     StreamDPOpIpv4Fix   *lpIpv4Fix;
+    StreamDPOpIcmpv6Fix *lpIcmpv6Fix;
     StreamDPOpPktWr8     *lpw8;
     StreamDPOpPktWr16    *lpw16;
     StreamDPOpPktWr32    *lpw32;
@@ -1573,6 +1610,12 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             lpIpv4Fix =(StreamDPOpIpv4Fix *)p;
             lpIpv4Fix->dump(fd,"Ipv4Fix");
             p+=sizeof(StreamDPOpIpv4Fix);
+            break;
+
+        case  ditFIX_ICMPV6_CS :
+            lpIcmpv6Fix =(StreamDPOpIcmpv6Fix *)p;
+            lpIcmpv6Fix->dump(fd,"Icmpv6Fix");
+            p+=sizeof(StreamDPOpIcmpv6Fix);
             break;
 
         case  itPKT_WR8  :
@@ -1743,6 +1786,9 @@ void StreamDPOpIpv4Fix::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_offset);
 }
 
+void StreamDPOpIcmpv6Fix::dump(FILE *fd, std::string opt){
+    fprintf(fd," %10s  op:%lu, len: %lu,%lu \n",  opt.c_str(), (ulong)m_op, (ulong)m_l2_len, (ulong)m_l3_len);
+}
 
 void StreamDPOpClientsLimit::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, flow_offset: %lu (%x-%x) (%x-%x) flow_limit :%lu flags:%x \n",  opt.c_str(),(ulong)m_op,(ulong)m_flow_offset,m_min_ip,m_max_ip,m_min_port,m_max_port,(ulong)m_limit_flows,m_flags);
