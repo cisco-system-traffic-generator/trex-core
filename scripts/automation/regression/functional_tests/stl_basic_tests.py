@@ -288,6 +288,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
         exclude_list = [
             'imix_wlc.py',          # expects tunables
             'udp_1pkt_vxlan.py',    # uses custom Scapy layer
+            'icmpv6_fix_cs.py',     # cannot parse layer name from offset correctly (ICMPv6ND_NS classname and layer name do not match)
             ]
         exclude_dict = {}.fromkeys(exclude_list)
         output_file = os.path.join(self.generated_path, 'exported_to_code.py')

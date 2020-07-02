@@ -64,6 +64,7 @@ public:
 
     inline  void setChecksum(uint16_t data);
     inline  uint16_t getChecksum();
+    inline  void setChecksumRaw(uint16_t data);
 
     inline void updateCheckSum(uint16_t len);
     inline bool isCheckSumOk(uint16_t len);
