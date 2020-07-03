@@ -51,7 +51,7 @@ try:
     c.set_service_mode(port)
     
 
-    capture_id = c.start_capture(rx_ports = port)['id'] # here we should have rx
+    capture_id = c.start_capture(rx_ports = port)['id']
 
     # starting and waiting for traffic
     c.start(ports = port, force = True)

@@ -721,8 +721,7 @@ public:
 
 
 
-static inline HOT_FUNC uint16_t csum_reduce(uint32_t sum)
-{
+static inline HOT_FUNC uint16_t csum_reduce(uint32_t sum) {
      /* two folds are required */
     sum = (sum & 0xffff) + (sum >> 16);
     sum = (sum & 0xffff) + (sum >> 16);
@@ -747,13 +746,12 @@ static inline HOT_FUNC uint16_t fast_csum(const void *iph, unsigned int ihl) {
 }
 
 
-static inline HOT_FUNC uint16_t
-csum_ipv6_psd_raw(IPv6Header* ipv6) {
+static inline HOT_FUNC uint16_t csum_ipv6_psd_raw(IPv6Header* ipv6) {
     struct {
         uint8_t src_addr[16];
         uint8_t dst_addr[16];
-        uint32_t len;
-        uint32_t proto;
+        volatile uint32_t len;
+        volatile uint32_t proto;
     } __attribute__((packed)) ipv6_psdhdr;
 
     memcpy(&ipv6_psdhdr.src_addr, &ipv6->mySource, sizeof(ipv6_psdhdr.src_addr));
