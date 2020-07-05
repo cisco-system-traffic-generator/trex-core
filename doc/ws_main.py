@@ -266,8 +266,11 @@ def options(opt):
     opt.add_option('--performance-detailed',action='store_true',help='print detailed test results (date,time, build id and results) to csv file named _detailed_table.csv.')
     opt.add_option('--ndr', action = 'store_true', help = 'Include build of NDR report.')
 
+search_path_arr = ['~/.local/bin', '/usr/local/bin/', '/usr/bin', './extensions']
+os.environ['PATH'] = os.environ['PATH'] + ':' + ':'.join(search_path_arr)
+
 def configure(conf):
-    search_path = ' ~/.local/bin /usr/local/bin/ /usr/bin ./extensions'
+    search_path = ' '.join(search_path_arr)
     conf.find_program('asciidoc', path_list=search_path, var='ASCIIDOC')
     conf.find_program('sphinx-build', path_list=search_path, var='SPHINX')
     conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
