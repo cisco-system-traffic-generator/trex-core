@@ -74,6 +74,9 @@ limitations under the License.
 #include "stl/trex_stl_fs.h"
 #include "hot_section.h"
 
+/* astf includes */
+#include "astf/trex_astf_dp_core.h"
+
 class CGenNodePCAP;
 
 #define FORCE_NO_INLINE __attribute__ ((noinline))
@@ -661,8 +664,9 @@ class CPerProfileCtx;
 struct CGenNodeTXFIF : public CGenNodeBase {
 public:
     CPerProfileCtx *    m_pctx;
+    double              m_time_stop;
 
-    uint8_t             m_pad_end[104];
+    uint8_t             m_pad_end[96];
 
     /* CACHE_LINE */
 #ifdef __PPC64__
