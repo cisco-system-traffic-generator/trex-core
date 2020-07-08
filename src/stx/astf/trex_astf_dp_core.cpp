@@ -273,6 +273,7 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
 
         tx_node->m_type = CGenNode::TCP_TX_FIF;
         tx_node->m_time = m_core->m_cur_time_sec + d_phase + 0.1; /* phase the transmit a bit */
+        tx_node->m_time_stop = (duration > 0) ? tx_node->m_time + duration : 0.0;
         tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
         tx_node->m_pctx->m_tx_node = tx_node;
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
@@ -281,8 +282,8 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
     set_profile_active(profile_id);
     set_profile_nc(profile_id, nc);
 
-    if ( duration > 0 ) {
-        add_profile_duration(profile_id, duration + d_phase + 1.0);
+    if ( disable_client && duration > 0 ) {
+        add_profile_duration(profile_id, duration + d_phase);
     }
 }
 
@@ -498,6 +499,12 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
         report_error(profile_id, "Stop in unexpected DP core state: " + std::to_string(m_state));
         break;
     }
+}
+
+void TrexAstfDpCore::stop_transmit(profile_id_t profile_id) {
+    uint32_t tmp_stop_id = -1;
+    set_profile_stop_id(profile_id, tmp_stop_id);
+    stop_transmit(profile_id, tmp_stop_id);
 }
 
 void TrexAstfDpCore::scheduler(bool activate) {

@@ -415,8 +415,16 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ) {
         m_cur_time_sec = node->m_time ;
-
-        generate_flow(done, node->m_pctx);
+        if (node->m_time_stop && m_cur_time_sec >= node->m_time_stop) {
+            done = true;
+            if (node->m_pctx && node->m_pctx->is_active()) {
+                TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
+                astf->stop_transmit(node->m_pctx->m_profile_id);
+            }
+        }
+        else {
+            generate_flow(done, node->m_pctx);
+        }
 
         if (m_sched_accurate){
             CVirtualIF * v_if=m_node_gen.m_v_if;
@@ -425,6 +433,9 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
 
         if (!done) {
             node->m_time += node->m_pctx->m_fif_d_time;
+            if (node->m_time_stop && node->m_time > node->m_time_stop) {
+                node->m_time = node->m_time_stop;
+            }
             m_node_gen.m_p_queue.push((CGenNode*)node);
         }else{
             free_node((CGenNode*)node);
