@@ -450,6 +450,13 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bo
         report_error(profile_id, "Start of invalid profile state " + std::to_string(get_profile_state(profile_id)));
         return;
     }
+#ifndef TREX_SIM
+    /* prevent from no_memory_error, reserve 1 for add_global_duration */
+    if (rte_mempool_avail_count(m_flow_gen->m_node_pool) <= 1) {
+        report_error(profile_id, "Not enough node object to start_transmit");
+        return;
+    }
+#endif
 
     set_profile_state(profile_id, pSTATE_STARTING);
 
