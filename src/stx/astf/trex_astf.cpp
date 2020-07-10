@@ -1013,6 +1013,7 @@ void TrexAstfPerProfile::dp_core_error(const string &err) {
             m_error = err;
             break;
         case STATE_BUILD:
+        case STATE_TX:
             m_error = err;
             break;
         default:
