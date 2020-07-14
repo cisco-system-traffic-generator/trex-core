@@ -50,6 +50,8 @@ public:
     virtual int wait_for_stable_link();
     virtual bool hw_rx_stat_supported();
     virtual int verify_fw_ver(tvpid_t   tvpid);
+    virtual bool extra_tx_queues_requires(tvpid_t tvpid);
+
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 
@@ -62,6 +64,7 @@ private:
 
 private:
     uint16_t m_max_flow_stats;
+    bool m_new_firmware_extra_tx_queues; 
 };
 
 #endif /* TREX_DRIVERS_I40E_H */

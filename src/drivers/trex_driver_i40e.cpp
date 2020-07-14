@@ -37,6 +37,7 @@ static uint16_t all_eth_types[]  = {
 
 CTRexExtendedDriverBase40G::CTRexExtendedDriverBase40G() {
     m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+   m_new_firmware_extra_tx_queues = false;
 }
 
 TRexPortAttr* CTRexExtendedDriverBase40G::create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -361,6 +362,9 @@ int CTRexExtendedDriverBase40G::wait_for_stable_link(){
 }
 
 
+bool CTRexExtendedDriverBase40G::extra_tx_queues_requires(tvpid_t tvpid){
+    return m_new_firmware_extra_tx_queues;
+}
 int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
     uint32_t version;
     int ret;
@@ -368,6 +372,11 @@ int CTRexExtendedDriverBase40G::verify_fw_ver(tvpid_t   tvpid) {
     repid_t repid=CTVPort(tvpid).get_repid();
 
     ret = rte_eth_get_fw_ver(repid, &version);
+
+
+    if (version > 0x6001) {
+        m_new_firmware_extra_tx_queues = true; 
+    }
 
     if ((version > 0x6000) && get_dpdk_mode()->is_drop_rx_queue_needed()) {
       int ret = -ENOTSUP;

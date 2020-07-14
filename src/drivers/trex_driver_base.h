@@ -104,6 +104,11 @@ public:
 
     /* can't get CPhyEthIF as it won't be valid at that time */
     virtual int verify_fw_ver(tvpid_t   tvpid) {return 0;}
+
+    /* This is a workaround for XL710 with new firmware. In this case a low-latency tx queue does not work for ASTF and we need a few extra queue 
+    */
+    virtual bool extra_tx_queues_requires(tvpid_t tvpid) {return false; }
+
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on)=0;
     virtual TRexPortAttr * create_port_attr(tvpid_t tvpid,repid_t repid) = 0;
