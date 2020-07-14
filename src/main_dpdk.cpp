@@ -5593,6 +5593,15 @@ COLD_FUNC void CPhyEthIF::conf_queues(void){
        }
     }
 
+    // check if we need a workaround for issue #508
+    bool extra_queue=false;
+    extra_queue = get_ex_drv()->extra_tx_queues_requires((tvpid_t)0);
+
+    if (extra_queue)  {
+        printf(" A workaround is applied for issue #508 \n");
+        tx_qs+= 1;
+    }
+
    _conf_queues(tx_qs,
                 tx_descs,
                 rx_qs,
