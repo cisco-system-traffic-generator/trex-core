@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.82 ==
+
+* Workaround for Cisco X710 firmware 7.0.x 
+* ASTF minor bugs 
+* STL,FE add ICMPv6 fix checksum instruction 
+
 == Release 2.81 ==
 
 * Bug fixes 
