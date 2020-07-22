@@ -78,8 +78,10 @@ def __import_ext_libs(ext_libs, ext_libs_path):
                 if hasattr(module, '__path__'):
                     m_path = module.__path__
                     p_name = p['name']
-                    if (m_name == p_name or m_name.startswith(p_name + '.')) and (len(m_path) != 1 or not m_path[0].startswith(full_path)):
-                        del sys.modules[m_name]
+                    if m_name == p_name or m_name.startswith(p_name + '.'): # lib with same name
+                        first_item = next((p for p in m_path), None)
+                        if not first_item or not first_item.startswith(full_path): # not our path
+                            del sys.modules[m_name]
 
             sys.path.insert(1, full_path)
 
