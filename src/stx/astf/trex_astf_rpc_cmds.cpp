@@ -465,6 +465,9 @@ TrexRpcCmdAstfGetTrafficDist::_run(const Json::Value &params, Json::Value &resul
     TrexAstfPerProfile *pid = get_astf_object()->get_profile(profile_id);
 
     auto db = CAstfDB::instance(pid->get_dp_profile_id());
+    if (!db) {
+        generate_execute_err(result, "No DB found for profile : " + profile_id);
+    }
     auto stx = get_astf_object();
     auto &api = get_platform_api();
 
