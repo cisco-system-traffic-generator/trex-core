@@ -376,7 +376,9 @@ void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db)
     // try removing the profile_ctx which contains statistics.
     m_flow_gen->remove_tcp_profile(profile_id);
 
-    astf_db->Delete();
+    if (astf_db) {
+        astf_db->Delete();
+    }
     report_finished(profile_id);
 }
 
