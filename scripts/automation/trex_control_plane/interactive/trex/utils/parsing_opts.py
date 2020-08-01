@@ -1303,22 +1303,14 @@ class OPTIONS_DB_ARGS:
         {'type': str,
          'dest': 'gen_name',
          'required': True,
-         'help': 'Name of ipfix generator'})
-
-    GEN_NAMES = ArgumentPack(
-        ['-g', '--gens'],
-        {'type': str,
-         'nargs': '+',
-         'dest': 'gen_names',
-         'required': True,
-         'help': 'Names of ipfix generators i.e: gen1 gen2..'})
+         'help': 'Name of IPFix generator'})
 
     GEN_RATE = ArgumentPack(
         ['-r', '--rate'],
-        {'type': int,
+        {'type': float,
          'dest': 'rate',
          'required': True,
-         'help': 'New data rate (in pps) to set for ipfix generator'})
+         'help': 'New rate (in pps) for data packets of an IPFix generator'})
 
 
     MTU = ArgumentPack(

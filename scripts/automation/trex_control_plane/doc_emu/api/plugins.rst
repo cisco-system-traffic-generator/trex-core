@@ -1,11 +1,10 @@
 Plugins
 =======
 
-Plugins are extensions for each EmuClient. They are emulating protocols like: arp, igmp, dhcp.
+Plugins are extensions for each EmuClient. They are emulating protocols like: ARP, IGMP, DHCP, ICMP, DOT1X, IPFix.
 
-Every plugin is has a init json, allowing alter some of the plugin's parameters. The init json could be applied to client, namespace and thread level.  
-You can find the init json for each plugin, whether it's "INIT_JSON_NS" (namespace) or "INIT_JSON_CLIENT" (client) .
-There is a separation between init JSON of plugin namespace and plugin client. 
+Each plugin has an initialization JSON, allowing it to provide some startup plugin parameters. This init JSON can be applied to the client, namespace and thread level.
+You can see examples of the init JSON for each plugin, whether it's "INIT_JSON_NS" (namespace) or "INIT_JSON_CLIENT" (client).
 
 **NOTICE**: Although sending a JSON with redundant parameters will not cause an error whatsoever, it's recommended to follow the init JSON structure.
 
@@ -14,13 +13,13 @@ Invoking plugin methods working as follows: c.xxx.yyy(z1, z2,..)
     | yyy - method name (see `Emulation Plugins` section to view all plugin methods)
     | z1, z2 ... - method params.
 
-Every plugin also has `counters` you can look into. They are good for debugging and monitoring the clients.  
+Every plugin provides `counters` you can look into. They are good for debugging and monitoring the clients.  
 
 **NOTICE**
-The emu client will load dynamically every plugin under: `scripts/automation/trex_control_plane/interactive/trex/emu/emu_plugins`
-Calling a plugin that isn't exists there will cause an error. 
+The EMU client will load dynamically every plugin under: `scripts/automation/trex_control_plane/interactive/trex/emu/emu_plugins`
+Calling a plugin that doesn't exist there will cause an error. 
 
-Here are every plugin's methods, their init JSONs and examples of usage: 
+Here are every plugin's methods, their init JSONs and some examples of usage:
 
 ARP
 ---
@@ -74,14 +73,14 @@ IPv6
     :inherited-members:
     :member-order: bysource
 
-Dot1x
+DOT1x
 -----
 .. automodule:: trex.emu.emu_plugins.emu_plugin_dot1x
     :members:
     :inherited-members:
     :member-order: bysource
 
-Ipfix
+IPFix
 -----
 .. automodule:: trex.emu.emu_plugins.emu_plugin_ipfix
     :members:

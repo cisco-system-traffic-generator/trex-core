@@ -5,171 +5,397 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class IPFIXPlugin(EMUPluginBase):
-    '''Defines ipfix plugin '''
+    """
+        Defines a Netflow/IPFIX plugin according of `Netflow v9 - RFC 3954 <https://tools.ietf.org/html/rfc3954>`_  or 
+        `Netflow v10 (IPFix) - RFC 7011 <https://tools.ietf.org/html/rfc7011>`_ 
+    """
 
     plugin_name = 'IPFIX'
 
-    # init jsons example for SDK
+    # init json examples for SDK
     INIT_JSON_NS = None
     """
-    There is currently no ns init json for IPFix.
+    There is currently no NS init json for IPFix.
     """
 
-    INIT_JSON_CLIENT = {'avcnet': {
-                            "netflow_version": 10,
-                            "dst_mac": [0, 0, 1, 0, 0, 0],
-                            "dst_ipv4": [48, 0, 0, 0],
-                            "dst_ipv6": [32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                            "dst_port": 6007,
-                            "src_port": 30334,
-                            "generators": {
-                                "gen1": {
-                                    "type": "dns",
-                                    "auto_start": True,
-                                    "rate_pps": 5,
-                                    "data_records": 7,
-                                    "gen_type_data": {
-                                        # DNS example
-                                        "client_ip": [15, 0, 0, 1],
-                                        "range_of_clients": 100,
-                                        "dns_servers": 150,
-                                        "nbar_hosts": 125
+    INIT_JSON_CLIENT = { 'ipfix':
+
+                            {
+                                "netflow_version": 10,
+                                "dst_mac": [0, 0, 1, 0, 0, 0],
+                                "dst_ipv4": [0, 0, 0, 0],
+                                "dst_ipv6": [32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+                                "dst_port": 6007,
+                                "src_port": 30334,
+                                "domain_id": 8888,
+                                "generators": [
+                                    {
+                                        "name": "dns",
+                                        "auto_start": True,
+                                        "rate_pps": 2,
+                                        "data_records_num": 7,
+                                        "template_id": 261,
+                                        "fields": [
+                                            {
+                                                "name": "clientIPv4Address",
+                                                "type": 45004,
+                                                "length": 4,
+                                                "enterprise_number": 9,
+                                                "data": [16, 0, 0, 1]
+                                            },
+                                            {
+                                                "name": "protocolIdentifier",
+                                                "type": 4,
+                                                "length": 1,
+                                                "data": [17]
+                                            },
+                                            {
+                                                "name": "serverTransportProtocol",
+                                                "type": 45009,
+                                                "length": 2,
+                                                "enterprise_number": 9,
+                                                "data": [0, 53]
+                                            },
+                                            {
+                                                "name": "applicationId",
+                                                "type": 95,
+                                                "length": 4,
+                                                "data": [3, 0, 0, 53]
+                                            },
+                                            {
+                                                "name": "nbar2HttpHost",
+                                                "type": 45003,
+                                                "length": 7,
+                                                "enterprise_number": 9,
+                                                "data": [115, 115, 115, 46, 101, 100, 117]
+                                            },
+                                            {
+                                                "name": "flowStartSysUpTime",
+                                                "type": 22,
+                                                "length": 4,
+                                                "data": [0, 0, 0, 1]
+                                            },
+                                            {
+                                                "name": "flowEndSysUpTime",
+                                                "type": 21,
+                                                "length": 4,
+                                                "data": [0, 0, 0, 10]
+                                            },
+                                            {
+                                                "name": "flowStartMilliseconds",
+                                                "type": 152,
+                                                "length": 8,
+                                                "data": [0, 0, 0, 0, 0, 0, 0, 0]
+                                            },
+                                            {
+                                                "name": "responderPackets",
+                                                "type": 299,
+                                                "length": 8,
+                                                "data": [0, 0, 0, 0, 0, 0, 0, 1]
+                                            },
+                                            {
+                                                "name": "initiatorPackets",
+                                                "type": 298,
+                                                "length": 8,
+                                                "data": [0, 0, 0, 0, 0, 0, 0, 1]
+                                            },
+                                            {
+                                                "name": "clientBytesL3",
+                                                "type": 41106,
+                                                "length": 8,
+                                                "enterprise_number": 9,
+                                                "data": [0, 0, 0, 0, 0, 0, 0, 127]
+                                            }
+                                        ],
+                                        "engines": [
+                                            {
+                                                "engine_name": "clientIPv4Address",
+                                                "engine_type": "uint",
+                                                "params":
+                                                {
+                                                    "size": 1,
+                                                    "offset": 3,
+                                                    "min": 1,
+                                                    "max": 255,
+                                                    "op": "inc",
+                                                    "step": 1,
+                                                }
+                                            },
+                                            {
+                                                "engine_name": "protocolIdentifier",
+                                                "engine_type": "histogram_uint",
+                                                "params":
+                                                {
+                                                    "size": 1,
+                                                    "offset": 0,
+                                                    "entries": [
+                                                        {
+                                                            "v": 17,
+                                                            "prob": 5
+                                                        },
+                                                        {
+                                                            "v": 1,
+                                                            "prob": 1,
+                                                        },
+                                                        {
+                                                            "v": 6,
+                                                            "prob": 3
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "engine_name": "applicationId",
+                                                "engine_type": "histogram_uint_list",
+                                                "params":
+                                                {
+                                                    "size": 1,
+                                                    "offset": 3,
+                                                    "entries": [
+                                                        {
+                                                            "list": [0, 2, 4, 6, 8],
+                                                            "prob": 1
+                                                        },
+                                                        {
+                                                            "list": [1, 3, 5, 7, 9],
+                                                            "prob": 1
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "engine_name": "initiatorPackets",
+                                                "engine_type": "histogram_uint64_range",
+                                                "params":
+                                                {
+                                                    "size": 8,
+                                                    "offset": 0,
+                                                    "entries": [
+                                                        {
+                                                            "min": 0,
+                                                            "max": 4294967295,
+                                                            "prob": 1
+                                                        },
+                                                        {
+                                                            "min": 4294967296,
+                                                            "max": 8589934591,
+                                                            "prob": 1
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        ]
                                     }
-                                }
-                            }
+                                ]
                         }
-                    }
+                }
     """
     :parameters:
+
         netflow_version: uint16
-            Netflow version. Might be 9 or 10, notice version 9 doesn't support length variable and PEN.
+            Netflow version. Might be 9 or 10, notice version 9 doesn't support variable length fields or per enterprise fields. Defaults to 10.
+
         dst_mac: [6]bytes
-            Optional, collector mac address. If not supplied wil try resolving mac from IP address.
+            Optional, destination MAC address. If not supplied, the destination MAC address will be the default gateway's MAC address,
+            in case there is one.
+
         dst_ipv4: [4]byte
-            Required, collector ipv4 address.
+            The collector's IPv4 address. Optional, in case you provide dst_ipv6. One of {dst_ipv4, dst_ipv6} must be provided but not both.
+
         dst_ipv6: [16]byte
-            Optional, collector ipv6 address.
+            The collector's IPv6 address. Optional, in case you provide dst_ipv4. One of {dst_ipv4, dst_ipv6} must be provided but not both.
+
         dst_port: uint16
-            Collector port, defaults to 4739.
+            Collector's L4 port, defaults to 4739.
+
         src_port: uint16
-            Collector port, defaults to 30334.
-        generators: dict of generators
-            Keys as generator names and values as generator inforation.
-    :Generators info:
-        type: string
-            Type of generator i.e dns.
+            Exporter's L4 port, defaults to 30334.
+
+        domain_id: uint32
+            The observation domain ID as defined in IPFix. If not provided, it will be randomly generated.
+
+        generators: list
+            List of generators, where each generator is a dictionary.
+
+    :generators:
+
+        name: string
+            Name of the generator. This field is required.
+
         auto_start: bool
-            True will start sending packets on creation. Defaults to false.
-        rate_pps: uint16
-            Rate of data packets (in pps), defaults to 3.
-        data_records: uint16
-            Number of data record in each data packet, defaults to max records according to MTU.
-        gen_type_data: dict
-            Dictionary with gen_type keys and values.
-    :DNS gen_type_data:
-        client_ip: [4]byte
-            First client ipv4 address.
-        range_of_clients: uint16
-            Number of clients in total starting from `client_ip`. Each record will choose an ip address randomly.
-        dns_servers: uin16
-            Number of dns servers to randomize. Each record will choose a dns address randomly.
-        nbar_hosts: uint16
-            Number of nbar hosts to randomize i.e: random.co.il. Each record will choose an nbar host randomly.
+            If true will automatically start sending IPFix packets upon creation.
+
+        rate_pps: float32
+            Rate of IPFix data packets (in pps), defaults to 3.
+
+        data_records_num: uint32
+            Number of data records in each data packet. If not provided, it will default to the maximum number of data packets which doesn't
+            exceed the MTU.
+
+        template_id: uint16
+            The template ID for this generator. Must be greater than 255. This field is required. Each generator must have a unique template identifier.
+
+        is_options_template: bool
+            Indicates if this is generator will send Options Template (True) packets or Data Template packets (False). Defaults to False.
+
+        scope_count: uint16
+            Scope count in case of Options Template packets. Must be bigger than 0.
+
+        fields: list
+            List of fields for this generator. Fields are very much alike the fields of Netflow. Each field is represented by a dictionary.
+
+        engines: list
+            List of engines for this generator. Each engine is represented by a dictionary.
+
+    :fields:
+
+        name: string
+            Name of this field. The name is required.
+
+        type: uint16
+            A uint16 that is unique per type. One can consult the RFC for specific values of types.
+
+        length: uint16
+            Length of this field in bytes. If the value is 0xFFFF, this indicates variable length fields. Variable length fields are not supported
+            at the moment. Variable lengths are supported only in V10.
+
+        enterprise_number: uint32
+            Enterprise number in case the field is specific per enterprise and the type's MSB equals 1 to indicate this is an enterprise field.
+            Enterprise fields are supported only in V10.
+
+        data: [`length`]bytes
+            List of bytes of size length. This will be the initial data in data packets and can be modified by the engines.
+
+    :engines:
+    
+        engine_name: string
+            Name of the engine. Must be the name of one of the fields.
+
+        engine_type: string
+            Type of engine, can be {uint, histogram_uint, histogram_uint_range, histogram_uint_list, histogram_uint64, histogram_uint64_range, histogram_uint64_list}
+
+        params: dictionary
+            Dictionary of params for the engine. Each engine type has different params. Explore the EMU documentation for more information on engines.
     """
+
 
     def __init__(self, emu_client):
         """
-        Init IpfixPlugin. 
-        
+        Initialize an IPFixPlugin.
+
             :parameters:
-                emu_client: EMUClient
-                    Valid emu client.
-        """        
-        super(IPFIXPlugin, self).__init__(emu_client, 'avcnet_c_cnt')
+                emu_client: :class:`trex.emu.trex_emu_client.EMUClient`
+                    Valid EMU client.
+        """
+        super(IPFIXPlugin, self).__init__(emu_client, 'ipfix_c_cnt')
 
     # API methods
     @client_api('getter', True)
-    def get_gens_infos(self, c_key, gen_names):
+    def get_gen_info(self, c_key):
         """
-        Gets ipfix generators information. 
-        
-            :parameters:
-                c_key: EMUClientKey
-                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
-                gen_name: list of string
-                    Name of the generators we want to get their infos.
+            Gets information about all the generators of a client.
 
-            :returns:
-                | dict:
-                | {      
-                | 'type': string
-                | 'is_running': bool
-                | 'template_rate_pps': float32
-                | 'data_rate_pps': float32
-                | 'data_records': uint32
-                | 'flow_sequence': uint32
-                | }
+            :parameters:
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+            :returns: list of dictionaries
+
+                    For each generator we get a key value mapping of name with the following parameters:
+
+                    { 'enabled': bool
+                        Flag indicating if generator is enabled.
+
+                    'options_template': bool
+                        Flag indicating if we are sending options templates for this generator or data templates.
+
+                    'scope_count': uint16
+                        Scope count in case of options template, otherwise will be 0.
+
+                    'template_rate_pps': float32
+                        The rate of template packets in pps.
+
+                    'data_rate_pps': float32
+                        The rate of data packets in pps.
+
+                    'data_records_num': float32
+                        The number of data records in a packet as user specified.
+
+                    'data_records_num_send': float32
+                        The actual number of data records in a packet as TRex calculated. For example, if user provided 0,
+                        then TRex calculates the maximum number based on the MTU.
+
+                    'fields_num': int
+                        Number of fields in this generator.
+
+                    'engines_num': int
+                        Number of engines in this generator.}
         """
-        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
-                    {'name': 'gen_names', 'arg': gen_names, 't': str, 'allow_list': True},
-                    ]
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
         EMUValidator.verify(ver_args)
-        res = self.emu_c._send_plugin_cmd_to_client('avcnet_c_get_gens_info', c_key, gen_names=gen_names)
-        return res.get('gens_infos', {})
+        res = self.emu_c._send_plugin_cmd_to_client('ipfix_c_get_gens_info', c_key)
+        return res.get('generators_info', {})
 
     @client_api('command', True)
     def set_gen_rate(self, c_key, gen_name, rate):
         """
-        Set ipfix generator rate (in pps). 
-        
+            Set a new rate of data packets for an IPFix generator.
+
             :parameters:
-                c_key: EMUClientKey
-                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
                 gen_name: string
-                    The name of the generator to alter.
-                rate: uint32.
-                    New data pkt rate to set, in pps.
+                    The name of the generator we are trying to alter.
+
+                rate: float32
+                    New rate for data packets, in pps.
+
             :returns:
-               bool : Result of operation.
+               bool : Flag indicating the result of the operation.
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
                     {'name': 'gen_name', 'arg': gen_name, 't': str},
-                    {'name': 'rate', 'arg': rate, 't': int}]
+                    {'name': 'rate', 'arg': rate, 't': float}]
         EMUValidator.verify(ver_args)
-        return self.emu_c._send_plugin_cmd_to_client('avcnet_c_set_gen_state', c_key=c_key, gen_name=gen_name, rate=rate)
+        return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_gen_state', c_key=c_key, gen_name=gen_name, rate=rate)
 
     @client_api('command', True)
-    def set_gen_running(self, c_key, gen_name, running):
+    def enable_generator(self, c_key, gen_name, enable):
         """
-        Set ipfix generator value. 
-        
+            Enable/disable an IPFix generator.
+
             :parameters:
-                c_key: EMUClientKey
-                    see :class:`trex.emu.trex_emu_profile.EMUClientKey`
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
                 gen_name: string
                     The name of the generator to alter.
-                running: bool.
-                    True for active this generator false for stopping.
+
+                enable: bool
+                    True if we wish to enable the generator, False if we wish to disable it.
+
             :returns:
-               bool : Result of operation.
+               bool : Flag indicating the result of the operation.
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
                     {'name': 'gen_name', 'arg': gen_name, 't': str},
-                    {'name': 'running', 'arg': running, 't': bool}]
+                    {'name': 'enable', 'arg': enable, 't': bool}]
         EMUValidator.verify(ver_args)
-        return self.emu_c._send_plugin_cmd_to_client('avcnet_c_set_gen_state', c_key=c_key, gen_name=gen_name, running=running)
-
+        return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_gen_state', c_key=c_key, gen_name=gen_name, enable=enable)
 
     # Plugins methods
     @plugin_api('ipfix_show_counters', 'emu')
     def ipfix_show_counters_line(self, line):
-        '''Show ipfix data counters data.\n'''
+        """Show IPFix data counters data.\n"""
         parser = parsing_opts.gen_parser(self,
                                         "show_counters_ipfix",
                                         self.ipfix_show_counters_line.__doc__,
                                         parsing_opts.EMU_SHOW_CNT_GROUP,
-                                        parsing_opts.EMU_ALL_NS,
-                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_NS_GROUP,
                                         parsing_opts.MAC_ADDRESS,
                                         parsing_opts.EMU_DUMPS_OPT
                                         )
@@ -178,16 +404,14 @@ class IPFIXPlugin(EMUPluginBase):
         self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
         return True
 
-
-    @plugin_api('ipfix_get_gens_infos', 'emu')
-    def ipfix_get_gens_infos_line(self, line):
-        '''Show ipfix generators information.\n'''
+    @plugin_api('ipfix_get_gen_info', 'emu')
+    def ipfix_get_gen_info_line(self, line):
+        """Get IPFix generators information.\n"""
         parser = parsing_opts.gen_parser(self,
                                         "ipfix_get_gens_info",
-                                        self.ipfix_get_gens_infos_line.__doc__,
+                                        self.ipfix_get_gen_info_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.MAC_ADDRESS,
-                                        parsing_opts.GEN_NAMES,
                                         parsing_opts.EMU_DUMPS_OPT,
                                         )
 
@@ -195,38 +419,43 @@ class IPFIXPlugin(EMUPluginBase):
         self._validate_port(opts)
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        res = self.get_gens_infos(c_key, opts.gen_names)
+        res = self.get_gen_info(c_key)
 
         if opts.json or opts.yaml:
             dump_json_yaml(data = res, to_json = opts.json, to_yaml = opts.yaml)
             return
     
-        keys_to_headers = [{'key': 'type',               'header': 'Generator Type'},
-                            {'key': 'is_running',        'header': 'Active'},
-                            {'key': 'template_rate_pps', 'header': 'Template Rate (pps)'},
-                            {'key': 'data_rate_pps',     'header': 'Data Rate (pps)'},
-                            {'key': 'data_records',      'header': '#Data Records'},
-                            {'key': 'flow_sequence',     'header': 'Current Flow Sequence'},
+        keys_to_headers = [ {'key': 'name',                     'header': 'Name'},
+                            {'key': 'template_id',              'header': 'Temp. ID'},
+                            {'key': 'options_template',         'header': 'Opt. Temp.'},
+                            {'key': 'scope_count',              'header': 'Scope cnt'},
+                            {'key': 'template_rate_pps',        'header': 'Temp. Rate'},
+                            {'key': 'data_rate_pps',            'header': 'Data Rate'},
+                            {'key': 'data_records_num',         'header': '# Records spec.'},
+                            {'key': 'data_records_num_send',    'header': '# Records calc.'},
+                            {'key': 'fields_num',               'header': '# Fields'},
+                            {'key': 'engines_num',              'header': '# Engines'},
         ]
 
         for gen_name, gen_info in res.items():
-            self.print_table_by_keys(gen_info, keys_to_headers, title=gen_name)
+            gen_info['name'] = gen_name
+        self.print_table_by_keys(res.values(), keys_to_headers, title="Generators")
 
-    @plugin_api('ipfix_start_gen', 'emu')
-    def ipfix_start_gen_line(self, line):
-        '''Start given ipfix generator.\n'''
-        res = self._start_stop_gen_line(line, self.ipfix_start_gen_line, 'start')
+    @plugin_api('ipfix_enable_gen', 'emu')
+    def ipfix_enable_gen_line(self, line):
+        """Enable an IPFIx generator.\n"""
+        res = self._enable_disable_gen_line(line, self.ipfix_enable_gen_line, "enable")
         self.logger.post_cmd(res)
 
-    @plugin_api('ipfix_stop_gen', 'emu')
-    def ipfix_stop_gen_line(self, line):
-        '''Stop given ipfix generator.\n'''
-        res = self._start_stop_gen_line(line, self.ipfix_stop_gen_line, 'stop')
+    @plugin_api('ipfix_disable_gen', 'emu')
+    def ipfix_disable_gen_line(self, line):
+        """Disable an IPFIx generator.\n"""
+        res = self._enable_disable_gen_line(line, self.ipfix_enable_gen_line, "disable")
         self.logger.post_cmd(res)
 
-    def _start_stop_gen_line(self, line, caller_func, start_stop):
+    def _enable_disable_gen_line(self, line, caller_func, enable_disable):
         parser = parsing_opts.gen_parser(self,
-                                        "ipfix_start_gen",
+                                        "ipfix_enable_gen",
                                         caller_func.__doc__,
                                         parsing_opts.EMU_NS_GROUP_NOT_REQ,
                                         parsing_opts.MAC_ADDRESS,
@@ -237,11 +466,11 @@ class IPFIXPlugin(EMUPluginBase):
         self._validate_port(opts)
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        return self.set_gen_running(c_key, opts.gen_name, start_stop == 'start')
+        return self.enable_generator(c_key, opts.gen_name, enable_disable == 'enable')
 
     @plugin_api('ipfix_set_data_rate', 'emu')
     def ipfix_set_data_rate_line(self, line):
-        '''Set ipfix generator data rate.\n'''
+        """Set IPFix generator data rate.\n"""
         parser = parsing_opts.gen_parser(self,
                                         "ipfix_set_data_rate",
                                         self.ipfix_set_data_rate_line.__doc__,
@@ -255,4 +484,4 @@ class IPFIXPlugin(EMUPluginBase):
         self._validate_port(opts)
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        return self.set_gen_rate(c_key, opts.gen_name, rate = opts.rate)
+        return self.set_gen_rate(c_key, opts.gen_name, opts.rate)

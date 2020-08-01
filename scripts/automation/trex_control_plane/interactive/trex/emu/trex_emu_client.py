@@ -1607,7 +1607,7 @@ class EMUClient(object):
 
     def _base_show_counters(self, data_cnt, opts, req_ns = False):
         '''Base function for every counter using `cnt_cmd`'''
-        
+
         def run_on_demend(data_cnt, opts):
             if opts.headers:
                 data_cnt.get_counters_headers()
