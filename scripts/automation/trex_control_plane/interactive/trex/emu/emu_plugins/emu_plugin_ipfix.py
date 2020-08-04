@@ -18,178 +18,10 @@ class IPFIXPlugin(EMUPluginBase):
     There is currently no NS init json for IPFix.
     """
 
-    INIT_JSON_CLIENT = { 'ipfix':
-
-                            {
-                                "netflow_version": 10,
-                                "dst_mac": [0, 0, 1, 0, 0, 0],
-                                "dst_ipv4": [0, 0, 0, 0],
-                                "dst_ipv6": [32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                                "dst_port": 6007,
-                                "src_port": 30334,
-                                "domain_id": 8888,
-                                "generators": [
-                                    {
-                                        "name": "dns",
-                                        "auto_start": True,
-                                        "rate_pps": 2,
-                                        "data_records_num": 7,
-                                        "template_id": 261,
-                                        "fields": [
-                                            {
-                                                "name": "clientIPv4Address",
-                                                "type": 45004,
-                                                "length": 4,
-                                                "enterprise_number": 9,
-                                                "data": [16, 0, 0, 1]
-                                            },
-                                            {
-                                                "name": "protocolIdentifier",
-                                                "type": 4,
-                                                "length": 1,
-                                                "data": [17]
-                                            },
-                                            {
-                                                "name": "serverTransportProtocol",
-                                                "type": 45009,
-                                                "length": 2,
-                                                "enterprise_number": 9,
-                                                "data": [0, 53]
-                                            },
-                                            {
-                                                "name": "applicationId",
-                                                "type": 95,
-                                                "length": 4,
-                                                "data": [3, 0, 0, 53]
-                                            },
-                                            {
-                                                "name": "nbar2HttpHost",
-                                                "type": 45003,
-                                                "length": 7,
-                                                "enterprise_number": 9,
-                                                "data": [115, 115, 115, 46, 101, 100, 117]
-                                            },
-                                            {
-                                                "name": "flowStartSysUpTime",
-                                                "type": 22,
-                                                "length": 4,
-                                                "data": [0, 0, 0, 1]
-                                            },
-                                            {
-                                                "name": "flowEndSysUpTime",
-                                                "type": 21,
-                                                "length": 4,
-                                                "data": [0, 0, 0, 10]
-                                            },
-                                            {
-                                                "name": "flowStartMilliseconds",
-                                                "type": 152,
-                                                "length": 8,
-                                                "data": [0, 0, 0, 0, 0, 0, 0, 0]
-                                            },
-                                            {
-                                                "name": "responderPackets",
-                                                "type": 299,
-                                                "length": 8,
-                                                "data": [0, 0, 0, 0, 0, 0, 0, 1]
-                                            },
-                                            {
-                                                "name": "initiatorPackets",
-                                                "type": 298,
-                                                "length": 8,
-                                                "data": [0, 0, 0, 0, 0, 0, 0, 1]
-                                            },
-                                            {
-                                                "name": "clientBytesL3",
-                                                "type": 41106,
-                                                "length": 8,
-                                                "enterprise_number": 9,
-                                                "data": [0, 0, 0, 0, 0, 0, 0, 127]
-                                            }
-                                        ],
-                                        "engines": [
-                                            {
-                                                "engine_name": "clientIPv4Address",
-                                                "engine_type": "uint",
-                                                "params":
-                                                {
-                                                    "size": 1,
-                                                    "offset": 3,
-                                                    "min": 1,
-                                                    "max": 255,
-                                                    "op": "inc",
-                                                    "step": 1,
-                                                }
-                                            },
-                                            {
-                                                "engine_name": "protocolIdentifier",
-                                                "engine_type": "histogram_uint",
-                                                "params":
-                                                {
-                                                    "size": 1,
-                                                    "offset": 0,
-                                                    "entries": [
-                                                        {
-                                                            "v": 17,
-                                                            "prob": 5
-                                                        },
-                                                        {
-                                                            "v": 1,
-                                                            "prob": 1,
-                                                        },
-                                                        {
-                                                            "v": 6,
-                                                            "prob": 3
-                                                        }
-                                                    ]
-                                                }
-                                            },
-                                            {
-                                                "engine_name": "applicationId",
-                                                "engine_type": "histogram_uint_list",
-                                                "params":
-                                                {
-                                                    "size": 1,
-                                                    "offset": 3,
-                                                    "entries": [
-                                                        {
-                                                            "list": [0, 2, 4, 6, 8],
-                                                            "prob": 1
-                                                        },
-                                                        {
-                                                            "list": [1, 3, 5, 7, 9],
-                                                            "prob": 1
-                                                        }
-                                                    ]
-                                                }
-                                            },
-                                            {
-                                                "engine_name": "initiatorPackets",
-                                                "engine_type": "histogram_uint64_range",
-                                                "params":
-                                                {
-                                                    "size": 8,
-                                                    "offset": 0,
-                                                    "entries": [
-                                                        {
-                                                            "min": 0,
-                                                            "max": 4294967295,
-                                                            "prob": 1
-                                                        },
-                                                        {
-                                                            "min": 4294967296,
-                                                            "max": 8589934591,
-                                                            "prob": 1
-                                                        }
-                                                    ]
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ]
-                        }
-                }
+    INIT_JSON_CLIENT = { 'ipfix': "Pointer to INIT_JSON_CLIENT below" }
     """
+    `IPFix INIT_JSON_CLIENT:  <https://trex-tgn.cisco.com/trex/doc/trex_emu.html#_netflow_plugin>`_ 
+
     :parameters:
 
         netflow_version: uint16
@@ -275,7 +107,8 @@ class IPFIXPlugin(EMUPluginBase):
             Type of engine, can be {uint, histogram_uint, histogram_uint_range, histogram_uint_list, histogram_uint64, histogram_uint64_range, histogram_uint64_list}
 
         params: dictionary
-            Dictionary of params for the engine. Each engine type has different params. Explore the EMU documentation for more information on engines.
+            Dictionary of params for the engine. Each engine type has different params. Explore the EMU documentation `engine section <https://trex-tgn.cisco.com/trex/doc/trex_emu.html#_engines>`_
+            for more information on engines.
     """
 
 
@@ -427,6 +260,7 @@ class IPFIXPlugin(EMUPluginBase):
     
         keys_to_headers = [ {'key': 'name',                     'header': 'Name'},
                             {'key': 'template_id',              'header': 'Temp. ID'},
+                            {'key': 'enabled',                  'header': 'Enabled'},
                             {'key': 'options_template',         'header': 'Opt. Temp.'},
                             {'key': 'scope_count',              'header': 'Scope cnt'},
                             {'key': 'template_rate_pps',        'header': 'Temp. Rate'},
