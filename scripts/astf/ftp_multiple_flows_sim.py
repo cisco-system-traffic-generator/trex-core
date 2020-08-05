@@ -21,19 +21,18 @@ class ftp_sim():
         pass  # tunables
 
     def tune_tcp(self,mss):
-        self.max_buf_size = 512*1024
+        self.max_buf_size = 4*512*1024
         self.ginfo = ASTFGlobalInfo()
-        if mss != 0:
-          self.ginfo.tcp.mss = mss
-        self.ginfo.tcp.no_delay = 1   # to get fast feedback for acks
-        self.ginfo.tcp.rxbufsize = 512*1024  # max rxbufsize=1MB
-        self.ginfo.tcp.txbufsize = 512*1024  # max txbufsize=1MB
-        self.ginfo.tcp.do_rfc1323 = 0
+        if mss == 0:
+          mss = 1460
+        self.ginfo.tcp.mss = mss
+        self.ginfo.tcp.rxbufsize = 2*512*1024   # Max rxbufsize=1MB
+        self.ginfo.tcp.txbufsize = 2*512*1024   # Max txbufsize=1MB
+        self.ginfo.tcp.no_delay_counter = mss*2 # RFC5681
+        self.ginfo.tcp.initwnd = 20             # Max init wind=20
 
     def create_profile(self,fsize,nflows,tinc):
         self.tune_tcp(0)
-        ftp_data = ('*'*self.max_buf_size)
-        bsize = len(ftp_data)
         loop = int(fsize*(1024*1024)/self.max_buf_size)
 
         # client commands
@@ -50,9 +49,10 @@ class ftp_sim():
         # server commands
         prog_s = ASTFProgram()
         prog_s.recv(len(self.ftp_get))
+        prog_s.set_send_blocking (False) # Set to non-blocking to maximize thput in single flow
         prog_s.set_var("var2",loop); # set var 0 to loop
         prog_s.set_label("a:");
-        prog_s.send(ftp_data)
+        prog_s.send('',size=self.max_buf_size,fill='*')
         prog_s.jmp_nz("var2","a:") # dec var "var2". in case it is *not* zero jump a:
 
         # ip generator
