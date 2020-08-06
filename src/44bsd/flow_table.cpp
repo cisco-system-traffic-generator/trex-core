@@ -280,6 +280,21 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         }
     }
 
+    if  ( (m_service_filtered_mask & TrexPort::TRANSPORT) && 
+            ((parser.m_protocol == IPPROTO_UDP) 
+            || (parser.m_protocol == IPPROTO_TCP)) ) {
+        UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+
+        uint16_t dst_port = l4_header->getDestPort();
+
+        if ((dst_port & 0xff00) == 0xff00){
+                action = tREDIRECT_RX_CORE;
+                return;
+        }
+    }
+
+    action = tPROCESS;
+
 }
 
 static void on_flow_free_cb(void *userdata,void  *obh){

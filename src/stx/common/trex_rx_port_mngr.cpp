@@ -649,6 +649,15 @@ bool RXPortManager::is_emu_filter(rte_mbuf_t *m){
             return true;
         }
     }
+
+    if  ( (proto == IPPROTO_UDP) || (proto == IPPROTO_TCP) ) {
+        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t dst_port = l4_header->getDestPort();
+        if ( (dst_port & 0xff00) ==0xff00 ) {
+            return true;
+        }
+    }
+
     return false;
 }
 
