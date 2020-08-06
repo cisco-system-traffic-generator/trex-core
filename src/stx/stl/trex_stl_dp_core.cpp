@@ -30,7 +30,104 @@ limitations under the License.
 #include "flow_stat_parser.h"
 #include "mbuf.h"
 #include "utl_mbuf.h"
+#include "hot_section.h"
 
+/* return true if packet passed through service filter */
+COLD_FUNC bool TrexStatelessDpCore::check_service_filter(bool &drop) {
+    
+    uint8_t proto = m_parser->get_protocol();
+
+    // BGP check
+    if ( (m_service_mask & TrexPort::BGP) && (proto == IPPROTO_TCP) ) {
+
+        TCPHeader *l4_header = (TCPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
+        uint16_t dst_port = l4_header->getDestPort();
+
+        if ( src_port == BGP_PORT || dst_port == BGP_PORT ) {
+            drop = false;
+            return true;
+        }
+    }
+
+    if  ( (m_service_mask & TrexPort::DHCP) && (proto == IPPROTO_UDP) ) {
+        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
+        uint16_t dst_port = l4_header->getDestPort();
+
+        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+            (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+            drop = false;
+            return true;
+        }
+    }
+
+    if  ( (m_service_mask & TrexPort::TRANSPORT) && ((proto == IPPROTO_UDP) 
+                                                     || (proto == IPPROTO_TCP)) ) {
+        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t dst_port = l4_header->getDestPort();
+
+        if ( (dst_port&0xff00) == 0xff00){
+            drop = false;
+            return true;
+        }
+    }
+
+    // OSPF check
+    if ( (m_service_mask & TrexPort::NO_TCP_UDP) && (! ( (proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) ) ) {
+        drop = false;
+        return true;
+    }
+    return false;
+}
+
+COLD_FUNC void TrexStatelessDpCore::_rx_handle_packet(int dir,
+                                           rte_mbuf_t * m,
+                                           bool is_idle,
+                                           bool &drop){
+    /* parse the packet, if it has TOS=1, forward it */
+    //utl_rte_pktmbuf_dump_k12(stdout,m);
+    drop=true;
+
+    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
+    uint16_t pkt_size= rte_pktmbuf_data_len(m);
+    CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
+
+    if (res != FSTAT_PARSER_E_OK){
+        if (res == FSTAT_PARSER_E_UNKNOWN_HDR){
+            // try updating latency statistics for unknown ether type packets
+            m_ports[dir].m_fs_latency.handle_pkt(m,0);
+        }
+        if ( m_is_service_mode || (m_is_service_mode_filter && (m_service_mask & TrexPort::NO_TCP_UDP)) ) {
+            drop = false;
+        }
+        return;
+    }
+
+    uint8_t proto = m_parser->get_protocol();
+    bool tcp_udp=false;
+
+    if (m_parser->is_fs_latency(m)) {
+        m_ports[dir].m_fs_latency.handle_pkt(m,0);
+    }
+
+    if (m_is_service_mode){
+        drop=false;
+        return;
+    }
+
+    if ((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)){
+        tcp_udp = true;
+    }
+
+    if ( !tcp_udp && (!is_idle)){
+        drop=false;
+    }
+
+    if ( m_is_service_mode_filter && check_service_filter(drop) ) {
+        return;
+    }
+}
 
 
 /**
@@ -1037,92 +1134,7 @@ TrexStatelessDpCore::start_scheduler() {
 }
 
 
-void TrexStatelessDpCore::_rx_handle_packet(int dir,
-                                           rte_mbuf_t * m,
-                                           bool is_idle,
-                                           bool &drop){
-    /* parse the packet, if it has TOS=1, forward it */
-    //utl_rte_pktmbuf_dump_k12(stdout,m);
-    drop=true;
 
-    uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
-    uint16_t pkt_size= rte_pktmbuf_data_len(m);
-    CFlowStatParser_err_t res=m_parser->parse(p,pkt_size);
-
-    if (res != FSTAT_PARSER_E_OK){
-        if (res == FSTAT_PARSER_E_UNKNOWN_HDR){
-            // try updating latency statistics for unknown ether type packets
-            m_ports[dir].m_fs_latency.handle_pkt(m,0);
-        }
-        if ( m_is_service_mode || (m_is_service_mode_filter && (m_service_mask & TrexPort::NO_TCP_UDP)) ) {
-            drop = false;
-        }
-        return;
-    }
-
-    uint8_t proto = m_parser->get_protocol();
-    bool tcp_udp=false;
-
-    if (m_parser->is_fs_latency(m)) {
-        m_ports[dir].m_fs_latency.handle_pkt(m,0);
-    }
-
-    if (m_is_service_mode){
-        drop=false;
-        return;
-    }
-
-    if ((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)){
-        tcp_udp = true;
-    }
-
-    if ( !tcp_udp && (!is_idle)){
-        drop=false;
-    }
-
-    if ( m_is_service_mode_filter && check_service_filter(drop) ) {
-        return;
-    }
-}
-
-/* return true if packet passed through service filter */
-bool TrexStatelessDpCore::check_service_filter(bool &drop) {
-    
-    uint8_t proto = m_parser->get_protocol();
-
-    // BGP check
-    if ( (m_service_mask & TrexPort::BGP) && (proto == IPPROTO_TCP) ) {
-
-        TCPHeader *l4_header = (TCPHeader *)m_parser->get_l4();
-        uint16_t src_port = l4_header->getSourcePort();
-        uint16_t dst_port = l4_header->getDestPort();
-
-        if ( src_port == BGP_PORT || dst_port == BGP_PORT ) {
-            drop = false;
-            return true;
-        }
-    }
-
-    if  ( (m_service_mask & TrexPort::DHCP) && (proto == IPPROTO_UDP) ) {
-        UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
-        uint16_t src_port = l4_header->getSourcePort();
-        uint16_t dst_port = l4_header->getDestPort();
-
-        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
-            (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
-            drop = false;
-            return true;
-        }
-    }
-
-
-    // OSPF check
-    if ( (m_service_mask & TrexPort::NO_TCP_UDP) && (! ( (proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) ) ) {
-        drop = false;
-        return true;
-    }
-    return false;
-}
 
 void TrexStatelessDpCore::set_need_to_rx(bool enable){
     m_need_to_rx = enable;
@@ -1826,7 +1838,6 @@ void CGenNodePCAP::destroy() {
 
     m_state = PCAP_INVALID;
 }
-
 
 
 
