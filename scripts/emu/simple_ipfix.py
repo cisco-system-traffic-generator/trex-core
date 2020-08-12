@@ -25,7 +25,7 @@ class Prof1():
                 "domain_id": 7777,
                 "generators": [
                     {
-                        "name": "protocolIdentifierGen",
+                        "name": "mix1",
                         "auto_start": True,
                         "rate_pps": 1,
                         "data_records_num": 2,
@@ -45,6 +45,13 @@ class Prof1():
                                 "type": 4,
                                 "length": 1,
                                 "data": [17]
+                            },
+                            {
+                                "name": "nbar2HttpHost",
+                                "type": 0xafcb,
+                                "length": 60,
+                                "enterprise_number": 9, 
+                                "data":[0] * 60
                             }
                         ],
                         "engines": [
@@ -60,11 +67,41 @@ class Prof1():
                                     "op": "inc",
                                     "step": 1,
                                 }
+                            },
+                            {
+                                "engine_name": "nbar2HttpHost",
+                                "engine_type": "histogram_url",
+                                "params":
+                                {
+                                    "size": 60,
+                                    "offset": 0,
+                                    "entries": [
+                                        {
+                                            "schemes": ["https"],
+                                            "hosts": ["google.com"],
+                                            "random_queries": True,
+                                            "prob": 5
+                                        },
+                                        {
+                                            "schemes": ["ftp"],
+                                            "hosts": ["downloads.cisco.com", "software.cisco.com"],
+                                            "paths": ["ios-xe", "nx-os"],
+                                            "queries": ["version=16", "version=7"],
+                                            "prob": 2
+                                        },
+                                        {
+                                            "schemes": ["http", "https"],
+                                            "hosts": ["trex-tgn.cisco.com"],
+                                            "paths": ["doc", "releases", "sdk"],
+                                            "prob": 3
+                                        }
+                                    ]
+                                }
                             }
                         ]
                     },
                     {
-                        "name": "ipVersionGen",
+                        "name": "mix2",
                         "auto_start": True,
                         "rate_pps": 0.5,
                         "data_records_num": 5,
@@ -75,6 +112,18 @@ class Prof1():
                                 "type": 60,
                                 "length": 1,
                                 "data": [4]
+                            },
+                            {
+                                "name": "flowStartSysUpTime",
+                                "type": 0x0016,
+                                "length": 4,
+                                "data": [0, 0, 0, 0]
+                            },
+                            {
+                                "name": "flowEndSysUpTime",
+                                "type": 0x0015,
+                                "length": 4,
+                                "data": [0, 0, 0, 0]
                             }
                         ],
                         "engines": [
@@ -95,6 +144,31 @@ class Prof1():
                                         }
                                     ]
                                 }
+                            },
+                            {
+                                "engine_name": "flowStartSysUpTime",
+                                "engine_type": "time_start",
+                                "params":
+                                    {
+                                        "size": 4,
+                                        "offset": 0,
+                                        "time_end_engine_name": "flowEndSysUpTime",
+                                        "ipg_min": 10000,
+                                        "ipg_max": 20000,
+                                        "time_offset": 200000
+                                    }
+                            },
+                            {
+                                "engine_name": "flowEndSysUpTime",
+                                "engine_type": "time_end",
+                                "params":
+                                    {
+                                        "size": 4,
+                                        "offset": 0,
+                                        "time_start_engine_name": "flowStartSysUpTime",
+                                        "duration_min": 5000,
+                                        "duration_max": 10000,
+                                    }
                             }
                         ]
                     }
@@ -122,7 +196,7 @@ class Prof1():
 
     def get_profile(self, tuneables):
         # Argparse for tunables
-        parser = argparse.ArgumentParser(description='Argparser for simple_ipfix2.py', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser = argparse.ArgumentParser(description='Argparser for simple_ipfix.py', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
         # client args
         parser.add_argument('--is_ipv6', type = bool, default = False, dest = 'is_ipv6',
@@ -139,7 +213,6 @@ class Prof1():
             help='IPv4 address of collector')
         parser.add_argument('--dst-6', type = str, default = '2001:DB8:3::1', dest = 'dst_6',
             help='IPv6 address of collector')
-
 
         args = parser.parse_args(tuneables)
         return self.create_profile(args.is_ipv6, args.mac, args.ipv4, args.ipv6, args.dg_4, args.dst_4, args.dst_6)

@@ -1,5 +1,6 @@
 from trex.emu.api import *
 import argparse
+import time
 
 
 class AVCFields():
@@ -136,7 +137,7 @@ class AVCFields():
             "name": "VRFname",
             "type": 0x00ec,
             "length": 32,
-            "data": [0x4d, 0x67, 0x6d, 0x74, 0x2d, 0x69, 0x6e, 0x74, 0x66] + [0] * 23 # Mgmt-Intf
+            "data": [0] * 32
         }
 
         self.fields_dict["biflowDirection"] = {
@@ -574,14 +575,22 @@ class AVCGenerators():
             "engines": [
                 {
                     "engine_name": "ingressVRFID",
-                    "engine_type": "uint",
+                    "engine_type": "uint_list",
                     "params": {
-                        "size": 1,
-                        "offset": 3,
-                        "min": 1,
-                        "max": 3,
-                        "step": 1,
-                        "op": "inc"
+                        "size": 4,
+                        "offset": 0,
+                        "op": "inc",
+                        "list": [1, 2, 8191]
+                    }
+                },
+                {
+                    "engine_name": "VRFname",
+                    "engine_type": "string_list",
+                    "params": {
+                        "size": 32,
+                        "offset": 0,
+                        "op": "inc",
+                        "list": ["Mgmt-Intf", "FNF", "__Platform_iVRF:_ID00_"]
                     }
                 }
             ]
@@ -597,7 +606,7 @@ class AVCGenerators():
             "scope_count": 1,
             "fields": [
                 self.fields.get_field("samplerId"),
-                self.fields.get_field("samplerName"), # Needs a name engine
+                self.fields.get_field("samplerName"),
                 self.fields.get_field("samplerMode"),
                 self.fields.get_field("samplerRandomInterval")
             ],
@@ -649,9 +658,45 @@ class AVCGenerators():
             "scope_count": 1,
             "fields": [
                 self.fields.get_field("applicationId"),
-                self.fields.get_field("applicationName"), # Needs a name engine
+                self.fields.get_field("applicationName"),
                 self.fields.get_field("applicationDescription"),
-            ] # we need better engines for this
+            ],
+            "engines": [
+                {
+                    "engine_name": "applicationId",
+                    "engine_type": "uint_list",
+                    "params":
+                        {
+                            "size": 1,
+                            "offset": 3,
+                            "op": "inc",
+                            "list": [0x22, 0x6b, 0x3d, 0x0d, 0x68, 0x5d, 0x0a, 0x31, 0x4c, 0x07, 0x3e, 0x10, 0x6e, 0x49, 0x48, 0x7e]
+                        }
+                },
+                {
+                    "engine_name": "applicationName",
+                    "engine_type": "string_list",
+                    "params":
+                        {
+                            "size": 24,
+                            "offset": 0,
+                            "op": "inc",
+                            "list": ["3pc", "an", "any-host-internal", "argus", "aris", "ax25", "bbnrccmon", "bna", "br-sat-mon", "cbt", "cftp", "chaos", "compaq-peer", "cphb", "cpnx", "crtp"]
+                        }
+                },
+                {
+                    "engine_name": "applicationDescription",
+                    "engine_type": "string_list",
+                    "params":
+                        {
+                            "size": 55,
+                            "offset": 0,
+                            "op": "inc",
+                            "list": ["Third Party Connect Protocol", "Active Networks", "any host internal protocol", "ARGUS", "ARIS", "AX.25 Frames", "BBN RCC Monitoring", "BNA", "Backroom SATNET Monitoring",
+                                     "CBT", "CFTP", "CHAOS", "Compaq Peer Protocol", "Computer Protocol Heart Beat", "Computer Protocol Network Executive", "Combat Radio Protocol Transport Protocol"]
+                        }
+                }
+            ]
         }
 
         self.generators[260] = {
@@ -675,6 +720,29 @@ class AVCGenerators():
                 self.fields.get_field("unknownNameField3"),
             ],
             "engines":[
+                {
+                    "engine_name": "applicationId",
+                    "engine_type": "uint",
+                    "params":
+                        {
+                            "size": 1,
+                            "offset": 3,
+                            "min": 1,
+                            "max": 255,
+                            "op": "rand"
+                        }
+                },
+                {
+                    "engine_name": "applicationCategoryName",
+                    "engine_type": "string_list",
+                    "params":
+                        {
+                            "size": 32,
+                            "offset": 0,
+                            "op": "rand",
+                            "list": ["other", "file-sharing", "browsing", "general-browsing", "net-admin", "database"]
+                        }
+                },
                 {
                     "engine_name": "tunnelTechnology",
                     "engine_type": "histogram_uint",
@@ -800,7 +868,31 @@ class AVCGenerators():
                         ]
                     }
                 },
-                # need support for time values fields
+                {
+                    "engine_name": "flowStartMilliseconds",
+                    "engine_type": "time_start",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_end_engine_name": "flowEndMilliseconds",
+                            "ipg_min": 10000,
+                            "ipg_max": 20000,
+                            "time_offset": int(time.time() * 1000) # Unix Time in milliseconds
+                        }
+                },
+                {
+                    "engine_name": "flowEndMilliseconds",
+                    "engine_type": "time_end",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_start_engine_name": "flowStartMilliseconds",
+                            "duration_min": 5000,
+                            "duration_max": 10000,
+                        }
+                },
                 {
                     "engine_name": "newConnectionDeltaCount",
                     "engine_type": "uint",
@@ -964,7 +1056,31 @@ class AVCGenerators():
                         ]
                     }
                 },
-                # need support for time values fields
+                {
+                    "engine_name": "flowStartMilliseconds",
+                    "engine_type": "time_start",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_end_engine_name": "flowEndMilliseconds",
+                            "ipg_min": 1000,
+                            "ipg_max": 2000,
+                            "time_offset": int(time.time() * 1000) # Unix Time in milliseconds
+                        }
+                },
+                {
+                    "engine_name": "flowEndMilliseconds",
+                    "engine_type": "time_end",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_start_engine_name": "flowStartMilliseconds",
+                            "duration_min": 10000,
+                            "duration_max": 20000,
+                        }
+                },
                 {
                     "engine_name": "newConnectionDeltaCount",
                     "engine_type": "uint",
@@ -1052,7 +1168,6 @@ class AVCGenerators():
                 self.fields.get_field("unknownNameField4"),
             ],
             "engines":[
-                # we can't provide two directional traffic, we need a more fitting engine.
                 {
                     "engine_name": "sourceIPv4Address",
                     "engine_type": "uint",
@@ -1165,8 +1280,32 @@ class AVCGenerators():
                         "min": 0,
                         "max": 0xFFFF
                     }
+                },
+                {
+                    "engine_name": "flowStartMilliseconds",
+                    "engine_type": "time_start",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_end_engine_name": "flowEndMilliseconds",
+                            "ipg_min": 10000,
+                            "ipg_max": 20000,
+                            "time_offset": int(time.time() * 1000) # Unix Time in milliseconds
+                        }
+                },
+                {
+                    "engine_name": "flowEndMilliseconds",
+                    "engine_type": "time_end",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_start_engine_name": "flowStartMilliseconds",
+                            "duration_min": 5000,
+                            "duration_max": 10000,
+                        }
                 }
-                # need support for time values fields
             ]
         }
 
@@ -1198,7 +1337,27 @@ class AVCGenerators():
                 self.fields.get_field("unknownNameField4"),
             ],
             "engines":[
-                # we can't provide two directional traffic, we need a more fitting engine.
+                # simple bi dir
+                {
+                    "engine_name": "sourceIPv6Address",
+                    "engine_type": "uint_list",
+                    "params": {
+                        "size": 8,
+                        "offset": 8,
+                        "list": [1, 2],
+                        "op": "inc"
+                    }
+                },
+                {
+                    "engine_name": "destinationIPv6Address",
+                    "engine_type": "uint_list",
+                    "params": {
+                        "size": 8,
+                        "offset": 8,
+                        "list": [2, 1],
+                        "op": "inc"
+                    }
+                },
                 {
                     "engine_name": "ipVersion",
                     "engine_type": "uint",
@@ -1212,24 +1371,22 @@ class AVCGenerators():
                 },
                 {
                     "engine_name": "sourceTransportPort",
-                    "engine_type": "uint",
+                    "engine_type": "uint_list",
                     "params": {
                         "size": 2,
                         "offset": 0,
-                        "min": 1024,
-                        "max": 0xffff,
-                        "op": "rand"
+                        "list": [50302, 500],
+                        "op": "inc"
                     }
                 },
                 {
                     "engine_name": "destinationTransportPort",
-                    "engine_type": "uint",
+                    "engine_type": "uint_list",
                     "params": {
                         "size": 2,
                         "offset": 0,
-                        "min": 1024,
-                        "max": 0xffff,
-                        "op": "rand"
+                        "list": [500, 50302],
+                        "op": "inc"
                     }
                 },
                 {
@@ -1300,8 +1457,32 @@ class AVCGenerators():
                         "min": 0,
                         "max": 0xFFFF
                     }
+                },
+                {
+                    "engine_name": "flowStartMilliseconds",
+                    "engine_type": "time_start",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_end_engine_name": "flowEndMilliseconds",
+                            "ipg_min": 10000,
+                            "ipg_max": 20000,
+                            "time_offset": int(time.time() * 1000) # Unix Time in milliseconds
+                        }
+                },
+                {
+                    "engine_name": "flowEndMilliseconds",
+                    "engine_type": "time_end",
+                    "params":
+                        {
+                            "size": 8,
+                            "offset": 0,
+                            "time_start_engine_name": "flowStartMilliseconds",
+                            "duration_min": 5000,
+                            "duration_max": 10000,
+                        }
                 }
-                # need support for time values fields
             ]
         }
 
