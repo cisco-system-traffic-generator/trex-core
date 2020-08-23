@@ -706,6 +706,8 @@ class EMUClient(object):
         """
         ver_args = [{'name': 'c_keys', 'arg': c_keys, 't': EMUClientKey, 'allow_list': True},]
         EMUValidator.verify(ver_args)
+        if len(c_keys) == 0:
+            return[] 
         
         data = self._conv_macs_and_validate_ns(c_keys)
         return self._send_chunks(cmd = 'ctx_client_get_info', data = data)
@@ -1595,6 +1597,7 @@ class EMUClient(object):
     @plugin_api('show_mbuf', 'emu')
     def show_mbuf_line(self, line):
         '''Show mbuf usage in a table.\n'''
+
         parser = parsing_opts.gen_parser(self,
                                         "show_mbuf",
                                         self.show_mbuf_line.__doc__
@@ -1603,6 +1606,7 @@ class EMUClient(object):
         mbufs = [{'mbuf_size': int(k.strip('mbuf-')), 'mbuf_info': v} for k, v in mbufs.items() if k.strip('mbuf-').isdigit()]
         mbufs.sort(key = lambda x: x['mbuf_size'])
         self._print_mbuf_table(mbufs)
+
         return True
 
     def _base_show_counters(self, data_cnt, opts, req_ns = False):
