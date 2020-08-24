@@ -1499,14 +1499,10 @@ class AVCProfiles():
         self.generators = AVCGenerators()
         self.profiles = {} # mapping domain ids with profiles.
 
-    def register_profile(self, netflow_version, dst_mac, dst_ipv4, dst_ipv6, dst_port, src_port, domain_id, generators):
+    def register_profile(self, netflow_version, host_port, domain_id, generators):
         self.profiles[domain_id] = {
             "netflow_version": netflow_version,
-            "dst_mac": dst_mac.V(),
-            "dst_ipv4": dst_ipv4.V(),
-            "dst_ipv6": dst_ipv6.V(),
-            "dst_port": dst_port,
-            "src_port": src_port,
+            "dst": host_port.encode(),
             "domain_id": domain_id,
             "generators": [self.generators.get_generator(template_id) for template_id in generators]
         }
@@ -1528,14 +1524,15 @@ class Prof1():
         self.def_ns_plugs  = {'arp': {'enable': True}}
         self.def_c_plugs  = {'arp': {'enable': True}}
 
-    def register_profiles(self, dst_mac, dst_ipv4, dst_port=2055, src_port=52802):
-        self.avc_profiles.register_profile(10, Mac(dst_mac), Ipv4(dst_ipv4), Ipv6("::0"), dst_port, src_port, 6, [256, 257, 258, 259, 260])
-        self.avc_profiles.register_profile(10, Mac(dst_mac), Ipv4(dst_ipv4), Ipv6("::0"), dst_port, src_port, 256, [266])
-        self.avc_profiles.register_profile(10, Mac(dst_mac), Ipv4(dst_ipv4), Ipv6("::0"), dst_port, src_port, 512, [267])
-        self.avc_profiles.register_profile(10, Mac(dst_mac), Ipv4(dst_ipv4), Ipv6("::0"), dst_port, src_port, 768, [268])
-        self.avc_profiles.register_profile(10, Mac(dst_mac), Ipv4(dst_ipv4), Ipv6("::0"), dst_port, src_port, 1024, [269])
+    def register_profiles(self, dst_ipv4, dst_port):
+        host_port = HostPort(dst_ipv4, dst_port)
+        self.avc_profiles.register_profile(10, host_port, 6, [256, 257, 258, 259, 260])
+        self.avc_profiles.register_profile(10, host_port, 256, [266])
+        self.avc_profiles.register_profile(10, host_port, 512, [267])
+        self.avc_profiles.register_profile(10, host_port, 768, [268])
+        self.avc_profiles.register_profile(10, host_port, 1024, [269])
 
-    def create_profile(self, mac, ipv4, dgv4, dst_ipv4, dst_mac, domain_id):
+    def create_profile(self, mac, ipv4, dgv4, domain_id):
         mac      = Mac(mac)
         ipv4     = Ipv4(ipv4)
         dgv4     = Ipv4(dgv4)
@@ -1558,32 +1555,29 @@ class Prof1():
         parser = argparse.ArgumentParser(description='Argparser for AVC IPFix', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
         # client args
-        parser.add_argument('--mac', type = str, default = '00:00:00:70:00:01',
+        parser.add_argument('--mac', type = str, default = '00:00:00:70:00:03',
             help='Mac address of the client')
         parser.add_argument('--4', type = str, default = '1.1.1.3', dest = 'ipv4',
             help='IPv4 address of the client')
-        parser.add_argument('--dg', type = str, default = '0.0.0.0',
-            help='Default Gateway address of the clients. If not set, will use forced dst mac.')
+        parser.add_argument('--dg', type = str, default = '1.1.1.1',
+            help='Default Gateway address of the clients.')
         parser.add_argument('--dst-4', type = str, default = '10.56.29.228', dest = 'dst_4',
             help='Ipv4 address of collector')
-        parser.add_argument('--dst-mac', type = str, default = '00:50:56:a2:e5:bd', dest = 'dst_mac',
-            help='Destination MAC address, if default gateway provided will be overrided.')
+        parser.add_argument('--dst-port', type = str, default = '2055', dest = 'dst_port',
+            help='Destination port.')
         parser.add_argument('--domain-id', type = int, default = 256, dest = 'domain_id',
             help='Domain ID. Registered domain IDs are {6, 256, 512, 768, 1024}')
 
         args = parser.parse_args(tuneables)
 
-        if args.dg != '0.0.0.0':
-            args.dst_mac = '00:00:00:00:00:00'
-
-        self.register_profiles(args.dst_mac, args.dst_4)
+        self.register_profiles(args.dst_4, args.dst_port)
 
         domain_ids = self.avc_profiles.get_registered_domain_ids()
 
         if args.domain_id not in domain_ids:
             raise TRexError("Invalid domain id {}. Domain id should be in {}".format(args.domain_id, domain_ids))
 
-        return self.create_profile(args.mac, args.ipv4, args.dg, args.dst_4, args.dst_mac, args.domain_id)
+        return self.create_profile(args.mac, args.ipv4, args.dg, args.domain_id)
 
 def register():
     return Prof1()

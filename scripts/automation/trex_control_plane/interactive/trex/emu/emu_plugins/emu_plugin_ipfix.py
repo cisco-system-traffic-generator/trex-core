@@ -27,21 +27,9 @@ class IPFIXPlugin(EMUPluginBase):
         netflow_version: uint16
             Netflow version. Might be 9 or 10, notice version 9 doesn't support variable length fields or per enterprise fields. Defaults to 10.
 
-        dst_mac: [6]bytes
-            Optional, destination MAC address. If not supplied, the destination MAC address will be the default gateway's MAC address,
-            in case there is one.
-
-        dst_ipv4: [4]byte
-            The collector's IPv4 address. Optional, in case you provide dst_ipv6. One of {dst_ipv4, dst_ipv6} must be provided but not both.
-
-        dst_ipv6: [16]byte
-            The collector's IPv6 address. Optional, in case you provide dst_ipv4. One of {dst_ipv4, dst_ipv6} must be provided but not both.
-
-        dst_port: uint16
-            Collector's L4 port, defaults to 4739.
-
-        src_port: uint16
-            Exporter's L4 port, defaults to 30334.
+        dst: string
+            The destination address. It is a string of the format host:port, where host can be an Ipv4 or an Ipv6 while the port should be a valid
+            transport port. Example are '127.0.0.1:8080', '[2001:db8::1]:4739'
 
         domain_id: uint32
             The observation domain ID as defined in IPFix. If not provided, it will be randomly generated.
@@ -277,13 +265,13 @@ class IPFIXPlugin(EMUPluginBase):
 
     @plugin_api('ipfix_enable_gen', 'emu')
     def ipfix_enable_gen_line(self, line):
-        """Enable an IPFIx generator.\n"""
+        """Enable an IPFix generator.\n"""
         res = self._enable_disable_gen_line(line, self.ipfix_enable_gen_line, "enable")
         self.logger.post_cmd(res)
 
     @plugin_api('ipfix_disable_gen', 'emu')
     def ipfix_disable_gen_line(self, line):
-        """Disable an IPFIx generator.\n"""
+        """Disable an IPFix generator.\n"""
         res = self._enable_disable_gen_line(line, self.ipfix_enable_gen_line, "disable")
         self.logger.post_cmd(res)
 
