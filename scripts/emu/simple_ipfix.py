@@ -9,19 +9,10 @@ class Prof1():
                             'ipv6' : {'dmac':self.mac.V()}}
         self.def_c_plugs = {'arp': {'enable': True}}
 
-    def get_init_json(self, is_ipv6, dst_ipv4, dst_ipv6):
-        if is_ipv6:
-            dst_ipv4 = Ipv4('0.0.0.0')
-            domain_id = 666
-        else:
-            dst_ipv6 = Ipv6('::')
-            domain_id = 444
+    def get_init_json(self, host_port):
         return {
                 "netflow_version": 10,
-                "dst_ipv4": dst_ipv4.V(),
-                "dst_ipv6": dst_ipv6.V(),
-                "dst_port": 4739,
-                "src_port": 30334,
+                "dst": host_port.encode(),
                 "domain_id": 7777,
                 "generators": [
                     {
@@ -175,11 +166,12 @@ class Prof1():
                 ]
             }
 
-    def create_profile(self, is_ipv6, mac, ipv4, ipv6, dg_4, dst_ipv4, dst_ipv6):
+    def create_profile(self, is_ipv6, mac, ipv4, ipv6, dg_4, dst_ipv4, dst_ipv6, dst_port):
         mac = Mac(mac)
         ipv4 = Ipv4(ipv4)
         dg_4 = Ipv4(dg_4)
         ipv6 = Ipv6(ipv6)
+        host_port = HostPort(dst_ipv6, dst_port) if is_ipv6 else HostPort(dst_ipv4, dst_port)
 
         ns_key = EMUNamespaceKey(vport = 0, tci = 0,tpid = 0)
         ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
@@ -188,7 +180,7 @@ class Prof1():
                          ipv4 = ipv4.V(),
                          ipv6 = ipv6.V(),
                          ipv4_dg = dg_4.V(),
-                         plugs  = {'ipfix': self.get_init_json(is_ipv6, Ipv4(dst_ipv4), Ipv6(dst_ipv6)),
+                         plugs  = {'ipfix': self.get_init_json(host_port),
                                    'arp': {'enable': True},
                                    'ipv6': {}})
         ns.add_clients(c)
@@ -199,8 +191,8 @@ class Prof1():
         parser = argparse.ArgumentParser(description='Argparser for simple_ipfix.py', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
         # client args
-        parser.add_argument('--is_ipv6', type = bool, default = False, dest = 'is_ipv6',
-            help="Is the collector expecting IPv6 traffic?")
+        parser.add_argument('--is_ipv6', action = 'store_true', dest = 'is_ipv6',
+            help="IPv6 traffic?")
         parser.add_argument('--mac', type = str, default = '00:00:00:70:00:03',
             help='Mac address of the client.')
         parser.add_argument('--4', type = str, default = '1.1.1.3', dest = 'ipv4',
@@ -213,9 +205,11 @@ class Prof1():
             help='IPv4 address of collector')
         parser.add_argument('--dst-6', type = str, default = '2001:DB8:3::1', dest = 'dst_6',
             help='IPv6 address of collector')
+        parser.add_argument('--dst-port', type = str, default = '4739', dest = 'dst_port',
+            help='Destination Port.')
 
         args = parser.parse_args(tuneables)
-        return self.create_profile(args.is_ipv6, args.mac, args.ipv4, args.ipv6, args.dg_4, args.dst_4, args.dst_6)
+        return self.create_profile(args.is_ipv6, args.mac, args.ipv4, args.ipv6, args.dg_4, args.dst_4, args.dst_6, args.dst_port)
 
 def register():
     return Prof1()

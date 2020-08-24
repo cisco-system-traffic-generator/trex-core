@@ -255,22 +255,22 @@ class Mac(EMUType):
 
     def __init__(self, mac):
         """
-        Creating a Mac object. 
-        
+        Creating a Mac object.
+
             :parameters:
                 mac: string / list of bytes / Mac object
                     Valid mac representation. i.e: '00:00:00:00:00:00', [0, 0, 0, 0, 0, 1] or Mac('00:00:00:00:00:00')
-        
+
             :raises:
-                + :exe:'TRexError': If mac is not valid.            
-        """        
+                + :exe:'TRexError': If mac is not valid.
+        """
         super(Mac, self).__init__(mac)
 
     def __getitem__(self, key):
         """
         | Increse mac value by key.
         | i.e: mac = Mac('00:00:00:00:00:ff')[2] -> Mac('00:00:00:00:01:01')
-        
+
             :parameters:
                 key: int
                     How much to increase(can be negative, positive or zero).   
@@ -488,6 +488,95 @@ class Ipv6(EMUType):
         if mc:
             res = res and (ipv6[0] == 255)
         return res
+
+
+class HostPort():
+
+    def __init__(self, ip, port):
+        """
+        HostPort represents an object that is a combination of host and port. For example, 127.0.0.1:80, [2001:db8::1]:8080.
+
+            :parameters:
+                ip: string
+                    IPv4 or IPv6
+
+                port: string
+                    Port number, must be between 0 and 0xFFFF.
+        """
+        if ':' in ip:
+            self.ip = Ipv6(ip)
+            self.is_ipv6 = True
+        elif '.' in ip:
+            self.ip = Ipv4(ip)
+            self.is_ipv6 = False
+        else:
+            raise TRexError("Value {} is not a valid IPv4/IPv6.".format(ip))
+        HostPort._verify_port(port)
+        self.port = int(port)
+
+    @staticmethod
+    def _verify_port(port):
+        """
+            Verify port string is a valid transport port.
+
+            :parameters:
+                port: string
+                    Transport Port
+
+            :raises:
+                + :exe:'TRexError': If port is not a valid port
+        """
+        if not unicode(port, 'utf-8').isnumeric():
+            raise TRexError("{} is not a numeric value.".format(port))
+        port_int = int(port)
+        if port_int < 0 or port_int > 0xFFFF:
+            raise TRexError("{} is not a valid port. Port must be in [0-65535].".format(port_int))
+
+    def encode(self):
+        """
+            Encodes a HostPort into a string.
+
+            :returns:
+                String from the HostPort object.
+        """
+        if self.is_ipv6:
+            return "[{}]:{}".format(self.ip.S(), self.port)
+        else:
+            return "{}:{}".format(self.ip.S(), self.port)
+
+    __str__ = encode
+
+    @staticmethod
+    def decode(string):
+        """
+            Decodes a host port string of type ipv4:port or [ipv6]:port into a tuple of (ip, port).
+            Validates the Ips and port are valid.
+
+            :returns: 
+                Tuple of (IP, Port)
+
+            :raises:
+                + :exe:'TRexError': If port is not a valid port
+
+        """
+        if "]" in string:
+            # IPv6 String
+            # [ipv6]:port
+            splitted = string.split(']')
+            attempted_ipv6 = splitted[0][1:] # don't need the [
+            attempted_port = splitted[1][1:] # don't need the :
+            ipv6 = Ipv6(attempted_ipv6)
+            HostPort._verify_port(attempted_port)
+            return ipv6, int(attempted_port)
+        elif ':' in string:
+            # IPv4 string
+            attempted_ipv4, attempted_port = string.split(':')
+            ipv4 = Ipv4(attempted_ipv4)
+            HostPort._verify_port(attempted_port)
+            return ipv4, int(attempted_port)
+        else:
+            raise TRexError("Invalid host port string {}".format(string))
+
 
 def conv_to_str(val, key):
     
