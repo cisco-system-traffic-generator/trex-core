@@ -96,15 +96,22 @@ const std::string * get_mbuf_names(void);
             
 */
 
-
+class Tunnel;
 
 struct CMacYamlInfo {
+public:
     std::vector     <uint8_t> m_dest_base;
     std::vector     <uint8_t> m_src_base;
+    Tunnel* m_tunnel;
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
+
+public:
+    CMacYamlInfo() {
+        m_tunnel = NULL;
+    }
     void Dump(FILE *fd);
 
     void copy_dest(char *p);

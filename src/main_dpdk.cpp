@@ -105,6 +105,7 @@ extern "C" {
 #include "astf/astf_db.h"
 #include "utl_offloads.h"
 #include "trex_defs.h"
+#include "tunnel.h"
 
 #define MAX_PKT_BURST   32
 #define BP_MAX_CORES 48
@@ -1291,6 +1292,7 @@ COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
              "rte_eth_rx_queue_setup: "
              "err=%d, port=%u\n",
              ret, m_repid);
+  Tunnel::InstallRxCallback(m_repid, rx_queue_id);
 }
 
 COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
@@ -1307,7 +1309,7 @@ COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: "
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
-
+    Tunnel::InstallTxCallback(m_repid, tx_queue_id);
 }
 
 COLD_FUNC void CPhyEthIF::stop(){
@@ -5915,6 +5917,7 @@ COLD_FUNC int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)g_opts->m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)g_opts->m_mac_addr[i].u.m_mac.dest)  ;
             g_opts->m_mac_addr[i].u.m_mac.is_set = 1;
+            g_opts->m_mac_addr[i].m_tunnel = cg->m_mac_info[i].m_tunnel;
 
             g_opts->m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
