@@ -29,9 +29,10 @@ class CSyntax_Test(functional_general_test.CGeneralFunctional_Test):
             for file in files:
                 if is_ignored(file, ignores):
                     continue
-                if file.endswith('.py'):
+                if file.endswith('.py') and not file.startswith("._"):
+                    # python files but no ._ python files
                     fullpath = os.path.join(path, file)
-                    with open(fullpath) as f:
+                    with open(fullpath, encoding="utf-8") as f:
                         if '\t' in f.read():
                             files_with_tabs.append(fullpath)
 
