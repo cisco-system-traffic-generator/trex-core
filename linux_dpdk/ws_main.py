@@ -519,6 +519,7 @@ main_src = SrcGroup(dir='src',
              'bp_sim_stf.cpp',
              'trex_build_info.cpp',
              'dpdk_drv_filter.cpp',
+             'gtp_tunnel.cpp',
 
              'drivers/trex_driver_base.cpp',
              'drivers/trex_driver_bnxt.cpp',

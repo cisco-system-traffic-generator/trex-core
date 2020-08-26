@@ -93,6 +93,8 @@ struct rte_mbuf {
         uint32_t rss;     /**< RSS hash result if RSS enabled */
     } hash;                   /**< hash information */
 
+    uint64_t  dynfield1;    
+
 } ;
 
 #ifdef TREX_MBUF_SIM_LOCAL
@@ -131,7 +133,7 @@ rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
 
 typedef struct rte_mempool rte_mempool_t;
 
-#define RTE_PKTMBUF_HEADROOM  0
+#define RTE_PKTMBUF_HEADROOM  128
 
 void utl_rte_mempool_delete(rte_mempool_t  * &pool);
 

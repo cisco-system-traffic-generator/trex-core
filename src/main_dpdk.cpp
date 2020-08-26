@@ -5915,7 +5915,10 @@ COLD_FUNC int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)g_opts->m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)g_opts->m_mac_addr[i].u.m_mac.dest)  ;
             g_opts->m_mac_addr[i].u.m_mac.is_set = 1;
-
+            if ( CGlobalInfo::m_options.m_enable_gtpu == i)
+            {
+              g_opts->m_ip_cfg[i].enable_gtp(1);
+            }
             g_opts->m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
