@@ -176,13 +176,14 @@ class ConfigCreator(object):
     @staticmethod
     def _verify_devices_same_type(interfaces_list):
         Device_str = interfaces_list[0]['Device_str']
+        TrexDrv = interfaces_list[0]['TRex_Driver']
         if Device_str == 'dummy':
             return Device_str
         for interface in interfaces_list:
             if interface['Device_str'] == 'dummy':
                 continue
-            if Device_str != interface['Device_str']:
-                raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (Device_str, interface['Device_str']))
+            if TrexDrv != interface['TRex_Driver']:
+                raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (TrexDrv, interface['TRex_Driver']))
         return Device_str
 
     def create_config(self, filename = None, print_config = False):
