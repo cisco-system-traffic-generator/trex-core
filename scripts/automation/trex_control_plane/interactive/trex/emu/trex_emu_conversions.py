@@ -448,7 +448,7 @@ class Ipv6(EMUType):
         """  
         if self.mc:
             v = self.V()
-            if not (v[0] == 255 and v[1] == 0):
+            if not (v[0] == 255):
                 raise TRexError('Value: "%s" is not a valid ipv6 multicast address' % self.S())
 
     def _conv_str_to_val(self, val):
@@ -486,7 +486,7 @@ class Ipv6(EMUType):
     def is_valid(cls, ipv6, mc = False):
         res = isinstance(ipv6, list) and len(ipv6) == cls.BYTES_NUM and all([type(v) is int and 0 <= v <= 255 for v in ipv6])
         if mc:
-            res = res and (ipv6[0] == 255 and ipv6[1] == 0)
+            res = res and (ipv6[0] == 255)
         return res
 
 def conv_to_str(val, key):
