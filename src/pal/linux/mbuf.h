@@ -93,6 +93,8 @@ struct rte_mbuf {
         uint32_t rss;     /**< RSS hash result if RSS enabled */
     } hash;                   /**< hash information */
 
+    uint64_t  dynfield1[1];    
+
 } ;
 
 #ifdef TREX_MBUF_SIM_LOCAL

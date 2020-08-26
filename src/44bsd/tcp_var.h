@@ -360,6 +360,7 @@ struct  tcpstat_int_t {
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
+    uint64_t    tcps_notunnel;       /* no GTP Tunnel for tcp - drop the packets */
     uint64_t    tcps_rcvackbyte_of;    /* bytes acked by rcvd acks */
 };
 
@@ -479,6 +480,7 @@ public:
                    uint16_t dst_port,
                    uint16_t vlan,
                    uint8_t  proto,
+                   void    *tun_handle,
                    bool     is_ipv6){
         m_vlan = vlan;
         m_src_ipv4 = src;
@@ -487,6 +489,7 @@ public:
         m_dst_port = dst_port;
         m_is_ipv6  = is_ipv6;
         m_proto    = proto;
+        m_tun_handle = tun_handle;
     }
 
     void server_update_mac(uint8_t *pkt, CTcpPerThreadCtx * ctx, tvpid_t port_id);
@@ -518,6 +521,17 @@ public:
         return(m_dst_port);
     }
 
+    void *get_tun_handle(){
+        return(m_tun_handle);
+    }
+
+    inline bool is_tunnel_aware(){
+        return (m_tun_handle != NULL);
+    }
+
+    inline bool is_gtpu_tunnel(){
+        return (CGlobalInfo::m_options.m_enable_gtpu != 0xFF);
+    }
 private:
     /* support either UDP or TCP for now */
     bool is_tcp(){
@@ -548,6 +562,7 @@ public:
     uint8_t   m_offset_ip;  /* offset of ip_header in template */
     uint8_t   m_is_ipv6;
     uint8_t   m_proto;      /* 6 - TCP ,0x11- UDP */
+    void     *m_tun_handle;
 
     uint8_t   m_offload_flags;
     #define OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
@@ -575,7 +590,7 @@ public:
                    uint16_t vlan,
                    uint8_t  proto,
                    bool is_ipv6){
-        m_template.set_tuple(src,dst,src_port,dst_port,vlan,proto,is_ipv6);
+        m_template.set_tuple(src,dst,src_port,dst_port,vlan,proto,NULL,is_ipv6);
     }
 
     static CFlowBase * cast_from_hash_obj(flow_hash_ent_t *p){
@@ -650,6 +665,8 @@ struct  udp_stat_int_t {
     uint64_t    udps_keepdrops;     
     uint64_t    udps_nombuf;        /* no mbuf for udp - drop the packets */
     uint64_t    udps_pkt_toobig;    /* pkt too big */
+    
+    uint64_t    udps_notunnel;      /* No GTPU tunnel */
 
 };
 

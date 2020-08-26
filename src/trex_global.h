@@ -482,13 +482,15 @@ class CPerPortIPCfg {
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
     void set_vlan(uint16_t val) {m_vlan = val;}
+    void enable_gtp(uint8_t val) {m_enable_gtp = val ;}
+    uint8_t is_gtp_enabled(){return m_enable_gtp; }
     void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
-
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
+    uint8_t m_enable_gtp;
     bool m_vxlan_fs = false;
 };
 
@@ -622,6 +624,7 @@ public:
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
     bool            m_ezmq_ch_enabled;
+    uint8_t         m_enable_gtpu;
 
     bool            m_emzq_ch_tcp;
     std::string     m_emzq_ipc_file_path;
@@ -725,6 +728,10 @@ public:
     }
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
+
+    bool is_gtpu_enabled() {
+        return (m_enable_gtpu != 0xFF);
+    }
 
     void verify();
 };

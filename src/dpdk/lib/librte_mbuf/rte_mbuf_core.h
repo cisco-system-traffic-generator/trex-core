@@ -664,9 +664,9 @@ struct rte_mbuf {
 
 
 #ifdef TREX_PATCH
-    uint8_t m_core_locality;
-	uint64_t dynfield1[1]; /**< Reserved for dynamic fields. */
-#else 
+      uint8_t   m_core_locality;
+      uint64_t  dynfield1[1]; /**< Reserved for dynamic fields. */
+#else
 	uint64_t dynfield1[2]; /**< Reserved for dynamic fields. */
 #endif
 

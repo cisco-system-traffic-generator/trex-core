@@ -79,8 +79,15 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
                                           uint16_t     udp_pyld_bytes,
                                           char *p){
     UDPHeader * udp =(UDPHeader*)(p+ftp->m_offset_l4);
-    if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM){
-        if (!ftp->m_is_ipv6){
+    /*Check if we need to update the stats when handle is not present for Special case*/
+    if (ftp->is_gtpu_tunnel()){
+        if (!ftp->is_tunnel_aware() && m_pctx->m_ctx->is_client_side()){
+            INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+        }
+        m->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
+    }
+    if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
+        if (!ftp->m_is_ipv6) {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
@@ -88,7 +95,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
             ipv4->ClearCheckSum();
             ipv4->setTotalLength(udp_pyld_bytes+UDP_HEADER_LEN+IPV4_HDR_LEN);
             udp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(udp_pyld_bytes+UDP_HEADER_LEN)));
-        }else{
+        }else {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);

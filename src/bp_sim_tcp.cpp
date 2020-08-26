@@ -242,7 +242,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
     CAstfPerTemplateRW * cur = c_rw->get_template_by_id(template_id);
     CAstfDbRO    *   cur_tmp_ro = pctx->m_template_ro;
 
-    if (cur->check_limit()){
+    if (cur->check_limit() || !(cur->m_tuple_gen.has_active_clients() || !(CGlobalInfo::m_options.is_gtpu_enabled()))){
         /* we can't generate a flow, there is a limit*/
         return;
     }
@@ -296,6 +296,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
                                                vlan,
                                                is_ipv6,
+                                               tuple.getTunHandle(),
                                                true,
                                                tg_id,
                                                template_id);
@@ -307,12 +308,13 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
                                           tuple.getServerPort(),
                                           vlan,
                                           is_ipv6,
+                                          tuple.getTunHandle(),
                                           tg_id,
                                           template_id);
     }
 
-    #ifdef  RSS_DEBUG
-    printf(" (%d) generated tuple %x:%x:%x:%x \n",m_thread_id,tuple.getClient(),tuple.getServer(),tuple.getClientPort(),tuple.getServerPort());
+    #ifdef RSS_DEBUG 
+    printf(" (%s) (%d) generated tuple %x:%x:%x:%x \n",__func__,m_thread_id,tuple.getClient(),tuple.getServer(),tuple.getClientPort(),tuple.getServerPort());
     #endif
     if (c_flow == (CFlowBase *)0) {
         return;

@@ -65,6 +65,7 @@
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
+#include "tunnels/tunnel.h"
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -219,6 +220,7 @@ enum {
        OPT_UNBIND_UNUSED_PORTS,
        OPT_HDRH,
        OPT_BNXT_SO,
+       OPT_GTPU,
     
        /* no more pass this */
        OPT_MAX
@@ -314,6 +316,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
+        { OPT_GTPU,                   "--gtpu",            SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -412,6 +415,7 @@ static int COLD_FUNC  usage() {
     printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
     printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
     printf(" --bird-server              : Enable bird service \n");
+    printf(" --gtpu                     : Enable GTPU mode \n");
     
 
     printf("\n");
@@ -635,6 +639,8 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
+    /*By Default GTPU is disabled , and port number is garbage here*/
+    po->m_enable_gtpu = (uint16_t)0xFF;
     uint32_t tmp_data;
     float tmp_double;
     
@@ -935,6 +941,10 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
+            case OPT_GTPU:
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_enable_gtpu = (uint16_t)tmp_data;
+                break;                
 
             default:
                 printf("Error: option %s is not handled.\n\n", args.OptionText());
@@ -1291,6 +1301,15 @@ COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
              "rte_eth_rx_queue_setup: "
              "err=%d, port=%u\n",
              ret, m_repid);
+
+  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
+     ret = Tunnel::InstallRxCallback(m_repid, rx_queue_id);
+     if (ret < 0)
+        rte_exit(EXIT_FAILURE, "Installing RxCallback"
+               "err=%d, port=%u queue=%u\n",
+               ret, m_repid, rx_queue_id);
+  }
+
 }
 
 COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
@@ -1307,6 +1326,14 @@ COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: "
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
+
+  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
+      ret =   Tunnel::InstallTxCallback(m_repid, tx_queue_id);
+      if (ret < 0)
+        rte_exit(EXIT_FAILURE, "Installing Tx Callback: "
+                 "err=%d, port=%u queue=%u\n",
+                 ret, m_repid, tx_queue_id);
+  }
 
 }
 
@@ -5915,7 +5942,10 @@ COLD_FUNC int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)g_opts->m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)g_opts->m_mac_addr[i].u.m_mac.dest)  ;
             g_opts->m_mac_addr[i].u.m_mac.is_set = 1;
-
+            if ( CGlobalInfo::m_options.m_enable_gtpu == i)
+            {
+              g_opts->m_ip_cfg[i].enable_gtp(1);
+            }
             g_opts->m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());

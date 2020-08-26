@@ -204,6 +204,8 @@ static int parse_options(int argc,
      int node_dump=0;
      po->preview.clean();
      po->preview.setFileWrite(true);
+     /*By Default GTPU is disabled , and port number is garbage here*/
+     po->m_enable_gtpu = (uint16_t)0xFF;
 
      /* by default - type is stateful */
      params["type"] = OPT_TYPE_SF;
