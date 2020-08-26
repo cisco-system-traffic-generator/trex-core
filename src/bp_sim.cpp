@@ -4040,7 +4040,7 @@ int CFlowGenListPerThread::generate_flows_roundrobin(bool *done){
     for (i=0;i<(int)m_cap_gen.size();i++ ) {
         cur=m_cap_gen[m_cur_template];
         if (!(cur->m_info->m_limit_was_set) ||
-            (cur->m_info->m_flowcnt < cur->m_info->m_limit)) {
+            (cur->m_info->m_flowcnt < cur->m_info->m_limit)){
             *done = false;
             if ( cur->m_policer.update(1.0,m_cur_time_sec) ){
                 cur->m_info->m_flowcnt++;
@@ -5447,7 +5447,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
 
                     // Mark as IPv6 and set the upper 96-bits
                     via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
-                    for (uint8_t idx=0; idx<6; idx++){
+                    for (uint16_t idx=0; idx<6; idx++){
                         via_replace_cmd.m_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                         via_replace_cmd.m_ip_via.v6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
                    }

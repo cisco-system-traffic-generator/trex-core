@@ -177,18 +177,28 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
     rte_mbuf_t * m;
     m=tp->pktmbuf_alloc(len);
     pkt.m_buf=m;
+    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+
+    if (ftp->is_gtpu_tunnel()){
+        /*Check if we need to add any error counter for the special case*/
+        if (!ftp->is_tunnel_aware() && ctx->is_client_side()){
+           INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_notunnel);
+        }
+        pkt.m_buf->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
+     }
+
     if (m==0) {
         INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_nombuf);
         /* drop the packet */
         return(-1);
     }
+
     rte_mbuf_set_as_core_local(m);
     char *p=rte_pktmbuf_append(m,len);
 
     /* copy template */
     memcpy(p,ftp->m_template_pkt,len);
     pkt.lpTcp =(TCPHeader    *)(p+ftp->m_offset_l4);
-
 
     return(0);
 }

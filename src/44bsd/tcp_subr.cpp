@@ -149,6 +149,7 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_reasalloc);
     MYC(tcps_reasfree);
     MYC(tcps_nombuf);
+    MYC(tcps_notunnel);
 }
 
 void tcpstat::Resize(uint16_t new_num_of_tg_ids) {

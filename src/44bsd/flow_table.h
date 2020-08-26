@@ -338,6 +338,7 @@ public:
                           uint16_t dst_port,
                           uint16_t vlan,
                           bool is_ipv6,
+                          void *tun_handle,
                           uint16_t tg_id=0,
                           uint16_t template_id=0);
 
@@ -348,6 +349,7 @@ public:
                               uint16_t dst_port,
                               uint16_t vlan,
                               bool is_ipv6,
+                              void *tun_handle,
                               bool client,
                               uint16_t tg_id=0,
                               uint16_t template_id=0);

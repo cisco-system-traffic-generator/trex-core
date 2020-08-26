@@ -97,6 +97,44 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     CreateBase(); 
 }
 
+/*
+ * Activatation/Deactivation of the clients
+ *
+*/
+
+void CClientPool::set_clients_active(uint32_t  min_ip,
+                                     uint32_t  max_ip,
+                                     bool      activate)
+{
+    assert(max_ip >= min_ip);
+    uint32_t total_ip  = max_ip - min_ip + 1;
+    uint32_t i = min_ip - m_ip_info[0]->get_ip();
+
+    uint32_t count = 0;
+    
+    while(count < total_ip) {
+        if (activate) {
+            if (m_ip_info[i]->is_active() == false) {
+               if (m_ip_info[i]->get_tunnel_info()) {
+                  m_ip_info[i]->set_is_active(activate);
+                  m_active_clients.push_back(i);
+                  if(m_active_clients.size() == 1)
+                     m_cur_act_itr = m_active_clients.begin();
+               }
+            }
+        } else {
+            m_ip_info[i]->set_is_active(activate);
+            if (m_active_clients.size() > 0 ) {
+                if (*m_cur_act_itr == i){
+                    m_cur_act_itr++;
+                }
+                m_active_clients.remove(i);
+            }
+        }
+        i+=1;
+        count+=1;
+    }
+}
 
 /* base on thread_id and client_index 
   client index would be the same for all thread 
@@ -144,6 +182,29 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
 
 }
 
+void CClientPool::set_tunnel_info_for_clients(uint32_t  min_ip,
+                                            uint32_t  max_ip,
+                                            bool      add,
+                                            void      *gtpu)
+{
+    assert(max_ip >= min_ip);
+
+    uint32_t total_ip  = max_ip - min_ip + 1;
+    uint32_t ip_idx = min_ip - m_ip_info[0]->get_ip();
+    
+    uint32_t count = 0;
+   
+    while(count < total_ip) {
+        if (!add)
+           set_clients_active(min_ip, max_ip, add);
+        
+        m_ip_info[ip_idx]->set_tunnel_info(gtpu);
+        ip_idx++;
+        count++;
+    }
+}
+
+
 
 void CClientPool::configure_client(uint32_t indx){
 
@@ -152,6 +213,7 @@ void CClientPool::configure_client(uint32_t indx){
                                              m_rss_thread_max,
                                              m_reta_mask,
                                              m_rss_astf_mode);
+
     CIpInfoBase* lp=m_ip_info[indx];
     lp->set_start_port(port);
     if (m_rss_astf_mode){
@@ -225,7 +287,36 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                  tcp_aging,
                  udp_aging);
     m_client_pool.push_back(pool);
+    m_ip_start_cpool_link[min_client] = pool;
+
     return(true);
+}
+
+CClientPool *
+CTupleGeneratorSmart::lookup(uint32_t ip) {
+
+    std::map<uint32_t , CClientPool*>::iterator it;
+
+    /* upper bound fetchs the first greater element */
+    it = m_ip_start_cpool_link.upper_bound(ip);
+
+    /* if the first element in the map is bigger - its not in the map */
+    if (it == m_ip_start_cpool_link.begin()) {
+        return NULL;
+    }
+
+    /* go one back - we know it's not on begin so we have at least one back */
+    it--;
+
+    CClientPool *cpool = it->second;
+
+    std::vector<CIpInfoBase*> all_clients = cpool->m_ip_info;
+
+    if (cpool->is_valid_ip(ip))
+        return cpool;
+    else
+        return NULL;
+
 }
 
 bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,

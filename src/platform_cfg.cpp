@@ -296,6 +296,7 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
         mac_info.m_vlan = 0;
     }
+
 }
 
 void operator >> (const YAML::Node& node, CPlatformMemoryYamlInfo & plat_info) {
@@ -529,6 +530,7 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         }
         plat_info.m_mac_info_exist = true;
     }
+
 }
 
 int CPlatformYamlInfo::load_from_yaml_file(std::string file_name){

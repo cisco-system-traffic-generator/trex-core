@@ -38,7 +38,7 @@ limitations under the License.
 #include <bitset>
 #include <yaml-cpp/yaml.h>
 #include "trex_client_config.h"
-
+#include "trex_global.h"
 #include <random>
 
 typedef uint16_t  pool_index_t;
@@ -78,6 +78,7 @@ public:
 
        CTupleBase() {
            m_client_cfg = NULL;
+         m_tun_handle = NULL;
        }
 
        uint32_t getClient() {
@@ -150,6 +151,12 @@ public:
            id = getServerId();
            ip = getServer();
        }
+       void setTunHandle(void *tun_handle) {
+           m_tun_handle = tun_handle;
+       }
+       void* getTunHandle(void) {
+           return m_tun_handle;
+       }
 private:
        uint32_t m_client_ip;
        uint32_t m_client_idx;
@@ -161,6 +168,7 @@ private:
 
        uint16_t m_client_port;
        uint16_t m_server_port;
+       void    *m_tun_handle;
 };
 
 
@@ -225,9 +233,31 @@ class CIpInfoBase {
         void set_ip(uint32_t ip) {
             m_ip = ip;
         }
+        bool is_active() {
+            return m_is_active;
+        }
+        void set_is_active(bool is_active) {
+            m_is_active = is_active;
+        }
+
+        void set_tunnel_info(void *tunnel) {
+            m_tunnel = tunnel;
+        }
+ 
+        void *get_tunnel_info() {
+            return m_tunnel;
+        }
+ 
+        CIpInfoBase() { 
+            m_is_active = false; 
+            m_tunnel = NULL;
+        }
+
         virtual ~CIpInfoBase() {}
     protected:
         uint32_t          m_ip;
+        bool              m_is_active;
+        void              *m_tunnel;
 };
 
 //CClientInfo for large amount of clients support
@@ -506,7 +536,7 @@ class CServerInfoL : public CIpInfoL {
 
 
 
-class CIpPool {
+class CIpPool { 
     public:
         ClientCfgBase * GetClientCfg(uint32_t idx) {
             CIpInfoBase* ip_info = m_ip_info[idx];
@@ -534,9 +564,11 @@ class CIpPool {
                 (ip<=ip_back->get_ip())) {
                 return(true);
             }
+          /*
             printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n", 
                    ip, ip_front->get_ip(), 
                    ip_back->get_ip(),this);
+          */
             return(false);
         }
 
@@ -641,21 +673,53 @@ public:
         m_rss_thread_max=0;
         m_reta_mask=0;
         m_rss_astf_mode=false;
+        m_active_clients.clear();
+        //m_cur_active_idx = 0;
 
     }
 
     uint32_t GenerateTuple(CTupleBase & tuple) {
-        uint32_t idx = generate_ip();
-        CIpInfoBase* ip_info = m_ip_info[idx];
-        ip_info->generate_tuple(tuple);
 
-        tuple.setClientId(idx);
-        if (tuple.getClientPort()==ILLEGAL_PORT) {
-            m_port_allocation_error++;
-        }
-        m_active_alloc++;
-        return idx;
+      CIpInfoBase* ip_info;
+      uint32_t idx;
+
+      if ( CGlobalInfo::m_options.is_gtpu_enabled() == 0) {
+          idx = generate_ip();
+          CIpInfoBase* ip_info = m_ip_info[idx];
+          ip_info->generate_tuple(tuple);
+      }
+      else {
+        if (m_cur_act_itr == m_active_clients.end())
+            m_cur_act_itr = m_active_clients.begin();
+        idx = *m_cur_act_itr;
+        m_cur_act_itr++;
+        ip_info = m_ip_info[idx];
+        ip_info->generate_tuple(tuple);
+        tuple.setTunHandle(ip_info->get_tunnel_info());
+      }
+
+      tuple.setClientId(idx);
+      if (tuple.getClientPort()==ILLEGAL_PORT) {
+          m_port_allocation_error++;
+      }
+      m_active_alloc++;
+      return idx;
     }
+
+    bool has_active_clients() {
+        return (m_active_clients.size() > 0);
+    }
+
+    void Delete() {
+        m_active_clients.clear();
+        CIpPool::Delete();
+    }
+
+
+    void set_clients_active(uint32_t        min_ip,
+                            uint32_t        max_ip,
+                            bool            activate);
+
 
     uint16_t get_tcp_aging() {
         return m_tcp_aging;
@@ -684,6 +748,13 @@ public:
         m_rss_thread_max = rss_thread_max;
         m_reta_mask = reta_mask;
     }
+    
+
+    void set_tunnel_info_for_clients(uint32_t        min_ip,
+                                   uint32_t        max_ip,
+                                   bool            add,
+                                   void            *gtpu);
+
 
 public: 
     uint16_t m_tcp_aging;
@@ -693,6 +764,10 @@ public:
     uint16_t m_rss_thread_max;
     uint8_t  m_reta_mask;
     bool     m_rss_astf_mode;
+
+
+    std::list<uint32_t> m_active_clients;
+    std::list<uint32_t>::iterator m_cur_act_itr;    
 
 private:
     void allocate_simple_clients(uint32_t  min_ip,
@@ -909,6 +984,11 @@ public:
     CServerPoolBase* get_server_pool(pool_index_t idx) {
         return m_server_pool[idx];
     }
+    CClientPool* lookup(uint32_t ip);
+  
+    std::map<uint32_t, CClientPool*>  m_ip_start_cpool_link;
+
+  
 private:
     uint32_t m_id;
     uint32_t m_thread_id;
@@ -923,6 +1003,7 @@ private:
 
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
+
     bool     m_was_init;
 };
 
@@ -967,6 +1048,10 @@ public:
 
     inline uint32_t GetThreadId(){
         return ( m_gen->GetThreadId() );
+    }
+
+    inline bool has_active_clients() {
+        return m_client_gen->has_active_clients();
     }
 
 public:

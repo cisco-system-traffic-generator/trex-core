@@ -448,7 +448,8 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                  src_port,
                                  dst_port,
                                  vlan,
-                                 is_ipv6);
+                                 is_ipv6,
+                                 NULL);
     if (flow==0) {
         return;
     }
@@ -471,6 +472,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
                                   uint16_t dst_port,
                                   uint16_t vlan,
                                   bool is_ipv6,
+                                  void *tun_handle,
                                   bool client,
                                   uint16_t tg_id,
                                   uint16_t template_id){
@@ -481,7 +483,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, client, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tun_handle,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -494,6 +496,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
                                   uint16_t dst_port,
                                   uint16_t vlan,
                                   bool is_ipv6,
+                                  void *tun_handle,
                                   uint16_t tg_id,
                                   uint16_t template_id){
     CTcpFlow * flow = new (std::nothrow) CTcpFlow();
@@ -503,7 +506,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tun_handle,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -664,9 +667,9 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     //CTcpTuneables *s_tune = server_info->get_tuneables();
 
     flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
-				    dst_port, tuple.get_sport(),
-				    vlan, is_ipv6, false, tg_id,
-				    c_template_idx);
+                                    dst_port, tuple.get_sport(),
+                                    vlan, is_ipv6, NULL, false, tg_id,
+                                    c_template_idx);
 
 
 
@@ -848,6 +851,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                    tuple.get_sport(),
                                    vlan,
                                    is_ipv6,
+                                   NULL,
                                    tg_id,
                                    c_template_idx);
 
