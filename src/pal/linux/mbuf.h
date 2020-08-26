@@ -133,7 +133,7 @@ rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
 
 typedef struct rte_mempool rte_mempool_t;
 
-#define RTE_PKTMBUF_HEADROOM  128
+#define RTE_PKTMBUF_HEADROOM  0
 
 void utl_rte_mempool_delete(rte_mempool_t  * &pool);
 
