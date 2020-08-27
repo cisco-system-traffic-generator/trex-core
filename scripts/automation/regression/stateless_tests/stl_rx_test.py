@@ -4,6 +4,7 @@ from functools import wraps
 from trex_stl_lib.api import *
 import os, sys
 import copy
+import pprint
 from nose.tools import assert_raises
 from scapy.layers.vxlan import *
 

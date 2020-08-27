@@ -69,7 +69,7 @@ def check_offsets_pcap(pcap):
     assert pkt.payload
 
     not_built_offsets = {}
-
+    cond_var_length = False
     lay = pkt
     while lay:
         print('  ### %s (offset %s)' % (lay.name, lay._offset))
@@ -83,8 +83,13 @@ def check_offsets_pcap(pcap):
         for index, field in enumerate(lay.fields_desc):
             if index == 0:
                 assert field._offset == 0, 'Offset of first field should be zero.'
+                if field.name == "length":
+                    cond_var_length = True
             else:
                 if field.get_size_bytes() == 0:
+                    continue
+                if cond_var_length:
+                    cond_var_length = False
                     continue
                 assert field._offset != 0, 'Offset of second and further fields should not be zero if packets is built.'
             not_built_offsets[lay.name][field.name] = field._offset
@@ -93,7 +98,7 @@ def check_offsets_pcap(pcap):
 
     print('')
     pkt.build()
-
+    cond_var_length = False
     lay = pkt
     while lay:
         print('  ### %s (offset %s)' % (lay.name, lay._offset))
@@ -106,8 +111,13 @@ def check_offsets_pcap(pcap):
         for index, field in enumerate(lay.fields_desc):
             if index == 0:
                 assert field._offset == 0, 'Offset of first field should be zero.'
+                if field.name == "length":
+                    cond_var_length = True
             else:
                 if field.get_size_bytes() == 0:
+                    continue
+                if cond_var_length:
+                    cond_var_length = False
                     continue
                 assert field._offset != 0, 'Offset of second and further fields should not be zero if packets is built.'
             assert not_built_offsets[lay.name][field.name] == field._offset, 'built and not built pcap offsets differ'

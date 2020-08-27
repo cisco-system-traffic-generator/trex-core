@@ -30,7 +30,7 @@ def __load ():
     # arch-dep requires intel/arm, 32bit/64bit directories
     ext_libs = [ {'name': 'texttable',    'dir': 'texttable-0.8.4'},
                  {'name': 'yaml',         'dir': 'pyyaml-3.11', 'py-dep': True},
-                 {'name': 'scapy',        'dir': 'scapy-2.3.1', 'py-dep': True},
+                 {'name': 'scapy',        'dir': 'scapy-2.4.3'},
                  {'name': 'zmq',          'dir': 'pyzmq-ctypes'},
                  {'name': 'simpy',        'dir': 'simpy-3.0.10'},
                  {'name': 'trex_openssl', 'dir': 'trex-openssl'},
