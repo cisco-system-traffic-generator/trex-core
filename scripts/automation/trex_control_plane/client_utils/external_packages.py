@@ -14,7 +14,7 @@ YAML_PATH           = os.path.join(EXT_LIBS_PATH, 'pyyaml-3.11', python_ver)
 
 CLIENT_UTILS_MODULES = [
                         'texttable-0.8.4',
-                        'scapy-2.3.1'
+                        'scapy-2.4.3'
                         'zmq',
                         ]
 

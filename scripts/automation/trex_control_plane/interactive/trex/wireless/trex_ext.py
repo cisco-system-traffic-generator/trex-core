@@ -16,7 +16,7 @@ if not os.path.exists(TREX_EXT_PATH):
 # arch-dep requires intel/arm, ucs2/ucs4, 32bit/64bit directories
 CLIENT_UTILS_MODULES = [ {'name': 'texttable-0.8.4'},
                          {'name': 'pyyaml-3.11', 'py-dep': True},
-                         {'name': 'scapy-2.3.1', 'py-dep': True},
+                         {'name': 'scapy-2.4.3'},
                          {'name': 'simpy-3.0.10'},
                          {'name': 'trex-openssl'},
                         ]
