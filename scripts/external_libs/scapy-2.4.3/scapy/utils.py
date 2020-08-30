@@ -427,7 +427,7 @@ def str2mac(s):
 
 # TRex Change - Added the function
 def str2ip(s):
-    return ("%s."*4)[:-1] % tuple(s)
+    return ("%s."*4)[:-1] % tuple(map(ord, s)) if six.PY2 else ("%s."*4)[:-1] % tuple(s)
 
 
 def randstring(l):
@@ -1902,9 +1902,11 @@ def make_tex_table(*args, **kargs):
 
 # TRex Change - Added function
 def str2int(s):
+    if type(s) not in (str, bytes):
+        # Not a string, returning the data.
+        return s
     if type(s) is str:
         s = str2bytes(s)
-    assert type(s) in (str, bytes), type(s)
     i = 0
     for c in s:
         c = ord(c) if type(c) is not int else c
@@ -1913,19 +1915,26 @@ def str2int(s):
     return i
 
 # TRex Change - Added function
-# TODO - This function is Python Version Dependent. Should fix.
 def int2str(num, length = None):
     c_arr = []
     i = num
     while i:
         c_arr.insert(0, chr(i & 0xff))
         i = i >> 8
-    s = ''.join(c_arr)
-    if length is None:
-        return str2bytes(s)
-    if length < len(s):
-        raise Exception("Given integer: '%s' can't fit string of length '%s'!" % (num, length))
-    return str2bytes(s.rjust(length, '\0'))
+    if six.PY2:
+        s = b''.join(c_arr)
+        if length is None:
+            return s
+        if length < len(s):
+            raise Exception("Given integer: '%s' can't fit string of length '%s'!" % (num, length))
+        return s.rjust(length, b'\0')
+    elif six.PY3:
+        s = ''.join(c_arr)
+        if length is None:
+            return str2bytes(s)
+        if length < len(s):
+            raise Exception("Given integer: '%s' can't fit string of length '%s'!" % (num, length))
+        return str2bytes(s.rjust(length, '\0'))
 
 ####################
 #   WHOIS CLIENT   #

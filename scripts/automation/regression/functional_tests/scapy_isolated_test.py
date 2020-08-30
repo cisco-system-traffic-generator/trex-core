@@ -161,3 +161,28 @@ class CScapy_Test():
         from scapy.contrib.ipfix import IPFIX
         p = IPFIX()
         p.show2()
+
+    @isolate_env
+    def test_scapy_utils(self):
+        from scapy.all import str2int, int2str, str2ip
+
+        # str2int
+        assert str2int('0') == ord('0')
+        assert str2int(b'\x07') == 7
+        assert str2int(b'\xff') == 255
+        assert str2int(b'\x01\xff') == 511
+        assert str2int(5) == 5
+        assert str2int('be') == 25189 # ord(b) * 2^8 + ord(e)
+        assert str2int('') == 0
+
+        # int2str
+        assert int2str(98) == b'b' 
+        assert int2str(255) == b'\xff'
+        assert int2str(50000, 2) == b'\xc3\x50'
+        assert int2str(25189) == "be".encode('utf-8')
+        assert int2str(0) == ''.encode('utf-8')
+        assert int2str(5, 3) == b'\x00\x00\x05'
+
+        # str2ip
+        assert str2ip(b'\xff\xff\xff\xff') == '255.255.255.255'
+        assert str2ip(b'\xc0\xa8\x00\x01') == '192.168.0.1'
