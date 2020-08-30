@@ -19,7 +19,6 @@ log = logging.getLogger("scapy.loading")
 
 __all__ = []
 
-# TRex Change
 for _l in conf.load_layers:
     log_loading.debug("Loading layer %s" % _l)
     try:
