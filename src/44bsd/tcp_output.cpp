@@ -177,11 +177,24 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
     rte_mbuf_t * m;
     m=tp->pktmbuf_alloc(len);
     pkt.m_buf=m;
+    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+
+    if (ftp->m_tun_handle == NULL && CGlobalInfo::m_options.m_enable_gtpu != 0xFF)
+     {
+       /*Check if we need to add any error counter for the special case*/
+       if (ctx->is_client_side())
+         {
+           INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_notunnel);
+         }
+     }
+
+    pkt.m_buf->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
     if (m==0) {
         INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_nombuf);
         /* drop the packet */
         return(-1);
     }
+
     rte_mbuf_set_as_core_local(m);
     char *p=rte_pktmbuf_append(m,len);
 

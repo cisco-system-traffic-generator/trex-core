@@ -219,6 +219,7 @@ enum {
        OPT_UNBIND_UNUSED_PORTS,
        OPT_HDRH,
        OPT_BNXT_SO,
+       OPT_GTPU,
     
        /* no more pass this */
        OPT_MAX
@@ -314,6 +315,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
+        { OPT_GTPU,                   "--gtpu",            SO_REQ_SEP},
 
         SO_END_OF_OPTIONS
     };
@@ -412,6 +414,7 @@ static int COLD_FUNC  usage() {
     printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
     printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
     printf(" --bird-server              : Enable bird service \n");
+    printf(" --gtpu                     : Enable GTPU mode \n");
     
 
     printf("\n");
@@ -635,6 +638,8 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
+    /*By Default GTPU is disabled , and port number is garbage here*/
+    po->m_enable_gtpu = (uint16_t)0xFF;
     uint32_t tmp_data;
     float tmp_double;
     
@@ -935,6 +940,10 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
+            case OPT_GTPU:
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_enable_gtpu = (uint16_t)tmp_data;
+                break;                
 
             default:
                 printf("Error: option %s is not handled.\n\n", args.OptionText());
