@@ -1360,6 +1360,38 @@ class OPTIONS_DB_ARGS:
          'action': action_check_min_max(),
          'min_val': 0})
 
+    IPV4_G_START = ArgumentPack(
+        ['--4g'],
+        {'help': "IPv4 group start address",
+         'dest': 'g_start',
+         'required': True,
+         'mc': True, 'conv_type': 'ipv4',  # params for action 
+         'action': action_conv_type_to_bytes()})
+
+    IPV4_G_COUNT = ArgumentPack(
+        ['--4g-count'],
+        {'help': "Number of IPv4 addresses to generate from start",
+         'dest': 'g_count',
+         'default': 1,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    IPV4_S_START = ArgumentPack(
+        ['--4s'],
+        {'help': "IPv4 group start address",
+         'dest': 's_start',
+         'required': True,
+         'conv_type': 'ipv4',  # params for action 
+         'action': action_conv_type_to_bytes()})
+
+    IPV4_S_COUNT = ArgumentPack(
+        ['--4s-count'],
+        {'help': "Number of IPv4 addresses to generate from start",
+         'dest': 's_count',
+         'default': 1,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
     # ICMP Start Ping
     PING_AMOUNT = ArgumentPack(
         ['--amount'],
