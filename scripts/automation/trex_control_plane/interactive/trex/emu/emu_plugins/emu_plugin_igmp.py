@@ -143,7 +143,7 @@ class IGMPPlugin(EMUPluginBase):
             :returns:
                 bool : True on success.
         """
-        self._mc_sg_gen( ns_key, g_vec,s_vec,'igmp_ns_sg_remove')
+        return self._mc_sg_gen( ns_key, g_vec,s_vec,'igmp_ns_sg_remove')
 
     @client_api('command', True)
     def add_mc_sg(self, ns_key, g_vec,s_vec):
@@ -167,7 +167,7 @@ class IGMPPlugin(EMUPluginBase):
             :returns:
                 bool : True on success.
         """
-        self._mc_sg_gen( ns_key, g_vec,s_vec,'igmp_ns_sg_add')
+        return self._mc_sg_gen( ns_key, g_vec,s_vec,'igmp_ns_sg_add')
 
 
     @client_api('command', True)
@@ -269,7 +269,7 @@ class IGMPPlugin(EMUPluginBase):
             :returns:
                 bool : True on success.
         """
-        self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"add")
+        return self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"add")
 
     @client_api('command', True)
     def remove_gen_mc_sg(self, ns_key, g_start, g_count = 1,s_start=None, s_count = 1):
@@ -298,7 +298,7 @@ class IGMPPlugin(EMUPluginBase):
             :returns:
                 bool : True on success.
         """
-        self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"remove")
+        return self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"remove")
 
 
     @client_api('command', True)
@@ -383,7 +383,9 @@ class IGMPPlugin(EMUPluginBase):
         EMUValidator.verify(ver_args)    
         mcs = self.iter_mc(ns_key)
         if mcs:
-            self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', ns_key, vec = get_vec_mc(mcs))
+            return self.emu_c._send_plugin_cmd_to_ns('igmp_ns_remove', ns_key, vec = get_vec_mc(mcs))
+        else:
+            return False
 
     # Plugins methods
     @plugin_api('igmp_show_counters', 'emu')
