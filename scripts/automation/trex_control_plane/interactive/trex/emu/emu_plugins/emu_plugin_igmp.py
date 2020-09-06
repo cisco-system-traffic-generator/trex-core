@@ -19,19 +19,27 @@ def get_vec_mc(data):
 class IGMPPlugin(EMUPluginBase):
     '''Defines igmp plugin 
 
-     Support a simplified version of IPv4 IGMP v3/v2/v1 RFC3376
-     v3 supports per ip mc addr either
-     1. Exclude {}, meaning include all (*) all sources
-     2. Include a vector of sources of address, the API is [(s1,g),(s2,g)] meaning include to mc-group g a source s1 and s2
-        the mode would be INCLUDE {s1,s2}
-     to change mode (include all [1] and include sources [2]) there is a need to remove and add again
+    Supports IPv4 IGMP v3/v2 RFC3376
+      v3 supports the folowing filters 
+
+      1. Exclude {}, meaning include all sources (*) 
+      2. Include a vector of sources. The API is add/remove [(g,s1),(g,s2)..] meaning include to mc-group g a source s1 and s2 the mode would be INCLUDE {s1,s2}
+
+
+    To change mode (include all [1] to include filter sources [2]) there is a need to remove and add the group again
 
      The implementation is in the namespace domain (shared for all the clients on the same network)
      One client ipv4/mac is the designator to answer the queries for all the clients.
-     However this implementation can scale
+     
+     Scale
+     
      1. unlimited number of groups
      2. ~1k sources per group (in case of INCLUDE)
-     don't forget to set the designator client
+
+
+     Don't forget to set the designator client
+
+     The API does not support a rate policing so if you push a big vector it will be pushed in the fastest way to the DUT 
    '''
 
     plugin_name = 'IGMP'
@@ -140,6 +148,27 @@ class IGMPPlugin(EMUPluginBase):
                 s_vec: list of lists of bytes
                     Sources of IPv4 addresses. one source for each group
 
+            .. code-block:: python
+
+                    example 1
+
+                    g_vec = [[239,1,1,1],[239,1,1,2]]
+                    s_vec = [[10,0,0,1],[10,0,0,2]]
+
+                    this will remove 
+                                (g=[239,1,1,1],s=[10,0,0,1]) 
+                                (g=[239,1,1,2],s=[10,0,0,2]) 
+
+                    example 2
+
+                    g_vec = [[239,1,1,1],[239,1,1,1]]
+                    s_vec = [[10,0,0,1],[10,0,0,2]]
+
+                    this will remove 
+                                (g=[239,1,1,1],s=[10,0,0,1]) 
+                                (g=[239,1,1,1],s=[10,0,0,2]) 
+
+
             :returns:
                 bool : True on success.
         """
@@ -157,12 +186,31 @@ class IGMPPlugin(EMUPluginBase):
                     Groups IPv4 addresses.
                 s_vec: list of lists of bytes
                     Sources of IPv4 addresses. one source for each group
-                
-                g_vec = [[239,1,1,1],[239,1,1,2]]
-                s_vec = [[10,0,0,1],[10,0,0,2]]
 
-               this will add (g=[239,1,1,1],s=[10,0,0,1]) (this group has only one source)
-    `                        (g=[239,1,1,2],s=[10,0,0,2]) (this group has only one source)
+            .. code-block:: python
+
+                    example 1
+
+                    g_vec = [[239,1,1,1],[239,1,1,2]]
+                    s_vec = [[10,0,0,1],[10,0,0,2]]
+
+                    this will add 
+                                (g=[239,1,1,1],s=[10,0,0,1]) 
+                                (g=[239,1,1,2],s=[10,0,0,2]) 
+
+                    example 2
+
+                    g_vec = [[239,1,1,1],[239,1,1,1]]
+                    s_vec = [[10,0,0,1],[10,0,0,2]]
+
+                    this will add 
+                                (g=[239,1,1,1],s=[10,0,0,1]) 
+                                (g=[239,1,1,1],s=[10,0,0,2]) 
+
+                    the vectors should be in the same side and the there is no limit 
+                    (it will be pushed in the fastest way to the server)
+
+
                          
             :returns:
                 bool : True on success.
@@ -258,14 +306,17 @@ class IGMPPlugin(EMUPluginBase):
                     IPv4 address of the first source group 
                 s_count: int
                     Amount of ips for sources in each group 
-                
-             for example 
-                g_start = [1, 0, 0, 0] , g_count = 2,s_start=[2, 0, 0, 0],g_count=1
             
-              (g,s)
-               ([1, 0, 0, 0], [2, 0, 0, 0])
-               ([1, 0, 0, 1], [2, 0, 0, 0])
-        
+            .. code-block:: python
+                
+                    for example 
+                        g_start = [1, 0, 0, 0] , g_count = 2,s_start=[2, 0, 0, 0],s_count=1
+                    
+                    (g,s)
+                    ([1, 0, 0, 0], [2, 0, 0, 0])
+                    ([1, 0, 0, 1], [2, 0, 0, 0])
+
+                
             :returns:
                 bool : True on success.
         """
@@ -287,14 +338,18 @@ class IGMPPlugin(EMUPluginBase):
                     IPv4 address of the first source group 
                 s_count: int
                     Amount of ips for sources in each group 
+
+            .. code-block:: python
                 
-             for example 
-                g_start = [1, 0, 0, 0] , g_count = 2,s_start=[2, 0, 0, 0],g_count=1
-            
-              (g,s)
-               ([1, 0, 0, 0], [2, 0, 0, 0])
-               ([1, 0, 0, 1], [2, 0, 0, 0])
+                for example 
+                    g_start = [1, 0, 0, 0] , g_count = 2,s_start=[2, 0, 0, 0],s_count=1
+                
+                (g,s)
+                ([1, 0, 0, 0], [2, 0, 0, 0])
+                ([1, 0, 0, 1], [2, 0, 0, 0])
         
+
+
             :returns:
                 bool : True on success.
         """
