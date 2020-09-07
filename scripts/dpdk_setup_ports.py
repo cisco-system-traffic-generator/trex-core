@@ -176,13 +176,14 @@ class ConfigCreator(object):
     @staticmethod
     def _verify_devices_same_type(interfaces_list):
         Device_str = interfaces_list[0]['Device_str']
-        TrexDrv = interfaces_list[0]['TRex_Driver']
+
+        TrexDrv = interfaces_list[0].get('TRex_Driver',"not_valid_drv")
         if Device_str == 'dummy':
             return Device_str
         for interface in interfaces_list:
             if interface['Device_str'] == 'dummy':
                 continue
-            if TrexDrv != interface['TRex_Driver']:
+            if TrexDrv != interface.get('TRex_Driver',"not_valid_drv"):
                 raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (TrexDrv, interface['TRex_Driver']))
         return Device_str
 
@@ -1221,7 +1222,7 @@ Other network devices
         return wanted_interfaces
 
     def do_create(self):
-
+        dpdk_nic_bind.show_table(True) # get the info 
         ips = map_driver.args.ips
         def_gws = map_driver.args.def_gws
         dest_macs = map_driver.args.dest_macs
@@ -1310,7 +1311,7 @@ Other network devices
 
         if not self.m_devices:
             self.run_dpdk_lspci()
-        dpdk_nic_bind.show_table(get_macs = not ip_based)
+        dpdk_nic_bind.show_table(True)
         print('Please choose even number of interfaces from the list above, either by ID , PCI or Linux IF')
         print('Stateful will use order of interfaces: Client1 Server1 Client2 Server2 etc. for flows.')
         print('Stateless can be in any order.')
