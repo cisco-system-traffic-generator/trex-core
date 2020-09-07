@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.83 ==
+
+* dpdk_setup_port script is less restrict in choosing drivers 
+* Update Scapy v2.4.3 for both Python3/2
+* EMU
+** Add support for IGMPv3/MLd (g,s) filter (INCLUDE) 
+** Add ipfix plugin (netflow v9/v10) for simulating routers
+
 == Release 2.82 ==
 
 * Workaround for Cisco X710 firmware 7.0.x 
