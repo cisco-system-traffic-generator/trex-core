@@ -4,6 +4,11 @@ from trex.emu.trex_emu_conversions import Ipv6
 from trex.emu.trex_emu_validator import EMUValidator
 import trex.utils.parsing_opts as parsing_opts
 
+def conv(g,s):
+    vec=[]
+    for i in range(len(g)):
+        vec.append({"g":g[i],"s":s[i]})
+    return vec    
 
 class IPV6Plugin(EMUPluginBase):
     '''Defines ipv6 plugin  
@@ -92,16 +97,97 @@ class IPV6Plugin(EMUPluginBase):
         dmac = Mac(dmac)
         return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_set_cfg', ns_key, mtu = mtu, dmac = dmac.V())
     
+    def _mc_sg_gen(self, ns_key, g_vec,s_vec,cmd):
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'g_vec', 'arg': g_vec, 't': 'ipv6_mc', 'allow_list': True},
+        {'name': 's_vec', 'arg': s_vec, 't': 'ipv6', 'allow_list': True},]
+        EMUValidator.verify(ver_args)
+        # convert 
+        g_vec1 = [Ipv6(ip, mc = True) for ip in g_vec]
+        g_vec1 = [ipv6.V() for ipv6 in g_vec1]
+
+        # convert 
+        s_vec1 = [Ipv6(ip) for ip in s_vec]
+        s_vec1 = [ipv6.V() for ipv6 in s_vec1]
+        if len(s_vec1) != len(g_vec1):
+            raise TRexError('Validation error, len of g and s vector should be the same ')
+
+        return self.emu_c._send_plugin_cmd_to_ns(cmd, ns_key, vec = conv(g_vec1,s_vec1))
+
+    @client_api('command', True)
+    def remove_mld_sg(self, ns_key, g_vec,s_vec):
+        """
+        Remove (g,s) multicast addresses in namespace. 
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                g_vec: list of lists of bytes
+                    Groups IPv6 addresses (multicast)
+                s_vec: list of lists of bytes
+                    Sources of IPv6 addresses. one source for each group the size of the vectors should be the same
+
+            .. code-block:: python
+
+                    example 1
+
+                    g_vec = [ip1.V(),ip1.V()]
+                    s_vec = [ip2.V(),ip3.V()]
+
+                    this will remove 
+                                (g=ip1.V(),s=ip2.V()) 
+                                (g=ip1.V(),s=ip3.V()) 
+
+
+            :returns:
+                bool : True on success.
+        """
+        return self._mc_sg_gen( ns_key, g_vec,s_vec,'ipv6_mld_ns_sg_remove')
+
+    @client_api('command', True)
+    def add_mld_sg(self, ns_key, g_vec,s_vec):
+        """
+        Add multicast (g,s) addresses in namespace.
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                g_vec: list of lists of bytes
+                    Groups IPv4 addresses.
+                s_vec: list of lists of bytes
+                    Sources of IPv4 addresses. one source for each group
+
+            .. code-block:: python
+
+                    example 1
+
+                    g_vec = [ip1.V(),ip1.V()]
+                    s_vec = [ip2.V(),ip3.V()]
+
+                    this will add
+                                (g=ip1.V(),s=ip2.V()) 
+                                (g=ip1.V(),s=ip3.V()) 
+
+                    the vectors should be in the same side and the there is no limit 
+                    (it will be pushed in the fastest way to the server)
+
+                         
+            :returns:
+                bool : True on success.
+        """
+        return self._mc_sg_gen( ns_key, g_vec,s_vec,'ipv6_mld_ns_sg_add')
+
     @client_api('command', True)
     def add_mld(self, ns_key, ipv6_vec):
         """
-        Add mld to ipv6 plugin.
+        Add mld to ipv6 plugin. For MLDv2 this is g,* meaning accept all the sources 
         
             :parameters:
                 ns_key: EMUNamespaceKey
                     see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
                 ipv6_vec: list of lists of bytes
                     List of ipv6 addresses. Must be a valid ipv6 mld address. .e.g.[[0xff,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1] ]
+
         """
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
         {'name': 'ipv6_vec', 'arg': ipv6_vec, 't': 'ipv6_mc', 'allow_list': True},]
@@ -149,6 +235,95 @@ class IPV6Plugin(EMUPluginBase):
         ipv6_vec = [Ipv6(ip, mc = True) for ip in ipv6_vec]
         ipv6_vec = [ipv6.V() for ipv6 in ipv6_vec]
         return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_remove', ns_key, vec = ipv6_vec)
+
+    def _add_remove_gen_mc_sg(self, ns_key, g_start, g_count = 1,s_start=None, s_count = 1,cmd = None):
+        """ """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
+        {'name': 'g_start', 'arg': g_start, 't': 'ipv6_mc'},
+        {'name': 'g_count', 'arg': g_count, 't': int},
+        {'name': 's_start', 'arg': s_start, 't': 'ipv6'},
+        {'name': 's_count', 'arg': s_count, 't': int},]
+        EMUValidator.verify(ver_args)
+
+        g_vec = self._create_ip_vec(g_start, g_count, 'ipv6', True)
+        g_vec = [ip.V() for ip in g_vec]
+        s_vec = self._create_ip_vec(s_start, s_count, 'ipv6', False)
+        s_vec = [ip.V() for ip in s_vec]
+        g_in=[]
+        s_in=[]
+        for i in range(len(g_vec)):
+            for j in range(len(s_vec)):
+                g_in.append(g_vec[i])
+                s_in.append(s_vec[j])
+        if cmd=="add":
+           return self.add_mld_sg(ns_key, g_in,s_in)
+        else:
+           return self.remove_mld_sg(ns_key, g_in,s_in)
+
+    @client_api('command', True)
+    def add_gen_mc_sg(self, ns_key, g_start, g_count = 1,s_start=None, s_count = 1):
+        """
+        Add multicast addresses (g,s) in namespace, generating sequence of addresses.
+          
+        
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                g_start: lists of bytes
+                    IPv6 address of the first multicast address.
+                g_count: int
+                    | Amount of ips to continue from `g_start`, defaults to 0. 
+                s_start: lists of bytes
+                    IPv6 address of the first source group 
+                s_count: int
+                    Amount of ips for sources in each group 
+            
+            .. code-block:: python
+                
+                    for example (using ipv4 address)
+                        g_start = [1, 0, 0, 0] ,g_count = 2, s_start=[2, 0, 0, 0], s_count=1
+                    
+                    (g,s)
+                    ([1, 0, 0, 0], [2, 0, 0, 0])
+                    ([1, 0, 0, 1], [2, 0, 0, 0])
+
+                
+            :returns:
+                bool : True on success.
+        """
+        return self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"add")
+
+    @client_api('command', True)
+    def remove_gen_mc_sg(self, ns_key, g_start, g_count = 1,s_start=None, s_count = 1):
+        """
+        remove multicast addresses (g,s) in namespace, generating sequence of addresses.
+          
+            :parameters:
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                g_start: lists of bytes
+                    IPv6 address of the first multicast address.
+                g_count: int
+                    | Amount of ips to continue from `g_start`, defaults to 0. 
+                s_start: lists of bytes
+                    IPv6 address of the first source group 
+                s_count: int
+                    Amount of ips for sources in each group 
+
+            .. code-block:: python
+                
+                for example (using ipv4 address)
+                    g_start = [1, 0, 0, 0] , g_count = 2,s_start=[2, 0, 0, 0],s_count=1
+                
+                (g,s)
+                ([1, 0, 0, 0], [2, 0, 0, 0])
+                ([1, 0, 0, 1], [2, 0, 0, 0])
+        
+
+            :returns:
+                bool : True on success.
+        """
+        return self._add_remove_gen_mc_sg(ns_key, g_start, g_count,s_start, s_count,"remove")
 
     @client_api('command', True)
     def remove_gen_mld(self, ns_key, ipv6_start, ipv6_count = 1):
@@ -206,7 +381,8 @@ class IPV6Plugin(EMUPluginBase):
         mlds = self.iter_mld(ns_key)
         mlds = [m['ipv6'] for m in mlds if m['management']]
         if mlds:
-            self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_remove', ns_key, vec = mlds)
+            return self.emu_c._send_plugin_cmd_to_ns('ipv6_mld_ns_remove', ns_key, vec = mlds)
+        return True     
 
     @client_api('getter', True)
     def show_cache(self, ns_key):
@@ -395,6 +571,56 @@ class IPV6Plugin(EMUPluginBase):
             self.set_cfg(ns_key, mtu = opts.mtu, dmac = opts.mac)
         return True
 
+    @plugin_api('ipv6_add_mld_sg', 'emu')
+    def ipv6_add_mld_sg_line(self, line):
+        '''MLD add mc command\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "ipv6_add_mld_sg",
+                                        self.ipv6_add_mld_sg_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_ALL_NS,
+                                        parsing_opts.IPV6_G_START,
+                                        parsing_opts.IPV6_G_COUNT,
+                                        parsing_opts.IPV6_S_START,
+                                        parsing_opts.IPV6_S_COUNT,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.all_ns:
+            print(" not supported ! \n")
+        else:
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.add_gen_mc_sg(ns_key, g_start = opts.g6_start, g_count = opts.g6_count,
+                                     s_start = opts.s6_start, s_count = opts.s6_count)
+        return True
+
+    @plugin_api('ipv6_remove_mld_sg', 'emu')
+    def ipv6_remove_mld_sg_line(self, line):
+        '''MLD remove mc command\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "ipv6_remove_mld_sg",
+                                        self.ipv6_add_mld_sg_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_ALL_NS,
+                                        parsing_opts.IPV6_G_START,
+                                        parsing_opts.IPV6_G_COUNT,
+                                        parsing_opts.IPV6_S_START,
+                                        parsing_opts.IPV6_S_COUNT,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if opts.all_ns:
+            print(" not supported ! \n")
+        else:
+            self._validate_port(opts)
+            ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+            res = self.remove_gen_mc_sg(ns_key, g_start = opts.g6_start, g_count = opts.g6_count,
+                                     s_start = opts.s6_start, s_count = opts.s6_count)
+        return True
+
     # mld
     @plugin_api('ipv6_add_mld', 'emu')
     def ipv6_add_mld_line(self, line):
@@ -453,7 +679,12 @@ class IPV6Plugin(EMUPluginBase):
         opts = parser.parse_args(line.split())
         keys_to_headers = [{'key': 'ipv6',        'header': 'IPv6'},
                             {'key': 'refc',       'header': 'Ref.Count'},
-                            {'key': 'management', 'header': 'From RPC'}]
+                            {'key': 'management', 'header': 'From RPC'},
+                            {'key': 'mode', 'header': 'Mode'},
+                            {'key': 'scnt', 'header': 'Sources'},
+                            {'key': 'svu', 'header': 'S'},
+                            ]
+
         args = {'title': 'Current mld:', 'empty_msg': 'There are no mld in namespace', 'keys_to_headers': keys_to_headers}
         if opts.all_ns:
             self.run_on_all_ns(self.iter_mld, print_ns_info = True, func_on_res = self.print_table_by_keys, func_on_res_args = args)
@@ -461,6 +692,23 @@ class IPV6Plugin(EMUPluginBase):
             self._validate_port(opts)
             ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
             res = self.iter_mld(ns_key)
+            # convert 
+            for i in range(len(res)):
+                d = res[i]
+                if 'sv' in d:
+                    res[i]['scnt']=len(res)
+                    s = ''
+                    cnt = 0 
+                    for ip in res[i]['sv']:
+                        s+="["+Ipv6(ip).S()+"], "
+                        cnt+=1
+                        if cnt>4:
+                            s+= " ..."
+                    res[i]['svu']=s
+                else:    
+                   res[i]['scnt']=0
+                   res[i]['svu']=''
+
             self.print_table_by_keys(data = res, **args)
            
         return True

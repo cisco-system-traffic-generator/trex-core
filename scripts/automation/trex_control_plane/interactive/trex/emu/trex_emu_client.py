@@ -183,7 +183,7 @@ class EMUClient(object):
                  logger = None,
                  sync_timeout = None):
 
-        api_ver = {'name': 'EMU', 'major': 0, 'minor': 1}
+        api_ver = {'name': 'EMU', 'major': 1, 'minor': 1}
 
         # logger
         logger = logger if logger is not None else ScreenLogger()
