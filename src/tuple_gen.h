@@ -38,7 +38,7 @@ limitations under the License.
 #include <bitset>
 #include <yaml-cpp/yaml.h>
 #include "trex_client_config.h"
-#include "gtp_tunnel.h"
+#include "trex_global.h"
 #include <random>
 
 typedef uint16_t  pool_index_t;
@@ -688,24 +688,30 @@ public:
 
     uint32_t GenerateTuple(CTupleBase & tuple) {
 
-        CIpInfoBase* ip_info;
+      CIpInfoBase* ip_info;
+      uint32_t idx;
 
-	if (m_cur_act_itr == m_active_clients.end())
-		m_cur_act_itr = m_active_clients.begin();
+      if ( CGlobalInfo::m_options.m_enable_gtpu == 0xFF) {
+          idx = generate_ip();
+          CIpInfoBase* ip_info = m_ip_info[idx];
+          ip_info->generate_tuple(tuple);
+      }
+      else {
+        if (m_cur_act_itr == m_active_clients.end())
+		  m_cur_act_itr = m_active_clients.begin();
+          idx = *m_cur_act_itr;
+	      m_cur_act_itr++;
+          ip_info = m_ip_info[idx];
+          ip_info->generate_tuple(tuple);
+	      tuple.setTunHandle(ip_info->get_gtpu_info());
+      }
 
-        uint32_t idx = *m_cur_act_itr;
-         
-	    m_cur_act_itr++;
-        ip_info = m_ip_info[idx];
-        ip_info->generate_tuple(tuple);
-	    tuple.setTunHandle(ip_info->get_gtpu_info());
-
-        tuple.setClientId(idx);
-        if (tuple.getClientPort()==ILLEGAL_PORT) {
-            m_port_allocation_error++;
-        }
-        m_active_alloc++;
-        return idx;
+      tuple.setClientId(idx);
+      if (tuple.getClientPort()==ILLEGAL_PORT) {
+          m_port_allocation_error++;
+      }
+      m_active_alloc++;
+      return idx;
     }
 
     bool has_active_clients() {
