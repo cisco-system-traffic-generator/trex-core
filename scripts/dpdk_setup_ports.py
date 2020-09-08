@@ -183,8 +183,9 @@ class ConfigCreator(object):
         for interface in interfaces_list:
             if interface['Device_str'] == 'dummy':
                 continue
-            if TrexDrv != interface.get('TRex_Driver',"not_valid_drv"):
-                raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (TrexDrv, interface['TRex_Driver']))
+            odrv = interface.get('TRex_Driver',"not_valid_drv")
+            if TrexDrv != odrv:
+                raise DpdkSetup('Interfaces should be of same type, got:\n\t* %s\n\t* %s' % (TrexDrv, odrv))
         return Device_str
 
     def create_config(self, filename = None, print_config = False):
