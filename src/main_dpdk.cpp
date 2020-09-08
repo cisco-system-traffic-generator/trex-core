@@ -65,6 +65,7 @@
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
+#include "tunnels/tunnel.h"
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -1300,6 +1301,13 @@ COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
              "rte_eth_rx_queue_setup: "
              "err=%d, port=%u\n",
              ret, m_repid);
+
+  ret = Tunnel::InstallRxCallback(m_repid, rx_queue_id);
+  if (ret < 0)
+      rte_exit(EXIT_FAILURE, "Installing RxCallback"
+               "err=%d, port=%u queue=%u\n",
+               ret, m_repid, rx_queue_id);
+
 }
 
 COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
@@ -1316,6 +1324,14 @@ COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: "
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
+
+    ret =   Tunnel::InstallTxCallback(m_repid, tx_queue_id);
+
+    if (ret < 0)
+        rte_exit(EXIT_FAILURE, "Installing Tx Callback: "
+                 "err=%d, port=%u queue=%u\n",
+                 ret, m_repid, tx_queue_id);
+
 
 }
 

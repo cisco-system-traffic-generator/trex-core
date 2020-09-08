@@ -25,9 +25,9 @@ public:
 	static uint16_t TxCallback(uint16_t port, uint16_t queue,
 			struct rte_mbuf *pkts[], uint16_t nb_pkts, void *user_param);
 
-	static void InstallRxCallback(uint16_t port, uint16_t queue);
+	static int InstallRxCallback(uint16_t port, uint16_t queue);
 
-	static void InstallTxCallback(uint16_t port, uint16_t queue);
+	static int InstallTxCallback(uint16_t port, uint16_t queue);
     static int Parse(YAML::Node const&, std::vector<Tunnel *> & tunnels);
 
 private:
