@@ -1096,12 +1096,12 @@ class ASTFIPGen(object):
 
         self.fields = {}
         self.fields['dist_client'] = dist_client
-        if dist_client.direction and dist_client.direction is not "c":
+        if dist_client.direction and dist_client.direction != "c":
             raise ASTFError("dist_client.direction is already dir:{0}".format(dist_client.direction))
         dist_client.direction = "c"
         dist_client.ip_offset = glob.ip_offset
         self.fields['dist_server'] = dist_server
-        if dist_server.direction and dist_server.direction is not "s":
+        if dist_server.direction and dist_server.direction != "s":
             raise ASTFError("dist_server.direction is already dir:{0}".format(dist_server.direction))
         dist_server.direction = "s"
         dist_server.ip_offset = glob.ip_offset
@@ -1784,7 +1784,7 @@ class ASTFProfile(object):
                 else:
                     if mode == "l7_percent" and l7_percent is None:
                         raise ASTFError("If one cap specifies l7_percent, then all should specify it")
-                    if mode is "cps" and l7_percent is not None:
+                    if mode == "cps" and l7_percent is not None:
                         raise ASTFError("Can't mix specifications of cps and l7_percent in same cap list")
 
                 total_payload += prog_c.payload_len

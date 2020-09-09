@@ -810,7 +810,7 @@ def STLHltStream(**user_kwargs):
         rate_key = intersect_rate_args[0]
     except IndexError:
         rate_key = 'rate_percent'
-    if rate_key is 'rate_percent' and float(kwargs['rate_percent']) > 100:
+    if rate_key == 'rate_percent' and float(kwargs['rate_percent']) > 100:
         raise STLError('rate_percent should not exceed 100%')
 
     if kwargs['length_mode'] == 'imix': # several streams with given length
