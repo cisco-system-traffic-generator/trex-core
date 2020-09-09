@@ -34,11 +34,11 @@ def create_config(cpu_topology, interfaces, *args, **kwargs):
 def verify_master_core0(output):
     output_yaml = yaml.safe_load(output)
     assert type(output_yaml) is list, 'Generated YAML should be list'
-    assert len(output_yaml) is 1, 'Generated YAML should be list with 1 element'
+    assert len(output_yaml) == 1, 'Generated YAML should be list with 1 element'
     output_yaml = output_yaml[0]
     assert 'platform' in output_yaml, 'Generated YAML has no platform section:\n%s' % output
     assert 'master_thread_id' in output_yaml['platform'], 'Generated YAML does not specify master thread id:\n%s' % output
-    assert output_yaml['platform']['master_thread_id'] is 0, 'Master thread id should be 0 in generated YAML, got:%s' % output_yaml['platform']['master_thread_id']
+    assert output_yaml['platform']['master_thread_id'] == 0, 'Master thread id should be 0 in generated YAML, got:%s' % output_yaml['platform']['master_thread_id']
 
 class TRexCfgCreator_Test:
 

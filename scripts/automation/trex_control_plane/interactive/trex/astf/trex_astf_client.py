@@ -305,7 +305,7 @@ class ASTFClient(TRexClient):
             bad_states = listify(bad_states)
 
         self.wait_for_steady()
-        if rpc_func is 'start' and self.state is not self.STATE_TX:
+        if rpc_func == 'start' and self.state is not self.STATE_TX:
             self.inc_epoch()
 
         self.sync_waiting = True

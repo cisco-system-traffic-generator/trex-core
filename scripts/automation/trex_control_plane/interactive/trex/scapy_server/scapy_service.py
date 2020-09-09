@@ -550,7 +550,7 @@ class Scapy_service(Scapy_service_api):
         protocol_str = self._protocol_struct(p_name)
         if protocol_str=='protocol not supported':
             return 'protocol not supported'
-        if len(protocol_str) is 0:
+        if len(protocol_str) == 0:
             return []
         tupled_protocol = self._parse_entire_description(protocol_str)
         return tupled_protocol

@@ -1274,7 +1274,7 @@ class AsyncKeysEngineConsole:
         if not common:
             common = partial
 
-        tokens.append(os.path.join(d, common) if d is not '.' else common)
+        tokens.append(os.path.join(d, common) if d != '.' else common)
 
         # reforge the line
         newline = ' '.join(tokens)
