@@ -25,7 +25,7 @@ limitations under the License.
 #include <functional>
 #include <json/json.h>
 
-#define TREX_MAX_PORTS 24
+#define TREX_MAX_PORTS 32
 
 #ifdef __PPC64__
 #define MAX_SOCKETS_SUPPORTED   (16)

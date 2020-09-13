@@ -561,8 +561,8 @@ Other network devices
 
         if_list= if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces']);
         l=len(if_list);
-        if l > 24:
-            raise DpdkSetup("Configuration file %s should include interfaces field with maximum 24 elements, got: %s." % (fcfg,l))
+        if l > 32:
+            raise DpdkSetup("Configuration file %s should include interfaces field with maximum 32 elements, got: %s." % (fcfg,l))
         if l % 2:
             raise DpdkSetup("Configuration file %s should include even number of interfaces, got: %s" % (fcfg,l))
         if 'port_limit' in cfg_dict:
