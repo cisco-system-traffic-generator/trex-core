@@ -246,18 +246,18 @@ class CIpInfoBase {
             return m_active_vec_index;
         }*/
 
-        void set_gtpu_info(void *gtpu) {
-            m_gtpu = gtpu;
+        void set_tunnel_info(void *tunnel) {
+            m_tunnel = tunnel;
         }
  
-        void *get_gtpu_info() {
-            return m_gtpu;
+        void *get_tunnel_info() {
+            return m_tunnel;
         }
  
         CIpInfoBase() { 
 		m_is_active = false; 
 		//m_active_vec_index = 0; 
-		m_gtpu = NULL;
+		m_tunnel = NULL;
 	}
 
         virtual ~CIpInfoBase() {}
@@ -265,7 +265,7 @@ class CIpInfoBase {
         uint32_t          m_ip;
         bool              m_is_active;
         //uint32_t          m_active_vec_index;
-        void              *m_gtpu;
+        void              *m_tunnel;
 };
 
 //CClientInfo for large amount of clients support
@@ -681,7 +681,7 @@ public:
         m_rss_thread_max=0;
         m_reta_mask=0;
         m_rss_astf_mode=false;
-	m_active_clients.clear();
+        m_active_clients.clear();
         //m_cur_active_idx = 0;
 
     }
@@ -703,7 +703,7 @@ public:
 	      m_cur_act_itr++;
           ip_info = m_ip_info[idx];
           ip_info->generate_tuple(tuple);
-	      tuple.setTunHandle(ip_info->get_gtpu_info());
+	      tuple.setTunHandle(ip_info->get_tunnel_info());
       }
 
       tuple.setClientId(idx);
@@ -758,7 +758,7 @@ public:
     }
     
 
-    void set_gtpu_info_for_clients(uint32_t        min_ip,
+    void set_tunnel_info_for_clients(uint32_t        min_ip,
                                    uint32_t        max_ip,
                                    bool            add,
                                    void            *gtpu);

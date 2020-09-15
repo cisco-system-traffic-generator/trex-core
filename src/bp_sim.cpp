@@ -5184,7 +5184,7 @@ rte_mbuf_t * CPluginCallbackSimple::http_plugin(uint8_t plugin_id,
 
             // Mark as IPv6 and set the upper 96-bits
             replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
-            for (uint16_t idx=0; idx<6; idx++){
+            for (uint8_t idx=0; idx<6; idx++){
                 replace_cmd.m_server_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
             }
         } else {

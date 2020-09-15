@@ -524,6 +524,14 @@ public:
     void *get_tun_handle(){
         return(m_tun_handle);
     }
+
+    inline bool is_tunnel_aware(){
+        return (m_tun_handle != NULL);
+    }
+
+    inline bool is_gtpu_tunnel(){
+        return (CGlobalInfo::m_options.m_enable_gtpu != 0xFF);
+    }
 private:
     /* support either UDP or TCP for now */
     bool is_tcp(){

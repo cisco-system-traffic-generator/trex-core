@@ -115,7 +115,7 @@ void CClientPool::set_clients_active(uint32_t  min_ip,
     while(count < total_ip) {
         if (activate) {
             if (m_ip_info[i]->is_active() == false) {
-               if (m_ip_info[i]->get_gtpu_info()) {
+               if (m_ip_info[i]->get_tunnel_info()) {
                   m_ip_info[i]->set_is_active(activate);
                   m_active_clients.push_back(i);
                   if(m_active_clients.size() == 1)
@@ -182,7 +182,7 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
 
 }
 
-void CClientPool::set_gtpu_info_for_clients(uint32_t  min_ip,
+void CClientPool::set_tunnel_info_for_clients(uint32_t  min_ip,
                                             uint32_t  max_ip,
                                             bool      add,
                                             void      *gtpu)
@@ -198,7 +198,7 @@ void CClientPool::set_gtpu_info_for_clients(uint32_t  min_ip,
 	if (!add)
            set_clients_active(min_ip, max_ip, add);
         
-        m_ip_info[ip_idx]->set_gtpu_info(gtpu);
+        m_ip_info[ip_idx]->set_tunnel_info(gtpu);
         ip_idx++;
         count++;
     }

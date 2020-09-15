@@ -15,7 +15,7 @@ public:
 	virtual ~Tunnel() {
 	}
 
-	virtual int Prepend(rte_mbuf * m, u_int8_t is_ipv4, u_int16_t ) = 0;
+	virtual int Prepend(rte_mbuf * m, u_int16_t ) = 0;
 	virtual int Adjust(rte_mbuf * m, u_int8_t ) = 0;
 
 	static uint16_t RxCallback(uint16_t port, uint16_t queue,

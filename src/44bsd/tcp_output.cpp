@@ -179,7 +179,7 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
     pkt.m_buf=m;
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
-    if (ftp->m_tun_handle == NULL && CGlobalInfo::m_options.m_enable_gtpu != 0xFF)
+    if (ftp->is_tunnel_aware() && ftp->is_gtpu_tunnel())
      {
        /*Check if we need to add any error counter for the special case*/
        if (ctx->is_client_side())

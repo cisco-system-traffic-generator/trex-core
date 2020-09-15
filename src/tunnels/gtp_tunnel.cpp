@@ -73,36 +73,36 @@ static constexpr uint16_t kEtherTypeBeIPv4 = __builtin_bswap16(
     (RTE_ETHER_TYPE_IPV4));
 
 static constexpr uint16_t kEtherTypeBeIPv6 = __builtin_bswap16(
-	(RTE_ETHER_TYPE_IPV6));
+    (RTE_ETHER_TYPE_IPV6));
 
 static constexpr uint16_t kEtherTypeBeVLAN = __builtin_bswap16(
-	(RTE_ETHER_TYPE_VLAN));
+    (RTE_ETHER_TYPE_VLAN));
 
 static constexpr uint16_t kEtherTypeBeARP = __builtin_bswap16(
     (RTE_ETHER_TYPE_ARP));
 
-int GTPU::Prepend(rte_mbuf * pkt, u_int8_t is_ipv4, u_int16_t queue) {
+int GTPU::Prepend(rte_mbuf * pkt, u_int16_t queue) {
 
-	if (rte_pktmbuf_headroom(pkt) < sizeof(struct Encapsulation)) {
-		return -1;
-	}
-
-	struct rte_ether_hdr * eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+    if (rte_pktmbuf_headroom(pkt) < sizeof(struct Encapsulation)) {
+        return -1;
+    }
+    
+    struct rte_ether_hdr * eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
     struct rte_vlan_hdr *vh; 
     uint16_t l3_offset = 0;
 
-	if (eth->ether_type == kEtherTypeBeARP) {
-      return 0;
+    if (eth->ether_type == kEtherTypeBeARP) {
+        return 0;
     }
 
     l3_offset += sizeof(struct rte_ether_hdr);
 
-	if (eth->ether_type == kEtherTypeBeVLAN) {
+    if (eth->ether_type == kEtherTypeBeVLAN) {
         vh = (struct rte_vlan_hdr *)(eth + 1);
         if (vh->eth_proto == kEtherTypeBeARP)
             return 0;
         l3_offset += sizeof(struct rte_vlan_hdr);  
-	}
+    }
 
     if(m_ipv6_set == 0) {
         Prepend_ipv4_tunnel(pkt, l3_offset, queue);
@@ -133,12 +133,12 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     struct Encapsulation * encap = (struct Encapsulation *) rte_pktmbuf_prepend(pkt, sizeof(struct
       Encapsulation));
 
-	memset(encap, 0, sizeof(*encap));
-	struct rte_ether_hdr * outer_eth = (struct rte_ether_hdr *)encap;
+    memset(encap, 0, sizeof(*encap));
+    struct rte_ether_hdr * outer_eth = (struct rte_ether_hdr *)encap;
     rte_ether_addr_copy(&eth->s_addr, &outer_eth->s_addr);
-	rte_ether_addr_copy(&eth->d_addr, &outer_eth->d_addr);
+    rte_ether_addr_copy(&eth->d_addr, &outer_eth->d_addr);
 
-	struct rte_ipv4_hdr * outer_ipv4 = (struct rte_ipv4_hdr *)(eth+1);
+    struct rte_ipv4_hdr * outer_ipv4 = (struct rte_ipv4_hdr *)(eth+1);
 
     if (eth->ether_type == kEtherTypeBeVLAN) {
 
@@ -147,25 +147,25 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
         vh = (struct rte_vlan_hdr *)(eth + 1);
         vlan_hdr->eth_proto =  kEtherTypeBeIPv4;
         vlan_hdr->vlan_tci = vh->vlan_tci;
-	    outer_ipv4 = (struct rte_ipv4_hdr *)(vlan_hdr+1);
+        outer_ipv4 = (struct rte_ipv4_hdr *)(vlan_hdr+1);
         /*Copy the pre-cooked packet*/
         rte_memcpy( (void*) outer_ipv4 , (void *)  m_outer_hdr , sizeof(struct Encapsulation));
         /*Fix outer header IPv4 length */
-	    outer_ipv4->total_length = rte_cpu_to_be_16(pkt->pkt_len - (RTE_ETHER_HDR_LEN  + 4));
+        outer_ipv4->total_length = rte_cpu_to_be_16(pkt->pkt_len - (RTE_ETHER_HDR_LEN  + 4));
     }
     else {
         outer_eth->ether_type = kEtherTypeBeIPv4;
         /*Copy the pre-cooked packet at the right place*/
         rte_memcpy( (void*) outer_ipv4 , (void *)  m_outer_hdr , sizeof(struct Encapsulation));
         /*Fix outer header IPv4 length */
-	    outer_ipv4->total_length = rte_cpu_to_be_16(pkt->pkt_len - RTE_ETHER_HDR_LEN);
+        outer_ipv4->total_length = rte_cpu_to_be_16(pkt->pkt_len - RTE_ETHER_HDR_LEN);
     }
 
     /*Fix UDP header length */
     //static uint16_t port = 0;
     struct rte_udp_hdr *udp = (struct rte_udp_hdr *)(outer_ipv4+1);
     udp->src_port = tch->src_port;
-	udp->dgram_len  = rte_cpu_to_be_16(rte_be_to_cpu_16(outer_ipv4->total_length) - sizeof(struct
+    udp->dgram_len  = rte_cpu_to_be_16(rte_be_to_cpu_16(outer_ipv4->total_length) - sizeof(struct
     rte_ipv4_hdr ));
 
     /*Fix GTPU length*/
@@ -174,14 +174,14 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
 
 
     pkt->l3_len = sizeof(struct rte_ipv4_hdr);
-	pkt->ol_flags |= PKT_TX_IP_CKSUM | PKT_TX_IPV4;
+    pkt->ol_flags |= PKT_TX_IP_CKSUM | PKT_TX_IPV4;
     if(is_ip6) {
         /*Inner was Ipv6, outer is Ipv4 only*/
-	    pkt->ol_flags &= ~PKT_TX_IPV6;
+        pkt->ol_flags &= ~PKT_TX_IPV6;
     }
 
     pkt->ol_flags &= ~PKT_TX_TCP_CKSUM;
-	return 0;
+    return 0;
  }
 
 int GTPU::Prepend_ipv6_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queue) {
@@ -194,7 +194,7 @@ int GTPU::Prepend_ipv6_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     struct rte_tcp_hdr *tch = rte_pktmbuf_mtod_offset (pkt, struct rte_tcp_hdr *, l4_offset);
     struct rte_vlan_hdr *vh; 
 
-     struct Encapsulation6 * encap6 = (struct Encapsulation6 *) rte_pktmbuf_prepend(pkt, sizeof(struct
+    struct Encapsulation6 * encap6 = (struct Encapsulation6 *) rte_pktmbuf_prepend(pkt, sizeof(struct
       Encapsulation6));
 
     memset(encap6, 0, sizeof(*encap6));
@@ -360,7 +360,7 @@ int GTPU::Adjust_ipv6_tunnel( rte_mbuf * pkt, struct rte_ether_hdr const *eth)
 
 int GTPU::Adjust(rte_mbuf * pkt, u_int8_t queue ) {
 
-	struct rte_ether_hdr const * eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr const*);
+    struct rte_ether_hdr const * eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr const*);
 
     if (eth->ether_type == kEtherTypeBeARP) {
         return 0;
@@ -382,7 +382,7 @@ int GTPU::Adjust(rte_mbuf * pkt, u_int8_t queue ) {
         Adjust_ipv6_tunnel(pkt,eth);
     }
 
-	return 0;
+    return 0;
 }
 
 extern int my_inet_pton4(const char *src, unsigned char *dst);

@@ -23,7 +23,7 @@ public:
 	}
 
 
-	virtual int Prepend(rte_mbuf * m, u_int8_t is_ipv4, u_int16_t);
+	virtual int Prepend(rte_mbuf * m, u_int16_t);
 
     int Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t);
 
