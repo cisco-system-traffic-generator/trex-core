@@ -1378,7 +1378,7 @@ class OPTIONS_DB_ARGS:
 
     IPV6_G_COUNT = ArgumentPack(
         ['--6g-count'],
-        {'help': "Number of IPv6 addresses to generate from start",
+        {'help': "Number of IPv6 group addresses to generate from start",
          'dest': 'g6_count',
          'default': 1,
          'action': action_check_min_max(),
@@ -1402,7 +1402,7 @@ class OPTIONS_DB_ARGS:
 
     IPV4_S_START = ArgumentPack(
         ['--4s'],
-        {'help': "IPv4 group start address",
+        {'help': "IPv4 source start address",
          'dest': 's_start',
          'required': True,
          'conv_type': 'ipv4',  # params for action 
@@ -1410,8 +1410,16 @@ class OPTIONS_DB_ARGS:
 
     IPV4_S_COUNT = ArgumentPack(
         ['--4s-count'],
-        {'help': "Number of IPv4 addresses to generate from start",
+        {'help': "Number of IPv4 source addresses to generate from start",
          'dest': 's_count',
+         'default': 1,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    IPV4_G_COUNT = ArgumentPack(
+        ['--4g-count'],
+        {'help': "Number of IPv4 group addresses to generate from start",
+         'dest': 'g_count',
          'default': 1,
          'action': action_check_min_max(),
          'min_val': 0})
