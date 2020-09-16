@@ -5448,7 +5448,7 @@ rte_mbuf_t * CPluginCallbackSimple::sip_voice_plugin(uint8_t plugin_id,CGenNode 
 
                     // Mark as IPv6 and set the upper 96-bits
                     via_replace_cmd.m_flags |= CMiniVMCmdBase::MIN_VM_V6;
-                    for (uint8_t idx=0; idx<6; idx++){
+                    for (uint16_t idx=0; idx<6; idx++){
                         via_replace_cmd.m_ip.v6[idx] = CGlobalInfo::m_options.m_dst_ipv6[idx];
                         via_replace_cmd.m_ip_via.v6[idx] = CGlobalInfo::m_options.m_src_ipv6[idx];
                    }
