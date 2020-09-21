@@ -251,7 +251,6 @@ int GTPU::Adjust_ipv4_tunnel( rte_mbuf * pkt, struct rte_ether_hdr const *eth) {
     struct rte_ipv4_hdr *ipv4 = NULL;
     u_int16_t l2_len = 0;
 
-    return 0;
     if (eth->ether_type == kEtherTypeBeVLAN) {
         struct rte_vlan_hdr *vh;
         vh = (struct rte_vlan_hdr *)(eth + 1);
