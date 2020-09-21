@@ -317,8 +317,6 @@ CTupleGeneratorSmart::lookup(uint32_t ip) {
     else
 	    return NULL;
 
-    //return ((ip >= all_clients.front()->get_ip()) && (ip <= all_clients.back()->get_ip())) ? cpool : NULL;
-
 }
 
 bool CTupleGeneratorSmart::add_server_pool(IP_DIST_t  server_dist,

@@ -691,7 +691,7 @@ public:
       CIpInfoBase* ip_info;
       uint32_t idx;
 
-      if ( CGlobalInfo::m_options.m_enable_gtpu == 0xFF) {
+      if ( CGlobalInfo::m_options.is_gtpu_enabled() == 0) {
           idx = generate_ip();
           CIpInfoBase* ip_info = m_ip_info[idx];
           ip_info->generate_tuple(tuple);
@@ -700,10 +700,10 @@ public:
         if (m_cur_act_itr == m_active_clients.end())
 		  m_cur_act_itr = m_active_clients.begin();
           idx = *m_cur_act_itr;
-	      m_cur_act_itr++;
+	  m_cur_act_itr++;
           ip_info = m_ip_info[idx];
           ip_info->generate_tuple(tuple);
-	      tuple.setTunHandle(ip_info->get_tunnel_info());
+          tuple.setTunHandle(ip_info->get_tunnel_info());
       }
 
       tuple.setClientId(idx);
@@ -772,10 +772,8 @@ public:
     uint16_t m_rss_thread_max;
     uint8_t  m_reta_mask;
     bool     m_rss_astf_mode;
-    //uint32_t m_cur_active_idx;
 
 
-    //std::vector<uint32_t> m_active_clients;
     std::list<uint32_t> m_active_clients;
     std::list<uint32_t>::iterator m_cur_act_itr;    
 
@@ -1013,7 +1011,6 @@ private:
 
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
-    //std::map<uint32_t, CClientPool*>  m_ip_start_cpool_link;
 
     bool     m_was_init;
 };

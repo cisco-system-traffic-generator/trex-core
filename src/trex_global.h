@@ -729,6 +729,10 @@ public:
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
 
+    bool is_gtpu_enabled() {
+        return (m_enable_gtpu != 0xFF);
+    }
+
     void verify();
 };
 

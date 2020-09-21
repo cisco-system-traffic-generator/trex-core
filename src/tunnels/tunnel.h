@@ -12,22 +12,21 @@
 
 class Tunnel {
 public:
-	virtual ~Tunnel() {
-	}
+    virtual ~Tunnel() {
+    }
 
-	virtual int Prepend(rte_mbuf * m, u_int16_t ) = 0;
-	virtual int Adjust(rte_mbuf * m, u_int8_t ) = 0;
+    virtual int Prepend(rte_mbuf * m, u_int16_t ) = 0;
+    virtual int Adjust(rte_mbuf * m, u_int8_t ) = 0;
+    static uint16_t RxCallback(uint16_t port, uint16_t queue,
+        struct rte_mbuf *pkts[], uint16_t nb_pkts, uint16_t max_pkts,
+        void *user_param);
 
-	static uint16_t RxCallback(uint16_t port, uint16_t queue,
-			struct rte_mbuf *pkts[], uint16_t nb_pkts, uint16_t max_pkts,
-			void *user_param);
+    static uint16_t TxCallback(uint16_t port, uint16_t queue,
+        struct rte_mbuf *pkts[], uint16_t nb_pkts, void *user_param);
 
-	static uint16_t TxCallback(uint16_t port, uint16_t queue,
-			struct rte_mbuf *pkts[], uint16_t nb_pkts, void *user_param);
+    static int InstallRxCallback(uint16_t port, uint16_t queue);
 
-	static int InstallRxCallback(uint16_t port, uint16_t queue);
-
-	static int InstallTxCallback(uint16_t port, uint16_t queue);
+    static int InstallTxCallback(uint16_t port, uint16_t queue);
     static int Parse(YAML::Node const&, std::vector<Tunnel *> & tunnels);
 
 private:

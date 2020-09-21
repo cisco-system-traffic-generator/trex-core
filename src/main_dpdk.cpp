@@ -1302,7 +1302,7 @@ COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
              "err=%d, port=%u\n",
              ret, m_repid);
 
-  if ( CGlobalInfo::m_options.m_enable_gtpu != 0xFF) {
+  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
      ret = Tunnel::InstallRxCallback(m_repid, rx_queue_id);
      if (ret < 0)
         rte_exit(EXIT_FAILURE, "Installing RxCallback"
@@ -1327,7 +1327,7 @@ COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
 
-  if ( CGlobalInfo::m_options.m_enable_gtpu != 0xFF) {
+  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
       ret =   Tunnel::InstallTxCallback(m_repid, tx_queue_id);
       if (ret < 0)
         rte_exit(EXIT_FAILURE, "Installing Tx Callback: "
