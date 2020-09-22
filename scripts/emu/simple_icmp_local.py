@@ -4,14 +4,16 @@ import argparse
 
 class Prof1():
     def __init__(self):
-        self.def_ns_plugs  = {'icmp': {},
-                             }
+        self.mac = Mac('00:00:00:70:00:02')
+        self.def_ns_plugs  = {'arp': {},'icmp': {},'ipv6' : {'dmac':self.mac.V()}} 
+
 
         self.def_c_plugs  = {
                             'arp': {},
                              'icmp': {},
-                             #'transport' : {},
-                             #'transe': {'addr':'11.0.0.1:9001','size':10}
+                             'ipv6' :{}
+                             'transport' : {},
+                             'transe': {'addr':'11.0.0.1:9001','size':100000,'loops':100}
                              }
 
     def create_profile(self, ns_size, clients_size):
@@ -28,12 +30,14 @@ class Prof1():
             mac = Mac('00:00:00:70:00:02')
             ipv4 = Ipv4('11.0.0.2')
             dg = Ipv4('11.0.0.1')
+            ipv6 = Ipv6("2001:DB8:1::2")
 
             # create a different client each time
             for j in range(clients_size):
                 client = EMUClientObj(mac     = mac[j].V(),
                                       ipv4    = ipv4[j].V(),
                                       ipv4_dg = dg.V(),
+                                      ipv6    = ipv6[i].V(),  
                                       #ipv4_force_dg = True,
                                       #ipv4_force_mac = Mac('00:00:00:70:00:01')
                                       )
