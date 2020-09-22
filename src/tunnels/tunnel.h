@@ -27,7 +27,6 @@ public:
     static int InstallRxCallback(uint16_t port, uint16_t queue);
 
     static int InstallTxCallback(uint16_t port, uint16_t queue);
-    static int Parse(YAML::Node const&, std::vector<Tunnel *> & tunnels);
 
 private:
     bool m_ipv6_set;

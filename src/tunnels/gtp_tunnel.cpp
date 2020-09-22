@@ -56,7 +56,7 @@ typedef struct __attribute__((__packed__))
 struct Encapsulation {
     struct rte_ipv4_hdr ip;
     struct rte_udp_hdr udp;
-  gtpu_header_t gtp;
+    gtpu_header_t gtp;
 };
 
 struct Encapsulation6 {
@@ -383,13 +383,6 @@ int GTPU::Adjust(rte_mbuf * pkt, u_int8_t queue ) {
     }
 
     return 0;
-}
-
-extern int my_inet_pton4(const char *src, unsigned char *dst);
-inline bool ParseIPv4(YAML::Node const& node, uint32_t * ip) {
-    std::string ip_str;
-    node >> ip_str;
-    return my_inet_pton4((char *) ip_str.c_str(), (unsigned char *) ip);
 }
 
 GTPU::GTPU( ):teid(0),dst_ip(0),src_ip(0)

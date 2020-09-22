@@ -4040,7 +4040,7 @@ int CFlowGenListPerThread::generate_flows_roundrobin(bool *done){
     for (i=0;i<(int)m_cap_gen.size();i++ ) {
         cur=m_cap_gen[m_cur_template];
         if (!(cur->m_info->m_limit_was_set) ||
-            (cur->m_info->m_flowcnt < cur->m_info->m_limit) ){
+            (cur->m_info->m_flowcnt < cur->m_info->m_limit)){
             *done = false;
             if ( cur->m_policer.update(1.0,m_cur_time_sec) ){
                 cur->m_info->m_flowcnt++;

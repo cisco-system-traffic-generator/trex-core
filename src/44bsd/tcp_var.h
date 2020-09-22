@@ -1253,8 +1253,7 @@ public:
     }
 
     bool get_rx_checksum_check(){
-        return false;
-        //return( ((m_offload_flags & OFFLOAD_RX_CHKSUM) == OFFLOAD_RX_CHKSUM)?true:false);
+        return( ((m_offload_flags & OFFLOAD_RX_CHKSUM) == OFFLOAD_RX_CHKSUM)?true:false);
     }
 
     /*  this function is called every 20usec to see if we have an issue with resource */
