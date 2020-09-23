@@ -80,14 +80,12 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
                                           char *p){
     UDPHeader * udp =(UDPHeader*)(p+ftp->m_offset_l4);
     /*Check if we need to update the stats when handle is not present for Special case*/
-    if (ftp->is_tunnel_aware() && ftp->is_gtpu_tunnel())
-    {
-        if (m_pctx->m_ctx->is_client_side())
-         {
-             INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
-         }
+    if (ftp->is_gtpu_tunnel()){
+        if (!ftp->is_tunnel_aware() && m_pctx->m_ctx->is_client_side()){
+            INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+        }
+        m->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
     }
-    m->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
     if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
         if (!ftp->m_is_ipv6) {
             m->l2_len = ftp->m_offset_ip;
