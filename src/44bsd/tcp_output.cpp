@@ -200,7 +200,6 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
     memcpy(p,ftp->m_template_pkt,len);
     pkt.lpTcp =(TCPHeader    *)(p+ftp->m_offset_l4);
 
-
     return(0);
 }
 
