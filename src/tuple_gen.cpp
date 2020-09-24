@@ -195,7 +195,7 @@ void CClientPool::set_tunnel_info_for_clients(uint32_t  min_ip,
     uint32_t count = 0;
    
     while(count < total_ip) {
-	if (!add)
+        if (!add)
            set_clients_active(min_ip, max_ip, add);
         
         m_ip_info[ip_idx]->set_tunnel_info(gtpu);
@@ -313,9 +313,9 @@ CTupleGeneratorSmart::lookup(uint32_t ip) {
     std::vector<CIpInfoBase*> all_clients = cpool->m_ip_info;
 
     if (cpool->is_valid_ip(ip))
-	    return cpool;
+        return cpool;
     else
-	    return NULL;
+        return NULL;
 
 }
 

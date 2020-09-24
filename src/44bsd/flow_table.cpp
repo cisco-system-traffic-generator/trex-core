@@ -667,9 +667,9 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     //CTcpTuneables *s_tune = server_info->get_tuneables();
 
     flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
-				    dst_port, tuple.get_sport(),
-				    vlan, is_ipv6, NULL, false, tg_id,
-				    c_template_idx);
+                                    dst_port, tuple.get_sport(),
+                                    vlan, is_ipv6, NULL, false, tg_id,
+                                    c_template_idx);
 
 
 

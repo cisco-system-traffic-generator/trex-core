@@ -78,7 +78,7 @@ public:
 
        CTupleBase() {
            m_client_cfg = NULL;
-	   m_tun_handle = NULL;
+         m_tun_handle = NULL;
        }
 
        uint32_t getClient() {
@@ -239,12 +239,6 @@ class CIpInfoBase {
         void set_is_active(bool is_active) {
             m_is_active = is_active;
         }
-        /*void set_active_vec_index(uint32_t active_vec_index) {
-            m_active_vec_index = active_vec_index;
-        }
-        uint32_t get_active_vec_index(void) {
-            return m_active_vec_index;
-        }*/
 
         void set_tunnel_info(void *tunnel) {
             m_tunnel = tunnel;
@@ -255,16 +249,14 @@ class CIpInfoBase {
         }
  
         CIpInfoBase() { 
-		m_is_active = false; 
-		//m_active_vec_index = 0; 
-		m_tunnel = NULL;
-	}
+            m_is_active = false; 
+            m_tunnel = NULL;
+        }
 
         virtual ~CIpInfoBase() {}
     protected:
         uint32_t          m_ip;
         bool              m_is_active;
-        //uint32_t          m_active_vec_index;
         void              *m_tunnel;
 };
 
@@ -572,11 +564,11 @@ class CIpPool {
                 (ip<=ip_back->get_ip())) {
                 return(true);
             }
-	    /*
+          /*
             printf("invalid ip:%x, min_ip:%x, max_ip:%x, this:%p\n", 
                    ip, ip_front->get_ip(), 
                    ip_back->get_ip(),this);
-	    */
+          */
             return(false);
         }
 
@@ -698,12 +690,12 @@ public:
       }
       else {
         if (m_cur_act_itr == m_active_clients.end())
-		  m_cur_act_itr = m_active_clients.begin();
-          idx = *m_cur_act_itr;
-	  m_cur_act_itr++;
-          ip_info = m_ip_info[idx];
-          ip_info->generate_tuple(tuple);
-          tuple.setTunHandle(ip_info->get_tunnel_info());
+            m_cur_act_itr = m_active_clients.begin();
+        idx = *m_cur_act_itr;
+        m_cur_act_itr++;
+        ip_info = m_ip_info[idx];
+        ip_info->generate_tuple(tuple);
+        tuple.setTunHandle(ip_info->get_tunnel_info());
       }
 
       tuple.setClientId(idx);
