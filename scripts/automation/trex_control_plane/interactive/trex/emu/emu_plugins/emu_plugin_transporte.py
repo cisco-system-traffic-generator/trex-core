@@ -15,9 +15,9 @@ class TRANSPORTEPlugin(EMUPluginBase):
     :parameters:
     	addr: string format [ip:port] example 48.0.0.1:9001
 
-	    size: bytes for request size, e.g. 10000
+        size: bytes for request size, e.g. 10000
 
-	    loops: uint32  number of loops 
+        loops: uint32  number of loops 
 
     """
 
