@@ -13,7 +13,7 @@ class TRANSPORTEPlugin(EMUPluginBase):
     INIT_JSON_NS = {'transe': {}}
     """
     :parameters:
-    	addr: string format [ip:port] example 48.0.0.1:9001
+        addr: string format [ip:port] example 48.0.0.1:9001
 
         size: bytes for request size, e.g. 10000
 
