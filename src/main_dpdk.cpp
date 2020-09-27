@@ -117,7 +117,7 @@ static inline int get_is_rx_thread_enabled() {
     return ((CGlobalInfo::m_options.is_rx_enabled() || get_is_interactive()) ?1:0);
 }
 
-#define MAX_DPDK_ARGS 50
+#define MAX_DPDK_ARGS (30 + TREX_MAX_PORTS * 2)
 static CPlatformYamlInfo global_platform_cfg_info;
 static int g_dpdk_args_num ;
 static char * g_dpdk_args[MAX_DPDK_ARGS];
