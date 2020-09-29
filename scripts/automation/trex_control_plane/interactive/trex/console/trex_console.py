@@ -53,6 +53,7 @@ from .trex_capture import CaptureManager
 from .plugins_mngr import PluginsManager
 
 from . import trex_tui
+from .trex_console_dummy_client import ConsoleDummyClient
 
 
 __version__ = "3.0"
@@ -176,14 +177,15 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, client, verbose = False):
+    def __init__(self, client, verbose = False, dummy_client = False):
 
         # cmd lock is used to make sure background job
         # of the console is not done while the user excutes commands
         self.cmd_lock = Lock()
-        
+
         self.client = client
         self.verbose = verbose
+        self.dummy_client = dummy_client
 
         TRexGeneralCmd.__init__(self, client.get_mode())
 
@@ -264,6 +266,8 @@ class TRexConsole(TRexGeneralCmd):
                 delattr(self.__class__, cmd_name)
 
     def generate_prompt (self, prefix = 'trex'):
+        if self.dummy_client:
+            return "emu>"
         if not self.client.is_connected():
             return "{0}(offline)>".format(prefix)
 
@@ -397,6 +401,9 @@ class TRexConsole(TRexGeneralCmd):
     @verify_connected
     def do_capture (self, line):
         '''Manage PCAP captures'''
+        if self.dummy_client:
+            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
+            return
         self.cap_mngr.parse_line(line)
 
     def help_capture (self):
@@ -512,12 +519,16 @@ class TRexConsole(TRexGeneralCmd):
     ############### connect
     def do_connect (self, line):
         '''Connects to the server and acquire ports\n'''
-
+        if self.dummy_client:
+            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
+            return
         self.client.connect_line(line)
     
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
-        
+        if self.dummy_client:
+            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
+            return
         # stop any monitors before disconnecting
         self.plugins_mngr._unload_plugin()
         self.cap_mngr.stop()
@@ -554,6 +565,10 @@ class TRexConsole(TRexGeneralCmd):
                                          self.do_tui.__doc__,
                                          parsing_opts.XTERM,
                                          parsing_opts.LOCKED)
+
+        if self.dummy_client:
+            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
+            return
 
         try:
             opts = parser.parse_args(line.split())
@@ -611,19 +626,22 @@ class TRexConsole(TRexGeneralCmd):
                  return
              func()
              return
-    
+
          cmds = [x[3:] for x in self.get_names() if x.startswith("do_")]
          hidden = ['EOF', 'q', 'exit', 'h', 'shell']
 
+         if self.dummy_client:
+             hidden.extend(['tui', 'capture', 'connect', 'disconnect'])
+
          categories = collections.defaultdict(list)
-         
+
          for cmd in cmds:
              if cmd in hidden:
                  continue
 
              category = getattr(getattr(self, 'do_' + cmd), 'group', 'basic')
              categories[category].append(cmd)
-         
+
          # basic commands
          if 'basic' in categories:
              self._help_cmds('Console Commands', categories['basic'])
@@ -790,6 +808,12 @@ def setParserOptions():
     parser.add_argument("--emu-server",
                         help="Emulation client server, default is TRex server address")
 
+    parser.add_argument("--emu-only-server",
+                        nargs = "?",
+                        const = "localhost",
+                        type = str,
+                        help = "EMU-only mode with proxy server address. No TRex instance running is required. [default is localhost]")
+
     parser.add_argument("-f", "--force", dest="force",
                         action="store_true",
                         help="Force acquire the requested ports",
@@ -822,12 +846,12 @@ def setParserOptions():
 # a simple info printed on log on
 def show_intro (logger, c):
 
-    modes = {'STL': 'Stateless', 'ASTF': 'Advanced Stateful'}
-    
+    modes = {'STL': 'Stateless', 'ASTF': 'Advanced Stateful', 'Dummy': 'Dummy Mode'}
+
     x    = c.get_server_system_info()
     ver  = c.get_server_version().get('version', 'N/A')
     mode = c.get_server_version().get('mode', 'N/A')
-    
+
     # find out which NICs the server has
     port_types = {}
     for port in x['ports']:
@@ -854,7 +878,9 @@ def show_intro (logger, c):
 
 
 def probe_server_mode (options):
-    # first we create a 'dummy' client and probe the server
+    if options.emu_only_server:
+        return "Dummy"
+    # We create a 'abstract' client and probe the server
     client = TRexClient(username = options.user,
                         server = options.server,
                         sync_port = options.port,
@@ -875,7 +901,7 @@ def run_console(client, logger, options):
             if not cont:
                 return
 
-        console = TRexConsole(client, options.verbose)
+        console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None)
 
         # run emu if needed
         console.emu_server = options.emu_server
@@ -902,6 +928,10 @@ def run_console(client, logger, options):
 def main():
     parser = setParserOptions()
     options = parser.parse_args()
+
+    if options.emu_only_server:
+        options.emu = True
+        options.emu_server = options.emu_only_server
 
     if options.emu_server is None:
         options.emu_server = options.server
@@ -966,6 +996,12 @@ def main():
                             verbose_level = verbose_level,
                             sync_timeout = sync_timeout,
                             async_timeout = async_timeout)
+
+    elif mode == 'Dummy':
+        client = ConsoleDummyClient(username = options.user,
+                             server = options.server,
+                             logger = logger,
+                             verbose_level = verbose_level)
     else:
         logger.critical("Unknown server mode: '{0}'".format(mode))
         return

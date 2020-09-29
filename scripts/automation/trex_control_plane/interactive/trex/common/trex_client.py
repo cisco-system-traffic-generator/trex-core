@@ -2529,7 +2529,7 @@ class TRexClient(object):
         if not rc:
             raise TRexError(rc)
 
-    client_api('command', True)
+    @client_api('command', True)
     def set_capture_port_bpf_filter (self, port, bpf_filter):
         """
             Set the BPF filter for the capture port
