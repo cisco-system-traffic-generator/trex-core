@@ -6257,12 +6257,14 @@ COLD_FUNC int  update_dpdk_args(void){
             }else{
                 mem_str = (char *)"1024";
             }
-            int pos = snprintf(g_socket_mem_str, sizeof(g_socket_mem_str), "%s", mem_str);
-            for (int socket = 1; socket < MAX_SOCKETS_SUPPORTED; socket++) {
+            int pos = 0;
+            for (int socket = 0; socket < MAX_SOCKETS_SUPPORTED; socket++) {
                 char path[PATH_MAX];
                 snprintf(path, sizeof(path), "/sys/devices/system/node/node%u/", socket);
                 if (access(path, F_OK) == 0) {
-                    pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, ",%s", mem_str);
+                    const char *_mem_str = lpsock->is_sockets_enable(socket) ? mem_str: "0";
+                    const char *_mem_fmt = socket ? ",%s": "%s";
+                    pos += snprintf(g_socket_mem_str+pos, sizeof(g_socket_mem_str)-pos, _mem_fmt, _mem_str);
                 } else {
                     break;
                 }
