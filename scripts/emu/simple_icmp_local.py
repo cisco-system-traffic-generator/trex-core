@@ -10,10 +10,10 @@ class Prof1():
 
         self.def_c_plugs  = {
                             'arp': {},
-                             'icmp': {},
-                             'ipv6' :{}
-                             'transport' : {},
-                             'transe': {'addr':'11.0.0.1:9001','size':100000,'loops':100}
+                            'icmp': {},
+                            'ipv6': {},
+                            'transport': {},
+                            'transe': {'addr':'11.0.0.1:9001', 'size':100000, 'loops':100}
                              }
 
     def create_profile(self, ns_size, clients_size):
@@ -23,8 +23,8 @@ class Prof1():
         vport, tci, tpid = 0, [0, 0], [0x00, 0x00]
         for i in range(vport, ns_size + vport):
             ns_key = EMUNamespaceKey(vport  = i,
-                                    tci     = tci,
-                                    tpid    = tpid)
+                                     tci     = tci,
+                                     tpid    = tpid)
             ns = EMUNamespaceObj(ns_key = ns_key, def_c_plugs = self.def_c_plugs)
 
             mac = Mac('00:00:00:70:00:02')
@@ -37,9 +37,7 @@ class Prof1():
                 client = EMUClientObj(mac     = mac[j].V(),
                                       ipv4    = ipv4[j].V(),
                                       ipv4_dg = dg.V(),
-                                      ipv6    = ipv6[i].V(),  
-                                      #ipv4_force_dg = True,
-                                      #ipv4_force_mac = Mac('00:00:00:70:00:01')
+                                      ipv6    = ipv6[j].V(),
                                       )
                 ns.add_clients(client)
             ns_list.append(ns)
