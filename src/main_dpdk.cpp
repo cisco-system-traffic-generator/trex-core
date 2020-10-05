@@ -6240,7 +6240,9 @@ COLD_FUNC int  update_dpdk_args(void){
         }
     }
 
+#ifndef DPDK_NEW_MEMORY
     SET_ARGS("--legacy-mem");
+#endif
 
     if ( lpop->prefix.length() ) {
         SET_ARGS("--file-prefix");
