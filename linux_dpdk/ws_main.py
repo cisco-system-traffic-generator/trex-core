@@ -38,6 +38,8 @@ bird_path = '../scripts/bird'
 C_VER_FILE      = "version.c"
 H_VER_FILE      = "version.h"
 
+H_DPDK_CONFIG   = "dpdk_config.h"
+
 BUILD_NUM_FILE  = "../VERSION"
 USERS_ALLOWED_TO_RELEASE = ['hhaim']
 
@@ -146,6 +148,7 @@ def options(opt):
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
+    opt.add_option('--new-memory', default=False, action='store_true', help="Build by new DPDK memory subsystem.")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
@@ -354,6 +357,7 @@ def configure(conf):
     with_ntacc      = conf.options.with_ntacc
     with_bird       = conf.options.with_bird
     with_sanitized  = conf.options.sanitized
+    new_memory      = conf.options.new_memory
     
     configure_sanitized(conf, with_sanitized)
             
@@ -384,6 +388,13 @@ def configure(conf):
                                   'https://www.napatech.com/downloads/')
             raise Exception("Cannot find libntapi");
 
+    conf.env.DPDK_NEW_MEMORY = new_memory
+    if new_memory:
+        conf.check_cxx(lib = 'numa', errmsg = missing_pkg_msg(fedora = 'libnuma-devel', ubuntu = 'libnuma-dev'))
+        s = '#ifndef RTE_EAL_NUMA_AWARE_HUGEPAGES\n'
+        s += '#define RTE_EAL_NUMA_AWARE_HUGEPAGES 1\n'
+        s += '#endif\n'
+        write_file(os.path.join(conf.options.out, H_DPDK_CONFIG), s)
 
 def search_in_paths(paths):
     for path in paths:
@@ -1719,7 +1730,13 @@ def build_prog (bld, build_obj):
     cflags    = build_obj.get_c_flags(bld.env.SANITIZED)
     cxxflags  = build_obj.get_cxx_flags(bld.env.SANITIZED)
     linkflags = build_obj.get_link_flags(bld.env.SANITIZED)
-    
+
+    if bld.env.DPDK_NEW_MEMORY == True:
+        cxxflags.append('-DDPDK_NEW_MEMORY')
+        linkflags.append('-lnuma')
+        if H_DPDK_CONFIG not in DPDK_FLAGS:
+            DPDK_FLAGS.extend(['-include', H_DPDK_CONFIG])
+
     bld.objects(
       features='c ',
       includes = dpdk_includes_path,
