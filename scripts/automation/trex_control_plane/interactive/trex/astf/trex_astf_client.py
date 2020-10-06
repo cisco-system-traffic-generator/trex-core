@@ -850,7 +850,7 @@ class ASTFClient(TRexClient):
             Gets all statistics on given ports, traffic and latency.
 
             :parameters:
-                port: list
+                ports: list
 
                 sync_now: boolean
 
@@ -883,7 +883,7 @@ class ASTFClient(TRexClient):
             Clears statistics in given ports.
 
             :parameters:
-                port: list
+                ports: list
 
                 clear_global: boolean
 
