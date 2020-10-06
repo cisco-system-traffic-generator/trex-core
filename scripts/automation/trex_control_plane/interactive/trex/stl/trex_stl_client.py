@@ -1426,6 +1426,14 @@ class STLClient(TRexClient):
     # get stats
     @client_api('getter', True)
     def get_stats (self, ports = None, sync_now = True):
+        """
+            Gets all statistics on given ports, flow stats and latency.
+
+            :parameters:
+                ports: list
+
+                sync_now: boolean
+        """
 
         output = self._get_stats_common(ports, sync_now)
 
@@ -1448,6 +1456,20 @@ class STLClient(TRexClient):
                      clear_flow_stats = True,
                      clear_latency_stats = True,
                      clear_xstats = True):
+        """
+            Clears statistics in given ports.
+
+            :parameters:
+                ports: list
+
+                clear_global: boolean
+
+                clear_flow_stats: boolean
+
+                clear_latency_stats: boolean
+
+                clear_xstats: boolean
+        """
 
         self._clear_stats_common(ports, clear_global, clear_xstats)
 
