@@ -202,3 +202,56 @@ TrexAstfDpServiceMode::handle(TrexDpCore *dp_core) {
     astf_core->set_service_mode(m_enabled, m_filtered, m_mask);
     return true;
 }
+
+/*************************
+  Add tunnel info to Client MSG
+ ************************/
+TrexAstfDpTunnelAddClient::TrexAstfDpTunnelAddClient(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
+    m_astf_db = astf_db;
+    m_msg_data =  msg_data;
+}
+
+bool TrexAstfDpTunnelAddClient::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->add_tunnel_for_client(m_astf_db, m_msg_data);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpTunnelAddClient::clone() {
+    return new TrexAstfDpTunnelAddClient(m_astf_db, m_msg_data);
+}
+
+/*************************
+  DEL tunnel infrom from Client MSG
+ ************************/
+TrexAstfDpTunnelDelClient::TrexAstfDpTunnelDelClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data) {
+    m_astf_db = astf_db;
+    m_msg_data =  msg_data;
+}
+
+bool TrexAstfDpTunnelDelClient::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->del_tunnel_from_client(m_astf_db, m_msg_data);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpTunnelDelClient::clone() {
+    return new TrexAstfDpTunnelDelClient(m_astf_db, m_msg_data);
+}
+
+
+/*************************
+  Activate Client MSG
+ ************************/
+TrexAstfDpActivateClient::TrexAstfDpActivateClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate) {
+    m_astf_db = astf_db;
+    m_msg_data =  msg_data;
+    m_activate = activate;
+}
+
+bool TrexAstfDpActivateClient::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->activate_client(m_astf_db, m_msg_data, m_activate);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpActivateClient::clone() {
+    return new TrexAstfDpActivateClient(m_astf_db, m_msg_data, m_activate);
+}

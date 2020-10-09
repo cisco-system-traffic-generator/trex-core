@@ -32,6 +32,8 @@ limitations under the License.
 #include "../common/trex_port.h"
 #include "stt_cp.h"
 #include <set>
+#include "trex_astf_dp_core.h"
+#include "trex_astf_messaging.h"
 
 using namespace std;
 
@@ -115,6 +117,11 @@ TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
+
+TREX_RPC_CMD(TrexRpcCmdAddTunnelInClient,       "add_tunnel_in_client");
+TREX_RPC_CMD(TrexRpcCmdDeleteTunnelFromClient,  "delete_tunnel_from_client");
+TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
+TREX_RPC_CMD(TrexRpcCmdGetClientsStats,         "get_clients_stats");
 
 /****************************** commands implementation ******************************/
 
@@ -700,7 +707,222 @@ TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
 }
 
 
-/****************************** component implementation ******************************/
+/*
+ * API      : Add tunnel information for a client
+ * Param In : list of records. Each record contains
+ *            1. Version   : IP Version
+ *            2. Client_ip : Client IP 
+ *            3. sip       : Tunnel source IP
+ *            4. dip       : Tunnel dest ip
+ *            5  thread_id : Thread on which this client is handled
+ */           
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAddTunnelInClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+    std::vector<std::vector<client_tunnel_data_t>> data;
+
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+
+    data.resize(cpu_util_full.size());
+
+    auto astf_db = CAstfDB::get_instance(0);
+
+    for (auto each_client : attr) {
+        client_tunnel_data_t msg_data;
+        string src_ipv46, dst_ipv46;
+        uint8_t thread_id;
+
+        msg_data.version     = parse_uint32(each_client, "version", result);
+        msg_data.client_ip   = parse_uint32(each_client, "client_ip", result);
+        src_ipv46            = parse_string(each_client, "sip", result);
+        dst_ipv46            = parse_string(each_client, "dip", result);
+        thread_id            = parse_uint32(each_client, "thread_id", result);
+
+        if (msg_data.version == 6) {
+           inet_pton(AF_INET6, src_ipv46.c_str(), msg_data.u1.src_ip);
+           inet_pton(AF_INET6, dst_ipv46.c_str(), msg_data.u2.dst_ip);
+        } else {
+           inet_pton(AF_INET, src_ipv46.c_str(), &msg_data.u1.src_ipv4);
+           inet_pton(AF_INET, dst_ipv46.c_str(), &msg_data.u2.dst_ipv4);
+        }
+
+        msg_data.teid  = parse_uint32(each_client, "teid", result);
+        data[thread_id].push_back(msg_data);
+    }
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+        if (data[thread_id].size() > 0) {
+            TrexCpToDpMsgBase *msg = new TrexAstfDpTunnelAddClient(astf_db, data[thread_id]);
+            get_astf_object()->send_message_to_dp(thread_id, msg, false);
+        }
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+/*
+ * API       : API to get clients stats
+ * Param In: : None 
+ * Output    : Information providing :
+ *             1. Pool range for each thread
+ *             2. Each thread based, No of Clients Active, Deactive and Tunnel Added
+ *             3. Total No of Clients Active, Deactive and Tunnel Added in the system
+ *
+ */            
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsStats::_run(const Json::Value &params, Json::Value &result) {
+
+    std::map<string, uint32_t> msg_data;
+
+    auto astf_db = CAstfDB::get_instance(0);
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    Json::Value res = Json::arrayValue;
+
+    uint32_t all_thread_active = 0;
+    uint32_t all_thread_inactive = 0;
+    uint32_t all_thread_tunnel = 0;
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+
+        CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(thread_id);
+
+        uint32_t pool_sz = ctg->get_client_pool_num();
+        uint32_t active = 0;
+        uint32_t inactive = 0;
+        uint32_t tunnel_cnt = 0;
+        std:: string rec = "";
+
+        for (int i = 0; i <pool_sz; i++){
+            CClientPool *entry = ctg->get_client_pool(i);
+            if (entry) {
+               rec += "   Pool " + to_string(i) + " => " ;
+               std::vector<CIpInfoBase*> e = entry->m_ip_info;
+               if (!e.empty()){
+                  uint32_t st = e.front()->get_ip();
+                  uint32_t end = e.back()->get_ip();
+                  rec += " (IPs : " + to_string(st) + " IPe : " + to_string(end) + " ) \n";
+               }
+               for (auto client: e){
+                  if (client->is_active()) active++;
+                  else inactive++;
+
+                  if (client->get_tunnel_info())
+                      tunnel_cnt++;
+               }
+            }
+        }
+
+        all_thread_active += active;
+        all_thread_inactive+= inactive;
+        all_thread_tunnel += tunnel_cnt;
+        std:: string record = "Thread Id: " + to_string(thread_id) + 
+                              " Total: " + to_string(active + inactive) + 
+                              " Active: " + to_string(active) + 
+                              " Inactive: " + to_string(inactive) + 
+                              " Tunnel " + to_string(tunnel_cnt);
+        res.append(record);
+        res.append(rec);
+    }
+    std::string tl = " Total: " + to_string(all_thread_active + all_thread_inactive) + 
+                     " Active: " + to_string(all_thread_active) + 
+                     " Inactive: " + to_string(all_thread_inactive) + 
+                     " Tunnel: " + to_string(all_thread_tunnel);
+    res.append(tl);
+
+    result["result"] = res;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+/*
+ * API      : Remove tunnel information and then that deactivate client
+ * Param In : list of <client ip , thread id> pair => thread id is the thread handling this client
+ *          : list of client IPs
+ * 
+ */
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdDeleteTunnelFromClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+
+    auto astf_db = CAstfDB::get_instance(0);
+
+    std::vector<std::vector<uint32_t>> data;
+
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+
+    data.resize(cpu_util_full.size());
+
+    for (auto each_client : attr) {
+        uint32_t client_ip   = parse_uint32(each_client, "client_ip", result);
+        uint8_t  thread_id   = parse_uint32(each_client, "thread_id", result);
+
+        data[thread_id].push_back(client_ip);
+    }
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+        if (data[thread_id].size() > 0) {
+            TrexCpToDpMsgBase *msg = new TrexAstfDpTunnelDelClient(astf_db, data[thread_id]);
+            get_astf_object()->send_message_to_dp(thread_id, msg, false);
+        }
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+/*
+ * API      : Activate or deactive a client 
+ * Param In : thread_id => thread id is the thread handling this client
+ *          : is_enable => Flag : True for Active , False for deactivate
+ *          : list of client IPs
+ */
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+    uint32_t thread_id = parse_uint32(params, "thread_id", result);
+    bool is_enable = parse_bool(params, "is_enable", result);
+
+    std::vector<uint32_t> msg_data;
+    auto astf_db = CAstfDB::get_instance(0);
+
+    for (auto each_client : attr) {
+       uint32_t client_ip   = parse_uint32(each_client, "client_ip", result);
+       msg_data.push_back(client_ip);
+    }
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable);
+    get_astf_object()->send_message_to_dp(thread_id, msg, false);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
 
 /**
  * ASTF RPC component
@@ -731,4 +953,10 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
+
+    m_cmds.push_back(new TrexRpcCmdAddTunnelInClient(this));
+    m_cmds.push_back(new TrexRpcCmdDeleteTunnelFromClient(this));
+    m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsStats(this));
+
 }

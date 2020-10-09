@@ -580,4 +580,49 @@ bool TrexAstfDpCore::rx_for_idle() {
     return m_flow_gen->handle_rx_pkts(true) > 0;
 }
 
+void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate) {
+    CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(m_thread_id);
 
+    for ( auto client : msg_data)
+    {
+        CClientPool *entry = ctg->lookup(client);
+        if (entry)
+        {
+            entry->set_clients_active(client, client, activate);
+        }
+    }
+
+}
+
+void TrexAstfDpCore::add_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
+    CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(m_thread_id);
+
+    for (auto elem : msg_data) {
+        CClientPool *entry = ctg->lookup(elem.client_ip);
+        if (entry) {
+           void *new_elem = NULL;
+           if (elem.version == 4){
+               new_elem = (void*) new GTPU(PKT_HTONL(elem.teid),
+                                           PKT_HTONL(elem.u1.src_ipv4),
+                                           PKT_HTONL(elem.u2.dst_ipv4));
+           } else {
+               new_elem = (void*) new GTPU(PKT_HTONL(elem.teid),
+                                           elem.u1.src_ip,
+                                           elem.u2.dst_ip);
+           }
+           entry->set_tunnel_info_for_clients(elem.client_ip, elem.client_ip, true, new_elem);
+        }
+    }
+}
+
+
+void TrexAstfDpCore::del_tunnel_from_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data) {
+    CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(m_thread_id);
+
+    for (auto elem : msg_data) {
+        CClientPool *entry = ctg->lookup(elem);
+        if (entry) {
+            entry->set_tunnel_info_for_clients(elem, elem, false, NULL);
+        }
+    }
+}

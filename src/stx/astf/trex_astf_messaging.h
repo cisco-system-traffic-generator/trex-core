@@ -159,6 +159,55 @@ private:
     uint8_t   m_mask;
 };
 
+/* GTPU related classes */
+
+/**
+ * a message to remove Active/Deactive Client
+ *
+ */
+
+class TrexAstfDpActivateClient : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpActivateClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    CAstfDB* m_astf_db;
+    std::vector<uint32_t> m_msg_data;
+    bool     m_activate;
+};
+
+/**
+ * a message to Add tunnel information for a client
+ *
+ */
+
+class TrexAstfDpTunnelAddClient : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpTunnelAddClient(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    CAstfDB* m_astf_db;
+    std::vector<client_tunnel_data_t> m_msg_data;
+};
+
+/**
+ * a message to remove tunnel information from a client
+ *
+ */
+
+
+class TrexAstfDpTunnelDelClient : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpTunnelDelClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    CAstfDB* m_astf_db;
+    std::vector<uint32_t> m_msg_data;
+};
+
 
 #endif /* __TREX_STL_MESSAGING_H__ */
 

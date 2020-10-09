@@ -1638,3 +1638,73 @@ class ASTFClient(TRexClient):
             self.logger.info(format_text("No profiles found with desired filter.\n", "bold", "magenta"))
 
         text_tables.print_table_with_header(table, header = 'Profile states')
+
+
+
+    ################## GTPU Clients functions ##################
+
+
+    # execute 'method' for inserting tunnel info for clients
+    def insert_tunnel_in_client_record (self, client = None):
+
+        json_attr = []
+
+        for key, value in client.items():
+            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'teid' : value.teid, "version" :value.version, "thread_id": value.thread_id})
+
+        params = {"attr": json_attr }
+
+        print(self._transmit("add_tunnel_in_client", params))
+
+        #return self._transmit("add_tunnel_in_client", params)
+
+    # execute 'method' for deleting tunnel info from clients
+    def delete_tunnel_from_client_record (self, client_list = None):
+
+        json_attr = []
+
+        for key in client_list:
+            json_attr.append({'client_ip' : key[0], 'thread_id': key[1]})
+
+        params = {"attr": json_attr }
+
+        return self._transmit("delete_tunnel_from_client", params)
+
+    # execute 'method' for Making  a client active/inactive
+    def enable_disable_client(self, thread_id, is_enable = False, client_list = None):
+
+        json_attr = []
+
+        for key in client_list:
+	    json_attr.append({'client_ip' : key})
+
+        params = {"thread_id": thread_id,
+                  "is_enable": is_enable,
+                  "attr": json_attr }
+
+        return self._transmit("enable_disable_client", params)
+   
+     # execute 'method' for getting clients stats [ No of clients Active, Inactive , tunnel enabled]
+    def get_clients_stats (self):
+
+        json_attr = []
+        params = {"type": 'all',
+                  "attr": json_attr }
+
+
+        rc = self._transmit("get_clients_stats", params)
+        records = rc.data()
+
+        return records
+
+
+    @console_api('client', 'ASTF', True)
+    def get_client_stats_line (self, line):
+        '''Display Total Clients Status(Active/Inactive) per threads'''
+
+        records = self.get_clients_stats()
+        for rec in records:
+            self.logger.info(rec)
+
+        return True
+

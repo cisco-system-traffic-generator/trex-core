@@ -28,6 +28,24 @@ limitations under the License.
 
 class CAstfDB;
 
+typedef struct client_tunnel_data {
+    uint32_t client_ip;
+    uint32_t teid;
+    uint32_t version;
+    union
+    {
+      uint32_t src_ipv4;
+      uint8_t  src_ip[16];
+    }u1;
+
+    union
+    {
+      uint32_t dst_ipv4;
+      uint8_t  dst_ip[16];
+    }u2;
+}client_tunnel_data_t;
+
+
 struct profile_param {
     profile_id_t    m_profile_id;
     double          m_duration;
@@ -63,6 +81,11 @@ public:
     void scheduler(bool activate);
 
     void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+    
+    void activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate);
+    void add_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
+    void del_tunnel_from_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data);
+
 
 protected:
     virtual bool rx_for_idle();
