@@ -70,7 +70,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
         rx_bps_l1 = flow_stats['rx_bps_l1'][rx_port]
         tx_bps_l1 = flow_stats['tx_bps_l1'][tx_port]
         print("rx_pps:{0} tx_pps:{1}, rx_bps:{2}/{3} tx_bps:{4}/{5}"
-              .format(rx_pps, tx_pps, rx_bps, rx_bps_l1, tx_bps, tx_bps_l1));
+              .format(rx_pps, tx_pps, rx_bps, rx_bps_l1, tx_bps, tx_bps_l1))
     c.wait_on_traffic(ports = [tx_port])
     stats = c.get_pgid_stats(pgids['latency'])
     flow_stats = stats['flow_stats'].get(5)
@@ -119,7 +119,7 @@ def rx_iteration (c, tx_port, rx_port, total_pkts, pkt_len):
     print("  Average latency(usec): {0}".format(avg))
     print("  Jitter(usec): {0}".format(jitter))
     print("  Latency distribution histogram:")
-    l = hist.keys()
+    l = list(hist.keys()) # need to listify in order to be able to sort them.
     l.sort()
     for sample in l:
         range_start = sample

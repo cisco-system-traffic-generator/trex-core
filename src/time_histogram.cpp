@@ -51,6 +51,8 @@ void CTimeHistogram::Reset() {
     m_max_dt = 0;
     m_min_dt = DBL_MAX;
     m_average = 0;
+    m_hot_max_done = false;
+
     memset(&m_max_ar[0],0,sizeof(m_max_ar));
     m_win_cnt = 0;
 
@@ -67,7 +69,7 @@ void CTimeHistogram::Reset() {
 }
 
 bool CTimeHistogram::Create() {
-	m_hdrh=0;
+    m_hdrh=0;
     if ( CGlobalInfo::m_options.m_hdrh ) {
         int res = hdr_init(HDRH_LOWEST_TRACKABLE_VALUE, HDRH_HIGHEST_TRACKABLE_VALUE,
                         HDRH_SIGNIFICANT_DIGITS, &m_hdrh);
@@ -76,14 +78,15 @@ bool CTimeHistogram::Create() {
         }
     }
     Reset();
-    m_min_delta =10.0/1000000.0;
-    m_hot_max=10;
+    m_min_delta = 10.0/1000000.0;
+    m_hot_max = 10;
+    m_hot_max_done = false;
     return (true);
 }
 
 void CTimeHistogram::Delete() {
     if (m_hdrh) {
-		hdr_close(m_hdrh);
+        hdr_close(m_hdrh);
         m_hdrh = 0;
     }
 }
@@ -93,9 +96,16 @@ bool CTimeHistogram::Add(dsec_t dt) {
 
     period_elem.inc_cnt();
     period_elem.update_sum(dt);
-    if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || (m_win_cnt > 1)){
+    period_elem.update_min(dt);
+    if ((m_hot_max==0) || (m_total_cnt>m_hot_max) || m_hot_max_done) {
+        // Because of spikes with high latency in the beginning, we ignore
+        // the first values when considering max.
+        // This is done by taking in consideration both time and number of packets.
+        // If m_hot_max is set (which is done by default):
+        // If we already saw m_hot_max packets, or if update was called 
+        // HOT_MAX_PERIOD_UPDATE_CALLS times, the spikes have ended and it is time to consider
+        // the max value.
         period_elem.update_max(dt);
-        period_elem.update_min(dt);
     }
 
     // record any value in usec
@@ -140,14 +150,12 @@ void CTimeHistogram::update() {
     // In case of two very fast reads, we do not want period with no
     // elements to influence the count. Also, when stream is stopped,
     // we want to preserve last values
-    if (period_elem.get_cnt() == 0)
+    if (period_elem.get_cnt() == 0) {
         return;
-
-    if (m_period == 0) {
-        new_period = 1;
-    } else {
-        new_period = 0;
     }
+
+    new_period = 1 - m_period;
+
     m_period_data[new_period].reset();
     rte_mb();
     m_period = new_period;
@@ -155,37 +163,32 @@ void CTimeHistogram::update() {
 
     m_max_ar[m_win_cnt] = period_elem.get_max();
     m_win_cnt++;
+    if (!m_hot_max_done) {
+        m_hot_max_done = m_win_cnt > HOT_MAX_PERIOD_UPDATE_CALLS ? true : false;
+    }
     if (m_win_cnt == HISTOGRAM_QUEUE_SIZE) {
         m_win_cnt = 0;
     }
     update_average(period_elem);
     m_total_cnt += period_elem.get_cnt();
     m_total_cnt_high += period_elem.get_high_cnt();
-    if ( m_max_dt < period_elem.get_max()) {
-        m_max_dt = period_elem.get_max();
-    }
-    if ( m_min_dt > period_elem.get_min()) {
-        m_min_dt = period_elem.get_min();
-    }
+    m_max_dt = std::max(m_max_dt, period_elem.get_max());
+    m_min_dt = std::min(m_min_dt, period_elem.get_min());
 }
 
 void  CTimeHistogram::update_average(CTimeHistogramPerPeriodData &period_elem) {
-    double c_average;
+    double period_average;
 
     if (period_elem.get_cnt() != 0) {
-        c_average = period_elem.get_sum() / period_elem.get_cnt();
-        // low pass filter
-        m_average = 0.5 * m_average + 0.5 * c_average;
+        period_average = period_elem.get_sum() / period_elem.get_cnt();
+        if (m_average == 0) {
+            // m_average probably not set, instead of low pass filter, let's set it directly
+            m_average = period_average;
+        } else {
+            // low pass filter
+            m_average = 0.5 * m_average + 0.5 * period_average;
+        }
     }
-}
-
-dsec_t  CTimeHistogram::get_average_latency() {
-    return (m_average);
-}
-
-
-uint32_t CTimeHistogram::get_usec(dsec_t d) {
-    return (uint32_t)(d*1000000.0);
 }
 
 void CTimeHistogram::DumpWinMax(FILE *fd) {
@@ -209,7 +212,7 @@ void CTimeHistogram::Dump(FILE *fd) {
     fprintf (fd," cnt        : %lu \n", period_elem.get_cnt());
     fprintf (fd," high_cnt   : %lu \n", period_elem.get_high_cnt());
     fprintf (fd," max_d_time : %lu usec\n", (ulong)get_usec(m_max_dt));
-    fprintf (fd," sliding_average    : %.0f usec\n", get_average_latency());
+    fprintf (fd," sliding_average    : %lu usec\n", (ulong)get_average_latency());
     fprintf (fd," precent    : %.1f %%\n",(100.0*(double)period_elem.get_high_cnt()/(double)period_elem.get_cnt()));
 
     fprintf (fd," histogram \n");
@@ -227,26 +230,26 @@ void CTimeHistogram::Dump(FILE *fd) {
     }
 }
 
-// Used in statefull
+// Used in stateful
 void CTimeHistogram::dump_json(std::string name,std::string & json ) {
     char buff[200];
     if (name != "")
         sprintf(buff,"\"%s\":{",name.c_str());
     else
         sprintf(buff,"{");
-    json+=std::string(buff);
+    json += std::string(buff);
 
     json += add_json("min_usec", get_usec(m_min_delta));
     json += add_json("max_usec", get_usec(m_max_dt));
     json += add_json("high_cnt", m_total_cnt_high);
     json += add_json("cnt", m_total_cnt);
-    json+=add_json("s_avg", get_average_latency());
-    json+=add_json("s_max", get_max_latency_last_update());
+    json += add_json("s_avg", get_average_latency()); // already in usec
+    json += add_json("s_max", get_max_latency_last_update()); // already in usec
     int i;
     int j;
     uint32_t base=10;
 
-    json+=" \"histogram\": [";
+    json += " \"histogram\": [";
     bool first=true;
     for (j = 0; j < HISTOGRAM_SIZE_LOG; j++) {
         for (i = 0; i < HISTOGRAM_SIZE; i++) {
@@ -276,7 +279,7 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
     json["total_max"] = get_usec(m_max_dt);
     json["total_min"] = get_usec(m_min_dt);
     json["last_max"] = get_usec(period_elem.get_max());
-    json["average"] = get_average_latency();
+    json["average"] = get_average_latency(); // already in usec
 
     if (add_histogram) {
         for (j = 0; j < HISTOGRAM_SIZE_LOG; j++) {
@@ -330,20 +333,21 @@ CTimeHistogram CTimeHistogram::operator+= (const CTimeHistogram& in) {
     for (uint8_t i = 0 ; i < 2; i++) {
         this->m_period_data[i] += in.m_period_data[i];
     }
+
     this->m_total_cnt += in.m_total_cnt;
     this->m_total_cnt_high += in.m_total_cnt_high;
-    uint64_t new_sum = 0;
-    for (uint8_t i = 0; i < 2; i++) {
-        new_sum += this->m_period_data[i].get_sum();
-    }
     this->m_max_dt = std::max(this->m_max_dt, in.m_max_dt);
     this->m_min_dt = std::min(this->m_min_dt, in.m_min_dt);
     this->m_win_cnt = in.m_win_cnt;
     this->m_period = in.m_period;
+
     if (this->m_total_cnt != 0) {
-        // low pass filter
-        this->m_average = 0.5 * this->m_average + 0.5 * (new_sum / this->m_total_cnt);
+        // Calculate the average relatively. If @param:in has 1000 entries and this has 2000 entries,
+        // then the average of @param:in will reflect 1/3 of the new average, while this->average will reflect 2/3.
+        double relative_cnt_in = in.m_total_cnt / this->m_total_cnt;
+        this->m_average = relative_cnt_in * in.m_average + (1 - relative_cnt_in) * this->m_average;
     }
+
     return *this;
 }
 

@@ -49,17 +49,19 @@ class CTimeHistogramPerPeriodData {
     void inc_cnt() {m_cnt++;}
     void inc_high_cnt() {m_cnt_high++;}
     void update_max(dsec_t dt) {
-        if (dt > m_max)
+        if (dt > m_max) {
             m_max = dt;
+        }
     }
     void update_min(dsec_t dt) {
-        if (dt < m_min)
+        if (dt < m_min) {
             m_min = dt;
+        }
     }
     void update_sum(dsec_t dt) {
-        m_sum += dt * 1000000;
+        m_sum += dt;
     }
-    inline uint64_t get_sum() {return m_sum;}
+    inline dsec_t get_sum() {return m_sum;}
     inline uint64_t get_cnt() {return m_cnt;}
     inline uint64_t get_high_cnt() {return m_cnt_high;}
     inline dsec_t get_max() {return m_max;}
@@ -76,11 +78,11 @@ class CTimeHistogramPerPeriodData {
 
 
  private:
-    uint64_t m_sum; // Sum of samples
+    dsec_t m_sum; // Sum of samples in seconds
     uint64_t m_cnt;  // Number of samples
     uint64_t m_cnt_high;  // Number of samples above configured threshold
-    dsec_t   m_max;  // Max sample
-    dsec_t   m_min;  // Min sample
+    dsec_t   m_max;  // Max sample in seconds
+    dsec_t   m_min;  // Min sample in seconds
 };
 
 class CTimeHistogram {
@@ -89,43 +91,47 @@ public:
         HISTOGRAM_SIZE=9,
         HISTOGRAM_SIZE_LOG=5,
         HISTOGRAM_QUEUE_SIZE=14,
+        HOT_MAX_PERIOD_UPDATE_CALLS = 4, // Represents the number of times update() needs to be called before considering the hot 
+        // Max Latency period done. Update() is called every 0.5 secs, hence for now the HOT_MAX_PERIOD is 2 secs.
     };
     bool Create(void);
     void Delete();
     void Reset();
     bool Add(dsec_t dt);
     void set_hot_max_cnt(uint32_t hot){
-        m_hot_max =hot;
+        m_hot_max = hot;
     }
     void Dump(FILE *fd);
     void DumpWinMax(FILE *fd);
     /* should be called once each sampling period */
     void update();
-    dsec_t  get_average_latency();
-    /* get average of total data */
-    dsec_t  get_max_latency(){
+    inline dsec_t get_average_latency() {
+        // Get average of total data in usec.
+        return get_usec(m_average);
+    }
+    inline dsec_t get_max_latency() {
+        // Returns the Max latency in usec.
         return (get_usec(m_max_dt));
     }
-    dsec_t  get_max_latency_last_update(){
+    inline dsec_t get_max_latency_last_update() {
+        // Returns the max latency in the last update in usec.
         CTimeHistogramPerPeriodData &period_elem = m_period_data[get_read_period_index()];
         return period_elem.get_max_usec();
     }
-    void  dump_json(std::string name,std::string & json );
+    void dump_json(std::string name,std::string & json );
     void dump_json(Json::Value & json, bool add_histogram = true);
-    uint64_t get_count() {return m_total_cnt;}
-    uint64_t get_high_count() {return m_total_cnt_high;}
+    inline uint64_t get_count() {return m_total_cnt;}
+    inline uint64_t get_high_count() {return m_total_cnt_high;}
     CTimeHistogram operator+= (const CTimeHistogram& in);
     friend std::ostream& operator<<(std::ostream& os, const CTimeHistogram& in);
 
 private:
-    uint32_t get_usec(dsec_t d);
-    double  get_cur_average();
-    void  update_average(CTimeHistogramPerPeriodData &period_elem);
+    inline uint32_t get_usec(dsec_t d) {
+        return (uint32_t)(d*1000000.0);
+    }
+    void update_average(CTimeHistogramPerPeriodData &period_elem);
     inline uint8_t get_read_period_index() {
-        if (m_period == 0)
-            return 1;
-        else
-            return 0;
+        return 1 - m_period;
     }
 
 private:
@@ -137,15 +143,16 @@ private:
     uint8_t  m_period; // 0 or 1 according to m_period_data element we currently use
     uint64_t m_total_cnt;
     uint64_t m_total_cnt_high;
-    dsec_t   m_max_dt;  // Total maximum latency
-    dsec_t   m_min_dt;  // Total min latency
-    dsec_t   m_average; /* moving average */
+    dsec_t   m_max_dt;  // Total maximum latency in seconds
+    dsec_t   m_min_dt;  // Total min latency in seconds
+    dsec_t   m_average; // Sliding average with low pass filter in seconds
     uint32_t m_win_cnt;
     uint32_t m_hot_max;
+    bool m_hot_max_done; // Flag that represents that the hot period in which Max Latency values should be ignored is done.
     dsec_t   m_max_ar[HISTOGRAM_QUEUE_SIZE]; // Array of maximum latencies for previous periods
-    uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE]  ;
-    // Hdr histogram instance
-    hdr_histogram *m_hdrh;
+    uint64_t m_hcnt[HISTOGRAM_SIZE_LOG][HISTOGRAM_SIZE];
+    hdr_histogram *m_hdrh; // Hdr histogram instance
+
 };
 
 
