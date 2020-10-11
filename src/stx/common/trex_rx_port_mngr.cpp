@@ -941,7 +941,7 @@ void CZmqPacketReader::tx_buffer(char *pkt,int pkt_size,uint8_t vport) {
         uint8_t port_id = vport;
         rte_mbuf_t *m;
         uint8_t num_ports = CGlobalInfo::m_options.get_expected_ports();
-        if ( port_id > num_ports ) {
+        if ( port_id >= num_ports ) {
             m_cnt->m_ezmq_tx_fe_wrong_vport++;
             return ;
         }
