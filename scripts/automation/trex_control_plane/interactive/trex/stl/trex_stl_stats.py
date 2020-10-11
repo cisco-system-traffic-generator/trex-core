@@ -65,7 +65,13 @@ class CPgIdStats(object):
             for pg_id in stats['latency']:
                 if 'latency' in stats['latency'][pg_id]:
                     stats['latency'][pg_id]['latency']['total_max'] = 0
-                    stats['latency'][pg_id]['latency']['total_min'] = 0
+                    # Total min is not needed here, since it is global.
+                    # Total max is also global but we have a way to calculate total max based on last max.
+
+        if clear_latency_stats:
+            # Need to clean the history of max values also.
+            for pg_id in self.max_hist.keys():
+                self.max_hist[pg_id] = [0] * self.latency_window_size
 
         for key in stats.keys():
             if key == 'flow_stats' and not clear_flow_stats:

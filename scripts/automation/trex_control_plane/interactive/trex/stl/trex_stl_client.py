@@ -781,6 +781,9 @@ class STLClient(TRexClient):
             start_at_ts = 0
             synchronized_str = ''
 
+        # clear flow stats and latency stats when starting traffic. (Python cache only)
+        self.pgid_stats.clear_stats(clear_flow_stats=True, clear_latency_stats=True)
+
         # start traffic
         self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(synchronized_str, ports))
 
