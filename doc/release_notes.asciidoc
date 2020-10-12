@@ -26,6 +26,21 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.84 ==
+
+* DPDK fixes 
+** Fix vfio on new kernel crash 
+** Maximum number of ports is 32
+** Fix ixgbe link issues 
+** New memory saving in case of dual socket 
+* EMU 
+** Add support for tap interface
+** Console supports only EMU (for tap)
+** DHCPv4 support broadcast offer 
+** Fix crash of server in case of corrupted profile 
+* STL 
+** Average latency is now fixed 
+
 == Release 2.83 ==
 
 * dpdk_setup_port script is less restrict in choosing drivers 
