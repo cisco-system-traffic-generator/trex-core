@@ -32,6 +32,7 @@ bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
     assert(m_cp_to_dp==0);
     m_cp_to_dp = new CNodeRing[num_dp_threads] ;
     m_dp_to_cp = new CNodeRing[num_dp_threads];
+    int master_socket_id = rte_lcore_to_socket_id(CGlobalInfo::m_socket.get_master_phy_id());
     int i;
     for (i=0; i<num_dp_threads; i++) {
         CNodeRing * lp;
@@ -39,11 +40,11 @@ bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
 
         lp=getRingCpToDp(i);
         sprintf(name,"%s_to_%d",(char *)a_name.c_str(),i);
-        assert(lp->Create(std::string(name),1024,0)==true);
+        assert(lp->Create(std::string(name),1024,master_socket_id)==true);
 
         lp=getRingDpToCp(i);
         sprintf(name,"%s_from_%d",(char *)a_name.c_str(),i);
-        assert(lp->Create(std::string(name),1024,0)==true);
+        assert(lp->Create(std::string(name),1024,master_socket_id)==true);
 
     }
     assert(m_dp_to_cp);
