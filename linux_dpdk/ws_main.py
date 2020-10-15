@@ -1731,11 +1731,12 @@ def build_prog (bld, build_obj):
     cxxflags  = build_obj.get_cxx_flags(bld.env.SANITIZED)
     linkflags = build_obj.get_link_flags(bld.env.SANITIZED)
 
+    lib_ext = []
     if bld.env.DPDK_NEW_MEMORY == True:
         cxxflags.append('-DDPDK_NEW_MEMORY')
-        linkflags.append('-lnuma')
         if H_DPDK_CONFIG not in DPDK_FLAGS:
             DPDK_FLAGS.extend(['-include', H_DPDK_CONFIG])
+        lib_ext.append('numa')
 
     bld.objects(
       features='c ',
@@ -1823,7 +1824,7 @@ def build_prog (bld, build_obj):
                 includes =inc_path,
                 cxxflags = ( cxxflags + ['-std=gnu++11',]),
                 linkflags = linkflags ,
-                lib=['pthread','dl', 'z'],
+                lib=['pthread','dl', 'z'] + lib_ext,
                 use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
                 source = bp.file_list(top) + debug_file_list,
                 rpath = rpath_linkage,
