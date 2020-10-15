@@ -292,7 +292,7 @@ class ConfigCreator(object):
         if print_config:
             print(config_str)
         if filename:
-            if os.path.exists(filename):
+            if os.path.exists(filename) and not map_driver.args.no_prompt:
                 if not dpdk_nic_bind.confirm('File %s already exist, overwrite? (y/N)' % filename):
                     print('Skipping.')
                     return config_str
@@ -1223,7 +1223,8 @@ Other network devices
         return wanted_interfaces
 
     def do_create(self):
-        dpdk_nic_bind.show_table(True) # get the info 
+        show_table = not map_driver.args.no_prompt
+        dpdk_nic_bind.show_table(True,show_table) # get the info 
         ips = map_driver.args.ips
         def_gws = map_driver.args.def_gws
         dest_macs = map_driver.args.dest_macs
@@ -1553,6 +1554,13 @@ To see more detailed info on interfaces (table):
 
     parser.add_argument("-m", "--memory", action='store_true',
                       help=""" Show memory banks topology (channels per NUMA) """,
+     )
+
+    parser.add_argument(
+        "--no-prompt",
+        dest="no_prompt",
+        action="store_true",
+        help=""" all inputs have to be pass as arguments, config file is overwritten if already exist.""",
      )
 
     parser.add_argument('--version', action='version',
