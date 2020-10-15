@@ -838,7 +838,7 @@ def add_table_entry_napatech(id, d, table):
     except:
         return False
 
-def show_table(get_macs = True):
+def show_table(get_macs = True,show_table=True):
     '''Function called when the script is passed the "--table" option.
     Similar to show_status() function, but shows more info: NUMA etc.'''
     global dpdk_drivers
@@ -856,16 +856,17 @@ def show_table(get_macs = True):
                 return
             devices[pci].update(info)
 
-    table = texttable.Texttable(max_width=-1)
-    table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])
-    for id, pci in enumerate(sorted(devices.keys())):
-        custom_row_added = False
-        d = devices[pci]
-        if is_napatech(d):
-            custom_row_added = add_table_entry_napatech(id, d, table)
-        if not custom_row_added:
-            table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
-    print(table.draw())
+    if show_table:
+        table = texttable.Texttable(max_width=-1)
+        table.header(['ID', 'NUMA', 'PCI', 'MAC', 'Name', 'Driver', 'Linux IF', 'Active'])
+        for id, pci in enumerate(sorted(devices.keys())):
+            custom_row_added = False
+            d = devices[pci]
+            if is_napatech(d):
+                custom_row_added = add_table_entry_napatech(id, d, table)
+            if not custom_row_added:
+                table.add_row([id, d['NUMA'], d['Slot_str'], d.get('MAC', ''), d['Device_str'], d.get('Driver_str', ''), d['Interface'], d['Active']])
+        print(table.draw())
 
 KILO = 1000
 MEGA = 1000000
