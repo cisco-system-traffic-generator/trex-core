@@ -40,7 +40,6 @@ limitations under the License.
 #include "trex_client_config.h"
 #include "trex_global.h"
 #include <random>
-#include <tunnels/gtp_tunnel.h>
 
 typedef uint16_t  pool_index_t;
 #define CS_MAX_POOLS UINT16_MAX

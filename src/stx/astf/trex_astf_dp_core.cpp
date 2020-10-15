@@ -31,8 +31,9 @@ limitations under the License.
 #include "trex_astf_dp_core.h"
 #include "trex_astf_topo.h"
 #include "trex_client_config.h"
-
-
+#ifndef TREX_SIM
+#include <tunnels/gtp_tunnel.h>
+#endif
 using namespace std;
 
 TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
@@ -601,6 +602,7 @@ void TrexAstfDpCore::add_tunnel_for_client(CAstfDB* astf_db, std::vector<client_
         CClientPool *entry = ctg->lookup(elem.client_ip);
         if (entry) {
            void *new_elem = NULL;
+#ifndef TREX_SIM
            if (elem.version == 4){
                new_elem = (void*) new GTPU(PKT_HTONL(elem.teid),
                                            PKT_HTONL(elem.u1.src_ipv4),
@@ -610,6 +612,7 @@ void TrexAstfDpCore::add_tunnel_for_client(CAstfDB* astf_db, std::vector<client_
                                            elem.u1.src_ip,
                                            elem.u2.dst_ip);
            }
+#endif
            entry->set_tunnel_info_for_clients(elem.client_ip, elem.client_ip, true, new_elem);
         }
     }

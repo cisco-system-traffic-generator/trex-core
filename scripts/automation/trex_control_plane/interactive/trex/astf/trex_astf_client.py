@@ -1646,6 +1646,8 @@ class ASTFClient(TRexClient):
 
     # execute 'method' for inserting tunnel info for clients
     def insert_tunnel_in_client_record (self, client = None):
+        '''Add tunnel information for a client'''
+
 
         json_attr = []
 
@@ -1654,12 +1656,12 @@ class ASTFClient(TRexClient):
 
         params = {"attr": json_attr }
 
-        print(self._transmit("add_tunnel_in_client", params))
-
-        #return self._transmit("add_tunnel_in_client", params)
+        return self._transmit("add_tunnel_in_client", params)
 
     # execute 'method' for deleting tunnel info from clients
     def delete_tunnel_from_client_record (self, client_list = None):
+        '''Remove tunnel information from a client'''
+
 
         json_attr = []
 
@@ -1672,6 +1674,7 @@ class ASTFClient(TRexClient):
 
     # execute 'method' for Making  a client active/inactive
     def enable_disable_client(self, thread_id, is_enable = False, client_list = None):
+        '''Knob to toggle state of a client'''
 
         json_attr = []
 
@@ -1686,6 +1689,7 @@ class ASTFClient(TRexClient):
    
      # execute 'method' for getting clients stats [ No of clients Active, Inactive , tunnel enabled]
     def get_clients_stats (self):
+        '''Get Total Clients Status(Active/Inactive) per threads'''
 
         json_attr = []
         params = {"type": 'all',
