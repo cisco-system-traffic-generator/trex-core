@@ -61,8 +61,8 @@ class Client:
            logging.error("Connection Lost while inserting")
 
     def delete_records(self, client_ip_list = None):
-	rc = self.client.delete_tunnel_from_client_record(client_ip_list)          
-	for record in client_ip_list:
+        rc = self.client.delete_tunnel_from_client_record(client_ip_list)          
+        for record in client_ip_list:
             logging.debug('Client Delete [%d], thread_id [%d]', record[0], record[1])
 
     def enable_disable_records(self, thread_id, client_ip_list = None, is_enable = False):

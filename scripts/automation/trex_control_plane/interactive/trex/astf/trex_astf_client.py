@@ -1679,7 +1679,7 @@ class ASTFClient(TRexClient):
         json_attr = []
 
         for key in client_list:
-	    json_attr.append({'client_ip' : key})
+            json_attr.append({'client_ip' : key})
 
         params = {"thread_id": thread_id,
                   "is_enable": is_enable,
