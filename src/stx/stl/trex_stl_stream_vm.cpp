@@ -683,7 +683,9 @@ void StreamVm::build_flow_var_table() {
 
 void StreamVm::alloc_bss(){
     free_bss();
-    m_bss=(uint8_t *)malloc(m_cur_var_offset);
+    if (m_cur_var_offset) {
+        m_bss=(uint8_t *)malloc(m_cur_var_offset);
+    }
 }
 
 void StreamVm::clean_max_field_cnt(){
