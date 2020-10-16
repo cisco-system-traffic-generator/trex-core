@@ -2090,10 +2090,12 @@ public:
     }
 
     uint8_t* clone_bss(){
-        assert(m_bss_size>0);
-        uint8_t *p=(uint8_t *)malloc(m_bss_size);
-        assert(p);
-        memcpy(p,m_bss_ptr,m_bss_size);
+        uint8_t *p=nullptr;
+        if (m_bss_size>0) {
+            p=(uint8_t *)malloc(m_bss_size);
+            assert(p);
+            memcpy(p,m_bss_ptr,m_bss_size);
+        }
         return (p);
     }
 
