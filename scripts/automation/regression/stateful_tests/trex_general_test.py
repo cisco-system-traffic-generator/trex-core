@@ -565,7 +565,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 'total_pkts': 1000,
                 'rate_latency': 1,
                 'latency_9k_enable': True,
-                'latency_9k_max_average': 100,
+                'latency_9k_max_average': 200,
                 'latency_9k_max_latency': 250,
             },
 
