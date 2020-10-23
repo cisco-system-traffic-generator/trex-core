@@ -973,8 +973,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     }
 
     if (po->preview.get_is_rx_check_enable() ||  po->is_latency_enabled() || CGlobalInfo::is_learn_mode()
-        || (CGlobalInfo::m_options.m_arp_ref_per != 0)
-        || (!get_dpdk_mode()->is_hardware_filter_needed()) ) {
+        || (CGlobalInfo::m_options.m_arp_ref_per != 0)) {
         po->set_rx_enabled();
     }
 
@@ -4079,7 +4078,9 @@ COLD_FUNC int  CGlobalTRex::queues_prob_init(){
     */
 
     // One q for each core allowed to send on this port + 1 for latency q (Used in stateless) + 1 for RX core.
-    m_max_queues_per_port  = m_cores_to_dual_ports + 2;
+    m_max_queues_per_port = m_cores_to_dual_ports;
+    if ( CGlobalInfo::m_options.is_rx_enabled() ) { ++m_max_queues_per_port; }
+    if ( CGlobalInfo::m_options.is_latency_enabled() ) { ++m_max_queues_per_port; }
 
     if (m_max_queues_per_port > BP_MAX_CORES) {
         rte_exit(EXIT_FAILURE,
@@ -6489,6 +6490,10 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     res =CGlobalInfo::m_dpdk_mode.choose_mode((trex_driver_cap_t)driver_cap);
     if (res == tmDPDK_UNSUPPORTED) {
         exit(1);
+    }
+
+    if ( !get_dpdk_mode()->is_hardware_filter_needed() ) {
+        CGlobalInfo::m_options.set_rx_enabled();
     }
 
     time_init();
