@@ -1317,7 +1317,7 @@ class OPTIONS_DB_ARGS:
         {'type': float,
          'dest': 'rate',
          'required': True,
-         'help': 'New rate (in pps) for data packets of an IPFix generator'})
+         'help': 'New rate (in pps) for template/data packets of an IPFix generator'})
 
 
     MTU = ArgumentPack(
