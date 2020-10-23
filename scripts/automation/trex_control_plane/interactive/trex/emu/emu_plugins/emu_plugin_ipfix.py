@@ -45,6 +45,9 @@ class IPFIXPlugin(EMUPluginBase):
         auto_start: bool
             If true will automatically start sending IPFix packets upon creation.
 
+        template_rate_pps: float32
+            Rate of IPFix template packets (in pps), defaults to 1.
+
         rate_pps: float32
             Rate of IPFix data packets (in pps), defaults to 3.
 
@@ -159,7 +162,7 @@ class IPFIXPlugin(EMUPluginBase):
         return res.get('generators_info', {})
 
     @client_api('command', True)
-    def set_gen_rate(self, c_key, gen_name, rate):
+    def set_gen_rate(self, c_key, gen_name, template_rate, rate):
         """
             Set a new rate of data packets for an IPFix generator.
 
@@ -171,6 +174,9 @@ class IPFIXPlugin(EMUPluginBase):
                 gen_name: string
                     The name of the generator we are trying to alter.
 
+                template_rate: float32
+                    New rate for template packets, in pps.
+
                 rate: float32
                     New rate for data packets, in pps.
 
@@ -179,9 +185,10 @@ class IPFIXPlugin(EMUPluginBase):
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
                     {'name': 'gen_name', 'arg': gen_name, 't': str},
+                    {'name': 'template_rate', 'arg': template_rate, 't': float},
                     {'name': 'rate', 'arg': rate, 't': float}]
         EMUValidator.verify(ver_args)
-        return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_gen_state', c_key=c_key, gen_name=gen_name, rate=rate)
+        return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_gen_state', c_key=c_key, gen_name=gen_name, template_rate=template_rate, rate=rate)
 
     @client_api('command', True)
     def enable_generator(self, c_key, gen_name, enable):
@@ -306,4 +313,22 @@ class IPFIXPlugin(EMUPluginBase):
         self._validate_port(opts)
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        return self.set_gen_rate(c_key, opts.gen_name, opts.rate)
+        return self.set_gen_rate(c_key, opts.gen_name, template_rate=0.0, rate=opts.rate) # template_rate 0 will keep the template rate unchanged.
+
+    @plugin_api('ipfix_set_template_rate', 'emu')
+    def ipfix_set_template_rate_line(self, line):
+        """Set IPFix generator template rate.\n"""
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_set_template_rate",
+                                        self.ipfix_set_template_rate_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.MAC_ADDRESS,
+                                        parsing_opts.GEN_NAME,
+                                        parsing_opts.GEN_RATE,
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self._validate_port(opts)
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = EMUClientKey(ns_key, opts.mac)
+        return self.set_gen_rate(c_key, opts.gen_name, template_rate=opts.rate, rate=0.0), # rate 0 will keep the data rate unchanged
