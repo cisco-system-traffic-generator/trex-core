@@ -2955,6 +2955,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_node_gen.m_socket_id =socket_id;
     m_flow_id_to_node_lookup.Create();
 
+    m_ip_info.clear();
+
     /* split the clients to threads */
 
     if (! get_is_tcp_mode()) {
@@ -3072,6 +3074,37 @@ void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
 }
 
 
+CIpInfoBase* CFlowGenListPerThread::get_ip_info(uint32_t ip){
+    auto it = m_ip_info.find(ip);
+    if (it == m_ip_info.end()) {
+        return nullptr;
+    } else {
+        it->second->inc_ref();
+        return it->second;
+    }
+}
+
+void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
+    uint32_t ip = ip_info->get_ip();
+    auto it = m_ip_info.find(ip);
+    assert(it == m_ip_info.end());
+
+    ip_info->inc_ref();
+    m_ip_info[ip] = ip_info;
+}
+
+void CFlowGenListPerThread::release_ip_info(CIpInfoBase* ip_info) {
+    uint32_t ip = ip_info->get_ip();
+    ip_info->dec_ref();
+    if (ip_info->ref_cnt() == 0) {
+        auto it = m_ip_info.find(ip);
+        if (it != m_ip_info.end() && it->second == ip_info) {
+            m_ip_info.erase(ip);
+        }
+        delete ip_info;
+    }
+}
+
 
 /* copy all info from global and div by num of threads */
 void CFlowGenListPerThread::init_from_global(){
@@ -3143,6 +3176,11 @@ void CFlowGenListPerThread::Delete(){
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
     // free object
     m_flow_id_to_node_lookup.Delete();
+
+    for (auto it: m_ip_info) {
+        delete it.second;
+    }
+    m_ip_info.clear();
 
     m_smart_gen.Delete();
     m_node_gen.Delete();

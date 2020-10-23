@@ -2998,6 +2998,7 @@ class CMbufBuffer;
 class CTcpCtxCb;
 class CSyncBarrier;
 class CAstfDB;
+class CIpInfoBase;
 
 class CFlowGenListPerThread {
 
@@ -3193,6 +3194,13 @@ public:
     CTupleGeneratorSmart             m_smart_gen;
 
     TrexMonitor                      m_monitor;
+
+private:
+    std::map<uint32_t, CIpInfoBase*> m_ip_info;
+public:
+    CIpInfoBase* get_ip_info(uint32_t ip);
+    void allocate_ip_info(CIpInfoBase* ip_info);
+    void release_ip_info(CIpInfoBase* ip_info);
 
 public:
     CNodeGenerator                   m_node_gen;

@@ -247,10 +247,19 @@ class CIpInfoBase {
         void *get_tunnel_info() {
             return m_tunnel;
         }
+
+        uint32_t ref_cnt() { return m_ref_cnt; }
+        void inc_ref() { m_ref_cnt++; }
+        void dec_ref() {
+            if (m_ref_cnt) {
+                m_ref_cnt--;
+            }
+        }
  
         CIpInfoBase() { 
             m_is_active = false; 
             m_tunnel = NULL;
+            m_ref_cnt = 0;
         }
 
         virtual ~CIpInfoBase() {}
@@ -258,6 +267,7 @@ class CIpInfoBase {
         uint32_t          m_ip;
         bool              m_is_active;
         void              *m_tunnel;
+        uint32_t          m_ref_cnt;    // shared reference count
 };
 
 //CClientInfo for large amount of clients support
@@ -664,11 +674,14 @@ class CIpPool {
 
 };
 
+class CFlowGenListPerThread;
+
 class CClientPool : public CIpPool {
 public:
 
     CClientPool(){
         m_thread_id=0;
+        m_thread_ptr=nullptr;
         m_rss_thread_id=0;
         m_rss_thread_max=0;
         m_reta_mask=0;
@@ -710,10 +723,7 @@ public:
         return (m_active_clients.size() > 0);
     }
 
-    void Delete() {
-        m_active_clients.clear();
-        CIpPool::Delete();
-    }
+    void Delete();
 
 
     void set_clients_active(uint32_t        min_ip,
@@ -740,6 +750,9 @@ public:
     void set_thread_id(uint16_t thread_id){
         m_thread_id = thread_id;
     }
+    void set_thread_ptr(void* thread_ptr){
+        m_thread_ptr = static_cast<CFlowGenListPerThread*>(thread_ptr);
+    }
     void set_rss_thread_id(uint16_t rss_thread_id,
                            uint16_t rss_thread_max,
                            uint8_t reta_mask){
@@ -765,6 +778,7 @@ public:
     uint8_t  m_reta_mask;
     bool     m_rss_astf_mode;
 
+    CFlowGenListPerThread* m_thread_ptr;
 
     std::list<uint32_t> m_active_clients;
     std::list<uint32_t>::iterator m_cur_act_itr;    
@@ -926,6 +940,7 @@ public:
         m_rss_thread_max =0;
         m_reta_mask=0;
         m_rss_astf_mode=false;
+        m_thread_ptr=nullptr;
     }
 
     bool Create(uint32_t _id, uint32_t thread_id);
@@ -1000,6 +1015,8 @@ private:
     uint8_t  m_reta_mask;       /* 0xff or 0x7f */
 
     bool     m_rss_astf_mode;        /* true for ASTF mode */
+
+    CFlowGenListPerThread* m_thread_ptr;
 
     std::vector<CClientPool*> m_client_pool;
     std::vector<CServerPoolBase*> m_server_pool;
