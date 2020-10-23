@@ -97,6 +97,19 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     CreateBase(); 
 }
 
+void CClientPool::Delete() {
+    m_active_clients.clear();
+    FOREACH(m_ip_info) {
+        if (m_thread_ptr) {
+            m_thread_ptr->release_ip_info(m_ip_info[i]);
+        }
+        else {
+            delete m_ip_info[i];
+        }
+    }
+    m_ip_info.clear();
+}
+
 /*
  * Activatation/Deactivation of the clients
  *
@@ -168,16 +181,25 @@ static uint16_t generate_rand_sport(uint32_t client_index,
 void CClientPool::allocate_simple_clients(uint32_t  min_ip,
                                           uint32_t  total_ip,
                                           bool      is_long_range) {
-
     /* simple creation of clients - no extended info */
     for (uint32_t i = 0; i < total_ip; i++) {
         uint32_t ip = min_ip + i;
-        if (is_long_range) {
-            m_ip_info[i] = new CSimpleClientInfo<CIpInfoL>(ip);
+        CIpInfoBase* ip_info = m_thread_ptr ? m_thread_ptr->get_ip_info(ip): nullptr; // get from shared
+        if (ip_info) {
+            m_ip_info[i] = ip_info;
         } else {
-            m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
+            if (is_long_range) {
+                m_ip_info[i] = new CSimpleClientInfo<CIpInfoL>(ip);
+            } else {
+                m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
+            }
+            configure_client(i);
+
+            // set CIpInfoBase to be shared
+            if (m_thread_ptr) {
+                m_thread_ptr->allocate_ip_info(m_ip_info[i]);
+            }
         }
-        configure_client(i);
     }
 
 }
@@ -256,12 +278,22 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
         ClientCfgBase info;
         group->assign(info, ip);
 
-        if (is_long_range) {
-            m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);
+        CIpInfoBase* ip_info = m_thread_ptr ? m_thread_ptr->get_ip_info(ip): nullptr; // get from shared
+        if (ip_info) {
+            m_ip_info[i] = ip_info;
         } else {
-            m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
+            if (is_long_range) {
+                m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);
+            } else {
+                m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
+            }
+            configure_client(i);
+
+            // set CIpInfoBase to be shared
+            if (m_thread_ptr) {
+                m_thread_ptr->allocate_ip_info(m_ip_info[i]);
+            }
         }
-        configure_client(i);
     }
 }
 
@@ -276,6 +308,7 @@ bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
     assert(max_client>=min_client);
     CClientPool* pool = new CClientPool();
     pool->set_thread_id((uint16_t)m_thread_id);
+    pool->set_thread_ptr(m_thread_ptr);
     if (m_rss_astf_mode) {
         pool->set_rss_thread_id(m_rss_thread_id,m_rss_thread_max,m_reta_mask);
     }
@@ -350,6 +383,12 @@ bool CTupleGeneratorSmart::Create(uint32_t _id,
     m_rss_thread_id=0;
     m_rss_thread_max=0;
     m_rss_astf_mode=false;
+
+    // resolve m_thread_ptr to setup IP information sharing.
+    CFlowGenList* fl = get_platform_api().get_fl();
+    if (fl && (m_thread_id < fl->m_threads_info.size())) {
+        m_thread_ptr = fl->m_threads_info[m_thread_id];
+    }
     return(true);
 }
 
