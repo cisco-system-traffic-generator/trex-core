@@ -420,6 +420,11 @@ class SimpleJSONRPCRequestHandler(SimpleXMLRPCRequestHandler):
     The server that receives the requests must have a json_config member,
     containing a JSONRPClib Config instance
     """
+
+    # disable logging
+    def log_message(*args, **kwargs):
+        pass
+
     def do_POST(self):
         """
         Handles POST requests
