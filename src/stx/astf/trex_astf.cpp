@@ -74,7 +74,6 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 
     m_topo_buffer = "";
     m_topo_hash = "";
-    m_topo_parsed = false;
 
     m_state = STATE_IDLE;
     m_epoch = 0;
@@ -140,7 +139,7 @@ bool TrexAstf::is_trans_state() {
 }
 
 bool TrexAstf::topo_needs_parsing() {
-    return m_topo_hash.size() && !m_topo_parsed;
+    return m_topo_hash.size();
 }
 
 void TrexAstf::change_state(state_e new_state) {
@@ -316,7 +315,6 @@ void TrexAstf::topo_clear() {
     check_whitelist_states({STATE_IDLE, STATE_LOADED});
     m_topo_buffer.clear();
     m_topo_hash.clear();
-    m_topo_parsed = false;
     ClientCfgDB &m_cc_db = m_fl->m_client_config_info;
     m_cc_db.clear();
     CAstfDB::instance()->get_topo()->clear();
@@ -360,7 +358,7 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
-    if ( pid->profile_needs_parsing() || topo_needs_parsing() ) {
+    if ( pid->profile_needs_parsing() || pid->topo_needs_parsing(topo_needs_parsing()) ) {
         pid->parse();
     } else {
         pid->build();
@@ -764,6 +762,7 @@ TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj,
     m_cp_profile_id = cp_profile_id;
 
     m_profile_state = STATE_IDLE;
+    m_topo_parsed = false; 
     m_profile_buffer = "";
     m_profile_hash = "";
     m_profile_parsed = false;
@@ -904,9 +903,14 @@ bool TrexAstfPerProfile::profile_needs_parsing() {
     return m_profile_hash.size() && !(m_profile_parsed) && (m_profile_state != STATE_PARSE);
 }
 
+bool TrexAstfPerProfile::topo_needs_parsing(bool anytopo) {
+    return (anytopo && !(m_topo_parsed) && (m_profile_state != STATE_PARSE));
+}
+
 void TrexAstfPerProfile::parse() {
     string *prof = profile_needs_parsing() ? &(m_profile_buffer) : nullptr;
     string *topo = m_astf_obj->topo_needs_parsing() ? m_astf_obj->get_topo_buffer() : nullptr;
+
     assert(prof||topo);
 
     profile_change_state(STATE_PARSE);
@@ -966,7 +970,7 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
                 profile_change_state(STATE_LOADED);
             } else {
                 m_profile_parsed = true;
-                m_astf_obj->set_topo_parsed(true);
+                m_topo_parsed = true;
                 build();
             }
             break;
