@@ -166,7 +166,8 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
 					l4 += hl;
                     break;
 				case IPv6Header::IPPROTO_NONE:
-					return FSTAT_PARSER_E_SHORT_IP_HDR;
+					doloop = false;
+					break;
 				default:
 					doloop = false;
 					break;
