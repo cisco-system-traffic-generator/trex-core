@@ -91,7 +91,9 @@ public:
     void profile_check_whitelist_states(const states_t &whitelist);
     bool is_profile_state_build();
 
+    bool topo_needs_parsing(bool anytopo);
     bool profile_needs_parsing();
+
     bool is_error() {
         return m_error.size() > 0;
     }
@@ -139,6 +141,8 @@ private:
     std::string     m_profile_buffer;
     std::string     m_profile_hash;
     bool            m_profile_parsed;
+
+    bool            m_topo_parsed;
     bool            m_profile_stopping;
 
     int16_t         m_active_cores;
@@ -387,7 +391,6 @@ public:
     bool is_trans_state();
 
     std::string* get_topo_buffer() { return &m_topo_buffer; }
-    void         set_topo_parsed(bool topo) { m_topo_parsed = topo; }
 
     void stop_dp_scheduler();
     bool is_dp_core_state(int state, bool any = false);
@@ -411,7 +414,6 @@ protected:
     CParserOption  *m_opts;
     std::string     m_topo_buffer;
     std::string     m_topo_hash;
-    bool            m_topo_parsed;
     uint64_t        m_epoch;
 
 public:
