@@ -1960,6 +1960,40 @@ class TRexClient(object):
 
 
     @client_api('command', True)
+    def set_global_cfg (self, params):
+        """
+            Change global configuration parameters.
+
+            :parameters:
+                params: dictionary
+                    dictionary of global configuration parameters. Available parameters:
+                    "sched_max_stretch", type = double, default =0.0, units = usec, scheduler's maximum time for stretch in case it is a high value there won't be a scheduler compensation on burst and time will not be stretch. 0.0 means use the default internal value (~100usec). value could not be lower than 100usec will be considered as 100usec.
+
+            :raises:
+                + :exc:`TRexError`
+
+        """
+
+        self.ctx.logger.pre_cmd("Changing global configuration parameters")
+
+        rc = self._transmit("set_global_cfg", params = params)
+
+        self.ctx.logger.post_cmd(rc)
+
+        if not rc:
+            raise TRexError(rc)
+
+
+    @client_api('command', True)
+    def get_global_cfg (self):
+        rc = self._transmit("get_global_cfg")
+        if not rc:
+            raise TRexError(rc)
+
+        return rc.data()
+
+
+    @client_api('command', True)
     def push_packets (self, pkts, ports = None, force = False, ipg_usec = 0):
         """
             Pushes a list of packets to the server
@@ -2949,6 +2983,26 @@ class TRexClient(object):
         opts = parser.parse_args(line.split())
 
         self.disconnect()
+
+
+    @console_api('global_cfg', 'common')
+    def global_cfg_line (self, line):
+        '''Set global configuration parameters'''
+
+        parser = parsing_opts.gen_parser(self,
+                                         "global_cfg",
+                                         self.global_cfg_line.__doc__,
+                                         parsing_opts.TUNABLES)
+
+        opts = parser.parse_args(line.split(), verify_acquired = True)
+
+        if opts.tunables:
+            self.set_global_cfg(opts.tunables)
+
+        for key, value in self.get_global_cfg().items():
+            print("{} = {}".format(key, value))
+
+        return True
 
 
     @console_api('ping', 'common', True)
