@@ -3536,6 +3536,13 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
         add_exit_node(thread,max_time);
     }
     m_scheduler_offset = offset;
+    dsec_t burst_size = BURST_OFFSET_DTIME;
+    if (CGlobalInfo::m_burst_offset_dtime > BURST_OFFSET_DTIME) {
+        if (CGlobalInfo::m_options.preview.getVMode() > 3) {
+            std::cout << "burst_size = " << burst_size << std::endl;
+        }
+        burst_size = CGlobalInfo::m_burst_offset_dtime;
+    }
 
     thread->m_cpu_dp_u.start_work1();
 
@@ -3553,6 +3560,14 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                 dsec_t dt = cur_time - n_time ;
 
                 if (dt > BURST_OFFSET_DTIME) {
+                    // real time clock (not stretched)
+                    if ((cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT) {
+                        handle_maintenance_job(node, n_time, offset, thread);
+                        dt = cur_time - n_time;
+                    }
+                }
+
+                if (dt > burst_size) {
                     state = scSTRECH;
                 } else if (dt > 0) {
                     state = scWORK;
@@ -3613,7 +3628,7 @@ FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
     switch (state) {
     case scSTRECH:
         {
-            handle_time_strech(node, cur_time, n_time, offset, thread);
+            handle_time_strech(node, cur_time, n_time, offset);
 
             /* go back to work */
             state = scWORK;
@@ -3640,25 +3655,24 @@ FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
 void CNodeGenerator::handle_time_strech(CGenNode * &node,
                                         dsec_t &cur_time,
                                         dsec_t &n_time,
-                                        dsec_t &offset,
-                                        CFlowGenListPerThread *thread) {
-
-
+                                        dsec_t &offset) {
     /* fix the time offset */
     dsec_t dt = cur_time - n_time;
     offset += dt;
     /* set new offset */
     m_scheduler_offset = offset;
+}
 
+void CNodeGenerator::handle_maintenance_job(CGenNode * &node,
+                                        dsec_t &n_time,
+                                        dsec_t &offset,
+                                        CFlowGenListPerThread *thread) {
     /* check if flow sync message was delayed too much */
-    if ( (cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT ) {
-        handle_maintenance(thread);
+    handle_maintenance(thread);
 
-        /* re-read the top of the queue - it might have changed with messaging */
-        node = m_p_queue.top();
-        n_time = node->m_time + offset;
-    }
-
+    /* re-read the top of the queue - it might have changed with messaging */
+    node = m_p_queue.top();
+    n_time = node->m_time + offset;
 }
 
 int CNodeGenerator::flush_file_sim(dsec_t max_time,

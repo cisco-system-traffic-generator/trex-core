@@ -161,6 +161,12 @@ TREX_RPC_CMD(TrexRpcCmdGetRxQueuePkts, "get_rx_queue_pkts");
  */
 TREX_RPC_CMD(TrexRpcCmdTXPkts, "push_pkts");
 
+/**
+ * change global configuration parameters
+ */
+TREX_RPC_CMD(TrexRpcCmdSetGlobalCfg, "set_global_cfg");
+TREX_RPC_CMD(TrexRpcCmdGetGlobalCfg, "get_global_cfg");
+
 /****************************** commands implementation ******************************/
 
 /**
@@ -1687,6 +1693,26 @@ TrexRpcCmdCancelAsyncTask::_run(const Json::Value &params, Json::Value &result) 
     return (TREX_RPC_CMD_OK);
 }
 
+/**
+ * change global configuration parameters
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdSetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
+    double max_stretch = parse_double(params, "sched_max_stretch", result, -1.0);
+    if (max_stretch >= 0.0) {
+        CGlobalInfo::m_burst_offset_dtime = max_stretch;
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
+    Json::Value &section = result["result"];
+
+    section["sched_max_stretch"] = CGlobalInfo::m_burst_offset_dtime;
+
+    return (TREX_RPC_CMD_OK);
+}
 
 /****************************** component implementation ******************************/
 
@@ -1732,6 +1758,8 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
     m_cmds.push_back(new TrexRpcCmdStopCapturePort(this));
     m_cmds.push_back(new TrexRpcCmdSetCapturePortBPF(this));
  
+    m_cmds.push_back(new TrexRpcCmdSetGlobalCfg(this));
+    m_cmds.push_back(new TrexRpcCmdGetGlobalCfg(this));
 }
 
 

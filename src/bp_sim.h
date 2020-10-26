@@ -1318,8 +1318,12 @@ private:
         void handle_time_strech(CGenNode * &node,
                                 dsec_t &cur_time,
                                 dsec_t &n_time,
-                                dsec_t &offset,
-                                CFlowGenListPerThread *thread);
+                                dsec_t &offset);
+
+        void handle_maintenance_job(CGenNode * &node,
+                                    dsec_t &n_time,
+                                    dsec_t &offset,
+                                    CFlowGenListPerThread *thread);
 
 
 private:
