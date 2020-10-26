@@ -26,6 +26,7 @@ limitations under the License.
 
 CRteMemPool         CGlobalInfo::m_mem_pool[MAX_SOCKETS_SUPPORTED];
 uint32_t            CGlobalInfo::m_nodes_pool_size = 10*1024;
+double              CGlobalInfo::m_burst_offset_dtime;
 CParserOption       CGlobalInfo::m_options;
 CGlobalMemory       CGlobalInfo::m_memory_cfg;
 CPlatformSocketInfo CGlobalInfo::m_socket;

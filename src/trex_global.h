@@ -1047,6 +1047,7 @@ public:
 public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
     static uint32_t              m_nodes_pool_size;
+    static double                m_burst_offset_dtime;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;
