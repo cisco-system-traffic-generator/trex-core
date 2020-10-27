@@ -1963,7 +1963,7 @@ see xref:timer_w[Timer Wheel section]
        multi_flow_enabled: true     <8>
        flows_dirs: [0, 1]           <9>
        keep_src_port: true          <10>
-	   ip_header_offset: 50         <11>
+       ip_header_offset: 50         <11>
 
 ----
 <1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).

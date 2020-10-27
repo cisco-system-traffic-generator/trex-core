@@ -66,7 +66,7 @@ CFlowYamlInfo::CFlowYamlInfo() {
     m_multi_flow_was_set = false;
     m_keep_src_port = false;
     m_plugin_id = 0;
-	m_ip_header_offset = 0;
+    m_ip_header_offset = 0;
 }
 
 void CFlowYamlInfo::Dump(FILE *fd){
@@ -90,7 +90,7 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"one_server_was_set  : %d \n",m_one_app_server_was_set?1:0);
     fprintf(fd,"multi_flow_enabled  : %d \n",m_multi_flow_was_set);
     fprintf(fd,"keep_src_port       : %d \n",m_keep_src_port);
-	fprintf(fd, "ip_header_offset       : %d \n", m_ip_header_offset);
+    fprintf(fd, "ip_header_offset       : %d \n", m_ip_header_offset);
 
     if (m_dpPkt) {
         m_dpPkt->Dump(fd);
@@ -834,74 +834,74 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     m_is_ipv6 = false;
     m_is_ipv6_converted =false;
 
-	if (offset == 0){
-		// IP
-		switch (m_ether->getNextProtocol()) {
-		case EthernetHeader::Protocol::IP:
-			offset = 14;
-			l3.m_ipv4 = (IPHeader*)(packetBase + offset);
-			break;
-		case EthernetHeader::Protocol::IPv6:
-			offset = 14;
-			l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
-			m_is_ipv6 = true;
-			break;
-		case EthernetHeader::Protocol::VLAN:
-			m_cnt->m_vlan++;
-			switch (m_ether->getVlanProtocol()) {
-			case EthernetHeader::Protocol::IP:
-				offset = 18;
-				l3.m_ipv4 = (IPHeader*)(packetBase + offset);
-				break;
-			case EthernetHeader::Protocol::IPv6:
-				offset = 18;
-				l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
-				m_is_ipv6 = true;
-				break;
-			case EthernetHeader::Protocol::MPLS_Multicast:
-			case EthernetHeader::Protocol::MPLS_Unicast:
-				m_cnt->m_mpls++;
-				return;
+    if (offset == 0){
+        // IP
+        switch (m_ether->getNextProtocol()) {
+        case EthernetHeader::Protocol::IP:
+            offset = 14;
+            l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+            break;
+        case EthernetHeader::Protocol::IPv6:
+            offset = 14;
+            l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+            m_is_ipv6 = true;
+            break;
+        case EthernetHeader::Protocol::VLAN:
+            m_cnt->m_vlan++;
+            switch (m_ether->getVlanProtocol()) {
+            case EthernetHeader::Protocol::IP:
+                offset = 18;
+                l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+                break;
+            case EthernetHeader::Protocol::IPv6:
+                offset = 18;
+                l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+                m_is_ipv6 = true;
+                break;
+            case EthernetHeader::Protocol::MPLS_Multicast:
+            case EthernetHeader::Protocol::MPLS_Unicast:
+                m_cnt->m_mpls++;
+                return;
 
-			case EthernetHeader::Protocol::ARP:
-				m_cnt->m_arp++;
-				return;
+            case EthernetHeader::Protocol::ARP:
+                m_cnt->m_arp++;
+                return;
 
-			default:
-				m_cnt->m_non_ip++;
-				return; /* Non IP */
-			}
-			break;
-		case EthernetHeader::Protocol::ARP:
-			m_cnt->m_arp++;
-			return; /* Non IP */
-			break;
+            default:
+                m_cnt->m_non_ip++;
+                return; /* Non IP */
+            }
+            break;
+        case EthernetHeader::Protocol::ARP:
+            m_cnt->m_arp++;
+            return; /* Non IP */
+            break;
 
-		case EthernetHeader::Protocol::MPLS_Multicast:
-		case EthernetHeader::Protocol::MPLS_Unicast:
-			m_cnt->m_mpls++;
-			return; /* Non IP */
-			break;
+        case EthernetHeader::Protocol::MPLS_Multicast:
+        case EthernetHeader::Protocol::MPLS_Unicast:
+            m_cnt->m_mpls++;
+            return; /* Non IP */
+            break;
 
-		default:
-			m_cnt->m_non_ip++;
-			return; /* Non IP */
-		}
-	}
-	else{
-		uint8_t* ip_version = (uint8_t*)(packetBase + offset);
-		if ((*ip_version & 0xF0) == 0x40){
-			l3.m_ipv4 = (IPHeader*)(packetBase + offset);
-		}
-		else if ((*ip_version & 0xF0) == 0x60){
-			l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
-			m_is_ipv6 = true;
-		}
-		else {
-			fprintf(stderr, "Error: ip_header_offset must point to a valid IPv4 or IPv6 header\n");
-			exit(-1);
-		}
-	}
+        default:
+            m_cnt->m_non_ip++;
+            return; /* Non IP */
+        }
+    }
+    else{
+        uint8_t* ip_version = (uint8_t*)(packetBase + offset);
+        if ((*ip_version & 0xF0) == 0x40){
+            l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+        }
+        else if ((*ip_version & 0xF0) == 0x60){
+            l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+            m_is_ipv6 = true;
+        }
+        else {
+            fprintf(stderr, "Error: ip_header_offset must point to a valid IPv4 or IPv6 header\n");
+            exit(-1);
+        }
+    }
 
     if (is_ipv6() == false) {
         if( (offset+20) > (uint32_t)( m_packet->getTotalLen())   ){
@@ -1627,7 +1627,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     bool is_multi_flow_enabled = flow_info.m_multi_flow_was_set;
     bool is_custom_dirs = (flow_info.m_flows_dirs.size() > 0);
     bool keep_src_port = flow_info.m_keep_src_port;
-	pkt_indication.m_ip_offset = flow_info.m_ip_header_offset;
+    pkt_indication.m_ip_offset = flow_info.m_ip_header_offset;
 
 
     CFlowTableMap flow;
@@ -2068,12 +2068,12 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
         fi.m_keep_src_port = 0;
     }
 
-	if (node.FindValue("ip_header_offset")) {
-		node["ip_header_offset"] >> fi.m_ip_header_offset;
-	}
-	else {
-		fi.m_ip_header_offset = 0;
-	}
+    if (node.FindValue("ip_header_offset")) {
+        node["ip_header_offset"] >> fi.m_ip_header_offset;
+    }
+    else {
+        fi.m_ip_header_offset = 0;
+    }
 
     if ( node.FindValue("flows_dirs") ) {
         const YAML::Node& flows_dirs = node["flows_dirs"];
@@ -3152,7 +3152,7 @@ void CFlowGenListPerThread::init_from_global(){
         yaml_info->m_cap_mode =lp->m_info->m_cap_mode;
         yaml_info->m_plugin_id = lp->m_info->m_plugin_id;
         yaml_info->m_keep_src_port = lp->m_info->m_keep_src_port;
-		yaml_info->m_ip_header_offset = lp->m_info->m_ip_header_offset;
+        yaml_info->m_ip_header_offset = lp->m_info->m_ip_header_offset;
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
         yaml_info->m_dpPkt          =lp->m_info->m_dpPkt;

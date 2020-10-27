@@ -491,7 +491,7 @@ struct CFlowYamlInfo {
     pool_index_t    m_server_pool_idx;
     uint32_t        m_server_addr;
     uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */
-	uint16_t		m_ip_header_offset;
+    uint16_t        m_ip_header_offset;
     bool            m_one_app_server;
     bool            m_one_app_server_was_set;
     bool            m_cap_mode;
@@ -1790,16 +1790,16 @@ public:
     CFlowKey            m_flow_key;
 
     uint8_t             m_ether_offset;
-	uint16_t            m_ip_offset;
-	uint16_t            m_udp_tcp_offset;
-	uint16_t            m_payload_offset;
+    uint16_t            m_ip_offset;
+    uint16_t            m_udp_tcp_offset;
+    uint16_t            m_payload_offset;
     uint8_t             m_rw_mbuf_size;    /* first R/W mbuf size 64/128/256 */
     uint8_t             m_pad1;
     uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exits */
 
 public:
 
-	CPacketIndication() : m_ip_offset(0) {}
+    CPacketIndication() : m_ip_offset(0) {}
     void Dump(FILE *fd,int verbose);
     void Clean();
     bool ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
