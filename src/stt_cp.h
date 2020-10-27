@@ -100,7 +100,8 @@ class CSTTCp {
 public:
     void Create(uint32_t stt_id=0, uint16_t num_of_tg_ids=1, bool first_time=true);
     void Delete(bool last_time=true);
-    void Add(tcp_dir_t dir,CTcpPerThreadCtx* ctx);
+    void Add(tcp_dir_t dir, CTcpPerThreadCtx* ctx);
+    void AddProfileCtx(tcp_dir_t dir, CPerProfileCtx* pctx);
     void Init(bool first_time=true);
     void Update();
     void Accumulate(bool clear, bool calculate, CSTTCp* lpstt);
@@ -112,6 +113,7 @@ public:
     void UpdateTGNames(const std::vector<std::string>& tg_names);
     void DumpTGStats(Json::Value &result, const std::vector<uint16_t>& tg_ids);
     void UpdateTGStats(const std::vector<uint16_t>& tg_ids);
+    void clear_profile_ctx();
     void update_profile_ctx();
     bool need_profile_ctx_update() { return !m_profile_ctx_updated; }
 

@@ -4304,7 +4304,7 @@ COLD_FUNC void CGlobalTRex::update_stats(){
 
         if (lpstt->m_init){
             if (lpstt->need_profile_ctx_update()) {
-                if (!stx || (stx && stx->is_safe_update_stats())) {
+                if (!stx) { // non-ASTF case. ASTF updated by DP to CP message
                     lpstt->update_profile_ctx();
                 }
             }

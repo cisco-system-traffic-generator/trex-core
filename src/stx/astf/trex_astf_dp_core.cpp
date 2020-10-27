@@ -415,7 +415,7 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CA
     }
 
     set_profile_state(profile_id, pSTATE_LOADED);
-    report_finished(profile_id);
+    report_profile_ctx(profile_id);
 }
 
 void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db) {
@@ -563,6 +563,13 @@ bool TrexAstfDpCore::sync_barrier() {
 
 void TrexAstfDpCore::report_finished(profile_id_t profile_id) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreStopped(m_flow_gen->m_thread_id, profile_id);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+}
+
+void TrexAstfDpCore::report_profile_ctx(profile_id_t profile_id) {
+    CPerProfileCtx* client = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+    CPerProfileCtx* server = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+    TrexDpToCpMsgBase *msg = new TrexDpCoreProfileCtx(m_flow_gen->m_thread_id, profile_id, client, server);
     m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 
