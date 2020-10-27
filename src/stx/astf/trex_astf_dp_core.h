@@ -67,6 +67,7 @@ public:
 protected:
     virtual bool rx_for_idle();
     void report_finished(profile_id_t profile_id = 0);
+    void report_profile_ctx(profile_id_t profile_id = 0);
     void report_error(profile_id_t profile_id, const std::string &error);
     bool sync_barrier();
     void report_dp_state();

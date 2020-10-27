@@ -463,6 +463,13 @@ void CSTTCp::Add(tcp_dir_t dir, CTcpPerThreadCtx* ctx){
     m_sts[dir].m_tcp_ctx.push_back(ctx);
 }
 
+void CSTTCp::AddProfileCtx(tcp_dir_t dir, CPerProfileCtx* pctx){
+    m_sts[dir].m_profile_ctx.push_back(pctx);
+    for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
+        m_sts_per_tg_id[dir][tg_id]->m_profile_ctx.push_back(pctx);
+    }
+}
+
 void CSTTCp::Init(bool first_time){
     uint32_t time_msec = os_get_time_msec();
     const char * names[]={"client","server"};
@@ -614,18 +621,27 @@ void CSTTCp::Resize(uint16_t new_num_of_tg_ids) {
 
     Create(m_stt_id, new_num_of_tg_ids, false);
 
+    m_profile_ctx_updated = true;
+
     for (int i = 0 ; i < TCP_CS_NUM; i++) {
         for (auto &ctx : m_sts[i].m_tcp_ctx) {
             for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
                 m_sts_per_tg_id[i][tg_id]->m_tcp_ctx.push_back(ctx);
             }
         }
-    }
+        for (auto &ctx : m_sts[i].m_profile_ctx) {
+            for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
+                m_sts_per_tg_id[i][tg_id]->m_profile_ctx.push_back(ctx);
+            }
+        }
 
-    m_profile_ctx_updated = false;
+        if (m_sts[i].m_tcp_ctx.size() != m_sts[i].m_profile_ctx.size()) {
+            m_profile_ctx_updated = false;
+        }
+    }
 }
 
-void CSTTCp::update_profile_ctx() {
+void CSTTCp::clear_profile_ctx() {
     /* clear profile_ctx */
     for (int i = 0 ; i < TCP_CS_NUM; i++) {
         m_sts[i].m_profile_ctx.clear();
@@ -633,6 +649,12 @@ void CSTTCp::update_profile_ctx() {
             m_sts_per_tg_id[i][tg_id]->m_profile_ctx.clear();
         }
     }
+
+    m_profile_ctx_updated = false;
+}
+
+void CSTTCp::update_profile_ctx() {
+    clear_profile_ctx();
 
     /* update profile_ctx */
     for (int i = 0 ; i < TCP_CS_NUM; i++) {
