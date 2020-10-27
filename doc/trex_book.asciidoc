@@ -1963,6 +1963,7 @@ see xref:timer_w[Timer Wheel section]
        multi_flow_enabled: true     <8>
        flows_dirs: [0, 1]           <9>
        keep_src_port: true          <10>
+       ip_header_offset: 50         <11>
 
 ----
 <1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
@@ -1977,7 +1978,7 @@ see xref:timer_w[Timer Wheel section]
 <9> New in version v2.62. Sets direction of flow(s). If set to 0, has no effect. If set to 1, server will initiate the flow (with its IP) towards client with original dest port. +
  Note: does *not* work with --learn modes.
 <10> New in version v2.66. Keep original TCP/UDP source port from pcap.
-
+<11> New. Client IP header offset in bytes. Useful when multiple IP headers are present in the capture (e.g. tunnelled traffic). Overrides default behaviour of parsing the first IP header found.  
 
 
 === Platform YAML (--cfg argument)
