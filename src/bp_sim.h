@@ -1799,6 +1799,7 @@ public:
 
 public:
 
+	CPacketIndication() : m_ip_offset(0) {}
     void Dump(FILE *fd,int verbose);
     void Clean();
     bool ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
