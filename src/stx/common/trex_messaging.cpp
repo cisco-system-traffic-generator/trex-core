@@ -114,6 +114,13 @@ TrexDpCoreStopped::handle(void) {
 }
 
 bool
+TrexDpCoreProfileCtx::handle(void) {
+    get_stx()->add_dp_profile_ctx(m_profile_id, m_client_pctx, m_server_pctx);
+    get_stx()->dp_core_finished(m_thread_id, m_profile_id);
+    return true;
+}
+
+bool
 TrexDpCoreError::handle(void) {
     get_stx()->dp_core_error(m_thread_id, m_profile_id, m_err);
     return true;
