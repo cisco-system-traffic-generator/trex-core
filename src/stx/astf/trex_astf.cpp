@@ -911,20 +911,25 @@ void TrexAstfPerProfile::parse() {
     string *prof = profile_needs_parsing() ? &(m_profile_buffer) : nullptr;
     string *topo = m_astf_obj->topo_needs_parsing() ? m_astf_obj->get_topo_buffer() : nullptr;
     assert(prof||topo);
-
     profile_change_state(STATE_PARSE);
 
     auto astf_db = CAstfDB::get_instance(m_dp_profile_id);
+
     TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db);
     m_astf_obj->send_message_to_dp(0, msg);
 }
 
 void TrexAstfPerProfile::build() {
+    
     m_stt_cp->clear_profile_ctx();  // will be updated when build has been finished
 
     profile_change_state(STATE_BUILD);
 
     auto astf_db = CAstfDB::instance(m_dp_profile_id);
+    if (m_astf_obj->topo_exists()){
+        astf_db->set_client_cfg_db(m_astf_obj->get_client_db()); 
+    }
+
     TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor, astf_db);
     m_astf_obj->send_message_to_all_dp(msg);
 }
