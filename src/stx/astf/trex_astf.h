@@ -373,6 +373,10 @@ public:
 
     bool topo_needs_parsing();
 
+    bool topo_exists() {
+        return  m_topo_parsed;
+    }
+
     /**
      * update_astf_state          : update state for all profiles
      * publish_astf_state         : publish state for all profiles
@@ -395,6 +399,10 @@ public:
 
     void stop_dp_scheduler();
     bool is_dp_core_state(int state, bool any = false);
+
+    ClientCfgDB * get_client_db() {
+        return &m_fl->m_client_config_info;
+    }
 
 protected:
     void change_state(state_e new_state);
