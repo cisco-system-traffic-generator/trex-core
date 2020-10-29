@@ -710,7 +710,7 @@ static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
 void CTcpPerThreadCtx::reset_tuneables() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
-    tcp_fast_tick_msec = TCP_FAST_TICK_;
+    tcp_fast_ticks = TCP_FAST_TICK_;
     tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR); 
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
@@ -780,8 +780,8 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
-        tcp_fast_tick_msec =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
-        tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_tick_msec);
+        tcp_fast_ticks =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
+        tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_ticks);
     }
     #endif
 
@@ -832,7 +832,13 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
+
+#ifdef  TREX_SIM
     tw_res = m_timer_w.Create(1024,TCP_TIMER_LEVEL1_DIV);
+#else
+    tw_res = m_timer_w.Create((2*1024),(TCP_TIMER_LEVEL1_DIV/2));
+#endif
+
 
     if (tw_res != RC_HTW_OK ){
         CHTimerWheelErrorStr err(tw_res);

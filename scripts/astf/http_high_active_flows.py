@@ -1,10 +1,23 @@
 # create high number of flow using high delay 
 #
-# -t size=64,delay=1000
-# you will need to add to trex_cfg.yaml 
+# start with '-m 1000000  -t delay=10000000'
+# You should have at least 30M*2K(flow memory) free heap memory  = 60GB
+# 
+# 1) you will need to add to trex_cfg.yaml 
 # 
 # memory    :                                          
-#        dp_flows    : 7048576
+#        dp_flows    : 30000000
+# 2) x_glob_info.tcp.delay_ack_msec = 4000 enlarge the tick time to 4 sec instead of 40msec 
+# this will help to support more flows in the price of less accurate timers 
+#    
+# 3)  ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.100.255"] << more than 255 clients to support more active flows 
+#
+# 4) reduce the keepalive 
+#        c_glob_info.tcp.keepinit = 5000
+#        c_glob_info.tcp.keepidle = 5000
+#        c_glob_info.tcp.keepintvl = 5000
+#
+
 
 from trex.astf.api import *
 
@@ -34,26 +47,27 @@ class Prof1():
 
         c_glob_info = ASTFGlobalInfo()
         # keep alive is much longer in sec time 128sec
-        c_glob_info.tcp.keepinit = 200
-        c_glob_info.tcp.keepidle = 200
-        c_glob_info.tcp.keepintvl = 200
+        c_glob_info.tcp.keepinit = 5000
+        c_glob_info.tcp.keepidle = 5000
+        c_glob_info.tcp.keepintvl = 5000
+        c_glob_info.tcp.delay_ack_msec = 4000
 
         s_glob_info = ASTFGlobalInfo()
-        s_glob_info.tcp.keepinit = 200
-        s_glob_info.tcp.keepidle = 200
-        s_glob_info.tcp.keepintvl = 200
-
+        s_glob_info.tcp.keepinit = 5000
+        s_glob_info.tcp.keepidle = 5000
+        s_glob_info.tcp.keepintvl = 5000
+        s_glob_info.tcp.delay_ack_msec = 4000
 
         # ip generator
-        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
-        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.100.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.100.0.1"], distribution="seq")
         ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                            dist_client=ip_gen_c,
                            dist_server=ip_gen_s)
 
 
         # template
-        temp_c = ASTFTCPClientTemplate(program=prog_c,  ip_gen=ip_gen)
+        temp_c = ASTFTCPClientTemplate(program=prog_c,  ip_gen=ip_gen, limit=30000000)
         temp_s = ASTFTCPServerTemplate(program=prog_s)  # using default association
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 

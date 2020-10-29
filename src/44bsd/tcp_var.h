@@ -1205,7 +1205,7 @@ public:
 
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
-        return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
+        return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_ticks));
     }
 
     void handle_udp_timer(CUdpFlow * flow){
@@ -1224,7 +1224,7 @@ public:
             /* terminate the flow in case --nc specified */
             m_ft.terminate_flow(this,flow,true);
         }else{
-            return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_tick_msec));
+            return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_ticks));
         }
         return(RC_HTW_OK);
     }
@@ -1298,8 +1298,8 @@ public:
     int tcp_keepcnt;
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
-    uint16_t tcp_fast_tick_msec;
-    uint16_t tcp_slow_fast_ratio;
+    uint32_t tcp_fast_ticks;
+    uint32_t tcp_slow_fast_ratio;
     int tcp_ttl;            /* time to live for TCP segs */
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
