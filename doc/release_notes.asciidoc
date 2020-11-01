@@ -26,6 +26,20 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.85 ==
+
+* ASTF 
+** Improve maximum ack timeout for high active-flows use-cases 
+** multi-profiles 
+*** topo is supported for 
+*** Clients instance is shared
+*** Stats is correct in corner cases 
+* ASTF/STL 
+** Ability to set the scheduler stretch time, (see set_global_cfg/get_global_cfg) API
+* trex_daemon: fix the case of killing parent process, continue to work
+* BIRD 2.0.7 
+* EMU IPfix support timer for template 
+
 == Release 2.84 ==
 
 * DPDK fixes 
