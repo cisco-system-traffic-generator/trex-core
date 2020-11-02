@@ -103,6 +103,9 @@ class VolatileValue(object):
     def __bytes__(self):
         return bytes_encode(self._fix())
 
+    def __int__(self):
+        return int(self._fix())
+
     def __len__(self):
         return len(self._fix())
 
