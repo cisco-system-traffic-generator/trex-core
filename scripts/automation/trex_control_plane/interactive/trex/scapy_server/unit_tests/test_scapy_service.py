@@ -97,7 +97,13 @@ def test_reconstruct_dns_packet():
     assert(ip['offset'] == 14)
     assert(dns['offset'] == 42)
 
-    dns_id = dns['fields'][0]
+    dns_id = None
+    for field in dns['fields']:
+        if field['id'] == 'id':
+            dns_id = field
+            break
+
+    assert(dns_id is not None)
     assert(dns_id["value"] == 777)
     assert("offset" in dns_id)
 

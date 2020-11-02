@@ -25,6 +25,8 @@ from scapy.layers.netflow import *
 from scapy.layers.sctp import *
 from scapy.layers.tftp import *
 
+from scapy.fields import FlagValue
+from scapy.contrib.bier import *
 from scapy.contrib.mpls import *
 from scapy.contrib.igmp import *
 from scapy.contrib.igmpv3 import *
@@ -316,6 +318,9 @@ def is_python(version):
 
 def is_number(obj):
     return isinstance(obj, numbers.Number)
+
+def is_flag(obj):
+    return isinstance(obj, FlagValue)
 
 def is_string(obj):
     return type(obj) == str or type(obj).__name__ == 'unicode' # python3 doesn't have unicode type
@@ -617,6 +622,10 @@ class Scapy_service(Scapy_service_api):
                     return generate_bytes(gen)
                 else:
                     return generate_bytes(val)
+
+        if is_flag(sample_val):
+            sample_val = int(sample_val)
+
         if is_number(sample_val) and is_string(val):
             # human-value. guess the type and convert to internal value
             # seems setfieldval already does this for some fields,
@@ -698,7 +707,7 @@ class Scapy_service(Scapy_service_api):
                 # some values are unavailable in pkt(original model)
                 # at the same time,
                 fieldval = pkt.getfieldval(field_id)
-                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_bytes3(fieldval)
+                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_flag(fieldval) or is_bytes3(fieldval)
                 if not pkt_fieldval_defined:
                     fieldval = layer_full.getfieldval(field_id)
                 value = None
@@ -718,8 +727,8 @@ class Scapy_service(Scapy_service_api):
                     # "nice" human value, i2repr(string) will have quotes, so we have special handling for them
                     hvalue = field_desc.i2repr(pkt, fieldval)
 
-                    if is_number(fieldval):
-                        value = fieldval
+                    if is_number(fieldval) or is_flag(fieldval):
+                        value = int(fieldval)
                         if is_string(hvalue) and re.match(r"^\d+L$", hvalue):
                             hvalue =  hvalue[:-1] # chop trailing L for long decimal number(python2)
                     else:
@@ -1018,7 +1027,7 @@ class Scapy_service(Scapy_service_api):
 
     def _is_packet_class(self, pkt_class):
         # returns true for final Packet classes. skips aliases and metaclasses
-        return issubclass(pkt_class, Packet) and pkt_class.name and pkt_class.fields_desc
+        return issubclass(pkt_class, Packet) and pkt_class._name and pkt_class.fields_desc
 
     def _getDummyPacket(self, pkt_class):
         if issubclass(pkt_class, Raw):
@@ -1133,7 +1142,7 @@ class Scapy_service(Scapy_service_api):
                 protoDef = self.protocol_definitions.get(protocolId) or {}
                 protocols.append({
                     "id": protocolId,
-                    "name": protoDef.get('name') or pkt_class.name,
+                    "name": protoDef.get('name') or pkt_class._name,
                     "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
         res = {"protocols": protocols,
@@ -1202,7 +1211,7 @@ class Scapy_service(Scapy_service_api):
                     scapy_pkt = None
                     break
                 else:
-                    scapy_pkt[depth-1].payload = None
+                    scapy_pkt[depth-1].remove_payload()
                     break
             if depth > 0 and self._is_last_layer(scapy_pkt[depth-1]):
                 # insert new layer(s) from json definition

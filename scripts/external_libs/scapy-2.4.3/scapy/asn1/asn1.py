@@ -294,7 +294,7 @@ class ASN1_INTEGER(ASN1_Object):
     tag = ASN1_Class_UNIVERSAL.INTEGER
 
     def __repr__(self):
-        h = hex(self.val)
+        h = hex(int(self.val))
         if h[-1] == "L":
             h = h[:-1]
         # cut at 22 because with leading '0x', x509 serials should be < 23
