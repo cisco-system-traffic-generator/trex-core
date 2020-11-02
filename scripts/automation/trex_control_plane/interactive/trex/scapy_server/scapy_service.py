@@ -25,6 +25,7 @@ from scapy.layers.netflow import *
 from scapy.layers.sctp import *
 from scapy.layers.tftp import *
 
+from scapy.fields import FlagValue
 from scapy.contrib.mpls import *
 from scapy.contrib.igmp import *
 from scapy.contrib.igmpv3 import *
@@ -316,6 +317,9 @@ def is_python(version):
 
 def is_number(obj):
     return isinstance(obj, numbers.Number)
+
+def is_flag(obj):
+    return isinstance(obj, FlagValue)
 
 def is_string(obj):
     return type(obj) == str or type(obj).__name__ == 'unicode' # python3 doesn't have unicode type
@@ -617,13 +621,17 @@ class Scapy_service(Scapy_service_api):
                     return generate_bytes(gen)
                 else:
                     return generate_bytes(val)
-        if is_number(sample_val) and is_string(val):
+        if (is_number(sample_val) or is_flag(sample_val)) and is_string(val):
+
             # human-value. guess the type and convert to internal value
             # seems setfieldval already does this for some fields,
             # but does not convert strings/hex(0x123) to integers and long
             val = str(val) # unicode -> str(ascii)
             # parse str to int/long as a decimal or hex
             val_constructor = type(sample_val)
+            if (is_flag(sample_val)):
+                val_constructor = int
+
             if len(val) == 0:
                 return None
             elif re.match(r"^0x[\da-f]+$", val, flags=re.IGNORECASE): # hex
@@ -1018,7 +1026,7 @@ class Scapy_service(Scapy_service_api):
 
     def _is_packet_class(self, pkt_class):
         # returns true for final Packet classes. skips aliases and metaclasses
-        return issubclass(pkt_class, Packet) and pkt_class.name and pkt_class.fields_desc
+        return issubclass(pkt_class, Packet) and pkt_class._name and pkt_class.fields_desc
 
     def _getDummyPacket(self, pkt_class):
         if issubclass(pkt_class, Raw):
@@ -1133,7 +1141,7 @@ class Scapy_service(Scapy_service_api):
                 protoDef = self.protocol_definitions.get(protocolId) or {}
                 protocols.append({
                     "id": protocolId,
-                    "name": protoDef.get('name') or pkt_class.name,
+                    "name": protoDef.get('name') or pkt_class._name,
                     "fields": self._get_fields_definition(pkt_class, protoDef.get('fields') or [])
                     })
         res = {"protocols": protocols,
