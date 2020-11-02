@@ -26,6 +26,7 @@ from scapy.layers.sctp import *
 from scapy.layers.tftp import *
 
 from scapy.fields import FlagValue
+from scapy.contrib.bier import *
 from scapy.contrib.mpls import *
 from scapy.contrib.igmp import *
 from scapy.contrib.igmpv3 import *
@@ -1210,7 +1211,7 @@ class Scapy_service(Scapy_service_api):
                     scapy_pkt = None
                     break
                 else:
-                    scapy_pkt[depth-1].payload = None
+                    scapy_pkt[depth-1].remove_payload()
                     break
             if depth > 0 and self._is_last_layer(scapy_pkt[depth-1]):
                 # insert new layer(s) from json definition
