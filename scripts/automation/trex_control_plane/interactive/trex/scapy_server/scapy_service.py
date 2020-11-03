@@ -622,17 +622,17 @@ class Scapy_service(Scapy_service_api):
                     return generate_bytes(gen)
                 else:
                     return generate_bytes(val)
-        if (is_number(sample_val) or is_flag(sample_val)) and is_string(val):
 
+        if is_flag(sample_val):
+            sample_val = int(sample_val)
+
+        if is_number(sample_val) and is_string(val):
             # human-value. guess the type and convert to internal value
             # seems setfieldval already does this for some fields,
             # but does not convert strings/hex(0x123) to integers and long
             val = str(val) # unicode -> str(ascii)
             # parse str to int/long as a decimal or hex
             val_constructor = type(sample_val)
-            if (is_flag(sample_val)):
-                val_constructor = int
-
             if len(val) == 0:
                 return None
             elif re.match(r"^0x[\da-f]+$", val, flags=re.IGNORECASE): # hex
@@ -707,7 +707,7 @@ class Scapy_service(Scapy_service_api):
                 # some values are unavailable in pkt(original model)
                 # at the same time,
                 fieldval = pkt.getfieldval(field_id)
-                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_bytes3(fieldval)
+                pkt_fieldval_defined = is_string(fieldval) or is_number(fieldval) or is_flag(fieldval) or is_bytes3(fieldval)
                 if not pkt_fieldval_defined:
                     fieldval = layer_full.getfieldval(field_id)
                 value = None
@@ -727,8 +727,8 @@ class Scapy_service(Scapy_service_api):
                     # "nice" human value, i2repr(string) will have quotes, so we have special handling for them
                     hvalue = field_desc.i2repr(pkt, fieldval)
 
-                    if is_number(fieldval):
-                        value = fieldval
+                    if is_number(fieldval) or is_flag(fieldval):
+                        value = int(fieldval)
                         if is_string(hvalue) and re.match(r"^\d+L$", hvalue):
                             hvalue =  hvalue[:-1] # chop trailing L for long decimal number(python2)
                     else:
