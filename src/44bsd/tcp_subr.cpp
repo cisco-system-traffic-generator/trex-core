@@ -349,7 +349,8 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     if (ctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push){
         tp->t_flags |= TF_NODELAY_PUSH;
     }
-    
+
+    tp->m_delay_limit = ctx->tcp_no_delay_counter;
     tp->t_pkts_cnt = 0;
     tp->m_reass_disabled = false;
 
@@ -509,6 +510,10 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
     }
 
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
+        m_tcp.m_delay_limit = tune->m_tcp_no_delay_counter;
+    }
+
     if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
         m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
     }
@@ -542,6 +547,10 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
+        m_tcp.m_delay_limit = tune->m_tcp_no_delay_counter;
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
@@ -718,6 +727,7 @@ void CTcpPerThreadCtx::reset_tuneables() {
     tcp_keepintvl = TCPTV_KEEPINTVL;
     tcp_mssdflt = TCP_MSS;
     tcp_no_delay = 0;
+    tcp_no_delay_counter = 0;
     tcp_rx_socket_bsize = 32*1024;
     tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_tx_socket_bsize = 32*1024;
@@ -819,7 +829,6 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
-    tcp_no_delay_counter = 0;
     tcp_maxidle=0;
     tcp_ttl=0;
     m_disable_new_flow=0;
@@ -992,6 +1001,10 @@ bool CServerIpPayloadInfo::is_server_compatible(CTcpServerInfo* in_server) {
         // CTcpFlow::set_s_tcp_info()
         if (ref_tune->is_valid_field(CTcpTuneables::tcp_mss_bit) &&
             (ref_tune->m_tcp_mss != in_tune->m_tcp_mss)) {
+            return false;
+        }
+        if (ref_tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) &&
+            (ref_tune->m_tcp_no_delay_counter != in_tune->m_tcp_no_delay_counter)) {
             return false;
         }
         if (ref_tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size) &&

@@ -99,8 +99,7 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
     '''
     _g_params = {
         "scheduler" : [
-         {"name": "rampup_sec", "type": [int]},
-         {"name": "accurate", "type": [int]}
+         {"name": "rampup_sec", "type": [int]}
         ],
 
         "ipv6": [

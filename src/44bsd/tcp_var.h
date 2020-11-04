@@ -108,6 +108,7 @@ struct tcpcb {
     uint8_t mbuf_socket;    /* mbuf socket */
     uint8_t t_dupacks;      /* consecutive dup acks recd */
     uint16_t t_pkts_cnt;    /* packets arrived until ack */
+    uint16_t m_delay_limit; /* packets limit without ack */
 #define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
 #define TUNE_MSS                     0x02
 #define TUNE_INIT_WIN                0x04
@@ -220,6 +221,7 @@ public:
     
     tcpcb() {
         m_tuneable_flags = 0;
+        m_delay_limit    = 0;
         t_pkts_cnt       = 0;
     }
 
