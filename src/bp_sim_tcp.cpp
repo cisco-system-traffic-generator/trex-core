@@ -591,11 +591,6 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
         m_s_tcp->update_tuneables(rw->get_s_tuneables());
     }
 
-    if ( (rw->get_c_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ||
-         (rw->get_s_tuneables()->is_valid_field(CTcpTuneables::sched_accurate)) ){
-        m_sched_accurate=true;
-    }
-
     /* call startup for client side */
     m_c_tcp->call_startup(profile_id);
     m_s_tcp->call_startup(profile_id);
