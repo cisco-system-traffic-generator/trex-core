@@ -268,7 +268,7 @@ class IPFIXPlugin(EMUPluginBase):
 
         for gen_name, gen_info in res.items():
             gen_info['name'] = gen_name
-        self.print_table_by_keys(res.values(), keys_to_headers, title="Generators")
+        self.print_table_by_keys(list(res.values()), keys_to_headers, title="Generators")
 
     @plugin_api('ipfix_enable_gen', 'emu')
     def ipfix_enable_gen_line(self, line):
