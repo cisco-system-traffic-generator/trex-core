@@ -105,9 +105,11 @@ def fatal(txt):
     print(txt)
     sys.exit(1)
 
+
 def check_trex_path(trex_path):
     if os.path.isfile('%s/trex_daemon_server' % trex_path):
         return os.path.abspath(trex_path)
+
 
 def check_setup_path(setup_path):
     if os.path.isfile('%s/config.yaml' % setup_path):
@@ -236,8 +238,6 @@ class CTRexTestConfiguringPlugin(Plugin):
             #pprint(elk_obj['test']);
             elk.reg.push_data(elk_obj)
 
-
-
     def addFailure(self, test, err, capt=None, tb_info=None):
         elk = CTRexScenario.elk 
         if elk:
@@ -259,8 +259,6 @@ class CTRexTestConfiguringPlugin(Plugin):
             #pprint(elk_obj['test']);
             elk.reg.push_data(elk_obj)
 
-
-
     def addSuccess(self, test, capt=None):
         elk = CTRexScenario.elk 
         if elk:
@@ -280,15 +278,10 @@ class CTRexTestConfiguringPlugin(Plugin):
             #pprint(elk_obj['test']);
             elk.reg.push_data(elk_obj)
 
-
-
     def get_operation_mode (self):
         if self.stateful:
             return('stateful');
         return('stateless');
-
-
-
 
 ##### option/configure
 
@@ -322,6 +315,7 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help="Run stateless tests.")
         parser.add_option('--bird', action="store_true",
                             help="Run Bird tests.")
+        parser.add_option('--emu', action="store_true", help="Run Emu tests.")
         parser.add_option('--stf', '--stateful', action="store_true",
                             dest="stateful",
                             help="Run stateful tests.")
@@ -356,12 +350,12 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--save-coredump', action = 'store_true',
                             help = 'Save coredumps (if will be produced) via master daemon.')
 
-
     def configure(self, options, conf):
         self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
         self.bird           = options.bird
+        self.emu            = options.emu # Run regression with Emu tests.
         self.astf           = options.astf
         self.stateful       = options.stateful
         self.wireless       = options.wireless
@@ -562,6 +556,12 @@ class CTRexTestConfiguringPlugin(Plugin):
             if not self.no_daemon:
                 CTRexScenario.trex.force_kill(False)
             CTRexScenario.bird_trex = None
+        elif self.emu:
+            if CTRexScenario.emu_trex and CTRexScenario.emu_trex.is_connected():
+                CTRexScenario.emu_trex.disconnect()
+            if not self.no_daemon:
+                CTRexScenario.trex.force_kill(False)
+            CTRexScenario.emu_trex = None
         elif self.astf:
             if CTRexScenario.astf_trex and CTRexScenario.astf_trex.is_connected():
                 CTRexScenario.astf_trex.disconnect()
@@ -650,6 +650,10 @@ if __name__ == "__main__":
         if key in sys_args:
             CTRexScenario.test_types['bird_tests'].append('bird_tests')
             sys_args.remove(key)
+        key = '--emu'
+        if key in sys_args:
+            CTRexScenario.test_types['emu_tests'].append('emu_tests')
+            sys_args.remove(key)
         key = '--astf'
         if key in sys_args:
             CTRexScenario.test_types['astf_tests'].append('astf_tests')
@@ -673,7 +677,7 @@ if __name__ == "__main__":
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
 
-    trex_tests = options.stateless or options.stateful or options.astf or options.bird
+    trex_tests = options.stateless or options.stateful or options.astf or options.bird or options.emu
     if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional or options.wireless)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
@@ -691,6 +695,7 @@ if __name__ == "__main__":
 
     is_wlc = 'wlc' in CTRexScenario.modes
     is_bird = 'bird' in CTRexScenario.modes
+    is_emu = 'emu' in CTRexScenario.modes
 
     addplugins = [RedNose(), cfg_plugin]
     result = True
@@ -758,7 +763,15 @@ if __name__ == "__main__":
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_bird.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
             CTRexScenario.router.load_clean_config()
-    
+        if CTRexScenario.test_types['emu_tests'] and not is_wlc and is_emu:
+            additional_args = ['--emu', 'emu_tests/emu_general_test.py:EmuBasic_Test.test_connectivity'] + CTRexScenario.test_types['emu_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_emu.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+            CTRexScenario.router.load_clean_config()
+
     #except Exception as e:
     #    result = False
     #    print(e)
