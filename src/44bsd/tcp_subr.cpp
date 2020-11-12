@@ -791,7 +791,7 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
         tcp_fast_ticks =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
-        tcp_slow_fast_ratio = _update_slow_fast_ratio(tcp_fast_ticks);
+        tcp_slow_fast_ratio = _update_slow_fast_ratio(tune->m_tcp_delay_ack_msec);
     }
     #endif
 
