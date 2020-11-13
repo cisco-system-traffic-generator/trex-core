@@ -248,6 +248,15 @@ class CIpInfoBase {
             return m_tunnel;
         }
 
+        void set_ptr_to_active_list(std::list<uint32_t> :: iterator it){
+            m_ptr_active_list_elem = it;
+        }
+
+        std::list<uint32_t> :: iterator get_ptr_to_active_list(){
+            return m_ptr_active_list_elem;
+        }
+
+
         uint32_t ref_cnt() { return m_ref_cnt; }
         void inc_ref() { m_ref_cnt++; }
         void dec_ref() {
@@ -268,6 +277,7 @@ class CIpInfoBase {
         bool              m_is_active;
         void              *m_tunnel;
         uint32_t          m_ref_cnt;    // shared reference count
+        std::list<uint32_t>::iterator m_ptr_active_list_elem; 
 };
 
 //CClientInfo for large amount of clients support
@@ -693,30 +703,27 @@ public:
 
     uint32_t GenerateTuple(CTupleBase & tuple) {
 
-      CIpInfoBase* ip_info;
-      uint32_t idx;
+        CIpInfoBase* ip_info;
+        uint32_t idx;
 
-      if ( CGlobalInfo::m_options.is_gtpu_enabled() == 0) {
-          idx = generate_ip();
-          CIpInfoBase* ip_info = m_ip_info[idx];
-          ip_info->generate_tuple(tuple);
-      }
-      else {
+        //Round robin. If we are tail , start from head
         if (m_cur_act_itr == m_active_clients.end())
             m_cur_act_itr = m_active_clients.begin();
+
+        // Get index of client and increament for next active client 
         idx = *m_cur_act_itr;
         m_cur_act_itr++;
+
         ip_info = m_ip_info[idx];
         ip_info->generate_tuple(tuple);
         tuple.setTunHandle(ip_info->get_tunnel_info());
-      }
 
-      tuple.setClientId(idx);
-      if (tuple.getClientPort()==ILLEGAL_PORT) {
-          m_port_allocation_error++;
-      }
-      m_active_alloc++;
-      return idx;
+        tuple.setClientId(idx);
+        if (tuple.getClientPort()==ILLEGAL_PORT) {
+            m_port_allocation_error++;
+        }
+        m_active_alloc++;
+        return idx;
     }
 
     bool has_active_clients() {
@@ -726,8 +733,7 @@ public:
     void Delete();
 
 
-    void set_clients_active(uint32_t        min_ip,
-                            uint32_t        max_ip,
+    void set_clients_active(uint32_t        ip,
                             bool            activate);
 
 
@@ -763,10 +769,8 @@ public:
     }
     
 
-    void set_tunnel_info_for_clients(uint32_t        min_ip,
-                                   uint32_t        max_ip,
-                                   bool            add,
-                                   void            *gtpu);
+    void set_tunnel_info_for_clients(uint32_t        ip,
+                                     void            *gtpu);
 
 
 public: 

@@ -32,6 +32,8 @@ limitations under the License.
 #include "../common/trex_port.h"
 #include "stt_cp.h"
 #include <set>
+#include "trex_astf_dp_core.h"
+#include "trex_astf_messaging.h"
 
 using namespace std;
 
@@ -115,6 +117,7 @@ TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
+TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
 
 /****************************** commands implementation ******************************/
 
@@ -699,6 +702,27 @@ TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
     return TREX_RPC_CMD_OK;
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+    bool is_enable = parse_bool(params, "is_enable", result);
+
+    std::vector<uint32_t> msg_data;
+    auto astf_db = CAstfDB::get_instance(0);
+
+    for (auto each_client : attr) {
+       uint32_t client_ip   = parse_uint32(each_client, "client_ip", result);
+       msg_data.push_back(client_ip);
+    }
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable);
+    get_astf_object()->send_message_to_all_dp(msg, false);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
 
 /****************************** component implementation ******************************/
 
@@ -731,4 +755,5 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
+    m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
 }

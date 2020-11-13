@@ -63,6 +63,7 @@ public:
     void scheduler(bool activate);
 
     void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+    void activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate);
 
 protected:
     virtual bool rx_for_idle();

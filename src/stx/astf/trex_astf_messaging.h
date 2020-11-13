@@ -159,6 +159,23 @@ private:
     uint8_t   m_mask;
 };
 
+/**
++ * a message to Activate/Deactivate Client
++ *
++ */
+
+class TrexAstfDpActivateClient : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpActivateClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate);
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    CAstfDB* m_astf_db;
+    std::vector<uint32_t> m_msg_data;
+    bool     m_activate;
+};
+
+
 
 #endif /* __TREX_STL_MESSAGING_H__ */
 

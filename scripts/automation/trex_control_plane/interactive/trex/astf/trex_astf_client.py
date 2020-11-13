@@ -1184,6 +1184,22 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.post_cmd(True)
 
+    # execute 'method' for Making  a client active/inactive
+    def enable_disable_client(self, client_list, is_enable):
+        ''' 
+        API to toggle state of client
+        Input: List of client and Action : state flag
+        '''
+ 
+        json_attr = []
+
+        for key in client_list:
+           json_attr.append({'client_ip' : key})
+
+        params = {"is_enable": is_enable,
+                  "attr": json_attr }
+
+        return self._transmit("enable_disable_client", params)
 
 ############################   console   #############################
 ############################   commands  #############################

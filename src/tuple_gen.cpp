@@ -115,38 +115,49 @@ void CClientPool::Delete() {
  *
 */
 
-void CClientPool::set_clients_active(uint32_t  min_ip,
-                                     uint32_t  max_ip,
+void CClientPool::set_clients_active(uint32_t  ip,
                                      bool      activate)
 {
-    assert(max_ip >= min_ip);
-    uint32_t total_ip  = max_ip - min_ip + 1;
-    uint32_t i = min_ip - m_ip_info[0]->get_ip();
+    uint32_t i = ip - m_ip_info[0]->get_ip();
 
-    uint32_t count = 0;
-    
-    while(count < total_ip) {
-        if (activate) {
-            if (m_ip_info[i]->is_active() == false) {
-               if (m_ip_info[i]->get_tunnel_info()) {
-                  m_ip_info[i]->set_is_active(activate);
-                  m_active_clients.push_back(i);
-                  if(m_active_clients.size() == 1)
-                     m_cur_act_itr = m_active_clients.begin();
-               }
-            }
-        } else {
-            m_ip_info[i]->set_is_active(activate);
-            if (m_active_clients.size() > 0 ) {
-                if (*m_cur_act_itr == i){
-                    m_cur_act_itr++;
-                }
-                m_active_clients.remove(i);
-            }
-        }
-        i+=1;
-        count+=1;
+    // Changing into state which is already in that state , return    
+    if ((activate && m_ip_info[i]->is_active()) ||
+        (!activate && !(m_ip_info[i]->is_active()))){
+        return;
     }
+ 
+    if (activate) {
+        /* 
+          1. Mark client Active
+          2. Insert into active list and get pointer to that element 
+          3. Store pointer for quick delete 
+          4. If active client list size if 1, mark the begining to its iterator 
+        */
+        m_ip_info[i]->set_is_active(activate);
+        auto it = m_active_clients.insert(m_active_clients.end(), i);
+        m_ip_info[i]->set_ptr_to_active_list(it);
+
+        if (m_active_clients.size() == 1){
+            m_cur_act_itr = m_active_clients.begin();
+        }
+    } else {
+        /* 
+           1. Mark client inactive
+           2. if active list current iterator is same as deleted client, move iterator forward 
+           3. From client get iterator which points to its location in active list and delete it
+        */
+        m_ip_info[i]->set_is_active(activate);
+        if (m_active_clients.size() > 0 ) {
+           if (*m_cur_act_itr == i){
+                m_cur_act_itr++;
+           }
+           auto it = m_ip_info[i]->get_ptr_to_active_list();
+           if (it != m_active_clients.end()){
+              m_active_clients.erase(it);
+              m_ip_info[i]->set_ptr_to_active_list(m_active_clients.end());
+           }
+        }
+   }
 }
 
 /* base on thread_id and client_index 
@@ -200,30 +211,18 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
                 m_thread_ptr->allocate_ip_info(m_ip_info[i]);
             }
         }
+        /* Mark it active so that traffic can flow */
+        set_clients_active(ip, true);
     }
 
 }
 
-void CClientPool::set_tunnel_info_for_clients(uint32_t  min_ip,
-                                            uint32_t  max_ip,
-                                            bool      add,
-                                            void      *gtpu)
+void CClientPool::set_tunnel_info_for_clients(uint32_t  ip,
+                                              void      *gtpu)
 {
-    assert(max_ip >= min_ip);
 
-    uint32_t total_ip  = max_ip - min_ip + 1;
-    uint32_t ip_idx = min_ip - m_ip_info[0]->get_ip();
-    
-    uint32_t count = 0;
-   
-    while(count < total_ip) {
-        if (!add)
-           set_clients_active(min_ip, max_ip, add);
-        
-        m_ip_info[ip_idx]->set_tunnel_info(gtpu);
-        ip_idx++;
-        count++;
-    }
+    uint32_t i = ip - m_ip_info[0]->get_ip();
+    m_ip_info[i]->set_tunnel_info(gtpu);
 }
 
 
@@ -294,6 +293,8 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                 m_thread_ptr->allocate_ip_info(m_ip_info[i]);
             }
         }
+        /* Mark it active so that traffic can flow */
+        set_clients_active(ip, true);
     }
 }
 
