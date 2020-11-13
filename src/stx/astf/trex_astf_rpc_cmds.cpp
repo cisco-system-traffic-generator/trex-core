@@ -32,6 +32,8 @@ limitations under the License.
 #include "../common/trex_port.h"
 #include "stt_cp.h"
 #include <set>
+#include "trex_astf_dp_core.h"
+#include "trex_astf_messaging.h"
 
 using namespace std;
 
@@ -115,6 +117,8 @@ TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
+TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
 
 /****************************** commands implementation ******************************/
 
@@ -699,6 +703,120 @@ TrexRpcCmdAstfTopoClear::_run(const Json::Value &params, Json::Value &result) {
     return TREX_RPC_CMD_OK;
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+    bool is_enable = parse_bool(params, "is_enable", result);
+    bool is_range = parse_bool(params, "is_range", result);
+
+    std::vector<uint32_t> msg_data;
+    auto astf_db = CAstfDB::get_instance(0);
+
+    for (auto each_client : attr) {
+        uint32_t client_start_ip = 0, client_end_ip = 0;
+        
+        if (!is_range){
+             client_start_ip = parse_uint32(each_client, "client_ip", result);
+             msg_data.push_back(client_start_ip);
+        }
+        else {
+             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+             msg_data.push_back(client_start_ip);
+             msg_data.push_back(client_end_ip); 
+        }
+    }
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable, is_range);
+    get_astf_object()->send_message_to_all_dp(msg, false);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
+
+    const Json::Value &attr = parse_array(params, "attr", result);
+    bool is_range = parse_bool(params, "is_range", result);
+
+    auto astf_db = CAstfDB::get_instance(0);
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    Json::Value thread_result;
+    std::vector<uint32_t> msg_data;
+
+    uint32_t client_start_ip = 0, client_end_ip = 0;
+    for (auto each_client : attr) {
+        if (!is_range){
+             client_start_ip = parse_uint32(each_client, "client_ip", result);
+             msg_data.push_back(client_start_ip);
+        }
+        else {
+             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+             msg_data.push_back(client_start_ip);
+             msg_data.push_back(client_end_ip);
+        }
+    }
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+        static MsgReply<Json::Value> reply;
+        reply.reset();
+
+        TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(astf_db, msg_data, is_range, reply);
+        get_astf_object()->send_message_to_dp(0, msg, true);
+
+        if (thread_id == 0){
+            // Prepare a skeleton of result
+            result["result"] = reply.wait_for_reply();
+            continue;
+        }
+        else
+           thread_result = reply.wait_for_reply();
+
+        uint32_t idx = 0;
+        uint32_t client_ip = 0;
+        uint32_t found_count = 0;
+        while(true){
+            if (!is_range){
+                client_ip = msg_data[idx];
+                if (++idx >= msg_data.size()) break;
+            }
+            else {
+                client_ip = client_start_ip + idx;
+                if (client_ip > client_end_ip) break; 
+            }
+            
+            // If its already found move next
+            if (result["result"][to_string(client_ip)]["Found"] == 1){
+                found_count++;
+                continue;
+            }
+            // If Not present , no need to modify 
+            if (thread_result[to_string(client_ip)]["Found"] == 0){
+                continue;
+            }
+            
+            // Update result
+            result["result"][to_string(client_ip)] = thread_result[to_string(client_ip)];
+        }
+ 
+        // Found records in current thread, no need to check other threads
+        if (is_range && found_count == (client_end_ip - client_start_ip + 1)) break;
+
+        if (!is_range && found_count == msg_data.size()) break;
+        
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
 
 /****************************** component implementation ******************************/
 
@@ -731,4 +849,6 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
+    m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
 }

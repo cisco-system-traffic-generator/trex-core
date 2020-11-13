@@ -86,11 +86,7 @@ void CClientPool::Create(IP_DIST_t       dist_value,
     m_ip_info.resize(total_ip);
 
     /* if client info is empty - flat allocation o.w use configured clients */
-    if (client_info.is_empty()) {
-        allocate_simple_clients(min_ip, total_ip, is_long_range);
-    } else {
-        allocate_configured_clients(min_ip, total_ip, is_long_range, client_info);
-    }
+    allocate_simple_or_configured_clients(min_ip, total_ip, is_long_range, client_info, client_info.is_empty());
 
     m_tcp_aging = tcp_aging;
     m_udp_aging = udp_aging;
@@ -98,15 +94,24 @@ void CClientPool::Create(IP_DIST_t       dist_value,
 }
 
 void CClientPool::Delete() {
-    m_active_clients.clear();
+
+    /* Just detach dont delete as Pool is not the owner of the node */
+    while (!m_active_clients.is_empty()) {
+        m_active_clients.remove_head();
+    }
+
     FOREACH(m_ip_info) {
         if (m_thread_ptr) {
+            m_ip_info[i]->detach_pool_and_client_node((void *) this);
             m_thread_ptr->release_ip_info(m_ip_info[i]);
         }
         else {
+            m_ip_info[i]->detach_pool_and_client_node((void *) this);
             delete m_ip_info[i];
         }
     }
+    /* Reset iterator of current active list */
+    set_active_list_ptr_to_start();
     m_ip_info.clear();
 }
 
@@ -115,40 +120,53 @@ void CClientPool::Delete() {
  *
 */
 
-void CClientPool::set_clients_active(uint32_t  min_ip,
-                                     uint32_t  max_ip,
-                                     bool      activate)
+void CClientPool::set_client_active(CIpInfoBase *ip_info,
+                                    ActiveClientListNode *cn,
+                                    bool     activate)
 {
-    assert(max_ip >= min_ip);
-    uint32_t total_ip  = max_ip - min_ip + 1;
-    uint32_t i = min_ip - m_ip_info[0]->get_ip();
 
-    uint32_t count = 0;
-    
-    while(count < total_ip) {
-        if (activate) {
-            if (m_ip_info[i]->is_active() == false) {
-               if (m_ip_info[i]->get_tunnel_info()) {
-                  m_ip_info[i]->set_is_active(activate);
-                  m_active_clients.push_back(i);
-                  if(m_active_clients.size() == 1)
-                     m_cur_act_itr = m_active_clients.begin();
-               }
-            }
-        } else {
-            m_ip_info[i]->set_is_active(activate);
-            if (m_active_clients.size() > 0 ) {
-                if (*m_cur_act_itr == i){
-                    m_cur_act_itr++;
-                }
-                m_active_clients.remove(i);
-            }
-        }
-        i+=1;
-        count+=1;
+    // Changing into state which is already in that state , return    
+    if ((activate &&  ip_info->is_active()) ||
+        (!activate && !(ip_info->is_active()))){
+        return;
+    }
+
+    ip_info->set_is_active(activate);
+ 
+    if (activate) {
+        append_client_into_active_list(cn);
+    } else {
+        delete_client_from_active_list(cn);
+    }
+
+}
+
+/* Go through each pool attached with this client and make them active/inactive */
+void CIpInfoBase::set_client_active(bool activate)
+{
+    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){ 
+        ((CClientPool *)(m_ref_pool_ptr[idx]))->set_client_active(this, this->get_client_list_node(idx), activate);
     }
 }
 
+
+/*
+  1. Remove this pool from m_ref_pool_pt 
+  2. Remove DLL node from  m_active_c_node
+*/
+
+void CIpInfoBase:: detach_pool_and_client_node(void *ip_pool){
+
+    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
+        if ((CClientPool *)ip_pool == (CClientPool *)m_ref_pool_ptr[idx]){
+            m_ref_pool_ptr.erase(m_ref_pool_ptr.begin() + idx);
+            ActiveClientListNode  *cn = m_active_c_node[idx];
+            m_active_c_node.erase(m_active_c_node.begin() + idx);
+            delete cn;
+            break;
+        }
+    }
+}
 /* base on thread_id and client_index 
   client index would be the same for all thread 
 */
@@ -171,27 +189,46 @@ static uint16_t generate_rand_sport(uint32_t client_index,
 
 /**
  * simple allocation of a client - no configuration was provided
- * 
- * @author imarom (27-Jun-16)
+ * Configured Allocation if configuration is provided 
  * 
  * @param ip 
  * @param index 
- * @param is_long_range 
+ * @param is_long_range
+ * @param client_info
+ * @param is_simple_alloc (flag to indication if its simple or configured allocation) 
  */
-void CClientPool::allocate_simple_clients(uint32_t  min_ip,
-                                          uint32_t  total_ip,
-                                          bool      is_long_range) {
+void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
+                                                        uint32_t  total_ip,
+                                                        bool      is_long_range,
+                                                        ClientCfgDB &client_info,
+                                                        bool is_simple_alloc) {
     /* simple creation of clients - no extended info */
     for (uint32_t i = 0; i < total_ip; i++) {
         uint32_t ip = min_ip + i;
+        ClientCfgBase info; 
+        if (!is_simple_alloc){
+            /* lookup for the right group of clients */
+            ClientCfgEntry *group = client_info.lookup(ip);
+            if (!group) {
+                throw TrexException("Client configuration error - no group containing IP: " + ip_to_str(ip));
+            }
+            group->assign(info, ip);
+        }
+
         CIpInfoBase* ip_info = m_thread_ptr ? m_thread_ptr->get_ip_info(ip): nullptr; // get from shared
         if (ip_info) {
             m_ip_info[i] = ip_info;
         } else {
             if (is_long_range) {
-                m_ip_info[i] = new CSimpleClientInfo<CIpInfoL>(ip);
+                if (is_simple_alloc)
+                    m_ip_info[i] = new CSimpleClientInfo<CIpInfoL>(ip);
+                else
+                    m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);
             } else {
-                m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
+                if (is_simple_alloc) 
+                    m_ip_info[i] = new CSimpleClientInfo<CIpInfo>(ip);
+                else
+                   m_ip_info[i] =  new CConfiguredClientInfo<CIpInfo>(ip, info);
             }
             configure_client(i);
 
@@ -200,30 +237,26 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
                 m_thread_ptr->allocate_ip_info(m_ip_info[i]);
             }
         }
+
+        /*
+          1. Associate this pool with client object. Store in m_ref_pool_ptr
+          2. Create a DLL node , store this node in m_active_c_node list and then put into active client list of the pool
+          3. Mark it active so that traffic can flow
+        */
+        m_ip_info[i]->add_ref_pool_ptr(this);
+        ActiveClientListNode *cn = m_ip_info[i]->add_client_list_node(m_ip_info[i]);
+        set_client_active(m_ip_info[i], cn, true);
+ 
     }
 
 }
 
-void CClientPool::set_tunnel_info_for_clients(uint32_t  min_ip,
-                                            uint32_t  max_ip,
-                                            bool      add,
-                                            void      *gtpu)
+void CClientPool::set_tunnel_info_for_clients(uint32_t  ip,
+                                              void      *gtpu)
 {
-    assert(max_ip >= min_ip);
 
-    uint32_t total_ip  = max_ip - min_ip + 1;
-    uint32_t ip_idx = min_ip - m_ip_info[0]->get_ip();
-    
-    uint32_t count = 0;
-   
-    while(count < total_ip) {
-        if (!add)
-           set_clients_active(min_ip, max_ip, add);
-        
-        m_ip_info[ip_idx]->set_tunnel_info(gtpu);
-        ip_idx++;
-        count++;
-    }
+    uint32_t i = ip - m_ip_info[0]->get_ip();
+    m_ip_info[i]->set_tunnel_info(gtpu);
 }
 
 
@@ -249,54 +282,6 @@ void CClientPool::configure_client(uint32_t indx){
     lp->reserve_src_port(4791);
     #endif
 }
-
-
-
-/**
- * simple allocation of a client - no configuration was provided
- * 
- * @author imarom (27-Jun-16)
- * 
- * @param ip 
- * @param index 
- * @param is_long_range 
- */
-void CClientPool::allocate_configured_clients(uint32_t        min_ip,
-                                              uint32_t        total_ip,
-                                              bool            is_long_range,
-                                              ClientCfgDB     &client_info) {
-
-    for (uint32_t i = 0; i < total_ip; i++) {
-        uint32_t ip = min_ip + i;
-
-        /* lookup for the right group of clients */
-        ClientCfgEntry *group = client_info.lookup(ip);
-        if (!group) {
-            throw TrexException("Client configuration error - no group containing IP: " + ip_to_str(ip));
-        }
-
-        ClientCfgBase info;
-        group->assign(info, ip);
-
-        CIpInfoBase* ip_info = m_thread_ptr ? m_thread_ptr->get_ip_info(ip): nullptr; // get from shared
-        if (ip_info) {
-            m_ip_info[i] = ip_info;
-        } else {
-            if (is_long_range) {
-                m_ip_info[i] = new CConfiguredClientInfo<CIpInfoL>(ip, info);
-            } else {
-                m_ip_info[i] = new CConfiguredClientInfo<CIpInfo>(ip, info);
-            }
-            configure_client(i);
-
-            // set CIpInfoBase to be shared
-            if (m_thread_ptr) {
-                m_thread_ptr->allocate_ip_info(m_ip_info[i]);
-            }
-        }
-    }
-}
-
 
 bool CTupleGeneratorSmart::add_client_pool(IP_DIST_t      client_dist,
                                           uint32_t        min_client,

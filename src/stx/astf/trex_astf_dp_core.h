@@ -26,6 +26,7 @@ limitations under the License.
 #include <algorithm>
 #include "trex_astf_mbuf_redirect.h"
 #include "trex_dp_core.h"
+#include "trex_messaging.h"
 
 class CAstfDB;
 
@@ -69,6 +70,10 @@ public:
     void scheduler(bool activate);
 
     void set_service_mode(bool enabled, bool filtered, uint8_t mask);
+    void activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate, bool is_range);
+    void client_lookup_and_activate(uint32_t client, bool activate);
+    bool get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply);
+    Json::Value client_data_to_json(void *ip_info);
 
 protected:
     virtual bool rx_for_idle();
