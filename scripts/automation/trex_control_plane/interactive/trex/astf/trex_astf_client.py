@@ -1164,6 +1164,79 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.post_cmd(True)
 
+    # execute 'method' for Making  a client active/inactive
+    def set_client_enable(self, client_list, is_enable):
+        '''
+        Version: 1 
+        API to toggle state of client
+        Input: List of clients and Action : state flag
+        '''
+
+        json_attr = []
+        for key in client_list:
+           json_attr.append({'client_ip' : key})
+ 
+        params = {"is_enable": is_enable,
+                  "is_range": False,
+                  "attr": json_attr }
+
+        return self._transmit("enable_disable_client", params)
+
+
+    # execute 'method' for Making  a client active/inactive
+    def set_client_enable_range(self, client_start, client_end, is_enable):
+        ''' 
+        Version: 2
+        API to toggle state of client
+        Input: Client range and Action : state flag
+        '''
+
+        json_attr = []
+        json_attr.append({'client_start_ip' : client_start, 'client_end_ip' : client_end})
+ 
+        params = {"is_enable": is_enable,
+                  "is_range": True,
+                  "attr": json_attr }
+
+        return self._transmit("enable_disable_client", params)
+
+
+     # execute 'method' for getting clients stats
+    def get_clients_info (self, client_list):
+        '''
+        Version 1 
+        API to get client information: Currently only state and if client is present. 
+        Input: List of clients  
+        '''
+         
+        json_attr = []
+        for key in client_list:
+           json_attr.append({'client_ip' : key})
+
+        params = {"is_range": False,
+                  "attr": json_attr }
+
+        return self._transmit("get_clients_info", params)
+
+
+     # execute 'method' for getting clients stats
+    def get_clients_info_range (self, client_start, client_end):
+        '''
+        Version 2 
+        API to get client information: Currently only state and if client is present. 
+        Input: Client range 
+        '''
+         
+        json_attr = []
+        json_attr.append({'client_start_ip' : client_start, 'client_end_ip' : client_end})
+ 
+
+        params = {"is_range": True,
+                  "attr": json_attr }
+
+        return self._transmit("get_clients_info", params)
+
+
 
 ############################   console   #############################
 ############################   commands  #############################
