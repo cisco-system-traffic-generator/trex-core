@@ -62,6 +62,11 @@ class Emu_Test(CEmuGeneral_Test):
 
         print(" -- Creating profile with 1 client and ARP enabled...")
         _, ns_key, profile = self._create_basic_profile(num_clients = 1, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
+        print(" -- Clearing router ARP entry...")
+        self.router.clear_ip_arp(["1.1.1.3"])
+        res = self.router.get_arp_entry("1.1.1.3")
+        assert not res, "Failed clearing router ARP entry"
+        print(" -- Router ARP entry cleared succesfully.")
         print(" -- Loading profile...")
         self.emu_client.load_profile(profile)
 
@@ -91,7 +96,7 @@ class Emu_Test(CEmuGeneral_Test):
         ]
         res = self.emu_client.get_all_ns_and_clients()
         assert expected == res, "Loaded profile differs from expected!"
-        print(" -- Loaded profile verified successfully.")
+        print(" -- Loaded profile verified correctly.")
 
         print(" -- Verifying ARP cache...")
         expected = [
@@ -102,7 +107,7 @@ class Emu_Test(CEmuGeneral_Test):
              'state': 'Complete'}]
         res = self.emu_client.arp.show_cache(ns_key)
         assert expected == res, "ARP cache differs from expected!"
-        print(" -- ARP cache verified successfully.")
+        print(" -- ARP cache verified correctly.")
 
         # ARP counters
         print(' -- Verifying ARP counters...')
@@ -136,7 +141,15 @@ class Emu_Test(CEmuGeneral_Test):
         }
         res = self.emu_client.arp.get_counters(ns_key, zero = True)
         assert expected == res, "ARP counters differ from expected!"
-        print(" -- ARP counters verified successfully.")
+        print(" -- ARP counters verified correctly.")
+
+        print(" -- Verifying router ARP table")
+        res = self.router.get_arp_entry("1.1.1.3")
+        ip = res.get("Address", "")
+        mac = res.get("Hardware Addr", "")
+        assert ip == "1.1.1.3", "Router ARP table verification failed."
+        assert mac == "0000.0070.0003", "Router ARP table verification failed."
+        print(" -- Router ARP table verified correctly.")
 
         self.emu_client.remove_profile()
 
@@ -146,7 +159,7 @@ class Emu_Test(CEmuGeneral_Test):
         print(" -- Creating profile with {num_clients} clients and ARP enabled...".format(num_clients = num_clients))
         _, ns_key, profile = self._create_basic_profile(num_clients = num_clients, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
         print(" -- Loading profile...")
-        self.emu_client.load_profile(profile)
+        self.emu_client.load_profile(profile, max_rate = 100) # The router might get stressed from gARP if we don't police the rate.
 
         time.sleep(1) # Wait for resolve...
 
@@ -154,12 +167,12 @@ class Emu_Test(CEmuGeneral_Test):
         expected = [
             {'ipv4': [1, 1, 1, 1],
              'mac': [0, 0, 0, 1, 0, 2],
-             'refc': 250,
+             'refc': num_clients,
              'resolve': True,
              'state': 'Complete'}]
         res = self.emu_client.arp.show_cache(ns_key)
         assert expected == res, "ARP cache differs from expected!"
-        print(" -- ARP cache verified successfully.")
+        print(" -- ARP cache verified correctly.")
 
         # ARP counters
         print(' -- Verifying ARP counters...')
@@ -168,11 +181,22 @@ class Emu_Test(CEmuGeneral_Test):
         assert pktTxArpQuery == num_clients, "pktTxArpQuery expected = {}, received = {}".format(num_clients, pktTxArpQuery)
         pktTxGArp = res["arp"]["pktTxGArp"]
         assert pktTxGArp == num_clients, "pktTxGArp expected = {}, received = {}".format(num_clients, pktTxGArp)
+        pktRxArpReply = res["arp"]["pktRxArpReply"]
+        assert pktRxArpReply == num_clients, "pktRxArpReply expected = {}, received = {}".format(num_clients, pktRxArpReply)
         associateWithClient = res["arp"]["associateWithClient"]
         assert associateWithClient == num_clients, "associateWithClient expected = {}, received = {}".format(num_clients, associateWithClient)
         tblActive = res["arp"]["tblActive"]
         assert tblActive == 1, "tblActive expected = {}, received = {}".format(1, tblActive)
-        print(" -- ARP counters verified successfully.")
+        print(" -- ARP counters verified correctly.")
+
+        # We don't clear the ARP table before checking the ARP clients because it would take too long.
+        # The number of clients being huge gives the indication that the entries are just added.
+        print(" -- Verifying router ARP table")
+        arp_table = self.router.get_arp_table()
+        arp_table_ip_addresses = set([entry["Address"] for entry in arp_table])
+        client_ip_addresses = set(["1.1.1.{}".format(x) for x in range(3, num_clients+3)])
+        assert client_ip_addresses.issubset(arp_table_ip_addresses), "Not all clients appear in the router's ARP table."
+        print(" -- Router's ARP table verified correctly.")
 
         self.emu_client.remove_profile()
 
@@ -221,6 +245,13 @@ class Emu_Test(CEmuGeneral_Test):
         print(" -- Finished pinging, verifying results...")
         _verify_ping_stats(client_keys[0])
         print(" -- Succesfully pinged and got replies from other client.")
+
+        print(" -- Starting ping from router to client...")
+        ping_stats = self.router.ping(ip="1.1.1.4", timeout=1)
+        router_tx = ping_stats["txPkts"]
+        router_rx = ping_stats["rxPkts"]
+        assert router_tx == router_rx, "Router echo requests {} differs from echo replies {}".format(router_tx, router_rx)
+        print(" -- Router pinged successfully.")
 
         self.emu_client.remove_profile()
 
