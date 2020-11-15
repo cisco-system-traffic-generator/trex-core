@@ -444,7 +444,7 @@ class CPlatform(object):
 
     def config_no_nbar_pd (self):
         self.config_nbar_pd (mode = 'unconfig')
-    
+
     def config_dhcp_server (self, network, subnet, pool_name = 'trex_dhcp', exl_addrs = None):
         '''
             configs a DHCP server
@@ -470,7 +470,7 @@ class CPlatform(object):
         
         cache.add('CONF', config_server_cmds)
         self.cmd_link.run_single_command( cache )
-             
+
     def config_no_dhcp_server (self):
         '''
             removes any DHCP configuration
@@ -568,7 +568,6 @@ class CPlatform(object):
         # deploy the configs (order is important!)
         return self.cmd_link.run_single_command( cache )
 
-
     def config_no_nat (self, nat_obj = None):
         # first, clear all nat translations
         self.clear_nat_translations()
@@ -581,7 +580,6 @@ class CPlatform(object):
             self.config_nat(nat_obj, mode = 'unconfig')
         else:
             raise UserWarning('No NAT configuration is available for removal.')
-
 
     def config_zbf (self, mode = 'config'):
         cache               = CCommandCache()
@@ -645,7 +643,6 @@ class CPlatform(object):
         self.toggle_duplicated_intf(action = 'up')
         # dup_ifs = self.if_mngr.get_duplicated_if()
         # self.__toggle_interfaces(dup_ifs)
-
 
     def config_ipv6_pbr (self, mode = 'config', vlan=False):
         idx = 1
@@ -806,6 +803,32 @@ class CPlatform(object):
         cache.add("EXEC", [cmd])
         return self.cmd_link.run_single_command(cache)
 
+    def get_arp_entry(self, ip):
+        """
+        Return ARP query of an IP in the router.
+
+        Parameters
+        ----------
+        ip: str. Ip of the ARP entry we are looking for.
+
+        Returns
+        -------
+        Dict: ARP entry parameters, parsed.
+        """
+        response = self.cmd_link.run_single_command('show ip arp {ip}'.format(ip=ip))
+        return CShowParser.parse_arp_entry(response)
+
+    def get_arp_table(self):
+        """
+        Return ARP table of the router.
+
+        Returns
+        -------
+        list[dict] - List of ARP entries, parsed.
+        """
+        response = self.cmd_link.run_single_command('show ip arp')
+        return CShowParser.parse_arp_table(response)
+
     # clear methods
     def clear_nat_translations(self):
         pre_commit_cache = CCommandCache()
@@ -853,8 +876,20 @@ class CPlatform(object):
 
         Clears packet-drop stats
         """
-#       command = "show platform hardware qfp active statistics drop clear"
+        # command = "show platform hardware qfp active statistics drop clear"
         self.cmd_link.run_single_command('show platform hardware qfp active interface all statistics clear_drop')
+
+    def clear_ip_arp(self, ips):
+        """
+        Removes entries from ARP table.
+
+        Parameters
+        ----------
+        ips: list
+            A list of IPs who will be removed in case they are part of the device ARP table.
+        """
+        for ip in ips:
+            self.cmd_link.run_single_command('clear ip arp {ip}'.format(ip=ip))
 
     ###########################################
     # file transfer and image loading methods #
@@ -870,7 +905,6 @@ class CPlatform(object):
         parsed_info = CShowParser.parse_show_image_version(response)
         self.running_image = parsed_info
         return parsed_info
-
 
     def check_image_existence (self, img_name):
         """ check_image_existence(self, img_name) -> boolean
@@ -904,7 +938,7 @@ class CPlatform(object):
 
         Configures the tftp server on an interface of the platform.
         """
-#       tmp_tftp_config = external_tftp_config if external_tftp_config is not None else self.tftp_server_config
+        # tmp_tftp_config = external_tftp_config if external_tftp_config is not None else self.tftp_server_config
         self.tftp_cfg   = device_cfg_obj.get_tftp_info()
         cache           = CCommandCache()
 
@@ -1083,7 +1117,6 @@ class CPlatform(object):
         dup_ifs = self.if_mngr.get_duplicated_if()
         self.__toggle_interfaces( dup_ifs, action = action )
 
-
     def __toggle_interfaces (self, intf_list, action = 'up'):
         cache = CCommandCache()
         mode_str = 'no ' if action == 'up' else ''
@@ -1092,6 +1125,11 @@ class CPlatform(object):
             cache.add('IF', '{mode}shutdown'.format(mode = mode_str), intf_obj.get_name())
 
         self.cmd_link.run_single_command( cache )
+
+    def ping(self, ip, timeout):
+        cmd = "ping {ip} timeout {timeout}".format(ip=ip, timeout=timeout)
+        response = self.cmd_link.run_single_command(cmd)
+        return CShowParser.parse_ping_results(response)
 
 
 class CStaticRouteConfig(object):
