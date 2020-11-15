@@ -26,6 +26,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.86 ==
+
+* STL
+** Fix the GUI interface to new scapy 
+** Minor fix to flow-stats ipv6 with hardware support 
+* ASTF minor fixes in tunables 
+
 == Release 2.85 ==
 
 * ASTF 
