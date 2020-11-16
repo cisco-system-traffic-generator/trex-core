@@ -15,7 +15,9 @@ class Emu_Test(CEmuGeneral_Test):
 
         self.emu_trex.reset()
         self.emu_trex.set_port_attr(promiscuous = True, multicast = True)
-        self.emu_client = EMUClient()
+        self.emu_client = EMUClient(username = 'TRexRegression',
+                                    server = self.configuration.trex['trex_name'],
+                                    verbose_level = "debug" if CTRexScenario.json_verbose else "none")
         self.emu_client.connect()
         self.emu_client.acquire(force = True)
         self.emu_trex.set_service_mode(enabled = True)
