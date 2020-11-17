@@ -494,7 +494,7 @@ public:
         m_tun_handle = tun_handle;
     }
 
-    void server_update_mac(uint8_t *pkt, CTcpPerThreadCtx * ctx, tvpid_t port_id);
+    void server_update_mac(uint8_t *pkt, CPerProfileCtx * pctx, tvpid_t port_id);
 
     void learn_ipv6_headers_from_network(IPv6Header * net_ipv6);
 
@@ -904,6 +904,42 @@ static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
 
 typedef void (*on_stopped_cb_t)(void *data, profile_id_t profile_id);
 
+class CTcpTunableCtx {
+public:
+    /* TUNABLEs */
+    uint32_t  tcp_tx_socket_bsize;
+    uint32_t  tcp_rx_socket_bsize;
+
+    int tcprexmtthresh;
+    int tcp_mssdflt;
+    int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
+    int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
+    uint32_t  sb_max ; /* socket max char */
+    int tcp_max_tso;   /* max tso default */
+    int tcp_rttdflt;
+    int tcp_do_rfc1323;
+    int tcp_no_delay;
+    int tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
+    int tcp_keepinit;
+    int tcp_keepidle;       /* time before keepalive probes begin */
+    int tcp_keepintvl;      /* time between keepalive probes */
+    int tcp_blackhole;
+    int tcp_keepcnt;
+    int tcp_maxidle;            /* time to drop after starting probes */
+    int tcp_maxpersistidle;
+    uint32_t tcp_fast_ticks;
+    uint32_t tcp_slow_fast_ratio;
+    int tcp_ttl;            /* time to live for TCP segs */
+
+    uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
+
+public:
+    CTcpTunableCtx();
+
+    inline int convert_slow_sec_to_ticks(uint16_t sec);
+    void update_tuneables(CTcpTuneables *tune);
+};
+
 class CPerProfileCtx {
 public:
     profile_id_t        m_profile_id;
@@ -927,6 +963,8 @@ public:
     void              * m_cb_data;
 
     void              * m_tx_node;  /* to make CGenNodeTXFIF stop safe */
+
+    CTcpTunableCtx      m_tunable_ctx;
 
 private:
     bool                m_stopped;
@@ -962,6 +1000,9 @@ public:
     bool is_on_flow() { return m_on_flow; }
     void update_profile_stats(CPerProfileCtx* pctx);
     void update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id);
+
+    void update_tuneables(CTcpTuneables *tune) { m_tunable_ctx.update_tuneables(tune); }
+    void copy_tunable_values(CPerProfileCtx *pctx) { m_tunable_ctx = pctx->m_tunable_ctx; }
 
     void set_time_connects() {
         if (m_base_time == 0) {
@@ -1207,7 +1248,7 @@ public:
 
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
-        return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_ticks));
+        return (m_timer_w.timer_start(&flow->m_timer,flow->m_pctx->m_tunable_ctx.tcp_fast_ticks));
     }
 
     void handle_udp_timer(CUdpFlow * flow){
@@ -1226,7 +1267,7 @@ public:
             /* terminate the flow in case --nc specified */
             m_ft.terminate_flow(this,flow,true);
         }else{
-            return (m_timer_w.timer_start(&flow->m_timer,tcp_fast_ticks));
+            return (m_timer_w.timer_start(&flow->m_timer,flow->m_pctx->m_tunable_ctx.tcp_fast_ticks));
         }
         return(RC_HTW_OK);
     }
@@ -1263,9 +1304,6 @@ public:
 
     bool is_open_flow_enabled();
 
-    void reset_tuneables();
-    void update_tuneables(CTcpTuneables *tune);
-
     bool is_client_side(void) {
         return (m_ft.is_client_side());
     }
@@ -1276,36 +1314,8 @@ private:
     void delete_startup(profile_id_t profile_id);
 
     void init_sch_rampup(profile_id_t profile_id);
-    inline int convert_slow_sec_to_ticks(uint16_t sec);
 
 public:
-    /* TUNABLEs */
-    uint32_t  tcp_tx_socket_bsize;
-    uint32_t  tcp_rx_socket_bsize;
-
-    uint32_t  sb_max ; /* socket max char */
-    int tcprexmtthresh;
-    int tcp_mssdflt;
-    int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
-    int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
-    int tcp_max_tso;   /* max tso default */
-    int tcp_rttdflt;
-    int tcp_do_rfc1323;
-    int tcp_no_delay;
-    int tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
-    int tcp_keepinit;
-    int tcp_keepidle;       /* time before keepalive probes begin */
-    int tcp_keepintvl;      /* time between keepalive probes */
-    int tcp_blackhole;
-    int tcp_keepcnt;
-    int tcp_maxidle;            /* time to drop after starting probes */
-    int tcp_maxpersistidle;
-    uint32_t tcp_fast_ticks;
-    uint32_t tcp_slow_fast_ratio;
-    int tcp_ttl;            /* time to live for TCP segs */
-
-    uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
-
     //struct    inpcb tcb;      /* head of queue of active tcpcb's */
     uint32_t    tcp_now;        /* for RFC 1323 timestamps */
     tcp_seq     tcp_iss;            /* tcp initial send seq # */
@@ -1713,7 +1723,7 @@ public:
 
 inline void CTcpFlow::on_tick(){
         on_fast_tick();
-        if (m_tick == m_pctx->m_ctx->tcp_slow_fast_ratio) {
+        if (m_tick == m_pctx->m_tunable_ctx.tcp_slow_fast_ratio) {
             m_tick=0;
             on_slow_tick();
         }else{

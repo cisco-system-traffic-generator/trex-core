@@ -177,10 +177,11 @@ int tcp_connect(CPerProfileCtx * pctx,
     soisconnecting(&tp->m_socket);
 
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_connattempt);
     tp->t_state = TCPS_SYN_SENT;
-    tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
+    tp->t_timer[TCPT_KEEP] = tctx->tcp_keepinit;
     tp->iss = ctx->tcp_iss; 
     ctx->tcp_iss += TCP_ISSINCR/4;
     tcp_sendseqinit(tp);
@@ -332,25 +333,25 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     memset((char *) tp, 0,sizeof(struct tcpcb));
     m_timer.m_type = ttTCP_FLOW; 
 
-    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
-    tp->m_socket.so_snd.Create(ctx->tcp_tx_socket_bsize);
-    tp->m_socket.so_rcv.sb_hiwat = ctx->tcp_rx_socket_bsize;
+    tp->m_socket.so_snd.Create(tctx->tcp_tx_socket_bsize);
+    tp->m_socket.so_rcv.sb_hiwat = tctx->tcp_rx_socket_bsize;
 
-    tp->t_maxseg = ctx->tcp_mssdflt;
-    tp->m_max_tso = ctx->tcp_max_tso;
+    tp->t_maxseg = tctx->tcp_mssdflt;
+    tp->m_max_tso = tctx->tcp_max_tso;
 
-    tp->mbuf_socket = ctx->m_mbuf_socket;
+    tp->mbuf_socket = pctx->m_ctx->m_mbuf_socket;
 
-    tp->t_flags = ctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
-    if (ctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
+    tp->t_flags = tctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
+    if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
         tp->t_flags |= TF_NODELAY;
     }
-    if (ctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push){
+    if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push){
         tp->t_flags |= TF_NODELAY_PUSH;
     }
 
-    tp->m_delay_limit = ctx->tcp_no_delay_counter;
+    tp->m_delay_limit = tctx->tcp_no_delay_counter;
     tp->t_pkts_cnt = 0;
     tp->m_reass_disabled = false;
 
@@ -360,7 +361,7 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
          * reasonable initial retransmit time.
          */
         tp->t_srtt = TCPTV_SRTTBASE;
-    tp->t_rttvar = ctx->tcp_rttdflt * PR_SLOWHZ ;
+    tp->t_rttvar = tctx->tcp_rttdflt * PR_SLOWHZ ;
     tp->t_rttmin = TCPTV_MIN;
     TCPT_RANGESET(tp->t_rxtcur, 
         ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
@@ -394,6 +395,8 @@ CPerProfileCtx* CTcpFlow::create_on_flow_profile() {
 
 void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx, CServerIpPayloadInfo* payload_info) {
     assert(pctx->is_on_flow());
+
+    pctx->copy_tunable_values(this->m_pctx);
 
     // to collect TCP statistics
     this->m_pctx->m_flow_cnt--;
@@ -692,11 +695,6 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
 #endif
 
     if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
-        tcp_maxidle = tcp_keepcnt * tcp_keepintvl;
-        if (tcp_maxidle > (TCPTV_2MSL)) {
-            tcp_maxidle = (TCPTV_2MSL);
-        }
-
         tcp_iss += TCP_ISSINCR/PR_SLOWHZ;       /* increment iss */
         tcp_now++;                  /* for timestamps */
         m_tick=0;
@@ -716,7 +714,7 @@ static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
 }
 #endif
 
-void CTcpPerThreadCtx::reset_tuneables() {
+CTcpTunableCtx::CTcpTunableCtx() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
     tcp_fast_ticks = TCP_FAST_TICK_;
@@ -733,9 +731,17 @@ void CTcpPerThreadCtx::reset_tuneables() {
     tcp_tx_socket_bsize = 32*1024;
     tcprexmtthresh = 3;
     use_inbound_mac = 1;
+
+    sb_max = SB_MAX;        /* patchable, not used  */
+    tcp_max_tso = TCP_TSO_MAX_DEFAULT;
+    tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
+    tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
+    tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
+    tcp_maxidle = std::min(tcp_keepcnt * tcp_keepintvl, TCPTV_2MSL);
+    tcp_ttl=0;
 }
 
-void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
+void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
     if (tune == NULL)
         return;
 
@@ -782,6 +788,7 @@ void CTcpPerThreadCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_keepintvl)) {
         tcp_keepintvl = convert_slow_sec_to_ticks(tune->m_tcp_keepintvl);
+        tcp_maxidle = std::min(tcp_keepcnt * tcp_keepintvl, TCPTV_2MSL);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_blackhole)) {
@@ -822,22 +829,14 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     timestamp=seed;
     #endif
     m_rand = new KxuLCRand(seed);
-    sb_max = SB_MAX;        /* patchable, not used  */
     m_mbuf_socket=0;
     m_offload_flags=0;
-    tcp_max_tso = TCP_TSO_MAX_DEFAULT;
-    tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
-    tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
-    tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
-    tcp_maxidle=0;
-    tcp_ttl=0;
     m_disable_new_flow=0;
     m_pad=0;
     tcp_iss = rand();   /* wrong, but better than a constant */
     m_tick=0;
     tcp_now=timestamp;
     m_cb = NULL;
-    reset_tuneables();
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
@@ -886,7 +885,7 @@ void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
         }
 }
 
-int CTcpPerThreadCtx::convert_slow_sec_to_ticks(uint16_t sec) {
+int CTcpTunableCtx::convert_slow_sec_to_ticks(uint16_t sec) {
     // tcp_slow_fast_ratio + 1 for the slow_tcp bug (tick starts at 0, ratio at 1)
     float sec_to_ticks = 1000.0f / ((tcp_slow_fast_ratio + 1) * TCP_TIMER_TICK_FAST_MS);
     return int(round(float(sec) * sec_to_ticks));
@@ -1541,8 +1540,8 @@ void CFlowTemplate::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
 }
 
 
-void CFlowTemplate::server_update_mac(uint8_t *pkt, CTcpPerThreadCtx * ctx, tvpid_t port_id){
-    if (ctx->use_inbound_mac) {
+void CFlowTemplate::server_update_mac(uint8_t *pkt, CPerProfileCtx * pctx, tvpid_t port_id){
+    if (pctx->m_tunable_ctx.use_inbound_mac) {
         /* copy the MAC from the incoming packet in reverse order */
         memcpy(m_template_pkt+6,pkt,6);
         memcpy(m_template_pkt,pkt+6,6);
