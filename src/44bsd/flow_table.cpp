@@ -373,7 +373,8 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
         flow->m_app.start(false);
         assert(flow->is_activated()); /* flow is now activated */
     } else {    /* no matched template found, now mbuf should be freed */
-        if (ctx->tcp_blackhole == 0) {
+        CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
             tcp_respond_rst(flow, lpTcp, ftuple);
         }
         FT_INC_SCNT(m_err_defer_no_template);
@@ -454,7 +455,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
         return;
     }
 
-    flow->m_template.server_update_mac(pkt, pctx->m_ctx, port_id);
+    flow->m_template.server_update_mac(pkt, pctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         flow->m_template.learn_ipv6_headers_from_network(ipv6);
@@ -678,7 +679,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         return(false);
     }
 
-    flow->m_template.server_update_mac(pkt, ctx, port_id);
+    flow->m_template.server_update_mac(pkt, pctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         flow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
@@ -754,7 +755,8 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     }
         /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
-        if ( ctx->tcp_blackhole ==0 ){
+        CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
 
             uint32_t source_ip;
             if (parser.m_ipv4){
@@ -765,7 +767,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                 source_ip =ipv6->getSourceIpv6LSB();
             }
 
-            generate_rst_pkt(FALLBACK_PROFILE_CTX(ctx),
+            generate_rst_pkt(pctx,
                            dest_ip,
                            source_ip,
                            dst_port,
@@ -787,8 +789,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     /* server side */
     if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
         /* no syn */
-        if ( ctx->tcp_blackhole !=2 ){
-            generate_rst_pkt(FALLBACK_PROFILE_CTX(ctx),
+        CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
+        if (pctx->m_tunable_ctx.tcp_blackhole != 2) {
+            generate_rst_pkt(pctx,
                              dest_ip,
                              tuple.get_src_ip(),
                              dst_port,
@@ -812,8 +815,11 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
     if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
-        if (ctx->tcp_blackhole ==0 ){
-          generate_rst_pkt(pctx ? pctx: FALLBACK_PROFILE_CTX(ctx),
+        if (!pctx) {
+            pctx = FALLBACK_PROFILE_CTX(ctx);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+          generate_rst_pkt(pctx,
                          dest_ip,
                          tuple.get_src_ip(),
                          dst_port,
@@ -874,7 +880,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     }
 
     lptflow->set_s_tcp_info(tcp_data_ro, s_tune);
-    lptflow->m_template.server_update_mac(pkt, ctx, port_id);
+    lptflow->m_template.server_update_mac(pkt, lptflow->m_pctx, port_id);
     if (is_ipv6) {
         /* learn the ipv6 headers */
         lptflow->m_template.learn_ipv6_headers_from_network(parser.m_ipv6);
