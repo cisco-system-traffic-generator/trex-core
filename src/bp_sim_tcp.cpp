@@ -586,10 +586,8 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_c_tcp->append_active_profile(profile_id);
     m_s_tcp->append_active_profile(profile_id);
 
-    if (is_first) {
-        m_c_tcp->update_tuneables(rw->get_c_tuneables());
-        m_s_tcp->update_tuneables(rw->get_s_tuneables());
-    }
+    m_c_tcp->get_profile_ctx(profile_id)->update_tuneables(rw->get_c_tuneables());
+    m_s_tcp->get_profile_ctx(profile_id)->update_tuneables(rw->get_s_tuneables());
 
     /* call startup for client side */
     m_c_tcp->call_startup(profile_id);
@@ -615,9 +613,6 @@ void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_
     }
 
     if (is_last) {
-        m_c_tcp->reset_tuneables();
-        m_s_tcp->reset_tuneables();
-
         m_sched_accurate = false;
     }
 }
