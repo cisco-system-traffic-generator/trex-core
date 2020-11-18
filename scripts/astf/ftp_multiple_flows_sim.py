@@ -40,20 +40,18 @@ class ftp_sim():
         if tinc != 0:
             prog_c.delay_rand(0,tinc*1000*1000)  # delay from 0 to random(tinc) seconds
         prog_c.send(self.ftp_get)
-
-        prog_c.set_var("var1",loop); #
-        prog_c.set_label("a:");
-        prog_c.recv(self.max_buf_size,True)
-        prog_c.jmp_nz("var1","a:") # dec var "var1". in case it is *not* zero jump a:
+        prog_c.recv(self.max_buf_size*loop)
 
         # server commands
         prog_s = ASTFProgram()
         prog_s.recv(len(self.ftp_get))
         prog_s.set_send_blocking (False) # Set to non-blocking to maximize thput in single flow
-        prog_s.set_var("var2",loop); # set var 0 to loop
+        prog_s.set_var("var2",loop-1); # set var 0 to loop
         prog_s.set_label("a:");
         prog_s.send('',size=self.max_buf_size,fill='*')
         prog_s.jmp_nz("var2","a:") # dec var "var2". in case it is *not* zero jump a:
+        prog_s.set_send_blocking (True) # back to blocking mode
+        prog_s.send('',size=self.max_buf_size,fill='*')
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["1.1.1.1", "1.1.1.100"], distribution="seq")

@@ -485,7 +485,7 @@ class ASTFProgram(object):
         works for UDP flow 
 
         :parameters:
-                  pkts  : uint32_t
+                  pkts  : uint64_t
                    wait until the rx packet watermark is reached on flow counter.  
 
                   clear  : bool
@@ -551,7 +551,7 @@ class ASTFProgram(object):
         recv (bytes)
 
         :parameters:
-                  bytes  : uint32_t
+                  bytes  : uint64_t
                    wait until the rx bytes watermark is reached on flow counter.  
 
                   clear  : bool

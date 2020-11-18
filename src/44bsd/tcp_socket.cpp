@@ -319,7 +319,8 @@ void CEmulApp::run_cmd_delay(htw_ticks_t ticks){
 
 
 void CEmulApp::check_rx_pkt_condition(){
-    if (m_cmd_rx_bytes>= m_cmd_rx_bytes_wm) {
+    if (m_cmd_rx_bytes >= m_cmd_rx_bytes_wm) {
+        m_cmd_rx_bytes -= m_cmd_rx_bytes_wm;
         if (get_rx_clear()){
             m_cmd_rx_bytes=0;
             set_rx_clear(false);
