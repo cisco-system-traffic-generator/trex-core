@@ -550,7 +550,7 @@ void CAstfDB::fill_rx_pkt(uint32_t program_index,
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx_msg", cmd);
 
-    uint32_t min_pkts=cmd["min_pkts"].asInt();
+    uint64_t min_pkts=cmd["min_pkts"].asInt64();
     res.u.m_rx_pkt.m_rx_pkts =min_pkts;
     res.u.m_rx_pkt.m_flags =CEmulAppCmdRxPkt::rxcmd_WAIT;
 
@@ -575,7 +575,7 @@ void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index,CEmulAppCmd 
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx", cmd);
 
-    res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt();
+    res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt64();
     if (cmd["clear"] != Json::nullValue) {
         if (cmd["clear"].asBool()) {
             res.u.m_rx_cmd.m_flags |= CEmulAppCmdRxPkt::rxcmd_CLEAR;

@@ -300,7 +300,7 @@ struct CEmulAppCmdRxBuffer {
 
     };
     uint32_t        m_flags;
-    uint32_t        m_rx_bytes_wm;
+    uint64_t        m_rx_bytes_wm;
 };
 
 struct CEmulAppCmdDelay {
@@ -352,7 +352,7 @@ struct CEmulAppCmdRxPkt {
 
     };
     uint32_t        m_flags;
-    uint32_t        m_rx_pkts;
+    uint64_t        m_rx_pkts;
 };
 
 struct CEmulAppCmdKeepAlive {
@@ -875,8 +875,8 @@ private:
 
     uint32_t               m_cmd_index; /* the index of current command */
 
-    uint32_t               m_cmd_rx_bytes;
-    uint32_t               m_cmd_rx_bytes_wm; /* water mark to check */
+    uint64_t               m_cmd_rx_bytes;
+    uint64_t               m_cmd_rx_bytes_wm; /* water mark to check */
 
     /* cache line 2 */
     CHTimerObj              m_timer;
