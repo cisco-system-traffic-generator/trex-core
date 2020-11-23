@@ -589,14 +589,12 @@ bool TrexAstfDpCore::rx_for_idle() {
 
 
 void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate) {
-    CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(m_thread_id);
 
     for ( auto client : msg_data)
     {
-        CClientPool *entry = ctg->lookup(client);
-        if (entry)
-        {
-            entry->set_clients_active(client, activate);
+        CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+        if (ip_info){
+            ip_info->set_client_active(activate);
         }
     }
 }

@@ -118,6 +118,7 @@ TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
 
 /****************************** commands implementation ******************************/
 
@@ -706,13 +707,22 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &result) {
     const Json::Value &attr = parse_array(params, "attr", result);
     bool is_enable = parse_bool(params, "is_enable", result);
+    bool is_range = parse_bool(params, "is_range", result);
 
     std::vector<uint32_t> msg_data;
     auto astf_db = CAstfDB::get_instance(0);
 
     for (auto each_client : attr) {
-       uint32_t client_ip   = parse_uint32(each_client, "client_ip", result);
-       msg_data.push_back(client_ip);
+        uint32_t client_start_ip = 0, client_end_ip = 0;
+        
+        if (!is_range)
+             client_start_ip = client_end_ip   = parse_uint32(each_client, "client_ip", result);
+        else {
+             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+        }
+        for (uint32_t client_ip = client_start_ip; client_ip <= client_end_ip; client_ip++)
+            msg_data.push_back(client_ip);
     }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable);
@@ -723,6 +733,66 @@ TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &resu
 
 }
 
+Json::Value
+client_data_to_json(CIpInfoBase *ip_info) {
+    Json::Value c_data = Json::objectValue;
+
+    c_data["Found"] = 0;
+
+    if (!ip_info)
+        return c_data; 
+
+    c_data["Found"] = 1;    
+    if (ip_info->is_active()) 
+       c_data["state"] = "Active";
+    else
+       c_data["state"] = "Inactive";
+
+    return c_data;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
+
+    const Json::Value &attr = parse_array(params, "attr", result);
+    bool is_range = parse_bool(params, "is_range", result);
+
+    auto astf_db = CAstfDB::get_instance(0);
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    Json::Value &res = result["result"];
+
+    for (auto each_client : attr) {
+        uint32_t client_start_ip = 0, client_end_ip = 0;
+        
+        if (!is_range)
+             client_start_ip = client_end_ip   = parse_uint32(each_client, "client_ip", result);
+        else {
+             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+        }
+        for (uint32_t client_ip = client_start_ip; client_ip <= client_end_ip; client_ip++){
+            for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+
+                CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(thread_id);
+                CFlowGenListPerThread *m_thread_ptr = ctg->get_client_flow_gen_list();
+            
+                CIpInfoBase *ip_info = m_thread_ptr->client_lookup(client_ip);
+                res[to_string(client_ip)] = client_data_to_json(ip_info);
+
+                if (ip_info) /* Found no need to look in other thread */
+                   break;
+            } 
+        }
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
 
 /****************************** component implementation ******************************/
 
@@ -756,4 +826,5 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
 }

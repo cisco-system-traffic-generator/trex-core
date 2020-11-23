@@ -98,15 +98,22 @@ void CClientPool::Create(IP_DIST_t       dist_value,
 }
 
 void CClientPool::Delete() {
-    m_active_clients.clear();
+
+    while (!m_active_clients.is_empty()) {
+        delete m_active_clients.remove_head();
+    }
+
     FOREACH(m_ip_info) {
         if (m_thread_ptr) {
+            m_ip_info[i]->detach_pool_and_client_node((void *) this);
             m_thread_ptr->release_ip_info(m_ip_info[i]);
         }
         else {
+            m_ip_info[i]->detach_pool_and_client_node((void *) this);
             delete m_ip_info[i];
         }
     }
+
     m_ip_info.clear();
 }
 
@@ -115,51 +122,49 @@ void CClientPool::Delete() {
  *
 */
 
-void CClientPool::set_clients_active(uint32_t  ip,
-                                     bool      activate)
+void CClientPool::set_client_active(CIpInfoBase *ip_info,
+                                    ActiveClientListNode *cn,
+                                    bool     activate)
 {
-    uint32_t i = ip - m_ip_info[0]->get_ip();
 
     // Changing into state which is already in that state , return    
-    if ((activate && m_ip_info[i]->is_active()) ||
-        (!activate && !(m_ip_info[i]->is_active()))){
+    if ((activate &&  ip_info->is_active()) ||
+        (!activate && !(ip_info->is_active()))){
         return;
     }
+
+    ip_info->set_is_active(activate);
  
     if (activate) {
-        /* 
-          1. Mark client Active
-          2. Insert into active list and get pointer to that element 
-          3. Store pointer for quick delete 
-          4. If active client list size if 1, mark the begining to its iterator 
-        */
-        m_ip_info[i]->set_is_active(activate);
-        auto it = m_active_clients.insert(m_active_clients.end(), i);
-        m_ip_info[i]->set_ptr_to_active_list(it);
-
-        if (m_active_clients.size() == 1){
-            m_cur_act_itr = m_active_clients.begin();
-        }
+        append_client_into_active_list(cn);
     } else {
-        /* 
-           1. Mark client inactive
-           2. if active list current iterator is same as deleted client, move iterator forward 
-           3. From client get iterator which points to its location in active list and delete it
-        */
-        m_ip_info[i]->set_is_active(activate);
-        if (m_active_clients.size() > 0 ) {
-           if (*m_cur_act_itr == i){
-                m_cur_act_itr++;
-           }
-           auto it = m_ip_info[i]->get_ptr_to_active_list();
-           if (it != m_active_clients.end()){
-              m_active_clients.erase(it);
-              m_ip_info[i]->set_ptr_to_active_list(m_active_clients.end());
-           }
-        }
-   }
+        delete_client_from_active_list(cn);
+    }
+
 }
 
+/* Go through each pool attached with this client and make them active/inactive */
+void CIpInfoBase::set_client_active(bool activate)
+{
+    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){ 
+        ((CClientPool *)(m_ref_pool_ptr[idx]))->set_client_active(this, this->get_client_list_node(idx), activate);
+    }
+}
+
+
+/*
+  1. Remove this pool from m_ref_pool_pt 
+  2. Remove DLL node from  m_active_c_node
+*/
+
+void CIpInfoBase:: detach_pool_and_client_node(void *ip_pool){
+    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
+        if ((CClientPool *)ip_pool == (CClientPool *)m_ref_pool_ptr[idx]){
+            m_ref_pool_ptr.erase(m_ref_pool_ptr.begin() + idx);
+            m_active_c_node.erase(m_active_c_node.begin() + idx);
+        }
+    }
+}
 /* base on thread_id and client_index 
   client index would be the same for all thread 
 */
@@ -211,8 +216,16 @@ void CClientPool::allocate_simple_clients(uint32_t  min_ip,
                 m_thread_ptr->allocate_ip_info(m_ip_info[i]);
             }
         }
-        /* Mark it active so that traffic can flow */
-        set_clients_active(ip, true);
+
+        /*
+          1. Associate this pool with client object. Store in m_ref_pool_ptr
+          2. Create a DLL node , store this node in m_active_c_node list and then put into active client list of the pool
+          3. Mark it active so that traffic can flow
+        */
+        m_ip_info[i]->add_ref_pool_ptr(this);
+        ActiveClientListNode *cn = m_ip_info[i]->add_client_list_node(m_ip_info[i]);
+        set_client_active(m_ip_info[i], cn, true);
+ 
     }
 
 }
@@ -293,8 +306,14 @@ void CClientPool::allocate_configured_clients(uint32_t        min_ip,
                 m_thread_ptr->allocate_ip_info(m_ip_info[i]);
             }
         }
-        /* Mark it active so that traffic can flow */
-        set_clients_active(ip, true);
+        /*
+          1. Associate this pool with client object. Store in m_ref_pool_ptr
+          2. Create a DLL node , store this node in m_active_c_node list and then put into active client list of the pool
+          3. Mark it active so that traffic can flow
+        */
+        m_ip_info[i]->add_ref_pool_ptr(this);
+        ActiveClientListNode *cn = m_ip_info[i]->add_client_list_node(m_ip_info[i]);
+        set_client_active(m_ip_info[i], cn, true);
     }
 }
 

@@ -3100,14 +3100,22 @@ void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
 
 
 CIpInfoBase* CFlowGenListPerThread::get_ip_info(uint32_t ip){
+    CIpInfoBase *c_info = client_lookup(ip);
+    if (c_info)
+        c_info->inc_ref();
+        
+    return c_info;
+}
+
+CIpInfoBase* CFlowGenListPerThread::client_lookup(uint32_t ip){
     auto it = m_ip_info.find(ip);
     if (it == m_ip_info.end()) {
         return nullptr;
     } else {
-        it->second->inc_ref();
         return it->second;
     }
 }
+
 
 void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
     uint32_t ip = ip_info->get_ip();
@@ -3121,6 +3129,7 @@ void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
 void CFlowGenListPerThread::release_ip_info(CIpInfoBase* ip_info) {
     uint32_t ip = ip_info->get_ip();
     ip_info->dec_ref();
+
     if (ip_info->ref_cnt() == 0) {
         auto it = m_ip_info.find(ip);
         if (it != m_ip_info.end() && it->second == ip_info) {

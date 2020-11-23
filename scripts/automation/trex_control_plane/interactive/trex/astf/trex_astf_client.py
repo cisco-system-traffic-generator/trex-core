@@ -1185,21 +1185,46 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(True)
 
     # execute 'method' for Making  a client active/inactive
-    def enable_disable_client(self, client_list, is_enable):
+    def enable_disable_client(self, client_list, is_enable, is_range):
         ''' 
         API to toggle state of client
-        Input: List of client and Action : state flag
+        Input: List of client or list of client range and Action : state flag
         '''
- 
+
         json_attr = []
-
-        for key in client_list:
-           json_attr.append({'client_ip' : key})
-
+        if is_range is False:
+            for key in client_list:
+               json_attr.append({'client_ip' : key})
+        else:
+            for key in client_list:
+               json_attr.append({'client_start_ip' : key[0], 'client_end_ip' : key[1]})
+ 
         params = {"is_enable": is_enable,
+                  "is_range": is_range,
                   "attr": json_attr }
 
         return self._transmit("enable_disable_client", params)
+
+     # execute 'method' for getting clients stats
+    def get_clients_info (self, client_list, is_range):
+        ''' 
+        API to get client information: Currently only state and if client is present. 
+        Input: List of client or list of client range  
+        '''
+         
+        json_attr = []
+        if is_range is False:
+            for key in client_list:
+               json_attr.append({'client_ip' : key})
+        else:
+            for key in client_list:
+               json_attr.append({'client_start_ip' : key[0], 'client_end_ip' : key[1]})
+ 
+
+        params = {"is_range": is_range,
+                  "attr": json_attr }
+
+        return self._transmit("get_clients_info", params)
 
 ############################   console   #############################
 ############################   commands  #############################

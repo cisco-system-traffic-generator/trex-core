@@ -3205,6 +3205,7 @@ private:
     std::map<uint32_t, CIpInfoBase*> m_ip_info;
 public:
     CIpInfoBase* get_ip_info(uint32_t ip);
+    CIpInfoBase* client_lookup(uint32_t ip);
     void allocate_ip_info(CIpInfoBase* ip_info);
     void release_ip_info(CIpInfoBase* ip_info);
 
