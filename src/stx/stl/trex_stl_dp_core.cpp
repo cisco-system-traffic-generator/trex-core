@@ -1492,9 +1492,6 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
             cur_time = now_sec();
             m_core->m_cur_time_sec = cur_time + schd_offset;
         }
-        if (!start_at_ts) {
-            start_at_ts = cur_time + schd_offset;
-        }
     }
 
     /* no nodes in the list */
