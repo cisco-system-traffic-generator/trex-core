@@ -616,7 +616,7 @@ int CEmulApp::on_bh_tx_acked(uint32_t tx_bytes){
     if (add_to_queue) {
         m_api->tx_sbappend(m_flow,add_to_queue);
     }
-    if (is_next) {
+    if (!(m_flags&taDO_WAIT_FOR_CLOSE) && is_next) {
         EMUL_LOG(0, "ON_BH_TX [%d]-ACK \n",m_debug_id);
         next();
     }
