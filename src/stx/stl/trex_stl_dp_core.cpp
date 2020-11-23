@@ -1304,7 +1304,7 @@ TrexStatelessDpCore::add_stream(PerPortProfile * profile,
         node->m_state =CGenNodeStateless::ss_INACTIVE;
     }
 
-    if ( unlikely(start_at_ts) ) {
+    if ( likely(start_at_ts) ) {
         node->m_time = start_at_ts + stream->get_start_delay_sec();
     } else {
         node->m_time = m_core->m_cur_time_sec + stream->get_start_delay_sec();
@@ -1487,7 +1487,14 @@ TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
 
     /* update cur time */
     if ( CGlobalInfo::is_realtime() ){
-        m_core->m_cur_time_sec = now_sec() + schd_offset;
+        double cur_time = m_core->m_cur_time_sec;
+        if (m_state != TrexStatelessDpCore::STATE_TRANSMITTING) {
+            cur_time = now_sec();
+            m_core->m_cur_time_sec = cur_time + schd_offset;
+        }
+        if (!start_at_ts) {
+            start_at_ts = cur_time + schd_offset;
+        }
     }
 
     /* no nodes in the list */
