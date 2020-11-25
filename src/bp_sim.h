@@ -211,7 +211,7 @@ typedef enum { VM_REPLACE_IP_OFFSET =0x12, /* fix ip at offset  */
 
 
 /* work only on x86 littel */
-#define	MY_B(b)	(((int)b)&0xff)
+#define MY_B(b) (((int)b)&0xff)
 
 class CFlowPktInfo ;
 
@@ -492,6 +492,7 @@ struct CFlowYamlInfo {
     uint32_t        m_server_addr;
     uint8_t         m_plugin_id; /* 0 - default , 1 - RTSP160 , 2- RTSP250 */
     uint16_t        m_ip_header_offset;
+    uint32_t        m_max_ip_tunnels;
     bool            m_one_app_server;
     bool            m_one_app_server_was_set;
     bool            m_cap_mode;
@@ -1696,6 +1697,14 @@ public:
         return (&m_per_dir[IsInitSide()?CLIENT_SIDE:SERVER_SIDE]);
     }
 
+    inline void SetMaxIpTunnels(uint32_t max_ip_tunnels) {
+        m_max_ip_tunnels = max_ip_tunnels;
+    }
+
+    inline uint32_t GetMaxIpTunnels() {
+        return m_max_ip_tunnels;
+    }
+
     bool IsOneDirectionalFlow(void){
         if ( ( m_per_dir[CLIENT_SIDE].GetMaxPkts() == GetMaxPktsPerFlow()) || ( m_per_dir[SERVER_SIDE].GetMaxPkts() == GetMaxPktsPerFlow()) ) {
             return (true);
@@ -1716,6 +1725,7 @@ private:
     uint16_t    m_max_flow_pkts;  // how many packet per this flow getFlowId()
     uint16_t    m_max_flow_aging; // maximum aging in sec
     CPacketDescriptorPerDir  m_per_dir[CS_NUM]; // per direction info
+    uint32_t    m_max_ip_tunnels;
 };
 
 
@@ -1794,8 +1804,8 @@ public:
     CFlowKey            m_flow_key;
 
     uint8_t             m_ether_offset;
-	uint16_t            m_tunnel_ip_offset;
-	bool				m_is_ipv6_tunnel;
+    uint16_t            m_tunnel_ip_offset;
+    bool                m_is_ipv6_tunnel;
     uint16_t            m_ip_offset;
     uint16_t            m_udp_tcp_offset;
     uint16_t            m_payload_offset;
@@ -1930,10 +1940,10 @@ public:
     uint16_t getFastIpOffsetFast(void){
         return (m_ip_offset);
     }
-	uint16_t getFastTcpOffset(void){
+    uint16_t getFastTcpOffset(void){
         return (m_udp_tcp_offset );
     }
-	uint16_t getFastPayloadOffset(void){
+    uint16_t getFastPayloadOffset(void){
         return (m_payload_offset );
     }
 
@@ -1987,14 +1997,16 @@ public:
 class CPacketParser {
 
 public:
+    CCPacketParserCounters m_counter;
+    uint16_t m_ip_header_offset;
+
+public:
     bool Create();
     void Delete();
     bool ProcessPacket(CPacketIndication * pkt_indication,
                        CCapPktRaw * raw_packet);
-public:
-    CCPacketParserCounters m_counter;
-public:
     void Dump(FILE *fd);
+    CPacketParser() : m_ip_header_offset(0) {}
 };
 
 
@@ -2337,21 +2349,22 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
 
     pkt_dir_t ip_dir = node->cur_pkt_ip_addr_dir();
     pkt_dir_t port_dir = node->cur_pkt_port_addr_dir();
-
-	if (m_pkt_indication.m_tunnel_ip_offset) {
-		// Update tunnel IPs
-		uint32_t ip_addr_offset = node->m_src_ip % 10000;
-		if (unlikely(m_pkt_indication.m_is_ipv6_tunnel)) {
-			IPv6Header* tunnel_ip = (IPv6Header*)(p + m_pkt_indication.m_tunnel_ip_offset);
-			tunnel_ip->updateLSBIpv6Src((uint32_t) tunnel_ip->mySource[6] + ip_addr_offset);
-			tunnel_ip->updateLSBIpv6Dst((uint32_t) tunnel_ip->myDestination[6] + ip_addr_offset);
-		}
-		else {
-			IPHeader* tunnel_ip = (IPHeader*)(p + m_pkt_indication.m_tunnel_ip_offset);
-			tunnel_ip->updateIpSrc(tunnel_ip->mySource + ip_addr_offset);
-			tunnel_ip->updateIpDst(tunnel_ip->myDestination + ip_addr_offset);
-		}
-	}
+    
+    if (m_pkt_indication.m_tunnel_ip_offset != 0) {
+        // Update tunnel IPs
+        uint32_t ip_addr_offset = node->m_src_ip % m_pkt_indication.m_desc.GetMaxIpTunnels();
+        if (unlikely(m_pkt_indication.m_is_ipv6_tunnel)) {
+            IPv6Header* tunnel_ip = (IPv6Header*)(p + m_pkt_indication.m_tunnel_ip_offset);
+            tunnel_ip->updateLSBIpv6Src((uint32_t) tunnel_ip->mySource[6] + ip_addr_offset);
+            tunnel_ip->updateLSBIpv6Dst((uint32_t) tunnel_ip->myDestination[6] + ip_addr_offset);
+        }
+        else {
+            IPHeader* tunnel_ip = (IPHeader*)(p + m_pkt_indication.m_tunnel_ip_offset);
+            tunnel_ip->updateIpSrc(tunnel_ip->mySource + ip_addr_offset);
+            tunnel_ip->updateIpDst(tunnel_ip->myDestination + ip_addr_offset);
+        }
+    }
+    
 
     if ( unlikely (m_pkt_indication.is_ipv6())) {
 
