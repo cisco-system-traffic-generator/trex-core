@@ -1794,6 +1794,8 @@ public:
     CFlowKey            m_flow_key;
 
     uint8_t             m_ether_offset;
+	uint16_t            m_tunnel_ip_offset;
+	bool				m_is_ipv6_tunnel;
     uint16_t            m_ip_offset;
     uint16_t            m_udp_tcp_offset;
     uint16_t            m_payload_offset;
@@ -1803,7 +1805,7 @@ public:
 
 public:
 
-    CPacketIndication() : m_ip_offset(0) {}
+    CPacketIndication() : m_tunnel_ip_offset(0), m_ip_offset(0) {}
     void Dump(FILE *fd,int verbose);
     void Clean();
     bool ConvertPacketToIpv6InPlace(CCapPktRaw * pkt,
@@ -1925,13 +1927,13 @@ public:
     uint8_t getFastEtherOffset(void){
         return (m_ether_offset);
     }
-    uint8_t getFastIpOffsetFast(void){
+    uint16_t getFastIpOffsetFast(void){
         return (m_ip_offset);
     }
-    uint8_t getFastTcpOffset(void){
+	uint16_t getFastTcpOffset(void){
         return (m_udp_tcp_offset );
     }
-    uint8_t getFastPayloadOffset(void){
+	uint16_t getFastPayloadOffset(void){
         return (m_payload_offset );
     }
 
@@ -2266,7 +2268,7 @@ inline void CFlowPktInfo::update_pkt_info2(char *p,
 inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m){
 
     m->l2_len = m_pkt_indication.getFastIpOffsetFast();
-    uint8_t l4_offset = m_pkt_indication.getFastTcpOffset();
+    uint16_t l4_offset = m_pkt_indication.getFastTcpOffset();
     BP_ASSERT(l4_offset > m->l2_len);
     m->l3_len = l4_offset - m->l2_len ;
 
@@ -2325,7 +2327,7 @@ inline void CFlowPktInfo::update_udp_cs(UDPHeader * udp,
 inline void CFlowPktInfo::update_pkt_info(char *p,
                                           CGenNode * node){
 
-    uint8_t ip_offset = m_pkt_indication.getFastIpOffsetFast();
+    uint16_t ip_offset = m_pkt_indication.getFastIpOffsetFast();
     IPHeader       * ipv4=
         (IPHeader       *)(p + ip_offset );
 
@@ -2336,6 +2338,20 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
     pkt_dir_t ip_dir = node->cur_pkt_ip_addr_dir();
     pkt_dir_t port_dir = node->cur_pkt_port_addr_dir();
 
+	if (m_pkt_indication.m_tunnel_ip_offset) {
+		// Update tunnel IPs
+		uint32_t ip_addr_offset = node->m_src_ip % 10000;
+		if (unlikely(m_pkt_indication.m_is_ipv6_tunnel)) {
+			IPv6Header* tunnel_ip = (IPv6Header*)(p + m_pkt_indication.m_tunnel_ip_offset);
+			tunnel_ip->updateLSBIpv6Src((uint32_t) tunnel_ip->mySource[6] + ip_addr_offset);
+			tunnel_ip->updateLSBIpv6Dst((uint32_t) tunnel_ip->myDestination[6] + ip_addr_offset);
+		}
+		else {
+			IPHeader* tunnel_ip = (IPHeader*)(p + m_pkt_indication.m_tunnel_ip_offset);
+			tunnel_ip->updateIpSrc(tunnel_ip->mySource + ip_addr_offset);
+			tunnel_ip->updateIpDst(tunnel_ip->myDestination + ip_addr_offset);
+		}
+	}
 
     if ( unlikely (m_pkt_indication.is_ipv6())) {
 
