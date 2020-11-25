@@ -2079,6 +2079,10 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
 
     if (node.FindValue("max_ip_tunnels")) {
         node["max_ip_tunnels"] >> fi.m_max_ip_tunnels;
+        if (fi.m_max_ip_tunnels == 0) {
+            fprintf(stderr, " max_ip_tunnel has to be greater than 0\n");
+            exit(-1);
+        }
     }
     else {
         fi.m_max_ip_tunnels = 1;
