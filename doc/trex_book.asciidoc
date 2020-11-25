@@ -1964,6 +1964,7 @@ see xref:timer_w[Timer Wheel section]
        flows_dirs: [0, 1]           <9>
        keep_src_port: true          <10>
        ip_header_offset: 50         <11>
+       max_ip_tunnels: 1000         <12>
 
 ----
 <1> The name of the template pcap file. Can be relative path from the t-rex-64 image directory, or an absolute path. The pcap file should include only one flow. (Exception: in case of plug-ins).
@@ -1978,7 +1979,8 @@ see xref:timer_w[Timer Wheel section]
 <9> New in version v2.62. Sets direction of flow(s). If set to 0, has no effect. If set to 1, server will initiate the flow (with its IP) towards client with original dest port. +
  Note: does *not* work with --learn modes.
 <10> New in version v2.66. Keep original TCP/UDP source port from pcap.
-<11> New. Client IP header offset in bytes. Useful when multiple IP headers are present in the capture (e.g. tunnelled traffic). Overrides default behaviour of parsing the first IP header found.  
+<11> New Client IP header offset in bytes. Useful when multiple IP headers are present in the capture (e.g. tunnelled traffic). Overrides default behaviour of parsing the first IP header found.
+<12> New If IP tunneling is present in the template, it configures the maximum number of tunnels. The outer IPs are adjusted by incrementing them by (inner src IP % max_ip_tunnels).
 
 
 === Platform YAML (--cfg argument)
