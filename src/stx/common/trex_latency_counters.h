@@ -101,6 +101,8 @@ public:
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
                               hr_time_t hr_time_now);
+    void set_dump_info(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head);
+    void dump_err_pkt(const char* info, bool dump_latency = false);
 
     Json::Value to_json() const;
 
@@ -163,6 +165,11 @@ public:
     CRFC2544Info         *m_rfc2544;
     CRxCoreErrCntrs      *m_err_cntrs;
     uint16_t              m_ip_id_base;
+
+    // to dump abnormal packets for inspection
+    bool                  m_dump_err_pkts;
+    const rte_mbuf_t     *m_dump_pkt;
+    struct flow_stat_payload_header *m_dump_fsp_head;
 };
 
 std::ostream& operator<<(std::ostream& os, const RXLatency& in);

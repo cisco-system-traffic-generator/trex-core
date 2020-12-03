@@ -1950,7 +1950,7 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
         lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
 #ifdef ERR_CNTRS_TEST
         if (temp % 10 == 0) {
-            fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
+            fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
         }
         if ((temp - 1) % 100 == 0) {
             fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num() - 4;
