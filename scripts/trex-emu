@@ -11,13 +11,13 @@ if [[ "$ARCH" == "x86_64" ]] ; then
     mkdir -p $TREX_LOGS_DIR
     ./trex_emu/trex-emu $INPUT_ARGS &> $EMU_LOG_PATH
 else 
-    echo "Default package support only x86_64. try compile trex-emu for your platform. "
+    echo "Default package supports only x86_64. Try compiling trex-emu for your platform."
     echo "https://github.com/cisco-system-traffic-generator/trex-emu "
 fi
 RESULT=$?
 
 if [[ $RESULT != 0 ]]; then
-    echo "trex-emu exit with a non zero code, check \"$EMU_LOG_PATH\" for more detalis"
+    echo "trex-emu exited with a non zero code, check \"$EMU_LOG_PATH\" for more details."
 fi
 
 exit $RESULT

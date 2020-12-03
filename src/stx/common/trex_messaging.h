@@ -292,6 +292,28 @@ private:
 };
 
 /**
+ * a message indicating that DP core stopped with profile ctx
+ */
+class TrexDpCoreProfileCtx : public TrexDpToCpMsgBase {
+public:
+
+    TrexDpCoreProfileCtx(int thread_id, profile_id_t profile_id, void* client, void* server) {
+        m_thread_id = thread_id;
+        m_profile_id = profile_id;
+        m_client_pctx = client;
+        m_server_pctx = server;
+    }
+
+    virtual bool handle(void);
+
+private:
+    int m_thread_id;
+    profile_id_t m_profile_id;
+    void* m_client_pctx;
+    void* m_server_pctx;
+};
+
+/**
  * a message indicating that DP core encountered error
  */
 class TrexDpCoreError : public TrexDpToCpMsgBase {

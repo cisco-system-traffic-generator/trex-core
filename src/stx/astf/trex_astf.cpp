@@ -221,6 +221,12 @@ void TrexAstf::dp_core_finished(int thread_id, uint32_t dp_profile_id) {
     get_profile(get_profile_id(dp_profile_id))->dp_core_finished();
 }
 
+void TrexAstf::add_dp_profile_ctx(uint32_t dp_profile_id, void* client, void* server) {
+    CPerProfileCtx* client_pctx = static_cast<CPerProfileCtx*>(client);
+    CPerProfileCtx* server_pctx = static_cast<CPerProfileCtx*>(server);
+    get_profile(get_profile_id(dp_profile_id))->add_dp_profile_ctx(client_pctx, server_pctx);
+}
+
 void TrexAstf::dp_core_error(int thread_id, uint32_t dp_profile_id, const string &err) {
     get_profile(get_profile_id(dp_profile_id))->dp_core_error(err);
 }
@@ -844,9 +850,6 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             break;
         case STATE_TX:
             m_stt_cp->m_update = true;
-            if (m_astf_obj->is_safe_update_stats()) {
-                m_stt_cp->update_profile_ctx();
-            }
             m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_CLEANUP:
@@ -908,18 +911,25 @@ void TrexAstfPerProfile::parse() {
     string *prof = profile_needs_parsing() ? &(m_profile_buffer) : nullptr;
     string *topo = m_astf_obj->topo_needs_parsing() ? m_astf_obj->get_topo_buffer() : nullptr;
     assert(prof||topo);
-
     profile_change_state(STATE_PARSE);
 
     auto astf_db = CAstfDB::get_instance(m_dp_profile_id);
+
     TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db);
     m_astf_obj->send_message_to_dp(0, msg);
 }
 
 void TrexAstfPerProfile::build() {
+    
+    m_stt_cp->clear_profile_ctx();  // will be updated when build has been finished
+
     profile_change_state(STATE_BUILD);
 
     auto astf_db = CAstfDB::instance(m_dp_profile_id);
+    if (m_astf_obj->topo_exists()){
+        astf_db->set_client_cfg_db(m_astf_obj->get_client_db()); 
+    }
+
     TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor, astf_db);
     m_astf_obj->send_message_to_all_dp(msg);
 }
@@ -1022,6 +1032,11 @@ void TrexAstfPerProfile::dp_core_error(const string &err) {
             exit(1);
     }
     dp_core_finished();
+}
+
+void TrexAstfPerProfile::add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileCtx* server) {
+    m_stt_cp->AddProfileCtx(TCP_CLIENT_SIDE, client);
+    m_stt_cp->AddProfileCtx(TCP_SERVER_SIDE, server);
 }
 
 void TrexAstfPerProfile::publish_astf_profile_state() {

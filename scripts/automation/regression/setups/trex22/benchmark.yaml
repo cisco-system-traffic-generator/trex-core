@@ -163,7 +163,7 @@ test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "10%"
         mpps_per_core_golden    : 
-                                   min: 5.5
+                                   min: 4.0
                                    max: 7.7
 
 test_performance_syn_attack_single_cpu:

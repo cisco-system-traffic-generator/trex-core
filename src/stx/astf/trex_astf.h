@@ -107,6 +107,8 @@ public:
     void dp_core_finished();
     void dp_core_error(const std::string &err);
 
+    void add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileCtx* server);
+
     /*
      * publish event for each profile
      */
@@ -352,6 +354,8 @@ public:
 
     void dp_core_error(int thread_id, uint32_t dp_profile_id, const std::string &err);
 
+    void add_dp_profile_ctx(uint32_t dp_profile_id, void* client, void* server) override;
+
     state_e get_state() {
         return m_state;
     }
@@ -368,6 +372,10 @@ public:
     }
 
     bool topo_needs_parsing();
+
+    bool topo_exists() {
+        return  m_topo_parsed;
+    }
 
     /**
      * update_astf_state          : update state for all profiles
@@ -391,6 +399,10 @@ public:
 
     void stop_dp_scheduler();
     bool is_dp_core_state(int state, bool any = false);
+
+    ClientCfgDB * get_client_db() {
+        return &m_fl->m_client_config_info;
+    }
 
 protected:
     void change_state(state_e new_state);

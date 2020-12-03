@@ -580,7 +580,10 @@ int CClientServerTcp::test2(){
 
     uint32_t tx_num_bytes=100*1024;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,false,NULL);
+    CPerProfileCtx* c_pctx = DEFAULT_PROFILE_CTX(&m_c_ctx);
+    CPerProfileCtx* s_pctx = DEFAULT_PROFILE_CTX(&m_s_ctx);
+
+    c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,false,NULL);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_src_ip(0x10000001);
     c_tuple.set_dst_ip(0x30000001);
@@ -597,9 +600,9 @@ int CClientServerTcp::test2(){
 
     app_c = &c_flow->m_app;
 
-        /* IW=1 */
-    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
-    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    /* IW=1 */
+    c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
+    s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
 
 
     /* CONST */
@@ -784,7 +787,8 @@ void CClientServerTcp::dump_counters(){
     stt_cp.m_init=true;
     stt_cp.Add(TCP_CLIENT_SIDE,&m_c_ctx);
     stt_cp.Add(TCP_SERVER_SIDE,&m_s_ctx);
-    stt_cp.update_profile_ctx();
+    stt_cp.AddProfileCtx(TCP_CLIENT_SIDE,DEFAULT_PROFILE_CTX(&m_c_ctx));
+    stt_cp.AddProfileCtx(TCP_SERVER_SIDE,DEFAULT_PROFILE_CTX(&m_s_ctx));
     stt_cp.Update();
     stt_cp.DumpTable();
     std::string json;
@@ -1067,17 +1071,20 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     CEmulApp * app_c;
     uint32_t http_r_size=32*1024;
 
+    CPerProfileCtx* c_pctx = DEFAULT_PROFILE_CTX(&m_c_ctx);
+    CPerProfileCtx* s_pctx = DEFAULT_PROFILE_CTX(&m_s_ctx);
+
     if (m_mss) {
         /* change context MSS */
-        m_c_ctx.tcp_mssdflt =m_mss;
-        m_s_ctx.tcp_mssdflt =m_mss;
+        c_pctx->m_tunable_ctx.tcp_mssdflt =m_mss;
+        s_pctx->m_tunable_ctx.tcp_mssdflt =m_mss;
     }
 
     /* IW=1 */
-    m_c_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
-    m_s_ctx.tcp_initwnd = m_c_ctx.tcp_mssdflt;
+    c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
+    s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,NULL);
+    c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,NULL);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_src_ip(0x10000001);
     c_tuple.set_sport(1025);
@@ -1198,9 +1205,11 @@ int CClientServerTcp::fill_from_file() {
     rw_db=CAstfDB::instance()->get_db_template_rw(0, m_gen,0,1,0);
 
 
+    CPerProfileCtx* c_pctx = DEFAULT_PROFILE_CTX(&m_c_ctx);
+    CPerProfileCtx* s_pctx = DEFAULT_PROFILE_CTX(&m_s_ctx);
 
-    m_c_ctx.update_tuneables(rw_db->get_c_tuneables());
-    m_s_ctx.update_tuneables(rw_db->get_s_tuneables());
+    c_pctx->update_tuneables(rw_db->get_c_tuneables());
+    s_pctx->update_tuneables(rw_db->get_s_tuneables());
 
     uint32_t dst_ip = 0x30000001;
     uint32_t src_ip = 0x10000001;
@@ -1214,7 +1223,7 @@ int CClientServerTcp::fill_from_file() {
     uint16_t temp_index = 0;
     uint16_t tg_id = ro_db->get_template_tg_id(temp_index);
 
-    c_flow = m_c_ctx.m_ft.alloc_flow(DEFAULT_PROFILE_CTX(&m_c_ctx),src_ip,dst_ip,src_port,dst_port,m_vlan,false,NULL,tg_id);
+    c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,src_ip,dst_ip,src_port,dst_port,m_vlan,false,NULL,tg_id);
 
     CFlowKeyTuple c_tuple;
     c_tuple.set_src_ip(src_ip);

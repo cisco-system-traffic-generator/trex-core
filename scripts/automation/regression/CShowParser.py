@@ -29,10 +29,10 @@ class CShowParser(object):
                 if (mtch.group(1) in interfaces_list):
                     res[mtch.group(1)] = (int(mtch.group(2)) + int(mtch.group(3)))
                     res['total_drops'] += (int(mtch.group(2)) + int(mtch.group(3)))
-#       if mtch_found == 0: # no matches found at all
-#           raise PlatformResponseMissmatch('Drop stats')
-#       else:
-#           return res
+        # if mtch_found == 0: # no matches found at all
+        #     raise PlatformResponseMissmatch('Drop stats')
+        # else:
+        #     return res
         return res
 
     @staticmethod
@@ -131,7 +131,6 @@ class CShowParser(object):
         else:
             return res
 
-
     @staticmethod
     def parse_cvla_memory_usage(query_response):
         response_lst = query_response.split('\r\n')
@@ -175,7 +174,6 @@ class CShowParser(object):
 
         return (res,res2)
 
-        
     @staticmethod
     def parse_show_image_version(query_response):
         response_lst = query_response.split('\r\n')
@@ -189,7 +187,6 @@ class CShowParser(object):
                 return res
 
         raise PlatformResponseMissmatch('Running image info')
-
 
     @staticmethod
     def parse_image_existence(query_response, img_name):
@@ -222,6 +219,135 @@ class CShowParser(object):
             if lines_parsed > 5:
                 return False
         return False
+
+    @staticmethod
+    def parse_arp_entry(query_response):
+        """
+        Parse the response of an ARP query to a dictionary.
+        Possible responses are:
+
+        show ip arp 1.1.1.3
+        Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+        Internet  1.1.1.3                 0   0000.0070.0003  ARPA   TenGigabitEthernet0/0/0
+        asr1001-01#
+
+        or 
+
+        show ip arp 1.1.1.3
+        asr1001-01#
+
+        Parameters
+        ----------
+        query_response: str. The query response as sent by the router.
+
+        Returns
+        ----------
+        Dict: Empty dictionary or ARP parsed values.
+        """
+        res = {}
+        lines = query_response.splitlines()
+        if len(lines) == 4:
+            # we know that there should be only arp entry
+            info = lines[2].split() # 3rd line is the entry info, let's split by whitespaces
+            res["Protocol"] = info[0]
+            res["Address"] = info[1]
+            res["Age"] = info[2]
+            res["Hardware Addr"] = info[3]
+            res["Type"] = info[4]
+            res["Interface"] = info[5]
+        # the second case will default to an empty list
+        return res
+
+    @staticmethod
+    def parse_arp_table(query_response):
+        """
+        Parse the response of show ip arp to a list of dictionaries.
+        Possible responses are:
+
+        show ip arp
+        Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+        Internet  1.1.1.3                 0   0000.0070.0003  ARPA   TenGigabitEthernet0/0/0
+        Internet  1.1.1.4                 0   0000.0070.0004  ARPA   TenGigabitEthernet0/0/0
+        asr1001-01#
+
+        or 
+
+        show ip arp
+        asr1001-01#
+
+        Parameters
+        ----------
+        query_response: str. The query response as sent by the router.
+
+        Returns
+        ----------
+        List[Dict]: ARP table parsed.
+        """
+        res = []
+        lines = query_response.splitlines()
+        if len(lines) > 2:
+            # Table is not empty
+            for i in range(2, len(lines) - 1): # the last line is not an arp entry
+                d = {}
+                info = lines[i].split() # 3rd line is the entry info, let's split by whitespaces
+                d["Protocol"] = info[0]
+                d["Address"] = info[1]
+                d["Age"] = info[2]
+                d["Hardware Addr"] = info[3]
+                d["Type"] = info[4]
+                d["Interface"] = info[5]
+                res.append(d)
+        # Otherwise the ARP table is empty.
+        return res
+
+    @staticmethod
+    def parse_ping_results(query_response):
+        """
+        Parse the results of a ping query
+
+        ping 1.1.1.4 timeout 1
+        Type escape sequence to abort.
+        Sending 5, 100-byte ICMP Echos to 1.1.1.4, timeout is 1 seconds:
+        !!!!!
+        Success rate is 100 percent (5/5), round-trip min/avg/max = 2/3/5 ms
+        asr1001-01#
+
+        or
+
+        ping 1.1.1.5 timeout 1
+        Type escape sequence to abort.
+        Sending 5, 100-byte ICMP Echos to 1.1.1.5, timeout is 1 seconds:
+        .....
+        Success rate is 0 percent (0/5)
+        asr1001-01#
+
+        Parameters
+        ----------
+        query_response: str. The query response as sent by the router.
+
+        Returns
+        ----------
+        Dict: Ping stats parsed
+        """
+        res = {}
+        lines = query_response.splitlines()
+        if len(lines) != 6:
+            return res
+        info = lines[4].split()
+        res["successPerc"] = int(info[3])
+        rx_tx = info[5]
+        rx_tx = rx_tx.replace("(", "")
+        rx_tx = rx_tx.replace(")", "")
+        rx_tx = rx_tx.replace(",", "")
+        res["txPkts"] = int(rx_tx.split("/")[0])
+        res["rxPkts"] = int(rx_tx.split("/")[1])
+        if res["txPkts"] > 0:
+            # We had a reply, we can check latencies
+            latencies = info[-2].split("/")
+            res["minLatency"] = int(latencies[0])
+            res["avgLatency"] = int(latencies[1])
+            res["maxLatency"] = int(latencies[2])
+        return res
 
 
 if __name__ == "__main__":

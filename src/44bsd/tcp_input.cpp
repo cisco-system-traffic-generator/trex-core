@@ -349,19 +349,21 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 
 
 /* Count current packet and check if ack is needed according to tcp_no_delay_counter tunable */
-inline bool count_and_check_no_delay(CTcpPerThreadCtx * pctx,
-                                    struct tcpcb *tp,int bytes) {
-    if ( pctx->tcp_no_delay_counter == 0 ) 
+inline bool count_and_check_no_delay(struct tcpcb *tp,int bytes) {
+    if ( tp->m_delay_limit == 0 )
         return false;
 
-    tp->t_pkts_cnt += uint16(bytes);
-    if (tp->t_pkts_cnt >= pctx->tcp_no_delay_counter) {
-      tp->t_pkts_cnt -= uint16(pctx->tcp_no_delay_counter);
-      if (tp->t_pkts_cnt >= pctx->tcp_no_delay_counter) { 
-          tp->t_pkts_cnt = 0; 
-      }
-      return true;
+    int pkts_cnt = bytes + tp->t_pkts_cnt;
+
+    if (pkts_cnt >= tp->m_delay_limit) {
+        tp->t_pkts_cnt = uint16(pkts_cnt - tp->m_delay_limit);
+        if (tp->t_pkts_cnt >= tp->m_delay_limit) {
+            tp->t_pkts_cnt = 0;
+        }
+        return true;
     }
+
+    tp->t_pkts_cnt = uint16(pkts_cnt);
     return false;
 }
 
@@ -394,7 +396,7 @@ inline void TCP_REASS(CPerProfileCtx * pctx,
         INC_STAT(pctx, tg_id, tcps_rcvpack);
         INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte,ti->ti_len);
 
-        if (count_and_check_no_delay(pctx->m_ctx, tp, ti->ti_len)) {
+        if (count_and_check_no_delay(tp, ti->ti_len)) {
           tp->t_flags |= TF_ACKNOW;
         }
 
@@ -556,6 +558,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
     int off;
 
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
     uint8_t *optp;  // TCP option is exist  
 
     uint16_t tg_id = tp->m_flow->m_tg_id;
@@ -631,7 +634,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
      * Reset idle time and keep-alive timer.
      */
     tp->t_idle = 0;
-    tp->t_timer[TCPT_KEEP] = ctx->tcp_keepidle;
+    tp->t_timer[TCPT_KEEP] = tctx->tcp_keepidle;
 
     /*
      * Process options if not in LISTEN state,
@@ -748,7 +751,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
              *  he gets an ACK.
              */
 
-            if (count_and_check_no_delay(pctx->m_ctx, tp, ti->ti_len) ||
+            if (count_and_check_no_delay(tp, ti->ti_len) ||
                 tiflags & TH_PUSH) {
               tp->t_flags |= TF_ACKNOW;
               tcp_output(pctx, tp);
@@ -810,7 +813,7 @@ HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
         tcp_rcvseqinit(tp);
         tp->t_flags |= TF_ACKNOW;
         tp->t_state = TCPS_SYN_RECEIVED;
-        tp->t_timer[TCPT_KEEP] = ctx->tcp_keepinit;
+        tp->t_timer[TCPT_KEEP] = tctx->tcp_keepinit;
         INC_STAT(pctx, tg_id, tcps_accepts);
         goto trimthenstep6;
         }
@@ -1172,7 +1175,7 @@ trimthenstep6:
                 if (tp->t_timer[TCPT_REXMT] == 0 ||
                     ti->ti_ack != tp->snd_una)
                     tp->t_dupacks = 0;
-                else if (++tp->t_dupacks == ctx->tcprexmtthresh) {
+                else if (++tp->t_dupacks == tctx->tcprexmtthresh) {
                     tcp_seq onxt = tp->snd_nxt;
                     u_int win =
                         bsd_umin(tp->snd_wnd, tp->snd_cwnd) / 2 / tp->t_maxseg;
@@ -1190,7 +1193,7 @@ trimthenstep6:
                     if (SEQ_GT(onxt, tp->snd_nxt))
                         tp->snd_nxt = onxt;
                     goto drop;
-                } else if (tp->t_dupacks > ctx->tcprexmtthresh) {
+                } else if (tp->t_dupacks > tctx->tcprexmtthresh) {
                     tp->snd_cwnd += tp->t_maxseg;
                     (void) tcp_output(pctx,tp);
                     goto drop;
@@ -1203,7 +1206,7 @@ trimthenstep6:
          * If the congestion window was inflated to account
          * for the other side's cached packets, retract it.
          */
-        if (tp->t_dupacks > ctx->tcprexmtthresh &&
+        if (tp->t_dupacks > tctx->tcprexmtthresh &&
             tp->snd_cwnd > tp->snd_ssthresh)
             tp->snd_cwnd = tp->snd_ssthresh;
         tp->t_dupacks = 0;
@@ -1291,7 +1294,7 @@ trimthenstep6:
                  */
                 if (so->so_state & US_SS_CANTRCVMORE) {
                     soisdisconnected(so);
-                    tp->t_timer[TCPT_2MSL] = ctx->tcp_maxidle;
+                    tp->t_timer[TCPT_2MSL] = tctx->tcp_maxidle;
                 }
                 tp->t_state = TCPS_FIN_WAIT_2;
             }
@@ -1685,11 +1688,11 @@ int tcp_mss(CPerProfileCtx * pctx,
         struct tcpcb *tp, 
         u_int offer){
 
-    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
     if (tp->m_tuneable_flags<2) {
-        tp->snd_cwnd = ctx->tcp_initwnd;
-        return ctx->tcp_mssdflt;
+        tp->snd_cwnd = tctx->tcp_initwnd;
+        return tctx->tcp_mssdflt;
     } else {
 
         uint16_t init_win_factor;
@@ -1697,8 +1700,8 @@ int tcp_mss(CPerProfileCtx * pctx,
 
         CTcpTuneables *tune = tcp_get_parent_tunable(pctx,tp);
         if (!tune) {
-            tp->snd_cwnd = ctx->tcp_initwnd;
-            return ctx->tcp_mssdflt;
+            tp->snd_cwnd = tctx->tcp_initwnd;
+            return tctx->tcp_mssdflt;
         }
 
         if (tune->is_valid_field(CTcpTuneables::tcp_no_delay)){
@@ -1718,13 +1721,13 @@ int tcp_mss(CPerProfileCtx * pctx,
         if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)){
             mss = tune->m_tcp_mss;
         }else{
-            mss = ctx->tcp_mssdflt;
+            mss = tctx->tcp_mssdflt;
         }
 
         if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)){
             init_win_factor = tune->m_tcp_initwnd;
         }else{
-            init_win_factor = ctx->tcp_initwnd_factor;
+            init_win_factor = tctx->tcp_initwnd_factor;
         }
 
         tp->snd_cwnd = _update_initwnd(mss,init_win_factor);

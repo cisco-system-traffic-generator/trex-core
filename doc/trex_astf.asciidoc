@@ -2806,32 +2806,32 @@ link:cp_astf_docs/index.html[python index]
 
 [options="header",cols="2,^2,^2,^1,^1,5"]
 |=================
-|  tunable      | min-max|default| per-template |global| Description  
-|   ip.tos    | uint8 |0 |+|+| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs 
-|   ip.ttl    | uint8 |0 |+|+| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs 
-|   ip.dont_use_inbound_mac | bool |0|+|+| server side will use configured src/dest MACs for the port or resolved gateway MAC instead of reflecting incoming MACs
+|  tunable      | min-max|default| per-template |global (profile)| Description
+|   ip.tos    | uint8 |0 |+|+| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs
+|   ip.ttl    | uint8 |0 |+|+| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs
+|   ip.dont_use_inbound_mac | bool |0|-|+| server side will use configured src/dest MACs for the port or resolved gateway MAC instead of reflecting incoming MACs
 |   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
 |   ipv6.dst_msb    | string |0 |+|+| default IPv6.dst MSB address. see Priority in ipv6 enable
-|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used   
+|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used.
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
-|   tcp.rxbufsize   | 1K-1M  |32K |+|+| socket rx buffer size in bytes. 
-|   tcp.txbufsize   | 1K-1M  |32K |+|+| socket tx buffer size in bytes.
+|   tcp.rxbufsize   | 1K-1G  |32K |+|+| socket rx buffer size in bytes.
+|   tcp.txbufsize   | 1K-1G  |32K |+|+| socket tx buffer size in bytes.
 |   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
-|   tcp.keepinit    |2-65533|10|-|+| value in second for TCP keepalive.  
-|   tcp.keepidle    |2-65533|10|-|+| value in second for TCP keepidle 
-|   tcp.keepintvl   |2-65533|10|-|+| value in second for TCP keepalive interval
-|   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole 
-|   tcp.delay_ack_msec | 20-500|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
+|   tcp.keepinit    |2-65533|5|-|+| value in second for TCP keepalive.
+|   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle
+|   tcp.keepintvl   |2-65533|7|-|+| value in second for TCP keepalive interval
+|   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole.
+|   tcp.delay_ack_msec | 20-50000|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
 |   tcp.no_delay    | 0-3   | 0|+|+|  In case of 1 disable Nagle and force PUSH. from v2.79 it was changed and there are two bits 1- disable nagle, 0x2 force PUSH flag (*NOT* standard it just to simulate Spirent) and will respond with ACK immediately (standard). 
 |   tcp.no_delay_counter    | 0-65533   | 0|+|+|  number of recv bytes to wait until ack is sent. notice ack can be triggered by tcp timer, in order to ensure fixed number of sent packets until ack you should increase the *tcp.initwnd* tunable. otherewise no_delay_counter will race with the tcp timer.
 |   scheduler.rampup_sec    | 3-60000  | disabled |-|+|  scheduler rampup in seconds. After this time the throughput would be the maximum. the throughput increases linearly every 1 sec.
-|   scheduler.accurate    | bool | disabled |-|+|  Make the scheduler more accurate in expense of performance. more important in low performance rates (<20gb)
 |=================
 
 * There would be a performance impact when per-template tunables are used. Try to use global tunables.
 * The tunables mechanism does not work with the basic simulator mode but only with the advanced simulator mode.
+* Please use the same tcp.blackhole value for all your profiles. Otherwise, the result will be unpredictable.
 
 === Counters reference 
 

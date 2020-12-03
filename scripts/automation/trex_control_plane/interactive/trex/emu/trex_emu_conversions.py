@@ -526,9 +526,12 @@ class HostPort():
             :raises:
                 + :exe:'TRexError': If port is not a valid port
         """
-        if not unicode(port, 'utf-8').isnumeric():
-            raise TRexError("{} is not a numeric value.".format(port))
-        port_int = int(port)
+        port_int = 0 
+        try: 
+            port_int = int(port)
+        except: 
+           raise TRexError("{} is not a numeric value.".format(port))  
+
         if port_int < 0 or port_int > 0xFFFF:
             raise TRexError("{} is not a valid port. Port must be in [0-65535].".format(port_int))
 

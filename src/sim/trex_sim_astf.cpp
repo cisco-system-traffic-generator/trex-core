@@ -184,7 +184,8 @@ static void dump_tcp_counters(CTcpPerThreadCtx  *      c_ctx,
     stt_cp.m_init=true;
     stt_cp.Add(TCP_CLIENT_SIDE,c_ctx);
     stt_cp.Add(TCP_SERVER_SIDE,s_ctx);
-    stt_cp.update_profile_ctx();
+    stt_cp.AddProfileCtx(TCP_CLIENT_SIDE,DEFAULT_PROFILE_CTX(c_ctx));
+    stt_cp.AddProfileCtx(TCP_SERVER_SIDE,DEFAULT_PROFILE_CTX(s_ctx));
     stt_cp.Update();
     stt_cp.DumpTable();
     std::string json;

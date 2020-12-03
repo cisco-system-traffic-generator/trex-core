@@ -66,6 +66,8 @@ CFlowYamlInfo::CFlowYamlInfo() {
     m_multi_flow_was_set = false;
     m_keep_src_port = false;
     m_plugin_id = 0;
+    m_ip_header_offset = 0;
+    m_max_ip_tunnels = 1;
 }
 
 void CFlowYamlInfo::Dump(FILE *fd){
@@ -89,6 +91,8 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"one_server_was_set  : %d \n",m_one_app_server_was_set?1:0);
     fprintf(fd,"multi_flow_enabled  : %d \n",m_multi_flow_was_set);
     fprintf(fd,"keep_src_port       : %d \n",m_keep_src_port);
+    fprintf(fd, "ip_header_offset       : %d \n", m_ip_header_offset);
+    fprintf(fd, "max_ip_tunnels       : %d \n", m_max_ip_tunnels);
 
     if (m_dpPkt) {
         m_dpPkt->Dump(fd);
@@ -249,7 +253,7 @@ void CPacketDescriptor::Dump(FILE *fd){
 
 void CPacketIndication::UpdateMbufSize(){
 
-    uint8_t offset = m_udp_tcp_offset;
+    uint16_t offset = m_udp_tcp_offset;
     assert(offset>0);
 
     if ( m_desc.IsTcp() ) {
@@ -336,6 +340,8 @@ void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     m_packet_padding = obj->m_packet_padding;
     /* copy offsets*/
     m_ether_offset   = obj->m_ether_offset;
+    m_tunnel_ip_offset = obj->m_tunnel_ip_offset;
+    m_is_ipv6_tunnel = obj->m_is_ipv6_tunnel;
     m_ip_offset      = obj->m_ip_offset;
     m_udp_tcp_offset = obj->m_udp_tcp_offset;;
     m_payload_offset = obj->m_payload_offset;
@@ -375,6 +381,7 @@ void CPacketIndication::Dump(FILE *fd,int verbose){
     fprintf(fd," offsets \n");
     fprintf(fd," ------\n");
     fprintf(fd," eth       : %d \n",(int)m_ether_offset);
+    fprintf(fd," tunnel ip : %d \n", (int)m_tunnel_ip_offset);
     fprintf(fd," ip        : %d \n",(int)m_ip_offset);
     fprintf(fd," udp/tcp   : %d \n",(int)m_udp_tcp_offset);
     fprintf(fd," payload   : %d \n",(int)m_payload_offset);
@@ -481,6 +488,7 @@ void CCPacketParserCounters::Dump(FILE *fd){
 
 bool CPacketParser::Create(){
     m_counter.Clear();
+    m_ip_header_offset = 0;
     return (true);
 }
 
@@ -832,51 +840,50 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     m_is_ipv6 = false;
     m_is_ipv6_converted =false;
 
-
     // IP
-    switch( m_ether->getNextProtocol() ) {
-    case EthernetHeader::Protocol::IP :
+    switch (m_ether->getNextProtocol()) {
+    case EthernetHeader::Protocol::IP:
         offset = 14;
-        l3.m_ipv4 =(IPHeader *)(packetBase+offset);
+        l3.m_ipv4 = (IPHeader*)(packetBase + offset);
         break;
-    case EthernetHeader::Protocol::IPv6 :
+    case EthernetHeader::Protocol::IPv6:
         offset = 14;
-        l3.m_ipv6 =(IPv6Header *)(packetBase+offset);
+        l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
         m_is_ipv6 = true;
         break;
-    case EthernetHeader::Protocol::VLAN :
+    case EthernetHeader::Protocol::VLAN:
         m_cnt->m_vlan++;
-        switch ( m_ether->getVlanProtocol() ){
-          case EthernetHeader::Protocol::IP:
-               offset = 18;
-               l3.m_ipv4 =(IPHeader *)(packetBase+offset);
-              break;
-          case EthernetHeader::Protocol::IPv6 :
-              offset = 18;
-              l3.m_ipv6 =(IPv6Header *)(packetBase+offset);
-              m_is_ipv6 = true;
-              break;
-          case EthernetHeader::Protocol::MPLS_Multicast   :
-          case EthernetHeader::Protocol::MPLS_Unicast  :
-              m_cnt->m_mpls++;
-              return;
+        switch (m_ether->getVlanProtocol()) {
+        case EthernetHeader::Protocol::IP:
+            offset = 18;
+            l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+            break;
+        case EthernetHeader::Protocol::IPv6:
+            offset = 18;
+            l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+            m_is_ipv6 = true;
+            break;
+        case EthernetHeader::Protocol::MPLS_Multicast:
+        case EthernetHeader::Protocol::MPLS_Unicast:
+            m_cnt->m_mpls++;
+            return;
 
-        case EthernetHeader::Protocol::ARP :
+        case EthernetHeader::Protocol::ARP:
             m_cnt->m_arp++;
             return;
 
         default:
             m_cnt->m_non_ip++;
-            return ; /* Non IP */
-            }
+            return; /* Non IP */
+        }
         break;
-    case EthernetHeader::Protocol::ARP  :
+    case EthernetHeader::Protocol::ARP:
         m_cnt->m_arp++;
         return; /* Non IP */
         break;
 
-    case EthernetHeader::Protocol::MPLS_Multicast   :
-    case EthernetHeader::Protocol::MPLS_Unicast  :
+    case EthernetHeader::Protocol::MPLS_Multicast:
+    case EthernetHeader::Protocol::MPLS_Unicast:
         m_cnt->m_mpls++;
         return; /* Non IP */
         break;
@@ -885,9 +892,28 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
         m_cnt->m_non_ip++;
         return; /* Non IP */
     }
+    if (parser->m_ip_header_offset != 0){
+        // Keep track of the tunnel IP header offset we found above
+        m_tunnel_ip_offset = offset;
+        offset = parser->m_ip_header_offset;
+        m_is_ipv6_tunnel = m_is_ipv6;
+        m_is_ipv6 = false;
+        uint8_t* ip_version = (uint8_t*)(packetBase + offset);
+        if ((*ip_version & 0xF0) == 0x40){
+            l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+        }
+        else if ((*ip_version & 0xF0) == 0x60){
+            l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+            m_is_ipv6 = true;
+        }
+        else {
+            fprintf(stderr, "Error: ip_header_offset must point to a valid IPv4 or IPv6 header\n");
+            exit(-1);
+        }
+    }
 
     if (is_ipv6() == false) {
-        if( (14+20) > (uint32_t)( m_packet->getTotalLen())   ){
+        if( (offset+20) > (uint32_t)( m_packet->getTotalLen())   ){
             m_cnt->m_ip_length_error++;
             return;
         }
@@ -1035,7 +1061,7 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
 
     /* add more bytes to the packet */
     m_packet->append(bytes);
-    uint8_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPHeader::DefaultSize;
+    uint16_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPHeader::DefaultSize;
     char *p=m_packet->raw+ip_offset_to_move;
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
@@ -1095,7 +1121,7 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
 
     /* add more bytes to the packet */
     m_packet->append(bytes);
-    uint8_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPv6Header::DefaultSize;
+    uint16_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPv6Header::DefaultSize;
     char *p=m_packet->raw+ip_offset_to_move;
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
@@ -1611,10 +1637,10 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     bool is_custom_dirs = (flow_info.m_flows_dirs.size() > 0);
     bool keep_src_port = flow_info.m_keep_src_port;
 
-
     CFlowTableMap flow;
 
     parser.Create();
+    parser.m_ip_header_offset = flow_info.m_ip_header_offset;
     flow.Create(0);
     CFlow * first_flow=0;
     bool first_flow_fif_is_swap=false;
@@ -1737,6 +1763,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
             }
             pkt_indication.m_desc.SetInitSide(is_init_side);
             pkt_indication.m_desc.setKeepSrcPort(keep_src_port);
+            pkt_indication.m_desc.SetMaxIpTunnels(flow_info.m_max_ip_tunnels);
             Append(&pkt_indication);
         }else{
             fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
@@ -2048,6 +2075,24 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
         node["keep_src_port"] >> fi.m_keep_src_port;
     }else{
         fi.m_keep_src_port = 0;
+    }
+
+    if (node.FindValue("max_ip_tunnels")) {
+        node["max_ip_tunnels"] >> fi.m_max_ip_tunnels;
+        if (fi.m_max_ip_tunnels == 0) {
+            fprintf(stderr, " max_ip_tunnel has to be greater than 0\n");
+            exit(-1);
+        }
+    }
+    else {
+        fi.m_max_ip_tunnels = 1;
+    }
+
+    if (node.FindValue("ip_header_offset")) {
+        node["ip_header_offset"] >> fi.m_ip_header_offset;
+    }
+    else {
+        fi.m_ip_header_offset = 0;
     }
 
     if ( node.FindValue("flows_dirs") ) {
@@ -2955,6 +3000,8 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_node_gen.m_socket_id =socket_id;
     m_flow_id_to_node_lookup.Create();
 
+    m_ip_info.clear();
+
     /* split the clients to threads */
 
     if (! get_is_tcp_mode()) {
@@ -3072,6 +3119,37 @@ void CFlowGenListPerThread::defer_client_port_free(CGenNode *p){
 }
 
 
+CIpInfoBase* CFlowGenListPerThread::get_ip_info(uint32_t ip){
+    auto it = m_ip_info.find(ip);
+    if (it == m_ip_info.end()) {
+        return nullptr;
+    } else {
+        it->second->inc_ref();
+        return it->second;
+    }
+}
+
+void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
+    uint32_t ip = ip_info->get_ip();
+    auto it = m_ip_info.find(ip);
+    assert(it == m_ip_info.end());
+
+    ip_info->inc_ref();
+    m_ip_info[ip] = ip_info;
+}
+
+void CFlowGenListPerThread::release_ip_info(CIpInfoBase* ip_info) {
+    uint32_t ip = ip_info->get_ip();
+    ip_info->dec_ref();
+    if (ip_info->ref_cnt() == 0) {
+        auto it = m_ip_info.find(ip);
+        if (it != m_ip_info.end() && it->second == ip_info) {
+            m_ip_info.erase(ip);
+        }
+        delete ip_info;
+    }
+}
+
 
 /* copy all info from global and div by num of threads */
 void CFlowGenListPerThread::init_from_global(){
@@ -3094,6 +3172,8 @@ void CFlowGenListPerThread::init_from_global(){
         yaml_info->m_cap_mode =lp->m_info->m_cap_mode;
         yaml_info->m_plugin_id = lp->m_info->m_plugin_id;
         yaml_info->m_keep_src_port = lp->m_info->m_keep_src_port;
+        yaml_info->m_ip_header_offset = lp->m_info->m_ip_header_offset;
+        yaml_info->m_max_ip_tunnels = lp->m_info->m_max_ip_tunnels;
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
         yaml_info->m_dpPkt          =lp->m_info->m_dpPkt;
@@ -3143,6 +3223,11 @@ void CFlowGenListPerThread::Delete(){
     m_flow_id_to_node_lookup.remove_all(free_map_flow_id_to_node);
     // free object
     m_flow_id_to_node_lookup.Delete();
+
+    for (auto it: m_ip_info) {
+        delete it.second;
+    }
+    m_ip_info.clear();
 
     m_smart_gen.Delete();
     m_node_gen.Delete();
@@ -3498,6 +3583,13 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
         add_exit_node(thread,max_time);
     }
     m_scheduler_offset = offset;
+    dsec_t burst_size = BURST_OFFSET_DTIME;
+    if (CGlobalInfo::m_burst_offset_dtime > BURST_OFFSET_DTIME) {
+        if (CGlobalInfo::m_options.preview.getVMode() > 3) {
+            std::cout << "burst_size = " << burst_size << std::endl;
+        }
+        burst_size = CGlobalInfo::m_burst_offset_dtime;
+    }
 
     thread->m_cpu_dp_u.start_work1();
 
@@ -3515,6 +3607,14 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
                 dsec_t dt = cur_time - n_time ;
 
                 if (dt > BURST_OFFSET_DTIME) {
+                    // real time clock (not stretched)
+                    if ((cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT) {
+                        handle_maintenance_job(node, n_time, offset, thread);
+                        dt = cur_time - n_time;
+                    }
+                }
+
+                if (dt > burst_size) {
                     state = scSTRECH;
                 } else if (dt > 0) {
                     state = scWORK;
@@ -3575,7 +3675,7 @@ FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
     switch (state) {
     case scSTRECH:
         {
-            handle_time_strech(node, cur_time, n_time, offset, thread);
+            handle_time_strech(node, cur_time, n_time, offset);
 
             /* go back to work */
             state = scWORK;
@@ -3602,25 +3702,24 @@ FORCE_NO_INLINE void CNodeGenerator::handle_slow_operations(sch_state_t &state,
 void CNodeGenerator::handle_time_strech(CGenNode * &node,
                                         dsec_t &cur_time,
                                         dsec_t &n_time,
-                                        dsec_t &offset,
-                                        CFlowGenListPerThread *thread) {
-
-
+                                        dsec_t &offset) {
     /* fix the time offset */
     dsec_t dt = cur_time - n_time;
     offset += dt;
     /* set new offset */
     m_scheduler_offset = offset;
+}
 
+void CNodeGenerator::handle_maintenance_job(CGenNode * &node,
+                                        dsec_t &n_time,
+                                        dsec_t &offset,
+                                        CFlowGenListPerThread *thread) {
     /* check if flow sync message was delayed too much */
-    if ( (cur_time - m_last_sync_time_sec) > SYNC_TIME_OUT ) {
-        handle_maintenance(thread);
+    handle_maintenance(thread);
 
-        /* re-read the top of the queue - it might have changed with messaging */
-        node = m_p_queue.top();
-        n_time = node->m_time + offset;
-    }
-
+    /* re-read the top of the queue - it might have changed with messaging */
+    node = m_p_queue.top();
+    n_time = node->m_time + offset;
 }
 
 int CNodeGenerator::flush_file_sim(dsec_t max_time,

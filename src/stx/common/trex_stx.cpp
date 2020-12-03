@@ -168,6 +168,10 @@ TrexSTX::dp_core_finished(int thread_id, uint32_t profile_id) {
 }
 
 void
+TrexSTX::add_dp_profile_ctx(uint32_t profile_id, void* client, void* server) {
+}
+
+void
 TrexSTX::dp_core_error(int thread_id, uint32_t profile_id, const std::string &err) {
 }
 
