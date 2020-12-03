@@ -842,8 +842,6 @@ Other network devices
                 if os.path.exists(oper_state):
                     with open(oper_state) as f:
                         f_cont = f.read().strip()
-                    if f_cont in ('down', 'DOWN'):
-                        raise DpdkSetup('ERROR: Requested Linux interface %s is DOWN.' % name)
             return found_vdev
 
     def check_trex_running(self, if_list):
