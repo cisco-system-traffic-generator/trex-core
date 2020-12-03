@@ -99,8 +99,9 @@ void CClientPool::Create(IP_DIST_t       dist_value,
 
 void CClientPool::Delete() {
 
+    /* Just detach dont delete as Pool is not the owner of the node */
     while (!m_active_clients.is_empty()) {
-        delete m_active_clients.remove_head();
+        m_active_clients.remove_head();
     }
 
     FOREACH(m_ip_info) {
@@ -113,7 +114,8 @@ void CClientPool::Delete() {
             delete m_ip_info[i];
         }
     }
-
+    /* Reset iterator of current active list */
+    set_active_list_ptr_to_start();
     m_ip_info.clear();
 }
 
@@ -161,7 +163,9 @@ void CIpInfoBase:: detach_pool_and_client_node(void *ip_pool){
     for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
         if ((CClientPool *)ip_pool == (CClientPool *)m_ref_pool_ptr[idx]){
             m_ref_pool_ptr.erase(m_ref_pool_ptr.begin() + idx);
+            ActiveClientListNode  *cn = m_active_c_node[idx];
             m_active_c_node.erase(m_active_c_node.begin() + idx);
+            delete cn;
         }
     }
 }
