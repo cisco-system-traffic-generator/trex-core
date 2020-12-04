@@ -160,12 +160,14 @@ void CIpInfoBase::set_client_active(bool activate)
 */
 
 void CIpInfoBase:: detach_pool_and_client_node(void *ip_pool){
+
     for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
         if ((CClientPool *)ip_pool == (CClientPool *)m_ref_pool_ptr[idx]){
             m_ref_pool_ptr.erase(m_ref_pool_ptr.begin() + idx);
             ActiveClientListNode  *cn = m_active_c_node[idx];
             m_active_c_node.erase(m_active_c_node.begin() + idx);
             delete cn;
+            break;
         }
     }
 }
