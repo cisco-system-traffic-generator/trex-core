@@ -145,7 +145,7 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-bnxt', dest='no_bnxt', default=False, action='store_true', help="don't use bnxt dpdk driver. use with ./b configure --no-bnxt. no need to run build with it")
-    opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx4/mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
     opt.add_option('--new-memory', default=False, action='store_true', help="Build by new DPDK memory subsystem.")
@@ -362,7 +362,7 @@ def configure(conf):
     configure_sanitized(conf, with_sanitized)
             
     conf.env.NO_MLX = no_mlx
-    if not no_mlx:
+    if no_mlx != 'all':
         ofed_ok = conf.check_ofed(mandatory = False)
         conf.env.OFED_OK = ofed_ok
         conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
@@ -373,6 +373,10 @@ def configure(conf):
         else:
             Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' +
                                   'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
+        if no_mlx != 'mlx5':
+            Logs.pprint('YELLOW', 'Building mlx5 PMD')
+        if no_mlx != 'mlx4':
+            Logs.pprint('YELLOW', 'Building mlx4 PMD')
 
     conf.env.NO_BNXT = no_bnxt
     if not no_bnxt:
@@ -1746,7 +1750,7 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target()
       );
 
-    if bld.env.NO_MLX == False:
+    if bld.env.NO_MLX != 'all':
         if not bld.env.LIB_MNL:
             bld.shlib(
                 features='c',
@@ -1757,41 +1761,42 @@ def build_prog (bld, build_obj):
             )
             bld.env.mlx5_use = [build_obj.get_libmnl_target()]
 
-        if march == 'x86_64':
-            bld.shlib(
-              features='c',
-              includes = dpdk_includes_path +
-                         bld.env.dpdk_includes_verb_path +
-                         bld.env.libmnl_path,
-              cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-              use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
-              source   = mlx5_x86_64_dpdk.file_list(top),
-              target   = build_obj.get_mlx5_target(),
-              **bld.env.mlx5_kw
-            )
-        elif march == 'ppc64le':
-            bld.shlib(
-              features='c',
-              includes = dpdk_includes_path +
-                         bld.env.dpdk_includes_verb_path +
-                         bld.env.libmnl_path,
-              cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-              use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
-              source   = mlx5_ppc64le_dpdk.file_list(top),
-              target   = build_obj.get_mlx5_target(),
-              **bld.env.mlx5_kw
-            )
+        if bld.env.NO_MLX != 'mlx5':
+            if march == 'x86_64':
+                bld.shlib(
+                  features='c',
+                  includes = dpdk_includes_path +
+                             bld.env.dpdk_includes_verb_path +
+                             bld.env.libmnl_path,
+                  cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+                  use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
+                  source   = mlx5_x86_64_dpdk.file_list(top),
+                  target   = build_obj.get_mlx5_target(),
+                  **bld.env.mlx5_kw
+                )
+            elif march == 'ppc64le':
+                bld.shlib(
+                  features='c',
+                  includes = dpdk_includes_path +
+                             bld.env.dpdk_includes_verb_path +
+                             bld.env.libmnl_path,
+                  cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+                  use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
+                  source   = mlx5_ppc64le_dpdk.file_list(top),
+                  target   = build_obj.get_mlx5_target(),
+                  **bld.env.mlx5_kw
+                )
 
-
-        bld.shlib(
-        features='c',
-        includes = dpdk_includes_path +
-                   bld.env.dpdk_includes_verb_path,
-        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
-        use      = ['ibverbs', 'mlx4'],
-        source   = mlx4_dpdk.file_list(top),
-        target   = build_obj.get_mlx4_target()
-       )
+        if bld.env.NO_MLX != 'mlx4':
+            bld.shlib(
+            features='c',
+            includes = dpdk_includes_path +
+                       bld.env.dpdk_includes_verb_path,
+            cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
+            use      = ['ibverbs', 'mlx4'],
+            source   = mlx4_dpdk.file_list(top),
+            target   = build_obj.get_mlx4_target()
+           )
 
     if bld.env.WITH_NTACC == True:
         bld.shlib(
@@ -1886,7 +1891,7 @@ def build(bld):
     zmq_lib_path='external_libs/zmq/' + march + '/'
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
-    if bld.env.NO_MLX == False:
+    if bld.env.NO_MLX != 'all':
         if bld.env.LIB_IBVERBS:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
             if not bld.env.LD_SEARCH_PATH:
@@ -1895,15 +1900,19 @@ def build(bld):
             SYSTEM_LIB_PATHS.extend(bld.env.LD_SEARCH_PATH)
 
             bld.read_shlib(name='ibverbs')
-            bld.read_shlib(name='mlx5')
-            bld.read_shlib(name='mlx4')
+            if bld.env.NO_MLX != 'mlx5':
+                bld.read_shlib(name='mlx5')
+            if bld.env.NO_MLX != 'mlx4':
+                bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/' + march
             bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/' + march + '/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
-            bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
-            bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
+            if bld.env.NO_MLX != 'mlx5':
+                bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
+            if bld.env.NO_MLX != 'mlx4':
+                bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
         if bld.env.LIB_MNL:
