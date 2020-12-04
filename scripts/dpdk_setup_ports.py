@@ -36,9 +36,12 @@ march = os.uname()[4]
 # exit code is Important should be
 # -1 : don't continue
 # 0  : no errors - no need to load mlx share object
-# 32  : no errors - mlx share object should be loaded
+# 16  : no errors - mlx4 share object should be loaded
+# 32  : no errors - mlx5 share object should be loaded
+# 48  : no errors - both mlx4/mlx5 share object should be loaded
 # 64  : no errors - napatech 3GD should be running
-MLX_EXIT_CODE = 32
+MLX4_EXIT_CODE = 16
+MLX5_EXIT_CODE = 32
 NTACC_EXIT_CODE = 64
 class VFIOBindErr(Exception): pass
 
@@ -922,6 +925,8 @@ Other network devices
         Broadcom_cnt=0;
         # check how many mellanox cards we have
         Mellanox_cnt=0;
+        mlx5_present=0;
+        mlx4_present=0;
         dummy_cnt=0
         for key in if_list:
             if key == 'dummy':
@@ -938,6 +943,10 @@ Other network devices
 
             if 'Mellanox' in self.m_devices[key]['Vendor_str']:
                 Mellanox_cnt += 1
+                if 'mlx5' in self.m_devices[key]['Driver_str']:
+                    mlx5_present = MLX5_EXIT_CODE
+                if 'mlx4' in self.m_devices[key]['Driver_str']:
+                    mlx4_present = MLX4_EXIT_CODE
             if 'Broadcom' in self.m_devices[key]['Vendor_str']:
                 Broadcom_cnt += 1
 
@@ -970,7 +979,7 @@ Other network devices
 
         if only_check_all_mlx:
             if Mellanox_cnt > 0:
-                sys.exit(MLX_EXIT_CODE);
+                sys.exit(mlx5_present + mlx4_present);
             else:
                 sys.exit(0);
 
@@ -1004,12 +1013,15 @@ Other network devices
 
         if to_bind_list:
             if Mellanox_cnt:
-                ret = self.do_bind_all('mlx5_core', to_bind_list)
-                if ret:
+                if mlx5_present:
+                    ret = self.do_bind_all('mlx5_core', to_bind_list)
+                    if ret:
+                        raise DpdkSetup('Unable to bind interfaces to driver mlx5_core.')
+                if mlx4_present:
                     ret = self.do_bind_all('mlx4_core', to_bind_list)
                     if ret:
-                        raise DpdkSetup('Unable to bind interfaces to driver mlx5_core/mlx4_core.')
-                return MLX_EXIT_CODE
+                        raise DpdkSetup('Unable to bind interfaces to driver mlx4_core.')
+                return mlx5_present + mlx4_present
             else:
                 if march == 'ppc64le':
                     print('Trying to bind to vfio-pci ...')
@@ -1038,7 +1050,7 @@ Other network devices
                     if ret:
                         raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
         elif Mellanox_cnt:
-            return MLX_EXIT_CODE
+            return mlx5_present + mlx4_present
         elif Napatech_cnt:
             return NTACC_EXIT_CODE
 
