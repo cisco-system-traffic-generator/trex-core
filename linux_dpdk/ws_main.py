@@ -202,6 +202,123 @@ def missing_pkg_msg(fedora, ubuntu):
         msg += unknown_install
     return msg
 
+@conf
+def configure_mlx5 (ctx):
+    ctx.start_msg('Configuring MLX5 autoconf')
+    autoconf_file = 'src/dpdk/drivers/common/mlx5/mlx5_autoconf.h'
+    autoconf_path = os.path.join(top, autoconf_file)
+    os.system('rm -rf %s' % autoconf_path)
+    # input array for meson symbol search:
+    # [ "MACRO to define if found", "header for the search",
+    #   "symbol type to search" "symbol name to search" ]
+    has_sym_args = [
+        [ 'HAVE_IBV_MLX5_MOD_SWP', 'infiniband/mlx5dv.h',
+        'type', 'struct mlx5dv_sw_parsing_caps' ],
+        [ 'HAVE_IBV_DEVICE_COUNTERS_SET_V42', 'infiniband/verbs.h',
+        'type', 'struct ibv_counter_set_init_attr' ],
+        [ 'HAVE_IBV_DEVICE_COUNTERS_SET_V45', 'infiniband/verbs.h',
+        'type', 'struct ibv_counters_init_attr' ],
+        [ 'HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CQE_RES_FORMAT_CSUM_STRIDX' ],
+        [ 'HAVE_IBV_DEVICE_TUNNEL_SUPPORT', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_MASK_TUNNEL_OFFLOADS' ],
+        [ 'HAVE_IBV_MLX5_MOD_MPW', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_FLAGS_MPW_ALLOWED' ],
+        [ 'HAVE_IBV_MLX5_MOD_CQE_128B_COMP', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_FLAGS_CQE_128B_COMP' ],
+        [ 'HAVE_IBV_MLX5_MOD_CQE_128B_PAD', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CQ_INIT_ATTR_FLAGS_CQE_PAD' ],
+        [ 'HAVE_IBV_FLOW_DV_SUPPORT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_create_flow_action_packet_reformat' ],
+        [ 'HAVE_IBV_DEVICE_MPLS_SUPPORT', 'infiniband/verbs.h',
+        'enum', 'IBV_FLOW_SPEC_MPLS' ],
+        [ 'HAVE_IBV_WQ_FLAGS_PCI_WRITE_END_PADDING', 'infiniband/verbs.h',
+        'enum', 'IBV_WQ_FLAGS_PCI_WRITE_END_PADDING' ],
+        [ 'HAVE_IBV_WQ_FLAG_RX_END_PADDING', 'infiniband/verbs.h',
+        'enum', 'IBV_WQ_FLAG_RX_END_PADDING' ],
+        [ 'HAVE_MLX5DV_DR_DEVX_PORT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_query_devx_port' ],
+        [ 'HAVE_IBV_DEVX_OBJ', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_obj_create' ],
+        [ 'HAVE_IBV_FLOW_DEVX_COUNTERS', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_FLOW_ACTION_COUNTERS_DEVX' ],
+        [ 'HAVE_IBV_DEVX_ASYNC', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_obj_query_async' ],
+        [ 'HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_dest_devx_tir' ],
+        [ 'HAVE_IBV_DEVX_EVENT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_get_event' ],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_flow_meter' ],
+        [ 'HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5_MMAP_GET_NC_PAGES_CMD' ],
+        [ 'HAVE_MLX5DV_DR', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_DR_DOMAIN_TYPE_NIC_RX' ],
+        [ 'HAVE_MLX5DV_DR_ESWITCH', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_DR_DOMAIN_TYPE_FDB' ],
+        [ 'HAVE_MLX5DV_DR_VLAN', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_push_vlan' ],
+        [ 'HAVE_IBV_VAR', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_alloc_var' ],
+        [ 'HAVE_SUPPORTED_40000baseKR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseKR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseCR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseCR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseSR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseSR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseLR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseLR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseKR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseKR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseCR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseCR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseSR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseSR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseLR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseLR4_Full' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_25G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_25000baseCR_Full_BIT' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_50G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_50000baseCR2_Full_BIT' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_100G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_100000baseKR4_Full_BIT' ],
+        [ 'HAVE_IFLA_NUM_VF', 'linux/if_link.h',
+        'enum', 'IFLA_NUM_VF' ],
+        [ 'HAVE_IFLA_EXT_MASK', 'linux/if_link.h',
+        'enum', 'IFLA_EXT_MASK' ],
+        [ 'HAVE_IFLA_PHYS_SWITCH_ID', 'linux/if_link.h',
+        'enum', 'IFLA_PHYS_SWITCH_ID' ],
+        [ 'HAVE_IFLA_PHYS_PORT_NAME', 'linux/if_link.h',
+        'enum', 'IFLA_PHYS_PORT_NAME' ],
+        [ 'HAVE_RDMA_NL_NLDEV', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NL_NLDEV' ],
+        [ 'HAVE_RDMA_NLDEV_CMD_GET', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_CMD_GET' ],
+        [ 'HAVE_RDMA_NLDEV_CMD_PORT_GET', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_CMD_PORT_GET' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_DEV_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_DEV_INDEX' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_DEV_NAME', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_DEV_NAME' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_PORT_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_PORT_INDEX' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_NDEV_INDEX' ],
+        [ 'HAVE_MLX5_DR_FLOW_DUMP', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dump_dr_domain'],
+        [ 'HAVE_DEVLINK', 'linux/devlink.h',
+        'define', 'DEVLINK_GENL_NAME' ],
+    ]
+    autoconf_script = 'src/dpdk/auto-config-h.sh'
+    autoconf_command = os.path.join(top, autoconf_script)
+    for arg in has_sym_args:
+        result, output = getstatusoutput("%s %s '%s' '%s' '%s' '%s' > /dev/null" %
+            (autoconf_command, autoconf_path, arg[0], arg[1], arg[2], arg[3]))
+        if result != 0:
+            ctx.end_msg('failed\n%s\n' % output, 'YELLOW')
+            break
+    if result == 0:
+        ctx.end_msg('done', 'GREEN')
 
 @conf
 def check_ofed(ctx):
@@ -368,6 +485,7 @@ def configure(conf):
         conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
 
         if ofed_ok:
+            conf.configure_mlx5(mandatory = False)
             conf.get_ld_search_path(mandatory = True)
             conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
         else:
