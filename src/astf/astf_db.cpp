@@ -460,7 +460,7 @@ uint32_t CAstfDB::get_delay_ticks(uint32_t program_index, uint32_t cmd_index) {
 
     assert (cmd["name"] == "delay");
 
-    return tw_time_usec_to_ticks(cmd["usec"].asInt());
+    return tw_time_usec_to_ticks(cmd["usec"].asUInt());
 }
 
 void CAstfDB::assert_cmd(uint32_t program_index, uint32_t cmd_index, const std::string &cmd_name, Json::Value &cmd) {
@@ -551,7 +551,7 @@ void CAstfDB::fill_rx_pkt(uint32_t program_index,
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx_msg", cmd);
 
-    uint64_t min_pkts=cmd["min_pkts"].asInt64();
+    uint64_t min_pkts=cmd["min_pkts"].asUInt64();
     if (unlikely(min_pkts < total_rx_wm)) {
         min_pkts = total_rx_wm; // to skip invalid min_pkts
     }
@@ -573,7 +573,7 @@ void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "keepalive", cmd);
 
-    res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asInt();
+    res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asUInt();
 }
 
 
@@ -581,7 +581,7 @@ void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index, uint64_t& t
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx", cmd);
 
-    uint64_t min_bytes = cmd["min_bytes"].asInt64();
+    uint64_t min_bytes = cmd["min_bytes"].asUInt64();
     if (unlikely(min_bytes < total_rx_wm)) {
         min_bytes = total_rx_wm; // to skip invalid min_bytes
     }
@@ -1462,7 +1462,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
                 temp_str = base64_decode(json_buf);
             }
             if (buf_obj["size"] != Json::nullValue) {
-                buf_len = buf_obj["size"].asInt();
+                buf_len = buf_obj["size"].asUInt();
             } else {
                 buf_len = temp_str.size();
             }
