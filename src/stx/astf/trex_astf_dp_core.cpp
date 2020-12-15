@@ -403,14 +403,22 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CA
         astf_db->set_factor(factor);
     }
 
+    string errmsg;
+
     try {
         create_profile_state(profile_id);
         m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1, astf_db);
+    } catch (const Json::LogicError &ex) {
+        errmsg = ex.what();
     } catch (const TrexException &ex) {
+        errmsg = ex.what();
+    }
+
+    if (!errmsg.empty()) {
         remove_profile_state(profile_id);
         m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0, astf_db);
         m_flow_gen->remove_tcp_profile(profile_id);
-        report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
+        report_error(profile_id, "Could not create ASTF batch: " + errmsg);
         return;
     }
 
