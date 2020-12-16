@@ -578,6 +578,8 @@ public:
         m_dummy_count=0;
         m_reta_mask=0;
         m_hdrh = false;
+        m_tx_ring_size = 0;
+        m_astf_best_effort_mode = false;
     }
 
     CParserOption(){
@@ -644,7 +646,8 @@ public:
     double          m_tw_bucket_time_sec_level1;
     uint32_t        x710_fdir_reset_threshold;
     uint32_t        m_lowend_core;
-    
+    uint16_t        m_tx_ring_size;
+    bool            m_astf_best_effort_mode;
 
 
 public:
@@ -1090,7 +1093,6 @@ static inline int get_is_stateful(){
     return (get_op_mode() == OP_MODE_STF);
 }
 
-
 static inline int get_is_tcp_mode(){
     return ( (get_op_mode() == OP_MODE_ASTF) || (get_op_mode() == OP_MODE_ASTF_BATCH) );
 }
@@ -1099,12 +1101,9 @@ static inline int get_is_tcp_mode_multi_core(){
     return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) ); 
 }
 
-
-
 static inline int get_is_interactive(){
     return ( get_mode()->is_interactive());
 }
-
 
 static inline int get_is_rx_check_mode(){
     return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);

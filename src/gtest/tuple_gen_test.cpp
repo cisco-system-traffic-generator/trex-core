@@ -19,6 +19,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <cstdlib>
+#include <ctime>
 #include "../bp_sim.h"
 #include <common/gtest.h>
 #include <common/basic_utils.h>
@@ -766,6 +768,44 @@ TEST(tuple_gen,astf_mode4) {
 
 }
 
+void test_rss_sport_lsb_align(uint16_t rss_thread_id,
+                              uint16_t rss_thread_max,
+                              uint8_t rss_reta_mask) {
+    int rand_value = rand();
+    uint16_t rand_port = MIN_PORT + (rand_value % (MAX_PORT - MIN_PORT)) + 1;
+    uint16_t aligned_port = rss_align_lsb(rand_port, rss_thread_id, rss_thread_max, rss_reta_mask);
+    uint16_t calculated_thread_id = rss_get_thread_id_aligned(false, aligned_port, rss_thread_max, rss_reta_mask);
+    EXPECT_EQ(rss_thread_id, calculated_thread_id);
+}
 
+
+TEST(tuple_gen, astf_mode5) {
+    srand(time(NULL)); // Set the seed based on time so we get a different pattern on each run.
+
+    // case 1
+    uint8_t reta_mask = 0xff;
+    uint16_t thread_max = 8;
+    for (uint16_t i = 0; i < thread_max; i++) {
+        test_rss_sport_lsb_align(i, thread_max, reta_mask);
+    }
+
+    // case 2
+    thread_max = 5;
+    for (uint16_t i = 0; i < thread_max; i++) {
+        test_rss_sport_lsb_align(i, thread_max, reta_mask);
+    }
+
+    // case 3
+    reta_mask = 0x7f;
+    for (uint16_t i = 0; i < thread_max; i++) {
+        test_rss_sport_lsb_align(i, thread_max, reta_mask);
+    }
+
+    // case 4
+    thread_max = 4;
+    for (uint16_t i = 0; i < thread_max; i++) {
+        test_rss_sport_lsb_align(i, thread_max, reta_mask);
+    }
+}
 
 

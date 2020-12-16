@@ -269,11 +269,11 @@ static int load_list_of_cap_files(CParserOption * op,
 
 
 int SimAstf::run() {
-     
-    assert( CMsgIns::Ins()->Create(4) );
-    
+
+    assert( CMsgIns::Ins()->Create(4, CGlobalInfo::m_options.m_astf_best_effort_mode) );
+
     STXSimGuard guard(new TrexAstfBatch(TrexSTXCfg(), nullptr));
-    
+
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options, args);
     } catch (const std::runtime_error &e) {
