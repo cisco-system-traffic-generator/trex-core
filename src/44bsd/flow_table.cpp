@@ -37,16 +37,16 @@ void CSttFlowTableStats::Clear(){
 #define MYC_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)m_sts.f)
 
 void CSttFlowTableStats::Dump(FILE *fd){
-    MYC(m_err_no_syn);                  
-    MYC(m_err_len_err);                 
+    MYC(m_err_no_syn);
+    MYC(m_err_len_err);
     MYC(m_err_fragments_ipv4_drop);
-    MYC(m_err_no_tcp_udp);                  
-    MYC(m_err_client_pkt_without_flow); 
-    MYC(m_err_no_template);             
-    MYC(m_err_no_memory);               
-    MYC(m_err_duplicate_client_tuple);  
-    MYC(m_err_l3_cs);                   
-    MYC(m_err_l4_cs);                   
+    MYC(m_err_no_tcp_udp);
+    MYC(m_err_client_pkt_without_flow);
+    MYC(m_err_no_template);
+    MYC(m_err_no_memory);
+    MYC(m_err_duplicate_client_tuple);
+    MYC(m_err_l3_cs);
+    MYC(m_err_l4_cs);
     MYC(m_err_redirect_rx);
     MYC(m_redirect_rx_ok);
     MYC(m_err_rx_throttled);
@@ -54,7 +54,10 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_err_c_nf_throttled);
     MYC(m_err_s_nf_throttled);
     MYC(m_defer_template);
-    MYC(m_err_defer_no_template);             
+    MYC(m_err_defer_no_template);
+    MYC(m_rss_redirect_rx);
+    MYC(m_rss_redirect_tx);
+    MYC(m_rss_redirect_drops);
 }
 
 

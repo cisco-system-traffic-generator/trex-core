@@ -210,8 +210,7 @@ DPDK mode of operation from filter, tx/rx queues model, rss configration
 
 typedef enum { tmONE_QUE=0,       /* driver support only one TX and one RX queue */
 
-               tmMULTI_QUE,      /* driver support multi TX and multi RX queue -
-                                    - distribution to RX could be random */
+               tmMULTI_QUE,      /* driver support multi TX and multi RX queue */
 
                tmDROP_QUE_FILTER,      /* driver support multi TX and multi RX queue, 
                                          and support DROP QUEUE and TOS filter for specific queue*/
@@ -473,7 +472,6 @@ public:
    int choose_mode(uint32_t cap);
 
    CDpdkModeBase * get_mode(){
-       assert(m_dpdk_obj);
        return m_dpdk_obj;
    }
 
@@ -492,6 +490,15 @@ public:
    }
    bool is_interactive();
    bool is_astf_mode();
+
+   bool is_astf_best_effort_mode() {
+        if (!m_dpdk_obj) {
+            return false;
+        }
+        trex_dpdk_rx_distro_mode_t rss_mode = m_dpdk_obj->get_rx_distro_mode();
+        bool is_best_effort = (rss_mode == ddRX_DIST_BEST_EFFORT); // This auto implies that we are running multicore.
+        return is_best_effort && is_astf_mode();
+   }
 
    void get_dpdk_drv_params(CTrexDpdkParams &p);
 

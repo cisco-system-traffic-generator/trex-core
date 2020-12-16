@@ -3609,9 +3609,17 @@ COLD_FUNC bool CGlobalTRex::Create(){
         return (false);
     }
 
-
+    bool is_astf_best_effort_mode = get_mode()->is_astf_best_effort_mode();
+    if (is_astf_best_effort_mode) {
+        // set data needed for this mode
+        CTrexDpdkParams dpdk_p;
+        get_dpdk_drv_params(dpdk_p);
+        CGlobalInfo::m_options.m_tx_ring_size = dpdk_p.tx_desc_num;
+        CGlobalInfo::m_options.m_reta_mask = 0xFF;
+        CGlobalInfo::m_options.m_astf_best_effort_mode = true;
+    }
     /* allocate rings */
-    assert( CMsgIns::Ins()->Create(get_cores_tx()) );
+    assert( CMsgIns::Ins()->Create(get_cores_tx(), is_astf_best_effort_mode) );
 
     if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
         printf("ERROR sizeof(CGenNodeNatInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));

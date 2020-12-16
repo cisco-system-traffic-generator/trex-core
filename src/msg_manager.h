@@ -23,6 +23,7 @@ limitations under the License.
 
 
 #include "CRing.h"
+#include "mbuf.h"
 #include <string>
 
 
@@ -83,7 +84,6 @@ public:
     void Delete();
     CNodeRing * getRingCpToDp(uint8_t thread_id);
     CNodeRing * getRingDpToCp(uint8_t thread_id);
-    CNodeRing * getRingCpToRx();
     uint8_t get_num_threads(){
         return (m_num_dp_threads);
     }
@@ -94,21 +94,62 @@ private:
 };
 
 
+typedef CTRing<rte_mbuf_t> CMbufRing;
+
+
+/** This is a manager that manages the rings each data plane core offers to other data plane cores 
+ *in order to transfer packets 
+ */
+class CDpToDpMessagingManager {
+
+public:
+    CDpToDpMessagingManager() {
+        // Initiate values to zeroes.
+        m_dp_to_dp = nullptr;
+        m_num_dp_threads = 0;
+    }
+
+    bool Create(uint8_t num_dp_threads, std::string name);
+
+    void Delete();
+
+    CMbufRing* getRingToDp(uint8_t thread_id);
+
+private:
+
+    CMbufRing* m_dp_to_dp;       // Pointer to the DP to DP packet ring.
+
+    uint8_t    m_num_dp_threads; // Number of Data plane threads/cores.
+
+};
+
+
 class CMsgIns {
 public:
     static  CMsgIns  * Ins();
     static  void Free();
-    bool Create(uint8_t num_threads);
+    bool Create(uint8_t num_threads, bool is_software_rss);
     void Delete();
+
 public:
+
     CMessagingManager * getRxDp(){
         return (&m_rx_dp);
     }
+
     CMessagingManager * getCpDp(){
         return (&m_cp_dp);
     }
+
     CMessagingManager * getCpRx(){
         return (&m_cp_rx);
+    }
+
+    /**
+     * Get the Dp to Dp messaging manager.
+     */
+    CDpToDpMessagingManager* getDpDp() {
+        return &m_dp_dp;
     }
 
     uint8_t get_num_threads(){
@@ -116,9 +157,11 @@ public:
     }
 
 private:
-    CMessagingManager m_rx_dp;
-    CMessagingManager m_cp_dp;
-    CMessagingManager m_cp_rx;
+    CMessagingManager       m_rx_dp;
+    CMessagingManager       m_cp_dp;
+    CMessagingManager       m_cp_rx;
+    CDpToDpMessagingManager m_dp_dp;           // Dp to Dp messaging manager. This is created only if the mode is software_rss.
+    bool                    m_is_software_rss; // Are we running TRex with software receive side scaling (RSS)?
 
 private:
     /* one instance */

@@ -617,10 +617,10 @@ int merge_2_cap_files_sip() {
 int
 SimStateful::run() {
     TrexSTXCfg cfg;
-    
-    assert( CMsgIns::Ins()->Create(4) );
+
+    assert( CMsgIns::Ins()->Create(4, false) );
     STXSimGuard guard(new TrexStateful(cfg, nullptr));
-    
+
     try {
         return load_list_of_cap_files(&CGlobalInfo::m_options);
     } catch (const std::runtime_error &e) {

@@ -26,6 +26,11 @@ limitations under the License.
 
 /*TBD: need to fix socket_id for NUMA */
 
+/*===============================================================================
+ CMessagingManager
+===============================================================================*/
+
+// Creates the CMessagingManager.
 bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
     m_num_dp_threads=num_dp_threads;
     assert(m_dp_to_cp==0);
@@ -51,6 +56,8 @@ bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
     assert(m_cp_to_dp);
     return (true);
 }
+
+// Deletes the CMessagingManager.
 void CMessagingManager::Delete(){
 
     int i;
@@ -74,17 +81,71 @@ void CMessagingManager::Delete(){
 
 }
 
+// Gets the CNodeRing* from Control plane to Data plane number @param: thread_id.
 CNodeRing * CMessagingManager::getRingCpToDp(uint8_t thread_id){
     assert(thread_id<m_num_dp_threads);
     return (&m_cp_to_dp[thread_id]);
 }
 
+// Gets the CNodeRing* from Data plane number @param: thread_id to Control plane.
 CNodeRing * CMessagingManager::getRingDpToCp(uint8_t thread_id){
     assert(thread_id<m_num_dp_threads);
     return (&m_dp_to_cp[thread_id]);
 
 }
 
+
+/*===============================================================================
+ CDpToDpMessagingManager
+===============================================================================*/
+
+// Creates the CDpToDpMessagingManager.
+bool CDpToDpMessagingManager::Create(uint8_t num_dp_threads, std::string a_name) {
+    m_num_dp_threads = num_dp_threads;
+    assert(m_dp_to_dp == nullptr); // Make sure no one calls Create on an already created manager.
+    m_dp_to_dp = new CMbufRing[m_num_dp_threads];
+    int master_socket_id = rte_lcore_to_socket_id(CGlobalInfo::m_socket.get_master_phy_id());
+    uint16_t tx_ring_size = CGlobalInfo::m_options.m_tx_ring_size;
+
+    for (int i = 0; i < m_num_dp_threads; i++) {
+        // Create all CMBufRings.
+        CMbufRing* p;
+        char name[100];
+        p = getRingToDp(i);
+        sprintf(name, "%s_to_%d", (char *)a_name.c_str(), i);
+        assert(p->Create(std::string(name), tx_ring_size, master_socket_id, false, true) == true);
+    }
+    return true;
+}
+
+// Deletes the CDpToDpMessagingManager
+void CDpToDpMessagingManager::Delete() {
+
+    for (int i = 0; i < m_num_dp_threads; i++) {
+        CMbufRing* p;
+        p = getRingToDp(i);
+        p->Delete();
+    }
+
+    if (m_dp_to_dp) {
+        delete [] m_dp_to_dp;
+        m_dp_to_dp = nullptr;
+    }
+}
+
+
+// Gets the CMbufRing* to data plane number @param: thread_id.
+CMbufRing* CDpToDpMessagingManager::getRingToDp(uint8_t thread_id) {
+    assert (thread_id < m_num_dp_threads);
+    return &m_dp_to_dp[thread_id];
+}
+
+
+/*===============================================================================
+ CMsgIns
+===============================================================================*/
+
+// Frees the messaging instance.
 void CMsgIns::Free(){
     if (m_ins) {
         m_ins->Delete();
@@ -93,6 +154,7 @@ void CMsgIns::Free(){
     }
 }
 
+// Get the existing instance of messaging or create a new one in case there isn't any.
 CMsgIns  * CMsgIns::Ins(void){
     if (!m_ins) {
         m_ins= new CMsgIns();
@@ -101,7 +163,10 @@ CMsgIns  * CMsgIns::Ins(void){
     return (m_ins);
 }
 
-bool CMsgIns::Create(uint8_t num_threads){
+// Creates a new message instance CMsgIns.
+bool CMsgIns::Create(uint8_t num_threads, bool is_software_rss){
+
+    m_is_software_rss = is_software_rss;
 
     bool res = m_cp_dp.Create(num_threads,"cp_dp");
     if (!res) {
@@ -111,15 +176,26 @@ bool CMsgIns::Create(uint8_t num_threads){
     if (!res) {
         return (res);
     }
+    res = m_rx_dp.Create(num_threads, "rx_dp");
+    if (!res) {
+        return res;
+    }
 
-    return (m_rx_dp.Create(num_threads,"rx_dp"));
+    if (m_is_software_rss) {
+        return (m_dp_dp.Create(num_threads, "dp_dp"));
+    }
+
+    return true;
 }
 
+// Deletes the messaging instance by deleting all of the messaging managers.
 void CMsgIns::Delete(){
     m_cp_dp.Delete();
     m_rx_dp.Delete();
     m_cp_rx.Delete();
+    if (m_is_software_rss) {
+        m_dp_dp.Delete();
+    }
 }
-
 
 CMsgIns  * CMsgIns::m_ins=0;
