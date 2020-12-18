@@ -325,11 +325,11 @@ def compile_and_load_igb_uio():
     if 'uio' not in loaded_mods:
         ret = os.system('modprobe uio')
         if ret:
-            print('Failed inserting uio module, please check if it is installed')
+            print('Failed inserting uio module, please check if it is installed.')
             sys.exit(-1)
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if not os.path.exists(km):
-        print("ERROR: We don't have precompiled igb_uio.ko module for your kernel version")
+        print("ERROR: We don't have precompiled igb_uio.ko module for your kernel version.")
         print('Will try compiling automatically...')
         build_path = '/tmp/trex-ko'
         ret = os.system('mkdir -p %s' % build_path)
@@ -366,7 +366,7 @@ def compile_and_load_igb_uio():
 
     ret = os.system('insmod %s' % km)
     if ret:
-        print('Failed inserting igb_uio module')
+        print('Failed inserting igb_uio module.')
         sys.exit(-1)
 
 class map_driver(object):
@@ -392,12 +392,12 @@ class CIfMap:
         s="""%s
 From this TRex version a configuration file must exist in /etc/ folder "
 The name of the configuration file should be /etc/trex_cfg.yaml "
-The minimum configuration file should include something like this
+The minimum configuration file should include something like this:
 - version       : 2 # version 2 of the configuration file
   interfaces    : ["03:00.0","03:00.1","13:00.1","13:00.0"]  # list of the interfaces to bind run ./dpdk_nic_bind.py --status to see the list
   port_limit      : 2 # number of ports to use valid is 2,4,6,8,10,12
 
-example of already bind devices
+example of already bound devices
 
 $ ./dpdk_nic_bind.py --status
 
@@ -504,7 +504,7 @@ Other network devices
 
 
         if not os.path.isfile(ofed_info):
-            print("OFED %s is not installed on this setup" % ofed_info)
+            print("OFED %s is not installed on this setup." % ofed_info)
             sys.exit(-1);
 
         try:
@@ -520,15 +520,15 @@ Other network devices
             if m:
                 ver=int(m.group(1))*10+int(m.group(2))
                 if ver < ofed_ver:
-                  print("installed OFED version is '%s' should be at least '%s' and up" % (lines[0],ofed_ver_show))
+                  print("Installed OFED version is '%s', should be at least '%s' and up." % (lines[0],ofed_ver_show))
                   sys.exit(-1);
             else:
-                print("not found valid  OFED version '%s' " % (lines[0]))
+                print("No valid OFED version '%s' found." % (lines[0]))
                 sys.exit(-1);
 
 
     def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs where tested only with RedHat/CentOS 7.6\n'
+        err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.6\n'
         err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
         try:
             dist = platform.dist()
@@ -554,13 +554,13 @@ Other network devices
         stream.close();
         cfg_dict = self.m_cfg_dict[0]
         if 'version' not in cfg_dict:
-            raise DpdkSetup("Configuration file %s is old, it should include version field\n" % fcfg )
+            raise DpdkSetup("Configuration file %s is old, it should include version field.\n" % fcfg )
 
         if int(cfg_dict['version'])<2 :
-            raise DpdkSetup("Configuration file %s is old, expected version 2, got: %s\n" % (fcfg, cfg_dict['version']))
+            raise DpdkSetup("Configuration file %s is old, expected version 2, got: %s.\n" % (fcfg, cfg_dict['version']))
 
         if 'interfaces' not in self.m_cfg_dict[0]:
-            raise DpdkSetup("Configuration file %s is old, it should include interfaces field with even number of elements" % fcfg)
+            raise DpdkSetup("Configuration file %s is old, it should include interfaces field with even number of elements." % fcfg)
 
         if_list= if_list_remove_sub_if(self.m_cfg_dict[0]['interfaces']);
         l=len(if_list);
@@ -570,11 +570,11 @@ Other network devices
             raise DpdkSetup("Configuration file %s should include even number of interfaces, got: %s" % (fcfg,l))
         if 'port_limit' in cfg_dict:
             if cfg_dict['port_limit'] > len(if_list):
-                raise DpdkSetup('Error: port_limit should not be higher than number of interfaces in config file: %s\n' % fcfg)
+                raise DpdkSetup('Error: port_limit should not be higher than the number of interfaces in config file: %s.\n' % fcfg)
             if cfg_dict['port_limit'] % 2:
-                raise DpdkSetup('Error: port_limit in config file must be even number, got: %s\n' % cfg_dict['port_limit'])
+                raise DpdkSetup('Error: port_limit in config file must be an even number, got: %s.\n' % cfg_dict['port_limit'])
             if cfg_dict['port_limit'] <= 0:
-                raise DpdkSetup('Error: port_limit in config file must be positive number, got: %s\n' % cfg_dict['port_limit'])
+                raise DpdkSetup('Error: port_limit in config file must be a positive number, got: %s.\n' % cfg_dict['port_limit'])
         if pa() and pa().limit_ports is not None and pa().limit_ports > len(if_list):
             raise DpdkSetup('Error: --limit-ports CLI argument (%s) must not be higher than number of interfaces (%s) in config file: %s\n' % (pa().limit_ports, len(if_list), fcfg))
 
@@ -669,9 +669,9 @@ Other network devices
             os.chmod(dst_json_file, 0o777)
             return
         elif extension != '.py':
-            raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML')
+            raise DpdkSetup('ERROR when running with --astf mode, you need to have a new Python profile format (.py) and not YAML.')
 
-        print('converting astf profile %s to json %s' % (input_file, dst_json_file))
+        print('Converting ASTF profile %s to json %s' % (input_file, dst_json_file))
 
         # imports from trex.astf
         cur_path = os.path.abspath(os.path.dirname(__file__))
@@ -689,7 +689,7 @@ Other network devices
             profile = ASTFProfile.load(input_file, **tunables)
             json_content = profile.to_json_str()
         except Exception as e:
-            raise DpdkSetup('ERROR: Could not convert astf profile to JSON:\n%s' % e)
+            raise DpdkSetup('ERROR: Could not convert ASTF profile to JSON:\n%s' % e)
 
         with open(dst_json_file, 'w') as f:
             f.write(json_content)
@@ -796,19 +796,18 @@ Other network devices
                                                                                                                        core = services_core,
                                                                                                                        exe  = '-m trex.pybird_server.pybird_zmq_server'))
             if ret:
-                print("Could not start bird server\nIf you don't need it, don't use --bird-server flag.")
+                print("Could not start bird server.\nIf you don't need it, don't use --bird-server flag.")
                 sys.exit(-1)
 
         if pa().emu:
             emu_zmq_tcp_flag = '--emu-zmq-tcp' if pa().emu_zmq_tcp else ''
             exe = './trex-emu {emu_zmq_tcp}'.format(emu_zmq_tcp =  emu_zmq_tcp_flag)
-            
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --sudo -e "{exe}"'.format(sys_exe = sys.executable,
                                                                                                                       core = services_core,
                                                                                                                       name = 'Emu',
                                                                                                                        exe = exe))
             if ret:
-                print("Could not start emu service\nIf you don't need it, don't use -emu flag.")
+                print("Could not start EMU service.\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
 
 
@@ -853,7 +852,7 @@ Other network devices
             pid = dpdk_nic_bind.get_tcp_port_usage(publisher_port)
             if pid:
                 cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('ZMQ port is used by following process:\npid: %s, cmd: %s' % (pid, cmdline))
+                print('ZMQ port is used by the following process:\npid: %s, cmd: %s' % (pid, cmdline))
                 sys.exit(-1)
 
     # verify that all interfaces of i40e NIC are in use by current instance of TRex
@@ -883,7 +882,7 @@ Other network devices
                             unbind_devices.add(device['Slot'])
                         else:
                             print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
-                            print('See following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
+                            print('See the following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
                             print('Unbind the interface from Linux with following command:')
                             print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
                             print('')
@@ -952,7 +951,7 @@ Other network devices
 
         if not (pa() and pa().dump_interfaces):
             if (Mellanox_cnt > 0) and ((Mellanox_cnt + dummy_cnt) != len(if_list)):
-               err = "All driver should be from one vendor. You have at least one driver from Mellanox but not all."
+               err = "All drivers should be from one vendor. You have at least one driver from Mellanox but not all."
                raise DpdkSetup(err)
             if Mellanox_cnt > 0:
                 self.set_only_mellanox_nics()
@@ -1075,7 +1074,7 @@ Other network devices
             pid = dpdk_nic_bind.get_pid_using_pci(dpdk_interfaces)
             if pid:
                 cmdline = dpdk_nic_bind.read_pid_cmdline(pid)
-                print('DPDK interfaces are in use. Unbinding them might cause following process to hang:\npid: %s, cmd: %s' % (pid, cmdline))
+                print('DPDK interfaces are in use. Unbinding them might cause the following process to hang:\npid: %s, cmd: %s' % (pid, cmdline))
                 if not dpdk_nic_bind.confirm('Confirm (y/N):'):
                     sys.exit(-1)
 
@@ -1161,11 +1160,11 @@ Other network devices
     # output: list of maps of devices in dpdk_* format (self.m_devices.values())
     def _get_wanted_interfaces(self, input_interfaces, get_macs = True):
         if type(input_interfaces) is not list:
-            raise DpdkSetup('type of input interfaces should be list')
+            raise DpdkSetup('Type of input interfaces should be list')
         if not len(input_interfaces):
             raise DpdkSetup('Please specify interfaces to use in the config')
         if len(input_interfaces) % 2:
-            raise DpdkSetup('Please specify even number of interfaces')
+            raise DpdkSetup('Please specify an even number of interfaces')
         wanted_interfaces = []
         sorted_pci = sorted(self.m_devices.keys())
         for interface in input_interfaces:
@@ -1324,7 +1323,7 @@ Other network devices
         if not self.m_devices:
             self.run_dpdk_lspci()
         dpdk_nic_bind.show_table(True)
-        print('Please choose even number of interfaces from the list above, either by ID , PCI or Linux IF')
+        print('Please choose an even number of interfaces from the list above, either by ID, PCI or Linux IF')
         print('Stateful will use order of interfaces: Client1 Server1 Client2 Server2 etc. for flows.')
         print('Stateless can be in any order.')
         numa = None
@@ -1376,7 +1375,7 @@ Other network devices
                 def_gw= '.'.join([str(dual_ip_digit) for _ in range(4)])
                 ip_addr_digit += 1
 
-                print("For interface %s, assuming loopback to it's dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
+                print("For interface %s, assuming loopback to its dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
                 if dpdk_nic_bind.confirm("Putting IP %s, default gw %s Change it?(y/N)." % (ip, def_gw)):
                     while True:
                         ip = dpdk_nic_bind.read_line('Please enter IP address for interface %s: ' % interface['Interface_argv'])
@@ -1395,10 +1394,10 @@ Other network devices
             else:
                 dest_mac = dual_int['MAC']
                 loopback_dest = True
-                print("For interface %s, assuming loopback to it's dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
+                print("For interface %s, assuming loopback to its dual interface %s." % (interface['Interface_argv'], dual_int['Interface_argv']))
                 if dpdk_nic_bind.confirm("Destination MAC is %s. Change it to MAC of DUT? (y/N)." % dest_mac):
                     while True:
-                        input_mac = dpdk_nic_bind.read_line('Please enter new destination MAC of interface %s: ' % interface['Interface_argv'])
+                        input_mac = dpdk_nic_bind.read_line('Please enter a new destination MAC of interface %s: ' % interface['Interface_argv'])
                         try:
                             if input_mac:
                                 ConfigCreator.verify_mac(input_mac) # verify format
@@ -1495,7 +1494,7 @@ To see more detailed info on interfaces (table):
     parser.add_argument('--dump-pci-description', help=argparse.SUPPRESS, dest='dump_pci_desc', action='store_true')
 
     parser.add_argument("-i", "--interactive", action='store_true',
-                      help=""" Create TRex config in interactive mode """,
+                      help="""Create TRex config in interactive mode""",
      )
 
     parser.add_argument("-c", "--create", nargs='*', default=None, dest='create_interfaces', metavar='<interface>',
@@ -1555,22 +1554,22 @@ To see more detailed info on interfaces (table):
      )
 
     parser.add_argument("-s", "--show", action='store_true',
-                      help=""" Show the status """,
+                      help="""Show the status""",
      )
 
     parser.add_argument("-t", "--table", action='store_true',
-                      help=""" Show table with NICs info """,
+                      help="""Show table with NICs info""",
      )
 
     parser.add_argument("-m", "--memory", action='store_true',
-                      help=""" Show memory banks topology (channels per NUMA) """,
+                      help="""Show memory banks topology (channels per NUMA) """,
      )
 
     parser.add_argument(
         "--no-prompt",
         dest="no_prompt",
         action="store_true",
-        help=""" all inputs have to be pass as arguments, config file is overwritten if already exist.""",
+        help="""All inputs have to be passed as arguments, config file is overwritten if already exist.""",
      )
 
     parser.add_argument('--version', action='version',
@@ -1611,7 +1610,7 @@ def kill_pybird():
 def kill_emu():
         ret = os.system('%s general_daemon_server stop -n Emu' % sys.executable)
         if ret:
-            print("Could not stop bird daemon server.")
+            print("Could not stop EMU service.")
             sys.exit(-1)
 
 def cleanup_servers():
@@ -1635,7 +1634,7 @@ def main ():
         if map_driver.args.cleanup_servers:
             cleanup_servers()
             return
-        
+
         if map_driver.args.show:
             dpdk_nic_bind.show_status()
             return
