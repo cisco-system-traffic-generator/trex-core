@@ -1384,7 +1384,7 @@ class PCAPReader(object):
                 ts_usec = meta[0] * 1e6 + meta[1]
             else:
                 pkt_data = pkt
-                ts_usec = pkt.time * 1e6
+                ts_usec = float(pkt.time) * 1e6
 
             if ipg_usec is None:
                 if 'prev_time' in locals():
