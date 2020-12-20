@@ -96,7 +96,7 @@ class GlobalStats(AbstractStats):
                                                                        self.get_trend_gui("m_rx_cpu_util", use_raw = True),)),
 
                              ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self.client.conn.async_.monitor.get_cpu_util()), [85, 100], [0, 85]),
-                                                                 format_num(self.client.conn.async_.monitor.get_bps() / 8.0, suffix = "bps"))),
+                                                                 format_num(self.client.conn.async_.monitor.get_bps(), suffix = "bps"))),
                              ("total_cps.", "{0} {1}".format( self.get("m_tx_cps", format=True, suffix="cps"),
                                                               self.get_trend_gui("m_tx_cps"))),
 
