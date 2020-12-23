@@ -141,7 +141,7 @@ class Emu_Test(CEmuGeneral_Test):
             'timerEventLearn': 0,
             'timerEventRefresh': 0}
         }
-        res = self.emu_client.arp.get_counters(ns_key, zero = True)
+        res = self.emu_client.arp.get_counters(ns_key, zero = True, verbose = False)
         assert expected == res, "ARP counters differ from expected!"
         print(" -- ARP counters verified correctly.")
 
@@ -178,7 +178,7 @@ class Emu_Test(CEmuGeneral_Test):
 
         # ARP counters
         print(' -- Verifying ARP counters...')
-        res = self.emu_client.arp.get_counters(ns_key, zero = True)
+        res = self.emu_client.arp.get_counters(ns_key, zero = True, verbose = False)
         pktTxArpQuery = res["arp"]["pktTxArpQuery"]
         assert pktTxArpQuery == num_clients, "pktTxArpQuery expected = {}, received = {}".format(num_clients, pktTxArpQuery)
         pktTxGArp = res["arp"]["pktTxGArp"]

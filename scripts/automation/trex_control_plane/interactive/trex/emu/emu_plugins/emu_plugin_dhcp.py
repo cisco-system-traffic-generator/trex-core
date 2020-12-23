@@ -28,8 +28,18 @@ class DHCPPlugin(EMUPluginBase):
     def __init__(self, emu_client):
         super(DHCPPlugin, self).__init__(emu_client, 'dhcp_client_cnt')
 
-    # Plugins methods
+    # API methods
+    @client_api('getter', True)
+    @update_docstring(EMUPluginBase._get_client_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def get_counters(self, c_key, cnt_filter=None, zero=True, verbose=True):
+        return self._get_client_counters(c_key, cnt_filter, zero, verbose)
 
+    @client_api('command', True)
+    @update_docstring(EMUPluginBase._clear_client_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def clear_counters(self, c_key):
+        return self._clear_client_counters(c_key)
+
+    # Plugins methods
     @plugin_api('dhcp_show_counters', 'emu')
     def dhcp_show_counters_line(self, line):
         '''Show dhcp counters (per client).\n'''

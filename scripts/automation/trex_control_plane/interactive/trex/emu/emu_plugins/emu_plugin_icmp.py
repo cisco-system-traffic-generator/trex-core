@@ -31,6 +31,17 @@ class ICMPPlugin(EMUPluginBase):
     def __init__(self, emu_client):
         super(ICMPPlugin, self).__init__(emu_client, 'icmp_ns_cnt')
 
+    # API methods
+    @client_api('getter', True)
+    @update_docstring(EMUPluginBase._get_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def get_counters(self, ns_key, cnt_filter=None, zero=True, verbose=True):
+        return self._get_ns_counters(ns_key, cnt_filter, zero, verbose)
+
+    @client_api('command', True)
+    @update_docstring(EMUPluginBase._clear_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def clear_counters(self, ns_key):
+        return self._clear_ns_counters(ns_key)
+
     @client_api('command', True)
     def start_ping(self, c_key, amount=None, pace=None, dst=None, timeout=None, payload_size=None):
         """
