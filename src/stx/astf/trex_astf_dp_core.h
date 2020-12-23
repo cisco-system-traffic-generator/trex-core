@@ -24,6 +24,7 @@ limitations under the License.
 
 #include <string>
 #include <algorithm>
+#include "trex_astf_mbuf_redirect.h"
 #include "trex_dp_core.h"
 
 class CAstfDB;
@@ -40,6 +41,11 @@ public:
 
     TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core);
     ~TrexAstfDpCore();
+
+    /**
+     * This stop is used to abort gracefully.
+     */
+    virtual void stop() override;
 
     /**
      * return true if all the ports are idle
@@ -94,8 +100,9 @@ protected:
     };
 
     std::unordered_map<profile_id_t, profile_state_e> m_profile_states;
-    int m_active_profile_cnt;
-    uint32_t m_profile_stop_id;
+    int                                               m_active_profile_cnt;
+    uint32_t                                          m_profile_stop_id;
+    MbufRedirectCache*                                m_mbuf_redirect_cache; // Mbuf redirect cache only in case RSS ASTF software mode.
 
     bool is_profile(profile_id_t profile_id) {
         return m_profile_states.find(profile_id) != m_profile_states.end();
@@ -142,6 +149,15 @@ protected:
 
     void set_profile_stop_event(profile_id_t profile_id);
     void clear_profile_stop_event_all();
+
+    /**
+     * Get mbuf redirect cache.
+     * @return MbufRedirectCache
+     *    Mbuf caching object to redirect packets to the correct DP.
+     */
+    MbufRedirectCache* get_mbuf_redirect_cache() override {
+        return m_mbuf_redirect_cache;
+    }
 
 public:
     void on_profile_stop_event(profile_id_t profile_id);
