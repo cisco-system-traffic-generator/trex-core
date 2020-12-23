@@ -57,5 +57,5 @@ for r in res:
 
 # arp counters
 print('Arp counters:')
-res = c.arp.get_counters(ns_key, zero = True)
+res = c.arp.get_counters(ns_key, zero = True, verbose = False)
 pprint.pprint(res)

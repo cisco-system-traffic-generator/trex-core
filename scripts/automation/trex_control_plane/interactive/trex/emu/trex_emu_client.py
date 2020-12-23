@@ -115,6 +115,7 @@ def divide_dict_into_chunks(d, n):
             else:
                 break
 
+
 def dump_json_yaml(data, to_json = False, to_yaml = False, ident_size = 4):
     """
         Prints data into json or yaml format. 
@@ -140,6 +141,7 @@ def dump_json_yaml(data, to_json = False, to_yaml = False, ident_size = 4):
         print(yaml.safe_dump(data, allow_unicode = True, default_flow_style = False, indent = ident_size))
         return True
 
+
 def conv_return_val_to_str(f):
 
     def inner(*args, **kwargs):
@@ -154,6 +156,7 @@ def conv_return_val_to_str(f):
 
     return inner
 
+
 def wait_for_pressed_key(msg):
     """
     Wait for enter key. Works with Python 2 & 3.
@@ -167,6 +170,7 @@ def wait_for_pressed_key(msg):
         raw_input(msg)
     except NameError:
         input(msg)
+
 
 class EMUClient(object):
     """
@@ -286,7 +290,6 @@ class EMUClient(object):
 
 
         return rc
-
 
     # connect to server
     def _connect(self):
@@ -469,7 +472,6 @@ class EMUClient(object):
 
         text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
 
-
     def _err(self, msg):
         """
         Uses TRexError object as an error. 
@@ -507,7 +509,7 @@ class EMUClient(object):
 ############################   Getters   #############################
 ############################             #############################
 ############################             #############################
-    
+
     def _yield_n_items(self, cmd, amount = None, retry_num = 1, **kwargs):
         """
             Gets n items by calling `cmd`, iterating items from EMU server. This is a generic function for every iterator command
@@ -1083,7 +1085,6 @@ class EMUClient(object):
         data.update(kwargs)
         return self._send_chunks(cmd, data = data)
 
-
     def _send_plugin_cmd_to_clients(self, cmd, c_keys, **kwargs):
         """
         Generic function for plugins, send `cmd` to a list of clients keys i.e dot1x get_clients_info cmd. 
@@ -1119,11 +1120,10 @@ class EMUClient(object):
         data = ns_key.conv_to_dict(True)
         return self._send_chunks(cmd = 'ctx_client_get_def_plugins', data = data)[0]['def_plugs']
 
-
 ############################       EMU      #############################
 ############################       API      #############################
 ############################                #############################
-    
+
     # Emu Profile
     @client_api('command', True)
     def load_profile(self, profile, max_rate = None, tunables = None, dry = False, verbose = False):
@@ -1402,7 +1402,6 @@ class EMUClient(object):
     
         return RC_OK()
 
-
     # Default Plugins
     @client_api('command', True)
     def set_def_ns_plugs(self, def_plugs):
@@ -1445,7 +1444,6 @@ class EMUClient(object):
         self._send_chunks('ctx_client_set_def_plugins', data = data)
 
         return RC_OK()
-    
 
     @client_api('command', False)
     def set_verbose (self, level):
@@ -1468,7 +1466,6 @@ class EMUClient(object):
         validate_type('level', level, basestring)
 
         self.ctx.logger.set_verbose(level)
-
 
 
 ############################   console   #############################
@@ -1651,7 +1648,7 @@ class EMUClient(object):
                 return True
             else:
                 raise self._err('Namespace information required, supply them or run with --all-ns ')
-        
+
         run_on_demend(data_cnt, opts)
 
         return True
@@ -1678,7 +1675,7 @@ class EMUClient(object):
             return inspect.ismethod(x) and getattr(x, 'api_type', None) == 'plugin'
     
         return {cmd[1].name : cmd[1] for cmd in inspect.getmembers(obj, predicate = predicate)}
-        
+
     def _get_plugins(self):
             plugins = {}
             cur_dir = os.path.dirname(__file__)
@@ -1692,7 +1689,7 @@ class EMUClient(object):
             return plugins
 
     def _create_plugin_inst_by_name(self, name, filename):
-            
+
             import_path = 'trex.emu.emu_plugins'
 
             try:
@@ -1746,7 +1743,6 @@ class EMUClient(object):
         
         return rc.data()
 
-
     @property
     def logger (self):
         """
@@ -1763,7 +1759,6 @@ class EMUClient(object):
         """
 
         return self.ctx.logger
-
 
     @client_api('getter', False)
     def get_verbose (self):
@@ -1918,7 +1913,7 @@ class EMUClient(object):
         if not rc:
             self._disconnect()
             raise TRexError(rc.err())
-        
+
     @client_api('command', True)
     def acquire(self, force = False):
         pass
