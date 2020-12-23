@@ -2960,6 +2960,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_udp_dpc=0;
     m_max_threads=max_threads;
     m_thread_id=thread_id;
+    m_read_from_redirect_ring = false;
 
     m_c_tcp=0;
     m_s_tcp=0;
