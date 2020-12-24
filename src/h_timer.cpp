@@ -196,7 +196,6 @@ RC_HTW_t CHTimerWheel::timer_stop (CHTimerObj *tmr){
 }
 
 
-
 RC_HTW_t CHTimerWheel::timer_start_rest(CHTimerObj  *tmr, 
                                         htw_ticks_t  ticks){
     int i;
@@ -286,7 +285,10 @@ void CNATimerWheel::detach_all(void *userdata,htw_on_tick_cb_t cb){
         assert(m_total_events>=res);
         m_total_events -=res;
     }
-    reset_tick_level_inc(1);
+    for (i=1;i<HNA_TIMER_LEVELS; i++) {
+        reset_tick_level_inc(i);
+    }
+
     assert(m_total_events==0);
 }
 
@@ -310,38 +312,55 @@ void CNATimerWheel::on_tick_level0(void *userdata,htw_on_tick_cb_t cb){
 
 
 void CNATimerWheel::reset_tick_level_inc(int level){
+    CNATimerExData  *lpe=&m_exd_timer[level];               
     if (m_cnt_div){
         /* two level mode is enabled */
         CHTimerOneWheel * lp=&m_timer_w[level];
         lp->timer_tick();
         m_ticks[level]++;
-        m_cnt_state=0;
+        lpe->m_cnt_state=0;
     }
 }
 
 
 
 void CNATimerWheel::on_tick_level_inc(int level){
-    m_cnt_state++;
+    CNATimerExData  *lpe=&m_exd_timer[level];               
+
+    lpe->m_cnt_state++;
     CHTimerOneWheel * lp=&m_timer_w[level];
-    if (m_cnt_state == m_cnt_div) {
+    if (lpe->m_cnt_state == lpe->m_cnt_div) {
         lp->timer_tick();
         m_ticks[level]++;
-        m_cnt_state=0;
+        lpe->m_cnt_state=0;
     }
 }
 
 
-uint16_t CNATimerWheel::on_tick_level_count(int level,
+void CNATimerWheel::on_tick_level(void *userdata,
+                                  htw_on_tick_cb_t cb,
+                                  uint16_t min_events){
+    uint32_t left;
+
+    on_tick_level0(userdata,cb);
+    int i;
+    for (i=1; i<m_max_levels; i++){
+       on_tick_level_count(i,userdata,cb,min_events,left);
+    }
+}
+
+uint32_t CNATimerWheel::on_tick_level_count(int level,
                                              void *userdata,
                                              htw_on_tick_cb_t cb,
                                              uint16_t min_events,
                                              uint32_t & left){
 
     CHTimerOneWheel * lp=&m_timer_w[level];
+    CNATimerExData  *lpe=&m_exd_timer[level];               
+
     CHTimerObj * event;
     uint32_t cnt=0; 
-    uint16_t old_state = m_cnt_state;
+    uint32_t old_state = lpe->m_cnt_state;
 
     left=lp->get_bucket_total_events();
     if (left==0) {
@@ -349,9 +368,9 @@ uint16_t CNATimerWheel::on_tick_level_count(int level,
         return(old_state);
     }
 
-    if (m_cnt_state == 0) {
+    if (lpe->m_cnt_state == 0) {
         /* calculate per sub-bucket */
-        m_cnt_per_iter = std::max((uint16_t)((left+m_cnt_div-1)/m_cnt_div),min_events); /* at least min_events */
+        lpe->m_cnt_per_iter = std::max((uint32_t)((left+lpe->m_cnt_div-1)/lpe->m_cnt_div),uint32_t(min_events)); /* at least min_events */
     }
 
     while (  true ) {
@@ -366,7 +385,7 @@ uint16_t CNATimerWheel::on_tick_level_count(int level,
             timer_start_rest(event,event->m_ticks_left);
         }
         cnt++;
-        if ( cnt==m_cnt_per_iter)  {
+        if ( cnt==lpe->m_cnt_per_iter)  {
             on_tick_level_inc(level);
             assert(left>=cnt);
             left-=cnt;
@@ -438,23 +457,33 @@ RC_HTW_t CNATimerWheel::timer_stop (CHTimerObj *tmr){
 }
 
 
-
+// could be optimized using MSB bit search --> similar to log2()
 RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr, 
                                         htw_ticks_t  ticks){
-
-    htw_ticks_t nticks = (ticks+m_wheel_level1_err)>>m_wheel_level1_shift; 
-    if (nticks<m_wheel_size) {
-        if (nticks<2) {
-            nticks=2; /* not on the same bucket*/
+    int index=1;
+    uint32 level_err = (m_wheel_level1_err+1);
+    uint32 level_shift = m_wheel_level1_shift;
+    while ( index < m_max_levels ) {
+        htw_ticks_t nticks = (ticks+(level_err-1))>>level_shift; // ticks in the new level
+        if (nticks < m_wheel_size) {
+            if (nticks<2) {
+                nticks=2; /* not on the same bucket*/
+            }
+            tmr->m_ticks_left=0;
+            tmr->m_wheel=index;
+            m_timer_w[index].timer_start(tmr,nticks-1);
+            return (RC_HTW_OK);
         }
-        tmr->m_ticks_left=0;
-        tmr->m_wheel=1;
-        m_timer_w[1].timer_start(tmr,nticks-1);
-    }else{
-        tmr->m_ticks_left = ticks - ((m_wheel_size-1)<<m_wheel_level1_shift);
-        tmr->m_wheel=1;
-        m_timer_w[1].timer_start(tmr,m_wheel_size-1);
+        index++;
+        level_err = level_err << m_wheel_level1_shift;
+        level_shift += m_wheel_level1_shift;
     }
+
+    level_shift -= m_wheel_level1_shift;
+    tmr->m_ticks_left = ticks - ((m_wheel_size-1)<<level_shift);
+    tmr->m_wheel = m_max_levels-1;
+    m_timer_w[m_max_levels-1].timer_start(tmr,m_wheel_size-1);
+
     return (RC_HTW_OK);
 }
 
@@ -467,24 +496,29 @@ void CNATimerWheel::reset(){
     m_wheel_level1_shift=0;
     m_wheel_level1_err=0;
     m_state=TW_FIRST_FINISH;
-    m_cnt_state =0;
-    m_cnt_per_iter=0;
     m_cnt_div=0;
     int i;
     for (i=0; i<HNA_TIMER_LEVELS; i++) {
         m_ticks[i]=0;
+        m_exd_timer[i].reset();
     }
-
 }
 
 
 void CNATimerWheel::set_level1_cnt_div(){
-    m_cnt_div= (1<<m_wheel_level1_shift);
+    int i;
+    m_cnt_div = (1<<m_wheel_level1_shift);
+    uint32_t level_shift = m_wheel_level1_shift;
+    for (i=1; i<HNA_TIMER_LEVELS; i++) {
+        m_exd_timer[i].m_cnt_div = (1<<level_shift);
+        level_shift += m_wheel_level1_shift;
+    }
 }
 
 
 RC_HTW_t CNATimerWheel::Create(uint32_t wheel_size,
-                               uint8_t level1_div){
+                               uint8_t level1_div,
+                               uint8_t max_levels){
     RC_HTW_t res;
     int i;
     for (i=0; i<HNA_TIMER_LEVELS; i++) {
@@ -502,6 +536,9 @@ RC_HTW_t CNATimerWheel::Create(uint32_t wheel_size,
     m_wheel_size  = wheel_size;
     m_wheel_level1_shift = m_wheel_shift - utl_log2_shift((uint32_t)level1_div);
     m_wheel_level1_err  = ((1<<(m_wheel_level1_shift))-1);
+    m_max_levels = max_levels;
+    assert(m_max_levels<=HNA_TIMER_LEVELS);
+    assert(m_max_levels>1);
     assert(m_wheel_shift>utl_log2_shift((uint32_t)level1_div));
 
     return(RC_HTW_OK);
