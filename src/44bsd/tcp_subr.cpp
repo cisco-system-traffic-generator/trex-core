@@ -687,9 +687,7 @@ bool CTcpPerThreadCtx::is_open_flow_enabled(){
 void CTcpPerThreadCtx::timer_w_on_tick(){
 #ifndef TREX_SIM
     /* we have two levels on non-sim */
-    uint32_t left;
-    m_timer_w.on_tick_level0((void*)this,ctx_timer);
-    m_timer_w.on_tick_level_count(1,(void*)this,ctx_timer,16,left);
+    m_timer_w.on_tick_level((void*)this,ctx_timer,16);
 #else
     m_timer_w.on_tick_level0((void*)this,ctx_timer);
 #endif
@@ -844,7 +842,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
 #ifdef  TREX_SIM
     tw_res = m_timer_w.Create(1024,TCP_TIMER_LEVEL1_DIV);
 #else
-    tw_res = m_timer_w.Create((2*1024),(TCP_TIMER_LEVEL1_DIV/2));
+    tw_res = m_timer_w.Create((1024),(TCP_TIMER_LEVEL1_DIV),4);
 #endif
 
 
