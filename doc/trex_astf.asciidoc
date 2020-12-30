@@ -2664,10 +2664,14 @@ You can scale your clients in order to make a stress test, just notice:
 
 === Multi core support 
 
-Distribution to multi core is done using RSS hardware assist. Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
-It can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). 
-For more complex tunnel traffic there is need for a software distribution that will be slower. 
-It is possible to enable this asset on some virtual NIC (e.g. vmxnet3) if there would be a request for that.
+There are two distribution model:
+
+* Hardware: Using RSS hardware assist (only for NIC that support that). Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
+
+* Software: (from v2.87) Using the driver default distribution (e.g. CRC) and fixing it using software. This has an performance impact but not that big. Example of drivers AWS Azure and KVM virtio.
+
+The hardware RSS mode can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). Adding `--software`  can force the driver that support RSS mode to work in software mode. 
+
 
 .NICs that support RSS
 [options="header",cols="3^,2^,2^,2^",width="50%"]
@@ -3106,8 +3110,5 @@ In this case the rate is ~7mbps lower than 10mbps due to idle time.
 ----
 
 In this case the rate is 10mbps (maximum expected) full-pipeline 
-
-
- 
 
 
