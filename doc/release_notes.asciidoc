@@ -26,6 +26,17 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.87 ==
+
+* ASTF
+** Add software distribution. AWS, Azure, KVM and driver without hardware RSS can support ASTF with multi-core
+** Fix various bugs in manual instructions 
+** Improve scale of flows, timer wheel is more generic with 4 level and can support higher delays with single tick
+* EMU 
+** Fix plugin counters API for client based (e.g. DHCP)
+* STL 
+** bug fix load_pcap works now
+
 == Release 2.86 ==
 
 * STL

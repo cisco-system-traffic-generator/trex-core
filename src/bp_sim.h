@@ -2355,13 +2355,13 @@ inline void CFlowPktInfo::update_pkt_info(char *p,
         uint32_t ip_addr_offset = node->m_src_ip % m_pkt_indication.m_desc.GetMaxIpTunnels();
         if (unlikely(m_pkt_indication.m_is_ipv6_tunnel)) {
             IPv6Header* tunnel_ip = (IPv6Header*)(p + m_pkt_indication.m_tunnel_ip_offset);
-            tunnel_ip->updateLSBIpv6Src((uint32_t) tunnel_ip->mySource[6] + ip_addr_offset);
-            tunnel_ip->updateLSBIpv6Dst((uint32_t) tunnel_ip->myDestination[6] + ip_addr_offset);
+            tunnel_ip->updateLSBIpv6Src(PKT_NTOHL(*(uint32_t*)&tunnel_ip->mySource[6]) + ip_addr_offset);
+            tunnel_ip->updateLSBIpv6Dst(PKT_NTOHL(*(uint32_t*)&tunnel_ip->myDestination[6]) + ip_addr_offset);
         }
         else {
             IPHeader* tunnel_ip = (IPHeader*)(p + m_pkt_indication.m_tunnel_ip_offset);
-            tunnel_ip->updateIpSrc(tunnel_ip->mySource + ip_addr_offset);
-            tunnel_ip->updateIpDst(tunnel_ip->myDestination + ip_addr_offset);
+            tunnel_ip->updateIpSrc(PKT_NTOHL(tunnel_ip->mySource) + ip_addr_offset);
+            tunnel_ip->updateIpDst(PKT_NTOHL(tunnel_ip->myDestination) + ip_addr_offset);
         }
     }
     
