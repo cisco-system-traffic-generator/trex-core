@@ -30,12 +30,12 @@ endif::backend-docbook[]
 
 * ASTF
 ** Add software distribution. AWS, Azure, KVM and driver without hardware RSS can support ASTF with multi-core
-** Fix various bugs in manual instructions 
-** Improve scale of flows, timer wheel is more generic with 4 level and can support higher delays with single tick
+** Fix various bugs in manual instructions. 
+** Improve scale of flows, timer wheel is more generic with 4 levels. 
 * EMU 
-** Fix plugin counters API for client based (e.g. DHCP)
+** Fix counters API for client based plugins (e.g. DHCP).
 * STL 
-** bug fix load_pcap works now
+** load_pcap fix. 
 
 == Release 2.86 ==
 
