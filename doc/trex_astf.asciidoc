@@ -2664,13 +2664,13 @@ You can scale your clients in order to make a stress test, just notice:
 
 === Multi core support 
 
-There are two distribution model:
+There are two distribution models:
 
-* Hardware: Using RSS hardware assist (only for NIC that support that). Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
+* Hardware: Using RSS hardware assist (only for NICs that support that). Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server.
 
-* Software: (from v2.87) Using the driver default distribution (e.g. CRC) and fixing it using software. This has an performance impact but not that big. Example of drivers AWS Azure and KVM virtio.
+* Software: (from v2.87) Using the driver default distribution (e.g. CRC) and fixing it using software. This has a compact performance impact. Example of drivers AWS Azure and KVM virtio.
 
-The hardware RSS mode can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). Adding `--software`  can force the driver that support RSS mode to work in software mode. 
+The hardware RSS mode can work only for NICs that support RSS (almost all the physical NICs) and only for TCP/UDP traffic without tunnels (e.g. GRE). Adding --software will force any driver (including those that support hardware RSS) to work in software mode, hence use this only when you know it is needed.
 
 
 .NICs that support RSS
@@ -2700,6 +2700,17 @@ ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
 When using RSS, the number of sockets (available source ports per clients IP) will be 100% divided by the numbers of cores (c). For example for c=3 each client IP would have 64K/3 source ports = 21K ports. In this case it is advised to add more clients to the pool (in case you are close to the limit). 
 In other words the reported socket-util is the console should be multiplied by c.
 =====================================================================
+
+==== Software mode with multicore
+
+Multi queue NICs distribute incoming traffic to a specific queue based on a hash function. Each receive queue is assigned to a separate interrupt; by routing each of those interrupts to different CPUs or CPU cores. The hardware-based distribution of the interrupts, described above, is referred to as receive-side scaling link:https://en.wikipedia.org/wiki/Network_interface_controller#RSS[RSS].
+
+However, for NICs that don’t support RSS as we aforementioned, the distribution is incorrect. Client side packets from a specific flow can arrive at some core which doesn’t have any flow information. These packets need to be redirected to the core they belong to, meaning the core that holds the flow information. When using software mode with multiple core, these packets will be automatically redirected, and appropriate counters will be added to the flow table.
+
+In short, the redirection to the correct core is done using the source port of L4. When a flow is generated, the source port of that flow is aligned to the core identifier that generated the flow. When a packet is received, based on the port, we can unravel the destination core and redirect the packet to it.
+
+Naturally, all this logic has a performance impact. Fortunately, based on our tests, the impact is minor. This offers the possibility to scale in software mode as well. When reaching very high scale, a redirect drop counter will show in the flow table counters. This implies that the cores can't keep up with redirecting at the actual rate.
+
 
 === Dynamic multiple profiles support
 
@@ -2941,23 +2952,26 @@ link:cp_astf_docs/index.html[python index]
 .Flow table counters 
 [options="header",cols="1,^1,5"]
 |=================
-| Counter           |Error |Description  
-|    err_cwf     |*| client pkt that does not match a flow could no happen in loopback. Could happen if DUT generated a packet after TRex close the flow
-|    err_no_syn  |*| server first flow packet with no SYN
-|    err_len_err |*| pkt with L3 length error 
-|    err_no_tcp  |*| no tcp packet- dropped 
-|    err_no_template |*| server can't match L7 template no destination port or IP range 
-|    err_no_memory |*| no heap memory for allocating flows
-|    err_dct      |*| duplicate flows due to aging issues and long delay in the network
-|    err_l3_cs|*| ipv4 checksum error
-|    err_l4_cs|*| tcp/udp checksum error (in case NIC support it)
-|    err_redirect_rx |*| redirect to rx error 
-|    redirect_rx_ok || redirect to rx OK
-|    err_rx_throttled || rx thread was throttled due too many packets in NIC rx queue 
-|    err_c_nf_throttled || Number of client side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
-|    err_s_nf_throttled || Number of server side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
-|    err_s_nf_throttled || Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
-|    err_c_tuple_err    || How many flows were *not* opened in the client side because there were not enough clients in the pool. When this counter is reached, the TRex performance is affected due to the lookup for free ports. To solve this issue try adding more clients to the pool.
+|     Counter           |Error |Description  
+|    err_cwf            |*| client pkt that does not match a flow could no happen in loopback. Could happen if DUT generated a packet after TRex close the flow
+|    err_no_syn         |*| server first flow packet with no SYN
+|    err_len_err        |*| pkt with L3 length error 
+|    err_no_tcp         |*| no tcp packet- dropped 
+|    err_no_template    |*| server can't match L7 template no destination port or IP range 
+|    err_no_memory      |*| no heap memory for allocating flows
+|    err_dct            |*| duplicate flows due to aging issues and long delay in the network
+|    err_l3_cs          |*| ipv4 checksum error
+|    err_l4_cs          |*| tcp/udp checksum error (in case NIC support it)
+|    err_redirect_rx    |*| redirect to rx error 
+|    redirect_rx_ok     | | redirect to rx OK
+|    err_rx_throttled   | | rx thread was throttled due too many packets in NIC rx queue 
+|    err_c_nf_throttled | | Number of client side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled | | Number of server side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled | | Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
+|    err_c_tuple_err    | | How many flows were *not* opened in the client side because there were not enough clients in the pool. When this counter is reached, the TRex performance is affected due to the lookup for free ports. To solve this issue try adding more clients to the pool.
+|    rss_redirect_rx    | | Number of RSS redirected packets that were received from other cores.
+|    rss_redirect_tx    | | Number of RSS packets that were redirected to other cores.
+|    rss_redirect_drop  |*| Number of RSS packets that were meant to be redirected to other cores but were dropped since other cores buffers were full.
 |=================
 
 *1*:: 
