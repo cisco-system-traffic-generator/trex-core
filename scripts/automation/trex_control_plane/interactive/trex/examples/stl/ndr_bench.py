@@ -79,7 +79,7 @@ class NdrBenchConfig:
                  pdr_error=1.0, ndr_results=1, max_iterations=10,
                  max_latency=0, lat_tolerance=0, verbose=False, bi_dir=False,
                  plugin_file=None, tunables={}, opt_binary_search=False,
-                 opt_binary_search_percentage=5, **kwargs):
+                 opt_binary_search_percentage=5, total_cores=1, **kwargs):
         """
             Configuration parameters for the benchmark.
 
@@ -153,6 +153,7 @@ class NdrBenchConfig:
         self.verbose = verbose
         self.title = title
         self.cores = cores
+        self.total_cores = total_cores
         self.ports = list(ports)
         self.transmit_ports = [self.ports[i] for i in range(0, len(self.ports), 2)]
         self.receive_ports  = [self.ports[i] for i in range(1, len(self.ports), 2)]
@@ -244,9 +245,9 @@ class NdrBenchConfig:
         config_dict = {'iteration_duration': self.iteration_duration, 'q_full_resolution': self.q_full_resolution,
                        'first_run_duration': self.first_run_duration, 'pdr': self.pdr, 'pdr_error': self.pdr_error,
                        'ndr_results': self.ndr_results, 'max_iterations': self.max_iterations,
-                       'ports': self.ports, 'cores': self.cores, 'verbose': self.verbose, 'title': self.title,
+                       'ports': self.ports, 'cores': self.cores, 'total_cores': self.total_cores, 'verbose': self.verbose,
                        'bi_dir' : self.bi_dir, 'plugin_file': self.plugin_file, 'tunables': self.tunables,
-                       'opt_binary_search': self.opt_binary_search,
+                       'opt_binary_search': self.opt_binary_search, 'title': self.title,
                        'opt_binary_search_percentage': self.opt_binary_search_percentage}
         return config_dict
 
@@ -653,13 +654,15 @@ class NdrBench:
         else:
             lower_bound_valid = current_run_stats[stat_type] <= lost_allowed_percentage
         if lower_bound_valid:
-            self.results.print_state("Lower bound of assumed NDR drops are below desired rate :)",\
+            if self.config.verbose:
+                self.results.print_state("Lower bound of assumed NDR drops are below desired rate :)",\
                                      upper_bound_percentage_of_max_rate, lower_bound_percentage_of_max_rate)
             return self.perf_run_interval(upper_bound_percentage_of_max_rate, lower_bound_percentage_of_max_rate)
 
         # if you got here -> lower bound of assumed ndr has too many drops
         else:
-            self.results.print_state("Lower bound of assumed NDR drops are beyond desired rate :(",\
+            if self.config.verbose:
+                self.results.print_state("Lower bound of assumed NDR drops are beyond desired rate :(",\
                                      lower_bound_percentage_of_max_rate, 0)
             return self.perf_run_interval(lower_bound_percentage_of_max_rate, 0)
 
