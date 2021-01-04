@@ -15,7 +15,7 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
                        lat_tolerance=0, output=None, ports_list=[], yaml_file=None,
                        bi_dir=False, force_map_table=False, plugin_file=None, tunables={},
                        opt_binary_search=False, opt_binary_search_percentage=5,
-                       profile='stl/imix.py', profile_tunables={}):
+                       profile='stl/imix.py', profile_tunables={}, print_final_results=True):
 
 
     if title == 'Title':
@@ -44,6 +44,7 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
     c.connect()
     trex_info = c.get_server_system_info()
     configs['cores'] = trex_info['dp_core_count_per_port']
+    configs['total_cores'] = trex_info["dp_core_count"]
     # take all the ports
     c.reset()
 
@@ -58,6 +59,8 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
         for i in range(0, len(ports_list), 2):
             if (ports_list[i],ports_list[i+1]) not in table['bi']:
                 print("Some given port pairs are not configured properly ")
+                print("Choose the ports according to this map")
+                pprint(table)
                 return
     dir_0 = [ports_list[i] for i in range(0, len(ports_list), 2)]
     dir_1 = [ports_list[i] for i in range(1, len(ports_list), 2)]
@@ -89,18 +92,19 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
     finally:
         c.disconnect()
 
-    if passed:
-        print("\nBench Run has finished :-)\n")
-    else:
-        print("\nBench Run has failed :-(\n")
-
     result = {'results': b.results.stats, 'config': b.config.config_to_dict()}
     hu_dict = {'results': b.results.human_readable_dict(), 'config': b.config.config_to_dict()}
 
-    if output == 'json':
-        pprint(b.results.to_json())
-    elif output == 'hu':
-        pprint(b.results.human_readable_dict())
+    if print_final_results:
+        if passed:
+            print("\nBench Run has finished :-)\n")
+        else:
+            print("\nBench Run has failed :-(\n")
+
+        if output == 'json':
+            pprint(b.results.to_json())
+        elif output == 'hu':
+            pprint(b.results.human_readable_dict())
 
     return result, hu_dict
 
