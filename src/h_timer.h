@@ -565,6 +565,10 @@ public:
         return(m_ticks[level]);
     }
 
+    uint32_t fastrand(){
+        m_rand_seed = (214013*m_rand_seed+2531011);
+        return (m_rand_seed>>16)&0x7FFF;
+    }
 
 private:
     void reset(void);
@@ -595,6 +599,8 @@ private:
                                         */
     uint8_t             m_max_levels;
     CNATimerExData      m_exd_timer[HNA_TIMER_LEVELS];               
+
+    uint32_t            m_rand_seed;
 } ;
 
 

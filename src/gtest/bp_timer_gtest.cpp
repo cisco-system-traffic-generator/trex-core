@@ -1011,7 +1011,7 @@ void CNATimerWheelTest2::start_test(){
         m_ticks=i;
         m_timer.on_tick_level0((void *)this,my_test_on_tick_cb18);
 
-        if ((i>=m_div_err) && (i%m_div_err==0)) {
+        if (/*(i>=m_div_err) && */(i%m_div_err==0)) {
             int cnt_rerty=0;
             while (true){
                 if (m_cfg.m_verbose>1) {

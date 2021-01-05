@@ -378,7 +378,8 @@ uint32_t CNATimerWheel::on_tick_level_count(int level,
         if (!event) {
             break;
         }
-        if (event->m_ticks_left==0) {
+        event->m_ticks_left -= std::min(lpe->m_cnt_state, event->m_ticks_left); // aware of timer spread effect
+        if (event->m_ticks_left <= m_wheel_level1_err) {
             m_total_events--;
             cb(userdata,event);
         }else{
@@ -411,7 +412,7 @@ na_htw_state_num_t CNATimerWheel::on_tick_level1(void *userdata,htw_on_tick_cb_t
         if (!event) {
             break;
         }
-        if (event->m_ticks_left==0) {
+        if (event->m_ticks_left <= m_wheel_level1_err) {
             m_total_events--;
             cb(userdata,event);
         }else{
@@ -460,24 +461,31 @@ RC_HTW_t CNATimerWheel::timer_stop (CHTimerObj *tmr){
 // could be optimized using MSB bit search --> similar to log2()
 RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr, 
                                         htw_ticks_t  ticks){
+    assert(ticks>m_wheel_level1_err);
     int index=1;
     uint32 level_err = (m_wheel_level1_err+1);
     uint32 level_shift = m_wheel_level1_shift;
     while ( index < m_max_levels ) {
-        htw_ticks_t nticks = (ticks+(level_err-1))>>level_shift; // ticks in the new level
+        htw_ticks_t _ticks = ticks + m_exd_timer[index].m_cnt_state; // aware of timer spread effect
+        htw_ticks_t nticks = (_ticks)>>level_shift; // ticks in the new level
+
+        auto residue = _ticks&(level_err-1);
+        if (residue) {
+            nticks += ((residue * 0x7FFF / level_err) > fastrand());
+        }
+
         if (nticks < m_wheel_size) {
-            if (nticks<2) {
-                nticks=2; /* not on the same bucket*/
-            }
             tmr->m_ticks_left=0;
             tmr->m_wheel=index;
-            m_timer_w[index].timer_start(tmr,nticks-1);
+            m_timer_w[index].timer_start(tmr,nticks);
             return (RC_HTW_OK);
         }
         index++;
         level_err = level_err << m_wheel_level1_shift;
         level_shift += m_wheel_level1_shift;
     }
+
+    ticks += m_exd_timer[m_max_levels-1].m_cnt_state;
 
     level_shift -= m_wheel_level1_shift;
     tmr->m_ticks_left = ticks - ((m_wheel_size-1)<<level_shift);
