@@ -302,6 +302,7 @@ void CNATimerWheel::on_tick_level0(void *userdata,htw_on_tick_cb_t cb){
         event = lp->pop_event();
         if (!event) {
             break;
+
         }
         m_total_events--;
         cb(userdata,event);
@@ -465,7 +466,17 @@ RC_HTW_t CNATimerWheel::timer_start_rest(CHTimerObj  *tmr,
     uint32 level_shift = m_wheel_level1_shift;
     while ( index < m_max_levels ) {
         htw_ticks_t nticks = (ticks+(level_err-1))>>level_shift; // ticks in the new level
+
         if (nticks < m_wheel_size) {
+            // make it more accurate if 0.2% 
+            if ((m_cnt_div>0) && (nticks < 512) ){
+                auto residue = ticks - ((nticks-1)<<level_shift);
+                if (residue > 0) {
+                    auto add =(((residue * 0x7FFF) / level_err) > fastrand())?1:0;
+                    nticks += add;
+                }
+            }
+
             if (nticks<2) {
                 nticks=2; /* not on the same bucket*/
             }
@@ -497,6 +508,7 @@ void CNATimerWheel::reset(){
     m_wheel_level1_err=0;
     m_state=TW_FIRST_FINISH;
     m_cnt_div=0;
+    m_rand_seed =13;
     int i;
     for (i=0; i<HNA_TIMER_LEVELS; i++) {
         m_ticks[i]=0;
