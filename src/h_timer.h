@@ -578,6 +578,10 @@ private:
     RC_HTW_t timer_start_rest(CHTimerObj  *tmr, 
                               htw_ticks_t  ticks);
 
+    uint32_t fastrand(){
+        m_rand_seed = (214013*m_rand_seed+2531011);
+        return (m_rand_seed>>16)&0x7FFF;
+    }
 
 private:
     htw_ticks_t         m_ticks[HNA_TIMER_LEVELS];               
@@ -594,7 +598,9 @@ private:
                                         in case of tick of 20msec and 20usec sub-tick we need 1000 div 
                                         */
     uint8_t             m_max_levels;
-    CNATimerExData      m_exd_timer[HNA_TIMER_LEVELS];               
+    CNATimerExData      m_exd_timer[HNA_TIMER_LEVELS];  
+
+    uint32_t            m_rand_seed;
 } ;
 
 
