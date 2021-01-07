@@ -587,14 +587,23 @@ bool TrexAstfDpCore::rx_for_idle() {
     return m_flow_gen->handle_rx_pkts(true) > 0;
 }
 
+void inline TrexAstfDpCore::client_lookup_and_activate(uint32_t client, bool activate) {
+     CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+     if (ip_info){
+         ip_info->set_client_active(activate);
+     }
+}
 
-void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate) {
+void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate, bool is_range) {
 
+    if (is_range){
+        for (uint32_t client = msg_data[0]; client <= msg_data[1]; client++) {
+            client_lookup_and_activate(client, activate);
+        }
+        return;
+    }
     for ( auto client : msg_data)
     {
-        CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
-        if (ip_info){
-            ip_info->set_client_active(activate);
-        }
+        client_lookup_and_activate(client, activate);
     }
 }

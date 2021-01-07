@@ -834,15 +834,11 @@ public:
     TCGenDListIterator m_cur_act_itr = TCGenDListIterator(m_active_clients);
 
 private:
-    void allocate_simple_clients(uint32_t  min_ip,
-                                 uint32_t  total_ip,
-                                 bool      is_long_range);
-
-    void allocate_configured_clients(uint32_t        min_ip,
-                                     uint32_t        total_ip,
-                                     bool            is_long_range,
-                                     ClientCfgDB     &client_info);
-
+    void allocate_simple_or_configured_clients(uint32_t  min_ip,
+                                               uint32_t  total_ip,
+                                               bool      is_long_range,
+                                               ClientCfgDB &client_info,
+                                               bool is_simple_alloc);
     void configure_client(uint32_t indx);
 };
 

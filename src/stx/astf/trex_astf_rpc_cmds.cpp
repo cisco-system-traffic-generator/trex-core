@@ -715,17 +715,19 @@ TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &resu
     for (auto each_client : attr) {
         uint32_t client_start_ip = 0, client_end_ip = 0;
         
-        if (!is_range)
-             client_start_ip = client_end_ip   = parse_uint32(each_client, "client_ip", result);
+        if (!is_range){
+             client_start_ip = parse_uint32(each_client, "client_ip", result);
+             msg_data.push_back(client_start_ip);
+        }
         else {
              client_start_ip = parse_uint32(each_client, "client_start_ip", result);
              client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+             msg_data.push_back(client_start_ip);
+             msg_data.push_back(client_end_ip); 
         }
-        for (uint32_t client_ip = client_start_ip; client_ip <= client_end_ip; client_ip++)
-            msg_data.push_back(client_ip);
     }
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpActivateClient(astf_db, msg_data, is_enable, is_range);
     get_astf_object()->send_message_to_all_dp(msg, false);
 
     result["result"] = Json::objectValue;

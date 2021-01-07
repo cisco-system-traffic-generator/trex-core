@@ -206,17 +206,18 @@ TrexAstfDpServiceMode::handle(TrexDpCore *dp_core) {
 /*************************
 +  Activate/Deactivate  Client MSG
 + ************************/
-TrexAstfDpActivateClient::TrexAstfDpActivateClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate) {
+TrexAstfDpActivateClient::TrexAstfDpActivateClient(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate, bool is_range) {
     m_astf_db = astf_db;
     m_msg_data =  msg_data;
     m_activate = activate;
+    m_is_range = is_range;
 }
 
 bool TrexAstfDpActivateClient::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->activate_client(m_astf_db, m_msg_data, m_activate);
+    astf_core(dp_core)->activate_client(m_astf_db, m_msg_data, m_activate, m_is_range);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpActivateClient::clone() {
-    return new TrexAstfDpActivateClient(m_astf_db, m_msg_data, m_activate);
+    return new TrexAstfDpActivateClient(m_astf_db, m_msg_data, m_activate, m_is_range);
 }
