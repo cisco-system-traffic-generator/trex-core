@@ -134,50 +134,47 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
             if (len < min_len)
                 return FSTAT_PARSER_E_SHORT_IP_HDR;
             m_ipv6 = (IPv6Header *) p;
-			l4len = m_ipv6->getPayloadLen();
+            l4len = m_ipv6->getPayloadLen();
             l4 = p + IPV6_HDR_LEN;
             osize =0; 
-		    doloop = true;
+            doloop = true;
             nh = m_ipv6->getNextHdr();
-			while (doloop) {
-				switch (nh) {
-				case IPv6Header::IPPROTO_HOPOPTS:
-				case IPv6Header::IPPROTO_DSTOPTS:
-				case IPv6Header::IPPROTO_ROUTING:
-				case IPv6Header::IPPROTO_AUTH:
-				case IPv6Header::IPPROTO_ENCAP_SEC:
-				case IPv6Header::IPPROTO_EXT_MOBILE:
-				case IPv6Header::IPPROTO_EXT_HOST:
-				case IPv6Header::IPPROTO_EXT_SHIM:
+            while (doloop) {
+                switch (nh) {
+                case IPv6Header::IPPROTO_HOPOPTS:
+                case IPv6Header::IPPROTO_DSTOPTS:
+                case IPv6Header::IPPROTO_ROUTING:
+                case IPv6Header::IPPROTO_AUTH:
+                case IPv6Header::IPPROTO_ENCAP_SEC:
+                case IPv6Header::IPPROTO_EXT_MOBILE:
+                case IPv6Header::IPPROTO_EXT_HOST:
+                case IPv6Header::IPPROTO_EXT_SHIM:
                 case IPv6Header::IPPROTO_FRAGMENT:
                 case IPv6Header::IPPROTO_EXT_JUMBO:
-					if (l4len < 8) {
-						return FSTAT_PARSER_E_SHORT_IP_HDR;
-					}
-					IPv6ExtHeader* ipv6ex;
+                    if (l4len < 8) {
+                        return FSTAT_PARSER_E_SHORT_IP_HDR;
+                    }
+                    IPv6ExtHeader* ipv6ex;
                     ipv6ex = (IPv6ExtHeader*)(l4);
-					hl = ipv6ex->getHeaderLen();
-					if (l4len < hl) {
-						return FSTAT_PARSER_E_SHORT_IP_HDR;
-					}
-				    nh = ipv6ex->getNextHeader();
-					l4len -= hl;
-					osize += hl;
-					l4 += hl;
+                    hl = ipv6ex->getHeaderLen();
+                    if (l4len < hl) {
+                        return FSTAT_PARSER_E_SHORT_IP_HDR;
+                    }
+                    nh = ipv6ex->getNextHeader();
+                    l4len -= hl;
+                    osize += hl;
+                    l4 += hl;
                     break;
-				case IPv6Header::IPPROTO_NONE:
-					doloop = false;
-					break;
-				default:
-					doloop = false;
-					break;
-				}
-			}
+                case IPv6Header::IPPROTO_NONE:
+                    doloop = false;
+                    break;
+                default:
+                    doloop = false;
+                    break;
+                }
+            }
             m_l4 = l4;
             m_l4_proto = nh;
-            if (l4len < 8){
-			    return FSTAT_PARSER_E_SHORT_IP_HDR;
-            }
             finished = true;
             break;
         case EthernetHeader::Protocol::QINQ :

@@ -2986,6 +2986,40 @@ TEST_F(gt_ring, ring3) {
     my_map.Delete();
 }
 
+TEST_F(gt_ring, ring4) {
+    CDpToDpMessagingManager ringMgr;
+    ringMgr.Create(8, "test");       // Create a Dp To Dp Ring Manager with 8 DP cores.
+
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            if (i == j) {
+                continue;
+            }
+            CMbufRing* ring = ringMgr.getRingToDp(j);
+            assert(ring);
+            rte_mbuf_t* mbuf = new rte_mbuf_t;
+            mbuf->pkt_len = i;
+            assert(ring->Enqueue(mbuf) == 0);
+        }
+    }
+
+    for (int i = 0; i < 8; i++) {
+        CMbufRing* ring = ringMgr.getRingToDp(i);
+        assert(ring);
+        for (int j = 0; j < 8; j++) {
+            if (i == j) {
+                continue;
+            }
+            rte_mbuf_t* mbuf;
+            assert(ring->Dequeue(mbuf) == 0);
+            EXPECT_EQ(mbuf->pkt_len, j);
+            delete mbuf;
+        }
+        assert (ring->isEmpty());
+    }
+    ringMgr.Delete();
+}
+
 class gt_conf : public trexTest {};
 class ipg_calc : public trexTest {};
 

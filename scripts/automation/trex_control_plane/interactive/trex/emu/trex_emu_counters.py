@@ -20,7 +20,7 @@ class DataCounter(object):
         self.add_data = None  # additional data, attached to every counters command
 
     # API #
-    def get_counters(self, table_regex = None, cnt_filter = None, zero = True):
+    def get_counters(self, table_regex = None, cnt_filter = None, zero = True, verbose = True):
         """ 
             Get the wanted counters from server.
 
@@ -31,12 +31,14 @@ class DataCounter(object):
                 cnt_filter: list
                     List of counters type as strings. i.e: ['INFO', 'ERROR']. default is None means no filter
 
-                verbose: bool
-                    Show verbose version of each counter.
-                
-                with_zero: bool
+                zero: bool
                     Get zero values, default is True.
+
+                verbose: bool
+                    Show verbose version of each counter, default is True.
         """
+        if not verbose:
+            return self._get_counters(meta = False, zero = zero, mask = cnt_filter)
         self._get_meta()
         self._update_meta_vals()
         return self._filter_cnt(table_regex, cnt_filter, zero)
@@ -57,7 +59,7 @@ class DataCounter(object):
     def set_add_data(self, ns_key = None, c_key = None, reset = False):
         """
             Set additional data to each request. 
-        
+
             :parameters:
                 ns_key: EMUNamespaceKey
                     see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
@@ -153,8 +155,6 @@ class DataCounter(object):
 
         text_tables.print_table_with_header(table, table.title, buffer = sys.stdout)
 
-
-
     # Private functions #
     def _get_counters(self, meta = False, zero = False, mask = None, clear = False):
         """
@@ -163,7 +163,7 @@ class DataCounter(object):
             :parameters:
                 meta: bool
                     Get all the meta data.
-                
+
                 zero: bool
                     Bring zero values, default is False for optimizations.
 
@@ -183,7 +183,7 @@ class DataCounter(object):
 
         if mask is not None:
             mask = listify(mask)
-        
+
         params = {'meta': meta, 'zero': zero, 'mask': mask, 'clear': clear}
         if self.add_data is not None:
             params.update(self.add_data)
@@ -202,7 +202,7 @@ class DataCounter(object):
 
     def _filter_cnt(self, table_regex, cnt_filter, zero):
         ''' Return a new dict with all the filtered counters '''
-        
+
         def _pass_filter(cnt, cnt_filter, zero):
             if cnt_filter is not None and cnt.get('info') not in cnt_filter: 
                 return False
@@ -236,7 +236,7 @@ class DataCounter(object):
             for cnt in table_data['meta']:
                 cnt_name = cnt['name']
                 cnt['value'] = curr_table.get(cnt_name, 0)
-    
+
     def _get_meta(self):
         ''' Save meta data in object'''
         if self.meta is None:

@@ -80,6 +80,17 @@ static inline uint16_t rss_reverse_bits_port(uint16_t port){
     return ( (port&0xff00) + reverse_bits8(port&0xff));
 }
 
+
+static inline uint16_t rss_get_thread_id_aligned (bool reversed,
+                                                  uint16_t aligned_port,
+                                                  uint16_t rss_thread_max,
+                                                  uint8_t reta_mask) {
+    if (reversed) {
+        aligned_port = rss_reverse_bits_port(aligned_port);
+    }
+    return (aligned_port & reta_mask) % rss_thread_max;
+}
+
 class CTupleBase {
 public:
 

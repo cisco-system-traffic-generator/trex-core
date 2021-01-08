@@ -153,10 +153,154 @@ void CFlowGenListPerThread::handle_rx_flush(CGenNode * node,
 }
 
 uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
+    if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
+        return handle_rx_pkts<true>(is_idle);
+    } else {
+        return handle_rx_pkts<false>(is_idle);
+    }
+}
+
+/**
+ * rx_burst_astf_software_rss_ring attempts to read *nb_pkts* packets into the *rx_pkts* array.
+ * The ring from which to read, the redirected packets ring or the physical ring is specified in the boolean
+ * parameter.
+ *
+ * @param dir
+ *   The direction of the traffic.
+ * @param rx_pkts
+ *   The address of an array of pointers to *rte_mbuf* structures that
+ *   must be large enough to store *nb_pkts* pointers in it.
+ * @param nb_pkts
+ *   The maximum number of packets to retrieve.
+ * @param redirect_ring
+ *   Read packets from the redirect ring if this is true, else read them from the physical ring.
+ * @return
+ *   The number of packets actually read. It returns the smaller between *nb_pkts* and the ring size.
+*/
+uint16_t CFlowGenListPerThread::rx_burst_astf_software_rss_ring(pkt_dir_t dir, rte_mbuf_t** rx_pkts, uint16_t nb_pkts, bool redirect_ring) {
+    if (redirect_ring) {
+        MbufRedirectCache* mbuf_redirect_cache = m_dp_core->get_mbuf_redirect_cache();
+        return mbuf_redirect_cache->retrieve_redirected_packets(rx_pkts, nb_pkts);
+    } else {
+        CVirtualIF* v_if = m_node_gen.m_v_if;
+        return v_if->rx_burst(dir, rx_pkts, nb_pkts);
+    }
+}
+
+/**
+ * rx_burst_astf_software_rss attempts to read *nb_pkts* packets into the *rx_pkts* array.
+ * Since the mode is ASTF software RSS, the packets need to be read from 2 rings. The first one being,
+ * the classical physical interface, and the second one being the redirect ring between the DPs.
+ * This is done using the Round Robin (RR) algorithm.
+ *
+ * @param dir
+ *   The direction of the traffic.
+ * @param rx_pkts
+ *   The address of an array of pointers to *rte_mbuf* structures that
+ *   must be large enough to store *nb_pkts* pointers in it.
+ * @param nb_pkts
+ *   The maximum number of packets to retrieve.
+ * @return
+ *   The number of packets actually read. It returns the smaller between *nb_pkts* to the ring size.
+*/
+uint16_t CFlowGenListPerThread::rx_burst_astf_software_rss(pkt_dir_t dir, rte_mbuf_t** rx_pkts, uint16_t nb_pkts) {
+    if (dir == SERVER_SIDE) {
+        // Nothing to do on server
+        return rx_burst_astf_software_rss_ring(dir, rx_pkts, nb_pkts, false);
+    }
+    uint16_t cnt = rx_burst_astf_software_rss_ring(dir, rx_pkts, nb_pkts, m_read_from_redirect_ring);
+    if (cnt == 0) {
+        // The ring that we tried to read from was empty, let's try the other one.
+        cnt = rx_burst_astf_software_rss_ring(dir, rx_pkts, nb_pkts, !m_read_from_redirect_ring);
+        // Read from the not intended ring, don't change the boolean flag indicating which ring to read from next time.
+    } else {
+        // Round Robin, next time read from the other ring.
+        m_read_from_redirect_ring = !m_read_from_redirect_ring;
+    }
+    return cnt;
+}
+
+/**
+ * handle_astf_software_rss handles a packet (mbuf) when we are running in software mode
+ * with multicore. Since the packets can arrive to cores that don't have the relevant flow table,
+ * they need to be redirected to the correct core. This is achieved by aligning the
+ * source port to the correct core upon generation, hence using the port on the
+ * returning packet we can calculate the correct destination core.
+ *
+ * @param mbuf
+ *   The received packet.
+ * @param ctx
+ *   The TCP context of this thread.
+ * @param port_id
+ *   The port identifier.
+ * @param is_idle
+ *   Boolean flag indicating that the rx is idle.
+ * @return
+ *   Was the packet redirected.
+ *    - true: Packet was redirected.
+ *    - false: Packet was not redirected.
+**/
+bool CFlowGenListPerThread::handle_astf_software_rss(pkt_dir_t dir,
+                                                     rte_mbuf_t* mbuf,
+                                                     CTcpPerThreadCtx* ctx,
+                                                     tvpid_t port_id) {
+    if (dir == SERVER_SIDE) {
+        // Need to handle like all the packets.
+        return false;
+    }
+
+    CFlowKeyTuple tuple;
+    CFlowKeyFullTuple ftuple;
+
+    CSimplePacketParser parser(mbuf);
+
+    tcp_rx_pkt_action_t action;
+
+    ctx->m_ft.parse_packet(mbuf,
+                parser,
+                tuple,
+                ftuple,
+                ctx->get_rx_checksum_check(),
+                action,
+                port_id);
+
+    if (action != tPROCESS) {
+        // Shouldn't process this packet. Usual handle.
+        return false;
+    }
+
+    uint16_t src_port = (uint16_t)tuple.get_sport();
+    /* The source port is aligned to the core id upon creation, and the dedicated core can be found using
+    the destination port. The parser automatically understands source/destination per dir. */
+
+    /* The rss_thread_id can be retrieved from the source port but this is not enough in case of multiple
+       dual ports. We need to redirect the packet to the correct thread_id (not the correct rss_thread_id).
+       The thread_ids per dual port are i, i + num_dual_ports, i + 2*num_dual_ports ...for the dual port number i.
+       However the rss_thread_id are 0, 1, 2, ... num_cores_per_dual_port for each dual port.
+       The following code calculates the correct thread id from the source port.
+    */
+    uint8_t reta_mask = CGlobalInfo::m_options.m_reta_mask;
+    uint8_t num_cores_per_dual_port = CGlobalInfo::m_options.preview.getCores();
+    uint8_t rss_thread_id = rss_get_thread_id_aligned(true, src_port, num_cores_per_dual_port, reta_mask);
+    uint8_t num_dual_ports = uint8_t(CGlobalInfo::m_options.get_expected_dual_ports());
+    uint8_t dedicated_thread_id = rss_thread_id * num_dual_ports + (m_thread_id % num_dual_ports);
+
+    if (dedicated_thread_id != m_thread_id) {
+        // redirect packet (cache it first) and redirect only when flushed.
+        MbufRedirectCache* mbuf_redirect_cache = m_dp_core->get_mbuf_redirect_cache();
+        mbuf_redirect_cache->redirect_packet(mbuf, dedicated_thread_id);
+        return true;
+    }
+    return false;
+}
+
+template<bool ASTF_SOFTWARE_RSS>
+uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
     CVirtualIF * v_if=m_node_gen.m_v_if;
     rte_mbuf_t * rx_pkts[64];
     int dir;
     uint16_t cnt;
+    bool redirected = false;
 
     CTcpPerThreadCtx * mctx_dir[2]={
         m_c_tcp,
@@ -173,7 +317,11 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
         CTcpPerThreadCtx  * ctx = mctx_dir[dir];
         sum=0;
         while (true) {
-            cnt=v_if->rx_burst(dir,rx_pkts,64);
+            if (unlikely(ASTF_SOFTWARE_RSS)) {
+                cnt = rx_burst_astf_software_rss(dir, rx_pkts, 64);
+            } else {
+                cnt = v_if->rx_burst(dir, rx_pkts, 64);
+            }
             if (cnt==0) {
                 break;
             }
@@ -198,7 +346,13 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
                     #endif
                 }
 #endif
-                ctx->m_ft.rx_handle_packet(ctx, m, is_idle,ports_id[dir]);
+                redirected = false;
+                if (unlikely(ASTF_SOFTWARE_RSS)) {
+                    redirected = handle_astf_software_rss(dir, m, ctx, ports_id[dir]);
+                }
+                if (!redirected) {
+                    ctx->m_ft.rx_handle_packet(ctx, m, is_idle,ports_id[dir]);
+                }
             }
             sum+=cnt;
             if (sum>256) {
@@ -586,10 +740,8 @@ void CFlowGenListPerThread::load_tcp_profile(profile_id_t profile_id, bool is_fi
     m_c_tcp->append_active_profile(profile_id);
     m_s_tcp->append_active_profile(profile_id);
 
-    if (is_first) {
-        m_c_tcp->update_tuneables(rw->get_c_tuneables());
-        m_s_tcp->update_tuneables(rw->get_s_tuneables());
-    }
+    m_c_tcp->get_profile_ctx(profile_id)->update_tuneables(rw->get_c_tuneables());
+    m_s_tcp->get_profile_ctx(profile_id)->update_tuneables(rw->get_s_tuneables());
 
     /* call startup for client side */
     m_c_tcp->call_startup(profile_id);
@@ -615,9 +767,6 @@ void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_
     }
 
     if (is_last) {
-        m_c_tcp->reset_tuneables();
-        m_s_tcp->reset_tuneables();
-
         m_sched_accurate = false;
     }
 }

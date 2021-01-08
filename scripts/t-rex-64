@@ -22,8 +22,14 @@ elif [ $RESULT -eq 2 ]; then
 elif [ $RESULT -eq 64 ]; then
   EXTRA_INPUT_ARGS="--ntacc-so"
 
-elif [ $RESULT -eq 32 ]; then
+elif [ $RESULT -eq 48 ]; then
   EXTRA_INPUT_ARGS="--mlx4-so --mlx5-so"
+
+elif [ $RESULT -eq 32 ]; then
+  EXTRA_INPUT_ARGS="--mlx5-so"
+
+elif [ $RESULT -eq 16 ]; then
+  EXTRA_INPUT_ARGS="--mlx4-so"
 
 elif [ $RESULT -eq 128 ]; then
   EXTRA_INPUT_ARGS="--bnxt-so"

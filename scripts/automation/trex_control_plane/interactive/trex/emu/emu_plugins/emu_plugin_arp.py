@@ -45,6 +45,16 @@ class ARPPlugin(EMUPluginBase):
 
     # API methods
     @client_api('getter', True)
+    @update_docstring(EMUPluginBase._get_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def get_counters(self, ns_key, cnt_filter=None, zero=True, verbose=True):
+        return self._get_ns_counters(ns_key, cnt_filter, zero, verbose)
+
+    @client_api('command', True)
+    @update_docstring(EMUPluginBase._clear_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def clear_counters(self, ns_key):
+        return self._clear_ns_counters(ns_key)
+
+    @client_api('getter', True)
     def get_cfg(self, ns_key):
         """
         Get arp configurations. 

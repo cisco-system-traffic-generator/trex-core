@@ -165,10 +165,10 @@ SimStateless::find_active_dp_cores() {
 
 void
 SimStateless::init() {
-    
+
     /* message queue init */
-    assert(CMsgIns::Ins()->Create(m_dp_core_count));
-    
+    assert(CMsgIns::Ins()->Create(m_dp_core_count, false));
+
     /* a hack for the simulator - change the DP core count in runtime */
     SimPlatformApi &sim_api = dynamic_cast<SimPlatformApi &>(get_platform_api());
     sim_api.set_dp_core_count(m_dp_core_count);
@@ -176,12 +176,12 @@ SimStateless::init() {
     TrexSTXCfg cfg;
 
     cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_MOCK, 0, nullptr, "");
-    
+
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
-    
+
     cfg.m_rx_cfg.create(1, {{}});
-    
+
     set_stx(new TrexStateless(cfg));
 }
 

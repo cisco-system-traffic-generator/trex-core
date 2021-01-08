@@ -60,5 +60,5 @@ pprint.pprint(res)
 
 # ipv6 counters
 print('IPv6 counters:')
-res = c.ipv6.get_counters(ns_key, zero = True)
+res = c.ipv6.get_counters(ns_key, zero = True, verbose = False)
 pprint.pprint(res)

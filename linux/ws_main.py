@@ -415,6 +415,7 @@ astf_src = SrcGroup(dir='src/stx/astf/',
         'trex_astf_rpc_cmds.cpp',
         'trex_astf_rx_core.cpp',
         'trex_astf_topo.cpp',
+        'trex_astf_mbuf_redirect.cpp'
     ])
 
 

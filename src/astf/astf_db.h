@@ -517,7 +517,7 @@ private:
     std::string get_buf(uint32_t temp_index, uint32_t cmd_index, int side);
     bool convert_from_json(uint8_t socket_id);
     uint32_t get_buf_index(uint32_t program_index, uint32_t cmd_index);
-    void get_rx_cmd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void get_rx_cmd(uint32_t program_index, uint32_t cmd_index, uint64_t& total_rx_wm, CEmulAppCmd &res);
 
     uint32_t get_delay_ticks(uint32_t program_index, uint32_t cmd_index);
     void assert_cmd(uint32_t program_index, uint32_t cmd_index, const std::string &cmd_name, Json::Value &cmd);
@@ -533,7 +533,7 @@ private:
                      uint32_t cmd_index,
                      uint8_t socket_id,
                      CEmulAppCmd &res);
-    void fill_rx_pkt(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_rx_pkt(uint32_t program_index, uint32_t cmd_index, uint64_t& total_rx_wm, CEmulAppCmd &res);
 
     void fill_keepalive_pkt(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 

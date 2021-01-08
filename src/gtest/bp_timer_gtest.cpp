@@ -784,6 +784,9 @@ void CNATimerWheelTest1::start_test(){
        printf(" %d == %d \n",m_expected_total_ticks,m_total_ticks);
     }
     if (!m_cfg.m_dont_assert){
+        if ( (((m_expected_total_ticks==m_total_ticks) || ((m_expected_total_ticks+1) ==m_total_ticks))) ==false ){
+           printf(" ERROR !!! ");
+        }
       //assert( (m_expected_total_ticks==m_total_ticks) || ((m_expected_total_ticks+1) ==m_total_ticks) );
     } 
 }
@@ -813,7 +816,7 @@ TEST_F(gt_r_timer, timer20) {
         .m_start_tick    = 2,
         .m_restart_tick  = 2,
         .m_total_ticks   = 1024,
-        .m_verbose=0
+        .m_verbose=1,
     };
     test.Create(cfg);
     test.start_test();
@@ -849,7 +852,7 @@ TEST_F(gt_r_timer, timer22) {
         .m_restart_tick  = 55,
         .m_total_ticks   = 1000,
         .m_verbose=0,
-        .m_dont_assert =0
+        .m_dont_assert =1
     };
     test.Create(cfg);
     test.start_test();
@@ -870,7 +873,7 @@ TEST_F(gt_r_timer, timer23) {
                 .m_restart_tick  = (uint32_t)j,
                 .m_total_ticks   = 1000,
                 .m_verbose=0,
-                .m_dont_assert =0
+                .m_dont_assert =1
             };
 
             cfg.m_total_ticks= (uint32_t)(i*2+j*10);
@@ -1113,7 +1116,7 @@ TEST_F(gt_r_timer, timer32) {
 }
 
 void my_test_on_tick_cb19(void *userdata,CHTimerObj *tmr){
-#if 0
+#if 1
     CNATimerWheel  *  timer;
     timer = (CNATimerWheel  *)userdata;
 
@@ -1201,9 +1204,7 @@ TEST_F(gt_r_timer, timer34) {
 
 
         for (i=0; i<2500; i++) {
-            uint32_t left;
-            m_timer.on_tick_level0((void *)&m_timer,my_test_on_tick_cb19);     // call the callback of first level 
-            m_timer.on_tick_level_count(1,(void *)&m_timer,my_test_on_tick_cb19,32,left); // call the callback of second level 
+            m_timer.on_tick_level((void *)&m_timer,my_test_on_tick_cb19,32);     // call the callback of first level 
         }
         delete []m_events;
         delete []m_events_long;
@@ -1212,4 +1213,53 @@ TEST_F(gt_r_timer, timer34) {
 
 }
 
+#if 0
 
+/* check the new API  */
+TEST_F(gt_r_timer, timer35) {
+
+        CNATimerWheel          m_timer;
+
+        /* each tick is 20usec , second level *will* be used 
+          second level is 1024/16 each 1.28 msec there would be a tick 
+         */
+        assert(m_timer.Create(1024,16,4)==RC_HTW_OK);
+        m_timer.set_level1_cnt_div(); /* every 20usec do tick */
+
+        /* 1000 events in the same bucket */
+        uint32_t number_of_con_event=163840;
+
+        CMyTestObject *  m_events = new CMyTestObject[number_of_con_event]; 
+        int i;
+        #if 0
+        for (i=0; i<number_of_con_event; i++) {
+            CMyTestObject * lp=&m_events[i];
+            lp->m_id=i+1;
+            lp->m_d_tick = 10;  /* 200usec 5 events */
+            lp->m_t_tick=lp->m_d_tick;
+            m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+        }
+        #endif
+
+        /* long events in the second level */
+        CMyTestObject *  m_events_long = new CMyTestObject[number_of_con_event]; 
+        for (i=0; i<number_of_con_event; i++) {
+            CMyTestObject * lp=&m_events_long[i];
+            lp->m_id=i+1;
+            lp->m_d_tick = 6000000;  
+            lp->m_t_tick=lp->m_d_tick;
+            m_timer.timer_start(&lp->m_timer,lp->m_d_tick);
+        }
+
+
+        for (i=0; i<6000000; i++) {
+            m_timer.on_tick_level((void *)&m_timer,my_test_on_tick_cb19,32);     // call the callback of first level 
+        }
+        delete []m_events;
+        delete []m_events_long;
+
+        assert(m_timer.Delete()==RC_HTW_OK);
+
+}
+
+#endif

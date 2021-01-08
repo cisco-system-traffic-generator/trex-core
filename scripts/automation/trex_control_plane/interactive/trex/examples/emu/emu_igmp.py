@@ -57,5 +57,5 @@ for i, mc in enumerate(res, start = 1):
 
 # igmp counters
 print('IGMP counters:')
-res = c.igmp.get_counters(ns_key, zero = True)
+res = c.igmp.get_counters(ns_key, zero = True, verbose = False)
 pprint.pprint(res)

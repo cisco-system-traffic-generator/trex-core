@@ -1,13 +1,14 @@
+from functools import wraps
 from ..trex_emu_counters import DataCounter
 from ..trex_emu_conversions import *
 from trex.utils import text_tables
 from trex.emu.trex_emu_validator import EMUValidator
-
 from trex.emu.api import *
+
 
 class EMUPluginBase(object):
     ''' Every object inherit from this class can implement a plugin method with decorator @plugin_api('cmd_name', 'emu')'''
-    
+
     def __init__(self, emu_client, cnt_rpc_cmd):
         self.emu_c  = emu_client
         self.conn   = emu_client.conn
@@ -16,52 +17,147 @@ class EMUPluginBase(object):
 
     # Common API
     @client_api('getter', True)
-    def get_counters(self, ns_key, meta = False, zero = False, mask = None, clear = False):
+    def _get_ns_counters(self, ns_key, cnt_filter=None, zero=True, verbose=True):
         """
-        Get plugin counters from emu server. 
+            Get the $PLUGIN_NAME counters of a namespace.
 
             :parameters:
-                ns_key: EMUNamespaceKey
-                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
-                meta: bool
-                    True will just return meta data, defaults to False.
+                ns_key: :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                    EMUNamespaceKey
+
+                cnt_filter: list
+                    List of counters types as strings. i.e: ['INFO', 'ERROR', 'WARNING']. Default is None, means no filter.
+                    If verbosity is off, this filter can't be used.
+
                 zero: bool
-                    True will show zero values as well, defaults to False.
-                mask: list of strings
-                    List of strings representing tables to show (use --headers to see all tables), defaults to None means all of them.
-                clear: bool
-                    True will clear counters, defaults to False.
+                    Get zero values, default is True.
+
+                verbose: bool
+                    Show verbose version of each counter, default is True.
 
             :return:
-                | dict: Dictionary of all wanted counters. Keys as tables names and values as dictionaries with data.
-                | example when meta = True, all counters will be held in res['table_name']['meta'] as a list.
-                | {
-                |    'parser': {
-                |       'meta': [{
-                |           "info": "INFO",
-                |            "name": "eventsChangeSrc",
-                |            "value": 1,
-                |            "zero": false,
-                |           "unit": "ops",
-                |            "help": "change src ipv4 events"
-                |            }],
-                |    'name': 'parser'}
-                | }
-                | 
-                | example when meta = False, all counters will be held in res['table_name'] as a dict, counter name as a keys and numeric value as values.
-                | {
-                |     'parser': {'eventsChangeSrc': 1, ...}
-                | }
+                | dict:
+                | Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
+                |    {'pluginName': [{'help': 'Explanation 1',
+                |                     'info': 'INFO',
+                |                     'name': 'counterOne',
+                |                     'unit': 'pkts',
+                |                     'value': 8,
+                |                     'zero': False},
+                |                    {'help': 'Explanation 2',
+                |                     'info': 'ERROR',
+                |                     'name': 'counterTwo',
+                |                     'unit': 'pkts',
+                |                     'value': 6,
+                |                     'zero': False}]}
+                |
+                | When verbose is False, each plugins returns a dictionary of counterName, value pairs.
+                |    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
+                |
+            :raises:
+                + :exc: TRexError
         """
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
-            {'name': 'meta',  'arg': meta, 't': bool},
-            {'name': 'zero',  'arg': zero, 't': bool},
-            {'name': 'mask',  'arg': mask, 't': str, 'allow_list': True, 'must': False},
-            {'name': 'clear', 'arg': clear, 't': bool},
-        ]
+                    {'name': 'cnt_filter', 'arg': cnt_filter, 't': list, 'must': False},
+                    {'name': 'zero', 'arg': zero, 't': bool},
+                    {'name': 'verbose', 'arg': verbose, 't': bool}]
         EMUValidator.verify(ver_args)
-        self.data_c.set_add_data(ns_key = ns_key)
-        return self.data_c._get_counters(meta, zero, mask, clear)
+        self.data_c.set_add_data(ns_key=ns_key)
+        return self.data_c.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
+
+    @client_api('getter', True)
+    def _get_client_counters(self, c_key, cnt_filter=None, zero=True, verbose=True):
+        """
+            Get the $PLUGIN_NAME counters of a client.
+
+            :parameters:
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+                cnt_filter: list
+                    List of counters types as strings. i.e: ['INFO', 'ERROR', 'WARNING']. Default is None, means no filter.
+                    If verbosity is off, this filter can't be used.
+
+                zero: bool
+                    Get zero values, default is True.
+
+                verbose: bool
+                    Show verbose version of each counter, default is True.
+
+            :return:
+                | dict:
+                | Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
+                |    {'pluginName': [{'help': 'Explanation 1',
+                |                     'info': 'INFO',
+                |                     'name': 'counterOne',
+                |                     'unit': 'pkts',
+                |                     'value': 8,
+                |                     'zero': False},
+                |                    {'help': 'Explanation 2',
+                |                     'info': 'ERROR',
+                |                     'name': 'counterTwo',
+                |                     'unit': 'pkts',
+                |                     'value': 6,
+                |                     'zero': False}]}
+                |
+                | When verbose is False, each plugins returns a dictionary of counterName, value pairs.
+                |    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
+                |
+
+            :raises:
+                + :exc: TRexError
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
+                    {'name': 'cnt_filter', 'arg': cnt_filter, 't': list, 'must': False},
+                    {'name': 'zero', 'arg': zero, 't': bool},
+                    {'name': 'verbose', 'arg': verbose, 't': bool}]
+        EMUValidator.verify(ver_args)
+        self.data_c.set_add_data(c_key=c_key)
+        return self.data_c.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
+
+    @client_api('command', True)
+    def _clear_ns_counters(self, ns_key):
+        """
+            Clear the $PLUGIN_NAME counters of a namespace.
+
+            :parameters:
+                ns_key: :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+                    EMUNamespaceKey
+
+            :returns:
+                Boolean indicating if clearing was successful.
+                  - True: Clearing was successful.
+                  - False: Clearing was not successful.
+
+            :raises:
+                + :exc: TRexError
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
+        EMUValidator.verify(ver_args)
+        self.data_c.set_add_data(ns_key=ns_key)
+        return self.data_c.clear_counters()
+
+    @client_api("command", True)
+    def _clear_client_counters(self, c_key):
+        """
+            Clear the $PLUGIN_NAME counters of a client.
+
+            :parameters:
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+            :returns:
+                Boolean indicating if clearing was successful.
+                  - True: Clearing was successful.
+                  - False: Clearing was not successful.
+
+            :raises:
+                + :exc: TRexError
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
+        EMUValidator.verify(ver_args)
+        self.data_c.set_add_data(c_key=c_key)
+        return self.data_c.clear_counters()
 
     # Override functions
     def tear_down_ns(self, ns_key):
@@ -190,3 +286,17 @@ class EMUPluginBase(object):
     @property
     def logger(self):
         return self.emu_c.logger
+
+
+def update_docstring(text):
+    """ Used to update the docstring for a function """
+    def decorator(original_method):
+
+        @wraps(original_method)
+        def wrapper(self, *args, **kwargs):
+            return original_method(self, *args ,**kwargs)
+
+        wrapper.__doc__ = text
+        return wrapper
+
+    return decorator

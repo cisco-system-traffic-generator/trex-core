@@ -460,7 +460,7 @@ uint32_t CAstfDB::get_delay_ticks(uint32_t program_index, uint32_t cmd_index) {
 
     assert (cmd["name"] == "delay");
 
-    return tw_time_usec_to_ticks(cmd["usec"].asInt());
+    return tw_time_usec_to_ticks(cmd["usec"].asUInt());
 }
 
 void CAstfDB::assert_cmd(uint32_t program_index, uint32_t cmd_index, const std::string &cmd_name, Json::Value &cmd) {
@@ -546,17 +546,23 @@ void CAstfDB::fill_tx_pkt(uint32_t program_index,
 
 void CAstfDB::fill_rx_pkt(uint32_t program_index, 
                             uint32_t cmd_index,
+                            uint64_t& total_rx_wm,
                             CEmulAppCmd &res) {
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx_msg", cmd);
 
-    uint32_t min_pkts=cmd["min_pkts"].asInt();
-    res.u.m_rx_pkt.m_rx_pkts =min_pkts;
+    uint64_t min_pkts=cmd["min_pkts"].asUInt64();
+    if (unlikely(min_pkts < total_rx_wm)) {
+        min_pkts = total_rx_wm; // to skip invalid min_pkts
+    }
+    res.u.m_rx_pkt.m_rx_pkts = min_pkts - total_rx_wm;
     res.u.m_rx_pkt.m_flags =CEmulAppCmdRxPkt::rxcmd_WAIT;
 
+    total_rx_wm = min_pkts;
     if (cmd["clear"] != Json::nullValue) {
         if (cmd["clear"].asBool()) {
             res.u.m_rx_cmd.m_flags |= CEmulAppCmdRxPkt::rxcmd_CLEAR;
+            total_rx_wm = 0;
         }
     }
 }
@@ -567,18 +573,25 @@ void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "keepalive", cmd);
 
-    res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asInt();
+    res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asUInt();
 }
 
 
-void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index,CEmulAppCmd &res) {
+void CAstfDB::get_rx_cmd(uint32_t program_index, uint32_t cmd_index, uint64_t& total_rx_wm, CEmulAppCmd &res) {
     Json::Value cmd;
     assert_cmd(program_index, cmd_index, "rx", cmd);
 
-    res.u.m_rx_cmd.m_rx_bytes_wm = cmd["min_bytes"].asInt();
+    uint64_t min_bytes = cmd["min_bytes"].asUInt64();
+    if (unlikely(min_bytes < total_rx_wm)) {
+        min_bytes = total_rx_wm; // to skip invalid min_bytes
+    }
+    res.u.m_rx_cmd.m_rx_bytes_wm = min_bytes - total_rx_wm;
+
+    total_rx_wm = min_bytes;
     if (cmd["clear"] != Json::nullValue) {
         if (cmd["clear"].asBool()) {
             res.u.m_rx_cmd.m_flags |= CEmulAppCmdRxPkt::rxcmd_CLEAR;
+            total_rx_wm = 0;
         }
     }
 }
@@ -1449,7 +1462,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
                 temp_str = base64_decode(json_buf);
             }
             if (buf_obj["size"] != Json::nullValue) {
-                buf_len = buf_obj["size"].asInt();
+                buf_len = buf_obj["size"].asUInt();
             } else {
                 buf_len = temp_str.size();
             }
@@ -1486,6 +1499,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
         assert(prog);
         bool is_stream = get_emul_stream(program_index);
         prog->set_stream(is_stream);
+        uint64_t total_rx_wm = 0;
 
         cmd_index = 0;
         do {
@@ -1503,7 +1517,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
             case tcRX_BUFFER:
                 cmd.m_cmd = tcRX_BUFFER;
                 cmd.u.m_rx_cmd.m_flags = CEmulAppCmdRxBuffer::rxcmd_WAIT;
-                get_rx_cmd(program_index, cmd_index,cmd);
+                get_rx_cmd(program_index, cmd_index,total_rx_wm,cmd);
                 prog->add_cmd(cmd);
                 break;
             case tcDELAY:
@@ -1557,7 +1571,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
 
             case tcRX_PKT:
                 cmd.m_cmd = tcRX_PKT;
-                fill_rx_pkt(program_index, cmd_index,cmd);
+                fill_rx_pkt(program_index, cmd_index,total_rx_wm,cmd);
                 prog->add_cmd(cmd);
                 break;
 

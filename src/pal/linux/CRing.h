@@ -75,6 +75,10 @@ public:
         return ( m_queue->empty() ?true:false); 
     }
 
+    unsigned int Size() {
+        return m_queue->size();
+    }
+
 private:
     my_stl_queue_t * m_queue;
 };
@@ -99,7 +103,40 @@ public:
     }
 };
 
+template <class T>
+class CTRing : public CRingSp {
+public:
+    bool Create(std::string name, uint16_t count, int socket_id, bool sp, bool sc) {
+        return CRingSp::Create(name, count, socket_id);
+    }
 
+    int Enqueue(T* obj){
+        return (CRingSp::Enqueue((void*)obj) );
+    }
+
+    int EnqueueBulk(T** obj, unsigned int n) {
+        assert(obj);
+        for (int i = 0; i < n; i++) {
+            Enqueue(obj[i]);
+        }
+        return 0;
+    }
+
+    int Dequeue(T* & obj){
+        return (CRingSp::Dequeue(*((void **)&obj)));
+    }
+
+    int DequeueBulk(T** obj, unsigned int n) {
+        if (Size() < n) {
+            return 1;
+        }
+        for (int i = 0; i < n; i++) {
+            Dequeue(obj[i]);
+        }
+        return 0;
+    }
+
+};
 
 
 #endif

@@ -92,31 +92,31 @@ class GlobalStats(AbstractStats):
                                                                                          )),
 
                              ("rx_cpu_util.", "{0}% / {1} {2}".format( format_threshold(round_float(self.get("m_rx_cpu_util")), [85, 100], [0, 85]),
-                                                                       self.get("m_rx_core_pps", format = True, suffix = "pkt/sec"),
+                                                                       self.get("m_rx_core_pps", format = True, suffix = "pps"),
                                                                        self.get_trend_gui("m_rx_cpu_util", use_raw = True),)),
 
                              ("async_util.", "{0}% / {1}".format( format_threshold(round_float(self.client.conn.async_.monitor.get_cpu_util()), [85, 100], [0, 85]),
-                                                                 format_num(self.client.conn.async_.monitor.get_bps() / 8.0, suffix = "B/sec"))),
-                             ("total_cps.", "{0} {1}".format( self.get("m_tx_cps", format=True, suffix="cps/sec"),
+                                                                 format_num(self.client.conn.async_.monitor.get_bps(), suffix = "bps"))),
+                             ("total_cps.", "{0} {1}".format( self.get("m_tx_cps", format=True, suffix="cps"),
                                                               self.get_trend_gui("m_tx_cps"))),
 
                             ])
 
         stats_data_right = OrderedDict([
-                             ("total_tx_L2", "{0} {1}".format( self.get("m_tx_bps", format=True, suffix="b/sec"),
+                             ("total_tx_L2", "{0} {1}".format( self.get("m_tx_bps", format=True, suffix="bps"),
                                                                 self.get_trend_gui("m_tx_bps"))),
 
-                             ("total_tx_L1", "{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="b/sec"),
+                             ("total_tx_L1", "{0} {1}".format( self.get("m_tx_bps_L1", format=True, suffix="bps"),
                                                                 self.get_trend_gui("m_tx_bps_L1"))),
 
-                             ("total_rx", "{0} {1}".format( self.get("m_rx_bps", format=True, suffix="b/sec"),
+                             ("total_rx", "{0} {1}".format( self.get("m_rx_bps", format=True, suffix="bps"),
                                                               self.get_trend_gui("m_rx_bps"))),
 
-                             ("total_pps", "{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pkt/sec"),
+                             ("total_pps", "{0} {1}".format( self.get("m_tx_pps", format=True, suffix="pps"),
                                                               self.get_trend_gui("m_tx_pps"))),
 
                              ("drop_rate", "{0}".format( format_num(self.get("m_rx_drop_bps"),
-                                                                    suffix = 'b/sec',
+                                                                    suffix = 'bps',
                                                                     opts = 'green' if (self.get("m_rx_drop_bps")== 0) else 'red'),
                                                             )),
                              ])
@@ -132,7 +132,7 @@ class GlobalStats(AbstractStats):
         stats_table = text_tables.TRexTextInfo('global statistitcs')
         stats_table.set_cols_align(["l", "l"])
         stats_table.set_deco(0)
-        stats_table.set_cols_width([50, 45])
+        stats_table.set_cols_width([55, 45])
         max_lines = max(len(stats_data_left), len(stats_data_right))
         for line_num in range(max_lines):
             row = []
