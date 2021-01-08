@@ -43,10 +43,27 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_flow_gen->Create_tcp_ctx();
     m_active_profile_cnt = 0;
     m_profile_states.clear();
+    m_mbuf_redirect_cache = nullptr;
+
+    if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
+        // software RSS, need to create cache.
+        uint8_t num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
+        CTcpPerThreadCtx* client_tcp_ctx = m_core->m_c_tcp; // Client context as we redirect only for clients.
+        m_mbuf_redirect_cache = new MbufRedirectCache(client_tcp_ctx, num_dp_cores, m_thread_id);
+    }
 }
 
 TrexAstfDpCore::~TrexAstfDpCore() {
+    delete m_mbuf_redirect_cache;
+    m_mbuf_redirect_cache = nullptr;
     m_flow_gen->Delete_tcp_ctx();
+}
+
+void TrexAstfDpCore::stop() {
+    if (m_mbuf_redirect_cache) {
+        m_mbuf_redirect_cache->flush_and_stop_redirect();
+    }
+    TrexDpCore::stop();
 }
 
 bool TrexAstfDpCore::are_all_ports_idle() {
@@ -382,7 +399,6 @@ void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db)
     report_finished(profile_id);
 }
 
-
 void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
@@ -403,14 +419,22 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CA
         astf_db->set_factor(factor);
     }
 
+    string errmsg;
+
     try {
         create_profile_state(profile_id);
         m_flow_gen->load_tcp_profile(profile_id, profile_cnt() == 1, astf_db);
+    } catch (const Json::LogicError &ex) {
+        errmsg = ex.what();
     } catch (const TrexException &ex) {
+        errmsg = ex.what();
+    }
+
+    if (!errmsg.empty()) {
         remove_profile_state(profile_id);
         m_flow_gen->unload_tcp_profile(profile_id, profile_cnt() == 0, astf_db);
         m_flow_gen->remove_tcp_profile(profile_id);
-        report_error(profile_id, "Could not create ASTF batch: " + string(ex.what()));
+        report_error(profile_id, "Could not create ASTF batch: " + errmsg);
         return;
     }
 
@@ -478,6 +502,11 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bo
         report_error(profile_id, "Start in unexpected DP core state: " + std::to_string(m_state));
         break;
     }
+
+    if (m_mbuf_redirect_cache) {
+        // Start timer, it is safe in case of an already started timer.
+        m_mbuf_redirect_cache->start_redirect_timer();
+    }
 }
 
 void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
@@ -507,6 +536,12 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
     default:
         report_error(profile_id, "Stop in unexpected DP core state: " + std::to_string(m_state));
         break;
+    }
+
+    if (m_mbuf_redirect_cache && (m_active_profile_cnt == 0)) {
+        // Stop the timer when stopping the last profile.
+        // This is safe to call even in case of a stopped timer.
+        m_mbuf_redirect_cache->flush_and_stop_redirect();
     }
 }
 

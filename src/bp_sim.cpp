@@ -67,6 +67,7 @@ CFlowYamlInfo::CFlowYamlInfo() {
     m_keep_src_port = false;
     m_plugin_id = 0;
     m_ip_header_offset = 0;
+    m_max_ip_tunnels = 1;
 }
 
 void CFlowYamlInfo::Dump(FILE *fd){
@@ -91,6 +92,7 @@ void CFlowYamlInfo::Dump(FILE *fd){
     fprintf(fd,"multi_flow_enabled  : %d \n",m_multi_flow_was_set);
     fprintf(fd,"keep_src_port       : %d \n",m_keep_src_port);
     fprintf(fd, "ip_header_offset       : %d \n", m_ip_header_offset);
+    fprintf(fd, "max_ip_tunnels       : %d \n", m_max_ip_tunnels);
 
     if (m_dpPkt) {
         m_dpPkt->Dump(fd);
@@ -251,7 +253,7 @@ void CPacketDescriptor::Dump(FILE *fd){
 
 void CPacketIndication::UpdateMbufSize(){
 
-    uint8_t offset = m_udp_tcp_offset;
+    uint16_t offset = m_udp_tcp_offset;
     assert(offset>0);
 
     if ( m_desc.IsTcp() ) {
@@ -338,6 +340,8 @@ void CPacketIndication::Clone(CPacketIndication * obj,CCapPktRaw * pkt){
     m_packet_padding = obj->m_packet_padding;
     /* copy offsets*/
     m_ether_offset   = obj->m_ether_offset;
+    m_tunnel_ip_offset = obj->m_tunnel_ip_offset;
+    m_is_ipv6_tunnel = obj->m_is_ipv6_tunnel;
     m_ip_offset      = obj->m_ip_offset;
     m_udp_tcp_offset = obj->m_udp_tcp_offset;;
     m_payload_offset = obj->m_payload_offset;
@@ -377,6 +381,7 @@ void CPacketIndication::Dump(FILE *fd,int verbose){
     fprintf(fd," offsets \n");
     fprintf(fd," ------\n");
     fprintf(fd," eth       : %d \n",(int)m_ether_offset);
+    fprintf(fd," tunnel ip : %d \n", (int)m_tunnel_ip_offset);
     fprintf(fd," ip        : %d \n",(int)m_ip_offset);
     fprintf(fd," udp/tcp   : %d \n",(int)m_udp_tcp_offset);
     fprintf(fd," payload   : %d \n",(int)m_payload_offset);
@@ -483,6 +488,7 @@ void CCPacketParserCounters::Dump(FILE *fd){
 
 bool CPacketParser::Create(){
     m_counter.Clear();
+    m_ip_header_offset = 0;
     return (true);
 }
 
@@ -826,7 +832,7 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     Clean();
     CCPacketParserCounters * m_cnt=&parser->m_counter;
 
-    int offset = m_ip_offset;
+    int offset = 0;
     char * packetBase;
     packetBase = m_packet->raw;
     BP_ASSERT(packetBase);
@@ -834,61 +840,64 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
     m_is_ipv6 = false;
     m_is_ipv6_converted =false;
 
-    if (offset == 0){
-        // IP
-        switch (m_ether->getNextProtocol()) {
+    // IP
+    switch (m_ether->getNextProtocol()) {
+    case EthernetHeader::Protocol::IP:
+        offset = 14;
+        l3.m_ipv4 = (IPHeader*)(packetBase + offset);
+        break;
+    case EthernetHeader::Protocol::IPv6:
+        offset = 14;
+        l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
+        m_is_ipv6 = true;
+        break;
+    case EthernetHeader::Protocol::VLAN:
+        m_cnt->m_vlan++;
+        switch (m_ether->getVlanProtocol()) {
         case EthernetHeader::Protocol::IP:
-            offset = 14;
+            offset = 18;
             l3.m_ipv4 = (IPHeader*)(packetBase + offset);
             break;
         case EthernetHeader::Protocol::IPv6:
-            offset = 14;
+            offset = 18;
             l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
             m_is_ipv6 = true;
             break;
-        case EthernetHeader::Protocol::VLAN:
-            m_cnt->m_vlan++;
-            switch (m_ether->getVlanProtocol()) {
-            case EthernetHeader::Protocol::IP:
-                offset = 18;
-                l3.m_ipv4 = (IPHeader*)(packetBase + offset);
-                break;
-            case EthernetHeader::Protocol::IPv6:
-                offset = 18;
-                l3.m_ipv6 = (IPv6Header*)(packetBase + offset);
-                m_is_ipv6 = true;
-                break;
-            case EthernetHeader::Protocol::MPLS_Multicast:
-            case EthernetHeader::Protocol::MPLS_Unicast:
-                m_cnt->m_mpls++;
-                return;
-
-            case EthernetHeader::Protocol::ARP:
-                m_cnt->m_arp++;
-                return;
-
-            default:
-                m_cnt->m_non_ip++;
-                return; /* Non IP */
-            }
-            break;
-        case EthernetHeader::Protocol::ARP:
-            m_cnt->m_arp++;
-            return; /* Non IP */
-            break;
-
         case EthernetHeader::Protocol::MPLS_Multicast:
         case EthernetHeader::Protocol::MPLS_Unicast:
             m_cnt->m_mpls++;
-            return; /* Non IP */
-            break;
+            return;
+
+        case EthernetHeader::Protocol::ARP:
+            m_cnt->m_arp++;
+            return;
 
         default:
             m_cnt->m_non_ip++;
             return; /* Non IP */
         }
+        break;
+    case EthernetHeader::Protocol::ARP:
+        m_cnt->m_arp++;
+        return; /* Non IP */
+        break;
+
+    case EthernetHeader::Protocol::MPLS_Multicast:
+    case EthernetHeader::Protocol::MPLS_Unicast:
+        m_cnt->m_mpls++;
+        return; /* Non IP */
+        break;
+
+    default:
+        m_cnt->m_non_ip++;
+        return; /* Non IP */
     }
-    else{
+    if (parser->m_ip_header_offset != 0){
+        // Keep track of the tunnel IP header offset we found above
+        m_tunnel_ip_offset = offset;
+        offset = parser->m_ip_header_offset;
+        m_is_ipv6_tunnel = m_is_ipv6;
+        m_is_ipv6 = false;
         uint8_t* ip_version = (uint8_t*)(packetBase + offset);
         if ((*ip_version & 0xF0) == 0x40){
             l3.m_ipv4 = (IPHeader*)(packetBase + offset);
@@ -1052,7 +1061,7 @@ char * CFlowPktInfo::push_ipv4_option_offline(uint8_t bytes){
 
     /* add more bytes to the packet */
     m_packet->append(bytes);
-    uint8_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPHeader::DefaultSize;
+    uint16_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPHeader::DefaultSize;
     char *p=m_packet->raw+ip_offset_to_move;
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
@@ -1112,7 +1121,7 @@ char * CFlowPktInfo::push_ipv6_option_offline(uint8_t bytes){
 
     /* add more bytes to the packet */
     m_packet->append(bytes);
-    uint8_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPv6Header::DefaultSize;
+    uint16_t ip_offset_to_move= m_pkt_indication.getFastIpOffsetFast()+IPv6Header::DefaultSize;
     char *p=m_packet->raw+ip_offset_to_move;
     uint16_t bytes_to_move= m_packet->pkt_len - ip_offset_to_move -bytes;
 
@@ -1627,12 +1636,11 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
     bool is_multi_flow_enabled = flow_info.m_multi_flow_was_set;
     bool is_custom_dirs = (flow_info.m_flows_dirs.size() > 0);
     bool keep_src_port = flow_info.m_keep_src_port;
-    pkt_indication.m_ip_offset = flow_info.m_ip_header_offset;
-
 
     CFlowTableMap flow;
 
     parser.Create();
+    parser.m_ip_header_offset = flow_info.m_ip_header_offset;
     flow.Create(0);
     CFlow * first_flow=0;
     bool first_flow_fif_is_swap=false;
@@ -1755,6 +1763,7 @@ enum CCapFileFlowInfo::load_cap_file_err CCapFileFlowInfo::load_cap_file(std::st
             }
             pkt_indication.m_desc.SetInitSide(is_init_side);
             pkt_indication.m_desc.setKeepSrcPort(keep_src_port);
+            pkt_indication.m_desc.SetMaxIpTunnels(flow_info.m_max_ip_tunnels);
             Append(&pkt_indication);
         }else{
             fprintf(stderr, "ERROR packet %d is not supported, should be Ethernet/IP(0x0800)/(TCP|UDP) format try to convert it using Wireshark !\n",cnt);
@@ -2066,6 +2075,17 @@ void operator >> (const YAML::Node& node, CFlowYamlInfo & fi) {
         node["keep_src_port"] >> fi.m_keep_src_port;
     }else{
         fi.m_keep_src_port = 0;
+    }
+
+    if (node.FindValue("max_ip_tunnels")) {
+        node["max_ip_tunnels"] >> fi.m_max_ip_tunnels;
+        if (fi.m_max_ip_tunnels == 0) {
+            fprintf(stderr, " max_ip_tunnel has to be greater than 0\n");
+            exit(-1);
+        }
+    }
+    else {
+        fi.m_max_ip_tunnels = 1;
     }
 
     if (node.FindValue("ip_header_offset")) {
@@ -2940,6 +2960,7 @@ bool CFlowGenListPerThread::Create(uint32_t           thread_id,
     m_udp_dpc=0;
     m_max_threads=max_threads;
     m_thread_id=thread_id;
+    m_read_from_redirect_ring = false;
 
     m_c_tcp=0;
     m_s_tcp=0;
@@ -3162,6 +3183,7 @@ void CFlowGenListPerThread::init_from_global(){
         yaml_info->m_plugin_id = lp->m_info->m_plugin_id;
         yaml_info->m_keep_src_port = lp->m_info->m_keep_src_port;
         yaml_info->m_ip_header_offset = lp->m_info->m_ip_header_offset;
+        yaml_info->m_max_ip_tunnels = lp->m_info->m_max_ip_tunnels;
         yaml_info->m_one_app_server = lp->m_info->m_one_app_server;
         yaml_info->m_server_addr = lp->m_info->m_server_addr;
         yaml_info->m_dpPkt          =lp->m_info->m_dpPkt;

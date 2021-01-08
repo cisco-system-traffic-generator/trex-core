@@ -26,6 +26,24 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.87 ==
+
+* ASTF
+** Add software distribution. AWS, Azure, KVM and driver without hardware RSS can support ASTF with multi-core
+** Fix various bugs in manual instructions. 
+** Improve scale of flows, timer wheel is more generic with 4 levels. 
+* EMU 
+** Fix counters API for client based plugins (e.g. DHCP).
+* STL 
+** load_pcap fix. 
+
+== Release 2.86 ==
+
+* STL
+** Fix the GUI interface to new scapy 
+** Minor fix to flow-stats ipv6 with hardware support 
+* ASTF minor fixes in tunables 
+
 == Release 2.85 ==
 
 * ASTF 

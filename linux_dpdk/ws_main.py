@@ -145,7 +145,7 @@ def options(opt):
     opt.add_option('--pkg-file', '--pkg_file', dest='pkg_file', default=False, action='store', help="Destination filename for 'pkg' option.")
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-bnxt', dest='no_bnxt', default=False, action='store_true', help="don't use bnxt dpdk driver. use with ./b configure --no-bnxt. no need to run build with it")
-    opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx4/mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
     opt.add_option('--new-memory', default=False, action='store_true', help="Build by new DPDK memory subsystem.")
@@ -202,6 +202,196 @@ def missing_pkg_msg(fedora, ubuntu):
         msg += unknown_install
     return msg
 
+
+@conf
+def configure_dummy_mlx5 (ctx):
+    ctx.start_msg('Configuring dummy MLX5 autoconf')
+    autoconf_file = 'src/dpdk/drivers/common/mlx5/mlx5_autoconf.h'
+    autoconf_path = os.path.join(top, autoconf_file)
+    os.system('rm -rf %s' % autoconf_path)
+    dummy_file_data = '''
+        #ifndef HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
+        #define HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
+        #endif
+
+        #ifndef HAVE_IBV_FLOW_DV_SUPPORT
+        #define HAVE_IBV_FLOW_DV_SUPPORT
+        #endif
+
+        #ifndef HAVE_IBV_DEVICE_COUNTERS_SET_V45
+        #define HAVE_IBV_DEVICE_COUNTERS_SET_V45
+        #endif
+
+        #ifndef HAVE_IBV_FLOW_DEVX_COUNTERS
+        #define HAVE_IBV_FLOW_DEVX_COUNTERS
+        #endif
+
+        #ifndef HAVE_IBV_MLX4_WQE_LSO_SEG
+        #define HAVE_IBV_MLX4_WQE_LSO_SEG
+        #endif
+
+        #ifndef HAVE_IBV_DEVX_OBJ
+        #define HAVE_IBV_DEVX_OBJ
+        #endif
+
+        #ifdef SUPPORTED_40000baseKR4_Full
+        #define HAVE_SUPPORTED_40000baseKR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_40000baseCR4_Full
+        #define HAVE_SUPPORTED_40000baseCR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_40000baseSR4_Full
+        #define HAVE_SUPPORTED_40000baseSR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_40000baseLR4_Full
+        #define HAVE_SUPPORTED_40000baseLR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_56000baseKR4_Full
+        #define HAVE_SUPPORTED_56000baseKR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_56000baseCR4_Full
+        #define HAVE_SUPPORTED_56000baseCR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_56000baseSR4_Full
+        #define HAVE_SUPPORTED_56000baseSR4_Full 1
+        #endif
+
+        #ifdef SUPPORTED_56000baseLR4_Full
+        #define HAVE_SUPPORTED_56000baseLR4_Full 1
+        #endif
+
+        '''
+    
+    f = open(autoconf_path, "w")
+    f.write(dummy_file_data)
+    f.close()
+
+    ctx.end_msg('done', 'GREEN')
+
+
+@conf
+def configure_mlx5 (ctx):
+    ctx.start_msg('Configuring MLX5 autoconf')
+    autoconf_file = 'src/dpdk/drivers/common/mlx5/mlx5_autoconf.h'
+    autoconf_path = os.path.join(top, autoconf_file)
+    os.system('rm -rf %s' % autoconf_path)
+    # input array for meson symbol search:
+    # [ "MACRO to define if found", "header for the search",
+    #   "symbol type to search" "symbol name to search" ]
+    has_sym_args = [
+        [ 'HAVE_IBV_MLX5_MOD_SWP', 'infiniband/mlx5dv.h',
+        'type', 'struct mlx5dv_sw_parsing_caps' ],
+        [ 'HAVE_IBV_DEVICE_COUNTERS_SET_V42', 'infiniband/verbs.h',
+        'type', 'struct ibv_counter_set_init_attr' ],
+        [ 'HAVE_IBV_DEVICE_COUNTERS_SET_V45', 'infiniband/verbs.h',
+        'type', 'struct ibv_counters_init_attr' ],
+        [ 'HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CQE_RES_FORMAT_CSUM_STRIDX' ],
+        [ 'HAVE_IBV_DEVICE_TUNNEL_SUPPORT', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_MASK_TUNNEL_OFFLOADS' ],
+        [ 'HAVE_IBV_MLX5_MOD_MPW', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_FLAGS_MPW_ALLOWED' ],
+        [ 'HAVE_IBV_MLX5_MOD_CQE_128B_COMP', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CONTEXT_FLAGS_CQE_128B_COMP' ],
+        [ 'HAVE_IBV_MLX5_MOD_CQE_128B_PAD', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_CQ_INIT_ATTR_FLAGS_CQE_PAD' ],
+        [ 'HAVE_IBV_FLOW_DV_SUPPORT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_create_flow_action_packet_reformat' ],
+        [ 'HAVE_IBV_DEVICE_MPLS_SUPPORT', 'infiniband/verbs.h',
+        'enum', 'IBV_FLOW_SPEC_MPLS' ],
+        [ 'HAVE_IBV_WQ_FLAGS_PCI_WRITE_END_PADDING', 'infiniband/verbs.h',
+        'enum', 'IBV_WQ_FLAGS_PCI_WRITE_END_PADDING' ],
+        [ 'HAVE_IBV_WQ_FLAG_RX_END_PADDING', 'infiniband/verbs.h',
+        'enum', 'IBV_WQ_FLAG_RX_END_PADDING' ],
+        [ 'HAVE_MLX5DV_DR_DEVX_PORT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_query_devx_port' ],
+        [ 'HAVE_IBV_DEVX_OBJ', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_obj_create' ],
+        [ 'HAVE_IBV_FLOW_DEVX_COUNTERS', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_FLOW_ACTION_COUNTERS_DEVX' ],
+        [ 'HAVE_IBV_DEVX_ASYNC', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_obj_query_async' ],
+        [ 'HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_dest_devx_tir' ],
+        [ 'HAVE_IBV_DEVX_EVENT', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_devx_get_event' ],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_flow_meter' ],
+        [ 'HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5_MMAP_GET_NC_PAGES_CMD' ],
+        [ 'HAVE_MLX5DV_DR', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_DR_DOMAIN_TYPE_NIC_RX' ],
+        [ 'HAVE_MLX5DV_DR_ESWITCH', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5DV_DR_DOMAIN_TYPE_FDB' ],
+        [ 'HAVE_MLX5DV_DR_VLAN', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dr_action_create_push_vlan' ],
+        [ 'HAVE_IBV_VAR', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_alloc_var' ],
+        [ 'HAVE_SUPPORTED_40000baseKR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseKR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseCR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseCR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseSR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseSR4_Full' ],
+        [ 'HAVE_SUPPORTED_40000baseLR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_40000baseLR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseKR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseKR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseCR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseCR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseSR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseSR4_Full' ],
+        [ 'HAVE_SUPPORTED_56000baseLR4_Full', 'linux/ethtool.h',
+        'define', 'SUPPORTED_56000baseLR4_Full' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_25G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_25000baseCR_Full_BIT' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_50G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_50000baseCR2_Full_BIT' ],
+        [ 'HAVE_ETHTOOL_LINK_MODE_100G', 'linux/ethtool.h',
+        'enum', 'ETHTOOL_LINK_MODE_100000baseKR4_Full_BIT' ],
+        [ 'HAVE_IFLA_NUM_VF', 'linux/if_link.h',
+        'enum', 'IFLA_NUM_VF' ],
+        [ 'HAVE_IFLA_EXT_MASK', 'linux/if_link.h',
+        'enum', 'IFLA_EXT_MASK' ],
+        [ 'HAVE_IFLA_PHYS_SWITCH_ID', 'linux/if_link.h',
+        'enum', 'IFLA_PHYS_SWITCH_ID' ],
+        [ 'HAVE_IFLA_PHYS_PORT_NAME', 'linux/if_link.h',
+        'enum', 'IFLA_PHYS_PORT_NAME' ],
+        [ 'HAVE_RDMA_NL_NLDEV', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NL_NLDEV' ],
+        [ 'HAVE_RDMA_NLDEV_CMD_GET', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_CMD_GET' ],
+        [ 'HAVE_RDMA_NLDEV_CMD_PORT_GET', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_CMD_PORT_GET' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_DEV_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_DEV_INDEX' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_DEV_NAME', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_DEV_NAME' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_PORT_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_PORT_INDEX' ],
+        [ 'HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX', 'rdma/rdma_netlink.h',
+        'enum', 'RDMA_NLDEV_ATTR_NDEV_INDEX' ],
+        [ 'HAVE_MLX5_DR_FLOW_DUMP', 'infiniband/mlx5dv.h',
+        'func', 'mlx5dv_dump_dr_domain'],
+        [ 'HAVE_DEVLINK', 'linux/devlink.h',
+        'define', 'DEVLINK_GENL_NAME' ],
+    ]
+    autoconf_script = 'src/dpdk/auto-config-h.sh'
+    autoconf_command = os.path.join(top, autoconf_script)
+    for arg in has_sym_args:
+        result, output = getstatusoutput("%s %s '%s' '%s' '%s' '%s' > /dev/null" %
+            (autoconf_command, autoconf_path, arg[0], arg[1], arg[2], arg[3]))
+        if result != 0:
+            ctx.end_msg('failed\n%s\n' % output, 'YELLOW')
+            break
+    if result == 0:
+        ctx.end_msg('done', 'GREEN')
 
 @conf
 def check_ofed(ctx):
@@ -362,17 +552,23 @@ def configure(conf):
     configure_sanitized(conf, with_sanitized)
             
     conf.env.NO_MLX = no_mlx
-    if not no_mlx:
+    if no_mlx != 'all':
         ofed_ok = conf.check_ofed(mandatory = False)
         conf.env.OFED_OK = ofed_ok
         conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
 
         if ofed_ok:
+            conf.configure_mlx5(mandatory = False)
             conf.get_ld_search_path(mandatory = True)
             conf.check_cxx(lib = 'ibverbs', errmsg = 'Could not find library ibverbs, will use internal version.', mandatory = False)
         else:
+            conf.configure_dummy_mlx5(mandatory = False)
             Logs.pprint('YELLOW', 'Warning: will use internal version of ibverbs. If you need to use Mellanox NICs, install OFED:\n' +
                                   'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
+        if no_mlx != 'mlx5':
+            Logs.pprint('YELLOW', 'Building mlx5 PMD')
+        if no_mlx != 'mlx4':
+            Logs.pprint('YELLOW', 'Building mlx4 PMD')
 
     conf.env.NO_BNXT = no_bnxt
     if not no_bnxt:
@@ -539,6 +735,7 @@ main_src = SrcGroup(dir='src',
              'drivers/trex_driver_igb.cpp',
              'drivers/trex_driver_ixgbe.cpp',
              'drivers/trex_driver_mlx5.cpp',
+             'drivers/trex_driver_ice.cpp',
              'drivers/trex_driver_ntacc.cpp',
              'drivers/trex_driver_vic.cpp',
              'drivers/trex_driver_virtual.cpp',
@@ -679,6 +876,7 @@ astf_src = SrcGroup(dir='src/stx/astf/',
         'trex_astf_rpc_cmds.cpp',
         'trex_astf_rx_core.cpp',
         'trex_astf_topo.cpp',
+        'trex_astf_mbuf_redirect.cpp'
     ])
 
 
@@ -753,6 +951,26 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/enic/enic_main.c',
                  'drivers/net/enic/enic_res.c',
                  'drivers/net/enic/enic_rxtx.c',
+
+                 #ICE   
+                'drivers/net/ice/base/ice_controlq.c',
+                'drivers/net/ice/base/ice_common.c',
+                'drivers/net/ice/base/ice_sched.c',
+                'drivers/net/ice/base/ice_switch.c',
+                'drivers/net/ice/base/ice_nvm.c',
+                'drivers/net/ice/base/ice_flex_pipe.c',
+                'drivers/net/ice/base/ice_flow.c',
+                'drivers/net/ice/base/ice_dcb.c',
+                'drivers/net/ice/base/ice_fdir.c',
+                
+                'drivers/net/ice/ice_ethdev.c',
+                'drivers/net/ice/ice_rxtx.c',
+                'drivers/net/ice/ice_rxtx_vec_sse.c',
+                'drivers/net/ice/ice_switch_filter.c',
+                'drivers/net/ice/ice_fdir_filter.c',
+                'drivers/net/ice/ice_hash.c',
+                #'drivers/net/ice/ice_rxtx_vec_avx2.c',
+                'drivers/net/ice/ice_generic_flow.c',
 
                  #ixgbe
                  'drivers/net/ixgbe/base/ixgbe_82598.c',
@@ -1746,7 +1964,7 @@ def build_prog (bld, build_obj):
       target=build_obj.get_dpdk_target()
       );
 
-    if bld.env.NO_MLX == False:
+    if bld.env.NO_MLX != 'all':
         if not bld.env.LIB_MNL:
             bld.shlib(
                 features='c',
@@ -1757,41 +1975,42 @@ def build_prog (bld, build_obj):
             )
             bld.env.mlx5_use = [build_obj.get_libmnl_target()]
 
-        if march == 'x86_64':
-            bld.shlib(
-              features='c',
-              includes = dpdk_includes_path +
-                         bld.env.dpdk_includes_verb_path +
-                         bld.env.libmnl_path,
-              cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-              use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
-              source   = mlx5_x86_64_dpdk.file_list(top),
-              target   = build_obj.get_mlx5_target(),
-              **bld.env.mlx5_kw
-            )
-        elif march == 'ppc64le':
-            bld.shlib(
-              features='c',
-              includes = dpdk_includes_path +
-                         bld.env.dpdk_includes_verb_path +
-                         bld.env.libmnl_path,
-              cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
-              use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
-              source   = mlx5_ppc64le_dpdk.file_list(top),
-              target   = build_obj.get_mlx5_target(),
-              **bld.env.mlx5_kw
-            )
+        if bld.env.NO_MLX != 'mlx5':
+            if march == 'x86_64':
+                bld.shlib(
+                  features='c',
+                  includes = dpdk_includes_path +
+                             bld.env.dpdk_includes_verb_path +
+                             bld.env.libmnl_path,
+                  cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+                  use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
+                  source   = mlx5_x86_64_dpdk.file_list(top),
+                  target   = build_obj.get_mlx5_target(),
+                  **bld.env.mlx5_kw
+                )
+            elif march == 'ppc64le':
+                bld.shlib(
+                  features='c',
+                  includes = dpdk_includes_path +
+                             bld.env.dpdk_includes_verb_path +
+                             bld.env.libmnl_path,
+                  cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx5_flags() ),
+                  use      = ['ibverbs','mlx5'] + bld.env.mlx5_use,
+                  source   = mlx5_ppc64le_dpdk.file_list(top),
+                  target   = build_obj.get_mlx5_target(),
+                  **bld.env.mlx5_kw
+                )
 
-
-        bld.shlib(
-        features='c',
-        includes = dpdk_includes_path +
-                   bld.env.dpdk_includes_verb_path,
-        cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
-        use      = ['ibverbs', 'mlx4'],
-        source   = mlx4_dpdk.file_list(top),
-        target   = build_obj.get_mlx4_target()
-       )
+        if bld.env.NO_MLX != 'mlx4':
+            bld.shlib(
+            features='c',
+            includes = dpdk_includes_path +
+                       bld.env.dpdk_includes_verb_path,
+            cflags   = (cflags + DPDK_FLAGS + build_obj.get_mlx4_flags(bld) ),
+            use      = ['ibverbs', 'mlx4'],
+            source   = mlx4_dpdk.file_list(top),
+            target   = build_obj.get_mlx4_target()
+           )
 
     if bld.env.WITH_NTACC == True:
         bld.shlib(
@@ -1886,7 +2105,7 @@ def build(bld):
     zmq_lib_path='external_libs/zmq/' + march + '/'
     bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
 
-    if bld.env.NO_MLX == False:
+    if bld.env.NO_MLX != 'all':
         if bld.env.LIB_IBVERBS:
             Logs.pprint('GREEN', 'Info: Using external libverbs.')
             if not bld.env.LD_SEARCH_PATH:
@@ -1895,15 +2114,19 @@ def build(bld):
             SYSTEM_LIB_PATHS.extend(bld.env.LD_SEARCH_PATH)
 
             bld.read_shlib(name='ibverbs')
-            bld.read_shlib(name='mlx5')
-            bld.read_shlib(name='mlx4')
+            if bld.env.NO_MLX != 'mlx5':
+                bld.read_shlib(name='mlx5')
+            if bld.env.NO_MLX != 'mlx4':
+                bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/' + march
             bld.env.dpdk_includes_verb_path = ' \n ../external_libs/ibverbs/' + march + '/include/ \n'
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
-            bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
-            bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
+            if bld.env.NO_MLX != 'mlx5':
+                bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
+            if bld.env.NO_MLX != 'mlx4':
+                bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
         if bld.env.LIB_MNL:

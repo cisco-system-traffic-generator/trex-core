@@ -32,6 +32,7 @@ limitations under the License.
 
 class CFlowGenListPerThread;
 class TrexCpToDpMsgBase;
+class MbufRedirectCache;
 
 #define NUM_PORTS_PER_CORE 2
 
@@ -77,7 +78,7 @@ public:
     /**
      * stop the DP core
      */
-    void stop();
+    virtual void stop();
     
     
     /**
@@ -148,7 +149,16 @@ public:
                                   tvpid_t port_id){
         assert(0);
     }
-    
+
+    /**
+     * Get the mbuf redirect cache for software RSS.
+     */
+    virtual MbufRedirectCache* get_mbuf_redirect_cache() {
+        /* Only ASTF implements this function but the core object is polymorphic
+        hence the base class needs to declare */
+        assert(0);
+    }
+
 protected:
 
     /**

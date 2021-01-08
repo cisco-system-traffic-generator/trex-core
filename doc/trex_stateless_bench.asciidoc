@@ -7,7 +7,9 @@ TRex Stateless support
 :local_web_server_url: csi-wiki-01:8181/trex
 :toclevels: 6
 :tabledef-default.subs: normal,callouts
-
+:github_bench_path: https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/stl/bench.py
+:ndr_path: https://trex-tgn.cisco.com/trex/doc/trex_ndr_bench_doc.html
+:github_ndr_bench_fs_latency_path: https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/examples/stl/ndr_bench_fs_latency.py
 include::trex_ga.asciidoc[]
 
 // PDF version - image width variable
@@ -60,7 +62,7 @@ TRex port 1 &#8596; Switch port Eth1/50 (vlan 1005) &#8596; Switch port Eth1/52 
 | Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
 | Imix        | 100.04               | 80.03           | 76.03           | 12.6         | 25.03      | 45.37                  | 14.19             | 100%
 | 1514        | 100.12               | 80.1            | 79.05           | 2.6          | 6.53       | 220.05                 | 17.94             | 100%
-| 590         | 99.36                | 79.49           | 76.89           | 5.6          | 16.29      | 101.39                 | 20.78             | 99.5%
+| 590         | 99.46                | 79.57           | 76.96           | 7.04         | 16.3       | 80.73                  | 16.53             | 99.5%
 | 128         | 99.56                | 79.65           | 68.89           | 33.1         | 67.27      | 17.19                  | 14.52             | 99.5%
 | 64          | 52.8                 | 42.3            | 32.23           | 31.3         | 63.06      | 9.65                   | 14.37             | 31.5mpps
 |=================
@@ -240,3 +242,157 @@ No drops:
 
 image:images/1514_nodrop.png[title="1514 bytes no drops",align="left",width={p_width}, link="images/1514_nodrop.png"]
 
+== TRex stateless updated L2 benchmarks using XL710 40G NICs
+
+=== Setup details
+
+[cols="1,5"]
+|=================
+| Server: | UCSC-C240-M4SX
+| CPU:    | 2 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| RAM:    | 65536 @ 2133 MHz
+| NICs:   | 2 x Intel Corporation Ethernet Controller XL710 for 40GbE QSFP+ (rev 01)
+| QSFP:   | Cisco QSFP-H40G-AOC1M
+| OS:     | CentOS 7.4
+| Router: | Loopback.
+| TRex:   | v2.86 using 7 cores per dual interface.
+|=================
+
+=== Topology
+
+TRex port 1 &#8596; TRex port 2
+
+=== Results
+==== Running TRex hardware assisted mode
+
+We ran TRex with the following command
+[source,bash]
+-------------------
+[bash]>sudo ./t-rex-64 -i -c 7
+-------------------
+TRex params:
+
+set driver name net_i40e
+
+driver capability : TCP_UDP_OFFLOAD TSO
+
+set dpdk queues mode to DROP_QUE_FILTER
+
+
+.Traffic Profile = Field Engine Cached 255
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 99.25                | 79.40           | 75.41           | 8.67         | 24.95      | 65.41                  | 20.55             | 100.0%
+| 1514        | 99.73                | 79.78           | 78.74           | 1.89         | 6.50       | 301.53                 | 24.57             | 100.0%
+| 590         | 99.38                | 79.51           | 76.90           | 5.02         | 16.29      | 113.13                 | 23.18             | 100.0%
+| 128         | 99.74                | 79.79           | 69.01           | 21.78        | 67.39      | 26.17                  | 22.10             | 100.0%
+| 64          | 53.76                | 43.01           | 32.77           | 22.37        | 64.00      | 13.73                  | 20.43             | 82.14%
+|=================
+
+.Traffic Profile = Field Engine with 1 variable
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 99.74                | 79.79           | 75.78           | 14.39        | 25.07      | 39.60                  | 12.44             | 100.0%
+| 1514        | 99.37                | 79.49           | 78.46           | 3.24         | 6.48       | 175.25                 | 14.28             | 100.0%
+| 590         | 99.77                | 79.81           | 77.20           | 8.59         | 16.36      | 66.37                  | 13.60             | 100.0%
+| 128         | 99.75                | 79.80           | 69.01           | 38.37        | 67.40      | 14.86                  | 12.55             | 100.0%
+| 64          | 54.13                | 43.31           | 33.00           | 36.71        | 64.44      | 8.43                   | 12.54             | 82.58%
+|=================
+
+.Traffic Profile = Field Engine Cached 255 with flow stats
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 99.63                | 79.71           | 75.70           | 9.76         | 25.04      | 58.33                  | 18.33             | 100.0%
+| 1514        | 99.61                | 79.69           | 78.65           | 1.96         | 6.49       | 290.42                 | 23.67             | 100.0%
+| 590         | 99.57                | 79.66           | 77.05           | 5.38         | 16.32      | 105.76                 | 21.67             | 100.0%
+| 128         | 96.40                | 77.12           | 66.70           | 38.70        | 65.14      | 14.23                  | 12.02             | 100.0%
+| 64          | 53.82                | 43.05           | 32.80           | 25.25        | 64.07      | 12.18                  | 18.12             | 79.87%
+|=================
+
+<1> Extrapolated L1 bandwidth per 1 core @ 100% CPU utilization.
+<2> Extrapolated amount of MPPS per 1 core @ 100% CPU utilization.
+
+==== Running TRex software assisted mode
+
+We ran TRex with the following command
+[source,bash]
+-------------------
+[bash]>sudo ./t-rex-64 -i -c 7 --software
+-------------------
+TRex params:
+
+set driver name net_i40e
+
+driver capability : TCP_UDP_OFFLOAD TSO
+
+set dpdk queues mode to MULTI_QUE
+
+
+.Traffic Profile = Field Engine Cached 255
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 99.51                | 79.61           | 75.60           | 18.75        | 25.01      | 30.33                  | 9.53              | 100.0%
+| 1514        | 99.73                | 79.78           | 78.74           | 3.92         | 6.50       | 145.37                 | 11.85             | 100.0%
+| 590         | 98.40                | 78.72           | 76.14           | 10.28        | 16.13      | 54.69                  | 11.21             | 99.36%
+| 128         | 38.31                | 30.65           | 26.51           | 19.71        | 25.89      | 11.11                  | 9.38              | 40.38%
+| 64          | 21.70                | 17.36           | 13.23           | 18.64        | 25.83      | 6.65                   | 9.90              | 35.82%
+|=================
+
+.Traffic Profile = Field Engine with 1 variable
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 99.76                | 79.81           | 75.79           | 24.33        | 25.07      | 23.43                  | 7.36              | 100.0%
+| 1514        | 99.69                | 79.75           | 78.71           | 5.40         | 6.50       | 105.49                 | 8.60              | 100.0%
+| 590         | 99.70                | 79.76           | 77.14           | 13.28        | 16.34      | 42.90                  | 8.79              | 100.0%
+| 128         | 39.90                | 31.92           | 27.61           | 28.80        | 26.96      | 7.92                   | 6.69              | 56.09%
+| 64          | 22.40                | 17.92           | 13.66           | 25.67        | 26.67      | 4.99                   | 7.42              | 51.02%
+|=================
+
+.Traffic Profile = Field Engine Cached 255 with flow stats
+[cols="2,2^,2^,2^,2^,2^,2^,2^,3", options="header"]
+|=================
+| Packet size | Line Utilization (%) | Total L1 (Gb/s) | Total L2 (Gb/s) | CPU Util (%) | Total MPPS | BW per core (Gb/s) <1> | MPPS per core <2> | Multiplier
+| imix        | 59.33                | 47.46           | 45.08           | 16.05        | 14.91      | 21.12                  | 6.64              | 72.92%
+| 1514        | 99.51                | 79.61           | 78.57           | 6.58         | 6.49       | 86.42                  | 7.04              | 100.0%
+| 590         | 75.99                | 60.79           | 58.80           | 14.06        | 12.46      | 30.88                  | 6.33              | 94.53%
+| 128         | 24.59                | 19.67           | 17.01           | 17.17        | 16.61      | 8.18                   | 6.91              | 47.17%
+| 64          | 16.37                | 13.10           | 9.98            | 18.56        | 19.49      | 5.04                   | 7.50              | 44.06%
+|=================
+
+<1> Extrapolated L1 bandwidth per 1 core @ 100% CPU utilization.
+<2> Extrapolated amount of MPPS per 1 core @ 100% CPU utilization.
+
+== Appendix
+
+=== Running the tests.
+
+* Run the TRex server with the desired mode.
+
+* After running TRex in one of the modes, we use the ndr_bench_fs_latency.py to create the tables.
+** This script make use of NDR, a tool that helps us to find the highest rate with no drop of certain profile.
+The profile we used is called bench.py .
+The NDR finds the highest rate using multiple runs with sophisticated binary search.
+You can read more about NDR, bench.py and ndr_bench_fs_latency.py here:
+link:{ndr_path}[NDR]
+link:{github_bench_path}[bench.py]
+link:{github_ndr_bench_fs_latency_path}[ndr_bench_fs_latency.py]
+* Run the ndr_bench_fs_latency.py using this command:
+[source,bash]
+-------------------
+[bash]>python ndr_bench_fs_latency.py --port 1 2
+-------------------
+* If you want to see the traffic, you can run trex console in another shell under read mode using the command:
+[source,bash]
+-------------------
+[bash]>sudo ./trex-console -r.
+-------------------
+In the console you can run the command:
+-------------------
+[trex]>tui
+-------------------
+and then navigate using Esc.

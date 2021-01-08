@@ -433,6 +433,10 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     create_bar(&m_clm,"Flow Table");
     create_bar(&m_clm,"-");
 
+    FT_S_ADD_CNT_OK(rss_redirect_rx, "rss rx packets redirected");
+    FT_S_ADD_CNT_OK(rss_redirect_tx, "rss tx packets redirected");
+    FT_S_ADD_CNT_E(rss_redirect_drops, "rss packets to redirect dropped");
+
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
     FT_S_ADD_CNT_E(err_len_err,"pkt with length error"); 

@@ -139,6 +139,10 @@ RXLatency::RXLatency() {
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rx_pg_stat_payload[i].clear();
     }
+
+    m_dump_err_pkts = false;
+    m_dump_pkt = nullptr;
+    m_dump_fsp_head = nullptr;
 }
 
 void
@@ -151,6 +155,8 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
         m_rcv_all    = false;
     }
 
+    m_dump_err_pkts = isVerbose(6); // be enabled by -v 7
+
     uint16_t num_counters, cap, ip_id_base;
 
     const TrexPlatformApi &api = get_platform_api();
@@ -158,6 +164,33 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
     
     m_ip_id_base = ip_id_base;
 }
+
+COLD_FUNC void RXLatency::set_dump_info(const rte_mbuf_t *m, struct flow_stat_payload_header *fsp_head) {
+    m_dump_pkt = m;
+    m_dump_fsp_head = fsp_head;
+}
+
+COLD_FUNC void RXLatency::dump_err_pkt(const char* info, bool dump_latency) {
+    if (m_dump_fsp_head) {
+        std::cout << info;
+        if (dump_latency) {
+            uint64_t d = os_get_hr_tick_64() - m_dump_fsp_head->time_stamp;
+            std::cout << ", seq = " << m_dump_fsp_head->seq;
+            std::cout << ", lat = " << ptime_convert_hr_dsec(d);
+        }
+        std::cout << ", hw_id = " << m_dump_fsp_head->hw_id;
+        std::cout << "(" << unsigned(m_dump_fsp_head->flow_seq) << ")";
+        std::cout << std::endl;
+    }
+    if (m_dump_pkt) {
+#ifndef TREX_SIM
+        rte_pktmbuf_dump(stdout, m_dump_pkt, rte_pktmbuf_pkt_len(m_dump_pkt));
+#else
+        rte_pktmbuf_dump(m_dump_pkt, rte_pktmbuf_pkt_len(m_dump_pkt));
+#endif
+    }
+}
+
 
 void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
   uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
@@ -182,6 +215,9 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
           }
           if (is_flow_stat_payload_id(ip_id)) {
             hr_time_t hr_time_now = os_get_hr_tick_64();
+            if (unlikely(m_dump_err_pkts)) {
+                set_dump_info(m, fsp_head);
+            }
             update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
             hw_id = get_hw_id((uint16_t)ip_id);
           }
@@ -206,6 +242,10 @@ RXLatency::update_stats_for_pkt(
             || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
         if (!m_rcv_all) {
             m_err_cntrs->m_bad_header++;
+
+            if (unlikely(m_dump_err_pkts)) {
+                dump_err_pkt("bad_header: unexpected packet");
+            }
         }
     } else {
         bool good_packet = true;
@@ -240,6 +280,10 @@ RXLatency::handle_unexpected_flow(
             // garbage packet
             good_packet = false;
             m_err_cntrs->m_bad_header++;
+
+            if (unlikely(m_dump_err_pkts)) {
+                dump_err_pkt("bad_header: invalid hw_id");
+            }
         }
     }
 
@@ -287,6 +331,10 @@ RXLatency::handle_seq_number_smaller_than_expected(
         uint32_t &exp_seq) {
     if (pkt_seq == (exp_seq - 1)) {
         curr_rfc2544->inc_dup();
+
+        if (unlikely(m_dump_err_pkts)) {
+            dump_err_pkt("dup: unexpected seq", true);
+        }
     } else {
         curr_rfc2544->inc_ooo();
         // We thought it was lost, but it was just out of order

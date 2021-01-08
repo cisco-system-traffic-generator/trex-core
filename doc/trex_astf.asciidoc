@@ -2664,10 +2664,14 @@ You can scale your clients in order to make a stress test, just notice:
 
 === Multi core support 
 
-Distribution to multi core is done using RSS hardware assist. Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server. 
-It can work only for NICs that support RSS (almost all the physical nics) and only for TCP/UDP traffic without tunnels (e.g. GRE). 
-For more complex tunnel traffic there is need for a software distribution that will be slower. 
-It is possible to enable this asset on some virtual NIC (e.g. vmxnet3) if there would be a request for that.
+There are two distribution models:
+
+* Hardware: Using RSS hardware assist (only for NICs that support that). Using this feature it is possible to support up to 200Gb/sec of TCP/UDP traffic with one server.
+
+* Software: (from v2.87) Using the driver default distribution (e.g. CRC) and fixing it using software. This has a compact performance impact. Example of drivers AWS Azure and KVM virtio.
+
+The hardware RSS mode can work only for NICs that support RSS (almost all the physical NICs) and only for TCP/UDP traffic without tunnels (e.g. GRE). Adding --software will force any driver (including those that support hardware RSS) to work in software mode, hence use this only when you know it is needed.
+
 
 .NICs that support RSS
 [options="header",cols="3^,2^,2^,2^",width="50%"]
@@ -2696,6 +2700,17 @@ ipv6: 3ffe:501:8::260:9700:fe40:efab  #<< supported
 When using RSS, the number of sockets (available source ports per clients IP) will be 100% divided by the numbers of cores (c). For example for c=3 each client IP would have 64K/3 source ports = 21K ports. In this case it is advised to add more clients to the pool (in case you are close to the limit). 
 In other words the reported socket-util is the console should be multiplied by c.
 =====================================================================
+
+==== Software mode with multicore
+
+Multi queue NICs distribute incoming traffic to a specific queue based on a hash function. Each receive queue is assigned to a separate interrupt; by routing each of those interrupts to different CPUs or CPU cores. The hardware-based distribution of the interrupts, described above, is referred to as receive-side scaling link:https://en.wikipedia.org/wiki/Network_interface_controller#RSS[RSS].
+
+However, for NICs that don’t support RSS as we aforementioned, the distribution is incorrect. Client side packets from a specific flow can arrive at some core which doesn’t have any flow information. These packets need to be redirected to the core they belong to, meaning the core that holds the flow information. When using software mode with multiple core, these packets will be automatically redirected, and appropriate counters will be added to the flow table.
+
+In short, the redirection to the correct core is done using the source port of L4. When a flow is generated, the source port of that flow is aligned to the core identifier that generated the flow. When a packet is received, based on the port, we can unravel the destination core and redirect the packet to it.
+
+Naturally, all this logic has a performance impact. Fortunately, based on our tests, the impact is minor. This offers the possibility to scale in software mode as well. When reaching very high scale, a redirect drop counter will show in the flow table counters. This implies that the cores can't keep up with redirecting at the actual rate.
+
 
 === Dynamic multiple profiles support
 
@@ -2806,32 +2821,32 @@ link:cp_astf_docs/index.html[python index]
 
 [options="header",cols="2,^2,^2,^1,^1,5"]
 |=================
-|  tunable      | min-max|default| per-template |global| Description  
-|   ip.tos    | uint8 |0 |+|+ <1>| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs
-|   ip.ttl    | uint8 |0 |+|+ <1>| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs
+|  tunable      | min-max|default| per-template |global (profile)| Description
+|   ip.tos    | uint8 |0 |+|+| ipv4/ipv6 TOS/Class. limitation LSB can't be set as it is used by hardware filter on some NICs
+|   ip.ttl    | uint8 |0 |+|+| ipv4/ipv6 TTL/TimeToLive. limitation can't be higher than 0x7f as it might used by some hardware filter on some NICs
 |   ip.dont_use_inbound_mac | bool |0|-|+| server side will use configured src/dest MACs for the port or resolved gateway MAC instead of reflecting incoming MACs
-|   ipv6.src_msb    | string |0 |+|+ <1>| default IPv6.src MSB address. see Priority in ipv6 enable
-|   ipv6.dst_msb    | string |0 |+|+ <1>| default IPv6.dst MSB address. see Priority in ipv6 enable
-|   ipv6.enable     | bool   |0 |+|+ <1>| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used.
+|   ipv6.src_msb    | string |0 |+|+| default IPv6.src MSB address. see Priority in ipv6 enable
+|   ipv6.dst_msb    | string |0 |+|+| default IPv6.dst MSB address. see Priority in ipv6 enable
+|   ipv6.enable     | bool   |0 |+|+| enable IPv6 for all templates. Priority is given for global (template come next) -- not as other tunable. It means that for mix of ipv4/ipv6 only per template should be used.
 |   tcp.mss         | 10-9K  |1460|+|+| default MSS in bytes. 
 |   tcp.initwnd     | 1-20   |10|+|+| init window value in MSS units.  
-|   tcp.rxbufsize   | 1K-1M  |32K |+|+| socket rx buffer size in bytes. 
-|   tcp.txbufsize   | 1K-1M  |32K |+|+| socket tx buffer size in bytes.
+|   tcp.rxbufsize   | 1K-1G  |32K |+|+| socket rx buffer size in bytes.
+|   tcp.txbufsize   | 1K-1G  |32K |+|+| socket tx buffer size in bytes.
 |   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
-|   tcp.keepinit    |2-65533|10|-|+| value in second for TCP keepalive.  
-|   tcp.keepidle    |2-65533|10|-|+| value in second for TCP keepidle 
-|   tcp.keepintvl   |2-65533|14|-|+| value in second for TCP keepalive interval
-|   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole 
-|   tcp.delay_ack_msec | 20-500|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
+|   tcp.keepinit    |2-65533|5|-|+| value in second for TCP keepalive.
+|   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle
+|   tcp.keepintvl   |2-65533|7|-|+| value in second for TCP keepalive interval
+|   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole.
+|   tcp.delay_ack_msec | 20-50000|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
 |   tcp.no_delay    | 0-3   | 0|+|+|  In case of 1 disable Nagle and force PUSH. from v2.79 it was changed and there are two bits 1- disable nagle, 0x2 force PUSH flag (*NOT* standard it just to simulate Spirent) and will respond with ACK immediately (standard). 
 |   tcp.no_delay_counter    | 0-65533   | 0|+|+|  number of recv bytes to wait until ack is sent. notice ack can be triggered by tcp timer, in order to ensure fixed number of sent packets until ack you should increase the *tcp.initwnd* tunable. otherewise no_delay_counter will race with the tcp timer.
 |   scheduler.rampup_sec    | 3-60000  | disabled |-|+|  scheduler rampup in seconds. After this time the throughput would be the maximum. the throughput increases linearly every 1 sec.
 |=================
 
 * There would be a performance impact when per-template tunables are used. Try to use global tunables.
-* When a profile is running, following profile's global tunables are ignored. But the global tunables marked <1> are available for each profile.
 * The tunables mechanism does not work with the basic simulator mode but only with the advanced simulator mode.
+* Please use the same tcp.blackhole value for all your profiles. Otherwise, the result will be unpredictable.
 
 === Counters reference 
 
@@ -2937,23 +2952,26 @@ link:cp_astf_docs/index.html[python index]
 .Flow table counters 
 [options="header",cols="1,^1,5"]
 |=================
-| Counter           |Error |Description  
-|    err_cwf     |*| client pkt that does not match a flow could no happen in loopback. Could happen if DUT generated a packet after TRex close the flow
-|    err_no_syn  |*| server first flow packet with no SYN
-|    err_len_err |*| pkt with L3 length error 
-|    err_no_tcp  |*| no tcp packet- dropped 
-|    err_no_template |*| server can't match L7 template no destination port or IP range 
-|    err_no_memory |*| no heap memory for allocating flows
-|    err_dct      |*| duplicate flows due to aging issues and long delay in the network
-|    err_l3_cs|*| ipv4 checksum error
-|    err_l4_cs|*| tcp/udp checksum error (in case NIC support it)
-|    err_redirect_rx |*| redirect to rx error 
-|    redirect_rx_ok || redirect to rx OK
-|    err_rx_throttled || rx thread was throttled due too many packets in NIC rx queue 
-|    err_c_nf_throttled || Number of client side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
-|    err_s_nf_throttled || Number of server side flows that were not opened due to flow-table overflow. ( to elarge the number see the trex_cfg file for dp_max_flows)
-|    err_s_nf_throttled || Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
-|    err_c_tuple_err    || How many flows were *not* opened in the client side because there were not enough clients in the pool. When this counter is reached, the TRex performance is affected due to the lookup for free ports. To solve this issue try adding more clients to the pool.
+|     Counter           |Error |Description  
+|    err_cwf            |*| client pkt that does not match a flow could no happen in loopback. Could happen if DUT generated a packet after TRex close the flow
+|    err_no_syn         |*| server first flow packet with no SYN
+|    err_len_err        |*| pkt with L3 length error 
+|    err_no_tcp         |*| no tcp packet- dropped 
+|    err_no_template    |*| server can't match L7 template no destination port or IP range 
+|    err_no_memory      |*| no heap memory for allocating flows
+|    err_dct            |*| duplicate flows due to aging issues and long delay in the network
+|    err_l3_cs          |*| ipv4 checksum error
+|    err_l4_cs          |*| tcp/udp checksum error (in case NIC support it)
+|    err_redirect_rx    |*| redirect to rx error 
+|    redirect_rx_ok     | | redirect to rx OK
+|    err_rx_throttled   | | rx thread was throttled due too many packets in NIC rx queue 
+|    err_c_nf_throttled | | Number of client side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled | | Number of server side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
+|    err_s_nf_throttled | | Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
+|    err_c_tuple_err    | | How many flows were *not* opened in the client side because there were not enough clients in the pool. When this counter is reached, the TRex performance is affected due to the lookup for free ports. To solve this issue try adding more clients to the pool.
+|    rss_redirect_rx    | | Number of RSS redirected packets that were received from other cores.
+|    rss_redirect_tx    | | Number of RSS packets that were redirected to other cores.
+|    rss_redirect_drop  |*| Number of RSS packets that were meant to be redirected to other cores but were dropped since other cores buffers were full.
 |=================
 
 *1*:: 
@@ -3106,8 +3124,5 @@ In this case the rate is ~7mbps lower than 10mbps due to idle time.
 ----
 
 In this case the rate is 10mbps (maximum expected) full-pipeline 
-
-
- 
 
 

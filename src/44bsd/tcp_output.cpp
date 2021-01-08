@@ -870,7 +870,7 @@ void tcp_setpersist(CPerProfileCtx * pctx,
     assert(tp->t_timer[TCPT_REXMT]==0);
 
     /*
-     * Start/restart persistance timer.
+     * Start/restart persistence timer.
      */
     TCPT_RANGESET(tp->t_timer[TCPT_PERSIST],
         t * tcp_backoff[tp->t_rxtshift],

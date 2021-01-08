@@ -21,40 +21,18 @@ class Prof1():
     def __init__(self):
         pass  # tunables
 
-    def calc_loops (self,buffer,loops):
-        max_mul = int(round(0xffffffff/buffer)/4)
-        div = loops/max_mul;
-        if div<1.0:
-            return (loops*buffer,0,0)
-
-        res = (max_mul*buffer,int(div),loops-(int(div)*max_mul))
-        expected = buffer*loops
-        assert(expected==res[0]*res[1]+buffer*res[2])
-        return (res)
-
     def create_profile(self,size,loop,mss):
 
         http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>'+('*'*size*1024)+'</pre></html>'
 
         bsize = len(http_response)
 
-        r=self.calc_loops (bsize,loop)
-
         # client commands
         prog_c = ASTFProgram()
         prog_c.send(http_req)
+        prog_c.recv(bsize*loop)
 
-        if r[1]==0:
-          prog_c.recv(r[0])
-        else:
-            prog_c.set_var("var1",r[1]); # 
-            prog_c.set_label("a:");
-            prog_c.recv(r[0],True)
-            prog_c.jmp_nz("var1","a:") # dec var "var2". in case it is *not* zero jump a: 
-            if r[2]:
-               prog_c.recv(bsize*r[2])
-
-
+        # server commands
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
         #prog_s.set_var("var1",10); # not used var, just for the example

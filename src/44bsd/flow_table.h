@@ -189,7 +189,10 @@ struct  CFlowTableIntStats {
     uint32_t        m_err_flow_overflow;
     uint32_t        m_err_c_tuple_err;
     uint32_t        m_defer_template;
-    uint32_t        m_err_defer_no_template;  
+    uint32_t        m_err_defer_no_template;
+    uint32_t        m_rss_redirect_rx;              // Incoming redirected packets
+    uint32_t        m_rss_redirect_tx;              // Outgoing Redirected packets 
+    uint32_t        m_rss_redirect_drops;           // How many packets were dropped cause of unsuccessful RSS redirect?
 };
 
 class  CSttFlowTableStats {
@@ -310,6 +313,18 @@ public:
 
       void inc_flow_overflow_cnt(){
           m_sts.m_sts.m_err_flow_overflow++;
+      }
+
+      void inc_rss_redirect_rx_cnt(uint32_t count) {
+          m_sts.m_sts.m_rss_redirect_rx += count;
+      }
+
+      void inc_rss_redirect_tx_cnt(uint32_t count) {
+          m_sts.m_sts.m_rss_redirect_tx += count;
+      }
+
+      void inc_rss_redirect_drop_cnt(uint32_t count) {
+          m_sts.m_sts.m_rss_redirect_drops += count;
       }
 
       bool flow_table_resource_ok(){

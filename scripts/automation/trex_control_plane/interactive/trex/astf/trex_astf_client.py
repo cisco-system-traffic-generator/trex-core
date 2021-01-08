@@ -109,7 +109,6 @@ class ASTFClient(TRexClient):
             self.STATE_ASTF_DELETE]
         self.astf_profile_state = {'_': 0}
 
-
     def get_mode(self):
         return "ASTF"
 
@@ -123,7 +122,6 @@ class ASTFClient(TRexClient):
         self.sync()
         self.topo_mngr.sync_with_server()
         return RC_OK()
-
 
     def _on_connect_create_ports(self, system_info):
         """
@@ -144,7 +142,6 @@ class ASTFClient(TRexClient):
         with self.ctx.logger.suppress(verbose = "warning"):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
         return RC_OK()
-
 
     def _on_astf_state_chg(self, ctx_state, error, epoch):
         if ctx_state < 0 or ctx_state >= len(astf_states):
@@ -186,7 +183,6 @@ class ASTFClient(TRexClient):
             return Event('server', 'error', 'Moved to profile %s state: %s after error: %s' % (profile_id, ctx_state, error))
         else:
             return Event('server', 'info', 'Moved to profile %s state: %s' % (profile_id, ctx_state))
-
 
     def _on_astf_profile_cleared(self, profile_id, error, epoch):
         if epoch is None or self.epoch is None:
@@ -255,7 +251,6 @@ class ASTFClient(TRexClient):
                 valid_pids.append(profile_id)
 
         return valid_pids
-
 
     def apply_port_states(self):
         port_state = self.port_states[self.state]
@@ -408,7 +403,6 @@ class ASTFClient(TRexClient):
             self.ctx.logger.post_cmd(False)
             raise
 
-
     @client_api('command', True)
     def acquire(self, force = False):
         """
@@ -442,7 +436,6 @@ class ASTFClient(TRexClient):
 
         self._post_acquire_common(ports)
 
-
     @client_api('command', True)
     def sync(self):
         self.epoch = None
@@ -461,7 +454,6 @@ class ASTFClient(TRexClient):
         self.epoch = rc.data()['epoch']
 
         return self.astf_profile_state
-
 
     @client_api('command', True)
     def release(self, force = False):
@@ -487,7 +479,6 @@ class ASTFClient(TRexClient):
         self.handler = ''
         for port_id in ports:
             self.ports[port_id]._clear_handler()
-
 
     def _upload_fragmented(self, rpc_cmd, upload_string, pid_input = DEFAULT_PROFILE_ID):
         index_start = 0
@@ -515,7 +506,6 @@ class ASTFClient(TRexClient):
             index_start = index_end
             fragment_length = 500000 # rest of fragments are larger
         return RC_OK()
-
 
     @client_api('command', True)
     def set_service_mode (self, ports = None, enabled = True, filtered = False, mask = None):
@@ -575,7 +565,6 @@ class ASTFClient(TRexClient):
             raise TRexError('Could not load profile, error: %s' % rc.err())
         self.ctx.logger.post_cmd(True)
 
-
     @client_api('command', False)
     def get_traffic_distribution(self, start_ip, end_ip, dual_ip, seq_split):
         ''' Get distribution of IP range per TRex port per core
@@ -617,7 +606,6 @@ class ASTFClient(TRexClient):
             res[int(port_id)] = core_dict
         return res
 
-
     @client_api('command', True)
     def clear_profile(self, block = True, pid_input = DEFAULT_PROFILE_ID):
         """
@@ -650,7 +638,6 @@ class ASTFClient(TRexClient):
                     raise TRexError(rc.err())
             else:
                 self.logger.info(format_text("Cannot remove a profile: %s is not state IDLE and state LOADED.\n" % profile_id, "bold", "magenta"))
-
 
     @client_api('command', True)
     def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff):
@@ -713,7 +700,6 @@ class ASTFClient(TRexClient):
             if not rc:
                 raise TRexError(rc.err())
 
-
     @client_api('command', True)
     def stop(self, block = True, pid_input = DEFAULT_PROFILE_ID, is_remove = False):
         """
@@ -769,7 +755,6 @@ class ASTFClient(TRexClient):
 
                 self.clear_profile(block = block, pid_input = profile_id)
 
-
     @client_api('command', True)
     def update(self, mult, pid_input = DEFAULT_PROFILE_ID):
         """
@@ -801,7 +786,6 @@ class ASTFClient(TRexClient):
             if not rc:
                 raise TRexError(rc.err())
 
-
     @client_api('command', True)
     def get_profiles(self):
         """
@@ -816,7 +800,6 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
-
 
     @client_api('command', True)
     def wait_on_traffic(self, timeout = None, profile_id = None):
@@ -841,7 +824,6 @@ class ASTFClient(TRexClient):
             TRexClient.wait_on_traffic(self, ports, timeout)
         else:
             self.wait_for_profile_state(profile_id, self.STATE_ASTF_LOADED, timeout)
-
 
     # get stats
     @client_api('getter', True)
@@ -868,8 +850,6 @@ class ASTFClient(TRexClient):
         stats['latency'] = self.get_latency_stats(skip_zero)
 
         return stats
-
-
 
     # clear stats
     @client_api('getter', True)
@@ -905,7 +885,6 @@ class ASTFClient(TRexClient):
 
         return self._clear_stats_common(ports, clear_global, clear_xstats)
 
-
     @client_api('getter', True)
     def get_tg_names(self, pid_input = DEFAULT_PROFILE_ID):
         """
@@ -920,7 +899,6 @@ class ASTFClient(TRexClient):
 
         """
         return self.traffic_stats.get_tg_names(pid_input)
-
 
     @client_api('getter', True)
     def get_traffic_tg_stats(self, tg_names, skip_zero=True, pid_input = DEFAULT_PROFILE_ID):
@@ -945,7 +923,6 @@ class ASTFClient(TRexClient):
         validate_type('tg_names', tg_names, (list, basestring))
         return self.traffic_stats.get_traffic_tg_stats(tg_names, skip_zero, pid_input = pid_input)
 
-
     @client_api('getter', True)
     def get_traffic_stats(self, skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         """
@@ -963,6 +940,19 @@ class ASTFClient(TRexClient):
         """
         return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum)
 
+    @client_api('getter', True)
+    def get_profiles_state(self):
+        """
+            Gets an dictionary with the states of all the profiles.
+
+            :returns:
+                Dictionary containing profiles and their states. Keys are strings, `pid` (profile ID). Each profile can be in one of the following states:
+                ['STATE_IDLE', 'STATE_ASTF_LOADED', 'STATE_ASTF_PARSE', 'STATE_ASTF_BUILD', 'STATE_TX', 'STATE_ASTF_CLEANUP', 'STATE_ASTF_DELETE', 'STATE_UNKNOWN'].
+        """
+        states = {}
+        for key, value in self.astf_profile_state.items():
+            states[key] = astf_states[value] if value else "STATE_UNKNOWN"
+        return states
 
     @client_api('getter', True)
     def is_traffic_stats_error(self, stats):
@@ -974,7 +964,6 @@ class ASTFClient(TRexClient):
 
         '''
         return self.traffic_stats.is_traffic_stats_error(stats)
-
 
     @client_api('getter', True)
     def clear_traffic_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
@@ -988,7 +977,6 @@ class ASTFClient(TRexClient):
         """
         return self.traffic_stats.clear_stats(pid_input, is_sum)
 
-
     @client_api('getter', True)
     def get_latency_stats(self,skip_zero =True):
         """
@@ -999,7 +987,6 @@ class ASTFClient(TRexClient):
 
         """
         return self.latency_stats.get_stats(skip_zero)
-
 
     @client_api('command', True)
     def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0"):
@@ -1053,7 +1040,6 @@ class ASTFClient(TRexClient):
         if not rc:
             raise TRexError(rc.err())
 
-
     @client_api('command', True)
     def stop_latency(self):
         '''
@@ -1069,7 +1055,6 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
-
 
     @client_api('command', True)
     def update_latency(self, mult = 1):
@@ -1095,7 +1080,6 @@ class ASTFClient(TRexClient):
         if not rc:
             raise TRexError(rc.err())
 
-
     @client_api('command', True)
     def topo_load(self, topology, tunables = {}):
         ''' Load network topology
@@ -1117,13 +1101,11 @@ class ASTFClient(TRexClient):
         self.topo_mngr.load(topology, **tunables)
         print('')
 
-
     @client_api('command', True)
     def topo_clear(self):
         ''' Clear network topology '''
 
         self.topo_mngr.clear()
-
 
     @client_api('command', True)
     def topo_resolve(self, ports = None):
@@ -1131,13 +1113,11 @@ class ASTFClient(TRexClient):
 
         self.topo_mngr.resolve(ports)
 
-
     @client_api('command', False)
     def topo_show(self, ports = None):
         ''' Show current network topology status '''
         self.topo_mngr.show(ports)
         print('')
-
 
     @client_api('command', False)
     def topo_save(self, filename):
@@ -1277,7 +1257,6 @@ class ASTFClient(TRexClient):
         self.acquire(force = opts.force)
         return True
 
-
     @console_api('reset', 'common', True)
     def reset_line(self, line):
         '''Reset ports'''
@@ -1292,7 +1271,6 @@ class ASTFClient(TRexClient):
         opts = parser.parse_args(shlex.split(line))
         self.reset(restart = opts.restart)
         return True
-
 
     @console_api('start', 'ASTF', True)
     def start_line(self, line):
@@ -1334,7 +1312,6 @@ class ASTFClient(TRexClient):
 
         return True
 
-
     @console_api('stop', 'ASTF', True)
     def stop_line(self, line):
         '''Stop traffic command'''
@@ -1349,7 +1326,6 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(shlex.split(line))
         self.stop(False, pid_input = opts.profiles, is_remove = opts.remove)
-       
 
     @console_api('update', 'ASTF', True)
     def update_line(self, line):
@@ -1365,7 +1341,6 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(shlex.split(line))
         self.update(opts.mult, pid_input = opts.profiles)
-
 
     @console_api('service', 'ASTF', True)
     def service_line (self, line):
@@ -1396,7 +1371,6 @@ class ASTFClient(TRexClient):
         for p in ports:
             mask += (1<<p)
         return mask
-
 
     @console_api('latency', 'ASTF', True)
     def latency_line(self, line):
@@ -1516,7 +1490,6 @@ class ASTFClient(TRexClient):
 
         return True
 
-
     @console_api('clear', 'common', False)
     def clear_stats_line (self, line):
         '''Clear cached local statistics\n'''
@@ -1531,7 +1504,6 @@ class ASTFClient(TRexClient):
 
         return RC_OK()
 
-
     @console_api('stats', 'common', True)
     def show_stats_line (self, line):
         '''Show various statistics\n'''
@@ -1545,7 +1517,8 @@ class ASTFClient(TRexClient):
             parsing_opts.ASTF_STATS_GROUP,
             parsing_opts.ASTF_PROFILE_STATS)
 
-        valid_pids = list(self.astf_profile_state.keys())
+        astf_profiles_state = self.get_profiles_state()
+        valid_pids = list(astf_profiles_state.keys())
         opts = parser.parse_args(shlex.split(line))
         if not opts:
             return
@@ -1605,7 +1578,6 @@ class ASTFClient(TRexClient):
         else:
             raise TRexError('Unhandled stat: %s' % opts.stats)
 
-
     @console_api('template_group', 'ASTF', True)
     def template_group_line(self, line):
         "Template group commands"
@@ -1650,30 +1622,24 @@ class ASTFClient(TRexClient):
             else:
                 raise TRexError('Unhandled command: %s' % opts.command)
 
-
     def _get_num_of_tgids(self, pid_input = DEFAULT_PROFILE_ID):
         return self.traffic_stats._get_num_of_tgids(pid_input)
-
 
     def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
-
     def _show_latency_stats(self, buffer = sys.stdout):
         table = self.latency_stats.to_table_main()
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
-
 
     def _show_latency_histogram(self, buffer = sys.stdout):
         table = self.latency_stats.histogram_to_table()
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
-
     def _show_latency_counters(self, buffer = sys.stdout):
         table = self.latency_stats.counters_to_table()
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
-
 
     def _show_profiles_states(self, buffer = sys.stdout):
 
@@ -1683,10 +1649,8 @@ class ASTFClient(TRexClient):
         table.header(["ID", "State"])
 
         self.sync()
-        profile_list = sorted(self.astf_profile_state.keys())
-        for profile_id in profile_list:
-            profile_state = self.astf_profile_state.get(profile_id)
-            state = "Unknown" if profile_state is None else astf_states[profile_state]
+        profiles_state = sorted(self.get_profiles_state().items())
+        for profile_id, state in profiles_state:
             table.add_row([
                 profile_id,
                 state

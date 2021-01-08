@@ -115,6 +115,16 @@ class IPFIXPlugin(EMUPluginBase):
 
     # API methods
     @client_api('getter', True)
+    @update_docstring(EMUPluginBase._get_client_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def get_counters(self, c_key, cnt_filter=None, zero=True, verbose=True):
+        return self._get_client_counters(c_key, cnt_filter, zero, verbose)
+
+    @client_api('command', True)
+    @update_docstring(EMUPluginBase._clear_client_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def clear_counters(self, c_key):
+        return self._clear_client_counters(c_key)
+
+    @client_api('getter', True)
     def get_gen_info(self, c_key):
         """
             Gets information about all the generators of a client.
@@ -268,7 +278,7 @@ class IPFIXPlugin(EMUPluginBase):
 
         for gen_name, gen_info in res.items():
             gen_info['name'] = gen_name
-        self.print_table_by_keys(res.values(), keys_to_headers, title="Generators")
+        self.print_table_by_keys(list(res.values()), keys_to_headers, title="Generators")
 
     @plugin_api('ipfix_enable_gen', 'emu')
     def ipfix_enable_gen_line(self, line):

@@ -95,7 +95,7 @@ struct tcpcb *
 tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
     register int rexmt;
     uint16_t tg_id = tp->m_flow->m_tg_id;
-    CTcpPerThreadCtx * ctx = pctx->m_ctx;
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
     switch (timer) {
 
@@ -107,8 +107,8 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
      */
     case TCPT_2MSL:
         if (tp->t_state != TCPS_TIME_WAIT &&
-            tp->t_idle <= ctx->tcp_maxidle)
-            tp->t_timer[TCPT_2MSL] = ctx->tcp_keepintvl;
+            tp->t_idle <= tctx->tcp_maxidle)
+            tp->t_timer[TCPT_2MSL] = tctx->tcp_keepintvl;
         else
             tp = tcp_close(pctx,tp);
         break;
@@ -204,7 +204,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
          * backoff that we would use if retransmitting.
          */
         if (tp->t_rxtshift == TCP_MAXRXTSHIFT &&
-            (tp->t_idle >= ctx->tcp_maxpersistidle ||
+            (tp->t_idle >= tctx->tcp_maxpersistidle ||
             tp->t_idle >= TCP_REXMTVAL(tp) * tcp_totbackoff)) {
             INC_STAT(pctx, tg_id, tcps_persistdrop);
             tp = tcp_drop_now(pctx,tp, TCP_US_ETIMEDOUT);
@@ -225,7 +225,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
         if (tp->t_state < TCPS_ESTABLISHED)
             goto dropit;
         if (tp->m_socket.so_options & US_SO_KEEPALIVE) {
-                if (tp->t_idle >= ctx->tcp_keepidle + ctx->tcp_maxidle)
+                if (tp->t_idle >= tctx->tcp_keepidle + tctx->tcp_maxidle)
                 goto dropit;
             /*
              * Send a packet designed to force a response
@@ -242,9 +242,9 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
             INC_STAT(pctx, tg_id, tcps_keepprobe);
             tcp_respond(pctx,tp,
                 tp->rcv_nxt, tp->snd_una - 1, TH_ACK);
-            tp->t_timer[TCPT_KEEP] = ctx->tcp_keepintvl;
+            tp->t_timer[TCPT_KEEP] = tctx->tcp_keepintvl;
         } else
-            tp->t_timer[TCPT_KEEP] = ctx->tcp_keepidle;
+            tp->t_timer[TCPT_KEEP] = tctx->tcp_keepidle;
         break;
     dropit:
         INC_STAT(pctx, tg_id, tcps_keepdrops);

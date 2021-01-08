@@ -96,7 +96,7 @@ class SimGtest : SimInterface {
 public:
 
     int run(int argc, char **argv) {
-        assert( CMsgIns::Ins()->Create(4) );
+        assert( CMsgIns::Ins()->Create(4, false));
         return gtest_main(argc, argv);
     }
 };
