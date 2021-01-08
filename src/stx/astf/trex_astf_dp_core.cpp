@@ -607,3 +607,44 @@ void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg
         client_lookup_and_activate(client, activate);
     }
 }
+
+
+Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
+    CIpInfoBase *ip_info = (CIpInfoBase *)cip_info;
+    Json::Value c_data = Json::objectValue;
+    
+    c_data["Found"] = 0;
+    
+    if (!ip_info)
+        return c_data;
+    
+    c_data["Found"] = 1;    
+    if (ip_info->is_active()) 
+       c_data["state"] = "Active";
+    else
+       c_data["state"] = "Inactive";
+    
+    return c_data;
+}
+
+bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) {
+
+    Json::Value res = Json::objectValue;
+    if (is_range){
+        for (uint32_t client = msg_data[0]; client <= msg_data[1]; client++) {
+            CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+            res[to_string(client)] = client_data_to_json(ip_info);
+        }
+        reply.set_reply(res);
+        return true;
+    }
+    
+    for ( auto client : msg_data)
+    {
+        CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+        res[to_string(client)] = client_data_to_json(ip_info);
+    }
+   
+    reply.set_reply(res);
+    return true;
+}

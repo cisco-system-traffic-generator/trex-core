@@ -221,3 +221,16 @@ bool TrexAstfDpActivateClient::handle(TrexDpCore *dp_core) {
 TrexCpToDpMsgBase* TrexAstfDpActivateClient::clone() {
     return new TrexAstfDpActivateClient(m_astf_db, m_msg_data, m_activate, m_is_range);
 }
+
+/*************************
++  Get Client Stats MSG
++ ************************/
+
+bool TrexAstfDpGetClientStats::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->get_client_stats(m_astf_db, m_msg_data, m_is_range, m_reply);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpGetClientStats::clone() {
+    return new TrexAstfDpGetClientStats(m_astf_db, m_msg_data, m_is_range, m_reply);
+}

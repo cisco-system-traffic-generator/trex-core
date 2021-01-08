@@ -176,6 +176,26 @@ private:
     bool     m_is_range;
 };
 
+/**
++ * a message to get clients information
++ *
++ */
+
+class TrexAstfDpGetClientStats : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpGetClientStats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) : m_reply(reply) {
+        m_astf_db = astf_db;
+        m_msg_data =  msg_data;
+        m_is_range = is_range;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    CAstfDB* m_astf_db;
+    std::vector<uint32_t> m_msg_data;
+    bool     m_is_range;
+    MsgReply<Json::Value> &m_reply;
+};
 
 
 #endif /* __TREX_STL_MESSAGING_H__ */
