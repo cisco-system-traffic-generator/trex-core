@@ -1165,7 +1165,7 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(True)
 
     # execute 'method' for Making  a client active/inactive
-    def enable_disable_client_v1(self, client_list, is_enable):
+    def set_client_enable(self, client_list, is_enable):
         '''
         Version: 1 
         API to toggle state of client
@@ -1184,7 +1184,7 @@ class ASTFClient(TRexClient):
 
 
     # execute 'method' for Making  a client active/inactive
-    def enable_disable_client_v2(self, client_start, client_end, is_enable):
+    def set_client_enable_range(self, client_start, client_end, is_enable):
         ''' 
         Version: 2
         API to toggle state of client
@@ -1202,7 +1202,7 @@ class ASTFClient(TRexClient):
 
 
      # execute 'method' for getting clients stats
-    def get_clients_info_v1 (self, client_list):
+    def get_clients_info (self, client_list):
         '''
         Version 1 
         API to get client information: Currently only state and if client is present. 
@@ -1220,7 +1220,7 @@ class ASTFClient(TRexClient):
 
 
      # execute 'method' for getting clients stats
-    def get_clients_info_v2 (self, client_start, client_end):
+    def get_clients_info_range (self, client_start, client_end):
         '''
         Version 2 
         API to get client information: Currently only state and if client is present. 
