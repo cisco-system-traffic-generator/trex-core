@@ -234,3 +234,24 @@ bool TrexAstfDpGetClientStats::handle(TrexDpCore *dp_core) {
 TrexCpToDpMsgBase* TrexAstfDpGetClientStats::clone() {
     return new TrexAstfDpGetClientStats(m_astf_db, m_msg_data, m_is_range, m_reply);
 }
+
+/*************************
+*  Update tunnel info to Client MSG
+*************************/
+TrexAstfDpUpdateTunnelClient::TrexAstfDpUpdateTunnelClient(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data, uint8_t tunnel_type) {
+    m_astf_db = astf_db;
+    m_msg_data =  msg_data;
+    m_tunnel_type = tunnel_type;
+}
+
+bool TrexAstfDpUpdateTunnelClient::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->update_tunnel_for_client(m_astf_db, m_msg_data, m_tunnel_type);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpUpdateTunnelClient::clone() {
+    return new TrexAstfDpUpdateTunnelClient(m_astf_db, m_msg_data, m_tunnel_type);
+}
+
+
+

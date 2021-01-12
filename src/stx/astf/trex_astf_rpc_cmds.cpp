@@ -119,6 +119,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
 TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
+TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,    "update_tunnel_client");
 
 /****************************** commands implementation ******************************/
 
@@ -819,6 +820,55 @@ TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
 }
 
 /****************************** component implementation ******************************/
+/*
+ * API      : Update tunnel information for a client
+ * Param In : list of records. Each record contains
+ *            1. Version   : IP Version
+ *            2. Client_ip : Client IP 
+ *            3. sip       : Tunnel source IP
+ *            4. dip       : Tunnel dest ip
+ */           
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &attr = parse_array(params, "attr", result);
+    uint8_t tunnel_type     = parse_uint16(params, "tunnel_type", result);
+    std::vector<client_tunnel_data_t> all_msg_data;
+
+    auto astf_db = CAstfDB::get_instance(0);
+
+    for (auto each_client : attr) {
+        client_tunnel_data_t msg_data;
+        string src_ipv46, dst_ipv46;
+
+        msg_data.version     = parse_uint32(each_client, "version", result);
+        msg_data.client_ip   = parse_uint32(each_client, "client_ip", result);
+        src_ipv46            = parse_string(each_client, "sip", result);
+        dst_ipv46            = parse_string(each_client, "dip", result);
+
+        if (msg_data.version == 6) {
+           inet_pton(AF_INET6, src_ipv46.c_str(), msg_data.u1.src_ip);
+           inet_pton(AF_INET6, dst_ipv46.c_str(), msg_data.u2.dst_ip);
+        } else {
+           inet_pton(AF_INET, src_ipv46.c_str(), &msg_data.u1.src_ipv4);
+           inet_pton(AF_INET, dst_ipv46.c_str(), &msg_data.u2.dst_ipv4);
+        }
+
+        msg_data.teid  = parse_uint32(each_client, "teid", result);
+        all_msg_data.push_back(msg_data);
+    }
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data, tunnel_type);
+    get_astf_object()->send_message_to_all_dp(msg, false);
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+
+/****************************** component implementation ******************************/
 
 /**
  * ASTF RPC component
@@ -851,4 +901,5 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
     m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
+    m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
 }

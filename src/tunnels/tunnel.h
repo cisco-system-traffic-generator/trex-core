@@ -9,6 +9,19 @@
 #include "inet_pton.h"
 #include <common/Network/Packet/CPktCmn.h>
 
+/*
+enum Tunnel_type {
+    TUNNEL_TYPE_NONE,
+    TUNNEL_TYPE_GTP,
+    TUNNEL_TYPE_MAX
+};
+*/
+/*
+std::string tunnel_type_str[] {
+    "NA",
+    "GTP"
+};
+*/
 
 class Tunnel {
 public:
