@@ -17,7 +17,7 @@ test_short_flow:
 #    active_flows        : 2500000
 
 test_short_flow_high_active2:
-    multiplier          : 15000
+    multiplier          : 5000
     cores               : 6
     bw_per_core         : 1000
     active_flows        : 2500000
@@ -230,7 +230,7 @@ test_performance_vm_multi_cpus_cached:
         core_count             : 6
         mult                   : "40%"
         mpps_per_core_golden   :
-                                  min: 18
+                                  min: 15
                                   max: 30.6
 
 
