@@ -35,6 +35,11 @@ public:
 
     virtual int Adjust(rte_mbuf * m, u_int8_t);
 
+    void update_ipv4_gtpu_info(uint32_t teid, uint32_t src_ip, uint32_t dst_ip);
+    void update_ipv6_gtpu_info(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16]);
+
+    void store_ipv6_gtpu_info(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16], void *pre_cooked_hdr);
+    void store_ipv4_gtpu_info(uint32_t teid,uint32_t src_ip, uint32_t dst_ip, void *pre_cooked_hdr);
 
 private:
     uint32_t teid;
