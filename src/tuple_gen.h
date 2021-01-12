@@ -41,7 +41,8 @@ limitations under the License.
 #include "trex_global.h"
 #include <random>
 #include "common/dlist.h"
-
+#include <tunnels/gtp_tunnel.h>
+#include <tunnels/tunnel_factory_creator.h>
 
 struct ActiveClientListNode {
     TCDListNode  m_node;
@@ -295,10 +296,19 @@ class CIpInfoBase {
             return m_active_c_node[idx];
         }
 
+        void set_tunnel_type(uint8_t type) {
+            m_tunnel_type = type;
+        }
+
+        uint8_t get_tunnel_type(){
+            return m_tunnel_type;
+        }
+
         CIpInfoBase() { 
             m_is_active = false; 
             m_tunnel = NULL;
             m_ref_cnt = 0;
+            m_tunnel_type = TUNNEL_TYPE_NONE;
         }
 
         virtual ~CIpInfoBase() {}
@@ -310,7 +320,8 @@ class CIpInfoBase {
  
         /* 1 : 1 maapping between m_ref_pool_ptr and m_active_c_node */
         std::vector<void *> m_ref_pool_ptr;
-        std::vector<ActiveClientListNode*> m_active_c_node; 
+        std::vector<ActiveClientListNode*> m_active_c_node;
+        uint8_t           m_tunnel_type; 
  
 };
 
@@ -823,10 +834,6 @@ public:
         m_reta_mask = reta_mask;
     }
     
-
-    void set_tunnel_info_for_clients(uint32_t        ip,
-                                     void            *gtpu);
-
 
 public: 
     uint16_t m_tcp_aging;

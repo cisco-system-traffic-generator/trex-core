@@ -1164,6 +1164,19 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.post_cmd(True)
 
+    # execute 'method' for inserting/updateing tunnel info for clients
+    def update_tunnel_client_record (self, client_list, tunnel_type):
+
+        json_attr = []
+
+        for key, value in client_list.items():
+            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'teid' : value.teid, "version" :value.version})
+
+        params = {"tunnel_type": tunnel_type,
+                  "attr": json_attr }
+
+        return self._transmit("update_tunnel_client", params)
+
     # execute 'method' for Making  a client active/inactive
     def set_client_enable(self, client_list, is_enable):
         '''

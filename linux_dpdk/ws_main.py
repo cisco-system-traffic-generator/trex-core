@@ -728,6 +728,7 @@ main_src = SrcGroup(dir='src',
              'dpdk_drv_filter.cpp',
              'tunnels/gtp_tunnel.cpp',
              'tunnels/tunnel.cpp',
+             'tunnels/tunnel_factory_creator.cpp',
 
              'drivers/trex_driver_base.cpp',
              'drivers/trex_driver_bnxt.cpp',

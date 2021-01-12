@@ -251,16 +251,6 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
 
 }
 
-void CClientPool::set_tunnel_info_for_clients(uint32_t  ip,
-                                              void      *gtpu)
-{
-
-    uint32_t i = ip - m_ip_info[0]->get_ip();
-    m_ip_info[i]->set_tunnel_info(gtpu);
-}
-
-
-
 void CClientPool::configure_client(uint32_t indx){
 
     uint16_t port = generate_rand_sport(indx,m_thread_id,
