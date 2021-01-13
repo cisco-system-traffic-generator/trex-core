@@ -474,7 +474,7 @@ class STLRX_Test(CStlGeneral_Test):
 
     @try_few_times_on_vm
     def test_multiple_streams_random(self):
-        if CTRexScenario.setup_name in ['trex22']:
+        if CTRexScenario.setup_name in ['trex22', 'trex11']:
             self.skip('Skip not stable on this setup')
 
         if self.mlx5_defect_dpdk1711_trex_518:
