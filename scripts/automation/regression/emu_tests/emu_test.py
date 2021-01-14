@@ -27,11 +27,24 @@ class Emu_Test(CEmuGeneral_Test):
         CEmuGeneral_Test.tearDown(self)
         self.emu_trex.set_service_mode(enabled = False)
 
-    def _create_basic_profile(self, num_clients, client_plugs, ns_plugs):
+    @staticmethod
+    def convert_mac_unix_format(mac_address):
+        if "." in mac_address:
+            # cisco formatted, need to convert to unix
+            # convert from 0000.0001.0002 to 00:00:00:01:00:02
+            mac = mac_address.replace(".", "") # remove dots
+            mac_pairs = [a + b for a, b in zip(mac[::2], mac[1::2])] # ["00", "00", "00", "01", "00", "02"]
+            return ":".join(mac_pairs)
+        else:
+            # other formats are not necessary for now
+            return mac_address
+
+    def _create_basic_profile(self, port, num_clients, client_plugs, ns_plugs):
         """Creates a basic profile with one namespace and multiple clients.
         Namespace is simple and consists only of port 0.
 
         Args:
+            port: (int): Port which we'll use as namespace key.
             num_clients: (int) : Number of clients to add to the profile.
             client_plugs: (dict): Plugins to activate for clients.
             ns_plugs: (dict): Plugins to activate for namespace.
@@ -39,7 +52,6 @@ class Emu_Test(CEmuGeneral_Test):
         Returns:
             (List[EMUClientKey], EMUNamespaceKey, EMUProfile): Client Keys, Namespace key and Profile.
         """
-        port = 0
         mac = Mac('00:00:00:70:00:03')
         ipv4 = Ipv4('1.1.1.3')
         ipv4_dg = Ipv4('1.1.1.1')
@@ -62,21 +74,25 @@ class Emu_Test(CEmuGeneral_Test):
     def test_arp_1_client(self):
         """One client only, make sure that it resolved the default gateway and MAC and check the ARP counters"""
 
+        port = 0
         print(" -- Creating profile with 1 client and ARP enabled...")
-        _, ns_key, profile = self._create_basic_profile(num_clients = 1, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
+        _, ns_key, profile = self._create_basic_profile(port = port, num_clients = 1, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
         print(" -- Clearing router ARP entry...")
         self.router.clear_ip_arp(["1.1.1.3"])
         res = self.router.get_arp_entry("1.1.1.3")
         assert not res, "Failed clearing router ARP entry"
-        print(" -- Router ARP entry cleared succesfully.")
+        print(" -- Router ARP entry cleared successfully.")
         print(" -- Loading profile...")
         self.emu_client.load_profile(profile)
+
+        dual_if = self.router.if_mngr.get_dual_if_list()[port] # same port as we used to create the profile.
+        resolved_mac = Emu_Test.convert_mac_unix_format(dual_if.client_if.get_src_mac_addr())
 
         print(" -- Verifying loaded profile...")
         expected = [
             {'clients': [
                 {'dg_ipv6': '::',
-                'dgw': {'resolve': True, 'rmac': '00:00:00:01:00:02'},
+                'dgw': {'resolve': True, 'rmac': resolved_mac},
                 'dhcp_ipv6': '::',
                 'ipv4': '1.1.1.3',
                 'ipv4_dg': '1.1.1.1',
@@ -103,7 +119,7 @@ class Emu_Test(CEmuGeneral_Test):
         print(" -- Verifying ARP cache...")
         expected = [
             {'ipv4': [1, 1, 1, 1],
-             'mac': [0, 0, 0, 1, 0, 2],
+             'mac':  Mac(resolved_mac).V(),
              'refc': 1,
              'resolve': True,
              'state': 'Complete'}]
@@ -158,17 +174,21 @@ class Emu_Test(CEmuGeneral_Test):
     def test_arp_multiple_clients(self, num_clients = 250):
         """Multiple clients in the same subnet try to resolve the MAC address of the default gateway"""
 
+        port = 0
         print(" -- Creating profile with {num_clients} clients and ARP enabled...".format(num_clients = num_clients))
-        _, ns_key, profile = self._create_basic_profile(num_clients = num_clients, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
+        _, ns_key, profile = self._create_basic_profile(port = port, num_clients = num_clients, client_plugs = {"arp": {"enable": True}}, ns_plugs = {"arp": {"enable": True}})
         print(" -- Loading profile...")
         self.emu_client.load_profile(profile, max_rate = 100) # The router might get stressed from gARP if we don't police the rate.
 
         time.sleep(1) # Wait for resolve...
 
+        dual_if = self.router.if_mngr.get_dual_if_list()[port] # same port as we used to create the profile.
+        resolved_mac = Emu_Test.convert_mac_unix_format(dual_if.client_if.get_src_mac_addr())
+
         print(" -- Verifying ARP cache...")
         expected = [
             {'ipv4': [1, 1, 1, 1],
-             'mac': [0, 0, 0, 1, 0, 2],
+             'mac': Mac(resolved_mac).V(),
              'refc': num_clients,
              'resolve': True,
              'state': 'Complete'}]
@@ -196,7 +216,7 @@ class Emu_Test(CEmuGeneral_Test):
         print(" -- Verifying router ARP table")
         arp_table = self.router.get_arp_table()
         arp_table_ip_addresses = set([entry["Address"] for entry in arp_table])
-        client_ip_addresses = set(["1.1.1.{}".format(x) for x in range(3, num_clients+3)])
+        client_ip_addresses = set(["1.1.1.{}".format(x) for x in range(3, num_clients + 3)])
         assert client_ip_addresses.issubset(arp_table_ip_addresses), "Not all clients appear in the router's ARP table."
         print(" -- Router's ARP table verified correctly.")
 
@@ -214,9 +234,10 @@ class Emu_Test(CEmuGeneral_Test):
             icmp_ping_stats = ping_stats["icmp_ping_stats"]
             assert icmp_ping_stats["repliesInOrder"] == icmp_ping_stats["requestsSent"], "Number of replies in order differs from number of requests sent."
 
+        port = 0
         print(" -- Creating profile with 1 client and ARP and ICMP enabled...")
         plugs = {"icmp": {}, "arp": {"enable": True}}
-        client_keys, ns_key, profile = self._create_basic_profile(num_clients = 2, client_plugs = plugs, ns_plugs = plugs)
+        client_keys, ns_key, profile = self._create_basic_profile(port = port, num_clients = 2, client_plugs = plugs, ns_plugs = plugs)
 
         print(" -- Loading profile...")
         self.emu_client.load_profile(profile)
@@ -237,9 +258,9 @@ class Emu_Test(CEmuGeneral_Test):
 
         print(" -- Finished pinging, verifying results...")
         _verify_ping_stats(client_keys[0])
-        print(" -- Succesfully pinged and got replies from default gateway (router).")
+        print(" -- Successfully pinged and got replies from default gateway (router).")
 
-        print(" -- Starting pinging inbetween clients...")
+        print(" -- Starting pinging in between clients...")
         self.emu_client.icmp.start_ping(c_key = client_keys[0], amount = 5, pace = 5.0, dst = Ipv4("1.1.1.4").V()) # Send 5 packets at a rate of 5 PPS to Default gateway. Send from client 0 to client 1.
 
         time.sleep(0.5) # Wait for the ping to finish.

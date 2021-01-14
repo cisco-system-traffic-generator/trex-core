@@ -529,7 +529,7 @@ class CTRexServer(object):
             dash = ' -' if (len(key)==1) else ' --'
             if value is True:
                 trex_cmd_options += (dash + tmp_key)
-            elif value is False:
+            elif value is False or value is None:
                 continue
             else:
                 trex_cmd_options += (dash + '{k} {val}'.format( k = tmp_key, val =  value ))

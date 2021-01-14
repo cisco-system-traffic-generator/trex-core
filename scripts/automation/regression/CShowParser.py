@@ -330,7 +330,7 @@ class CShowParser(object):
         Dict: Ping stats parsed
         """
         res = {}
-        lines = query_response.splitlines()
+        lines = [line.strip() for line in query_response.splitlines() if line.strip() != ""]
         if len(lines) != 6:
             return res
         info = lines[4].split()
