@@ -42,7 +42,9 @@ class STLBird_Test(CBirdGeneral_Test):
         self.bird_trex.set_service_mode(enabled = False)
 
     def _conf_router_ospf(self, unconf = False):
-        CTRexScenario.router.configure_ospf(ospf_num = 1, unconf = unconf)
+        dual_if = CTRexScenario.router.if_mngr.get_dual_if_list()[0] # the first dual interface, just because every setup has one.
+        p2p_intf = (dual_if.client_if.get_name(), dual_if.server_if.get_name())
+        CTRexScenario.router.configure_ospf(ospf_num = 1, p2p_intf = p2p_intf, unconf = unconf)
 
     def _conf_router_bgp(self, unconf = False):
         CTRexScenario.router.configure_bgp(unconf = unconf)

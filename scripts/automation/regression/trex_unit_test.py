@@ -687,6 +687,16 @@ if __name__ == "__main__":
             fatal('Please specify path to config.yaml using --cfg parameter or env. variable SETUP_DIR')
         options.config_path = options.config_path.rstrip('/')
         CTRexScenario.setup_name = os.path.basename(options.config_path)
+        if options.bird:
+            bird_config_file = os.path.join(options.config_path, "{}_bird.yaml".format(CTRexScenario.setup_name))
+            if os.path.isfile(bird_config_file):
+                # specific config file provided for Bird
+                CTRexScenario.bird_config_file = os.path.abspath(bird_config_file)
+        if options.emu:
+            emu_config_file = os.path.join(options.config_path, "{}_emu.yaml".format(CTRexScenario.setup_name))
+            if os.path.isfile(emu_config_file):
+                # specific config file provided for EMU
+                CTRexScenario.emu_config_file = os.path.abspath(emu_config_file)
         CTRexScenario.configuration = misc_methods.load_complete_config_file(os.path.join(options.config_path, 'config.yaml'))
         CTRexScenario.config_dict = misc_methods.load_object_config_file(os.path.join(options.config_path, 'config.yaml'))
         CTRexScenario.configuration.trex['trex_name'] = address_to_ip(CTRexScenario.configuration.trex['trex_name']) # translate hostname to ip
@@ -770,7 +780,7 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_emu.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
-            CTRexScenario.router.load_clean_config()
+            # CTRexScenario.router.load_clean_config()
 
     #except Exception as e:
     #    result = False

@@ -57,6 +57,9 @@ class CTRexScenario:
     global_cfg       = None
     config_dict      = None
     coverage         = None
+    emu_config_file  = None
+    bird_config_file = None
+
 
 def copy_elk_info ():
    assert(CTRexScenario.elk_info)

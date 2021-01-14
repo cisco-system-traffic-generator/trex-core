@@ -1,0 +1,40 @@
+- port_limit      : 8
+  version         : 2
+  interfaces      : ["03:00.0", "03:00.1", "03:00.2", "03:00.3", "82:00.0", "82:00.1", "82:00.2", "82:00.3"]
+  port_info       : 
+          - ip         : 1.1.1.2
+            default_gw : 1.1.1.1
+          - ip         : 1.1.2.2
+            default_gw : 1.1.2.1
+
+          - ip         : 1.1.3.2
+            default_gw : 1.1.3.1
+          - ip         : 1.1.4.2
+            default_gw : 1.1.4.1
+
+          - ip         : 1.1.5.2
+            default_gw : 1.1.5.1
+          - ip         : 1.1.6.2
+            default_gw : 1.1.6.1
+
+          - ip         : 1.1.7.2
+            default_gw : 1.1.7.1
+          - ip         : 1.1.8.2
+            default_gw : 1.1.8.1
+
+  platform:
+      master_thread_id: 0
+      latency_thread_id: 1
+      dual_if:
+        - socket: 0
+          threads: [2]
+
+        - socket: 0
+          threads: [3]
+
+        - socket: 1
+          threads: [8]
+
+        - socket: 1
+          threads: [9]
+

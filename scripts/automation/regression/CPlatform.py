@@ -98,7 +98,7 @@ class CPlatform(object):
 
         self.cmd_link.run_single_command(cache)
 
-    def configure_ospf(self, ospf_num = 1, networks = None, point_to_point = True, unconf = False):
+    def configure_ospf(self, ospf_num = 1, networks = None, point_to_point = True, p2p_intf = ("Te0/0/0", "Te0/0/1"), unconf = False):
         assert(type(ospf_num) == int)
         assert(networks is None or type(networks) == dict)
         cache = CCommandCache()
@@ -108,7 +108,7 @@ class CPlatform(object):
 
         commands = []
         if point_to_point:
-            commands = ['int Te0/0/0', 'ip ospf network point-to-point', 'int Te0/0/1', 'ip ospf network point-to-point', 'exit']
+            commands = ['int {}'.format(p2p_intf[0]), 'ip ospf network point-to-point', 'int {}'.format(p2p_intf[1]), 'ip ospf network point-to-point', 'exit']
 
         commands.append('router ospf %s' % ospf_num)
 
@@ -118,7 +118,7 @@ class CPlatform(object):
 
         for network in networks:
             commands.append('network {ip} {wild_card} area {area} '.format(**network))
-        
+
         commands.append('exit')
         cache.add('CONF', commands)
         return self.cmd_link.run_single_command(cache)

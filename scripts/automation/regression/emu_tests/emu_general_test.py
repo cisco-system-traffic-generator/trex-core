@@ -69,12 +69,12 @@ class CEmuGeneral_Test(CTRexGeneral_Test):
             sys.stdout.write('Done. (%ss)\n' % int(time.time() - start_time))
 
     def start_trex(self):
-        """Start the TRex server in stateless mode with the required parameters for a succesful Emu connection"""
+        """Start the TRex server in stateless mode with the required parameters for a successful Emu connection"""
         sys.stdout.write('Starting TRex with Emu... ')
         start_time = time.time()
         cores = self.configuration.trex.get('trex_cores', 1)
         if not CTRexScenario.no_daemon:
-            self.trex.start_stateless(c = cores, emu = True, i = True, software = True, no_scapy = True, cfg = 'automation/regression/setups/trex14/trex14_emu.yaml')
+            self.trex.start_stateless(c = cores, emu = True, i = True, software = True, no_scapy = True, cfg = CTRexScenario.emu_config_file)
         sys.stdout.write('Done. (%ss)\n' % int(time.time() - start_time))
 
     def update_elk_obj(self):

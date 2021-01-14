@@ -35,7 +35,7 @@
 trex:
   hostname       : csi-trex-25
   cores          : 1
-  modes          : ['1G']
+  modes          : ['1G', 'emu', 'bird']
 
 router:
   model          : ASR1004(RP2)
