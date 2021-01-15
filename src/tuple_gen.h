@@ -47,6 +47,7 @@ limitations under the License.
 struct ActiveClientListNode {
     TCDListNode  m_node;
     void  *client;
+    bool   state;
 };
 
 
@@ -288,6 +289,7 @@ class CIpInfoBase {
         ActiveClientListNode * add_client_list_node(void *client){
             ActiveClientListNode  *cn = new ActiveClientListNode();
             cn->client= client;
+            cn->state = false;
             m_active_c_node.push_back(cn);
             return cn;
         }

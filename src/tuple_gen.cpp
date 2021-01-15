@@ -126,12 +126,13 @@ void CClientPool::set_client_active(CIpInfoBase *ip_info,
 {
 
     // Changing into state which is already in that state , return    
-    if ((activate &&  ip_info->is_active()) ||
-        (!activate && !(ip_info->is_active()))){
+    if ((activate &&  ip_info->is_active() && cn->state) ||
+        (!activate && !(ip_info->is_active()) && !cn->state)){
         return;
     }
 
     ip_info->set_is_active(activate);
+    cn->state = activate;
  
     if (activate) {
         append_client_into_active_list(cn);
