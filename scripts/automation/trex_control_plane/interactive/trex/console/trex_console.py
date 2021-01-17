@@ -520,16 +520,13 @@ class TRexConsole(TRexGeneralCmd):
     def do_connect (self, line):
         '''Connects to the server and acquire ports\n'''
         if self.dummy_client:
-            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
+            # reload the plugin. it will reconnect
+            self.do_plugins('load emu')
             return
         self.client.connect_line(line)
-    
+
     def do_disconnect (self, line):
         '''Disconnect from the server\n'''
-        if self.dummy_client:
-            self.client.logger.error(format_text("\nThis operation is not permitted in this mode.\n", 'bold'))
-            return
-        # stop any monitors before disconnecting
         self.plugins_mngr._unload_plugin()
         self.cap_mngr.stop()
         self.client.disconnect_line(line)
@@ -631,7 +628,7 @@ class TRexConsole(TRexGeneralCmd):
          hidden = ['EOF', 'q', 'exit', 'h', 'shell']
 
          if self.dummy_client:
-             hidden.extend(['tui', 'capture', 'connect', 'disconnect'])
+             hidden.extend(['tui', 'capture'])
 
          categories = collections.defaultdict(list)
 

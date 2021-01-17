@@ -3,6 +3,8 @@ from ..utils.common import get_current_user
 from ..common.trex_api_annotators import client_api
 from ..common.trex_client import TRexClient
 from ..common.trex_ctx import TRexCtx
+from ..common.trex_logger import ScreenLogger
+
 
 class DummyConnection():
     """
@@ -215,9 +217,7 @@ class ConsoleDummyClient(TRexClient):
 
         """
         # Nothing to do here.
-        self.ctx.logger.pre_cmd("Connecting to server at '{0}'".format(self.ctx.server))
         self.conn.connect()
-        self.ctx.logger.post_cmd(True)
 
     @client_api('command', False)
     def disconnect (self, stop_traffic = True, release_ports = True):
@@ -232,9 +232,7 @@ class ConsoleDummyClient(TRexClient):
 
         """
         # no ports, nothing to do here.
-        self.ctx.logger.pre_cmd("Disconnecting from server at '{0}'".format(self.ctx.server))
         self.conn.disconnect()
-        self.ctx.logger.post_cmd(True)
 
     @client_api('command', True)
     def acquire(self, ports = None, force = False, sync_streams = True):

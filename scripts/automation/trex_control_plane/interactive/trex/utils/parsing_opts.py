@@ -72,6 +72,7 @@ dynamic_profile_help = """A list of profiles on which to apply the command.
                           Profile expression is used as <port id>.<profile id>.
                           Default profile id is \"_\" when not specified.
                        """
+
 astf_profile_help = """A list of profiles on which to apply the command.
                        Default profile id is \"_\" when not specified.
                     """
@@ -1225,6 +1226,15 @@ class OPTIONS_DB_ARGS:
          'dest': 'dry',
          'help': 'Dry run, only prints profile as JSON'})
 
+    EMU_SHUTDOWN_TIME = ArgumentPack(
+        ['-t', '--time'],
+        {'default': 0,
+         'type': int,
+         'dest': 'time',
+         'help': 'shutdown Emu server in time seconds'
+          }
+    )
+
     #Emu Client Args
     MAC_ADDRESS = ArgumentPack(
         ['--mac'],
@@ -1232,7 +1242,7 @@ class OPTIONS_DB_ARGS:
          'required': True,
          'conv_type': 'mac',
          'action': action_conv_type_to_bytes()})
-    
+
     MAC_ADDRESSES = ArgumentPack(
         ['--macs'],
         {'help': "MAC addresses",

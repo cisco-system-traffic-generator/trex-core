@@ -308,7 +308,7 @@ class EMUClient(object):
 
         return RC_OK()
 
-    # disconenct from server
+    # disconnect from server
     def _disconnect(self, release_ports = True):
         # release any previous acquired ports
         if self.conn.is_connected() and release_ports:
@@ -713,7 +713,6 @@ class EMUClient(object):
         
         data = self._conv_macs_and_validate_ns(c_keys)
         return self._send_chunks(cmd = 'ctx_client_get_info', data = data)
-
 
     # CTX Counters
     @client_api('getter', True)
@@ -1124,6 +1123,30 @@ class EMUClient(object):
 ############################       API      #############################
 ############################                #############################
 
+    @client_api('command', True)
+    def shutdown(self, time):
+        """Shut down the EMU server gracefully after time seconds.
+        If the server is marked for shutdown and it wasn't shut yet, you can
+        recall this to set a new time for shutdown.
+
+        Args:
+            time (uint32): Time in seconds to shutdown the server from now.
+        """
+        validate_type("shutdown_time", time, int)
+        if not 0 <= time <= 0xFFFFFFFF:
+            raise TRexError("Shutdown time {} is not a valid uint32.".format(time))
+
+        if time == 0:
+            self.ctx.logger.pre_cmd("Shutting down the EMU server now.")
+        else:
+            self.ctx.logger.pre_cmd("Shutting down the EMU server in {time} seconds.".format(time=time))
+        rc = self._transmit("shutdown", params={"time": time})
+        self.ctx.logger.post_cmd(rc)
+
+        if time == 0:
+            # server is shut, should disconnect
+            self.disconnect()
+
     # Emu Profile
     @client_api('command', True)
     def load_profile(self, profile, max_rate = None, tunables = None, dry = False, verbose = False):
@@ -1471,6 +1494,19 @@ class EMUClient(object):
 ############################   console   #############################
 ############################   commands  #############################
 ############################             #############################
+
+    @plugin_api('shutdown', 'emu')
+    def shutdown_line(self, line):
+        """Shutdown the EMU server.\n"""
+
+        parser = parsing_opts.gen_parser(self,
+                                "shutdown",
+                                self.shutdown_line.__doc__,
+                                parsing_opts.EMU_SHUTDOWN_TIME,
+                                )
+        opts = parser.parse_args(args = line.split())
+        self.shutdown(opts.time)
+        return True
 
     @plugin_api('load_profile', 'emu')
     def load_profile_line(self, line):
