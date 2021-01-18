@@ -194,12 +194,14 @@ void DpdkTRexPortAttr::get_supported_speeds(supp_speeds_t &supp_speeds){
         supp_speeds.push_back(ETH_SPEED_NUM_40G);
     if (speed_capa & ETH_LINK_SPEED_100G)
         supp_speeds.push_back(ETH_SPEED_NUM_100G);
+    if (speed_capa & ETH_LINK_SPEED_200G)
+        supp_speeds.push_back(ETH_SPEED_NUM_200G);
 }
 
 void DpdkTRexPortAttr::update_link_status(){
     rte_eth_link_get(m_repid, &m_link);
-    if (m_link.link_speed > ETH_SPEED_NUM_100G ){
-        m_link.link_speed = ETH_SPEED_NUM_100G;
+    if (m_link.link_speed > ETH_SPEED_NUM_200G ){
+        m_link.link_speed = ETH_SPEED_NUM_200G;
     }
 }
 
