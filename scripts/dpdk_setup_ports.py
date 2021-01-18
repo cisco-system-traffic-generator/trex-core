@@ -115,7 +115,9 @@ class ConfigCreator(object):
                     raise DpdkSetup("Expected '%s' field in interface dictionary, got: %s" % (mandatory_interface_field, interface))
 
         Device_str = self._verify_devices_same_type(self.interfaces)
-        if '100Gb' in Device_str:
+        if '200Gb' in Device_str:
+            self.speed = 200
+        elif '100Gb' in Device_str:
             self.speed = 100
         elif '50Gb' in Device_str:
             self.speed = 50
