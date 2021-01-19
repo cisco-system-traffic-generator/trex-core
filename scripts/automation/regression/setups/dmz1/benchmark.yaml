@@ -16,12 +16,13 @@ test_short_flow:
 #    bw_per_core         : 1000
 #    active_flows        : 2500000
 
-test_short_flow_high_active2:
-    multiplier          : 50
-    cores               : 6
-    bw_per_core         : 1000
-    active_flows        : 2500000
-    
+# There is no enough memory for this test 
+#test_short_flow_high_active2:
+#    multiplier          : 50
+#    cores               : 6
+#    bw_per_core         : 1000
+#    active_flows        : 2500000
+   
 
 
 test_jumbo:
