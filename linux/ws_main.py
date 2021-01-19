@@ -508,7 +508,9 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-Wno-deprecated-declarations',
                 '-Wno-error=uninitialized',
                 '-std=c++0x',
-       ];
+                '-Wno-sign-compare',
+                '-Wno-strict-aliasing',
+                 '-Wno-address-of-packed-member',]
 
 
 

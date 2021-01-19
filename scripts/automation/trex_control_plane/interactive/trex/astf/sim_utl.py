@@ -258,7 +258,7 @@ def  _run_sim(file):
     if map_driver.opts.cmd:
         cmd=","+map_driver.opts.cmd
 
-    cmd='./astf-sim --python3 -f n.py -o {0} -v -c="--sim-json{1}"'.format(ofile,cmd);
+    cmd='./astf-sim -f n.py -o {0} -v -c="--sim-json{1}"'.format(ofile,cmd);
     print(cmd);
     (exit_code,output, err)=run_cmd (cmd)
     if map_driver.opts.verbose:

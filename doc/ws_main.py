@@ -440,10 +440,11 @@ def ensure_dir(f):
     
 
 def my_copy(task):
-    input_file=task.outputs[0].abspath()
-    out_dir=task.outputs[0].parent.get_bld().abspath()
+    input_file = task.outputs[0].get_src()
+    out_dir = task.outputs[0].parent.get_bld().abspath()
     ensure_dir(out_dir)
-    shutil.copy2(input_file, out_dir+ os.sep+task.outputs[0].name)
+    shutil.copy2(str(input_file), str(task.outputs[0]))
+
     return (0)
 
 
@@ -698,23 +699,26 @@ def build(bld):
     bld(rule=my_copy, target='nginx_if_cfg.txt')
 
     for x in bld.path.ant_glob('images\\**\**.png'):
-            bld(rule=my_copy, target=x)
+            x1 = os.path.relpath(str(x), str(bld.path))
+            bld(rule=my_copy, target=x1)
             bld.add_group() 
 
-
     for x in bld.path.ant_glob('yaml\\**\**.yaml'):
-            bld(rule=my_copy, target=x)
+            x1 = os.path.relpath(str(x), str(bld.path))
+            bld(rule=my_copy, target=x1)
             bld.add_group() 
 
 
 
     for x in bld.path.ant_glob('video\\**\**.mp4'):
-            bld(rule=my_copy, target=x)
+            x1 = os.path.relpath(str(x), str(bld.path))
+            bld(rule=my_copy, target=x1)
             bld.add_group() 
 
 
     for x in bld.path.ant_glob('images\\**\**.jpg'):
-        bld(rule=my_copy, target=x)
+        x1 = os.path.relpath(str(x), str(bld.path))
+        bld(rule=my_copy, target=x1)
         bld.add_group() 
 
     if bld.options.performance or bld.options.performance_detailed:
@@ -722,6 +726,7 @@ def build(bld):
         bld.add_group()
         bld(rule=convert_to_html_toc_book, source='trex_analytics.asciidoc waf.css', target='trex_analytics.html',scan=ascii_doc_scan);
         return
+
 
     if bld.options.ndr:
         bld(rule=create_ndr_report)
@@ -781,8 +786,8 @@ def build(bld):
     bld(rule=convert_to_html_toc_book_no_docinfo,
         source='trex_vm_bench.asciidoc waf.css', target='trex_vm_bench.html',scan=ascii_doc_scan)
 
-    bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook", css = "css/trex_cookbook.css"),
-        source='trex_cookbook.asciidoc', target='trex_cookbook',scan=ascii_doc_scan);
+    #bld(rule=lambda task : convert_to_asciidoctor_chunk_book(task, title = "TRex Cookbook", css = "css/trex_cookbook.css"),
+    #    source='trex_cookbook.asciidoc', target='trex_cookbook',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
@@ -1018,8 +1023,8 @@ def test(bld):
     #toc_fixup_file ('build/trex_stateless.tmp',
     #                'build/trex_stateless.html',
     #                'trex_stateless.json')
-
-    print build_disqus("my_html")
+    pass
+    #print build_disqus("my_html")
   
 
 def run (bld):
