@@ -31,7 +31,7 @@ limitations under the License.
 #include "trex_astf_dp_core.h"
 #include "trex_astf_topo.h"
 #include "trex_client_config.h"
-
+#include "tunnels/tunnel_factory_creator.h"
 
 using namespace std;
 
@@ -647,7 +647,10 @@ void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg
 Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     CIpInfoBase *ip_info = (CIpInfoBase *)cip_info;
     Json::Value c_data = Json::objectValue;
-    
+#ifndef TREX_SIM
+    TunnelFactoryCreator tfc;
+#endif
+   
     c_data["Found"] = 0;
     
     if (!ip_info)
@@ -658,7 +661,12 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
        c_data["state"] = "Active";
     else
        c_data["state"] = "Inactive";
-    
+
+#ifndef TREX_SIM 
+    uint8_t type = ip_info->get_tunnel_type(); 
+    if (type !=  TUNNEL_TYPE_NONE) 
+       c_data["tunnel_type"] =  tfc.get_tunnel_type(type);
+#endif 
     return c_data;
 }
 
@@ -683,3 +691,28 @@ bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> ms
     reply.set_reply(res);
     return true;
 }
+
+
+void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data, uint8_t tunnel_type) {
+
+#ifndef TREX_SIM
+    TunnelFactoryCreator tfc;
+#endif
+    for (auto elem : msg_data) {
+        CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
+        if (ip_info) {
+ 
+#ifndef TREX_SIM 
+           void *tunnel = ip_info->get_tunnel_info();
+           if (tunnel){
+               tfc.update_tunnel_object(elem, tunnel, tunnel_type);
+           } else {
+               void *tunnel = tfc.get_tunnel_object(elem, tunnel_type); 
+               ip_info->set_tunnel_info(tunnel);
+               ip_info->set_tunnel_type(tunnel_type);
+           }
+#endif
+        }
+    }
+}
+

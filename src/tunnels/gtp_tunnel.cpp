@@ -390,10 +390,10 @@ GTPU::GTPU( ):teid(0),dst_ip(0),src_ip(0)
   
 }
 
-GTPU::GTPU(uint32_t teid,uint32_t src_ip, uint32_t dst_ip)
+void GTPU::store_ipv4_gtpu_info(uint32_t teid,uint32_t src_ip, uint32_t dst_ip, void *pre_cooked_header) 
 {
 
-    Encapsulation *pre_cooked_hdr = new Encapsulation[1];
+    Encapsulation *pre_cooked_hdr = (Encapsulation *) pre_cooked_header;
     struct rte_ipv4_hdr * ip = &pre_cooked_hdr->ip;
 
     ip->version_ihl = IPV4_HDR_VERSION_IHL;
@@ -422,9 +422,17 @@ GTPU::GTPU(uint32_t teid,uint32_t src_ip, uint32_t dst_ip)
 
 }
 
-GTPU::GTPU(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16])
+GTPU::GTPU(uint32_t teid,uint32_t src_ip, uint32_t dst_ip)
 {
-    Encapsulation6 *pre_cooked_hdr = new Encapsulation6[1];
+
+  Encapsulation *pre_cooked_header = new Encapsulation[1];
+  store_ipv4_gtpu_info(teid, src_ip, dst_ip, pre_cooked_header);
+}
+
+
+void GTPU::store_ipv6_gtpu_info(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16], void *pre_cooked_header)
+{
+    Encapsulation6 *pre_cooked_hdr = (Encapsulation6 *) pre_cooked_header;
     struct rte_ipv6_hdr * ip6 = &pre_cooked_hdr->ip6;
 
     ip6->vtc_flow=  rte_cpu_to_be_32(6 << 28);
@@ -450,3 +458,20 @@ GTPU::GTPU(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16])
     m_ipv6_set = 1;
 
 }
+
+GTPU::GTPU(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16])
+{
+  Encapsulation6 *pre_cooked_header = new Encapsulation6[1];
+  store_ipv6_gtpu_info(teid, src_ipv6, dst_ipv6, pre_cooked_header);
+}
+
+void GTPU::update_ipv6_gtpu_info(uint32_t teid, uint8_t src_ipv6[16], uint8_t dst_ipv6[16])
+{
+  store_ipv6_gtpu_info(teid, src_ipv6, dst_ipv6, (void *)m_outer_hdr);
+}
+
+void GTPU::update_ipv4_gtpu_info(uint32_t teid, uint32_t src_ip, uint32_t dst_ip)
+{
+  store_ipv4_gtpu_info(teid, src_ip, dst_ip, (void *)m_outer_hdr);
+}
+
