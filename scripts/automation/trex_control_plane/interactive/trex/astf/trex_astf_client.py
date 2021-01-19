@@ -24,7 +24,6 @@ from ..utils.common import  is_valid_ipv4, is_valid_ipv6
 from ..utils.text_opts import format_text
 from ..astf.trex_astf_exceptions import ASTFErrorBadTG
 
-
 astf_states = [
     'STATE_IDLE',
     'STATE_ASTF_LOADED',
@@ -33,6 +32,10 @@ astf_states = [
     'STATE_TX',
     'STATE_ASTF_CLEANUP',
     'STATE_ASTF_DELETE']
+
+class TunnelType:
+      NONE = 0
+      GTP  = 1
 
 class ASTFClient(TRexClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
@@ -1163,6 +1166,31 @@ class ASTFClient(TRexClient):
             raise TRexError('Saving file failed: %s' % e)
 
         self.ctx.logger.post_cmd(True)
+
+    # private function to form json data for GTP tunnel
+    def _update_gtp_tunnel(self, client_list):
+
+        json_attr = []
+
+        for key, value in client_list.items():
+            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'teid' : value.teid, "version" :value.version})
+ 
+        return json_attr
+
+    # execute 'method' for inserting/updateing tunnel info for clients
+    def update_tunnel_client_record (self, client_list, tunnel_type):
+
+        json_attr = []
+        
+        if tunnel_type == TunnelType.GTP:
+           json_attr = self._update_gtp_tunnel(client_list)
+        else:
+           raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
+        
+        params = {"tunnel_type": tunnel_type,
+                  "attr": json_attr }
+
+        return self._transmit("update_tunnel_client", params)
 
     # execute 'method' for Making  a client active/inactive
     def set_client_enable(self, client_list, is_enable):

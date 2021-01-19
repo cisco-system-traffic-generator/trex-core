@@ -9,7 +9,6 @@
 #include "inet_pton.h"
 #include <common/Network/Packet/CPktCmn.h>
 
-
 class Tunnel {
 public:
     virtual ~Tunnel() {
