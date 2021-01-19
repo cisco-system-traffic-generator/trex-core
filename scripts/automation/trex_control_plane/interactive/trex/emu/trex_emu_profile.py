@@ -151,7 +151,9 @@ class EMUClientObj(object):
 
     def __init__(self, mac, **kwargs):
         """
+
         Create a new Emu client object. 
+
             .. code-block:: python
 
                 # creating a simple client
@@ -193,6 +195,7 @@ class EMUClientObj(object):
                     +------------+--------------------+---------------------------------------------------------------------+
                     | plugs      | Dictionary         | Dict with client's plugins. keys as plug names, value as plug info. |
                     +------------+--------------------+---------------------------------------------------------------------+
+
         """
         ver_args = [{'name': 'mac', 'arg': mac, 't': 'mac'},]
         EMUValidator.verify(ver_args)

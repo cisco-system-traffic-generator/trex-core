@@ -2,19 +2,7 @@
 
 INPUT_ARGS=$@
 
-if [[ $@ =~ '--python2' ]]; then
-    INPUT_ARGS=${@//--python2/}
-    source find_python.sh --python2
-fi
-
-if [[ $@ =~ '--python3' ]]; then
-    INPUT_ARGS=${@//--python3/}
-    source find_python.sh --python3
-fi
-
-if [ -z "$PYTHON" ]; then
-    source find_python.sh
-fi
+source find_python.sh
 
 export PYTHONPATH=automation/trex_control_plane/interactive
 $PYTHON -m trex.examples.astf.astf_async -p $PWD $INPUT_ARGS

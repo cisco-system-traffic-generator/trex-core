@@ -928,7 +928,7 @@ Server IP address: 10.0.0.1
 ----
 
 ==== Running Scapy ZMQ Server from the Python interpreter
-* Run the Python Interpreter (Scapy Server currently supports Python2)
+* Run the Python Interpreter 
 * Import the scapy_zmq_server.py file
 * Create a Scapy_server Object with argument as port number. default argument is port 4507
 * Invoke method activate(). (This method is blocking because the server is listening on the port).

@@ -2,41 +2,23 @@
 
 INPUT_ARGS=${@//--python[23]/}
 
-if [[ $@ =~ '--python2' || ! $@ =~ '--python3' ]]; then
-    source find_python.sh --python2
-    cd automation/regression
+source find_python.sh 
+cd automation/regression
 
-    echo Python2 test
-    $PYTHON trex_unit_test.py --functional $INPUT_ARGS
-    if [ $? -eq 0 ]; then
-        printf "\n$PYTHON test succeeded\n\n"
-    else
-        printf "\n*** $PYTHON test failed\n\n"
-        exit -1
-    fi
-    cd -
-    SKIP_GTESTS="-e test_gtests_"
+# check for Python 3.4 and above (--wireless requirement)
+$PYTHON -c "from abc import ABC" &> /dev/null
+if [ $? -eq 0 ]; then
+    WIRELESS='--wireless'
 fi
 
-if [[ $@ =~ '--python3' || ! $@ =~ '--python2' ]]; then
-    source find_python.sh --python3
-    cd automation/regression
-
-    # check for Python 3.4 and above (--wireless requirement)
-    $PYTHON -c "from abc import ABC" &> /dev/null
-    if [ $? -eq 0 ]; then
-        WIRELESS='--wireless'
-    fi
-
-    echo Python3 test
-    $PYTHON trex_unit_test.py --functional $WIRELESS $INPUT_ARGS $SKIP_GTESTS
-    if [ $? -eq 0 ]; then
-        printf "\n$PYTHON test succeeded\n\n"
-    else
-        printf "\n*** $PYTHON test failed\n\n"
-        exit -1
-    fi
-    cd -
+echo Python3 test
+$PYTHON trex_unit_test.py --functional $WIRELESS $INPUT_ARGS $SKIP_GTESTS
+if [ $? -eq 0 ]; then
+    printf "\n$PYTHON test succeeded\n\n"
+else
+    printf "\n*** $PYTHON test failed\n\n"
+    exit -1
 fi
+cd -
 
 

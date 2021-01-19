@@ -1,5 +1,5 @@
 import lxml.html as LH
-from StringIO import StringIO
+import io 
 from copy import deepcopy
 
 class HTMLInjector(object):
@@ -539,7 +539,8 @@ class HTMLInjector(object):
         # read all the data from file as string
         with open(self.input_filename) as f:
             try:
-                self.xml_doc = LH.parse(StringIO(f.read()))
+                s = f.read()
+                self.xml_doc = LH.parse(io.StringIO(s))
             except Exception as e:
                 print('Could not parse %s, error: %s' % (self.input_filename, e))
 
@@ -549,7 +550,7 @@ class HTMLInjector(object):
     def __exit__ (self, exc_type, exc_val, exc_tb):
         # save to file
         with open(self.output_filename, "w") as f:
-            f.write(LH.tostring(self.xml_doc))
+            f.write(LH.tostring(self.xml_doc,encoding='unicode'))
 
 
     def inject_toc (self,
@@ -582,7 +583,7 @@ class HTMLInjector(object):
         toc_end = toc_end.replace('$SELECTFIRST$', HTMLInjector.SELECT_FIRST if fmt == 'multi' else '')
         
         # create TOC node
-        toc_node  = LH.parse(StringIO(toc_begin + toc_end)).getroot()
+        toc_node  = LH.parse(io.StringIO(toc_begin + toc_end)).getroot()
 
         # find the main node in the HTML page
         main_node = (self.xml_doc.xpath('//body[@class = "article"]') or self.xml_doc.xpath('//body[@class = "book"]'))[0]
@@ -622,7 +623,7 @@ class HTMLInjector(object):
         disqus_injection_place = disqus_injection_place[0]
 
         # create the disqus node
-        disqus_node = LH.parse(StringIO(self.DISQUS_HTML.replace("$ID$", page_id))).getroot()
+        disqus_node = LH.parse(io.StringIO(self.DISQUS_HTML.replace("$ID$", page_id))).getroot()
 
         # inject
         disqus_injection_place.getparent().replace(disqus_injection_place, disqus_node)
@@ -652,7 +653,7 @@ class HTMLInjector(object):
     def inject_ga (self):
 
         # generate node
-        ga_node = LH.parse(StringIO(self.GA)).getroot()
+        ga_node = LH.parse(io.StringIO(self.GA)).getroot()
 
         # fetch the script
         script = ga_node.xpath('//script')[0]

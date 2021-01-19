@@ -1,29 +1,52 @@
 #! /bin/bash
 
 export WAFLOCK=.lock-wafbuild_dpdk
-waf=waf-2.0.18
-p2=${PYTHON:-${PYTHON2:-python2.7}}
-p3=${PYTHON3:-python3}
+waf=waf-2.0.21
+
+PYTHONS3_LOCAL=( python3 /usr/bin/python3 )
+PYTHONS3=( ${PYTHONS3_LOCAL[*]} /auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3 )
+
+function find_python3 {
+
+    if [ -n "$PYTHON3" ]; then 
+        PYTHON=$PYTHON3
+        return;
+    fi
+    # try different Python3 paths
+    PYTHONS="$@"
+    for PYTHON in ${PYTHONS[*]}; do
+        $PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 33)" &> /dev/null
+        if [ $? -eq 0 ]; then
+            p3=$PYTHON
+            return
+        fi
+    done;
+
+    echo "*** Python3 version is too old, 3.3 or later is required"
+    exit -1
+}
+
+find_python3 ${PYTHONS3[*]} 
+if [ $? -ne 0 ]; then
+  echo "Python versions 2.7 or 3.3 at least required"
+  exit -1
+fi
 
 
 # try Pythons which can load waf
 
-if $p2 $waf --help &> /dev/null; then
-    $p2 $waf $@
-elif $p3 $waf --help &> /dev/null; then
+if $p3 $waf --help &> /dev/null; then
     $p3 $waf $@
 
 # waf can't be loaded, print the error with available Python
 
-elif which $p2 &> /dev/null; then
-    $p2 $waf $@
 elif which $p3 &> /dev/null; then
     $p3 $waf $@
 
 # no Python available
 
 else
-    echo Required Python 2.7 or 3
+    echo Required 3
     exit 1
 fi
 
