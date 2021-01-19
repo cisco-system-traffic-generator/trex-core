@@ -120,8 +120,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
 TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
-TREX_RPC_CMD_OWNED_EXT(TrexRpcCmdUpdateTunnelClient,    "update_tunnel_client",
-
+TREX_RPC_CMD_EXT(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client",
 //  extended part 
 void inline parse_gtp_tunnel(const Json::Value &params, Json::Value &result,  std::vector<client_tunnel_data_t> &all_msg_data);
 );
