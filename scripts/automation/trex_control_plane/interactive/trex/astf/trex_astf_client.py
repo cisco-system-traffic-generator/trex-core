@@ -36,6 +36,7 @@ astf_states = [
 class TunnelType:
       NONE = 0
       GTP  = 1
+      
 
 class ASTFClient(TRexClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
