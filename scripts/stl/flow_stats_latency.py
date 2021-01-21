@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 class STLS1(object):
     """
@@ -25,9 +27,21 @@ class STLS1(object):
                           flow_stats = STLFlowLatencyStats(pg_id = self.pg_id))
                ]
 
-    def get_streams (self, fsize = 64, pg_id = 7, **kwargs):
-        self.fsize = fsize
-        self.pg_id = pg_id + kwargs['port_id']
+    def get_streams (self, port_id, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--fsize',
+                            type = int,
+                            default = 64,
+                            help="define the packet's length in the stream.")
+        parser.add_argument('--pg_id',
+                            type = int,
+                            default = 7,
+                            help="define packet group id (pg_id).")
+        args = parser.parse_args(tunables)
+
+        self.fsize = args.fsize
+        self.pg_id = args.pg_id + port_id
         return self._create_stream()
 
 

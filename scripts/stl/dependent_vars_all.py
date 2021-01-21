@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 class STLS1(object):
 
@@ -18,11 +20,32 @@ class STLS1(object):
                          mode = STLTXCont())
 
 
-    def get_streams (self, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--step',
+                            type = int,
+                            default = 1,
+                            help="define the steps between each value in the range.")
+        parser.add_argument('--size',
+                            type = int,
+                            default = 2,
+                            help="The variable's bytes amount.")
+        parser.add_argument('--op',
+                            type = str,
+                            default = "inc",
+                            choices={'inc', 'dec', 'random'},
+                            help='''define the we choose the next value in the range.
+                                    inc - the value will be chosen by ascending order.
+                                    dec - the value will be chosen by descending order.
+                                    random - the value will be chosen randomly''')
+
+        args = parser.parse_args(tunables)
+
         # create 1 stream 
-        step = kwargs.get('step', 1)
-        size = kwargs.get('size', 2)
-        op = kwargs.get('op', 'inc')
+        step = args.step
+        size = args.size
+        op = args.op
         return [ self.create_stream(step=step, size=size, op=op) ]
 
 

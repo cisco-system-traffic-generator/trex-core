@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 
 # split the range of IP to cores 
@@ -54,9 +56,20 @@ class STLS1(object):
         return stream
 
 
-    def get_streams (self, direction = 0, fsize = 64,lfsize = 64, **kwargs):
-        self.fsize  =fsize;
-        self.lfsize =lfsize
+    def get_streams (self, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--fsize',
+                            type=int,
+                            default=64,
+                            help="The packets size in the regular stream")
+        parser.add_argument('--lfsize',
+                            type=int,
+                            default=64,
+                            help="The packets size in the latency stream")
+        args = parser.parse_args(tunables)
+        self.fsize = args.fsize
+        self.lfsize = args.lfsize
         return self.create_stream(direction,kwargs['port_id'])
 
 

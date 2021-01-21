@@ -6,6 +6,7 @@
 
 from trex.astf.api import *
 import random
+import argparse
 
 
 MIN_CPS = 0.5
@@ -169,11 +170,32 @@ class Prof1():
 
         return profile
 
-    def get_profile(self, **kwargs):
-        ka          = kwargs.get('tcp_ka', None)       # tcp keepalive 
-        s_delay     = kwargs.get('s_delay', None)      # delay for server, in usec
-        traffic_per = kwargs.get('traffic_per', None)  # how much of the traffic will have no delay, should be in range: [0, 1]
-        port        = kwargs.get('port', None)         # starting port, inc by 1 for each capinfo
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.RawTextHelpFormatter)
+        parser.add_argument('--tcp_ka',
+                            type=int,
+                            default=None,
+                            help="The tcp keepalive in msec.\n"
+                                 "The highest value is 65533")
+        parser.add_argument('--s_delay',
+                            type=int,
+                            default=None,
+                            help='delay for server, in usec')
+        parser.add_argument('--traffic_per',
+                            type=float,
+                            default=None,
+                            help='how much of the traffic will have no delay, should be in range: [0, 1]')
+        parser.add_argument('--port',
+                            type=int,
+                            default=1024,
+                            help='starting port, inc by 1 for each capinfo')
+
+        args = parser.parse_args(tunables)
+        ka          = args.tcp_ka
+        s_delay     = args.s_delay
+        traffic_per = args.traffic_per
+        port        = args.port
 
         if s_delay is not None:
             assert s_delay > 0, 's_delay must be positive'

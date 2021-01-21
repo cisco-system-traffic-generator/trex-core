@@ -1,4 +1,5 @@
 from trex.astf.api import *
+import argparse
 
 # no_delay_counter tunable example, notice: no_delay_counter will require high `initwnd` in order to increase tcp timer.
 # if tcp timer is low it will finish before all packets and send ack earlier. 
@@ -7,10 +8,21 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self, **kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--initwnd',
+                            type=int,
+                            default=10,
+                            help='initial wnd size')
+        parser.add_argument('--no_delay_counter',
+                            type=int,
+                            default=4000,
+                            help="no_delay_counter will require high initwnd in order to increase tcp timer")
+        args = parser.parse_args(tunables)
 
-        initwnd          = kwargs.get('initwnd', 10)
-        no_delay_counter = kwargs.get('no_delay_counter', 4000)
+        initwnd          = args.initwnd
+        no_delay_counter = args.no_delay_counter
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")

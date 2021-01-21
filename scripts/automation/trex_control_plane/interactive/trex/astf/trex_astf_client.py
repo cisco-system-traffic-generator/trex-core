@@ -560,6 +560,11 @@ class ASTFClient(TRexClient):
             except Exception as e:
                 self.astf_profile_state.pop(pid_input, None)
                 raise TRexError('Could not load profile: %s' % e)
+
+            #when ".. -t --help", is called then return
+            if profile is None:
+                return
+
         profile_json = profile.to_json_str(pretty = False, sort_keys = True)
 
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
@@ -1301,31 +1306,65 @@ class ASTFClient(TRexClient):
         self.reset(restart = opts.restart)
         return True
 
+
     @console_api('start', 'ASTF', True)
     def start_line(self, line):
         '''Start traffic command'''
 
-        parser = parsing_opts.gen_parser(
-            self,
-            'start',
-            self.start_line.__doc__,
-            parsing_opts.FILE_PATH,
-            parsing_opts.MULTIPLIER_NUM,
-            parsing_opts.DURATION,
-            parsing_opts.TUNABLES,
-            parsing_opts.ASTF_NC,
-            parsing_opts.ASTF_LATENCY,
-            parsing_opts.ASTF_IPV6,
-            parsing_opts.ASTF_CLIENT_CTRL,
-            parsing_opts.ASTF_PROFILE_LIST
-            )
+        # parse tunables with the previous form. (-t var1=x1,var2=x2..)
+        def parse_tunables_old_version(tunables_parameters):
+            parser = parsing_opts.gen_parser(self,
+                                "start",
+                                self.start_line.__doc__,
+                                parsing_opts.TUNABLES)
+
+            args = parser.parse_args(tunables_parameters.split())
+            return args.tunables
+
+        # parser for parsing the start command arguments
+        parser = parsing_opts.gen_parser(self,
+                                         'start',
+                                         self.start_line.__doc__,
+                                         parsing_opts.FILE_PATH,
+                                         parsing_opts.MULTIPLIER_NUM,
+                                         parsing_opts.DURATION,
+                                         parsing_opts.ARGPARSE_TUNABLES,
+                                         parsing_opts.ASTF_NC,
+                                         parsing_opts.ASTF_LATENCY,
+                                         parsing_opts.ASTF_IPV6,
+                                         parsing_opts.ASTF_CLIENT_CTRL,
+                                         parsing_opts.ASTF_PROFILE_LIST
+                                         )
 
         opts = parser.parse_args(shlex.split(line))
-       
+        help_flags = ('-h', '--help')
+
+        # if the user chose to pass the tunables arguments in previous version (-t var1=x1,var2=x2..)
+        # we decode the tunables and then convert the output from dictionary to list in order to have the same format with the
+        # newer version.
+        tunable_dict = {}
+        if "-t" in line and '=' in line:
+            tunable_parameter = "-t " + line.split("-t")[1].strip("-h").strip("--help").strip()
+            tunable_dict = parse_tunables_old_version(tunable_parameter)
+            tunable_list = []
+            # converting from tunables dictionary to list 
+            for tunable_key in tunable_dict:
+                tunable_list.extend(["--{}".format(tunable_key), str(tunable_dict[tunable_key])])
+            if any(h in opts.tunables for h in help_flags):
+                tunable_list.append("--help")
+            opts.tunables = tunable_list
+
+        tunable_dict["tunables"] = opts.tunables
+
         valid_pids = self.validate_profile_id_input(opts.profiles, start = True)
         for profile_id in valid_pids:
 
-            self.load_profile(opts.file[0], opts.tunables, pid_input = profile_id)
+            self.load_profile(opts.file[0], tunable_dict, pid_input = profile_id)
+
+            #when ".. -t --help", is called the help message is being printed once and then it returns to the console
+            if any(h in opts.tunables for h in help_flags):
+                break
+
             kw = {}
             if opts.clients:
                 for client in opts.clients:

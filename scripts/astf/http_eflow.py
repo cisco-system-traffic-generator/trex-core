@@ -11,6 +11,7 @@
 
 
 from trex.astf.api import *
+import argparse
 
 
 # we can send either Python bytes type as below:
@@ -73,11 +74,26 @@ class Prof1():
 
         return profile
 
-    def get_profile(self,**kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--size',
+                            type=int,
+                            default=1,
+                            help='size is in KB for download chuck')
+        parser.add_argument('--loop',
+                            type=int,
+                            default=10,
+                            help='how many chunks')
+        parser.add_argument('--mss',
+                            type=int,
+                            default=0,
+                            help='the mss of the traffic.')
+        args = parser.parse_args(tunables)
 
-        size = kwargs.get('size',1)
-        loop = kwargs.get('loop',10)
-        mss = kwargs.get('mss',0)
+        size = args.size
+        loop = args.loop
+        mss = args.mss
         return self.create_profile(size,loop,mss)
 
 

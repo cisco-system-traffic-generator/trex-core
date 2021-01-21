@@ -1,6 +1,8 @@
 # Testing keepalives longer than 253 seconds 
 
 from trex.astf.api import *
+import argparse
+
 
 class Prof1():
     def __init__(self):
@@ -47,9 +49,22 @@ class Prof1():
                                 )
         return profile
 
-    def get_profile(self, **kwargs):
-        keep_alive = kwargs.get('keepalive', 300)  # This keepalive is intentionally long enough for test
-        delay_sec  = kwargs.get('delay', 5)
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--keep_alive',
+                            type=int,
+                            default=300,
+                            help='The tcp keepalive in msec')
+        parser.add_argument('--delay',
+                            type=int,
+                            default=5,
+                            help='delay for x in sec')
+
+        args = parser.parse_args(tunables)
+
+        keep_alive = args.keep_alive
+        delay_sec  = args.delay
         return self.create_profile(keep_alive, delay_sec)
 
 

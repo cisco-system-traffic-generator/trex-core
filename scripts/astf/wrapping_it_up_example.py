@@ -3,6 +3,8 @@
 from trex.astf.api import *
 import base64
 import struct
+import argparse
+
 
 class Prof1():
 
@@ -102,9 +104,17 @@ class Prof1():
 
         return ASTFProfile(default_ip_gen=ip_gen, templates=templates)
 
-    def get_profile(self, **kwargs):
-        pps = kwargs.get('pps', 1)
-        return self.create_profile(pps)
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--pps',
+                            type=int,
+                            default=1,
+                            help='packets per second')
+
+        args = parser.parse_args(tunables)
+
+        return self.create_profile(args.pps)
 
 
 def register():

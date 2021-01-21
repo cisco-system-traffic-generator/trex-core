@@ -1,4 +1,7 @@
 from trex_stl_lib.api import *
+import argparse
+
+
 # in case of azure packet with 60 bytes size are not optimized so we change the imix a bit to start from 68 
 # IMIX profile - involves 3 streams of UDP packets
 # 1 - 60 bytes
@@ -30,8 +33,10 @@ class STLImix(object):
                          mode = STLTXCont(pps = pps))
 
 
-    def get_streams (self, direction = 0, **kwargs):
-
+    def get_streams (self, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        args = parser.parse_args(tunables)
         if direction == 0:
             src = self.ip_range['src']
             dst = self.ip_range['dst']

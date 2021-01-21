@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 class STLS1(object):
 
@@ -39,7 +41,10 @@ class STLS1(object):
                          random_seed = 0x1234,
                          mode = STLTXCont())
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        args = parser.parse_args(tunables)
         return [ self.create_stream_icmpv6_nd_ns()]
 
 

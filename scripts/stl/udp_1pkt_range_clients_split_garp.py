@@ -1,4 +1,5 @@
 from trex_stl_lib.api import *
+import argparse
 
 
 # send G ARP from many clients
@@ -25,7 +26,11 @@ class STLS1(object):
         return STLStream(packet = STLPktBuilder(pkt = base_pkt,vm = vm),
                          mode = STLTXSingleBurst( pps=10, total_pkts = self.num_clients  )) # single burst of G-ARP
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # create 1 stream 
         return [ self.create_stream() ]
 

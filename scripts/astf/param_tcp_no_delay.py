@@ -1,4 +1,5 @@
 from trex.astf.api import *
+import argparse
 
 # disable nagle. will push any packet with PUSH (*NOT* standard it just to simulate Spirent) and will response with ACK imidiatly (standard)
 
@@ -7,7 +8,11 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")

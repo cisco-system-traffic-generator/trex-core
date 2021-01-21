@@ -11,6 +11,8 @@
 # *Note : It send FTP data(port 20) only
 
 from trex.astf.api import *
+import argparse
+
 
 class ftp_sim():
     max_buf_size = 0
@@ -77,10 +79,25 @@ class ftp_sim():
 
         return profile
 
-    def get_profile(self,**kwargs):
-        fsize = kwargs.get('fsize',1000)
-        nflows = kwargs.get('nflows',1)
-        tinc = kwargs.get('tinc',0)
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--fsize',
+                            type=int,
+                            default=1000,
+                            help='file size in MB(Mega Bytes) to download by each flow.')
+        parser.add_argument('--nflows',
+                            type=int,
+                            default=1,
+                            help='number of flows to download by FTP.')
+        parser.add_argument('--tinc',
+                            type=int,
+                            default=0,
+                            help='time to increase flow, 0 to start all flows immediately, n to increase number of flows by random(n) seconds.')
+        args = parser.parse_args(tunables)
+        fsize = args.fsize
+        nflows = args.nflows
+        tinc = args.tinc
         return self.create_profile(fsize,nflows,tinc)
 
 

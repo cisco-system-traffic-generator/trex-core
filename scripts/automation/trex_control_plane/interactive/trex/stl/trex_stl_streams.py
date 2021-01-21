@@ -1021,6 +1021,15 @@ class STLProfile(object):
     def load_py (python_file, direction = 0, port_id = 0, **kwargs):
         """ Load from Python profile """
 
+        # in case load_py is not being called from stl_client, there is need to convert
+        # the tunables to the new format to support argparse 
+        if "tunables" not in kwargs:
+            tunable_list = []
+            # converting from tunables dictionary to list 
+            for tunable_key in kwargs:
+                tunable_list.extend(["--{}".format(tunable_key), str(kwargs[tunable_key])])
+            kwargs["tunables"] = tunable_list
+
         # check filename
         if not os.path.isfile(python_file):
             raise TRexError("File '{0}' does not exist".format(python_file))
@@ -1039,10 +1048,13 @@ class STLProfile(object):
             #for arg in kwargs:
             #    if arg not in t:
             #        raise TRexError("Profile {0} does not support tunable '{1}' - supported tunables are: '{2}'".format(python_file, arg, t))
-
-            streams = module.register().get_streams(direction = direction,
-                                                    port_id = port_id,
-                                                    **kwargs)
+            try:
+                streams = module.register().get_streams(direction = direction,
+                                                        port_id = port_id,
+                                                        **kwargs)
+            except SystemExit:
+                # called ".. -t --help", return None
+                return None
             profile = STLProfile(streams)
 
             profile.meta = {'type': 'python',
@@ -1267,7 +1279,6 @@ class STLProfile(object):
               direction : profile's direction (if supported by the profile)
               port_id   : which port ID this profile is being loaded to
               kwargs    : forward those key-value pairs to the profile
-
         """
 
         x = os.path.basename(filename).split('.')
@@ -1287,8 +1298,8 @@ class STLProfile(object):
 
         else:
             raise TRexError("unknown profile file type: '{0}'".format(suffix))
-
-        profile.meta['stream_count'] = len(profile.get_streams()) if isinstance(profile.get_streams(), list) else 1
+        if profile is not None:
+            profile.meta['stream_count'] = len(profile.get_streams()) if isinstance(profile.get_streams(), list) else 1
         return profile
 
     @staticmethod

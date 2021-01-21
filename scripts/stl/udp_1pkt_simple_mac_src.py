@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 # stream will be sent with src MAC addrees src="60:60:60:60:60:60" and not from default of trex_cfg.yaml port src mac  
 class STLS1(object):
@@ -9,7 +11,11 @@ class STLS1(object):
                           #mac_src_override_by_pkt=True # another way to explictly take it
                           )
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # create 1 stream 
         return [ self.create_stream() ]
 

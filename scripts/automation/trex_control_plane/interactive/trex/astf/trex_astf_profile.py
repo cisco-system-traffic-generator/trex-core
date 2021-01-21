@@ -1917,6 +1917,15 @@ class ASTFProfile(object):
     def load_py (cls, python_file, **kwargs):
         """ Load from ASTF Python profile """
 
+        # in case load_py is not being called from astf_client, there is need to convert
+        # the tunables to the new format to support argparse. 
+        if "tunables" not in kwargs:
+            tunable_list = []
+            # converting from tunables dictionary to list 
+            for tunable_key in kwargs:
+                tunable_list.extend(["--{}".format(tunable_key), str(kwargs[tunable_key])])
+            kwargs["tunables"] = tunable_list
+
         # check filename
         if not os.path.isfile(python_file):
             raise TRexError("File '{0}' does not exist".format(python_file))
@@ -1936,6 +1945,9 @@ class ASTFProfile(object):
             profile.meta = {'type': 'python',
                             'tunables': t}
             return profile
+        except SystemExit:
+                # called ".. -t --help", return None
+            return None
         finally:
             sys.path.remove(basedir)
 

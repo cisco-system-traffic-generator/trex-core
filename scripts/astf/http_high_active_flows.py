@@ -20,6 +20,7 @@
 
 
 from trex.astf.api import *
+import argparse
 
 
 # we can send either Python bytes type as below:
@@ -75,9 +76,22 @@ class Prof1():
         profile = ASTFProfile(default_c_glob_info =c_glob_info,default_s_glob_info=s_glob_info,  default_ip_gen=ip_gen, templates=template)
         return profile
 
-    def get_profile(self, **kwargs):
-        res_size= kwargs.get('size',1)
-        delay = kwargs.get('delay',1)
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--size',
+                            type=int,
+                            default=1,
+                            help='size is in KB for each chuck in the loop')
+        parser.add_argument('--delay',
+                            type=int,
+                            default=1,
+                            help='delay for this time in usec')
+
+        args = parser.parse_args(tunables)
+
+        res_size = args.size
+        delay = args.delay
         print("delay {}".format(delay))
         return self.create_profile(res_size,delay)
 

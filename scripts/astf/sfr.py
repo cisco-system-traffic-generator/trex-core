@@ -1,4 +1,5 @@
 from trex.astf.api import *
+import argparse
 
 # Only TCP SFR data is here 
 # SFR UDP templates are not here yet (e.g. DNS)
@@ -32,7 +33,11 @@ class Prof1():
 
         return profile
 
-    def get_profile(self, **kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         return self.create_profile()
 
 

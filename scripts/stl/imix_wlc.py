@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 class STLImix(object):
 
@@ -19,12 +21,37 @@ class STLImix(object):
                          mode = STLTXCont(pps = pps))
 
 
-    def get_streams (self, src = None, dst = None, direction = 0, **kwargs):
-        assert src, 'Provide src'
-        assert dst, 'Provide dst'
-        src_count = int(kwargs.get('src_count', 1))
-        dst_count = int(kwargs.get('dst_count', 1))
-        port_count = int(kwargs.get('port_count', 1))
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for imix_wlc',
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--src',
+                            type=str,
+                            required=True,
+                            help="defines the first source IP.")
+        parser.add_argument('--dst',
+                            type=str,
+                            required=True,
+                            help="defines the first destination IP.")
+        parser.add_argument('--src_count',
+                            type=int,
+                            default=1,
+                            help="defines the number of source IP. [src, src+src_count-1].")
+        parser.add_argument('--dst_count',
+                            type=int,
+                            default=1,
+                            help="defines the number of destination IP. [dst, dst+dst_count-1].")
+        parser.add_argument('--port_count',
+                            type=int,
+                            default=1,
+                            help="defines the the number of source port. [2234, 2234+port_count-1].")
+
+        args = parser.parse_args(tunables)
+
+        src = args.src
+        dst = args.dst
+        src_count = args.src_count
+        dst_count = args.dst_count
+        port_count = args.port_count
 
 
         vm =[
