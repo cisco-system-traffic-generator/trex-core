@@ -1,4 +1,5 @@
 from trex_stl_lib.api import *
+import argparse
 
 class STLS1(object):
 
@@ -9,7 +10,11 @@ class STLS1(object):
             packet = STLPktBuilder(pkt = Ether(binary, dst='01:80:c2:00:00:14')),
             mode = STLTXCont())
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # create 1 stream 
         return [ self.create_stream() ]
 

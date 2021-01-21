@@ -1,4 +1,5 @@
 from trex.astf.api import *
+import argparse
 
 
 class Prof1():
@@ -18,8 +19,16 @@ class Prof1():
                             cps=2.776,
                             port=port)])
 
-    def get_profile(self, **kwargs):
-        port= kwargs.get('port',80)
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--port',
+                            type=int,
+                            default=80,
+                            help="The port number")
+
+        args = parser.parse_args(tunables)
+        port= args.port
         return self.create_profile(port)
 
 def register():

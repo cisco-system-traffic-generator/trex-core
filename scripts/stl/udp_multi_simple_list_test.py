@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 def generate_payload(length):
       word = ''
@@ -73,7 +75,11 @@ class STLS1(object):
                           mode = STLTXCont() )
 
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # create 1 stream
         return [ self.create_stream1(),self.create_stream2(),self.create_stream3() ]
 

@@ -1,4 +1,5 @@
 from trex.astf.api import *
+import argparse
 
 
 # IPV6 tunable example 
@@ -12,7 +13,11 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self, **kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["172.28.0.0", "172.28.100.255"], distribution="seq")

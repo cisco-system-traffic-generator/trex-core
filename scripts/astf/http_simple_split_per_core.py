@@ -9,6 +9,7 @@
 # see http_simple_split.py for the profile without this field 
 
 from trex.astf.api import *
+import argparse
 
 
 
@@ -16,7 +17,11 @@ class Prof1():
     def __init__(self):
         pass
 
-    def get_profile(self, **kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["40.125.1.1", "40.125.1.4"], distribution="seq",per_core_distribution="seq")
         ip_gen_s = ASTFIPGenDist(ip_range=["11.140.1.1", "11.140.1.4"], distribution="seq")

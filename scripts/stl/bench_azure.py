@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 class STLBench(object):
     ip_range = {}
@@ -23,13 +25,32 @@ class STLBench(object):
                          isg = isg)
 
 
-    def get_streams (self, size=64, vm=None, direction=0, **kwargs):
+    def get_streams (self, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--size',
+                            type=str,
+                            default=64,
+                            help="""define the packet's size in the stream.
+                                    choose imix or positive integ
+                                    imix - create streams with packets size 60, 590, 1514.
+                                    positive integer number - the packets size in the stream.""")
+        parser.add_argument('--vm',
+                            type=str,
+                            default=None,
+                            choices={'cached', 'var1', 'var2', 'random', 'tuple', 'size'},
+                            help='define the field engine behavior')
+        args = parser.parse_args(tunables)
+        
         if direction == 0:
             src, dst = self.ip_range['src'], self.ip_range['dst']
         else:
             src, dst = self.ip_range['dst'], self.ip_range['src']
 
         vm_var = STLVM()
+        size, vm = args.size, args.vm
+        if size != "imix":
+            size = int(size)
         if not vm or vm == 'none':
             pass
             

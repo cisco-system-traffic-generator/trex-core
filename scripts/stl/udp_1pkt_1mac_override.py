@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 # 1 clients MAC override the LSB of destination
 # overide the src mac  00:bb:12:34:56:01 - 00:bb:12:34:56:0a
@@ -25,7 +27,11 @@ class STLS1(object):
         return STLStream(packet = STLPktBuilder(pkt = base_pkt/pad,vm = vm),
                          mode = STLTXCont( pps=10 ))
 
-    def get_streams (self, direction = 0, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         # create 1 stream 
         return [ self.create_stream() ]
 

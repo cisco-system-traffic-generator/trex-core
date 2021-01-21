@@ -1,4 +1,6 @@
 from trex_stl_lib.api import *
+import argparse
+
 
 # Tunable example 
 #
@@ -34,9 +36,20 @@ class STLS1(object):
                 ))
         return packets
 
-    def get_streams (self, direction = 0, packet_len = 64, stream_count = 1, **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--packet_len',
+                            type=int,
+                            default=64,
+                            help="The packets length in the stream")
+        parser.add_argument('--stream_count',
+                            type=int,
+                            default=1,
+                            help="The number of streams")
+        args = parser.parse_args(tunables)
         # create 1 stream 
-        return self.create_stream(packet_len - 4, stream_count)
+        return self.create_stream(args.packet_len - 4, args.stream_count)
 
 
 # dynamic load - used for trex console or simulator

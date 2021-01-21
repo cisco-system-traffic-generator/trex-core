@@ -1,4 +1,5 @@
 from trex_stl_lib.api import *
+import argparse
 
 
 # split the range of IP to cores 
@@ -36,9 +37,17 @@ class STLS1(object):
         return stream
 
 
-    def get_streams (self, direction = 0, cache_size = 255, **kwargs):
+    def get_streams (self, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--cache_size',
+                            type=int,
+                            default=255,
+                            help="The cache size."
+                                 "The cache size is limited to the pool size.")
+        args = parser.parse_args(tunables)
         # create 1 stream 
-        return [ self.create_stream(direction, cache_size) ]
+        return [ self.create_stream(direction, args.cache_size) ]
 
 
 # dynamic load - used for trex console or simulator

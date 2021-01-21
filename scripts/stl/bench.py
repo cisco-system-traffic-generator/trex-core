@@ -1,5 +1,5 @@
 from trex_stl_lib.api import *
-
+import argparse
 
 class STLBench(object):
     """
@@ -25,7 +25,7 @@ class STLBench(object):
                 default : 7
             - define the packet group ID
         direction type (int)
-            - define the dirction of the packets
+            - define the direction of the packets
             - 0: the direction is from src - dst
             - 1: the direction is from dst - src
     """
@@ -52,8 +52,40 @@ class STLBench(object):
                          isg=isg,
                          flow_stats=stl_flow)
 
-    def get_streams (self, flow="no-fs", size=64, vm=None, direction=0, pg_id=7, **kwargs):
-        self.pg_id = pg_id + kwargs['port_id']
+    def get_streams (self, port_id, direction, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--size',
+                            type=str,
+                            default=64,
+                            help="""define the packet's size in the stream.
+                                    choose imix or positive integ
+                                    imix - create streams with packets size 60, 590, 1514.
+                                    positive integer number - the packets size in the stream.""")
+        parser.add_argument('--vm',
+                            type=str,
+                            default=None,
+                            choices={'cached', 'var1', 'var2', 'random', 'tuple', 'size'},
+                            help='define the field engine behavior')
+        parser.add_argument('--flow',
+                            type=str,
+                            default="no-fs",
+                            choices={'no-fs', 'fs', 'fsl'},
+                            help='''Set to fs/fsl if you wants stats per stream.
+                                    fs - create streams with flow stats.
+                                    fsl - create streams with latency.
+                                    no-fs - streams without flow stats''')
+        parser.add_argument('--pg_id',
+                            type=int,
+                            default=7,
+                            help='define the packet group ID')
+
+        args = parser.parse_args(tunables)
+
+        size, vm, flow = args.size, args.vm, args.flow
+        if size != "imix":
+            size = int(size)
+        self.pg_id = args.pg_id + port_id
         if direction == 0:
             src, dst = self.ip_range['src'], self.ip_range['dst']
         else:

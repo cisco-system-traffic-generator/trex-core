@@ -3,7 +3,7 @@
 
 from trex.astf.api import *
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip
-
+import argparse
 
 
 # we can send either Python bytes type as below:
@@ -53,7 +53,13 @@ class Prof1():
 
         return ASTFProfile(default_ip_gen = ip_gen, templates = templates_arr)
 
-    def get_profile(self, **kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
+
+
         return self.create_profile(kwargs)
 
 

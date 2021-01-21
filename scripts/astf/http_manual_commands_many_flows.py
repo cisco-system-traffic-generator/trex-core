@@ -1,6 +1,7 @@
 # Example for create a server that delay the response see  prog_s.delay(500000); command 
 
 from trex.astf.api import *
+import argparse
 
 
 
@@ -55,7 +56,11 @@ class Prof1():
                         )
         return profile
 
-    def get_profile(self,**kwargs):
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
         return self.create_profile()
 
 

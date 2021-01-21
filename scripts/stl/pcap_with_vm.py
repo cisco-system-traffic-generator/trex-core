@@ -1,5 +1,22 @@
 import os
 from trex_stl_lib.api import *
+import argparse
+import ast
+
+
+def validate_IP_dict(ip_dict):
+    try:
+        ip = ast.literal_eval(ip_dict)
+        if not isinstance(ip, dict):
+            raise argparse.ArgumentTypeError('Dictionary is expected.')
+    except:
+        raise argparse.ArgumentTypeError("Couldn't evaluate {} to dictionary.".format(ip_dict))
+    if "start" not in ip or "end" not in ip:
+        raise argparse.ArgumentTypeError("The dictionary must contain the following keys: (\"start\", \"end\").")
+    if not (is_valid_ipv4(ip["start"]) and is_valid_ipv4(ip["end"])):
+        raise argparse.ArgumentTypeError("Start and End values must be valid Ipv4 addresses.")
+    return ip
+
 
 # PCAP profile
 class STLPcap(object):
@@ -27,19 +44,33 @@ class STLPcap(object):
         return vm
 
 
-    def get_streams (self,
-                     direction = 0,
-                     ipg_usec = 10.0,
-                     loop_count = 5,
-                     ip_src_range = None,
-                     ip_dst_range = {'start' : '16.0.0.1', 'end': '16.0.0.254'},
-                     **kwargs):
+    def get_streams (self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--ipg_usec',
+                            type=float,
+                            default=10.0,
+                            help="Inter-packet gap in microseconds.")
+        parser.add_argument('--loop_count',
+                            type=int,
+                            default=5,
+                            help="How many times to transmit the cap")
+        parser.add_argument('--ip_src_range',
+                            type=validate_IP_dict,
+                            help="The range of the source IP."
+                                 'for example {"start":"48.0.0.1","end":"48.0.0.254"}')
+        parser.add_argument('--ip_dst_range',
+                            type=validate_IP_dict,
+                            default={'start' : '16.0.0.1', 'end': '16.0.0.254'},
+                            help="The range of the destination IP.")
 
-        vm = self.create_vm(ip_src_range, ip_dst_range)
+        args = parser.parse_args(tunables)
+
+        vm = self.create_vm(args.ip_src_range, args.ip_dst_range)
 
         profile = STLProfile.load_pcap(self.pcap_file,
-                                       ipg_usec = ipg_usec,
-                                       loop_count = loop_count,
+                                       ipg_usec = args.ipg_usec,
+                                       loop_count = args.loop_count,
                                        vm = vm)
 
         return profile.get_streams()
