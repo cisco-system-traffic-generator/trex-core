@@ -1,0 +1,8 @@
+#!/bin/bash
+
+INPUT_ARGS=$@
+
+source find_python.sh
+
+export PYTHONPATH=automation/trex_control_plane/interactive
+$PYTHON -m trex.emu.sim $INPUT_ARGS
