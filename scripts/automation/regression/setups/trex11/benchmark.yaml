@@ -34,15 +34,15 @@ test_ipv6_simple:
     bw_per_core         : 19.5
 
 
-test_rx_check_http: &rx_http
-    multiplier          : 1000
-    cores               : 1
-    rx_sample_rate      : 128
-    bw_per_core         : 49.464
+#test_rx_check_http: &rx_http
+#    multiplier          : 1000
+#    cores               : 1
+#    rx_sample_rate      : 128
+#    bw_per_core         : 49.464
 
-test_rx_check_http_ipv6:
-    <<                  : *rx_http
-    bw_per_core         : 49.237
+#test_rx_check_http_ipv6:
+#    <<                  : *rx_http
+#    bw_per_core         : 49.237
 
 # test_rx_check_sfr: &rx_sfr
 #     multiplier          : 0.5

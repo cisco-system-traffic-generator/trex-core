@@ -2,13 +2,12 @@
 # Copyright 2018 6WIND S.A.
 # Copyright 2018 Mellanox Technologies, Ltd
 
-if not is_linux
+if not (is_linux or is_windows)
 	build = false
-	reason = 'only supported on Linux'
+	reason = 'only supported on Linux and Windows'
 	subdir_done()
 endif
 
-allow_experimental_apis = true
 deps += ['hash', 'common_mlx5']
 sources = files(
 	'mlx5.c',
@@ -16,26 +15,33 @@ sources = files(
 	'mlx5_flow.c',
 	'mlx5_flow_meter.c',
 	'mlx5_flow_dv.c',
-	'mlx5_flow_verbs.c',
+        'mlx5_flow_age.c',
 	'mlx5_mac.c',
 	'mlx5_mr.c',
 	'mlx5_rss.c',
 	'mlx5_rxmode.c',
 	'mlx5_rxq.c',
 	'mlx5_rxtx.c',
-	'mlx5_mp.c',
 	'mlx5_stats.c',
 	'mlx5_trigger.c',
 	'mlx5_txq.c',
+	'mlx5_txpp.c',
 	'mlx5_vlan.c',
 	'mlx5_utils.c',
-	'mlx5_socket.c',
+	'mlx5_devx.c',
 )
-if (dpdk_conf.has('RTE_ARCH_X86_64')
-	or dpdk_conf.has('RTE_ARCH_ARM64')
-	or dpdk_conf.has('RTE_ARCH_PPC_64'))
-	sources += files('mlx5_rxtx_vec.c')
+
+if is_linux
+	sources += files(
+		'mlx5_flow_verbs.c',
+	)
+	if (dpdk_conf.has('RTE_ARCH_X86_64')
+		or dpdk_conf.has('RTE_ARCH_ARM64')
+		or dpdk_conf.has('RTE_ARCH_PPC_64'))
+		sources += files('mlx5_rxtx_vec.c')
+	endif
 endif
+
 cflags_options = [
 	'-std=c11',
 	'-Wno-strict-prototypes',
@@ -53,3 +59,4 @@ if get_option('buildtype').contains('debug')
 else
 	cflags += [ '-UPEDANTIC' ]
 endif
+subdir(exec_env)

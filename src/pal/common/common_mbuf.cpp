@@ -25,7 +25,7 @@ utl_rte_pktmbuf_dump(const struct rte_mbuf *m) {
 #ifdef TREX_SIM
                        (int)m->refcnt_reserved);
 #else
-                       (int)m->refcnt_atomic.cnt);
+                       (int)m->refcnt);
 #endif
                 if (RTE_MBUF_CLONED(m)) {
 #ifdef TREX_SIM
@@ -37,7 +37,7 @@ utl_rte_pktmbuf_dump(const struct rte_mbuf *m) {
 #ifdef TREX_SIM
                            (int)md->refcnt_reserved);
 #else
-                           (int)md->refcnt_atomic.cnt);
+                           (int)md->refcnt);
 #endif
                 }
                 m = m->next;

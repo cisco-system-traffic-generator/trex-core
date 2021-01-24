@@ -28,6 +28,7 @@
 static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
                                                uint8_t rx_q,
                                                bool ipv6,
+                                               dpdk_filter_hw_nic_t hw_mode,
                                                struct rte_flow_error *error){
 	struct rte_flow_attr attr;
 	struct rte_flow_item pattern[MAX_PATTERN_NUM];
@@ -73,25 +74,30 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
 	 */
 	memset(&eth_spec, 0, sizeof(struct rte_flow_item_eth));
 	memset(&eth_mask, 0, sizeof(struct rte_flow_item_eth));
-	eth_spec.type = 0;
-	eth_mask.type = 0;
+    eth_spec.type = 0;
+    eth_mask.type = 0;
+
+    
 	pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_ETH;
 	pattern[pattern_index].spec = &eth_spec;
 	pattern[pattern_index].mask = &eth_mask;
 
     pattern_index++;
-	/*
-	 * setting the second level of the pattern (vlan).
-	 * since in this example we just want to get the
-	 * ipv4 we also set this level to allow all.
-	 */
-	memset(&vlan_spec, 0, sizeof(struct rte_flow_item_vlan));
-	memset(&vlan_mask, 0, sizeof(struct rte_flow_item_vlan));
-	pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_VLAN;
-	pattern[pattern_index].spec = &vlan_spec;
-	pattern[pattern_index].mask = &vlan_mask;
+    if (hw_mode == fhtINTEL_DOT1Q){
+        /*
+        * setting the second level of the pattern (vlan).
+        * since in this example we just want to get the
+        * ipv4 we also set this level to allow all.
+        */
+        memset(&vlan_spec, 0, sizeof(struct rte_flow_item_vlan));
+        memset(&vlan_mask, 0, sizeof(struct rte_flow_item_vlan));
+        pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_VLAN;
+        pattern[pattern_index].spec = &vlan_spec;
+        pattern[pattern_index].mask = &vlan_mask;
 
-    pattern_index++;
+        pattern_index++;
+    }
+
 
     if (ipv6){
         memset(&ipv6_spec, 0, sizeof(struct rte_flow_item_ipv6));
@@ -110,8 +116,8 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
          */
         memset(&ipv4_spec, 0, sizeof(struct rte_flow_item_ipv4));
         memset(&ipv4_mask, 0, sizeof(struct rte_flow_item_ipv4));
-        ipv4_spec.hdr.type_of_service = 0x1;
-        ipv4_mask.hdr.type_of_service = 0x1;
+        ipv4_spec.hdr.type_of_service = 0x01;
+        ipv4_mask.hdr.type_of_service = 0x01; 
         pattern[pattern_index].type = RTE_FLOW_ITEM_TYPE_IPV4;
         pattern[pattern_index].spec = &ipv4_spec;
         pattern[pattern_index].mask = &ipv4_mask;
@@ -129,6 +135,7 @@ static struct rte_flow * filter_tos_flow_to_rq(uint8_t port_id,
 }
 
 static struct rte_flow * filter_drop_all(uint8_t port_id,
+                                        dpdk_filter_hw_nic_t hw_mode,
                                          struct rte_flow_error *error){
 	struct rte_flow_attr attr;
 	struct rte_flow_item pattern[MAX_PATTERN_NUM];
@@ -148,7 +155,10 @@ static struct rte_flow * filter_drop_all(uint8_t port_id,
 	 */
 	memset(&attr, 0, sizeof(struct rte_flow_attr));
 	attr.ingress = 1;
-    //attr.group =1;  /* not supported yet*/
+    //if (hw_mode == fhtMLX){
+        //attr.group =1;  
+        //attr.priority =1;/* not supported yet*/
+    //}
 
 	/*
 	 * create the action sequence.
@@ -165,8 +175,14 @@ static struct rte_flow * filter_drop_all(uint8_t port_id,
 	 */
 	memset(&eth_spec, 0, sizeof(struct rte_flow_item_eth));
 	memset(&eth_mask, 0, sizeof(struct rte_flow_item_eth));
-	eth_spec.type = 0;
-	eth_mask.type = 0;
+    if (hw_mode == fhtMLX){
+	    eth_spec.type = 0x0000;
+	    eth_mask.type = 0x0000;
+    }else{
+        eth_spec.type = RTE_BE16(0x0000); 
+        eth_mask.type = RTE_BE16(0x4000);
+    }
+
 	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
 	pattern[0].spec = &eth_spec;
 	pattern[0].mask = &eth_mask;
@@ -183,6 +199,7 @@ static struct rte_flow * filter_drop_all(uint8_t port_id,
 
 static struct rte_flow * filter_pass_all_to_rx(uint8_t port_id,
                                                uint8_t rx_q,
+                                               dpdk_filter_hw_nic_t hw_mode,
                                                struct rte_flow_error *error){
 	struct rte_flow_attr attr;
 	struct rte_flow_item pattern[MAX_PATTERN_NUM];
@@ -220,8 +237,14 @@ static struct rte_flow * filter_pass_all_to_rx(uint8_t port_id,
 	 */
 	memset(&eth_spec, 0, sizeof(struct rte_flow_item_eth));
 	memset(&eth_mask, 0, sizeof(struct rte_flow_item_eth));
-	eth_spec.type = 0;
-	eth_mask.type = 0;
+
+    if (hw_mode == fhtMLX){
+	    eth_spec.type = 0;
+	    eth_mask.type = 0;
+    }else{
+        eth_spec.type = RTE_BE16(0x0000);
+        eth_mask.type = RTE_BE16(0x4000);
+    }
 	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
 	pattern[0].spec = &eth_spec;
 	pattern[0].mask = &eth_mask;
@@ -267,11 +290,13 @@ void CDpdkFilterPort::set_tos_filter(bool enable){
         m_rx_ipv4_tos = filter_tos_flow_to_rq(m_repid,
                                               m_rx_q,
                                               false,
+                                              m_hw_mode, 
                                               &error);
         check_dpdk_filter_result(m_rx_ipv4_tos,&error);
         m_rx_ipv6_tos = filter_tos_flow_to_rq(m_repid,
                                               m_rx_q,
                                               true,
+                                              m_hw_mode, 
                                               &error);
         check_dpdk_filter_result(m_rx_ipv6_tos,&error);
     }else{
@@ -283,7 +308,7 @@ void CDpdkFilterPort::set_tos_filter(bool enable){
 void CDpdkFilterPort::set_drop_all_filter(bool enable){
     struct rte_flow_error error;
     if (enable){
-        m_rx_drop_all = filter_drop_all(m_repid,&error);
+        m_rx_drop_all = filter_drop_all(m_repid,m_hw_mode,&error);
         check_dpdk_filter_result(m_rx_drop_all,&error);
     }else{
         clear_filter(m_rx_drop_all);
@@ -293,7 +318,7 @@ void CDpdkFilterPort::set_drop_all_filter(bool enable){
 void CDpdkFilterPort::set_pass_all_filter(bool enable){
     struct rte_flow_error error;
     if (enable){
-        m_rx_pass_rx_all = filter_pass_all_to_rx(m_repid,m_rx_q,&error);
+        m_rx_pass_rx_all = filter_pass_all_to_rx(m_repid,m_rx_q,m_hw_mode,&error);
         check_dpdk_filter_result(m_rx_pass_rx_all,&error);
     }else{
         clear_filter(m_rx_pass_rx_all);
@@ -335,6 +360,7 @@ void CDpdkFilterPort::set_mode(dpdk_filter_mode_t mode){
 
 
 CDpdkFilterPort::CDpdkFilterPort(){
+    m_hw_mode = fhtMLX;
     m_repid=255;
     m_rx_q = 255;
     m_drop_all=false;
@@ -356,6 +382,7 @@ CDpdkFilterPort * CDpdkFilterManager::get_port(repid_t repid){
         return(lp);
     }
     lp = new CDpdkFilterPort();
+    lp->set_hw_mode(m_hw_mode);
     lp->set_port_id(repid);
     lp->set_drop_all_mode(get_is_tcp_mode()?false:true);
     lp->set_rx_q(MAIN_DPDK_RX_Q);

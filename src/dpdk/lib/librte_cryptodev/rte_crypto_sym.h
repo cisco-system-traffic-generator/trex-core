@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2016-2019 Intel Corporation
+ * Copyright(c) 2016-2020 Intel Corporation
  */
 
 #ifndef _RTE_CRYPTO_SYM_H_
@@ -25,8 +25,93 @@ extern "C" {
 #include <rte_mempool.h>
 #include <rte_common.h>
 
+/**
+ * Crypto IO Vector (in analogy with struct iovec)
+ * Supposed be used to pass input/output data buffers for crypto data-path
+ * functions.
+ */
+struct rte_crypto_vec {
+	/** virtual address of the data buffer */
+	void *base;
+	/** IOVA of the data buffer */
+	rte_iova_t iova;
+	/** length of the data buffer */
+	uint32_t len;
+};
 
-/** Symmetric Cipher Algorithms */
+/**
+ * Crypto scatter-gather list descriptor. Consists of a pointer to an array
+ * of Crypto IO vectors with its size.
+ */
+struct rte_crypto_sgl {
+	/** start of an array of vectors */
+	struct rte_crypto_vec *vec;
+	/** size of an array of vectors */
+	uint32_t num;
+};
+
+/**
+ * Crypto virtual and IOVA address descriptor, used to describe cryptographic
+ * data buffer without the length information. The length information is
+ * normally predefined during session creation.
+ */
+struct rte_crypto_va_iova_ptr {
+	void *va;
+	rte_iova_t iova;
+};
+
+/**
+ * Raw data operation descriptor.
+ * Supposed to be used with synchronous CPU crypto API call or asynchronous
+ * RAW data path API call.
+ */
+struct rte_crypto_sym_vec {
+	/** number of operations to perform */
+	uint32_t num;
+	/** array of SGL vectors */
+	struct rte_crypto_sgl *sgl;
+	/** array of pointers to cipher IV */
+	struct rte_crypto_va_iova_ptr *iv;
+	/** array of pointers to digest */
+	struct rte_crypto_va_iova_ptr *digest;
+
+	__extension__
+	union {
+		/** array of pointers to auth IV, used for chain operation */
+		struct rte_crypto_va_iova_ptr *auth_iv;
+		/** array of pointers to AAD, used for AEAD operation */
+		struct rte_crypto_va_iova_ptr *aad;
+	};
+
+	/**
+	 * array of statuses for each operation:
+	 * - 0 on success
+	 * - errno on error
+	 */
+	int32_t *status;
+};
+
+/**
+ * used for cpu_crypto_process_bulk() to specify head/tail offsets
+ * for auth/cipher processing.
+ */
+union rte_crypto_sym_ofs {
+	uint64_t raw;
+	struct {
+		struct {
+			uint16_t head;
+			uint16_t tail;
+		} auth, cipher;
+	} ofs;
+};
+
+/** Symmetric Cipher Algorithms
+ *
+ * Note, to avoid ABI breakage across releases
+ * - LIST_END should not be added to this enum
+ * - the order of enums should not be changed
+ * - new algorithms should only be added to the end
+ */
 enum rte_crypto_cipher_algorithm {
 	RTE_CRYPTO_CIPHER_NULL = 1,
 	/**< NULL cipher algorithm. No mode applies to the NULL algorithm. */
@@ -71,15 +156,12 @@ enum rte_crypto_cipher_algorithm {
 	 * for m_src and m_dst in the rte_crypto_sym_op must be NULL.
 	 */
 
-	RTE_CRYPTO_CIPHER_DES_DOCSISBPI,
+	RTE_CRYPTO_CIPHER_DES_DOCSISBPI
 	/**< DES algorithm using modes required by
 	 * DOCSIS Baseline Privacy Plus Spec.
 	 * Chained mbufs are not supported in this mode, i.e. rte_mbuf.next
 	 * for m_src and m_dst in the rte_crypto_sym_op must be NULL.
 	 */
-
-	RTE_CRYPTO_CIPHER_LIST_END
-
 };
 
 /** Cipher algorithm name strings */
@@ -114,8 +196,8 @@ struct rte_crypto_cipher_xform {
 	/**< Cipher algorithm */
 
 	struct {
-		uint8_t *data;	/**< pointer to key data */
-		uint16_t length;/**< key length in bytes */
+		const uint8_t *data;	/**< pointer to key data */
+		uint16_t length;	/**< key length in bytes */
 	} key;
 	/**< Cipher key
 	 *
@@ -152,11 +234,6 @@ struct rte_crypto_cipher_xform {
 		 *
 		 * - For block ciphers in CTR mode, this is the counter.
 		 *
-		 * - For GCM mode, this is either the IV (if the length
-		 * is 96 bits) or J0 (for other sizes), where J0 is as
-		 * defined by NIST SP800-38D. Regardless of the IV
-		 * length, a full 16 bytes needs to be allocated.
-		 *
 		 * - For CCM mode, the first byte is reserved, and the
 		 * nonce should be written starting at &iv[1] (to allow
 		 * space for the implementation to write in the flags
@@ -184,16 +261,19 @@ struct rte_crypto_cipher_xform {
 		 * of the counter (which must be the same as the block
 		 * length of the cipher).
 		 *
-		 * - For GCM mode, this is either 12 (for 96-bit IVs)
-		 * or 16, in which case data points to J0.
-		 *
 		 * - For CCM mode, this is the length of the nonce,
 		 * which can be in the range 7 to 13 inclusive.
 		 */
 	} iv;	/**< Initialisation vector parameters */
 };
 
-/** Symmetric Authentication / Hash Algorithms */
+/** Symmetric Authentication / Hash Algorithms
+ *
+ * Note, to avoid ABI breakage across releases
+ * - LIST_END should not be added to this enum
+ * - the order of enums should not be changed
+ * - new algorithms should only be added to the end
+ */
 enum rte_crypto_auth_algorithm {
 	RTE_CRYPTO_AUTH_NULL = 1,
 	/**< NULL hash algorithm. */
@@ -216,9 +296,12 @@ enum rte_crypto_auth_algorithm {
 	/**< HMAC using MD5 algorithm */
 
 	RTE_CRYPTO_AUTH_SHA1,
-	/**< 128 bit SHA algorithm. */
+	/**< 160 bit SHA algorithm. */
 	RTE_CRYPTO_AUTH_SHA1_HMAC,
-	/**< HMAC using 128 bit SHA algorithm. */
+	/**< HMAC using 160 bit SHA algorithm.
+	 * HMAC-SHA-1-96 can be generated by setting
+	 * digest_length to 12 bytes in auth/aead xforms.
+	 */
 	RTE_CRYPTO_AUTH_SHA224,
 	/**< 224 bit SHA algorithm. */
 	RTE_CRYPTO_AUTH_SHA224_HMAC,
@@ -256,10 +339,8 @@ enum rte_crypto_auth_algorithm {
 	/**< HMAC using 384 bit SHA3 algorithm. */
 	RTE_CRYPTO_AUTH_SHA3_512,
 	/**< 512 bit SHA3 algorithm. */
-	RTE_CRYPTO_AUTH_SHA3_512_HMAC,
+	RTE_CRYPTO_AUTH_SHA3_512_HMAC
 	/**< HMAC using 512 bit SHA3 algorithm. */
-
-	RTE_CRYPTO_AUTH_LIST_END
 };
 
 /** Authentication algorithm name strings */
@@ -290,8 +371,8 @@ struct rte_crypto_auth_xform {
 	/**< Authentication algorithm selection */
 
 	struct {
-		uint8_t *data;	/**< pointer to key data */
-		uint16_t length;/**< key length in bytes */
+		const uint8_t *data;	/**< pointer to key data */
+		uint16_t length;	/**< key length in bytes */
 	} key;
 	/**< Authentication key data.
 	 * The authentication key length MUST be less than or equal to the
@@ -306,9 +387,10 @@ struct rte_crypto_auth_xform {
 		 * specified as number of bytes from start of crypto
 		 * operation (rte_crypto_op).
 		 *
-		 * - For SNOW 3G in UIA2 mode, for ZUC in EIA3 mode and
-		 *   for AES-GMAC, this is the authentication
-		 *   Initialisation Vector (IV) value.
+		 * - For SNOW 3G in UIA2 mode, for ZUC in EIA3 mode
+		 *   this is the authentication Initialisation Vector
+		 *   (IV) value. For AES-GMAC IV description please refer
+		 *   to the field `length` in iv struct.
 		 *
 		 * - For KASUMI in F9 mode and other authentication
 		 *   algorithms, this field is not used.
@@ -324,6 +406,14 @@ struct rte_crypto_auth_xform {
 		 *
 		 * - For KASUMI in F9 mode and other authentication
 		 *   algorithms, this field is not used.
+		 *
+		 * - For GMAC mode, this is either:
+		 * 1) Number greater or equal to one, which means that IV
+		 *    is used and J0 will be computed internally, a minimum
+		 *    of 16 bytes must be allocated.
+		 * 2) Zero, in which case data points to J0. In this case
+		 *    16 bytes of J0 should be passed where J0 is defined
+		 *    by NIST SP800-38D.
 		 *
 		 */
 	} iv;	/**< Initialisation vector parameters */
@@ -341,13 +431,20 @@ struct rte_crypto_auth_xform {
 };
 
 
-/** Symmetric AEAD Algorithms */
+/** Symmetric AEAD Algorithms
+ *
+ * Note, to avoid ABI breakage across releases
+ * - LIST_END should not be added to this enum
+ * - the order of enums should not be changed
+ * - new algorithms should only be added to the end
+ */
 enum rte_crypto_aead_algorithm {
 	RTE_CRYPTO_AEAD_AES_CCM = 1,
 	/**< AES algorithm in CCM mode. */
 	RTE_CRYPTO_AEAD_AES_GCM,
 	/**< AES algorithm in GCM mode. */
-	RTE_CRYPTO_AEAD_LIST_END
+	RTE_CRYPTO_AEAD_CHACHA20_POLY1305
+	/**< Chacha20 cipher with poly1305 authenticator */
 };
 
 /** AEAD algorithm name strings */
@@ -373,8 +470,8 @@ struct rte_crypto_aead_xform {
 	/**< AEAD algorithm selection */
 
 	struct {
-		uint8_t *data;  /**< pointer to key data */
-		uint16_t length;/**< key length in bytes */
+		const uint8_t *data;	/**< pointer to key data */
+		uint16_t length;	/**< key length in bytes */
 	} key;
 
 	struct {
@@ -383,11 +480,6 @@ struct rte_crypto_aead_xform {
 		 * specified as number of bytes from start of crypto
 		 * operation (rte_crypto_op).
 		 *
-		 * - For GCM mode, this is either the IV (if the length
-		 * is 96 bits) or J0 (for other sizes), where J0 is as
-		 * defined by NIST SP800-38D. Regardless of the IV
-		 * length, a full 16 bytes needs to be allocated.
-		 *
 		 * - For CCM mode, the first byte is reserved, and the
 		 * nonce should be written starting at &iv[1] (to allow
 		 * space for the implementation to write in the flags
@@ -395,17 +487,29 @@ struct rte_crypto_aead_xform {
 		 * be allocated, even though the length field will
 		 * have a value less than this.
 		 *
+		 * - For Chacha20-Poly1305 it is 96-bit nonce.
+		 * PMD sets initial counter for Poly1305 key generation
+		 * part to 0 and for Chacha20 encryption to 1 as per
+		 * rfc8439 2.8. AEAD construction.
+		 *
 		 * For optimum performance, the data pointed to SHOULD
 		 * be 8-byte aligned.
 		 */
 		uint16_t length;
 		/**< Length of valid IV data.
 		 *
-		 * - For GCM mode, this is either 12 (for 96-bit IVs)
-		 * or 16, in which case data points to J0.
+		 * - For GCM mode, this is either:
+		 * 1) Number greater or equal to one, which means that IV
+		 *    is used and J0 will be computed internally, a minimum
+		 *    of 16 bytes must be allocated.
+		 * 2) Zero, in which case data points to J0. In this case
+		 *    16 bytes of J0 should be passed where J0 is defined
+		 *    by NIST SP800-38D.
 		 *
 		 * - For CCM mode, this is the length of the nonce,
 		 * which can be in the range 7 to 13 inclusive.
+		 *
+		 * - For Chacha20-Poly1305 this field is always 12.
 		 */
 	} iv;	/**< Initialisation vector parameters */
 
@@ -589,7 +693,9 @@ struct rte_crypto_sym_op {
 					  * For SNOW 3G @ RTE_CRYPTO_CIPHER_SNOW3G_UEA2,
 					  * KASUMI @ RTE_CRYPTO_CIPHER_KASUMI_F8
 					  * and ZUC @ RTE_CRYPTO_CIPHER_ZUC_EEA3,
-					  * this field should be in bits.
+					  * this field should be in bits. For
+					  * digest-encrypted cases this must be
+					  * an 8-bit multiple.
 					  */
 					uint32_t length;
 					 /**< The message length, in bytes, of the
@@ -603,7 +709,9 @@ struct rte_crypto_sym_op {
 					  * For SNOW 3G @ RTE_CRYPTO_AUTH_SNOW3G_UEA2,
 					  * KASUMI @ RTE_CRYPTO_CIPHER_KASUMI_F8
 					  * and ZUC @ RTE_CRYPTO_CIPHER_ZUC_EEA3,
-					  * this field should be in bits.
+					  * this field should be in bits. For
+					  * digest-encrypted cases this must be
+					  * an 8-bit multiple.
 					  */
 				} data; /**< Data offsets and length for ciphering */
 			} cipher;
@@ -619,12 +727,22 @@ struct rte_crypto_sym_op {
 					  * For SNOW 3G @ RTE_CRYPTO_AUTH_SNOW3G_UIA2,
 					  * KASUMI @ RTE_CRYPTO_AUTH_KASUMI_F9
 					  * and ZUC @ RTE_CRYPTO_AUTH_ZUC_EIA3,
-					  * this field should be in bits.
+					  * this field should be in bits. For
+					  * digest-encrypted cases this must be
+					  * an 8-bit multiple.
 					  *
 					  * @note
 					  * For KASUMI @ RTE_CRYPTO_AUTH_KASUMI_F9,
 					  * this offset should be such that
 					  * data to authenticate starts at COUNT.
+					  *
+					  * @note
+					  * For DOCSIS security protocol, this
+					  * offset is the DOCSIS header length
+					  * and, therefore, also the CRC offset
+					  * i.e. the number of bytes into the
+					  * packet at which CRC calculation
+					  * should begin.
 					  */
 					uint32_t length;
 					 /**< The message length, in bytes, of the source
@@ -634,13 +752,21 @@ struct rte_crypto_sym_op {
 					  * For SNOW 3G @ RTE_CRYPTO_AUTH_SNOW3G_UIA2,
 					  * KASUMI @ RTE_CRYPTO_AUTH_KASUMI_F9
 					  * and ZUC @ RTE_CRYPTO_AUTH_ZUC_EIA3,
-					  * this field should be in bits.
+					  * this field should be in bits. For
+					  * digest-encrypted cases this must be
+					  * an 8-bit multiple.
 					  *
 					  * @note
 					  * For KASUMI @ RTE_CRYPTO_AUTH_KASUMI_F9,
 					  * the length should include the COUNT,
 					  * FRESH, message, direction bit and padding
 					  * (to be multiple of 8 bits).
+					  *
+					  * @note
+					  * For DOCSIS security protocol, this
+					  * is the CRC length i.e. the number of
+					  * bytes in the packet over which the
+					  * CRC should be calculated
 					  */
 				} data;
 				/**< Data offsets and length for authentication */
@@ -664,6 +790,57 @@ struct rte_crypto_sym_op {
 					 *
 					 * For digest generation, the digest result
 					 * will overwrite any data at this location.
+					 *
+					 * @note
+					 * Digest-encrypted case.
+					 * Digest can be generated, appended to
+					 * the end of raw data and encrypted
+					 * together using chained digest
+					 * generation
+					 * (@ref RTE_CRYPTO_AUTH_OP_GENERATE)
+					 * and encryption
+					 * (@ref RTE_CRYPTO_CIPHER_OP_ENCRYPT)
+					 * xforms. Similarly, authentication
+					 * of the raw data against appended,
+					 * decrypted digest, can be performed
+					 * using decryption
+					 * (@ref RTE_CRYPTO_CIPHER_OP_DECRYPT)
+					 * and digest verification
+					 * (@ref RTE_CRYPTO_AUTH_OP_VERIFY)
+					 * chained xforms.
+					 * To perform those operations, a few
+					 * additional conditions must be met:
+					 * - caller must allocate at least
+					 * digest_length of memory at the end of
+					 * source and (in case of out-of-place
+					 * operations) destination buffer; those
+					 * buffers can be linear or split using
+					 * scatter-gather lists,
+					 * - digest data pointer must point to
+					 * the end of source or (in case of
+					 * out-of-place operations) destination
+					 * data, which is pointer to the
+					 * data buffer + auth.data.offset +
+					 * auth.data.length,
+					 * - cipher.data.offset +
+					 * cipher.data.length must be greater
+					 * than auth.data.offset +
+					 * auth.data.length and is typically
+					 * equal to auth.data.offset +
+					 * auth.data.length + digest_length.
+					 * - for wireless algorithms, i.e.
+					 * SNOW 3G, KASUMI and ZUC, as the
+					 * cipher.data.length,
+					 * cipher.data.offset,
+					 * auth.data.length and
+					 * auth.data.offset are in bits, they
+					 * must be 8-bit multiples.
+					 *
+					 * Note, that for security reasons, it
+					 * is PMDs' responsibility to not
+					 * leave an unencrypted digest in any
+					 * buffer after performing auth-cipher
+					 * operations.
 					 *
 					 */
 					rte_iova_t phys_addr;
@@ -727,6 +904,75 @@ __rte_crypto_sym_op_attach_sym_session(struct rte_crypto_sym_op *sym_op,
 	sym_op->session = sess;
 
 	return 0;
+}
+
+/**
+ * Converts portion of mbuf data into a vector representation.
+ * Each segment will be represented as a separate entry in *vec* array.
+ * Expects that provided *ofs* + *len* not to exceed mbuf's *pkt_len*.
+ * @param mb
+ *   Pointer to the *rte_mbuf* object.
+ * @param ofs
+ *   Offset within mbuf data to start with.
+ * @param len
+ *   Length of data to represent.
+ * @param vec
+ *   Pointer to an output array of IO vectors.
+ * @param num
+ *   Size of an output array.
+ * @return
+ *   - number of successfully filled entries in *vec* array.
+ *   - negative number of elements in *vec* array required.
+ */
+__rte_experimental
+static inline int
+rte_crypto_mbuf_to_vec(const struct rte_mbuf *mb, uint32_t ofs, uint32_t len,
+	struct rte_crypto_vec vec[], uint32_t num)
+{
+	uint32_t i;
+	struct rte_mbuf *nseg;
+	uint32_t left;
+	uint32_t seglen;
+
+	/* assuming that requested data starts in the first segment */
+	RTE_ASSERT(mb->data_len > ofs);
+
+	if (mb->nb_segs > num)
+		return -mb->nb_segs;
+
+	vec[0].base = rte_pktmbuf_mtod_offset(mb, void *, ofs);
+	vec[0].iova = rte_pktmbuf_iova_offset(mb, ofs);
+
+	/* whole data lies in the first segment */
+	seglen = mb->data_len - ofs;
+	if (len <= seglen) {
+		vec[0].len = len;
+		return 1;
+	}
+
+	/* data spread across segments */
+	vec[0].len = seglen;
+	left = len - seglen;
+	for (i = 1, nseg = mb->next; nseg != NULL; nseg = nseg->next, i++) {
+
+		vec[i].base = rte_pktmbuf_mtod(nseg, void *);
+		vec[i].iova = rte_pktmbuf_iova(nseg);
+
+		seglen = nseg->data_len;
+		if (left <= seglen) {
+			/* whole requested data is completed */
+			vec[i].len = left;
+			left = 0;
+			break;
+		}
+
+		/* use whole segment */
+		vec[i].len = seglen;
+		left -= seglen;
+	}
+
+	RTE_ASSERT(left == 0);
+	return i + 1;
 }
 
 

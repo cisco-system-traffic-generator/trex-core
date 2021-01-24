@@ -22,6 +22,8 @@
 #include "trex_driver_ixgbe.h"
 #include "trex_driver_defines.h"
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "trex_rte_eth_ctrl.h"
+
 
 CTRexExtendedDriverBase10G::CTRexExtendedDriverBase10G() {
     m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG ;
@@ -113,7 +115,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_stateless(CPhyEthIF * 
         fdir_filter.action.rx_queue = 1;
         fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
         fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
-        res = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+        res = trex_ixgbe_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_FDIR, TREX_RTE_ETH_FILTER_ADD, &fdir_filter);
 
         if (res != 0) {
             rte_exit(EXIT_FAILURE, "Error: rte_eth_dev_filter_ctrl in configure_rx_filter_rules_stateless: %d\n",res);
@@ -159,7 +161,7 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
     }
 
     for (int rule_num = 0; rule_num < num_rules; rule_num++ ) {
-        struct rte_eth_fdir_filter fdir_filter;
+        struct trex_rte_eth_fdir_filter fdir_filter;
         uint16_t ff_rule = ff_rules[rule_num];
         int res = 0;
         uint16_t v4_hops;
@@ -180,9 +182,9 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
             }
             fdir_filter.soft_id = rule_id++;
             fdir_filter.action.rx_queue = 1;
-            fdir_filter.action.behavior = RTE_ETH_FDIR_ACCEPT;
-            fdir_filter.action.report_status = RTE_ETH_FDIR_NO_REPORT_STATUS;
-            res = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_ADD, &fdir_filter);
+            fdir_filter.action.behavior = TREX_RTE_ETH_FDIR_ACCEPT;
+            fdir_filter.action.report_status = TREX_RTE_ETH_FDIR_NO_REPORT_STATUS;
+            res = trex_ixgbe_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_FDIR, TREX_RTE_ETH_FILTER_ADD, &fdir_filter);
 
             if (res != 0) {
                 rte_exit(EXIT_FAILURE
@@ -197,12 +199,12 @@ int CTRexExtendedDriverBase10G::configure_rx_filter_rules_statefull(CPhyEthIF * 
 int CTRexExtendedDriverBase10G::add_del_eth_filter(CPhyEthIF * _if, bool is_add, uint16_t ethertype) {
     int res = 0;
     repid_t repid =_if->get_repid();
-    struct rte_eth_ethertype_filter filter;
-    enum rte_filter_op op;
+    struct trex_rte_eth_ethertype_filter filter;
+    enum trex_rte_filter_op op;
 
     memset(&filter, 0, sizeof(filter));
     filter.ether_type = ethertype;
-    res = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_ETHERTYPE, RTE_ETH_FILTER_GET, &filter);
+    res = trex_ixgbe_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_ETHERTYPE, TREX_RTE_ETH_FILTER_GET, &filter);
 
     if (is_add && (res >= 0))
         return 0;
@@ -210,13 +212,13 @@ int CTRexExtendedDriverBase10G::add_del_eth_filter(CPhyEthIF * _if, bool is_add,
         return 0;
 
     if (is_add) {
-        op = RTE_ETH_FILTER_ADD;
+        op = TREX_RTE_ETH_FILTER_ADD;
     } else {
-        op = RTE_ETH_FILTER_DELETE;
+        op = TREX_RTE_ETH_FILTER_DELETE;
     }
 
     filter.queue = 1;
-    res = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_ETHERTYPE, op, &filter);
+    res = trex_ixgbe_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_ETHERTYPE, op, &filter);
     if (res != 0) {
         printf("Error: %s L2 filter for ethertype 0x%04x returned %d\n", is_add ? "Adding":"Deleting", ethertype, res);
         exit(1);

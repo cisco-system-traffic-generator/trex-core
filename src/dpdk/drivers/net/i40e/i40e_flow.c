@@ -17,16 +17,21 @@
 #include <rte_malloc.h>
 #include <rte_tailq.h>
 #include <rte_flow_driver.h>
+#include <rte_bitmap.h>
 
 #include "i40e_logs.h"
 #include "base/i40e_type.h"
 #include "base/i40e_prototype.h"
 #include "i40e_ethdev.h"
+#include "i40e_hash.h"
 
 #define I40E_IPV6_TC_MASK	(0xFF << I40E_FDIR_IPv6_TC_OFFSET)
 #define I40E_IPV6_FRAG_HEADER	44
 #define I40E_TENANT_ARRAY_NUM	3
-#define I40E_TCI_MASK		0xFFFF
+#define I40E_VLAN_TCI_MASK	0xFFFF
+#define I40E_VLAN_PRI_MASK	0xE000
+#define I40E_VLAN_CFI_MASK	0x1000
+#define I40E_VLAN_VID_MASK	0x0FFF
 
 static int i40e_flow_validate(struct rte_eth_dev *dev,
 			      const struct rte_flow_attr *attr,
@@ -43,6 +48,10 @@ static int i40e_flow_destroy(struct rte_eth_dev *dev,
 			     struct rte_flow_error *error);
 static int i40e_flow_flush(struct rte_eth_dev *dev,
 			   struct rte_flow_error *error);
+static int i40e_flow_query(struct rte_eth_dev *dev,
+			   struct rte_flow *flow,
+			   const struct rte_flow_action *actions,
+			   void *data, struct rte_flow_error *error);
 static int
 i40e_flow_parse_ethertype_pattern(struct rte_eth_dev *dev,
 				  const struct rte_flow_item *pattern,
@@ -110,7 +119,6 @@ static int i40e_flow_destroy_tunnel_filter(struct i40e_pf *pf,
 static int i40e_flow_flush_fdir_filter(struct i40e_pf *pf);
 static int i40e_flow_flush_ethertype_filter(struct i40e_pf *pf);
 static int i40e_flow_flush_tunnel_filter(struct i40e_pf *pf);
-static int i40e_flow_flush_rss_filter(struct rte_eth_dev *dev);
 static int
 i40e_flow_parse_qinq_filter(struct rte_eth_dev *dev,
 			      const struct rte_flow_attr *attr,
@@ -124,15 +132,24 @@ i40e_flow_parse_qinq_pattern(struct rte_eth_dev *dev,
 			      struct rte_flow_error *error,
 			      struct i40e_tunnel_filter_conf *filter);
 
+static int i40e_flow_parse_l4_cloud_filter(struct rte_eth_dev *dev,
+					   const struct rte_flow_attr *attr,
+					   const struct rte_flow_item pattern[],
+					   const struct rte_flow_action actions[],
+					   struct rte_flow_error *error,
+					   union i40e_filter_t *filter);
 const struct rte_flow_ops i40e_flow_ops = {
 	.validate = i40e_flow_validate,
 	.create = i40e_flow_create,
 	.destroy = i40e_flow_destroy,
 	.flush = i40e_flow_flush,
+	.query = i40e_flow_query,
 };
 
 static union i40e_filter_t cons_filter;
 static enum rte_filter_type cons_filter_type = RTE_ETH_FILTER_NONE;
+/* internal pattern w/o VOID items */
+struct rte_flow_item g_items[32];
 
 /* Pattern matched ethertype filter */
 static enum rte_flow_item_type pattern_ethertype[] = {
@@ -1845,6 +1862,13 @@ static struct i40e_valid_pattern i40e_supported_patterns[] = {
 	/* L2TPv3 over IP */
 	{ pattern_fdir_ipv4_l2tpv3oip, i40e_flow_parse_fdir_filter },
 	{ pattern_fdir_ipv6_l2tpv3oip, i40e_flow_parse_fdir_filter },
+	/* L4 over port */
+	{ pattern_fdir_ipv4_udp, i40e_flow_parse_l4_cloud_filter },
+	{ pattern_fdir_ipv4_tcp, i40e_flow_parse_l4_cloud_filter },
+	{ pattern_fdir_ipv4_sctp, i40e_flow_parse_l4_cloud_filter },
+	{ pattern_fdir_ipv6_udp, i40e_flow_parse_l4_cloud_filter },
+	{ pattern_fdir_ipv6_tcp, i40e_flow_parse_l4_cloud_filter },
+	{ pattern_fdir_ipv6_sctp, i40e_flow_parse_l4_cloud_filter },
 };
 
 #define NEXT_ITEM_OF_ACTION(act, actions, index)                        \
@@ -2026,9 +2050,6 @@ i40e_flow_parse_ethertype_pattern(struct rte_eth_dev *dev,
 	const struct rte_flow_item_eth *eth_spec;
 	const struct rte_flow_item_eth *eth_mask;
 	enum rte_flow_item_type item_type;
-	uint16_t outer_tpid;
-
-	outer_tpid = i40e_get_outer_vlan(dev);
 
 	for (; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
 		if (item->last) {
@@ -2088,7 +2109,7 @@ i40e_flow_parse_ethertype_pattern(struct rte_eth_dev *dev,
 			if (filter->ether_type == RTE_ETHER_TYPE_IPV4 ||
 			    filter->ether_type == RTE_ETHER_TYPE_IPV6 ||
 			    filter->ether_type == RTE_ETHER_TYPE_LLDP ||
-			    filter->ether_type == outer_tpid) {
+			    filter->ether_type == i40e_get_outer_vlan(dev)) {
 				rte_flow_error_set(error, EINVAL,
 						   RTE_FLOW_ERROR_TYPE_ITEM,
 						   item,
@@ -2220,152 +2241,6 @@ i40e_flow_check_raw_item(const struct rte_flow_item *item,
 		return -rte_errno;
 	}
 	return 0;
-}
-
-static int
-i40e_flow_store_flex_pit(struct i40e_pf *pf,
-			 struct i40e_fdir_flex_pit *flex_pit,
-			 enum i40e_flxpld_layer_idx layer_idx,
-			 uint8_t raw_id)
-{
-	uint8_t field_idx;
-
-	field_idx = layer_idx * I40E_MAX_FLXPLD_FIED + raw_id;
-	/* Check if the configuration is conflicted */
-	if (pf->fdir.flex_pit_flag[layer_idx] &&
-	    (pf->fdir.flex_set[field_idx].src_offset != flex_pit->src_offset ||
-	     pf->fdir.flex_set[field_idx].size != flex_pit->size ||
-	     pf->fdir.flex_set[field_idx].dst_offset != flex_pit->dst_offset))
-		return -1;
-
-	/* Check if the configuration exists. */
-	if (pf->fdir.flex_pit_flag[layer_idx] &&
-	    (pf->fdir.flex_set[field_idx].src_offset == flex_pit->src_offset &&
-	     pf->fdir.flex_set[field_idx].size == flex_pit->size &&
-	     pf->fdir.flex_set[field_idx].dst_offset == flex_pit->dst_offset))
-		return 1;
-
-	pf->fdir.flex_set[field_idx].src_offset =
-		flex_pit->src_offset;
-	pf->fdir.flex_set[field_idx].size =
-		flex_pit->size;
-	pf->fdir.flex_set[field_idx].dst_offset =
-		flex_pit->dst_offset;
-
-	return 0;
-}
-
-static int
-i40e_flow_store_flex_mask(struct i40e_pf *pf,
-			  enum i40e_filter_pctype pctype,
-			  uint8_t *mask)
-{
-	struct i40e_fdir_flex_mask flex_mask;
-	uint16_t mask_tmp;
-	uint8_t i, nb_bitmask = 0;
-
-	memset(&flex_mask, 0, sizeof(struct i40e_fdir_flex_mask));
-	for (i = 0; i < I40E_FDIR_MAX_FLEX_LEN; i += sizeof(uint16_t)) {
-		mask_tmp = I40E_WORD(mask[i], mask[i + 1]);
-		if (mask_tmp) {
-			flex_mask.word_mask |=
-				I40E_FLEX_WORD_MASK(i / sizeof(uint16_t));
-			if (mask_tmp != UINT16_MAX) {
-				flex_mask.bitmask[nb_bitmask].mask = ~mask_tmp;
-				flex_mask.bitmask[nb_bitmask].offset =
-					i / sizeof(uint16_t);
-				nb_bitmask++;
-				if (nb_bitmask > I40E_FDIR_BITMASK_NUM_WORD)
-					return -1;
-			}
-		}
-	}
-	flex_mask.nb_bitmask = nb_bitmask;
-
-	if (pf->fdir.flex_mask_flag[pctype] &&
-	    (memcmp(&flex_mask, &pf->fdir.flex_mask[pctype],
-		    sizeof(struct i40e_fdir_flex_mask))))
-		return -2;
-	else if (pf->fdir.flex_mask_flag[pctype] &&
-		 !(memcmp(&flex_mask, &pf->fdir.flex_mask[pctype],
-			  sizeof(struct i40e_fdir_flex_mask))))
-		return 1;
-
-	memcpy(&pf->fdir.flex_mask[pctype], &flex_mask,
-	       sizeof(struct i40e_fdir_flex_mask));
-	return 0;
-}
-
-static void
-i40e_flow_set_fdir_flex_pit(struct i40e_pf *pf,
-			    enum i40e_flxpld_layer_idx layer_idx,
-			    uint8_t raw_id)
-{
-	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
-	uint32_t flx_pit, flx_ort;
-	uint8_t field_idx;
-	uint16_t min_next_off = 0;  /* in words */
-	uint8_t i;
-
-	if (raw_id) {
-		flx_ort = (1 << I40E_GLQF_ORT_FLX_PAYLOAD_SHIFT) |
-			  (raw_id << I40E_GLQF_ORT_FIELD_CNT_SHIFT) |
-			  (layer_idx * I40E_MAX_FLXPLD_FIED);
-		I40E_WRITE_GLB_REG(hw, I40E_GLQF_ORT(33 + layer_idx), flx_ort);
-	}
-
-	/* Set flex pit */
-	for (i = 0; i < raw_id; i++) {
-		field_idx = layer_idx * I40E_MAX_FLXPLD_FIED + i;
-		flx_pit = MK_FLX_PIT(pf->fdir.flex_set[field_idx].src_offset,
-				     pf->fdir.flex_set[field_idx].size,
-				     pf->fdir.flex_set[field_idx].dst_offset);
-
-		I40E_WRITE_REG(hw, I40E_PRTQF_FLX_PIT(field_idx), flx_pit);
-		min_next_off = pf->fdir.flex_set[field_idx].src_offset +
-			pf->fdir.flex_set[field_idx].size;
-	}
-
-	for (; i < I40E_MAX_FLXPLD_FIED; i++) {
-		/* set the non-used register obeying register's constrain */
-		field_idx = layer_idx * I40E_MAX_FLXPLD_FIED + i;
-		flx_pit = MK_FLX_PIT(min_next_off, NONUSE_FLX_PIT_FSIZE,
-				     NONUSE_FLX_PIT_DEST_OFF);
-		I40E_WRITE_REG(hw, I40E_PRTQF_FLX_PIT(field_idx), flx_pit);
-		min_next_off++;
-	}
-
-	pf->fdir.flex_pit_flag[layer_idx] = 1;
-}
-
-static void
-i40e_flow_set_fdir_flex_msk(struct i40e_pf *pf,
-			    enum i40e_filter_pctype pctype)
-{
-	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
-	struct i40e_fdir_flex_mask *flex_mask;
-	uint32_t flxinset, fd_mask;
-	uint8_t i;
-
-	/* Set flex mask */
-	flex_mask = &pf->fdir.flex_mask[pctype];
-	flxinset = (flex_mask->word_mask <<
-		    I40E_PRTQF_FD_FLXINSET_INSET_SHIFT) &
-		I40E_PRTQF_FD_FLXINSET_INSET_MASK;
-	i40e_write_rx_ctl(hw, I40E_PRTQF_FD_FLXINSET(pctype), flxinset);
-
-	for (i = 0; i < flex_mask->nb_bitmask; i++) {
-		fd_mask = (flex_mask->bitmask[i].mask <<
-			   I40E_PRTQF_FD_MSK_MASK_SHIFT) &
-			I40E_PRTQF_FD_MSK_MASK_MASK;
-		fd_mask |= ((flex_mask->bitmask[i].offset +
-			     I40E_FLX_OFFSET_IN_FIELD_VECTOR) <<
-			    I40E_PRTQF_FD_MSK_OFFSET_SHIFT) &
-			I40E_PRTQF_FD_MSK_OFFSET_MASK;
-		i40e_write_rx_ctl(hw, I40E_PRTQF_FD_MSK(pctype, i), fd_mask);
-	}
-
-	pf->fdir.flex_mask_flag[pctype] = 1;
 }
 
 static int
@@ -2586,20 +2461,15 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 	uint16_t len_arr[I40E_MAX_FLXPLD_FIED];
 	struct i40e_fdir_flex_pit flex_pit;
 	uint8_t next_dst_off = 0;
-	uint8_t flex_mask[I40E_FDIR_MAX_FLEX_LEN];
 	uint16_t flex_size;
-	bool cfg_flex_pit = true;
-	bool cfg_flex_msk = true;
-	uint16_t outer_tpid;
 	uint16_t ether_type;
 	uint32_t vtc_flow_cpu;
 	bool outer_ip = true;
+	uint8_t field_idx;
 	int ret;
 
 	memset(off_arr, 0, sizeof(off_arr));
 	memset(len_arr, 0, sizeof(len_arr));
-	memset(flex_mask, 0, I40E_FDIR_MAX_FLEX_LEN);
-	outer_tpid = i40e_get_outer_vlan(dev);
 	filter->input.flow_ext.customized_pctype = false;
 	for (; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
 		if (item->last) {
@@ -2626,8 +2496,25 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 			}
 
 			if (eth_spec && eth_mask) {
-				if (!rte_is_zero_ether_addr(&eth_mask->src) ||
-				    !rte_is_zero_ether_addr(&eth_mask->dst)) {
+				if (rte_is_broadcast_ether_addr(&eth_mask->dst) &&
+					rte_is_zero_ether_addr(&eth_mask->src)) {
+					filter->input.flow.l2_flow.dst =
+						eth_spec->dst;
+					input_set |= I40E_INSET_DMAC;
+				} else if (rte_is_zero_ether_addr(&eth_mask->dst) &&
+					rte_is_broadcast_ether_addr(&eth_mask->src)) {
+					filter->input.flow.l2_flow.src =
+						eth_spec->src;
+					input_set |= I40E_INSET_SMAC;
+				} else if (rte_is_broadcast_ether_addr(&eth_mask->dst) &&
+					rte_is_broadcast_ether_addr(&eth_mask->src)) {
+					filter->input.flow.l2_flow.dst =
+						eth_spec->dst;
+					filter->input.flow.l2_flow.src =
+						eth_spec->src;
+					input_set |= (I40E_INSET_DMAC | I40E_INSET_SMAC);
+				} else if (!rte_is_zero_ether_addr(&eth_mask->src) ||
+					   !rte_is_zero_ether_addr(&eth_mask->dst)) {
 					rte_flow_error_set(error, EINVAL,
 						      RTE_FLOW_ERROR_TYPE_ITEM,
 						      item,
@@ -2635,7 +2522,8 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 					return -rte_errno;
 				}
 			}
-			if (eth_spec && eth_mask && eth_mask->type) {
+			if (eth_spec && eth_mask &&
+			next_type == RTE_FLOW_ITEM_TYPE_END) {
 				if (eth_mask->type != RTE_BE16(0xffff)) {
 					rte_flow_error_set(error, EINVAL,
 						      RTE_FLOW_ERROR_TYPE_ITEM,
@@ -2649,8 +2537,7 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 				if (next_type == RTE_FLOW_ITEM_TYPE_VLAN ||
 				    ether_type == RTE_ETHER_TYPE_IPV4 ||
 				    ether_type == RTE_ETHER_TYPE_IPV6 ||
-				    ether_type == RTE_ETHER_TYPE_ARP ||
-				    ether_type == outer_tpid) {
+				    ether_type == i40e_get_outer_vlan(dev)) {
 					rte_flow_error_set(error, EINVAL,
 						     RTE_FLOW_ERROR_TYPE_ITEM,
 						     item,
@@ -2672,12 +2559,22 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 
 			RTE_ASSERT(!(input_set & I40E_INSET_LAST_ETHER_TYPE));
 			if (vlan_spec && vlan_mask) {
-				if (vlan_mask->tci ==
-				    rte_cpu_to_be_16(I40E_TCI_MASK)) {
-					input_set |= I40E_INSET_VLAN_INNER;
-					filter->input.flow_ext.vlan_tci =
-						vlan_spec->tci;
+				if (vlan_mask->tci !=
+				    rte_cpu_to_be_16(I40E_VLAN_TCI_MASK) &&
+				    vlan_mask->tci !=
+				    rte_cpu_to_be_16(I40E_VLAN_PRI_MASK) &&
+				    vlan_mask->tci !=
+				    rte_cpu_to_be_16(I40E_VLAN_CFI_MASK) &&
+				    vlan_mask->tci !=
+				    rte_cpu_to_be_16(I40E_VLAN_VID_MASK)) {
+					rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Unsupported TCI mask.");
 				}
+				input_set |= I40E_INSET_VLAN_INNER;
+				filter->input.flow_ext.vlan_tci =
+					vlan_spec->tci;
 			}
 			if (vlan_spec && vlan_mask && vlan_mask->inner_type) {
 				if (vlan_mask->inner_type != RTE_BE16(0xffff)) {
@@ -2694,8 +2591,7 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 
 				if (ether_type == RTE_ETHER_TYPE_IPV4 ||
 				    ether_type == RTE_ETHER_TYPE_IPV6 ||
-				    ether_type == RTE_ETHER_TYPE_ARP ||
-				    ether_type == outer_tpid) {
+				    ether_type == i40e_get_outer_vlan(dev)) {
 					rte_flow_error_set(error, EINVAL,
 						     RTE_FLOW_ERROR_TYPE_ITEM,
 						     item,
@@ -2750,21 +2646,33 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 				    frag_off & RTE_IPV4_HDR_MF_FLAG)
 					pctype = I40E_FILTER_PCTYPE_FRAG_IPV4;
 
-				/* Get the filter info */
-				filter->input.flow.ip4_flow.proto =
-					ipv4_spec->hdr.next_proto_id;
-				filter->input.flow.ip4_flow.tos =
-					ipv4_spec->hdr.type_of_service;
-				filter->input.flow.ip4_flow.ttl =
-					ipv4_spec->hdr.time_to_live;
-				filter->input.flow.ip4_flow.src_ip =
-					ipv4_spec->hdr.src_addr;
-				filter->input.flow.ip4_flow.dst_ip =
-					ipv4_spec->hdr.dst_addr;
+				if (input_set & (I40E_INSET_DMAC | I40E_INSET_SMAC)) {
+					if (input_set & (I40E_INSET_IPV4_SRC |
+						I40E_INSET_IPV4_DST | I40E_INSET_IPV4_TOS |
+						I40E_INSET_IPV4_TTL | I40E_INSET_IPV4_PROTO)) {
+						rte_flow_error_set(error, EINVAL,
+							RTE_FLOW_ERROR_TYPE_ITEM,
+							item,
+							"L2 and L3 input set are exclusive.");
+						return -rte_errno;
+					}
+				} else {
+					/* Get the filter info */
+					filter->input.flow.ip4_flow.proto =
+						ipv4_spec->hdr.next_proto_id;
+					filter->input.flow.ip4_flow.tos =
+						ipv4_spec->hdr.type_of_service;
+					filter->input.flow.ip4_flow.ttl =
+						ipv4_spec->hdr.time_to_live;
+					filter->input.flow.ip4_flow.src_ip =
+						ipv4_spec->hdr.src_addr;
+					filter->input.flow.ip4_flow.dst_ip =
+						ipv4_spec->hdr.dst_addr;
 
-				filter->input.flow_ext.inner_ip = false;
-				filter->input.flow_ext.oip_type =
-					I40E_FDIR_IPTYPE_IPV4;
+					filter->input.flow_ext.inner_ip = false;
+					filter->input.flow_ext.oip_type =
+						I40E_FDIR_IPTYPE_IPV4;
+				}
 			} else if (!ipv4_spec && !ipv4_mask && !outer_ip) {
 				filter->input.flow_ext.inner_ip = true;
 				filter->input.flow_ext.iip_type =
@@ -2894,17 +2802,28 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 				if (tcp_mask->hdr.dst_port == UINT16_MAX)
 					input_set |= I40E_INSET_DST_PORT;
 
-				/* Get filter info */
-				if (l3 == RTE_FLOW_ITEM_TYPE_IPV4) {
-					filter->input.flow.tcp4_flow.src_port =
-						tcp_spec->hdr.src_port;
-					filter->input.flow.tcp4_flow.dst_port =
-						tcp_spec->hdr.dst_port;
-				} else if (l3 == RTE_FLOW_ITEM_TYPE_IPV6) {
-					filter->input.flow.tcp6_flow.src_port =
-						tcp_spec->hdr.src_port;
-					filter->input.flow.tcp6_flow.dst_port =
-						tcp_spec->hdr.dst_port;
+				if (input_set & (I40E_INSET_DMAC | I40E_INSET_SMAC)) {
+					if (input_set &
+						(I40E_INSET_SRC_PORT | I40E_INSET_DST_PORT)) {
+						rte_flow_error_set(error, EINVAL,
+							RTE_FLOW_ERROR_TYPE_ITEM,
+							item,
+							"L2 and L4 input set are exclusive.");
+						return -rte_errno;
+					}
+				} else {
+					/* Get filter info */
+					if (l3 == RTE_FLOW_ITEM_TYPE_IPV4) {
+						filter->input.flow.tcp4_flow.src_port =
+							tcp_spec->hdr.src_port;
+						filter->input.flow.tcp4_flow.dst_port =
+							tcp_spec->hdr.dst_port;
+					} else if (l3 == RTE_FLOW_ITEM_TYPE_IPV6) {
+						filter->input.flow.tcp6_flow.src_port =
+							tcp_spec->hdr.src_port;
+						filter->input.flow.tcp6_flow.dst_port =
+							tcp_spec->hdr.dst_port;
+					}
 				}
 			}
 
@@ -2938,17 +2857,28 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 				if (udp_mask->hdr.dst_port == UINT16_MAX)
 					input_set |= I40E_INSET_DST_PORT;
 
-				/* Get filter info */
-				if (l3 == RTE_FLOW_ITEM_TYPE_IPV4) {
-					filter->input.flow.udp4_flow.src_port =
-						udp_spec->hdr.src_port;
-					filter->input.flow.udp4_flow.dst_port =
-						udp_spec->hdr.dst_port;
-				} else if (l3 == RTE_FLOW_ITEM_TYPE_IPV6) {
-					filter->input.flow.udp6_flow.src_port =
-						udp_spec->hdr.src_port;
-					filter->input.flow.udp6_flow.dst_port =
-						udp_spec->hdr.dst_port;
+				if (input_set & (I40E_INSET_DMAC | I40E_INSET_SMAC)) {
+					if (input_set &
+						(I40E_INSET_SRC_PORT | I40E_INSET_DST_PORT)) {
+						rte_flow_error_set(error, EINVAL,
+							RTE_FLOW_ERROR_TYPE_ITEM,
+							item,
+							"L2 and L4 input set are exclusive.");
+						return -rte_errno;
+					}
+				} else {
+					/* Get filter info */
+					if (l3 == RTE_FLOW_ITEM_TYPE_IPV4) {
+						filter->input.flow.udp4_flow.src_port =
+							udp_spec->hdr.src_port;
+						filter->input.flow.udp4_flow.dst_port =
+							udp_spec->hdr.dst_port;
+					} else if (l3 == RTE_FLOW_ITEM_TYPE_IPV6) {
+						filter->input.flow.udp6_flow.src_port =
+							udp_spec->hdr.src_port;
+						filter->input.flow.udp6_flow.dst_port =
+							udp_spec->hdr.dst_port;
+					}
 				}
 			}
 			filter->input.flow_ext.is_udp = true;
@@ -3097,6 +3027,7 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 
 			flex_size = 0;
 			memset(&flex_pit, 0, sizeof(struct i40e_fdir_flex_pit));
+			field_idx = layer_idx * I40E_MAX_FLXPLD_FIED + raw_id;
 			flex_pit.size =
 				raw_spec->length / sizeof(uint16_t);
 			flex_pit.dst_offset =
@@ -3123,27 +3054,22 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 				return -rte_errno;
 			}
 
-			/* Store flex pit to SW */
-			ret = i40e_flow_store_flex_pit(pf, &flex_pit,
-						       layer_idx, raw_id);
-			if (ret < 0) {
-				rte_flow_error_set(error, EINVAL,
-				   RTE_FLOW_ERROR_TYPE_ITEM,
-				   item,
-				   "Conflict with the first flexible rule.");
-				return -rte_errno;
-			} else if (ret > 0)
-				cfg_flex_pit = false;
-
 			for (i = 0; i < raw_spec->length; i++) {
 				j = i + next_dst_off;
 				filter->input.flow_ext.flexbytes[j] =
 					raw_spec->pattern[i];
-				flex_mask[j] = raw_mask->pattern[i];
+				filter->input.flow_ext.flex_mask[j] =
+					raw_mask->pattern[i];
 			}
 
 			next_dst_off += raw_spec->length;
 			raw_id++;
+
+			memcpy(&filter->input.flow_ext.flex_pit[field_idx],
+			       &flex_pit, sizeof(struct i40e_fdir_flex_pit));
+			filter->input.flow_ext.layer_idx = layer_idx;
+			filter->input.flow_ext.raw_id = raw_id;
+			filter->input.flow_ext.is_flex_flow = true;
 			break;
 		case RTE_FLOW_ITEM_TYPE_VF:
 			vf_spec = item->spec;
@@ -3229,29 +3155,6 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 					   "Invalid pattern mask.");
 			return -rte_errno;
 		}
-
-		/* Store flex mask to SW */
-		ret = i40e_flow_store_flex_mask(pf, pctype, flex_mask);
-		if (ret == -1) {
-			rte_flow_error_set(error, EINVAL,
-					   RTE_FLOW_ERROR_TYPE_ITEM,
-					   item,
-					   "Exceed maximal number of bitmasks");
-			return -rte_errno;
-		} else if (ret == -2) {
-			rte_flow_error_set(error, EINVAL,
-					   RTE_FLOW_ERROR_TYPE_ITEM,
-					   item,
-					   "Conflict with the first flexible rule");
-			return -rte_errno;
-		} else if (ret > 0)
-			cfg_flex_msk = false;
-
-		if (cfg_flex_pit)
-			i40e_flow_set_fdir_flex_pit(pf, layer_idx, raw_id);
-
-		if (cfg_flex_msk)
-			i40e_flow_set_fdir_flex_msk(pf, pctype);
 	}
 
 	filter->input.pctype = pctype;
@@ -3394,26 +3297,27 @@ i40e_flow_parse_fdir_filter(struct rte_eth_dev *dev,
 
 	cons_filter_type = RTE_ETH_FILTER_FDIR;
 
-	if (dev->data->dev_conf.fdir_conf.mode != RTE_FDIR_MODE_PERFECT ||
-		pf->fdir.fdir_vsi == NULL) {
+	if (pf->fdir.fdir_vsi == NULL) {
 		/* Enable fdir when fdir flow is added at first time. */
-		ret = i40e_fdir_setup(pf);
+		ret = trex_i40e_fdir_setup(pf);
 		if (ret != I40E_SUCCESS) {
 			rte_flow_error_set(error, ENOTSUP,
 					   RTE_FLOW_ERROR_TYPE_HANDLE,
 					   NULL, "Failed to setup fdir.");
 			return -rte_errno;
 		}
-		ret = i40e_fdir_configure(dev);
+		ret = trex_i40e_fdir_configure(dev);
 		if (ret < 0) {
 			rte_flow_error_set(error, ENOTSUP,
 					   RTE_FLOW_ERROR_TYPE_HANDLE,
 					   NULL, "Failed to configure fdir.");
 			goto err;
 		}
-
-		dev->data->dev_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
 	}
+
+	/* If create the first fdir rule, enable fdir check for rx queues */
+	if (TAILQ_EMPTY(&pf->fdir.fdir_list))
+		i40e_fdir_rx_proc_enable(dev, 1);
 
 	return 0;
 err:
@@ -3488,6 +3392,223 @@ i40e_flow_parse_tunnel_action(struct rte_eth_dev *dev,
 	}
 
 	return 0;
+}
+
+/* 1. Last in item should be NULL as range is not supported.
+ * 2. Supported filter types: Source port only and Destination port only.
+ * 3. Mask of fields which need to be matched should be
+ *    filled with 1.
+ * 4. Mask of fields which needn't to be matched should be
+ *    filled with 0.
+ */
+static int
+i40e_flow_parse_l4_pattern(const struct rte_flow_item *pattern,
+			   struct rte_flow_error *error,
+			   struct i40e_tunnel_filter_conf *filter)
+{
+	const struct rte_flow_item_sctp *sctp_spec, *sctp_mask;
+	const struct rte_flow_item_tcp *tcp_spec, *tcp_mask;
+	const struct rte_flow_item_udp *udp_spec, *udp_mask;
+	const struct rte_flow_item *item = pattern;
+	enum rte_flow_item_type item_type;
+
+	for (; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
+		if (item->last) {
+			rte_flow_error_set(error, EINVAL,
+					   RTE_FLOW_ERROR_TYPE_ITEM,
+					   item,
+					   "Not support range");
+			return -rte_errno;
+		}
+		item_type = item->type;
+		switch (item_type) {
+		case RTE_FLOW_ITEM_TYPE_ETH:
+			if (item->spec || item->mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid ETH item");
+				return -rte_errno;
+			}
+
+			break;
+		case RTE_FLOW_ITEM_TYPE_IPV4:
+			filter->ip_type = I40E_TUNNEL_IPTYPE_IPV4;
+			/* IPv4 is used to describe protocol,
+			 * spec and mask should be NULL.
+			 */
+			if (item->spec || item->mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid IPv4 item");
+				return -rte_errno;
+			}
+
+			break;
+		case RTE_FLOW_ITEM_TYPE_IPV6:
+			filter->ip_type = I40E_TUNNEL_IPTYPE_IPV6;
+			/* IPv6 is used to describe protocol,
+			 * spec and mask should be NULL.
+			 */
+			if (item->spec || item->mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid IPv6 item");
+				return -rte_errno;
+			}
+
+			break;
+		case RTE_FLOW_ITEM_TYPE_UDP:
+			udp_spec = item->spec;
+			udp_mask = item->mask;
+
+			if (!udp_spec || !udp_mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid udp item");
+				return -rte_errno;
+			}
+
+			if (udp_spec->hdr.src_port != 0 &&
+			    udp_spec->hdr.dst_port != 0) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid udp spec");
+				return -rte_errno;
+			}
+
+			if (udp_spec->hdr.src_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_SRC;
+				filter->tenant_id =
+				rte_be_to_cpu_32(udp_spec->hdr.src_port);
+			}
+
+			if (udp_spec->hdr.dst_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_DST;
+				filter->tenant_id =
+				rte_be_to_cpu_32(udp_spec->hdr.dst_port);
+			}
+
+			filter->tunnel_type = I40E_CLOUD_TYPE_UDP;
+
+			break;
+		case RTE_FLOW_ITEM_TYPE_TCP:
+			tcp_spec = item->spec;
+			tcp_mask = item->mask;
+
+			if (!tcp_spec || !tcp_mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid tcp item");
+				return -rte_errno;
+			}
+
+			if (tcp_spec->hdr.src_port != 0 &&
+			    tcp_spec->hdr.dst_port != 0) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid tcp spec");
+				return -rte_errno;
+			}
+
+			if (tcp_spec->hdr.src_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_SRC;
+				filter->tenant_id =
+				rte_be_to_cpu_32(tcp_spec->hdr.src_port);
+			}
+
+			if (tcp_spec->hdr.dst_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_DST;
+				filter->tenant_id =
+				rte_be_to_cpu_32(tcp_spec->hdr.dst_port);
+			}
+
+			filter->tunnel_type = I40E_CLOUD_TYPE_TCP;
+
+			break;
+		case RTE_FLOW_ITEM_TYPE_SCTP:
+			sctp_spec = item->spec;
+			sctp_mask = item->mask;
+
+			if (!sctp_spec || !sctp_mask) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid sctp item");
+				return -rte_errno;
+			}
+
+			if (sctp_spec->hdr.src_port != 0 &&
+			    sctp_spec->hdr.dst_port != 0) {
+				rte_flow_error_set(error, EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ITEM,
+						   item,
+						   "Invalid sctp spec");
+				return -rte_errno;
+			}
+
+			if (sctp_spec->hdr.src_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_SRC;
+				filter->tenant_id =
+					rte_be_to_cpu_32(sctp_spec->hdr.src_port);
+			}
+
+			if (sctp_spec->hdr.dst_port != 0) {
+				filter->l4_port_type =
+					I40E_L4_PORT_TYPE_DST;
+				filter->tenant_id =
+					rte_be_to_cpu_32(sctp_spec->hdr.dst_port);
+			}
+
+			filter->tunnel_type = I40E_CLOUD_TYPE_SCTP;
+
+			break;
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static int
+i40e_flow_parse_l4_cloud_filter(struct rte_eth_dev *dev,
+				const struct rte_flow_attr *attr,
+				const struct rte_flow_item pattern[],
+				const struct rte_flow_action actions[],
+				struct rte_flow_error *error,
+				union i40e_filter_t *filter)
+{
+	struct i40e_tunnel_filter_conf *tunnel_filter =
+		&filter->consistent_tunnel_filter;
+	int ret;
+
+	ret = i40e_flow_parse_l4_pattern(pattern, error, tunnel_filter);
+	if (ret)
+		return ret;
+
+	ret = i40e_flow_parse_tunnel_action(dev, actions, error, tunnel_filter);
+	if (ret)
+		return ret;
+
+	ret = i40e_flow_parse_attr(attr, error);
+	if (ret)
+		return ret;
+
+	cons_filter_type = RTE_ETH_FILTER_TUNNEL;
+
+	return ret;
 }
 
 static uint16_t i40e_supported_tunnel_filter_types[] = {
@@ -3610,10 +3731,10 @@ i40e_flow_parse_vxlan_pattern(__rte_unused struct rte_eth_dev *dev,
 
 			if (vlan_spec && vlan_mask) {
 				if (vlan_mask->tci ==
-				    rte_cpu_to_be_16(I40E_TCI_MASK))
+				    rte_cpu_to_be_16(I40E_VLAN_TCI_MASK))
 					filter->inner_vlan =
 					      rte_be_to_cpu_16(vlan_spec->tci) &
-					      I40E_TCI_MASK;
+					      I40E_VLAN_TCI_MASK;
 				filter_type |= ETH_TUNNEL_FILTER_IVLAN;
 			}
 			break;
@@ -3841,10 +3962,10 @@ i40e_flow_parse_nvgre_pattern(__rte_unused struct rte_eth_dev *dev,
 
 			if (vlan_spec && vlan_mask) {
 				if (vlan_mask->tci ==
-				    rte_cpu_to_be_16(I40E_TCI_MASK))
+				    rte_cpu_to_be_16(I40E_VLAN_TCI_MASK))
 					filter->inner_vlan =
 					      rte_be_to_cpu_16(vlan_spec->tci) &
-					      I40E_TCI_MASK;
+					      I40E_VLAN_TCI_MASK;
 				filter_type |= ETH_TUNNEL_FILTER_IVLAN;
 			}
 			break;
@@ -4365,14 +4486,9 @@ i40e_flow_parse_qinq_pattern(__rte_unused struct rte_eth_dev *dev,
 	}
 
 	/* Get filter specification */
-	if ((o_vlan_mask != NULL) && (o_vlan_mask->tci ==
-			rte_cpu_to_be_16(I40E_TCI_MASK)) &&
-			(i_vlan_mask != NULL) &&
-			(i_vlan_mask->tci == rte_cpu_to_be_16(I40E_TCI_MASK))) {
-		filter->outer_vlan = rte_be_to_cpu_16(o_vlan_spec->tci)
-			& I40E_TCI_MASK;
-		filter->inner_vlan = rte_be_to_cpu_16(i_vlan_spec->tci)
-			& I40E_TCI_MASK;
+	if (o_vlan_mask != NULL &&  i_vlan_mask != NULL) {
+		filter->outer_vlan = rte_be_to_cpu_16(o_vlan_spec->tci);
+		filter->inner_vlan = rte_be_to_cpu_16(i_vlan_spec->tci);
 	} else {
 			rte_flow_error_set(error, EINVAL,
 					   RTE_FLOW_ERROR_TYPE_ITEM,
@@ -4415,392 +4531,6 @@ i40e_flow_parse_qinq_filter(struct rte_eth_dev *dev,
 	return ret;
 }
 
-/**
- * This function is used to do configuration i40e existing RSS with rte_flow.
- * It also enable queue region configuration using flow API for i40e.
- * pattern can be used indicate what parameters will be include in flow,
- * like user_priority or flowtype for queue region or HASH function for RSS.
- * Action is used to transmit parameter like queue index and HASH
- * function for RSS, or flowtype for queue region configuration.
- * For example:
- * pattern:
- * Case 1: only ETH, indicate  flowtype for queue region will be parsed.
- * Case 2: only VLAN, indicate user_priority for queue region will be parsed.
- * Case 3: none, indicate RSS related will be parsed in action.
- * Any pattern other the ETH or VLAN will be treated as invalid except END.
- * So, pattern choice is depened on the purpose of configuration of
- * that flow.
- * action:
- * action RSS will be uaed to transmit valid parameter with
- * struct rte_flow_action_rss for all the 3 case.
- */
-static int
-i40e_flow_parse_rss_pattern(__rte_unused struct rte_eth_dev *dev,
-			     const struct rte_flow_item *pattern,
-			     struct rte_flow_error *error,
-			     uint8_t *action_flag,
-			     struct i40e_queue_regions *info)
-{
-	const struct rte_flow_item_vlan *vlan_spec, *vlan_mask;
-	const struct rte_flow_item *item = pattern;
-	enum rte_flow_item_type item_type;
-
-	if (item->type == RTE_FLOW_ITEM_TYPE_END)
-		return 0;
-
-	for (; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
-		if (item->last) {
-			rte_flow_error_set(error, EINVAL,
-					   RTE_FLOW_ERROR_TYPE_ITEM,
-					   item,
-					   "Not support range");
-			return -rte_errno;
-		}
-		item_type = item->type;
-		switch (item_type) {
-		case RTE_FLOW_ITEM_TYPE_ETH:
-			*action_flag = 1;
-			break;
-		case RTE_FLOW_ITEM_TYPE_VLAN:
-			vlan_spec = item->spec;
-			vlan_mask = item->mask;
-			if (vlan_spec && vlan_mask) {
-				if (vlan_mask->tci ==
-					rte_cpu_to_be_16(I40E_TCI_MASK)) {
-					info->region[0].user_priority[0] =
-						(rte_be_to_cpu_16(
-						vlan_spec->tci) >> 13) & 0x7;
-					info->region[0].user_priority_num = 1;
-					info->queue_region_number = 1;
-					*action_flag = 0;
-				}
-			}
-			break;
-		default:
-			rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ITEM,
-					item,
-					"Not support range");
-			return -rte_errno;
-		}
-	}
-
-	return 0;
-}
-
-/**
- * This function is used to parse rss queue index, total queue number and
- * hash functions, If the purpose of this configuration is for queue region
- * configuration, it will set queue_region_conf flag to TRUE, else to FALSE.
- * In queue region configuration, it also need to parse hardware flowtype
- * and user_priority from configuration, it will also cheeck the validity
- * of these parameters. For example, The queue region sizes should
- * be any of the following values: 1, 2, 4, 8, 16, 32, 64, the
- * hw_flowtype or PCTYPE max index should be 63, the user priority
- * max index should be 7, and so on. And also, queue index should be
- * continuous sequence and queue region index should be part of rss
- * queue index for this port.
- */
-static int
-i40e_flow_parse_rss_action(struct rte_eth_dev *dev,
-			    const struct rte_flow_action *actions,
-			    struct rte_flow_error *error,
-			    uint8_t action_flag,
-			    struct i40e_queue_regions *conf_info,
-			    union i40e_filter_t *filter)
-{
-	const struct rte_flow_action *act;
-	const struct rte_flow_action_rss *rss;
-	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct i40e_queue_regions *info = &pf->queue_region;
-	struct i40e_rte_flow_rss_conf *rss_config =
-			&filter->rss_conf;
-	struct i40e_rte_flow_rss_conf *rss_info = &pf->rss_info;
-	uint16_t i, j, n, tmp;
-	uint32_t index = 0;
-	uint64_t hf_bit = 1;
-
-	NEXT_ITEM_OF_ACTION(act, actions, index);
-	rss = act->conf;
-
-	/**
-	 * rss only supports forwarding,
-	 * check if the first not void action is RSS.
-	 */
-	if (act->type != RTE_FLOW_ACTION_TYPE_RSS) {
-		memset(rss_config, 0, sizeof(struct i40e_rte_flow_rss_conf));
-		rte_flow_error_set(error, EINVAL,
-			RTE_FLOW_ERROR_TYPE_ACTION,
-			act, "Not supported action.");
-		return -rte_errno;
-	}
-
-	if (action_flag) {
-		for (n = 0; n < 64; n++) {
-			if (rss->types & (hf_bit << n)) {
-				conf_info->region[0].hw_flowtype[0] = n;
-				conf_info->region[0].flowtype_num = 1;
-				conf_info->queue_region_number = 1;
-				break;
-			}
-		}
-	}
-
-	/**
-	 * Do some queue region related parameters check
-	 * in order to keep queue index for queue region to be
-	 * continuous sequence and also to be part of RSS
-	 * queue index for this port.
-	 */
-	if (conf_info->queue_region_number) {
-		for (i = 0; i < rss->queue_num; i++) {
-			for (j = 0; j < rss_info->conf.queue_num; j++) {
-				if (rss->queue[i] == rss_info->conf.queue[j])
-					break;
-			}
-			if (j == rss_info->conf.queue_num) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ACTION,
-					act,
-					"no valid queues");
-				return -rte_errno;
-			}
-		}
-
-		for (i = 0; i < rss->queue_num - 1; i++) {
-			if (rss->queue[i + 1] != rss->queue[i] + 1) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ACTION,
-					act,
-					"no valid queues");
-				return -rte_errno;
-			}
-		}
-	}
-
-	/* Parse queue region related parameters from configuration */
-	for (n = 0; n < conf_info->queue_region_number; n++) {
-		if (conf_info->region[n].user_priority_num ||
-				conf_info->region[n].flowtype_num) {
-			if (!((rte_is_power_of_2(rss->queue_num)) &&
-					rss->queue_num <= 64)) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ACTION,
-					act,
-					"The region sizes should be any of the following values: 1, 2, 4, 8, 16, 32, 64 as long as the "
-					"total number of queues do not exceed the VSI allocation");
-				return -rte_errno;
-			}
-
-			if (conf_info->region[n].user_priority[n] >=
-					I40E_MAX_USER_PRIORITY) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ACTION,
-					act,
-					"the user priority max index is 7");
-				return -rte_errno;
-			}
-
-			if (conf_info->region[n].hw_flowtype[n] >=
-					I40E_FILTER_PCTYPE_MAX) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ACTION,
-					act,
-					"the hw_flowtype or PCTYPE max index is 63");
-				return -rte_errno;
-			}
-
-			for (i = 0; i < info->queue_region_number; i++) {
-				if (info->region[i].queue_num ==
-				    rss->queue_num &&
-					info->region[i].queue_start_index ==
-						rss->queue[0])
-					break;
-			}
-
-			if (i == info->queue_region_number) {
-				if (i > I40E_REGION_MAX_INDEX) {
-					rte_flow_error_set(error, EINVAL,
-						RTE_FLOW_ERROR_TYPE_ACTION,
-						act,
-						"the queue region max index is 7");
-					return -rte_errno;
-				}
-
-				info->region[i].queue_num =
-					rss->queue_num;
-				info->region[i].queue_start_index =
-					rss->queue[0];
-				info->region[i].region_id =
-					info->queue_region_number;
-
-				j = info->region[i].user_priority_num;
-				tmp = conf_info->region[n].user_priority[0];
-				if (conf_info->region[n].user_priority_num) {
-					info->region[i].user_priority[j] = tmp;
-					info->region[i].user_priority_num++;
-				}
-
-				j = info->region[i].flowtype_num;
-				tmp = conf_info->region[n].hw_flowtype[0];
-				if (conf_info->region[n].flowtype_num) {
-					info->region[i].hw_flowtype[j] = tmp;
-					info->region[i].flowtype_num++;
-				}
-				info->queue_region_number++;
-			} else {
-				j = info->region[i].user_priority_num;
-				tmp = conf_info->region[n].user_priority[0];
-				if (conf_info->region[n].user_priority_num) {
-					info->region[i].user_priority[j] = tmp;
-					info->region[i].user_priority_num++;
-				}
-
-				j = info->region[i].flowtype_num;
-				tmp = conf_info->region[n].hw_flowtype[0];
-				if (conf_info->region[n].flowtype_num) {
-					info->region[i].hw_flowtype[j] = tmp;
-					info->region[i].flowtype_num++;
-				}
-			}
-		}
-
-		rss_config->queue_region_conf = TRUE;
-	}
-
-	/**
-	 * Return function if this flow is used for queue region configuration
-	 */
-	if (rss_config->queue_region_conf)
-		return 0;
-
-	if (!rss || !rss->queue_num) {
-		rte_flow_error_set(error, EINVAL,
-				RTE_FLOW_ERROR_TYPE_ACTION,
-				act,
-				"no valid queues");
-		return -rte_errno;
-	}
-
-	for (n = 0; n < rss->queue_num; n++) {
-		if (rss->queue[n] >= dev->data->nb_rx_queues) {
-			rte_flow_error_set(error, EINVAL,
-				   RTE_FLOW_ERROR_TYPE_ACTION,
-				   act,
-				   "queue id > max number of queues");
-			return -rte_errno;
-		}
-	}
-
-	if (rss_info->conf.queue_num) {
-		rte_flow_error_set(error, EINVAL,
-				RTE_FLOW_ERROR_TYPE_ACTION,
-				act,
-				"rss only allow one valid rule");
-		return -rte_errno;
-	}
-
-	/* Parse RSS related parameters from configuration */
-	if (rss->func != RTE_ETH_HASH_FUNCTION_DEFAULT)
-		return rte_flow_error_set
-			(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, act,
-			 "non-default RSS hash functions are not supported");
-	if (rss->level)
-		return rte_flow_error_set
-			(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, act,
-			 "a nonzero RSS encapsulation level is not supported");
-	if (rss->key_len && rss->key_len > RTE_DIM(rss_config->key))
-		return rte_flow_error_set
-			(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, act,
-			 "RSS hash key too large");
-	if (rss->queue_num > RTE_DIM(rss_config->queue))
-		return rte_flow_error_set
-			(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, act,
-			 "too many queues for RSS context");
-	if (i40e_rss_conf_init(rss_config, rss))
-		return rte_flow_error_set
-			(error, EINVAL, RTE_FLOW_ERROR_TYPE_ACTION, act,
-			 "RSS context initialization failure");
-
-	index++;
-
-	/* check if the next not void action is END */
-	NEXT_ITEM_OF_ACTION(act, actions, index);
-	if (act->type != RTE_FLOW_ACTION_TYPE_END) {
-		memset(rss_config, 0, sizeof(struct i40e_rte_flow_rss_conf));
-		rte_flow_error_set(error, EINVAL,
-			RTE_FLOW_ERROR_TYPE_ACTION,
-			act, "Not supported action.");
-		return -rte_errno;
-	}
-	rss_config->queue_region_conf = FALSE;
-
-	return 0;
-}
-
-static int
-i40e_parse_rss_filter(struct rte_eth_dev *dev,
-			const struct rte_flow_attr *attr,
-			const struct rte_flow_item pattern[],
-			const struct rte_flow_action actions[],
-			union i40e_filter_t *filter,
-			struct rte_flow_error *error)
-{
-	int ret;
-	struct i40e_queue_regions info;
-	uint8_t action_flag = 0;
-
-	memset(&info, 0, sizeof(struct i40e_queue_regions));
-
-	ret = i40e_flow_parse_rss_pattern(dev, pattern,
-					error, &action_flag, &info);
-	if (ret)
-		return ret;
-
-	ret = i40e_flow_parse_rss_action(dev, actions, error,
-					action_flag, &info, filter);
-	if (ret)
-		return ret;
-
-	ret = i40e_flow_parse_attr(attr, error);
-	if (ret)
-		return ret;
-
-	cons_filter_type = RTE_ETH_FILTER_HASH;
-
-	return 0;
-}
-
-static int
-i40e_config_rss_filter_set(struct rte_eth_dev *dev,
-		struct i40e_rte_flow_rss_conf *conf)
-{
-	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	int ret;
-
-	if (conf->queue_region_conf) {
-		ret = i40e_flush_queue_region_all_conf(dev, hw, pf, 1);
-		conf->queue_region_conf = 0;
-	} else {
-		ret = i40e_config_rss_filter(pf, conf, 1);
-	}
-	return ret;
-}
-
-static int
-i40e_config_rss_filter_del(struct rte_eth_dev *dev,
-		struct i40e_rte_flow_rss_conf *conf)
-{
-	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-
-	i40e_flush_queue_region_all_conf(dev, hw, pf, 0);
-
-	i40e_config_rss_filter(pf, conf, 0);
-	return 0;
-}
-
 static int
 i40e_flow_validate(struct rte_eth_dev *dev,
 		   const struct rte_flow_attr *attr,
@@ -4834,7 +4564,6 @@ i40e_flow_validate(struct rte_eth_dev *dev,
 				   NULL, "NULL attribute.");
 		return -rte_errno;
 	}
-
 	memset(&cons_filter, 0, sizeof(cons_filter));
 
 	/* Get the non-void item of action */
@@ -4842,9 +4571,13 @@ i40e_flow_validate(struct rte_eth_dev *dev,
 		i++;
 
 	if ((actions + i)->type == RTE_FLOW_ACTION_TYPE_RSS) {
-		ret = i40e_parse_rss_filter(dev, attr, pattern,
-					actions, &cons_filter, error);
-		return ret;
+		ret = i40e_flow_parse_attr(attr, error);
+		if (ret)
+			return ret;
+
+		cons_filter_type = RTE_ETH_FILTER_HASH;
+		return i40e_hash_parse(dev, pattern, actions + i,
+				       &cons_filter.rss_conf, error);
 	}
 
 	i = 0;
@@ -4856,12 +4589,18 @@ i40e_flow_validate(struct rte_eth_dev *dev,
 	}
 	item_num++;
 
-	items = rte_zmalloc("i40e_pattern",
-			    item_num * sizeof(struct rte_flow_item), 0);
-	if (!items) {
-		rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_ITEM_NUM,
-				   NULL, "No memory for PMD internal items.");
-		return -ENOMEM;
+	if (item_num <= ARRAY_SIZE(g_items)) {
+		items = g_items;
+	} else {
+		items = rte_zmalloc("i40e_pattern",
+				    item_num * sizeof(struct rte_flow_item), 0);
+		if (!items) {
+			rte_flow_error_set(error, ENOMEM,
+					RTE_FLOW_ERROR_TYPE_ITEM_NUM,
+					NULL,
+					"No memory for PMD internal items.");
+			return -ENOMEM;
+		}
 	}
 
 	i40e_pattern_skip_void_item(items, pattern);
@@ -4873,16 +4612,21 @@ i40e_flow_validate(struct rte_eth_dev *dev,
 			rte_flow_error_set(error, EINVAL,
 					   RTE_FLOW_ERROR_TYPE_ITEM,
 					   pattern, "Unsupported pattern");
-			rte_free(items);
+
+			if (items != g_items)
+				rte_free(items);
 			return -rte_errno;
 		}
+
 		if (parse_filter)
 			ret = parse_filter(dev, attr, items, actions,
 					   error, &cons_filter);
+
 		flag = true;
 	} while ((ret < 0) && (i < RTE_DIM(i40e_supported_patterns)));
 
-	rte_free(items);
+	if (items != g_items)
+		rte_free(items);
 
 	return ret;
 }
@@ -4895,20 +4639,32 @@ i40e_flow_create(struct rte_eth_dev *dev,
 		 struct rte_flow_error *error)
 {
 	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct rte_flow *flow;
+	struct rte_flow *flow = NULL;
+	struct i40e_fdir_info *fdir_info = &pf->fdir;
 	int ret;
-
-	flow = rte_zmalloc("i40e_flow", sizeof(struct rte_flow), 0);
-	if (!flow) {
-		rte_flow_error_set(error, ENOMEM,
-				   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
-				   "Failed to allocate memory");
-		return flow;
-	}
 
 	ret = i40e_flow_validate(dev, attr, pattern, actions, error);
 	if (ret < 0)
 		return NULL;
+
+	if (cons_filter_type == RTE_ETH_FILTER_FDIR) {
+		flow = i40e_fdir_entry_pool_get(fdir_info);
+		if (flow == NULL) {
+			rte_flow_error_set(error, ENOBUFS,
+			   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
+			   "Fdir space full");
+
+			return flow;
+		}
+	} else {
+		flow = rte_zmalloc("i40e_flow", sizeof(struct rte_flow), 0);
+		if (!flow) {
+			rte_flow_error_set(error, ENOMEM,
+					   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
+					   "Failed to allocate memory");
+			return flow;
+		}
+	}
 
 	switch (cons_filter_type) {
 	case RTE_ETH_FILTER_ETHERTYPE:
@@ -4921,7 +4677,7 @@ i40e_flow_create(struct rte_eth_dev *dev,
 		break;
 	case RTE_ETH_FILTER_FDIR:
 		ret = i40e_flow_add_del_fdir_filter(dev,
-				       &cons_filter.fdir_filter, 1);
+			       &cons_filter.fdir_filter, 1);
 		if (ret)
 			goto free_flow;
 		flow->rule = TAILQ_LAST(&pf->fdir.fdir_list,
@@ -4936,11 +4692,11 @@ i40e_flow_create(struct rte_eth_dev *dev,
 					i40e_tunnel_filter_list);
 		break;
 	case RTE_ETH_FILTER_HASH:
-		ret = i40e_config_rss_filter_set(dev,
-			    &cons_filter.rss_conf);
+		ret = i40e_hash_filter_create(pf, &cons_filter.rss_conf);
 		if (ret)
 			goto free_flow;
-		flow->rule = &pf->rss_info;
+		flow->rule = TAILQ_LAST(&pf->rss_config_list,
+					i40e_rss_conf_list);
 		break;
 	default:
 		goto free_flow;
@@ -4954,7 +4710,12 @@ free_flow:
 	rte_flow_error_set(error, -ret,
 			   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
 			   "Failed to create flow.");
-	rte_free(flow);
+
+	if (cons_filter_type != RTE_ETH_FILTER_FDIR)
+		rte_free(flow);
+	else
+		i40e_fdir_entry_pool_put(fdir_info, flow);
+
 	return NULL;
 }
 
@@ -4965,6 +4726,7 @@ i40e_flow_destroy(struct rte_eth_dev *dev,
 {
 	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	enum rte_filter_type filter_type = flow->filter_type;
+	struct i40e_fdir_info *fdir_info = &pf->fdir;
 	int ret = 0;
 
 	switch (filter_type) {
@@ -4978,19 +4740,16 @@ i40e_flow_destroy(struct rte_eth_dev *dev,
 		break;
 	case RTE_ETH_FILTER_FDIR:
 		ret = i40e_flow_add_del_fdir_filter(dev,
-		       &((struct i40e_fdir_filter *)flow->rule)->fdir, 0);
+				&((struct i40e_fdir_filter *)flow->rule)->fdir,
+				0);
 
 		/* If the last flow is destroyed, disable fdir. */
 		if (!ret && TAILQ_EMPTY(&pf->fdir.fdir_list)) {
-			i40e_fdir_teardown(pf);
-			dev->data->dev_conf.fdir_conf.mode =
-				   RTE_FDIR_MODE_NONE;
 			i40e_fdir_rx_proc_enable(dev, 0);
 		}
 		break;
 	case RTE_ETH_FILTER_HASH:
-		ret = i40e_config_rss_filter_del(dev,
-			   (struct i40e_rte_flow_rss_conf *)flow->rule);
+		ret = i40e_hash_filter_destroy(pf, flow->rule);
 		break;
 	default:
 		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
@@ -5001,7 +4760,11 @@ i40e_flow_destroy(struct rte_eth_dev *dev,
 
 	if (!ret) {
 		TAILQ_REMOVE(&pf->flow_list, flow, node);
-		rte_free(flow);
+		if (filter_type == RTE_ETH_FILTER_FDIR)
+			i40e_fdir_entry_pool_put(fdir_info, flow);
+		else
+			rte_free(flow);
+
 	} else
 		rte_flow_error_set(error, -ret,
 				   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
@@ -5134,17 +4897,11 @@ i40e_flow_flush(struct rte_eth_dev *dev, struct rte_flow_error *error)
 		return -rte_errno;
 	}
 
-	ret = i40e_flow_flush_rss_filter(dev);
-	if (ret) {
+	ret = i40e_hash_filter_flush(pf);
+	if (ret)
 		rte_flow_error_set(error, -ret,
 				   RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
-				   "Failed to flush rss flows.");
-		return -rte_errno;
-	}
-
-	/* Disable FDIR processing as all FDIR rules are now flushed */
-	i40e_fdir_rx_proc_enable(dev, 0);
-
+				   "Failed to flush RSS flows.");
 	return ret;
 }
 
@@ -5158,6 +4915,7 @@ i40e_flow_flush_fdir_filter(struct i40e_pf *pf)
 	struct rte_flow *flow;
 	void *temp;
 	int ret;
+	uint32_t i = 0;
 
 	ret = i40e_fdir_flush(dev);
 	if (!ret) {
@@ -5173,16 +4931,36 @@ i40e_flow_flush_fdir_filter(struct i40e_pf *pf)
 		TAILQ_FOREACH_SAFE(flow, &pf->flow_list, node, temp) {
 			if (flow->filter_type == RTE_ETH_FILTER_FDIR) {
 				TAILQ_REMOVE(&pf->flow_list, flow, node);
-				rte_free(flow);
 			}
 		}
 
-		for (pctype = I40E_FILTER_PCTYPE_NONF_IPV4_UDP;
-		     pctype <= I40E_FILTER_PCTYPE_L2_PAYLOAD; pctype++)
-			pf->fdir.inset_flag[pctype] = 0;
-	}
+		/* reset bitmap */
+		rte_bitmap_reset(fdir_info->fdir_flow_pool.bitmap);
+		for (i = 0; i < fdir_info->fdir_space_size; i++) {
+			fdir_info->fdir_flow_pool.pool[i].idx = i;
+			rte_bitmap_set(fdir_info->fdir_flow_pool.bitmap, i);
+		}
 
-	i40e_fdir_teardown(pf);
+		fdir_info->fdir_actual_cnt = 0;
+		fdir_info->fdir_guarantee_free_space =
+			fdir_info->fdir_guarantee_total_space;
+		memset(fdir_info->fdir_filter_array,
+			0,
+			sizeof(struct i40e_fdir_filter) *
+			I40E_MAX_FDIR_FILTER_NUM);
+
+		for (pctype = I40E_FILTER_PCTYPE_NONF_IPV4_UDP;
+		     pctype <= I40E_FILTER_PCTYPE_L2_PAYLOAD; pctype++) {
+			pf->fdir.inset_flag[pctype] = 0;
+			pf->fdir.flex_mask_flag[pctype] = 0;
+		}
+
+		for (i = 0; i < I40E_MAX_FLXPLD_LAYER; i++)
+			pf->fdir.flex_pit_flag[i] = 0;
+
+		/* Disable FDIR processing as all FDIR rules are now flushed */
+		i40e_fdir_rx_proc_enable(dev, 0);
+	}
 
 	return ret;
 }
@@ -5243,18 +5021,46 @@ i40e_flow_flush_tunnel_filter(struct i40e_pf *pf)
 	return ret;
 }
 
-/* remove the rss filter */
 static int
-i40e_flow_flush_rss_filter(struct rte_eth_dev *dev)
+i40e_flow_query(struct rte_eth_dev *dev __rte_unused,
+		struct rte_flow *flow,
+		const struct rte_flow_action *actions,
+		void *data, struct rte_flow_error *error)
 {
-	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct i40e_rte_flow_rss_conf *rss_info = &pf->rss_info;
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	int32_t ret = -EINVAL;
+	struct i40e_rss_filter *rss_rule = (struct i40e_rss_filter *)flow->rule;
+	enum rte_filter_type filter_type = flow->filter_type;
+	struct rte_flow_action_rss *rss_conf = data;
 
-	ret = i40e_flush_queue_region_all_conf(dev, hw, pf, 0);
+	if (!rss_rule) {
+		rte_flow_error_set(error, EINVAL,
+				   RTE_FLOW_ERROR_TYPE_HANDLE,
+				   NULL, "Invalid rule");
+		return -rte_errno;
+	}
 
-	if (rss_info->conf.queue_num)
-		ret = i40e_config_rss_filter(pf, rss_info, FALSE);
-	return ret;
+	for (; actions->type != RTE_FLOW_ACTION_TYPE_END; actions++) {
+		switch (actions->type) {
+		case RTE_FLOW_ACTION_TYPE_VOID:
+			break;
+		case RTE_FLOW_ACTION_TYPE_RSS:
+			if (filter_type != RTE_ETH_FILTER_HASH) {
+				rte_flow_error_set(error, ENOTSUP,
+						   RTE_FLOW_ERROR_TYPE_ACTION,
+						   actions,
+						   "action not supported");
+				return -rte_errno;
+			}
+			rte_memcpy(rss_conf,
+				   &rss_rule->rss_filter_info.conf,
+				   sizeof(struct rte_flow_action_rss));
+			break;
+		default:
+			return rte_flow_error_set(error, ENOTSUP,
+						  RTE_FLOW_ERROR_TYPE_ACTION,
+						  actions,
+						  "action not supported");
+		}
+	}
+
+	return 0;
 }

@@ -45,7 +45,6 @@ public:
 
     virtual void update_configuration(port_cfg_t * cfg);
 
-    virtual int configure_rx_filter_rules(CPhyEthIF * _if);
     virtual void reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len);
     virtual int get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts, uint32_t *bytes, uint32_t *prev_bytes, int min, int max);
     virtual int get_stat_counters_num() {return MAX_FLOW_STATS;}
@@ -53,14 +52,23 @@ public:
 
     virtual CFlowStatParser *get_flow_stat_parser();
     virtual int dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd);
-    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
+
+    virtual int set_rcv_all(CPhyEthIF * _if, bool set_on){
+        return(m_filter_manager.set_rcv_all(_if->get_repid(),set_on));
+    }
+
+    virtual int configure_rx_filter_rules(CPhyEthIF * _if){
+        return(m_filter_manager.configure_rx_filter_rules(_if->get_repid()));
+    }
 
 private:
 
-    virtual void add_del_rules(enum rte_filter_op op, repid_t  repid, uint16_t type, uint16_t id
-                               , uint8_t l4_proto, uint8_t tos, int queue);
-    virtual int add_del_eth_type_rule(repid_t  repid, enum rte_filter_op op, uint16_t eth_type);
-    virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
+    //virtual void add_del_rules(enum rte_filter_op op, repid_t  repid, uint16_t type, uint16_t id
+    //                           , uint8_t l4_proto, uint8_t tos, int queue);
+    //virtual int add_del_eth_type_rule(repid_t  repid, enum rte_filter_op op, uint16_t eth_type);
+    //virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
+
+    CDpdkFilterManager  m_filter_manager;
 
 };
 

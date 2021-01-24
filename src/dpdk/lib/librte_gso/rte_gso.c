@@ -11,6 +11,7 @@
 #include "gso_common.h"
 #include "gso_tcp4.h"
 #include "gso_tunnel_tcp4.h"
+#include "gso_tunnel_udp4.h"
 #include "gso_udp4.h"
 
 #define ILLEGAL_UDP_GSO_CTX(ctx) \
@@ -30,7 +31,6 @@ rte_gso_segment(struct rte_mbuf *pkt,
 		uint16_t nb_pkts_out)
 {
 	struct rte_mempool *direct_pool, *indirect_pool;
-	struct rte_mbuf *pkt_seg;
 	uint64_t ol_flags;
 	uint16_t gso_size;
 	uint8_t ipid_delta;
@@ -44,8 +44,7 @@ rte_gso_segment(struct rte_mbuf *pkt,
 
 	if (gso_ctx->gso_size >= pkt->pkt_len) {
 		pkt->ol_flags &= (~(PKT_TX_TCP_SEG | PKT_TX_UDP_SEG));
-		pkts_out[0] = pkt;
-		return 1;
+		return 0;
 	}
 
 	direct_pool = gso_ctx->direct_pool;
@@ -62,6 +61,13 @@ rte_gso_segment(struct rte_mbuf *pkt,
 		ret = gso_tunnel_tcp4_segment(pkt, gso_size, ipid_delta,
 				direct_pool, indirect_pool,
 				pkts_out, nb_pkts_out);
+	} else if (IS_IPV4_VXLAN_UDP4(pkt->ol_flags) &&
+			(gso_ctx->gso_types & DEV_TX_OFFLOAD_VXLAN_TNL_TSO) &&
+			(gso_ctx->gso_types & DEV_TX_OFFLOAD_UDP_TSO)) {
+		pkt->ol_flags &= (~PKT_TX_UDP_SEG);
+		ret = gso_tunnel_udp4_segment(pkt, gso_size,
+				direct_pool, indirect_pool,
+				pkts_out, nb_pkts_out);
 	} else if (IS_IPV4_TCP(pkt->ol_flags) &&
 			(gso_ctx->gso_types & DEV_TX_OFFLOAD_TCP_TSO)) {
 		pkt->ol_flags &= (~PKT_TX_TCP_SEG);
@@ -75,18 +81,11 @@ rte_gso_segment(struct rte_mbuf *pkt,
 				indirect_pool, pkts_out, nb_pkts_out);
 	} else {
 		/* unsupported packet, skip */
-		pkts_out[0] = pkt;
 		RTE_LOG(DEBUG, GSO, "Unsupported packet type\n");
-		return 1;
+		ret = 0;
 	}
 
-	if (ret > 1) {
-		pkt_seg = pkt;
-		while (pkt_seg) {
-			rte_mbuf_refcnt_update(pkt_seg, -1);
-			pkt_seg = pkt_seg->next;
-		}
-	} else if (ret < 0) {
+	if (ret < 0) {
 		/* Revert the ol_flags in the event of failure. */
 		pkt->ol_flags = ol_flags;
 	}

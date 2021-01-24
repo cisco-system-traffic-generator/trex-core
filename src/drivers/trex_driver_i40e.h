@@ -39,7 +39,7 @@ public:
     virtual int get_min_sample_rate(void);
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int configure_rx_filter_rules(CPhyEthIF * _if);
-    virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3_proto
+    virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum trex_rte_filter_op op, uint16_t l3_proto
                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
@@ -56,9 +56,9 @@ public:
     virtual int set_rcv_all(CPhyEthIF * _if, bool set_on);
 
 private:
-    virtual void add_del_rules(enum rte_filter_op op, repid_t  repid, uint16_t type, uint8_t ttl
+    virtual void add_del_rules(enum trex_rte_filter_op op, repid_t  repid, uint16_t type, uint8_t ttl
                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx);
-    virtual int add_del_eth_type_rule(repid_t  repid, enum rte_filter_op op, uint16_t eth_type);
+    virtual int add_del_eth_type_rule(repid_t  repid, enum trex_rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     uint32_t get_flow_stats_offset(repid_t repid);
 

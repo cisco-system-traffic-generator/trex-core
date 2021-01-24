@@ -37,7 +37,6 @@
 #include <rte_config.h>
 #include <rte_mempool.h>
 #include <rte_memory.h>
-#include <rte_atomic.h>
 #include <rte_prefetch.h>
 #include <rte_branch_prediction.h>
 #include <rte_byteorder.h>
@@ -152,13 +151,6 @@ rte_mbuf_data_iova(const struct rte_mbuf *mb)
 	return mb->buf_iova + mb->data_off;
 }
 
-__rte_deprecated
-static inline phys_addr_t
-rte_mbuf_data_dma_addr(const struct rte_mbuf *mb)
-{
-	return rte_mbuf_data_iova(mb);
-}
-
 /**
  * Return the default IO address of the beginning of the mbuf data
  *
@@ -175,13 +167,6 @@ static inline rte_iova_t
 rte_mbuf_data_iova_default(const struct rte_mbuf *mb)
 {
 	return mb->buf_iova + RTE_PKTMBUF_HEADROOM;
-}
-
-__rte_deprecated
-static inline phys_addr_t
-rte_mbuf_data_dma_addr_default(const struct rte_mbuf *mb)
-{
-	return rte_mbuf_data_iova_default(mb);
 }
 
 /**
@@ -369,7 +354,7 @@ rte_mbuf_refcnt_read(const struct rte_mbuf *m)
      uint16_t res;
       switch (m->m_core_locality) {
       case     RTE_MBUF_CORE_LOCALITY_MULTI :
-          res=(uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+          res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
           break;
       case     RTE_MBUF_CORE_LOCALITY_LOCAL :
           res=m->refcnt;
@@ -378,11 +363,11 @@ rte_mbuf_refcnt_read(const struct rte_mbuf *m)
           res=7;
           break;
       default:
-          res=(uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+          res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
       };
       return (res);
 #else
-	return (uint16_t)(rte_atomic16_read(&m->refcnt_atomic));
+	return __atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
 #endif
 }
 
@@ -400,10 +385,10 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
         if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
             m->refcnt = new_value;
         } else {
-            rte_atomic16_set(&m->refcnt_atomic, (int16_t)new_value);
+          __atomic_store_n(&m->refcnt, new_value, __ATOMIC_RELAXED);
         }
 #else
-	rte_atomic16_set(&m->refcnt_atomic, (int16_t)new_value);
+	__atomic_store_n(&m->refcnt, new_value, __ATOMIC_RELAXED);
 #endif
 }
 
@@ -411,7 +396,8 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 __rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
-	return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+	return __atomic_add_fetch(&m->refcnt, (uint16_t)value,
+				 __ATOMIC_ACQ_REL);
 }
 
 /**
@@ -427,6 +413,7 @@ static inline uint16_t
 rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
 #ifndef TREX_PATCH
+
 	/*
 	 * The atomic_add is an expensive operation, so we don't want to
 	 * call it in the case where we know we are the unique holder of
@@ -441,7 +428,6 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 	}
 
 	return __rte_mbuf_refcnt_update(m, value);
-
 #else
     if (likely(m->m_core_locality == RTE_MBUF_CORE_LOCALITY_LOCAL)) {
         m->refcnt = (uint16_t)(m->refcnt + value);
@@ -451,7 +437,7 @@ rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
             /* no ref count */
             return m->refcnt;
         }else{
-            return (uint16_t)(rte_atomic16_add_return(&m->refcnt_atomic, value));
+			return __rte_mbuf_refcnt_update(m, value);
         }
     }
 #endif
@@ -507,7 +493,7 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_ext_refcnt_read(const struct rte_mbuf_ext_shared_info *shinfo)
 {
-	return (uint16_t)(rte_atomic16_read(&shinfo->refcnt_atomic));
+	return __atomic_load_n(&shinfo->refcnt, __ATOMIC_RELAXED);
 }
 
 /**
@@ -522,7 +508,7 @@ static inline void
 rte_mbuf_ext_refcnt_set(struct rte_mbuf_ext_shared_info *shinfo,
 	uint16_t new_value)
 {
-	rte_atomic16_set(&shinfo->refcnt_atomic, (int16_t)new_value);
+	__atomic_store_n(&shinfo->refcnt, new_value, __ATOMIC_RELAXED);
 }
 
 /**
@@ -546,7 +532,8 @@ rte_mbuf_ext_refcnt_update(struct rte_mbuf_ext_shared_info *shinfo,
 		return (uint16_t)value;
 	}
 
-	return (uint16_t)rte_atomic16_add_return(&shinfo->refcnt_atomic, value);
+	return __atomic_add_fetch(&shinfo->refcnt, (uint16_t)value,
+				 __ATOMIC_ACQ_REL);
 }
 
 /** Mbuf prefetch */
@@ -594,12 +581,29 @@ __rte_experimental
 int rte_mbuf_check(const struct rte_mbuf *m, int is_header,
 		   const char **reason);
 
-#define MBUF_RAW_ALLOC_CHECK(m) do {				\
-	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 1);		\
-	RTE_ASSERT((m)->next == NULL);				\
-	RTE_ASSERT((m)->nb_segs == 1);				\
-	__rte_mbuf_sanity_check(m, 0);				\
-} while (0)
+/**
+ * Sanity checks on a reinitialized mbuf in debug mode.
+ *
+ * Check the consistency of the given reinitialized mbuf.
+ * The function will cause a panic if corruption is detected.
+ *
+ * Check that the mbuf is properly reinitialized (refcnt=1, next=NULL,
+ * nb_segs=1), as done by rte_pktmbuf_prefree_seg().
+ *
+ * @param m
+ *   The mbuf to be checked.
+ */
+static __rte_always_inline void
+__rte_mbuf_raw_sanity_check(__rte_unused const struct rte_mbuf *m)
+{
+	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 1);
+	RTE_ASSERT(m->next == NULL);
+	RTE_ASSERT(m->nb_segs == 1);
+	__rte_mbuf_sanity_check(m, 0);
+}
+
+/** For backwards compatibility. */
+#define MBUF_RAW_ALLOC_CHECK(m) __rte_mbuf_raw_sanity_check(m)
 
 /**
  * Allocate an uninitialized mbuf from mempool *mp*.
@@ -626,7 +630,7 @@ static inline struct rte_mbuf *rte_mbuf_raw_alloc(struct rte_mempool *mp)
 
 	if (rte_mempool_get(mp, (void **)&m) < 0)
 		return NULL;
-	MBUF_RAW_ALLOC_CHECK(m);
+	__rte_mbuf_raw_sanity_check(m);
 	return m;
 }
 
@@ -649,16 +653,13 @@ rte_mbuf_raw_free(struct rte_mbuf *m)
 {
 	RTE_ASSERT(!RTE_MBUF_CLONED(m) &&
 		  (!RTE_MBUF_HAS_EXTBUF(m) || RTE_MBUF_HAS_PINNED_EXTBUF(m)));
-	RTE_ASSERT(rte_mbuf_refcnt_read(m) == 1);
-	RTE_ASSERT(m->next == NULL);
-	RTE_ASSERT(m->nb_segs == 1);
 #ifdef TREX_PATCH
     RTE_ASSERT(m->m_core_locality!=RTE_MBUF_CORE_LOCALITY_CONST);
     if (m->m_core_locality != RTE_MBUF_CORE_LOCALITY_MULTI) {
         m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
     }
 #endif
-	__rte_mbuf_sanity_check(m, 0);
+	__rte_mbuf_raw_sanity_check(m);
 	rte_mempool_put(m->pool, m);
 }
 
@@ -904,8 +905,6 @@ static inline void rte_pktmbuf_reset_headroom(struct rte_mbuf *m)
  * @param m
  *   The packet mbuf to be reset.
  */
-#define MBUF_INVALID_PORT UINT16_MAX
-
 static inline void rte_pktmbuf_reset(struct rte_mbuf *m)
 {
 	m->next = NULL;
@@ -914,14 +913,13 @@ static inline void rte_pktmbuf_reset(struct rte_mbuf *m)
 	m->vlan_tci = 0;
 	m->vlan_tci_outer = 0;
 	m->nb_segs = 1;
-	m->port = MBUF_INVALID_PORT;
+	m->port = RTE_MBUF_PORT_INVALID;
 
 	m->ol_flags &= EXT_ATTACHED_MBUF;
 	m->packet_type = 0;
 #ifdef TREX_PATCH
     m->m_core_locality = RTE_MBUF_CORE_LOCALITY_MULTI;
 #endif
-
 	rte_pktmbuf_reset_headroom(m);
 
 	m->data_len = 0;
@@ -981,22 +979,22 @@ static inline int rte_pktmbuf_alloc_bulk(struct rte_mempool *pool,
 	switch (count % 4) {
 	case 0:
 		while (idx != count) {
-			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
+			__rte_mbuf_raw_sanity_check(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
 			/* fall-through */
 	case 3:
-			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
+			__rte_mbuf_raw_sanity_check(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
 			/* fall-through */
 	case 2:
-			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
+			__rte_mbuf_raw_sanity_check(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
 			/* fall-through */
 	case 1:
-			MBUF_RAW_ALLOC_CHECK(mbufs[idx]);
+			__rte_mbuf_raw_sanity_check(mbufs[idx]);
 			rte_pktmbuf_reset(mbufs[idx]);
 			idx++;
 			/* fall-through */
@@ -1159,7 +1157,7 @@ rte_pktmbuf_attach_extbuf(struct rte_mbuf *m, void *buf_addr,
 static inline void
 rte_mbuf_dynfield_copy(struct rte_mbuf *mdst, const struct rte_mbuf *msrc)
 {
-    memcpy(&mdst->dynfield1, msrc->dynfield1, sizeof(mdst->dynfield1));
+	memcpy(&mdst->dynfield1, msrc->dynfield1, sizeof(mdst->dynfield1));
 }
 
 /* internal */
@@ -1172,7 +1170,6 @@ __rte_pktmbuf_copy_hdr(struct rte_mbuf *mdst, const struct rte_mbuf *msrc)
 	mdst->tx_offload = msrc->tx_offload;
 	mdst->hash = msrc->hash;
 	mdst->packet_type = msrc->packet_type;
-	mdst->timestamp = msrc->timestamp;
 	rte_mbuf_dynfield_copy(mdst, msrc);
 }
 
@@ -1355,8 +1352,8 @@ static inline int __rte_pktmbuf_pinned_extbuf_decref(struct rte_mbuf *m)
 	 * Direct usage of add primitive to avoid
 	 * duplication of comparing with one.
 	 */
-	if (likely(rte_atomic16_add_return
-			(&shinfo->refcnt_atomic, -1)))
+	if (likely(__atomic_add_fetch(&shinfo->refcnt, (uint16_t)-1,
+				     __ATOMIC_ACQ_REL)))
 		return 1;
 
 	/* Reinitialize counter before mbuf freeing. */
@@ -1386,10 +1383,10 @@ rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 	if (likely(rte_mbuf_refcnt_read(m) == 1)) {
 
 		if (!RTE_MBUF_DIRECT(m)) {
-			if (!RTE_MBUF_HAS_EXTBUF(m) ||
-			    !RTE_MBUF_HAS_PINNED_EXTBUF(m))
-				rte_pktmbuf_detach(m);
-			else if (__rte_pktmbuf_pinned_extbuf_decref(m))
+			rte_pktmbuf_detach(m);
+			if (RTE_MBUF_HAS_EXTBUF(m) &&
+			    RTE_MBUF_HAS_PINNED_EXTBUF(m) &&
+			    __rte_pktmbuf_pinned_extbuf_decref(m))
 				return NULL;
 		}
 
@@ -1403,14 +1400,14 @@ rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 #ifndef TREX_PATCH
 	} else if (__rte_mbuf_refcnt_update(m, -1) == 0) {
 #else
-    } else if (likely(rte_mbuf_refcnt_update(m, -1) == 0)) {
-#endif
+	} else if (rte_mbuf_refcnt_update(m, -1) == 0) {
+#endif 
 
 		if (!RTE_MBUF_DIRECT(m)) {
-			if (!RTE_MBUF_HAS_EXTBUF(m) ||
-			    !RTE_MBUF_HAS_PINNED_EXTBUF(m))
-				rte_pktmbuf_detach(m);
-			else if (__rte_pktmbuf_pinned_extbuf_decref(m))
+			rte_pktmbuf_detach(m);
+			if (RTE_MBUF_HAS_EXTBUF(m) &&
+			    RTE_MBUF_HAS_PINNED_EXTBUF(m) &&
+			    __rte_pktmbuf_pinned_extbuf_decref(m))
 				return NULL;
 		}
 
@@ -1590,13 +1587,6 @@ static inline struct rte_mbuf *rte_pktmbuf_lastseg(struct rte_mbuf *m)
 		m = m->next;
 	return m;
 }
-
-/* deprecated */
-#define rte_pktmbuf_mtophys_offset(m, o) \
-	rte_pktmbuf_iova_offset(m, o)
-
-/* deprecated */
-#define rte_pktmbuf_mtophys(m) rte_pktmbuf_iova(m)
 
 /**
  * A macro that returns the length of the packet.

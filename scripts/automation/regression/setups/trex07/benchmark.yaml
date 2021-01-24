@@ -40,10 +40,10 @@ test_routing_imix_64:
     bw_per_core         : 12.699
 
 
-test_static_routing_imix_asymmetric:
-    multiplier          : 50
-    cores               : 8
-    bw_per_core         : 50.561
+#test_static_routing_imix_asymmetric:
+#    multiplier          : 50
+#    cores               : 8
+#    bw_per_core         : 50.561
 
 
 # disable due to trex-504
