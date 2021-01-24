@@ -8,16 +8,12 @@
 
 #include <rte_io.h>
 
-#define MAX_TX_RINGS	16
-#define BNXT_TX_PUSH_THRESH 92
 #define BNXT_MAX_TSO_SEGS	32
 #define BNXT_MIN_PKT_SIZE	52
 
-#define B_TX_DB(db, prod)	rte_write32((DB_KEY_TX | (prod)), db)
-
 struct bnxt_tx_ring_info {
-	uint16_t		tx_prod;
-	uint16_t		tx_cons;
+	uint16_t		tx_raw_prod;
+	uint16_t		tx_raw_cons;
 	struct bnxt_db_info     tx_db;
 
 	struct tx_bd_long	*tx_desc_ring;
@@ -25,21 +21,17 @@ struct bnxt_tx_ring_info {
 
 	rte_iova_t		tx_desc_mapping;
 
-#define BNXT_DEV_STATE_CLOSING	0x1
-	uint32_t		dev_state;
-
 	struct bnxt_ring	*tx_ring_struct;
 };
 
 struct bnxt_sw_tx_bd {
 	struct rte_mbuf		*mbuf; /* mbuf associated with TX descriptor */
-	uint8_t			is_gso;
 	unsigned short		nr_bds;
 };
 
 static inline uint32_t bnxt_tx_bds_in_hw(struct bnxt_tx_queue *txq)
 {
-	return ((txq->tx_ring->tx_prod - txq->tx_ring->tx_cons) &
+	return ((txq->tx_ring->tx_raw_prod - txq->tx_ring->tx_raw_cons) &
 		txq->tx_ring->tx_ring_struct->ring_mask);
 }
 
@@ -57,9 +49,7 @@ int bnxt_init_one_tx_ring(struct bnxt_tx_queue *txq);
 int bnxt_init_tx_ring_struct(struct bnxt_tx_queue *txq, unsigned int socket_id);
 uint16_t bnxt_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			       uint16_t nb_pkts);
-uint16_t bnxt_dummy_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
-			      uint16_t nb_pkts);
-#ifdef RTE_ARCH_X86
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
 uint16_t bnxt_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 			    uint16_t nb_pkts);
 #endif

@@ -48,6 +48,9 @@ struct rte_kni_ops {
 
 	/* Pointer to function of configuring promiscuous mode */
 	int (*config_promiscusity)(uint16_t port_id, uint8_t to_on);
+
+	/* Pointer to function of configuring allmulticast mode */
+	int (*config_allmulticast)(uint16_t port_id, uint8_t to_on);
 };
 
 /**
@@ -63,19 +66,21 @@ struct rte_kni_conf {
 	uint32_t core_id;   /* Core ID to bind kernel thread on */
 	uint16_t group_id;  /* Group ID */
 	unsigned mbuf_size; /* mbuf size */
-	struct rte_pci_addr addr;
-	struct rte_pci_id id;
+	struct rte_pci_addr addr; /* depreciated */
+	struct rte_pci_id id; /* depreciated */
 
 	__extension__
 	uint8_t force_bind : 1; /* Flag to bind kernel thread */
-	uint8_t mac_addr[ETHER_ADDR_LEN]; /* MAC address assigned to KNI */
+	uint8_t mac_addr[RTE_ETHER_ADDR_LEN]; /* MAC address assigned to KNI */
 	uint16_t mtu;
+	uint16_t min_mtu;
+	uint16_t max_mtu;
 };
 
 /**
  * Initialize and preallocate KNI subsystem
  *
- * This function is to be executed on the MASTER lcore only, after EAL
+ * This function is to be executed on the main lcore only, after EAL
  * initialization and before any KNI interface is attempted to be
  * allocated
  *
@@ -207,7 +212,7 @@ const char *rte_kni_get_name(const struct rte_kni *kni);
 
 /**
  * Register KNI request handling for a specified port,and it can
- * be called by master process or slave process.
+ * be called by primary process or secondary process.
  *
  * @param kni
  *  pointer to struct rte_kni.
@@ -249,7 +254,8 @@ int rte_kni_unregister_handlers(struct rte_kni *kni);
  *  Previous link state == linkdown: 0
  *  Previous link state == linkup: 1
  */
-int __rte_experimental
+__rte_experimental
+int
 rte_kni_update_link(struct rte_kni *kni, unsigned int linkup);
 
 /**

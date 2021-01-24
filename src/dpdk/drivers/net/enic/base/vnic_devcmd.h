@@ -628,6 +628,24 @@ enum vnic_devcmd_cmd {
 	 * initialized to 0 to allow for better driver forward compatibility.
 	 */
 	CMD_FLOW_MANAGER_OP = _CMDC(_CMD_DIR_RW, _CMD_VTYPE_ENET, 88),
+
+	/*
+	 * Set extended CQ field in MREGS of RQ (or all RQs)
+	 * for given vNIC
+	 * in: (u64) a0 = RQ selection (VNIC_RQ_ALL for all RQs)
+	 *     (u32) a1 = CQ entry size
+	 *	   VNIC_RQ_CQ_ENTRY_SIZE_16 --> 16 bytes
+	 *	   VNIC_RQ_CQ_ENTRY_SIZE_32 --> 32 bytes
+	 *	   VNIC_RQ_CQ_ENTRY_SIZE_64 --> 64 bytes
+	 *
+	 * Capability query:
+	 * out: (u32) a0 = errno, 0:valid cmd
+	 *	(u32) a1 = value consisting of supported entries
+	 *	   bit 0: 16 bytes
+	 *	   bit 1: 32 bytes
+	 *	   bit 2: 64 bytes
+	 */
+	CMD_CQ_ENTRY_SIZE_SET = _CMDC(_CMD_DIR_WRITE, _CMD_VTYPE_ENET, 90),
 };
 
 /* Modes for exchanging advanced filter capabilities. The modes supported by
@@ -772,7 +790,7 @@ struct filter_usnic_id {
 	uint16_t ethtype;
 	uint8_t proto_version;
 	uint32_t usnic_id;
-} __attribute__((packed));
+} __rte_packed;
 
 #define FILTER_FIELD_5TUP_PROTO  FILTER_FIELD_VALID(1)
 #define FILTER_FIELD_5TUP_SRC_AD FILTER_FIELD_VALID(2)
@@ -801,7 +819,7 @@ struct filter_ipv4_5tuple {
 	uint32_t dst_addr;
 	uint16_t src_port;
 	uint16_t dst_port;
-} __attribute__((packed));
+} __rte_packed;
 
 #define FILTER_FIELD_VMQ_VLAN   FILTER_FIELD_VALID(1)
 #define FILTER_FIELD_VMQ_MAC    FILTER_FIELD_VALID(2)
@@ -815,7 +833,7 @@ struct filter_mac_vlan {
 	uint32_t flags;
 	uint16_t vlan;
 	uint8_t mac_addr[6];
-} __attribute__((packed));
+} __rte_packed;
 
 #define FILTER_FIELD_VLAN_IP_3TUP_VLAN      FILTER_FIELD_VALID(1)
 #define FILTER_FIELD_VLAN_IP_3TUP_L3_PROTO  FILTER_FIELD_VALID(2)
@@ -839,7 +857,7 @@ struct filter_vlan_ip_3tuple {
 	} u;
 	uint32_t l4_protocol;
 	uint16_t dst_port;
-} __attribute__((packed));
+} __rte_packed;
 
 #define FILTER_GENERIC_1_BYTES 64
 
@@ -877,8 +895,8 @@ struct filter_generic_1 {
 							 * " don't care"
 							 */
 		uint8_t val[FILTER_GENERIC_1_KEY_LEN];
-	} __attribute__((packed)) layer[FILTER_GENERIC_1_NUM_LAYERS];
-} __attribute__((packed));
+	} __rte_packed layer[FILTER_GENERIC_1_NUM_LAYERS];
+} __rte_packed;
 
 /* Specifies the filter_action type. */
 enum {
@@ -892,7 +910,7 @@ struct filter_action {
 	union {
 		uint32_t rq_idx;
 	} u;
-} __attribute__((packed));
+} __rte_packed;
 
 #define FILTER_ACTION_RQ_STEERING_FLAG	(1 << 0)
 #define FILTER_ACTION_FILTER_ID_FLAG	(1 << 1)
@@ -911,7 +929,7 @@ struct filter_action_v2 {
 	uint32_t flags;               /* use FILTER_ACTION_XXX_FLAG defines */
 	uint16_t filter_id;
 	uint8_t reserved[32];         /* for future expansion */
-} __attribute__((packed));
+} __rte_packed;
 
 /* Specifies the filter type. */
 enum filter_type {
@@ -949,7 +967,7 @@ struct filter {
 		struct filter_mac_vlan mac_vlan;
 		struct filter_vlan_ip_3tuple vlan_3tuple;
 	} u;
-} __attribute__((packed));
+} __rte_packed;
 
 /*
  * This is a strict superset of "struct filter" and exists only
@@ -969,7 +987,7 @@ struct filter_v2 {
 		struct filter_vlan_ip_3tuple vlan_3tuple;
 		struct filter_generic_1 generic_1;
 	} u;
-} __attribute__((packed));
+} __rte_packed;
 
 enum {
 	CLSF_TLV_FILTER = 0,
@@ -1162,5 +1180,18 @@ typedef enum {
 	GRPINTR_DISABLE,
 	GRPINTR_UPD_VECT,
 } grpintr_subcmd_t;
+
+/*
+ * Defines and Capabilities for CMD_CQ_ENTRY_SIZE_SET
+ */
+#define VNIC_RQ_ALL			(~0ULL)
+
+#define VNIC_RQ_CQ_ENTRY_SIZE_16	0
+#define VNIC_RQ_CQ_ENTRY_SIZE_32	1
+#define VNIC_RQ_CQ_ENTRY_SIZE_64	2
+
+#define VNIC_RQ_CQ_ENTRY_SIZE_16_CAPABLE	(1 << VNIC_RQ_CQ_ENTRY_SIZE_16)
+#define VNIC_RQ_CQ_ENTRY_SIZE_32_CAPABLE	(1 << VNIC_RQ_CQ_ENTRY_SIZE_32)
+#define VNIC_RQ_CQ_ENTRY_SIZE_64_CAPABLE	(1 << VNIC_RQ_CQ_ENTRY_SIZE_64)
 
 #endif /* _VNIC_DEVCMD_H_ */

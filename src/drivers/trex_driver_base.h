@@ -24,6 +24,8 @@
 
 #include "main_dpdk.h"
 #include "dpdk_drv_filter.h"
+#include "trex_rte_eth_ctrl.h"
+
 
 class CTrexDpdkParamsOverride {
  public:
@@ -75,7 +77,8 @@ public:
     virtual void update_configuration(port_cfg_t * cfg)=0;
     virtual void update_global_config_fdir(port_cfg_t * cfg)=0;
     virtual int configure_rx_filter_rules(CPhyEthIF * _if)=0;
-    virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3, uint8_t l4
+
+    virtual int add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum trex_rte_filter_op op, uint16_t l3, uint8_t l4
                                           , uint8_t ipv6_next_h, uint16_t id) {return 0;}
 
     bool hardware_support_mac_change() {
@@ -150,7 +153,7 @@ public:
         m_real_drv->update_global_config_fdir(cfg);
     }
     int configure_rx_filter_rules(CPhyEthIF *_if);
-    int add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id);
+    int add_del_rx_flow_stat_rule(CPhyEthIF *_if, enum trex_rte_filter_op op, uint16_t l3, uint8_t l4, uint8_t ipv6_next_h, uint16_t id);
     int stop_queue(CPhyEthIF * _if, uint16_t q_num);
     bool get_extended_stats_fixed(CPhyEthIF * _if, CPhyEthIFStats *stats, int fix_i, int fix_o);
     bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);

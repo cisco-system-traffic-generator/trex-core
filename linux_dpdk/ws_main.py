@@ -210,61 +210,258 @@ def configure_dummy_mlx5 (ctx):
     autoconf_path = os.path.join(top, autoconf_file)
     os.system('rm -rf %s' % autoconf_path)
     dummy_file_data = '''
-        #ifndef HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
-        #define HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
-        #endif
+#ifndef HAVE_IBV_MLX5_MOD_SWP
+#define HAVE_IBV_MLX5_MOD_SWP 1
+#endif /* HAVE_IBV_MLX5_MOD_SWP */
 
-        #ifndef HAVE_IBV_FLOW_DV_SUPPORT
-        #define HAVE_IBV_FLOW_DV_SUPPORT
-        #endif
+/* HAVE_IBV_DEVICE_COUNTERS_SET_V42 is not defined. */
 
-        #ifndef HAVE_IBV_DEVICE_COUNTERS_SET_V45
-        #define HAVE_IBV_DEVICE_COUNTERS_SET_V45
-        #endif
+#ifndef HAVE_IBV_DEVICE_COUNTERS_SET_V45
+#define HAVE_IBV_DEVICE_COUNTERS_SET_V45 1
+#endif /* HAVE_IBV_DEVICE_COUNTERS_SET_V45 */
 
-        #ifndef HAVE_IBV_FLOW_DEVX_COUNTERS
-        #define HAVE_IBV_FLOW_DEVX_COUNTERS
-        #endif
+#ifndef HAVE_MLX5DV_DEVX_UAR_OFFSET
+#define HAVE_MLX5DV_DEVX_UAR_OFFSET 1
+#endif /* HAVE_MLX5DV_DEVX_UAR_OFFSET */
 
-        #ifndef HAVE_IBV_MLX4_WQE_LSO_SEG
-        #define HAVE_IBV_MLX4_WQE_LSO_SEG
-        #endif
+#ifndef HAVE_IBV_RELAXED_ORDERING
+#define HAVE_IBV_RELAXED_ORDERING 1
+#endif /* HAVE_IBV_RELAXED_ORDERING */
 
-        #ifndef HAVE_IBV_DEVX_OBJ
-        #define HAVE_IBV_DEVX_OBJ
-        #endif
+#ifndef HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT
+#define HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT 1
+#endif /* HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT */
 
-        #ifdef SUPPORTED_40000baseKR4_Full
-        #define HAVE_SUPPORTED_40000baseKR4_Full 1
-        #endif
+#ifndef HAVE_IBV_DEVICE_TUNNEL_SUPPORT
+#define HAVE_IBV_DEVICE_TUNNEL_SUPPORT 1
+#endif /* HAVE_IBV_DEVICE_TUNNEL_SUPPORT */
 
-        #ifdef SUPPORTED_40000baseCR4_Full
-        #define HAVE_SUPPORTED_40000baseCR4_Full 1
-        #endif
+#ifndef HAVE_IBV_MLX5_MOD_MPW
+#define HAVE_IBV_MLX5_MOD_MPW 1
+#endif /* HAVE_IBV_MLX5_MOD_MPW */
 
-        #ifdef SUPPORTED_40000baseSR4_Full
-        #define HAVE_SUPPORTED_40000baseSR4_Full 1
-        #endif
+#ifndef HAVE_IBV_MLX5_MOD_CQE_128B_COMP
+#define HAVE_IBV_MLX5_MOD_CQE_128B_COMP 1
+#endif /* HAVE_IBV_MLX5_MOD_CQE_128B_COMP */
 
-        #ifdef SUPPORTED_40000baseLR4_Full
-        #define HAVE_SUPPORTED_40000baseLR4_Full 1
-        #endif
+#ifndef HAVE_IBV_MLX5_MOD_CQE_128B_PAD
+#define HAVE_IBV_MLX5_MOD_CQE_128B_PAD 1
+#endif /* HAVE_IBV_MLX5_MOD_CQE_128B_PAD */
 
-        #ifdef SUPPORTED_56000baseKR4_Full
-        #define HAVE_SUPPORTED_56000baseKR4_Full 1
-        #endif
+#ifndef HAVE_IBV_FLOW_DV_SUPPORT
+#define HAVE_IBV_FLOW_DV_SUPPORT 1
+#endif /* HAVE_IBV_FLOW_DV_SUPPORT */
 
-        #ifdef SUPPORTED_56000baseCR4_Full
-        #define HAVE_SUPPORTED_56000baseCR4_Full 1
-        #endif
+#ifndef HAVE_IBV_DEVICE_MPLS_SUPPORT
+#define HAVE_IBV_DEVICE_MPLS_SUPPORT 1
+#endif /* HAVE_IBV_DEVICE_MPLS_SUPPORT */
 
-        #ifdef SUPPORTED_56000baseSR4_Full
-        #define HAVE_SUPPORTED_56000baseSR4_Full 1
-        #endif
+#ifndef HAVE_IBV_WQ_FLAGS_PCI_WRITE_END_PADDING
+#define HAVE_IBV_WQ_FLAGS_PCI_WRITE_END_PADDING 1
+#endif /* HAVE_IBV_WQ_FLAGS_PCI_WRITE_END_PADDING */
 
-        #ifdef SUPPORTED_56000baseLR4_Full
-        #define HAVE_SUPPORTED_56000baseLR4_Full 1
-        #endif
+/* HAVE_IBV_WQ_FLAG_RX_END_PADDING is not defined. */
+
+#ifndef HAVE_MLX5DV_DR_DEVX_PORT
+#define HAVE_MLX5DV_DR_DEVX_PORT 1
+#endif /* HAVE_MLX5DV_DR_DEVX_PORT */
+
+#ifndef HAVE_IBV_DEVX_OBJ
+#define HAVE_IBV_DEVX_OBJ 1
+#endif /* HAVE_IBV_DEVX_OBJ */
+
+#ifndef HAVE_IBV_FLOW_DEVX_COUNTERS
+#define HAVE_IBV_FLOW_DEVX_COUNTERS 1
+#endif /* HAVE_IBV_FLOW_DEVX_COUNTERS */
+
+#ifndef HAVE_MLX5_DR_CREATE_ACTION_DEFAULT_MISS
+#define HAVE_MLX5_DR_CREATE_ACTION_DEFAULT_MISS 1
+#endif /* HAVE_MLX5_DR_CREATE_ACTION_DEFAULT_MISS */
+
+#ifndef HAVE_IBV_DEVX_ASYNC
+#define HAVE_IBV_DEVX_ASYNC 1
+#endif /* HAVE_IBV_DEVX_ASYNC */
+
+#ifndef HAVE_IBV_DEVX_QP
+#define HAVE_IBV_DEVX_QP 1
+#endif /* HAVE_IBV_DEVX_QP */
+
+#ifndef HAVE_MLX5DV_PP_ALLOC
+#define HAVE_MLX5DV_PP_ALLOC 1
+#endif /* HAVE_MLX5DV_PP_ALLOC */
+
+#ifndef HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR
+#define HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR 1
+#endif /* HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR */
+
+#ifndef HAVE_IBV_DEVX_EVENT
+#define HAVE_IBV_DEVX_EVENT 1
+#endif /* HAVE_IBV_DEVX_EVENT */
+
+#ifndef HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER
+#define HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER 1
+#endif /* HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER */
+
+#ifndef HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD
+#define HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD 1
+#endif /* HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD */
+
+#ifndef HAVE_MLX5DV_DR
+#define HAVE_MLX5DV_DR 1
+#endif /* HAVE_MLX5DV_DR */
+
+#ifndef HAVE_MLX5DV_DR_ESWITCH
+#define HAVE_MLX5DV_DR_ESWITCH 1
+#endif /* HAVE_MLX5DV_DR_ESWITCH */
+
+#ifndef HAVE_MLX5DV_DR_VLAN
+#define HAVE_MLX5DV_DR_VLAN 1
+#endif /* HAVE_MLX5DV_DR_VLAN */
+
+#ifndef HAVE_IBV_VAR
+#define HAVE_IBV_VAR 1
+#endif /* HAVE_IBV_VAR */
+
+/* HAVE_MLX5_OPCODE_ENHANCED_MPSW is not defined. */
+
+/* HAVE_MLX5_OPCODE_SEND_EN is not defined. */
+
+/* HAVE_MLX5_OPCODE_WAIT is not defined. */
+
+/* HAVE_MLX5_OPCODE_ACCESS_ASO is not defined. */
+
+#ifndef HAVE_SUPPORTED_40000baseKR4_Full
+#define HAVE_SUPPORTED_40000baseKR4_Full 1
+#endif /* HAVE_SUPPORTED_40000baseKR4_Full */
+
+#ifndef HAVE_SUPPORTED_40000baseCR4_Full
+#define HAVE_SUPPORTED_40000baseCR4_Full 1
+#endif /* HAVE_SUPPORTED_40000baseCR4_Full */
+
+#ifndef HAVE_SUPPORTED_40000baseSR4_Full
+#define HAVE_SUPPORTED_40000baseSR4_Full 1
+#endif /* HAVE_SUPPORTED_40000baseSR4_Full */
+
+#ifndef HAVE_SUPPORTED_40000baseLR4_Full
+#define HAVE_SUPPORTED_40000baseLR4_Full 1
+#endif /* HAVE_SUPPORTED_40000baseLR4_Full */
+
+#ifndef HAVE_SUPPORTED_56000baseKR4_Full
+#define HAVE_SUPPORTED_56000baseKR4_Full 1
+#endif /* HAVE_SUPPORTED_56000baseKR4_Full */
+
+#ifndef HAVE_SUPPORTED_56000baseCR4_Full
+#define HAVE_SUPPORTED_56000baseCR4_Full 1
+#endif /* HAVE_SUPPORTED_56000baseCR4_Full */
+
+#ifndef HAVE_SUPPORTED_56000baseSR4_Full
+#define HAVE_SUPPORTED_56000baseSR4_Full 1
+#endif /* HAVE_SUPPORTED_56000baseSR4_Full */
+
+#ifndef HAVE_SUPPORTED_56000baseLR4_Full
+#define HAVE_SUPPORTED_56000baseLR4_Full 1
+#endif /* HAVE_SUPPORTED_56000baseLR4_Full */
+
+#ifndef HAVE_ETHTOOL_LINK_MODE_25G
+#define HAVE_ETHTOOL_LINK_MODE_25G 1
+#endif /* HAVE_ETHTOOL_LINK_MODE_25G */
+
+#ifndef HAVE_ETHTOOL_LINK_MODE_50G
+#define HAVE_ETHTOOL_LINK_MODE_50G 1
+#endif /* HAVE_ETHTOOL_LINK_MODE_50G */
+
+#ifndef HAVE_ETHTOOL_LINK_MODE_100G
+#define HAVE_ETHTOOL_LINK_MODE_100G 1
+#endif /* HAVE_ETHTOOL_LINK_MODE_100G */
+
+#ifndef HAVE_IFLA_NUM_VF
+#define HAVE_IFLA_NUM_VF 1
+#endif /* HAVE_IFLA_NUM_VF */
+
+#ifndef HAVE_IFLA_EXT_MASK
+#define HAVE_IFLA_EXT_MASK 1
+#endif /* HAVE_IFLA_EXT_MASK */
+
+#ifndef HAVE_IFLA_PHYS_SWITCH_ID
+#define HAVE_IFLA_PHYS_SWITCH_ID 1
+#endif /* HAVE_IFLA_PHYS_SWITCH_ID */
+
+#ifndef HAVE_IFLA_PHYS_PORT_NAME
+#define HAVE_IFLA_PHYS_PORT_NAME 1
+#endif /* HAVE_IFLA_PHYS_PORT_NAME */
+
+#ifndef HAVE_RDMA_NL_NLDEV
+#define HAVE_RDMA_NL_NLDEV 1
+#endif /* HAVE_RDMA_NL_NLDEV */
+
+#ifndef HAVE_RDMA_NLDEV_CMD_GET
+#define HAVE_RDMA_NLDEV_CMD_GET 1
+#endif /* HAVE_RDMA_NLDEV_CMD_GET */
+
+#ifndef HAVE_RDMA_NLDEV_CMD_PORT_GET
+#define HAVE_RDMA_NLDEV_CMD_PORT_GET 1
+#endif /* HAVE_RDMA_NLDEV_CMD_PORT_GET */
+
+#ifndef HAVE_RDMA_NLDEV_ATTR_DEV_INDEX
+#define HAVE_RDMA_NLDEV_ATTR_DEV_INDEX 1
+#endif /* HAVE_RDMA_NLDEV_ATTR_DEV_INDEX */
+
+#ifndef HAVE_RDMA_NLDEV_ATTR_DEV_NAME
+#define HAVE_RDMA_NLDEV_ATTR_DEV_NAME 1
+#endif /* HAVE_RDMA_NLDEV_ATTR_DEV_NAME */
+
+#ifndef HAVE_RDMA_NLDEV_ATTR_PORT_INDEX
+#define HAVE_RDMA_NLDEV_ATTR_PORT_INDEX 1
+#endif /* HAVE_RDMA_NLDEV_ATTR_PORT_INDEX */
+
+#ifndef HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX
+#define HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX 1
+#endif /* HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX */
+
+#ifndef HAVE_MLX5_DR_FLOW_DUMP
+#define HAVE_MLX5_DR_FLOW_DUMP 1
+#endif /* HAVE_MLX5_DR_FLOW_DUMP */
+
+#ifndef HAVE_DEVLINK
+#define HAVE_DEVLINK 1
+#endif /* HAVE_DEVLINK */
+
+#ifndef HAVE_DEVLINK_DUMMY
+#define HAVE_DEVLINK_DUMMY 1
+#endif /* HAVE_DEVLINK_DUMMY */
+
+
+#ifndef HAVE_MLX5_DR_CREATE_ACTION_ASO
+#define HAVE_MLX5_DR_CREATE_ACTION_ASO 1
+#endif /* HAVE_MLX5_DR_CREATE_ACTION_ASO */
+
+#ifndef HAVE_INFINIBAND_VERBS_H
+#define HAVE_INFINIBAND_VERBS_H 1
+#endif /* HAVE_INFINIBAND_VERBS_H */
+
+#ifndef HAVE_MLX5_DR_CREATE_ACTION_DEST_ARRAY
+#define HAVE_MLX5_DR_CREATE_ACTION_DEST_ARRAY 1
+#endif /* HAVE_MLX5_DR_CREATE_ACTION_DEST_ARRAY */
+
+#ifndef HAVE_MLX5DV_DR_MEM_RECLAIM
+#define HAVE_MLX5DV_DR_MEM_RECLAIM 1
+#endif /* HAVE_MLX5DV_DR_MEM_RECLAIM */
+
+#ifndef HAVE_MLX5_DR_CREATE_ACTION_FLOW_SAMPLE
+#define HAVE_MLX5_DR_CREATE_ACTION_FLOW_SAMPLE 1
+#endif /* HAVE_MLX5_DR_CREATE_ACTION_FLOW_SAMPLE */
+
+
+        #define ETHTOOL_LINK_MODE_25000baseCR_Full_BIT 31
+        #define ETHTOOL_LINK_MODE_25000baseKR_Full_BIT 32
+        #define ETHTOOL_LINK_MODE_25000baseSR_Full_BIT 33
+        #define ETHTOOL_LINK_MODE_50000baseCR2_Full_BIT 34
+        #define ETHTOOL_LINK_MODE_50000baseKR2_Full_BIT 35
+        #define ETHTOOL_LINK_MODE_100000baseKR4_Full_BIT 36
+        #define ETHTOOL_LINK_MODE_100000baseSR4_Full_BIT 37
+        #define ETHTOOL_LINK_MODE_100000baseCR4_Full_BIT  38 
+        #define ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT 39
+
 
         '''
     
@@ -291,6 +488,12 @@ def configure_mlx5 (ctx):
         'type', 'struct ibv_counter_set_init_attr' ],
         [ 'HAVE_IBV_DEVICE_COUNTERS_SET_V45', 'infiniband/verbs.h',
         'type', 'struct ibv_counters_init_attr' ],
+        [ 'HAVE_MLX5DV_DEVX_UAR_OFFSET', 'infiniband/mlx5dv.h',
+        'field', 'struct mlx5dv_devx_uar.mmap_off'],
+
+        [ 'HAVE_IBV_RELAXED_ORDERING', 'infiniband/verbs.h',
+        'enum','IBV_ACCESS_RELAXED_ORDERING '],
+
         [ 'HAVE_IBV_DEVICE_STRIDING_RQ_SUPPORT', 'infiniband/mlx5dv.h',
         'enum', 'MLX5DV_CQE_RES_FORMAT_CSUM_STRIDX' ],
         [ 'HAVE_IBV_DEVICE_TUNNEL_SUPPORT', 'infiniband/mlx5dv.h',
@@ -315,8 +518,18 @@ def configure_mlx5 (ctx):
         'func', 'mlx5dv_devx_obj_create' ],
         [ 'HAVE_IBV_FLOW_DEVX_COUNTERS', 'infiniband/mlx5dv.h',
         'enum', 'MLX5DV_FLOW_ACTION_COUNTERS_DEVX' ],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_DEFAULT_MISS', 'infiniband/mlx5dv.h',
+        'enum','MLX5DV_FLOW_ACTION_DEFAULT_MISS' ],
+
         [ 'HAVE_IBV_DEVX_ASYNC', 'infiniband/mlx5dv.h',
         'func', 'mlx5dv_devx_obj_query_async' ],
+        [ 'HAVE_IBV_DEVX_QP', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_devx_qp_query' ],
+        [ 'HAVE_MLX5DV_PP_ALLOC', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_pp_alloc' ],
+
+
+
         [ 'HAVE_MLX5DV_DR_ACTION_DEST_DEVX_TIR', 'infiniband/mlx5dv.h',
         'func', 'mlx5dv_dr_action_create_dest_devx_tir' ],
         [ 'HAVE_IBV_DEVX_EVENT', 'infiniband/mlx5dv.h',
@@ -333,6 +546,17 @@ def configure_mlx5 (ctx):
         'func', 'mlx5dv_dr_action_create_push_vlan' ],
         [ 'HAVE_IBV_VAR', 'infiniband/mlx5dv.h',
         'func', 'mlx5dv_alloc_var' ],
+
+        [ 'HAVE_MLX5_OPCODE_ENHANCED_MPSW', 'infiniband/mlx5dv.h',
+        'enum','MLX5_OPCODE_ENHANCED_MPSW' ],
+        [ 'HAVE_MLX5_OPCODE_SEND_EN', 'infiniband/mlx5dv.h',
+        'enum','MLX5_OPCODE_SEND_EN' ],
+        [ 'HAVE_MLX5_OPCODE_WAIT', 'infiniband/mlx5dv.h',
+        'enum', 'MLX5_OPCODE_WAIT' ],
+        [ 'HAVE_MLX5_OPCODE_ACCESS_ASO', 'infiniband/mlx5dv.h',
+        'enum','MLX5_OPCODE_ACCESS_ASO' ],
+
+
         [ 'HAVE_SUPPORTED_40000baseKR4_Full', 'linux/ethtool.h',
         'define', 'SUPPORTED_40000baseKR4_Full' ],
         [ 'HAVE_SUPPORTED_40000baseCR4_Full', 'linux/ethtool.h',
@@ -381,6 +605,17 @@ def configure_mlx5 (ctx):
         'func', 'mlx5dv_dump_dr_domain'],
         [ 'HAVE_DEVLINK', 'linux/devlink.h',
         'define', 'DEVLINK_GENL_NAME' ],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_ASO', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_dr_action_create_aso' ],
+        [ 'HAVE_INFINIBAND_VERBS_H', 'infiniband/verbs.h',
+        'define', 'INFINIBAND_VERBS_H' ],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_DEST_ARRAY', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_dr_action_create_dest_array'],
+        [ 'HAVE_MLX5DV_DR_MEM_RECLAIM', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_dr_domain_set_reclaim_device_memory'],
+        [ 'HAVE_MLX5_DR_CREATE_ACTION_FLOW_SAMPLE', 'infiniband/mlx5dv.h',
+        'func','mlx5dv_dr_action_create_flow_sampler'],
+
     ]
     autoconf_script = 'src/dpdk/auto-config-h.sh'
     autoconf_command = os.path.join(top, autoconf_script)
@@ -567,8 +802,6 @@ def configure(conf):
                                   'https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_mellanox_connectx_4_support')
         if no_mlx != 'mlx5':
             Logs.pprint('YELLOW', 'Building mlx5 PMD')
-        if no_mlx != 'mlx4':
-            Logs.pprint('YELLOW', 'Building mlx4 PMD')
 
     conf.env.NO_BNXT = no_bnxt
     if not no_bnxt:
@@ -577,12 +810,12 @@ def configure(conf):
     conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
 
-    if with_ntacc:
-        ntapi_ok = conf.check_ntapi(mandatory = False)
-        if not ntapi_ok:
-            Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
-                                  'https://www.napatech.com/downloads/')
-            raise Exception("Cannot find libntapi");
+    #if with_ntacc:
+    #    ntapi_ok = conf.check_ntapi(mandatory = False)
+    #    if not ntapi_ok:
+    #        Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
+    #                              'https://www.napatech.com/downloads/')
+    #        raise Exception("Cannot find libntapi");
 
     conf.env.DPDK_NEW_MEMORY = new_memory
     if new_memory:
@@ -731,13 +964,13 @@ main_src = SrcGroup(dir='src',
              'tunnels/tunnel_factory_creator.cpp',
 
              'drivers/trex_driver_base.cpp',
-             'drivers/trex_driver_bnxt.cpp',
+             #'drivers/trex_driver_bnxt.cpp',
              'drivers/trex_driver_i40e.cpp',
              'drivers/trex_driver_igb.cpp',
              'drivers/trex_driver_ixgbe.cpp',
              'drivers/trex_driver_mlx5.cpp',
              'drivers/trex_driver_ice.cpp',
-             'drivers/trex_driver_ntacc.cpp',
+             #'drivers/trex_driver_ntacc.cpp',
              'drivers/trex_driver_vic.cpp',
              'drivers/trex_driver_virtual.cpp',
 
@@ -940,20 +1173,24 @@ version_src = SrcGroup(
 dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
         src_list=[
                  #enic
-                 'drivers/net/enic/base/vnic_cq.c',
-                 'drivers/net/enic/base/vnic_dev.c',
+                 'drivers/net/enic/enic_ethdev.c',
                  'drivers/net/enic/base/vnic_intr.c',
                  'drivers/net/enic/base/vnic_rq.c',
                  'drivers/net/enic/base/vnic_wq.c',
-                 'drivers/net/enic/enic_clsf.c',
+                 'drivers/net/enic/base/vnic_dev.c',
+                 'drivers/net/enic/base/vnic_cq.c',
+
+                 'drivers/net/enic/enic_vf_representor.c',
                  'drivers/net/enic/enic_flow.c',
                  'drivers/net/enic/enic_fm_flow.c',
-                 'drivers/net/enic/enic_ethdev.c',
-                 'drivers/net/enic/enic_main.c',
-                 'drivers/net/enic/enic_res.c',
                  'drivers/net/enic/enic_rxtx.c',
+                 'drivers/net/enic/enic_res.c',
+                 'drivers/net/enic/enic_main.c',
 
                  #ICE   
+                'drivers/net/ice/base/ice_vlan_mode.c',
+                'drivers/net/ice/base/ice_acl.c',
+                'drivers/net/ice/base/ice_acl_ctrl.c',
                 'drivers/net/ice/base/ice_controlq.c',
                 'drivers/net/ice/base/ice_common.c',
                 'drivers/net/ice/base/ice_sched.c',
@@ -963,7 +1200,12 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 'drivers/net/ice/base/ice_flow.c',
                 'drivers/net/ice/base/ice_dcb.c',
                 'drivers/net/ice/base/ice_fdir.c',
-                
+
+                'drivers/net/ice/ice_dcf_vf_representor.c',
+                'drivers/net/ice/ice_acl_filter.c',
+                'drivers/net/ice/ice_dcf.c',
+                'drivers/net/ice/ice_dcf_ethdev.c',
+                'drivers/net/ice/ice_dcf_parent.c',
                 'drivers/net/ice/ice_ethdev.c',
                 'drivers/net/ice/ice_rxtx.c',
                 'drivers/net/ice/ice_rxtx_vec_sse.c',
@@ -971,6 +1213,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 'drivers/net/ice/ice_fdir_filter.c',
                 'drivers/net/ice/ice_hash.c',
                 #'drivers/net/ice/ice_rxtx_vec_avx2.c',
+                #'drivers/net/ice/ice_rxtx_vec_avx512.c',
                 'drivers/net/ice/ice_generic_flow.c',
 
                  #ixgbe
@@ -1017,10 +1260,12 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ena/base/ena_eth_com.c',
 
                  #libs
-                 'lib/librte_eal/common/arch/x86/rte_cpuflags.c',
-                 'lib/librte_eal/common/arch/x86/rte_spinlock.c',
-                 'lib/librte_eal/common/arch/x86/rte_cycles.c',
-                 'lib/librte_eal/common/arch/x86/rte_hypervisor.c',
+                 'lib/librte_eal/x86/rte_cpuflags.c',
+                 'lib/librte_eal/x86/rte_spinlock.c',
+                 'lib/librte_eal/x86/rte_cycles.c',
+                 'lib/librte_eal/x86/rte_hypervisor.c',
+                 
+                 #'lib/librte_security/rte_security.c',
 
                  #failsafe
 
@@ -1046,6 +1291,11 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/vdev_netvsc/vdev_netvsc.c',
 
                  ])
+
+dpdk_src_x86_64_ext = SrcGroup(dir='src',
+        src_list=['drivers/trex_ixgbe_fdir.c',
+                  'drivers/trex_i40e_fdir.c']
+)
 
 
 dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
@@ -1090,24 +1340,25 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
                  # drivers
                  #bnxt
-                 'drivers/net/bnxt/bnxt_cpr.c',
-                 'drivers/net/bnxt/bnxt_ethdev.c',
-                 'drivers/net/bnxt/bnxt_filter.c',
-                 'drivers/net/bnxt/bnxt_flow.c',
-                 'drivers/net/bnxt/bnxt_hwrm.c',
-                 'drivers/net/bnxt/bnxt_irq.c',
-                 'drivers/net/bnxt/bnxt_ring.c',
-                 'drivers/net/bnxt/bnxt_rxq.c',
-                 'drivers/net/bnxt/bnxt_rxr.c',
-                 'drivers/net/bnxt/bnxt_stats.c',
-                 'drivers/net/bnxt/bnxt_txq.c',
-                 'drivers/net/bnxt/bnxt_txr.c',
-                 'drivers/net/bnxt/bnxt_util.c',
-                 'drivers/net/bnxt/bnxt_vnic.c',
-                 'drivers/net/bnxt/rte_pmd_bnxt.c',
-                 'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
+                 #'drivers/net/bnxt/bnxt_cpr.c',
+                 #'drivers/net/bnxt/bnxt_ethdev.c',
+                 #'drivers/net/bnxt/bnxt_filter.c',
+                 #'drivers/net/bnxt/bnxt_flow.c',
+                 #'drivers/net/bnxt/bnxt_hwrm.c',
+                 #'drivers/net/bnxt/bnxt_irq.c',
+                 #'drivers/net/bnxt/bnxt_ring.c',
+                 #'drivers/net/bnxt/bnxt_rxq.c',
+                 #'drivers/net/bnxt/bnxt_rxr.c',
+                 #'drivers/net/bnxt/bnxt_stats.c',
+                 #'drivers/net/bnxt/bnxt_txq.c',
+                 #'drivers/net/bnxt/bnxt_txr.c',
+                 #'drivers/net/bnxt/bnxt_util.c',
+                 #'drivers/net/bnxt/bnxt_vnic.c',
+                 #'drivers/net/bnxt/rte_pmd_bnxt.c',
+                 #'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
 
                  #e1000
+                 'drivers/net/e1000/base/e1000_base.c',
                  'drivers/net/e1000/base/e1000_80003es2lan.c',
                  'drivers/net/e1000/base/e1000_82540.c',
                  'drivers/net/e1000/base/e1000_82541.c',
@@ -1141,21 +1392,33 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_ethdev.c',
                  'drivers/net/virtio/virtio_pci.c',
                  'drivers/net/virtio/virtio_rxtx.c',
+                 
+                 #'drivers/net/virtio/virtio_rxtx_packed.c',
+
                  'drivers/net/virtio/virtio_rxtx_simple.c',
                  'drivers/net/virtio/virtqueue.c',
                  'drivers/net/virtio/virtio_user_ethdev.c',
+                 'drivers/net/virtio/virtio_user/vhost_vdpa.c',
                  'drivers/net/virtio/virtio_user/vhost_kernel.c',
                  'drivers/net/virtio/virtio_user/vhost_kernel_tap.c',
                  'drivers/net/virtio/virtio_user/vhost_user.c',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
 
+                 'drivers/common/iavf/iavf_adminq.c',
+                 'drivers/common/iavf/iavf_common.c',
+                 'drivers/common/iavf/iavf_impl.c',
 
                  #libs
+                'lib/librte_rcu/rte_rcu_qsbr.c',
+
                  'lib/librte_cfgfile/rte_cfgfile.c',
 
+                 'lib/librte_eal/common/eal_common_hypervisor.c',
+                 'lib/librte_eal/common/eal_common_dynmem.c',
                  'lib/librte_eal/common/eal_common_bus.c',
                  'lib/librte_eal/common/eal_common_class.c',
                  'lib/librte_eal/common/eal_common_cpuflags.c',
+                 'lib/librte_eal/common/eal_common_debug.c',
                  'lib/librte_eal/common/eal_common_dev.c',
                  'lib/librte_eal/common/eal_common_devargs.c',
                  'lib/librte_eal/common/eal_common_errno.c',
@@ -1174,6 +1437,13 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/eal_common_tailqs.c',
                  'lib/librte_eal/common/eal_common_thread.c',
                  'lib/librte_eal/common/eal_common_timer.c',
+                 'lib/librte_eal/common/eal_common_config.c',
+                 'lib/librte_eal/common/eal_common_trace.c',
+                 'lib/librte_eal/common/eal_common_trace_ctf.c',
+                 'lib/librte_eal/common/eal_common_trace_points.c',
+                 'lib/librte_eal/common/eal_common_trace_utils.c',
+                 'lib/librte_eal/common/eal_common_uuid.c',
+                 'lib/librte_eal/common/rte_reciprocal.c',
 
                  'lib/librte_eal/common/hotplug_mp.c',
                  'lib/librte_eal/common/malloc_elem.c',
@@ -1181,27 +1451,44 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/common/malloc_mp.c',
                  'lib/librte_eal/common/rte_keepalive.c',
                  'lib/librte_eal/common/rte_malloc.c',
-                 'lib/librte_eal/common/rte_option.c',
                  'lib/librte_eal/common/rte_service.c',
                  'lib/librte_eal/common/rte_random.c',
-                 'lib/librte_eal/linux/eal/eal.c',
-                 'lib/librte_eal/linux/eal/eal_alarm.c',
-                 'lib/librte_eal/linux/eal/eal_cpuflags.c',
-                 'lib/librte_eal/linux/eal/eal_debug.c',
-                 'lib/librte_eal/linux/eal/eal_hugepage_info.c',
-                 'lib/librte_eal/linux/eal/eal_interrupts.c',
-                 'lib/librte_eal/linux/eal/eal_lcore.c',
-                 'lib/librte_eal/linux/eal/eal_log.c',
-                 'lib/librte_eal/linux/eal/eal_memalloc.c',
-                 'lib/librte_eal/linux/eal/eal_memory.c',
-                 'lib/librte_eal/linux/eal/eal_thread.c',
-                 'lib/librte_eal/linux/eal/eal_timer.c',
-                 'lib/librte_eal/linux/eal/eal_vfio_mp_sync.c',
-                 'lib/librte_eal/linux/eal/eal_vfio.c',
+
+                'lib/librte_eal/unix/eal_unix_timer.c',
+                'lib/librte_eal/unix/eal_unix_memory.c',
+                'lib/librte_eal/unix/eal_file.c',
+                'lib/librte_eal/unix/rte_thread.c',
+
+                 'lib/librte_eal/linux/eal.c',
+                 'lib/librte_eal/linux/eal_alarm.c',
+                 'lib/librte_eal/linux/eal_cpuflags.c',
+                 'lib/librte_eal/linux/eal_debug.c',
+                 'lib/librte_eal/linux/eal_hugepage_info.c',
+                 'lib/librte_eal/linux/eal_interrupts.c',
+                 'lib/librte_eal/linux/eal_lcore.c',
+                 'lib/librte_eal/linux/eal_log.c',
+                 'lib/librte_eal/linux/eal_memalloc.c',
+                 'lib/librte_eal/linux/eal_memory.c',
+                 'lib/librte_eal/linux/eal_thread.c',
+                 'lib/librte_eal/linux/eal_timer.c',
+                 'lib/librte_eal/linux/eal_vfio_mp_sync.c',
+                 'lib/librte_eal/linux/eal_vfio.c',
+
                  'lib/librte_ethdev/rte_ethdev.c',
                  'lib/librte_ethdev/rte_flow.c',
+
+                 'lib/librte_ethdev/ethdev_trace_points.c',
                  'lib/librte_ethdev/ethdev_private.c',
+                 'lib/librte_ethdev/rte_class_eth.c',
                  'lib/librte_ethdev/ethdev_profile.c',
+                 'lib/librte_ethdev/rte_mtr.c',
+                 'lib/librte_ethdev/rte_tm.c',
+                                  
+                 'lib/librte_telemetry/telemetry.c',
+                 'lib/librte_telemetry/telemetry_data.c',
+                 'lib/librte_telemetry/telemetry_legacy.c',
+
+
                  'lib/librte_hash/rte_cuckoo_hash.c',
                  'lib/librte_kvargs/rte_kvargs.c',
                  'lib/librte_mbuf/rte_mbuf.c',
@@ -1211,6 +1498,8 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_mempool/rte_mempool.c',
                  'lib/librte_mempool/rte_mempool_ops.c',
                  'lib/librte_mempool/rte_mempool_ops_default.c',
+                 'lib/librte_mempool/mempool_trace_points.c',
+
                  'lib/librte_net/rte_ether.c',
                  'lib/librte_net/rte_net.c',
                  'lib/librte_net/rte_net_crc.c',
@@ -1219,6 +1508,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_ring/rte_ring.c',
                  'lib/librte_timer/rte_timer.c',
                  'lib/librte_gso/rte_gso.c',
+                 'lib/librte_gso/gso_tunnel_udp4.c',
                  'lib/librte_gso/gso_common.c',
                  'lib/librte_gso/gso_tcp4.c',
                  'lib/librte_gso/gso_tunnel_tcp4.c',
@@ -1252,6 +1542,7 @@ i40e_dpdk_src = SrcGroup(
         'base/i40e_hmc.c',
         'base/i40e_lan_hmc.c',
         'base/i40e_nvm.c',
+        'i40e_hash.c',
         'i40e_ethdev.c',
         'i40e_ethdev_vf.c',
         'i40e_fdir.c',
@@ -1266,30 +1557,50 @@ i40e_dpdk_src = SrcGroup(
 mlx5_x86_64_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/',
     src_list = [
-        'common/mlx5/mlx5_glue.c',
-        'common/mlx5/mlx5_devx_cmds.c',
         'common/mlx5/mlx5_common.c',
-        'common/mlx5/mlx5_nl.c',
-        'net/mlx5/mlx5.c',
+        'common/mlx5/mlx5_malloc.c',
+        'common/mlx5/mlx5_common_pci.c',
+        'common/mlx5/mlx5_common_mr.c',
+        'common/mlx5/mlx5_common_devx.c',
+        'common/mlx5/mlx5_common_mp.c',
+        'common/mlx5/mlx5_devx_cmds.c',
+
+        'common/mlx5/linux/mlx5_common_verbs.c',
+        'common/mlx5/linux/mlx5_common_os.c',
+        'common/mlx5/linux/mlx5_glue.c',
+        'common/mlx5/linux/mlx5_nl.c',
+
+
         'net/mlx5/mlx5_rxq.c',
-        'net/mlx5/mlx5_txq.c',
-        'net/mlx5/mlx5_rxtx.c',
-        'net/mlx5/mlx5_rxtx_vec.c',
-        'net/mlx5/mlx5_trigger.c',
-        'net/mlx5/mlx5_ethdev.c',
-        'net/mlx5/mlx5_mac.c',
-        'net/mlx5/mlx5_rxmode.c',
-        'net/mlx5/mlx5_vlan.c',
-        'net/mlx5/mlx5_stats.c',
-        'net/mlx5/mlx5_rss.c',
-        'net/mlx5/mlx5_mr.c',
-        'net/mlx5/mlx5_flow.c',
-        'net/mlx5/mlx5_flow_meter.c',
+        'net/mlx5/mlx5.c',
         'net/mlx5/mlx5_flow_dv.c',
+        'net/mlx5/mlx5_ethdev.c',
+        'net/mlx5/mlx5_mr.c',
+        'net/mlx5/mlx5_trigger.c',
         'net/mlx5/mlx5_flow_verbs.c',
-        'net/mlx5/mlx5_mp.c',
+        'net/mlx5/mlx5_devx.c',
+        'net/mlx5/mlx5_stats.c',
+        'net/mlx5/mlx5_flow.c',
+        'net/mlx5/mlx5_txpp.c',
+        'net/mlx5/mlx5_txq.c',
+        'net/mlx5/mlx5_mac.c',
+        'net/mlx5/mlx5_flow_meter.c',
+        'net/mlx5/mlx5_rss.c',
+
+        'net/mlx5/linux/mlx5_verbs.c',
+        'net/mlx5/linux/mlx5_os.c',
+        'net/mlx5/linux/mlx5_mp_os.c',
+        'net/mlx5/linux/mlx5_ethdev_os.c',
+        'net/mlx5/linux/mlx5_flow_os.c',
+        'net/mlx5/linux/mlx5_socket.c',
+        'net/mlx5/linux/mlx5_vlan_os.c',
         'net/mlx5/mlx5_utils.c',
-        'net/mlx5/mlx5_socket.c'
+        'net/mlx5/mlx5_rxtx.c',
+        'net/mlx5/mlx5_vlan.c',
+        'net/mlx5/mlx5_flow_age.c',
+        'net/mlx5/mlx5_rxtx_vec.c',
+        'net/mlx5/mlx5_rxmode.c',
+
     ]);
 
 mlx5_ppc64le_dpdk_src = SrcGroup(
@@ -1317,21 +1628,6 @@ mlx5_ppc64le_dpdk_src = SrcGroup(
         'mlx5_vlan.c',
     ]);
 
-mlx4_dpdk_src = SrcGroup(
-    dir = 'src/dpdk/drivers/net/mlx4',
-    src_list = [
-        'mlx4.c',
-        'mlx4_ethdev.c',
-        'mlx4_flow.c',
-        'mlx4_glue.c',
-        'mlx4_intr.c',
-        'mlx4_mp.c',
-        'mlx4_mr.c',
-        'mlx4_rxq.c',
-        'mlx4_rxtx.c',
-        'mlx4_txq.c',
-        'mlx4_utils.c',
-    ]);
 
 bnxt_dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
@@ -1365,7 +1661,8 @@ if march == 'x86_64':
     bp_dpdk = SrcGroups([
                   dpdk_src,
                   i40e_dpdk_src,
-                  dpdk_src_x86_64
+                  dpdk_src_x86_64,
+                  dpdk_src_x86_64_ext
                   ]);
 
     # BPF + JIT
@@ -1415,9 +1712,6 @@ mlx5_ppc64le_dpdk =SrcGroups([
                 mlx5_ppc64le_dpdk_src
                 ]);
 
-mlx4_dpdk =SrcGroups([
-                mlx4_dpdk_src
-                ]);
 
 bnxt_dpdk = SrcGroups([
                 bnxt_dpdk_src,
@@ -1463,12 +1757,19 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DLINUX',
                 '-g',
                 '-Wno-format',
+                '-Wno-packed-not-aligned',
+                '-Wno-missing-field-initializers',
                 '-Wno-deprecated-declarations',
                 '-Wno-error=uninitialized',
                 '-DRTE_DPDK',
+                #'-Wcast-qual',
                 '-D__STDC_LIMIT_MACROS',
                 '-D__STDC_FORMAT_MACROS',
                 '-D__STDC_CONSTANT_MACROS',
+                '-D_GNU_SOURCE',
+                '-DALLOW_INTERNAL_API',
+                '-DABI_VERSION="21.1"',
+                '-DALLOW_EXPERIMENTAL_API',
                 #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
                 #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
                 #'-D__DEBUG_FUNC_ENTRY__', # Added by Ido to debug Flow Stats
@@ -1489,8 +1790,13 @@ if march == 'x86_64':
                     '-DRTE_MACHINE_CPUFLAG_AES',
                     '-DRTE_MACHINE_CPUFLAG_PCLMULQDQ',
                     '-DRTE_MACHINE_CPUFLAG_AVX',
-                    '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
+                    #'-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2,RTE_CPUFLAG_AES,RTE_CPUFLAG_PCLMULQDQ,RTE_CPUFLAG_AVX',
                     '-DTREX_USE_BPFJIT',
+                    '-D_GNU_SOURCE',
+                    '-DALLOW_INTERNAL_API',
+                    '-DABI_VERSION="21.1"',
+                    '-DALLOW_EXPERIMENTAL_API',
+
                    ]
 
     common_flags_old = common_flags + [
@@ -1500,6 +1806,10 @@ if march == 'x86_64':
                       '-DRTE_MACHINE_CPUFLAG_SSE',
                       '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE',
                       '-DTREX_USE_BPFJIT',
+                      '-DALLOW_INTERNAL_API',
+                      '-DALLOW_EXPERIMENTAL_API',
+                      '-DABI_VERSION="21.1"',
+
                       ];
 
 elif march == 'aarch64':
@@ -1552,22 +1862,24 @@ elif march == 'ppc64le':
                        ]
 
 dpdk_includes_path_x86_64 ='''
-                        ../src/dpdk/lib/librte_eal/common/include/arch/x86
+                        ../src/dpdk/lib/librte_eal/x86/include/
                        '''
 
 dpdk_includes_path_aarch64 ='''
-                        ../src/dpdk/lib/librte_eal/common/include/arch/arm
+                        ../src/dpdk/lib/librte_eal/arm/include/
                        '''
 
 dpdk_includes_path_ppc64le ='''
-                        ../src/dpdk/lib/librte_eal/common/include/arch/ppc_64
+                        ../src/dpdk/lib/librte_eal/ppc_64/include/
                        '''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk2002_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk_2102_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/common/mlx5/
+                        ../src/dpdk/drivers/common/mlx5/linux/
+                        ../src/dpdk/drivers/net/mlx5/linux/
                         ../src/dpdk/drivers/net/
                         ../src/dpdk/drivers/net/af_packet/
                         ../src/dpdk/drivers/net/tap/
@@ -1590,15 +1902,20 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/vmxnet3/base
                         ../src/dpdk/drivers/net/bnxt/
                         ../src/dpdk/drivers/net/memif/
+                        ../src/dpdk//drivers/common/iavf/                        
 
                         ../src/dpdk/drivers/net/ena/
                         ../src/dpdk/drivers/net/ena/base/
                         ../src/dpdk/drivers/net/ena/base/ena_defs/
                          
+                        ../src/dpdk/lib/librte_telemetry/
+                        ../src/dpdk/lib/librte_rcu/
+
                         ../src/dpdk/lib/
                         ../src/dpdk/lib/librte_cfgfile/
                         ../src/dpdk/lib/librte_compat/
                         ../src/dpdk/lib/librte_eal/
+                        ../src/dpdk/lib/librte_eal/include/                        
                         ../src/dpdk/lib/librte_eal/common/
                         ../src/dpdk/lib/librte_eal/common/include/
                         ../src/dpdk/lib/librte_eal/common/include/arch/
@@ -1606,6 +1923,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_eal/common/include/generic/
                         ../src/dpdk/lib/librte_eal/linux/
                         ../src/dpdk/lib/librte_eal/linux/eal/
+                        ../src/dpdk/lib/librte_eal/linux/include/
                         ../src/dpdk/lib/librte_eal/linux/eal/include/
                         ../src/dpdk/lib/librte_eal/linux/eal/include/exec-env/
                         ../src/dpdk/lib/librte_ethdev/
@@ -1622,6 +1940,8 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_timer/
                         ../src/dpdk/
                         
+                        ../src/dpdk/lib/librte_security/
+
                         ../src/dpdk/drivers/bus/pci/
                         ../src/dpdk/drivers/bus/vdev/
                         ../src/dpdk/drivers/bus/pci/linux/
@@ -1661,11 +1981,11 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march == 'x86_64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk2002_x86_64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="21.1"'];
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk2002_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2102_aarch64/rte_config.h'];
 elif march == 'ppc64le':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk2002_ppc64le/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_ppc64le/rte_config.h'];
 
 client_external_libs = [
         'simple_enum',
@@ -1814,9 +2134,9 @@ class build_option:
         if self.isRelease () :
             flags += ['-DNDEBUG'];
         else:
-            flags += ['-UNDEBUG'];
+            flags += ['-UNDEBUG','-DRTE_LIBRTE_MLX5_DEBUG'];
 
-        flags += ['-std=c11']
+        flags += ['-std=c11','-D_BSD_SOURCE','-D_DEFAULT_SOURCE','-D_XOPEN_SOURCE=600','-D_FILE_OFFSET_BITS=64']
 
         return (flags)
 
@@ -2002,7 +2322,7 @@ def build_prog (bld, build_obj):
                   **bld.env.mlx5_kw
                 )
 
-        if bld.env.NO_MLX != 'mlx4':
+        if False: #bld.env.NO_MLX != 'mlx4':
             bld.shlib(
             features='c',
             includes = dpdk_includes_path +
@@ -2013,21 +2333,21 @@ def build_prog (bld, build_obj):
             target   = build_obj.get_mlx4_target()
            )
 
-    if bld.env.WITH_NTACC == True:
-        bld.shlib(
-          features='c',
-          includes = dpdk_includes_path +
-                     bld.env.dpdk_includes_verb_path,
-          cflags   = (cflags + DPDK_FLAGS +
-            ['-I/opt/napatech3/include',
-             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
-             '-DUSE_EXTERNAL_BUFFER',
-             '-DNO_NTACC_TOEPLITZ_SUPPORT']),
-          use =['ntapi'],
-
-          source   = ntacc_dpdk.file_list(top),
-          target   = build_obj.get_ntacc_target()
-        )
+    #if bld.env.WITH_NTACC == True:
+    #    bld.shlib(
+    #      features='c',
+    #      includes = dpdk_includes_path +
+    #                 bld.env.dpdk_includes_verb_path,
+    #      cflags   = (cflags + DPDK_FLAGS +
+    #        ['-I/opt/napatech3/include',
+    #         '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
+    ##         '-DUSE_EXTERNAL_BUFFER',
+    #         '-DNO_NTACC_TOEPLITZ_SUPPORT']),
+    #      use =['ntapi'],
+    #
+    #      source   = ntacc_dpdk.file_list(top),
+    #      target   = build_obj.get_ntacc_target()
+    #    )
 
     # build the BPF as a shared library
     bld.shlib(features = 'c',
@@ -2050,15 +2370,15 @@ def build_prog (bld, build_obj):
                 rpath = rpath_linkage,
                 target = build_obj.get_target())
 
-    if bld.env.NO_BNXT == False:
-        bld.shlib(
-          features='c',
-          includes = dpdk_includes_path,
-          cflags   = (cflags + DPDK_FLAGS + build_obj.get_bnxt_flags() ),
-          use =['bnxt'],
-          source   = bnxt_dpdk.file_list(top),
-          target   = build_obj.get_bnxt_target()
-        )
+    #if bld.env.NO_BNXT == False:
+    #    bld.shlib(
+    #      features='c',
+    #      includes = dpdk_includes_path,
+    #      cflags   = (cflags + DPDK_FLAGS + build_obj.get_bnxt_flags() ),
+    #      use =['bnxt'],
+    #      source   = bnxt_dpdk.file_list(top),
+    #      target   = build_obj.get_bnxt_target()
+    #    )
 
 
 
@@ -2117,8 +2437,8 @@ def build(bld):
             bld.read_shlib(name='ibverbs')
             if bld.env.NO_MLX != 'mlx5':
                 bld.read_shlib(name='mlx5')
-            if bld.env.NO_MLX != 'mlx4':
-                bld.read_shlib(name='mlx4')
+            #if bld.env.NO_MLX != 'mlx4':
+            #    bld.read_shlib(name='mlx4')
         else:
             Logs.pprint('GREEN', 'Info: Using internal libverbs.')
             ibverbs_lib_path='external_libs/ibverbs/' + march
@@ -2126,8 +2446,8 @@ def build(bld):
             bld.read_shlib( name='ibverbs' , paths=[top+ibverbs_lib_path] )
             if bld.env.NO_MLX != 'mlx5':
                 bld.read_shlib( name='mlx5',paths=[top+ibverbs_lib_path])
-            if bld.env.NO_MLX != 'mlx4':
-                bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
+            #if bld.env.NO_MLX != 'mlx4':
+            #    bld.read_shlib( name='mlx4',paths=[top+ibverbs_lib_path])
             check_ibverbs_deps(bld)
 
         if bld.env.LIB_MNL:
@@ -2204,9 +2524,9 @@ def install_single_system (bld, exec_p, build_obj):
                    where = so_path)
 
     # MLX4
-    do_create_link(src = os.path.realpath(o + build_obj.get_mlx4so_target()),
-                   name = build_obj.get_mlx4so_target(),
-                   where = so_path)
+    #do_create_link(src = os.path.realpath(o + build_obj.get_mlx4so_target()),
+    #               name = build_obj.get_mlx4so_target(),
+    #               where = so_path)
 
     # MNL
     do_create_link(src   = os.path.realpath(o + build_obj.get_libmnlso_target()),

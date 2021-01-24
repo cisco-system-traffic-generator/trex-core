@@ -25,10 +25,13 @@
 std::string CTRexExtendedDriverIce::ice_so_str = "";
 
 CTRexExtendedDriverIce::CTRexExtendedDriverIce() {
-    m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+    //m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE  | TREX_DRV_CAP_MAC_ADDR_CHG |TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+
     for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
         m_port_xstats[i] = {0};
     }
+    m_filter_manager.set_hw_mode(fhtINTEL_NO_DOT1Q);
 }
 
 TRexPortAttr* CTRexExtendedDriverIce::create_port_attr(tvpid_t tvpid,repid_t repid) {
@@ -77,20 +80,7 @@ int CTRexExtendedDriverIce::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32
 
 int CTRexExtendedDriverIce::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd)
 {
-    repid_t repid=_if->get_repid();
-    struct rte_eth_fdir_stats stat;
-    int ret;
-
-    ret = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_STATS, (void*)&stat);
-    if (ret == 0) {
-        if (fd)
-            fprintf(fd, "Num filters on guarant poll:%d, best effort poll:%d\n", stat.guarant_cnt, stat.best_cnt);
-        return (stat.guarant_cnt + stat.best_cnt);
-    } else {
-        if (fd)
-            fprintf(fd, "Failed reading fdir statistics\n");
-        return -1;
-    }
+    return 0;
 }
 
 bool CTRexExtendedDriverIce::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {

@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <linux/version.h>
 
 #include <rte_spinlock.h>
 #include <rte_string_fns.h>
@@ -59,7 +60,7 @@ struct rte_kni {
 	uint16_t group_id;                  /**< Group ID of KNI devices */
 	uint32_t slot_id;                   /**< KNI pool slot ID */
 	struct rte_mempool *pktmbuf_pool;   /**< pkt mbuf mempool */
-	unsigned mbuf_size;                 /**< mbuf size */
+	unsigned int mbuf_size;                 /**< mbuf size */
 
 	const struct rte_memzone *m_tx_q;   /**< TX queue memzone */
 	const struct rte_memzone *m_rx_q;   /**< RX queue memzone */
@@ -78,7 +79,7 @@ struct rte_kni {
 	/* For request & response */
 	struct rte_kni_fifo *req_q;         /**< Request queue */
 	struct rte_kni_fifo *resp_q;        /**< Response queue */
-	void * sync_addr;                   /**< Req/Resp Mem address */
+	void *sync_addr;                   /**< Req/Resp Mem address */
 
 	struct rte_kni_ops ops;             /**< operations for request */
 };
@@ -97,6 +98,13 @@ static volatile int kni_fd = -1;
 int
 rte_kni_init(unsigned int max_kni_ifaces __rte_unused)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+	if (rte_eal_iova_mode() != RTE_IOVA_PA) {
+		RTE_LOG(ERR, KNI, "KNI requires IOVA as PA\n");
+		return -1;
+	}
+#endif
+
 	/* Check FD and open */
 	if (kni_fd < 0) {
 		kni_fd = open("/dev/" KNI_DEVICE, O_RDWR);
@@ -137,31 +145,38 @@ kni_reserve_mz(struct rte_kni *kni)
 	char mz_name[RTE_MEMZONE_NAMESIZE];
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_TX_Q_MZ_NAME_FMT, kni->name);
-	kni->m_tx_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_tx_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_tx_q == NULL, tx_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_RX_Q_MZ_NAME_FMT, kni->name);
-	kni->m_rx_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_rx_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_rx_q == NULL, rx_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_ALLOC_Q_MZ_NAME_FMT, kni->name);
-	kni->m_alloc_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_alloc_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_alloc_q == NULL, alloc_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_FREE_Q_MZ_NAME_FMT, kni->name);
-	kni->m_free_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_free_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_free_q == NULL, free_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_REQ_Q_MZ_NAME_FMT, kni->name);
-	kni->m_req_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_req_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_req_q == NULL, req_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_RESP_Q_MZ_NAME_FMT, kni->name);
-	kni->m_resp_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_resp_q = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_resp_q == NULL, resp_q_fail);
 
 	snprintf(mz_name, RTE_MEMZONE_NAMESIZE, KNI_SYNC_ADDR_MZ_NAME_FMT, kni->name);
-	kni->m_sync_addr = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY, 0);
+	kni->m_sync_addr = rte_memzone_reserve(mz_name, KNI_FIFO_SIZE, SOCKET_ID_ANY,
+			RTE_MEMZONE_IOVA_CONTIG);
 	KNI_MEM_CHECK(kni->m_sync_addr == NULL, sync_addr_fail);
 
 	return 0;
@@ -214,7 +229,7 @@ rte_kni_alloc(struct rte_mempool *pktmbuf_pool,
 		return NULL;
 	}
 
-	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_lock();
 
 	kni = __rte_kni_get(conf->name);
 	if (kni != NULL) {
@@ -242,24 +257,17 @@ rte_kni_alloc(struct rte_mempool *pktmbuf_pool,
 		kni->ops.port_id = UINT16_MAX;
 
 	memset(&dev_info, 0, sizeof(dev_info));
-	dev_info.bus = conf->addr.bus;
-	dev_info.devid = conf->addr.devid;
-	dev_info.function = conf->addr.function;
-	dev_info.vendor_id = conf->id.vendor_id;
-	dev_info.device_id = conf->id.device_id;
 	dev_info.core_id = conf->core_id;
 	dev_info.force_bind = conf->force_bind;
 	dev_info.group_id = conf->group_id;
 	dev_info.mbuf_size = conf->mbuf_size;
 	dev_info.mtu = conf->mtu;
+	dev_info.min_mtu = conf->min_mtu;
+	dev_info.max_mtu = conf->max_mtu;
 
-	memcpy(dev_info.mac_addr, conf->mac_addr, ETHER_ADDR_LEN);
+	memcpy(dev_info.mac_addr, conf->mac_addr, RTE_ETHER_ADDR_LEN);
 
 	strlcpy(dev_info.name, conf->name, RTE_KNI_NAMESIZE);
-
-	RTE_LOG(INFO, KNI, "pci: %02x:%02x:%02x \t %02x:%02x\n",
-		dev_info.bus, dev_info.devid, dev_info.function,
-			dev_info.vendor_id, dev_info.device_id);
 
 	ret = kni_reserve_mz(kni);
 	if (ret < 0)
@@ -268,41 +276,43 @@ rte_kni_alloc(struct rte_mempool *pktmbuf_pool,
 	/* TX RING */
 	kni->tx_q = kni->m_tx_q->addr;
 	kni_fifo_init(kni->tx_q, KNI_FIFO_COUNT_MAX);
-	dev_info.tx_phys = kni->m_tx_q->phys_addr;
+	dev_info.tx_phys = kni->m_tx_q->iova;
 
 	/* RX RING */
 	kni->rx_q = kni->m_rx_q->addr;
 	kni_fifo_init(kni->rx_q, KNI_FIFO_COUNT_MAX);
-	dev_info.rx_phys = kni->m_rx_q->phys_addr;
+	dev_info.rx_phys = kni->m_rx_q->iova;
 
 	/* ALLOC RING */
 	kni->alloc_q = kni->m_alloc_q->addr;
 	kni_fifo_init(kni->alloc_q, KNI_FIFO_COUNT_MAX);
-	dev_info.alloc_phys = kni->m_alloc_q->phys_addr;
+	dev_info.alloc_phys = kni->m_alloc_q->iova;
 
 	/* FREE RING */
 	kni->free_q = kni->m_free_q->addr;
 	kni_fifo_init(kni->free_q, KNI_FIFO_COUNT_MAX);
-	dev_info.free_phys = kni->m_free_q->phys_addr;
+	dev_info.free_phys = kni->m_free_q->iova;
 
 	/* Request RING */
 	kni->req_q = kni->m_req_q->addr;
 	kni_fifo_init(kni->req_q, KNI_FIFO_COUNT_MAX);
-	dev_info.req_phys = kni->m_req_q->phys_addr;
+	dev_info.req_phys = kni->m_req_q->iova;
 
 	/* Response RING */
 	kni->resp_q = kni->m_resp_q->addr;
 	kni_fifo_init(kni->resp_q, KNI_FIFO_COUNT_MAX);
-	dev_info.resp_phys = kni->m_resp_q->phys_addr;
+	dev_info.resp_phys = kni->m_resp_q->iova;
 
 	/* Req/Resp sync mem area */
 	kni->sync_addr = kni->m_sync_addr->addr;
 	dev_info.sync_va = kni->m_sync_addr->addr;
-	dev_info.sync_phys = kni->m_sync_addr->phys_addr;
+	dev_info.sync_phys = kni->m_sync_addr->iova;
 
 	kni->pktmbuf_pool = pktmbuf_pool;
 	kni->group_id = conf->group_id;
 	kni->mbuf_size = conf->mbuf_size;
+
+	dev_info.iova_mode = (rte_eal_iova_mode() == RTE_IOVA_VA) ? 1 : 0;
 
 	ret = ioctl(kni_fd, RTE_KNI_IOCTL_CREATE, &dev_info);
 	if (ret < 0)
@@ -313,7 +323,7 @@ rte_kni_alloc(struct rte_mempool *pktmbuf_pool,
 	kni_list = RTE_TAILQ_CAST(rte_kni_tailq.head, rte_kni_list);
 	TAILQ_INSERT_TAIL(kni_list, te, next);
 
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	/* Allocate mbufs and then put them into alloc_q */
 	kni_allocate_mbufs(kni);
@@ -327,7 +337,7 @@ mz_fail:
 kni_fail:
 	rte_free(te);
 unlock:
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	return NULL;
 }
@@ -351,6 +361,19 @@ va2pa(struct rte_mbuf *m)
 	return (void *)((unsigned long)m -
 			((unsigned long)m->buf_addr -
 			 (unsigned long)m->buf_iova));
+}
+
+static void *
+va2pa_all(struct rte_mbuf *mbuf)
+{
+	void *phy_mbuf = va2pa(mbuf);
+	struct rte_mbuf *next = mbuf->next;
+	while (next) {
+		mbuf->next = va2pa(next);
+		mbuf = next;
+		next = mbuf->next;
+	}
+	return phy_mbuf;
 }
 
 static void
@@ -390,7 +413,7 @@ rte_kni_release(struct rte_kni *kni)
 
 	kni_list = RTE_TAILQ_CAST(rte_kni_tailq.head, rte_kni_list);
 
-	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_lock();
 
 	TAILQ_FOREACH(te, kni_list, next) {
 		if (te->data == kni)
@@ -408,7 +431,7 @@ rte_kni_release(struct rte_kni *kni)
 
 	TAILQ_REMOVE(kni_list, te, next);
 
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	/* mbufs in all fifo should be released, except request/response */
 
@@ -432,7 +455,7 @@ rte_kni_release(struct rte_kni *kni)
 	return 0;
 
 unlock:
-	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_write_unlock();
 
 	return -1;
 }
@@ -451,7 +474,7 @@ kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[])
 	RTE_LOG(INFO, KNI, "Configure mac address of %d", port_id);
 
 	ret = rte_eth_dev_default_mac_addr_set(port_id,
-					       (struct ether_addr *)mac_addr);
+					(struct rte_ether_addr *)mac_addr);
 	if (ret < 0)
 		RTE_LOG(ERR, KNI, "Failed to config mac_addr for port %d\n",
 			port_id);
@@ -463,6 +486,8 @@ kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[])
 static int
 kni_config_promiscusity(uint16_t port_id, uint8_t to_on)
 {
+	int ret;
+
 	if (!rte_eth_dev_is_valid_port(port_id)) {
 		RTE_LOG(ERR, KNI, "Invalid port id %d\n", port_id);
 		return -EINVAL;
@@ -472,9 +497,35 @@ kni_config_promiscusity(uint16_t port_id, uint8_t to_on)
 		port_id, to_on);
 
 	if (to_on)
-		rte_eth_promiscuous_enable(port_id);
+		ret = rte_eth_promiscuous_enable(port_id);
 	else
-		rte_eth_promiscuous_disable(port_id);
+		ret = rte_eth_promiscuous_disable(port_id);
+
+	if (ret != 0)
+		RTE_LOG(ERR, KNI,
+			"Failed to %s promiscuous mode for port %u: %s\n",
+			to_on ? "enable" : "disable", port_id,
+			rte_strerror(-ret));
+
+	return ret;
+}
+
+/* default callback for request of configuring allmulticast mode */
+static int
+kni_config_allmulticast(uint16_t port_id, uint8_t to_on)
+{
+	if (!rte_eth_dev_is_valid_port(port_id)) {
+		RTE_LOG(ERR, KNI, "Invalid port id %d\n", port_id);
+		return -EINVAL;
+	}
+
+	RTE_LOG(INFO, KNI, "Configure allmulticast mode of %d to %d\n",
+		port_id, to_on);
+
+	if (to_on)
+		rte_eth_allmulticast_enable(port_id);
+	else
+		rte_eth_allmulticast_disable(port_id);
 
 	return 0;
 }
@@ -482,7 +533,7 @@ kni_config_promiscusity(uint16_t port_id, uint8_t to_on)
 int
 rte_kni_handle_request(struct rte_kni *kni)
 {
-	unsigned ret;
+	unsigned int ret;
 	struct rte_kni_request *req = NULL;
 
 	if (kni == NULL)
@@ -507,8 +558,8 @@ rte_kni_handle_request(struct rte_kni *kni)
 		break;
 	case RTE_KNI_REQ_CFG_NETWORK_IF: /* Set network interface up/down */
 		if (kni->ops.config_network_if)
-			req->result = kni->ops.config_network_if(\
-					kni->ops.port_id, req->if_up);
+			req->result = kni->ops.config_network_if(kni->ops.port_id,
+								 req->if_up);
 		break;
 	case RTE_KNI_REQ_CHANGE_MAC_ADDR: /* Change MAC Address */
 		if (kni->ops.config_mac_address)
@@ -525,6 +576,14 @@ rte_kni_handle_request(struct rte_kni *kni)
 		else if (kni->ops.port_id != UINT16_MAX)
 			req->result = kni_config_promiscusity(
 					kni->ops.port_id, req->promiscusity);
+		break;
+	case RTE_KNI_REQ_CHANGE_ALLMULTI: /* Change ALLMULTICAST MODE */
+		if (kni->ops.config_allmulticast)
+			req->result = kni->ops.config_allmulticast(
+					kni->ops.port_id, req->allmulti);
+		else if (kni->ops.port_id != UINT16_MAX)
+			req->result = kni_config_allmulticast(
+					kni->ops.port_id, req->allmulti);
 		break;
 	default:
 		RTE_LOG(ERR, KNI, "Unknown request id %u\n", req->req_id);
@@ -543,14 +602,15 @@ rte_kni_handle_request(struct rte_kni *kni)
 }
 
 unsigned
-rte_kni_tx_burst(struct rte_kni *kni, struct rte_mbuf **mbufs, unsigned num)
+rte_kni_tx_burst(struct rte_kni *kni, struct rte_mbuf **mbufs, unsigned int num)
 {
+	num = RTE_MIN(kni_fifo_free_count(kni->rx_q), num);
 	void *phy_mbufs[num];
 	unsigned int ret;
 	unsigned int i;
 
 	for (i = 0; i < num; i++)
-		phy_mbufs[i] = va2pa(mbufs[i]);
+		phy_mbufs[i] = va2pa_all(mbufs[i]);
 
 	ret = kni_fifo_put(kni->rx_q, phy_mbufs, num);
 
@@ -561,9 +621,9 @@ rte_kni_tx_burst(struct rte_kni *kni, struct rte_mbuf **mbufs, unsigned num)
 }
 
 unsigned
-rte_kni_rx_burst(struct rte_kni *kni, struct rte_mbuf **mbufs, unsigned num)
+rte_kni_rx_burst(struct rte_kni *kni, struct rte_mbuf **mbufs, unsigned int num)
 {
-	unsigned ret = kni_fifo_get(kni->tx_q, (void **)mbufs, num);
+	unsigned int ret = kni_fifo_get(kni->tx_q, (void **)mbufs, num);
 
 	/* If buffers removed, allocate mbufs and then put them into alloc_q */
 	if (ret)
@@ -614,7 +674,7 @@ kni_allocate_mbufs(struct rte_kni *kni)
 		return;
 	}
 
-	allocq_free = (kni->alloc_q->read - kni->alloc_q->write - 1) \
+	allocq_free = (kni->alloc_q->read - kni->alloc_q->write - 1)
 			& (MAX_MBUF_BURST_NUM - 1);
 	for (i = 0; i < allocq_free; i++) {
 		pkts[i] = rte_pktmbuf_alloc(kni->pktmbuf_pool);
@@ -649,11 +709,11 @@ rte_kni_get(const char *name)
 	if (name == NULL || name[0] == '\0')
 		return NULL;
 
-	rte_rwlock_read_lock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_lock();
 
 	kni = __rte_kni_get(name);
 
-	rte_rwlock_read_unlock(RTE_EAL_TAILQ_RWLOCK);
+	rte_mcfg_tailq_read_unlock();
 
 	return kni;
 }
@@ -668,35 +728,36 @@ static enum kni_ops_status
 kni_check_request_register(struct rte_kni_ops *ops)
 {
 	/* check if KNI request ops has been registered*/
-	if( NULL == ops )
+	if (ops == NULL)
 		return KNI_REQ_NO_REGISTER;
 
-	if ((ops->change_mtu == NULL)
-		&& (ops->config_network_if == NULL)
-		&& (ops->config_mac_address == NULL)
-		&& (ops->config_promiscusity == NULL))
+	if (ops->change_mtu == NULL
+	    && ops->config_network_if == NULL
+	    && ops->config_mac_address == NULL
+	    && ops->config_promiscusity == NULL
+	    && ops->config_allmulticast == NULL)
 		return KNI_REQ_NO_REGISTER;
 
 	return KNI_REQ_REGISTERED;
 }
 
 int
-rte_kni_register_handlers(struct rte_kni *kni,struct rte_kni_ops *ops)
+rte_kni_register_handlers(struct rte_kni *kni, struct rte_kni_ops *ops)
 {
 	enum kni_ops_status req_status;
 
-	if (NULL == ops) {
+	if (ops == NULL) {
 		RTE_LOG(ERR, KNI, "Invalid KNI request operation.\n");
 		return -1;
 	}
 
-	if (NULL == kni) {
+	if (kni == NULL) {
 		RTE_LOG(ERR, KNI, "Invalid kni info.\n");
 		return -1;
 	}
 
 	req_status = kni_check_request_register(&kni->ops);
-	if ( KNI_REQ_REGISTERED == req_status) {
+	if (req_status == KNI_REQ_REGISTERED) {
 		RTE_LOG(ERR, KNI, "The KNI request operation has already registered.\n");
 		return -1;
 	}
@@ -708,7 +769,7 @@ rte_kni_register_handlers(struct rte_kni *kni,struct rte_kni_ops *ops)
 int
 rte_kni_unregister_handlers(struct rte_kni *kni)
 {
-	if (NULL == kni) {
+	if (kni == NULL) {
 		RTE_LOG(ERR, KNI, "Invalid kni info.\n");
 		return -1;
 	}
@@ -718,7 +779,7 @@ rte_kni_unregister_handlers(struct rte_kni *kni)
 	return 0;
 }
 
-int __rte_experimental
+int
 rte_kni_update_link(struct rte_kni *kni, unsigned int linkup)
 {
 	char path[64];

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2018
+ * Copyright(c) 2001-2020 Intel Corporation
  */
 
 #ifndef _I40E_ADMINQ_CMD_H_
@@ -12,8 +12,8 @@
  */
 
 #define I40E_FW_API_VERSION_MAJOR	0x0001
-#define I40E_FW_API_VERSION_MINOR_X722	0x0009
-#define I40E_FW_API_VERSION_MINOR_X710	0x0009
+#define I40E_FW_API_VERSION_MINOR_X722	0x000B
+#define I40E_FW_API_VERSION_MINOR_X710	0x000C
 
 #define I40E_FW_MINOR_VERSION(_h) ((_h)->mac.type == I40E_MAC_XL710 ? \
 					I40E_FW_API_VERSION_MINOR_X710 : \
@@ -25,6 +25,8 @@
 #define I40E_MINOR_VER_GET_LINK_INFO_X722 0x0009
 /* API version 1.6 for X722 devices adds ability to stop FW LLDP agent */
 #define I40E_MINOR_VER_FW_LLDP_STOPPABLE_X722 0x0006
+/* API version 1.10 for X722 devices adds ability to request FEC encoding */
+#define I40E_MINOR_VER_FW_REQUEST_FEC_X722 0x000A
 
 struct i40e_aq_desc {
 	__le16 flags;
@@ -238,7 +240,8 @@ enum i40e_admin_queue_opc {
 	i40e_aqc_opc_nvm_update			= 0x0703,
 	i40e_aqc_opc_nvm_config_read		= 0x0704,
 	i40e_aqc_opc_nvm_config_write		= 0x0705,
-	i40e_aqc_opc_nvm_progress		= 0x0706,
+	i40e_aqc_opc_nvm_update_in_process	= 0x0706,
+	i40e_aqc_opc_rollback_revision_update	= 0x0707,
 	i40e_aqc_opc_oem_post_update		= 0x0720,
 	i40e_aqc_opc_thermal_sensor		= 0x0721,
 
@@ -438,6 +441,7 @@ struct i40e_aqc_list_capabilities_element_resp {
 #define I40E_AQ_CAP_ID_SDP		0x0062
 #define I40E_AQ_CAP_ID_MDIO		0x0063
 #define I40E_AQ_CAP_ID_WSR_PROT		0x0064
+#define I40E_AQ_CAP_ID_DIS_UNUSED_PORTS	0x0067
 #define I40E_AQ_CAP_ID_NVM_MGMT		0x0080
 #define I40E_AQ_CAP_ID_FLEX10		0x00F1
 #define I40E_AQ_CAP_ID_CEM		0x00F2
@@ -1218,7 +1222,7 @@ struct i40e_aqc_set_vsi_promiscuous_modes {
 #define I40E_AQC_SET_VSI_PROMISC_BROADCAST	0x04
 #define I40E_AQC_SET_VSI_DEFAULT		0x08
 #define I40E_AQC_SET_VSI_PROMISC_VLAN		0x10
-#define I40E_AQC_SET_VSI_PROMISC_TX		0x8000
+#define I40E_AQC_SET_VSI_PROMISC_RX_ONLY	0x8000
 	__le16	seid;
 #define I40E_AQC_VSI_PROM_CMD_SEID_MASK		0x3FF
 	__le16	vlan_tag;
@@ -1404,6 +1408,8 @@ struct i40e_aqc_cloud_filters_element_data {
 #define I40E_AQC_ADD_CLOUD_FILTER_IMAC			0x000A
 #define I40E_AQC_ADD_CLOUD_FILTER_OMAC_TEN_ID_IMAC	0x000B
 #define I40E_AQC_ADD_CLOUD_FILTER_IIP			0x000C
+#define I40E_AQC_ADD_CLOUD_FILTER_OIP1			0x0010
+#define I40E_AQC_ADD_CLOUD_FILTER_OIP2			0x0012
 /* 0x000D reserved */
 /* 0x000E reserved */
 /* 0x000F reserved */
@@ -2395,6 +2401,16 @@ struct i40e_aqc_nvm_config_data_feature {
 
 I40E_CHECK_STRUCT_LEN(0x6, i40e_aqc_nvm_config_data_feature);
 
+/* NVM Update in Process (direct 0x0706) */
+struct i40e_aqc_nvm_update_in_process {
+	u8	command;
+#define I40E_AQ_UPDATE_FLOW_END			0x0
+#define I40E_AQ_UPDATE_FLOW_START		0x1
+	u8	reserved[15];
+};
+
+I40E_CHECK_CMD_LENGTH(i40e_aqc_nvm_update_in_process);
+
 struct i40e_aqc_nvm_config_data_immediate_field {
 	__le32 field_id;
 	__le32 field_value;
@@ -2403,6 +2419,23 @@ struct i40e_aqc_nvm_config_data_immediate_field {
 };
 
 I40E_CHECK_STRUCT_LEN(0xc, i40e_aqc_nvm_config_data_immediate_field);
+
+/* Minimal Rollback Revision Update (direct 0x0707) */
+struct i40e_aqc_rollback_revision_update {
+	u8	optin_mode; /* bool */
+#define I40E_AQ_RREV_OPTION_MODE			0x01
+	u8	module_selected;
+#define I40E_AQ_RREV_MODULE_PCIE_ANALOG		0
+#define I40E_AQ_RREV_MODULE_PHY_ANALOG		1
+#define I40E_AQ_RREV_MODULE_OPTION_ROM		2
+#define I40E_AQ_RREV_MODULE_EMP_IMAGE		3
+#define I40E_AQ_RREV_MODULE_PE_IMAGE		4
+	u8	reserved1[2];
+	u32	min_rrev;
+	u8	reserved2[8];
+};
+
+I40E_CHECK_CMD_LENGTH(i40e_aqc_rollback_revision_update);
 
 /* OEM Post Update (indirect 0x0720)
  * no command data struct used

@@ -25,20 +25,50 @@
 #include "ice_ethdev.h"
 #include "ice_generic_flow.h"
 
-struct rss_type_match_hdr {
-	uint32_t hdr_mask;
-	uint64_t eth_rss_hint;
-};
+#define ICE_PHINT_NONE				0
+#define ICE_PHINT_VLAN				BIT_ULL(0)
+#define ICE_PHINT_PPPOE				BIT_ULL(1)
+#define ICE_PHINT_GTPU				BIT_ULL(2)
+#define ICE_PHINT_GTPU_EH			BIT_ULL(3)
+#define	ICE_PHINT_GTPU_EH_DWN			BIT_ULL(4)
+#define	ICE_PHINT_GTPU_EH_UP			BIT_ULL(5)
 
-struct ice_hash_match_type {
-	uint64_t hash_type;
-	uint64_t hash_flds;
-};
+#define ICE_GTPU_EH_DWNLINK	0
+#define ICE_GTPU_EH_UPLINK	1
 
-struct rss_meta {
-	uint32_t pkt_hdr;
-	uint64_t hash_flds;
+#define ICE_IPV4_PROT		BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_PROT)
+#define ICE_IPV6_PROT		BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PROT)
+
+#define VALID_RSS_IPV4_L4	(ETH_RSS_NONFRAG_IPV4_UDP	| \
+				 ETH_RSS_NONFRAG_IPV4_TCP	| \
+				 ETH_RSS_NONFRAG_IPV4_SCTP)
+
+#define VALID_RSS_IPV6_L4	(ETH_RSS_NONFRAG_IPV6_UDP	| \
+				 ETH_RSS_NONFRAG_IPV6_TCP	| \
+				 ETH_RSS_NONFRAG_IPV6_SCTP)
+
+#define VALID_RSS_IPV4		(ETH_RSS_IPV4 | VALID_RSS_IPV4_L4)
+#define VALID_RSS_IPV6		(ETH_RSS_IPV6 | VALID_RSS_IPV6_L4)
+#define VALID_RSS_L3		(VALID_RSS_IPV4 | VALID_RSS_IPV6)
+#define VALID_RSS_L4		(VALID_RSS_IPV4_L4 | VALID_RSS_IPV6_L4)
+
+#define VALID_RSS_ATTR		(ETH_RSS_L3_SRC_ONLY	| \
+				 ETH_RSS_L3_DST_ONLY	| \
+				 ETH_RSS_L4_SRC_ONLY	| \
+				 ETH_RSS_L4_DST_ONLY	| \
+				 ETH_RSS_L2_SRC_ONLY	| \
+				 ETH_RSS_L2_DST_ONLY	| \
+				 RTE_ETH_RSS_L3_PRE32	| \
+				 RTE_ETH_RSS_L3_PRE48	| \
+				 RTE_ETH_RSS_L3_PRE64)
+
+#define INVALID_RSS_ATTR	(RTE_ETH_RSS_L3_PRE40	| \
+				 RTE_ETH_RSS_L3_PRE56	| \
+				 RTE_ETH_RSS_L3_PRE96)
+
+struct ice_rss_meta {
 	uint8_t hash_function;
+	struct ice_rss_hash_cfg cfg;
 };
 
 struct ice_hash_flow_cfg {
@@ -75,134 +105,423 @@ ice_hash_parse_pattern_action(struct ice_adapter *ad,
 			void **meta,
 			struct rte_flow_error *error);
 
-/* The first member is protocol header, the second member is ETH_RSS_*. */
-struct rss_type_match_hdr hint_0 = {
-	ICE_FLOW_SEG_HDR_NONE,	0};
-struct rss_type_match_hdr hint_1 = {
-	ICE_FLOW_SEG_HDR_IPV4,	ETH_RSS_IPV4};
-struct rss_type_match_hdr hint_2 = {
-	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_UDP, ETH_RSS_NONFRAG_IPV4_UDP};
-struct rss_type_match_hdr hint_3 = {
-	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_TCP, ETH_RSS_NONFRAG_IPV4_TCP};
-struct rss_type_match_hdr hint_4 = {
-	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_SCTP, ETH_RSS_NONFRAG_IPV4_SCTP};
-struct rss_type_match_hdr hint_5 = {
-	ICE_FLOW_SEG_HDR_IPV6,	ETH_RSS_IPV6};
-struct rss_type_match_hdr hint_6 = {
-	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_UDP, ETH_RSS_NONFRAG_IPV6_UDP};
-struct rss_type_match_hdr hint_7 = {
-	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_TCP, ETH_RSS_NONFRAG_IPV6_TCP};
-struct rss_type_match_hdr hint_8 = {
-	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_SCTP, ETH_RSS_NONFRAG_IPV6_SCTP};
-struct rss_type_match_hdr hint_9 = {
-	ICE_FLOW_SEG_HDR_GTPU_IP,	ETH_RSS_IPV4};
-struct rss_type_match_hdr hint_10 = {
-	ICE_FLOW_SEG_HDR_PPPOE,	ETH_RSS_IPV4};
-struct rss_type_match_hdr hint_11 = {
-	ICE_FLOW_SEG_HDR_PPPOE,	ETH_RSS_NONFRAG_IPV4_UDP};
-struct rss_type_match_hdr hint_12 = {
-	ICE_FLOW_SEG_HDR_PPPOE,	ETH_RSS_NONFRAG_IPV4_TCP};
-struct rss_type_match_hdr hint_13 = {
-	ICE_FLOW_SEG_HDR_PPPOE,	ETH_RSS_NONFRAG_IPV4_SCTP};
-
-/* Supported pattern for os default package. */
-static struct ice_pattern_match_item ice_hash_pattern_list_os[] = {
-	{pattern_eth_ipv4,	ICE_INSET_NONE,	&hint_1},
-	{pattern_eth_ipv4_udp,	ICE_INSET_NONE,	&hint_2},
-	{pattern_eth_ipv4_tcp,	ICE_INSET_NONE,	&hint_3},
-	{pattern_eth_ipv4_sctp,	ICE_INSET_NONE,	&hint_4},
-	{pattern_eth_ipv6,	ICE_INSET_NONE,	&hint_5},
-	{pattern_eth_ipv6_udp,	ICE_INSET_NONE,	&hint_6},
-	{pattern_eth_ipv6_tcp,	ICE_INSET_NONE,	&hint_7},
-	{pattern_eth_ipv6_sctp,	ICE_INSET_NONE,	&hint_8},
-	{pattern_empty,		ICE_INSET_NONE,	&hint_0},
+/* Rss configuration template */
+struct ice_rss_hash_cfg ipv4_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV4 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_ETH | ICE_FLOW_HASH_IPV4,
+	ICE_RSS_ANY_HEADERS,
+	0
 };
 
-/* Supported pattern for comms package. */
-static struct ice_pattern_match_item ice_hash_pattern_list_comms[] = {
-	{pattern_eth_ipv4,		    ICE_INSET_NONE,  &hint_1},
-	{pattern_eth_ipv4_udp,		    ICE_INSET_NONE,  &hint_2},
-	{pattern_eth_ipv4_tcp,		    ICE_INSET_NONE,  &hint_3},
-	{pattern_eth_ipv4_sctp,		    ICE_INSET_NONE,  &hint_4},
-	{pattern_eth_ipv6,		    ICE_INSET_NONE,  &hint_5},
-	{pattern_eth_ipv6_udp,		    ICE_INSET_NONE,  &hint_6},
-	{pattern_eth_ipv6_tcp,		    ICE_INSET_NONE,  &hint_7},
-	{pattern_eth_ipv6_sctp,		    ICE_INSET_NONE,  &hint_8},
-	{pattern_empty,			    ICE_INSET_NONE,  &hint_0},
-	{pattern_eth_ipv4_gtpu_eh_ipv4,	    ICE_INSET_NONE,  &hint_9},
-	{pattern_eth_ipv4_gtpu_eh_ipv4_udp, ICE_INSET_NONE,  &hint_9},
-	{pattern_eth_ipv4_gtpu_eh_ipv4_tcp, ICE_INSET_NONE,  &hint_9},
-	{pattern_eth_pppoes_ipv4,	    ICE_INSET_NONE,  &hint_10},
-	{pattern_eth_pppoes_ipv4_udp,	    ICE_INSET_NONE,  &hint_11},
-	{pattern_eth_pppoes_ipv4_tcp,	    ICE_INSET_NONE,  &hint_12},
-	{pattern_eth_pppoes_ipv4_sctp,	    ICE_INSET_NONE,  &hint_13},
+struct ice_rss_hash_cfg ipv4_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV4 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_UDP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_UDP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
 };
+
+struct ice_rss_hash_cfg ipv4_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV4 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_TCP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_TCP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg ipv4_sctp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV4 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_SCTP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_SCTP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg ipv6_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV6 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_ETH | ICE_FLOW_HASH_IPV6,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg ipv6_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV6 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_UDP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_UDP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg ipv6_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV6 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_TCP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_TCP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg ipv6_sctp_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH | ICE_FLOW_SEG_HDR_IPV6 |
+	ICE_FLOW_SEG_HDR_IPV_OTHER | ICE_FLOW_SEG_HDR_SCTP,
+	ICE_FLOW_HASH_ETH | ICE_HASH_SCTP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv4_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_IPV4,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv4_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_UDP,
+	ICE_HASH_UDP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv4_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_TCP,
+	ICE_HASH_TCP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv4_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_IPV4,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv4_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_UDP,
+	ICE_HASH_UDP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv4_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_TCP,
+	ICE_HASH_TCP_IPV4 | ICE_IPV4_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv6_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_IPV6,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv6_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_UDP,
+	ICE_HASH_UDP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv4_inner_ipv6_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_TCP,
+	ICE_HASH_TCP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV4,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv6_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER,
+	ICE_FLOW_HASH_IPV6,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv6_udp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_UDP,
+	ICE_HASH_UDP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+
+struct ice_rss_hash_cfg outer_ipv6_inner_ipv6_tcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_TCP,
+	ICE_HASH_TCP_IPV6 | ICE_IPV6_PROT,
+	ICE_RSS_INNER_HEADERS_W_OUTER_IPV6,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv4_esp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_ESP,
+	ICE_FLOW_HASH_ESP_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv4_udp_esp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_NAT_T_ESP,
+	ICE_FLOW_HASH_NAT_T_ESP_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv4_ah_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_AH,
+	ICE_FLOW_HASH_AH_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv4_l2tpv3_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_L2TPV3,
+	ICE_FLOW_HASH_L2TPV3_SESS_ID,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv4_pfcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_PFCP_SESSION,
+	ICE_FLOW_HASH_PFCP_SEID,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv6_esp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_ESP,
+	ICE_FLOW_HASH_ESP_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv6_udp_esp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_NAT_T_ESP,
+	ICE_FLOW_HASH_NAT_T_ESP_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv6_ah_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_AH,
+	ICE_FLOW_HASH_AH_SPI,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv6_l2tpv3_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_L2TPV3,
+	ICE_FLOW_HASH_L2TPV3_SESS_ID,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg eth_ipv6_pfcp_tmplt = {
+	ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER |
+	ICE_FLOW_SEG_HDR_PFCP_SESSION,
+	ICE_FLOW_HASH_PFCP_SEID,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg pppoe_tmplt = {
+	ICE_FLOW_SEG_HDR_ETH,
+	ICE_FLOW_HASH_ETH | ICE_FLOW_HASH_PPPOE_SESS_ID,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+struct ice_rss_hash_cfg empty_tmplt = {
+	ICE_FLOW_SEG_HDR_NONE,
+	0,
+	ICE_RSS_ANY_HEADERS,
+	0
+};
+
+/* rss type super set */
+/* Empty rss type to support simple_xor. */
+#define ICE_RSS_TYPE_EMPTY	0ULL
+
+/* IPv4 outer */
+#define ICE_RSS_TYPE_OUTER_IPV4		(ETH_RSS_ETH | ETH_RSS_IPV4)
+#define ICE_RSS_TYPE_OUTER_IPV4_UDP	(ICE_RSS_TYPE_OUTER_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_UDP)
+#define ICE_RSS_TYPE_OUTER_IPV4_TCP	(ICE_RSS_TYPE_OUTER_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_TCP)
+#define ICE_RSS_TYPE_OUTER_IPV4_SCTP	(ICE_RSS_TYPE_OUTER_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_SCTP)
+/* IPv6 outer */
+#define ICE_RSS_TYPE_OUTER_IPV6		(ETH_RSS_ETH | ETH_RSS_IPV6)
+#define ICE_RSS_TYPE_OUTER_IPV6_UDP	(ICE_RSS_TYPE_OUTER_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_UDP)
+#define ICE_RSS_TYPE_OUTER_IPV6_TCP	(ICE_RSS_TYPE_OUTER_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_TCP)
+#define ICE_RSS_TYPE_OUTER_IPV6_SCTP	(ICE_RSS_TYPE_OUTER_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_SCTP)
+
+/* VLAN IPV4 */
+#define ICE_RSS_TYPE_VLAN_IPV4		(ICE_RSS_TYPE_OUTER_IPV4 | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV4_UDP	(ICE_RSS_TYPE_OUTER_IPV4_UDP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV4_TCP	(ICE_RSS_TYPE_OUTER_IPV4_TCP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV4_SCTP	(ICE_RSS_TYPE_OUTER_IPV4_SCTP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+/* VLAN IPv6 */
+#define ICE_RSS_TYPE_VLAN_IPV6		(ICE_RSS_TYPE_OUTER_IPV6 | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV6_UDP	(ICE_RSS_TYPE_OUTER_IPV6_UDP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV6_TCP	(ICE_RSS_TYPE_OUTER_IPV6_TCP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+#define ICE_RSS_TYPE_VLAN_IPV6_SCTP	(ICE_RSS_TYPE_OUTER_IPV6_SCTP | \
+					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
+
+/* IPv4 inner */
+#define ICE_RSS_TYPE_INNER_IPV4		ETH_RSS_IPV4
+#define ICE_RSS_TYPE_INNER_IPV4_UDP	(ETH_RSS_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_UDP)
+#define ICE_RSS_TYPE_INNER_IPV4_TCP	(ETH_RSS_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_TCP)
+#define ICE_RSS_TYPE_INNER_IPV4_SCTP	(ETH_RSS_IPV4 | \
+					 ETH_RSS_NONFRAG_IPV4_SCTP)
+/* IPv6 inner */
+#define ICE_RSS_TYPE_INNER_IPV6		ETH_RSS_IPV6
+#define ICE_RSS_TYPE_INNER_IPV6_UDP	(ETH_RSS_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_UDP)
+#define ICE_RSS_TYPE_INNER_IPV6_TCP	(ETH_RSS_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_TCP)
+#define ICE_RSS_TYPE_INNER_IPV6_SCTP	(ETH_RSS_IPV6 | \
+					 ETH_RSS_NONFRAG_IPV6_SCTP)
+
+/* GTPU IPv4 */
+#define ICE_RSS_TYPE_GTPU_IPV4		(ICE_RSS_TYPE_INNER_IPV4 | \
+					 ETH_RSS_GTPU)
+#define ICE_RSS_TYPE_GTPU_IPV4_UDP	(ICE_RSS_TYPE_INNER_IPV4_UDP | \
+					 ETH_RSS_GTPU)
+#define ICE_RSS_TYPE_GTPU_IPV4_TCP	(ICE_RSS_TYPE_INNER_IPV4_TCP | \
+					 ETH_RSS_GTPU)
+/* GTPU IPv6 */
+#define ICE_RSS_TYPE_GTPU_IPV6		(ICE_RSS_TYPE_INNER_IPV6 | \
+					 ETH_RSS_GTPU)
+#define ICE_RSS_TYPE_GTPU_IPV6_UDP	(ICE_RSS_TYPE_INNER_IPV6_UDP | \
+					 ETH_RSS_GTPU)
+#define ICE_RSS_TYPE_GTPU_IPV6_TCP	(ICE_RSS_TYPE_INNER_IPV6_TCP | \
+					 ETH_RSS_GTPU)
+
+/* PPPOE IPv4 */
+#define ICE_RSS_TYPE_PPPOE_IPV4		(ICE_RSS_TYPE_INNER_IPV4 | \
+					 ETH_RSS_PPPOE)
+#define ICE_RSS_TYPE_PPPOE_IPV4_UDP	(ICE_RSS_TYPE_INNER_IPV4_UDP | \
+					 ETH_RSS_PPPOE)
+#define ICE_RSS_TYPE_PPPOE_IPV4_TCP	(ICE_RSS_TYPE_INNER_IPV4_TCP | \
+					 ETH_RSS_PPPOE)
+
+/* PPPOE IPv6 */
+#define ICE_RSS_TYPE_PPPOE_IPV6		(ICE_RSS_TYPE_INNER_IPV6 | \
+					 ETH_RSS_PPPOE)
+#define ICE_RSS_TYPE_PPPOE_IPV6_UDP	(ICE_RSS_TYPE_INNER_IPV6_UDP | \
+					 ETH_RSS_PPPOE)
+#define ICE_RSS_TYPE_PPPOE_IPV6_TCP	(ICE_RSS_TYPE_INNER_IPV6_TCP | \
+					 ETH_RSS_PPPOE)
+
+/* PPPOE*/
+#define ICE_RSS_TYPE_PPPOE		(ETH_RSS_ETH | ETH_RSS_PPPOE)
+
+/* ESP, AH, L2TPV3 and PFCP */
+#define ICE_RSS_TYPE_IPV4_ESP		(ETH_RSS_ESP | ETH_RSS_IPV4)
+#define ICE_RSS_TYPE_IPV6_ESP		(ETH_RSS_ESP | ETH_RSS_IPV6)
+#define ICE_RSS_TYPE_IPV4_AH		(ETH_RSS_AH | ETH_RSS_IPV4)
+#define ICE_RSS_TYPE_IPV6_AH		(ETH_RSS_AH | ETH_RSS_IPV6)
+#define ICE_RSS_TYPE_IPV4_L2TPV3	(ETH_RSS_L2TPV3 | ETH_RSS_IPV4)
+#define ICE_RSS_TYPE_IPV6_L2TPV3	(ETH_RSS_L2TPV3 | ETH_RSS_IPV6)
+#define ICE_RSS_TYPE_IPV4_PFCP		(ETH_RSS_PFCP | ETH_RSS_IPV4)
+#define ICE_RSS_TYPE_IPV6_PFCP		(ETH_RSS_PFCP | ETH_RSS_IPV6)
 
 /**
- * The first member is input set combination,
- * the second member is hash fields.
+ * Supported pattern for hash.
+ * The first member is pattern item type,
+ * the second member is input set mask,
+ * the third member is ice_rss_hash_cfg template.
  */
-struct ice_hash_match_type ice_hash_type_list[] = {
-	{ETH_RSS_IPV4 | ETH_RSS_L3_SRC_ONLY,					BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA)},
-	{ETH_RSS_IPV4 | ETH_RSS_L3_DST_ONLY,					BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA)},
-	{ETH_RSS_IPV4,								ICE_FLOW_HASH_IPV4},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_UDP,						ICE_HASH_UDP_IPV4},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_TCP,						ICE_HASH_TCP_IPV4},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV4_SCTP,						ICE_HASH_SCTP_IPV4},
-	{ETH_RSS_IPV6 | ETH_RSS_L3_SRC_ONLY,					BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA)},
-	{ETH_RSS_IPV6 | ETH_RSS_L3_DST_ONLY,					BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA)},
-	{ETH_RSS_IPV6,								ICE_FLOW_HASH_IPV6},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_UDP,						ICE_HASH_UDP_IPV6},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_TCP,						ICE_HASH_TCP_IPV6},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_SRC_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_DST_ONLY | ETH_RSS_L4_DST_ONLY,	BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA) | BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L4_SRC_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L4_DST_ONLY,			BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT)},
-	{ETH_RSS_NONFRAG_IPV6_SCTP,						ICE_HASH_SCTP_IPV6},
+static struct ice_pattern_match_item ice_hash_pattern_list[] = {
+	/* IPV4 */
+	{pattern_eth_ipv4,			ICE_RSS_TYPE_OUTER_IPV4,	&ipv4_tmplt},
+	{pattern_eth_ipv4_udp,			ICE_RSS_TYPE_OUTER_IPV4_UDP,	&ipv4_udp_tmplt},
+	{pattern_eth_ipv4_tcp,			ICE_RSS_TYPE_OUTER_IPV4_TCP,	&ipv4_tcp_tmplt},
+	{pattern_eth_ipv4_sctp,			ICE_RSS_TYPE_OUTER_IPV4_SCTP,	&ipv4_sctp_tmplt},
+	{pattern_eth_vlan_ipv4,			ICE_RSS_TYPE_VLAN_IPV4,		&ipv4_tmplt},
+	{pattern_eth_vlan_ipv4_udp,		ICE_RSS_TYPE_VLAN_IPV4_UDP,	&ipv4_udp_tmplt},
+	{pattern_eth_vlan_ipv4_tcp,		ICE_RSS_TYPE_VLAN_IPV4_TCP,	&ipv4_tcp_tmplt},
+	{pattern_eth_vlan_ipv4_sctp,		ICE_RSS_TYPE_VLAN_IPV4_SCTP,	&ipv4_sctp_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv4,		ICE_RSS_TYPE_GTPU_IPV4,		&outer_ipv4_inner_ipv4_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv4_udp,	ICE_RSS_TYPE_GTPU_IPV4_UDP,	&outer_ipv4_inner_ipv4_udp_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv4_tcp,	ICE_RSS_TYPE_GTPU_IPV4_TCP,	&outer_ipv4_inner_ipv4_tcp_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv4,		ICE_RSS_TYPE_GTPU_IPV4,		&outer_ipv6_inner_ipv4_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv4_udp,	ICE_RSS_TYPE_GTPU_IPV4_UDP,	&outer_ipv6_inner_ipv4_udp_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv4_tcp,	ICE_RSS_TYPE_GTPU_IPV4_TCP,	&outer_ipv6_inner_ipv4_tcp_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv4,		ICE_RSS_TYPE_GTPU_IPV4,		&outer_ipv4_inner_ipv4_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv4_udp,	ICE_RSS_TYPE_GTPU_IPV4_UDP,	&outer_ipv4_inner_ipv4_udp_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv4_tcp,	ICE_RSS_TYPE_GTPU_IPV4_TCP,	&outer_ipv4_inner_ipv4_tcp_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv4,		ICE_RSS_TYPE_GTPU_IPV4,		&outer_ipv6_inner_ipv4_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv4_udp,	ICE_RSS_TYPE_GTPU_IPV4_UDP,	&outer_ipv6_inner_ipv4_udp_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv4_tcp,	ICE_RSS_TYPE_GTPU_IPV4_TCP,	&outer_ipv6_inner_ipv4_tcp_tmplt},
+	{pattern_eth_pppoes_ipv4,		ICE_RSS_TYPE_PPPOE_IPV4,	&ipv4_tmplt},
+	{pattern_eth_pppoes_ipv4_udp,		ICE_RSS_TYPE_PPPOE_IPV4_UDP,	&ipv4_udp_tmplt},
+	{pattern_eth_pppoes_ipv4_tcp,		ICE_RSS_TYPE_PPPOE_IPV4_TCP,	&ipv4_tcp_tmplt},
+	{pattern_eth_ipv4_esp,			ICE_RSS_TYPE_IPV4_ESP,		&eth_ipv4_esp_tmplt},
+	{pattern_eth_ipv4_udp_esp,		ICE_RSS_TYPE_IPV4_ESP,		&eth_ipv4_udp_esp_tmplt},
+	{pattern_eth_ipv4_ah,			ICE_RSS_TYPE_IPV4_AH,		&eth_ipv4_ah_tmplt},
+	{pattern_eth_ipv4_l2tp,			ICE_RSS_TYPE_IPV4_L2TPV3,	&eth_ipv4_l2tpv3_tmplt},
+	{pattern_eth_ipv4_pfcp,			ICE_RSS_TYPE_IPV4_PFCP,		&eth_ipv4_pfcp_tmplt},
+	/* IPV6 */
+	{pattern_eth_ipv6,			ICE_RSS_TYPE_OUTER_IPV6,	&ipv6_tmplt},
+	{pattern_eth_ipv6_udp,			ICE_RSS_TYPE_OUTER_IPV6_UDP,	&ipv6_udp_tmplt},
+	{pattern_eth_ipv6_tcp,			ICE_RSS_TYPE_OUTER_IPV6_TCP,	&ipv6_tcp_tmplt},
+	{pattern_eth_ipv6_sctp,			ICE_RSS_TYPE_OUTER_IPV6_SCTP,	&ipv6_sctp_tmplt},
+	{pattern_eth_vlan_ipv6,			ICE_RSS_TYPE_VLAN_IPV6,		&ipv6_tmplt},
+	{pattern_eth_vlan_ipv6_udp,		ICE_RSS_TYPE_VLAN_IPV6_UDP,	&ipv6_udp_tmplt},
+	{pattern_eth_vlan_ipv6_tcp,		ICE_RSS_TYPE_VLAN_IPV6_TCP,	&ipv6_tcp_tmplt},
+	{pattern_eth_vlan_ipv6_sctp,		ICE_RSS_TYPE_VLAN_IPV6_SCTP,	&ipv6_sctp_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv6,		ICE_RSS_TYPE_GTPU_IPV6,		&outer_ipv4_inner_ipv6_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv6_udp,	ICE_RSS_TYPE_GTPU_IPV6_UDP,	&outer_ipv4_inner_ipv6_udp_tmplt},
+	{pattern_eth_ipv4_gtpu_ipv6_tcp,	ICE_RSS_TYPE_GTPU_IPV6_TCP,	&outer_ipv4_inner_ipv6_tcp_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv6,		ICE_RSS_TYPE_GTPU_IPV6,		&outer_ipv6_inner_ipv6_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv6_udp,	ICE_RSS_TYPE_GTPU_IPV6_UDP,	&outer_ipv6_inner_ipv6_udp_tmplt},
+	{pattern_eth_ipv6_gtpu_ipv6_tcp,	ICE_RSS_TYPE_GTPU_IPV6_TCP,	&outer_ipv6_inner_ipv6_tcp_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv6,		ICE_RSS_TYPE_GTPU_IPV6,		&outer_ipv4_inner_ipv6_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv6_udp,	ICE_RSS_TYPE_GTPU_IPV6_UDP,	&outer_ipv4_inner_ipv6_udp_tmplt},
+	{pattern_eth_ipv4_gtpu_eh_ipv6_tcp,	ICE_RSS_TYPE_GTPU_IPV6_TCP,	&outer_ipv4_inner_ipv6_tcp_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv6,		ICE_RSS_TYPE_GTPU_IPV6,		&outer_ipv6_inner_ipv6_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv6_udp,	ICE_RSS_TYPE_GTPU_IPV6_UDP,	&outer_ipv6_inner_ipv6_udp_tmplt},
+	{pattern_eth_ipv6_gtpu_eh_ipv6_tcp,	ICE_RSS_TYPE_GTPU_IPV6_TCP,	&outer_ipv6_inner_ipv6_tcp_tmplt},
+	{pattern_eth_pppoes_ipv6,		ICE_RSS_TYPE_PPPOE_IPV6,	&ipv6_tmplt},
+	{pattern_eth_pppoes_ipv6_udp,		ICE_RSS_TYPE_PPPOE_IPV6_UDP,	&ipv6_udp_tmplt},
+	{pattern_eth_pppoes_ipv6_tcp,		ICE_RSS_TYPE_PPPOE_IPV6_TCP,	&ipv6_tcp_tmplt},
+	{pattern_eth_ipv6_esp,			ICE_RSS_TYPE_IPV6_ESP,		&eth_ipv6_esp_tmplt},
+	{pattern_eth_ipv6_udp_esp,		ICE_RSS_TYPE_IPV6_ESP,		&eth_ipv6_udp_esp_tmplt},
+	{pattern_eth_ipv6_ah,			ICE_RSS_TYPE_IPV6_AH,		&eth_ipv6_ah_tmplt},
+	{pattern_eth_ipv6_l2tp,			ICE_RSS_TYPE_IPV6_L2TPV3,	&eth_ipv6_l2tpv3_tmplt},
+	{pattern_eth_ipv6_pfcp,			ICE_RSS_TYPE_IPV6_PFCP,		&eth_ipv6_pfcp_tmplt},
+	/* PPPOE */
+	{pattern_eth_pppoes,			ICE_RSS_TYPE_PPPOE,		&pppoe_tmplt},
+	/* EMPTY */
+	{pattern_empty,				ICE_RSS_TYPE_EMPTY,		&empty_tmplt},
 };
 
 static struct ice_flow_engine ice_hash_engine = {
@@ -215,19 +534,10 @@ static struct ice_flow_engine ice_hash_engine = {
 };
 
 /* Register parser for os package. */
-static struct ice_flow_parser ice_hash_parser_os = {
+static struct ice_flow_parser ice_hash_parser = {
 	.engine = &ice_hash_engine,
-	.array = ice_hash_pattern_list_os,
-	.array_len = RTE_DIM(ice_hash_pattern_list_os),
-	.parse_pattern_action = ice_hash_parse_pattern_action,
-	.stage = ICE_FLOW_STAGE_RSS,
-};
-
-/* Register parser for comms package. */
-static struct ice_flow_parser ice_hash_parser_comms = {
-	.engine = &ice_hash_engine,
-	.array = ice_hash_pattern_list_comms,
-	.array_len = RTE_DIM(ice_hash_pattern_list_comms),
+	.array = ice_hash_pattern_list,
+	.array_len = RTE_DIM(ice_hash_pattern_list),
 	.parse_pattern_action = ice_hash_parse_pattern_action,
 	.stage = ICE_FLOW_STAGE_RSS,
 };
@@ -243,21 +553,20 @@ ice_hash_init(struct ice_adapter *ad)
 {
 	struct ice_flow_parser *parser = NULL;
 
-	if (ad->active_pkg_type == ICE_PKG_TYPE_OS_DEFAULT)
-		parser = &ice_hash_parser_os;
-	else if (ad->active_pkg_type == ICE_PKG_TYPE_COMMS)
-		parser = &ice_hash_parser_comms;
-	else
-		return -EINVAL;
+	if (ad->hw.dcf_enabled)
+		return 0;
+
+	parser = &ice_hash_parser;
 
 	return ice_register_parser(parser, ad);
 }
 
 static int
-ice_hash_check_inset(const struct rte_flow_item pattern[],
-		struct rte_flow_error *error)
+ice_hash_parse_pattern(const struct rte_flow_item pattern[], uint64_t *phint,
+		       struct rte_flow_error *error)
 {
 	const struct rte_flow_item *item = pattern;
+	const struct rte_flow_item_gtp_psc *psc;
 
 	for (item = pattern; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
 		if (item->last) {
@@ -267,33 +576,332 @@ ice_hash_check_inset(const struct rte_flow_item pattern[],
 			return -rte_errno;
 		}
 
-		/* Ignore spec and mask. */
-		if (item->spec || item->mask) {
-			rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_ITEM, item,
-					"Invalid spec/mask.");
-			return -rte_errno;
+		switch (item->type) {
+		case RTE_FLOW_ITEM_TYPE_VLAN:
+			*phint |= ICE_PHINT_VLAN;
+			break;
+		case RTE_FLOW_ITEM_TYPE_PPPOES:
+			*phint |= ICE_PHINT_PPPOE;
+			break;
+		case RTE_FLOW_ITEM_TYPE_GTPU:
+			*phint |= ICE_PHINT_GTPU;
+			break;
+		case RTE_FLOW_ITEM_TYPE_GTP_PSC:
+			*phint |= ICE_PHINT_GTPU_EH;
+			psc = item->spec;
+			if (!psc)
+				break;
+			else if (psc->pdu_type == ICE_GTPU_EH_UPLINK)
+				*phint |= ICE_PHINT_GTPU_EH_UP;
+			else if (psc->pdu_type == ICE_GTPU_EH_DWNLINK)
+				*phint |= ICE_PHINT_GTPU_EH_DWN;
+			break;
+		default:
+			break;
 		}
 	}
 
 	return 0;
 }
 
+static void
+ice_refine_hash_cfg_l234(struct ice_rss_hash_cfg *hash_cfg,
+			 uint64_t rss_type)
+{
+	uint32_t *addl_hdrs = &hash_cfg->addl_hdrs;
+	uint64_t *hash_flds = &hash_cfg->hash_flds;
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_ETH) {
+		if (!(rss_type & ETH_RSS_ETH))
+			*hash_flds &= ~ICE_FLOW_HASH_ETH;
+		if (rss_type & ETH_RSS_L2_SRC_ONLY)
+			*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_ETH_DA));
+		else if (rss_type & ETH_RSS_L2_DST_ONLY)
+			*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_ETH_SA));
+		*addl_hdrs &= ~ICE_FLOW_SEG_HDR_ETH;
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_VLAN) {
+		if (rss_type & ETH_RSS_C_VLAN)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_C_VLAN);
+		else if (rss_type & ETH_RSS_S_VLAN)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_S_VLAN);
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_PPPOE) {
+		if (!(rss_type & ETH_RSS_PPPOE))
+			*hash_flds &= ~ICE_FLOW_HASH_PPPOE_SESS_ID;
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_IPV4) {
+		if (rss_type &
+		   (ETH_RSS_IPV4 |
+		    ETH_RSS_NONFRAG_IPV4_UDP |
+		    ETH_RSS_NONFRAG_IPV4_TCP |
+		    ETH_RSS_NONFRAG_IPV4_SCTP)) {
+			if (rss_type & ETH_RSS_L3_SRC_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_DA));
+			else if (rss_type & ETH_RSS_L3_DST_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_SA));
+			else if (rss_type &
+				(ETH_RSS_L4_SRC_ONLY |
+				ETH_RSS_L4_DST_ONLY))
+				*hash_flds &= ~ICE_FLOW_HASH_IPV4;
+		} else {
+			*hash_flds &= ~ICE_FLOW_HASH_IPV4;
+		}
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_IPV6) {
+		if (rss_type &
+		   (ETH_RSS_IPV6 |
+		    ETH_RSS_NONFRAG_IPV6_UDP |
+		    ETH_RSS_NONFRAG_IPV6_TCP |
+		    ETH_RSS_NONFRAG_IPV6_SCTP)) {
+			if (rss_type & ETH_RSS_L3_SRC_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA));
+			else if (rss_type & ETH_RSS_L3_DST_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA));
+			else if (rss_type &
+				(ETH_RSS_L4_SRC_ONLY |
+				ETH_RSS_L4_DST_ONLY))
+				*hash_flds &= ~ICE_FLOW_HASH_IPV6;
+		} else {
+			*hash_flds &= ~ICE_FLOW_HASH_IPV6;
+		}
+
+		if (rss_type & RTE_ETH_RSS_L3_PRE32) {
+			if (rss_type & ETH_RSS_L3_SRC_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE32_SA));
+			} else if (rss_type & ETH_RSS_L3_DST_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE32_DA));
+			} else {
+				*hash_flds &= ~ICE_FLOW_HASH_IPV6;
+				*hash_flds |= ICE_FLOW_HASH_IPV6_PRE32;
+			}
+		}
+		if (rss_type & RTE_ETH_RSS_L3_PRE48) {
+			if (rss_type & ETH_RSS_L3_SRC_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE48_SA));
+			} else if (rss_type & ETH_RSS_L3_DST_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE48_DA));
+			} else {
+				*hash_flds &= ~ICE_FLOW_HASH_IPV6;
+				*hash_flds |= ICE_FLOW_HASH_IPV6_PRE48;
+			}
+		}
+		if (rss_type & RTE_ETH_RSS_L3_PRE64) {
+			if (rss_type & ETH_RSS_L3_SRC_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_SA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE64_SA));
+			} else if (rss_type & ETH_RSS_L3_DST_ONLY) {
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_DA));
+				*hash_flds |= (BIT_ULL(ICE_FLOW_FIELD_IDX_IPV6_PRE64_DA));
+			} else {
+				*hash_flds &= ~ICE_FLOW_HASH_IPV6;
+				*hash_flds |= ICE_FLOW_HASH_IPV6_PRE64;
+			}
+		}
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_UDP) {
+		if (rss_type &
+		   (ETH_RSS_NONFRAG_IPV4_UDP |
+		    ETH_RSS_NONFRAG_IPV6_UDP)) {
+			if (rss_type & ETH_RSS_L4_SRC_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_DST_PORT));
+			else if (rss_type & ETH_RSS_L4_DST_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_SRC_PORT));
+			else if (rss_type &
+				(ETH_RSS_L3_SRC_ONLY |
+				  ETH_RSS_L3_DST_ONLY))
+				*hash_flds &= ~ICE_FLOW_HASH_UDP_PORT;
+		} else {
+			*hash_flds &= ~ICE_FLOW_HASH_UDP_PORT;
+		}
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_TCP) {
+		if (rss_type &
+		   (ETH_RSS_NONFRAG_IPV4_TCP |
+		    ETH_RSS_NONFRAG_IPV6_TCP)) {
+			if (rss_type & ETH_RSS_L4_SRC_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_DST_PORT));
+			else if (rss_type & ETH_RSS_L4_DST_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_SRC_PORT));
+			else if (rss_type &
+				(ETH_RSS_L3_SRC_ONLY |
+				  ETH_RSS_L3_DST_ONLY))
+				*hash_flds &= ~ICE_FLOW_HASH_TCP_PORT;
+		} else {
+			*hash_flds &= ~ICE_FLOW_HASH_TCP_PORT;
+		}
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_SCTP) {
+		if (rss_type &
+		   (ETH_RSS_NONFRAG_IPV4_SCTP |
+		    ETH_RSS_NONFRAG_IPV6_SCTP)) {
+			if (rss_type & ETH_RSS_L4_SRC_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_DST_PORT));
+			else if (rss_type & ETH_RSS_L4_DST_ONLY)
+				*hash_flds &= ~(BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_SRC_PORT));
+			else if (rss_type &
+				(ETH_RSS_L3_SRC_ONLY |
+				  ETH_RSS_L3_DST_ONLY))
+				*hash_flds &= ~ICE_FLOW_HASH_SCTP_PORT;
+		} else {
+			*hash_flds &= ~ICE_FLOW_HASH_SCTP_PORT;
+		}
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_L2TPV3) {
+		if (!(rss_type & ETH_RSS_L2TPV3))
+			*hash_flds &= ~ICE_FLOW_HASH_L2TPV3_SESS_ID;
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_ESP) {
+		if (!(rss_type & ETH_RSS_ESP))
+			*hash_flds &= ~ICE_FLOW_HASH_ESP_SPI;
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_AH) {
+		if (!(rss_type & ETH_RSS_AH))
+			*hash_flds &= ~ICE_FLOW_HASH_AH_SPI;
+	}
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_PFCP_SESSION) {
+		if (!(rss_type & ETH_RSS_PFCP))
+			*hash_flds &= ~ICE_FLOW_HASH_PFCP_SEID;
+	}
+}
+
+static void
+ice_refine_proto_hdrs_by_pattern(struct ice_rss_hash_cfg *hash_cfg,
+				 uint64_t phint)
+{
+	uint32_t *addl_hdrs = &hash_cfg->addl_hdrs;
+	if (phint & ICE_PHINT_VLAN)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_VLAN;
+
+	if (phint & ICE_PHINT_PPPOE)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_PPPOE;
+
+	if (phint & ICE_PHINT_GTPU_EH_DWN)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_GTPU_DWN;
+	else if (phint & ICE_PHINT_GTPU_EH_UP)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_GTPU_UP;
+	else if (phint & ICE_PHINT_GTPU_EH)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_GTPU_EH;
+	else if (phint & ICE_PHINT_GTPU)
+		*addl_hdrs |= ICE_FLOW_SEG_HDR_GTPU_IP;
+}
+
+static void
+ice_refine_hash_cfg_gtpu(struct ice_rss_hash_cfg *hash_cfg,
+			 uint64_t rss_type)
+{
+	uint32_t *addl_hdrs = &hash_cfg->addl_hdrs;
+	uint64_t *hash_flds = &hash_cfg->hash_flds;
+
+	/* update hash field for gtpu eh/gtpu dwn/gtpu up. */
+	if (!(rss_type & ETH_RSS_GTPU))
+		return;
+
+	if (*addl_hdrs & ICE_FLOW_SEG_HDR_GTPU_DWN)
+		*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_GTPU_DWN_TEID);
+	else if (*addl_hdrs & ICE_FLOW_SEG_HDR_GTPU_UP)
+		*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_GTPU_UP_TEID);
+	else if (*addl_hdrs & ICE_FLOW_SEG_HDR_GTPU_EH)
+		*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_GTPU_EH_TEID);
+	else if (*addl_hdrs & ICE_FLOW_SEG_HDR_GTPU_IP)
+		*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_GTPU_IP_TEID);
+}
+
+static void ice_refine_hash_cfg(struct ice_rss_hash_cfg *hash_cfg,
+				uint64_t rss_type, uint64_t phint)
+{
+	ice_refine_proto_hdrs_by_pattern(hash_cfg, phint);
+	ice_refine_hash_cfg_l234(hash_cfg, rss_type);
+	ice_refine_hash_cfg_gtpu(hash_cfg, rss_type);
+}
+
+static uint64_t invalid_rss_comb[] = {
+	ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_UDP,
+	ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_UDP,
+	RTE_ETH_RSS_L3_PRE40 |
+	RTE_ETH_RSS_L3_PRE56 |
+	RTE_ETH_RSS_L3_PRE96
+};
+
+struct rss_attr_type {
+	uint64_t attr;
+	uint64_t type;
+};
+
+static struct rss_attr_type rss_attr_to_valid_type[] = {
+	{ETH_RSS_L2_SRC_ONLY | ETH_RSS_L2_DST_ONLY,	ETH_RSS_ETH},
+	{ETH_RSS_L3_SRC_ONLY | ETH_RSS_L3_DST_ONLY,	VALID_RSS_L3},
+	{ETH_RSS_L4_SRC_ONLY | ETH_RSS_L4_DST_ONLY,	VALID_RSS_L4},
+	/* current ipv6 prefix only supports prefix 64 bits*/
+	{RTE_ETH_RSS_L3_PRE32,				VALID_RSS_IPV6},
+	{RTE_ETH_RSS_L3_PRE48,				VALID_RSS_IPV6},
+	{RTE_ETH_RSS_L3_PRE64,				VALID_RSS_IPV6},
+	{INVALID_RSS_ATTR,				0}
+};
+
+static bool
+ice_any_invalid_rss_type(enum rte_eth_hash_function rss_func,
+			 uint64_t rss_type, uint64_t allow_rss_type)
+{
+	uint32_t i;
+
+	/**
+	 * Check if l3/l4 SRC/DST_ONLY is set for SYMMETRIC_TOEPLITZ
+	 * hash function.
+	 */
+	if (rss_func == RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ) {
+		if (rss_type & (ETH_RSS_L3_SRC_ONLY | ETH_RSS_L3_DST_ONLY |
+		    ETH_RSS_L4_SRC_ONLY | ETH_RSS_L4_DST_ONLY))
+			return true;
+	}
+
+	/* check invalid combination */
+	for (i = 0; i < RTE_DIM(invalid_rss_comb); i++) {
+		if (__builtin_popcountll(rss_type & invalid_rss_comb[i]) > 1)
+			return true;
+	}
+
+	/* check invalid RSS attribute */
+	for (i = 0; i < RTE_DIM(rss_attr_to_valid_type); i++) {
+		struct rss_attr_type *rat = &rss_attr_to_valid_type[i];
+
+		if (rat->attr & rss_type && !(rat->type & rss_type))
+			return true;
+	}
+
+	/* check not allowed RSS type */
+	rss_type &= ~VALID_RSS_ATTR;
+
+	return ((rss_type & allow_rss_type) != rss_type);
+}
+
 static int
 ice_hash_parse_action(struct ice_pattern_match_item *pattern_match_item,
 		const struct rte_flow_action actions[],
-		void **meta,
+		uint64_t pattern_hint, void **meta,
 		struct rte_flow_error *error)
 {
-	const struct rte_flow_action *action;
+	struct ice_rss_meta *rss_meta = (struct ice_rss_meta *)*meta;
+	struct ice_rss_hash_cfg *cfg = pattern_match_item->meta;
 	enum rte_flow_action_type action_type;
 	const struct rte_flow_action_rss *rss;
-	struct rss_type_match_hdr *m = (struct rss_type_match_hdr *)
-				(pattern_match_item->meta);
-	uint32_t type_list_len = RTE_DIM(ice_hash_type_list);
-	struct ice_hash_match_type *type_match_item;
-	uint64_t rss_hf;
-	uint16_t i;
+	const struct rte_flow_action *action;
+	uint64_t rss_type;
 
 	/* Supported action is RSS. */
 	for (action = actions; action->type !=
@@ -302,35 +910,25 @@ ice_hash_parse_action(struct ice_pattern_match_item *pattern_match_item,
 		switch (action_type) {
 		case RTE_FLOW_ACTION_TYPE_RSS:
 			rss = action->conf;
-			rss_hf = rss->types;
+			rss_type = rss->types;
 
-			/**
-			 * Check simultaneous use of SRC_ONLY and DST_ONLY
-			 * of the same level.
-			 */
-			rss_hf = rte_eth_rss_hf_refine(rss_hf);
-
-			/* Check if pattern is empty. */
+			/* Check hash function and save it to rss_meta. */
 			if (pattern_match_item->pattern_list !=
-				pattern_empty && rss->func ==
-				RTE_ETH_HASH_FUNCTION_SIMPLE_XOR)
+			    pattern_empty && rss->func ==
+			    RTE_ETH_HASH_FUNCTION_SIMPLE_XOR) {
 				return rte_flow_error_set(error, ENOTSUP,
 					RTE_FLOW_ERROR_TYPE_ACTION, action,
 					"Not supported flow");
-
-			/* Check if rss types match pattern. */
-			if (rss->func != RTE_ETH_HASH_FUNCTION_SIMPLE_XOR) {
-				if (((rss_hf & ETH_RSS_IPV4) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_IPV6) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) != m->eth_rss_hint) &&
-				((rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP) != m->eth_rss_hint))
-					return rte_flow_error_set(error,
-					ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION,
-					action, "Not supported RSS types");
+			} else if (rss->func ==
+				   RTE_ETH_HASH_FUNCTION_SIMPLE_XOR){
+				rss_meta->hash_function =
+				RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+				return 0;
+			} else if (rss->func ==
+				   RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ) {
+				rss_meta->hash_function =
+				RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ;
+				cfg->symm = true;
 			}
 
 			if (rss->level)
@@ -348,44 +946,22 @@ ice_hash_parse_action(struct ice_pattern_match_item *pattern_match_item,
 					RTE_FLOW_ERROR_TYPE_ACTION, action,
 					"a non-NULL RSS queue is not supported");
 
-			/* Check hash function and save it to rss_meta. */
-			if (rss->func ==
-				RTE_ETH_HASH_FUNCTION_SIMPLE_XOR)
-				((struct rss_meta *)*meta)->hash_function =
-				RTE_ETH_HASH_FUNCTION_SIMPLE_XOR;
+			/**
+			 * Check simultaneous use of SRC_ONLY and DST_ONLY
+			 * of the same level.
+			 */
+			rss_type = rte_eth_rss_hf_refine(rss_type);
 
-			if (rss->func ==
-				RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ)
-				((struct rss_meta *)*meta)->hash_function =
-				RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ;
+			if (ice_any_invalid_rss_type(rss->func, rss_type,
+					pattern_match_item->input_set_mask))
+				return rte_flow_error_set(error, ENOTSUP,
+					RTE_FLOW_ERROR_TYPE_ACTION,
+					action, "RSS type not supported");
 
-			type_match_item = rte_zmalloc("ice_type_match_item",
-					sizeof(struct ice_hash_match_type), 0);
-			if (!type_match_item) {
-				rte_flow_error_set(error, EINVAL,
-					RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
-					"No memory for type_match_item");
-				return -ENOMEM;
-			}
-
-			/* Find matched hash fields according to hash type. */
-			for (i = 0; i < type_list_len; i++) {
-				if (rss_hf ==
-					ice_hash_type_list[i].hash_type) {
-					type_match_item->hash_type =
-						ice_hash_type_list[i].hash_type;
-					type_match_item->hash_flds =
-						ice_hash_type_list[i].hash_flds;
-				}
-			}
-
-			/* Save hash fileds to rss_meta. */
-			((struct rss_meta *)*meta)->hash_flds =
-					type_match_item->hash_flds;
-
-			rte_free(type_match_item);
+			rss_meta->cfg = *cfg;
+			ice_refine_hash_cfg(&rss_meta->cfg,
+					    rss_type, pattern_hint);
 			break;
-
 		case RTE_FLOW_ACTION_TYPE_END:
 			break;
 
@@ -409,9 +985,10 @@ ice_hash_parse_pattern_action(__rte_unused struct ice_adapter *ad,
 			void **meta,
 			struct rte_flow_error *error)
 {
-	int ret = -rte_errno;
+	int ret = 0;
 	struct ice_pattern_match_item *pattern_match_item;
-	struct rss_meta *rss_meta_ptr;
+	struct ice_rss_meta *rss_meta_ptr;
+	uint64_t phint = ICE_PHINT_NONE;
 
 	rss_meta_ptr = rte_zmalloc(NULL, sizeof(*rss_meta_ptr), 0);
 	if (!rss_meta_ptr) {
@@ -422,24 +999,25 @@ ice_hash_parse_pattern_action(__rte_unused struct ice_adapter *ad,
 	}
 
 	/* Check rss supported pattern and find matched pattern. */
-	pattern_match_item = ice_search_pattern_match_item(pattern,
-					array, array_len, error);
-	if (!pattern_match_item)
+	pattern_match_item = ice_search_pattern_match_item(ad, pattern, array,
+							   array_len, error);
+	if (!pattern_match_item) {
+		ret = -rte_errno;
 		goto error;
+	}
 
-	ret = ice_hash_check_inset(pattern, error);
+	ret = ice_hash_parse_pattern(pattern, &phint, error);
 	if (ret)
 		goto error;
-
-	/* Save protocol header to rss_meta. */
-	*meta = rss_meta_ptr;
-	((struct rss_meta *)*meta)->pkt_hdr = ((struct rss_type_match_hdr *)
-		(pattern_match_item->meta))->hdr_mask;
 
 	/* Check rss action. */
-	ret = ice_hash_parse_action(pattern_match_item, actions, meta, error);
+	ret = ice_hash_parse_action(pattern_match_item, actions, phint,
+				    (void **)&rss_meta_ptr, error);
+
 error:
-	if (ret)
+	if (!ret && meta)
+		*meta = rss_meta_ptr;
+	else
 		rte_free(rss_meta_ptr);
 	rte_free(pattern_match_item);
 
@@ -458,10 +1036,8 @@ ice_hash_create(struct ice_adapter *ad,
 	int ret;
 	uint32_t reg;
 	struct ice_hash_flow_cfg *filter_ptr;
-
-	uint32_t headermask = ((struct rss_meta *)meta)->pkt_hdr;
-	uint64_t hash_field = ((struct rss_meta *)meta)->hash_flds;
-	uint8_t hash_function = ((struct rss_meta *)meta)->hash_function;
+	struct ice_rss_meta *rss_meta = (struct ice_rss_meta *)meta;
+	uint8_t hash_function = rss_meta->hash_function;
 
 	filter_ptr = rte_zmalloc("ice_rss_filter",
 				sizeof(struct ice_hash_flow_cfg), 0);
@@ -483,16 +1059,10 @@ ice_hash_create(struct ice_adapter *ad,
 
 		goto out;
 	} else {
-		filter_ptr->rss_cfg.packet_hdr = headermask;
-		filter_ptr->rss_cfg.hashed_flds = hash_field;
-		filter_ptr->rss_cfg.symm =
-			(hash_function ==
-				RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ);
-
-		ret = ice_add_rss_cfg(hw, vsi->idx,
-				filter_ptr->rss_cfg.hashed_flds,
-				filter_ptr->rss_cfg.packet_hdr,
-				filter_ptr->rss_cfg.symm);
+		memcpy(&filter_ptr->rss_cfg.hash, &rss_meta->cfg,
+		       sizeof(struct ice_rss_hash_cfg));
+		ret = ice_add_rss_cfg_wrap(pf, vsi->idx,
+					   &filter_ptr->rss_cfg.hash);
 		if (ret) {
 			rte_flow_error_set(error, EINVAL,
 					RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
@@ -533,9 +1103,8 @@ ice_hash_destroy(struct ice_adapter *ad,
 			(1 << VSIQF_HASH_CTL_HASH_SCHEME_S);
 		ICE_WRITE_REG(hw, VSIQF_HASH_CTL(vsi->vsi_id), reg);
 	} else {
-		ret = ice_rem_rss_cfg(hw, vsi->idx,
-				filter_ptr->rss_cfg.hashed_flds,
-				filter_ptr->rss_cfg.packet_hdr);
+		ret = ice_rem_rss_cfg_wrap(pf, vsi->idx,
+					   &filter_ptr->rss_cfg.hash);
 		/* Fixme: Ignore the error if a rule does not exist.
 		 * Currently a rule for inputset change or symm turn on/off
 		 * will overwrite an exist rule, while application still
@@ -560,10 +1129,10 @@ error:
 static void
 ice_hash_uninit(struct ice_adapter *ad)
 {
-	if (ad->active_pkg_type == ICE_PKG_TYPE_OS_DEFAULT)
-		ice_unregister_parser(&ice_hash_parser_os, ad);
-	else if (ad->active_pkg_type == ICE_PKG_TYPE_COMMS)
-		ice_unregister_parser(&ice_hash_parser_comms, ad);
+	if (ad->hw.dcf_enabled)
+		return;
+
+	ice_unregister_parser(&ice_hash_parser, ad);
 }
 
 static void

@@ -10,8 +10,8 @@ endif
 
 static_ibverbs = (get_option('ibverbs_link') == 'static')
 dlopen_ibverbs = (get_option('ibverbs_link') == 'dlopen')
-LIB_GLUE_BASE = 'librte_pmd_mlx4_glue.so'
-LIB_GLUE_VERSION = '18.02.0'
+LIB_GLUE_BASE = 'librte_net_mlx4_glue.so'
+LIB_GLUE_VERSION = abi_version
 LIB_GLUE = LIB_GLUE_BASE + '.' + LIB_GLUE_VERSION
 if dlopen_ibverbs
 	dpdk_conf.set('RTE_IBVERBS_LINK_DLOPEN', 1)
@@ -50,7 +50,6 @@ if static_ibverbs
 	ext_deps += declare_dependency(link_args:ibv_ldflags.split())
 endif
 
-allow_experimental_apis = true
 sources = files(
 	'mlx4.c',
 	'mlx4_ethdev.c',
@@ -117,7 +116,7 @@ configure_file(output : 'mlx4_autoconf.h', configuration : config)
 # Build Glue Library
 if dlopen_ibverbs
 	dlopen_name = 'mlx4_glue'
-	dlopen_lib_name = driver_name_fmt.format(dlopen_name)
+	dlopen_lib_name = 'rte_net_' + dlopen_name
 	dlopen_so_version = LIB_GLUE_VERSION
 	dlopen_sources = files('mlx4_glue.c')
 	dlopen_install_dir = [ eal_pmd_path + '-glue' ]

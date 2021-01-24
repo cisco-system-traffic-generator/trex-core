@@ -24,6 +24,9 @@
 #define	I40E_MIN_RING_DESC	64
 #define	I40E_MAX_RING_DESC	4096
 
+#define I40E_FDIR_NUM_TX_DESC   (I40E_FDIR_PRG_PKT_CNT << 1)
+#define I40E_FDIR_NUM_RX_DESC   (I40E_FDIR_PRG_PKT_CNT << 1)
+
 #define I40E_MIN_TSO_MSS          256
 #define I40E_MAX_TSO_MSS          9674
 
@@ -124,6 +127,10 @@ struct i40e_tx_entry {
 	struct rte_mbuf *mbuf;
 	uint16_t next_id;
 	uint16_t last_id;
+};
+
+struct i40e_vec_tx_entry {
+	struct rte_mbuf *mbuf;
 };
 
 /*
@@ -245,6 +252,16 @@ uint16_t i40e_recv_scattered_pkts_vec_avx2(void *rx_queue,
 	struct rte_mbuf **rx_pkts, uint16_t nb_pkts);
 uint16_t i40e_xmit_pkts_vec_avx2(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_pkts);
+int i40e_get_monitor_addr(void *rx_queue, struct rte_power_monitor_cond *pmc);
+uint16_t i40e_recv_pkts_vec_avx512(void *rx_queue,
+				   struct rte_mbuf **rx_pkts,
+				   uint16_t nb_pkts);
+uint16_t i40e_recv_scattered_pkts_vec_avx512(void *rx_queue,
+					     struct rte_mbuf **rx_pkts,
+					     uint16_t nb_pkts);
+uint16_t i40e_xmit_pkts_vec_avx512(void *tx_queue,
+				   struct rte_mbuf **tx_pkts,
+				   uint16_t nb_pkts);
 
 /* For each value it means, datasheet of hardware can tell more details
  *

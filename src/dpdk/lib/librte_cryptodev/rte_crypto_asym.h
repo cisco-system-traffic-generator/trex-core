@@ -27,6 +27,13 @@ extern "C" {
 
 #include "rte_crypto_sym.h"
 
+/**
+ * Buffer to hold crypto params required for asym operations.
+ *
+ * These buffers can be used for both input to PMD and output from PMD. When
+ * used for output from PMD, application has to ensure the buffer is large
+ * enough to hold the target data.
+ */
 typedef struct rte_crypto_param_t {
 	uint8_t *data;
 	/**< pointer to buffer holding data */
@@ -81,6 +88,12 @@ enum rte_crypto_asym_xform_type {
 	/**< Modular Exponentiation
 	 * Perform Modular Exponentiation b^e mod n
 	 */
+	RTE_CRYPTO_ASYM_XFORM_ECDSA,
+	/**< Elliptic Curve Digital Signature Algorithm
+	 * Perform Signature Generation and Verification.
+	 */
+	RTE_CRYPTO_ASYM_XFORM_ECPM,
+	/**< Elliptic Curve Point Multiplication */
 	RTE_CRYPTO_ASYM_XFORM_TYPE_LIST_END
 	/**< End of list */
 };
@@ -112,17 +125,9 @@ enum rte_crypto_asym_op_type {
 enum rte_crypto_rsa_padding_type {
 	RTE_CRYPTO_RSA_PADDING_NONE = 0,
 	/**< RSA no padding scheme */
-	RTE_CRYPTO_RSA_PKCS1_V1_5_BT0,
-	/**< RSA PKCS#1 V1.5 Block Type 0 padding scheme
-	 * as described in rfc2313
-	 */
-	RTE_CRYPTO_RSA_PKCS1_V1_5_BT1,
-	/**< RSA PKCS#1 V1.5 Block Type 01 padding scheme
-	 * as described in rfc2313
-	 */
-	RTE_CRYPTO_RSA_PKCS1_V1_5_BT2,
-	/**< RSA PKCS#1 V1.5 Block Type 02 padding scheme
-	 * as described in rfc2313
+	RTE_CRYPTO_RSA_PADDING_PKCS1_5,
+	/**< RSA PKCS#1 PKCS1-v1_5 padding scheme. For signatures block type 01,
+	 * for encryption block type 02 are used.
 	 */
 	RTE_CRYPTO_RSA_PADDING_OAEP,
 	/**< RSA PKCS#1 OAEP padding scheme */
@@ -199,8 +204,8 @@ struct rte_crypto_rsa_priv_key_qt {
  */
 struct rte_crypto_rsa_xform {
 	rte_crypto_param n;
-	/**< n - Prime modulus
-	 * Prime modulus data of RSA operation in Octet-string network
+	/**< n - Modulus
+	 * Modulus data of RSA operation in Octet-string network
 	 * byte order format.
 	 */
 
@@ -327,6 +332,40 @@ struct rte_crypto_dsa_xform {
 };
 
 /**
+ * TLS named curves
+ * https://tools.ietf.org/html/rfc8422
+ */
+enum rte_crypto_ec_group {
+	RTE_CRYPTO_EC_GROUP_UNKNOWN  = 0,
+	RTE_CRYPTO_EC_GROUP_SECP192R1 = 19,
+	RTE_CRYPTO_EC_GROUP_SECP224R1 = 21,
+	RTE_CRYPTO_EC_GROUP_SECP256R1 = 23,
+	RTE_CRYPTO_EC_GROUP_SECP384R1 = 24,
+	RTE_CRYPTO_EC_GROUP_SECP521R1 = 25,
+};
+
+/**
+ * Structure for elliptic curve point
+ */
+struct rte_crypto_ec_point {
+	rte_crypto_param x;
+	/**< X coordinate */
+	rte_crypto_param y;
+	/**< Y coordinate */
+};
+
+/**
+ * Asymmetric elliptic curve transform data
+ *
+ * Structure describing all EC based xform params
+ *
+ */
+struct rte_crypto_ec_xform {
+	enum rte_crypto_ec_group curve_id;
+	/**< Pre-defined ec groups */
+};
+
+/**
  * Operations params for modular operations:
  * exponentiation and multiplicative inverse
  *
@@ -380,6 +419,11 @@ struct rte_crypto_asym_xform {
 
 		struct rte_crypto_dsa_xform dsa;
 		/**< DSA xform parameters */
+
+		struct rte_crypto_ec_xform ec;
+		/**< EC xform parameters, used by elliptic curve based
+		 * operations.
+		 */
 	};
 };
 
@@ -391,25 +435,54 @@ struct rte_cryptodev_asym_session;
  */
 struct rte_crypto_rsa_op_param {
 	enum rte_crypto_asym_op_type op_type;
-	/**< Type of RSA operation for transform */;
+	/**< Type of RSA operation for transform */
 
 	rte_crypto_param message;
 	/**<
-	 * Pointer to data
+	 * Pointer to input data
 	 * - to be encrypted for RSA public encrypt.
-	 * - to be decrypted for RSA private decrypt.
 	 * - to be signed for RSA sign generation.
 	 * - to be authenticated for RSA sign verification.
+	 *
+	 * Pointer to output data
+	 * - for RSA private decrypt.
+	 * In this case the underlying array should have been
+	 * allocated with enough memory to hold plaintext output
+	 * (i.e. must be at least RSA key size). The message.length
+	 * field should be 0 and will be overwritten by the PMD
+	 * with the decrypted length.
+	 *
+	 * All data is in Octet-string network byte order format.
+	 */
+
+	rte_crypto_param cipher;
+	/**<
+	 * Pointer to input data
+	 * - to be decrypted for RSA private decrypt.
+	 *
+	 * Pointer to output data
+	 * - for RSA public encrypt.
+	 * In this case the underlying array should have been allocated
+	 * with enough memory to hold ciphertext output (i.e. must be
+	 * at least RSA key size). The cipher.length field should
+	 * be 0 and will be overwritten by the PMD with the encrypted length.
+	 *
+	 * All data is in Octet-string network byte order format.
 	 */
 
 	rte_crypto_param sign;
 	/**<
-	 * Pointer to RSA signature data. If operation is RSA
-	 * sign @ref RTE_CRYPTO_ASYM_OP_SIGN, buffer will be
-	 * over-written with generated signature.
+	 * Pointer to input data
+	 * - to be verified for RSA public decrypt.
 	 *
-	 * Length of the signature data will be equal to the
-	 * RSA prime modulus length.
+	 * Pointer to output data
+	 * - for RSA private encrypt.
+	 * In this case the underlying array should have been allocated
+	 * with enough memory to hold signature output (i.e. must be
+	 * at least RSA key size). The sign.length field should
+	 * be 0 and will be overwritten by the PMD with the signature length.
+	 *
+	 * All data is in Octet-string network byte order format.
 	 */
 
 	enum rte_crypto_rsa_padding_type pad;
@@ -495,14 +568,66 @@ struct rte_crypto_dsa_op_param {
 };
 
 /**
+ * ECDSA operation params
+ */
+struct rte_crypto_ecdsa_op_param {
+	enum rte_crypto_asym_op_type op_type;
+	/**< Signature generation or verification */
+
+	rte_crypto_param pkey;
+	/**< Private key of the signer for signature generation */
+
+	struct rte_crypto_ec_point q;
+	/**< Public key of the signer for verification */
+
+	rte_crypto_param message;
+	/**< Input message digest to be signed or verified */
+
+	rte_crypto_param k;
+	/**< The ECDSA per-message secret number, which is an integer
+	 * in the interval (1, n-1)
+	 */
+
+	rte_crypto_param r;
+	/**< r component of elliptic curve signature
+	 *     output : for signature generation
+	 *     input  : for signature verification
+	 */
+	rte_crypto_param s;
+	/**< s component of elliptic curve signature
+	 *     output : for signature generation
+	 *     input  : for signature verification
+	 */
+};
+
+/**
+ * Structure for EC point multiplication operation param
+ */
+struct rte_crypto_ecpm_op_param {
+	struct rte_crypto_ec_point p;
+	/**< x and y coordinates of input point */
+
+	struct rte_crypto_ec_point r;
+	/**< x and y coordinates of resultant point */
+
+	rte_crypto_param scalar;
+	/**< Scalar to multiply the input point */
+};
+
+/**
  * Asymmetric Cryptographic Operation.
  *
  * Structure describing asymmetric crypto operation params.
  *
  */
 struct rte_crypto_asym_op {
-	struct rte_cryptodev_asym_session *session;
-	/**< Handle for the initialised session context */
+	RTE_STD_C11
+	union {
+		struct rte_cryptodev_asym_session *session;
+		/**< Handle for the initialised session context */
+		struct rte_crypto_asym_xform *xform;
+		/**< Session-less API crypto operation parameters */
+	};
 
 	__extension__
 	union {
@@ -511,6 +636,8 @@ struct rte_crypto_asym_op {
 		struct rte_crypto_mod_op_param modinv;
 		struct rte_crypto_dh_op_param dh;
 		struct rte_crypto_dsa_op_param dsa;
+		struct rte_crypto_ecdsa_op_param ecdsa;
+		struct rte_crypto_ecpm_op_param ecpm;
 	};
 };
 

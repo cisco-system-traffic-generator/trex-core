@@ -45,7 +45,7 @@ uint16_t Tunnel::TxCallback(uint16_t port, uint16_t queue,
     for (i=0; i < nb_pkts; i++) {
         rte_mbuf * m = pkts[i];
         iph = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, m->l2_len);
-        tunnel = (Tunnel *)m->dynfield1[0];
+        tunnel = (Tunnel *)m->dynfield_ptr;
         if(tunnel) {
           tunnel->Prepend(m, queue);
         }

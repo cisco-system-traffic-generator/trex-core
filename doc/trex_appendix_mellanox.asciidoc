@@ -22,7 +22,8 @@ The disadvantage is the OFED dependency.
 
 We tested the following distro with TRex and OFED. Others might work too.
 
-* CentOS 7.6 (This is the *only* verified distro)
+* CentOS 7.6 (This is the *only* verified distro) - up to v2.87
+* CentOS 7.9 (This is the *only* verified distro) - v2.88 and up
 
 Following distros were tested and did *not* work for us in the past (with older OFEDs).
 
@@ -33,23 +34,21 @@ Following distros were tested and did *not* work for us in the past (with older 
 
 Information was taken from link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
 
-* Download *OFED 4.6-1.0.1* tar for RHEL 7.6 distro.
+* Download *OFED 4.6-1.0.1* tar for RHEL 7.6 distro. - up to v2.87
+* Download *MLNX_OFED_LINUX-5.2-1.0.4.0-rhel7.9-x86_64.tgz* tar for RHEL 7.9 distro. - v2.87 and up
 
 [IMPORTANT]
 =====================================
-The version must be exactly *MLNX_OFED_LINUX-4.6.1* for CentOS 7.6, any other versions might not work
+The OFED and Distro version should match, we tested it in this combination but it could work in diffrent 
 =====================================
 
-[IMPORTANT]
-=====================================
-CentOS/RHEL 7.6 distro and MLNX_OFED_LINUX-4.6.1 is mandatory to get support from us.
-Please follow the long installation process in the following sections. There is no need to install DPDK on your system.
-=====================================
 
 [IMPORTANT]
 =====================================
 Make sure you have an internet connection without firewalls for HTTPS/HTTP - required by yum
 =====================================
+
+This is an example for OFED 4.6 
 
 .Verify md5
 [source,bash]
@@ -249,6 +248,16 @@ To use Cisco optics, you need to disable to power limit by command:
 
 anchor:ofed_upgrade[]
 
+*from v2.87 ro v2.88*:
+
+* Old version of trex can work on new distro + new ofed but not the opposite (new trex can't work with old ofed) 
+
+* Upgrade the distro using ```yum upgrade``` to get CentOs 7.9
+* Install the new OFED and make sure it is 5.2
+
+
+*from v2.56 ro v2.57*:
+
 TRex v2.32 and lower works with OFED 4.1 and it can't work with OFED 4.2/newer
 
 .TRex OFED matrix
@@ -257,7 +266,8 @@ TRex v2.32 and lower works with OFED 4.1 and it can't work with OFED 4.2/newer
 | TRex version      | OFED          | Disto
 | 2.32 and below    | *only* 4.1    | CentOS 7.3
 | 2.33-2.56         | *only* 4.3    | CentOS 7.4
-| 2.57 and above    | *only* 4.6    | CentOS 7.6
+| 2.57 and v2.86    | *only* 4.6    | CentOS 7.6
+| 2.88 and above    | *only* 5.2    | CentOS 7.9
 |=================
 
 WARNING: In our case an upgrade from CentOS 7.3 to CentOS 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 

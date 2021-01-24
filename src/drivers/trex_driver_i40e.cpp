@@ -26,6 +26,8 @@
 extern "C" {
   #include <rte_pmd_i40e.h> 
 }
+#include "trex_rte_eth_ctrl.h"
+
 
 static uint16_t all_eth_types[]  = {
     0x0800, 0x0806, 0x0842, 0x22F3, 0x22EA, 0x6003, 0x8035, 0x809B, 0x80F3, 0x8100,
@@ -75,9 +77,9 @@ static struct fdir_hw_id_params_t fdir_hw_id_rule_params[512];
 /* Add rule to send packets with protocol 'type', and ttl 'ttl' to rx queue 1 */
 // ttl is used in statefull mode, and ip_id in stateless. We configure the driver registers so that only one of them applies.
 // So, the rule will apply if packet has either the correct ttl or IP ID, depending if we are in statfull or stateless.
-void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  repid, uint16_t type, uint8_t ttl
+void CTRexExtendedDriverBase40G::add_del_rules(enum trex_rte_filter_op op, repid_t  repid, uint16_t type, uint8_t ttl
                                                , uint16_t ip_id, uint8_t l4_proto, int queue, uint16_t stat_idx) {
-    int ret=rte_eth_dev_filter_supported(repid, RTE_ETH_FILTER_FDIR);
+    int ret=0;
     static int filter_soft_id = 0;
 
     if ( ret != 0 ){
@@ -86,24 +88,24 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
                  ret, repid);
     }
 
-    struct rte_eth_fdir_filter filter;
+    struct trex_rte_eth_fdir_filter filter;
 
     memset(&filter,0,sizeof(struct rte_eth_fdir_filter));
 
 #if 0
     printf("40g::%s rules: port:%d type:%d ttl:%d ip_id:%x l4:%d q:%d hw index:%d\n"
-           , (op == RTE_ETH_FILTER_ADD) ?  "add" : "del"
+           , (op == TREX_RTE_ETH_FILTER_ADD) ?  "add" : "del"
            , repid, type, ttl, ip_id, l4_proto, queue, stat_idx);
 #endif
 
     filter.action.rx_queue = queue;
-    filter.action.behavior =RTE_ETH_FDIR_ACCEPT;
-    filter.action.report_status =RTE_ETH_FDIR_NO_REPORT_STATUS;
+    filter.action.behavior = TREX_RTE_ETH_FDIR_ACCEPT;
+    filter.action.report_status = TREX_RTE_ETH_FDIR_NO_REPORT_STATUS;
     filter.action.stat_count_index = stat_idx;
     filter.soft_id = filter_soft_id++;
     filter.input.flow_type = type;
 
-    if (op == RTE_ETH_FILTER_ADD) {
+    if (op == TREX_RTE_ETH_FILTER_ADD) {
         fdir_hw_id_rule_params[stat_idx].rule_type = type;
         fdir_hw_id_rule_params[stat_idx].l4_proto = l4_proto;
     }
@@ -131,7 +133,7 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
         break;
     }
 
-    ret = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_FDIR, op, (void*)&filter);
+    ret = trex_i40e_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_FDIR, op, (void*)&filter);
 
 #if 0
     //todo: fix
@@ -142,15 +144,15 @@ void CTRexExtendedDriverBase40G::add_del_rules(enum rte_filter_op op, repid_t  r
 #endif
 }
 
-int CTRexExtendedDriverBase40G::add_del_eth_type_rule(repid_t  repid, enum rte_filter_op op, uint16_t eth_type) {
+int CTRexExtendedDriverBase40G::add_del_eth_type_rule(repid_t  repid, enum trex_rte_filter_op op, uint16_t eth_type) {
     int ret;
-    struct rte_eth_ethertype_filter filter;
+    struct trex_rte_eth_ethertype_filter filter;
 
     memset(&filter, 0, sizeof(filter));
     filter.ether_type = eth_type;
     filter.flags = 0;
     filter.queue = MAIN_DPDK_RX_Q;
-    ret = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_ETHERTYPE, op, (void *) &filter);
+    ret = trex_i40e_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_ETHERTYPE, op, (void *) &filter);
 
     return ret;
 }
@@ -167,7 +169,7 @@ uint32_t CTRexExtendedDriverBase40G::get_flow_stats_offset(repid_t repid) {
 // type - rule type. Currently we only support rules in IP ID.
 // proto - Packet protocol: UDP or TCP
 // id - Counter id in HW. We assume it is in the range 0..m_max_flow_stats
-int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum rte_filter_op op, uint16_t l3_proto
+int CTRexExtendedDriverBase40G::add_del_rx_flow_stat_rule(CPhyEthIF * _if, enum trex_rte_filter_op op, uint16_t l3_proto
                                                           , uint8_t l4_proto, uint8_t ipv6_next_h, uint16_t id) {
     repid_t repid = _if->get_repid();
 
@@ -225,14 +227,14 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules_statefull(CPhyEthIF * 
     rte_eth_fdir_stats_reset(repid, NULL, 0, 1);
     for (i = 0; i < 10; i++) {
         uint8_t ttl = TTL_RESERVE_DUPLICATE - i - hops;
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, ttl, 0, RX_CHECK_V6_OPT_TYPE, MAIN_DPDK_RX_Q, 0);
         /* Rules for latency measurement packets */
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, ttl, 0, IPPROTO_ICMP, MAIN_DPDK_RX_Q, 0);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, ttl, 0, IPPROTO_ICMP, MAIN_DPDK_RX_Q, 0);
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, ttl, 0, 0, MAIN_DPDK_RX_Q, 0);
     }
     return 0;
 }
@@ -246,24 +248,24 @@ int CTRexExtendedDriverBase40G::configure_rx_filter_rules(CPhyEthIF * _if) {
     if (get_is_stateless()) {
         i40e_trex_fdir_reg_init(repid, I40E_TREX_INIT_STL);
 
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, IPPROTO_ICMP, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
 
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV4, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV4, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
 
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
 
-        add_del_rules(RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV6, 0
+        add_del_rules(TREX_RTE_ETH_FILTER_ADD, repid, RTE_ETH_FLOW_FRAG_IPV6, 0
                       , FLOW_STAT_PAYLOAD_IP_ID, 0, MAIN_DPDK_RX_Q, FDIR_PAYLOAD_RULES_HW_ID);
 
         rte_eth_fdir_stats_reset(repid, NULL, FDIR_TEMP_HW_ID, 1);
@@ -297,6 +299,7 @@ void CTRexExtendedDriverBase40G::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats
 // bytes and prev_bytes are not used. X710 fdir filters do not support byte count.
 int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, uint32_t *prev_pkts
                                              ,uint32_t *bytes, uint32_t *prev_bytes, int min, int max) {
+
     uint32_t hw_stats[MAX_FLOW_STATS_XL710];
     repid_t repid = _if->get_repid();
 
@@ -312,11 +315,11 @@ int CTRexExtendedDriverBase40G::get_rx_stats(CPhyEthIF * _if, uint32_t *pkts, ui
             uint32_t counter, temp_count=0;
             uint32_t hw_id = start - min + i;
 
-            add_del_rules( RTE_ETH_FILTER_ADD, repid, fdir_hw_id_rule_params[hw_id].rule_type, 0
+            add_del_rules( TREX_RTE_ETH_FILTER_ADD, repid, fdir_hw_id_rule_params[hw_id].rule_type, 0
                            , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q
                            , FDIR_TEMP_HW_ID);
             rte_eth_fdir_stats_reset(repid, &counter, hw_id, 1);
-            add_del_rules( RTE_ETH_FILTER_ADD, repid, fdir_hw_id_rule_params[hw_id].rule_type, 0
+            add_del_rules( TREX_RTE_ETH_FILTER_ADD, repid, fdir_hw_id_rule_params[hw_id].rule_type, 0
                            , IP_ID_RESERVE_BASE + i, fdir_hw_id_rule_params[hw_id].l4_proto, MAIN_DPDK_DROP_Q, hw_id);
             rte_eth_fdir_stats_reset(repid, &temp_count, FDIR_TEMP_HW_ID, 1);
             pkts[i] = counter + temp_count - prev_pkts[i];
@@ -340,7 +343,7 @@ int CTRexExtendedDriverBase40G::dump_fdir_global_stats(CPhyEthIF * _if, FILE *fd
     struct rte_eth_fdir_stats stat;
     int ret;
 
-    ret = rte_eth_dev_filter_ctrl(repid, RTE_ETH_FILTER_FDIR, RTE_ETH_FILTER_STATS, (void*)&stat);
+    ret = trex_i40e_rte_eth_dev_filter_ctrl(repid, TREX_RTE_ETH_FILTER_FDIR, TREX_RTE_ETH_FILTER_STATS, (void*)&stat);
     if (ret == 0) {
         if (fd)
             fprintf(fd, "Num filters on guarant poll:%d, best effort poll:%d\n", stat.guarant_cnt, stat.best_cnt);
@@ -438,7 +441,7 @@ int CTRexExtendedDriverBase40G::set_rcv_all(CPhyEthIF * _if, bool set_on) {
 
     repid_t repid=_if->get_repid();
 
-    enum rte_filter_op op = set_on ? RTE_ETH_FILTER_ADD : RTE_ETH_FILTER_DELETE;
+    enum trex_rte_filter_op op = set_on ? TREX_RTE_ETH_FILTER_ADD : TREX_RTE_ETH_FILTER_DELETE;
 
     for (int i = 0; i < sizeof(all_eth_types)/sizeof(uint16_t); i++) {
         add_del_eth_type_rule(repid, op, all_eth_types[i]);

@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
-cflags += ['-DRTE_LIBRTE_IXGBE_BYPASS']
+if is_windows
+	build = false
+	reason = 'not supported on Windows'
+	subdir_done()
+endif
 
-allow_experimental_apis = true
+cflags += ['-DRTE_LIBRTE_IXGBE_BYPASS']
 
 subdir('base')
 objs = [base_objs]
@@ -32,4 +36,4 @@ endif
 
 includes += include_directories('base')
 
-install_headers('rte_pmd_ixgbe.h')
+headers = files('rte_pmd_ixgbe.h')

@@ -43,6 +43,7 @@ extern "C" {
 #define ACM_OP_RESOLVE          0x01
 #define ACM_OP_PERF_QUERY       0x02
 #define ACM_OP_EP_QUERY         0x03
+#define ACM_OP_IP_RESOLVE       0x04
 #define ACM_OP_ACK              0x80
 
 #define ACM_STATUS_SUCCESS      0
@@ -85,6 +86,7 @@ struct acm_hdr {
 #define ACM_EP_INFO_NAME        0x0001
 #define ACM_EP_INFO_ADDRESS_IP  0x0002
 #define ACM_EP_INFO_ADDRESS_IP6 0x0003
+#define ACM_EP_INFO_DGIG	0x0004
 #define ACM_EP_INFO_PATH        0x0010
 
 union acm_ep_info {
@@ -111,7 +113,7 @@ struct acm_ep_addr_data {
  */
 struct acm_resolve_msg {
 	struct acm_hdr          hdr;
-	struct acm_ep_addr_data data[0];
+	struct acm_ep_addr_data data[];
 };
 
 enum {
@@ -130,7 +132,7 @@ enum {
  */
 struct acm_perf_msg {
 	struct acm_hdr          hdr;
-	uint64_t                data[0];
+	uint64_t                data[];
 };
 
 /*
@@ -144,12 +146,12 @@ struct acm_ep_config_data {
 	uint16_t                pkey;
 	uint16_t                addr_cnt;
 	uint8_t                 prov_name[ACM_MAX_PROV_NAME];
-	union acm_ep_info       addrs[0];
+	union acm_ep_info       addrs[];
 };
 
 struct acm_ep_query_msg {
 	struct acm_hdr             hdr;
-	struct acm_ep_config_data  data[0];
+	struct acm_ep_config_data  data[];
 };
 
 struct acm_msg {

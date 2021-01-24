@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2019
+ * Copyright(c) 2001-2021 Intel Corporation
  */
 
 #ifndef _ICE_FLEX_TYPE_H_
@@ -25,9 +25,9 @@ struct ice_fv {
 
 /* Package and segment headers and tables */
 struct ice_pkg_hdr {
-	struct ice_pkg_ver format_ver;
+	struct ice_pkg_ver pkg_format_ver;
 	__le32 seg_count;
-	__le32 seg_offset[1];
+	__le32 seg_offset[STRUCT_HACK_VAR_LEN];
 };
 
 /* generic segment */
@@ -35,9 +35,9 @@ struct ice_generic_seg_hdr {
 #define SEGMENT_TYPE_METADATA	0x00000001
 #define SEGMENT_TYPE_ICE	0x00000010
 	__le32 seg_type;
-	struct ice_pkg_ver seg_ver;
+	struct ice_pkg_ver seg_format_ver;
 	__le32 seg_size;
-	char seg_name[ICE_PKG_NAME_SIZE];
+	char seg_id[ICE_PKG_NAME_SIZE];
 };
 
 /* ice specific segment */
@@ -58,12 +58,12 @@ struct ice_device_id_entry {
 struct ice_seg {
 	struct ice_generic_seg_hdr hdr;
 	__le32 device_table_count;
-	struct ice_device_id_entry device_table[1];
+	struct ice_device_id_entry device_table[STRUCT_HACK_VAR_LEN];
 };
 
 struct ice_nvm_table {
 	__le32 table_count;
-	__le32 vers[1];
+	__le32 vers[STRUCT_HACK_VAR_LEN];
 };
 
 struct ice_buf {
@@ -73,14 +73,14 @@ struct ice_buf {
 
 struct ice_buf_table {
 	__le32 buf_count;
-	struct ice_buf buf_array[1];
+	struct ice_buf buf_array[STRUCT_HACK_VAR_LEN];
 };
 
 /* global metadata specific segment */
 struct ice_global_metadata_seg {
 	struct ice_generic_seg_hdr hdr;
 	struct ice_pkg_ver pkg_ver;
-	__le32 track_id;
+	__le32 rsvd;
 	char pkg_name[ICE_PKG_NAME_SIZE];
 };
 
@@ -106,13 +106,15 @@ struct ice_section_entry {
 struct ice_buf_hdr {
 	__le16 section_count;
 	__le16 data_end;
-	struct ice_section_entry section_entry[1];
+	struct ice_section_entry section_entry[STRUCT_HACK_VAR_LEN];
 };
 
 #define ICE_MAX_ENTRIES_IN_BUF(hd_sz, ent_sz) ((ICE_PKG_BUF_SIZE - \
-	sizeof(struct ice_buf_hdr) - (hd_sz)) / (ent_sz))
+	ice_struct_size((struct ice_buf_hdr *)0, section_entry, 1) - (hd_sz)) /\
+	(ent_sz))
 
 /* ice package section IDs */
+#define ICE_SID_METADATA		1
 #define ICE_SID_XLT0_SW			10
 #define ICE_SID_XLT_KEY_BUILDER_SW	11
 #define ICE_SID_XLT1_SW			12
@@ -265,45 +267,156 @@ enum ice_sect {
 };
 
 /* Packet Type (PTYPE) values */
-#define ICE_PTYPE_MAC_PAY		1
-#define ICE_PTYPE_IPV4FRAG_PAY		22
-#define ICE_PTYPE_IPV4_PAY		23
-#define ICE_PTYPE_IPV4_UDP_PAY		24
-#define ICE_PTYPE_IPV4_TCP_PAY		26
-#define ICE_PTYPE_IPV4_SCTP_PAY		27
-#define ICE_PTYPE_IPV4_ICMP_PAY		28
-#define ICE_PTYPE_IPV6FRAG_PAY		88
-#define ICE_PTYPE_IPV6_PAY		89
-#define ICE_PTYPE_IPV6_UDP_PAY		90
-#define ICE_PTYPE_IPV6_TCP_PAY		92
-#define ICE_PTYPE_IPV6_SCTP_PAY		93
-#define ICE_PTYPE_IPV6_ICMP_PAY		94
-#define ICE_MAC_IPV4_GTPC_TEID		325
-#define ICE_MAC_IPV6_GTPC_TEID		326
-#define ICE_MAC_IPV4_GTPC		327
-#define ICE_MAC_IPV6_GTPC		328
-#define ICE_MAC_IPV4_GTPU		329
-#define ICE_MAC_IPV6_GTPU		330
-#define ICE_MAC_IPV4_GTPU_IPV4_FRAG	331
-#define ICE_MAC_IPV4_GTPU_IPV4_PAY	332
-#define ICE_MAC_IPV4_GTPU_IPV4_UDP_PAY	333
-#define ICE_MAC_IPV4_GTPU_IPV4_TCP	334
-#define ICE_MAC_IPV4_GTPU_IPV4_ICMP	335
-#define ICE_MAC_IPV6_GTPU_IPV4_FRAG	336
-#define ICE_MAC_IPV6_GTPU_IPV4_PAY	337
-#define ICE_MAC_IPV6_GTPU_IPV4_UDP_PAY	338
-#define ICE_MAC_IPV6_GTPU_IPV4_TCP	339
-#define ICE_MAC_IPV6_GTPU_IPV4_ICMP	340
-#define ICE_MAC_IPV4_GTPU_IPV6_FRAG	341
-#define ICE_MAC_IPV4_GTPU_IPV6_PAY	342
-#define ICE_MAC_IPV4_GTPU_IPV6_UDP_PAY	343
-#define ICE_MAC_IPV4_GTPU_IPV6_TCP	344
-#define ICE_MAC_IPV4_GTPU_IPV6_ICMPV6	345
-#define ICE_MAC_IPV6_GTPU_IPV6_FRAG	346
-#define ICE_MAC_IPV6_GTPU_IPV6_PAY	347
-#define ICE_MAC_IPV6_GTPU_IPV6_UDP_PAY	348
-#define ICE_MAC_IPV6_GTPU_IPV6_TCP	349
-#define ICE_MAC_IPV6_GTPU_IPV6_ICMPV6	350
+#define ICE_PTYPE_MAC_PAY			1
+#define ICE_MAC_PTP				2
+#define ICE_MAC_LLDP				6
+#define ICE_MAC_ARP				11
+#define ICE_PTYPE_IPV4FRAG_PAY			22
+#define ICE_PTYPE_IPV4_PAY			23
+#define ICE_PTYPE_IPV4_UDP_PAY			24
+#define ICE_PTYPE_IPV4_TCP_PAY			26
+#define ICE_PTYPE_IPV4_SCTP_PAY			27
+#define ICE_PTYPE_IPV4_ICMP_PAY			28
+#define ICE_MAC_IPV4_IPV4_FRAG			29
+#define ICE_MAC_IPV4_IPV4_PAY			30
+#define ICE_MAC_IPV4_IPV4_UDP_PAY		31
+#define ICE_MAC_IPV4_IPV4_TCP			33
+#define ICE_MAC_IPV4_IPV4_SCTP			34
+#define ICE_MAC_IPV4_IPV4_ICMP			35
+#define ICE_MAC_IPV4_IPV6_FRAG			36
+#define ICE_MAC_IPV4_IPV6_PAY			37
+#define ICE_MAC_IPV4_IPV6_UDP_PAY		38
+#define ICE_MAC_IPV4_IPV6_TCP			40
+#define ICE_MAC_IPV4_IPV6_SCTP			41
+#define ICE_MAC_IPV4_IPV6_ICMPV6		42
+#define ICE_MAC_IPV4_TUN_PAY			43
+#define ICE_MAC_IPV4_TUN_IPV4_FRAG		44
+#define ICE_MAC_IPV4_TUN_IPV4_PAY		45
+#define ICE_MAC_IPV4_TUN_IPV4_UDP_PAY		46
+#define ICE_MAC_IPV4_TUN_IPV4_TCP		48
+#define ICE_MAC_IPV4_TUN_IPV4_SCTP		49
+#define ICE_MAC_IPV4_TUN_IPV4_ICMP		50
+#define ICE_MAC_IPV4_TUN_IPV6_FRAG		51
+#define ICE_MAC_IPV4_TUN_IPV6_PAY		52
+#define ICE_MAC_IPV4_TUN_IPV6_UDP_PAY		53
+#define ICE_MAC_IPV4_TUN_IPV6_TCP		55
+#define ICE_MAC_IPV4_TUN_IPV6_SCTP		56
+#define ICE_MAC_IPV4_TUN_IPV6_ICMPV6		57
+#define ICE_MAC_IPV4_TUN_ICE_MAC_PAY		58
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_FRAG	59
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_PAY	60
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_UDP_PAY	61
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_TCP	63
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_SCTP	64
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV4_ICMP	65
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_FRAG	66
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_PAY	67
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_UDP_PAY	68
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_TCP	70
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_SCTP	71
+#define ICE_MAC_IPV4_TUN_ICE_MAC_IPV6_ICMPV6	72
+#define ICE_PTYPE_IPV6FRAG_PAY			88
+#define ICE_PTYPE_IPV6_PAY			89
+#define ICE_PTYPE_IPV6_UDP_PAY			90
+#define ICE_PTYPE_IPV6_TCP_PAY			92
+#define ICE_PTYPE_IPV6_SCTP_PAY			93
+#define ICE_PTYPE_IPV6_ICMP_PAY			94
+#define ICE_MAC_IPV6_IPV4_FRAG			95
+#define ICE_MAC_IPV6_IPV4_PAY			96
+#define ICE_MAC_IPV6_IPV4_UDP_PAY		97
+#define ICE_MAC_IPV6_IPV4_TCP			99
+#define ICE_MAC_IPV6_IPV4_SCTP			100
+#define ICE_MAC_IPV6_IPV4_ICMP			101
+#define ICE_MAC_IPV6_IPV6_FRAG			102
+#define ICE_MAC_IPV6_IPV6_PAY			103
+#define ICE_MAC_IPV6_IPV6_UDP_PAY		104
+#define ICE_MAC_IPV6_IPV6_TCP			106
+#define ICE_MAC_IPV6_IPV6_SCTP			107
+#define ICE_MAC_IPV6_IPV6_ICMPV6		108
+#define ICE_MAC_IPV6_TUN_PAY			109
+#define ICE_MAC_IPV6_TUN_IPV4_FRAG		110
+#define ICE_MAC_IPV6_TUN_IPV4_PAY		111
+#define ICE_MAC_IPV6_TUN_IPV4_UDP_PAY		112
+#define ICE_MAC_IPV6_TUN_IPV4_TCP		114
+#define ICE_MAC_IPV6_TUN_IPV4_SCTP		115
+#define ICE_MAC_IPV6_TUN_IPV4_ICMP		116
+#define ICE_MAC_IPV6_TUN_IPV6_FRAG		117
+#define ICE_MAC_IPV6_TUN_IPV6_PAY		118
+#define ICE_MAC_IPV6_TUN_IPV6_UDP_PAY		119
+#define ICE_MAC_IPV6_TUN_IPV6_TCP		121
+#define ICE_MAC_IPV6_TUN_IPV6_SCTP		122
+#define ICE_MAC_IPV6_TUN_IPV6_ICMPV6		123
+#define ICE_MAC_IPV6_TUN_MAC_PAY		124
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_FRAG		125
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_PAY		126
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_UDP_PAY	127
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_TCP		129
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_SCTP		130
+#define ICE_MAC_IPV6_TUN_MAC_IPV4_ICMP		131
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_FRAG		132
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_PAY		133
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_UDP_PAY	134
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_TCP		136
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_SCTP		137
+#define ICE_MAC_IPV6_TUN_MAC_IPV6_ICMPV6	138
+#define ICE_MAC_IPV4_ESP			160
+#define ICE_MAC_IPV6_ESP			161
+#define ICE_MAC_IPV4_AH				162
+#define ICE_MAC_IPV6_AH				163
+#define ICE_MAC_IPV4_NAT_T_ESP			164
+#define ICE_MAC_IPV6_NAT_T_ESP			165
+#define ICE_MAC_IPV4_NAT_T_IKE			166
+#define ICE_MAC_IPV6_NAT_T_IKE			167
+#define ICE_MAC_IPV4_NAT_T_KEEP			168
+#define ICE_MAC_IPV6_NAT_T_KEEP			169
+#define ICE_MAC_CONTROL				278
+#define ICE_MAC_PPPOD_PAY			300
+#define ICE_MAC_PPPOE_PAY			301
+#define ICE_MAC_PPPOE_IPV4_FRAG			302
+#define ICE_MAC_PPPOE_IPV4_PAY			303
+#define ICE_MAC_PPPOE_IPV4_UDP_PAY		304
+#define ICE_MAC_PPPOE_IPV4_TCP			305
+#define ICE_MAC_PPPOE_IPV4_SCTP			306
+#define ICE_MAC_PPPOE_IPV4_ICMP			307
+#define ICE_MAC_PPPOE_IPV6_FRAG			308
+#define ICE_MAC_PPPOE_IPV6_PAY			309
+#define ICE_MAC_PPPOE_IPV6_UDP_PAY		310
+#define ICE_MAC_PPPOE_IPV6_TCP			311
+#define ICE_MAC_PPPOE_IPV6_SCTP			312
+#define ICE_MAC_PPPOE_IPV6_ICMPV6		313
+#define ICE_MAC_IPV4_GTPC_TEID			325
+#define ICE_MAC_IPV6_GTPC_TEID			326
+#define ICE_MAC_IPV4_GTPC			327
+#define ICE_MAC_IPV6_GTPC			328
+#define ICE_MAC_IPV4_GTPU			329
+#define ICE_MAC_IPV6_GTPU			330
+#define ICE_MAC_IPV4_GTPU_IPV4_FRAG		331
+#define ICE_MAC_IPV4_GTPU_IPV4_PAY		332
+#define ICE_MAC_IPV4_GTPU_IPV4_UDP_PAY		333
+#define ICE_MAC_IPV4_GTPU_IPV4_TCP		334
+#define ICE_MAC_IPV4_GTPU_IPV4_ICMP		335
+#define ICE_MAC_IPV6_GTPU_IPV4_FRAG		336
+#define ICE_MAC_IPV6_GTPU_IPV4_PAY		337
+#define ICE_MAC_IPV6_GTPU_IPV4_UDP_PAY		338
+#define ICE_MAC_IPV6_GTPU_IPV4_TCP		339
+#define ICE_MAC_IPV6_GTPU_IPV4_ICMP		340
+#define ICE_MAC_IPV4_GTPU_IPV6_FRAG		341
+#define ICE_MAC_IPV4_GTPU_IPV6_PAY		342
+#define ICE_MAC_IPV4_GTPU_IPV6_UDP_PAY		343
+#define ICE_MAC_IPV4_GTPU_IPV6_TCP		344
+#define ICE_MAC_IPV4_GTPU_IPV6_ICMPV6		345
+#define ICE_MAC_IPV6_GTPU_IPV6_FRAG		346
+#define ICE_MAC_IPV6_GTPU_IPV6_PAY		347
+#define ICE_MAC_IPV6_GTPU_IPV6_UDP_PAY		348
+#define ICE_MAC_IPV6_GTPU_IPV6_TCP		349
+#define ICE_MAC_IPV6_GTPU_IPV6_ICMPV6		350
+#define ICE_MAC_IPV4_PFCP_NODE			351
+#define ICE_MAC_IPV4_PFCP_SESSION		352
+#define ICE_MAC_IPV6_PFCP_NODE			353
+#define ICE_MAC_IPV6_PFCP_SESSION		354
+#define ICE_MAC_IPV4_L2TPV3			360
+#define ICE_MAC_IPV6_L2TPV3			361
+
 
 /* Attributes that can modify PTYPE definitions.
  *
@@ -340,6 +453,13 @@ struct ice_ptype_attrib_info {
 struct ice_ptype_attributes {
 	u16 ptype;
 	enum ice_ptype_attrib_type attrib;
+};
+
+struct ice_meta_sect {
+	struct ice_pkg_ver ver;
+#define ICE_META_SECT_NAME_SIZE	28
+	char name[ICE_META_SECT_NAME_SIZE];
+	__le32 track_id;
 };
 
 /* Packet Type Groups (PTG) - Inner Most fields (IM) */
@@ -400,17 +520,17 @@ struct ice_label {
 
 struct ice_label_section {
 	__le16 count;
-	struct ice_label label[1];
+	struct ice_label label[STRUCT_HACK_VAR_LEN];
 };
 
 #define ICE_MAX_LABELS_IN_BUF ICE_MAX_ENTRIES_IN_BUF( \
-	sizeof(struct ice_label_section) - sizeof(struct ice_label), \
-	sizeof(struct ice_label))
+	ice_struct_size((struct ice_label_section *)0, label, 1) - \
+	sizeof(struct ice_label), sizeof(struct ice_label))
 
 struct ice_sw_fv_section {
 	__le16 count;
 	__le16 base_offset;
-	struct ice_fv fv[1];
+	struct ice_fv fv[STRUCT_HACK_VAR_LEN];
 };
 
 struct ice_sw_fv_list_entry {
@@ -455,42 +575,50 @@ struct ice_boost_tcam_entry {
 struct ice_boost_tcam_section {
 	__le16 count;
 	__le16 reserved;
-	struct ice_boost_tcam_entry tcam[1];
+	struct ice_boost_tcam_entry tcam[STRUCT_HACK_VAR_LEN];
 };
 
 #define ICE_MAX_BST_TCAMS_IN_BUF ICE_MAX_ENTRIES_IN_BUF( \
-	sizeof(struct ice_boost_tcam_section) - \
+	ice_struct_size((struct ice_boost_tcam_section *)0, tcam, 1) - \
 	sizeof(struct ice_boost_tcam_entry), \
 	sizeof(struct ice_boost_tcam_entry))
 
-#pragma pack(1)
+/* package Marker PType TCAM entry */
+struct ice_marker_ptype_tcam_entry {
+#define ICE_MARKER_PTYPE_TCAM_ADDR_MAX	1024
+	__le16 addr;
+	__le16 ptype;
+	u8 keys[20];
+};
+
+struct ice_marker_ptype_tcam_section {
+	__le16 count;
+	__le16 reserved;
+	struct ice_marker_ptype_tcam_entry tcam[STRUCT_HACK_VAR_LEN];
+};
+
+#define ICE_MAX_MARKER_PTYPE_TCAMS_IN_BUF ICE_MAX_ENTRIES_IN_BUF( \
+	ice_struct_size((struct ice_marker_ptype_tcam_section *)0, tcam, 1) - \
+	sizeof(struct ice_marker_ptype_tcam_entry), \
+	sizeof(struct ice_marker_ptype_tcam_entry))
+
 struct ice_xlt1_section {
 	__le16 count;
 	__le16 offset;
-	u8 value[1];
+	u8 value[STRUCT_HACK_VAR_LEN];
 };
-#pragma pack()
-
-#define ICE_XLT1_SIZE(n)	(sizeof(struct ice_xlt1_section) + \
-				 (sizeof(u8) * ((n) - 1)))
 
 struct ice_xlt2_section {
 	__le16 count;
 	__le16 offset;
-	__le16 value[1];
+	__le16 value[STRUCT_HACK_VAR_LEN];
 };
-
-#define ICE_XLT2_SIZE(n)	(sizeof(struct ice_xlt2_section) + \
-				 (sizeof(u16) * ((n) - 1)))
 
 struct ice_prof_redir_section {
 	__le16 count;
 	__le16 offset;
-	u8 redir_value[1];
+	u8 redir_value[STRUCT_HACK_VAR_LEN];
 };
-
-#define ICE_PROF_REDIR_SIZE(n)	(sizeof(struct ice_prof_redir_section) + \
-				 (sizeof(u8) * ((n) - 1)))
 
 /* package buffer building */
 
@@ -518,6 +646,8 @@ struct ice_pkg_enum {
 enum ice_tunnel_type {
 	TNL_VXLAN = 0,
 	TNL_GENEVE,
+	TNL_ECPRI,
+	TNL_GTP,
 	TNL_LAST = 0xFF,
 	TNL_ALL = 0xFF,
 };
@@ -531,6 +661,7 @@ struct ice_tunnel_entry {
 	enum ice_tunnel_type type;
 	u16 boost_addr;
 	u16 port;
+	u16 ref;
 	struct ice_boost_tcam_entry *boost_entry;
 	u8 valid;
 	u8 in_use;
@@ -547,7 +678,7 @@ struct ice_tunnel_table {
 struct ice_pkg_es {
 	__le16 count;
 	__le16 offset;
-	struct ice_fv_word es[1];
+	struct ice_fv_word es[STRUCT_HACK_VAR_LEN];
 };
 
 struct ice_es {
@@ -642,16 +773,16 @@ struct ice_xlt1 {
 #define ICE_XLT2_CNT	768
 #define ICE_MAX_VSIGS	768
 
-/* Vsig bit layout:
- * [0:12]: incremental vsig index 1 to ICE_MAX_VSIGS
+/* VSIG bit layout:
+ * [0:12]: incremental VSIG index 1 to ICE_MAX_VSIGS
  * [13:15]: PF number of device
  */
 #define ICE_VSIG_IDX_M	(0x1FFF)
 #define ICE_PF_NUM_S	13
 #define ICE_PF_NUM_M	(0x07 << ICE_PF_NUM_S)
 #define ICE_VSIG_VALUE(vsig, pf_id) \
-	(u16)((((u16)(vsig)) & ICE_VSIG_IDX_M) | \
-	      (((u16)(pf_id) << ICE_PF_NUM_S) & ICE_PF_NUM_M))
+	((u16)((((u16)(vsig)) & ICE_VSIG_IDX_M) | \
+	       (((u16)(pf_id) << ICE_PF_NUM_S) & ICE_PF_NUM_M)))
 #define ICE_DEFAULT_VSIG	0
 
 /* XLT2 Table */
@@ -702,18 +833,19 @@ struct ice_prof_tcam_entry {
 	u8 prof_id;
 };
 
+#pragma pack()
+
 struct ice_prof_id_section {
 	__le16 count;
-	struct ice_prof_tcam_entry entry[1];
+	struct ice_prof_tcam_entry entry[STRUCT_HACK_VAR_LEN];
 };
-#pragma pack()
 
 struct ice_prof_tcam {
 	u32 sid;
 	u16 count;
 	u16 max_prof_id;
 	struct ice_prof_tcam_entry *t;
-	u8 cdid_bits; /* # cdid bits to use in key, 0, 2, 4, or 8 */
+	u8 cdid_bits; /* # CDID bits to use in key, 0, 2, 4, or 8 */
 };
 
 struct ice_prof_redir {
@@ -785,5 +917,31 @@ enum ice_prof_type {
 	ICE_PROF_TUN_PPPOE = 0x8,
 	ICE_PROF_TUN_ALL = 0xE,
 	ICE_PROF_ALL = 0xFF,
+};
+
+/* Number of bits/bytes contained in meta init entry. Note, this should be a
+ * multiple of 32 bits.
+ */
+#define ICE_META_INIT_BITS	192
+#define ICE_META_INIT_DW_CNT	(ICE_META_INIT_BITS / (sizeof(__le32) * \
+				 BITS_PER_BYTE))
+
+/* The meta init Flag field starts at this bit */
+#define ICE_META_FLAGS_ST		123
+
+/* The entry and bit to check for Double VLAN Mode (DVM) support */
+#define ICE_META_VLAN_MODE_ENTRY	0
+#define ICE_META_FLAG_VLAN_MODE		60
+#define ICE_META_VLAN_MODE_BIT		(ICE_META_FLAGS_ST + \
+					 ICE_META_FLAG_VLAN_MODE)
+
+struct ice_meta_init_entry {
+	__le32 bm[ICE_META_INIT_DW_CNT];
+};
+
+struct ice_meta_init_section {
+	__le16 count;
+	__le16 offset;
+	struct ice_meta_init_entry entry[1];
 };
 #endif /* _ICE_FLEX_TYPE_H_ */

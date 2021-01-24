@@ -11,9 +11,6 @@
 
 #include "mlx5_autoconf.h"
 
-/* Reported driver name. */
-#define MLX5_DRIVER_NAME "net_mlx5"
-
 /* Maximum number of simultaneous VLAN filters. */
 #define MLX5_MAX_VLAN_IDS 128
 
@@ -53,7 +50,7 @@
 
 /* Switch port ID parameters for bonding configurations. */
 #define MLX5_PORT_ID_BONDING_PF_MASK 0xf
-#define MLX5_PORT_ID_BONDING_PF_SHIFT 0xf
+#define MLX5_PORT_ID_BONDING_PF_SHIFT 12
 
 /* Alarm timeout. */
 #define MLX5_ALARM_TIMEOUT_US 100000
@@ -136,12 +133,15 @@
 #define MLX5_SHUT_UP_BF_DEFAULT "1"
 #endif
 
-/*#ifndef HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD
-#define MLX5_MMAP_GET_NC_PAGES_CMD 3
-#endif*/
+//#ifndef HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD
+//#define MLX5_MMAP_GET_NC_PAGES_CMD 3
+//#endif
 
 /* Log 2 of the default number of strides per WQE for Multi-Packet RQ. */
 #define MLX5_MPRQ_STRIDE_NUM_N 6U
+
+/* Log 2 of the default size of a stride per WQE for Multi-Packet RQ. */
+#define MLX5_MPRQ_STRIDE_SIZE_N 11U
 
 /* Two-byte shift is disabled for Multi-Packet RQ. */
 #define MLX5_MPRQ_TWO_BYTE_SHIFT 0
@@ -162,23 +162,48 @@
 #define MLX5_XMETA_MODE_LEGACY 0
 #define MLX5_XMETA_MODE_META16 1
 #define MLX5_XMETA_MODE_META32 2
+/* Provide info on patrial hw miss. Implies MLX5_XMETA_MODE_META16 */
+#define MLX5_XMETA_MODE_MISS_INFO 3
 
 /* MLX5_TX_DB_NC supported values. */
 #define MLX5_TXDB_CACHED 0
 #define MLX5_TXDB_NCACHED 1
 #define MLX5_TXDB_HEURISTIC 2
 
+/* Tx accurate scheduling on timestamps parameters. */
+#define MLX5_TXPP_WAIT_INIT_TS 1000ul /* How long to wait timestamp. */
+#define MLX5_TXPP_CLKQ_SIZE 1
+#define MLX5_TXPP_REARM	((1UL << MLX5_WQ_INDEX_WIDTH) / 4)
+#define MLX5_TXPP_REARM_SQ_SIZE (((1UL << MLX5_CQ_INDEX_WIDTH) / \
+				  MLX5_TXPP_REARM) * 2)
+#define MLX5_TXPP_REARM_CQ_SIZE (MLX5_TXPP_REARM_SQ_SIZE / 2)
+/* The minimal size test packet to put into one WQE, padded by HW. */
+#define MLX5_TXPP_TEST_PKT_SIZE (sizeof(struct rte_ether_hdr) +	\
+				 sizeof(struct rte_ipv4_hdr))
+
 /* Size of the simple hash table for metadata register table. */
 #define MLX5_FLOW_MREG_HTABLE_SZ 4096
 #define MLX5_FLOW_MREG_HNAME "MARK_COPY_TABLE"
 #define MLX5_DEFAULT_COPY_ID UINT32_MAX
 
+/* Size of the simple hash table for header modify table. */
+#define MLX5_FLOW_HDR_MODIFY_HTABLE_SZ (1 << 16)
+
+/* Size of the simple hash table for encap decap table. */
+#define MLX5_FLOW_ENCAP_DECAP_HTABLE_SZ (1 << 16)
+
 /* Hairpin TX/RX queue configuration parameters. */
 #define MLX5_HAIRPIN_QUEUE_STRIDE 6
-#define MLX5_HAIRPIN_JUMBO_LOG_SIZE (15 + 2)
+#define MLX5_HAIRPIN_JUMBO_LOG_SIZE (14 + 2)
 
-/* Definition of static_assert found in /usr/include/assert.h */
-#ifndef HAVE_STATIC_ASSERT
+/* Maximum number of shared actions supported by rte_flow */
+#define MLX5_MAX_SHARED_ACTIONS 2
+
+/*
+ * Linux definition of static_assert is found in /usr/include/assert.h.
+ * Windows does not require a redefinition.
+ */
+#if !defined(HAVE_STATIC_ASSERT) && !defined(RTE_EXEC_ENV_WINDOWS)
 #define static_assert _Static_assert
 #endif
 

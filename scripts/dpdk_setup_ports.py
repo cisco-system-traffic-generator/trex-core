@@ -501,8 +501,8 @@ Other network devices
 
         ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
 
-        ofed_ver = 46
-        ofed_ver_show = '4.6'
+        ofed_ver = 52
+        ofed_ver_show = '5.2'
 
 
         if not os.path.isfile(ofed_info):
@@ -530,11 +530,11 @@ Other network devices
 
 
     def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.6\n'
+        err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.9\n'
         err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
         try:
             dist = platform.dist()
-            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.6'):
+            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.9'):
                 print(err_msg)
         except Exception as e:
             print('Error while determining OS type: %s' % e)

@@ -36,6 +36,10 @@ typedef enum { mfDISABLE     = 0x12,
                mfPASS_TOS =0x15
 } dpdk_filter_mode_t;
 
+typedef enum { fhtMLX     = 0x0, 
+               fhtINTEL_NO_DOT1Q = 0x01, 
+               fhtINTEL_DOT1Q = 0x02, 
+} dpdk_filter_hw_nic_t;
 
 class CDpdkFilterPort {
 public:
@@ -77,6 +81,11 @@ public:
         return(0);
     }
 
+    void set_hw_mode(dpdk_filter_hw_nic_t  hw_mode){
+        m_hw_mode  = hw_mode;
+    }
+
+
 
 private:
     void set_tos_filter(bool enable);
@@ -86,6 +95,9 @@ private:
                    bool enable);
     void clear_filter(struct rte_flow * &  filter);
 private:
+    dpdk_filter_hw_nic_t  m_hw_mode; // not all the nic born the same with the support they have to specific rules 
+                                     // this is the way to control it 
+
     repid_t             m_repid;
     uint8_t             m_rx_q;
     bool                m_drop_all;
@@ -105,7 +117,13 @@ public:
         for (i=0;i<TREX_MAX_PORTS; i++) {
             m_port[i]=0;
         }
+        m_hw_mode = fhtMLX;
     }
+    
+    void set_hw_mode(dpdk_filter_hw_nic_t  hw_mode){
+        m_hw_mode  = hw_mode;
+    }
+
 
     int configure_rx_filter_rules(repid_t repid) {
         CDpdkFilterPort * lp=get_port(repid);
@@ -118,6 +136,9 @@ public:
     }
 
 private:
+    dpdk_filter_hw_nic_t  m_hw_mode; // not all the nic born the same with the support they have to specific rules 
+                                     // this is the way to control it 
+
     CDpdkFilterPort * get_port(repid_t repid);
 private:
     CDpdkFilterPort * m_port[TREX_MAX_PORTS];

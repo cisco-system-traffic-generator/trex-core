@@ -12,7 +12,7 @@
 #include "base/ixgbe_dcb_82599.h"
 #include "base/ixgbe_dcb_82598.h"
 #include "ixgbe_bypass.h"
-#ifdef RTE_LIBRTE_SECURITY
+#ifdef RTE_LIB_SECURITY
 #include "ixgbe_ipsec.h"
 #endif
 #include <rte_flow.h>
@@ -103,6 +103,9 @@
 
 /* The overhead from MTU to max frame size. */
 #define IXGBE_ETH_OVERHEAD (RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN)
+
+/* The max frame size with default MTU */
+#define IXGBE_ETH_MAX_LEN  (RTE_ETHER_MTU + IXGBE_ETH_OVERHEAD)
 
 /* bit of VXLAN tunnel type | 7 bits of zeros  | 8 bits of zeros*/
 #define IXGBE_FDIR_VXLAN_TUNNEL_TYPE    0x8000
@@ -358,7 +361,7 @@ struct ixgbe_l2_tn_info {
 	struct rte_hash                    *hash_handle;
 	bool e_tag_en; /* e-tag enabled */
 	bool e_tag_fwd_en; /* e-tag based forwarding enabled */
-	bool e_tag_ether_type; /* ether type for e-tag */
+	uint16_t e_tag_ether_type; /* ether type for e-tag */
 };
 
 struct rte_flow {
@@ -494,7 +497,7 @@ struct ixgbe_adapter {
 	struct ixgbe_filter_info    filter;
 	struct ixgbe_l2_tn_info     l2_tn;
 	struct ixgbe_bw_conf        bw_conf;
-#ifdef RTE_LIBRTE_SECURITY
+#ifdef RTE_LIB_SECURITY
 	struct ixgbe_ipsec          ipsec;
 #endif
 	bool rx_bulk_alloc_allowed;
@@ -678,13 +681,25 @@ int ixgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 int ixgbe_syn_filter_set(struct rte_eth_dev *dev,
 			struct rte_eth_syn_filter *filter,
 			bool add);
+
+/**
+ * l2 tunnel configuration.
+ */
+struct ixgbe_l2_tunnel_conf {
+	enum rte_eth_tunnel_type l2_tunnel_type;
+	uint16_t ether_type; /* ether type in l2 header */
+	uint32_t tunnel_id; /* port tag id for e-tag */
+	uint16_t vf_id; /* VF id for tag insertion */
+	uint32_t pool; /* destination pool for tag based forwarding */
+};
+
 int
 ixgbe_dev_l2_tunnel_filter_add(struct rte_eth_dev *dev,
-			       struct rte_eth_l2_tunnel_conf *l2_tunnel,
+			       struct ixgbe_l2_tunnel_conf *l2_tunnel,
 			       bool restore);
 int
 ixgbe_dev_l2_tunnel_filter_del(struct rte_eth_dev *dev,
-			       struct rte_eth_l2_tunnel_conf *l2_tunnel);
+			       struct ixgbe_l2_tunnel_conf *l2_tunnel);
 void ixgbe_filterlist_init(void);
 void ixgbe_filterlist_flush(void);
 /*
@@ -697,6 +712,10 @@ int ixgbe_fdir_set_flexbytes_offset(struct rte_eth_dev *dev,
 int ixgbe_fdir_filter_program(struct rte_eth_dev *dev,
 			      struct ixgbe_fdir_rule *rule,
 			      bool del, bool update);
+void ixgbe_fdir_info_get(struct rte_eth_dev *dev,
+			 struct rte_eth_fdir_info *fdir_info);
+void ixgbe_fdir_stats_get(struct rte_eth_dev *dev,
+			  struct rte_eth_fdir_stats *fdir_stats);
 
 void ixgbe_configure_dcb(struct rte_eth_dev *dev);
 
@@ -713,7 +732,7 @@ void ixgbe_vlan_hw_filter_disable(struct rte_eth_dev *dev);
 
 void ixgbe_vlan_hw_strip_config(struct rte_eth_dev *dev);
 
-void ixgbe_pf_host_init(struct rte_eth_dev *eth_dev);
+int ixgbe_pf_host_init(struct rte_eth_dev *eth_dev);
 
 void ixgbe_pf_host_uninit(struct rte_eth_dev *eth_dev);
 
@@ -723,8 +742,6 @@ int ixgbe_pf_host_configure(struct rte_eth_dev *eth_dev);
 
 uint32_t ixgbe_convert_vm_rx_mask_to_val(uint16_t rx_mask, uint32_t orig_val);
 
-int ixgbe_fdir_ctrl_func(struct rte_eth_dev *dev,
-			enum rte_filter_op filter_op, void *arg);
 void ixgbe_fdir_filter_restore(struct rte_eth_dev *dev);
 int ixgbe_clear_all_fdir_filter(struct rte_eth_dev *dev);
 

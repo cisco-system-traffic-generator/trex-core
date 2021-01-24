@@ -5,6 +5,7 @@
 
 #include <rte_mbuf.h>
 #include <rte_ethdev_driver.h>
+#include <rte_vect.h>
 
 #include "enic_compat.h"
 #include "rq_enet_desc.h"
@@ -809,7 +810,6 @@ bool
 enic_use_vector_rx_handler(struct rte_eth_dev *eth_dev)
 {
 	struct enic *enic = pmd_priv(eth_dev);
-	struct rte_fdir_conf *fconf;
 
 	/* User needs to request for the avx2 handler */
 	if (!enic->enable_avx2_rx)
@@ -817,13 +817,11 @@ enic_use_vector_rx_handler(struct rte_eth_dev *eth_dev)
 	/* Do not support scatter Rx */
 	if (!(enic->rq_count > 0 && enic->rq[0].data_queue_enable == 0))
 		return false;
-	/* Do not support fdir/flow */
-	fconf = &eth_dev->data->dev_conf.fdir_conf;
-	if (fconf->mode != RTE_FDIR_MODE_NONE)
-		return false;
-	if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2)) {
+	if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2) &&
+			rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_256) {
 		ENICPMD_LOG(DEBUG, " use the non-scatter avx2 Rx handler");
 		eth_dev->rx_pkt_burst = &enic_noscatter_vec_recv_pkts;
+		enic->use_noscatter_vec_rx_handler = 1;
 		return true;
 	}
 	return false;
