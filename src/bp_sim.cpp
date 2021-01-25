@@ -865,39 +865,35 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
             break;
         case EthernetHeader::Protocol::MPLS_Multicast:
         case EthernetHeader::Protocol::MPLS_Unicast:
-            m_cnt->m_mpls++;
-            return;
+			break;
 
         case EthernetHeader::Protocol::ARP:
             m_cnt->m_arp++;
-            return;
+            break;
 
-        default:
-            m_cnt->m_non_ip++;
-            return; /* Non IP */
+        default:  
+			break;
         }
         break;
     case EthernetHeader::Protocol::ARP:
         m_cnt->m_arp++;
-        return; /* Non IP */
         break;
 
     case EthernetHeader::Protocol::MPLS_Multicast:
     case EthernetHeader::Protocol::MPLS_Unicast:
-        m_cnt->m_mpls++;
-        return; /* Non IP */
         break;
 
     default:
-        m_cnt->m_non_ip++;
-        return; /* Non IP */
+		break;
     }
-    if (parser->m_ip_header_offset != 0){
-        // Keep track of the tunnel IP header offset we found above
-        m_tunnel_ip_offset = offset;
-        offset = parser->m_ip_header_offset;
-        m_is_ipv6_tunnel = m_is_ipv6;
-        m_is_ipv6 = false;
+    if (parser->m_ip_header_offset != 0) {
+		if (offset != 0) {
+			// Keep track of the tunnel IP header offset we found above
+			m_tunnel_ip_offset = offset;
+			m_is_ipv6_tunnel = m_is_ipv6;
+			m_is_ipv6 = false;
+		}
+		offset = parser->m_ip_header_offset;
         uint8_t* ip_version = (uint8_t*)(packetBase + offset);
         if ((*ip_version & 0xF0) == 0x40){
             l3.m_ipv4 = (IPHeader*)(packetBase + offset);
@@ -911,6 +907,10 @@ void CPacketIndication::_ProcessPacket(CPacketParser *parser,
             exit(-1);
         }
     }
+	if (offset == 0) {
+		m_cnt->m_non_ip++;
+		return; /* Non IP */
+	}
 
     if (is_ipv6() == false) {
         if( (offset+20) > (uint32_t)( m_packet->getTotalLen())   ){
