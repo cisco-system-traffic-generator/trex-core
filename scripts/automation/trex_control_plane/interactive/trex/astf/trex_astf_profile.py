@@ -1176,7 +1176,7 @@ class ASTFAssociationRule(object):
        .. code-block:: python
 
             # only `port`
-            assoc=ASTFAssociationRule(`port`=81)
+            assoc=ASTFAssociationRule(port=81)
 
             # port with range or destination ips
             assoc=ASTFAssociationRule(port=81,ip_start="48.0.0.1",ip_end="48.0.0,16")
@@ -1186,7 +1186,6 @@ class ASTFAssociationRule(object):
 
             # port with L7 content mapping value (server-only mode)
             assoc=ASTFAssociationRule(port=81,l7_map={ "offset": [0,1], "value": [0,42] })
-
 
 
     """
