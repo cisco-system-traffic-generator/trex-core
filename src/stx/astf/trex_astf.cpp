@@ -738,13 +738,8 @@ bool TrexAstfProfile::is_safe_update_stats() {
 
 void TrexAstfProfile::clear_stats() {
     TrexAstf *stx = get_astf_object();
-    vector<CSTTCp *> sttcp_list = get_sttcp_list();
 
-    // Clear all stats inclusing accumulating stats
     if (stx->get_state() == STATE_BUILD) {
-        for (auto mlpstt : sttcp_list) {
-            mlpstt->clear_counters(false);
-        }
         m_stt_stopped_cp->clear_counters(false);
         m_stt_total_cp->clear_counters(false);
 
