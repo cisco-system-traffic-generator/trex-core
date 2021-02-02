@@ -523,15 +523,8 @@ def build_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc'))
-    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
-    if not sphinx_version:
-        return 1
-    if sphinx_version < 1.3:
-        additional_args = '-D html_theme=default'
-    else:
-        additional_args = ''
-    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
-        pyt= sys.executable,
+    additional_args = ''
+    build_doc_cmd = "{sph} {add} {ver} -W -b {bld} {src} {dst}".format(
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
@@ -553,15 +546,8 @@ def build_stl_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_stl'))
-    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
-    if not sphinx_version:
-        return 1
-    if sphinx_version < 1.3:
-        additional_args = '-D html_theme=default'
-    else:
-        additional_args = ''
-    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
-        pyt= sys.executable,
+    additional_args = ''
+    build_doc_cmd = "{sph} {add} {ver} -W -b {bld} {src} {dst}".format(
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
@@ -584,15 +570,8 @@ def build_astf_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_astf'))
-    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
-    if not sphinx_version:
-        return 1
-    if sphinx_version < 1.3:
-        additional_args = '-D html_theme=default'
-    else:
-        additional_args = ''
-    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
-        pyt= sys.executable,
+    additional_args = ''
+    build_doc_cmd = "{sph} {add} {ver} -W -b {bld} {src} {dst}".format(
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
@@ -615,15 +594,8 @@ def build_ndr_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_ndr'))
-    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
-    if not sphinx_version:
-        return 1
-    if sphinx_version < 1.3:
-        additional_args = '-D html_theme=default'
-    else:
-        additional_args = ''
-    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
-        pyt= sys.executable,
+    additional_args = ''
+    build_doc_cmd = "{sph} {add} {ver} -W -b {bld} {src} {dst}".format(
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
@@ -645,15 +617,8 @@ def build_emu_cp_docs (task):
     if not trex_core_git_path: # there exists a default directory or the desired ENV variable.
         return 1
     trex_core_docs_path = os.path.abspath(os.path.join(trex_core_git_path, 'scripts', 'automation', 'trex_control_plane', 'doc_emu'))
-    sphinx_version = get_sphinx_version(task.env['SPHINX'][0])
-    if not sphinx_version:
-        return 1
-    if sphinx_version < 1.3:
-        additional_args = '-D html_theme=default'
-    else:
-        additional_args = ''
-    build_doc_cmd = "{pyt} {sph} {add} {ver} -W -b {bld} {src} {dst}".format(
-        pyt= sys.executable,
+    additional_args = ''
+    build_doc_cmd = "{sph} {add} {ver} -W -b {bld} {src} {dst}".format(
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
