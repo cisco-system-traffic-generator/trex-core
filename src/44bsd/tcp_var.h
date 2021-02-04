@@ -958,6 +958,7 @@ public:
     uint32_t            m_stop_id;
 
     int                 m_flow_cnt; /* active flow count */
+    std::set<CFlowBase*> m_flows; /* surplus flows */
 
     on_stopped_cb_t     m_on_stopped_cb;
     void              * m_cb_data;
@@ -988,6 +989,23 @@ public:
 
     void set_nc(bool nc) { m_nc_flow_close = nc; }
     bool get_nc() { return m_nc_flow_close; }
+
+    void append_flow(CFlowBase* flow) {
+        m_flow_cnt++;
+        if (!is_active()) {
+            m_flows.insert(flow);
+        }
+    }
+    void remove_flow(CFlowBase* flow) {
+        m_flow_cnt--;
+        if (!is_active()) {
+            auto it = find(m_flows.begin(), m_flows.end(), flow);
+            if (it != m_flows.end()) {
+                m_flows.erase(it);
+            }
+        }
+    }
+    void cleanup_flows();
 
     void on_flow_close() {
         if (m_flow_cnt == 0 && !is_active()) {
@@ -1405,6 +1423,7 @@ public:
     /* per profile context access by profile_id */
 public:
     int profile_flow_cnt(profile_id_t profile_id) { return get_profile_ctx(profile_id)->m_flow_cnt; }
+    void cleanup_profile_flows(profile_id_t profile_id) { get_profile_ctx(profile_id)->cleanup_flows(); }
 
     void set_stop_id(profile_id_t profile_id, uint32_t stop_id) {
         get_profile_ctx(profile_id)->m_stop_id = stop_id;

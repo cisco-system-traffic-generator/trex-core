@@ -754,6 +754,13 @@ void CFlowGenListPerThread::load_tcp_profile() {
 void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_last, CAstfDB* astf_db) {
     m_s_tcp->remove_server_ports(profile_id);
 
+    // server flow may be left when an unexpected packet received after the profile stopped.
+    if (m_s_tcp->profile_flow_cnt(profile_id) > 0) {
+        m_s_tcp->cleanup_profile_flows(profile_id);
+    }
+    assert(m_s_tcp->profile_flow_cnt(profile_id) == 0);
+    assert(m_c_tcp->profile_flow_cnt(profile_id) == 0);
+
     m_c_tcp->remove_active_profile(profile_id);
     m_s_tcp->remove_active_profile(profile_id);
 

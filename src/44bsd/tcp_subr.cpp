@@ -399,8 +399,8 @@ void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx, CServerIpPayload
     pctx->copy_tunable_values(this->m_pctx);
 
     // to collect TCP statistics
-    this->m_pctx->m_flow_cnt--;
-    pctx->m_flow_cnt = 1;
+    this->m_pctx->remove_flow(this);
+    pctx->m_flow_cnt = 1;   // no need to add flow to temporary on_flow profile
 
     this->m_pctx = pctx;
     this->m_tg_id = 0;
@@ -473,7 +473,7 @@ void CTcpFlow::update_new_template_assoc_info() {
 
     pctx->update_profile_stats(this->m_pctx);
     pctx->update_tg_id_stats(tg_id, this->m_pctx, this->m_tg_id);
-    pctx->m_flow_cnt += 1;
+    pctx->append_flow(this);
 
     delete this->m_pctx;    // free interim profile
 
@@ -912,6 +912,15 @@ void CTcpPerThreadCtx::Delete(){
     m_ft.Delete();
     for (auto iter : m_profiles) {
         delete iter.second;
+    }
+}
+
+void CPerProfileCtx::cleanup_flows() {
+    if (!is_active()) {
+        while (!m_flows.empty()) {
+            CFlowBase* flow = *(m_flows.begin());
+            m_ctx->m_ft.terminate_flow(m_ctx, flow, true); // this updates m_flows also
+        }
     }
 }
 

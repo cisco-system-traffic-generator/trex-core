@@ -489,7 +489,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     flow->m_c_template_idx = template_id;
     flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tun_handle,is_ipv6);
     flow->init();
-    flow->m_pctx->m_flow_cnt++;
+    flow->m_pctx->append_flow(flow);
     return(flow);
 }
 
@@ -512,14 +512,14 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     flow->m_c_template_idx = template_id;
     flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tun_handle,is_ipv6);
     flow->init();
-    flow->m_pctx->m_flow_cnt++;
+    flow->m_pctx->append_flow(flow);
     return(flow);
 }
 
 HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
     assert(flow);
     CPerProfileCtx* pctx = flow->m_pctx;
-    flow->m_pctx->m_flow_cnt--;
+    flow->m_pctx->remove_flow(flow);
     flow->m_pctx->on_flow_close();
 
     if ( flow->is_udp() ){
