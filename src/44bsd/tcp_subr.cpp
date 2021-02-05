@@ -443,7 +443,7 @@ bool CTcpFlow::check_template_assoc_by_l7_data(uint8_t* l7_data, uint16_t l7_len
 
     if (temp) {
         CPerProfileCtx* pctx = temp->get_profile_ctx();
-        if (pctx->is_active() || !pctx->get_nc()) {
+        if (pctx->is_open_flow_allowed()) {
             m_template_info = temp;
             return true;
         }
@@ -1028,7 +1028,7 @@ CServerTemplateInfo* CServerIpPayloadInfo::get_reference_template_info() {
             m_template_ref = &it->second;
             break;
         }
-        if (!pctx->get_nc()) {
+        if (pctx->is_open_flow_allowed()) {
             m_template_ref = &it->second;
         }
     }

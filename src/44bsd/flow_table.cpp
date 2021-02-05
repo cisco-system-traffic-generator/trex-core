@@ -651,7 +651,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
-    if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
+    if (!server_info || !pctx->is_open_flow_allowed()){
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);
@@ -817,7 +817,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     CPerProfileCtx *pctx = temp ? temp->get_profile_ctx(): nullptr;
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
-    if (!server_info || (!pctx->is_active() && pctx->get_nc())) {
+    if (!server_info || !pctx->is_open_flow_allowed()) {
         if (!pctx) {
             pctx = FALLBACK_PROFILE_CTX(ctx);
         }

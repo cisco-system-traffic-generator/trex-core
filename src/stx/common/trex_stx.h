@@ -146,6 +146,7 @@ public:
      * DP core has finished
      */
     virtual void dp_core_finished(int thread_id, uint32_t profile_id);
+    virtual void dp_core_finished_partial(int thread_id, uint32_t profile_id);
     virtual void add_dp_profile_ctx(uint32_t profile_id, void* client, void* server);
 
     /**

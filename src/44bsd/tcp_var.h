@@ -967,7 +967,8 @@ public:
     CTcpTunableCtx      m_tunable_ctx;
 
 private:
-    bool                m_stopped;
+    bool                m_stopping;
+    bool                m_stopped;  /* reported to CP */
     bool                m_nc_flow_close;
 
     bool                m_on_flow; /* dedicated to a flow */
@@ -982,12 +983,16 @@ public:
             m_sch_rampup = nullptr;
         }
     }
-    void activate() { m_stopped = false; }
-    void deactivate() { m_stopped = true; }
-    bool is_active() { return m_stopped == false; }
+    void activate() { m_stopping = false; m_stopped = false; }
+    void deactivate() { m_stopping = true; }
+    bool is_active() { return m_stopping == false; }
+    void set_stopped() { m_stopped = true; }
+    bool is_stopped() { return m_stopped == true; }
 
     void set_nc(bool nc) { m_nc_flow_close = nc; }
     bool get_nc() { return m_nc_flow_close; }
+
+    bool is_open_flow_allowed() { return is_active()/* || (!get_nc() && !is_stopped())*/; }
 
     void on_flow_close() {
         if (m_flow_cnt == 0 && !is_active()) {

@@ -97,10 +97,12 @@ bool TrexAstfDpCore::get_profile_nc(profile_id_t profile_id) {
     return m_flow_gen->m_c_tcp->get_profile_nc(profile_id);
 }
 
-void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
+void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id, bool stop_all) {
     set_profile_state(profile_id, pSTATE_WAIT);
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
-    m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
+    if (stop_all) {
+        m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
+    }
 
     CPerProfileCtx* pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
     CGenNodeTXFIF* tx_node = (CGenNodeTXFIF*)pctx->m_tx_node;
@@ -112,10 +114,19 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id) {
 
 void TrexAstfDpCore::on_profile_stop_event(profile_id_t profile_id) {
     if (get_profile_state(profile_id) == pSTATE_WAIT && m_state == STATE_TRANSMITTING) {
-        if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
-            (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
+        CPerProfileCtx* c_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+        CPerProfileCtx* s_pctx = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+
+        if (!c_pctx->is_stopped()) {
+            if (m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) {
+                report_finished_partial(profile_id);
+                c_pctx->set_stopped();
+            }
+        }
+        else if (!s_pctx->is_active() && m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0) {
             set_profile_state(profile_id, pSTATE_LOADED);
             report_finished(profile_id);
+            s_pctx->set_stopped();
 
             m_flow_gen->m_c_tcp->set_profile_cb(profile_id, this, nullptr);
             m_flow_gen->m_s_tcp->set_profile_cb(profile_id, this, nullptr);
@@ -305,31 +316,39 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
 }
 
 void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id) {
-    /* skip unmatched stop_id which means previous profile action */
+    /* skip unmatched stop_id which comes from removed profile */
     if (stop_id && !is_profile_stop_id(profile_id, stop_id)) {
         return;
     }
 
-    set_profile_stopping(profile_id);
-    if (stop_id == 0) {                     /* override nc when CP requested */
-        set_profile_nc(profile_id, true);   /* triggering no clean flow close */
-    }
+    set_profile_stopping(profile_id, (stop_id == 0));
 
     if (m_flow_gen->is_terminated_by_master()) {
         add_global_duration(0.0001); // trigger exit from node scheduler
         return;
     }
 
-    if ((m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0) &&
-        (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0)) {
-        m_flow_gen->flush_tx_queue();
+    if (stop_id) {  /* stop client only */
+        CPerProfileCtx* c_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
 
-        set_profile_state(profile_id, pSTATE_LOADED);
-        report_finished(profile_id);
+        if (!c_pctx->is_stopped() && (m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0)) {
+            report_finished_partial(profile_id);
+            c_pctx->set_stopped();
+        }
     }
-    else {
-        set_profile_stop_event(profile_id);
+    else {  /* stop all: should be after all clients are stopped */
+        assert(m_flow_gen->m_c_tcp->profile_flow_cnt(profile_id) == 0);
+
+        if (m_flow_gen->m_s_tcp->profile_flow_cnt(profile_id) == 0) {
+            m_flow_gen->flush_tx_queue();
+
+            set_profile_state(profile_id, pSTATE_LOADED);
+            report_finished(profile_id);
+            m_flow_gen->m_s_tcp->get_profile_ctx(profile_id)->set_stopped();
+            return;
+        }
     }
+    set_profile_stop_event(profile_id);
 }
 
 void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB *astf_db) {
@@ -509,9 +528,14 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bo
     }
 }
 
-void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
+void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc) {
     if (!is_profile(profile_id) || get_profile_state(profile_id) < pSTATE_STARTING) {
         return; // no action for invalid profile
+    }
+
+    if (set_nc) {   // means CP requests stop client (i.e. stop_id != 0)
+        set_profile_nc(profile_id, true);
+        set_profile_stop_id(profile_id, stop_id);
     }
 
     switch (m_state) {
@@ -529,9 +553,6 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
         break;
     case STATE_STOPPING:
         set_profile_stopping(profile_id);
-        if (stop_id == 0) {
-            set_profile_nc(profile_id, true);
-        }
         break;
     default:
         report_error(profile_id, "Stop in unexpected DP core state: " + std::to_string(m_state));
@@ -546,9 +567,9 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id) {
 }
 
 void TrexAstfDpCore::stop_transmit(profile_id_t profile_id) {
-    uint32_t tmp_stop_id = -1;
+    uint32_t tmp_stop_id = -1;  // request stop client
     set_profile_stop_id(profile_id, tmp_stop_id);
-    stop_transmit(profile_id, tmp_stop_id);
+    stop_transmit(profile_id, tmp_stop_id, false);
 }
 
 void TrexAstfDpCore::scheduler(bool activate) {
@@ -601,12 +622,18 @@ void TrexAstfDpCore::report_finished(profile_id_t profile_id) {
     m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 
+void TrexAstfDpCore::report_finished_partial(profile_id_t profile_id) {
+    TrexDpToCpMsgBase *msg = new TrexDpCoreStopped(m_flow_gen->m_thread_id, profile_id, true);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+}
+
 void TrexAstfDpCore::report_profile_ctx(profile_id_t profile_id) {
     CPerProfileCtx* client = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
     CPerProfileCtx* server = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
     TrexDpToCpMsgBase *msg = new TrexDpCoreProfileCtx(m_flow_gen->m_thread_id, profile_id, client, server);
     m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
+
 
 void TrexAstfDpCore::report_error(profile_id_t profile_id, const string &error) {
     TrexDpToCpMsgBase *msg = new TrexDpCoreError(m_flow_gen->m_thread_id, profile_id, error);

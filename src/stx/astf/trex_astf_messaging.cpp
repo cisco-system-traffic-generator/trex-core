@@ -60,7 +60,13 @@ TrexAstfDpStop::TrexAstfDpStop(profile_id_t profile_id, uint32_t stop_id) {
 }
 
 bool TrexAstfDpStop::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->stop_transmit(m_profile_id, m_stop_id);
+    if (m_core) {   // from add_profile_duration()
+        astf_core(dp_core)->stop_transmit(m_profile_id, m_stop_id, false);
+    }
+    else {
+        bool set_nc = (m_stop_id != 0); // override nc when CP requests
+        astf_core(dp_core)->stop_transmit(m_profile_id, m_stop_id, set_nc);
+    }
     return true;
 }
 
