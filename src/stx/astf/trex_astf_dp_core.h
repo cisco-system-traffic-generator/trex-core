@@ -77,7 +77,7 @@ public:
     virtual bool is_port_active(uint8_t port_id);
 
     void start_transmit(profile_id_t profile_id, double duration, bool nc);
-    void stop_transmit(profile_id_t profile_id, uint32_t stop_id);
+    void stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc);
     void stop_transmit(profile_id_t profile_id);
     void update_rate(profile_id_t profile_id, double ratio);
     void create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db);
@@ -97,6 +97,7 @@ public:
 protected:
     virtual bool rx_for_idle();
     void report_finished(profile_id_t profile_id = 0);
+    void report_finished_partial(profile_id_t profile_id);
     void report_profile_ctx(profile_id_t profile_id = 0);
     void report_error(profile_id_t profile_id, const std::string &error);
     bool sync_barrier();
@@ -157,7 +158,7 @@ protected:
         return m_profile_states[profile_id];
     }
     void set_profile_active(profile_id_t profile_id);
-    void set_profile_stopping(profile_id_t profile_id);
+    void set_profile_stopping(profile_id_t profile_id, bool stop_all=true);
     int active_profile_cnt() { return m_active_profile_cnt; }
     int profile_cnt() { return m_profile_states.size(); }
 
