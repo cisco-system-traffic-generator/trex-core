@@ -277,18 +277,20 @@ private:
 class TrexDpCoreStopped : public TrexDpToCpMsgBase {
 public:
 
-    TrexDpCoreStopped(int thread_id, profile_id_t profile_id) {
+    TrexDpCoreStopped(int thread_id, profile_id_t profile_id, bool is_partial=false) {
         m_thread_id = thread_id;
         m_profile_id = profile_id;
+        m_partial = is_partial;
     }
 
-    TrexDpCoreStopped(int thread_id) : TrexDpCoreStopped(thread_id, 0) {}
+    TrexDpCoreStopped(int thread_id) : TrexDpCoreStopped(thread_id, 0, false) {}
 
     virtual bool handle(void);
 
 private:
     int m_thread_id;
     profile_id_t m_profile_id;
+    bool m_partial;
 };
 
 /**

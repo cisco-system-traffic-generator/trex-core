@@ -103,8 +103,9 @@ public:
     void build();
     void transmit();
     void cleanup();
-    void all_dp_cores_finished();
+    void all_dp_cores_finished(bool partial=false);
     void dp_core_finished();
+    void dp_core_finished_partial();
     void dp_core_error(const std::string &err);
 
     void add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileCtx* server);
@@ -144,6 +145,7 @@ private:
     bool            m_profile_stopping;
 
     int16_t         m_active_cores;
+    int16_t         m_partial_cores;
     bool            m_nc_flow_close;
     double          m_duration;
     double          m_factor;
@@ -237,6 +239,7 @@ public:
     void shutdown(bool post_shutdown);
 
     void dp_core_finished(int thread_id, uint32_t dp_profile_id);
+    void dp_core_finished_partial(int thread_id, uint32_t dp_profile_id);
 
     void dp_core_state(int thread_id, int state);
 
@@ -302,6 +305,7 @@ public:
      * Stop transmit
      */
     void stop_transmit(cp_profile_id_t profile_id);
+    void stop_transmit_final(cp_profile_id_t profile_id);
 
     /**
      * Clear profile

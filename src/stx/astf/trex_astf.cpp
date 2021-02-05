@@ -221,6 +221,10 @@ void TrexAstf::dp_core_finished(int thread_id, uint32_t dp_profile_id) {
     get_profile(get_profile_id(dp_profile_id))->dp_core_finished();
 }
 
+void TrexAstf::dp_core_finished_partial(int thread_id, uint32_t dp_profile_id) {
+    get_profile(get_profile_id(dp_profile_id))->dp_core_finished_partial();
+}
+
 void TrexAstf::add_dp_profile_ctx(uint32_t dp_profile_id, void* client, void* server) {
     CPerProfileCtx* client_pctx = static_cast<CPerProfileCtx*>(client);
     CPerProfileCtx* server_pctx = static_cast<CPerProfileCtx*>(server);
@@ -382,6 +386,17 @@ void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
     }
 
     pid->set_profile_stopping(true);
+
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id(), -1); /* client stop req */
+    send_message_to_all_dp(msg, true);
+}
+
+void TrexAstf::stop_transmit_final(cp_profile_id_t profile_id) {
+    TrexAstfPerProfile* pid = get_profile(profile_id);
+
+    if (pid->get_profile_state() != STATE_TX) {
+        return;
+    }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpStop(pid->get_dp_profile_id());
     send_message_to_all_dp(msg, true);
@@ -776,6 +791,7 @@ TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj,
     m_profile_stopping = false;
 
     m_active_cores = 0;
+    m_partial_cores = 0;
     m_duration = 0.0;
     m_factor = 1.0;
     m_error = "";
@@ -851,6 +867,7 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
         case STATE_TX:
             m_stt_cp->m_update = true;
             m_active_cores = get_platform_api().get_dp_core_count();
+            m_partial_cores = m_active_cores;
             break;
         case STATE_CLEANUP:
             m_stt_cp->Update();
@@ -969,7 +986,7 @@ void TrexAstfPerProfile::cleanup() {
     m_astf_obj->send_message_to_all_dp(msg);
 }
 
-void TrexAstfPerProfile::all_dp_cores_finished() {
+void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
     switch ( m_profile_state ) {
         case STATE_PARSE:
             if ( is_error() || m_profile_stopping ) {
@@ -988,7 +1005,11 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
             }
             break;
         case STATE_TX:
-            cleanup();
+            if (partial) {  /* client finished */
+                m_astf_obj->stop_transmit_final(m_cp_profile_id);
+            } else {
+                cleanup();
+            }
             break;
         case STATE_CLEANUP:
             profile_change_state(STATE_LOADED);
@@ -1009,11 +1030,23 @@ void TrexAstfPerProfile::all_dp_cores_finished() {
 }
 
 void TrexAstfPerProfile::dp_core_finished() {
+    if ( m_partial_cores > 0 ) {
+        dp_core_finished_partial();
+    }
     m_active_cores--;
     if ( m_active_cores == 0 ) {
         all_dp_cores_finished();
     } else {
         assert(m_active_cores>0);
+    }
+}
+
+void TrexAstfPerProfile::dp_core_finished_partial() {
+    m_partial_cores--;
+    if ( m_partial_cores == 0 ) {
+        all_dp_cores_finished(true);
+    } else {
+        assert(m_partial_cores>0);
     }
 }
 

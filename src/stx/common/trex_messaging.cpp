@@ -109,7 +109,12 @@ TrexDpPortEventMsg::handle() {
 
 bool
 TrexDpCoreStopped::handle(void) {
-    get_stx()->dp_core_finished(m_thread_id, m_profile_id);
+    if (m_partial) {
+        get_stx()->dp_core_finished_partial(m_thread_id, m_profile_id);
+    }
+    else {
+        get_stx()->dp_core_finished(m_thread_id, m_profile_id);
+    }
     return true;
 }
 
