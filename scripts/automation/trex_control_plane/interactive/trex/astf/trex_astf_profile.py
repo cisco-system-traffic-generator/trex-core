@@ -1697,7 +1697,7 @@ class ASTFProfile(object):
     """
 
     def __init__(self, default_ip_gen, default_c_glob_info=None, default_s_glob_info=None,
-                 templates=None, cap_list=None, s_delay=None, udp_mtu=None):
+                 templates=None, cap_list=None, s_delay=None, udp_mtu=None, default_flag_multi_pcap=False):
         """
         Define a ASTF profile
 
@@ -1736,7 +1736,8 @@ class ASTFProfile(object):
                      {"name": "default_c_glob_info", 'arg': default_c_glob_info, "t": ASTFGlobalInfo, "must": False},
                      {"name": "default_s_glob_info", 'arg': default_s_glob_info, "t": ASTFGlobalInfo, "must": False},
                     {"name": "s_delay", 'arg': s_delay, "t": [ASTFCmdDelay, ASTFCmdDelayRnd], "must": False},
-                    {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},]
+                    {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},
+                    {"name": "default_flag_multi_pcap", 'arg': default_flag_multi_pcap, "t": bool, "must": False}]
                     }
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
@@ -1810,7 +1811,10 @@ class ASTFProfile(object):
                     d_port = cap.assoc.port
                     my_assoc = cap.assoc
                 if d_port in d_ports:
-                    raise ASTFError("More than one cap use dest port %s. This is currently not supported. Files with same port: %s, %s" % (d_port, d_ports[d_port], cap_file))
+                    if default_flag_multi_pcap is True and not my_assoc.is_port_only():
+                        pass
+                    else:
+                        raise ASTFError("More than one cap use dest port %s. This is currently not supported. Files with same port: %s, %s" % (d_port, d_ports[d_port], cap_file))
                 d_ports[d_port] = cap_file
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
