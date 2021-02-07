@@ -537,7 +537,7 @@ class HTMLInjector(object):
     def __enter__ (self):
 
         # read all the data from file as string
-        with open(self.input_filename) as f:
+        with open(self.input_filename, encoding="utf-8") as f:
             try:
                 s = f.read()
                 self.xml_doc = LH.parse(io.StringIO(s))
@@ -550,7 +550,7 @@ class HTMLInjector(object):
     def __exit__ (self, exc_type, exc_val, exc_tb):
         # save to file
         with open(self.output_filename, "w") as f:
-            f.write(LH.tostring(self.xml_doc,encoding='unicode'))
+            f.write(LH.tostring(self.xml_doc).decode("utf-8"))
 
 
     def inject_toc (self,

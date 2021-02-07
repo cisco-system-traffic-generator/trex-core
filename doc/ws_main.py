@@ -182,16 +182,14 @@ class TocHTMLParser(HTMLParser):
 
 
 
-def create_toc_json (input_file, output_file, link_fmt = None):
-    f = open (input_file)
-    l=f.readlines()
-    f.close();
+def create_toc_json(input_file, output_file, link_fmt=None):
+    with open(input_file, encoding="utf-8") as f:
+        l = f.readlines()
     html_input = ''.join(l)
     parser = TocHTMLParser(link_fmt)
     parser.feed(html_input);
-    f = open (output_file,'w')
-    f.write(parser.dump_as_json());
-    f.close();
+    with open(output_file, 'w') as f:
+        f.write(parser.dump_as_json())
 
 
 
