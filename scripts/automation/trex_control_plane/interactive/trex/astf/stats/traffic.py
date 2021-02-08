@@ -19,6 +19,7 @@ class CAstfTrafficStats(object):
         self._ref_global = {}
         self._epoch_global = 0
         self.is_init = False
+        self._counter_desc = None
 
 
     def _init_desc_and_ref(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
@@ -29,12 +30,15 @@ class CAstfTrafficStats(object):
             if pid_input in self._ref.keys():
                 return
 
-        params = {'profile_id': pid_input}
-        rc = self.rpc.transmit('get_counter_desc', params = params)
-        if not rc:
-            raise TRexError(rc.err())
+        if not self._counter_desc:
+            params = {'profile_id': pid_input}
+            rc = self.rpc.transmit('get_counter_desc', params = params)
+            if not rc:
+                raise TRexError(rc.err())
 
-        data = rc.data()['data']
+            self._counter_desc = rc.data()['data']
+
+        data = self._counter_desc
 
         if is_sum:
             for section in self.sections:
