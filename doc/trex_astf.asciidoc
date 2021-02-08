@@ -217,6 +217,14 @@ In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
 * In ASTF mode, you can't control the IPG, less predictable (concurrent flows is less deterministic)
 * ASTF can be interactive (start, stop, stats)
 
+==== GPRS Tunnelling Protocol (GTP) 
+
+* Supports Encapsulation(adding GTP header)/Decapsulation(removing GTP header) of GTP traffic
+* Port which is GTP enabled will perform Encapsulation/Decapsulation functionality (client side)
+* TRex server should be started with option --gtpu <port number> (should be zero)
+* Limitation: Can use only 2 ports and only port 0 (client side) can be configured as GTPU tunnel
+
+
 === ASTF package folders 
 
 [cols="5,5", options="header",width="100%"]
@@ -2090,6 +2098,67 @@ ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
                     l7_map=[0,1,2,3])                                   # for template 2
 ----
 
+==== Tutorial: Run TRex in GTP mode with simple HTTP profile   
+
+*Goal*:: 
+
+Send HTTP flows with GTP tunnel added and remove GTP tunnel when traffic comes back to trex client
+
+*Traffic profile*::  
+
+The following profile defines one template of HTTP 
+
+*File*:: 
+
+link:{github_astf_path}/http_simple.py[astf/http_simple.py]
+
+[source,python]
+----
+from trex.astf.api import *
+
+
+class Prof1():
+    def get_profile(self):
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], 
+                                 distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], 
+                                  distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),      <1>
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                            cap_list=[ASTFCapInfo(
+                                      file="../avl/delay_10_http_browsing_0.pcap"
+                                      cps=1)
+                                     ])                                    <2>
+
+
+def register():
+    return Prof1()
+
+----
+
+<1> Define the tuple generator range for client side and server side
+<2> The template list with relative CPS (connection per second) 
+
+
+.Start Trex Server in GTPU mode 
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf --gtpu 0
+-------------------
+
+.Start trex client with following logic
+<1> Connect to Trex server
+<2> Load profile
+<3> Update GTP header information for a client using API <update_tunnel_client_record> 
+    * Source ip of the tunnel
+    * Destination ip of the tunnel
+    * IP version of the tunnel
+    * TEID (Tunnel endpoint identifier)
+ <4> Example is at: scripts/automation/trex_control_plane/interactive/trex/examples/astf/tunnel_test.py
 === Performance 
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
