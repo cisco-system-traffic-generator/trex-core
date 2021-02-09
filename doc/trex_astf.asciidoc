@@ -223,6 +223,7 @@ In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
 * To enable this mode, in "/etc/trex_cfg.yaml" file, under port_info, add <enable_gtp: 1> in one of the port. 
 * Port which is GTP enabled will perform Enapsulation/Decapsulation functionality.
 * Trex server should be started with option --gtpu <port number>
+* Limitation: Can use only 2 ports and only port 0 (client side) can be configured as GTPU tunnel
  
 ===== Steps: GTP traffic
 <1> start Trex server with option --gtpu <port number>
@@ -2164,7 +2165,7 @@ sudo ./t-rex-64 -i --astf --gtpu 0
     * Destination ip of the tunnel
     * IP version of the tunnel
     * TEID (Tunnel endpoint identifier)
-
+ <4> Example is at: scripts/automation/trex_control_plane/interactive/trex/examples/astf/tunnel_test.py
 === Performance 
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
