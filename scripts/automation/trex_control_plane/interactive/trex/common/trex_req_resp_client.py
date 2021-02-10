@@ -63,6 +63,7 @@ class ErrNo:
     JSONRPC_V2_ERR_WIP                = -32002
     JSONRPC_V2_ERR_NO_RESULTS         = -32003
 
+ZMQ_RETRY_BASE = 10
 
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
@@ -301,7 +302,7 @@ class JsonRpcClient(object):
             
     def _send_raw_msg_safe (self, msg, retry):
 
-        retry_left = retry
+        retry_left = retry + ZMQ_RETRY_BASE
         while True:
             try:
                 self.socket.send(msg)
@@ -313,7 +314,7 @@ class JsonRpcClient(object):
                     return RC_ERR("*** [RPC] - Failed to send message to server")
 
 
-        retry_left = retry
+        retry_left = retry + ZMQ_RETRY_BASE
         while True:
             try:
                 response = self.socket.recv()

@@ -259,6 +259,7 @@ class TRexSubscriber():
 
     # set the thread as a zombie (in case of server death)
     def set_as_zombie (self):
+        print("  set state as set_as_zombie (self) \n");
         self.last_data_recv_ts = None
         self.t_state = self.THREAD_STATE_ZOMBIE
         
@@ -268,7 +269,7 @@ class TRexSubscriber():
         return self.timeout_sec
 
     def get_timeout_msec(self):
-        return int(self.get_timeout_sec() * 1000)
+        return int(self.get_timeout_sec() * 1000 *10) # the timeout could be very large now
 
     def set_timeout_sec(self, timeout_sec):
         self.timeout_sec = timeout_sec
@@ -568,7 +569,7 @@ class TRexSubscriber():
                 return rc
 
             # fast loop
-            for i in range(0, 100):
+            for i in range(0, 1000):
                 if self.async_barrier['ack']:
                     break
                 time.sleep(0.001)

@@ -200,6 +200,25 @@ void TrexRpcServerReqRes::_stop_rpc_thread() {
 }
 
 
+void TrexRpcServerReqRes::send_response(const std::string &response) {
+    while (true) {
+        m_monitor.tickle();
+        int rc=zmq_send(m_socket, response.c_str(), response.size(), 0);
+        if (rc > 0) {
+            break;
+        }
+
+        /* timeout ? retry */
+        if (errno == EAGAIN || errno == EINTR) {
+            continue;
+        }
+
+        printf(" ZMQ zmq_send unhandled error code %d:%d \n ",rc,errno);
+        break;
+    }
+}
+
+
 /**
  * handles a request given to the server
  * respondes to the request
@@ -214,7 +233,7 @@ void TrexRpcServerReqRes::handle_request(const std::string &request) {
         process_request(request, response);
     }
 
-    zmq_send(m_socket, response.c_str(), response.size(), 0);
+    send_response(response);
 }
 
 void TrexRpcServerReqRes::process_request(const std::string &request, std::string &response) {
@@ -317,7 +336,7 @@ TrexRpcServerReqRes::handle_server_error(const std::string &specific_err) {
 
     verbose_json("Server Replied:  ", response);
 
-    zmq_send(m_socket, response.c_str(), response.size(), 0);
+    send_response(response);
 }
 
 
