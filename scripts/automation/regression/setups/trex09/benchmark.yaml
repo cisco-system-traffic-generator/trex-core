@@ -195,7 +195,7 @@ test_performance_vm_single_cpu_cached:
     cfg:
         mult                    : "90%"
         mpps_per_core_golden    : 
-                                   min: 23.5
+                                   min: 21.5
                                    max: 28.1
 
 
@@ -221,7 +221,7 @@ test_performance_vm_multi_cpus_cached:
         core_count             : 2
         mult                   : "90%"
         mpps_per_core_golden   :
-                                  min: 22.5
+                                  min: 21.0
                                   max: 28.3
 
 test_performance_syn_attack_multi_cpus:
