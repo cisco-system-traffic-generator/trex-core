@@ -69,6 +69,8 @@ private:
     struct xstats_struct {
         uint16_t total_count;
         bool init;
+
+        uint16_t last_offset;
     };
     xstats_struct m_port_xstats[TREX_MAX_PORTS];
 };
