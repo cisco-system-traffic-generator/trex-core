@@ -46,6 +46,9 @@ protected:
 
     bool fetch_one_request(std::string &msg);
     void handle_request(const std::string &request);
+
+    void send_response(const std::string &response);
+
     void process_request(const std::string &request, std::string &response);
     void process_request_raw(const std::string &request, std::string &response);
     void process_zipped_request(const std::string &request, std::string &response);

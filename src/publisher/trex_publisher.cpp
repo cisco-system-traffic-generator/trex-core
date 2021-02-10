@@ -119,6 +119,8 @@ TrexPublisher::publish_zipped_json(const std::string &s) {
     int size = zmq_send (m_publisher, compressed_msg.c_str(), compressed_msg.length(), 0);
     if (size > 0) {
       assert(size == compressed_msg.length());
+    }else{
+        printf(" publish_zipped_json zmq_send error %d \n",size);
     }
 }
 
@@ -127,6 +129,8 @@ TrexPublisher::publish_raw_json(const std::string &s) {
      int size = zmq_send (m_publisher, s.c_str(), s.length(), 0);
      if (size > 0) {
         assert(size == s.length());
+     }else{
+        printf(" publish_raw_json zmq_send error %d \n",size);
      }
 }
 
