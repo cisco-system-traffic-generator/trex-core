@@ -60,7 +60,7 @@ public:
         m_pending = false;
     }
 
-    T wait_for_reply(int timeout_ms = 1000, int backoff_ms = 1) {
+    T wait_for_reply(int timeout_ms = 7000, int backoff_ms = 1) {
         int guard = timeout_ms;
 
         while (is_pending()) {
@@ -68,7 +68,6 @@ public:
             if (guard < 0) {
                 throw TrexException("internal error: failed to get response from remote core for more than '" + std::to_string(timeout_ms) + "' ms");
             }
-
             delay(backoff_ms);
         }
     
