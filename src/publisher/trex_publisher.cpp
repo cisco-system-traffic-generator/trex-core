@@ -134,32 +134,93 @@ TrexPublisher::publish_raw_json(const std::string &s) {
      }
 }
 
+bool  TrexPublisher::add_session_id(uint32_t session_id){
+    // check if it not already exists 
+    for (int i = 0; i < m_ctxs.size(); i++ ) {
+        if (m_ctxs[i]->m_session_id ==session_id) {
+            return false;
+        }
+    }
+    TrexPublisherCtx * ctx = new TrexPublisherCtx();
+    ctx->m_session_id = session_id;
+    ctx->m_seq =0;
+    ctx->m_qevents = Json::arrayValue;
+    ctx->m_last_query = now_sec();
+
+    m_ctxs.push_back(ctx);
+    return (true);
+}
+
+bool  TrexPublisher::remove_session_id(uint32_t session_id){
+    for (int i = 0; i < m_ctxs.size(); i++ ) {
+        if (m_ctxs[i]->m_session_id == session_id) {
+            TrexPublisherCtx* p=m_ctxs[i];
+            delete p;
+            m_ctxs.erase(m_ctxs.begin() + i);
+            return (true);
+        }
+    }
+    return (false);
+}
+
+bool  TrexPublisher::get_queue_events(Json::Value & val,
+                                      uint32_t session_id){
+    for (int i = 0; i < m_ctxs.size(); i++ ) {
+        if (m_ctxs[i]->m_session_id == session_id) {
+            val = m_ctxs[i]->m_qevents;
+            m_ctxs[i]->m_qevents = Json::arrayValue;
+            m_ctxs[i]->m_last_query = now_sec();
+            return true;
+        }
+    }
+    return false;
+    //assert(0);
+}
+
 void
 TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
-    Json::FastWriter writer;
     Json::Value value;
-    std::string s;
     
     value["name"] = "trex-event";
     value["type"] = type;
     value["data"] = data;
 
-    s = writer.write(value);
-    publish_json(s);
+    if (m_is_interactive){
+        for (int i = 0; i < m_ctxs.size(); i++ ) {
+            // don't add to stall context -- disconnect without removing the session_id
+            if ((now_sec() - m_ctxs[i]->m_last_query) < 10.0 ) {
+                Json::Value valctx;
+                valctx =value;
+                valctx["seq"] =m_ctxs[i]->m_seq++;
+                m_ctxs[i]->m_qevents.append(valctx);
+            }
+        }
+        publish_json("{}");
+    }else{
+        Json::FastWriter writer;
+        std::string s;
+        s = writer.write(value);
+        publish_json(s);
+    }
 }
 
 void
 TrexPublisher::publish_barrier(uint32_t key) {
-    Json::FastWriter writer;
-    Json::Value value;
-    std::string s;
-    
-    value["name"] = "trex-barrier";
-    value["type"] = key;
-    value["data"] = Json::objectValue;
 
-    s = writer.write(value);
-    publish_json(s);
+    if (!m_is_interactive){
+        Json::FastWriter writer;
+        Json::Value value;
+        std::string s;
+        
+        value["name"] = "trex-barrier";
+        value["type"] = key;
+        value["data"] = Json::objectValue;
+
+        s = writer.write(value);
+        publish_json(s);
+    }else{
+        publish_json("{}");
+    }
 }
 
 /**

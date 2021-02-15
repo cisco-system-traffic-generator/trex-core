@@ -117,7 +117,7 @@ class STLClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'STL', 'major': 4, 'minor': 8}
+        api_ver = {'name': 'STL', 'major': 5, 'minor': 0}
 
         TRexClient.__init__(self,
                             api_ver,

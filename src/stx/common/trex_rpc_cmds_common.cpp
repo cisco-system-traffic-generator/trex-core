@@ -37,6 +37,7 @@ limitations under the License.
 #include "rpc-server/trex_rpc_server_api.h"
 
 #include "internal_api/trex_platform_api.h"
+#include "publisher/trex_publisher.h"
 
 #include "trex_stx.h"
 #include "trex_pkt.h"
@@ -61,6 +62,9 @@ using namespace placeholders;
 TREX_RPC_CMD_NOAPI(TrexRpcCmdGetVersion,   "get_version");
 TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISync,      "api_sync");
 TREX_RPC_CMD_NOAPI(TrexRpcCmdAPISyncV2,    "api_sync_v2");
+
+
+TREX_RPC_CMD(TrexRpcCmdGetAsyncEvents,    "get_async_events");
 
 
 /**
@@ -227,6 +231,26 @@ TrexRpcCmdAPISyncV2::_run(const Json::Value &params, Json::Value &result) {
     return(TREX_RPC_CMD_OK);
 }
 
+
+
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetAsyncEvents::_run(const Json::Value &params, Json::Value &result) {
+    //const std::string  &new_owner  = parse_string(params, "user", result);
+    uint32_t session_id = parse_uint32(params, "session_id", result);
+
+    Json::Value &res = result["result"];
+    Json::Value val;
+
+    if (get_stx()->get_publisher()->get_queue_events(val,session_id)){
+        res["data"]   = val;
+    }else{
+        res["data"]   = Json::arrayValue;
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
 
 
 /**
@@ -1760,6 +1784,9 @@ TrexRpcCmdsCommon::TrexRpcCmdsCommon() : TrexRpcComponent("common") {
  
     m_cmds.push_back(new TrexRpcCmdSetGlobalCfg(this));
     m_cmds.push_back(new TrexRpcCmdGetGlobalCfg(this));
+    m_cmds.push_back(new TrexRpcCmdGetAsyncEvents(this));
+
+
 }
 
 

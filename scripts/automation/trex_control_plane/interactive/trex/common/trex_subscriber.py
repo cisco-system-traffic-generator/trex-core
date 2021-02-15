@@ -191,6 +191,8 @@ class TRexSubscriber():
 
         self.last_data_recv_ts = 0
         self.async_barrier     = None
+        self.async_data        = None
+        self.seq               = 0
 
         self.monitor = AsyncUtil()
 
@@ -199,6 +201,8 @@ class TRexSubscriber():
         self.zipped = ZippedMsg()
         
         self.t_state = self.THREAD_STATE_DEAD
+        
+        self.session_id = self.ctx.session_id
 
         self.timeout_sec = 5
 
@@ -252,14 +256,12 @@ class TRexSubscriber():
         self.context.term()
         self.t.join()
 
-
         # done
         self.connected = False
 
 
     # set the thread as a zombie (in case of server death)
     def set_as_zombie (self):
-        print("  set state as set_as_zombie (self) \n");
         self.last_data_recv_ts = None
         self.t_state = self.THREAD_STATE_ZOMBIE
         
@@ -273,6 +275,7 @@ class TRexSubscriber():
 
     def set_timeout_sec(self, timeout_sec):
         self.timeout_sec = timeout_sec
+
 
     def _run_safe (self):
         
@@ -290,65 +293,58 @@ class TRexSubscriber():
             # closing of socket must be from the same thread
             self.socket.close(linger = 0)
         
-            
+    def _wait_for_trigger (self):
+            try:
+               self.socket.recv() # block on event
+            except zmq.Again:
+                pass
+            except zmq.ContextTerminated:
+                pass
+
     # thread function
     def _run (self):
 
         got_data = False
 
         self.monitor.reset()
+        self.seq =0
 
         while self.t_state != self.THREAD_STATE_DEAD:
-            try:
-                with self.monitor:
-                    line = self.socket.recv()
-                
-                # last data recv.
-                self.last_data_recv_ts = time.time()
-                
-                # if thread was marked as zombie - it does nothing besides fetching messages
-                if self.t_state == self.THREAD_STATE_ZOMBIE:
-                    continue
+            self._wait_for_trigger()
+            if self.rpc.is_connected():
+                rc = self.rpc.transmit("get_async_events", params = {'session_id' :self.session_id , "user":"sub"} )
 
-                self.monitor.on_recv_msg(line)
+                if not rc:
+                    if got_data:
+                        self.ctx.event_handler.on_event("subscriber timeout", self.get_timeout_sec())
+                        got_data = False
+                    break
 
-                # try to decomrpess
-                unzipped = self.zipped.decompress(line)
-                if unzipped:
-                    line = unzipped
-
-                line = line.decode()
-                
-                # signal once
                 if not got_data:
                     self.ctx.event_handler.on_event("subscriber resumed")
                     got_data = True
-                
 
-            # got a timeout - mark as not alive and retry
-            except zmq.Again:
-                # signal once
+                self.last_data_recv_ts = time.time()
+
+                data = rc.data()['data']
+                for msg in data:
+                        self.monitor.on_recv_msg(msg)
+                        name     = msg['name']
+                        data     = msg['data']
+                        msg_type = msg['type']
+                        if self.seq != 0:
+                            if msg['seq'] != self.seq:
+                                s = " SEQ ERROR {} {} ".format(msg['seq'],self.seq)
+                                raise Exception(s)
+                        self.seq = msg['seq']+1
+                        baseline = msg.get('baseline', False)
+                        self.raw_snapshot[name] = data
+                        self.__dispatch(name, msg_type, data, baseline)
+                self.async_data   = True
+            else:
                 if got_data:
                     self.ctx.event_handler.on_event("subscriber timeout", self.get_timeout_sec())
                     got_data = False
-
-                continue
-
-            except zmq.ContextTerminated:
-                # outside thread signaled us to exit
-                assert(self.t_state != self.THREAD_STATE_ACTIVE)
-                break
-
-            msg = json.loads(line)
-
-            name     = msg['name']
-            data     = msg['data']
-            msg_type = msg['type']
-            baseline = msg.get('baseline', False)
-
-            self.raw_snapshot[name] = data
-
-            self.__dispatch(name, msg_type, data, baseline)
 
 
 
@@ -550,9 +546,30 @@ class TRexSubscriber():
         if self.async_barrier['key'] == type:
             self.async_barrier['ack'] = True
 
-
-    # block on barrier for async channel
     def barrier(self, timeout = 5, baseline = False):
+
+        key = random.getrandbits(32)
+        self.async_barrier = {'key': key, 'ack': False}
+
+        self.async_data   = False 
+        expr = time.time() + timeout
+
+        for i in range(0, 60):
+            rc = self.rpc.transmit("publish_now", params = {'key' : key, 'baseline': baseline})
+            if not rc:
+                return rc
+
+            if self.async_data:
+                break
+            time.sleep(0.02)
+            if time.time() > expr:
+                return RC_ERR("*** [subscriber] - timeout - no data flow from server at : " + self.tr)
+
+        return RC_OK()
+
+
+    # block on barrier for async channel, old code
+    def _barrier(self, timeout = 5, baseline = False):
 
         # set a random key
         key = random.getrandbits(32)

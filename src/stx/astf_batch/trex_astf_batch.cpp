@@ -179,23 +179,6 @@ TrexAstfBatch::shutdown(bool post_shutdown) {
 
 void
 TrexAstfBatch::publish_async_data() {
-    std::string json;
 
-    /* backward compatible */
-    get_mg()->dump_json(json);
-    get_publisher()->publish_json(json);
-
-    /* more info */
-    get_mg()->dump_json_v2(json);
-    get_publisher()->publish_json(json);
-
-    CSTTCp *lpstt = get_platform_api().get_fl()->m_stt_cp;
-    if (lpstt) {
-        //if ( m_stats_cnt%4==0) { /* could be significat, reduce the freq */
-        if (lpstt->dump_json(json)) {
-            get_publisher()->publish_json(json);
-        }
-        //}
-    }
 }
 

@@ -120,6 +120,9 @@ public:
     virtual void publish_async_data() = 0;
 
 
+    void add_session_id(uint8_t port_id, uint32_t session_id);
+    void remove_session_id(uint8_t port_id);
+    
     /**
      * fast path tick
      * 
@@ -231,6 +234,8 @@ public:
 
 protected:
 
+    int get_ref_session_id(uint32_t session_id);
+
     void check_for_dp_message_from_core(int thread_id);
     void send_msg_to_all_dp(TrexCpToDpMsgBase *msg);
     void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
@@ -252,6 +257,8 @@ protected:
     uint8_t                     m_dp_core_count;
     uint64_t                    m_ticket_id;
     async_ticket_map_t          m_async_task_by_ticket;
+
+    uint32_t                    m_session_id_ports[TREX_MAX_PORTS];
 };
 
 

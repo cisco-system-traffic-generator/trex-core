@@ -51,6 +51,7 @@ public:
     }
     
     bool is_pending() const {
+        rte_mb();
         return m_pending;
     }
 
@@ -60,7 +61,7 @@ public:
         m_pending = false;
     }
 
-    T wait_for_reply(int timeout_ms = 7000, int backoff_ms = 1) {
+    T wait_for_reply(int timeout_ms = 1000, int backoff_ms = 1) {
         int guard = timeout_ms;
 
         while (is_pending()) {

@@ -332,7 +332,7 @@ TrexPort::send_message_to_rx(TrexCpToRxMsgBase *msg) {
 
     /* send the message to the core */
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    ring->SecureEnqueue((CGenNode *)msg);
+    ring->SecureEnqueue((CGenNode *)msg,true);
 }
 
 
