@@ -162,8 +162,8 @@ TrexStatelessMulticoreSoftwareFSLatencyStats::reset_rx_stats(uint8_t port_id, co
  */
 TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
-    const int API_VER_MAJOR = 4;
-    const int API_VER_MINOR = 8;
+    const int API_VER_MAJOR = 5;
+    const int API_VER_MINOR = 0;
     
     /* init the RPC table */
     TrexRpcCommandsTable::get_instance().init("STL", API_VER_MAJOR, API_VER_MINOR);

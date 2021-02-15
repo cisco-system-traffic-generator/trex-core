@@ -126,7 +126,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                   {'name': 'sfr_full.py','is_tcp' :True,'is_udp':True,'m':0.5}]
         return (tests);
 
-    def test_tcp_http(self):
+    def _test_tcp_http(self):
         if self.high_latency_skip:
             self.skip('self.high_latency_skip') # TODO: fix
 
@@ -169,7 +169,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             else:
                 print("BYPASS the counter test for now");
 
-    def test_ipv6_tcp_http(self):
+    def _test_ipv6_tcp_http(self):
         if self.high_latency_skip:
             self.skip('self.high_latency_skip') # TODO: fix
 
@@ -216,7 +216,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
                 print("BYPASS the counter test for now");
 
 
-    def test_tcp_sfr(self):
+    def _test_tcp_sfr(self):
         if self.high_latency_skip:
             self.skip('self.high_latency_skip') # TODO: fix
 
@@ -257,7 +257,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
 
 
 
-    def test_tcp_http_no_crash(self):
+    def _test_tcp_http_no_crash(self):
         """ 
          Request much higher speed than it could handle, make sure TRex does not crash in this case. 
          It is more important on setup that the port (C/S) are not on the same core (like trex-12)
@@ -292,7 +292,7 @@ class CTRexTcp_Test(CTRexGeneral_Test):
             print ("\nLATEST DUMP:")
             pprint(trex_res.get_latest_dump());
 
-    def test_tcp_sfr_no_crash(self):
+    def _test_tcp_sfr_no_crash(self):
         """ 
          Request much higher speed than it could handle, make sure TRex does not crash in this case. 
          setup with LRO is better 

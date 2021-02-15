@@ -16,6 +16,8 @@ class TRexCtx(object):
         self.api_ver        = api_ver
         self.username       = username
         self.session_id     = random.getrandbits(32)
+        if self.session_id==0:
+            self.session_id=1
         self.event_handler  = EventsHandler()
         self.server         = server
         self.sync_port      = sync_port

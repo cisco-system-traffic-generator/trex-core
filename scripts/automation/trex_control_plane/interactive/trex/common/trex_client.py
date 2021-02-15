@@ -431,7 +431,6 @@ class TRexClient(object):
 
     # connect to server
     def _connect(self):
-
         # before we connect to the server - reject any async updates until fully init
         self.ctx.event_handler.disable()
 

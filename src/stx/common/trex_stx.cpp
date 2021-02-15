@@ -22,6 +22,8 @@ limitations under the License.
 #include "trex_stx.h"
 #include "msg_manager.h"
 #include "trex_messaging.h"
+#include "publisher/trex_publisher.h"
+
 
 /***********************************************************
  * Trex STX base object
@@ -31,8 +33,49 @@ limitations under the License.
 TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), m_cfg(cfg) {
     m_dp_core_count = get_platform_api().get_dp_core_count();
     m_ticket_id = 1; // 0 is reserved for initial configs
+    for (int i=0; i<TREX_MAX_PORTS; i++){
+        m_session_id_ports[i]=0;
+    }
 }
 
+void TrexSTX::add_session_id(uint8_t port_id, 
+                             uint32_t session_id){
+    assert(session_id!=0);
+    int new_ref= get_ref_session_id(session_id);
+
+    uint32_t old_id = m_session_id_ports[port_id];
+    int old_ref= get_ref_session_id(old_id);
+
+    m_session_id_ports[port_id] = session_id;
+    if ((get_ref_session_id(session_id)== 1) && (new_ref==0)){
+        get_publisher()->add_session_id(session_id);
+    }   
+    if ((old_id>0) && (old_ref==1) && (get_ref_session_id(old_id)==0)){
+        get_publisher()->remove_session_id(old_id);
+    }
+}
+
+int TrexSTX::get_ref_session_id(uint32_t session_id){
+    if (session_id==0){
+        return(0);
+    }
+   int cnt=0;
+   for (int i=0; i<TREX_MAX_PORTS; i++){
+        if ( m_session_id_ports[i] == session_id ){
+            cnt++;
+        }
+    }
+    return cnt;
+}
+
+
+void TrexSTX::remove_session_id(uint8_t port_id){
+    uint32_t old_id = m_session_id_ports[port_id];
+    m_session_id_ports[port_id]=0;
+    if ((old_id>0) && (get_ref_session_id(old_id) == 0)){
+        get_publisher()->remove_session_id(old_id);
+    }
+}
 
 /** 
  * release all memory 
@@ -105,7 +148,7 @@ TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
     
     for (int i = 0; i < max_threads; i++) {
         CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp((uint8_t)i);
-        ring->SecureEnqueue((CGenNode*)msg->clone());
+        ring->SecureEnqueue((CGenNode*)msg->clone(),true);
     }
     
     delete msg;
@@ -117,7 +160,7 @@ TrexSTX::send_msg_to_all_dp(TrexCpToDpMsgBase *msg) {
 void
 TrexSTX::send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
     CNodeRing *ring = CMsgIns::Ins()->getCpDp()->getRingCpToDp(core_id);
-    ring->SecureEnqueue((CGenNode*)msg->clone());
+    ring->SecureEnqueue((CGenNode*)msg->clone(),true);
     delete msg;
 }
 
@@ -128,7 +171,7 @@ void
 TrexSTX::send_msg_to_rx(TrexCpToRxMsgBase *msg) const {
 
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
-    ring->SecureEnqueue((CGenNode *)msg);
+    ring->SecureEnqueue((CGenNode *)msg,true);
 }
 
 

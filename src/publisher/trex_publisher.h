@@ -24,6 +24,19 @@ limitations under the License.
 #include <stdint.h>
 #include <string>
 #include <json/json.h>
+#include <vector>
+#include "os_time.h"
+
+
+
+class TrexPublisherCtx {
+    public:
+    uint32_t        m_session_id;  
+    Json::Value     m_qevents;
+    dsec_t          m_last_query;
+
+    uint32_t        m_seq;  
+};
 
 class TrexPublisher {
 
@@ -33,9 +46,14 @@ public:
         m_context      = NULL;
         m_publisher    = NULL;
         m_is_connected = false;
+        m_is_interactive = false;
     }
 
     virtual ~TrexPublisher() {}
+
+    virtual void set_interactive_mode(bool  is_interactive){
+        m_is_interactive = is_interactive;
+    }
 
     virtual bool Create(uint16_t port, bool disable);
     virtual void Delete(int timeout_sec = 0);
@@ -91,6 +109,13 @@ public:
      */
     virtual void publish_barrier(uint32_t key);
 
+    virtual bool  get_queue_events(Json::Value & val,uint32_t session_id);
+
+    virtual bool  add_session_id(uint32_t session_id);
+
+    virtual bool  remove_session_id(uint32_t session_id);
+
+
     /**
      * return true if the publisher socket is currently connected
      * 
@@ -108,6 +133,9 @@ private:
     void * m_context;
     void * m_publisher;
     bool   m_is_connected;
+    bool   m_is_interactive;
+
+    std::vector<TrexPublisherCtx*> m_ctxs;
     
     static const int MSG_COMPRESS_THRESHOLD = 256;
 };

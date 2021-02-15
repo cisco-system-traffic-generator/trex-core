@@ -3608,6 +3608,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
                                   !CGlobalInfo::m_options.preview.get_zmq_publish_enable() ) ){
         return (false);
     }
+    m_zmq_publisher.set_interactive_mode(get_mode()->is_interactive());
 
     bool is_astf_best_effort_mode = get_mode()->is_astf_best_effort_mode();
     if (is_astf_best_effort_mode) {

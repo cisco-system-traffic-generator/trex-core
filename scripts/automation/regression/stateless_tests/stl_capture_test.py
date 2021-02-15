@@ -36,7 +36,6 @@ class STLCapture_Test(CStlGeneral_Test):
         self.c = CTRexScenario.stl_trex
 
         self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
-
         self.c.connect()
         self.c.reset(ports = [self.tx_port, self.rx_port])
 

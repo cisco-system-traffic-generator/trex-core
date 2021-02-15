@@ -55,9 +55,10 @@ class Connection(object):
             sync and async
         '''
         try:
+            self.async_.disconnect() # first async, beacuse it uses SYNC 
             self.rpc.disconnect()
             self.rpc.set_api_h(None)
-            self.async_.disconnect()
+
 
         finally:
             self.state = (self.DISCONNECTED, None)
@@ -197,7 +198,7 @@ class Connection(object):
         if not rc:
             return rc
 
-
+        self.rpc.set_retry_base(True)
         self.state = (self.CONNECTED, None)
 
         return RC_OK()

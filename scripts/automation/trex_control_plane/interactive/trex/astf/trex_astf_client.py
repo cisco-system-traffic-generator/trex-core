@@ -83,7 +83,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 1, 'minor': 9}
+        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 0}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -428,7 +428,9 @@ class ASTFClient(TRexClient):
             self.ctx.logger.pre_cmd('Acquiring ports %s:' % ports)
 
         params = {'force': force,
-                  'user':  self.ctx.username}
+                  'user':  self.ctx.username,
+                  'session_id':  self.ctx.session_id}
+
         rc = self._transmit('acquire', params)
         self.ctx.logger.post_cmd(rc)
         if not rc:

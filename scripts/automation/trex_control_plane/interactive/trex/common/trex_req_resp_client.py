@@ -63,7 +63,7 @@ class ErrNo:
     JSONRPC_V2_ERR_WIP                = -32002
     JSONRPC_V2_ERR_NO_RESULTS         = -32003
 
-ZMQ_RETRY_BASE = 10
+ZMQ_RETRY_BASE = 3
 
 # JSON RPC v2.0 client
 class JsonRpcClient(object):
@@ -73,6 +73,7 @@ class JsonRpcClient(object):
         self.ctx = ctx
 
         self.connected = False
+        self.set_retry_base(False)
 
         # default values
         self.port   = self.ctx.sync_port
@@ -93,6 +94,11 @@ class JsonRpcClient(object):
 
         self.retry = 0
 
+    def set_retry_base(self,enable):
+        if enable:
+            self.retry_base = ZMQ_RETRY_BASE
+        else:
+            self.retry_base = 0
 
     def get_connection_details (self):
         rc = {}
@@ -302,28 +308,35 @@ class JsonRpcClient(object):
             
     def _send_raw_msg_safe (self, msg, retry):
 
-        retry_left = retry + ZMQ_RETRY_BASE
+        retry_left = retry + self.retry_base
         while True:
             try:
                 self.socket.send(msg)
                 break
-            except zmq.Again:
+            except (zmq.Again,zmq.InterruptedSystemCall):
                 retry_left -= 1
                 if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to send message to server")
+            except:
+                self.disconnect()
+                return RC_ERR("*** [RPC] - Failed to send message to server general exception")
 
 
-        retry_left = retry + ZMQ_RETRY_BASE
+        retry_left = retry + self.retry_base
         while True:
             try:
                 response = self.socket.recv()
                 break
-            except zmq.Again:
+            except (zmq.Again,zmq.InterruptedSystemCall):
                 retry_left -= 1
                 if retry_left < 0:
                     self.disconnect()
                     return RC_ERR("*** [RPC] - Failed to get server response from {0}".format(self.transport))
+            except:
+                self.disconnect()
+                return RC_ERR("*** [RPC] - Failed to send message to server general exception")
+
 
         return response
        
@@ -370,6 +383,7 @@ class JsonRpcClient(object):
             self.socket.close(linger = 0)
             self.context.destroy(linger = 0)
             self.connected = False
+            self.set_retry_base(False)
             return RC_OK()
         else:
             return RC_ERR("Not connected to server")
@@ -386,7 +400,6 @@ class JsonRpcClient(object):
     def connect(self, server = None, port = None):
         if self.connected:
             self.disconnect()
-
         self.context = zmq.Context()
 
         self.server = (server if server else self.server)

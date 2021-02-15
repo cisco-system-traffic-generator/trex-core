@@ -1150,7 +1150,7 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
         reply.reset();
 
         msg = new TrexStatelessRxEnableLatency(reply);
-        m_ring_to_rx->SecureEnqueue((CGenNode *)msg);
+        m_ring_to_rx->SecureEnqueue((CGenNode *)msg,true);
 
         /* hold until message was ack'ed - otherwise we might lose packets */
         reply.wait_for_reply();
@@ -1158,7 +1158,7 @@ void CFlowStatRuleMgr::send_start_stop_msg_to_rx(bool is_start) {
         
     } else {
         msg = new TrexStatelessRxDisableLatency();
-        m_ring_to_rx->SecureEnqueue((CGenNode *)msg);
+        m_ring_to_rx->SecureEnqueue((CGenNode *)msg,true);
     }
 }
 

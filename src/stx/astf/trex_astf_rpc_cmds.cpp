@@ -162,6 +162,8 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
     const string user = parse_string(params, "user", result);
     const bool force = parse_bool(params, "force", result);
+    uint32_t session_id = parse_uint32(params, "session_id", result);
+
 
     TrexAstf *stx = get_astf_object();
     try {
@@ -194,6 +196,8 @@ TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
         stx->topo_clear();
     }
 
+    get_stx()->add_session_id(0,session_id); 
+
     res["handler"] = stx->get_owner().get_handler();
     return (TREX_RPC_CMD_OK);
 }
@@ -201,6 +205,7 @@ TrexRpcCmdAstfAcquire::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfRelease::_run(const Json::Value &params, Json::Value &result) {
     get_astf_object()->release_context();
+    get_stx()->remove_session_id(0); // one id 
 
     return (TREX_RPC_CMD_OK);
 }
