@@ -6,7 +6,7 @@
 #ifndef __NFP_CPP_H__
 #define __NFP_CPP_H__
 
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 
 #include "nfp-common/nfp_platform.h"
 #include "nfp-common/nfp_resid.h"
@@ -170,7 +170,7 @@ void *nfp_cpp_priv(struct nfp_cpp *cpp);
  */
 void *nfp_cpp_area_priv(struct nfp_cpp_area *cpp_area);
 
-uint32_t __nfp_cpp_model_autodetect(struct nfp_cpp *cpp);
+uint32_t __nfp_cpp_model_autodetect(struct nfp_cpp *cpp, uint32_t *model);
 
 /*
  * NFP CPP core interface for CPP clients.

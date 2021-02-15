@@ -31,7 +31,7 @@
 #include <rte_string_fns.h>
 
 #include <rte_eventdev.h>
-#include <rte_eventdev_pmd.h>
+#include <eventdev_pmd.h>
 
 #include "dlb_priv.h"
 #include "dlb_iface.h"
@@ -1847,7 +1847,7 @@ dlb_hw_create_dir_queue(struct dlb_eventdev *dlb, int32_t qm_port_id)
 {
 	struct dlb_hw_dev *handle = &dlb->qm_instance;
 	struct dlb_create_dir_queue_args cfg;
-	struct dlb_cmd_response response;
+	struct dlb_cmd_response response = {0};
 	int32_t ret;
 
 	cfg.response = (uintptr_t)&response;
@@ -3185,7 +3185,7 @@ dlb_dequeue_wait(struct dlb_eventdev *dlb,
 		pmc.addr = monitor_addr;
 		pmc.val = expected_value;
 		pmc.mask = qe_mask.raw_qe[1];
-		pmc.data_sz = sizeof(uint64_t);
+		pmc.size = sizeof(uint64_t);
 
 		rte_power_monitor(&pmc, timeout + start_ticks);
 
@@ -3573,7 +3573,7 @@ dlb_get_ldb_queue_depth(struct dlb_eventdev *dlb,
 {
 	struct dlb_hw_dev *handle = &dlb->qm_instance;
 	struct dlb_get_ldb_queue_depth_args cfg;
-	struct dlb_cmd_response response;
+	struct dlb_cmd_response response = {0};
 	int ret;
 
 	cfg.queue_id = queue->qm_queue.id;
@@ -3595,7 +3595,7 @@ dlb_get_dir_queue_depth(struct dlb_eventdev *dlb,
 {
 	struct dlb_hw_dev *handle = &dlb->qm_instance;
 	struct dlb_get_dir_queue_depth_args cfg;
-	struct dlb_cmd_response response;
+	struct dlb_cmd_response response = {0};
 	int ret;
 
 	cfg.queue_id = queue->qm_queue.id;

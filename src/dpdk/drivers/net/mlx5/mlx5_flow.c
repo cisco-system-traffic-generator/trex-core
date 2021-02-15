@@ -12,7 +12,7 @@
 
 #include <rte_common.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_eal_paging.h>
 #include <rte_flow.h>
 #include <rte_cycles.h>
@@ -856,6 +856,58 @@ mlx5_flow_ext_mreg_supported(struct rte_eth_dev *dev)
 }
 
 /**
+ * Get the lowest priority.
+ *
+ * @param[in] dev
+ *   Pointer to the Ethernet device structure.
+ * @param[in] attributes
+ *   Pointer to device flow rule attributes.
+ *
+ * @return
+ *   The value of lowest priority of flow.
+ */
+uint32_t
+mlx5_get_lowest_priority(struct rte_eth_dev *dev,
+			  const struct rte_flow_attr *attr)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+
+	if (!attr->group && !attr->transfer)
+		return priv->config.flow_prio - 2;
+	return MLX5_NON_ROOT_FLOW_MAX_PRIO - 1;
+}
+
+/**
+ * Calculate matcher priority of the flow.
+ *
+ * @param[in] dev
+ *   Pointer to the Ethernet device structure.
+ * @param[in] attr
+ *   Pointer to device flow rule attributes.
+ * @param[in] subpriority
+ *   The priority based on the items.
+ * @return
+ *   The matcher priority of the flow.
+ */
+uint16_t
+mlx5_get_matcher_priority(struct rte_eth_dev *dev,
+			  const struct rte_flow_attr *attr,
+			  uint32_t subpriority)
+{
+	uint16_t priority = (uint16_t)attr->priority;
+	struct mlx5_priv *priv = dev->data->dev_private;
+
+	if (!attr->group && !attr->transfer) {
+		if (attr->priority == MLX5_FLOW_LOWEST_PRIO_INDICATOR)
+			priority = priv->config.flow_prio - 1;
+		return mlx5_os_flow_adjust_priority(dev, priority, subpriority);
+	}
+	if (attr->priority == MLX5_FLOW_LOWEST_PRIO_INDICATOR)
+		priority = MLX5_NON_ROOT_FLOW_MAX_PRIO;
+	return priority * 3 + subpriority;
+}
+
+/**
  * Verify the @p item specifications (spec, last, mask) are compatible with the
  * NIC capabilities.
  *
@@ -1669,7 +1721,7 @@ mlx5_flow_validate_attributes(struct rte_eth_dev *dev,
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_ATTR_GROUP,
 					  NULL, "groups is not supported");
-	if (attributes->priority != MLX5_FLOW_PRIO_RSVD &&
+	if (attributes->priority != MLX5_FLOW_LOWEST_PRIO_INDICATOR &&
 	    attributes->priority >= priority_max)
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_ATTR_PRIORITY,
@@ -3839,7 +3891,7 @@ flow_dv_mreg_create_cb(struct mlx5_hlist *list, uint64_t key,
 		};
 	} else {
 		/* Default rule, wildcard match. */
-		attr.priority = MLX5_FLOW_PRIO_RSVD;
+		attr.priority = MLX5_FLOW_LOWEST_PRIO_INDICATOR;
 		items[0] = (struct rte_flow_item){
 			.type = RTE_FLOW_ITEM_TYPE_END,
 		};
@@ -4642,6 +4694,8 @@ flow_mreg_tx_copy_prep(struct rte_eth_dev *dev,
  *   Pointer to the position of the matched action if exists, otherwise is -1.
  * @param[out] qrss_action_pos
  *   Pointer to the position of the Queue/RSS action if exists, otherwise is -1.
+ * @param[out] modify_after_mirror
+ *   Pointer to the flag of modify action after FDB mirroring.
  *
  * @return
  *   > 0 the total number of actions.
@@ -4651,14 +4705,15 @@ static int
 flow_check_match_action(const struct rte_flow_action actions[],
 			const struct rte_flow_attr *attr,
 			enum rte_flow_action_type action,
-			int *match_action_pos, int *qrss_action_pos)
+			int *match_action_pos, int *qrss_action_pos,
+			int *modify_after_mirror)
 {
 	const struct rte_flow_action_sample *sample;
 	int actions_n = 0;
-	int jump_flag = 0;
 	uint32_t ratio = 0;
 	int sub_type = 0;
 	int flag = 0;
+	int fdb_mirror = 0;
 
 	*match_action_pos = -1;
 	*qrss_action_pos = -1;
@@ -4667,27 +4722,53 @@ flow_check_match_action(const struct rte_flow_action actions[],
 			flag = 1;
 			*match_action_pos = actions_n;
 		}
-		if (actions->type == RTE_FLOW_ACTION_TYPE_QUEUE ||
-		    actions->type == RTE_FLOW_ACTION_TYPE_RSS)
+		switch (actions->type) {
+		case RTE_FLOW_ACTION_TYPE_QUEUE:
+		case RTE_FLOW_ACTION_TYPE_RSS:
 			*qrss_action_pos = actions_n;
-		if (actions->type == RTE_FLOW_ACTION_TYPE_JUMP)
-			jump_flag = 1;
-		if (actions->type == RTE_FLOW_ACTION_TYPE_SAMPLE) {
+			break;
+		case RTE_FLOW_ACTION_TYPE_SAMPLE:
 			sample = actions->conf;
 			ratio = sample->ratio;
 			sub_type = ((const struct rte_flow_action *)
 					(sample->actions))->type;
+			if (ratio == 1 && attr->transfer)
+				fdb_mirror = 1;
+			break;
+		case RTE_FLOW_ACTION_TYPE_SET_MAC_SRC:
+		case RTE_FLOW_ACTION_TYPE_SET_MAC_DST:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV4_DST:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV6_SRC:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV6_DST:
+		case RTE_FLOW_ACTION_TYPE_SET_TP_SRC:
+		case RTE_FLOW_ACTION_TYPE_SET_TP_DST:
+		case RTE_FLOW_ACTION_TYPE_DEC_TTL:
+		case RTE_FLOW_ACTION_TYPE_SET_TTL:
+		case RTE_FLOW_ACTION_TYPE_INC_TCP_SEQ:
+		case RTE_FLOW_ACTION_TYPE_DEC_TCP_SEQ:
+		case RTE_FLOW_ACTION_TYPE_INC_TCP_ACK:
+		case RTE_FLOW_ACTION_TYPE_DEC_TCP_ACK:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV4_DSCP:
+		case RTE_FLOW_ACTION_TYPE_SET_IPV6_DSCP:
+		case RTE_FLOW_ACTION_TYPE_FLAG:
+		case RTE_FLOW_ACTION_TYPE_MARK:
+		case RTE_FLOW_ACTION_TYPE_SET_META:
+		case RTE_FLOW_ACTION_TYPE_SET_TAG:
+			if (fdb_mirror)
+				*modify_after_mirror = 1;
+			break;
+		default:
+			break;
 		}
 		actions_n++;
 	}
-	if (flag && action == RTE_FLOW_ACTION_TYPE_SAMPLE && attr->transfer) {
-		if (ratio == 1) {
-			/* JUMP Action not support for Mirroring;
-			 * Mirroring support multi-destination;
-			 */
-			if (!jump_flag && sub_type != RTE_FLOW_ACTION_TYPE_END)
-				flag = 0;
-		}
+	if (flag && fdb_mirror && !*modify_after_mirror) {
+		/* FDB mirroring uses the destination array to implement
+		 * instead of FLOW_SAMPLER object.
+		 */
+		if (sub_type != RTE_FLOW_ACTION_TYPE_END)
+			flag = 0;
 	}
 	/* Count RTE_FLOW_ACTION_TYPE_END. */
 	return flag ? actions_n + 1 : 0;
@@ -4706,8 +4787,8 @@ flow_check_match_action(const struct rte_flow_action actions[],
  *
  * @param dev
  *   Pointer to Ethernet device.
- * @param[in] fdb_tx
- *   FDB egress flow flag.
+ * @param[in] add_tag
+ *   Add extra tag action flag.
  * @param[out] sfx_items
  *   Suffix flow match items (list terminated by the END pattern item).
  * @param[in] actions
@@ -4722,6 +4803,8 @@ flow_check_match_action(const struct rte_flow_action actions[],
  *   The sample action position.
  * @param[in] qrss_action_pos
  *   The Queue/RSS action position.
+ * @param[in] jump_table
+ *   Add extra jump action flag.
  * @param[out] error
  *   Perform verbose error reporting if not NULL.
  *
@@ -4731,7 +4814,7 @@ flow_check_match_action(const struct rte_flow_action actions[],
  */
 static int
 flow_sample_split_prep(struct rte_eth_dev *dev,
-		       uint32_t fdb_tx,
+		       int add_tag,
 		       struct rte_flow_item sfx_items[],
 		       const struct rte_flow_action actions[],
 		       struct rte_flow_action actions_sfx[],
@@ -4739,14 +4822,17 @@ flow_sample_split_prep(struct rte_eth_dev *dev,
 		       int actions_n,
 		       int sample_action_pos,
 		       int qrss_action_pos,
+		       int jump_table,
 		       struct rte_flow_error *error)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_rte_flow_action_set_tag *set_tag;
 	struct mlx5_rte_flow_item_tag *tag_spec;
 	struct mlx5_rte_flow_item_tag *tag_mask;
+	struct rte_flow_action_jump *jump_action;
 	uint32_t tag_id = 0;
 	int index;
+	int append_index = 0;
 	int ret;
 
 	if (sample_action_pos < 0)
@@ -4754,9 +4840,37 @@ flow_sample_split_prep(struct rte_eth_dev *dev,
 					  RTE_FLOW_ERROR_TYPE_ACTION,
 					  NULL, "invalid position of sample "
 					  "action in list");
-	if (!fdb_tx) {
+	/* Prepare the actions for prefix and suffix flow. */
+	if (qrss_action_pos >= 0 && qrss_action_pos < sample_action_pos) {
+		index = qrss_action_pos;
+		/* Put the preceding the Queue/RSS action into prefix flow. */
+		if (index != 0)
+			memcpy(actions_pre, actions,
+			       sizeof(struct rte_flow_action) * index);
+		/* Put others preceding the sample action into prefix flow. */
+		if (sample_action_pos > index + 1)
+			memcpy(actions_pre + index, actions + index + 1,
+			       sizeof(struct rte_flow_action) *
+			       (sample_action_pos - index - 1));
+		index = sample_action_pos - 1;
+		/* Put Queue/RSS action into Suffix flow. */
+		memcpy(actions_sfx, actions + qrss_action_pos,
+		       sizeof(struct rte_flow_action));
+		actions_sfx++;
+	} else {
+		index = sample_action_pos;
+		if (index != 0)
+			memcpy(actions_pre, actions,
+			       sizeof(struct rte_flow_action) * index);
+	}
+	/* For CX5, add an extra tag action for NIC-RX and E-Switch ingress.
+	 * For CX6DX and above, metadata registers Cx preserve their value,
+	 * add an extra tag action for NIC-RX and E-Switch Domain.
+	 */
+	if (add_tag) {
 		/* Prepare the prefix tag action. */
-		set_tag = (void *)(actions_pre + actions_n + 1);
+		append_index++;
+		set_tag = (void *)(actions_pre + actions_n + append_index);
 		ret = mlx5_flow_get_reg_id(dev, MLX5_APP_TAG, 0, error);
 		if (ret < 0)
 			return ret;
@@ -4781,32 +4895,7 @@ flow_sample_split_prep(struct rte_eth_dev *dev,
 			.type = (enum rte_flow_item_type)
 				RTE_FLOW_ITEM_TYPE_END,
 		};
-	}
-	/* Prepare the actions for prefix and suffix flow. */
-	if (qrss_action_pos >= 0 && qrss_action_pos < sample_action_pos) {
-		index = qrss_action_pos;
-		/* Put the preceding the Queue/RSS action into prefix flow. */
-		if (index != 0)
-			memcpy(actions_pre, actions,
-			       sizeof(struct rte_flow_action) * index);
-		/* Put others preceding the sample action into prefix flow. */
-		if (sample_action_pos > index + 1)
-			memcpy(actions_pre + index, actions + index + 1,
-			       sizeof(struct rte_flow_action) *
-			       (sample_action_pos - index - 1));
-		index = sample_action_pos - 1;
-		/* Put Queue/RSS action into Suffix flow. */
-		memcpy(actions_sfx, actions + qrss_action_pos,
-		       sizeof(struct rte_flow_action));
-		actions_sfx++;
-	} else {
-		index = sample_action_pos;
-		if (index != 0)
-			memcpy(actions_pre, actions,
-			       sizeof(struct rte_flow_action) * index);
-	}
-	/* Add the extra tag action for NIC-RX and E-Switch ingress. */
-	if (!fdb_tx) {
+		/* Prepare the tag action in prefix subflow. */
 		actions_pre[index++] =
 			(struct rte_flow_action){
 			.type = (enum rte_flow_action_type)
@@ -4817,6 +4906,22 @@ flow_sample_split_prep(struct rte_eth_dev *dev,
 	memcpy(actions_pre + index, actions + sample_action_pos,
 	       sizeof(struct rte_flow_action));
 	index += 1;
+	/* For the modify action after the sample action in E-Switch mirroring,
+	 * Add the extra jump action in prefix subflow and jump into the next
+	 * table, then do the modify action in the new table.
+	 */
+	if (jump_table) {
+		/* Prepare the prefix jump action. */
+		append_index++;
+		jump_action = (void *)(actions_pre + actions_n + append_index);
+		jump_action->group = jump_table;
+		actions_pre[index++] =
+			(struct rte_flow_action){
+			.type = (enum rte_flow_action_type)
+				RTE_FLOW_ACTION_TYPE_JUMP,
+			.conf = jump_action,
+		};
+	}
 	actions_pre[index] = (struct rte_flow_action){
 		.type = (enum rte_flow_action_type)
 			RTE_FLOW_ACTION_TYPE_END,
@@ -5219,12 +5324,17 @@ flow_create_split_sample(struct rte_eth_dev *dev,
 	int actions_n = 0;
 	int sample_action_pos;
 	int qrss_action_pos;
+	int add_tag = 0;
+	int modify_after_mirror = 0;
+	uint16_t jump_table = 0;
+	const uint32_t next_ft_step = 1;
 	int ret = 0;
 
 	if (priv->sampler_en)
 		actions_n = flow_check_match_action(actions, attr,
 					RTE_FLOW_ACTION_TYPE_SAMPLE,
-					&sample_action_pos, &qrss_action_pos);
+					&sample_action_pos, &qrss_action_pos,
+					&modify_after_mirror);
 	if (actions_n) {
 		/* The prefix actions must includes sample, tag, end. */
 		act_size = sizeof(struct rte_flow_action) * (actions_n * 2 + 1)
@@ -5240,19 +5350,31 @@ flow_create_split_sample(struct rte_eth_dev *dev,
 						  "sample flow");
 		/* The representor_id is -1 for uplink. */
 		fdb_tx = (attr->transfer && priv->representor_id != -1);
-		if (!fdb_tx)
+		/*
+		 * When reg_c_preserve is set, metadata registers Cx preserve
+		 * their value even through packet duplication.
+		 */
+		add_tag = (!fdb_tx || priv->config.hca_attr.reg_c_preserve);
+		if (add_tag)
 			sfx_items = (struct rte_flow_item *)((char *)sfx_actions
 					+ act_size);
+		if (modify_after_mirror)
+			jump_table = attr->group * MLX5_FLOW_TABLE_FACTOR +
+				     next_ft_step;
 		pre_actions = sfx_actions + actions_n;
-		tag_id = flow_sample_split_prep(dev, fdb_tx, sfx_items,
+		tag_id = flow_sample_split_prep(dev, add_tag, sfx_items,
 						actions, sfx_actions,
 						pre_actions, actions_n,
 						sample_action_pos,
-						qrss_action_pos, error);
-		if (tag_id < 0 || (!fdb_tx && !tag_id)) {
+						qrss_action_pos, jump_table,
+						error);
+		if (tag_id < 0 || (add_tag && !tag_id)) {
 			ret = -rte_errno;
 			goto exit;
 		}
+		if (modify_after_mirror)
+			flow_split_info->skip_scale =
+					1 << MLX5_SCALE_JUMP_FLOW_GROUP_BIT;
 		/* Add the prefix subflow. */
 		ret = flow_create_split_inner(dev, flow, &dev_flow, attr,
 					      items, pre_actions,
@@ -5263,23 +5385,30 @@ flow_create_split_sample(struct rte_eth_dev *dev,
 		}
 		dev_flow->handle->split_flow_id = tag_id;
 #ifdef HAVE_IBV_FLOW_DV_SUPPORT
-		/* Set the sfx group attr. */
-		sample_res = (struct mlx5_flow_dv_sample_resource *)
-					dev_flow->dv.sample_res;
-		sfx_tbl = (struct mlx5_flow_tbl_resource *)
-					sample_res->normal_path_tbl;
-		sfx_tbl_data = container_of(sfx_tbl,
-					struct mlx5_flow_tbl_data_entry, tbl);
-		sfx_attr.group = sfx_attr.transfer ?
-					(sfx_tbl_data->table_id - 1) :
-					 sfx_tbl_data->table_id;
+		if (!modify_after_mirror) {
+			/* Set the sfx group attr. */
+			sample_res = (struct mlx5_flow_dv_sample_resource *)
+						dev_flow->dv.sample_res;
+			sfx_tbl = (struct mlx5_flow_tbl_resource *)
+						sample_res->normal_path_tbl;
+			sfx_tbl_data = container_of(sfx_tbl,
+						struct mlx5_flow_tbl_data_entry,
+						tbl);
+			sfx_attr.group = sfx_attr.transfer ?
+						(sfx_tbl_data->table_id - 1) :
+						sfx_tbl_data->table_id;
+		} else {
+			MLX5_ASSERT(attr->transfer);
+			sfx_attr.group = jump_table;
+		}
 		flow_split_info->prefix_layers =
 				flow_get_prefix_layer_flags(dev_flow);
 		flow_split_info->prefix_mark = dev_flow->handle->mark;
 		/* Suffix group level already be scaled with factor, set
-		 * skip_scale to 1 to avoid scale again in translation.
+		 * MLX5_SCALE_FLOW_GROUP_BIT of skip_scale to 1 to avoid scale
+		 * again in translation.
 		 */
-		flow_split_info->skip_scale = 1;
+		flow_split_info->skip_scale = 1 << MLX5_SCALE_FLOW_GROUP_BIT;
 #endif
 	}
 	/* Add the suffix subflow. */
@@ -5610,7 +5739,7 @@ flow_list_create(struct rte_eth_dev *dev, uint32_t *list,
 	 */
 	if (external || dev->data->dev_started ||
 	    (attr->group == MLX5_FLOW_MREG_CP_TABLE_GROUP &&
-	     attr->priority == MLX5_FLOW_PRIO_RSVD)) {
+	     attr->priority == MLX5_FLOW_LOWEST_PRIO_INDICATOR)) {
 		ret = flow_drv_apply(dev, flow, error);
 		if (ret < 0)
 			goto error;
@@ -6110,7 +6239,7 @@ mlx5_ctrl_flow_vlan(struct rte_eth_dev *dev,
 	struct mlx5_priv *priv = dev->data->dev_private;
 	const struct rte_flow_attr attr = {
 		.ingress = 1,
-		.priority = MLX5_FLOW_PRIO_RSVD,
+		.priority = MLX5_FLOW_LOWEST_PRIO_INDICATOR,
 	};
 	struct rte_flow_item items[] = {
 		{
@@ -6995,7 +7124,7 @@ mlx5_flow_discover_mreg_c(struct rte_eth_dev *dev)
 	for (idx = REG_C_2; idx <= REG_C_7; ++idx) {
 		struct rte_flow_attr attr = {
 			.group = MLX5_FLOW_MREG_CP_TABLE_GROUP,
-			.priority = MLX5_FLOW_PRIO_RSVD,
+			.priority = MLX5_FLOW_LOWEST_PRIO_INDICATOR,
 			.ingress = 1,
 		};
 		struct rte_flow_item items[] = {
@@ -7325,12 +7454,12 @@ mlx5_shared_action_flush(struct rte_eth_dev *dev)
 {
 	struct rte_flow_error error;
 	struct mlx5_priv *priv = dev->data->dev_private;
-	struct mlx5_shared_action_rss *action;
+	struct mlx5_shared_action_rss *shared_rss;
 	int ret = 0;
 	uint32_t idx;
 
 	ILIST_FOREACH(priv->sh->ipool[MLX5_IPOOL_RSS_SHARED_ACTIONS],
-		      priv->rss_shared_actions, idx, action, next) {
+		      priv->rss_shared_actions, idx, shared_rss, next) {
 		ret |= mlx5_shared_action_destroy(dev,
 		       (struct rte_flow_shared_action *)(uintptr_t)idx, &error);
 	}

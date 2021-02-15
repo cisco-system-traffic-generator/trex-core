@@ -20,7 +20,7 @@
 #include <rte_dev.h>
 #include <rte_errno.h>
 #include <rte_eventdev.h>
-#include <rte_eventdev_pmd.h>
+#include <eventdev_pmd.h>
 #include <rte_io.h>
 #include <rte_kvargs.h>
 #include <rte_log.h>
@@ -2894,7 +2894,7 @@ dlb2_dequeue_wait(struct dlb2_eventdev *dlb2,
 		pmc.addr = monitor_addr;
 		pmc.val = expected_value;
 		pmc.mask = qe_mask.raw_qe[1];
-		pmc.data_sz = sizeof(uint64_t);
+		pmc.size = sizeof(uint64_t);
 
 		rte_power_monitor(&pmc, timeout + start_ticks);
 

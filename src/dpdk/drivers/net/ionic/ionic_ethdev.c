@@ -5,9 +5,9 @@
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
 #include <rte_ethdev.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_malloc.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 
 #include "ionic_logs.h"
 #include "ionic.h"
@@ -70,12 +70,12 @@ static const struct rte_eth_desc_lim rx_desc_lim = {
 	.nb_align = 1,
 };
 
-static const struct rte_eth_desc_lim tx_desc_lim = {
+static const struct rte_eth_desc_lim tx_desc_lim_v1 = {
 	.nb_max = IONIC_MAX_RING_DESC,
 	.nb_min = IONIC_MIN_RING_DESC,
 	.nb_align = 1,
-	.nb_seg_max = IONIC_TX_MAX_SG_ELEMS,
-	.nb_mtu_seg_max = IONIC_TX_MAX_SG_ELEMS,
+	.nb_seg_max = IONIC_TX_MAX_SG_ELEMS_V1 + 1,
+	.nb_mtu_seg_max = IONIC_TX_MAX_SG_ELEMS_V1 + 1,
 };
 
 static const struct eth_dev_ops ionic_eth_dev_ops = {
@@ -207,8 +207,7 @@ static const struct rte_ionic_xstats_name_off rte_ionic_xstats_strings[] = {
 			tx_desc_data_error)},
 };
 
-#define IONIC_NB_HW_STATS (sizeof(rte_ionic_xstats_strings) / \
-		sizeof(rte_ionic_xstats_strings[0]))
+#define IONIC_NB_HW_STATS RTE_DIM(rte_ionic_xstats_strings)
 
 static int
 ionic_dev_fw_version_get(struct rte_eth_dev *eth_dev,
@@ -374,13 +373,15 @@ ionic_dev_info_get(struct rte_eth_dev *eth_dev,
 	struct ionic_lif *lif = IONIC_ETH_DEV_TO_LIF(eth_dev);
 	struct ionic_adapter *adapter = lif->adapter;
 	struct ionic_identity *ident = &adapter->ident;
+	union ionic_lif_config *cfg = &ident->lif.eth.config;
 
 	IONIC_PRINT_CALL();
 
 	dev_info->max_rx_queues = (uint16_t)
-		ident->lif.eth.config.queue_count[IONIC_QTYPE_RXQ];
+		rte_le_to_cpu_32(cfg->queue_count[IONIC_QTYPE_RXQ]);
 	dev_info->max_tx_queues = (uint16_t)
-		ident->lif.eth.config.queue_count[IONIC_QTYPE_TXQ];
+		rte_le_to_cpu_32(cfg->queue_count[IONIC_QTYPE_TXQ]);
+
 	/* Also add ETHER_CRC_LEN if the adapter is able to keep CRC */
 	dev_info->min_rx_bufsize = IONIC_MIN_MTU + RTE_ETHER_HDR_LEN;
 	dev_info->max_rx_pktlen = IONIC_MAX_MTU + RTE_ETHER_HDR_LEN;
@@ -389,7 +390,7 @@ ionic_dev_info_get(struct rte_eth_dev *eth_dev,
 	dev_info->max_mtu = IONIC_MAX_MTU;
 
 	dev_info->hash_key_size = IONIC_RSS_HASH_KEY_SIZE;
-	dev_info->reta_size = ident->lif.eth.rss_ind_tbl_sz;
+	dev_info->reta_size = rte_le_to_cpu_16(ident->lif.eth.rss_ind_tbl_sz);
 	dev_info->flow_type_rss_offloads = IONIC_ETH_RSS_OFFLOAD_ALL;
 
 	dev_info->speed_capa =
@@ -439,7 +440,7 @@ ionic_dev_info_get(struct rte_eth_dev *eth_dev,
 		0;
 
 	dev_info->rx_desc_lim = rx_desc_lim;
-	dev_info->tx_desc_lim = tx_desc_lim;
+	dev_info->tx_desc_lim = tx_desc_lim_v1;
 
 	/* Driver-preferred Rx/Tx parameters */
 	dev_info->default_rxportconf.burst_size = 32;
@@ -534,6 +535,7 @@ ionic_dev_rss_reta_update(struct rte_eth_dev *eth_dev,
 	struct ionic_adapter *adapter = lif->adapter;
 	struct ionic_identity *ident = &adapter->ident;
 	uint32_t i, j, index, num;
+	uint16_t tbl_sz = rte_le_to_cpu_16(ident->lif.eth.rss_ind_tbl_sz);
 
 	IONIC_PRINT_CALL();
 
@@ -543,15 +545,15 @@ ionic_dev_rss_reta_update(struct rte_eth_dev *eth_dev,
 		return -EINVAL;
 	}
 
-	if (reta_size != ident->lif.eth.rss_ind_tbl_sz) {
+	if (reta_size != tbl_sz) {
 		IONIC_PRINT(ERR, "The size of hash lookup table configured "
 			"(%d) does not match the number hardware can support "
 			"(%d)",
-			reta_size, ident->lif.eth.rss_ind_tbl_sz);
+			reta_size, tbl_sz);
 		return -EINVAL;
 	}
 
-	num = lif->adapter->ident.lif.eth.rss_ind_tbl_sz / RTE_RETA_GROUP_SIZE;
+	num = tbl_sz / RTE_RETA_GROUP_SIZE;
 
 	for (i = 0; i < num; i++) {
 		for (j = 0; j < RTE_RETA_GROUP_SIZE; j++) {
@@ -574,14 +576,15 @@ ionic_dev_rss_reta_query(struct rte_eth_dev *eth_dev,
 	struct ionic_adapter *adapter = lif->adapter;
 	struct ionic_identity *ident = &adapter->ident;
 	int i, num;
+	uint16_t tbl_sz = rte_le_to_cpu_16(ident->lif.eth.rss_ind_tbl_sz);
 
 	IONIC_PRINT_CALL();
 
-	if (reta_size != ident->lif.eth.rss_ind_tbl_sz) {
+	if (reta_size != tbl_sz) {
 		IONIC_PRINT(ERR, "The size of hash lookup table configured "
 			"(%d) does not match the number hardware can support "
 			"(%d)",
-			reta_size, ident->lif.eth.rss_ind_tbl_sz);
+			reta_size, tbl_sz);
 		return -EINVAL;
 	}
 
@@ -1228,11 +1231,12 @@ eth_ionic_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		goto err_free_adapter;
 	}
 
-	adapter->max_mac_addrs = adapter->ident.lif.eth.max_ucast_filters;
+	adapter->max_mac_addrs =
+		rte_le_to_cpu_32(adapter->ident.lif.eth.max_ucast_filters);
 
-	if (adapter->ident.dev.nlifs != 1) {
+	if (rte_le_to_cpu_32(adapter->ident.dev.nlifs) != 1) {
 		IONIC_PRINT(ERR, "Unexpected request for %d LIFs",
-			adapter->ident.dev.nlifs);
+			rte_le_to_cpu_32(adapter->ident.dev.nlifs));
 		goto err_free_adapter;
 	}
 

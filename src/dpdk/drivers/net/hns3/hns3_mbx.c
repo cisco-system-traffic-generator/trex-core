@@ -2,7 +2,7 @@
  * Copyright(c) 2018-2019 Hisilicon Limited.
  */
 
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_io.h>
 
 #include "hns3_ethdev.h"
@@ -83,7 +83,7 @@ hns3_get_mbx_resp(struct hns3_hw *hw, uint16_t code0, uint16_t code1,
 	end = now + HNS3_MAX_RETRY_MS;
 	while ((hw->mbx_resp.head != hw->mbx_resp.tail + hw->mbx_resp.lost) &&
 	       (now < end)) {
-		if (rte_atomic16_read(&hw->reset.disable_cmd)) {
+		if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED)) {
 			hns3_err(hw, "Don't wait for mbx respone because of "
 				 "disable_cmd");
 			return -EBUSY;
@@ -203,8 +203,9 @@ hns3_cmd_crq_empty(struct hns3_hw *hw)
 static void
 hns3_mbx_handler(struct hns3_hw *hw)
 {
-	struct hns3_mac *mac = &hw->mac;
 	enum hns3_reset_level reset_level;
+	uint8_t link_status, link_duplex;
+	uint32_t link_speed;
 	uint16_t *msg_q;
 	uint8_t opcode;
 	uint32_t tail;
@@ -218,10 +219,11 @@ hns3_mbx_handler(struct hns3_hw *hw)
 		opcode = msg_q[0] & 0xff;
 		switch (opcode) {
 		case HNS3_MBX_LINK_STAT_CHANGE:
-			memcpy(&mac->link_speed, &msg_q[2],
-				   sizeof(mac->link_speed));
-			mac->link_status = rte_le_to_cpu_16(msg_q[1]);
-			mac->link_duplex = (uint8_t)rte_le_to_cpu_16(msg_q[4]);
+			memcpy(&link_speed, &msg_q[2], sizeof(link_speed));
+			link_status = rte_le_to_cpu_16(msg_q[1]);
+			link_duplex = (uint8_t)rte_le_to_cpu_16(msg_q[4]);
+			hns3vf_update_link_status(hw, link_status, link_speed,
+						  link_duplex);
 			break;
 		case HNS3_MBX_ASSERTING_RESET:
 			/* PF has asserted reset hence VF should go in pending
@@ -310,7 +312,7 @@ hns3_handle_link_change_event(struct hns3_hw *hw,
 	if (!req->msg[LINK_STATUS_OFFSET])
 		hns3_link_fail_parse(hw, req->msg[LINK_FAIL_CODE_OFFSET]);
 
-	hns3_update_link_status(hw);
+	hns3_update_link_status_and_event(hw);
 }
 
 static void
@@ -367,7 +369,7 @@ hns3_dev_handle_mbx_msg(struct hns3_hw *hw)
 	int i;
 
 	while (!hns3_cmd_crq_empty(hw)) {
-		if (rte_atomic16_read(&hw->reset.disable_cmd))
+		if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED))
 			return;
 
 		desc = &crq->desc[crq->next_to_use];

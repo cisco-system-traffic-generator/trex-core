@@ -33,7 +33,8 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
+#include <ethdev_driver.h>
 #ifdef RTE_LIB_SECURITY 
 #include <rte_security_driver.h>
 #endif 
@@ -1397,7 +1398,7 @@ ixgbe_get_monitor_addr(void *rx_queue, struct rte_power_monitor_cond *pmc)
 	pmc->mask = rte_cpu_to_le_32(IXGBE_RXDADV_STAT_DD);
 
 	/* the registers are 32-bit */
-	pmc->data_sz = sizeof(uint32_t);
+	pmc->size = sizeof(uint32_t);
 
 	return 0;
 }
@@ -1474,7 +1475,8 @@ rx_desc_status_to_pkt_flags(uint32_t rx_status, uint64_t vlan_flags)
 }
 
 static inline uint64_t
-rx_desc_error_to_pkt_flags(uint32_t rx_status)
+rx_desc_error_to_pkt_flags(uint32_t rx_status, uint16_t pkt_info,
+			   uint8_t rx_udp_csum_zero_err)
 {
 	uint64_t pkt_flags;
 
@@ -1490,6 +1492,15 @@ rx_desc_error_to_pkt_flags(uint32_t rx_status)
 	};
 	pkt_flags = error_to_pkt_flags_map[(rx_status >>
 		IXGBE_RXDADV_ERR_CKSUM_BIT) & IXGBE_RXDADV_ERR_CKSUM_MSK];
+
+	/* Mask out the bad UDP checksum error if the hardware has UDP zero
+	 * checksum error issue, so that the software application will then
+	 * have to recompute the checksum itself if needed.
+	 */
+	if ((rx_status & IXGBE_RXDADV_ERR_TCPE) &&
+	    (pkt_info & IXGBE_RXDADV_PKTTYPE_UDP) &&
+	    rx_udp_csum_zero_err)
+		pkt_flags &= ~PKT_RX_L4_CKSUM_BAD;
 
 	if ((rx_status & IXGBE_RXD_STAT_OUTERIPCS) &&
 	    (rx_status & IXGBE_RXDADV_ERR_OUTERIPER)) {
@@ -1577,7 +1588,9 @@ ixgbe_rx_scan_hw_ring(struct ixgbe_rx_queue *rxq)
 			/* convert descriptor fields to rte mbuf flags */
 			pkt_flags = rx_desc_status_to_pkt_flags(s[j],
 				vlan_flags);
-			pkt_flags |= rx_desc_error_to_pkt_flags(s[j]);
+			pkt_flags |= rx_desc_error_to_pkt_flags(s[j],
+					(uint16_t)pkt_info[j],
+					rxq->rx_udp_csum_zero_err);
 			pkt_flags |= ixgbe_rxd_pkt_info_to_pkt_flags
 					((uint16_t)pkt_info[j]);
 			mb->ol_flags = pkt_flags;
@@ -1910,7 +1923,9 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		rxm->vlan_tci = rte_le_to_cpu_16(rxd.wb.upper.vlan);
 
 		pkt_flags = rx_desc_status_to_pkt_flags(staterr, vlan_flags);
-		pkt_flags = pkt_flags | rx_desc_error_to_pkt_flags(staterr);
+		pkt_flags = pkt_flags |
+			rx_desc_error_to_pkt_flags(staterr, (uint16_t)pkt_info,
+						   rxq->rx_udp_csum_zero_err);
 		pkt_flags = pkt_flags |
 			ixgbe_rxd_pkt_info_to_pkt_flags((uint16_t)pkt_info);
 		rxm->ol_flags = pkt_flags;
@@ -2003,7 +2018,8 @@ ixgbe_fill_cluster_head_buf(
 	head->vlan_tci = rte_le_to_cpu_16(desc->wb.upper.vlan);
 	pkt_info = rte_le_to_cpu_32(desc->wb.lower.lo_dword.data);
 	pkt_flags = rx_desc_status_to_pkt_flags(staterr, rxq->vlan_flags);
-	pkt_flags |= rx_desc_error_to_pkt_flags(staterr);
+	pkt_flags |= rx_desc_error_to_pkt_flags(staterr, (uint16_t)pkt_info,
+						rxq->rx_udp_csum_zero_err);
 	pkt_flags |= ixgbe_rxd_pkt_info_to_pkt_flags((uint16_t)pkt_info);
 	head->ol_flags = pkt_flags;
 	head->packet_type =
@@ -3123,6 +3139,13 @@ ixgbe_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		rxq->pkt_type_mask = IXGBE_PACKET_TYPE_MASK_X550;
 	else
 		rxq->pkt_type_mask = IXGBE_PACKET_TYPE_MASK_82599;
+
+	/*
+	 * 82599 errata, UDP frames with a 0 checksum can be marked as checksum
+	 * errors.
+	 */
+	if (hw->mac.type == ixgbe_mac_82599EB)
+		rxq->rx_udp_csum_zero_err = 1;
 
 	/*
 	 * Allocate RX ring hardware descriptors. A memzone large enough to
@@ -4931,15 +4954,11 @@ ixgbe_set_rsc(struct rte_eth_dev *dev)
 	/* RFCTL configuration  */
 	rfctl = IXGBE_READ_REG(hw, IXGBE_RFCTL);
 	if ((rsc_capable) && (rx_conf->offloads & DEV_RX_OFFLOAD_TCP_LRO))
-		/*
-		 * Since NFS packets coalescing is not supported - clear
-		 * RFCTL.NFSW_DIS and RFCTL.NFSR_DIS when RSC is
-		 * enabled.
-		 */
-		rfctl &= ~(IXGBE_RFCTL_RSC_DIS | IXGBE_RFCTL_NFSW_DIS |
-			   IXGBE_RFCTL_NFSR_DIS);
+		rfctl &= ~IXGBE_RFCTL_RSC_DIS;
 	else
 		rfctl |= IXGBE_RFCTL_RSC_DIS;
+	/* disable NFS filtering */
+	rfctl |= IXGBE_RFCTL_NFSW_DIS | IXGBE_RFCTL_NFSR_DIS;
 	IXGBE_WRITE_REG(hw, IXGBE_RFCTL, rfctl);
 
 	/* If LRO hasn't been requested - we are done here. */

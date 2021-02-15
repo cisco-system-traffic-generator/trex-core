@@ -19,8 +19,8 @@
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_memzone.h>
 #include <rte_dev.h>
@@ -291,11 +291,13 @@ iavf_init_rss(struct iavf_adapter *adapter)
 	if (ret)
 		return ret;
 
-	/* Set RSS hash configuration based on rss_conf->rss_hf. */
-	ret = iavf_rss_hash_set(adapter, rss_conf->rss_hf, true);
-	if (ret) {
-		PMD_DRV_LOG(ERR, "fail to set default RSS");
-		return ret;
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_ADV_RSS_PF) {
+		/* Set RSS hash configuration based on rss_conf->rss_hf. */
+		ret = iavf_rss_hash_set(adapter, rss_conf->rss_hf, true);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "fail to set default RSS");
+			return ret;
+		}
 	}
 
 	return 0;
@@ -429,10 +431,8 @@ iavf_dev_configure(struct rte_eth_dev *dev)
 	}
 
 	ret = iavf_dev_init_vlan(dev);
-	if (ret) {
+	if (ret)
 		PMD_DRV_LOG(ERR, "configure VLAN failed: %d", ret);
-		return -1;
-	}
 
 	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF) {
 		if (iavf_init_rss(ad) != 0) {
@@ -612,15 +612,15 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 			/* If Rx interrupt is reuquired, and we can use
 			 * multi interrupts, then the vec is from 1
 			 */
-			vf->nb_msix = RTE_MIN(vf->vf_res->max_vectors,
-					      intr_handle->nb_efd);
+			vf->nb_msix = RTE_MIN(intr_handle->nb_efd,
+				 (uint16_t)(vf->vf_res->max_vectors - 1));
 			vf->msix_base = IAVF_RX_VEC_START;
 			vec = IAVF_RX_VEC_START;
 			for (i = 0; i < dev->data->nb_rx_queues; i++) {
 				qv_map[i].queue_id = i;
 				qv_map[i].vector_id = vec;
 				intr_handle->intr_vec[i] = vec++;
-				if (vec >= vf->nb_msix)
+				if (vec >= vf->nb_msix + IAVF_RX_VEC_START)
 					vec = IAVF_RX_VEC_START;
 			}
 			vf->qv_map = qv_map;
@@ -1092,6 +1092,9 @@ iavf_dev_vlan_offload_set_v2(struct rte_eth_dev *dev, int mask)
 		enable = !!(rxmode->offloads & DEV_RX_OFFLOAD_VLAN_STRIP);
 
 		err = iavf_config_vlan_strip_v2(adapter, enable);
+		/* If not support, the stripping is already disabled by PF */
+		if (err == -ENOTSUP && !enable)
+			err = 0;
 		if (err)
 			return -EIO;
 	}
@@ -1250,21 +1253,23 @@ iavf_dev_rss_hash_update(struct rte_eth_dev *dev,
 	if (rss_conf->rss_hf == 0)
 		return 0;
 
-	/* Clear existing RSS. */
-	ret = iavf_set_hena(adapter, 0);
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_ADV_RSS_PF) {
+		/* Clear existing RSS. */
+		ret = iavf_set_hena(adapter, 0);
 
-	/* It is a workaround, temporarily allow error to be returned
-	 * due to possible lack of PF handling for hena = 0.
-	 */
-	if (ret)
-		PMD_DRV_LOG(WARNING, "fail to clean existing RSS,"
-			    "lack PF support");
+		/* It is a workaround, temporarily allow error to be returned
+		 * due to possible lack of PF handling for hena = 0.
+		 */
+		if (ret)
+			PMD_DRV_LOG(WARNING, "fail to clean existing RSS,"
+				    "lack PF support");
 
-	/* Set new RSS configuration. */
-	ret = iavf_rss_hash_set(adapter, rss_conf->rss_hf, true);
-	if (ret) {
-		PMD_DRV_LOG(ERR, "fail to set new RSS");
-		return ret;
+		/* Set new RSS configuration. */
+		ret = iavf_rss_hash_set(adapter, rss_conf->rss_hf, true);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "fail to set new RSS");
+			return ret;
+		}
 	}
 
 	return 0;
@@ -2091,6 +2096,24 @@ iavf_dev_filter_ctrl(struct rte_eth_dev *dev,
 	return ret;
 }
 
+static void
+iavf_default_rss_disable(struct iavf_adapter *adapter)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	int ret = 0;
+
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_ADV_RSS_PF) {
+		/* Set hena = 0 to ask PF to cleanup all existing RSS. */
+		ret = iavf_set_hena(adapter, 0);
+		if (ret)
+			/* It is a workaround, temporarily allow error to be
+			 * returned due to possible lack of PF handling for
+			 * hena = 0.
+			 */
+			PMD_INIT_LOG(WARNING, "fail to disable default RSS,"
+				    "lack PF support");
+	}
+}
 
 static int
 iavf_dev_init(struct rte_eth_dev *eth_dev)
@@ -2179,14 +2202,7 @@ iavf_dev_init(struct rte_eth_dev *eth_dev)
 		return ret;
 	}
 
-	/* Set hena = 0 to ask PF to cleanup all existing RSS. */
-	ret = iavf_set_hena(adapter, 0);
-	if (ret)
-		/* It is a workaround, temporarily allow error to be returned
-		 * due to possible lack of PF handling for hena = 0.
-		 */
-		PMD_DRV_LOG(WARNING, "fail to disable default RSS,"
-			    "lack PF support");
+	iavf_default_rss_disable(adapter);
 
 	return 0;
 }

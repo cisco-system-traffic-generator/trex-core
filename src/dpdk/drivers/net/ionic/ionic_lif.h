@@ -48,13 +48,13 @@ struct ionic_rx_stats {
 
 #define IONIC_QCQ_F_INITED	BIT(0)
 #define IONIC_QCQ_F_SG		BIT(1)
-#define IONIC_QCQ_F_INTR	BIT(2)
-#define IONIC_QCQ_F_NOTIFYQ	BIT(3)
 #define IONIC_QCQ_F_DEFERRED	BIT(4)
+#define IONIC_QCQ_F_CSUM_L3	BIT(7)
+#define IONIC_QCQ_F_CSUM_UDP	BIT(8)
+#define IONIC_QCQ_F_CSUM_TCP	BIT(9)
 
 /* Queue / Completion Queue */
 struct ionic_qcq {
-	uint64_t offloads;
 	struct ionic_queue q;        /**< Queue */
 	struct ionic_cq cq;          /**< Completion Queue */
 	struct ionic_lif *lif;       /**< LIF */
@@ -74,6 +74,17 @@ struct ionic_qcq {
 #define IONIC_Q_TO_QCQ(q)	container_of(q, struct ionic_qcq, q)
 #define IONIC_Q_TO_TX_STATS(q)	(&IONIC_Q_TO_QCQ(q)->stats.tx)
 #define IONIC_Q_TO_RX_STATS(q)	(&IONIC_Q_TO_QCQ(q)->stats.rx)
+
+struct ionic_qtype_info {
+	uint8_t  version;
+	uint8_t  supported;
+	uint64_t features;
+	uint16_t desc_sz;
+	uint16_t comp_sz;
+	uint16_t sg_desc_sz;
+	uint16_t max_sg_elems;
+	uint16_t sg_desc_stride;
+};
 
 #define IONIC_LIF_F_INITED		BIT(0)
 #define IONIC_LIF_F_LINK_CHECK_NEEDED	BIT(1)
@@ -114,6 +125,10 @@ struct ionic_lif {
 	struct ionic_lif_info *info;
 	rte_iova_t info_pa;
 	const struct rte_memzone *info_z;
+
+	struct ionic_qtype_info qtype_info[IONIC_QTYPE_MAX];
+	uint8_t qtype_ver[IONIC_QTYPE_MAX];
+
 	struct rte_eth_stats stats_base;
 	struct ionic_lif_stats lif_stats_base;
 };

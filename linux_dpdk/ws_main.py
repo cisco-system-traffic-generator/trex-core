@@ -1389,9 +1389,12 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/memif/rte_eth_memif.c',
 
                  #virtio
+                 'drivers/net/virtio/virtio.c',
                  'drivers/net/virtio/virtio_ethdev.c',
                  'drivers/net/virtio/virtio_pci.c',
+                 'drivers/net/virtio/virtio_pci_ethdev.c',
                  'drivers/net/virtio/virtio_rxtx.c',
+
                  
                  #'drivers/net/virtio/virtio_rxtx_packed.c',
 

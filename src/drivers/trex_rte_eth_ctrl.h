@@ -15,7 +15,7 @@
 #include <rte_common.h>
 #include <rte_ether.h>
 #include <rte_flow.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 
 /**
  * @deprecated Please use rte_flow API instead of this legacy one.

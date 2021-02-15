@@ -13,189 +13,20 @@
 
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_vdev.h>
 #include <rte_bus_vdev.h>
 #include <rte_alarm.h>
 #include <rte_cycles.h>
 
 #include "virtio_ethdev.h"
 #include "virtio_logs.h"
-#include "virtio_pci.h"
+#include "virtio.h"
 #include "virtqueue.h"
 #include "virtio_rxtx.h"
 #include "virtio_user/virtio_user_dev.h"
 #include "virtio_user/vhost.h"
 
-#define virtio_user_get_dev(hw) \
-	((struct virtio_user_dev *)(hw)->virtio_user_dev)
-
-static void
-virtio_user_reset_queues_packed(struct rte_eth_dev *dev)
-{
-	struct virtio_hw *hw = dev->data->dev_private;
-	struct virtnet_rx *rxvq;
-	struct virtnet_tx *txvq;
-	uint16_t i;
-
-	/* Add lock to avoid queue contention. */
-	rte_spinlock_lock(&hw->state_lock);
-	hw->started = 0;
-
-	/*
-	 * Waitting for datapath to complete before resetting queues.
-	 * 1 ms should be enough for the ongoing Tx/Rx function to finish.
-	 */
-	rte_delay_ms(1);
-
-	/* Vring reset for each Tx queue and Rx queue. */
-	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxvq = dev->data->rx_queues[i];
-		virtqueue_rxvq_reset_packed(rxvq->vq);
-		virtio_dev_rx_queue_setup_finish(dev, i);
-	}
-
-	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		txvq = dev->data->tx_queues[i];
-		virtqueue_txvq_reset_packed(txvq->vq);
-	}
-
-	hw->started = 1;
-	rte_spinlock_unlock(&hw->state_lock);
-}
-
-
-static int
-virtio_user_server_reconnect(struct virtio_user_dev *dev)
-{
-	int ret, connectfd, old_status;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->port_id];
-	struct virtio_hw *hw = eth_dev->data->dev_private;
-	uint64_t protocol_features;
-
-	connectfd = accept(dev->listenfd, NULL, NULL);
-	if (connectfd < 0)
-		return -1;
-
-	dev->vhostfd = connectfd;
-	old_status = vtpci_get_status(hw);
-
-	vtpci_reset(hw);
-
-	vtpci_set_status(hw, VIRTIO_CONFIG_STATUS_ACK);
-
-	vtpci_set_status(hw, VIRTIO_CONFIG_STATUS_DRIVER);
-
-	if (dev->ops->send_request(dev, VHOST_USER_GET_FEATURES,
-				   &dev->device_features) < 0) {
-		PMD_INIT_LOG(ERR, "get_features failed: %s",
-			     strerror(errno));
-		return -1;
-	}
-
-	if (dev->device_features &
-			(1ULL << VHOST_USER_F_PROTOCOL_FEATURES)) {
-		if (dev->ops->send_request(dev,
-					VHOST_USER_GET_PROTOCOL_FEATURES,
-					&protocol_features))
-			return -1;
-
-		/* Offer VHOST_USER_PROTOCOL_F_STATUS */
-		dev->protocol_features |=
-			(1ULL << VHOST_USER_PROTOCOL_F_STATUS);
-		dev->protocol_features &= protocol_features;
-
-		if (dev->ops->send_request(dev,
-					VHOST_USER_SET_PROTOCOL_FEATURES,
-					&dev->protocol_features))
-			return -1;
-
-		if (!(dev->protocol_features &
-				(1ULL << VHOST_USER_PROTOCOL_F_MQ)))
-			dev->unsupported_features |= (1ull << VIRTIO_NET_F_MQ);
-	}
-
-	dev->device_features |= dev->frontend_features;
-
-	/* umask vhost-user unsupported features */
-	dev->device_features &= ~(dev->unsupported_features);
-
-	dev->features &= dev->device_features;
-
-	/* For packed ring, resetting queues is required in reconnection. */
-	if (vtpci_packed_queue(hw) &&
-	   (old_status & VIRTIO_CONFIG_STATUS_DRIVER_OK)) {
-		PMD_INIT_LOG(NOTICE, "Packets on the fly will be dropped"
-				" when packed ring reconnecting.");
-		virtio_user_reset_queues_packed(eth_dev);
-	}
-
-	vtpci_set_status(hw, VIRTIO_CONFIG_STATUS_FEATURES_OK);
-
-	/* Start the device */
-	vtpci_set_status(hw, VIRTIO_CONFIG_STATUS_DRIVER_OK);
-	if (!dev->started)
-		return -1;
-
-	if (dev->queue_pairs > 1) {
-		ret = virtio_user_handle_mq(dev, dev->queue_pairs);
-		if (ret != 0) {
-			PMD_INIT_LOG(ERR, "Fails to enable multi-queue pairs!");
-			return -1;
-		}
-	}
-	if (eth_dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC) {
-		if (rte_intr_disable(eth_dev->intr_handle) < 0) {
-			PMD_DRV_LOG(ERR, "interrupt disable failed");
-			return -1;
-		}
-		rte_intr_callback_unregister(eth_dev->intr_handle,
-					     virtio_interrupt_handler,
-					     eth_dev);
-		eth_dev->intr_handle->fd = connectfd;
-		rte_intr_callback_register(eth_dev->intr_handle,
-					   virtio_interrupt_handler, eth_dev);
-
-		if (rte_intr_enable(eth_dev->intr_handle) < 0) {
-			PMD_DRV_LOG(ERR, "interrupt enable failed");
-			return -1;
-		}
-	}
-	PMD_INIT_LOG(NOTICE, "server mode virtio-user reconnection succeeds!");
-	return 0;
-}
-
-static void
-virtio_user_delayed_handler(void *param)
-{
-	struct virtio_hw *hw = (struct virtio_hw *)param;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[hw->port_id];
-	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
-
-	if (rte_intr_disable(eth_dev->intr_handle) < 0) {
-		PMD_DRV_LOG(ERR, "interrupt disable failed");
-		return;
-	}
-	rte_intr_callback_unregister(eth_dev->intr_handle,
-				     virtio_interrupt_handler, eth_dev);
-	if (dev->is_server) {
-		if (dev->vhostfd >= 0) {
-			close(dev->vhostfd);
-			dev->vhostfd = -1;
-			/* Until the featuers are negotiated again, don't assume
-			 * the backend supports VHOST_USER_PROTOCOL_F_STATUS
-			 */
-			dev->protocol_features &=
-				~(1ULL << VHOST_USER_PROTOCOL_F_STATUS);
-		}
-		eth_dev->intr_handle->fd = dev->listenfd;
-		rte_intr_callback_register(eth_dev->intr_handle,
-					   virtio_interrupt_handler, eth_dev);
-		if (rte_intr_enable(eth_dev->intr_handle) < 0) {
-			PMD_DRV_LOG(ERR, "interrupt enable failed");
-			return;
-		}
-	}
-}
+#define virtio_user_get_dev(hwp) container_of(hwp, struct virtio_user_dev, hw)
 
 static void
 virtio_user_read_dev_config(struct virtio_hw *hw, size_t offset,
@@ -212,44 +43,7 @@ virtio_user_read_dev_config(struct virtio_hw *hw, size_t offset,
 	}
 
 	if (offset == offsetof(struct virtio_net_config, status)) {
-		char buf[128];
-
-		if (dev->vhostfd >= 0) {
-			int r;
-			int flags;
-
-			flags = fcntl(dev->vhostfd, F_GETFL);
-			if (fcntl(dev->vhostfd, F_SETFL,
-					flags | O_NONBLOCK) == -1) {
-				PMD_DRV_LOG(ERR, "error setting O_NONBLOCK flag");
-				return;
-			}
-			r = recv(dev->vhostfd, buf, 128, MSG_PEEK);
-			if (r == 0 || (r < 0 && errno != EAGAIN)) {
-				dev->net_status &= (~VIRTIO_NET_S_LINK_UP);
-				PMD_DRV_LOG(ERR, "virtio-user port %u is down",
-					    hw->port_id);
-
-				/* This function could be called in the process
-				 * of interrupt handling, callback cannot be
-				 * unregistered here, set an alarm to do it.
-				 */
-				rte_eal_alarm_set(1,
-						  virtio_user_delayed_handler,
-						  (void *)hw);
-			} else {
-				dev->net_status |= VIRTIO_NET_S_LINK_UP;
-			}
-			if (fcntl(dev->vhostfd, F_SETFL,
-					flags & ~O_NONBLOCK) == -1) {
-				PMD_DRV_LOG(ERR, "error clearing O_NONBLOCK flag");
-				return;
-			}
-		} else if (dev->is_server) {
-			dev->net_status &= (~VIRTIO_NET_S_LINK_UP);
-			if (virtio_user_server_reconnect(dev) >= 0)
-				dev->net_status |= VIRTIO_NET_S_LINK_UP;
-		}
+		virtio_user_dev_update_link_state(dev);
 
 		*(uint16_t *)dst = dev->net_status;
 	}
@@ -327,13 +121,19 @@ virtio_user_set_features(struct virtio_hw *hw, uint64_t features)
 	dev->features = features & dev->device_features;
 }
 
+static int
+virtio_user_features_ok(struct virtio_hw *hw __rte_unused)
+{
+	return 0;
+}
+
 static uint8_t
 virtio_user_get_isr(struct virtio_hw *hw __rte_unused)
 {
 	/* rxq interrupts and config interrupt are separated in virtio-user,
 	 * here we only report config change.
 	 */
-	return VIRTIO_PCI_ISR_CONFIG;
+	return VIRTIO_ISR_CONFIG;
 }
 
 static uint16_t
@@ -382,7 +182,7 @@ virtio_user_setup_queue_packed(struct virtqueue *vq,
 		sizeof(struct vring_packed_desc);
 	used_addr = RTE_ALIGN_CEIL(avail_addr +
 			   sizeof(struct vring_packed_desc_event),
-			   VIRTIO_PCI_VRING_ALIGN);
+			   VIRTIO_VRING_ALIGN);
 	vring->num = vq->vq_nentries;
 	vring->desc = (void *)(uintptr_t)desc_addr;
 	vring->driver = (void *)(uintptr_t)avail_addr;
@@ -404,7 +204,7 @@ virtio_user_setup_queue_split(struct virtqueue *vq, struct virtio_user_dev *dev)
 	avail_addr = desc_addr + vq->vq_nentries * sizeof(struct vring_desc);
 	used_addr = RTE_ALIGN_CEIL(avail_addr + offsetof(struct vring_avail,
 							 ring[vq->vq_nentries]),
-				   VIRTIO_PCI_VRING_ALIGN);
+				   VIRTIO_VRING_ALIGN);
 
 	dev->vrings[queue_idx].num = vq->vq_nentries;
 	dev->vrings[queue_idx].desc = (void *)(uintptr_t)desc_addr;
@@ -417,7 +217,7 @@ virtio_user_setup_queue(struct virtio_hw *hw, struct virtqueue *vq)
 {
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
-	if (vtpci_packed_queue(hw))
+	if (virtio_with_packed_queue(hw))
 		virtio_user_setup_queue_packed(vq, dev);
 	else
 		virtio_user_setup_queue_split(vq, dev);
@@ -450,7 +250,7 @@ virtio_user_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
 	if (hw->cvq && (hw->cvq->vq == vq)) {
-		if (vtpci_packed_queue(vq->hw))
+		if (virtio_with_packed_queue(vq->hw))
 			virtio_user_handle_cq_packed(dev, vq->vq_queue_index);
 		else
 			virtio_user_handle_cq(dev, vq->vq_queue_index);
@@ -462,13 +262,24 @@ virtio_user_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 			    strerror(errno));
 }
 
-const struct virtio_pci_ops virtio_user_ops = {
+static int
+virtio_user_dev_close(struct virtio_hw *hw)
+{
+	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
+
+	virtio_user_dev_uninit(dev);
+
+	return 0;
+}
+
+const struct virtio_ops virtio_user_ops = {
 	.read_dev_cfg	= virtio_user_read_dev_config,
 	.write_dev_cfg	= virtio_user_write_dev_config,
 	.get_status	= virtio_user_get_status,
 	.set_status	= virtio_user_set_status,
 	.get_features	= virtio_user_get_features,
 	.set_features	= virtio_user_set_features,
+	.features_ok	= virtio_user_features_ok,
 	.get_isr	= virtio_user_get_isr,
 	.set_config_irq	= virtio_user_set_config_irq,
 	.set_queue_irq	= virtio_user_set_queue_irq,
@@ -476,6 +287,7 @@ const struct virtio_pci_ops virtio_user_ops = {
 	.setup_queue	= virtio_user_setup_queue,
 	.del_queue	= virtio_user_del_queue,
 	.notify_queue	= virtio_user_notify_queue,
+	.dev_close	= virtio_user_dev_close,
 };
 
 static const char *valid_args[] = {
@@ -605,46 +417,32 @@ virtio_user_eth_dev_alloc(struct rte_vdev_device *vdev)
 	struct virtio_hw *hw;
 	struct virtio_user_dev *dev;
 
-	eth_dev = rte_eth_vdev_allocate(vdev, sizeof(*hw));
+	eth_dev = rte_eth_vdev_allocate(vdev, sizeof(*dev));
 	if (!eth_dev) {
 		PMD_INIT_LOG(ERR, "cannot alloc rte_eth_dev");
 		return NULL;
 	}
 
 	data = eth_dev->data;
-	hw = eth_dev->data->dev_private;
-
-	dev = rte_zmalloc(NULL, sizeof(*dev), 0);
-	if (!dev) {
-		PMD_INIT_LOG(ERR, "malloc virtio_user_dev failed");
-		rte_eth_dev_release_port(eth_dev);
-		return NULL;
-	}
+	dev = eth_dev->data->dev_private;
+	hw = &dev->hw;
 
 	hw->port_id = data->port_id;
 	dev->port_id = data->port_id;
-	virtio_hw_internal[hw->port_id].vtpci_ops = &virtio_user_ops;
-	/*
-	 * MSIX is required to enable LSC (see virtio_init_device).
-	 * Here just pretend that we support msix.
-	 */
-	hw->use_msix = 1;
-	hw->modern   = 0;
+	VIRTIO_OPS(hw) = &virtio_user_ops;
+
+	hw->intr_lsc = 1;
 	hw->use_vec_rx = 0;
 	hw->use_vec_tx = 0;
 	hw->use_inorder_rx = 0;
 	hw->use_inorder_tx = 0;
-	hw->virtio_user_dev = dev;
+
 	return eth_dev;
 }
 
 static void
 virtio_user_eth_dev_free(struct rte_eth_dev *eth_dev)
 {
-	struct rte_eth_dev_data *data = eth_dev->data;
-	struct virtio_hw *hw = data->dev_private;
-
-	rte_free(hw->virtio_user_dev);
 	rte_eth_dev_release_port(eth_dev);
 }
 
@@ -653,11 +451,12 @@ virtio_user_eth_dev_free(struct rte_eth_dev *eth_dev)
  * Returns 0 on success.
  */
 static int
-virtio_user_pmd_probe(struct rte_vdev_device *dev)
+virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 {
 	struct rte_kvargs *kvlist = NULL;
 	struct rte_eth_dev *eth_dev;
 	struct virtio_hw *hw;
+	struct virtio_user_dev *dev;
 	enum virtio_user_backend_type backend_type = VIRTIO_USER_BACKEND_UNKNOWN;
 	uint64_t queues = VIRTIO_USER_DEF_Q_NUM;
 	uint64_t cq = VIRTIO_USER_DEF_CQ_EN;
@@ -672,13 +471,19 @@ virtio_user_pmd_probe(struct rte_vdev_device *dev)
 	char *mac_addr = NULL;
 	int ret = -1;
 
+	RTE_BUILD_BUG_ON(offsetof(struct virtio_user_dev, hw) != 0);
+
 	if (rte_eal_process_type() == RTE_PROC_SECONDARY) {
-		const char *name = rte_vdev_device_name(dev);
+		const char *name = rte_vdev_device_name(vdev);
 		eth_dev = rte_eth_dev_attach_secondary(name);
 		if (!eth_dev) {
 			PMD_INIT_LOG(ERR, "Failed to probe %s", name);
 			return -1;
 		}
+
+		dev = eth_dev->data->dev_private;
+		hw = &dev->hw;
+		VIRTIO_OPS(hw) = &virtio_user_ops;
 
 		if (eth_virtio_dev_init(eth_dev) < 0) {
 			PMD_INIT_LOG(ERR, "eth_virtio_dev_init fails");
@@ -687,12 +492,12 @@ virtio_user_pmd_probe(struct rte_vdev_device *dev)
 		}
 
 		eth_dev->dev_ops = &virtio_user_secondary_eth_dev_ops;
-		eth_dev->device = &dev->device;
+		eth_dev->device = &vdev->device;
 		rte_eth_dev_probing_finish(eth_dev);
 		return 0;
 	}
 
-	kvlist = rte_kvargs_parse(rte_vdev_device_args(dev), valid_args);
+	kvlist = rte_kvargs_parse(rte_vdev_device_args(vdev), valid_args);
 	if (!kvlist) {
 		PMD_INIT_LOG(ERR, "error when parsing param");
 		goto end;
@@ -832,14 +637,15 @@ virtio_user_pmd_probe(struct rte_vdev_device *dev)
 		}
 	}
 
-	eth_dev = virtio_user_eth_dev_alloc(dev);
+	eth_dev = virtio_user_eth_dev_alloc(vdev);
 	if (!eth_dev) {
 		PMD_INIT_LOG(ERR, "virtio_user fails to alloc device");
 		goto end;
 	}
 
-	hw = eth_dev->data->dev_private;
-	if (virtio_user_dev_init(hw->virtio_user_dev, path, queues, cq,
+	dev = eth_dev->data->dev_private;
+	hw = &dev->hw;
+	if (virtio_user_dev_init(dev, path, queues, cq,
 			 queue_size, mac_addr, &ifname, server_mode,
 			 mrg_rxbuf, in_order, packed_vq, backend_type) < 0) {
 		PMD_INIT_LOG(ERR, "virtio_user_dev_init fails");
@@ -912,7 +718,6 @@ static int virtio_user_pmd_dma_map(struct rte_vdev_device *vdev, void *addr,
 	const char *name;
 	struct rte_eth_dev *eth_dev;
 	struct virtio_user_dev *dev;
-	struct virtio_hw *hw;
 
 	if (!vdev)
 		return -EINVAL;
@@ -923,8 +728,7 @@ static int virtio_user_pmd_dma_map(struct rte_vdev_device *vdev, void *addr,
 	if (!eth_dev)
 		return 0;
 
-	hw = (struct virtio_hw *)eth_dev->data->dev_private;
-	dev = hw->virtio_user_dev;
+	dev = eth_dev->data->dev_private;
 
 	if (dev->ops->dma_map)
 		return dev->ops->dma_map(dev, addr, iova, len);
@@ -938,7 +742,6 @@ static int virtio_user_pmd_dma_unmap(struct rte_vdev_device *vdev, void *addr,
 	const char *name;
 	struct rte_eth_dev *eth_dev;
 	struct virtio_user_dev *dev;
-	struct virtio_hw *hw;
 
 	if (!vdev)
 		return -EINVAL;
@@ -949,8 +752,7 @@ static int virtio_user_pmd_dma_unmap(struct rte_vdev_device *vdev, void *addr,
 	if (!eth_dev)
 		return 0;
 
-	hw = (struct virtio_hw *)eth_dev->data->dev_private;
-	dev = hw->virtio_user_dev;
+	dev = eth_dev->data->dev_private;
 
 	if (dev->ops->dma_unmap)
 		return dev->ops->dma_unmap(dev, addr, iova, len);
@@ -963,6 +765,7 @@ static struct rte_vdev_driver virtio_user_driver = {
 	.remove = virtio_user_pmd_remove,
 	.dma_map = virtio_user_pmd_dma_map,
 	.dma_unmap = virtio_user_pmd_dma_unmap,
+	.drv_flags = RTE_VDEV_DRV_NEED_IOVA_AS_VA,
 };
 
 RTE_PMD_REGISTER_VDEV(net_virtio_user, virtio_user_driver);

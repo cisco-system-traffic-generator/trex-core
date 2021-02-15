@@ -19,7 +19,7 @@
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
 
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_ether.h>
 #include <rte_interrupts.h>
 #include <rte_mempool.h>
@@ -196,6 +196,10 @@ struct mlx4_priv {
 
 #define PORT_ID(priv) ((priv)->dev_data->port_id)
 #define ETH_DEV(priv) (&rte_eth_devices[PORT_ID(priv)])
+
+int mlx4_proc_priv_init(struct rte_eth_dev *dev);
+void mlx4_proc_priv_uninit(struct rte_eth_dev *dev);
+
 
 /* mlx4_ethdev.c */
 

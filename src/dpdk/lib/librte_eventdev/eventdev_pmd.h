@@ -158,9 +158,6 @@ rte_event_pmd_is_valid_dev(uint8_t dev_id)
  *   Event device pointer
  * @param dev_info
  *   Event device information structure
- *
- * @return
- *   Returns 0 on success
  */
 typedef void (*eventdev_info_get_t)(struct rte_eventdev *dev,
 		struct rte_event_dev_info *dev_info);
@@ -297,7 +294,7 @@ typedef void (*eventdev_port_release_t)(void *port);
  *   Event device pointer
  * @param port
  *   Event port pointer
- * @param link
+ * @param queues
  *   Points to an array of *nb_links* event queues to be linked
  *   to the event port.
  * @param priorities
@@ -383,6 +380,10 @@ typedef void (*eventdev_dump_t)(struct rte_eventdev *dev, FILE *f);
  *
  * @param dev
  *   Event device pointer
+ * @param mode
+ *   Level (device, port or queue)
+ * @param queue_port_id
+ *   Queue or port number depending on mode
  * @param ids
  *   The stat ids to retrieve
  * @param values
@@ -410,8 +411,14 @@ typedef int (*eventdev_xstats_reset_t)(struct rte_eventdev *dev,
  *
  * @param dev
  *   Event device pointer
+ * @param mode
+ *   Level (device, port or queue)
+ * @param queue_port_id
+ *   Queue or port number depending on mode
  * @param xstats_names
  *   Array of name values to be filled in
+ * @param ids
+ *   The stat ids to retrieve
  * @param size
  *   Number of values in the xstats_names array
  * @return

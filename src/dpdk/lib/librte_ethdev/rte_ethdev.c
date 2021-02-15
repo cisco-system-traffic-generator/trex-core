@@ -41,7 +41,7 @@
 
 #include "rte_ethdev_trace.h"
 #include "rte_ethdev.h"
-#include "rte_ethdev_driver.h"
+#include "ethdev_driver.h"
 #include "ethdev_profile.h"
 #include "ethdev_private.h"
 
@@ -1820,7 +1820,7 @@ rte_eth_dev_close(uint16_t port_id)
 	rte_ethdev_trace_close(port_id);
 	*lasterr = rte_eth_dev_release_port(dev);
 
-	return eth_err(port_id, firsterr);
+	return firsterr;
 }
 
 int

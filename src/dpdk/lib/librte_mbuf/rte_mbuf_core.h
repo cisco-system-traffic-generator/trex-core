@@ -17,8 +17,9 @@
  */
 
 #include <stdint.h>
+
 #include <rte_compat.h>
-#include <generic/rte_atomic.h>
+#include <rte_byteorder.h>
 
 #ifdef __cplusplus
 extern "C" {

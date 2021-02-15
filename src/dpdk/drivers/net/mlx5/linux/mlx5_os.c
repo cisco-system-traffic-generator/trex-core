@@ -16,8 +16,8 @@
 #include <fcntl.h>
 
 #include <rte_malloc.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
 #include <rte_common.h>
@@ -676,7 +676,6 @@ mlx5_dev_spawn(struct rte_device *dpdk_dev,
 	int err = 0;
 	unsigned int hw_padding = 0;
 	unsigned int mps;
-	unsigned int cqe_comp;
 	unsigned int tunnel_en = 0;
 	unsigned int mpls_en = 0;
 	unsigned int swp = 0;
@@ -868,12 +867,8 @@ err_secondary:
 			mprq_caps.max_single_wqe_log_num_of_strides;
 	}
 #endif
-	if (RTE_CACHE_LINE_SIZE == 128 &&
-	    !(dv_attr.flags & MLX5DV_CONTEXT_FLAGS_CQE_128B_COMP))
-		cqe_comp = 0;
-	else
-		cqe_comp = 1;
-	config->cqe_comp = cqe_comp;
+	/* Rx CQE compression is enabled by default. */
+	config->cqe_comp = 1;
 #ifdef HAVE_IBV_DEVICE_TUNNEL_SUPPORT
 	if (dv_attr.comp_mask & MLX5DV_CONTEXT_MASK_TUNNEL_OFFLOADS) {
 		tunnel_en = ((dv_attr.tunnel_offloads_caps &
@@ -930,8 +925,6 @@ err_secondary:
 	priv->dev_port = spawn->phys_port;
 	priv->pci_dev = spawn->pci_dev;
 	priv->mtu = RTE_ETHER_MTU;
-	priv->mp_id.port_id = port_id;
-	strlcpy(priv->mp_id.name, MLX5_MP_NAME, RTE_MP_MAX_NAME_LEN);
 	/* Some internal functions rely on Netlink sockets, open them now. */
 	priv->nl_socket_rdma = mlx5_nl_init(NETLINK_RDMA);
 	priv->nl_socket_route =	mlx5_nl_init(NETLINK_ROUTE);
@@ -1106,10 +1099,6 @@ err_secondary:
 		config->mps == MLX5_MPW_ENHANCED ? "enhanced " :
 		config->mps == MLX5_MPW ? "legacy " : "",
 		config->mps != MLX5_MPW_DISABLED ? "enabled" : "disabled");
-	if (config->cqe_comp && !cqe_comp) {
-		DRV_LOG(WARNING, "Rx CQE compression isn't supported");
-		config->cqe_comp = 0;
-	}
 	if (config->devx) {
 		err = mlx5_devx_cmd_query_hca_attr(sh->ctx, &config->hca_attr);
 		if (err) {
@@ -1147,7 +1136,7 @@ err_secondary:
 		}
 #if defined(HAVE_MLX5DV_DR) && defined(HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER)
 		if (config->hca_attr.qos.sup &&
-		    config->hca_attr.qos.srtcm_sup &&
+		    config->hca_attr.qos.flow_meter_old &&
 		    config->dv_flow_en) {
 			uint8_t reg_c_mask =
 				config->hca_attr.qos.flow_meter_reg_c_ids;
@@ -1175,7 +1164,7 @@ err_secondary:
 							      - 1 + REG_C_0;
 				priv->mtr_en = 1;
 				priv->mtr_reg_share =
-				      config->hca_attr.qos.flow_meter_reg_share;
+				      config->hca_attr.qos.flow_meter;
 				DRV_LOG(DEBUG, "The REG_C meter uses is %d",
 					priv->mtr_color_reg);
 			}
@@ -1208,6 +1197,25 @@ err_secondary:
 		}
 #endif
 	}
+	if (config->cqe_comp && RTE_CACHE_LINE_SIZE == 128 &&
+	    !(dv_attr.flags & MLX5DV_CONTEXT_FLAGS_CQE_128B_COMP)) {
+		DRV_LOG(WARNING, "Rx CQE 128B compression is not supported");
+		config->cqe_comp = 0;
+	}
+	if (config->cqe_comp_fmt == MLX5_CQE_RESP_FORMAT_FTAG_STRIDX &&
+	    (!config->devx || !config->hca_attr.mini_cqe_resp_flow_tag)) {
+		DRV_LOG(WARNING, "Flow Tag CQE compression"
+				 " format isn't supported.");
+		config->cqe_comp = 0;
+	}
+	if (config->cqe_comp_fmt == MLX5_CQE_RESP_FORMAT_L34H_STRIDX &&
+	    (!config->devx || !config->hca_attr.mini_cqe_resp_l3_l4_tag)) {
+		DRV_LOG(WARNING, "L3/L4 Header CQE compression"
+				 " format isn't supported.");
+		config->cqe_comp = 0;
+	}
+	DRV_LOG(DEBUG, "Rx CQE compression is %ssupported",
+			config->cqe_comp ? "" : "not ");
 	if (config->tx_pp) {
 		DRV_LOG(DEBUG, "Timestamp counter frequency %u kHz",
 			config->hca_attr.dev_freq_khz);
@@ -1347,6 +1355,8 @@ err_secondary:
 		eth_dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 		eth_dev->data->representor_id = priv->representor_id;
 	}
+	priv->mp_id.port_id = eth_dev->data->port_id;
+	strlcpy(priv->mp_id.name, MLX5_MP_NAME, RTE_MP_MAX_NAME_LEN);
 	/*
 	 * Store associated network device interface index. This index
 	 * is permanent throughout the lifetime of device. So, we may store

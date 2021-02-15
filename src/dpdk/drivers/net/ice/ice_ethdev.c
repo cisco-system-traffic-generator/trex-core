@@ -3,7 +3,7 @@
  */
 
 #include <rte_string_fns.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -67,8 +67,6 @@ static struct proto_xtr_ol_flag ice_proto_xtr_ol_flag_params[] = {
 		.param = { .name = "intel_pmd_dynflag_proto_xtr_ip_offset" },
 		.ol_flag = &rte_net_ice_dynflag_proto_xtr_ip_offset_mask },
 };
-
-#define ICE_DFLT_OUTER_TAG_TYPE ICE_AQ_VSI_OUTER_TAG_VLAN_9100
 
 #define ICE_OS_DEFAULT_PKG_NAME		"ICE OS Default Package"
 #define ICE_COMMS_PKG_NAME			"ICE COMMS Package"
@@ -152,6 +150,11 @@ static const struct rte_pci_id pci_id_ice_map[] = {
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E810_XXV_BACKPLANE) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E810_XXV_QSFP) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E810_XXV_SFP) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823C_BACKPLANE) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823C_QSFP) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823C_SFP) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823C_10G_BASE_T) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823C_SGMII) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822C_BACKPLANE) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822C_QSFP) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822C_SFP) },
@@ -945,12 +948,13 @@ DONE:
 
 /* Find out specific VLAN filter */
 static struct ice_vlan_filter *
-ice_find_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
+ice_find_vlan_filter(struct ice_vsi *vsi, struct ice_vlan *vlan)
 {
 	struct ice_vlan_filter *f;
 
 	TAILQ_FOREACH(f, &vsi->vlan_list, next) {
-		if (vlan_id == f->vlan_info.vlan_id)
+		if (vlan->tpid == f->vlan_info.vlan.tpid &&
+		    vlan->vid == f->vlan_info.vlan.vid)
 			return f;
 	}
 
@@ -958,7 +962,7 @@ ice_find_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 }
 
 static int
-ice_add_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
+ice_add_vlan_filter(struct ice_vsi *vsi, struct ice_vlan *vlan)
 {
 	struct ice_fltr_list_entry *v_list_itr = NULL;
 	struct ice_vlan_filter *f;
@@ -966,13 +970,13 @@ ice_add_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 	struct ice_hw *hw;
 	int ret = 0;
 
-	if (!vsi || vlan_id > RTE_ETHER_MAX_VLAN_ID)
+	if (!vsi || vlan->vid > RTE_ETHER_MAX_VLAN_ID)
 		return -EINVAL;
 
 	hw = ICE_VSI_TO_HW(vsi);
 
 	/* If it's added and configured, return. */
-	f = ice_find_vlan_filter(vsi, vlan_id);
+	f = ice_find_vlan_filter(vsi, vlan);
 	if (f) {
 		PMD_DRV_LOG(INFO, "This VLAN filter already exists.");
 		return 0;
@@ -989,7 +993,9 @@ ice_add_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 		ret = -ENOMEM;
 		goto DONE;
 	}
-	v_list_itr->fltr_info.l_data.vlan.vlan_id = vlan_id;
+	v_list_itr->fltr_info.l_data.vlan.vlan_id = vlan->vid;
+	v_list_itr->fltr_info.l_data.vlan.tpid = vlan->tpid;
+	v_list_itr->fltr_info.l_data.vlan.tpid_valid = true;
 	v_list_itr->fltr_info.src_id = ICE_SRC_ID_VSI;
 	v_list_itr->fltr_info.fltr_act = ICE_FWD_TO_VSI;
 	v_list_itr->fltr_info.lkup_type = ICE_SW_LKUP_VLAN;
@@ -1013,7 +1019,8 @@ ice_add_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 		ret = -ENOMEM;
 		goto DONE;
 	}
-	f->vlan_info.vlan_id = vlan_id;
+	f->vlan_info.vlan.tpid = vlan->tpid;
+	f->vlan_info.vlan.vid = vlan->vid;
 	TAILQ_INSERT_TAIL(&vsi->vlan_list, f, next);
 	vsi->vlan_num++;
 
@@ -1025,7 +1032,7 @@ DONE:
 }
 
 static int
-ice_remove_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
+ice_remove_vlan_filter(struct ice_vsi *vsi, struct ice_vlan *vlan)
 {
 	struct ice_fltr_list_entry *v_list_itr = NULL;
 	struct ice_vlan_filter *f;
@@ -1033,17 +1040,13 @@ ice_remove_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 	struct ice_hw *hw;
 	int ret = 0;
 
-	/**
-	 * Vlan 0 is the generic filter for untagged packets
-	 * and can't be removed.
-	 */
-	if (!vsi || vlan_id == 0 || vlan_id > RTE_ETHER_MAX_VLAN_ID)
+	if (!vsi || vlan->vid > RTE_ETHER_MAX_VLAN_ID)
 		return -EINVAL;
 
 	hw = ICE_VSI_TO_HW(vsi);
 
 	/* Can't find it, return an error */
-	f = ice_find_vlan_filter(vsi, vlan_id);
+	f = ice_find_vlan_filter(vsi, vlan);
 	if (!f)
 		return -EINVAL;
 
@@ -1056,7 +1059,9 @@ ice_remove_vlan_filter(struct ice_vsi *vsi, uint16_t vlan_id)
 		goto DONE;
 	}
 
-	v_list_itr->fltr_info.l_data.vlan.vlan_id = vlan_id;
+	v_list_itr->fltr_info.l_data.vlan.vlan_id = vlan->vid;
+	v_list_itr->fltr_info.l_data.vlan.tpid = vlan->tpid;
+	v_list_itr->fltr_info.l_data.vlan.tpid_valid = true;
 	v_list_itr->fltr_info.src_id = ICE_SRC_ID_VSI;
 	v_list_itr->fltr_info.fltr_act = ICE_FWD_TO_VSI;
 	v_list_itr->fltr_info.lkup_type = ICE_SW_LKUP_VLAN;
@@ -1106,7 +1111,7 @@ ice_remove_all_mac_vlan_filters(struct ice_vsi *vsi)
 		return 0;
 
 	TAILQ_FOREACH(v_f, &vsi->vlan_list, next) {
-		ret = ice_remove_vlan_filter(vsi, v_f->vlan_info.vlan_id);
+		ret = ice_remove_vlan_filter(vsi, &v_f->vlan_info.vlan);
 		if (ret != ICE_SUCCESS) {
 			ret = -EINVAL;
 			goto DONE;
@@ -1114,127 +1119,6 @@ ice_remove_all_mac_vlan_filters(struct ice_vsi *vsi)
 	}
 
 DONE:
-	return ret;
-}
-
-static int
-ice_vsi_config_qinq_insertion(struct ice_vsi *vsi, bool on)
-{
-	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
-	struct ice_vsi_ctx ctxt;
-	uint8_t qinq_flags;
-	int ret = 0;
-
-	/* Check if it has been already on or off */
-	if (vsi->info.valid_sections &
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID)) {
-		if (on) {
-			if ((vsi->info.outer_vlan_flags &
-			     ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_ACCEPT_HOST) ==
-			    ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_ACCEPT_HOST)
-				return 0; /* already on */
-		} else {
-			if (!(vsi->info.outer_vlan_flags &
-			      ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_ACCEPT_HOST))
-				return 0; /* already off */
-		}
-	}
-
-	if (on)
-		qinq_flags = ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_ACCEPT_HOST;
-	else
-		qinq_flags = 0;
-	/* clear global insertion and use per packet insertion */
-	vsi->info.outer_vlan_flags &= ~(ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_INSERT);
-	vsi->info.outer_vlan_flags &= ~(ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_ACCEPT_HOST);
-	vsi->info.outer_vlan_flags |= qinq_flags;
-	/* use default vlan type 0x8100 */
-	vsi->info.outer_vlan_flags &= ~(ICE_AQ_VSI_OUTER_TAG_TYPE_M);
-	vsi->info.outer_vlan_flags |= ICE_DFLT_OUTER_TAG_TYPE <<
-				     ICE_AQ_VSI_OUTER_TAG_TYPE_S;
-	(void)rte_memcpy(&ctxt.info, &vsi->info, sizeof(vsi->info));
-	ctxt.info.valid_sections =
-			rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
-	ctxt.vsi_num = vsi->vsi_id;
-	ret = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
-	if (ret) {
-		PMD_DRV_LOG(INFO,
-			    "Update VSI failed to %s qinq stripping",
-			    on ? "enable" : "disable");
-		return -EINVAL;
-	}
-
-	vsi->info.valid_sections |=
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
-
-	return ret;
-}
-
-static int
-ice_vsi_config_qinq_stripping(struct ice_vsi *vsi, bool on)
-{
-	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
-	struct ice_vsi_ctx ctxt;
-	uint8_t qinq_flags;
-	int ret = 0;
-
-	/* Check if it has been already on or off */
-	if (vsi->info.valid_sections &
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID)) {
-		if (on) {
-			if ((vsi->info.outer_vlan_flags &
-			     ICE_AQ_VSI_OUTER_VLAN_EMODE_M) ==
-			    ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW)
-				return 0; /* already on */
-		} else {
-			if ((vsi->info.outer_vlan_flags &
-			     ICE_AQ_VSI_OUTER_VLAN_EMODE_M) ==
-			    ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW_BOTH)
-				return 0; /* already off */
-		}
-	}
-
-	if (on)
-		qinq_flags = ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW;
-	else
-		qinq_flags = ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW_BOTH;
-	vsi->info.outer_vlan_flags &= ~(ICE_AQ_VSI_OUTER_VLAN_EMODE_M);
-	vsi->info.outer_vlan_flags |= qinq_flags;
-	/* use default vlan type 0x8100 */
-	vsi->info.outer_vlan_flags &= ~(ICE_AQ_VSI_OUTER_TAG_TYPE_M);
-	vsi->info.outer_vlan_flags |= ICE_DFLT_OUTER_TAG_TYPE <<
-				     ICE_AQ_VSI_OUTER_TAG_TYPE_S;
-	(void)rte_memcpy(&ctxt.info, &vsi->info, sizeof(vsi->info));
-	ctxt.info.valid_sections =
-			rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
-	ctxt.vsi_num = vsi->vsi_id;
-	ret = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
-	if (ret) {
-		PMD_DRV_LOG(INFO,
-			    "Update VSI failed to %s qinq stripping",
-			    on ? "enable" : "disable");
-		return -EINVAL;
-	}
-
-	vsi->info.valid_sections |=
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
-
-	return ret;
-}
-
-static int
-ice_vsi_config_double_vlan(struct ice_vsi *vsi, int on)
-{
-	int ret;
-
-	ret = ice_vsi_config_qinq_stripping(vsi, on);
-	if (ret)
-		PMD_DRV_LOG(ERR, "Fail to set qinq stripping - %d", ret);
-
-	ret = ice_vsi_config_qinq_insertion(vsi, on);
-	if (ret)
-		PMD_DRV_LOG(ERR, "Fail to set qinq insertion - %d", ret);
-
 	return ret;
 }
 
@@ -1584,6 +1468,16 @@ ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type)
 		vsi_ctx.info.inner_vlan_flags |= ICE_AQ_VSI_INNER_VLAN_EMODE_NOTHING;
 		vsi_ctx.info.q_opt_rss = ICE_AQ_VSI_Q_OPT_RSS_LUT_PF |
 					 ICE_AQ_VSI_Q_OPT_RSS_TPLZ;
+		if (ice_is_dvm_ena(hw)) {
+			vsi_ctx.info.outer_vlan_flags =
+				(ICE_AQ_VSI_OUTER_VLAN_TX_MODE_ALL <<
+				 ICE_AQ_VSI_OUTER_VLAN_TX_MODE_S) &
+				ICE_AQ_VSI_OUTER_VLAN_TX_MODE_M;
+			vsi_ctx.info.outer_vlan_flags |=
+				(ICE_AQ_VSI_OUTER_TAG_VLAN_8100 <<
+				 ICE_AQ_VSI_OUTER_TAG_TYPE_S) &
+				ICE_AQ_VSI_OUTER_TAG_TYPE_M;
+		}
 
 		/* FDIR */
 		cfg = ICE_AQ_VSI_PROP_SECURITY_VALID |
@@ -1811,10 +1705,11 @@ ice_load_pkg_type(struct ice_hw *hw)
 	else
 		package_type = ICE_PKG_TYPE_UNKNOWN;
 
-	PMD_INIT_LOG(NOTICE, "Active package is: %d.%d.%d.%d, %s",
+	PMD_INIT_LOG(NOTICE, "Active package is: %d.%d.%d.%d, %s (%s VLAN mode)",
 		hw->active_pkg_ver.major, hw->active_pkg_ver.minor,
 		hw->active_pkg_ver.update, hw->active_pkg_ver.draft,
-		hw->active_pkg_name);
+		hw->active_pkg_name,
+		ice_is_dvm_ena(hw) ? "double" : "single");
 
 	return package_type;
 }
@@ -2214,9 +2109,6 @@ ice_dev_init(struct rte_eth_dev *dev)
 	}
 
 	vsi = pf->main_vsi;
-
-	/* Disable double vlan by default */
-	ice_vsi_config_double_vlan(vsi, false);
 
 	ret = ice_aq_stop_lldp(hw, true, false, NULL);
 	if (ret != ICE_SUCCESS)
@@ -4012,23 +3904,102 @@ static int
 ice_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+	struct ice_vlan vlan = ICE_VLAN(RTE_ETHER_TYPE_VLAN, vlan_id);
 	struct ice_vsi *vsi = pf->main_vsi;
 	int ret;
 
 	PMD_INIT_FUNC_TRACE();
 
+	/**
+	 * Vlan 0 is the generic filter for untagged packets
+	 * and can't be removed or added by user.
+	 */
+	if (vlan_id == 0)
+		return 0;
+
 	if (on) {
-		ret = ice_add_vlan_filter(vsi, vlan_id);
+		ret = ice_add_vlan_filter(vsi, &vlan);
 		if (ret < 0) {
 			PMD_DRV_LOG(ERR, "Failed to add vlan filter");
 			return -EINVAL;
 		}
 	} else {
-		ret = ice_remove_vlan_filter(vsi, vlan_id);
+		ret = ice_remove_vlan_filter(vsi, &vlan);
 		if (ret < 0) {
 			PMD_DRV_LOG(ERR, "Failed to remove vlan filter");
 			return -EINVAL;
 		}
+	}
+
+	return 0;
+}
+
+/* In Single VLAN Mode (SVM), single VLAN filters via ICE_SW_LKUP_VLAN are
+ * based on the inner VLAN ID, so the VLAN TPID (i.e. 0x8100 or 0x888a8)
+ * doesn't matter. In Double VLAN Mode (DVM), outer/single VLAN filters via
+ * ICE_SW_LKUP_VLAN are based on the outer/single VLAN ID + VLAN TPID.
+ *
+ * For both modes add a VLAN 0 + no VLAN TPID filter to handle untagged traffic
+ * when VLAN pruning is enabled. Also, this handles VLAN 0 priority tagged
+ * traffic in SVM, since the VLAN TPID isn't part of filtering.
+ *
+ * If DVM is enabled then an explicit VLAN 0 + VLAN TPID filter needs to be
+ * added to allow VLAN 0 priority tagged traffic in DVM, since the VLAN TPID is
+ * part of filtering.
+ */
+static int
+ice_vsi_add_vlan_zero(struct ice_vsi *vsi)
+{
+	struct ice_vlan vlan;
+	int err;
+
+	vlan = ICE_VLAN(0, 0);
+	err = ice_add_vlan_filter(vsi, &vlan);
+	if (err) {
+		PMD_DRV_LOG(DEBUG, "Failed to add VLAN ID 0");
+		return err;
+	}
+
+	/* in SVM both VLAN 0 filters are identical */
+	if (!ice_is_dvm_ena(&vsi->adapter->hw))
+		return 0;
+
+	vlan = ICE_VLAN(RTE_ETHER_TYPE_VLAN, 0);
+	err = ice_add_vlan_filter(vsi, &vlan);
+	if (err) {
+		PMD_DRV_LOG(DEBUG, "Failed to add VLAN ID 0 in double VLAN mode");
+		return err;
+	}
+
+	return 0;
+}
+
+/*
+ * Delete the VLAN 0 filters in the same manner that they were added in
+ * ice_vsi_add_vlan_zero.
+ */
+static int
+ice_vsi_del_vlan_zero(struct ice_vsi *vsi)
+{
+	struct ice_vlan vlan;
+	int err;
+
+	vlan = ICE_VLAN(0, 0);
+	err = ice_remove_vlan_filter(vsi, &vlan);
+	if (err) {
+		PMD_DRV_LOG(DEBUG, "Failed to remove VLAN ID 0");
+		return err;
+	}
+
+	/* in SVM both VLAN 0 filters are identical */
+	if (!ice_is_dvm_ena(&vsi->adapter->hw))
+		return 0;
+
+	vlan = ICE_VLAN(RTE_ETHER_TYPE_VLAN, 0);
+	err = ice_remove_vlan_filter(vsi, &vlan);
+	if (err) {
+		PMD_DRV_LOG(DEBUG, "Failed to remove VLAN ID 0 in double VLAN mode");
+		return err;
 	}
 
 	return 0;
@@ -4074,56 +4045,154 @@ ice_vsi_config_vlan_filter(struct ice_vsi *vsi, bool on)
 
 	/* consist with other drivers, allow untagged packet when vlan filter on */
 	if (on)
-		ret = ice_add_vlan_filter(vsi, 0);
+		ret = ice_vsi_add_vlan_zero(vsi);
 	else
-		ret = ice_remove_vlan_filter(vsi, 0);
+		ret = ice_vsi_del_vlan_zero(vsi);
 
 	return 0;
 }
 
+/* Manage VLAN stripping for the VSI for Rx */
 static int
-ice_vsi_config_vlan_stripping(struct ice_vsi *vsi, bool on)
+ice_vsi_manage_vlan_stripping(struct ice_vsi *vsi, bool ena)
 {
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	struct ice_vsi_ctx ctxt;
-	uint8_t vlan_flags;
-	int ret = 0;
+	enum ice_status status;
+	int err = 0;
 
-	/* Check if it has been already on or off */
-	if (vsi->info.valid_sections &
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_VLAN_VALID)) {
-		if (on) {
-			if ((vsi->info.inner_vlan_flags &
-			     ICE_AQ_VSI_INNER_VLAN_EMODE_M) ==
-			    ICE_AQ_VSI_INNER_VLAN_EMODE_STR_BOTH)
-				return 0; /* already on */
-		} else {
-			if ((vsi->info.inner_vlan_flags &
-			     ICE_AQ_VSI_INNER_VLAN_EMODE_M) ==
-			    ICE_AQ_VSI_INNER_VLAN_EMODE_NOTHING)
-				return 0; /* already off */
-		}
-	}
+	/* do not allow modifying VLAN stripping when a port VLAN is configured
+	 * on this VSI
+	 */
+	if (vsi->info.port_based_inner_vlan)
+		return 0;
 
-	if (on)
-		vlan_flags = ICE_AQ_VSI_INNER_VLAN_EMODE_STR_BOTH;
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	if (ena)
+		/* Strip VLAN tag from Rx packet and put it in the desc */
+		ctxt.info.inner_vlan_flags =
+					ICE_AQ_VSI_INNER_VLAN_EMODE_STR_BOTH;
 	else
-		vlan_flags = ICE_AQ_VSI_INNER_VLAN_EMODE_NOTHING;
-	vsi->info.inner_vlan_flags &= ~(ICE_AQ_VSI_INNER_VLAN_EMODE_M);
-	vsi->info.inner_vlan_flags |= vlan_flags;
-	(void)rte_memcpy(&ctxt.info, &vsi->info, sizeof(vsi->info));
-	ctxt.info.valid_sections =
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_VLAN_VALID);
-	ctxt.vsi_num = vsi->vsi_id;
-	ret = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
-	if (ret) {
-		PMD_DRV_LOG(INFO, "Update VSI failed to %s vlan stripping",
-			    on ? "enable" : "disable");
-		return -EINVAL;
+		/* Disable stripping. Leave tag in packet */
+		ctxt.info.inner_vlan_flags =
+					ICE_AQ_VSI_INNER_VLAN_EMODE_NOTHING;
+
+	/* Allow all packets untagged/tagged */
+	ctxt.info.inner_vlan_flags |= ICE_AQ_VSI_INNER_VLAN_TX_MODE_ALL;
+
+	ctxt.info.valid_sections = rte_cpu_to_le_16(ICE_AQ_VSI_PROP_VLAN_VALID);
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (status) {
+		PMD_DRV_LOG(ERR, "Update VSI failed to %s vlan stripping",
+			    ena ? "enable" : "disable");
+		err = -EIO;
+	} else {
+		vsi->info.inner_vlan_flags = ctxt.info.inner_vlan_flags;
 	}
 
-	vsi->info.valid_sections |=
-		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_VLAN_VALID);
+	return err;
+}
+
+static int
+ice_vsi_ena_inner_stripping(struct ice_vsi *vsi)
+{
+	return ice_vsi_manage_vlan_stripping(vsi, true);
+}
+
+static int
+ice_vsi_dis_inner_stripping(struct ice_vsi *vsi)
+{
+	return ice_vsi_manage_vlan_stripping(vsi, false);
+}
+
+static int ice_vsi_ena_outer_stripping(struct ice_vsi *vsi)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_vsi_ctx ctxt;
+	enum ice_status status;
+	int err = 0;
+
+	/* do not allow modifying VLAN stripping when a port VLAN is configured
+	 * on this VSI
+	 */
+	if (vsi->info.port_based_outer_vlan)
+		return 0;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	ctxt.info.valid_sections =
+		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
+	/* clear current outer VLAN strip settings */
+	ctxt.info.outer_vlan_flags = vsi->info.outer_vlan_flags &
+		~(ICE_AQ_VSI_OUTER_VLAN_EMODE_M | ICE_AQ_VSI_OUTER_TAG_TYPE_M);
+	ctxt.info.outer_vlan_flags |=
+		(ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW_BOTH <<
+		 ICE_AQ_VSI_OUTER_VLAN_EMODE_S) |
+		(ICE_AQ_VSI_OUTER_TAG_VLAN_8100 <<
+		 ICE_AQ_VSI_OUTER_TAG_TYPE_S);
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (status) {
+		PMD_DRV_LOG(ERR, "Update VSI failed to enable outer VLAN stripping");
+		err = -EIO;
+	} else {
+		vsi->info.outer_vlan_flags = ctxt.info.outer_vlan_flags;
+	}
+
+	return err;
+}
+
+static int
+ice_vsi_dis_outer_stripping(struct ice_vsi *vsi)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_vsi_ctx ctxt;
+	enum ice_status status;
+	int err = 0;
+
+	if (vsi->info.port_based_outer_vlan)
+		return 0;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	ctxt.info.valid_sections =
+		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
+	/* clear current outer VLAN strip settings */
+	ctxt.info.outer_vlan_flags = vsi->info.outer_vlan_flags &
+		~ICE_AQ_VSI_OUTER_VLAN_EMODE_M;
+	ctxt.info.outer_vlan_flags |= ICE_AQ_VSI_OUTER_VLAN_EMODE_NOTHING <<
+		ICE_AQ_VSI_OUTER_VLAN_EMODE_S;
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (status) {
+		PMD_DRV_LOG(ERR, "Update VSI failed to disable outer VLAN stripping");
+		err = -EIO;
+	} else {
+		vsi->info.outer_vlan_flags = ctxt.info.outer_vlan_flags;
+	}
+
+	return err;
+}
+
+static int
+ice_vsi_config_vlan_stripping(struct ice_vsi *vsi, bool ena)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	int ret;
+
+	if (ice_is_dvm_ena(hw)) {
+		if (ena)
+			ret = ice_vsi_ena_outer_stripping(vsi);
+		else
+			ret = ice_vsi_dis_outer_stripping(vsi);
+	} else {
+		if (ena)
+			ret = ice_vsi_ena_inner_stripping(vsi);
+		else
+			ret = ice_vsi_dis_inner_stripping(vsi);
+	}
 
 	return ret;
 }
@@ -4148,13 +4217,6 @@ ice_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 			ice_vsi_config_vlan_stripping(vsi, true);
 		else
 			ice_vsi_config_vlan_stripping(vsi, false);
-	}
-
-	if (mask & ETH_VLAN_EXTEND_MASK) {
-		if (rxmode->offloads & DEV_RX_OFFLOAD_VLAN_EXTEND)
-			ice_vsi_config_double_vlan(vsi, true);
-		else
-			ice_vsi_config_double_vlan(vsi, false);
 	}
 
 	return 0;

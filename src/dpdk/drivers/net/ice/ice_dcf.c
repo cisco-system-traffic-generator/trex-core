@@ -17,8 +17,8 @@
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_memzone.h>
 #include <rte_dev.h>
@@ -505,9 +505,7 @@ ice_dcf_send_aq_cmd(void *dcf_hw, struct ice_aq_desc *desc,
 	}
 
 	do {
-		if ((!desc_cmd.pending && !buff_cmd.pending) ||
-		    (!desc_cmd.pending && desc_cmd.v_ret != IAVF_SUCCESS) ||
-		    (!buff_cmd.pending && buff_cmd.v_ret != IAVF_SUCCESS))
+		if (!desc_cmd.pending && !buff_cmd.pending)
 			break;
 
 		rte_delay_ms(ICE_DCF_ARQ_CHECK_TIME);

@@ -6,7 +6,7 @@
 #define _HNS3_ETHDEV_H_
 
 #include <sys/time.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_byteorder.h>
 #include <rte_io.h>
 #include <rte_spinlock.h>
@@ -352,11 +352,11 @@ enum hns3_schedule {
 
 struct hns3_reset_data {
 	enum hns3_reset_stage stage;
-	rte_atomic16_t schedule;
+	uint16_t schedule;
 	/* Reset flag, covering the entire reset process */
 	uint16_t resetting;
 	/* Used to disable sending cmds during reset */
-	rte_atomic16_t disable_cmd;
+	uint16_t disable_cmd;
 	/* The reset level being processed */
 	enum hns3_reset_level level;
 	/* Reset level set, each bit represents a reset level */
@@ -946,11 +946,13 @@ int hns3_dev_filter_ctrl(struct rte_eth_dev *dev,
 			 enum rte_filter_op filter_op, void *arg);
 bool hns3_is_reset_pending(struct hns3_adapter *hns);
 bool hns3vf_is_reset_pending(struct hns3_adapter *hns);
-void hns3_update_link_status(struct hns3_hw *hw);
+void hns3_update_link_status_and_event(struct hns3_hw *hw);
 void hns3_ether_format_addr(char *buf, uint16_t size,
 			const struct rte_ether_addr *ether_addr);
 int hns3_dev_infos_get(struct rte_eth_dev *eth_dev,
 		       struct rte_eth_dev_info *info);
+void hns3vf_update_link_status(struct hns3_hw *hw, uint8_t link_status,
+			  uint32_t link_speed, uint8_t link_duplex);
 
 static inline bool
 is_reset_pending(struct hns3_adapter *hns)

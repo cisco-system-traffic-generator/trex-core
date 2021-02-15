@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2017 Marvell International Ltd.
- * Copyright(c) 2017 Semihalf.
+ * Copyright(c) 2017-2021 Marvell International Ltd.
+ * Copyright(c) 2017-2021 Semihalf.
  * All rights reserved.
  */
 
 #include <rte_string_fns.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -33,15 +33,17 @@
 /* bitmask with reserved bpools */
 #define MRVL_MUSDK_BPOOLS_RESERVED 0x07
 /* bitmask with reserved kernel RSS tables */
-#define MRVL_MUSDK_RSS_RESERVED 0x01
+#define MRVL_MUSDK_RSS_RESERVED 0x0F
 /* maximum number of available hifs */
 #define MRVL_MUSDK_HIFS_MAX 9
 
 /* prefetch shift */
 #define MRVL_MUSDK_PREFETCH_SHIFT 2
 
-/* TCAM has 25 entries reserved for uc/mc filter entries */
-#define MRVL_MAC_ADDRS_MAX 25
+/* TCAM has 25 entries reserved for uc/mc filter entries
+ * + 1 for primary mac address
+ */
+#define MRVL_MAC_ADDRS_MAX (1 + 25)
 #define MRVL_MATCH_LEN 16
 #define MRVL_PKT_EFFEC_OFFS (MRVL_PKT_OFFS + MV_MH_SIZE)
 /* Maximum allowable packet size */
@@ -49,8 +51,6 @@
 
 #define MRVL_IFACE_NAME_ARG "iface"
 #define MRVL_CFG_ARG "cfg"
-
-#define MRVL_BURST_SIZE 64
 
 #define MRVL_ARP_LENGTH 28
 
@@ -63,10 +63,15 @@
 			  DEV_RX_OFFLOAD_CHECKSUM)
 
 /** Port Tx offloads capabilities */
-#define MRVL_TX_OFFLOADS (DEV_TX_OFFLOAD_IPV4_CKSUM | \
-			  DEV_TX_OFFLOAD_UDP_CKSUM | \
-			  DEV_TX_OFFLOAD_TCP_CKSUM | \
+#define MRVL_TX_OFFLOAD_CHECKSUM (DEV_TX_OFFLOAD_IPV4_CKSUM | \
+				  DEV_TX_OFFLOAD_UDP_CKSUM  | \
+				  DEV_TX_OFFLOAD_TCP_CKSUM)
+#define MRVL_TX_OFFLOADS (MRVL_TX_OFFLOAD_CHECKSUM | \
 			  DEV_TX_OFFLOAD_MULTI_SEGS)
+
+#define MRVL_TX_PKT_OFFLOADS (PKT_TX_IP_CKSUM | \
+			      PKT_TX_TCP_CKSUM | \
+			      PKT_TX_UDP_CKSUM)
 
 static const char * const valid_args[] = {
 	MRVL_IFACE_NAME_ARG,
@@ -83,6 +88,8 @@ static int used_bpools[PP2_NUM_PKT_PROC] = {
 static struct pp2_bpool *mrvl_port_to_bpool_lookup[RTE_MAX_ETHPORTS];
 static int mrvl_port_bpool_size[PP2_NUM_PKT_PROC][PP2_BPOOL_NUM_POOLS][RTE_MAX_LCORE];
 static uint64_t cookie_addr_high = MRVL_COOKIE_ADDR_INVALID;
+static int dummy_pool_id[PP2_NUM_PKT_PROC];
+struct pp2_bpool *dummy_pool[PP2_NUM_PKT_PROC] = {0};
 
 struct mrvl_ifnames {
 	const char *names[PP2_NUM_ETH_PPIO * PP2_NUM_PKT_PROC];
@@ -146,6 +153,17 @@ static int rte_pmd_mrvl_remove(struct rte_vdev_device *vdev);
 static void mrvl_deinit_pp2(void);
 static void mrvl_deinit_hifs(void);
 
+static int
+mrvl_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
+		  uint32_t index, uint32_t vmdq __rte_unused);
+static int
+mrvl_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr);
+static int
+mrvl_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on);
+static int mrvl_promiscuous_enable(struct rte_eth_dev *dev);
+static int mrvl_allmulticast_enable(struct rte_eth_dev *dev);
+static int
+mrvl_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf);
 
 #define MRVL_XSTATS_TBL_ENTRY(name) { \
 	#name, offsetof(struct pp2_ppio_statistics, name),	\
@@ -173,6 +191,112 @@ static struct {
 	MRVL_XSTATS_TBL_ENTRY(tx_errors)
 };
 
+static inline int
+mrvl_reserve_bit(int *bitmap, int max)
+{
+	int n = sizeof(*bitmap) * 8 - __builtin_clz(*bitmap);
+
+	if (n >= max)
+		return -1;
+
+	*bitmap |= 1 << n;
+
+	return n;
+}
+
+static int
+mrvl_pp2_fixup_init(void)
+{
+	struct pp2_bpool_params bpool_params;
+	char			name[15];
+	int			err, i;
+
+	memset(dummy_pool, 0, sizeof(dummy_pool));
+	for (i = 0; i < pp2_get_num_inst(); i++) {
+		dummy_pool_id[i] = mrvl_reserve_bit(&used_bpools[i],
+					     PP2_BPOOL_NUM_POOLS);
+		if (dummy_pool_id[i] < 0) {
+			MRVL_LOG(ERR, "Can't find free pool\n");
+			return -1;
+		}
+
+		memset(name, 0, sizeof(name));
+		snprintf(name, sizeof(name), "pool-%d:%d", i, dummy_pool_id[i]);
+		memset(&bpool_params, 0, sizeof(bpool_params));
+		bpool_params.match = name;
+		bpool_params.buff_len = MRVL_PKT_OFFS;
+		bpool_params.dummy_short_pool = 1;
+		err = pp2_bpool_init(&bpool_params, &dummy_pool[i]);
+		if (err != 0 || !dummy_pool[i]) {
+			MRVL_LOG(ERR, "BPool init failed!\n");
+			used_bpools[i] &= ~(1 << dummy_pool_id[i]);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * Initialize packet processor.
+ *
+ * @return
+ *   0 on success, negative error value otherwise.
+ */
+static int
+mrvl_init_pp2(void)
+{
+	struct pp2_init_params	init_params;
+	int			err;
+
+	memset(&init_params, 0, sizeof(init_params));
+	init_params.hif_reserved_map = MRVL_MUSDK_HIFS_RESERVED;
+	init_params.bm_pool_reserved_map = MRVL_MUSDK_BPOOLS_RESERVED;
+	init_params.rss_tbl_reserved_map = MRVL_MUSDK_RSS_RESERVED;
+	if (mrvl_cfg && mrvl_cfg->pp2_cfg.prs_udfs.num_udfs)
+		memcpy(&init_params.prs_udfs, &mrvl_cfg->pp2_cfg.prs_udfs,
+		       sizeof(struct pp2_parse_udfs));
+	err = pp2_init(&init_params);
+	if (err != 0) {
+		MRVL_LOG(ERR, "PP2 init failed");
+		return -1;
+	}
+
+	err = mrvl_pp2_fixup_init();
+	if (err != 0) {
+		MRVL_LOG(ERR, "PP2 fixup init failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+static void
+mrvl_pp2_fixup_deinit(void)
+{
+	int i;
+
+	for (i = 0; i < PP2_NUM_PKT_PROC; i++) {
+		if (!dummy_pool[i])
+			continue;
+		pp2_bpool_deinit(dummy_pool[i]);
+		used_bpools[i] &= ~(1 << dummy_pool_id[i]);
+	}
+}
+
+/**
+ * Deinitialize packet processor.
+ *
+ * @return
+ *   0 on success, negative error value otherwise.
+ */
+static void
+mrvl_deinit_pp2(void)
+{
+	mrvl_pp2_fixup_deinit();
+	pp2_deinit();
+}
+
 static inline void
 mrvl_fill_shadowq(struct mrvl_shadow_txq *sq, struct rte_mbuf *buf)
 {
@@ -187,6 +311,22 @@ mrvl_fill_shadowq(struct mrvl_shadow_txq *sq, struct rte_mbuf *buf)
 
 	sq->head = (sq->head + 1) & MRVL_PP2_TX_SHADOWQ_MASK;
 	sq->size++;
+}
+
+/**
+ * Deinitialize per-lcore MUSDK hardware interfaces (hifs).
+ */
+static void
+mrvl_deinit_hifs(void)
+{
+	int i;
+
+	for (i = mrvl_lcore_first; i <= mrvl_lcore_last; i++) {
+		if (hifs[i])
+			pp2_hif_deinit(hifs[i]);
+	}
+	used_hifs = MRVL_MUSDK_HIFS_RESERVED;
+	memset(hifs, 0, sizeof(hifs));
 }
 
 static inline void
@@ -208,19 +348,6 @@ mrvl_get_bpool_size(int pp2_id, int pool_id)
 		size += mrvl_port_bpool_size[pp2_id][pool_id][i];
 
 	return size;
-}
-
-static inline int
-mrvl_reserve_bit(int *bitmap, int max)
-{
-	int n = sizeof(*bitmap) * 8 - __builtin_clz(*bitmap);
-
-	if (n >= max)
-		return -1;
-
-	*bitmap |= 1 << n;
-
-	return n;
 }
 
 static int
@@ -369,9 +496,17 @@ mrvl_dev_configure(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME)
+	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
 		dev->data->mtu = dev->data->dev_conf.rxmode.max_rx_pkt_len -
 				 MRVL_PP2_ETH_HDRS_LEN;
+		if (dev->data->mtu > priv->max_mtu) {
+			MRVL_LOG(ERR, "inherit MTU %u from max_rx_pkt_len %u is larger than max_mtu %u\n",
+				 dev->data->mtu,
+				 dev->data->dev_conf.rxmode.max_rx_pkt_len,
+				 priv->max_mtu);
+			return -EINVAL;
+		}
+	}
 
 	if (dev->data->dev_conf.txmode.offloads & DEV_TX_OFFLOAD_MULTI_SEGS)
 		priv->multiseg = 1;
@@ -403,7 +538,7 @@ mrvl_dev_configure(struct rte_eth_dev *dev)
 	}
 
 	return mrvl_configure_rss(priv,
-				  &dev->data->dev_conf.rx_adv_conf.rss_conf);
+			&dev->data->dev_conf.rx_adv_conf.rss_conf);
 }
 
 /**
@@ -441,8 +576,8 @@ mrvl_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 	 * when this feature has not been enabled/supported so far
 	 * (TODO check scattered_rx flag here once scattered RX is supported).
 	 */
-	if (mru + MRVL_PKT_OFFS > mbuf_data_size) {
-		mru = mbuf_data_size - MRVL_PKT_OFFS;
+	if (mru - RTE_ETHER_CRC_LEN + MRVL_PKT_OFFS > mbuf_data_size) {
+		mru = mbuf_data_size + RTE_ETHER_CRC_LEN - MRVL_PKT_OFFS;
 		mtu = MRVL_PP2_MRU_TO_MTU(mru);
 		MRVL_LOG(WARNING, "MTU too big, max MTU possible limitted "
 			"by current mbuf size: %u. Set MTU to %u, MRU to %u",
@@ -490,8 +625,10 @@ mrvl_dev_set_link_up(struct rte_eth_dev *dev)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
 
-	if (!priv->ppio)
-		return -EPERM;
+	if (!priv->ppio) {
+		dev->data->dev_link.link_status = ETH_LINK_UP;
+		return 0;
+	}
 
 	ret = pp2_ppio_enable(priv->ppio);
 	if (ret)
@@ -505,10 +642,13 @@ mrvl_dev_set_link_up(struct rte_eth_dev *dev)
 	 * Set mtu to default DPDK value here.
 	 */
 	ret = mrvl_mtu_set(dev, dev->data->mtu);
-	if (ret)
+	if (ret) {
 		pp2_ppio_disable(priv->ppio);
+		return ret;
+	}
 
-	return ret;
+	dev->data->dev_link.link_status = ETH_LINK_UP;
+	return 0;
 }
 
 /**
@@ -524,11 +664,18 @@ static int
 mrvl_dev_set_link_down(struct rte_eth_dev *dev)
 {
 	struct mrvl_priv *priv = dev->data->dev_private;
+	int ret;
 
-	if (!priv->ppio)
-		return -EPERM;
+	if (!priv->ppio) {
+		dev->data->dev_link.link_status = ETH_LINK_DOWN;
+		return 0;
+	}
+	ret = pp2_ppio_disable(priv->ppio);
+	if (ret)
+		return ret;
 
-	return pp2_ppio_disable(priv->ppio);
+	dev->data->dev_link.link_status = ETH_LINK_DOWN;
+	return 0;
 }
 
 /**
@@ -596,6 +743,51 @@ mrvl_tx_queue_stop(struct rte_eth_dev *dev, uint16_t queue_id)
 }
 
 /**
+ * Populate VLAN Filter configuration.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param on
+ *   Toggle filter.
+ *
+ * @return
+ *   0 on success, negative error value otherwise.
+ */
+static int mrvl_populate_vlan_table(struct rte_eth_dev *dev, int on)
+{
+	uint32_t j;
+	int ret;
+	struct rte_vlan_filter_conf *vfc;
+
+	vfc = &dev->data->vlan_filter_conf;
+	for (j = 0; j < RTE_DIM(vfc->ids); j++) {
+		uint64_t vlan;
+		uint64_t vbit;
+		uint64_t ids = vfc->ids[j];
+
+		if (ids == 0)
+			continue;
+
+		while (ids) {
+			vlan = 64 * j;
+			/* count trailing zeroes */
+			vbit = ~ids & (ids - 1);
+			/* clear least significant bit set */
+			ids ^= (ids ^ (ids - 1)) ^ vbit;
+			for (; vbit; vlan++)
+				vbit >>= 1;
+			ret = mrvl_vlan_filter_set(dev, vlan, on);
+			if (ret) {
+				MRVL_LOG(ERR, "Failed to setup VLAN filter\n");
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/**
  * DPDK callback to start the device.
  *
  * @param dev
@@ -610,6 +802,7 @@ mrvl_dev_start(struct rte_eth_dev *dev)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	char match[MRVL_MATCH_LEN];
 	int ret = 0, i, def_init_size;
+	struct rte_ether_addr *mac_addr;
 
 	if (priv->ppio)
 		return mrvl_dev_set_link_up(dev);
@@ -617,6 +810,18 @@ mrvl_dev_start(struct rte_eth_dev *dev)
 	snprintf(match, sizeof(match), "ppio-%d:%d",
 		 priv->pp_id, priv->ppio_id);
 	priv->ppio_params.match = match;
+	priv->ppio_params.eth_start_hdr = PP2_PPIO_HDR_ETH;
+	priv->forward_bad_frames = 0;
+	priv->fill_bpool_buffs = MRVL_BURST_SIZE;
+
+	if (mrvl_cfg) {
+		priv->ppio_params.eth_start_hdr =
+			mrvl_cfg->port[dev->data->port_id].eth_start_hdr;
+		priv->forward_bad_frames =
+			mrvl_cfg->port[dev->data->port_id].forward_bad_frames;
+		priv->fill_bpool_buffs =
+			mrvl_cfg->port[dev->data->port_id].fill_bpool_buffs;
+	}
 
 	/*
 	 * Calculate the minimum bpool size for refill feature as follows:
@@ -671,25 +876,37 @@ mrvl_dev_start(struct rte_eth_dev *dev)
 		priv->uc_mc_flushed = 1;
 	}
 
-	if (!priv->vlan_flushed) {
-		ret = pp2_ppio_flush_vlan(priv->ppio);
-		if (ret) {
-			MRVL_LOG(ERR, "Failed to flush vlan list");
-			/*
-			 * TODO
-			 * once pp2_ppio_flush_vlan() is supported jump to out
-			 * goto out;
-			 */
-		}
-		priv->vlan_flushed = 1;
-	}
 	ret = mrvl_mtu_set(dev, dev->data->mtu);
 	if (ret)
 		MRVL_LOG(ERR, "Failed to set MTU to %d", dev->data->mtu);
 
+	if (!rte_is_zero_ether_addr(&dev->data->mac_addrs[0]))
+		mrvl_mac_addr_set(dev, &dev->data->mac_addrs[0]);
+
+	for (i = 1; i < MRVL_MAC_ADDRS_MAX; i++) {
+		mac_addr = &dev->data->mac_addrs[i];
+
+		/* skip zero address */
+		if (rte_is_zero_ether_addr(mac_addr))
+			continue;
+
+		mrvl_mac_addr_add(dev, mac_addr, i, 0);
+	}
+
+	if (dev->data->all_multicast == 1)
+		mrvl_allmulticast_enable(dev);
+
+	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_VLAN_FILTER) {
+		ret = mrvl_populate_vlan_table(dev, 1);
+		if (ret) {
+			MRVL_LOG(ERR, "Failed to populate VLAN table");
+			goto out;
+		}
+	}
+
 	/* For default QoS config, don't start classifier. */
-	if (mrvl_qos_cfg  &&
-	    mrvl_qos_cfg->port[dev->data->port_id].use_global_defaults == 0) {
+	if (mrvl_cfg  &&
+	    mrvl_cfg->port[dev->data->port_id].use_qos_global_defaults == 0) {
 		ret = mrvl_start_qos_mapping(priv);
 		if (ret) {
 			MRVL_LOG(ERR, "Failed to setup QoS mapping");
@@ -697,10 +914,31 @@ mrvl_dev_start(struct rte_eth_dev *dev)
 		}
 	}
 
-	ret = mrvl_dev_set_link_up(dev);
+	ret = pp2_ppio_set_loopback(priv->ppio, dev->data->dev_conf.lpbk_mode);
 	if (ret) {
-		MRVL_LOG(ERR, "Failed to set link up");
+		MRVL_LOG(ERR, "Failed to set loopback");
 		goto out;
+	}
+
+	if (dev->data->promiscuous == 1)
+		mrvl_promiscuous_enable(dev);
+
+	if (priv->flow_ctrl) {
+		ret = mrvl_flow_ctrl_set(dev, &priv->fc_conf);
+		if (ret) {
+			MRVL_LOG(ERR, "Failed to configure flow control");
+			goto out;
+		}
+		priv->flow_ctrl = 0;
+	}
+
+	if (dev->data->dev_link.link_status == ETH_LINK_UP) {
+		ret = mrvl_dev_set_link_up(dev);
+		if (ret) {
+			MRVL_LOG(ERR, "Failed to set link up");
+			dev->data->dev_link.link_status = ETH_LINK_DOWN;
+			goto out;
+		}
 	}
 
 	/* start tx queues */
@@ -975,6 +1213,9 @@ mrvl_link_update(struct rte_eth_dev *dev, int wait_to_complete __rte_unused)
 	case SPEED_1000:
 		dev->data->dev_link.link_speed = ETH_SPEED_NUM_1G;
 		break;
+	case SPEED_2500:
+		dev->data->dev_link.link_speed = ETH_SPEED_NUM_2_5G;
+		break;
 	case SPEED_10000:
 		dev->data->dev_link.link_speed = ETH_SPEED_NUM_10G;
 		break;
@@ -1007,10 +1248,10 @@ mrvl_promiscuous_enable(struct rte_eth_dev *dev)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
 
-	if (!priv->ppio)
-		return 0;
-
 	if (priv->isolated)
+		return -ENOTSUP;
+
+	if (!priv->ppio)
 		return 0;
 
 	ret = pp2_ppio_set_promisc(priv->ppio, 1);
@@ -1037,10 +1278,10 @@ mrvl_allmulticast_enable(struct rte_eth_dev *dev)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
 
-	if (!priv->ppio)
-		return 0;
-
 	if (priv->isolated)
+		return -ENOTSUP;
+
+	if (!priv->ppio)
 		return 0;
 
 	ret = pp2_ppio_set_mc_promisc(priv->ppio, 1);
@@ -1066,6 +1307,9 @@ mrvl_promiscuous_disable(struct rte_eth_dev *dev)
 {
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
+
+	if (priv->isolated)
+		return -ENOTSUP;
 
 	if (!priv->ppio)
 		return 0;
@@ -1094,6 +1338,9 @@ mrvl_allmulticast_disable(struct rte_eth_dev *dev)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
 
+	if (priv->isolated)
+		return -ENOTSUP;
+
 	if (!priv->ppio)
 		return 0;
 
@@ -1121,10 +1368,10 @@ mrvl_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 	char buf[RTE_ETHER_ADDR_FMT_SIZE];
 	int ret;
 
-	if (!priv->ppio)
+	if (priv->isolated)
 		return;
 
-	if (priv->isolated)
+	if (!priv->ppio)
 		return;
 
 	ret = pp2_ppio_remove_mac_addr(priv->ppio,
@@ -1162,12 +1409,12 @@ mrvl_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 	if (priv->isolated)
 		return -ENOTSUP;
 
+	if (!priv->ppio)
+		return 0;
+
 	if (index == 0)
 		/* For setting index 0, mrvl_mac_addr_set() should be used.*/
 		return -1;
-
-	if (!priv->ppio)
-		return 0;
 
 	/*
 	 * Maximum number of uc addresses can be tuned via kernel module mvpp2x
@@ -1209,11 +1456,11 @@ mrvl_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret;
 
-	if (!priv->ppio)
-		return 0;
-
 	if (priv->isolated)
 		return -ENOTSUP;
+
+	if (!priv->ppio)
+		return 0;
 
 	ret = pp2_ppio_set_mac_addr(priv->ppio, mac_addr->addr_bytes);
 	if (ret) {
@@ -1460,12 +1707,15 @@ mrvl_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
  *   Info structure output buffer.
  */
 static int
-mrvl_dev_infos_get(struct rte_eth_dev *dev __rte_unused,
+mrvl_dev_infos_get(struct rte_eth_dev *dev,
 		   struct rte_eth_dev_info *info)
 {
+	struct mrvl_priv *priv = dev->data->dev_private;
+
 	info->speed_capa = ETH_LINK_SPEED_10M |
 			   ETH_LINK_SPEED_100M |
 			   ETH_LINK_SPEED_1G |
+			   ETH_LINK_SPEED_2_5G |
 			   ETH_LINK_SPEED_10G;
 
 	info->max_rx_queues = MRVL_PP2_RXQ_MAX;
@@ -1494,6 +1744,7 @@ mrvl_dev_infos_get(struct rte_eth_dev *dev __rte_unused,
 	info->default_rxconf.rx_drop_en = 1;
 
 	info->max_rx_pktlen = MRVL_PKT_SIZE_MAX;
+	info->max_mtu = priv->max_mtu;
 
 	return 0;
 }
@@ -1590,14 +1841,49 @@ mrvl_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 {
 	struct mrvl_priv *priv = dev->data->dev_private;
 
-	if (!priv->ppio)
-		return -EPERM;
-
 	if (priv->isolated)
 		return -ENOTSUP;
 
+	if (!priv->ppio)
+		return 0;
+
 	return on ? pp2_ppio_add_vlan(priv->ppio, vlan_id) :
 		    pp2_ppio_remove_vlan(priv->ppio, vlan_id);
+}
+
+/**
+ * DPDK callback to Configure VLAN offload.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param mask
+ *   VLAN offload mask.
+ *
+ * @return
+ *   0 on success, negative error value otherwise.
+ */
+static int mrvl_vlan_offload_set(struct rte_eth_dev *dev, int mask)
+{
+	uint64_t rx_offloads = dev->data->dev_conf.rxmode.offloads;
+	int ret;
+
+	if (mask & ETH_VLAN_STRIP_MASK)
+		MRVL_LOG(ERR, "VLAN stripping is not supported\n");
+
+	if (mask & ETH_VLAN_FILTER_MASK) {
+		if (rx_offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
+			ret = mrvl_populate_vlan_table(dev, 1);
+		else
+			ret = mrvl_populate_vlan_table(dev, 0);
+
+		if (ret)
+			return ret;
+	}
+
+	if (mask & ETH_VLAN_EXTEND_MASK)
+		MRVL_LOG(ERR, "Extend VLAN not supported\n");
+
+	return 0;
 }
 
 /**
@@ -1614,8 +1900,8 @@ mrvl_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 static int
 mrvl_fill_bpool(struct mrvl_rxq *rxq, int num)
 {
-	struct buff_release_entry entries[MRVL_PP2_RXD_MAX];
-	struct rte_mbuf *mbufs[MRVL_PP2_RXD_MAX];
+	struct buff_release_entry entries[num];
+	struct rte_mbuf *mbufs[num];
 	int i, ret;
 	unsigned int core_id;
 	struct pp2_hif *hif;
@@ -1643,14 +1929,16 @@ mrvl_fill_bpool(struct mrvl_rxq *rxq, int num)
 		if (((uint64_t)mbufs[i] & MRVL_COOKIE_HIGH_ADDR_MASK)
 			!= cookie_addr_high) {
 			MRVL_LOG(ERR,
-				"mbuf virtual addr high 0x%lx out of range",
-				(uint64_t)mbufs[i] >> 32);
+				"mbuf virtual addr high is out of range "
+				"0x%x instead of 0x%x\n",
+				(uint32_t)((uint64_t)mbufs[i] >> 32),
+				(uint32_t)(cookie_addr_high >> 32));
 			goto out;
 		}
 
 		entries[i].buff.addr =
 			rte_mbuf_data_iova_default(mbufs[i]);
-		entries[i].buff.cookie = (uint64_t)mbufs[i];
+		entries[i].buff.cookie = (uintptr_t)mbufs[i];
 		entries[i].bpool = bpool;
 	}
 
@@ -1711,7 +1999,8 @@ mrvl_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		return -EFAULT;
 	}
 
-	frame_size = buf_size - RTE_PKTMBUF_HEADROOM - MRVL_PKT_EFFEC_OFFS;
+	frame_size = buf_size - RTE_PKTMBUF_HEADROOM -
+		     MRVL_PKT_EFFEC_OFFS + RTE_ETHER_CRC_LEN;
 	if (frame_size < max_rx_pkt_len) {
 		MRVL_LOG(WARNING,
 			"Mbuf size must be increased to %u bytes to hold up "
@@ -1878,9 +2167,12 @@ mrvl_flow_ctrl_get(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 	struct mrvl_priv *priv = dev->data->dev_private;
 	int ret, en;
 
-	if (!priv)
-		return -EPERM;
+	if (!priv->ppio) {
+		memcpy(fc_conf, &priv->fc_conf, sizeof(struct rte_eth_fc_conf));
+		return 0;
+	}
 
+	fc_conf->autoneg = 1;
 	ret = pp2_ppio_get_rx_pause(priv->ppio, &en);
 	if (ret) {
 		MRVL_LOG(ERR, "Failed to read rx pause state");
@@ -1888,6 +2180,19 @@ mrvl_flow_ctrl_get(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 	}
 
 	fc_conf->mode = en ? RTE_FC_RX_PAUSE : RTE_FC_NONE;
+
+	ret = pp2_ppio_get_tx_pause(priv->ppio, &en);
+	if (ret) {
+		MRVL_LOG(ERR, "Failed to read tx pause state");
+		return ret;
+	}
+
+	if (en) {
+		if (fc_conf->mode == RTE_FC_NONE)
+			fc_conf->mode = RTE_FC_TX_PAUSE;
+		else
+			fc_conf->mode = RTE_FC_FULL;
+	}
 
 	return 0;
 }
@@ -1907,30 +2212,67 @@ static int
 mrvl_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 {
 	struct mrvl_priv *priv = dev->data->dev_private;
-
-	if (!priv)
-		return -EPERM;
+	struct pp2_ppio_tx_pause_params mrvl_pause_params;
+	int ret;
+	int rx_en, tx_en;
 
 	if (fc_conf->high_water ||
 	    fc_conf->low_water ||
 	    fc_conf->pause_time ||
-	    fc_conf->mac_ctrl_frame_fwd ||
-	    fc_conf->autoneg) {
+	    fc_conf->mac_ctrl_frame_fwd) {
 		MRVL_LOG(ERR, "Flowctrl parameter is not supported");
 
 		return -EINVAL;
 	}
 
-	if (fc_conf->mode == RTE_FC_NONE ||
-	    fc_conf->mode == RTE_FC_RX_PAUSE) {
-		int ret, en;
+	if (fc_conf->autoneg == 0) {
+		MRVL_LOG(ERR, "Flowctrl Autoneg disable is not supported");
+		return -EINVAL;
+	}
 
-		en = fc_conf->mode == RTE_FC_NONE ? 0 : 1;
-		ret = pp2_ppio_set_rx_pause(priv->ppio, en);
-		if (ret)
-			MRVL_LOG(ERR,
-				"Failed to change flowctrl on RX side");
+	if (!priv->ppio) {
+		memcpy(&priv->fc_conf, fc_conf, sizeof(struct rte_eth_fc_conf));
+		priv->flow_ctrl = 1;
+		return 0;
+	}
 
+	switch (fc_conf->mode) {
+	case RTE_FC_FULL:
+		rx_en = 1;
+		tx_en = 1;
+		break;
+	case RTE_FC_TX_PAUSE:
+		rx_en = 0;
+		tx_en = 1;
+		break;
+	case RTE_FC_RX_PAUSE:
+		rx_en = 1;
+		tx_en = 0;
+		break;
+	case RTE_FC_NONE:
+		rx_en = 0;
+		tx_en = 0;
+		break;
+	default:
+		MRVL_LOG(ERR, "Incorrect Flow control flag (%d)",
+			 fc_conf->mode);
+		return -EINVAL;
+	}
+
+	/* Set RX flow control */
+	ret = pp2_ppio_set_rx_pause(priv->ppio, rx_en);
+	if (ret) {
+		MRVL_LOG(ERR, "Failed to change RX flowctrl");
+		return ret;
+	}
+
+	/* Set TX flow control */
+	mrvl_pause_params.en = tx_en;
+	/* all inqs participate in xon/xoff decision */
+	mrvl_pause_params.use_tc_pause_inqs = 0;
+	ret = pp2_ppio_set_tx_pause(priv->ppio, &mrvl_pause_params);
+	if (ret) {
+		MRVL_LOG(ERR, "Failed to change TX flowctrl");
 		return ret;
 	}
 
@@ -2090,6 +2432,7 @@ static const struct eth_dev_ops mrvl_ops = {
 	.rxq_info_get = mrvl_rxq_info_get,
 	.txq_info_get = mrvl_txq_info_get,
 	.vlan_filter_set = mrvl_vlan_filter_set,
+	.vlan_offload_set = mrvl_vlan_offload_set,
 	.tx_queue_start = mrvl_tx_queue_start,
 	.tx_queue_stop = mrvl_tx_queue_stop,
 	.rx_queue_setup = mrvl_rx_queue_setup,
@@ -2171,7 +2514,6 @@ mrvl_desc_to_packet_type_and_offset(struct pp2_ppio_desc *desc,
 		*l4_offset = *l3_offset + MRVL_ARP_LENGTH;
 		break;
 	default:
-		MRVL_LOG(DEBUG, "Failed to recognise l3 packet type");
 		break;
 	}
 
@@ -2183,7 +2525,6 @@ mrvl_desc_to_packet_type_and_offset(struct pp2_ppio_desc *desc,
 		packet_type |= RTE_PTYPE_L4_UDP;
 		break;
 	default:
-		MRVL_LOG(DEBUG, "Failed to recognise l4 packet type");
 		break;
 	}
 
@@ -2200,22 +2541,27 @@ mrvl_desc_to_packet_type_and_offset(struct pp2_ppio_desc *desc,
  *   Mbuf offload flags.
  */
 static inline uint64_t
-mrvl_desc_to_ol_flags(struct pp2_ppio_desc *desc)
+mrvl_desc_to_ol_flags(struct pp2_ppio_desc *desc, uint64_t packet_type)
 {
-	uint64_t flags;
+	uint64_t flags = 0;
 	enum pp2_inq_desc_status status;
 
-	status = pp2_ppio_inq_desc_get_l3_pkt_error(desc);
-	if (unlikely(status != PP2_DESC_ERR_OK))
-		flags = PKT_RX_IP_CKSUM_BAD;
-	else
-		flags = PKT_RX_IP_CKSUM_GOOD;
+	if (RTE_ETH_IS_IPV4_HDR(packet_type)) {
+		status = pp2_ppio_inq_desc_get_l3_pkt_error(desc);
+		if (unlikely(status != PP2_DESC_ERR_OK))
+			flags |= PKT_RX_IP_CKSUM_BAD;
+		else
+			flags |= PKT_RX_IP_CKSUM_GOOD;
+	}
 
-	status = pp2_ppio_inq_desc_get_l4_pkt_error(desc);
-	if (unlikely(status != PP2_DESC_ERR_OK))
-		flags |= PKT_RX_L4_CKSUM_BAD;
-	else
-		flags |= PKT_RX_L4_CKSUM_GOOD;
+	if (((packet_type & RTE_PTYPE_L4_UDP) == RTE_PTYPE_L4_UDP) ||
+	    ((packet_type & RTE_PTYPE_L4_TCP) == RTE_PTYPE_L4_TCP)) {
+		status = pp2_ppio_inq_desc_get_l4_pkt_error(desc);
+		if (unlikely(status != PP2_DESC_ERR_OK))
+			flags |= PKT_RX_L4_CKSUM_BAD;
+		else
+			flags |= PKT_RX_L4_CKSUM_GOOD;
+	}
 
 	return flags;
 }
@@ -2253,10 +2599,9 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 
 	ret = pp2_ppio_recv(q->priv->ppio, q->priv->rxq_map[q->queue_id].tc,
 			    q->priv->rxq_map[q->queue_id].inq, descs, &nb_pkts);
-	if (unlikely(ret < 0)) {
-		MRVL_LOG(ERR, "Failed to receive packets");
+	if (unlikely(ret < 0))
 		return 0;
-	}
+
 	mrvl_port_bpool_size[bpool->pp2_id][bpool->id][core_id] -= nb_pkts;
 
 	for (i = 0; i < nb_pkts; i++) {
@@ -2283,7 +2628,8 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 
 		/* drop packet in case of mac, overrun or resource error */
 		status = pp2_ppio_inq_desc_get_l2_pkt_error(&descs[i]);
-		if (unlikely(status != PP2_DESC_ERR_OK)) {
+		if ((unlikely(status != PP2_DESC_ERR_OK)) &&
+			!(q->priv->forward_bad_frames)) {
 			struct pp2_buff_inf binf = {
 				.addr = rte_mbuf_data_iova_default(mbuf),
 				.cookie = (uint64_t)mbuf,
@@ -2308,7 +2654,9 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		mbuf->l3_len = l4_offset - l3_offset;
 
 		if (likely(q->cksum_enabled))
-			mbuf->ol_flags = mrvl_desc_to_ol_flags(&descs[i]);
+			mbuf->ol_flags =
+				mrvl_desc_to_ol_flags(&descs[i],
+						      mbuf->packet_type);
 
 		rx_pkts[rx_done++] = mbuf;
 		q->bytes_recv += mbuf->pkt_len;
@@ -2319,20 +2667,12 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 
 		if (unlikely(num <= q->priv->bpool_min_size ||
 			     (!rx_done && num < q->priv->bpool_init_size))) {
-			ret = mrvl_fill_bpool(q, MRVL_BURST_SIZE);
-			if (ret)
-				MRVL_LOG(ERR, "Failed to fill bpool");
+			mrvl_fill_bpool(q, q->priv->fill_bpool_buffs);
 		} else if (unlikely(num > q->priv->bpool_max_size)) {
 			int i;
 			int pkt_to_remove = num - q->priv->bpool_init_size;
 			struct rte_mbuf *mbuf;
 			struct pp2_buff_inf buff;
-
-			MRVL_LOG(DEBUG,
-				"port-%d:%d: bpool %d oversize - remove %d buffers (pool size: %d -> %d)",
-				bpool->pp2_id, q->priv->ppio->port_id,
-				bpool->id, pkt_to_remove, num,
-				q->priv->bpool_init_size);
 
 			for (i = 0; i < pkt_to_remove; i++) {
 				ret = pp2_bpool_get_buff(hif, bpool, &buff);
@@ -2356,8 +2696,6 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
  *
  * @param ol_flags
  *   Offload flags.
- * @param packet_type
- *   Packet type bitfield.
  * @param l3_type
  *   Pointer to the pp2_ouq_l3_type structure.
  * @param l4_type
@@ -2366,12 +2704,9 @@ mrvl_rx_pkt_burst(void *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
  *   Will be set to 1 in case l3 checksum is computed.
  * @param l4_cksum
  *   Will be set to 1 in case l4 checksum is computed.
- *
- * @return
- *   0 on success, negative error value otherwise.
  */
-static inline int
-mrvl_prepare_proto_info(uint64_t ol_flags, uint32_t packet_type,
+static inline void
+mrvl_prepare_proto_info(uint64_t ol_flags,
 			enum pp2_outq_l3_type *l3_type,
 			enum pp2_outq_l4_type *l4_type,
 			int *gen_l3_cksum,
@@ -2381,26 +2716,22 @@ mrvl_prepare_proto_info(uint64_t ol_flags, uint32_t packet_type,
 	 * Based on ol_flags prepare information
 	 * for pp2_ppio_outq_desc_set_proto_info() which setups descriptor
 	 * for offloading.
+	 * in most of the checksum cases ipv4 must be set, so this is the
+	 * default value
 	 */
-	if (ol_flags & PKT_TX_IPV4) {
-		*l3_type = PP2_OUTQ_L3_TYPE_IPV4;
-		*gen_l3_cksum = ol_flags & PKT_TX_IP_CKSUM ? 1 : 0;
-	} else if (ol_flags & PKT_TX_IPV6) {
+	*l3_type = PP2_OUTQ_L3_TYPE_IPV4;
+	*gen_l3_cksum = ol_flags & PKT_TX_IP_CKSUM ? 1 : 0;
+
+	if (ol_flags & PKT_TX_IPV6) {
 		*l3_type = PP2_OUTQ_L3_TYPE_IPV6;
 		/* no checksum for ipv6 header */
 		*gen_l3_cksum = 0;
-	} else {
-		/* if something different then stop processing */
-		return -1;
 	}
 
-	ol_flags &= PKT_TX_L4_MASK;
-	if ((packet_type & RTE_PTYPE_L4_TCP) &&
-	    ol_flags == PKT_TX_TCP_CKSUM) {
+	if ((ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) {
 		*l4_type = PP2_OUTQ_L4_TYPE_TCP;
 		*gen_l4_cksum = 1;
-	} else if ((packet_type & RTE_PTYPE_L4_UDP) &&
-		   ol_flags == PKT_TX_UDP_CKSUM) {
+	} else if ((ol_flags & PKT_TX_L4_MASK) ==  PKT_TX_UDP_CKSUM) {
 		*l4_type = PP2_OUTQ_L4_TYPE_UDP;
 		*gen_l4_cksum = 1;
 	} else {
@@ -2408,8 +2739,6 @@ mrvl_prepare_proto_info(uint64_t ol_flags, uint32_t packet_type,
 		/* no checksum for other type */
 		*gen_l4_cksum = 0;
 	}
-
-	return 0;
 }
 
 /**
@@ -2460,8 +2789,7 @@ mrvl_free_sent_buffers(struct pp2_ppio *ppio, struct pp2_hif *hif,
 		if (unlikely(!entry->bpool)) {
 			struct rte_mbuf *mbuf;
 
-			mbuf = (struct rte_mbuf *)
-			       (cookie_addr_high | entry->buff.cookie);
+			mbuf = (struct rte_mbuf *)entry->buff.cookie;
 			rte_pktmbuf_free(mbuf);
 			skip_bufs = 1;
 			goto skip;
@@ -2511,7 +2839,7 @@ mrvl_tx_pkt_burst(void *txq, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	struct pp2_hif *hif;
 	struct pp2_ppio_desc descs[nb_pkts];
 	unsigned int core_id = rte_lcore_id();
-	int i, ret, bytes_sent = 0;
+	int i, bytes_sent = 0;
 	uint16_t num, sq_free_size;
 	uint64_t addr;
 
@@ -2526,12 +2854,8 @@ mrvl_tx_pkt_burst(void *txq, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				       sq, q->queue_id, 0);
 
 	sq_free_size = MRVL_PP2_TX_SHADOWQ_SIZE - sq->size - 1;
-	if (unlikely(nb_pkts > sq_free_size)) {
-		MRVL_LOG(DEBUG,
-			"No room in shadow queue for %d packets! %d packets will be sent.",
-			nb_pkts, sq_free_size);
+	if (unlikely(nb_pkts > sq_free_size))
 		nb_pkts = sq_free_size;
-	}
 
 	for (i = 0; i < nb_pkts; i++) {
 		struct rte_mbuf *mbuf = tx_pkts[i];
@@ -2555,11 +2879,10 @@ mrvl_tx_pkt_burst(void *txq, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		 * in case unsupported ol_flags were passed
 		 * do not update descriptor offload information
 		 */
-		ret = mrvl_prepare_proto_info(mbuf->ol_flags, mbuf->packet_type,
-					      &l3_type, &l4_type, &gen_l3_cksum,
-					      &gen_l4_cksum);
-		if (unlikely(ret))
+		if (!(mbuf->ol_flags & MRVL_TX_PKT_OFFLOADS))
 			continue;
+		mrvl_prepare_proto_info(mbuf->ol_flags, &l3_type, &l4_type,
+					&gen_l3_cksum, &gen_l4_cksum);
 
 		pp2_ppio_outq_desc_set_proto_info(&descs[i], l3_type, l4_type,
 						  mbuf->l2_len,
@@ -2574,7 +2897,7 @@ mrvl_tx_pkt_burst(void *txq, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		for (i = nb_pkts; i < num; i++) {
 			sq->head = (MRVL_PP2_TX_SHADOWQ_SIZE + sq->head - 1) &
 				MRVL_PP2_TX_SHADOWQ_MASK;
-			addr = cookie_addr_high | sq->ent[sq->head].buff.cookie;
+			addr = sq->ent[sq->head].buff.cookie;
 			bytes_sent -=
 				rte_pktmbuf_pkt_len((struct rte_mbuf *)addr);
 		}
@@ -2609,7 +2932,7 @@ mrvl_tx_sg_pkt_burst(void *txq, struct rte_mbuf **tx_pkts,
 	struct pp2_ppio_sg_pkts pkts;
 	uint8_t frags[nb_pkts];
 	unsigned int core_id = rte_lcore_id();
-	int i, j, ret, bytes_sent = 0;
+	int i, j, bytes_sent = 0;
 	int tail, tail_first;
 	uint16_t num, sq_free_size;
 	uint16_t nb_segs, total_descs = 0;
@@ -2648,10 +2971,6 @@ mrvl_tx_sg_pkt_burst(void *txq, struct rte_mbuf **tx_pkts,
 		 */
 		if (unlikely(total_descs > sq_free_size)) {
 			total_descs -= nb_segs;
-			RTE_LOG(DEBUG, PMD,
-				"No room in shadow queue for %d packets! "
-				"%d packets will be sent.\n",
-				nb_pkts, i);
 			break;
 		}
 
@@ -2696,11 +3015,10 @@ mrvl_tx_sg_pkt_burst(void *txq, struct rte_mbuf **tx_pkts,
 		/* In case unsupported ol_flags were passed
 		 * do not update descriptor offload information
 		 */
-		ret = mrvl_prepare_proto_info(mbuf->ol_flags, mbuf->packet_type,
-					      &l3_type, &l4_type, &gen_l3_cksum,
-					      &gen_l4_cksum);
-		if (unlikely(ret))
+		if (!(mbuf->ol_flags & MRVL_TX_PKT_OFFLOADS))
 			continue;
+		mrvl_prepare_proto_info(mbuf->ol_flags, &l3_type, &l4_type,
+					&gen_l3_cksum, &gen_l4_cksum);
 
 		pp2_ppio_outq_desc_set_proto_info(&descs[tail_first], l3_type,
 						  l4_type, mbuf->l2_len,
@@ -2733,37 +3051,6 @@ mrvl_tx_sg_pkt_burst(void *txq, struct rte_mbuf **tx_pkts,
 }
 
 /**
- * Initialize packet processor.
- *
- * @return
- *   0 on success, negative error value otherwise.
- */
-static int
-mrvl_init_pp2(void)
-{
-	struct pp2_init_params init_params;
-
-	memset(&init_params, 0, sizeof(init_params));
-	init_params.hif_reserved_map = MRVL_MUSDK_HIFS_RESERVED;
-	init_params.bm_pool_reserved_map = MRVL_MUSDK_BPOOLS_RESERVED;
-	init_params.rss_tbl_reserved_map = MRVL_MUSDK_RSS_RESERVED;
-
-	return pp2_init(&init_params);
-}
-
-/**
- * Deinitialize packet processor.
- *
- * @return
- *   0 on success, negative error value otherwise.
- */
-static void
-mrvl_deinit_pp2(void)
-{
-	pp2_deinit();
-}
-
-/**
  * Create private device structure.
  *
  * @param dev_name
@@ -2778,6 +3065,7 @@ mrvl_priv_create(const char *dev_name)
 	struct pp2_bpool_params bpool_params;
 	char match[MRVL_MATCH_LEN];
 	struct mrvl_priv *priv;
+	uint16_t max_frame_size;
 	int ret, bpool_bit;
 
 	priv = rte_zmalloc_socket(dev_name, sizeof(*priv), 0, rte_socket_id());
@@ -2788,6 +3076,14 @@ mrvl_priv_create(const char *dev_name)
 				       &priv->pp_id, &priv->ppio_id);
 	if (ret)
 		goto out_free_priv;
+
+	ret = pp2_ppio_get_l4_cksum_max_frame_size(priv->pp_id, priv->ppio_id,
+						   &max_frame_size);
+	if (ret)
+		goto out_free_priv;
+
+	priv->max_mtu = max_frame_size + RTE_ETHER_CRC_LEN -
+		MRVL_PP2_ETH_HDRS_LEN;
 
 	bpool_bit = mrvl_reserve_bit(&used_bpools[priv->pp_id],
 				     PP2_BPOOL_NUM_POOLS);
@@ -2867,6 +3163,8 @@ mrvl_eth_dev_create(struct rte_vdev_device *vdev, const char *name)
 	eth_dev->dev_ops = &mrvl_ops;
 	eth_dev->data->dev_flags |= RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
 
+	eth_dev->data->dev_link.link_status = ETH_LINK_UP;
+
 	rte_eth_dev_probing_finish(eth_dev);
 	return 0;
 out_free:
@@ -2898,22 +3196,6 @@ mrvl_get_ifnames(const char *key __rte_unused, const char *value,
 	ifnames->names[ifnames->idx++] = value;
 
 	return 0;
-}
-
-/**
- * Deinitialize per-lcore MUSDK hardware interfaces (hifs).
- */
-static void
-mrvl_deinit_hifs(void)
-{
-	int i;
-
-	for (i = mrvl_lcore_first; i <= mrvl_lcore_last; i++) {
-		if (hifs[i])
-			pp2_hif_deinit(hifs[i]);
-	}
-	used_hifs = MRVL_MUSDK_HIFS_RESERVED;
-	memset(hifs, 0, sizeof(hifs));
 }
 
 /**
@@ -2955,7 +3237,7 @@ rte_pmd_mrvl_probe(struct rte_vdev_device *vdev)
 	 * The below system initialization should be done only once,
 	 * on the first provided configuration file
 	 */
-	if (!mrvl_qos_cfg) {
+	if (!mrvl_cfg) {
 		cfgnum = rte_kvargs_count(kvlist, MRVL_CFG_ARG);
 		MRVL_LOG(INFO, "Parsing config file!");
 		if (cfgnum > 1) {
@@ -2963,7 +3245,7 @@ rte_pmd_mrvl_probe(struct rte_vdev_device *vdev)
 			goto out_free_kvlist;
 		} else if (cfgnum == 1) {
 			rte_kvargs_process(kvlist, MRVL_CFG_ARG,
-					   mrvl_get_qoscfg, &mrvl_qos_cfg);
+					   mrvl_get_cfg, &mrvl_cfg);
 		}
 	}
 

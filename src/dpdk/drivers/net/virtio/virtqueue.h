@@ -12,7 +12,7 @@
 #include <rte_mempool.h>
 #include <rte_net.h>
 
-#include "virtio_pci.h"
+#include "virtio.h"
 #include "virtio_ring.h"
 #include "virtio_logs.h"
 #include "virtio_rxtx.h"
@@ -112,29 +112,6 @@ virtqueue_store_flags_packed(struct vring_packed_desc *dp,
 #endif
 
 #define VIRTQUEUE_MAX_NAME_SZ 32
-
-#ifdef RTE_VIRTIO_USER
-/**
- * Return the physical address (or virtual address in case of
- * virtio-user) of mbuf data buffer.
- *
- * The address is firstly casted to the word size (sizeof(uintptr_t))
- * before casting it to uint64_t. This is to make it work with different
- * combination of word size (64 bit and 32 bit) and virtio device
- * (virtio-pci and virtio-user).
- */
-#define VIRTIO_MBUF_ADDR(mb, vq) \
-	((uint64_t)(*(uintptr_t *)((uintptr_t)(mb) + (vq)->offset)))
-#else
-#define VIRTIO_MBUF_ADDR(mb, vq) ((mb)->buf_iova)
-#endif
-
-/**
- * Return the physical address (or virtual address in case of
- * virtio-user) of mbuf data buffer, taking care of mbuf data offset
- */
-#define VIRTIO_MBUF_DATA_DMA_ADDR(mb, vq) \
-	(VIRTIO_MBUF_ADDR(mb, vq) + (mb)->data_off)
 
 #define VTNET_SQ_RQ_QUEUE_IDX 0
 #define VTNET_SQ_TQ_QUEUE_IDX 1
@@ -282,7 +259,7 @@ struct virtqueue {
 	 */
 	uint16_t  vq_desc_head_idx;
 	uint16_t  vq_desc_tail_idx;
-	uint16_t  vq_queue_index;   /**< PCI queue index */
+	uint16_t  vq_queue_index;
 	uint16_t offset; /**< relative offset to obtain addr in mbuf */
 	uint16_t  *notify_addr;
 	struct rte_mbuf **sw_ring;  /**< RX software ring. */
@@ -408,7 +385,7 @@ virtqueue_disable_intr_split(struct virtqueue *vq)
 static inline void
 virtqueue_disable_intr(struct virtqueue *vq)
 {
-	if (vtpci_packed_queue(vq->hw))
+	if (virtio_with_packed_queue(vq->hw))
 		virtqueue_disable_intr_packed(vq);
 	else
 		virtqueue_disable_intr_split(vq);
@@ -442,7 +419,7 @@ virtqueue_enable_intr_split(struct virtqueue *vq)
 static inline void
 virtqueue_enable_intr(struct virtqueue *vq)
 {
-	if (vtpci_packed_queue(vq->hw))
+	if (virtio_with_packed_queue(vq->hw))
 		virtqueue_enable_intr_packed(vq);
 	else
 		virtqueue_enable_intr_split(vq);
@@ -471,11 +448,11 @@ virtqueue_full(const struct virtqueue *vq)
 }
 
 static inline int
-virtio_get_queue_type(struct virtio_hw *hw, uint16_t vtpci_queue_idx)
+virtio_get_queue_type(struct virtio_hw *hw, uint16_t vq_idx)
 {
-	if (vtpci_queue_idx == hw->max_queue_pairs * 2)
+	if (vq_idx == hw->max_queue_pairs * 2)
 		return VTNET_CQ;
-	else if (vtpci_queue_idx % 2 == 0)
+	else if (vq_idx % 2 == 0)
 		return VTNET_RQ;
 	else
 		return VTNET_TQ;
@@ -586,7 +563,7 @@ virtqueue_kick_prepare_packed(struct virtqueue *vq)
 static inline void
 virtqueue_notify(struct virtqueue *vq)
 {
-	VTPCI_OPS(vq->hw)->notify_queue(vq->hw, vq);
+	VIRTIO_OPS(vq->hw)->notify_queue(vq->hw, vq);
 }
 
 #ifdef RTE_LIBRTE_VIRTIO_DEBUG_DUMP
@@ -595,7 +572,7 @@ virtqueue_notify(struct virtqueue *vq)
 	used_idx = __atomic_load_n(&(vq)->vq_split.ring.used->idx, \
 				   __ATOMIC_RELAXED); \
 	nused = (uint16_t)(used_idx - (vq)->vq_used_cons_idx); \
-	if (vtpci_packed_queue((vq)->hw)) { \
+	if (virtio_with_packed_queue((vq)->hw)) { \
 		PMD_INIT_LOG(DEBUG, \
 		"VQ: - size=%d; free=%d; used_cons_idx=%d; avail_idx=%d;" \
 		" cached_flags=0x%x; used_wrap_counter=%d", \
@@ -638,7 +615,7 @@ virtqueue_notify(struct virtqueue *vq)
 static inline void
 virtqueue_xmit_offload(struct virtio_net_hdr *hdr,
 			struct rte_mbuf *cookie,
-			bool offload)
+			uint8_t offload)
 {
 	if (offload) {
 		if (cookie->ol_flags & PKT_TX_TCP_SEG)
@@ -763,7 +740,7 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 	do {
 		uint16_t flags;
 
-		start_dp[idx].addr = VIRTIO_MBUF_DATA_DMA_ADDR(cookie, vq);
+		start_dp[idx].addr = rte_mbuf_data_iova(cookie);
 		start_dp[idx].len  = cookie->data_len;
 		if (prepend_header) {
 			start_dp[idx].addr -= head_size;
