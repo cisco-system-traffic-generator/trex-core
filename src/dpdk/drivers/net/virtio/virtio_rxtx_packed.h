@@ -15,7 +15,7 @@
 
 #include "virtio_logs.h"
 #include "virtio_ethdev.h"
-#include "virtio_pci.h"
+#include "virtio.h"
 #include "virtqueue.h"
 
 #define BYTE_SIZE 8
@@ -111,12 +111,12 @@ virtqueue_enqueue_single_packed_vec(struct virtnet_tx *txvq,
 	int16_t need;
 
 	/* optimize ring usage */
-	if ((vtpci_with_feature(hw, VIRTIO_F_ANY_LAYOUT) ||
-	     vtpci_with_feature(hw, VIRTIO_F_VERSION_1)) &&
+	if ((virtio_with_feature(hw, VIRTIO_F_ANY_LAYOUT) ||
+	     virtio_with_feature(hw, VIRTIO_F_VERSION_1)) &&
 	     rte_mbuf_refcnt_read(txm) == 1 && RTE_MBUF_DIRECT(txm) &&
 	     txm->nb_segs == 1 && rte_pktmbuf_headroom(txm) >= hdr_size)
 		can_push = 1;
-	else if (vtpci_with_feature(hw, VIRTIO_RING_F_INDIRECT_DESC) &&
+	else if (virtio_with_feature(hw, VIRTIO_RING_F_INDIRECT_DESC) &&
 		 txm->nb_segs < VIRTIO_MAX_TX_INDIRECT)
 		use_indirect = 1;
 
@@ -288,7 +288,7 @@ virtio_recv_refill_packed_vec(struct virtnet_rx *rxvq,
 			dxp = &vq->vq_descx[idx + i];
 			dxp->cookie = (void *)cookie[total_num + i];
 
-			addr = VIRTIO_MBUF_ADDR(cookie[total_num + i], vq) +
+			addr = cookie[total_num + i]->buf_iova +
 				RTE_PKTMBUF_HEADROOM - hw->vtnet_hdr_size;
 			start_dp[idx + i].addr = addr;
 			start_dp[idx + i].len = cookie[total_num + i]->buf_len

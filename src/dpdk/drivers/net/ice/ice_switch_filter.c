@@ -11,7 +11,7 @@
 #include <stdarg.h>
 #include <rte_debug.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
 #include <rte_eth_ctrl.h>
@@ -38,7 +38,8 @@
 	ICE_INSET_DMAC | ICE_INSET_SMAC | ICE_INSET_ETHERTYPE | \
 	ICE_INSET_VLAN_INNER)
 #define ICE_SW_INSET_MAC_QINQ  ( \
-	ICE_SW_INSET_MAC_VLAN | ICE_INSET_VLAN_OUTER)
+	ICE_INSET_DMAC | ICE_INSET_SMAC | ICE_INSET_VLAN_INNER | \
+	ICE_INSET_VLAN_OUTER)
 #define ICE_SW_INSET_MAC_IPV4 ( \
 	ICE_INSET_DMAC | ICE_INSET_IPV4_DST | ICE_INSET_IPV4_SRC | \
 	ICE_INSET_IPV4_PROTO | ICE_INSET_IPV4_TTL | ICE_INSET_IPV4_TOS)

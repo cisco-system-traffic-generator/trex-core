@@ -219,6 +219,7 @@ enum mlx5_feature_name {
 #define MLX5_FLOW_ACTION_SAMPLE (1ull << 36)
 #define MLX5_FLOW_ACTION_TUNNEL_SET (1ull << 37)
 #define MLX5_FLOW_ACTION_TUNNEL_MATCH (1ull << 38)
+#define MLX5_FLOW_ACTION_MODIFY_FIELD (1ull << 39)
 
 #define MLX5_FLOW_FATE_ACTIONS \
 	(MLX5_FLOW_ACTION_DROP | MLX5_FLOW_ACTION_QUEUE | \
@@ -249,7 +250,8 @@ enum mlx5_feature_name {
 				      MLX5_FLOW_ACTION_MARK_EXT | \
 				      MLX5_FLOW_ACTION_SET_META | \
 				      MLX5_FLOW_ACTION_SET_IPV4_DSCP | \
-				      MLX5_FLOW_ACTION_SET_IPV6_DSCP)
+				      MLX5_FLOW_ACTION_SET_IPV6_DSCP | \
+				      MLX5_FLOW_ACTION_MODIFY_FIELD)
 
 #define MLX5_FLOW_VLAN_ACTIONS (MLX5_FLOW_ACTION_OF_POP_VLAN | \
 				MLX5_FLOW_ACTION_OF_PUSH_VLAN)
@@ -270,8 +272,15 @@ enum mlx5_feature_name {
 /* UDP port numbers for GENEVE. */
 #define MLX5_UDP_PORT_GENEVE 6081
 
-/* Priority reserved for default flows. */
-#define MLX5_FLOW_PRIO_RSVD ((uint32_t)-1)
+/* Lowest priority indicator. */
+#define MLX5_FLOW_LOWEST_PRIO_INDICATOR ((uint32_t)-1)
+
+/*
+ * Max priority for ingress\egress flow groups
+ * greater than 0 and for any transfer flow group.
+ * From user configation: 0 - 21843.
+ */
+#define MLX5_NON_ROOT_FLOW_MAX_PRIO	(21843 + 1)
 
 /*
  * Number of sub priorities.
@@ -385,6 +394,9 @@ enum mlx5_feature_name {
 #define MLX5_ACT_NUM_SET_MARK		MLX5_ACT_NUM_SET_TAG
 #define MLX5_ACT_NUM_SET_META		MLX5_ACT_NUM_SET_TAG
 #define MLX5_ACT_NUM_SET_DSCP		1
+
+/* Maximum number of fields to modify in MODIFY_FIELD */
+#define MLX5_ACT_MAX_MOD_FIELDS 5
 
 enum mlx5_flow_drv_type {
 	MLX5_FLOW_TYPE_MIN,
@@ -564,15 +576,16 @@ struct mlx5_flow_sub_actions_list {
 	void *dr_cnt_action;
 	void *dr_port_id_action;
 	void *dr_encap_action;
+	void *dr_jump_action;
 };
 
 /* Sample sub-actions resource list. */
 struct mlx5_flow_sub_actions_idx {
 	uint32_t rix_hrxq; /**< Hash Rx queue object index. */
 	uint32_t rix_tag; /**< Index to the tag action. */
-	uint32_t cnt;
 	uint32_t rix_port_id_action; /**< Index to port ID action resource. */
 	uint32_t rix_encap_decap; /**< Index to encap/decap resource. */
+	uint32_t rix_jump; /**< Index to the jump action resource. */
 };
 
 /* Sample action resource structure. */
@@ -589,7 +602,6 @@ struct mlx5_flow_dv_sample_resource {
 	uint32_t ratio;   /** Sample Ratio */
 	uint64_t set_action; /** Restore reg_c0 value */
 	void *normal_path_tbl; /** Flow Table pointer */
-	void *default_miss; /** default_miss dr_action. */
 	struct mlx5_flow_sub_actions_idx sample_idx;
 	/**< Action index resources. */
 	struct mlx5_flow_sub_actions_list sample_act;
@@ -765,6 +777,9 @@ struct mlx5_flow_verbs_workspace {
 };
 #endif /* HAVE_INFINIBAND_VERBS_H */
 
+#define MLX5_SCALE_FLOW_GROUP_BIT 0
+#define MLX5_SCALE_JUMP_FLOW_GROUP_BIT 1
+
 /** Maximal number of device sub-flows supported. */
 #define MLX5_NUM_MAX_DEV_FLOWS 32
 
@@ -778,8 +793,20 @@ struct mlx5_flow {
 	/**< Bit-fields of detected actions, see MLX5_FLOW_ACTION_*. */
 	bool external; /**< true if the flow is created external to PMD. */
 	uint8_t ingress:1; /**< 1 if the flow is ingress. */
-	uint8_t skip_scale:1;
-	/**< 1 if skip the scale the table with factor. */
+	uint8_t skip_scale:2;
+	/**
+	 * Each Bit be set to 1 if Skip the scale the flow group with factor.
+	 * If bit0 be set to 1, then skip the scale the original flow group;
+	 * If bit1 be set to 1, then skip the scale the jump flow group if
+	 * having jump action.
+	 * 00: Enable scale in a flow, default value.
+	 * 01: Skip scale the flow group with factor, enable scale the group
+	 * of jump action.
+	 * 10: Enable scale the group with factor, skip scale the group of
+	 * jump action.
+	 * 11: Skip scale the table with factor both for flow group and jump
+	 * group.
+	 */
 	union {
 #if defined(HAVE_IBV_FLOW_DV_SUPPORT) || !defined(HAVE_INFINIBAND_VERBS_H)
 		struct mlx5_flow_dv_workspace dv;
@@ -1068,17 +1095,17 @@ struct rte_flow {
 #define MLX5_RSS_HASH_IPV4 (IBV_RX_HASH_SRC_IPV4 | IBV_RX_HASH_DST_IPV4)
 #define MLX5_RSS_HASH_IPV4_TCP \
 	(MLX5_RSS_HASH_IPV4 | \
-	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_SRC_PORT_TCP)
+	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_DST_PORT_TCP)
 #define MLX5_RSS_HASH_IPV4_UDP \
 	(MLX5_RSS_HASH_IPV4 | \
-	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_SRC_PORT_UDP)
+	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_DST_PORT_UDP)
 #define MLX5_RSS_HASH_IPV6 (IBV_RX_HASH_SRC_IPV6 | IBV_RX_HASH_DST_IPV6)
 #define MLX5_RSS_HASH_IPV6_TCP \
 	(MLX5_RSS_HASH_IPV6 | \
-	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_SRC_PORT_TCP)
+	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_DST_PORT_TCP)
 #define MLX5_RSS_HASH_IPV6_UDP \
 	(MLX5_RSS_HASH_IPV6 | \
-	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_SRC_PORT_UDP)
+	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_DST_PORT_UDP)
 #define MLX5_RSS_HASH_NONE 0ULL
 
 /* array of valid combinations of RX Hash fields for RSS */
@@ -1249,7 +1276,7 @@ struct flow_grp_info {
 	uint64_t fdb_def_rule:1;
 	/* force standard group translation */
 	uint64_t std_tbl_fix:1;
-	uint64_t skip_scale:1;
+	uint64_t skip_scale:2;
 };
 
 static inline bool
@@ -1297,6 +1324,11 @@ uint64_t mlx5_flow_hashfields_adjust(struct mlx5_flow_rss_desc *rss_desc,
 int mlx5_flow_discover_priorities(struct rte_eth_dev *dev);
 uint32_t mlx5_flow_adjust_priority(struct rte_eth_dev *dev, int32_t priority,
 				   uint32_t subpriority);
+uint32_t mlx5_get_lowest_priority(struct rte_eth_dev *dev,
+					const struct rte_flow_attr *attr);
+uint16_t mlx5_get_matcher_priority(struct rte_eth_dev *dev,
+				     const struct rte_flow_attr *attr,
+				     uint32_t subpriority);
 int mlx5_flow_get_reg_id(struct rte_eth_dev *dev,
 				     enum mlx5_feature_name feature,
 				     uint32_t id,

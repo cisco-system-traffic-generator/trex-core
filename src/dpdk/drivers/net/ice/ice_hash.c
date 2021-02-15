@@ -12,7 +12,7 @@
 
 #include <rte_debug.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
 #include <rte_eth_ctrl.h>
@@ -424,24 +424,24 @@ struct ice_rss_hash_cfg empty_tmplt = {
 #define ICE_RSS_TYPE_GTPU_IPV6_TCP	(ICE_RSS_TYPE_INNER_IPV6_TCP | \
 					 ETH_RSS_GTPU)
 
+/* PPPOE */
+#define ICE_RSS_TYPE_PPPOE		(ETH_RSS_ETH | ETH_RSS_PPPOE)
+
 /* PPPOE IPv4 */
 #define ICE_RSS_TYPE_PPPOE_IPV4		(ICE_RSS_TYPE_INNER_IPV4 | \
-					 ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 #define ICE_RSS_TYPE_PPPOE_IPV4_UDP	(ICE_RSS_TYPE_INNER_IPV4_UDP | \
-					 ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 #define ICE_RSS_TYPE_PPPOE_IPV4_TCP	(ICE_RSS_TYPE_INNER_IPV4_TCP | \
-					 ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 
 /* PPPOE IPv6 */
 #define ICE_RSS_TYPE_PPPOE_IPV6		(ICE_RSS_TYPE_INNER_IPV6 | \
-					 ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 #define ICE_RSS_TYPE_PPPOE_IPV6_UDP	(ICE_RSS_TYPE_INNER_IPV6_UDP | \
-					 ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 #define ICE_RSS_TYPE_PPPOE_IPV6_TCP	(ICE_RSS_TYPE_INNER_IPV6_TCP | \
-					 ETH_RSS_PPPOE)
-
-/* PPPOE*/
-#define ICE_RSS_TYPE_PPPOE		(ETH_RSS_ETH | ETH_RSS_PPPOE)
+					 ICE_RSS_TYPE_PPPOE)
 
 /* ESP, AH, L2TPV3 and PFCP */
 #define ICE_RSS_TYPE_IPV4_ESP		(ETH_RSS_ESP | ETH_RSS_IPV4)
@@ -867,6 +867,13 @@ ice_any_invalid_rss_type(enum rte_eth_hash_function rss_func,
 	if (rss_func == RTE_ETH_HASH_FUNCTION_SYMMETRIC_TOEPLITZ) {
 		if (rss_type & (ETH_RSS_L3_SRC_ONLY | ETH_RSS_L3_DST_ONLY |
 		    ETH_RSS_L4_SRC_ONLY | ETH_RSS_L4_DST_ONLY))
+			return true;
+
+		if (!(rss_type &
+		   (ETH_RSS_IPV4 | ETH_RSS_IPV6 |
+		    ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_NONFRAG_IPV6_UDP |
+		    ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV6_TCP |
+		    ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_NONFRAG_IPV6_SCTP)))
 			return true;
 	}
 

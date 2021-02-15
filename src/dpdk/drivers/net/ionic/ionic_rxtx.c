@@ -31,7 +31,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_prefetch.h>
 #include <rte_udp.h>
 #include <rte_tcp.h>
@@ -63,11 +63,11 @@ ionic_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct ionic_queue *q = &txq->q;
 
 	qinfo->nb_desc = q->num_descs;
-	qinfo->conf.offloads = txq->offloads;
+	qinfo->conf.offloads = dev->data->dev_conf.txmode.offloads;
 	qinfo->conf.tx_deferred_start = txq->flags & IONIC_QCQ_F_DEFERRED;
 }
 
-static inline void __rte_cold
+static __rte_always_inline void
 ionic_tx_flush(struct ionic_cq *cq)
 {
 	struct ionic_queue *q = cq->bound_q;
@@ -200,7 +200,13 @@ ionic_dev_tx_queue_setup(struct rte_eth_dev *eth_dev, uint16_t tx_queue_id,
 	if (tx_conf->tx_deferred_start)
 		txq->flags |= IONIC_QCQ_F_DEFERRED;
 
-	txq->offloads = offloads;
+	/* Convert the offload flags into queue flags */
+	if (offloads & DEV_TX_OFFLOAD_IPV4_CKSUM)
+		txq->flags |= IONIC_QCQ_F_CSUM_L3;
+	if (offloads & DEV_TX_OFFLOAD_TCP_CKSUM)
+		txq->flags |= IONIC_QCQ_F_CSUM_TCP;
+	if (offloads & DEV_TX_OFFLOAD_UDP_CKSUM)
+		txq->flags |= IONIC_QCQ_F_CSUM_UDP;
 
 	eth_dev->data->tx_queues[tx_queue_id] = txq;
 
@@ -311,23 +317,25 @@ static struct ionic_txq_desc *
 ionic_tx_tso_next(struct ionic_queue *q, struct ionic_txq_sg_elem **elem)
 {
 	struct ionic_txq_desc *desc_base = q->base;
-	struct ionic_txq_sg_desc *sg_desc_base = q->sg_base;
+	struct ionic_txq_sg_desc_v1 *sg_desc_base = q->sg_base;
 	struct ionic_txq_desc *desc = &desc_base[q->head_idx];
-	struct ionic_txq_sg_desc *sg_desc = &sg_desc_base[q->head_idx];
+	struct ionic_txq_sg_desc_v1 *sg_desc = &sg_desc_base[q->head_idx];
 
 	*elem = sg_desc->elems;
 	return desc;
 }
 
 static int
-ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
-		uint64_t offloads __rte_unused, bool not_xmit_more)
+ionic_tx_tso(struct ionic_qcq *txq, struct rte_mbuf *txm,
+		bool not_xmit_more)
 {
+	struct ionic_queue *q = &txq->q;
 	struct ionic_tx_stats *stats = IONIC_Q_TO_TX_STATS(q);
 	struct ionic_txq_desc *desc;
 	struct ionic_txq_sg_elem *elem;
 	struct rte_mbuf *txm_seg;
-	uint64_t desc_addr = 0;
+	rte_iova_t data_iova;
+	uint64_t desc_addr = 0, next_addr;
 	uint16_t desc_len = 0;
 	uint8_t desc_nsge;
 	uint32_t hdrlen;
@@ -364,6 +372,7 @@ ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
 
 	seglen = hdrlen + mss;
 	left = txm->data_len;
+	data_iova = rte_mbuf_data_iova(txm);
 
 	desc = ionic_tx_tso_next(q, &elem);
 	start = true;
@@ -373,7 +382,7 @@ ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
 	while (left > 0) {
 		len = RTE_MIN(seglen, left);
 		frag_left = seglen - len;
-		desc_addr = rte_cpu_to_le_64(rte_mbuf_data_iova_default(txm));
+		desc_addr = rte_cpu_to_le_64(data_iova + offset);
 		desc_len = len;
 		desc_nsge = 0;
 		left -= len;
@@ -397,24 +406,23 @@ ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
 	txm_seg = txm->next;
 	while (txm_seg != NULL) {
 		offset = 0;
+		data_iova = rte_mbuf_data_iova(txm_seg);
 		left = txm_seg->data_len;
 		stats->frags++;
 
 		while (left > 0) {
-			rte_iova_t data_iova;
-			data_iova = rte_mbuf_data_iova(txm_seg);
-			elem->addr = rte_cpu_to_le_64(data_iova) + offset;
+			next_addr = rte_cpu_to_le_64(data_iova + offset);
 			if (frag_left > 0) {
 				len = RTE_MIN(frag_left, left);
 				frag_left -= len;
+				elem->addr = next_addr;
 				elem->len = len;
 				elem++;
 				desc_nsge++;
 			} else {
 				len = RTE_MIN(mss, left);
 				frag_left = mss - len;
-				data_iova = rte_mbuf_data_iova(txm_seg);
-				desc_addr = rte_cpu_to_le_64(data_iova);
+				desc_addr = next_addr;
 				desc_len = len;
 				desc_nsge = 0;
 			}
@@ -422,6 +430,7 @@ ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
 			offset += len;
 			if (txm_seg->next != NULL && frag_left > 0)
 				continue;
+
 			done = (txm_seg->next == NULL && left == 0);
 			ionic_tx_tso_post(q, desc, txm_seg,
 				desc_addr, desc_nsge, desc_len,
@@ -441,36 +450,41 @@ ionic_tx_tso(struct ionic_queue *q, struct rte_mbuf *txm,
 	return 0;
 }
 
-static int
-ionic_tx(struct ionic_queue *q, struct rte_mbuf *txm,
-		uint64_t offloads, bool not_xmit_more)
+static __rte_always_inline int
+ionic_tx(struct ionic_qcq *txq, struct rte_mbuf *txm,
+		bool not_xmit_more)
 {
+	struct ionic_queue *q = &txq->q;
 	struct ionic_txq_desc *desc_base = q->base;
-	struct ionic_txq_sg_desc *sg_desc_base = q->sg_base;
+	struct ionic_txq_sg_desc_v1 *sg_desc_base = q->sg_base;
 	struct ionic_txq_desc *desc = &desc_base[q->head_idx];
-	struct ionic_txq_sg_desc *sg_desc = &sg_desc_base[q->head_idx];
+	struct ionic_txq_sg_desc_v1 *sg_desc = &sg_desc_base[q->head_idx];
 	struct ionic_txq_sg_elem *elem = sg_desc->elems;
 	struct ionic_tx_stats *stats = IONIC_Q_TO_TX_STATS(q);
 	struct rte_mbuf *txm_seg;
 	bool encap;
 	bool has_vlan;
 	uint64_t ol_flags = txm->ol_flags;
-	uint64_t addr = rte_cpu_to_le_64(rte_mbuf_data_iova_default(txm));
+	uint64_t addr;
 	uint8_t opcode = IONIC_TXQ_DESC_OPCODE_CSUM_NONE;
 	uint8_t flags = 0;
 
 	if ((ol_flags & PKT_TX_IP_CKSUM) &&
-			(offloads & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
+	    (txq->flags & IONIC_QCQ_F_CSUM_L3)) {
 		opcode = IONIC_TXQ_DESC_OPCODE_CSUM_HW;
 		flags |= IONIC_TXQ_DESC_FLAG_CSUM_L3;
-		if (((ol_flags & PKT_TX_TCP_CKSUM) &&
-				(offloads & DEV_TX_OFFLOAD_TCP_CKSUM)) ||
-				((ol_flags & PKT_TX_UDP_CKSUM) &&
-				(offloads & DEV_TX_OFFLOAD_UDP_CKSUM)))
-			flags |= IONIC_TXQ_DESC_FLAG_CSUM_L4;
-	} else {
-		stats->no_csum++;
 	}
+
+	if (((ol_flags & PKT_TX_TCP_CKSUM) &&
+	     (txq->flags & IONIC_QCQ_F_CSUM_TCP)) ||
+	    ((ol_flags & PKT_TX_UDP_CKSUM) &&
+	     (txq->flags & IONIC_QCQ_F_CSUM_UDP))) {
+		opcode = IONIC_TXQ_DESC_OPCODE_CSUM_HW;
+		flags |= IONIC_TXQ_DESC_FLAG_CSUM_L4;
+	}
+
+	if (opcode == IONIC_TXQ_DESC_OPCODE_CSUM_NONE)
+		stats->no_csum++;
 
 	has_vlan = (ol_flags & PKT_TX_VLAN_PKT);
 	encap = ((ol_flags & PKT_TX_OUTER_IP_CKSUM) ||
@@ -480,6 +494,8 @@ ionic_tx(struct ionic_queue *q, struct rte_mbuf *txm,
 
 	flags |= has_vlan ? IONIC_TXQ_DESC_FLAG_VLAN : 0;
 	flags |= encap ? IONIC_TXQ_DESC_FLAG_ENCAP : 0;
+
+	addr = rte_cpu_to_le_64(rte_mbuf_data_iova(txm));
 
 	desc->cmd = encode_txq_desc_cmd(opcode, flags, txm->nb_segs - 1, addr);
 	desc->len = txm->data_len;
@@ -532,10 +548,9 @@ ionic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		}
 
 		if (tx_pkts[nb_tx]->ol_flags & PKT_TX_TCP_SEG)
-			err = ionic_tx_tso(q, tx_pkts[nb_tx], txq->offloads,
-				last);
+			err = ionic_tx_tso(txq, tx_pkts[nb_tx], last);
 		else
-			err = ionic_tx(q, tx_pkts[nb_tx], txq->offloads, last);
+			err = ionic_tx(txq, tx_pkts[nb_tx], last);
 		if (err) {
 			stats->drop += nb_pkts - nb_tx;
 			if (nb_tx > 0)
@@ -581,7 +596,7 @@ ionic_prep_pkts(void *tx_queue __rte_unused, struct rte_mbuf **tx_pkts,
 	for (i = 0; i < nb_pkts; i++) {
 		txm = tx_pkts[i];
 
-		if (txm->nb_segs > IONIC_TX_MAX_SG_ELEMS) {
+		if (txm->nb_segs > IONIC_TX_MAX_SG_ELEMS_V1 + 1) {
 			rte_errno = -EINVAL;
 			break;
 		}
@@ -617,7 +632,7 @@ ionic_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->scattered_rx = dev->data->scattered_rx;
 	qinfo->nb_desc = q->num_descs;
 	qinfo->conf.rx_deferred_start = rxq->flags & IONIC_QCQ_F_DEFERRED;
-	qinfo->conf.offloads = rxq->offloads;
+	qinfo->conf.offloads = dev->data->dev_conf.rxmode.offloads;
 }
 
 static void __rte_cold
@@ -720,14 +735,12 @@ ionic_dev_rx_queue_setup(struct rte_eth_dev *eth_dev,
 	if (rx_conf->rx_deferred_start)
 		rxq->flags |= IONIC_QCQ_F_DEFERRED;
 
-	rxq->offloads = offloads;
-
 	eth_dev->data->rx_queues[rx_queue_id] = rxq;
 
 	return 0;
 }
 
-static void
+static __rte_always_inline void
 ionic_rx_clean(struct ionic_queue *q,
 		uint32_t q_desc_index, uint32_t cq_desc_index,
 		void *cb_arg, void *service_cb_arg)
@@ -888,7 +901,7 @@ ionic_rx_recycle(struct ionic_queue *q, uint32_t q_desc_index,
 	ionic_q_post(q, true, ionic_rx_clean, mbuf);
 }
 
-static int __rte_cold
+static __rte_always_inline int
 ionic_rx_fill(struct ionic_qcq *rxq, uint32_t len)
 {
 	struct ionic_queue *q = &rxq->q;
@@ -1004,7 +1017,7 @@ ionic_dev_rx_queue_start(struct rte_eth_dev *eth_dev, uint16_t rx_queue_id)
 	return 0;
 }
 
-static inline void __rte_cold
+static __rte_always_inline void
 ionic_rxq_service(struct ionic_cq *cq, uint32_t work_to_do,
 		void *service_cb_arg)
 {

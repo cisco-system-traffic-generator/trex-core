@@ -28,6 +28,10 @@ includes += include_directories('base')
 if arch_subdir == 'x86'
 	sources += files('i40e_rxtx_vec_sse.c')
 
+	if is_windows and cc.get_id() != 'clang'
+		cflags += ['-fno-asynchronous-unwind-tables']
+	endif
+
 	# compile AVX2 version if either:
 	# a. we have AVX supported in minimum instruction set baseline
 	# b. it's not minimum instruction set, but supported by compiler

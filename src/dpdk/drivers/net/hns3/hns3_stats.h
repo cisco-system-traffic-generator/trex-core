@@ -127,10 +127,19 @@ struct hns3_reset_stats;
 	(offsetof(struct hns3_reset_stats, f))
 
 #define HNS3_RX_BD_ERROR_STATS_FIELD_OFFSET(f) \
-	(offsetof(struct hns3_rx_queue, f))
+	(offsetof(struct hns3_rx_bd_errors_stats, f))
 
-#define HNS3_TX_ERROR_STATS_FIELD_OFFSET(f) \
-	(offsetof(struct hns3_tx_queue, f))
+#define HNS3_RXQ_DFX_STATS_FIELD_OFFSET(f) \
+	(offsetof(struct hns3_rx_dfx_stats, f))
+
+#define HNS3_TXQ_DFX_STATS_FIELD_OFFSET(f) \
+	(offsetof(struct hns3_tx_dfx_stats, f))
+
+#define HNS3_RXQ_BASIC_STATS_FIELD_OFFSET(f) \
+	(offsetof(struct hns3_rx_basic_stats, f))
+
+#define HNS3_TXQ_BASIC_STATS_FIELD_OFFSET(f) \
+	(offsetof(struct hns3_tx_basic_stats, f))
 
 int hns3_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *rte_stats);
 int hns3_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,

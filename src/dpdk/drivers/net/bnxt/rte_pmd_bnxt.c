@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2017-2018 Broadcom
+ * Copyright(c) 2017-2021 Broadcom
  * All rights reserved.
  */
 
@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #include <rte_dev.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_malloc.h>
 #include <rte_cycles.h>
 #include <rte_byteorder.h>

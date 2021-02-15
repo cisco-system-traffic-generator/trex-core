@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #define HNS3_CMDQ_TX_TIMEOUT		30000
+#define HNS3_CMDQ_CLEAR_WAIT_TIME	200
 #define HNS3_CMDQ_RX_INVLD_B		0
 #define HNS3_CMDQ_RX_OUTVLD_B		1
 #define HNS3_CMD_DESC_ALIGNMENT		4096
@@ -52,6 +53,7 @@ enum hns3_cmd_return_status {
 	HNS3_CMD_HILINK_ERR     = 9,
 	HNS3_CMD_QUEUE_ILLEGAL  = 10,
 	HNS3_CMD_INVALID        = 11,
+	HNS3_CMD_ROH_CHECK_FAIL = 12
 };
 
 enum hns3_cmd_status {
@@ -205,6 +207,9 @@ enum hns3_opcode_type {
 	/* Clear hardware state command */
 	HNS3_OPC_CLEAR_HW_STATE         = 0x700B,
 
+	/* Firmware stats command */
+	HNS3_OPC_FIRMWARE_COMPAT_CFG    = 0x701A,
+
 	/* SFP command */
 	HNS3_OPC_SFP_GET_SPEED          = 0x7104,
 
@@ -291,11 +296,16 @@ enum HNS3_CAPS_BITS {
 	HNS3_CAPS_HW_PAD_B,
 	HNS3_CAPS_STASH_B,
 };
+
+enum HNS3_API_CAP_BITS {
+	HNS3_API_CAP_FLEX_RSS_TBL_B,
+};
+
 #define HNS3_QUERY_CAP_LENGTH		3
 struct hns3_query_version_cmd {
 	uint32_t firmware;
 	uint32_t hardware;
-	uint32_t rsv;
+	uint32_t api_caps;
 	uint32_t caps[HNS3_QUERY_CAP_LENGTH]; /* capabilities of device */
 };
 
@@ -632,6 +642,13 @@ enum hns3_promisc_type {
 	HNS3_BROADCAST	= 3,
 };
 
+#define HNS3_LINK_EVENT_REPORT_EN_B	0
+#define HNS3_NCSI_ERROR_REPORT_EN_B	1
+struct hns3_firmware_compat_cmd {
+	uint32_t compat;
+	uint8_t rsv[20];
+};
+
 #define HNS3_MAC_TX_EN_B		6
 #define HNS3_MAC_RX_EN_B		7
 #define HNS3_MAC_PAD_TX_B		11
@@ -775,12 +792,16 @@ enum hns3_int_gl_idx {
 #define HNS3_TQP_ID_M		GENMASK(12, 2)
 #define HNS3_INT_GL_IDX_S	13
 #define HNS3_INT_GL_IDX_M	GENMASK(14, 13)
+#define HNS3_TQP_INT_ID_L_S	0
+#define HNS3_TQP_INT_ID_L_M	GENMASK(7, 0)
+#define HNS3_TQP_INT_ID_H_S	8
+#define HNS3_TQP_INT_ID_H_M	GENMASK(15, 8)
 struct hns3_ctrl_vector_chain_cmd {
-	uint8_t int_vector_id;
+	uint8_t int_vector_id;    /* the low order of the interrupt id */
 	uint8_t int_cause_num;
 	uint16_t tqp_type_and_id[HNS3_VECTOR_ELEMENTS_PER_CMD];
 	uint8_t vfid;
-	uint8_t rsv;
+	uint8_t int_vector_id_h;  /* the high order of the interrupt id */
 };
 
 struct hns3_config_max_frm_size_cmd {

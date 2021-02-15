@@ -2,7 +2,7 @@
  * Copyright(c) 2018-2019 Hisilicon Limited.
  */
 
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 #include <rte_io.h>
 
 #include "hns3_ethdev.h"
@@ -202,7 +202,8 @@ hns3_cmd_csq_clean(struct hns3_hw *hw)
 		hns3_err(hw, "wrong cmd head (%u, %u-%u)", head,
 			    csq->next_to_use, csq->next_to_clean);
 		if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-			rte_atomic16_set(&hw->reset.disable_cmd, 1);
+			__atomic_store_n(&hw->reset.disable_cmd, 1,
+					 __ATOMIC_RELAXED);
 			hns3_schedule_delayed_reset(HNS3_DEV_HW_TO_ADAPTER(hw));
 		}
 
@@ -247,34 +248,32 @@ hns3_is_special_opcode(uint16_t opcode)
 static int
 hns3_cmd_convert_err_code(uint16_t desc_ret)
 {
-	switch (desc_ret) {
-	case HNS3_CMD_EXEC_SUCCESS:
-		return 0;
-	case HNS3_CMD_NO_AUTH:
-		return -EPERM;
-	case HNS3_CMD_NOT_SUPPORTED:
-		return -EOPNOTSUPP;
-	case HNS3_CMD_QUEUE_FULL:
-		return -EXFULL;
-	case HNS3_CMD_NEXT_ERR:
-		return -ENOSR;
-	case HNS3_CMD_UNEXE_ERR:
-		return -ENOTBLK;
-	case HNS3_CMD_PARA_ERR:
-		return -EINVAL;
-	case HNS3_CMD_RESULT_ERR:
-		return -ERANGE;
-	case HNS3_CMD_TIMEOUT:
-		return -ETIME;
-	case HNS3_CMD_HILINK_ERR:
-		return -ENOLINK;
-	case HNS3_CMD_QUEUE_ILLEGAL:
-		return -ENXIO;
-	case HNS3_CMD_INVALID:
-		return -EBADR;
-	default:
-		return -EREMOTEIO;
-	}
+	static const struct {
+		uint16_t imp_errcode;
+		int linux_errcode;
+	} hns3_cmdq_status[] = {
+		{HNS3_CMD_EXEC_SUCCESS, 0},
+		{HNS3_CMD_NO_AUTH, -EPERM},
+		{HNS3_CMD_NOT_SUPPORTED, -EOPNOTSUPP},
+		{HNS3_CMD_QUEUE_FULL, -EXFULL},
+		{HNS3_CMD_NEXT_ERR, -ENOSR},
+		{HNS3_CMD_UNEXE_ERR, -ENOTBLK},
+		{HNS3_CMD_PARA_ERR, -EINVAL},
+		{HNS3_CMD_RESULT_ERR, -ERANGE},
+		{HNS3_CMD_TIMEOUT, -ETIME},
+		{HNS3_CMD_HILINK_ERR, -ENOLINK},
+		{HNS3_CMD_QUEUE_ILLEGAL, -ENXIO},
+		{HNS3_CMD_INVALID, -EBADR},
+		{HNS3_CMD_ROH_CHECK_FAIL, -EINVAL}
+	};
+
+	uint32_t i;
+
+	for (i = 0; i < ARRAY_SIZE(hns3_cmdq_status); i++)
+		if (hns3_cmdq_status[i].imp_errcode == desc_ret)
+			return hns3_cmdq_status[i].linux_errcode;
+
+	return -EREMOTEIO;
 }
 
 static int
@@ -313,7 +312,7 @@ static int hns3_cmd_poll_reply(struct hns3_hw *hw)
 		if (hns3_cmd_csq_done(hw))
 			return 0;
 
-		if (rte_atomic16_read(&hw->reset.disable_cmd)) {
+		if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED)) {
 			hns3_err(hw,
 				 "Don't wait for reply because of disable_cmd");
 			return -EBUSY;
@@ -360,7 +359,7 @@ hns3_cmd_send(struct hns3_hw *hw, struct hns3_cmd_desc *desc, int num)
 	int retval;
 	uint32_t ntc;
 
-	if (rte_atomic16_read(&hw->reset.disable_cmd))
+	if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED))
 		return -EBUSY;
 
 	rte_spinlock_lock(&hw->cmq.csq.lock);
@@ -432,6 +431,16 @@ static void hns3_parse_capability(struct hns3_hw *hw,
 		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_STASH_B, 1);
 }
 
+static uint32_t
+hns3_build_api_caps(void)
+{
+	uint32_t api_caps = 0;
+
+	hns3_set_bit(api_caps, HNS3_API_CAP_FLEX_RSS_TBL_B, 1);
+
+	return rte_cpu_to_le_32(api_caps);
+}
+
 static enum hns3_cmd_status
 hns3_cmd_query_firmware_version_and_capability(struct hns3_hw *hw)
 {
@@ -441,6 +450,7 @@ hns3_cmd_query_firmware_version_and_capability(struct hns3_hw *hw)
 
 	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_QUERY_FW_VER, 1);
 	resp = (struct hns3_query_version_cmd *)desc.data;
+	resp->api_caps = hns3_build_api_caps();
 
 	/* Initialize the cmd function */
 	ret = hns3_cmd_send(hw, &desc, 1);
@@ -526,7 +536,7 @@ hns3_cmd_init(struct hns3_hw *hw)
 		ret = -EBUSY;
 		goto err_cmd_init;
 	}
-	rte_atomic16_clear(&hw->reset.disable_cmd);
+	__atomic_store_n(&hw->reset.disable_cmd, 0, __ATOMIC_RELAXED);
 
 	ret = hns3_cmd_query_firmware_version_and_capability(hw);
 	if (ret) {
@@ -548,7 +558,7 @@ hns3_cmd_init(struct hns3_hw *hw)
 	return 0;
 
 err_cmd_init:
-	rte_atomic16_set(&hw->reset.disable_cmd, 1);
+	__atomic_store_n(&hw->reset.disable_cmd, 1, __ATOMIC_RELAXED);
 	return ret;
 }
 
@@ -572,9 +582,21 @@ hns3_cmd_destroy_queue(struct hns3_hw *hw)
 void
 hns3_cmd_uninit(struct hns3_hw *hw)
 {
+	__atomic_store_n(&hw->reset.disable_cmd, 1, __ATOMIC_RELAXED);
+
+	/*
+	 * A delay is added to ensure that the register cleanup operations
+	 * will not be performed concurrently with the firmware command and
+	 * ensure that all the reserved commands are executed.
+	 * Concurrency may occur in two scenarios: asynchronous command and
+	 * timeout command. If the command fails to be executed due to busy
+	 * scheduling, the command will be processed in the next scheduling
+	 * of the firmware.
+	 */
+	rte_delay_ms(HNS3_CMDQ_CLEAR_WAIT_TIME);
+
 	rte_spinlock_lock(&hw->cmq.csq.lock);
 	rte_spinlock_lock(&hw->cmq.crq.lock);
-	rte_atomic16_set(&hw->reset.disable_cmd, 1);
 	hns3_cmd_clear_regs(hw);
 	rte_spinlock_unlock(&hw->cmq.crq.lock);
 	rte_spinlock_unlock(&hw->cmq.csq.lock);

@@ -412,16 +412,53 @@ struct mlx5_cqe_ts {
 	uint8_t op_own;
 };
 
+/* GGA */
 /* MMO metadata segment */
 
-#define	MLX5_OPCODE_MMO	0x2f
-#define	MLX5_OPC_MOD_MMO_REGEX 0x4
+#define	MLX5_OPCODE_MMO	0x2fu
+#define	MLX5_OPC_MOD_MMO_REGEX 0x4u
+#define	MLX5_OPC_MOD_MMO_COMP 0x2u
+#define	MLX5_OPC_MOD_MMO_DECOMP 0x3u
+#define	MLX5_OPC_MOD_MMO_DMA 0x1u
+
+#define WQE_GGA_COMP_WIN_SIZE_OFFSET 12u
+#define WQE_GGA_COMP_BLOCK_SIZE_OFFSET 16u
+#define WQE_GGA_COMP_DYNAMIC_SIZE_OFFSET 20u
+#define MLX5_GGA_COMP_WIN_SIZE_UNITS 1024u
+#define MLX5_GGA_COMP_WIN_SIZE_MAX (32u * MLX5_GGA_COMP_WIN_SIZE_UNITS)
+#define MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX 15u
+#define MLX5_GGA_COMP_LOG_DYNAMIC_SIZE_MAX 15u
+#define MLX5_GGA_COMP_LOG_DYNAMIC_SIZE_MIN 0u
 
 struct mlx5_wqe_metadata_seg {
 	uint32_t mmo_control_31_0; /* mmo_control_63_32 is in ctrl_seg.imm */
 	uint32_t lkey;
 	uint64_t addr;
 };
+
+struct mlx5_gga_wqe {
+	uint32_t opcode;
+	uint32_t sq_ds;
+	uint32_t flags;
+	uint32_t gga_ctrl1;  /* ws 12-15, bs 16-19, dyns 20-23. */
+	uint32_t gga_ctrl2;
+	uint32_t opaque_lkey;
+	uint64_t opaque_vaddr;
+	struct mlx5_wqe_dseg gather;
+	struct mlx5_wqe_dseg scatter;
+} __rte_packed;
+
+struct mlx5_gga_compress_opaque {
+	uint32_t syndrom;
+	uint32_t reserved0;
+	uint32_t scattered_length;
+	uint32_t gathered_length;
+	uint64_t scatter_crc;
+	uint64_t gather_crc;
+	uint32_t crc32;
+	uint32_t adler32;
+	uint8_t reserved1[216];
+} __rte_packed;
 
 struct mlx5_ifc_regexp_mmo_control_bits {
 	uint8_t reserved_at_31[0x2];
@@ -549,6 +586,7 @@ enum mlx5_modification_field {
 	MLX5_MODI_IN_TCP_SEQ_NUM,
 	MLX5_MODI_OUT_TCP_ACK_NUM,
 	MLX5_MODI_IN_TCP_ACK_NUM = 0x5C,
+	MLX5_MODI_GTP_TEID = 0x6E,
 };
 
 /* Total number of metadata reg_c's. */
@@ -1127,7 +1165,15 @@ enum {
 struct mlx5_ifc_cmd_hca_cap_bits {
 	u8 reserved_at_0[0x30];
 	u8 vhca_id[0x10];
-	u8 reserved_at_40[0x40];
+	u8 reserved_at_40[0x20];
+	u8 reserved_at_60[0x3];
+	u8 log_regexp_scatter_gather_size[0x5];
+	u8 reserved_at_68[0x3];
+	u8 log_dma_mmo_size[0x5];
+	u8 reserved_at_70[0x3];
+	u8 log_compress_mmo_size[0x5];
+	u8 reserved_at_78[0x3];
+	u8 log_decompress_mmo_size[0x5];
 	u8 log_max_srq_sz[0x8];
 	u8 log_max_qp_sz[0x8];
 	u8 reserved_at_90[0x9];
@@ -1137,7 +1183,9 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8 regexp[0x1];
 	u8 reserved_at_a1[0x3];
 	u8 regexp_num_of_engines[0x4];
-	u8 reserved_at_a8[0x3];
+	u8 reserved_at_a8[0x1];
+	u8 reg_c_preserve[0x1];
+	u8 reserved_at_aa[0x1];
 	u8 log_max_srq[0x5];
 	u8 reserved_at_b0[0x3];
 	u8 regexp_log_crspace_size[0x5];
@@ -1175,7 +1223,13 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8 log_max_ra_res_dc[0x6];
 	u8 reserved_at_140[0xa];
 	u8 log_max_ra_req_qp[0x6];
-	u8 reserved_at_150[0xa];
+	u8 rtr2rts_qp_counters_set_id[0x1];
+	u8 rts2rts_udp_sport[0x1];
+	u8 rts2rts_lag_tx_port_affinity[0x1];
+	u8 dma_mmo[0x1];
+	u8 compress_min_block_size[0x4];
+	u8 compress[0x1];
+	u8 decompress[0x1];
 	u8 log_max_ra_res_qp[0x6];
 	u8 end_pad[0x1];
 	u8 cc_query_allowed[0x1];
@@ -1390,7 +1444,10 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8 max_geneve_tlv_options[0x8];
 	u8 reserved_at_568[0x3];
 	u8 max_geneve_tlv_option_data_len[0x5];
-	u8 reserved_at_570[0x4c];
+	u8 reserved_at_570[0x49];
+	u8 mini_cqe_resp_l3_l4_tag[0x1];
+	u8 mini_cqe_resp_flow_tag[0x1];
+	u8 enhanced_cqe_compression[0x1];
 	u8 mini_cqe_resp_stride_index[0x1];
 	u8 cqe_128_always[0x1];
 	u8 cqe_compression_128[0x1];
@@ -1420,13 +1477,13 @@ struct mlx5_ifc_qos_cap_bits {
 	u8 reserved_at_4[0x1];
 	u8 packet_pacing_burst_bound[0x1];
 	u8 packet_pacing_typical_size[0x1];
-	u8 flow_meter_srtcm[0x1];
+	u8 flow_meter_old[0x1];
 	u8 reserved_at_8[0x8];
 	u8 log_max_flow_meter[0x8];
 	u8 flow_meter_reg_id[0x8];
 	u8 wqe_rate_pp[0x1];
 	u8 reserved_at_25[0x7];
-	u8 flow_meter_reg_share[0x1];
+	u8 flow_meter[0x1];
 	u8 reserved_at_2e[0x17];
 	u8 packet_pacing_max_rate[0x20];
 	u8 packet_pacing_min_rate[0x20];

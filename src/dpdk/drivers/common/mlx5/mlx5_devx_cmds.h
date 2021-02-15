@@ -38,11 +38,17 @@ struct mlx5_devx_mkey_attr {
 /* HCA qos attributes. */
 struct mlx5_hca_qos_attr {
 	uint32_t sup:1;	/* Whether QOS is supported. */
-	uint32_t srtcm_sup:1; /* Whether srTCM mode is supported. */
+	uint32_t flow_meter_old:1; /* Flow meter is supported, old version. */
 	uint32_t packet_pacing:1; /* Packet pacing is supported. */
 	uint32_t wqe_rate_pp:1; /* Packet pacing WQE rate mode. */
-	uint32_t flow_meter_reg_share:1;
-	/* Whether reg_c share is supported. */
+	uint32_t flow_meter:1;
+	/*
+	 * Flow meter is supported, updated version.
+	 * When flow_meter is 1, it indicates that REG_C sharing is supported.
+	 * If flow_meter is 1, flow_meter_old is also 1.
+	 * Using older driver versions, flow_meter_old can be 1
+	 * while flow_meter is 0.
+	 */
 	uint8_t log_max_flow_meter;
 	/* Power of the maximum supported meters. */
 	uint8_t flow_meter_reg_c_ids;
@@ -116,9 +122,13 @@ struct mlx5_hca_attr {
 	uint32_t scatter_fcs_w_decap_disable:1;
 	uint32_t flow_hit_aso:1; /* General obj type FLOW_HIT_ASO supported. */
 	uint32_t regex:1;
+	uint32_t reg_c_preserve:1;
 	uint32_t regexp_num_of_engines;
 	uint32_t log_max_ft_sampler_num:8;
 	uint32_t geneve_tlv_opt;
+	uint32_t cqe_compression:1;
+	uint32_t mini_cqe_resp_flow_tag:1;
+	uint32_t mini_cqe_resp_l3_l4_tag:1;
 	struct mlx5_hca_qos_attr qos;
 	struct mlx5_hca_vdpa_attr vdpa;
 	int log_max_qp_sz;
@@ -130,6 +140,13 @@ struct mlx5_hca_attr {
 	uint32_t log_max_srq;
 	uint32_t log_max_srq_sz;
 	uint32_t rss_ind_tbl_cap;
+	uint32_t mmo_dma_en:1;
+	uint32_t mmo_compress_en:1;
+	uint32_t mmo_decompress_en:1;
+	uint32_t compress_min_block_size:4;
+	uint32_t log_max_mmo_dma:5;
+	uint32_t log_max_mmo_compress:5;
+	uint32_t log_max_mmo_decompress:5;
 };
 
 struct mlx5_devx_wq_attr {

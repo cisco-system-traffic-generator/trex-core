@@ -12,7 +12,7 @@
 
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_common.h>
 #include <rte_interrupts.h>
 #include <rte_debug.h>
@@ -2353,7 +2353,9 @@ uint32_t mlx5_hrxq_get(struct rte_eth_dev *dev,
 			return 0;
 		hrxq = container_of(entry, typeof(*hrxq), entry);
 	}
-	return hrxq->idx;
+	if (hrxq)
+		return hrxq->idx;
+	return 0;
 }
 
 /**

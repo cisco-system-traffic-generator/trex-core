@@ -6,7 +6,7 @@
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_vxlan.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_io.h>
 #include <rte_net.h>
 #include <rte_malloc.h>
@@ -834,6 +834,24 @@ queue_reset_fail:
 	return ret;
 }
 
+uint32_t
+hns3_get_tqp_intr_reg_offset(uint16_t tqp_intr_id)
+{
+	uint32_t reg_offset;
+
+	/* Need an extend offset to config queues > 64 */
+	if (tqp_intr_id < HNS3_MIN_EXT_TQP_INTR_ID)
+		reg_offset = HNS3_TQP_INTR_REG_BASE +
+			     tqp_intr_id * HNS3_TQP_INTR_LOW_ORDER_OFFSET;
+	else
+		reg_offset = HNS3_TQP_INTR_EXT_REG_BASE +
+			     tqp_intr_id / HNS3_MIN_EXT_TQP_INTR_ID *
+			     HNS3_TQP_INTR_HIGH_ORDER_OFFSET +
+			     tqp_intr_id % HNS3_MIN_EXT_TQP_INTR_ID *
+			     HNS3_TQP_INTR_LOW_ORDER_OFFSET;
+
+	return reg_offset;
+}
 
 void
 hns3_set_queue_intr_gl(struct hns3_hw *hw, uint16_t queue_id,
@@ -847,7 +865,7 @@ hns3_set_queue_intr_gl(struct hns3_hw *hw, uint16_t queue_id,
 	if (gl_idx >= RTE_DIM(offset) || gl_value > HNS3_TQP_INTR_GL_MAX)
 		return;
 
-	addr = offset[gl_idx] + queue_id * HNS3_TQP_INTR_REG_SIZE;
+	addr = offset[gl_idx] + hns3_get_tqp_intr_reg_offset(queue_id);
 	if (hw->intr.gl_unit == HNS3_INTR_COALESCE_GL_UINT_1US)
 		value = gl_value | HNS3_TQP_INTR_GL_UNIT_1US;
 	else
@@ -864,7 +882,7 @@ hns3_set_queue_intr_rl(struct hns3_hw *hw, uint16_t queue_id, uint16_t rl_value)
 	if (rl_value > HNS3_TQP_INTR_RL_MAX)
 		return;
 
-	addr = HNS3_TQP_INTR_RL_REG + queue_id * HNS3_TQP_INTR_REG_SIZE;
+	addr = HNS3_TQP_INTR_RL_REG + hns3_get_tqp_intr_reg_offset(queue_id);
 	value = HNS3_RL_USEC_TO_REG(rl_value);
 	if (value > 0)
 		value |= HNS3_TQP_INTR_RL_ENABLE_MASK;
@@ -885,10 +903,10 @@ hns3_set_queue_intr_ql(struct hns3_hw *hw, uint16_t queue_id, uint16_t ql_value)
 	if (hw->intr.int_ql_max == HNS3_INTR_QL_NONE)
 		return;
 
-	addr = HNS3_TQP_INTR_TX_QL_REG + queue_id * HNS3_TQP_INTR_REG_SIZE;
+	addr = HNS3_TQP_INTR_TX_QL_REG + hns3_get_tqp_intr_reg_offset(queue_id);
 	hns3_write_dev(hw, addr, ql_value);
 
-	addr = HNS3_TQP_INTR_RX_QL_REG + queue_id * HNS3_TQP_INTR_REG_SIZE;
+	addr = HNS3_TQP_INTR_RX_QL_REG + hns3_get_tqp_intr_reg_offset(queue_id);
 	hns3_write_dev(hw, addr, ql_value);
 }
 
@@ -897,7 +915,7 @@ hns3_queue_intr_enable(struct hns3_hw *hw, uint16_t queue_id, bool en)
 {
 	uint32_t addr, value;
 
-	addr = HNS3_TQP_INTR_CTRL_REG + queue_id * HNS3_TQP_INTR_REG_SIZE;
+	addr = HNS3_TQP_INTR_CTRL_REG + hns3_get_tqp_intr_reg_offset(queue_id);
 	value = en ? 1 : 0;
 
 	hns3_write_dev(hw, addr, value);
@@ -1792,12 +1810,9 @@ hns3_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t nb_desc,
 	rxq->io_head_reg = (volatile void *)((char *)rxq->io_base +
 			   HNS3_RING_RX_HEAD_REG);
 	rxq->rx_buf_len = rx_buf_size;
-	rxq->l2_errors = 0;
-	rxq->pkt_len_errors = 0;
-	rxq->l3_csum_errors = 0;
-	rxq->l4_csum_errors = 0;
-	rxq->ol3_csum_errors = 0;
-	rxq->ol4_csum_errors = 0;
+	memset(&rxq->basic_stats, 0, sizeof(struct hns3_rx_basic_stats));
+	memset(&rxq->err_stats, 0, sizeof(struct hns3_rx_bd_errors_stats));
+	memset(&rxq->dfx_stats, 0, sizeof(struct hns3_rx_dfx_stats));
 
 	/* CRC len set here is used for amending packet length */
 	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)
@@ -2622,12 +2637,9 @@ hns3_tx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t nb_desc,
 					     HNS3_RING_TX_TAIL_REG);
 	txq->min_tx_pkt_len = hw->min_tx_pkt_len;
 	txq->tso_mode = hw->tso_mode;
-	txq->over_length_pkt_cnt = 0;
-	txq->exceed_limit_bd_pkt_cnt = 0;
-	txq->exceed_limit_bd_reassem_fail = 0;
-	txq->unsupported_tunnel_pkt_cnt = 0;
-	txq->queue_full_cnt = 0;
-	txq->pkt_padding_fail_cnt = 0;
+	memset(&txq->basic_stats, 0, sizeof(struct hns3_tx_basic_stats));
+	memset(&txq->dfx_stats, 0, sizeof(struct hns3_tx_dfx_stats));
+
 	rte_spinlock_lock(&hw->lock);
 	dev->data->tx_queues[idx] = txq;
 	rte_spinlock_unlock(&hw->lock);
@@ -3350,7 +3362,7 @@ hns3_parse_cksum(struct hns3_tx_queue *txq, uint16_t tx_desc_id,
 	if (m->ol_flags & HNS3_TX_CKSUM_OFFLOAD_MASK) {
 		/* Fill in tunneling parameters if necessary */
 		if (hns3_parse_tunneling_params(txq, m, tx_desc_id)) {
-			txq->unsupported_tunnel_pkt_cnt++;
+			txq->dfx_stats.unsupported_tunnel_pkt_cnt++;
 				return -EINVAL;
 		}
 
@@ -3380,17 +3392,17 @@ hns3_check_non_tso_pkt(uint16_t nb_buf, struct rte_mbuf **m_seg,
 	 * driver support, the packet will be ignored.
 	 */
 	if (unlikely(rte_pktmbuf_pkt_len(tx_pkt) > HNS3_MAX_FRAME_LEN)) {
-		txq->over_length_pkt_cnt++;
+		txq->dfx_stats.over_length_pkt_cnt++;
 		return -EINVAL;
 	}
 
 	max_non_tso_bd_num = txq->max_non_tso_bd_num;
 	if (unlikely(nb_buf > max_non_tso_bd_num)) {
-		txq->exceed_limit_bd_pkt_cnt++;
+		txq->dfx_stats.exceed_limit_bd_pkt_cnt++;
 		ret = hns3_reassemble_tx_pkts(tx_pkt, &new_pkt,
 					      max_non_tso_bd_num);
 		if (ret) {
-			txq->exceed_limit_bd_reassem_fail++;
+			txq->dfx_stats.exceed_limit_bd_reassem_fail++;
 			return ret;
 		}
 		*m_seg = new_pkt;
@@ -3528,7 +3540,7 @@ hns3_xmit_pkts_simple(void *tx_queue,
 	nb_pkts = RTE_MIN(txq->tx_bd_ready, nb_pkts);
 	if (unlikely(nb_pkts == 0)) {
 		if (txq->tx_bd_ready == 0)
-			txq->queue_full_cnt++;
+			txq->dfx_stats.queue_full_cnt++;
 		return 0;
 	}
 
@@ -3580,7 +3592,7 @@ hns3_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		nb_buf = tx_pkt->nb_segs;
 
 		if (nb_buf > txq->tx_bd_ready) {
-			txq->queue_full_cnt++;
+			txq->dfx_stats.queue_full_cnt++;
 			if (nb_tx == 0)
 				return 0;
 
@@ -3601,7 +3613,7 @@ hns3_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 					 rte_pktmbuf_pkt_len(tx_pkt);
 			appended = rte_pktmbuf_append(tx_pkt, add_len);
 			if (appended == NULL) {
-				txq->pkt_padding_fail_cnt++;
+				txq->dfx_stats.pkt_padding_fail_cnt++;
 				break;
 			}
 

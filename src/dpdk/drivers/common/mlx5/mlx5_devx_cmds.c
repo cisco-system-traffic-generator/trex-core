@@ -732,6 +732,23 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 	attr->log_max_pd = MLX5_GET(cmd_hca_cap, hcattr, log_max_pd);
 	attr->log_max_srq = MLX5_GET(cmd_hca_cap, hcattr, log_max_srq);
 	attr->log_max_srq_sz = MLX5_GET(cmd_hca_cap, hcattr, log_max_srq_sz);
+	attr->reg_c_preserve =
+		MLX5_GET(cmd_hca_cap, hcattr, reg_c_preserve);
+	attr->mmo_dma_en = MLX5_GET(cmd_hca_cap, hcattr, dma_mmo);
+	attr->mmo_compress_en = MLX5_GET(cmd_hca_cap, hcattr, compress);
+	attr->mmo_decompress_en = MLX5_GET(cmd_hca_cap, hcattr, decompress);
+	attr->compress_min_block_size = MLX5_GET(cmd_hca_cap, hcattr,
+						 compress_min_block_size);
+	attr->log_max_mmo_dma = MLX5_GET(cmd_hca_cap, hcattr, log_dma_mmo_size);
+	attr->log_max_mmo_compress = MLX5_GET(cmd_hca_cap, hcattr,
+					      log_compress_mmo_size);
+	attr->log_max_mmo_decompress = MLX5_GET(cmd_hca_cap, hcattr,
+						log_decompress_mmo_size);
+	attr->cqe_compression = MLX5_GET(cmd_hca_cap, hcattr, cqe_compression);
+	attr->mini_cqe_resp_flow_tag = MLX5_GET(cmd_hca_cap, hcattr,
+						mini_cqe_resp_flow_tag);
+	attr->mini_cqe_resp_l3_l4_tag = MLX5_GET(cmd_hca_cap, hcattr,
+						 mini_cqe_resp_l3_l4_tag);
 	if (attr->qos.sup) {
 		MLX5_SET(query_hca_cap_in, in, op_mod,
 			 MLX5_GET_HCA_CAP_OP_MOD_QOS_CAP |
@@ -746,14 +763,14 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 			return -1;
 		}
 		hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
-		attr->qos.srtcm_sup =
-				MLX5_GET(qos_cap, hcattr, flow_meter_srtcm);
+		attr->qos.flow_meter_old =
+				MLX5_GET(qos_cap, hcattr, flow_meter_old);
 		attr->qos.log_max_flow_meter =
 				MLX5_GET(qos_cap, hcattr, log_max_flow_meter);
 		attr->qos.flow_meter_reg_c_ids =
 				MLX5_GET(qos_cap, hcattr, flow_meter_reg_id);
-		attr->qos.flow_meter_reg_share =
-				MLX5_GET(qos_cap, hcattr, flow_meter_reg_share);
+		attr->qos.flow_meter =
+				MLX5_GET(qos_cap, hcattr, flow_meter);
 		attr->qos.packet_pacing =
 				MLX5_GET(qos_cap, hcattr, packet_pacing);
 		attr->qos.wqe_rate_pp =

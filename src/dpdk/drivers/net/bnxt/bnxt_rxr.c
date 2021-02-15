@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2018 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -325,6 +325,7 @@ static int bnxt_rx_pages(struct bnxt_rx_queue *rxq,
 		 */
 		rte_bitmap_set(rxr->ag_bitmap, ag_cons);
 	}
+	last->next = NULL;
 	bnxt_prod_ag_mbuf(rxq);
 	return 0;
 }
@@ -402,7 +403,7 @@ bnxt_init_ptype_table(void)
 
 		ip6 = i & (RX_PKT_CMPL_FLAGS2_IP_TYPE >> 7);
 		tun = i & (RX_PKT_CMPL_FLAGS2_T_IP_CS_CALC >> 2);
-		type = (i & 0x38) << 9;
+		type = (i & 0x78) << 9;
 
 		if (!tun && !ip6)
 			l3 = RTE_PTYPE_L3_IPV4_EXT_UNKNOWN;
@@ -588,6 +589,12 @@ bnxt_set_ol_flags(struct bnxt_rx_ring_info *rxr, struct rx_pkt_cmpl *rxcmp,
 		mbuf->hash.rss = rte_le_to_cpu_32(rxcmp->rss_hash);
 		ol_flags |= PKT_RX_RSS_HASH;
 	}
+
+#ifdef RTE_LIBRTE_IEEE1588
+	if (unlikely((flags_type & RX_PKT_CMPL_FLAGS_MASK) ==
+		     RX_PKT_CMPL_FLAGS_ITYPE_PTP_W_TIMESTAMP))
+		ol_flags |= PKT_RX_IEEE1588_PTP | PKT_RX_IEEE1588_TMST;
+#endif
 
 	mbuf->ol_flags = ol_flags;
 }
@@ -842,10 +849,8 @@ static int bnxt_rx_pkt(struct rte_mbuf **rx_pkt,
 #ifdef RTE_LIBRTE_IEEE1588
 	if (unlikely((rte_le_to_cpu_16(rxcmp->flags_type) &
 		      RX_PKT_CMPL_FLAGS_MASK) ==
-		      RX_PKT_CMPL_FLAGS_ITYPE_PTP_W_TIMESTAMP)) {
-		mbuf->ol_flags |= PKT_RX_IEEE1588_PTP | PKT_RX_IEEE1588_TMST;
+		     RX_PKT_CMPL_FLAGS_ITYPE_PTP_W_TIMESTAMP))
 		bnxt_get_rx_ts_p5(rxq->bp, rxcmp1->reorder);
-	}
 #endif
 
 	if (cmp_type == CMPL_BASE_TYPE_RX_L2_V2) {
@@ -1111,12 +1116,9 @@ void bnxt_free_rx_rings(struct bnxt *bp)
 
 int bnxt_init_rx_ring_struct(struct bnxt_rx_queue *rxq, unsigned int socket_id)
 {
-	struct rte_eth_dev *eth_dev = rxq->bp->eth_dev;
-	struct rte_eth_rxmode *rxmode;
 	struct bnxt_cp_ring_info *cpr;
 	struct bnxt_rx_ring_info *rxr;
 	struct bnxt_ring *ring;
-	bool use_agg_ring;
 
 	rxq->rx_buf_size = BNXT_MAX_PKT_LEN + sizeof(struct rte_mbuf);
 
@@ -1159,19 +1161,9 @@ int bnxt_init_rx_ring_struct(struct bnxt_rx_queue *rxq, unsigned int socket_id)
 		return -ENOMEM;
 	cpr->cp_ring_struct = ring;
 
-	rxmode = &eth_dev->data->dev_conf.rxmode;
-	use_agg_ring = (rxmode->offloads & DEV_RX_OFFLOAD_SCATTER) ||
-		       (rxmode->offloads & DEV_RX_OFFLOAD_TCP_LRO) ||
-		       (rxmode->max_rx_pkt_len >
-			 (uint32_t)(rte_pktmbuf_data_room_size(rxq->mb_pool) -
-				    RTE_PKTMBUF_HEADROOM));
-
 	/* Allocate two completion slots per entry in desc ring. */
 	ring->ring_size = rxr->rx_ring_struct->ring_size * 2;
-
-	/* Allocate additional slots if aggregation ring is in use. */
-	if (use_agg_ring)
-		ring->ring_size *= AGG_RING_SIZE_FACTOR;
+	ring->ring_size *= AGG_RING_SIZE_FACTOR;
 
 	ring->ring_size = rte_align32pow2(ring->ring_size);
 	ring->ring_mask = ring->ring_size - 1;
