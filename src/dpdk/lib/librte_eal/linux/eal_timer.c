@@ -221,8 +221,12 @@ get_tsc_freq(void)
 
 		double secs = (double)ns/NS_PER_SEC;
 		tsc_hz = (uint64_t)((end - start)/secs);
+#if defined(TREX_PATCH) && !defined(RTE_ARCH_ARM64)
+		return tsc_hz;
+#else
 		/* Round up to 10Mhz. 1E7 ~ 10Mhz */
 		return RTE_ALIGN_MUL_NEAR(tsc_hz, CYC_PER_10MHZ);
+#endif
 	}
 #endif
 	return 0;
