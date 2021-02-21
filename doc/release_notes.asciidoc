@@ -26,6 +26,23 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.88 ==
+
+* Major ZMQ protocol change, there is a need to upgrade the client side version see link:https://github.com/cisco-system-traffic-generator/trex-core/issues/636[636]
+** This affect both STL and ASTF
+** STL GUI might not work until a fix 
+* DPDK 21.02 
+** mlx5 driver 
+*** Need to upgrade to OFED 5.2/CentOS 7.9 see Appendix for more info 
+*** Mellanox CX-4 some performance issues only CX-5 works 
+*** STL CX-5: link:https://github.com/cisco-system-traffic-generator/trex-core/issues/633[633]
+*** STL CX-5: link:https://github.com/cisco-system-traffic-generator/trex-core/issues/632[632]
+** Intel E810 
+*** Software mode only 
+** Cisco VIC
+*** Software mode only - remove the hardware support
+* ASTF GTPU support - in experimental, still missing some features. see ASTF manual for more info 
+
 == Release 2.87 ==
 
 * ASTF
