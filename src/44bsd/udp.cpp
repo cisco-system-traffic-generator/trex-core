@@ -84,7 +84,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
         if (!ftp->is_tunnel_aware() && m_pctx->m_ctx->is_client_side()){
             INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
         }
-        m->dynfield1[0] = (uint64_t)ftp->m_tun_handle;
+        m->dynfield_ptr = ftp->m_tun_handle;
     }
     if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
         if (!ftp->m_is_ipv6) {
