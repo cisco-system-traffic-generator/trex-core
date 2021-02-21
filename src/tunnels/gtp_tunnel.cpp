@@ -138,7 +138,7 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     rte_ether_addr_copy(&eth->s_addr, &outer_eth->s_addr);
     rte_ether_addr_copy(&eth->d_addr, &outer_eth->d_addr);
 
-    struct rte_ipv4_hdr * outer_ipv4 = (struct rte_ipv4_hdr *)(eth+1);
+    struct rte_ipv4_hdr * outer_ipv4 = (struct rte_ipv4_hdr *)(outer_eth+1);
 
     if (eth->ether_type == kEtherTypeBeVLAN) {
 
@@ -201,7 +201,7 @@ int GTPU::Prepend_ipv6_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     struct rte_ether_hdr * outer_eth = (struct rte_ether_hdr *)encap6;
     rte_ether_addr_copy(&eth->s_addr, &outer_eth->s_addr);
     rte_ether_addr_copy(&eth->d_addr, &outer_eth->d_addr);
-    struct rte_ipv6_hdr * outer_ipv6 = (struct rte_ipv6_hdr *)(eth+1);
+    struct rte_ipv6_hdr * outer_ipv6 = (struct rte_ipv6_hdr *)(outer_eth+1);
     outer_eth->ether_type = eth->ether_type;
 
     if (eth->ether_type == kEtherTypeBeVLAN) {
