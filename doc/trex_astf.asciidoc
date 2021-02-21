@@ -2151,14 +2151,15 @@ sudo ./t-rex-64 -i --astf --gtpu 0
 -------------------
 
 .Start trex client with following logic
-<1> Connect to Trex server
-<2> Load profile
-<3> Update GTP header information for a client using API <update_tunnel_client_record> 
-    * Source ip of the tunnel
-    * Destination ip of the tunnel
-    * IP version of the tunnel
-    * TEID (Tunnel endpoint identifier)
- <4> Example is at: scripts/automation/trex_control_plane/interactive/trex/examples/astf/tunnel_test.py
+* Connect to Trex server
+* Load profile
+* Update GTP header information for a client using API <update_tunnel_client_record> 
+** Source ip of the tunnel
+** Destination ip of the tunnel
+** IP version of the tunnel
+** TEID (Tunnel endpoint identifier)
+* Example is at: scripts/automation/trex_control_plane/interactive/trex/examples/astf/tunnel_test.py
+
 === Performance 
 
 see link:trex_astf_vs_nginx.html[ASTF Performance]
