@@ -4677,9 +4677,11 @@ CGlobalTRex::publish_async_data(bool sync_now, bool baseline) {
     m_stats.dump_json(json, baseline);
     m_zmq_publisher.publish_json(json);
 
-    /* generator json , all cores are the same just sample the first one */
-    m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
-    m_zmq_publisher.publish_json(json);
+    if (!get_mode()->is_interactive() ){
+        /* generator json , all cores are the same just sample the first one */
+        m_fl.m_threads_info[0]->m_node_gen.dump_json(json);
+        m_zmq_publisher.publish_json(json);
+    }
 
     /* config specific stats */
     m_stx->publish_async_data();

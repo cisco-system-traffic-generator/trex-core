@@ -271,7 +271,7 @@ class TRexSubscriber():
         return self.timeout_sec
 
     def get_timeout_msec(self):
-        return int(self.get_timeout_sec() * 1000 *10) # the timeout could be very large now
+        return int(500) # for tick 
 
     def set_timeout_sec(self, timeout_sec):
         self.timeout_sec = timeout_sec
@@ -296,10 +296,11 @@ class TRexSubscriber():
     def _wait_for_trigger (self):
             try:
                self.socket.recv() # block on event
+               return True 
             except zmq.Again:
-                pass
+               return False
             except zmq.ContextTerminated:
-                pass
+               return False
 
     # thread function
     def _run (self):
@@ -310,7 +311,9 @@ class TRexSubscriber():
         self.seq =0
 
         while self.t_state != self.THREAD_STATE_DEAD:
-            self._wait_for_trigger()
+            res = self._wait_for_trigger()
+            if (res == False) and (self.ctx) and (self.ctx.logger.get_verbose() == 'debug'):
+                 continue  
             if self.rpc.is_connected():
                 rc = self.rpc.transmit("get_async_events", params = {'session_id' :self.session_id , "user":"sub"} )
 
