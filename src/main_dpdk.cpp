@@ -810,6 +810,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                             rgpszArg = args.MultiArg(1);
                         } while (rgpszArg != NULL);
                     }
+                    CGlobalInfo::m_options.m_expected_portd = (uint16_t)cg->m_if_list.size();
                 }
                 set_op_mode(OP_MODE_DUMP_INTERFACES);
                 break;
@@ -995,6 +996,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
 
     if ( first_time ){
+
         /* only first time read the configuration file */
         if ( po->platform_cfg_file.length() >0  ) {
             if ( node_dump ){
