@@ -277,7 +277,7 @@ void CPacketIndication::UpdateMbufSize(){
 		m_rw_mbuf_size = 255;
 	}
 	else{
-        printf(" ERROR packet r/w is more than 128 bytes. it is not supported \n");
+        printf(" ERROR packet r/w is more than 255 bytes. it is not supported \n");
         exit(1);
     }
  
