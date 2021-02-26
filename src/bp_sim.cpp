@@ -269,15 +269,18 @@ void CPacketIndication::UpdateMbufSize(){
 
     if (offset<=64) {
         m_rw_mbuf_size=64;
-    }else{
-        if (offset<=128) {
-            m_rw_mbuf_size=128;
-        }else{
-            printf(" ERROR packet r/w is more than 128 bytes. it is not supported \n");
-            exit(1);
-        }
     }
-
+	else if (offset <= 128) {
+		m_rw_mbuf_size = 128;
+	}
+	else if (offset <= 255) {
+		m_rw_mbuf_size = 255;
+	}
+	else{
+        printf(" ERROR packet r/w is more than 128 bytes. it is not supported \n");
+        exit(1);
+    }
+ 
     uint16_t pkt_len = m_packet->getTotalLen();
 
     if ( pkt_len > m_rw_mbuf_size ) {
