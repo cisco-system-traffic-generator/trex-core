@@ -884,8 +884,7 @@ void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
 }
 
 int CTcpTunableCtx::convert_slow_sec_to_ticks(uint16_t sec) {
-    // tcp_slow_fast_ratio + 1 for the slow_tcp bug (tick starts at 0, ratio at 1)
-    float sec_to_ticks = 1000.0f / ((tcp_slow_fast_ratio + 1) * TCP_TIMER_TICK_FAST_MS);
+    float sec_to_ticks = 1000.0f / TCP_TIMER_TICK_SLOW_MS;
     return int(round(float(sec) * sec_to_ticks));
 }
 

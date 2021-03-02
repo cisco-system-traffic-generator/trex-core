@@ -1728,11 +1728,10 @@ public:
 
 inline void CTcpFlow::on_tick(){
         on_fast_tick();
+        m_tick++;
         if (m_tick == m_pctx->m_tunable_ctx.tcp_slow_fast_ratio) {
-            m_tick=0;
             on_slow_tick();
-        }else{
-            m_tick++;
+            m_tick=0;
         }
 }
 
