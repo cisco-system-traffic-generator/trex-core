@@ -553,6 +553,7 @@ public:
         m_debug_pkt_proto = 0;
         m_arp_ref_per = 120; // in seconds
         m_rx_thread_enabled = false;
+        m_multi_tag_latency = false;
         cfg_file = "";
         client_cfg_file = "";
         platform_cfg_file = "";
@@ -648,7 +649,7 @@ public:
     uint32_t        m_lowend_core;
     uint16_t        m_tx_ring_size;
     bool            m_astf_best_effort_mode;
-
+    bool            m_multi_tag_latency;
 
 public:
     uint8_t *       get_src_mac_addr(int if_index){
@@ -678,6 +679,12 @@ public:
     }
     void set_rx_enabled() {
         m_rx_thread_enabled = true;
+    }
+    bool is_multi_tag_latency_enabled() {
+        return m_multi_tag_latency;
+    }
+    void set_multi_tag_latency_enabled() {
+        m_multi_tag_latency = true;
     }
     uint32_t get_x710_fdir_reset_threshold() {
         return (x710_fdir_reset_threshold);

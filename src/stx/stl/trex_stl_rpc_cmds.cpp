@@ -147,8 +147,6 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
-    get_stx()->add_session_id(port_id,session_id);
-
     result["result"] = port->get_owner().get_handler();
 
     return (TREX_RPC_CMD_OK);
@@ -171,7 +169,6 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
-    get_stx()->remove_session_id(port_id);
 
     result["result"] = Json::objectValue;
 
@@ -504,6 +501,14 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                     ss << "Core ID pinning is not supported for latency streams.";
                     generate_execute_err(result, ss.str());
                 }
+            } else if (type =="multi_tag"){
+              stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+                if (stream->m_core_id_specified) {
+                    std::stringstream ss;
+                    ss << "Core ID pinning is not supported for multi tag latency streams.";
+                    generate_execute_err(result, ss.str());
+                }
+           
             } else {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             }
