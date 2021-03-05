@@ -962,7 +962,7 @@ class ASTFClient(TRexClient):
         """
         states = {}
         for key, value in self.astf_profile_state.items():
-            states[key] = astf_states[value] if value else "STATE_UNKNOWN"
+            states[key] = astf_states[value] if value in range(len(astf_states)) else "STATE_UNKNOWN"
         return states
 
     @client_api('getter', True)
