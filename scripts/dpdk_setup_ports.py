@@ -878,17 +878,19 @@ Other network devices
                     continue
                 if iface_pci == device['Slot'].split('.')[0]:
                     if device.get('Driver_str') == 'i40e':
-                        if pa() and pa().unbind_unused_ports:
-                            # if --unbind-unused-ports is set we unbind ports that are not 
-                            # used by TRex
-                            unbind_devices.add(device['Slot'])
-                        else:
-                            print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
-                            print('See the following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
-                            print('Unbind the interface from Linux with following command:')
-                            print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
-                            print('')
-                            sys.exit(-1)
+                        # Do we ignore the issue explained thereafter (experimental)?
+                        if pa() and not pa().ignore_528_issue:
+                            if pa() and pa().unbind_unused_ports:
+                                # if --unbind-unused-ports is set we unbind ports that are not 
+                                # used by TRex
+                                unbind_devices.add(device['Slot'])
+                            else:
+                                print('ERROR: i40e interface %s is under Linux and will interfere with TRex interface %s' % (device['Slot'], iface))
+                                print('See the following link for more information: https://trex-tgn.cisco.com/youtrack/issue/trex-528')
+                                print('Unbind the interface from Linux with following command:')
+                                print('    sudo ./dpdk_nic_bind.py -u %s' % device['Slot'])
+                                print('')
+                                sys.exit(-1)
                     if device.get('Driver_str') in dpdk_nic_bind.dpdk_drivers:
                         show_warning_devices.add(device['Slot'])
         for dev in show_warning_devices:
@@ -1446,6 +1448,7 @@ def parse_parent_cfg (parent_cfg):
     parent_parser.add_argument('-t', dest = 'tunable', default=None)
     parent_parser.add_argument('-i', action = 'store_true', dest = 'interactive', default = False)
     parent_parser.add_argument("--unbind-unused-ports", action='store_true')
+    parent_parser.add_argument("--ignore-528-issue", action='store_true')
     map_driver.parent_args, _ = parent_parser.parse_known_args(shlex.split(parent_cfg))
     if pa().help:
         sys.exit(0)

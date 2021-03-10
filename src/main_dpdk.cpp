@@ -218,6 +218,7 @@ enum {
        OPT_ASTF_EMUL_DEBUG, 
        OPT_SLEEPY_SCHEDULER,
        OPT_UNBIND_UNUSED_PORTS,
+       OPT_IGNORE_528_ISSUE,
        OPT_HDRH,
        OPT_BNXT_SO,
        OPT_GTPU,
@@ -304,6 +305,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_EZMQ_CH1,               "--emu-zmq",          SO_NONE    },
         { OPT_EZMQ_TCP,               "--emu-zmq-tcp",      SO_NONE    },
         { OPT_UNBIND_UNUSED_PORTS,    "--unbind-unused-ports", SO_NONE    },
+        { OPT_IGNORE_528_ISSUE,       "--ignore-528-issue", SO_NONE    },
         { OPT_HDRH,                   "--hdrh", SO_NONE    },
         { OPT_RT,                     "--rt",              SO_NONE    },
         { OPT_TCP_MODE,               "--astf",            SO_NONE},
@@ -407,6 +409,8 @@ static int COLD_FUNC  usage() {
     printf(" --sleeps                   : Use sleeps instead of busy wait in scheduler (less accurate, more power saving)\n");
     printf(" --software                 : Do not configure any hardware rules. In this mode we use 1 core, and one RX queue and one TX queue per port\n");
     printf(" --unbind-unused-ports      : Automatically unbind all unused bound ports in same NIC instead of exiting with error (i40e only)\n");
+    printf(" --ignore-528-issue         : Do not exit with error nor unbind them when other ports in the same NIC are kernel driven (i40e only), \n");
+    printf("                            : HW flow stats may be impaired and should not be used then [see https://trex-tgn.cisco.com/youtrack/issue/trex-528]. \n");
     printf(" -v <verbosity level>       : The higher the value, print more debug information \n");
     printf(" --vlan                     : Relevant only for stateless mode with Intel 82599 10G NIC \n");
     printf("                              When configuring flow stat and latency per stream rules, assume all streams uses VLAN \n");
@@ -918,6 +922,8 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_NO_SCAPY_SERVER:
                 break;
             case OPT_UNBIND_UNUSED_PORTS:
+                break;
+            case OPT_IGNORE_528_ISSUE:
                 break;
             case OPT_HDRH:
                 po->m_hdrh = true;
