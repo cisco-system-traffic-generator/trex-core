@@ -211,7 +211,9 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
           if (m_rcv_all && (!is_flow_stat_id(ip_id) ||
               (fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC &&
                fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD))) {
-            ip_id = FLOW_STAT_PAYLOAD_IP_ID;
+            if ((rte_pktmbuf_mtod(m, EthernetHeader *))->getDestMacP()->isUnicastAddress()) {
+                ip_id = FLOW_STAT_PAYLOAD_IP_ID;
+            }
           }
           if (is_flow_stat_payload_id(ip_id)) {
             hr_time_t hr_time_now = os_get_hr_tick_64();
