@@ -310,7 +310,7 @@ class STLFlowStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id, vxlan = False):
+    def __init__(self, pg_id, vxlan = False, multi_tag = False):
         super(STLFlowStats, self).__init__(pg_id, vxlan)
         self.fields['rule_type'] = 'stats'
 
