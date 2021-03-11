@@ -253,11 +253,12 @@ STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
 class STLFlowStatsInterface(object):
-    def __init__ (self, pg_id, vxlan):
+    def __init__ (self, pg_id, vxlan, multi_tag):
         self.fields = {
             'enabled':      True,
             'stream_id':    pg_id,
             'vxlan':        vxlan,
+            'multi_tag':    multi_tag,
             }
 
     def to_json (self):
@@ -325,9 +326,13 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id, vxlan = False):
-        super(STLFlowLatencyStats, self).__init__(pg_id, vxlan)
+    def __init__(self, pg_id, vxlan = False, multi_tag = False):
+        super(STLFlowLatencyStats, self).__init__(pg_id, vxlan, multi_tag)
         self.fields['rule_type'] = 'latency'
+
+    def get_multi_tag (self):
+        """ Get multi tag value from object """
+        return self.multi_tag
 
 
 class STLStream(object):
