@@ -283,7 +283,7 @@ class STLFlowStatsInterface(object):
                 
             # latency
             elif json_data['rule_type'] == 'latency':
-                return STLFlowLatencyStats(pg_id = json_data['stream_id'])
+                return STLFlowLatencyStats(pg_id = json_data['stream_id'], multi_tag = json_data['multi_tag'])
                 
             else:
                 raise TRexError("from_json: invalid flow stats type {0}".format(json_data['rule_type']))
@@ -311,7 +311,7 @@ class STLFlowStats(STLFlowStatsInterface):
     """
 
     def __init__(self, pg_id, vxlan = False, multi_tag = False):
-        super(STLFlowStats, self).__init__(pg_id, vxlan)
+        super(STLFlowStats, self).__init__(pg_id, vxlan, multi_tag)
         self.fields['rule_type'] = 'stats'
 
 
