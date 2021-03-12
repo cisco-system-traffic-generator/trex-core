@@ -1673,7 +1673,8 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(shlex.split(line))
 
-        if not opts:
+        if not opts or not opts.command:
+            parser.print_help()
             return
 
         pid_input = opts.profiles
@@ -1681,6 +1682,7 @@ class ASTFClient(TRexClient):
 
         for profile_id in valid_pids:
             if opts.command == 'names':
+                print(format_text("Profile ID: %s" % profile_id, 'bold'))
                 self.traffic_stats._show_tg_names(start=opts.start, amount=opts.amount, pid_input = profile_id)
             elif opts.command == 'stats':
                 try:
