@@ -129,7 +129,7 @@ class GlobalStats(AbstractStats):
             stats_data_right['queue_full'] = format_num(queue_full, suffix = 'pkts', compact = False, opts = 'green' if queue_full == 0 else 'red')
 
         # build table representation
-        stats_table = text_tables.TRexTextInfo('global statistitcs')
+        stats_table = text_tables.TRexTextInfo('global statistics')
         stats_table.set_cols_align(["l", "l"])
         stats_table.set_deco(0)
         stats_table.set_cols_width([55, 45])
