@@ -147,6 +147,8 @@ TrexRpcCmdAcquire::_run(const Json::Value &params, Json::Value &result) {
         generate_execute_err(result, ex.what());
     }
 
+    get_stx()->add_session_id(port_id,session_id);
+
     result["result"] = port->get_owner().get_handler();
 
     return (TREX_RPC_CMD_OK);
@@ -169,6 +171,7 @@ TrexRpcCmdRelease::_run(const Json::Value &params, Json::Value &result) {
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
+    get_stx()->remove_session_id(port_id);
 
     result["result"] = Json::objectValue;
 
