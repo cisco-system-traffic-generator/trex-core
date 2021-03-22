@@ -45,7 +45,7 @@ limitations under the License.
 // maximum number of payload type flow stats we support
 #define MAX_FLOW_STATS_PAYLOAD 128
 #define MAX_VLAN_TAGS          4096
-#define MAX_FLOW_STATS_VLAN_TAG_ENTY = MAX_FLOW_STATS_PAYLOAD * MAX_VLAN_TAGS
+#define MAX_FLOW_STATS_VLAN_TAG_ENTY  MAX_FLOW_STATS_PAYLOAD * MAX_VLAN_TAGS
 #ifndef UINT8_MAX
     #define UINT8_MAX 255
 #endif

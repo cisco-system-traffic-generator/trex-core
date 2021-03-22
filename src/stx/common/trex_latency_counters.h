@@ -100,7 +100,7 @@ public:
     void handle_pkt(const rte_mbuf_t *m, int port);
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
-                              hr_time_t hr_time_now);
+                              hr_time_t hr_time_now, uint16_t vlan_tag);
     void set_dump_info(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head);
     void dump_err_pkt(const char* info, bool dump_latency = false);
 
@@ -138,12 +138,12 @@ private:
 
     bool handle_unexpected_flow(
         flow_stat_payload_header *fsp_head,
-        CRFC2544Info *curr_rfc2544);
+        CRFC2544Info *curr_rfc2544, uint16_t vlan_tag);
     void handle_correct_flow(
         flow_stat_payload_header *fsp_head,
         CRFC2544Info *curr_rfc2544,
         uint32_t pkt_len,
-        hr_time_t hr_time_now);
+        hr_time_t hr_time_now, uint16_t vlan_tag);
     void check_seq_number_and_update_stats(
         flow_stat_payload_header *fsp_head,
         CRFC2544Info *curr_rfc2544);
@@ -164,6 +164,7 @@ public:
     rx_per_flow_t         m_rx_pg_tag_stat_payload[MAX_FLOW_STATS_VLAN_TAG_ENTY];
     bool                  m_rcv_all;
     CRFC2544Info         *m_rfc2544;
+    CRFC2544Info         *m_rfc2544_tag;
     CRxCoreErrCntrs      *m_err_cntrs;
     uint16_t              m_ip_id_base;
 
