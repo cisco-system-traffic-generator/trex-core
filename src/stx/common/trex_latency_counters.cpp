@@ -139,6 +139,14 @@ RXLatency::RXLatency() {
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rx_pg_stat_payload[i].clear();
     }
+    for (int i=0 i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
+        m_rx_pg_tag_stat[i].clear();
+
+    }
+    for (int i=0 i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
+        m_rx_pg_tag_stat_payload[i].clear();
+
+    }
 
     m_dump_err_pkts = false;
     m_dump_pkt = nullptr;
@@ -201,6 +209,7 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
   if (m_rcv_all || (ret == 0)) {
     uint32_t ip_id = 0;
     int ret2 = parser.get_ip_id(ip_id);
+    VlanHeader  *vlan = parser.get_vlan_header();
     if (m_rcv_all || (ret2 == 0)) {
       if (m_rcv_all || is_flow_stat_id(ip_id)) {
         uint16_t hw_id = get_hw_id((uint16_t)ip_id);
@@ -218,14 +227,21 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
             if (unlikely(m_dump_err_pkts)) {
                 set_dump_info(m, fsp_head);
             }
-            update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
+            update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now, vlan ? vlan->getVlanTag() : 0);
             hw_id = get_hw_id((uint16_t)ip_id);
           }
         }
         if (hw_id < MAX_FLOW_STATS) {
-          m_rx_pg_stat[hw_id].add_pkts(1);
-          m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
+          if (fsp_head->is_multi_tag && vlan){
+             //adding multi tag entry in Hw_is + vlan index
+             m_rx_pg_tag_stat_payload[hw_id + vlan->getVlanTag()].add_pkts(1);
+             m_rx_pg_tag_stat_payload[hw_id + vlan->getVlanTag()].add_bytes(m->pkt_len +
                                         4); // +4 for ethernet CRC
+          } else {
+             m_rx_pg_stat[hw_id].add_pkts(1);
+             m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
+                                        4); // +4 for ethernet CRC
+          }
         }
       }
     }
@@ -236,7 +252,7 @@ void
 RXLatency::update_stats_for_pkt(
         flow_stat_payload_header *fsp_head,
         uint32_t pkt_len,
-        hr_time_t hr_time_now) {
+        hr_time_t hr_time_now uint16_t vlan_tag) {
     uint16_t hw_id = fsp_head->hw_id;
     if (unlikely(fsp_head->magic != FLOW_STAT_PAYLOAD_MAGIC)
             || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
@@ -249,14 +265,17 @@ RXLatency::update_stats_for_pkt(
         }
     } else {
         bool good_packet = true;
-        CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
-
+        if (fsp_head->is_multi_tag && vlan_tag){
+          CRFC2544Info *curr_rfc2544 = &m_rfc2544_tag[hw_id + vlan_tag]; 
+        } else{
+          CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
+        } 
         if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
-            good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544);
+            good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544,vlan_tag);
         }
 
         if (good_packet) {
-            handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now);
+            handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now, vlan_tag);
         }
     }
 }
@@ -295,11 +314,16 @@ RXLatency::handle_correct_flow(
         flow_stat_payload_header *fsp_head,
         CRFC2544Info *curr_rfc2544,
         uint32_t pkt_len,
-        hr_time_t hr_time_now) {
+        hr_time_t hr_time_now, uint16_t vlan_tag) {
     check_seq_number_and_update_stats(fsp_head, curr_rfc2544);
     uint16_t hw_id = fsp_head->hw_id;
-    m_rx_pg_stat_payload[hw_id].add_pkts(1);
-    m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+    if (fsp_head->is_multi_tag && vlan_tag){
+      m_rx_pg_tag_stat_payload[hw_id].add_pkts(1);
+      m_rx_pg_tag_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+    } else {
+      m_rx_pg_stat_payload[hw_id].add_pkts(1);
+      m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+    }
     uint64_t d = (hr_time_now - fsp_head->time_stamp );
     dsec_t ctime = ptime_convert_hr_dsec(d);
     curr_rfc2544->add_sample(ctime);
@@ -359,6 +383,9 @@ RXLatency::reset_stats() {
     for (int hw_id = 0; hw_id < MAX_FLOW_STATS; hw_id++) {
         m_rx_pg_stat[hw_id].clear();
     }
+    for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
+        m_rx_pg_tag_stat[hw_id].clear();
+    }
 }
 
 void
@@ -411,6 +438,10 @@ RXLatency::operator+= (const RXLatency& in) {
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         this->m_rx_pg_stat_payload[i] += in.m_rx_pg_stat_payload[i];
     }
+    for (int i=0 i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
+        this->m_rx_pg_tag_stat_payload[i]+= in.m_rx_pg_tag_stat_payload[i];
+
+    }
     return *this;
 }
 
@@ -423,6 +454,10 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     os << "m_rx_pg_stat_payload = < ";
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
         os << in.m_rx_pg_stat_payload[i] << ", ";
+    }
+    for (int i=0 i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
+        os << in.m_rx_pg_tag_stat_payload[i];
+
     }
     os << ">" << std::endl;
     return os;

@@ -160,7 +160,8 @@ public:
 
     rx_per_flow_t         m_rx_pg_stat[MAX_FLOW_STATS];
     rx_per_flow_t         m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-
+    rx_per_flow_t         m_rx_pg_tag_stat[MAX_FLOW_STATS_VLAN_TAG_ENTY];
+    rx_per_flow_t         m_rx_pg_tag_stat_payload[MAX_FLOW_STATS_VLAN_TAG_ENTY];
     bool                  m_rcv_all;
     CRFC2544Info         *m_rfc2544;
     CRxCoreErrCntrs      *m_err_cntrs;
