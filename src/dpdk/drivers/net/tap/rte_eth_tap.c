@@ -34,8 +34,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux_tap/if_tun.h>
-#include <linux_tap/if_ether.h>
+#include <linux/if_tun.h>
+#include <linux/if_ether.h>
 #include <fcntl.h>
 #include <ctype.h>
 

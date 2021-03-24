@@ -8,8 +8,8 @@
 
 #include <ctype.h>
 #include <inttypes.h>
-#include <linux_tap/rtnetlink.h>
-#include <linux_tap/netlink.h>
+#include <linux/rtnetlink.h>
+#include <linux/netlink.h>
 #include <stdio.h>
 
 #include <rte_log.h>

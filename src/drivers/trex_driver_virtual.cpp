@@ -217,9 +217,29 @@ CTRexExtendedDriverIxgbevf::CTRexExtendedDriverIxgbevf() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
-    
+CTRexExtendedDriverNetvsc::CTRexExtendedDriverNetvsc(){
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
+}
+
+TRexPortAttr* CTRexExtendedDriverNetvsc::create_port_attr(tvpid_t tvpid,repid_t repid){
+    return new DpdkTRexPortAttr(tvpid, repid, true, false, true, false, false);
+}
+
+bool CTRexExtendedDriverNetvsc::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+void CTRexExtendedDriverNetvsc::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
+    cfg->m_port_conf.rxmode.offloads = 0;
+    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_best_effort = 0;
+}
+
 CTRexExtendedDriverAzure::CTRexExtendedDriverAzure(){
-    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;;
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
+    //m_cap = tdCAP_ONE_QUE;
 }
 
 TRexPortAttr* CTRexExtendedDriverAzure::create_port_attr(tvpid_t tvpid,repid_t repid){
@@ -234,6 +254,14 @@ void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    // Azure does not claim as supporting multi-segment send.
     cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+#if 0
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+    cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
+    cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;
+    cfg->tx_offloads.common_required |= DEV_TX_OFFLOAD_MULTI_SEGS;
+#endif
+    cfg->tx_offloads.common_best_effort = 0;
 }

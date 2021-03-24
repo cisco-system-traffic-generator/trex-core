@@ -1522,6 +1522,7 @@ void dump_hw_state(FILE *fd,struct ixgbe_hw_stats *hs ){
 }
 
 COLD_FUNC void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
+    CPlatformYamlInfo *cg=&global_platform_cfg_info;
     // reading m_stats, so drivers saving prev in m_stats will be updated.
     // Actually, we want m_stats to be cleared
     
@@ -1545,6 +1546,11 @@ COLD_FUNC void CPhyEthIF::set_ignore_stats_base(CPreTestStats &pre_stats) {
     if (isVerbose(2)) {
         fprintf(stdout, "Pre test statistics for port %d\n", m_tvpid);
         m_ignore_stats.dump(stdout);
+    }
+    if (cg->m_port_mtu) {
+        int rc;
+        rc = rte_eth_dev_set_mtu(m_repid, cg->m_port_mtu);
+        fprintf(stdout, "Set MTU %u for port %d rc=%u\n", cg->m_port_mtu, m_repid, rc);
     }
 }
 
@@ -5454,7 +5460,8 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
                          ETH_RSS_NONFRAG_IPV6_UDP));
         lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
     }else{                 
-        lp_rss->rss_key =0;
+	lp_rss->rss_hf = 0;
+        lp_rss->rss_key = NULL;
     }
     lp_rss->rss_key_len = hash_key_size;
 }
@@ -7015,10 +7022,14 @@ TRexPortAttr *TrexDpdkPlatformApi::getPortAttrObj(uint8_t port_id) const {
 }
 
 COLD_FUNC bool DpdkTRexPortAttr::update_link_status_nowait(){
+    CPlatformYamlInfo *cg=&global_platform_cfg_info;
     rte_eth_link new_link;
     bool changed = false;
     rte_eth_link_get_nowait(m_repid, &new_link);
 
+    if (cg->m_port_speed) {
+        new_link.link_speed = cg->m_port_speed;
+    }
     if (new_link.link_speed != m_link.link_speed ||
                 new_link.link_duplex != m_link.link_duplex ||
                     new_link.link_autoneg != m_link.link_autoneg ||

@@ -30,20 +30,20 @@ class STLBench(object):
             - 1: the direction is from dst - src
     """
     ip_range = {}
-    ip_range['src'] = {'start': '16.0.0.4', 'end': '16.0.0.254'}
-    ip_range['dst'] = {'start': '48.0.0.4', 'end': '48.0.0.254'}
+    ip_range['src'] = {'start': '16.0.0.4', 'end': '16.0.0.104'}
+    ip_range['dst'] = {'start': '48.0.0.4', 'end': '48.0.3.236'}
     ports = {'min': 1234, 'max': 65500}
     pkt_size = {'min': 64, 'max': 9216}
-    imix_table = [ {'size': 68,   'pps': 28,  'isg': 0 },
-                   {'size': 590,  'pps': 16,  'isg': 0.1 },
-                   {'size': 1514, 'pps':  4,   'isg':0.2 } ]
+    imix_table = [ {'size': 72,   'pps': 28,  'isg': 0 },
+                   {'size': 594,  'pps': 16,  'isg': 0.1 },
+                   {'size': 1418, 'pps':  4,   'isg':0.2 } ]
 
     def __init__ (self):
         self.pg_id = 0
 
     def create_stream (self, stl_flow, size, vm, src, dst, pps = 1, isg = 0):
         # Create base packet and pad it to size
-        base_pkt = Ether()/IP(src=src, dst=dst)/UDP(dport=12,sport=1025,chksum=0)
+        base_pkt = Ether()/IP(src=src, dst=dst)/UDP(dport=1025,sport=1025,chksum=0)
         pad = max(0, size - len(base_pkt) - 4) * 'x'
         pkt = STLPktBuilder(pkt=base_pkt/pad,
                             vm=vm)
@@ -65,7 +65,7 @@ class STLBench(object):
         parser.add_argument('--vm',
                             type=str,
                             default=None,
-                            choices={'cached', 'var1', 'var2', 'random', 'tuple', 'size'},
+                            choices={'cached', 'var1', 'var2', 'random', 'tuple', 'size', 'qos'},
                             help='define the field engine behavior')
         parser.add_argument('--flow',
                             type=str,
@@ -94,6 +94,30 @@ class STLBench(object):
         vm_var = STLVM()
         if not vm or vm == 'none':
             pass
+
+        elif vm == 'qos':
+            vm_var = [
+                    # src
+                    STLVmFlowVar(name="src",
+                                 min_value=src['start'],
+                                 max_value=src['end'],
+                                 size=4, op="inc"),
+                    STLVmWrFlowVar(fv_name="src", pkt_offset="IP.src"),
+
+                    # dst
+                    STLVmFlowVar(name="dst",
+                                 min_value=dst['start'],
+                                 max_value=dst['end'],
+                                 size=4, op="inc"),
+                    STLVmWrFlowVar(fv_name="dst", pkt_offset="IP.dst"),
+
+                    #STLVmFlowVar(name='tos', size=1, value_list=[0x04,0x08,0x0C,0x10,0x14,0x18,0x1C,0x20], op='inc'),
+                    STLVmFlowVar(name='tos', size=1, value_list=[0x04,0x08,0x14,0x18], op='inc'),
+                    STLVmWrFlowVar(fv_name="tos", pkt_offset="IP.tos"),
+
+                    # checksum
+                    STLVmFixIpv4(offset="IP")
+            ]
 
         elif vm == 'var1':
             vm_var.var(name='src', min_value=src['start'], max_value=src['end'], size=4, op='inc')

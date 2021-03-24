@@ -486,6 +486,13 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
         node["port_bandwidth_gb"] >> plat_info.m_port_bandwidth_gb;
     }
 
+    if ( node.FindValue("port_speed") ){
+        node["port_speed"] >> plat_info.m_port_speed;
+    }
+    if ( node.FindValue("port_mtu") ){
+	node["port_mtu"] >> plat_info.m_port_mtu;
+    }
+
     if ( node.FindValue("low_end") ) {
         node["low_end"] >> plat_info.m_is_lowend;
     }
@@ -581,6 +588,8 @@ void CPlatformYamlInfo::Dump(FILE *fd){
         fprintf(fd," port limit     :  not configured \n");
     }
     fprintf(fd," port_bandwidth_gb    :  %lu \n", (ulong)m_port_bandwidth_gb);
+    fprintf(fd," port_speed           :  %lu \n", (ulong)m_port_speed);
+    fprintf(fd," port_mtu             :  %lu \n", (ulong)m_port_mtu);
 
     if ( m_if_mask_exist && m_if_mask.size() ) {
         fprintf(fd," if_mask        : ");

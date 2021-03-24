@@ -7,13 +7,13 @@
 #define _TAP_TCMSGS_H_
 
 #include <tap_autoconf.h>
-#include <linux_tap/if_ether.h>
-#include <linux_tap/rtnetlink.h>
-#include <linux_tap/pkt_sched.h>
-#include <linux_tap/pkt_cls.h>
-#include <linux_tap/tc_act/tc_mirred.h>
-#include <linux_tap/tc_act/tc_gact.h>
-#include <linux_tap/tc_act/tc_skbedit.h>
+#include <linux/if_ether.h>
+#include <linux/rtnetlink.h>
+#include <linux/pkt_sched.h>
+#include <linux/pkt_cls.h>
+#include <linux/tc_act/tc_mirred.h>
+#include <linux/tc_act/tc_gact.h>
+#include <linux/tc_act/tc_skbedit.h>
 #ifdef HAVE_TC_ACT_BPF
 #include <linux/tc_act/tc_bpf.h>
 #endif

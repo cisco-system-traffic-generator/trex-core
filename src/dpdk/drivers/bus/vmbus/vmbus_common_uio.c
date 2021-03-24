@@ -16,7 +16,7 @@
 #include <rte_bus.h>
 #include <rte_bus_vmbus.h>
 
-#include "private.h"
+#include "vmprivate.h"
 
 static struct rte_tailq_elem vmbus_tailq = {
 	.name = "VMBUS_RESOURCE_LIST",

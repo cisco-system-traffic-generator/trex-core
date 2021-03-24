@@ -19,7 +19,7 @@
 #include <rte_bus_vmbus.h>
 #include <rte_string_fns.h>
 
-#include "private.h"
+#include "vmprivate.h"
 
 /** Pathname of VMBUS devices directory. */
 #define SYSFS_VMBUS_DEVICES "/sys/bus/vmbus/devices"
