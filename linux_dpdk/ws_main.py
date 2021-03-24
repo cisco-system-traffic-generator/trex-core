@@ -153,6 +153,8 @@ def options(opt):
     opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
     opt.add_option('--tap', dest='tap', default=False, action = 'store_true', help = "Add tap dpdk driver for Azure use-cases")
+    opt.add_option('--no-ofed-check', dest='no_ofed_check', default=False, action = 'store_true', help = "Skip ofed check in case of Azure")
+
 
     co = opt.option_groups['configure options']
     co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
@@ -827,7 +829,11 @@ def configure(conf):
     conf.env.TAP = conf.options.tap
 
     if no_mlx != 'all':
-        ofed_ok = conf.check_ofed(mandatory = False)
+        if conf.options.no_ofed_check:
+            ofed_ok = True
+        else:
+            ofed_ok = conf.check_ofed(mandatory = False)
+
         conf.env.OFED_OK = ofed_ok
         conf.check_cxx(lib = 'mnl', mandatory = False, errmsg = 'not found, will use internal version')
 
