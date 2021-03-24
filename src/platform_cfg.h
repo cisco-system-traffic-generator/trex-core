@@ -213,6 +213,8 @@ public:
 
         m_mac_info_exist=false;
         m_port_bandwidth_gb = 10;
+	m_port_speed = 0;
+	m_port_mtu = 0;
         m_memory.reset();
         m_prefix="";
         m_limit_memory=""  ;
@@ -242,6 +244,8 @@ public:
     uint32_t                      m_thread_per_dual_if;
 
     uint32_t                      m_port_bandwidth_gb;
+    uint32_t                      m_port_speed;
+    uint32_t                      m_port_mtu;
 
     bool                          m_enable_zmq_pub_exist;
     bool                          m_enable_zmq_pub;

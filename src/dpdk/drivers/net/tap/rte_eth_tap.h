@@ -11,7 +11,7 @@
 #include <inttypes.h>
 #include <net/if.h>
 
-#include <linux_tap/if_tun.h>
+#include <linux/if_tun.h>
 
 #include <ethdev_driver.h>
 #include <rte_ether.h>

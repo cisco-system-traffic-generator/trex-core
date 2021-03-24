@@ -20,7 +20,7 @@
 #include <rte_memory.h>
 #include <rte_bus_vmbus.h>
 
-#include "private.h"
+#include "vmprivate.h"
 
 extern struct rte_vmbus_bus rte_vmbus_bus;
 

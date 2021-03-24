@@ -6,9 +6,9 @@
 
 VERSION='0.0.1'
 APPNAME='cxx_test'
-import os;
-import shutil;
-import copy;
+import os
+import shutil
+import copy
 import re
 import uuid
 import subprocess
@@ -92,9 +92,9 @@ class SrcGroup:
     ' group of source by directory '
 
     def __init__(self,dir,src_list):
-      self.dir = dir;
-      self.src_list = src_list;
-      self.group_list = None;
+      self.dir = dir
+      self.src_list = src_list
+      self.group_list = None
       assert (type(src_list)==list)
       assert (type(dir)==str)
 
@@ -104,15 +104,15 @@ class SrcGroup:
         ' return  the long list of the files '
         res=''
         for file in self.src_list:
-            res= res + top+'/'+self.dir+'/'+file+'  ';
+            res= res + top+'/'+self.dir+'/'+file+'  '
 
-        return res;
+        return res
 
     def __str__ (self):
-        return (self.file_list(''));
+        return (self.file_list(''))
 
     def __repr__ (self):
-        return (self.file_list(''));
+        return (self.file_list(''))
 
 
 
@@ -120,7 +120,7 @@ class SrcGroups:
     ' group of source groups '
 
     def __init__(self,list_group):
-      self.list_group = list_group;
+      self.list_group = list_group
       assert (type(list_group)==list)
 
 
@@ -128,14 +128,14 @@ class SrcGroups:
           ' return  the long list of the files '
           res=''
           for o in self.list_group:
-              res += o.file_list(top);
-          return res;
+              res += o.file_list(top)
+          return res
 
     def __str__ (self):
-          return (self.file_list(''));
+          return (self.file_list(''))
 
     def __repr__ (self):
-          return (self.file_list(''));
+          return (self.file_list(''))
 
 
 def options(opt):
@@ -152,6 +152,7 @@ def options(opt):
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
+    opt.add_option('--tap', dest='tap', default=False, action = 'store_true', help = "Add tap dpdk driver for Azure use-cases")
 
     co = opt.option_groups['configure options']
     co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
@@ -473,6 +474,42 @@ def configure_dummy_mlx5 (ctx):
 
 
 @conf
+def configure_tap (ctx):
+    ctx.start_msg('Configuring tap autoconf')
+    autoconf_file = 'src/dpdk/drivers/net/tap/tap_autoconf.h'
+    autoconf_path = os.path.join(top, autoconf_file)
+    os.system('rm -rf %s' % autoconf_path)
+    has_sym_args = [
+        [ 'HAVE_TC_FLOWER', 'linux/pkt_cls.h',
+        'enum', 'TCA_FLOWER_UNSPEC' ],
+
+        [ 'HAVE_TC_VLAN_ID', 'linux/pkt_cls.h',
+        'enum', 'TCA_FLOWER_KEY_VLAN_PRIO' ],
+
+        [ 'HAVE_TC_BPF', 'linux/pkt_cls.h',
+        'enum', 'TCA_BPF_UNSPEC' ],
+
+        [ 'HAVE_TC_BPF_FD', 'linux/pkt_cls.h',
+        'enum','TCA_BPF_FD' ],
+
+        [ 'HAVE_TC_ACT_BPF', 'linux/tc_act/tc_bpf.h',
+        'enum','TCA_ACT_BPF_UNSPEC' ],
+
+        [ 'HAVE_TC_ACT_BPF_FD', 'linux/tc_act/tc_bpf.h',
+        'enum','TCA_ACT_BPF_FD' ],
+    ]
+    autoconf_script = 'src/dpdk/auto-config-h.sh'
+    autoconf_command = os.path.join(top, autoconf_script)
+    for arg in has_sym_args:
+        result, output = getstatusoutput("%s %s '%s' '%s' '%s' '%s' > /dev/null" %
+            (autoconf_command, autoconf_path, arg[0], arg[1], arg[2], arg[3]))
+        if result != 0:
+            ctx.end_msg('failed\n%s\n' % output, 'YELLOW')
+            break
+    if result == 0:
+        ctx.end_msg('done', 'GREEN')
+
+@conf
 def configure_mlx5 (ctx):
     ctx.start_msg('Configuring MLX5 autoconf')
     autoconf_file = 'src/dpdk/drivers/common/mlx5/mlx5_autoconf.h'
@@ -787,6 +824,8 @@ def configure(conf):
     configure_sanitized(conf, with_sanitized)
             
     conf.env.NO_MLX = no_mlx
+    conf.env.TAP = conf.options.tap
+
     if no_mlx != 'all':
         ofed_ok = conf.check_ofed(mandatory = False)
         conf.env.OFED_OK = ofed_ok
@@ -806,6 +845,9 @@ def configure(conf):
     conf.env.NO_BNXT = no_bnxt
     if not no_bnxt:
         Logs.pprint('YELLOW', 'Building bnxt PMD')
+
+    if conf.env.TAP:
+        conf.configure_tap(mandatory = False)
 
     conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
@@ -986,7 +1028,7 @@ main_src = SrcGroup(dir='src',
              'utils/utl_sync_barrier.cpp',
              'utils/utl_term_io.cpp',
              'utils/utl_yaml.cpp',
-             ]);
+             ])
 
 cmn_src = SrcGroup(dir='src/common',
     src_list=[
@@ -996,7 +1038,7 @@ cmn_src = SrcGroup(dir='src/common',
         'pcap.cpp',
         'base64.cpp',
         'n_uniform_prob.cpp'
-        ]);
+        ])
 
 net_src = SrcGroup(dir='src/common/Network/Packet',
         src_list=[
@@ -1008,7 +1050,7 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'TCPOptions.cpp',
            'UDPHeader.cpp',
            'MacAddress.cpp',
-           'VLANHeader.cpp']);
+           'VLANHeader.cpp'])
 
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -1040,7 +1082,7 @@ ef_src = SrcGroup(dir='src/common',
         'ef/efence.cpp',
         'ef/page.cpp',
         'ef/print.cpp'
-        ]);
+        ])
 
 
 
@@ -1142,7 +1184,7 @@ yaml_src = SrcGroup(dir='external_libs/yaml-cpp/src/',
             'simplekey.cpp',
             'singledocparser.cpp',
             'stream.cpp',
-            'tag.cpp']);
+            'tag.cpp'])
 
 
 bpf_src =  SrcGroup(dir='external_libs/bpf/',
@@ -1278,17 +1320,17 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/failsafe/failsafe_flow.c',
                  'drivers/net/failsafe/failsafe_intr.c',
 
-                 #tap 
-
-                 'drivers/net/tap/rte_eth_tap.c',
-                 'drivers/net/tap/tap_flow.c',
-                 'drivers/net/tap/tap_netlink.c',
-                 'drivers/net/tap/tap_tcmsgs.c',
-                 'drivers/net/tap/tap_bpf_api.c',
-                 'drivers/net/tap/tap_intr.c',
 
                  #vdev_netvsc
                  'drivers/net/vdev_netvsc/vdev_netvsc.c',
+
+                 #netvsc
+                 'drivers/net/netvsc/hn_ethdev.c',
+                 'drivers/net/netvsc/hn_rxtx.c',
+                 'drivers/net/netvsc/hn_rndis.c',
+                 'drivers/net/netvsc/hn_nvs.c',
+                 'drivers/net/netvsc/hn_vf.c',
+
 
                  ])
 
@@ -1296,6 +1338,18 @@ dpdk_src_x86_64_ext = SrcGroup(dir='src',
         src_list=['drivers/trex_ixgbe_fdir.c',
                   'drivers/trex_i40e_fdir.c']
 )
+
+
+dpdk_src_x86_64_tap = SrcGroup(dir='src/dpdk/',
+        src_list=[
+                 #tap 
+                 'drivers/net/tap/rte_eth_tap.c',
+                 'drivers/net/tap/tap_flow.c',
+                 'drivers/net/tap/tap_netlink.c',
+                 'drivers/net/tap/tap_tcmsgs.c',
+                 'drivers/net/tap/tap_bpf_api.c',
+                 'drivers/net/tap/tap_intr.c',
+                ])
 
 
 dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
@@ -1333,6 +1387,12 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/bus/pci/linux/pci_vfio.c',
                  'drivers/bus/vdev/vdev.c',
                  'drivers/bus/vdev/vdev_params.c',
+                 'drivers/bus/vmbus/vmbus_common.c',
+                 'drivers/bus/vmbus/vmbus_channel.c',
+                 'drivers/bus/vmbus/vmbus_bufring.c',
+                 'drivers/bus/vmbus/vmbus_common_uio.c',
+                 'drivers/bus/vmbus/linux/vmbus_bus.c',
+                 'drivers/bus/vmbus/linux/vmbus_uio.c',
 
                  'drivers/mempool/ring/rte_mempool_ring.c',
                  #'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
@@ -1476,6 +1536,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_eal/linux/eal_timer.c',
                  'lib/librte_eal/linux/eal_vfio_mp_sync.c',
                  'lib/librte_eal/linux/eal_vfio.c',
+                 'lib/librte_eal/linux/eal_dev.c',
 
                  'lib/librte_ethdev/rte_ethdev.c',
                  'lib/librte_ethdev/rte_flow.c',
@@ -1517,14 +1578,14 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/librte_gso/gso_tunnel_tcp4.c',
                  'lib/librte_gso/gso_udp4.c',
 
-            ]);
+            ])
 
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
                  'filter_ntacc.c',
                  'rte_eth_ntacc.c',
                  'nt_compat.c',
-            ]);
+            ])
 
 libmnl_src = SrcGroup(
     dir = 'external_libs/libmnl/src',
@@ -1533,7 +1594,7 @@ libmnl_src = SrcGroup(
         'callback.c',
         'nlmsg.c',
         'attr.c',
-    ]);
+    ])
 
 i40e_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/net/i40e',
@@ -1555,7 +1616,7 @@ i40e_dpdk_src = SrcGroup(
         'i40e_tm.c',
         'i40e_vf_representor.c',
         'rte_pmd_i40e.c',
-    ]);
+    ])
 
 mlx5_x86_64_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/',
@@ -1604,7 +1665,7 @@ mlx5_x86_64_dpdk_src = SrcGroup(
         'net/mlx5/mlx5_rxtx_vec.c',
         'net/mlx5/mlx5_rxmode.c',
 
-    ]);
+    ])
 
 mlx5_ppc64le_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/net/mlx5',
@@ -1629,7 +1690,7 @@ mlx5_ppc64le_dpdk_src = SrcGroup(
         'mlx5_trigger.c',
         'mlx5_txq.c',
         'mlx5_vlan.c',
-    ]);
+    ])
 
 
 bnxt_dpdk_src = SrcGroup(dir='src/dpdk/',
@@ -1651,78 +1712,44 @@ bnxt_dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/bnxt_vnic.c',
                  'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
                  'drivers/net/bnxt/rte_pmd_bnxt.c',
-            ]);
+            ])
 
 memif_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/net/memif',
     src_list = [
         'memif_socket.c',
         'rte_eth_memif.c',
-    ]);
-
-if march == 'x86_64':
-    bp_dpdk = SrcGroups([
-                  dpdk_src,
-                  i40e_dpdk_src,
-                  dpdk_src_x86_64,
-                  dpdk_src_x86_64_ext
-                  ]);
-
-    # BPF + JIT
-    bpf = SrcGroups([
-                bpf_src,
-                bpfjit_src]);
-
-elif march == 'aarch64':
-    bp_dpdk = SrcGroups([
-                  dpdk_src,
-                  dpdk_src_aarch64
-                  ]);
-
-    # software BPF
-    bpf = SrcGroups([bpf_src]);
-
-elif march == 'ppc64le':
-    bp_dpdk = SrcGroups([
-                  dpdk_src,
-                  i40e_dpdk_src,
-                  dpdk_src_ppc64le
-                  ]);
-
-    # BPF + JIT
-    bpf = SrcGroups([
-                bpf_src,
-                bpfjit_src]);
+    ])
 
 
 libmnl =SrcGroups([
                 libmnl_src
-                ]);
+                ])
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
-                ]);
+                ])
 
 i40e_dpdk =SrcGroups([
                 i40e_dpdk_src
-                ]);
+                ])
 
 mlx5_x86_64_dpdk =SrcGroups([
                 mlx5_x86_64_dpdk_src
-                ]);
+                ])
 
 mlx5_ppc64le_dpdk =SrcGroups([
                 mlx5_ppc64le_dpdk_src
-                ]);
+                ])
 
 
 bnxt_dpdk = SrcGroups([
                 bnxt_dpdk_src,
-                ]);
+                ])
 
 memif_dpdk = SrcGroups([
                 memif_dpdk_src,
-                ]);
+                ])
 
 # this is the library dp going to falcon (and maybe other platforms)
 bp =SrcGroups([
@@ -1741,16 +1768,16 @@ bp =SrcGroups([
         astf_src,
 
         version_src,
-    ]);
+    ])
 
 l2fwd_main_src = SrcGroup(dir='src',
         src_list=[
              'l2fwd/main.c'
-             ]);
+             ])
 
 
 l2fwd =SrcGroups([
-                l2fwd_main_src]);
+                l2fwd_main_src])
 
 
 # common flags for both new and old configurations
@@ -1813,7 +1840,7 @@ if march == 'x86_64':
                       '-DALLOW_EXPERIMENTAL_API',
                       '-DABI_VERSION="21.1"',
 
-                      ];
+                      ]
 
 elif march == 'aarch64':
     common_flags_new = common_flags + [
@@ -1947,10 +1974,12 @@ dpdk_includes_path =''' ../src/
 
                         ../src/dpdk/drivers/bus/pci/
                         ../src/dpdk/drivers/bus/vdev/
+                        ../src/dpdk/drivers/bus/vmbus/
                         ../src/dpdk/drivers/bus/pci/linux/
+                        ../src/dpdk/drivers/bus/vmbus/linux/
                         ../external_libs/dpdk_linux_tap_cross/
 
-                    ''';
+                    '''
 
 # Include arch specific folder before generic folders
 if march == 'x86_64':
@@ -1976,7 +2005,7 @@ includes_path = '''
                    ../external_libs/md5/
                    ../external_libs/bpf/
                    ../external_libs/valijson/include/
-                  ''';
+                  '''
 
 
 
@@ -1984,11 +2013,11 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march == 'x86_64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="21.1"'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="21.1"']
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2102_aarch64/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2102_aarch64/rte_config.h']
 elif march == 'ppc64le':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_ppc64le/rte_config.h'];
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_ppc64le/rte_config.h']
 
 client_external_libs = [
         'simple_enum',
@@ -2016,13 +2045,13 @@ PLATFORM_ppc64le = "ppc64le"
 class build_option:
 
     def __init__(self,debug_mode,is_pie):
-      self.mode     = debug_mode;   ##debug,release
+      self.mode     = debug_mode   ##debug,release
       self.platform = march  # aarch64 or x86_64 or ppc64le
       self.is_pie = is_pie
       self.env = None
 
     def set_env(self,env):
-        self.env = env;
+        self.env = env
 
     def is_clang(self):
         if self.env: 
@@ -2031,21 +2060,21 @@ class build_option:
         return False        
       
     def __str__(self):
-       s=self.mode+","+self.platform;
-       return (s);
+       s=self.mode+","+self.platform
+       return (s)
 
     def lib_name(self,lib_name_p,full_path):
         if full_path:
-            return b_path+lib_name_p;
+            return b_path+lib_name_p
         else:
-            return lib_name_p;
+            return lib_name_p
     #private functions
     def toLib (self,name,full_path = True):
-        lib_n = "lib"+name+".a";
-        return (self.lib_name(lib_n,full_path));
+        lib_n = "lib"+name+".a"
+        return (self.lib_name(lib_n,full_path))
 
     def toExe(self,name,full_path = True):
-        return (self.lib_name(name,full_path));
+        return (self.lib_name(name,full_path))
 
     def isIntelPlatform (self):
         return ( self.platform == PLATFORM_x86 or self.platform == PLATFORM_x86_64)
@@ -2060,7 +2089,7 @@ class build_option:
         return ( self.platform == PLATFORM_x86_64 or self.platform == PLATFORM_aarch64 or self.platform == PLATFORM_ppc64le)
 
     def isRelease (self):
-        return ( self.mode  == RELEASE_);
+        return ( self.mode  == RELEASE_)
 
     def isPIE (self):
         return self.is_pie
@@ -2072,72 +2101,72 @@ class build_option:
         return self.update_name(name,"_")
 
     def update_name (self,name,delimiter):
-        trg = copy.copy(name);
+        trg = copy.copy(name)
         if self.is64Platform():
-            trg += delimiter + "64";
+            trg += delimiter + "64"
         else:
-            trg += delimiter + "32";
+            trg += delimiter + "32"
 
         if self.isRelease () :
-            trg += "";
+            trg += ""
         else:
-            trg +=  delimiter + "debug";
+            trg +=  delimiter + "debug"
 
         if self.isPIE():
             trg += delimiter + "o"
-        return trg;
+        return trg
 
     def get_target (self):
-        return self.update_executable_name("_t-rex");
+        return self.update_executable_name("_t-rex")
 
     def get_target_l2fwd (self):
-        return self.update_executable_name("l2fwd");
+        return self.update_executable_name("l2fwd")
 
     def get_dpdk_target (self):
-        return self.update_executable_name("dpdk");
+        return self.update_executable_name("dpdk")
 
     def get_ntacc_target (self):
-        return self.update_executable_name("ntacc");
+        return self.update_executable_name("ntacc")
 
     def get_mlx5_target (self):
-        return self.update_executable_name("mlx5");
+        return self.update_executable_name("mlx5")
 
     def get_libmnl_target (self):
-        return self.update_executable_name("mnl");
+        return self.update_executable_name("mnl")
 
     def get_mlx4_target (self):
-        return self.update_executable_name("mlx4");
+        return self.update_executable_name("mlx4")
 
     def get_ntaccso_target (self):
-        return self.update_executable_name("libntacc")+'.so';
+        return self.update_executable_name("libntacc")+'.so'
 
     def get_mlx5so_target (self):
-        return self.update_executable_name("libmlx5")+'.so';
+        return self.update_executable_name("libmlx5")+'.so'
 
     def get_libmnlso_target (self):
-        return self.update_executable_name("libmnl") + '.so';
+        return self.update_executable_name("libmnl") + '.so'
 
     def get_mlx4so_target (self):
-        return self.update_executable_name("libmlx4")+'.so';
+        return self.update_executable_name("libmlx4")+'.so'
 
     def get_bpf_target (self):
-        return self.update_executable_name("bpf");
+        return self.update_executable_name("bpf")
 
     def get_bpfso_target (self):
-        return self.update_executable_name("libbpf") + '.so';
+        return self.update_executable_name("libbpf") + '.so'
 
     def get_bnxt_target (self):
-        return self.update_executable_name("bnxt");
+        return self.update_executable_name("bnxt")
 
     def get_bnxtso_target (self):
-        return self.update_executable_name("libbnxt")+'.so';
+        return self.update_executable_name("libbnxt")+'.so'
 
     def get_mlx5_flags(self):
         flags=[]
         if self.isRelease () :
-            flags += ['-DNDEBUG'];
+            flags += ['-DNDEBUG']
         else:
-            flags += ['-UNDEBUG','-DRTE_LIBRTE_MLX5_DEBUG'];
+            flags += ['-UNDEBUG','-DRTE_LIBRTE_MLX5_DEBUG']
 
         flags += ['-std=c11','-D_BSD_SOURCE','-D_DEFAULT_SOURCE','-D_XOPEN_SOURCE=600','-D_FILE_OFFSET_BITS=64']
 
@@ -2146,26 +2175,24 @@ class build_option:
     def get_mlx4_flags(self, bld):
         flags=[]
         if self.isRelease () :
-            flags += ['-DNDEBUG'];
+            flags += ['-DNDEBUG']
         else:
-            flags += ['-UNDEBUG'];
-        if bld.env.OFED_OK:
-            flags += ['-DHAVE_IBV_MLX4_WQE_LSO_SEG=1']
+            flags += ['-UNDEBUG']
         return (flags)
 
     def get_bnxt_flags(self):
         flags=[]
         if self.isRelease () :
-            flags += ['-DNDEBUG'];
+            flags += ['-DNDEBUG']
         else:
-            flags += ['-UNDEBUG'];
+            flags += ['-UNDEBUG']
         return (flags)
 
     def get_common_flags (self):
         if self.isPIE():
             flags = copy.copy(common_flags_old)
         else:
-            flags = copy.copy(common_flags_new);
+            flags = copy.copy(common_flags_new)
 
         if self.isIntelPlatform():
             if self.is64Platform():
@@ -2211,7 +2238,7 @@ class build_option:
         flags = self.get_common_flags()
         
         if  self.isRelease () :
-            flags += ['-DNDEBUG'];
+            flags += ['-DNDEBUG']
 
         if self.is_clang():
            flags += clang_flags
@@ -2228,10 +2255,10 @@ class build_option:
 
         
     def get_link_flags(self, is_sanitized):
-        base_flags = ['-rdynamic'];
+        base_flags = ['-rdynamic']
         if self.is64Platform() and self.isIntelPlatform():
             base_flags += ['-m64']
-        base_flags += ['-lrt'];
+        base_flags += ['-lrt']
 
 
         if is_sanitized:
@@ -2240,7 +2267,7 @@ class build_option:
                 '-fsanitize=leak',
                 '-static-libasan',
             ]
-        return base_flags;
+        return base_flags
 
 
 
@@ -2255,15 +2282,15 @@ build_types = [
 def build_prog (bld, build_obj):
 
     #rte_libs =[
-    #         'dpdk'];
+    #         'dpdk']
 
-    #rte_libs1 = rte_libs+rte_libs+rte_libs;
+    #rte_libs1 = rte_libs+rte_libs+rte_libs
 
     #for obj in rte_libs:
     #    bld.read_shlib( name=obj , paths=[top+rte_lib_path] )
 
     # add electric fence only for debug image
-    debug_file_list='';
+    debug_file_list=''
     #if not build_obj.isRelease ():
     #    debug_file_list +=ef_src.file_list(top)
     
@@ -2280,13 +2307,52 @@ def build_prog (bld, build_obj):
             DPDK_FLAGS.extend(['-include', H_DPDK_CONFIG])
         lib_ext.append('numa')
 
+    if march == 'x86_64':
+        bp_dpdk = SrcGroups([
+                    dpdk_src,
+                    i40e_dpdk_src,
+                    dpdk_src_x86_64,
+                    dpdk_src_x86_64_ext
+                    ])
+        
+        if bld.env.TAP:
+            bp_dpdk.list_group.append(dpdk_src_x86_64_tap)
+
+        # BPF + JIT
+        bpf = SrcGroups([
+                    bpf_src,
+                    bpfjit_src])
+
+    elif march == 'aarch64':
+        bp_dpdk = SrcGroups([
+                    dpdk_src,
+                    dpdk_src_aarch64
+                    ])
+
+        # software BPF
+        bpf = SrcGroups([bpf_src])
+
+    elif march == 'ppc64le':
+        bp_dpdk = SrcGroups([
+                    dpdk_src,
+                    i40e_dpdk_src,
+                    dpdk_src_ppc64le
+                    ])
+
+        # BPF + JIT
+        bpf = SrcGroups([
+                    bpf_src,
+                    bpfjit_src])
+
+
+
     bld.objects(
       features='c ',
       includes = dpdk_includes_path,
       cflags   = (cflags + DPDK_FLAGS ),
       source   = bp_dpdk.file_list(top),
       target=build_obj.get_dpdk_target()
-      );
+      )
 
     if bld.env.NO_MLX != 'all':
         if not bld.env.LIB_MNL:
@@ -2387,7 +2453,7 @@ def build_prog (bld, build_obj):
 
 
 def build_type(bld,build_obj):
-    build_prog(bld, build_obj);
+    build_prog(bld, build_obj)
 
 
 def post_build(bld):
@@ -2403,7 +2469,7 @@ def post_build(bld):
     for obj in build_types:
         if bld.options.no_old and obj.is_pie:
             continue
-        install_single_system(bld, exec_p, obj);
+        install_single_system(bld, exec_p, obj)
 
 
 def check_build_options(bld):
@@ -2423,7 +2489,7 @@ def build(bld):
 
     bld.env.dpdk_includes_verb_path = ''
     bld.add_pre_fun(pre_build)
-    bld.add_post_fun(post_build);
+    bld.add_post_fun(post_build)
 
     # ZMQ
     zmq_lib_path='external_libs/zmq/' + march + '/'
@@ -2464,16 +2530,16 @@ def build(bld):
             bld.env.mlx5_kw  = {}
 
     if bld.env.WITH_BIRD:
-        bld(rule=build_bird, source='compile_bird.py', target='bird');
+        bld(rule=build_bird, source='compile_bird.py', target='bird')
 
     for obj in build_types:
         if bld.options.no_old and obj.is_pie:
             continue
-        build_type(bld,obj);
+        build_type(bld,obj)
 
 
 def build_info(bld):
-    pass;
+    pass
 
 def build_bird(task):
     bird_build_dir = str(task.get_cwd()) + '/linux_dpdk'
@@ -2559,12 +2625,12 @@ def write_file (file_name,s):
 
 
 def get_build_num ():
-    s='';
+    s=''
     if os.path.isfile(BUILD_NUM_FILE):
-        f=open(BUILD_NUM_FILE,'r');
-        s+=f.readline().rstrip();
-        f.close();
-    return s;
+        f=open(BUILD_NUM_FILE,'r')
+        s+=f.readline().rstrip()
+        f.close()
+    return s
 
 def create_version_files ():
     git_sha="N/A"
@@ -2573,7 +2639,7 @@ def create_version_files ():
       if r[0]==0:
           git_sha=r[1]
     except :
-        pass;
+        pass
 
 
     s =''
@@ -2581,7 +2647,7 @@ def create_version_files ():
     s +="#define __TREX_VER_FILE__           \n"
     s +="#ifdef __cplusplus                  \n"
     s +=" extern \"C\" {                        \n"
-    s +=" #endif                             \n";
+    s +=" #endif                             \n"
     s +='#define  VERSION_USER  "%s"          \n' % os.environ.get('USER', 'unknown')
     s +='extern const char * get_build_date(void);  \n'
     s +='extern const char * get_build_time(void);  \n'
@@ -2590,7 +2656,7 @@ def create_version_files ():
     s +='#define VERSION_BUILD_NUM "%s"       \n' % get_build_num()
     s +="#ifdef __cplusplus                  \n"
     s +=" }                        \n"
-    s +=" #endif                             \n";
+    s +=" #endif                             \n"
     s +="#endif \n"
 
     write_file (H_VER_FILE ,s)
@@ -2611,23 +2677,23 @@ def build_test(bld):
     create_version_files ()
 
 def _copy_single_system (bld, exec_p, build_obj):
-    o=bld.out_dir+'/linux_dpdk/';
+    o=bld.out_dir+'/linux_dpdk/'
     src_file =  os.path.realpath(o+build_obj.get_target())
     print(src_file)
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()
-        os.system("cp %s %s " %(src_file,dest_file));
-        os.system("strip %s " %(dest_file));
-        os.system("chmod +x %s " %(dest_file));
+        os.system("cp %s %s " %(src_file,dest_file))
+        os.system("strip %s " %(dest_file))
+        os.system("chmod +x %s " %(dest_file))
 
 def _copy_single_system1 (bld, exec_p, build_obj):
-    o='../scripts/';
+    o='../scripts/'
     src_file =  os.path.realpath(o+build_obj.get_target()[1:])
     print(src_file)
     if os.path.exists(src_file):
         dest_file = exec_p +build_obj.get_target()[1:]
-        os.system("cp %s %s " %(src_file,dest_file));
-        os.system("chmod +x %s " %(dest_file));
+        os.system("cp %s %s " %(src_file,dest_file))
+        os.system("chmod +x %s " %(dest_file))
 
 
 def copy_single_system (bld, exec_p, build_obj):
@@ -2659,7 +2725,7 @@ files_list=[
             'trex-console',
             'daemon_server',
             'ndr'
-            ];
+            ]
 
 pkg_include = ['cap2','avl','cfg','ko','automation', 'external_libs', 'stl','exp','astf','x710_ddp','trex_emu','emu']
 pkg_exclude = ['*.pyc', '__pycache__']
@@ -2669,48 +2735,48 @@ pkg_make_dirs = ['generated', 'trex_client/external_libs', 'trex_client/interact
 class Env(object):
     @staticmethod
     def get_env(name) :
-        s= os.environ.get(name);
+        s= os.environ.get(name)
         if s == None:
             print("You should define $ %s" % name)
-            raise Exception("Env error");
-        return (s);
+            raise Exception("Env error")
+        return (s)
 
     @staticmethod
     def get_release_path () :
-        s= Env().get_env('TREX_LOCAL_PUBLISH_PATH');
+        s= Env().get_env('TREX_LOCAL_PUBLISH_PATH')
         s +=get_build_num ()+"/"
-        return  s;
+        return  s
 
     @staticmethod
     def get_remote_release_path () :
-        s= Env().get_env('TREX_REMOTE_PUBLISH_PATH');
-        return  s;
+        s= Env().get_env('TREX_REMOTE_PUBLISH_PATH')
+        return  s
 
     @staticmethod
     def get_local_web_server () :
-        s= Env().get_env('TREX_WEB_SERVER');
-        return  s;
+        s= Env().get_env('TREX_WEB_SERVER')
+        return  s
 
     # extral web
     @staticmethod
     def get_trex_ex_web_key() :
-        s= Env().get_env('TREX_EX_WEB_KEY');
-        return  s;
+        s= Env().get_env('TREX_EX_WEB_KEY')
+        return  s
 
     @staticmethod
     def get_trex_ex_web_path() :
-        s= Env().get_env('TREX_EX_WEB_PATH');
-        return  s;
+        s= Env().get_env('TREX_EX_WEB_PATH')
+        return  s
 
     @staticmethod
     def get_trex_ex_web_user() :
-        s= Env().get_env('TREX_EX_WEB_USER');
-        return  s;
+        s= Env().get_env('TREX_EX_WEB_USER')
+        return  s
 
     @staticmethod
     def get_trex_ex_web_srv() :
-        s= Env().get_env('TREX_EX_WEB_SRV');
-        return  s;
+        s= Env().get_env('TREX_EX_WEB_SRV')
+        return  s
 
     @staticmethod
     def get_trex_regression_workspace():
@@ -2762,7 +2828,7 @@ def release(ctx, custom_dir = None):
         check_release_permission()
         exec_p = Env().get_release_path()
     print("copy images and libs")
-    os.system(' mkdir -p '+exec_p);
+    os.system(' mkdir -p '+exec_p)
 
     # get build context to refer the build output dir
     for obj in build_types:
@@ -2772,17 +2838,17 @@ def release(ctx, custom_dir = None):
     for obj in files_list:
         src_file =  '../scripts/'+obj
         dest_file = exec_p +'/'+obj
-        os.system("cp %s %s " %(src_file,dest_file));
+        os.system("cp %s %s " %(src_file,dest_file))
     
-    os.system("chmod 755 %s " % (exec_p +'/trex-emu'));
+    os.system("chmod 755 %s " % (exec_p +'/trex-emu'))
     
     exclude = ' '.join(['--exclude=%s' % exc for exc in pkg_exclude])
     fix_pkg_include(bld)
     for obj in pkg_include:
         src_file =  '../scripts/'+obj+'/'
         dest_file = exec_p +'/'+obj+'/'
-        os.system("rsync -r -L -v %s %s %s" % (src_file, dest_file, exclude));
-        os.system("chmod 755 %s " %(dest_file));
+        os.system("rsync -r -L -v %s %s %s" % (src_file, dest_file, exclude))
+        os.system("chmod 755 %s " %(dest_file))
 
     for obj in pkg_make_dirs:
         dest_dir = os.path.join(exec_p, obj)
@@ -2805,7 +2871,7 @@ def release(ctx, custom_dir = None):
     os.system('rm -r %s/trex_client' % exec_p)
 
     os.system('cd %s/..;tar --exclude="*.pyc" -zcvf %s/%s.tar.gz %s' %(exec_p,os.getcwd(),rel,rel))
-    os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p));
+    os.system("mv %s/%s.tar.gz %s" % (os.getcwd(),rel,exec_p))
 
 
 def publish(ctx, custom_source = None):
@@ -2813,11 +2879,11 @@ def publish(ctx, custom_source = None):
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
-    release_name ='%s.tar.gz' % (rel);
+    release_name ='%s.tar.gz' % (rel)
     if custom_source:
         from_ = custom_source
     else:
-        from_ = exec_p+'/'+release_name;
+        from_ = exec_p+'/'+release_name
     os.system("rsync -av %s %s:%s/%s " %(from_,Env().get_local_web_server(),Env().get_remote_release_path (), release_name))
     if not ctx.options.private:
       os.system("ssh %s 'cd %s;rm be_latest; ln -P %s be_latest'  " %(Env().get_local_web_server(),Env().get_remote_release_path (),release_name))
@@ -2829,11 +2895,11 @@ def publish_ext(ctx, custom_source = None):
     exec_p = Env().get_release_path()
     rel=get_build_num ()
 
-    release_name ='%s.tar.gz' % (rel);
+    release_name ='%s.tar.gz' % (rel)
     if custom_source:
         from_ = custom_source
     else:
-        from_ = exec_p+'/'+release_name;
+        from_ = exec_p+'/'+release_name
     cmd='rsync -avz --progress -e "ssh -i %s" --rsync-path=/usr/bin/rsync %s %s@%s:%s/release/%s' % (Env().get_trex_ex_web_key(),from_, Env().get_trex_ex_web_user(),Env().get_trex_ex_web_srv(),Env().get_trex_ex_web_path() ,release_name)
     print(cmd)
     os.system( cmd )

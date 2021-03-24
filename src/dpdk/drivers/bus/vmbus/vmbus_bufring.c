@@ -21,7 +21,7 @@
 #include <rte_pause.h>
 #include <rte_bus_vmbus.h>
 
-#include "private.h"
+#include "vmprivate.h"
 
 /* Increase bufring index by inc with wraparound */
 static inline uint32_t vmbus_br_idxinc(uint32_t idx, uint32_t inc, uint32_t sz)

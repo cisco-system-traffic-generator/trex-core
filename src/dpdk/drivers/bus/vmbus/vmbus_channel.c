@@ -17,7 +17,7 @@
 #include <rte_memory.h>
 #include <rte_bus_vmbus.h>
 
-#include "private.h"
+#include "vmprivate.h"
 
 static inline void
 vmbus_sync_set_bit(volatile uint32_t *addr, uint32_t mask)
