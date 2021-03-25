@@ -357,6 +357,7 @@ struct CEmulAppCmdRxPkt {
 
 struct CEmulAppCmdKeepAlive {
     uint64_t        m_keepalive_msec; /* set keepalive in msec */
+    bool            m_rx_mode; /* keepalive in rx only */
 };
 
 
@@ -422,7 +423,8 @@ public:
                           )=0;
 
     virtual void set_keepalive(CUdpFlow *         flow,
-                               uint64_t           msec
+                               uint64_t           msec,
+                               bool               rx_mode
                                )=0;
 
 };

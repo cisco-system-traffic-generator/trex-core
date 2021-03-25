@@ -242,6 +242,10 @@
                       "msec" : {
                           "type" : "integer",
                           "minimum": 0
+                      },
+
+                      "rx_mode" : {
+                          "type" : "boolean"
                       }   
                 },
                 "required": ["name","msec"]
