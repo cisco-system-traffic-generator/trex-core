@@ -574,6 +574,11 @@ void CAstfDB::fill_keepalive_pkt(uint32_t program_index,
     assert_cmd(program_index, cmd_index, "keepalive", cmd);
 
     res.u.m_keepalive.m_keepalive_msec =cmd["msec"].asUInt();
+    if (cmd["rx_mode"] != Json::nullValue) {
+        res.u.m_keepalive.m_rx_mode = cmd["rx_mode"].asBool();
+    } else {
+        res.u.m_keepalive.m_rx_mode = false;
+    }
 }
 
 

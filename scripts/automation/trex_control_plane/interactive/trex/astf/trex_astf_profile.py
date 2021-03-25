@@ -138,10 +138,12 @@ class ASTFCmdSend(ASTFCmd):
         return ret
 
 class ASTFCmdKeepaliveMsg(ASTFCmd):
-    def __init__(self, msec):
+    def __init__(self, msec, rx_mode=False):
         super(ASTFCmdKeepaliveMsg, self).__init__()
         self.fields['name'] = 'keepalive'
         self.fields['msec'] = msec
+        if rx_mode:
+            self.fields['rx_mode'] = rx_mode
         self.stream=False
 
 
@@ -468,21 +470,25 @@ class ASTFProgram(object):
 
         self.fields['commands'].append(ASTFCmdTxMode(flags))
 
-    def set_keepalive_msg (self,msec):
+    def set_keepalive_msg (self,msec,rx_mode=False):
         """
         set_keepalive_msg (msec), set the keepalive timer for UDP flows 
 
         :parameters:
                   msec  : uint32_t
                    the keepalive time in msec 
+                  rx_mode  : bool
+                   reset by rx packets only. i.e. send_msg does not reset the keepalive timer.
         """
 
         ver_args = {"types":
-                    [{"name": "msec", 'arg': msec, "t": int}]
+                    [{"name": "msec", 'arg': msec, "t": int},
+                     {"name": "rx_mode", 'arg': rx_mode, "t": bool, "must": False}
+                    ]
                     }
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
-        self.fields['commands'].append(ASTFCmdKeepaliveMsg(msec))
+        self.fields['commands'].append(ASTFCmdKeepaliveMsg(msec, rx_mode))
 
 
     def recv_msg(self, pkts,clear=False):
