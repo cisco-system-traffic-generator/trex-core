@@ -515,7 +515,8 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
     case tcKEEPALIVE : 
         {
             m_state=te_NONE;
-            m_api->set_keepalive((CUdpFlow *)m_flow,cmd->u.m_keepalive.m_keepalive_msec);
+            m_api->set_keepalive((CUdpFlow *)m_flow,cmd->u.m_keepalive.m_keepalive_msec,
+                                 cmd->u.m_keepalive.m_rx_mode);
             return next_cmd();
         }
         break;

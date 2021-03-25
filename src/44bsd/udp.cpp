@@ -178,7 +178,9 @@ HOT_FUNC rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
 
 
 void CUdpFlow::send_pkt(CMbufBuffer *      buf){
-    m_keepalive=0;
+    if (!m_keepalive_rx_mode) {
+        m_keepalive=0;
+    }
     rte_mbuf_t   * m = alloc_and_build(buf);
     if (m==0) {
         return;
@@ -222,7 +224,8 @@ void CUdpFlow::keepalive_timer_start(bool init){
     m_remain_ticks -= ticks;
 }
 
-void CUdpFlow::set_keepalive(uint64_t  msec){
+void CUdpFlow::set_keepalive(uint64_t msec, bool rx_mode){
+    m_keepalive_rx_mode = rx_mode;
     m_keepalive_ticks = tw_time_msec_to_ticks(msec);
     /* stop and restart the timer with new time */
     m_pctx->m_ctx->m_timer_w.timer_stop(&m_keep_alive_timer);

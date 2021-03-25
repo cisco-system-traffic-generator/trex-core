@@ -708,7 +708,7 @@ public:
 
     void disconnect();
 
-    void set_keepalive(uint64_t  msec);
+    void set_keepalive(uint64_t msec, bool rx_mode);
 
     void on_tick();
 
@@ -750,6 +750,7 @@ private:
 
 public:
     CHTimerObj        m_keep_alive_timer; /* 32 bytes */ 
+    bool              m_keepalive_rx_mode; /* keepalive by rx only */
     uint32_t          m_keepalive_ticks;
     uint8_t           m_mbuf_socket;    /* mbuf socket */
     uint8_t           m_keepalive;      /* 1- no-alive 0- alive */
@@ -1665,8 +1666,8 @@ public:
     }
 
     virtual void set_keepalive(CUdpFlow *         flow,
-                               uint64_t           msec
-                               ){
+                               uint64_t           msec,
+                               bool               rx_mode){
         assert(0);
     }
 };
@@ -1718,9 +1719,9 @@ public:
     }
 
     virtual void set_keepalive(CUdpFlow *         flow,
-                               uint64_t           msec
-                               ){
-        flow->set_keepalive(msec);
+                               uint64_t           msec,
+                               bool               rx_mode){
+        flow->set_keepalive(msec, rx_mode);
     }
 };
 
