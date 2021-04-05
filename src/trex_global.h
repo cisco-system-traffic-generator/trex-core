@@ -552,6 +552,7 @@ public:
         m_learn_mode = 0;
         m_debug_pkt_proto = 0;
         m_arp_ref_per = 120; // in seconds
+        m_arp_req_limit = 10;
         m_rx_thread_enabled = false;
         cfg_file = "";
         client_cfg_file = "";
@@ -614,6 +615,7 @@ public:
     uint8_t         m_learn_mode;
     uint16_t        m_debug_pkt_proto;
     uint16_t        m_arp_ref_per;
+    uint16_t        m_arp_req_limit; // limit the initial ARP req for GW address
     uint8_t         m_dummy_count;
     uint8_t         m_reta_mask;
     bool            m_rx_thread_enabled;
