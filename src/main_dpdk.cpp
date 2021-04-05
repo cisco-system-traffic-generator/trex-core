@@ -196,6 +196,7 @@ enum {
        OPT_LRO_OFFLOAD_DISABLE,
        OPT_CLOSE,
        OPT_ARP_REF_PER,
+       OPT_LIMT_ARP_REQ,
        OPT_NO_OFED_CHECK,
        OPT_NO_SCAPY_SERVER,
        OPT_SCAPY_SERVER,
@@ -297,6 +298,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
         { OPT_CLOSE,                  "--close-at-end",    SO_NONE    },
         { OPT_ARP_REF_PER,            "--arp-refresh-period", SO_REQ_SEP },
+        { OPT_LIMT_ARP_REQ,           "--limit-arp-request", SO_REQ_SEP },
         { OPT_NO_OFED_CHECK,          "--no-ofed-check",    SO_NONE    },
         { OPT_NO_SCAPY_SERVER,        "--no-scapy-server",  SO_NONE    },
         { OPT_SCAPY_SERVER,           "--scapy-server",     SO_NONE    },
@@ -344,6 +346,7 @@ static int COLD_FUNC  usage() {
     printf("                              Example --active-flows 500000 wil set the ballpark of the active flow to be ~0.5M \n");
     printf(" --allow-coredump           : Allow creation of core dump \n");
     printf(" --arp-refresh-period       : Period in seconds between sending of gratuitous ARP for our addresses. Value of 0 means 'never send' \n");
+    printf(" --limit-arp-request        : The limit number of ARP requests for gw address resolution. Value of 0 means 'no limit.' \n");
     printf(" -c <num>>                  : Number of hardware threads to allocate for each port pair. Overrides the 'c' argument from config file \n");
     printf(" --cfg <file>               : Use file as TRex config file instead of the default /etc/trex_cfg.yaml \n");
     printf(" --checksum-offload         : Deprecated,enable by default. Enable IP, TCP and UDP tx checksum offloading, using DPDK. This requires all used interfaces to support this  \n");
@@ -913,9 +916,13 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_CLOSE:
                 po->preview.setCloseEnable(true);
                 break;
-            case  OPT_ARP_REF_PER:
+            case OPT_ARP_REF_PER:
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_arp_ref_per=(uint16_t)tmp_data;
+                break;
+            case OPT_LIMT_ARP_REQ:
+                sscanf(args.OptionArg(),"%d", &tmp_data);
+                po->m_arp_req_limit=(uint16_t)tmp_data;
                 break;
             case OPT_NO_OFED_CHECK:
                 break;
@@ -3163,11 +3170,12 @@ COLD_FUNC void CGlobalTRex::pre_test() {
     pretest.send_grat_arp_all();
     bool ret;
     int count = 0;
+    int limit = CGlobalInfo::m_options.m_arp_req_limit;
     bool resolve_failed = false;
     do {
         ret = pretest.resolve_all();
         count++;
-    } while ((ret != true) && (count < 10));
+    } while ((ret != true) && ((limit == 0) || (count < limit)));
     if (ret != true) {
         resolve_failed = true;
     }
