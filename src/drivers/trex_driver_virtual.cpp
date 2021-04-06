@@ -233,7 +233,7 @@ void CTRexExtendedDriverNetvsc::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required |= DEV_TX_OFFLOAD_MULTI_SEGS;
     cfg->tx_offloads.common_best_effort = 0;
 }
 
