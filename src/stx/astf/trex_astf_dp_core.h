@@ -78,7 +78,7 @@ public:
 
     void start_transmit(profile_id_t profile_id, double duration, bool nc);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc);
-    void stop_transmit(profile_id_t profile_id);
+    void stop_transmit(profile_id_t profile_id, bool set_nc);
     void update_rate(profile_id_t profile_id, double ratio);
     void create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db);
     void delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db);

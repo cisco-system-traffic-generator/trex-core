@@ -155,6 +155,19 @@ public:
         m_s_tuneables = s_tune;
     }
 
+    void set_flow_limited(bool limited) { m_flow_limited = limited; }
+    bool has_flow_gen() {
+        if (m_flow_limited) {
+            for (auto rw: m_cap_gen) {
+                if (!rw->check_limit()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
 private:
     KxuNuRand *                       m_nru;
     KxuLCRand                         m_rnd;
@@ -163,6 +176,7 @@ private:
     astf_thread_id_t                  m_max_threads;
     CTcpTuneables *                   m_s_tuneables;
     CTcpTuneables *                   m_c_tuneables;
+    bool                              m_flow_limited;
 } ;
 
 

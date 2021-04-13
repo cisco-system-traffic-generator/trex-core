@@ -567,19 +567,31 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
     m_cur_time_sec =node->m_time;
     #endif
 
-    bool done;
     m_node_gen.m_p_queue.pop();
     if ( on_terminate == false ) {
         m_cur_time_sec = node->m_time ;
         if (node->m_time_stop && m_cur_time_sec >= node->m_time_stop) {
-            done = true;
-            if (node->m_pctx && node->m_pctx->is_active()) {
+            if (node->m_pctx && get_is_interactive()) {
                 TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
-                astf->stop_transmit(node->m_pctx->m_profile_id);
+                astf->stop_transmit(node->m_pctx->m_profile_id, node->m_set_nc);
+
+                node->m_pctx->m_tx_node = nullptr; // for the safe profile stop
+                node->m_pctx = nullptr;
             }
         }
-        else {
+        else if (node->m_pctx) {
+            bool done;
             generate_flow(done, node->m_pctx);
+            /* when there is no flow to generate, profile stop can be triggered */
+            if (!done && !node->m_pctx->m_template_rw->has_flow_gen() && get_is_interactive()) {
+                TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
+                astf->stop_transmit(node->m_pctx->m_profile_id, false);
+
+                if (!(node->m_time_stop && node->m_set_nc)) {
+                    node->m_pctx->m_tx_node = nullptr; // for the safe profile stop
+                    node->m_pctx = nullptr;
+                }
+            }
         }
 
         if (m_sched_accurate){
@@ -587,7 +599,7 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
             v_if->flush_tx_queue();
         }
 
-        if (!done) {
+        if (node->m_pctx) {
             node->m_time += node->m_pctx->m_fif_d_time;
             if (node->m_time_stop && node->m_time > node->m_time_stop) {
                 node->m_time = node->m_time_stop;

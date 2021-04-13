@@ -102,13 +102,13 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id, bool stop_all
     m_flow_gen->m_c_tcp->deactivate_profile_ctx(profile_id);
     if (stop_all) {
         m_flow_gen->m_s_tcp->deactivate_profile_ctx(profile_id);
-    }
 
-    CPerProfileCtx* pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
-    CGenNodeTXFIF* tx_node = (CGenNodeTXFIF*)pctx->m_tx_node;
-    if (tx_node) {
-        tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
-        pctx->m_tx_node = nullptr;  // prevent from unexpected reference.
+        CPerProfileCtx* pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
+        CGenNodeTXFIF* tx_node = (CGenNodeTXFIF*)pctx->m_tx_node;
+        if (tx_node) {
+            tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
+            pctx->m_tx_node = nullptr;  // prevent from unexpected reference.
+        }
     }
 }
 
@@ -302,16 +302,19 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
         tx_node->m_type = CGenNode::TCP_TX_FIF;
         tx_node->m_time = m_core->m_cur_time_sec + d_phase + 0.1; /* phase the transmit a bit */
         tx_node->m_time_stop = (duration > 0) ? tx_node->m_time + duration : 0.0;
+        tx_node->m_set_nc = nc;
         tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
         tx_node->m_pctx->m_tx_node = tx_node;
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
     }
 
     set_profile_active(profile_id);
-    set_profile_nc(profile_id, nc);
 
-    if ( disable_client && duration > 0 ) {
-        add_profile_duration(profile_id, duration + d_phase);
+    if ( disable_client ) {
+        set_profile_nc(profile_id, nc);
+        if (duration > 0) {
+            add_profile_duration(profile_id, duration + d_phase);
+        }
     }
 }
 
@@ -566,10 +569,10 @@ void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, uint32_t stop_id, bo
     }
 }
 
-void TrexAstfDpCore::stop_transmit(profile_id_t profile_id) {
+void TrexAstfDpCore::stop_transmit(profile_id_t profile_id, bool set_nc) {
     uint32_t tmp_stop_id = -1;  // request stop client
     set_profile_stop_id(profile_id, tmp_stop_id);
-    stop_transmit(profile_id, tmp_stop_id, false);
+    stop_transmit(profile_id, tmp_stop_id, set_nc);
 }
 
 void TrexAstfDpCore::scheduler(bool activate) {
