@@ -1189,6 +1189,9 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     ret->set_tuneables(c_tune, s_tune);
 
     std::vector<double>  dist;
+
+    ret->set_flow_limited(true);
+
     // loop over all templates
     for (uint32_t index = 0; index < m_val["templates"].size(); index++) {
         CAstfPerTemplateRW *temp_rw = new CAstfPerTemplateRW();
@@ -1220,6 +1223,11 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
             /* there is a limit */
             temp_rw->set_limit(cnt, is_cont);
+            if (is_cont) {
+                ret->set_flow_limited(false);
+            }
+        } else {
+            ret->set_flow_limited(false);
         }
 
         CTcpTuneables *s_tuneable;
