@@ -33,8 +33,10 @@ class Prof1():
                                                  'icmp': {},
                                                  'igmp': {}, 
                                                  'dhcp': {
-                                                     'discoverDhcpClassIdOption':discoverDhcpClassIdOption,
-                                                     'requestDhcpClassIdOption': requestDhcpClassIdOption,
+                                                     'options' : {
+                                                        'discoverDhcpClassIdOption':discoverDhcpClassIdOption,
+                                                        'requestDhcpClassIdOption': requestDhcpClassIdOption,
+                                                       }
                                                     }
                                               },
                                       )
