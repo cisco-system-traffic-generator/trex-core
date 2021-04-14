@@ -26,6 +26,13 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.89 ==
+
+* Fix mlx5 20MPPS limit -- see link:https://github.com/cisco-system-traffic-generator/trex-core/pull/675[675]. There is a need to upgrade the odef to 5.3.01  
+* Add netvsc interface for Azure. It is a simplified relative to failsafe
+* A few minor bug fixes 
+
+
 == Release 2.88 ==
 
 * Major ZMQ protocol change, there is a need to upgrade the client side version see link:https://github.com/cisco-system-traffic-generator/trex-core/issues/636[636]
