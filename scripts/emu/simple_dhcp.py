@@ -9,7 +9,7 @@ class Prof1():
         self.def_ns_plugs  = {'igmp' : {'dmac':self.mac.V()}} 
         self.def_c_plugs  = None
 
-    def create_profile(self, ns_size, clients_size,clientMac,discoverDhcpClassIdOption,requestDhcpClassIdOption):
+    def create_profile(self, ns_size, clients_size,clientMac,dhcpOptions):
         ns_list = []
 
         # create different namespace each time
@@ -23,7 +23,6 @@ class Prof1():
             mac = Mac(clientMac)
             ipv4 = Ipv4('0.0.0.0')
             dg = Ipv4('0.0.0.0')
-
             # create a different client each time
             for i in range(clients_size):       
                 client = EMUClientObj(mac     = mac[i].V(),
@@ -32,12 +31,7 @@ class Prof1():
                                       plugs   = {'arp': {},
                                                  'icmp': {},
                                                  'igmp': {}, 
-                                                 'dhcp': {
-                                                     'options' : {
-                                                        'discoverDhcpClassIdOption':discoverDhcpClassIdOption,
-                                                        'requestDhcpClassIdOption': requestDhcpClassIdOption,
-                                                       }
-                                                    }
+                                                 'dhcp': dhcpOptions,
                                               },
                                       )
                 ns.add_clients(client)
@@ -45,6 +39,33 @@ class Prof1():
 
         return EMUProfile(ns = ns_list, def_ns_plugs = self.def_ns_plugs)
 
+    def getDhcpPluginOptions(self,discoverDhcpClassIdOption, requestDhcpClassIdOption):
+        #no dhcp options provided by user.
+        if discoverDhcpClassIdOption==None and requestDhcpClassIdOption==None:
+           return {}
+       #both dhcp options provided by user.
+        elif discoverDhcpClassIdOption!=None and requestDhcpClassIdOption!=None: 
+             return    {
+                        'options' : {
+                            'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
+                            'requestDhcpClassIdOption': ' '.join(requestDhcpClassIdOption),
+                           }
+                        } 
+        elif discoverDhcpClassIdOption!=None: 
+             return    {
+                        'options' : {
+                            'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
+                           }
+                        } 
+        elif requestDhcpClassIdOption!=None: 
+             return    {
+                        'options' : {
+                            'requestDhcpClassIdOption':' '.join(requestDhcpClassIdOption),
+                           }
+                        } 
+
+   
+   
     def get_profile(self, tuneables):
       # Argparse for tunables
         parser = argparse.ArgumentParser(description='Argparser for simple emu profile.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -55,14 +76,15 @@ class Prof1():
 
         parser.add_argument('--mac', type = str, default = '00:00:00:70:00:01',
                     help='Mac address of the first client')
-        parser.add_argument('--discoverDhcpClassIdOption', nargs="*", type = str, default = '', 
+        parser.add_argument('--discoverDhcpClassIdOption', nargs="*", type = str,  
                    help='discover Dhcp ClassId Option')
-        parser.add_argument('--requestDhcpClassIdOption', nargs="*", type = str, default = '', 
+        parser.add_argument('--requestDhcpClassIdOption', nargs="*", type = str,  
                    help='request Dhcp ClassId Option')
 
 
         args = parser.parse_args(tuneables)
-        return self.create_profile(args.ns, args.clients,args.mac,' '.join(args.discoverDhcpClassIdOption),' '.join(args.requestDhcpClassIdOption))
+        dhcpOptions=self.getDhcpPluginOptions(args.discoverDhcpClassIdOption,args.requestDhcpClassIdOption)
+        return self.create_profile(args.ns, args.clients,args.mac,dhcpOptions)
 
 
 def register():
