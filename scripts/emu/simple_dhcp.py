@@ -40,23 +40,25 @@ class Prof1():
         return EMUProfile(ns = ns_list, def_ns_plugs = self.def_ns_plugs)
 
     def getDhcpPluginOptions(self,discoverDhcpClassIdOption, requestDhcpClassIdOption):
-        #no dhcp options provided by user.
+         #no dhcp options provided by user.
         if discoverDhcpClassIdOption==None and requestDhcpClassIdOption==None:
            return {}
-       #both dhcp options provided by user.
+         #both dhcp options provided by user.
         elif discoverDhcpClassIdOption!=None and requestDhcpClassIdOption!=None: 
            return {
                    'options' : {
                      'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
                      'requestDhcpClassIdOption': ' '.join(requestDhcpClassIdOption),
                     }
-                   } 
+                   }
+          #only discoverDhcpClassId Option is provided
         elif discoverDhcpClassIdOption!=None: 
            return {
                   'options' : {
                     'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
                     }
                   } 
+          #only requestDhcpClassId Option is provided
         elif requestDhcpClassIdOption!=None: 
            return {
                    'options' : {
