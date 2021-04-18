@@ -45,27 +45,26 @@ class Prof1():
            return {}
        #both dhcp options provided by user.
         elif discoverDhcpClassIdOption!=None and requestDhcpClassIdOption!=None: 
-             return    {
-                        'options' : {
-                            'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
-                            'requestDhcpClassIdOption': ' '.join(requestDhcpClassIdOption),
-                           }
-                        } 
+           return {
+                   'options' : {
+                     'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
+                     'requestDhcpClassIdOption': ' '.join(requestDhcpClassIdOption),
+                    }
+                   } 
         elif discoverDhcpClassIdOption!=None: 
-             return    {
-                        'options' : {
-                            'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
-                           }
-                        } 
+           return {
+                  'options' : {
+                    'discoverDhcpClassIdOption':' '.join(discoverDhcpClassIdOption),
+                    }
+                  } 
         elif requestDhcpClassIdOption!=None: 
-             return    {
-                        'options' : {
-                            'requestDhcpClassIdOption':' '.join(requestDhcpClassIdOption),
-                           }
-                        } 
+           return {
+                   'options' : {
+                     'requestDhcpClassIdOption':' '.join(requestDhcpClassIdOption),
+                    }
+                  } 
 
-   
-   
+     
     def get_profile(self, tuneables):
       # Argparse for tunables
         parser = argparse.ArgumentParser(description='Argparser for simple emu profile.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
