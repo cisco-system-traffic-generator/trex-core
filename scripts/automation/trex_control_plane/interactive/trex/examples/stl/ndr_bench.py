@@ -686,25 +686,11 @@ class NdrBench:
         self.stl_client.clear_stats()
         duration = 0
         if run_max:
-            rate_mb_percent = 99
             duration = self.config.first_run_duration
-            #self.stl_client.start(ports=self.config.transmit_ports, mult="10%",
-            #                      duration=120, core_mask=self.config.transmit_core_masks)
-            #time.sleep(30)
-            #self.stl_client.stop(ports=self.config.ports)
-            #time.sleep(5)
-            self.stl_client.clear_stats()
-
-            self.stl_client.start(ports=self.config.transmit_ports, mult=str(9000000000) + "bps",
+            self.stl_client.start(ports=self.config.transmit_ports, mult="100%",
                                   duration=duration, core_mask=self.config.transmit_core_masks)
+            rate_mb_percent = 100
         else:
-            #self.stl_client.start(ports=self.config.transmit_ports, mult="10%",
-            #                                          duration=120, core_mask=self.config.transmit_core_masks)
-            #time.sleep(30)
-            #self.stl_client.stop(ports=self.config.ports)
-            #time.sleep(5)
-            self.stl_client.clear_stats()
-
             m_rate = Rate(self.results.stats['max_rate_bps'])
             if rate_mb_percent == 0:
                 rate_mb_percent += 1
@@ -712,21 +698,12 @@ class NdrBench:
             duration = self.config.iteration_duration
             self.stl_client.start(ports=self.config.transmit_ports, mult=str(run_rate) + "bps",
                                   duration=duration, core_mask=self.config.transmit_core_masks)
-            #time.sleep(2)
-            #self.stl_client.clear_stats()
         time.sleep(duration / 2)
         stats = self.stl_client.get_stats()
         self.stl_client.stop(ports=self.config.ports)
-        time.sleep(5)
-        stats2 = self.stl_client.get_stats()
-        opackets = stats2['total']['opackets']
-        ipackets = stats2['total']['ipackets']
+        opackets = stats['total']['opackets']
+        ipackets = stats['total']['ipackets']
         lost_p = opackets - ipackets
-        if lost_p < 0:
-            lost_p = 0
-        print(" opacket %d " % opackets)
-        print(" ipacket %d " % ipackets)
-        print(" lost    %d " % lost_p)
         lost_p_percentage = (float(lost_p) / float(opackets)) * 100.00
         if lost_p_percentage < 0:
             lost_p_percentage = 0
@@ -779,7 +756,6 @@ class NdrBench:
             if run_results['rate_tx_bps'] < run_results['rate_rx_bps']:
                 self.results.print_state("TX rate is slower than RX rate", None, None)
             self.results.print_iteration_data()
-        run_results['drop_rate_percentage'] = 99
         return run_results
 
     def perf_run_interval(self, high_bound, low_bound):
@@ -917,8 +893,7 @@ class NdrBench:
 
         else:
             if self.config.verbose:
-                self.results.print_state("NDR found at max rate (force full run)", None, None)
-            self.results.update(self.perf_run_interval(99.8, 0))
+                self.results.print_state("NDR found at max rate", None, None)
 
         self.calculate_ndr_points()
 
