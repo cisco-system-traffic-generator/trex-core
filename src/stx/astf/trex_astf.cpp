@@ -366,6 +366,8 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     pid->set_factor(args.mult);
     pid->set_duration(args.duration);
     pid->set_nc_flow_close(args.nc);
+    pid->set_establish_timeout(args.e_duration);
+    pid->set_terminate_duration(args.t_duration);
 
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
@@ -965,7 +967,7 @@ void TrexAstfPerProfile::transmit() {
 
     profile_change_state(STATE_TX);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration, m_nc_flow_close);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
 
     m_astf_obj->send_message_to_all_dp(msg, true);
 }

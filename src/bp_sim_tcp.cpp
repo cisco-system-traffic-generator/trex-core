@@ -568,18 +568,52 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
     #endif
 
     m_node_gen.m_p_queue.pop();
-    if ( on_terminate == false ) {
+    if ((on_terminate == false) && node->m_pctx) {
         m_cur_time_sec = node->m_time ;
-        if (node->m_time_stop && m_cur_time_sec >= node->m_time_stop) {
-            if (node->m_pctx && get_is_interactive()) {
-                TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
-                astf->stop_transmit(node->m_pctx->m_profile_id, node->m_set_nc);
 
-                node->m_pctx->m_tx_node = nullptr; // for the safe profile stop
-                node->m_pctx = nullptr;
+        /* when e_duration is given, stop flow generation when it's over. */
+        if (node->m_time_established) {
+            if (node->m_pctx->get_time_connects()) {
+                node->m_time_established = 0;   // clear establishment timeout
+            }
+            else if (m_cur_time_sec >= node->m_time_established) {
+                node->m_time_stop = m_cur_time_sec;
+                node->m_set_nc = true;
+                node->m_terminate_duration = 0; // prevent waiting
             }
         }
-        else if (node->m_pctx) {
+
+        /* when t_duration is given without duration, stop when the traffic duration is over. */
+        if (node->m_terminate_duration && !node->m_time_stop && node->m_pctx->get_time_connects()) {
+            double traffic_time = node->m_pctx->get_time_lap();
+            if (traffic_time >= node->m_terminate_duration) {
+                node->m_time_stop = m_cur_time_sec;
+                node->m_set_nc = true;  // stop immediately
+                node->m_terminate_duration = 0;
+            }
+        }
+
+        if (node->m_time_stop && m_cur_time_sec >= node->m_time_stop) {
+            if (get_is_interactive()) {
+                bool stop_traffic = true;
+                if (node->m_terminate_duration) {
+                    node->m_time_stop += node->m_terminate_duration;
+                    node->m_set_nc = true;
+                    node->m_terminate_duration = 0;
+
+                    stop_traffic = false;
+                }
+
+                TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
+                astf->stop_transmit(node->m_pctx->m_profile_id, stop_traffic ? node->m_set_nc: false);
+
+                if (stop_traffic) {
+                    node->m_pctx->m_tx_node = nullptr; // for the safe profile stop
+                    node->m_pctx = nullptr;
+                }
+            }
+        }
+        else {
             bool done;
             generate_flow(done, node->m_pctx);
             /* when there is no flow to generate, profile stop can be triggered */

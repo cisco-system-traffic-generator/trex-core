@@ -57,13 +57,15 @@ private:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc);
+    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     profile_id_t m_profile_id;
     double m_duration;
     bool m_nc_flow_close;
+    double m_establish_timeout;
+    double m_terminate_duration;
 };
 
 /**

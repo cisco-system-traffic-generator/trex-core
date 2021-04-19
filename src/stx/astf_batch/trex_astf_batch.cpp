@@ -101,6 +101,8 @@ TrexDpCoreAstfBatch::start_astf() {
         tx_node->m_type = CGenNode::TCP_TX_FIF;
         tx_node->m_time = now + d_phase + 0.1; /* phase the transmit a bit */
         tx_node->m_time_stop = 0.0;
+        tx_node->m_time_established = 0.0;
+        tx_node->m_terminate_duration = 0.0;
         tx_node->m_set_nc = false;
         tx_node->m_pctx = DEFAULT_PROFILE_CTX(m_core->m_c_tcp);
         m_core->m_node_gen.add_node((CGenNode*)tx_node);

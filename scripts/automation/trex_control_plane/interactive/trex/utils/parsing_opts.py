@@ -696,6 +696,24 @@ class OPTIONS_DB_ARGS:
          'default': -1.0,
          'help': "Set duration time for job."})
 
+    ESTABLISH_DURATION = ArgumentPack(
+        ['--e_duration'],
+        {'action': "store",
+         'metavar': 'TIME',
+         'dest': 'e_duration',
+         'type': match_time_unit,
+         'default': 0.0,
+         'help': "Set time limit for the first flow establishment."})
+
+    TERMINATE_DURATION = ArgumentPack(
+        ['--t_duration'],
+        {'action': "store",
+         'metavar': 'TIME',
+         'dest': 't_duration',
+         'type': match_time_unit,
+         'default': 0.0,
+         'help': "Set time limit waiting for all the flow to terminate gracefully."})
+
     TIMEOUT = ArgumentPack(
         ['-t'],
         {'action': "store",
