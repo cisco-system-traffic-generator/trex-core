@@ -153,6 +153,7 @@ rte_mbuf_t *CTrexDebug::create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t t
     m = CGlobalInfo::pktmbuf_alloc_by_port(0, pkt_size);
     if ( unlikely(m == 0) )  {
         printf("ERROR no packets \n");
+        free(pkt);
         return (NULL);
     }
     p = rte_pktmbuf_append(m, pkt_size);
