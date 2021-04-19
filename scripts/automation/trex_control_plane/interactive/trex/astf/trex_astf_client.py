@@ -651,7 +651,7 @@ class ASTFClient(TRexClient):
                 self.logger.info(format_text("Cannot remove a profile: %s is not state IDLE and state LOADED.\n" % profile_id, "bold", "magenta"))
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff, e_duration = 0, t_duration = 0):
         """
             Start the traffic on loaded profile. Procedure is async.
 
@@ -681,6 +681,16 @@ class ASTFClient(TRexClient):
                 pid_input: string
                     Input profile ID
 
+                e_duration: float
+                    Maximum time to wait for one flow to be established.
+                    Stop the flow generation when this time is over. Stop immediately with nc.
+                    Disabled by default. Enabled by positive values.
+
+                t_duration: float
+                    Maximum time to wait for all the flow to terminate gracefully after duration.
+                    Stop immediately (overrides nc pararmeter) when this time is over.
+                    Disabled by default. Enabled by non-zero values.
+
             :raises:
                 + :exc:`TRexError`
         """
@@ -694,6 +704,8 @@ class ASTFClient(TRexClient):
             'latency_pps': latency_pps,
             'ipv6': ipv6,
             'client_mask': client_mask,
+            'e_duration': e_duration,
+            't_duration': t_duration,
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
@@ -1330,6 +1342,8 @@ class ASTFClient(TRexClient):
                                          parsing_opts.FILE_PATH,
                                          parsing_opts.MULTIPLIER_NUM,
                                          parsing_opts.DURATION,
+                                         parsing_opts.ESTABLISH_DURATION,
+                                         parsing_opts.TERMINATE_DURATION,
                                          parsing_opts.ARGPARSE_TUNABLES,
                                          parsing_opts.ASTF_NC,
                                          parsing_opts.ASTF_LATENCY,
@@ -1378,7 +1392,7 @@ class ASTFClient(TRexClient):
             elif opts.servers_only:
                 kw['client_mask'] = 0
 
-            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, **kw)
+            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, e_duration = opts.e_duration, t_duration = opts.t_duration, **kw)
 
         return True
 

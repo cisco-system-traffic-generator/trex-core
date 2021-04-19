@@ -30,6 +30,8 @@ typedef struct {
     uint32_t    latency_pps;
     bool        ipv6;
     uint32_t    client_mask;
+    double      e_duration;
+    double      t_duration;
 } start_params_t;
 
 

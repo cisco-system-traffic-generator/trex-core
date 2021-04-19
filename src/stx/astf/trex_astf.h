@@ -130,6 +130,8 @@ public:
     void    set_profile_stopping(bool stopping) { m_profile_stopping = stopping; }
     void    set_nc_flow_close(bool nc) { m_nc_flow_close = nc; }
     void    set_duration(double duration) { m_duration = duration; }
+    void    set_establish_timeout(double timeout) { m_establish_timeout = timeout; }
+    void    set_terminate_duration(double duration) { m_terminate_duration = duration; }
     void    set_factor(double mult) { m_factor = mult; }
 
     /*
@@ -148,6 +150,8 @@ private:
     int16_t         m_partial_cores;
     bool            m_nc_flow_close;
     double          m_duration;
+    double          m_establish_timeout;
+    double          m_terminate_duration;
     double          m_factor;
     std::string     m_error;
 

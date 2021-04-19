@@ -52,6 +52,8 @@ struct profile_param {
     profile_id_t    m_profile_id;
     double          m_duration;
     bool            m_nc_flow_close;
+    double          m_establish_timeout;
+    double          m_terminate_duration;
 };
 
 class TrexAstfDpCore : public TrexDpCore {
@@ -76,7 +78,7 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(profile_id_t profile_id, double duration, bool nc);
+    void start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc);
     void stop_transmit(profile_id_t profile_id, bool set_nc);
     void update_rate(profile_id_t profile_id, double ratio);
@@ -111,7 +113,7 @@ protected:
     void set_profile_stop_id(profile_id_t profile_id, uint32_t stop_id);
 
     void get_scheduler_options(profile_id_t profile_id, bool& disable_client, double& d_time_flow, double& d_phase);
-    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc);
+    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout = 0.0, double terminate_duration = 0.0);
     void stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id);
 
     std::vector<struct profile_param> m_sched_param;
