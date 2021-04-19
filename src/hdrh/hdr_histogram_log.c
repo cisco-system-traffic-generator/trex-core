@@ -1179,6 +1179,7 @@ int hdr_log_encode(struct hdr_histogram* histogram, char** encoded_histogram)
 
 cleanup:
     free(compressed_histogram);
+    free(encoded_histogram);
 
     return result;
 }
