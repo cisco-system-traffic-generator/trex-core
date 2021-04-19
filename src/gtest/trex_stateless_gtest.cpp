@@ -5098,7 +5098,7 @@ stats_for_pkt calculate_stats_for_pkts(
 
     std::for_each(fs_headers.begin(), fs_headers.end(),
                   [&latency_counter](flow_stat_payload_header& fsh){
-        latency_counter.update_stats_for_pkt(&fsh, 10, 10);
+        latency_counter.update_stats_for_pkt(&fsh, 10, 10, 0);
     });
 
     rfc2544_info_t_ results;

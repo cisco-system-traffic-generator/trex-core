@@ -328,8 +328,8 @@ RXLatency::handle_correct_flow(
     check_seq_number_and_update_stats(fsp_head, curr_rfc2544);
     uint16_t hw_id = fsp_head->hw_id;
     if (fsp_head->is_multi_tag && vlan_tag){
-      m_rx_pg_tag_stat_payload[hw_id].add_pkts(1);
-      m_rx_pg_tag_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+      m_rx_pg_tag_stat_payload[hw_id + vlan_tag].add_pkts(1);
+      m_rx_pg_tag_stat_payload[hw_id + vlan_tag].add_bytes(pkt_len + 4); // +4 for ethernet CRC
     } else {
       m_rx_pg_stat_payload[hw_id].add_pkts(1);
       m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
@@ -404,6 +404,9 @@ RXLatency::reset_stats_partial(int min, int max, TrexPlatformApi::driver_stat_ca
         for (int hw_id = min; hw_id <= max; hw_id++) {
             m_rx_pg_stat_payload[hw_id].clear();
         }
+        for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
+            m_rx_pg_tag_stat[hw_id].clear();
+        }
     } else {
         for (int hw_id = min; hw_id <= max; hw_id++) {
             m_rx_pg_stat[hw_id].clear();
@@ -416,19 +419,38 @@ RXLatency::get_stats(rx_per_flow_t *rx_stats,
                      int min,
                      int max,
                      bool reset,
-                     TrexPlatformApi::driver_stat_cap_e type) {
-    
-    for (int hw_id = min; hw_id <= max; hw_id++) {
-        if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-            rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
-        } else {
-            rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
-        }
-        if (reset) {
+                     TrexPlatformApi::driver_stat_cap_e type,
+                     bool vlan_stat) {
+   
+    if (vlan_stat){
+        for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
             if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                m_rx_pg_stat_payload[hw_id].clear();
+                rx_stats[hw_id - min] = m_rx_pg_tag_stat_payload[hw_id];
             } else {
-                m_rx_pg_stat[hw_id].clear();
+                rx_stats[hw_id - min] = m_rx_pg_tag_stat[hw_id];
+            }
+            if (reset) {
+                if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+                    m_rx_pg_tag_stat_payload[hw_id].clear();
+                } else {
+                    m_rx_pg_tag_stat[hw_id].clear();
+                }
+            }
+        }
+
+    } else { 
+        for (int hw_id = min; hw_id <= max; hw_id++) {
+            if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+                rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
+            } else {
+                rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
+            }
+            if (reset) {
+                if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+                    m_rx_pg_stat_payload[hw_id].clear();
+                } else {
+                    m_rx_pg_stat[hw_id].clear();
+                }
             }
         }
     }

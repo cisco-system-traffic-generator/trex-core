@@ -110,7 +110,8 @@ public:
                    int min,
                    int max,
                    bool reset,
-                   TrexPlatformApi::driver_stat_cap_e type);
+                   TrexPlatformApi::driver_stat_cap_e type,
+                   bool vlan_stat = false);
 
     void reset_stats();
     void reset_stats_partial(int min, int max, TrexPlatformApi::driver_stat_cap_e type);

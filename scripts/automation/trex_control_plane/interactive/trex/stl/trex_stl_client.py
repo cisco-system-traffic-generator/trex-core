@@ -1442,7 +1442,7 @@ class STLClient(TRexClient):
 
     # get stats
     @client_api('getter', True)
-    def get_stats (self, ports = None, sync_now = True):
+    def get_stats (self, ports = None, sync_now = True, fetch_vlan_stats = False):
         """
             Gets all statistics on given ports, flow stats and latency.
 
@@ -1452,10 +1452,10 @@ class STLClient(TRexClient):
                 sync_now: boolean
         """
 
-        output = self._get_stats_common(ports, sync_now)
+        output = self._get_stats_common(ports, sync_now, fetch_vlan_stats)
 
         # TODO: move this to a generic protocol (AbstractStats)
-        pgid_stats = self.get_pgid_stats()
+        pgid_stats = self.get_pgid_stats( fetch_vlan_stats)
         if not pgid_stats:
             raise TRexError(pgid_stats)
 
@@ -1516,7 +1516,7 @@ class STLClient(TRexClient):
 
 
     @client_api('getter', True)
-    def get_pgid_stats (self, pgid_list = []):
+    def get_pgid_stats (self, pgid_list = [], fetch_vlan_stats = False):
         """
             .. _get_pgid_stats:
 
@@ -1646,7 +1646,7 @@ class STLClient(TRexClient):
 
         # transform single stream
         pgid_list = listify(pgid_list)
-        return self.pgid_stats.get_stats(pgid_list)
+        return self.pgid_stats.get_stats(pgid_list, fetch_vlan_stats)
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -1665,6 +1665,14 @@ class STLClient(TRexClient):
         all_pg_ids = self.get_active_pgids()
         # Display data for at most 5 pgids.
         pg_ids = all_pg_ids['latency'][:5]
+        table = self.pgid_stats.latency_stats_to_table(pg_ids)
+        # show
+        text_tables.print_table_with_header(table, table.title, buffer = buffer)
+
+    def _show_latency_tag_stats(self, buffer = sys.stdout):
+        all_pg_ids = self.get_active_pgids()
+        # Display data for at most 5 pgids.
+        pg_ids = all_pg_ids['latency'][MAX_FLOW_STATS_PAYLOAD:5]
         table = self.pgid_stats.latency_stats_to_table(pg_ids)
         # show
         text_tables.print_table_with_header(table, table.title, buffer = buffer)
@@ -1789,6 +1797,9 @@ class STLClient(TRexClient):
 
         elif opts.stats == 'latency':
             self._show_latency_stats()
+
+        elif opts.stata == 'latency_tag':
+            self.show_latency_tag_stats()
 
         elif opts.stats == 'latency_histogram':
             self._show_latency_histogram()
