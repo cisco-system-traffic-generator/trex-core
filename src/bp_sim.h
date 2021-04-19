@@ -667,9 +667,11 @@ struct CGenNodeTXFIF : public CGenNodeBase {
 public:
     CPerProfileCtx *    m_pctx;
     double              m_time_stop;
+    double              m_time_established;
+    double              m_terminate_duration;
     bool                m_set_nc;
 
-    uint8_t             m_pad_end[95];
+    uint8_t             m_pad_end[79];
 
     /* CACHE_LINE */
 #ifdef __PPC64__

@@ -278,6 +278,8 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
     args.latency_pps = parse_uint32(params, "latency_pps", result);
     args.ipv6 = parse_bool(params, "ipv6", result);
     args.client_mask = parse_uint32(params, "client_mask", result);
+    args.e_duration = parse_double(params, "e_duration", result, 0.0);
+    args.t_duration = parse_double(params, "t_duration", result, 0.0);
 
     try {
         get_astf_object()->start_transmit(profile_id, args);
