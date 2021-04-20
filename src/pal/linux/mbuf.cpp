@@ -147,9 +147,8 @@ rte_mbuf_t *rte_pktmbuf_alloc(rte_mempool_t *mp){
     m->magic2 = MAGIC2;
     m->pool   = mp;
     m->refcnt_reserved = 1;
-    m->buf_len    = buf_len-(sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM);
-    m->buf_addr   =(char *)((char *)m+sizeof(rte_mbuf_t)+RTE_PKTMBUF_HEADROOM) ;
-
+    m->buf_len    = buf_len-sizeof(rte_mbuf_t);
+    m->buf_addr   =(char *)((char *)m+sizeof(rte_mbuf_t));
     rte_pktmbuf_reset(m);
 
     return (m);
@@ -212,7 +211,7 @@ char *rte_pktmbuf_append(struct rte_mbuf *m, uint16_t len)
     if (len > rte_pktmbuf_tailroom(m_last))
         return NULL;
 
-    tail = (char*) m_last->buf_addr + m_last->data_len;
+    tail = (char*) m_last->buf_addr + m_last->data_off + m_last->data_len;
     m_last->data_len = (uint16_t)(m_last->data_len + len);
     m->pkt_len  = (m->pkt_len + len);
     return (char*) tail;
@@ -640,6 +639,23 @@ void hw_checksum_sim(struct rte_mbuf *m){
 
 
 
+char *rte_pktmbuf_prepend(struct rte_mbuf *m,
+					uint16_t len)
+{
+	__rte_mbuf_sanity_check(m, 1);
+
+	if (unlikely(len > rte_pktmbuf_headroom(m)))
+		return NULL;
+
+	/* NB: elaborating the subtraction like this instead of using
+	 *     -= allows us to ensure the result type is uint16_t
+	 *     avoiding compiler warnings on gcc 8.1 at least */
+	m->data_off = (uint16_t)(m->data_off - len);
+	m->data_len = (uint16_t)(m->data_len + len);
+	m->pkt_len  = (m->pkt_len + len);
+
+	return (char *)m->buf_addr + m->data_off;
+}
 
 
 
