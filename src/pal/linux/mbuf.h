@@ -21,10 +21,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
+#include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+
 
 typedef struct rte_mbuf  rte_mbuf_t;
 
@@ -133,7 +134,10 @@ rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
 
 typedef struct rte_mempool rte_mempool_t;
 
-#define RTE_PKTMBUF_HEADROOM  0
+#define RTE_PKTMBUF_HEADROOM  128
+
+/**  check mbuf type in debug mode */
+#define __rte_mbuf_sanity_check(m, is_h) do { } while (0)
 
 void utl_rte_mempool_delete(rte_mempool_t  * &pool);
 
@@ -246,6 +250,9 @@ rte_lcore_to_socket_id(unsigned lcore_id){
 
 #define rte_pktmbuf_mtod(m, t) ((t)((char *)(m)->buf_addr + (m)->data_off))
 
+#define rte_pktmbuf_mtod_offset(m, t, o)	\
+	((t)((char *)(m)->buf_addr + (m)->data_off + (o)))
+
 /**
  * A macro that returns the length of the packet.
  *
@@ -278,6 +285,7 @@ rte_lcore_to_socket_id(unsigned lcore_id){
  */
 static inline uint16_t rte_pktmbuf_headroom(const struct rte_mbuf *m)
 {
+    __rte_mbuf_sanity_check(m, 0);
 	return m->data_off;
 }
 
@@ -291,6 +299,7 @@ static inline uint16_t rte_pktmbuf_headroom(const struct rte_mbuf *m)
  */
 static inline uint16_t rte_pktmbuf_tailroom(const struct rte_mbuf *m)
 {
+	__rte_mbuf_sanity_check(m, 0);
 	return (uint16_t)(m->buf_len - rte_pktmbuf_headroom(m) -
 			  m->data_len);
 }
@@ -318,7 +327,8 @@ static inline void utl_rte_pktmbuf_check(struct rte_mbuf *m){
     assert(m->magic2== MAGIC2);
 }
 
-
+char *rte_pktmbuf_prepend(struct rte_mbuf *m,
+					uint16_t len);
 
 #define __rte_cache_aligned 
 
