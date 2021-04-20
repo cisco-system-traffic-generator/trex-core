@@ -6754,14 +6754,22 @@ COLD_FUNC void reorder_dpdk_ports() {
 
     if ( cg->m_if_list_vdevs.size()  > 0 ) {
         if ( isVerbose(0) ){
-           printf(" size of interfaces_vdevs %d",(int)cg->m_if_list_vdevs.size());
+           printf(" size of interfaces_vdevs %d \n",(int)cg->m_if_list_vdevs.size());
         }
         int if_index = 0;
         for (std::string &opts : cg->m_if_list_vdevs) {
+            if ( CTVPort(if_index).is_dummy() ) {
+                if ( isVerbose(0) ){
+                    printf(" dummy interface skipped \n");
+                }
+                if_index++;
+                continue;
+            }
+
             uint16_t port_id;
             int ret = rte_eth_dev_get_port_by_name((const char *)opts.c_str(), &port_id);
         	if (ret) {
-                 printf("Failed to find  %s in DPDK vdev ", opts.c_str());
+                 printf("Failed to find  %s in DPDK vdev \n", opts.c_str());
                  dump_dpdk_devices();
                  exit(1);
 	        }
@@ -6772,18 +6780,19 @@ COLD_FUNC void reorder_dpdk_ports() {
             if_index++;
         }
         return;
-    }
+    }else{
    
-    if ( CGlobalInfo::m_options.m_is_vdev ) {
-        uint8_t if_index = 0;
-        for (int i=0; i<global_platform_cfg_info.m_if_list.size(); i++) {
-            if ( CTVPort(i).is_dummy() ) {
-                continue;
+        if ( CGlobalInfo::m_options.m_is_vdev ) {
+            uint8_t if_index = 0;
+            for (int i=0; i<global_platform_cfg_info.m_if_list.size(); i++) {
+                if ( CTVPort(i).is_dummy() ) {
+                    continue;
+                }
+                lp->set_map(i, if_index);
+                if_index++;
             }
-            lp->set_map(i, if_index);
-            if_index++;
+            return;
         }
-        return;
     }
 
     #define BUF_MAX 200
