@@ -1798,8 +1798,8 @@ class STLClient(TRexClient):
         elif opts.stats == 'latency':
             self._show_latency_stats()
 
-        elif opts.stata == 'latency_tag':
-            self.show_latency_tag_stats()
+        elif opts.stats == 'latency_tag':
+            self._show_latency_tag_stats()
 
         elif opts.stats == 'latency_histogram':
             self._show_latency_histogram()
