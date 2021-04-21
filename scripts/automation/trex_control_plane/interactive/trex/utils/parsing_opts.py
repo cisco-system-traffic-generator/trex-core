@@ -1566,7 +1566,7 @@ class OPTIONS_DB_GROUPS:
             PORT_STATUS,
             STREAMS_STATS,
             LATENCY_STATS,
-            LATENCY_TAG,
+            LATENCY_TAG_STATS,
             LATENCY_HISTOGRAM,
             CPU_STATS,
             MBUF_STATS,
