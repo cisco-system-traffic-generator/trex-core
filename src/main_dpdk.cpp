@@ -2559,10 +2559,10 @@ COLD_FUNC void CGlobalStats::dump_json(std::string & json, bool baseline){
 
     json+=GET_FIELD(m_total_nat_time_out);
     json+=GET_FIELD(m_total_nat_time_out_wait_ack);
-    json+=GET_FIELD(m_total_nat_no_fid );
-    json+=GET_FIELD(m_total_nat_active );
+    json+=GET_FIELD(m_total_nat_no_fid);
+    json+=GET_FIELD(m_total_nat_active);
     json+=GET_FIELD(m_total_nat_syn_wait);
-    json+=GET_FIELD(m_total_nat_open   );
+    json+=GET_FIELD(m_total_nat_open);
     json+=GET_FIELD(m_total_nat_learn_error);
 
     int i;
@@ -2620,10 +2620,10 @@ COLD_FUNC void CGlobalStats::global_stats_to_json(Json::Value &output) {
     output["m_socket_util"] = m_socket_util;
     output["m_total_nat_time_out"] = m_total_nat_time_out;
     output["m_total_nat_time_out_wait_ack"] = m_total_nat_time_out_wait_ack;
-    output["m_total_nat_no_fid "] = m_total_nat_no_fid ;
-    output["m_total_nat_active "] = m_total_nat_active ;
+    output["m_total_nat_no_fid"] = m_total_nat_no_fid;
+    output["m_total_nat_active"] = m_total_nat_active;
     output["m_total_nat_syn_wait"] = m_total_nat_syn_wait;
-    output["m_total_nat_open   "] = m_total_nat_open   ;
+    output["m_total_nat_open"] = m_total_nat_open;
     output["m_total_nat_learn_error"] = m_total_nat_learn_error;
 }
 
