@@ -32,3 +32,4 @@ We provide here a reference to all the plugins, their methods, init JSONs and so
     plugins/icmp
     plugins/dot1x
     plugins/ipfix
+    plugins/tdl
