@@ -913,9 +913,9 @@ void tcp_gen_test(std::string pcap_file,
     lpt1->close_file();
 
     bool res=true;
-    // if (lpt1->m_skip_compare_file==false){
-    //     res=lpt1->compare("exp");
-    // }
+    if (lpt1->m_skip_compare_file==false){
+        res=lpt1->compare("exp");
+    }
 
     EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
 
