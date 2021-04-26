@@ -24,6 +24,32 @@ class DHCPV6Plugin(EMUPluginBase):
             DHCP timer discover in sec.
         timero: uint32
             DHCP timer offer in sec.
+        options: dict
+            Dictionary that contains options 
+
+    :options:
+
+        sol: array of bytes can include a few options ([option1,len1, bytes1..,option2,len2, bytes1..]
+            for Solicit packet e.g. [0,6, 0,8,0, 17, 0, 23, 0, 24, 0,39, 0,6, 0,8,0, 17, 0, 23, 0, 24, 0,39] 2 options of vendor class 
+
+        req: array of bytes 
+            for Request packet same as sol field 
+
+        rel: array of bytes 
+            for Release packet same as sol field 
+
+        reb: array of bytes 
+            for Rebind packet same as sol field 
+
+        ren: array of bytes
+            for Renew packet same as sol field 
+
+        rm_or: bool 
+            remove default option request (should add the same extended options using sol,req)
+
+        rm_vc: bool 
+            remove default vendor class
+
     """
 
     def __init__(self, emu_client):
