@@ -23,6 +23,28 @@ class DHCPPlugin(EMUPluginBase):
             DHCP timer discover in sec.
         timero: uint32
             DHCP timer offer in sec.
+        options: dict
+            Dictionary that contains options 
+
+    :options:
+
+        discoverDhcpClassIdOption: string 
+            ClassIdOption option for discover packet e.g. "MSFT 5.0"
+
+        requestDhcpClassIdOption: string 
+            ClassIdOption option for request packet 
+
+        dis:  array of byte array 
+           generic options array for discover packet e.g. 
+           [[60,8,77,83,70,84,32,53,46,48],[60,8,77,83,70,84,32,53,46,48]]
+
+        req: array of byte array
+            generic options array for request packet
+           
+
+        ren: array of byte array
+            generic options array for renew packet
+
     """
 
     def __init__(self, emu_client):
