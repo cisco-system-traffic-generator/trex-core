@@ -469,7 +469,7 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     }
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
         for (auto itr = in.m_rx_pg_vlan_payload[i].begin(); itr !=in.m_rx_pg_vlan_payload[i].end(); itr++){
-            // os << "vlan" << itr->first << "stats" << itr->second << ", ";
+            os << "vlan = " << itr->first << "stats = " << itr->second << ", ";
         }
     }
     os << ">" << std::endl;
