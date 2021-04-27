@@ -43,6 +43,7 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
     obj.set_latency_json(json);
 }
 
+
 CRFC2544Info CRFC2544Info::operator+= (const CRFC2544Info& in) {
     this->m_seq += in.m_seq;
     this->m_latency += in.m_latency;
@@ -69,6 +70,7 @@ std::ostream& operator<<(std::ostream& os, const CRFC2544Info& in) {
     os << "m_prev_flow_seq = " << in.m_prev_flow_seq << std::endl;
     return os;
 }
+
 
 /*******************************************************************
 CRxCoreErrCntrs
@@ -139,14 +141,6 @@ RXLatency::RXLatency() {
     for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
         m_rx_pg_stat_payload[i].clear();
     }
-    for (int i=0 ;i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
-        m_rx_pg_tag_stat[i].clear();
-
-    }
-    for (int i=0 ;i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
-        m_rx_pg_tag_stat_payload[i].clear();
-
-    }
 
     m_dump_err_pkts = false;
     m_dump_pkt = nullptr;
@@ -199,7 +193,23 @@ COLD_FUNC void RXLatency::dump_err_pkt(const char* info, bool dump_latency) {
     }
 }
 
+void RXLatency::update_vlan_tag_stats(uint32_t vlan, uint64_t m_bytes, uint64_t m_pkts,
+                                        vlan_stat_map_t *vlan_tag_stats){
+        rx_per_flow_t  rx_stats, rx_stats_old;
 
+        vlan_stat_map_it_t it = vlan_tag_stats->find(vlan);
+        if (it == vlan_tag_stats->end()){
+            rx_stats.add_bytes(m_bytes);
+            rx_stats.add_pkts(m_pkts);
+        } else {
+            rx_stats_old = it->second;
+            
+            rx_stats.add_bytes((rx_stats_old.get_bytes() + m_bytes));
+            rx_stats.add_pkts ((rx_stats_old.get_pkts() + m_pkts));
+        }
+        vlan_tag_stats->insert({vlan, rx_stats});
+
+}
 void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
   uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
   CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
@@ -209,7 +219,7 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
   if (m_rcv_all || (ret == 0)) {
     uint32_t ip_id = 0;
     int ret2 = parser.get_ip_id(ip_id);
-    bool multi_tag = false;
+    //bool multi_tag = false;
     VLANHeader  *vlan = parser.get_vlan_header();
     if (m_rcv_all || (ret2 == 0)) {
       if (m_rcv_all || is_flow_stat_id(ip_id)) {
@@ -231,19 +241,16 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
             update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now, vlan ? vlan->getVlanTag() : 0);
             hw_id = get_hw_id((uint16_t)ip_id);
           }
-          multi_tag = fsp_head->is_multi_tag;
+         // multi_tag = fsp_head->is_multi_tag;
         }
         if (hw_id < MAX_FLOW_STATS) {
-          if (multi_tag && vlan){
-             //adding multi tag entry in Hw_is + vlan index
-             m_rx_pg_tag_stat_payload[hw_id + vlan->getVlanTag()].add_pkts(1);
-             m_rx_pg_tag_stat_payload[hw_id + vlan->getVlanTag()].add_bytes(m->pkt_len +
-                                        4); // +4 for ethernet CRC
-          } else {
              m_rx_pg_stat[hw_id].add_pkts(1);
              m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
                                         4); // +4 for ethernet CRC
-          }
+             //handle multi tag vlan addition to map here
+             //if (multi_tag && vlan) {
+             //   update_vlan_tag_stats(vlan_tag, (pkt_len + 4), 1);
+             //} 
         }
       }
     }
@@ -267,26 +274,15 @@ RXLatency::update_stats_for_pkt(
         }
     } else {
         bool good_packet = true;
-        if (fsp_head->is_multi_tag && vlan_tag){
-          CRFC2544Info *curr_rfc2544 = &m_rfc2544_tag[hw_id + vlan_tag];
-          if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
-            good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544,vlan_tag);
-          }
-
-          if (good_packet) {
-            handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now, vlan_tag);
-          } 
-        } else{
-          CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
+        CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
          
-          if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
-             good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544,vlan_tag);
-          } 
+        if (fsp_head->flow_seq != curr_rfc2544->get_exp_flow_seq()) {
+            good_packet = handle_unexpected_flow(fsp_head, curr_rfc2544,vlan_tag);
+        } 
 
-          if (good_packet) {
-              handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now, vlan_tag);
-          }
-       }
+        if (good_packet) {
+            handle_correct_flow(fsp_head, curr_rfc2544, pkt_len, hr_time_now, vlan_tag);
+        }
     }
 }
 
@@ -327,12 +323,13 @@ RXLatency::handle_correct_flow(
         hr_time_t hr_time_now, uint16_t vlan_tag) {
     check_seq_number_and_update_stats(fsp_head, curr_rfc2544);
     uint16_t hw_id = fsp_head->hw_id;
+
+    m_rx_pg_stat_payload[hw_id].add_pkts(1);
+    m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+    //handle vlan tag map addition code 
     if (fsp_head->is_multi_tag && vlan_tag){
-      m_rx_pg_tag_stat_payload[hw_id + vlan_tag].add_pkts(1);
-      m_rx_pg_tag_stat_payload[hw_id + vlan_tag].add_bytes(pkt_len + 4); // +4 for ethernet CRC
-    } else {
-      m_rx_pg_stat_payload[hw_id].add_pkts(1);
-      m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+        this->update_vlan_tag_stats(vlan_tag, (pkt_len + 4), 1, 
+                                    &m_rx_pg_vlan_payload[fsp_head->hw_id]);
     }
     uint64_t d = (hr_time_now - fsp_head->time_stamp );
     dsec_t ctime = ptime_convert_hr_dsec(d);
@@ -392,9 +389,7 @@ void
 RXLatency::reset_stats() {
     for (int hw_id = 0; hw_id < MAX_FLOW_STATS; hw_id++) {
         m_rx_pg_stat[hw_id].clear();
-    }
-    for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
-        m_rx_pg_tag_stat[hw_id].clear();
+        m_rx_pg_vlan_payload[hw_id].clear();
     }
 }
 
@@ -403,9 +398,7 @@ RXLatency::reset_stats_partial(int min, int max, TrexPlatformApi::driver_stat_ca
     if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
         for (int hw_id = min; hw_id <= max; hw_id++) {
             m_rx_pg_stat_payload[hw_id].clear();
-        }
-        for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
-            m_rx_pg_tag_stat[hw_id].clear();
+            m_rx_pg_vlan_payload[hw_id].clear();
         }
     } else {
         for (int hw_id = min; hw_id <= max; hw_id++) {
@@ -420,37 +413,29 @@ RXLatency::get_stats(rx_per_flow_t *rx_stats,
                      int max,
                      bool reset,
                      TrexPlatformApi::driver_stat_cap_e type,
+                     vlan_stat_map_t *rx_vlan_stats,
                      bool vlan_stat) {
-   
-    if (vlan_stat){
-        for (int hw_id = 0; hw_id < MAX_FLOW_STATS_VLAN_TAG_ENTY; hw_id++) {
-            if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                rx_stats[hw_id - min] = m_rx_pg_tag_stat_payload[hw_id];
-            } else {
-                rx_stats[hw_id - min] = m_rx_pg_tag_stat[hw_id];
-            }
-            if (reset) {
-                if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                    m_rx_pg_tag_stat_payload[hw_id].clear();
-                } else {
-                    m_rx_pg_tag_stat[hw_id].clear();
-                }
-            }
-        }
 
-    } else { 
-        for (int hw_id = min; hw_id <= max; hw_id++) {
+ 
+//    if (vlan_stat){
+    for (int hw_id = min; hw_id <= max; hw_id++) {
+        if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
+            rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
+        } else {
+            rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
+        }
+        if (vlan_stat) {
+
+        rx_vlan_stats[hw_id - min] = m_rx_pg_vlan_payload[hw_id];
+
+
+        }
+        if (reset) {
             if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
+                m_rx_pg_stat_payload[hw_id].clear();
+                m_rx_pg_vlan_payload[hw_id].clear();
             } else {
-                rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
-            }
-            if (reset) {
-                if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
-                    m_rx_pg_stat_payload[hw_id].clear();
-                } else {
-                    m_rx_pg_stat[hw_id].clear();
-                }
+                m_rx_pg_stat[hw_id].clear();
             }
         }
     }
@@ -467,17 +452,12 @@ RXLatency::operator+= (const RXLatency& in) {
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
         this->m_rx_pg_stat[i] += in.m_rx_pg_stat[i];
     }
-    for (int i = 0; i < MAX_FLOW_STATS_PAYLOAD; i++) {
-        this->m_rx_pg_stat_payload[i] += in.m_rx_pg_stat_payload[i];
-    }
-    for (int i=0 ;i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
-        this->m_rx_pg_tag_stat_payload[i]+= in.m_rx_pg_tag_stat_payload[i];
-
-    }
+    //handle map addition also if applicable 
     return *this;
 }
 
 std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
+    //vlan_stat_map_it_t itr;
     os << "m_rx_stats = <";
     for (int i = 0; i < MAX_FLOW_STATS; i++) {
         os << in.m_rx_pg_stat[i] << ", ";
@@ -487,9 +467,10 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
         os << in.m_rx_pg_stat_payload[i] << ", ";
     }
-    for (int i=0 ;i < MAX_FLOW_STATS_VLAN_TAG_ENTY ; i++){
-        os << in.m_rx_pg_tag_stat_payload[i];
-
+    for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
+        for (auto itr = in.m_rx_pg_vlan_payload[i].begin(); itr !=in.m_rx_pg_vlan_payload[i].end(); itr++){
+            // os << "vlan" << itr->first << "stats" << itr->second << ", ";
+        }
     }
     os << ">" << std::endl;
     return os;

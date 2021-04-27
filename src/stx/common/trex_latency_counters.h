@@ -4,6 +4,10 @@
 #include "stl/trex_stl_fs.h"
 #include "time_histogram.h"
 #include "utl_jitter.h"
+#include <map>
+
+typedef std::map<uint32_t, rx_per_flow_t> vlan_stat_map_t;
+typedef std::map<uint32_t, rx_per_flow_t>::iterator vlan_stat_map_it_t;
 
 /**************************************
  * CRFC2544Info
@@ -21,6 +25,7 @@ class CRFC2544Info {
     inline void sample_period_end() {
         m_latency.update();
     }
+
     inline uint32_t get_seq() {return m_seq;}
     inline void set_seq(uint32_t val) {m_seq = val;}
     inline void inc_seq_err(uint64_t val) {m_seq_err += val;}
@@ -101,6 +106,7 @@ public:
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
                               hr_time_t hr_time_now, uint16_t vlan_tag);
+    void update_vlan_tag_stats(uint32_t, uint64_t, uint64_t, vlan_stat_map_t*);
     void set_dump_info(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head);
     void dump_err_pkt(const char* info, bool dump_latency = false);
 
@@ -111,6 +117,7 @@ public:
                    int max,
                    bool reset,
                    TrexPlatformApi::driver_stat_cap_e type,
+                   vlan_stat_map_t *vlan_stats = NULL,
                    bool vlan_stat = false);
 
     void reset_stats();
@@ -127,6 +134,7 @@ private:
         else
             return false;
     }
+
 
     bool is_flow_stat_payload_id(uint32_t id) {
         if (id == FLOW_STAT_PAYLOAD_IP_ID) return true;
@@ -161,11 +169,9 @@ public:
 
     rx_per_flow_t         m_rx_pg_stat[MAX_FLOW_STATS];
     rx_per_flow_t         m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
-    rx_per_flow_t         m_rx_pg_tag_stat[MAX_FLOW_STATS_VLAN_TAG_ENTY];
-    rx_per_flow_t         m_rx_pg_tag_stat_payload[MAX_FLOW_STATS_VLAN_TAG_ENTY];
+    vlan_stat_map_t       m_rx_pg_vlan_payload[MAX_FLOW_STATS_PAYLOAD]; 
     bool                  m_rcv_all;
     CRFC2544Info         *m_rfc2544;
-    CRFC2544Info         *m_rfc2544_tag;
     CRxCoreErrCntrs      *m_err_cntrs;
     uint16_t              m_ip_id_base;
 
