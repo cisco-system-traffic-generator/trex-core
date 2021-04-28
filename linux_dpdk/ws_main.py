@@ -1012,7 +1012,7 @@ main_src = SrcGroup(dir='src',
              'tunnels/tunnel_factory_creator.cpp',
 
              'drivers/trex_driver_base.cpp',
-             #'drivers/trex_driver_bnxt.cpp',
+             'drivers/trex_driver_bnxt.cpp',
              'drivers/trex_driver_i40e.cpp',
              'drivers/trex_driver_igb.cpp',
              'drivers/trex_driver_ixgbe.cpp',
@@ -1406,22 +1406,70 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
                  # drivers
                  #bnxt
-                 #'drivers/net/bnxt/bnxt_cpr.c',
-                 #'drivers/net/bnxt/bnxt_ethdev.c',
-                 #'drivers/net/bnxt/bnxt_filter.c',
-                 #'drivers/net/bnxt/bnxt_flow.c',
-                 #'drivers/net/bnxt/bnxt_hwrm.c',
-                 #'drivers/net/bnxt/bnxt_irq.c',
-                 #'drivers/net/bnxt/bnxt_ring.c',
-                 #'drivers/net/bnxt/bnxt_rxq.c',
-                 #'drivers/net/bnxt/bnxt_rxr.c',
-                 #'drivers/net/bnxt/bnxt_stats.c',
-                 #'drivers/net/bnxt/bnxt_txq.c',
-                 #'drivers/net/bnxt/bnxt_txr.c',
-                 #'drivers/net/bnxt/bnxt_util.c',
-                 #'drivers/net/bnxt/bnxt_vnic.c',
-                 #'drivers/net/bnxt/rte_pmd_bnxt.c',
-                 #'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
+                 'drivers/net/bnxt/bnxt_cpr.c',
+                 'drivers/net/bnxt/bnxt_ethdev.c',
+                 'drivers/net/bnxt/bnxt_filter.c',
+                 'drivers/net/bnxt/bnxt_flow.c',
+                 'drivers/net/bnxt/bnxt_hwrm.c',
+                 'drivers/net/bnxt/bnxt_irq.c',
+                 'drivers/net/bnxt/bnxt_ring.c',
+                 'drivers/net/bnxt/bnxt_rxq.c',
+                 'drivers/net/bnxt/bnxt_rxr.c',
+                 'drivers/net/bnxt/bnxt_reps.c',
+                 'drivers/net/bnxt/bnxt_stats.c',
+                 'drivers/net/bnxt/bnxt_txq.c',
+                 'drivers/net/bnxt/bnxt_txr.c',
+                 'drivers/net/bnxt/bnxt_util.c',
+                 'drivers/net/bnxt/bnxt_vnic.c',
+                 'drivers/net/bnxt/rte_pmd_bnxt.c',
+                 'drivers/net/bnxt/bnxt_rxtx_vec_sse.c',
+
+                 'drivers/net/bnxt/tf_core/tf_core.c',
+                 'drivers/net/bnxt/tf_core/bitalloc.c',
+                 'drivers/net/bnxt/tf_core/tf_msg.c',
+                 'drivers/net/bnxt/tf_core/rand.c',
+                 'drivers/net/bnxt/tf_core/stack.c',
+                 'drivers/net/bnxt/tf_core/tf_em_common.c',
+                 'drivers/net/bnxt/tf_core/tf_em_internal.c',
+                 'drivers/net/bnxt/tf_core/tf_rm.c',
+                 'drivers/net/bnxt/tf_core/tf_tbl.c',
+                 'drivers/net/bnxt/tf_core/tfp.c',
+                 'drivers/net/bnxt/tf_core/tf_session.c',
+                 'drivers/net/bnxt/tf_core/tf_device.c',
+                 'drivers/net/bnxt/tf_core/tf_device_p4.c',
+                 'drivers/net/bnxt/tf_core/tf_identifier.c',
+                 'drivers/net/bnxt/tf_core/tf_shadow_tbl.c',
+                 'drivers/net/bnxt/tf_core/tf_shadow_tcam.c',
+                 'drivers/net/bnxt/tf_core/tf_tcam.c',
+                 'drivers/net/bnxt/tf_core/tf_util.c',
+                 'drivers/net/bnxt/tf_core/tf_if_tbl.c',
+                 'drivers/net/bnxt/tf_core/ll.c',
+                 'drivers/net/bnxt/tf_core/tf_global_cfg.c',
+                 'drivers/net/bnxt/tf_core/tf_em_host.c',
+                 'drivers/net/bnxt/tf_core/tf_shadow_identifier.c',
+                 'drivers/net/bnxt/tf_core/tf_hash.c',
+
+		 'drivers/net/bnxt/hcapi/hcapi_cfa_p4.c',
+
+                 'drivers/net/bnxt/tf_ulp/bnxt_ulp.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_mark_mgr.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_flow_db.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_tbl.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_class.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_act.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_utils.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_mapper.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_matcher.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_rte_parser.c',
+                 'drivers/net/bnxt/tf_ulp/bnxt_ulp_flow.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_port_db.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_def_rules.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_fc_mgr.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_tun.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_wh_plus_act.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_wh_plus_class.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_stingray_act.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_template_db_stingray_class.c',
 
                  #e1000
                  'drivers/net/e1000/base/e1000_base.c',
@@ -1937,6 +1985,9 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/vmxnet3/
                         ../src/dpdk/drivers/net/vmxnet3/base
                         ../src/dpdk/drivers/net/bnxt/
+                        ../src/dpdk/drivers/net/bnxt/hcapi/
+                        ../src/dpdk/drivers/net/bnxt/tf_core/
+                        ../src/dpdk/drivers/net/bnxt/tf_ulp/
                         ../src/dpdk/drivers/net/memif/
                         ../src/dpdk//drivers/common/iavf/                        
 
@@ -2445,15 +2496,15 @@ def build_prog (bld, build_obj):
                 rpath = rpath_linkage,
                 target = build_obj.get_target())
 
-    #if bld.env.NO_BNXT == False:
-    #    bld.shlib(
-    #      features='c',
-    #      includes = dpdk_includes_path,
-    #      cflags   = (cflags + DPDK_FLAGS + build_obj.get_bnxt_flags() ),
-    #      use =['bnxt'],
-    #      source   = bnxt_dpdk.file_list(top),
-    #      target   = build_obj.get_bnxt_target()
-    #    )
+    if bld.env.NO_BNXT == False:
+        bld.shlib(
+          features='c',
+          includes = dpdk_includes_path,
+          cflags   = (cflags + DPDK_FLAGS + build_obj.get_bnxt_flags() ),
+          use =['bnxt'],
+          source   = bnxt_dpdk.file_list(top),
+          target   = build_obj.get_bnxt_target()
+        )
 
 
 
