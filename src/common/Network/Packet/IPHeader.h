@@ -24,6 +24,9 @@ limitations under the License.
 #endif /* likely */
 
 #define IPV4_HDR_LEN 20
+#define IPV4_ADDR_LEN 4
+
+typedef uint32_t ipv4_addr_t;
 
 class IPHeader
 {
@@ -262,6 +265,8 @@ public:
   uint8_t  m_protocol; 
   uint16_t m_length; 
 public:
+    inline IPPseudoHeader(){}
+    inline IPPseudoHeader(IPHeader * ip);
     inline uint8_t* getPointer(){return (uint8_t*)this;}
 
 	inline uint32_t getSize();

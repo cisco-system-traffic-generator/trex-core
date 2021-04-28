@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "PacketHeaderBase.h"
 #include "IPHeader.h"
+#include "IPv6Header.h"
 
 #define UDP_HEADER_LEN  8
 
@@ -57,7 +58,9 @@ public:
 	inline void     updateCheckSum(IPHeader  *ipHeader);
     inline bool 	isCheckSumOk(IPHeader  *ipHeader);
     inline uint16_t   calcCheckSum(IPHeader  *ipHeader);
-
+    inline uint16_t calcCheckSum(IPHeader *ipHeader, uint16_t len, uint16_t inner_cs);
+    inline uint16_t calcCheckSum(IPv6Header *ipv6Header, uint16_t len, uint16_t inner_cs);
+    inline uint16_t calcCheckSum(uint16_t ips_cs, uint16_t len, uint16_t inner_cs);
     inline void    setChecksumRaw     (uint16_t data){
         myChecksum = data;
     }
