@@ -292,5 +292,14 @@ inline uint16_t IPPseudoHeader::inetChecksum()
     return(pkt_InetChecksum(getPointer(), (uint16_t)getSize()));
 }
 
+inline IPPseudoHeader::IPPseudoHeader(IPHeader * ip){
+    uint16_t length= ip->getTotalLength() - ip->getHeaderLength();
+    m_source_ip = PKT_NTOHL(ip->getSourceIp());
+    m_dest_ip   = PKT_NTOHL(ip->getDestIp());
+    m_zero      = 0;
+    m_protocol  = ip->getProtocol();
+    m_length    = PKT_NTOHS(length);
+}
+
 
 

@@ -87,8 +87,26 @@ uint16_t UDPHeader::calcCheckSum(IPHeader  *ipHeader)
 	uint16_t theChecksum = pkt_InetChecksum((uint8_t*)this,length);
 
 	theChecksum = pkt_AddInetChecksum(theChecksum,pseudo.inetChecksum());
-
+    
 	return(theChecksum);
+}
+
+inline uint16_t UDPHeader::calcCheckSum(IPHeader *ipHeader, uint16_t len, uint16_t inner_cs){
+    IPPseudoHeader pseudo(ipHeader);
+    return calcCheckSum(pseudo.inetChecksum(), len, inner_cs);
+}
+
+inline uint16_t UDPHeader::calcCheckSum(IPv6Header *ipv6Header, uint16_t len, uint16_t inner_cs){
+    IPv6PseudoHeader pseudo(ipv6Header);
+    return calcCheckSum(pseudo.inetChecksum(), len, inner_cs);
+}
+
+inline uint16_t UDPHeader::calcCheckSum(uint16_t ips_cs, uint16_t len, uint16_t inner_cs){
+    assert(len <= this->getLength());
+    uint16_t theChecksum = pkt_InetChecksum((uint8_t*)this, len);
+    theChecksum = pkt_AddInetChecksum(theChecksum, ips_cs);
+    theChecksum = pkt_AddInetChecksum(theChecksum, inner_cs);
+    return theChecksum;
 }
 
 void UDPHeader::swapSrcDest()

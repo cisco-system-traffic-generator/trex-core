@@ -20,6 +20,7 @@ limitations under the License.
 #include "PacketHeaderBase.h"
 #include "EthernetHeader.h"
 
+#define VLAN_HDR_LEN 4
 
 /*   
                               VLAN Header Fields

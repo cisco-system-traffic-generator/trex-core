@@ -22,8 +22,20 @@ limitations under the License.
 #define IPV6_16b_ADDR_GROUPS 8
 #define IPV6_16b_ADDR_GROUPS_MSB 6
 #define IPV6_HDR_LEN 40
+#define IPV6_ADDR_LEN 16
 static uint16_t default_ipv6[8] = { 0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF,
                                     0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF };
+
+typedef struct {
+    uint16_t addr[IPV6_16b_ADDR_GROUPS];
+} ipv6_addr_t;
+
+
+typedef union {
+    uint32_t ipv4;
+    ipv6_addr_t ipv6;
+} ipv4_ipv6_t;
+
 
 class IPv6ExtHeader {
     
@@ -142,13 +154,15 @@ public:
 class IPv6PseudoHeader
 {
 public:
-  uint32_t m_source_ip;
-  uint32_t m_dest_ip;
-  uint8_t  m_zero;
-  uint8_t  m_protocol;
-  uint16_t m_length;
+    uint16_t m_mySource[IPV6_16b_ADDR_GROUPS];
+    uint16_t m_myDestination[IPV6_16b_ADDR_GROUPS];
+    uint32_t m_length;
+    uint8_t  m_zero[3];
+    uint8_t  m_protocol;
 
 public:
+    inline IPv6PseudoHeader(){}
+    inline IPv6PseudoHeader(IPv6Header* ipv6Header);
     inline uint8_t* getPointer(){return (uint8_t*)this;}
     inline uint32_t getSize();
     inline uint16_t inetChecksum();
@@ -334,6 +348,24 @@ inline void IPv6Header::swapSrcDest()
         myDestination[i] = mySource[i];
         mySource[i] = tmp[i];
     }
+}
+
+inline uint32_t IPv6PseudoHeader::getSize() {
+    return sizeof(IPv6PseudoHeader);
+}
+
+inline uint16_t IPv6PseudoHeader::inetChecksum()
+{
+    return(pkt_InetChecksum(getPointer(), (uint16_t)getSize()));
+}
+
+inline IPv6PseudoHeader::IPv6PseudoHeader(IPv6Header* ipv6Header){
+    uint32_t length = ipv6Header->getPayloadLen();
+    memcpy((void*)m_mySource, (void *)ipv6Header->mySource, IPV6_ADDR_LEN);
+    memcpy((void*)m_myDestination, (void *)ipv6Header->myDestination , IPV6_ADDR_LEN);
+    memset(m_zero, 0, 3);
+    m_protocol = ipv6Header->getNextHdr();
+    m_length = PAL_NTOHL(length);
 }
 
 #endif
