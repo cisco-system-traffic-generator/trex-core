@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 #include "common/Network/Packet/IPHeader.h"
 #include "common/Network/Packet/IPv6Header.h"
+#include "common/Network/Packet/VLANHeader.h"
 #include "common/Network/Packet/TcpHeader.h"
 #include "mbuf.h"
 
@@ -87,7 +88,11 @@ class CFlowStatParser {
     virtual uint8_t get_ttl();
     bool is_fs_latency(rte_mbuf_t *m);
     uint8_t get_protocol();
-
+    VLANHeader *get_vlan_header(){
+        if (m_vlan) 
+            return (VLANHeader*)m_vlan;
+        else return NULL;
+    }
     uint8_t *get_l3() {
         if (m_ipv4)
             return (uint8_t *)m_ipv4;
@@ -139,6 +144,7 @@ class CFlowStatParser {
     uint16_t m_len;
     IPHeader *m_ipv4;
     IPv6Header *m_ipv6;
+    VLANHeader *m_vlan;    
     uint8_t *m_l4;
     uint8_t m_l4_proto;
     uint8_t m_vlan_offset;
@@ -203,6 +209,7 @@ class CSimplePacketParser {
  public:
     IPHeader *      m_ipv4;
     IPv6Header *    m_ipv6;
+    VLANHeader *    m_vlan;
     uint8_t         m_protocol;
     uint16_t        m_vlan_offset;
     uint8_t *       m_l4;

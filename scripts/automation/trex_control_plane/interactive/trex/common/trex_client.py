@@ -2798,7 +2798,7 @@ class TRexClient(object):
                 self.ctx.logger.info(format_text('*** Warning - Port {0} destination is unresolved ***'.format(port_id), 'bold'))
 
 
-    def _get_stats_common (self, ports = None, sync_now = True, ext_stats = None):
+    def _get_stats_common (self, ports = None, sync_now = True, ext_stats = None, fetch_vlan_stats = False):
         """
             A common method for STL/ASTF to generate stats output
         """

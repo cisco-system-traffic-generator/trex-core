@@ -860,6 +860,12 @@ class OPTIONS_DB_ARGS:
          'dest': 'stats',
          'const': 'latency',
          'help': "Fetch only latency stats"})
+    LATENCY_TAG_STATS = ArgumentPack(
+        ['-l'],
+        {'action': 'store_const',
+         'dest': 'stats',
+         'const': 'latency_tag',
+         'help': "Fetch only latency tag stats"})
 
     LATENCY_HISTOGRAM = ArgumentPack(
         ['--lh'],
@@ -1578,6 +1584,7 @@ class OPTIONS_DB_GROUPS:
             PORT_STATUS,
             STREAMS_STATS,
             LATENCY_STATS,
+            LATENCY_TAG_STATS,
             LATENCY_HISTOGRAM,
             CPU_STATS,
             MBUF_STATS,

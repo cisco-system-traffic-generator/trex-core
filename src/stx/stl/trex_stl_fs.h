@@ -56,6 +56,7 @@ struct flow_stat_payload_header {
     uint16_t hw_id;
     uint32_t seq;
     uint64_t time_stamp;
+    bool     is_multi_tag;
 };
 
 
@@ -569,9 +570,11 @@ class CFlowStatRuleMgr {
     // we don't want to allocate them on the stack in the function.
     rx_per_flow_t m_rx_stats[MAX_FLOW_STATS];
     rx_per_flow_t m_rx_stats_payload[MAX_FLOW_STATS];
+    rx_per_flow_t m_rx_pg_tag_stat_payload[MAX_FLOW_STATS_VLAN_TAG_ENTY];
     tx_per_flow_t m_tx_stats[MAX_FLOW_STATS];
     tx_per_flow_t m_tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     rfc2544_info_t m_rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
+    rfc2544_info_t m_rfc2544_tag_info[MAX_FLOW_STATS_VLAN_TAG_ENTY];
 };
 
 #endif /* __TREX_STL_FS_H__ */

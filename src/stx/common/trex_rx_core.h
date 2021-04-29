@@ -216,7 +216,7 @@ protected:
 
     CRxCoreErrCntrs  m_err_cntrs;
     CRFC2544Info     m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
-
+    CRFC2544Info     m_rfc2544_tag[MAX_FLOW_STATS_VLAN_TAG_ENTY];
     rx_port_mg_map_t m_rx_port_mngr_map;
     rx_port_mg_vec_t m_rx_port_mngr_vec;
 

@@ -54,6 +54,7 @@ void CFlowStatParser::reset() {
     m_len = 0;
     m_ipv4 = 0;
     m_ipv6 = 0;
+    m_vlan = 0;
     m_l4_proto = 0;
     m_l4 = 0;
 }
@@ -191,6 +192,7 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
             if (len < min_len)
                 return FSTAT_PARSER_E_TOO_SHORT;
             vlan = (VLANHeader *)p;
+            m_vlan = (VLANHeader *)p;
             p += sizeof(VLANHeader);
             next_hdr = vlan->getNextProtocolHostOrder();
             break;
