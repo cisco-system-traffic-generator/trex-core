@@ -591,6 +591,9 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
                 node->m_set_nc = true;  // stop immediately
                 node->m_terminate_duration = 0;
             }
+            else if (node->m_terminate_duration - traffic_time < node->m_pctx->m_fif_d_time) {
+                node->m_pctx->m_fif_d_time = node->m_terminate_duration - traffic_time;
+            }
         }
 
         if (node->m_time_stop && m_cur_time_sec >= node->m_time_stop) {
@@ -621,7 +624,7 @@ void CFlowGenListPerThread::handle_tx_fif(CGenNodeTXFIF * node,
                 TrexAstfDpCore* astf = (TrexAstfDpCore*)m_dp_core;
                 astf->stop_transmit(node->m_pctx->m_profile_id, false);
 
-                if (!(node->m_time_stop && node->m_set_nc)) {
+                if (!(node->m_terminate_duration || (node->m_time_stop && node->m_set_nc))) {
                     node->m_pctx->m_tx_node = nullptr; // for the safe profile stop
                     node->m_pctx = nullptr;
                 }
