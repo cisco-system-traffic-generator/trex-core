@@ -1,15 +1,16 @@
-TRex console - commands proposal 
-=================================
+TRex Console support
+====================
 :quotes.++:
 :numbered:
 :web_server_url: http://trex-tgn.cisco.com/trex
 :local_web_server_url: csi-wiki-01:8181/trex
-:toclevels: 4
+:toclevels: 3
 :doc_stl_path: https://trex-tgn.cisco.com/trex/doc/trex_stateless.html
 :doc_astf_path: https://trex-tgn.cisco.com/trex/doc/trex_astf.html
 :doc_emu_path: https://trex-tgn.cisco.com/trex/doc/trex_emu.html
 :first_time_running_path: https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_first_time_running
 :github_stl_path: https://github.com/cisco-system-traffic-generator/trex-core/tree/master/scripts/stl
+:doc_capture: https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_packet_capturing
 
 include::trex_ga.asciidoc[]
 
@@ -30,7 +31,7 @@ The following pages show simple tutorial of TRex console:link:{doc_stl_path}[STL
 
 === Tutorial
 
-It shows some some examples how to use the Console and TRex 
+Some examples on how to use the Console and TRex 
 
 ==== Prepare TRex configuration file
 
@@ -54,13 +55,14 @@ on the same machine from a different window connect to trex using the command
 
 [source,bash]
 ----
-[bash]>/trex-console
+[bash]>./trex-console
 ----
 
-Before we start transmit traffic lets see that the port configuration is as we desire.
-We can use the command portattr in the console to see our port configuration.
+Before we start transmitting traffic lets see that the port's configuration is as we desire.
+We can use the command portattr in the console to see our port's configuration.
 [source,bash]
 ----
+trex>portattr
 usage: portattr [-h] [-p PORTS [PORTS ...] | -a] [--prom {on,off}]
                 [--link {up,down}] [--led {on,off}] [--fc {none,tx,rx,full}]
                 [--vxlan-fs [VXLAN_FS [VXLAN_FS ...]]] [--supp]
@@ -86,10 +88,6 @@ optional arguments:
   --mult {on,off}       Set port multicast on/off
 ----
 
-[source,bash]
-----
-[bash]>portattr
-----
 
 Port Status:
 [source,bash]
@@ -125,7 +123,7 @@ Grat ARP        |         off          |         off
                 |                      |
 ----
 
-We can see that the IPv6 is off and also the VLAN.
+We can see that the IPv6 and also the VLAN are off.
 
 If we want to change that we can use VLAN and IPv6 commands.
 But first we will need to configure the specifics ports to service mode( In service mode ports will reply to ARP,
@@ -136,18 +134,18 @@ let's say that we want to add vlan with tag 100 to port 0.
 1.First we need to configure port 0 to service mode
 [source,bash]
 ----
-[bash]>service -p 0
+trex>service -p 0
 ----
-2.Addinig VLAN with the tag 100 to port 0
+2.Adding VLAN with the tag 100 to port 0
 [source,bash]
 ----
-[bash]>vlan -p 0 --vlan 100
+trex>vlan -p 0 --vlan 100
 ----
 
 We can use the portattr command again to verify that we indeed added vlan.
 [source,bash]
 ----
-[bash]>portattr
+trex>portattr
 
 Port Status
 
@@ -181,7 +179,7 @@ Grat ARP        |         off          |         off
 
 ----
 
-Now the traffic will be send with vlan tag 100.
+Now the traffic will be sent with vlan tag 100.
 
 
 ==== Transmitting traffic
@@ -189,35 +187,35 @@ Now the traffic will be send with vlan tag 100.
 Let's start to transmit traffic with the profile link:{github_stl_path}/imix.py[stl/imix.py]
 
 To do that we need to use the start command with the argument -f.
-The start command has several argument but only -f argument (the file path) is required.
-You can read about more about the argument using the command
+The start command has several arguments but only -f argument (the file path) is required.
+You can read more about the arguments using the command
 [source,bash]
 ----
-[bash]>start -h
+trex>start -h
 ----
 
 For now let's transmit the traffic in all port and with multiplier of 10.
 Run the command
 [source,bash]
 ----
-[bash]>start -f stl/imix.py -m 10
+trex>start -f stl/imix.py -m 10
 ----
 
 ==== Getting the stats
 
 Showing stats:
 
-In order to see the stats in textual window we can use tui
+In order to see the stats in a textual window we can use tui
 Tui shows severals textual windows with stats about the traffic.
 The tui windows are getting updated all the time.
 
 Run the command:
 [source,bash]
 ----
-[bash]>tui
+trex>tui
 ----
 
-Dashboard and utils examples while we TRex transmit the traffic
+Dashboard and utils examples while TRex transmits the traffic
 [source,bash]
 ----
 Dashboard:
@@ -233,33 +231,33 @@ total_cps.   : 0 cps                                      queue_full   : 0 pkts
 
 Port Statistics
 
-   port    |         0         |         1         |       total
------------+-------------------+-------------------+------------------
-owner      |              root |              root |
-link       |                UP |                UP |
-state      |      TRANSMITTING |      TRANSMITTING |
-speed      |          100 Gb/s |          100 Gb/s |
-CPU util.  |             0.03% |             0.03% |
---         |                   |                   |
-Tx bps L2  |         1.39 Mbps |         1.39 Mbps |         2.77 Mbps
-Tx bps L1  |         1.46 Mbps |         1.46 Mbps |         2.93 Mbps
-Tx pps     |        479.68 pps |        479.55 pps |        959.22 pps
-Line Util. |               0 % |               0 % |
----        |                   |                   |
-Rx bps     |         1.39 Mbps |         1.39 Mbps |         2.77 Mbps
-Rx pps     |        479.68 pps |        479.55 pps |        959.22 pps
-----       |                   |                   |
-opackets   |             49270 |             49272 |             98542
-ipackets   |             49270 |             49272 |             98542
-obytes     |          17827594 |          17828252 |          35655846
-ibytes     |          17827594 |          17828252 |          35655846
-tx-pkts    |       49.27 Kpkts |       49.27 Kpkts |       98.54 Kpkts
-rx-pkts    |       49.27 Kpkts |       49.27 Kpkts |       98.54 Kpkts
-tx-bytes   |          17.83 MB |          17.83 MB |          35.66 MB
-rx-bytes   |          17.83 MB |          17.83 MB |          35.66 MB
------      |                   |                   |
-oerrors    |                 0 |                 0 |                 0
-ierrors    |                 0 |                 0 |                 0
+   port   |      0       |       1      |    total    
+----------+--------------+--------------+-------------
+owner     |         root |         root |             
+link      |           UP |           UP |             
+state     | TRANSMITTING | TRANSMITTING |             
+speed     |     100 Gb/s |     100 Gb/s |             
+CPU util. |        0.03% |        0.03% |             
+--        |              |              |             
+Tx bps L2 |    1.39 Mbps |    1.39 Mbps |   2.77 Mbps 
+Tx bps L1 |    1.46 Mbps |    1.46 Mbps |   2.93 Mbps 
+Tx pps    |   479.68 pps |   479.55 pps |  959.22 pps 
+Line Util.|          0 % |          0 % |             
+---       |              |              |             
+Rx bps    |    1.39 Mbps |    1.39 Mbps |   2.77 Mbps 
+Rx pps    |   479.68 pps |   479.55 pps |  959.22 pps 
+----      |              |              |             
+opackets  |        49270 |        49272 |       98542 
+ipackets  |        49270 |        49272 |       98542 
+obytes    |     17827594 |     17828252 |    35655846 
+ibytes    |     17827594 |     17828252 |    35655846 
+tx-pkts   |  49.27 Kpkts |  49.27 Kpkts | 98.54 Kpkts 
+rx-pkts   |  49.27 Kpkts |  49.27 Kpkts | 98.54 Kpkts 
+tx-bytes  |     17.83 MB |     17.83 MB |    35.66 MB 
+rx-bytes  |     17.83 MB |     17.83 MB |    35.66 MB 
+-----     |              |              |             
+oerrors   |            0 |            0 |           0 
+ierrors   |            0 |            0 |           0 
 
 status:  \
 
@@ -283,9 +281,9 @@ total_cps.   : 0 cps                                      queue_full   : 0 pkts
 
 Cpu Util(%)
 
-  Thread   | Avg | Latest | -1  | -2  | -3  | -4  | -5  | -6  | -7  | -8  | -9  | -10 | -11 | -12 | -13 | -14
------------+-----+--------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+----
- 0  (0,1)  |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
+  Thread  | Avg | Latest | -1  | -2  | -3  | -4  | -5  | -6  | -7  | -8  | -9  | -10 | -11 | -12 | -13 | -14
+----------+-----+--------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+----
+ 0  (0,1) |   0 |      0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0 |   0
 
 Mbuf Util
 
@@ -302,16 +300,16 @@ browse:     'ESC' - console, 'q' - quit, 'd' - dashboard, 'u' - util, 's' - stre
 ustats:
 ----
 
-To navigate between the different windows press ESC and then press the letter that represent the windows you want.
+To navigate between the different windows press ESC and then press the letter that represents the window you want.
 
 We can also use the command stats to get stats.
-But in this command we are getting stats that are relevant to the moment we run the command.
+But in this command we are getting stats that are relevant to the moment we ran the command.
 
 Streams:
 
 [source,bash]
--------------------
-[bash]>streams
+----
+trex>streams
 
 Port 0:
 
@@ -328,7 +326,7 @@ Port 1:
  1  |  -   |    -    | Ethernet:IP:UDP:DNS:Raw |     64 | Continuous | 28 pps |   -   |  -
  2  |  -   |    -    | Ethernet:IP:UDP:DNS:Raw |    594 | Continuous | 16 pps |   -   |  -
  3  |  -   |    -    | Ethernet:IP:UDP:DNS:Raw |   1518 | Continuous | 4 pps  |   -   |  -
--------------------
+----
 
 
 Clearing stats
@@ -337,51 +335,51 @@ We can clear the ports stats counter with the command clear.
 Run the command clear to clear all the ports stats or some of the ports using the -p argument
 [source,bash]
 ----
-[bash]>clear
+trex>clear
 ----
 
 [source,bash]
 ----
-[bash]>stats
+trex>stats
 
 Global Statistics
 
-connection   : localhost, Port 4501                       total_tx_L2  : 2.77 Mbps
-version      : STL @ v2.89                                total_tx_L1  : 2.92 Mbps
-cpu_util.    : 0.03% @ 1 cores (1 per dual port)          total_rx     : 2.77 Mbps
-rx_cpu_util. : 0.0% / 0 pps                               total_pps    : 957.55 pps
-async_util.  : 0% / 0.93 bps                              drop_rate    : 0 bps
-total_cps.   : 0 cps                                      queue_full   : 0 pkts
+connection   : localhost, Port 4501                total_tx_L2  : 2.77 Mbps
+version      : STL @ v2.89                         total_tx_L1  : 2.92 Mbps
+cpu_util.    : 0.03% @ 1 cores (1 per dual port)   total_rx     : 2.77 Mbps
+rx_cpu_util. : 0.0% / 0 pps                        total_pps    : 957.55 pps
+async_util.  : 0% / 0.93 bps                       drop_rate    : 0 bps
+total_cps.   : 0 cps                               queue_full   : 0 pkts
 
 Port Statistics
 
-   port    |         0         |         1         |       total
------------+-------------------+-------------------+------------------
-owner      |              root |              root |
-link       |                UP |                UP |
-state      |      TRANSMITTING |      TRANSMITTING |
-speed      |          100 Gb/s |          100 Gb/s |
-CPU util.  |             0.03% |             0.03% |
-           |                   |                   |
-Tx bps L2  |         1.39 Mbps |         1.38 Mbps |         2.77 Mbps
-Tx bps L1  |         1.46 Mbps |         1.46 Mbps |         2.92 Mbps
-Tx pps     |        479.56 pps |        477.99 pps |        957.55 pps
-Line Util. |               0 % |               0 % |
-           |                   |                   |
-Rx bps     |         1.39 Mbps |         1.38 Mbps |         2.77 Mbps
-Rx pps     |        479.56 pps |        477.99 pps |        957.55 pps
-           |                   |                   |
-opackets   |              1437 |              1437 |              2874
-ipackets   |              1437 |              1437 |              2874
-obytes     |            520318 |            520318 |           1040636
-ibytes     |            520318 |            520318 |           1040636
-tx-pkts    |        1.44 Kpkts |        1.44 Kpkts |        2.87 Kpkts
-rx-pkts    |        1.44 Kpkts |        1.44 Kpkts |        2.87 Kpkts
-tx-bytes   |         520.32 KB |         520.32 KB |           1.04 MB
-rx-bytes   |         520.32 KB |         520.32 KB |           1.04 MB
-           |                   |                   |
-oerrors    |                 0 |                 0 |                 0
-ierrors    |                 0 |                 0 |                 0
+   port    |       0      |       1      |  total      
+-----------+--------------+--------------+-------------
+owner      |         root |         root |             
+link       |           UP |           UP |             
+state      | TRANSMITTING | TRANSMITTING |             
+speed      |     100 Gb/s |     100 Gb/s |             
+CPU util.  |        0.03% |        0.03% |             
+           |              |              |             
+Tx bps L2  |    1.39 Mbps |    1.38 Mbps |  2.77 Mbps  
+Tx bps L1  |    1.46 Mbps |    1.46 Mbps |  2.92 Mbps  
+Tx pps     |   479.56 pps |   477.99 pps | 957.55 pps  
+Line Util. |          0 % |          0 % |             
+           |              |              |             
+Rx bps     |    1.39 Mbps |    1.38 Mbps |  2.77 Mbps  
+Rx pps     |   479.56 pps |   477.99 pps | 957.55 pps  
+           |              |              |             
+opackets   |         1437 |         1437 |       2874  
+ipackets   |         1437 |         1437 |       2874  
+obytes     |       520318 |       520318 |    1040636  
+ibytes     |       520318 |       520318 |    1040636  
+tx-pkts    |   1.44 Kpkts |   1.44 Kpkts | 2.87 Kpkts  
+rx-pkts    |   1.44 Kpkts |   1.44 Kpkts | 2.87 Kpkts  
+tx-bytes   |    520.32 KB |    520.32 KB |    1.04 MB  
+rx-bytes   |    520.32 KB |    520.32 KB |    1.04 MB  
+           |              |              |             
+oerrors    |            0 |            0 |          0  
+ierrors    |            0 |            0 |          0  
 
 
 
@@ -398,71 +396,72 @@ rx_cpu_util. : 0.0% / 0.44 pps                            total_pps    : 0 pps
 async_util.  : 0% / 8.32 bps                              drop_rate    : 0 bps                          
 total_cps.   : 0 cps                                      queue_full   : 0 pkts                         
 
-Port Statistics
-
-   port    |         0         |         1         |         2         |         3         |       total       
------------+-------------------+-------------------+-------------------+-------------------+------------------
-owner      |             hhaim |             hhaim |             hhaim |             hhaim |                   
-link       |                UP |                UP |                UP |                UP |                   
-state      |              IDLE |              IDLE |              IDLE |              IDLE |                   
-speed      |           10 Gb/s |           10 Gb/s |           10 Gb/s |           10 Gb/s |                   
-CPU util.  |              0.0% |              0.0% |              0.0% |              0.0% |                   
---         |                   |                   |                   |                   |                   
-Tx bps L2  |             0 bps |             0 bps |             0 bps |             0 bps |             0 bps 
-Tx bps L1  |             0 bps |             0 bps |             0 bps |             0 bps |             0 bps 
-Tx pps     |             0 pps |             0 pps |             0 pps |             0 pps |             0 pps 
-Line Util. |               0 % |               0 % |               0 % |               0 % |                   
----        |                   |                   |                   |                   |                   
-Rx bps     |        471.58 bps |          0.04 bps |          0.07 bps |           140 bps |        611.69 bps 
-Rx pps     |          0.31 pps |             0 pps |             0 pps |          0.12 pps |          0.44 pps 
-----       |                   |                   |                   |                   |                   
-opackets   |              6436 |              6360 |                 0 |                 0 |             12796 
-ipackets   |             41368 |             10689 |              4223 |              4227 |             60507 
-obytes     |            433348 |            407850 |                 0 |                 0 |            841198 
-ibytes     |           4858520 |           1012312 |            576136 |            576624 |           7023592 
-tx-pkts    |        6.44 Kpkts |        6.36 Kpkts |            0 pkts |            0 pkts |        12.8 Kpkts 
-rx-pkts    |       41.37 Kpkts |       10.69 Kpkts |        4.22 Kpkts |        4.23 Kpkts |       60.51 Kpkts 
-tx-bytes   |         433.35 KB |         407.85 KB |               0 B |               0 B |          841.2 KB 
-rx-bytes   |           4.86 MB |           1.01 MB |         576.14 KB |         576.62 KB |           7.02 MB 
------      |                   |                   |                   |                   |                   
-oerrors    |                 0 |                 0 |                 0 |                 0 |                 0 
-ierrors    |                 0 |                 0 |                 0 |                 0 |                 0 
-
-
+Port Stat
+   port    |       0     |      1      |     2      |      3      
+-----------+-------------+-------------+------------+-------------
+owner      |       hhaim |       hhaim |      hhaim |      hhaim  
+link       |          UP |          UP |         UP |         UP  
+state      |        IDLE |        IDLE |       IDLE |       IDLE  
+speed      |     10 Gb/s |     10 Gb/s |    10 Gb/s |    10 Gb/s  
+CPU util.  |        0.0% |        0.0% |       0.0% |       0.0%  
+--         |             |             |            |             
+Tx bps L2  |       0 bps |       0 bps |      0 bps |      0 bps  
+Tx bps L1  |       0 bps |       0 bps |      0 bps |      0 bps  
+Tx pps     |       0 pps |       0 pps |      0 pps |      0 pps  
+Line Util. |         0 % |         0 % |        0 % |        0 %  
+----       |             |             |            |             
+Rx bps     |  471.58 bps |    0.04 bps |   0.07 bps |    140 bps  
+Rx pps     |    0.31 pps |       0 pps |      0 pps |   0.12 pps  
+----       |             |             |            |             
+opackets   |        6436 |        6360 |          0 |          0  
+ipackets   |       41368 |       10689 |       4223 |       4227  
+obytes     |      433348 |      407850 |          0 |          0  
+ibytes     |     4858520 |     1012312 |     576136 |     576624  
+tx-pkts    |  6.44 Kpkts |  6.36 Kpkts |     0 pkts |     0 pkts  
+rx-pkts    | 41.37 Kpkts | 10.69 Kpkts | 4.22 Kpkts | 4.23 Kpkts  
+tx-bytes   |   433.35 KB |   407.85 KB |        0 B |        0 B  
+rx-bytes   |     4.86 MB |     1.01 MB |  576.14 KB |  576.62 KB  
+-----      |             |             |            |             
+oerrors    |           0 |           0 |          0 |          0  
+ierrors    |           0 |           0 |          0 |          0  
+ 
+ 
 trex>stats -x
 
 trex>stats -x
 Xstats
 
-            Name:              |     Port 0:     |     Port 1:     |     Port 2:     |     Port 3:     
--------------------------------+-----------------+-----------------+-----------------+----------------
-rx_good_packets                |           42551 |           10902 |            4330 |            4334 
-rx_good_bytes                  |         4823918 |          990306 |          573418 |          573890 
-rx_q0_packets                  |           42551 |           10902 |            4330 |            4334 
-rx_q0_bytes                    |         4823918 |          990306 |          573418 |          573890 
-tx_q0_packets                  |            7254 |            6909 |               0 |               0 
-tx_q0_bytes                    |          329990 |          291258 |               0 |               0 
-mac_local_errors               |               2 |               2 |               0 |               0 
-mac_remote_errors              |               0 |              16 |               0 |               0 
-rx_size_64_packets             |           12177 |            6522 |               0 |               0 
-rx_size_65_to_127_packets      |           17593 |            1086 |            1067 |            1071 
-rx_size_128_to_255_packets     |           12781 |            3264 |            3263 |            3263 
-rx_size_512_to_1023_packets    |               0 |              24 |               0 |               0 
-rx_size_1024_to_max_packets    |               0 |               6 |               0 |               0 
-rx_multicast_packets           |           35565 |            4335 |            4330 |            4334 
-rx_total_packets               |           42556 |           10903 |            4332 |            4334 
-rx_total_bytes                 |         4824548 |          990442 |          573672 |          573890 
-tx_total_packets               |            7254 |            6909 |               0 |               0 
-tx_size_64_packets             |            7209 |            6894 |               0 |               0 
-tx_size_65_to_127_packets      |              15 |              15 |               0 |               0 
-tx_size_512_to_1023_packets    |              24 |               0 |               0 |               0 
-tx_size_1024_to_max_packets    |               6 |               0 |               0 |               0 
-tx_broadcast_packets           |            7073 |            6894 |               0 |               0 
-rx_l3_l4_xsum_error            |               0 |              68 |               0 |               0 
-out_pkts_untagged              |            7254 |            6909 |               0 |               0 
+            Name:           | Port 0: | Port 1: | Port 2: | Port 3:  
+----------------------------+------- -+ --------+---------+----------
+rx_good_packets             |   42551 |   10902 |    4330 |    4334  
+rx_good_bytes               | 4823918 |  990306 |  573418 |  573890  
+rx_q0_packets               |   42551 |   10902 |    4330 |    4334  
+rx_q0_bytes                 | 4823918 |  990306 |  573418 |  573890  
+tx_q0_packets               |    7254 |    6909 |       0 |       0  
+tx_q0_bytes                 |  329990 |  291258 |       0 |       0  
+mac_local_errors            |       2 |       2 |       0 |       0  
+mac_remote_errors           |       0 |      16 |       0 |       0  
+rx_size_64_packets          |   12177 |    6522 |       0 |       0  
+rx_size_65_to_127_packets   |   17593 |    1086 |    1067 |    1071  
+rx_size_128_to_255_packets  |   12781 |    3264 |    3263 |    3263  
+rx_size_512_to_1023_packets |       0 |      24 |       0 |       0  
+rx_size_1024_to_max_packets |       0 |       6 |       0 |       0  
+rx_multicast_packets        |   35565 |    4335 |    4330 |    4334  
+rx_total_packets            |   42556 |   10903 |    4332 |    4334  
+rx_total_bytes              | 4824548 |  990442 |  573672 |  573890  
+tx_total_packets            |    7254 |    6909 |       0 |       0  
+tx_size_64_packets          |    7209 |    6894 |       0 |       0  
+tx_size_65_to_127_packets   |      15 |      15 |       0 |       0  
+tx_size_512_to_1023_packets |      24 |       0 |       0 |       0  
+tx_size_1024_to_max_packets |       6 |       0 |       0 |       0  
+tx_broadcast_packets        |    7073 |    6894 |       0 |       0  
+rx_l3_l4_xsum_error         |       0 |      68 |       0 |       0  
+out_pkts_untagged           |    7254 |    6909 |       0 |       0  
+----
 
-
-# this shows the muliple profile active 
+[source,bash]
+----
+# this shows the multiple profile active 
 trex>profiles 
 Port 0:
 
@@ -485,16 +484,15 @@ Port 3:
   Profile ID    |   state    | stream ID  
 ----------------+------------+-----------
 
-trex>
 ----
 
 ==== traffic manipulation
 
-In order to pause the traffic transmitting we can use the command pause
+In order to pause the traffic's transmitting we can use the command pause
 
 [source,bash]
 ----
-[bash]>pause
+trex>pause
 ----
 The pause command work only on active ports
 
@@ -503,14 +501,14 @@ We can resume stopped traffic with the command resume.
 
 [source,bash]
 ----
-[bash]>resume
+trex>resume
 ----
 The resume command work only on paused ports.
 
 We can also stop the traffic with the command stop
 [source,bash]
 ----
-[bash]>stop
+trex>stop
 ----
 The stop command work only on active ports
 
@@ -535,7 +533,7 @@ $command   [--port/-p 1 2 3]
 ----
 
 ==== Packet capturing
-Follow this link:{doc_stl_path#_packet_capturing}[tutorial]
+Follow this link:{doc_capture}[tutorial]
 
 ==== Duration 
 
@@ -563,7 +561,7 @@ $command [-m 100] [-m 10bps] [-m 10kbps] [-m 10mbps] [-m 10gbps] [-m 10bpsl1] [-
   -m 10bps,..,-m 10gbps      : from graph calculate the maximum rate as this bandwidth ( for each port L2 bandwidth)
   -m 10bpsl1,..,-m 10gbpsl1  : from graph calculate the maximum rate as this bandwidth ( for each port L1 bandwidth)
   -m 10pps,...,-m 10mpps     : from graph calculate the maximum rate as this pps       ( for each port )
-  -m 40%                     : from graph calculate the maximum rate as this precent from total port  ( for each port L1 bandwidth)
+  -m 40%                     : from graph calculate the maximum rate as this percent from total port  ( for each port L1 bandwidth)
 ----
 
 === List of the commands

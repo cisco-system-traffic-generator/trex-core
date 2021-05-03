@@ -835,7 +835,7 @@ def build(bld):
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.html', scan=ascii_doc_scan)
 
-    bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
+    bld(rule=convert_to_html_toc_book,
         source='trex_console.asciidoc waf.css', target='trex_console.html', scan=ascii_doc_scan)
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true  -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
