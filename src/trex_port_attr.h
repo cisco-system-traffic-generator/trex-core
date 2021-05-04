@@ -73,6 +73,7 @@ public:
     virtual const struct rte_eth_dev_info* get_dev_info() const { return &m_dev_info; }
 
     virtual std::string get_rx_filter_mode() const;
+    virtual bool is_device_flush_needed() = 0;
 
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled) = 0;
@@ -130,7 +131,8 @@ class DpdkTRexPortAttr : public TRexPortAttr {
 public:
 
     DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual, bool fc_change_allowed,
-            bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci);
+            bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci,
+            bool device_flush_needed = false);
 
 /*    UPDATES    */
     virtual void update_link_status();
@@ -146,6 +148,7 @@ public:
     virtual int get_flow_ctrl(int &mode);
     virtual void get_supported_speeds(supp_speeds_t &supp_speeds);
     virtual bool is_loopback() const;
+    virtual bool is_device_flush_needed() { return flag_is_device_flush_needed; }
 
 /*    SETTERS    */
     virtual int set_promiscuous(bool enabled);
@@ -173,6 +176,7 @@ private:
     std::vector <struct rte_eth_xstat> xstats_values_tmp;
     std::vector <struct rte_eth_xstat_name> xstats_names_tmp;
 
+    bool            flag_is_device_flush_needed;
 };
 
 /*
@@ -224,6 +228,7 @@ public:
     int set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) { return -ENOTSUP; }
     bool is_loopback() const { return false; }
     std::string get_rx_filter_mode() {return "";}
+    bool is_device_flush_needed() { return false; }
 protected:
     void update_device_info() {}
     void update_description() {

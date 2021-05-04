@@ -346,6 +346,9 @@ rx_burst_8023ad(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts,
 				   !rte_is_same_ether_addr(bond_mac,
 						       &hdr->d_addr)) ||
 				  (!allmulti &&
+#ifdef  TREX_PATCH
+				   !rte_is_broadcast_ether_addr(&hdr->d_addr) &&
+#endif
 				   rte_is_multicast_ether_addr(&hdr->d_addr)))))) {
 
 				if (hdr->ether_type == ether_type_slow_be) {
@@ -1738,6 +1741,16 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	else
 		slave_eth_dev->data->dev_conf.rxmode.offloads &=
 				~DEV_RX_OFFLOAD_JUMBO_FRAME;
+
+#ifdef  TREX_PATCH
+	if (bonded_eth_dev->data->dev_conf.txmode.offloads &
+			DEV_TX_OFFLOAD_MULTI_SEGS)
+		slave_eth_dev->data->dev_conf.txmode.offloads |=
+			DEV_TX_OFFLOAD_MULTI_SEGS;
+	else
+		slave_eth_dev->data->dev_conf.txmode.offloads &=
+			~DEV_TX_OFFLOAD_MULTI_SEGS;
+#endif
 
 	nb_rx_queues = bonded_eth_dev->data->nb_rx_queues;
 	nb_tx_queues = bonded_eth_dev->data->nb_tx_queues;

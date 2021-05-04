@@ -265,3 +265,39 @@ void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
 #endif
     cfg->tx_offloads.common_best_effort = 0;
 }
+
+
+#include "net/bonding/rte_eth_bond.h"
+
+CTRexExtendedDriverBonding::CTRexExtendedDriverBonding(){
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE | TREX_DRV_CAP_MAC_ADDR_CHG;
+}
+
+TRexPortAttr* CTRexExtendedDriverBonding::create_port_attr(tvpid_t tvpid, repid_t repid){
+    /* In LACP mode, need to call TX/RX burst at least every 100ms. */
+    bool flush_needed = false;
+    if (rte_eth_bond_mode_get(repid) == BONDING_MODE_8023AD) {
+        flush_needed = true;
+    }
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, false, flush_needed);
+}
+
+bool CTRexExtendedDriverBonding::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+void CTRexExtendedDriverBonding::update_configuration(port_cfg_t * cfg){
+    cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
+    cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
+    cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
+}
+
+int CTRexExtendedDriverBonding::wait_for_stable_link(){
+    /* In LACP mode, should wait enough time for DISTRIBUTING */
+    wait_x_sec(3 + CGlobalInfo::m_options.m_wait_before_traffic, true);
+    return 0;
+}
+
+void CTRexExtendedDriverBonding::wait_after_link_up(){
+    wait_for_stable_link();
+}
