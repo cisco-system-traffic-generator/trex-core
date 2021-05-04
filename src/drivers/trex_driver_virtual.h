@@ -149,7 +149,7 @@ public:
     virtual bool is_support_for_rx_scatter_gather(){
 	return (true);
     }
-			    
+
     virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
@@ -170,6 +170,24 @@ public:
     virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void update_configuration(port_cfg_t * cfg);
+};
+
+class CTRexExtendedDriverBonding : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverBonding();
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverBonding() );
+    }
+    virtual bool is_support_for_rx_scatter_gather(){
+	return (true);
+    }
+
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void update_configuration(port_cfg_t * cfg);
+    virtual int wait_for_stable_link();
+    virtual void wait_after_link_up();
+    virtual bool is_device_flush_needed(CPhyEthIF * _if);
 };
 
 
