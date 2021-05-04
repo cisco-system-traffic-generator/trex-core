@@ -1196,6 +1196,12 @@ void CPhyEthIF::flush_rx_queue(void){
     }
 }
 
+void CPhyEthIF::dev_flush(void){
+    rte_mbuf_t * pkts[0];
+
+    tx_burst(0, pkts, 0);   /* any valid queue id allowed to flush */
+    flush_rx_queue();
+}
 
 COLD_FUNC void CPhyEthIF::dump_stats_extended(FILE *fd){
 
@@ -1779,7 +1785,7 @@ COLD_FUNC int CCoreEthIF::flush_tx_queue(void){
     for (dir = CLIENT_SIDE; dir < CS_NUM; dir++) {
         CCorePerPort * lp_port = &m_ports[dir];
         CVirtualIFPerSideStats  * lp_stats = &m_stats[dir];
-        if ( likely(lp_port->m_len > 0) ) {
+        if ( likely(lp_port->m_len > 0) || lp_port->m_port->get_port_attr()->is_device_flush_needed() ) {
             send_burst(lp_port, lp_port->m_len, lp_stats);
             lp_port->m_len = 0;
         }
@@ -3391,7 +3397,7 @@ COLD_FUNC bool CGlobalTRex::is_all_links_are_up(bool dump){
         CPhyEthIF * _if=m_ports[i];
         _if->get_port_attr()->update_link_status();
         if ( dump ){
-            _if->dump_stats(stdout);
+            _if->get_port_attr()->dump_link(stdout);
         }
         if ( _if->get_port_attr()->is_link_up() == false){
             all_link_are=false;
@@ -3662,7 +3668,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
         dpdk_p.dump(stdout);
     }
 
-    bool use_hugepages = !CGlobalInfo::m_options.m_is_vdev;
+    bool use_hugepages = !(CGlobalInfo::m_options.m_is_vdev && CGlobalInfo::m_options.m_pdevs_in_vdev.empty());
     CGlobalInfo::init_pools( m_max_ports * dpdk_p.get_total_rx_desc(),
                              dpdk_p.rx_mbuf_type,
                              use_hugepages);
@@ -3900,11 +3906,14 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
        dump_dpdk_devices();
     }
 
-   if (CGlobalInfo::m_options.m_is_vdev) {
-      m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
+    if (CGlobalInfo::m_options.m_is_vdev) {
+        m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
+        if (global_platform_cfg_info.m_if_list_vdevs.size()) {
+            m_max_ports = global_platform_cfg_info.m_if_list_vdevs.size();
+        }
     }
     else {
-      m_max_ports = port_map.get_max_num_ports();
+        m_max_ports = port_map.get_max_num_ports();
     }
 
     if (m_max_ports == 0)
@@ -6019,6 +6028,9 @@ COLD_FUNC void update_memory_cfg() {
 
 COLD_FUNC void check_pdev_vdev_dummy() {
     bool found_vdev = false;
+    bool found_devs_in_vdev = false;
+    std::vector<std::string> pdevs_in_vdev;
+    std::vector<std::string> list_vdevs(global_platform_cfg_info.m_if_list.size(), "dummy");
     bool found_pdev = false;
     uint32_t dev_id = 1e6;
     uint8_t if_index = 0;
@@ -6031,6 +6043,21 @@ COLD_FUNC void check_pdev_vdev_dummy() {
             CTVPort(if_index).set_dummy();
         } else if ( iface.find("--vdev") != std::string::npos ) {
             found_vdev = true;
+            if ( iface.find("--vdev=net_bonding") != std::string::npos ) {
+                std::vector<std::string> vdev_opts;
+                split_str_by_delimiter(iface, ',', vdev_opts);
+                list_vdevs[if_index] = vdev_opts[0].substr(vdev_opts[0].find("=")+1);
+
+                std::string match_str = "slave=";
+                for (auto vdev_opt : vdev_opts) {
+                    if ( vdev_opt.find(match_str.c_str()) != std::string::npos ) {
+                        found_devs_in_vdev = true;
+                        if ( vdev_opt.find(":") != std::string::npos ) {
+                            pdevs_in_vdev.emplace_back(vdev_opt.substr(match_str.size()));
+                        }
+                    }
+                }
+            }
         } else if ( iface.find(":") == std::string::npos ) { // not PCI, assume af-packet
             iface = "--vdev=net_af_packet" + std::to_string(dev_id) + ",iface=" + iface;
             if ( getpagesize() == 4096 ) {
@@ -6059,6 +6086,16 @@ COLD_FUNC void check_pdev_vdev_dummy() {
             exit(1);
         } else {
             g_opts->m_is_vdev = true;
+            if ( found_devs_in_vdev ) {
+                g_opts->m_is_devs_in_vdev = found_devs_in_vdev;
+                g_opts->m_pdevs_in_vdev = pdevs_in_vdev;
+                /* when a vdev has sub devices, DPDK will report more devices than specified.
+                 * To perform reorder_dpdk_ports successfully, set to use m_if_list_vdevs.
+                 */
+                if ( global_platform_cfg_info.m_if_list_vdevs.empty() ) {
+                    global_platform_cfg_info.m_if_list_vdevs = list_vdevs;
+                }
+            }
         }
     } else if ( !found_pdev ) {
         printf("\n");
@@ -6237,8 +6274,17 @@ COLD_FUNC int  update_dpdk_args(void){
                 SET_ARGS(iface.c_str());
             }
         }
-        SET_ARGS("--no-pci");
-        SET_ARGS("--no-huge");
+        if ( lpop->m_pdevs_in_vdev.size() ) {
+            for (auto& pdev: lpop->m_pdevs_in_vdev) {
+                SET_ARGS("-a");
+                SET_ARGS(pdev.c_str());
+            }
+        }
+        else {
+            SET_ARGS("--no-pci");
+            SET_ARGS("--no-huge");
+        }
+
         std::string mem_str;
         SET_ARGS("-m");
         if ( cg->m_limit_memory.size() ) {
@@ -6654,12 +6700,26 @@ COLD_FUNC int main_test(int argc , char * argv[]){
     return (0);
 }
 
-COLD_FUNC void wait_x_sec(int sec) {
+#define SYNC_DELAY_MS   10
+COLD_FUNC void delay_dev_flush(int msec) {
+    for ( ; msec > 0; msec -= SYNC_DELAY_MS) {
+        for (int i = 0; i < g_trex.m_max_ports; i++) {
+            g_trex.m_ports[i]->dev_flush();
+        }
+        delay(SYNC_DELAY_MS);
+    }
+}
+
+COLD_FUNC void wait_x_sec(int sec, bool dev_flush) {
     int i;
     printf(" wait %d sec ", sec);
     fflush(stdout);
     for (i=0; i<sec; i++) {
-        delay(1000);
+        if (dev_flush) {
+            delay_dev_flush(1000);
+        } else {
+            delay(1000);
+        }
         printf(".");
         fflush(stdout);
     }
@@ -6674,6 +6734,9 @@ COLD_FUNC void set_driver() {
     uint8_t m_max_ports;
     if ( CGlobalInfo::m_options.m_is_vdev ) {
         m_max_ports = rte_eth_dev_count_avail() + CGlobalInfo::m_options.m_dummy_count;
+        if ( global_platform_cfg_info.m_if_list_vdevs.size() ) {
+            m_max_ports = global_platform_cfg_info.m_if_list_vdevs.size();
+        }
     } else {
         m_max_ports = port_map.get_max_num_ports();
     }
@@ -6686,8 +6749,12 @@ COLD_FUNC void set_driver() {
     for (int i=0; i<m_max_ports; i++) {
         CTVPort ctvport = CTVPort(i);
         if ( !ctvport.is_dummy() ) {
+            /* vdev needs to update device information from the devices */
+            if ( CGlobalInfo::m_options.m_is_devs_in_vdev ) {
+                struct rte_eth_conf dev_conf = {};
+                rte_eth_dev_configure(ctvport.get_repid(), 0, 0, &dev_conf);
+            }
             rte_eth_dev_info_get(ctvport.get_repid(), &dev_info);
-            break;
         }
     }
 
