@@ -19,8 +19,7 @@ public:
 
     GTPU(uint32_t teid, uint8_t src_ipv6[8], uint8_t dst_ipv6[8]);
 
-    ~GTPU(){
-     }
+    ~GTPU();
 
 
     virtual int Prepend(rte_mbuf * m, u_int16_t);

@@ -12,6 +12,10 @@ uint16_t Tunnel::RxCallback(uint16_t port, uint16_t queue,
                 struct rte_mbuf *pkts[], uint16_t nb_pkts, uint16_t max_pkts,
                 void *user_param) {
 
+    if (!CGlobalInfo::m_options.m_ip_cfg[port].is_gtp_enabled()) {
+        return nb_pkts;
+    }
+
     GTPU t;
     u_int8_t i = 0;
 

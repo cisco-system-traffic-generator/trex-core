@@ -123,12 +123,6 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     struct rte_ether_hdr * eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
     struct rte_tcp_hdr *tch = rte_pktmbuf_mtod_offset (pkt, struct rte_tcp_hdr *, l4_offset);
     struct rte_vlan_hdr *vh; 
-    struct rte_ipv4_hdr *iph = rte_pktmbuf_mtod_offset (pkt, struct rte_ipv4_hdr *, l3_offset);
-    uint8_t is_ip6 = 0 ;
-    if ((iph->version_ihl >> 4) == 4)
-        is_ip6 = 0;
-    else
-        is_ip6 = 1;
 
     struct Encapsulation * encap = (struct Encapsulation *) rte_pktmbuf_prepend(pkt, sizeof(struct
       Encapsulation));
@@ -160,6 +154,7 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
         /*Fix outer header IPv4 length */
         outer_ipv4->total_length = rte_cpu_to_be_16(pkt->pkt_len - RTE_ETHER_HDR_LEN);
     }
+    outer_ipv4->hdr_checksum = rte_ipv4_cksum(outer_ipv4);
 
     /*Fix UDP header length */
     //static uint16_t port = 0;
@@ -172,15 +167,9 @@ int GTPU::Prepend_ipv4_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     gtpu_header_t *gtpu = (gtpu_header_t *)(udp+1);
     gtpu->length = rte_cpu_to_be_16(rte_be_to_cpu_16(udp->dgram_len)  - sizeof(struct rte_udp_hdr)-sizeof(gtpu_header_t));
 
+    /* to keep offload features for inner packet header */
+    pkt->l2_len += sizeof(struct Encapsulation);
 
-    pkt->l3_len = sizeof(struct rte_ipv4_hdr);
-    pkt->ol_flags |= PKT_TX_IP_CKSUM | PKT_TX_IPV4;
-    if(is_ip6) {
-        /*Inner was Ipv6, outer is Ipv4 only*/
-        pkt->ol_flags &= ~PKT_TX_IPV6;
-    }
-
-    pkt->ol_flags &= ~PKT_TX_TCP_CKSUM;
     return 0;
  }
 
@@ -236,13 +225,9 @@ int GTPU::Prepend_ipv6_tunnel(rte_mbuf * pkt, u_int8_t l3_offset, u_int16_t queu
     gtpu_header_t *gtpu = (gtpu_header_t *)(udp+1);
     gtpu->length = rte_cpu_to_be_16(rte_be_to_cpu_16(udp->dgram_len)  - sizeof(struct rte_udp_hdr)-sizeof(gtpu_header_t));
 
+    /* to keep offload features for inner packet header */
+    pkt->l2_len += sizeof(struct Encapsulation6);
 
-    pkt->l3_len = sizeof(struct rte_ipv6_hdr);
-    pkt->ol_flags &= ~PKT_TX_TCP_CKSUM;
-    pkt->ol_flags |= PKT_TX_IPV6;
-
-    /*outer is Ipv6 only*/
-    pkt->ol_flags &= ~PKT_TX_IPV4;
     return 0;
 }
 
@@ -387,7 +372,12 @@ int GTPU::Adjust(rte_mbuf * pkt, u_int8_t queue ) {
 
 GTPU::GTPU( ):teid(0),dst_ip(0),src_ip(0)
 {
-  
+    m_outer_hdr = nullptr;
+}
+
+GTPU::~GTPU()
+{
+    delete m_outer_hdr;
 }
 
 void GTPU::store_ipv4_gtpu_info(uint32_t teid,uint32_t src_ip, uint32_t dst_ip, void *pre_cooked_header) 
