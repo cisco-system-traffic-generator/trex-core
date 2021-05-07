@@ -675,10 +675,14 @@ def bind_one(dev_id, driver, force):
         try:
             f.write("%04x %04x" % (dev["Vendor"], dev["Device"]))
             f.close()
-        except:
-            print("Error: bind failed for %s - Cannot write new PCI ID to " \
-                "driver %s" % (dev_id, driver))
-            return
+        except IOError as ioex:
+            # in case we're binding two identical cards
+            if ioex.errno == errno.EEXIST:
+                f.close()
+            else:
+                print("Error: bind failed for %s - Cannot write new PCI ID to " \
+                    "driver %s" % (dev_id, driver))
+                return
 
     # do the bind by writing to /sys
     filename = "/sys/bus/pci/drivers/%s/bind" % driver
