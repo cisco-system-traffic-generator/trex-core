@@ -711,7 +711,10 @@ Other network devices
     def is_hugepage_file_exits(self,socket_id):
         t = ['2048','1048576']
         for obj in t:
-            filename = '/sys/devices/system/node/node{}/hugepages/hugepages-{}kB/nr_hugepages'.format(socket_id,obj)
+            if map_driver.args.ignore_numa:
+                filename = '/sys/kernel/mm/hugepages/hugepages-{}kB/nr_hugepages'.format(obj)
+            else:
+                filename = '/sys/devices/system/node/node{}/hugepages/hugepages-{}kB/nr_hugepages'.format(socket_id,obj)
             if os.path.isfile(filename):
                 return (True,filename,int(obj))
         return (False,None,None)
@@ -719,6 +722,8 @@ Other network devices
 
     def config_hugepages(self, wanted_count = None):
         mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
+        nodes = 2
+
         if 'hugetlbfs' not in mount_output:
             huge_mnt_dir = '/mnt/huge'
             if not os.path.isdir(huge_mnt_dir):
@@ -726,7 +731,10 @@ Other network devices
                 os.makedirs(huge_mnt_dir)
             os.system('mount -t hugetlbfs nodev %s' % huge_mnt_dir)
 
-        for socket_id in range(2):
+        if map_driver.args.ignore_numa:
+            nodes = 1
+
+        for socket_id in range(nodes):
             r = self.is_hugepage_file_exits(socket_id)
             if not r[0]:
                 if socket_id == 0:
