@@ -25,13 +25,15 @@ We provide here a reference to all the plugins, their methods, init JSONs and so
     :maxdepth: 2
 
     plugins/arp
-    plugins/igmp
-    plugins/ipv6
+    plugins/cdp
     plugins/dhcp
     plugins/dhcpv6
-    plugins/icmp
     plugins/dot1x
+    plugins/icmp
+    plugins/igmp
     plugins/ipfix
+    plugins/ipv6
+    plugins/lldp
+    plugins/mdns
     plugins/tdl
-    plugins/cdp
-    plugins/lldp 
+

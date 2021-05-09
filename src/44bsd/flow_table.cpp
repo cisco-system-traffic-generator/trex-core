@@ -258,7 +258,7 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
                 return;
     }
 
-    if (m_service_filtered_mask & TrexPort::BGP ) {
+    if (m_service_filtered_mask & TrexPort::BGP) {
         if ( parser.m_protocol == IPPROTO_TCP ) {
             TCPHeader *l4_header = (TCPHeader *)parser.m_l4;
             uint16_t src_port = l4_header->getSourcePort();
@@ -270,7 +270,7 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         }
     }
 
-    if (m_service_filtered_mask & TrexPort::DHCP ) {
+    if (m_service_filtered_mask & TrexPort::DHCP) {
         if ( parser.m_protocol == IPPROTO_UDP ) {
             UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
             uint16_t src_port = l4_header->getSourcePort();
@@ -283,16 +283,23 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         }
     }
 
-    if  ( (m_service_filtered_mask & TrexPort::TRANSPORT) && 
+    if ( (m_service_filtered_mask & TrexPort::TRANSPORT) && 
             ((parser.m_protocol == IPPROTO_UDP) 
             || (parser.m_protocol == IPPROTO_TCP)) ) {
         UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
-
         uint16_t dst_port = l4_header->getDestPort();
+        if ((dst_port & 0xff00) == 0xff00) {
+            action = tREDIRECT_RX_CORE;
+            return;
+        }
+    }
 
-        if ((dst_port & 0xff00) == 0xff00){
-                action = tREDIRECT_RX_CORE;
-                return;
+    if  ((m_service_filtered_mask & TrexPort::MDNS) && (parser.m_protocol == IPPROTO_UDP)) {
+        UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+        uint16_t dst_port = l4_header->getDestPort();
+        if (dst_port == MDNS_PORT) {
+            action = tREDIRECT_RX_CORE;
+            return;
         }
     }
 

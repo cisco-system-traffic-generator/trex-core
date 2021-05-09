@@ -980,6 +980,13 @@ class OPTIONS_DB_ARGS:
          'dest': 'allow_dhcp',
          'help': 'filter mode with dhcpv4/dhcpv6 packets forward to rx'})
 
+    SERVICE_MDNS_FILTERED = ArgumentPack(
+        ['--mdns'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_mdns',
+         'help': 'filter mode with mDNS packets forward to rx'})
+
     SERVICE_EMU_FILTERED = ArgumentPack(
         ['--emu'],
         {'action': 'store_true',
@@ -1500,6 +1507,44 @@ class OPTIONS_DB_ARGS:
          'action': action_check_min_max(),
          'min_val': 0})
 
+    #MDNS Query
+    MDNS_QUERY_NAME = ArgumentPack(
+        ['-n', '--name'],
+        {'help': 'Hostname to query',
+         'required': True,
+         'type': str})
+
+    MDNS_QUERY_TYPE = ArgumentPack(
+        ['-t', '--type'],
+        {'help': 'mDNS query type',
+         'dest': 'dns_type',
+         'default': "A",
+         'choices': ["A", "AAAA","TXT", "PTR"],
+         'type': str})
+
+    MDNS_QUERY_CLASS = ArgumentPack(
+        ['-c', '--class'],
+        {'help': 'mDNS class type',
+        'dest': 'dns_class',
+        'default': "IN",
+        'type': str})
+
+    MDNS_QUERY_IPV6 = ArgumentPack(
+        ['-6', '--ipv6'],
+        {'help': 'Send query using Ipv6',
+        'dest': 'ipv6',
+        'action': 'store_true'}
+    )
+
+    MDNS_HOSTS_LIST = ArgumentPack(
+        ['--hosts'], # -h is taken by help
+        {'help': 'List of hosts to add/remove from mDNS client',
+         'dest': 'hosts',
+         'type': str, 
+         'nargs': '+', # at least one argument must be provided , -h Host1 Host2 Host3
+         'required': True
+        }
+    )
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1632,6 +1677,7 @@ class OPTIONS_DB_GROUPS:
         [
             SERVICE_BGP_FILTERED,
             SERVICE_DHCP_FILTERED,
+            SERVICE_MDNS_FILTERED,
             SERVICE_EMU_FILTERED,
             SERVICE_TRAN_FILTERED,
             SERVICE_NO_TCP_UDP_FILTERED,

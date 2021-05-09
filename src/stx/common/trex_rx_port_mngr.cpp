@@ -622,7 +622,7 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 }
 
 /* quick filter to verify that the packet is eligible for emu. in case of multi-core the filter is done in 
-DP cores and this is just a quick filter */    
+DP cores and this is just a quick filter */
 bool RXPortManager::is_emu_filter(rte_mbuf_t *m){
     uint8_t *p = rte_pktmbuf_mtod(m, uint8_t*);
     uint16_t pkt_size= rte_pktmbuf_data_len(m);
@@ -640,12 +640,16 @@ bool RXPortManager::is_emu_filter(rte_mbuf_t *m){
         return true;
     }
 
-    if  (proto == IPPROTO_UDP) {
+    if (proto == IPPROTO_UDP) {
         UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
         uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
         if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
              (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
+            return true;
+        }
+        if (dst_port == MDNS_PORT) {
+            // MDNS
             return true;
         }
     }
