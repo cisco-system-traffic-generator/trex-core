@@ -42,27 +42,32 @@ class EMUPluginBase(object):
                 verbose: bool
                     Show verbose version of each counter, default is True.
 
-            :return:
-                | dict:
-                | Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
-                |    {'pluginName': [{'help': 'Explanation 1',
-                |                     'info': 'INFO',
-                |                     'name': 'counterOne',
-                |                     'unit': 'pkts',
-                |                     'value': 8,
-                |                     'zero': False},
-                |                    {'help': 'Explanation 2',
-                |                     'info': 'ERROR',
-                |                     'name': 'counterTwo',
-                |                     'unit': 'pkts',
-                |                     'value': 6,
-                |                     'zero': False}]}
-                |
-                | When verbose is False, each plugins returns a dictionary of counterName, value pairs.
-                |    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
-                |
-            :raises:
-                + :exc: TRexError
+            :return: Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
+
+                .. highlight:: python
+                .. code-block:: python
+
+                    {'pluginName': [{'help': 'Explanation 1',
+                                     'info': 'INFO',
+                                     'name': 'counterOne',
+                                     'unit': 'pkts',
+                                     'value': 8,
+                                     'zero': False},
+                                    {'help': 'Explanation 2',
+                                     'info': 'ERROR',
+                                     'name': 'counterTwo',
+                                     'unit': 'pkts',
+                                     'value': 6,
+                                     'zero': False}]}
+
+                When verbose is False, each plugins returns a dictionary of counterName, value pairs.
+
+                .. highlight:: python
+                .. code-block:: python
+
+                    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
+
+            :raises: TRexError
         """
         if not self.ns_data_cnt:
             raise TRexError("Namespace counter command was not provided.")
@@ -93,28 +98,32 @@ class EMUPluginBase(object):
                 verbose: bool
                     Show verbose version of each counter, default is True.
 
-            :return:
-                | dict:
-                | Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
-                |    {'pluginName': [{'help': 'Explanation 1',
-                |                     'info': 'INFO',
-                |                     'name': 'counterOne',
-                |                     'unit': 'pkts',
-                |                     'value': 8,
-                |                     'zero': False},
-                |                    {'help': 'Explanation 2',
-                |                     'info': 'ERROR',
-                |                     'name': 'counterTwo',
-                |                     'unit': 'pkts',
-                |                     'value': 6,
-                |                     'zero': False}]}
-                |
-                | When verbose is False, each plugins returns a dictionary of counterName, value pairs.
-                |    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
-                |
+            :return: Dictionary of all wanted counters. When verbose is True, each plugin contains a list of counter dictionaries.
 
-            :raises:
-                + :exc: TRexError
+                .. highlight:: python
+                .. code-block:: python
+
+                    {'pluginName': [{'help': 'Explanation 1',
+                                    'info': 'INFO',
+                                    'name': 'counterOne',
+                                    'unit': 'pkts',
+                                    'value': 8,
+                                    'zero': False},
+                                    {'help': 'Explanation 2',
+                                    'info': 'ERROR',
+                                    'name': 'counterTwo',
+                                    'unit': 'pkts',
+                                    'value': 6,
+                                    'zero': False}]}
+
+                When verbose is False, each plugins returns a dictionary of counterName, value pairs.
+
+                .. highlight:: python
+                .. code-block:: python
+
+                    {'pluginName': {'counterOne': 8, 'counterTwo': 6}}
+
+            :raises: TRexError
         """
         if not self.client_data_cnt:
             raise TRexError("Client counter command was not provided.")
@@ -140,8 +149,7 @@ class EMUPluginBase(object):
                   - True: Clearing was successful.
                   - False: Clearing was not successful.
 
-            :raises:
-                + :exc: TRexError
+            :raises: TRexError
         """
         if not self.ns_data_cnt:
             raise TRexError("Namespace counter command was not provided.")
@@ -164,8 +172,7 @@ class EMUPluginBase(object):
                   - True: Clearing was successful.
                   - False: Clearing was not successful.
 
-            :raises:
-                + :exc: TRexError
+            :raises: TRexError
         """
         if not self.client_data_cnt:
             raise TRexError("Client counter command was not provided.")

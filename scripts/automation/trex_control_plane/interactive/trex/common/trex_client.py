@@ -46,12 +46,13 @@ import pprint
 
 ## Filtered Service Mode Mask ##
 ## IMPORTANT - UPDATE ALSO in set_service_mode() docstring! ##
-NO_MASK         = 0
-NO_TCP_UDP_MASK = 1
-BGP_MASK        = 2
-DHCP_MASK       = 4
-TRANSPORT_MASK       = 8
-ALL_MASK        = 255  # all bits are on
+NO_MASK             = 0
+NO_TCP_UDP_MASK     = 1
+BGP_MASK            = 2
+DHCP_MASK           = 4
+TRANSPORT_MASK      = 8
+MDNS_MASK           = 16
+ALL_MASK            = 255  # all bits are on
 
 
 # imarom: move me to someplace apropriate
@@ -2185,7 +2186,8 @@ class TRexClient(object):
                     NO_TCP_UDP_MASK = 1
                     BGP_MASK        = 2
                     DHCP_MASK       = 4
-                    TRANSPORT       = 8 
+                    TRANSPORT       = 8
+                    MDNS            = 16
                     ALL_MASK        = 255
 
             :raises:
@@ -2901,8 +2903,10 @@ class TRexClient(object):
         if filtered:
             if opts.allow_dhcp:
                 mask |= DHCP_MASK
+            if opts.allow_mdns:
+                mask |= MDNS_MASK
             if opts.allow_emu:
-                mask |= ( DHCP_MASK | NO_TCP_UDP_MASK | TRANSPORT_MASK )
+                mask |= ( DHCP_MASK | MDNS_MASK | NO_TCP_UDP_MASK | TRANSPORT_MASK )
             if opts.allow_all:
                 mask = ALL_MASK
             if opts.allow_bgp:

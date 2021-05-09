@@ -17,12 +17,12 @@ limitations under the License.
 #define _TCP_HEADER_H_
 
 #include "PacketHeaderBase.h"
-#define TCP_HEADER_LEN 20
-#define BGP_PORT       179
+#define TCP_HEADER_LEN  20
+#define BGP_PORT        179
 
-#define DHCPv4_PORT      67
-#define DHCPv6_PORT      546
-
+#define DHCPv4_PORT     67
+#define DHCPv6_PORT     546
+#define MDNS_PORT       5353
 class TCPUDPHeaderBase
 {
 public:
