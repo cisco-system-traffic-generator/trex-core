@@ -813,25 +813,6 @@ Consider the following if using dummy ports for a single interface TRex generato
 | | ASTF | functional | full TCP stack
 |=================
 
-
-=== bonding interfaces
-
-It provides similar capabilities found in Linux bonding driver. Link Aggregation 802.3AD is supported in mode 4. See link:https://doc.dpdk.org/guides/prog_guide/link_bonding_poll_mode_drv_lib.html[here] for the details.
-
-Configuration example:
-
-[source,bash]
-----
-    ...
-    interfaces: [ '--vdev=net_bonding0,mode=0,slave=d8:00.0,slave=d8:00.1', 'dummy' ]
-    ...
-----
-
-The bonded device inherits attributes from the first slave device. All slave devices should have same speed and duplex.
-
-NOTE: When mode 4 is used, more settle time could be needed. Use -w command line option to give enough time for it.
-
-
 === Configuring for running with router (or other L3 device) as DUT
 
 You can follow link:trex_config_guide.html[this presentation] for an example of how to configure the router as a DUT.

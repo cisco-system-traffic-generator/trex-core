@@ -571,8 +571,6 @@ public:
         m_is_sleepy_scheduler = false;
         m_is_queuefull_retry  = true;
         m_is_vdev             = false;
-        m_is_devs_in_vdev     = false;
-        m_pdevs_in_vdev.clear();
         m_is_bird_enabled     = false;
         m_ezmq_ch_enabled     = false;
         m_emzq_ch_tcp         = false;
@@ -627,8 +625,6 @@ public:
     bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
     bool            m_is_queuefull_retry;    // retry on queue full
     bool            m_is_vdev;
-    bool            m_is_devs_in_vdev;
-    std::vector<std::string>    m_pdevs_in_vdev;
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
     bool            m_ezmq_ch_enabled;
