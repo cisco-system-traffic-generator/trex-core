@@ -134,13 +134,15 @@ TrexStatelessMulticoreSoftwareFSLatencyStats::get_rx_stats(uint8_t port_id, rx_p
                                 TrexPlatformApi::driver_stat_cap_e type, const vector<pair<uint8_t, uint8_t>> & core_ids) {
     m_fs_latency_sum.reset_stats_partial(0, MAX_FLOW_STATS - 1, TrexPlatformApi::IF_STAT_IPV4_ID);
     m_fs_latency_sum.reset_stats_partial(0, MAX_FLOW_STATS_PAYLOAD - 1, TrexPlatformApi::IF_STAT_PAYLOAD);
+    vlan_stats_map_vector_t map_vlan_stats_vector;
+
     for (auto& core_id_dir_tuple : core_ids) {
         m_fs_latency_sum += *(m_fs_latency_dp_core_ptrs[core_id_dir_tuple.second][core_id_dir_tuple.first]);
         if (reset) {
             m_dp_cores[core_id_dir_tuple.first]->clear_fs_latency_stats_partial(core_id_dir_tuple.second, min, max, type);
         }
     }
-    m_fs_latency_sum.get_stats(rx_stats, min, max, reset, type);
+    m_fs_latency_sum.get_stats(rx_stats, min, max, reset, type, &map_vlan_stats_vector);
     return 0;
 }
 

@@ -315,7 +315,7 @@ public:
                            bool reset,
                            TrexPlatformApi::driver_stat_cap_e type) {
         
-        return m_latency.get_stats(rx_stats, min, max, reset, type);
+        return m_latency.get_stats(rx_stats, min, max, reset, type, &m_vlan_stat_map_vector);
     }
 
     void set_zmq_cn(CZmqPacketWriter * wr,CZmqPacketReader * rd){
@@ -514,6 +514,7 @@ private:
     CZmqPacketReader *           m_zmq_rd;
     
     CFlowStatParser *             m_parser;
+    vlan_stats_map_vector_t       m_vlan_stat_map_vector;
 
 };
 

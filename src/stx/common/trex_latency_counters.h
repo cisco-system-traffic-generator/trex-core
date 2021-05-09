@@ -5,10 +5,10 @@
 #include "time_histogram.h"
 #include "utl_jitter.h"
 #include <map>
-
+#include <vector>
 typedef std::map<uint32_t, rx_per_flow_t> vlan_stat_map_t;
 typedef std::map<uint32_t, rx_per_flow_t>::iterator vlan_stat_map_it_t;
-
+typedef std::vector<vlan_stat_map_t> vlan_stats_map_vector_t ;
 /**************************************
  * CRFC2544Info
  *************************************/
@@ -106,7 +106,7 @@ public:
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
                               hr_time_t hr_time_now, uint16_t vlan_tag);
-    void update_vlan_tag_stats(uint32_t, uint64_t, uint64_t, vlan_stat_map_t*);
+    void update_vlan_tag_stats(uint32_t, uint64_t, uint64_t, uint16_t);
     void set_dump_info(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head);
     void dump_err_pkt(const char* info, bool dump_latency = false);
 
@@ -117,8 +117,7 @@ public:
                    int max,
                    bool reset,
                    TrexPlatformApi::driver_stat_cap_e type,
-                   vlan_stat_map_t *vlan_stats = NULL,
-                   bool vlan_stat = false);
+                   vlan_stats_map_vector_t *vlan_stats  = NULL);
 
     void reset_stats();
     void reset_stats_partial(int min, int max, TrexPlatformApi::driver_stat_cap_e type);

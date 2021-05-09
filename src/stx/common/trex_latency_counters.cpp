@@ -194,11 +194,11 @@ COLD_FUNC void RXLatency::dump_err_pkt(const char* info, bool dump_latency) {
 }
 
 void RXLatency::update_vlan_tag_stats(uint32_t vlan, uint64_t m_bytes, uint64_t m_pkts,
-                                        vlan_stat_map_t *vlan_tag_stats){
+                                      uint16_t hw_id /*vlan_stat_map_t *vlan_tag_stats*/){
         rx_per_flow_t  rx_stats, rx_stats_old;
 
-        vlan_stat_map_it_t it = vlan_tag_stats->find(vlan);
-        if (it == vlan_tag_stats->end()){
+        vlan_stat_map_it_t it = m_rx_pg_vlan_payload[hw_id].find(vlan);
+        if (it == m_rx_pg_vlan_payload[hw_id].end()){
             rx_stats.add_bytes(m_bytes);
             rx_stats.add_pkts(m_pkts);
         } else {
@@ -207,7 +207,7 @@ void RXLatency::update_vlan_tag_stats(uint32_t vlan, uint64_t m_bytes, uint64_t 
             rx_stats.add_bytes((rx_stats_old.get_bytes() + m_bytes));
             rx_stats.add_pkts ((rx_stats_old.get_pkts() + m_pkts));
         }
-        vlan_tag_stats->insert({vlan, rx_stats});
+        m_rx_pg_vlan_payload[hw_id].insert({vlan, rx_stats});
 
 }
 void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
@@ -329,7 +329,7 @@ RXLatency::handle_correct_flow(
     //handle vlan tag map addition code 
     if (fsp_head->is_multi_tag && vlan_tag){
         this->update_vlan_tag_stats(vlan_tag, (pkt_len + 4), 1, 
-                                    &m_rx_pg_vlan_payload[fsp_head->hw_id]);
+                                    fsp_head->hw_id);
     }
     uint64_t d = (hr_time_now - fsp_head->time_stamp );
     dsec_t ctime = ptime_convert_hr_dsec(d);
@@ -387,9 +387,10 @@ RXLatency::handle_seq_number_bigger_than_expected(
 
 void
 RXLatency::reset_stats() {
+    
     for (int hw_id = 0; hw_id < MAX_FLOW_STATS; hw_id++) {
         m_rx_pg_stat[hw_id].clear();
-        m_rx_pg_vlan_payload[hw_id].clear();
+        //m_rx_pg_vlan_payload[hw_id].clear();
     }
 }
 
@@ -413,23 +414,19 @@ RXLatency::get_stats(rx_per_flow_t *rx_stats,
                      int max,
                      bool reset,
                      TrexPlatformApi::driver_stat_cap_e type,
-                     vlan_stat_map_t *rx_vlan_stats,
-                     bool vlan_stat) {
+                     vlan_stats_map_vector_t *rx_vlan_stats) {
 
  
-//    if (vlan_stat){
     for (int hw_id = min; hw_id <= max; hw_id++) {
         if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
             rx_stats[hw_id - min] = m_rx_pg_stat_payload[hw_id];
         } else {
-            rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
+           rx_stats[hw_id - min] = m_rx_pg_stat[hw_id];
         }
-        if (vlan_stat) {
 
-        rx_vlan_stats[hw_id - min] = m_rx_pg_vlan_payload[hw_id];
+        rx_vlan_stats->push_back(m_rx_pg_vlan_payload[hw_id]);
 
 
-        }
         if (reset) {
             if (type == TrexPlatformApi::IF_STAT_PAYLOAD) {
                 m_rx_pg_stat_payload[hw_id].clear();
@@ -456,6 +453,7 @@ RXLatency::operator+= (const RXLatency& in) {
     return *this;
 }
 
+
 std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
     //vlan_stat_map_it_t itr;
     os << "m_rx_stats = <";
@@ -463,12 +461,14 @@ std::ostream& operator<<(std::ostream& os, const RXLatency& in) {
         os << in.m_rx_pg_stat[i] << ", ";
     } 
     os << ">" << std::endl;
+    std::cout << "Vlan stats"<< std::endl;
     os << "m_rx_pg_stat_payload = < ";
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
         os << in.m_rx_pg_stat_payload[i] << ", ";
     }
     for (int i = 0; i< MAX_FLOW_STATS_PAYLOAD; i++) {
         for (auto itr = in.m_rx_pg_vlan_payload[i].begin(); itr !=in.m_rx_pg_vlan_payload[i].end(); itr++){
+            std::cout << "Vlan stats"<< itr->first << "stats = " << itr->second << ", " << std::endl;
             os << "vlan = " << itr->first << "stats = " << itr->second << ", ";
         }
     }
