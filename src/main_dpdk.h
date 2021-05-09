@@ -79,7 +79,6 @@ class CPhyEthIF  {
         m_stats_err_cnt  = 0;
         m_is_dummy       = false;
         m_dev_tx_offload_needed =0;
-        m_dev_flush_needed = false;
         m_stats.Clear();
     }
     virtual ~CPhyEthIF() {}
@@ -243,9 +242,6 @@ class CPhyEthIF  {
 
     virtual void configure_rss();
 
-    bool is_dev_flush_needed() { return m_dev_flush_needed; }
-    void dev_flush();
-
 private:
     void conf_hardware_astf_rss();
     void conf_multi_rx();
@@ -294,7 +290,6 @@ private:
 
  protected:
     bool                     m_is_dummy;
-    bool                     m_dev_flush_needed;
 
 } ;
 
@@ -335,7 +330,7 @@ class CGlobalTRexInterface  {
 };
 
 bool fill_pci_dev(struct rte_eth_dev_info *dev_info, struct rte_pci_device* pci_dev);
-void wait_x_sec(int sec, bool dev_sync = false);
+void wait_x_sec(int sec);
 
 typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/
 typedef uint8_t repid_t; /* DPDK port id  */

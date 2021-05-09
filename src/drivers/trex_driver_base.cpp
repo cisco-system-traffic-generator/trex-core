@@ -154,7 +154,6 @@ CTRexExtendedDriverDb::CTRexExtendedDriverDb() {
     register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverI40evf::create);
     register_driver(std::string("net_ixgbe_vf"), CTRexExtendedDriverIxgbevf::create);
     register_driver(std::string("net_netvsc"), CTRexExtendedDriverNetvsc::create);
-    register_driver(std::string("net_bonding"), CTRexExtendedDriverBonding::create);
 
     /* raw socket */
     register_driver(std::string("net_af_packet"), CTRexExtendedDriverAfPacket::create);

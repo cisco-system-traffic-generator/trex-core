@@ -75,8 +75,6 @@ TrexDpCore::idle_state_loop() {
             continue;
         }
 
-        m_core->flush_tx_queue(); /* sync device tx */
-
         bool had_rx = rx_for_idle();
         if (had_rx) {
             counter = 0;

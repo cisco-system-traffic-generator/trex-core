@@ -131,7 +131,6 @@ public:
         return(false);
     }
 
-    virtual bool is_device_flush_needed(CPhyEthIF * _if) { return false; }
 
 protected:
     // flags describing interface capabilities
@@ -190,9 +189,6 @@ public:
         return (m_real_drv->is_override_dpdk_params(dpdk_p));
     }
 
-    bool is_device_flush_needed(CPhyEthIF * _if){
-        return m_real_drv->is_device_flush_needed(_if);
-    }
 
     int set_rcv_all(CPhyEthIF * _if, bool set_on);
     TRexPortAttr * create_port_attr(tvpid_t tvpid, repid_t repid);
