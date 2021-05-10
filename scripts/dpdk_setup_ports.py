@@ -66,7 +66,7 @@ class ConfigCreator(object):
 
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
-    def __init__(self, cpu_topology, interfaces, include_lcores = [], exclude_lcores = [], only_first_thread = False, zmq_rpc_port = None, zmq_pub_port = None, prefix = None, ignore_numa = False):
+    def __init__(self, cpu_topology, interfaces, include_lcores = [], exclude_lcores = [], only_first_thread = False, zmq_rpc_port = None, zmq_pub_port = None, prefix = None, ignore_numa = False, stack=None):
         self.cpu_topology = copy.deepcopy(cpu_topology)
         self.interfaces   = copy.deepcopy(interfaces)
         del cpu_topology
@@ -153,6 +153,7 @@ class ConfigCreator(object):
         self.zmq_pub_port        = zmq_pub_port
         self.zmq_rpc_port        = zmq_rpc_port
         self.ignore_numa         = ignore_numa
+        self.stack               = stack
 
     @staticmethod
     def verify_mac(mac_string):
@@ -199,6 +200,8 @@ class ConfigCreator(object):
         config_str += "  interfaces: ['%s']\n" % "', '".join([interface['Slot_str'] + interface.get("sub_interface", "") for interface in self.interfaces])
         if self.speed > 10:
             config_str += '  port_bandwidth_gb: %s\n' % self.speed
+        if self.stack is not None:
+            config_str += '  stack: %s\n' % self.stack
         if self.prefix:
             config_str += '  prefix: %s\n' % self.prefix
         if self.zmq_pub_port:
@@ -1300,7 +1303,8 @@ Other network devices
 
         config = ConfigCreator(self._get_cpu_topology(), wanted_interfaces, include_lcores = map_driver.args.create_include, exclude_lcores = map_driver.args.create_exclude,
                                only_first_thread = map_driver.args.no_ht, ignore_numa = map_driver.args.ignore_numa,
-                               prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, zmq_pub_port = map_driver.args.zmq_pub_port)
+                               prefix = map_driver.args.prefix, zmq_rpc_port = map_driver.args.zmq_rpc_port, 
+                               zmq_pub_port = map_driver.args.zmq_pub_port, stack = map_driver.args.stack)
         if map_driver.args.output_config:
             config.create_config(filename = map_driver.args.output_config)
         else:
@@ -1548,6 +1552,10 @@ To see more detailed info on interfaces (table):
 
     parser.add_argument("-o", default=None, action='store', metavar='PATH', dest = 'output_config',
                       help="""Output the config to this file.""",
+     )
+     
+    parser.add_argument("--stack", default=None, action='store', dest='stack', choices=['legacy', 'linux_based'],
+                      help="""Stack to be used for network ports. Default: legacy""",
      )
 
     parser.add_argument("--prefix", default=None, action='store',
