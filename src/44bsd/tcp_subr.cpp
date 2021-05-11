@@ -1047,13 +1047,13 @@ void CServerIpPayloadInfo::update_template_flows(CPerProfileCtx* pctx) {
                 flow->m_pctx->m_template_rw = new_pctx->m_template_rw;
             }
             else {
-                // trigger flow termination
-                flow->m_pctx->deactivate();
-                flow->m_pctx->set_nc(true);
-
                 // remove identifying template information
                 flow->m_payload_info = nullptr;
                 it = m_template_flows.erase(it);
+
+                // terminate flow immediately
+                CTcpPerThreadCtx* ctx = flow->m_pctx->m_ctx;
+                ctx->m_ft.terminate_flow(ctx, flow, true);
                 continue;
             }
         }
