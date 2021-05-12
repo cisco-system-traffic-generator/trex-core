@@ -96,9 +96,9 @@ class ConfigCreator(object):
                 for lcore in list(lcores):
                     if include_lcores and lcore not in include_lcores:
                         cores[core].remove(lcore)
-                    if exclude_lcores and lcore in exclude_lcores:
+                    elif exclude_lcores and lcore in exclude_lcores:
                         cores[core].remove(lcore)
-                    if lcore > self.MAX_LCORE_NUM:
+                    elif lcore > self.MAX_LCORE_NUM:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
