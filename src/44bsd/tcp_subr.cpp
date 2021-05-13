@@ -1018,7 +1018,10 @@ bool CServerIpPayloadInfo::is_server_compatible(CTcpServerInfo* in_server) {
 
 CServerTemplateInfo* CServerIpPayloadInfo::get_reference_template_info() {
     if (likely(m_template_ref)) {
-        return m_template_ref;
+        if (likely(m_template_ref->get_profile_ctx()->is_open_flow_allowed())) {
+            return m_template_ref;
+        }
+        m_template_ref = nullptr;
     }
     for (auto it = m_payload_map.begin(); it != m_payload_map.end(); it++) {
         auto pctx = it->second.get_profile_ctx();
