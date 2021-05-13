@@ -134,10 +134,13 @@ TrexPublisher::publish_raw_json(const std::string &s) {
      }
 }
 
-bool  TrexPublisher::add_session_id(uint32_t session_id){
+bool  TrexPublisher::add_session_id(uint32_t session_id, bool is_reader){
     // check if it not already exists 
     for (int i = 0; i < m_ctxs.size(); i++ ) {
         if (m_ctxs[i]->m_session_id ==session_id) {
+            if (!is_reader) {
+                m_ctxs[i]->m_reader_mode = is_reader;
+            }
             return false;
         }
     }
@@ -146,6 +149,7 @@ bool  TrexPublisher::add_session_id(uint32_t session_id){
     ctx->m_seq =0;
     ctx->m_qevents = Json::arrayValue;
     ctx->m_last_query = now_sec();
+    ctx->m_reader_mode = is_reader;
 
     m_ctxs.push_back(ctx);
     return (true);
@@ -155,8 +159,7 @@ bool  TrexPublisher::remove_session_id(uint32_t session_id){
     for (int i = 0; i < m_ctxs.size(); i++ ) {
         if (m_ctxs[i]->m_session_id == session_id) {
             TrexPublisherCtx* p=m_ctxs[i];
-            delete p;
-            m_ctxs.erase(m_ctxs.begin() + i);
+            p->m_reader_mode = true; // changed to read-only session
             return (true);
         }
     }
@@ -186,14 +189,21 @@ TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
     value["data"] = data;
 
     if (m_is_interactive){
-        for (int i = 0; i < m_ctxs.size(); i++ ) {
+        for (auto it = m_ctxs.begin(); it != m_ctxs.end(); ) {
+            TrexPublisherCtx* ctx = *it;
             // don't add to stall context -- disconnect without removing the session_id
-            if ((now_sec() - m_ctxs[i]->m_last_query) < 10.0 ) {
+            if (ctx->m_qevents.empty() || ((now_sec() - ctx->m_last_query) < 10.0)) {
                 Json::Value valctx;
                 valctx =value;
-                valctx["seq"] =m_ctxs[i]->m_seq++;
-                m_ctxs[i]->m_qevents.append(valctx);
+                valctx["seq"] = ctx->m_seq++;
+                ctx->m_qevents.append(valctx);
             }
+            else if (ctx->m_reader_mode) {
+                delete *it;
+                it = m_ctxs.erase(it);
+                continue;
+            }
+            it++;
         }
         publish_json("{}");
     }else{

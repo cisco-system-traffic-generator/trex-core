@@ -121,6 +121,7 @@ public:
 
 
     void add_session_id(uint8_t port_id, uint32_t session_id);
+    void add_session_id(uint32_t session_id);   // for reader mode session
     void remove_session_id(uint8_t port_id);
     
     /**
