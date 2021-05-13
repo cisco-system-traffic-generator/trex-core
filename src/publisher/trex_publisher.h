@@ -35,7 +35,8 @@ class TrexPublisherCtx {
     Json::Value     m_qevents;
     dsec_t          m_last_query;
 
-    uint32_t        m_seq;  
+    uint32_t        m_seq;
+    bool            m_reader_mode;
 };
 
 class TrexPublisher {
@@ -111,7 +112,7 @@ public:
 
     virtual bool  get_queue_events(Json::Value & val,uint32_t session_id);
 
-    virtual bool  add_session_id(uint32_t session_id);
+    virtual bool  add_session_id(uint32_t session_id, bool is_reader);
 
     virtual bool  remove_session_id(uint32_t session_id);
 
