@@ -38,6 +38,10 @@ TrexSTX::TrexSTX(const TrexSTXCfg &cfg) : m_rpc_server(cfg.m_rpc_req_resp_cfg), 
     }
 }
 
+void TrexSTX::add_session_id(uint32_t session_id){
+    get_publisher()->add_session_id(session_id, true);  // reader mode
+}
+
 void TrexSTX::add_session_id(uint8_t port_id, 
                              uint32_t session_id){
     assert(session_id!=0);
@@ -48,7 +52,7 @@ void TrexSTX::add_session_id(uint8_t port_id,
 
     m_session_id_ports[port_id] = session_id;
     if ((get_ref_session_id(session_id)== 1) && (new_ref==0)){
-        get_publisher()->add_session_id(session_id);
+        get_publisher()->add_session_id(session_id, false); // port owner mode
     }   
     if ((old_id>0) && (old_ref==1) && (get_ref_session_id(old_id)==0)){
         get_publisher()->remove_session_id(old_id);

@@ -335,7 +335,7 @@ class TRexSubscriber():
                         name     = msg['name']
                         data     = msg['data']
                         msg_type = msg['type']
-                        if self.seq != 0:
+                        if self.seq != 0 and msg['seq'] != 0:
                             if msg['seq'] != self.seq:
                                 s = " SEQ ERROR {} {} ".format(msg['seq'],self.seq)
                                 raise Exception(s)

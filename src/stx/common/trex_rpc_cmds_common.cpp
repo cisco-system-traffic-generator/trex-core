@@ -247,6 +247,8 @@ TrexRpcCmdGetAsyncEvents::_run(const Json::Value &params, Json::Value &result) {
         res["data"]   = val;
     }else{
         res["data"]   = Json::arrayValue;
+        // add reader mode session implicitly
+        get_stx()->add_session_id(session_id);
     }
 
     return (TREX_RPC_CMD_OK);
