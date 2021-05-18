@@ -37,6 +37,7 @@ inline std::string methodName(const std::string& prettyFunction)
 
 // make the class singleton
 astf_db_map_t CAstfDB::m_instances;
+CAstfJsonValidator* CAstfDB::m_validator = nullptr;
 
 
 void CAstfDB::Create(){
@@ -44,10 +45,12 @@ void CAstfDB::Create(){
         return;
     }
     m_client_config_info=0;
-    m_validator = new CAstfJsonValidator();
-    if (!m_validator->Create("astf_schema.json")) {
-        printf("Could not create ASTF validator using file astf_schema.json\n");
-        exit(-1);
+    if (m_validator == nullptr) {
+        m_validator = new CAstfJsonValidator();
+        if (!m_validator->Create("astf_schema.json")) {
+            printf("Could not create ASTF validator using file astf_schema.json\n");
+            exit(-1);
+        }
     }
     m_topo_mngr = new TopoMngr();
     m_factor = -1.0;
@@ -56,7 +59,7 @@ void CAstfDB::Create(){
 
 
 void CAstfDB::Delete(){
-    if ( m_validator ) {
+    if ( m_instances.empty() && m_validator ) {
         m_validator->Delete();
         delete m_validator;
         m_validator = nullptr;
