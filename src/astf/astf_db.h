@@ -623,7 +623,7 @@ private:
     CAstfDbRO           m_tcp_data[MAX_SOCKETS_SUPPORTED];
 
     ClientCfgDB        *m_client_config_info;
-    CAstfJsonValidator *m_validator;
+    static CAstfJsonValidator *m_validator;
     TopoMngr           *m_topo_mngr;
 
     uint16_t m_num_of_tg_ids;
