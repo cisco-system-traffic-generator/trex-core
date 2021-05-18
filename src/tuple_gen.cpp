@@ -145,7 +145,7 @@ void CClientPool::set_client_active(CIpInfoBase *ip_info,
 /* Go through each pool attached with this client and make them active/inactive */
 void CIpInfoBase::set_client_active(bool activate)
 {
-    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){ 
+    for (size_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
         ((CClientPool *)(m_ref_pool_ptr[idx]))->set_client_active(this, this->get_client_list_node(idx), activate);
     }
 }
@@ -158,7 +158,7 @@ void CIpInfoBase::set_client_active(bool activate)
 
 void CIpInfoBase:: detach_pool_and_client_node(void *ip_pool){
 
-    for (uint8_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
+    for (size_t idx = 0; idx < m_ref_pool_ptr.size(); idx++){
         if ((CClientPool *)ip_pool == (CClientPool *)m_ref_pool_ptr[idx]){
             m_ref_pool_ptr.erase(m_ref_pool_ptr.begin() + idx);
             ActiveClientListNode  *cn = m_active_c_node[idx];
