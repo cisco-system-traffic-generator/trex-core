@@ -51,7 +51,7 @@ class DOT1XPlugin(EMUPluginBase):
 
 
     def __init__(self, emu_client):
-        super(DOT1XPlugin, self).__init__(emu_client, 'dot1x_client_cnt')
+        super(DOT1XPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='dot1x_client_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -68,11 +68,11 @@ class DOT1XPlugin(EMUPluginBase):
     def get_clients_info(self, c_keys):
         """
         Get dot1x clients information.
-        
+
             :parameters:
                 c_keys: list of EMUClientKey
                     see :class:`trex.emu.trex_emu_profile.EMUClientKey`
-        
+
             :return:
                 | list: List of clients information
                 | [{'state': string, 'method': string, 'eap_version': int}, {..}]
@@ -104,7 +104,7 @@ class DOT1XPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('dot1x_show_client_info', 'emu')

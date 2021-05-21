@@ -37,11 +37,11 @@ class CDPPlugin(EMUPluginBase):
         raw:  array of byte 
            generic options array for cdp
            [60,8,77,83,70,84,32,53,46,48]
-           
+
     """
 
     def __init__(self, emu_client):
-        super(CDPPlugin, self).__init__(emu_client, 'cdp_client_cnt')
+        super(CDPPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='cdp_client_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -68,5 +68,5 @@ class CDPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
         return True

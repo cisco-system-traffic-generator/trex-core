@@ -40,7 +40,7 @@ class DHCPPlugin(EMUPluginBase):
 
         req: array of byte array
             generic options array for request packet
-           
+
 
         ren: array of byte array
             generic options array for renew packet
@@ -48,7 +48,7 @@ class DHCPPlugin(EMUPluginBase):
     """
 
     def __init__(self, emu_client):
-        super(DHCPPlugin, self).__init__(emu_client, 'dhcp_client_cnt')
+        super(DHCPPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='dhcp_client_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -75,5 +75,5 @@ class DHCPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
         return True
