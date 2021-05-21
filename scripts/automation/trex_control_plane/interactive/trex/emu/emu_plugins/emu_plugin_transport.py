@@ -21,7 +21,7 @@ class TRANSPORTPlugin(EMUPluginBase):
     """
 
     def __init__(self, emu_client):
-        super(TRANSPORTPlugin, self).__init__(emu_client, 'transport_client_cnt')
+        super(TRANSPORTPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='transport_client_cnt')
 
     # Plugins methods
 
@@ -38,5 +38,5 @@ class TRANSPORTPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
         return True

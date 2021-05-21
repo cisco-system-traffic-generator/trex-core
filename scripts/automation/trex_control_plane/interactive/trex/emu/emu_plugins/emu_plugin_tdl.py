@@ -147,7 +147,7 @@ class TDLPlugin(EMUPluginBase):
                 emu_client: :class:`trex.emu.trex_emu_client.EMUClient`
                     Valid EMU client.
         """
-        super(TDLPlugin, self).__init__(emu_client, 'tdl_c_cnt')
+        super(TDLPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='tdl_c_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -175,5 +175,5 @@ class TDLPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
         return True

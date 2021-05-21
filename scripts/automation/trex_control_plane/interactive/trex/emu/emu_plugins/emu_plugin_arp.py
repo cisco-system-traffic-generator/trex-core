@@ -36,12 +36,12 @@ class ARPPlugin(EMUPluginBase):
     def __init__(self, emu_client):
         """
         Init ArpPlugin. 
-        
+
             :parameters:
                 emu_client: EMUClient
                     Valid emu client.
-        """        
-        super(ARPPlugin, self).__init__(emu_client, 'arp_ns_cnt')
+        """
+        super(ARPPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='arp_ns_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -148,7 +148,7 @@ class ARPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('arp_get_cfg', 'emu')

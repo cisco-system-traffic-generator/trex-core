@@ -9,11 +9,18 @@ from trex.emu.api import *
 class EMUPluginBase(object):
     ''' Every object inherit from this class can implement a plugin method with decorator @plugin_api('cmd_name', 'emu')'''
 
-    def __init__(self, emu_client, cnt_rpc_cmd):
+    def __init__(self, emu_client, ns_cnt_rpc_cmd = None, client_cnt_rpc_cmd = None):
         self.emu_c  = emu_client
         self.conn   = emu_client.conn
         self.err    = emu_client._err  # simple err method
-        self.data_c = DataCounter(emu_client.conn, cnt_rpc_cmd)
+        if ns_cnt_rpc_cmd is None and client_cnt_rpc_cmd is None:
+            raise TRexError("At least one of client or namespace counter commands must be provided.")
+        self.ns_data_cnt = None
+        self.client_data_cnt = None
+        if ns_cnt_rpc_cmd:
+            self.ns_data_cnt = DataCounter(emu_client.conn, ns_cnt_rpc_cmd)
+        if client_cnt_rpc_cmd:
+            self.client_data_cnt = DataCounter(emu_client.conn, client_cnt_rpc_cmd)
 
     # Common API
     @client_api('getter', True)
@@ -57,13 +64,15 @@ class EMUPluginBase(object):
             :raises:
                 + :exc: TRexError
         """
+        if not self.ns_data_cnt:
+            raise TRexError("Namespace counter command was not provided.")
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey},
                     {'name': 'cnt_filter', 'arg': cnt_filter, 't': list, 'must': False},
                     {'name': 'zero', 'arg': zero, 't': bool},
                     {'name': 'verbose', 'arg': verbose, 't': bool}]
         EMUValidator.verify(ver_args)
-        self.data_c.set_add_data(ns_key=ns_key)
-        return self.data_c.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
+        self.ns_data_cnt.set_add_data(ns_key=ns_key)
+        return self.ns_data_cnt.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
 
     @client_api('getter', True)
     def _get_client_counters(self, c_key, cnt_filter=None, zero=True, verbose=True):
@@ -107,13 +116,15 @@ class EMUPluginBase(object):
             :raises:
                 + :exc: TRexError
         """
+        if not self.client_data_cnt:
+            raise TRexError("Client counter command was not provided.")
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
                     {'name': 'cnt_filter', 'arg': cnt_filter, 't': list, 'must': False},
                     {'name': 'zero', 'arg': zero, 't': bool},
                     {'name': 'verbose', 'arg': verbose, 't': bool}]
         EMUValidator.verify(ver_args)
-        self.data_c.set_add_data(c_key=c_key)
-        return self.data_c.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
+        self.client_data_cnt.set_add_data(c_key=c_key)
+        return self.client_data_cnt.get_counters(cnt_filter=cnt_filter, zero=zero, verbose=verbose)
 
     @client_api('command', True)
     def _clear_ns_counters(self, ns_key):
@@ -132,10 +143,12 @@ class EMUPluginBase(object):
             :raises:
                 + :exc: TRexError
         """
+        if not self.ns_data_cnt:
+            raise TRexError("Namespace counter command was not provided.")
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
         EMUValidator.verify(ver_args)
-        self.data_c.set_add_data(ns_key=ns_key)
-        return self.data_c.clear_counters()
+        self.ns_data_cnt.set_add_data(ns_key=ns_key)
+        return self.ns_data_cnt.clear_counters()
 
     @client_api("command", True)
     def _clear_client_counters(self, c_key):
@@ -154,10 +167,12 @@ class EMUPluginBase(object):
             :raises:
                 + :exc: TRexError
         """
+        if not self.client_data_cnt:
+            raise TRexError("Client counter command was not provided.")
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
         EMUValidator.verify(ver_args)
-        self.data_c.set_add_data(c_key=c_key)
-        return self.data_c.clear_counters()
+        self.client_data_cnt.set_add_data(c_key=c_key)
+        return self.client_data_cnt.clear_counters()
 
     # Override functions
     def tear_down_ns(self, ns_key):

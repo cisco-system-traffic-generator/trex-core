@@ -29,7 +29,7 @@ class ICMPPlugin(EMUPluginBase):
     MIN_COLS = 120
 
     def __init__(self, emu_client):
-        super(ICMPPlugin, self).__init__(emu_client, 'icmp_ns_cnt')
+        super(ICMPPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='icmp_ns_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -143,7 +143,7 @@ class ICMPPlugin(EMUPluginBase):
                                          )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns=True)
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns=True)
         return True
 
     @plugin_api('icmp_ping', 'emu')

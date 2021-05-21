@@ -71,8 +71,8 @@ class IGMPPlugin(EMUPluginBase):
             :parameters:
                 emu_client: EMUClient
                     Valid emu client.
-        """        
-        super(IGMPPlugin, self).__init__(emu_client, 'igmp_ns_cnt')
+        """
+        super(IGMPPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='igmp_ns_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -466,7 +466,7 @@ class IGMPPlugin(EMUPluginBase):
                                         )
 
         opts = parser.parse_args(line.split())
-        self.emu_c._base_show_counters(self.data_c, opts, req_ns = True)
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('igmp_get_cfg', 'emu')
