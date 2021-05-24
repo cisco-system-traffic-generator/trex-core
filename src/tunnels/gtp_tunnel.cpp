@@ -392,8 +392,8 @@ void GTPU::store_ipv4_gtpu_info(uint32_t teid,uint32_t src_ip, uint32_t dst_ip, 
     ip->time_to_live = IPV4_HDR_TTL;
     ip->next_proto_id = IPPROTO_UDP;
     ip->hdr_checksum = 0;
-    ip->src_addr = rte_cpu_to_be_32(src_ip);
-    ip->dst_addr = rte_cpu_to_be_32(dst_ip);
+    ip->src_addr = src_ip;
+    ip->dst_addr = dst_ip;
 
     struct rte_udp_hdr *udp = &pre_cooked_hdr->udp;
 
