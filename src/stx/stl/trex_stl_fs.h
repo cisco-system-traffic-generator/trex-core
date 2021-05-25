@@ -50,14 +50,81 @@ typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
 
 class CRxCore;
 
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+
+/* Values for the PTP messageType field. */
+#define SYNC                  0x0
+#define DELAY_REQ             0x1
+#define PDELAY_REQ            0x2
+#define PDELAY_RESP           0x3
+#define FOLLOW_UP             0x8
+#define DELAY_RESP            0x9
+#define PDELAY_RESP_FOLLOW_UP 0xA
+#define ANNOUNCE              0xB
+#define SIGNALING             0xC
+#define MANAGEMENT            0xD
+
+#define NSEC_PER_SEC        1000000000L
+
+/* Structs used for PTP handling. */
+struct tstamp {
+	uint16_t   sec_msb;
+	uint32_t   sec_lsb;
+	uint32_t   ns;
+}  __rte_packed;
+
+struct clock_id {
+	uint8_t id[8];
+};
+
+struct port_id {
+	struct clock_id        clock_id;
+	uint16_t               port_number;
+}  __rte_packed;
+
+struct ptp_header {
+	uint8_t              msg_type;
+	uint8_t              ver;
+	uint16_t             message_length;
+	uint8_t              domain_number;
+	uint8_t              reserved1;
+	uint8_t              flag_field[2];
+	int64_t              correction;
+	uint32_t             reserved2;
+	struct port_id       source_port_id;
+	uint16_t             seq_id;
+	uint8_t              control;
+	int8_t               log_message_interval;
+} __rte_packed;
+
+struct sync_msg {
+	struct ptp_header   hdr;
+	struct tstamp       origin_tstamp;
+} __rte_packed;
+
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
+
 struct flow_stat_payload_header {
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    /*
+     * Intentionally kept at the begining.
+     * The PTP packet has to begin in the
+     * UDP payload immediately after UDP
+     * header ends.
+     */
+    struct sync_msg ptp_message;
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
     uint8_t magic;
     uint8_t flow_seq;
     uint16_t hw_id;
     uint32_t seq;
     uint64_t time_stamp;
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+} __rte_packed;
+#else
 };
 
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
 class TrexFStatEx : public TrexException {
  public:

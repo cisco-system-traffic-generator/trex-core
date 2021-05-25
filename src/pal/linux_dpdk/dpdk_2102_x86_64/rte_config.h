@@ -154,4 +154,11 @@
 #define TREX_PATCH 1
 #define TREX_PATCH_LOW_LATENCY 1
 
+/*
+ * Enable this to test Latency
+ * using HW timestamping by using
+ * IEEE 1588 feature
+ */
+//#define RTE_LIBRTE_IEEE1588 1
+
 #endif /* _RTE_CONFIG_H_ */
