@@ -26,6 +26,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <zmq.h>
+#include <sys/time.h>
 #include <rte_config.h>
 #include <rte_common.h>
 #include <rte_log.h>
@@ -1386,10 +1387,30 @@ COLD_FUNC void CPhyEthIF::start(){
 
     m_stats.Clear();
     int i;
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    struct timespec tp;
+#endif
     for (i=0;i<10; i++ ) {
         ret = rte_eth_dev_start(m_repid);
         if (ret==0) {
+#ifndef LATENCY_IEEE_1588_TIMESTAMPING
             return;
+#else
+            ret = rte_eth_timesync_enable(m_repid);
+            if (ret == 0 ) {
+                printf("TIMESYNC ENABLED %u \n",m_repid);
+                clock_gettime(CLOCK_REALTIME, &tp);
+                ret = rte_eth_timesync_write_time(m_repid, &tp);
+                if (ret == 0) {
+                    printf("TIMESYNC Write time success \n");
+                } else {
+                    printf("TIMESYNC Write FAILED \n",m_repid);
+                }
+            } else {
+                printf("TIMESYNC ENABLE FAILED \n",m_repid);
+            }
+            break;
+#endif
         }
         delay(1000);
     }
@@ -1901,10 +1922,54 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     return (0);
 }
 
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+#define MAX_TX_TMST_WAIT_MICROSECS 1000 /**< 1 milli-second */
+
+static void
+port_ieee1588_tx_timestamp_check(uint16_t pi, struct timespec *timestamp)
+{
+	unsigned wait_us = 0;
+
+	while ((rte_eth_timesync_read_tx_timestamp(pi, timestamp) < 0) &&
+			(wait_us < MAX_TX_TMST_WAIT_MICROSECS)) {
+		rte_delay_us(1);
+		wait_us++;
+	}
+	if (wait_us >= MAX_TX_TMST_WAIT_MICROSECS) {
+		printf("Port %u TX timestamp registers not valid after "
+				"%u micro-seconds\n",
+				pi, MAX_TX_TMST_WAIT_MICROSECS);
+		return;
+	}
+#ifdef LAT_1588_DEBUG
+	printf("Port %u TX timestamp value %lu s %lu ns validated after "
+			"%u micro-second%s\n",
+			pi, timestamp->tv_sec, timestamp->tv_nsec, wait_us,
+			(wait_us == 1) ? "" : "s");
+#endif
+}
+
+#endif
+
 HOT_FUNC int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVirtualIFPerSideStats *lp_stats) {
     // We allow sending only from first core of each port. This is serious internal bug otherwise.
     assert(lp_port->m_tx_queue_id_lat != INVALID_Q_ID);
 
+
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    struct timespec tstamp_tx;
+    struct flow_stat_payload_header *fsp_head = NULL;
+
+    rte_eth_timesync_read_tx_timestamp(lp_port->m_port->get_tvpid(), &tstamp_tx);
+
+    /*
+     * The SYNC packet and Follow up packet are sent using the same mbuf node.
+     * We are not generating a new packet. We use the same SYNC packet and just
+     * update the timestamp read from the NIC register, ptp msg type and resend it.
+     * Hence update the reference count here.
+     */
+    rte_pktmbuf_refcnt_update(m,1);
+#endif
     int ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
 
     if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
@@ -1920,6 +1985,43 @@ HOT_FUNC int CCoreEthIF::send_pkt_lat(CCorePerPort *lp_port, rte_mbuf_t *m, CVir
             return 0;
         }
     }
+
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    port_ieee1588_tx_timestamp_check(lp_port->m_port->get_tvpid(), &tstamp_tx);
+    const rte_mbuf_t *last = m;
+
+    while (last->next != NULL) {
+        last = last->next;
+    }
+
+    fsp_head =(flow_stat_payload_header *)(rte_pktmbuf_mtod(m, uint8_t*) + (last->data_len - (sizeof(struct flow_stat_payload_header))));
+
+    fsp_head->ptp_message.hdr.msg_type = FOLLOW_UP;
+    fsp_head->ptp_message.hdr.control = 2;
+    fsp_head->ptp_message.origin_tstamp.ns = htonl(tstamp_tx.tv_nsec);
+    fsp_head->ptp_message.origin_tstamp.sec_msb = htons((uint16_t)(tstamp_tx.tv_sec >> 32));
+    fsp_head->ptp_message.origin_tstamp.sec_lsb = htonl((uint32_t)(tstamp_tx.tv_sec & UINT32_MAX));
+
+
+    m->ol_flags &= ~PKT_TX_IEEE1588_TMST; /* FUP packet doesnt need to be timestampped */
+
+    ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+
+    if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
+        while ( unlikely( ret != 1 ) ){
+            rte_delay_us(1);
+            lp_stats->m_tx_queue_full += 1;
+            ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id_lat, &m, 1);
+        }
+    } else {
+        if ( unlikely( ret != 1 ) ) {
+            lp_stats->m_tx_drop ++;
+            rte_pktmbuf_free(m);
+            return 0;
+        }
+    }
+#endif
+
     return ret;
 }
 
@@ -1964,6 +2066,10 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
     rte_mbuf *mi;
     struct flow_stat_payload_header *fsp_head = NULL;
 
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    struct clock_id *client_clkid;
+    uint8_t src_mac[6];
+#endif
     if (hw_id >= MAX_FLOW_STATS) {
         // payload rule hw_ids are in the range right above ip id rules
         uint16_t hw_id_payload = hw_id - MAX_FLOW_STATS;
@@ -1973,6 +2079,40 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
         fsp_head->hw_id = hw_id_payload;
         fsp_head->flow_seq = lp_stats->m_lat_data[hw_id_payload].get_flow_seq();
         fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+        memset((void *)&fsp_head->ptp_message, 0 , sizeof(struct sync_msg));
+        fsp_head->ptp_message.hdr.msg_type = SYNC;
+        fsp_head->ptp_message.hdr.ver = 2;
+        /*
+         * PTP header(34 bytes)
+         * + PTP payload (10 bytes)
+         * + FLOW STAT Payload as PTP suffix (16 bytes)
+         */
+        fsp_head->ptp_message.hdr.message_length = htons(60);
+        fsp_head->ptp_message.hdr.domain_number = 0;
+        fsp_head->ptp_message.hdr.flag_field[0] = 0x2;
+        fsp_head->ptp_message.hdr.correction = 0;
+        fsp_head->ptp_message.hdr.source_port_id.port_number = htons(0);
+        fsp_head->ptp_message.hdr.control = 0;
+        fsp_head->ptp_message.hdr.seq_id = htons(fsp_head->seq);
+        fsp_head->ptp_message.hdr.log_message_interval = 0;
+
+        mi->ol_flags |= PKT_TX_IEEE1588_TMST;
+
+        /* Set up clock id. */
+        memcpy(&src_mac,(uint8_t *)CGlobalInfo::m_options.get_src_mac_addr(0),6);
+        client_clkid = &fsp_head->ptp_message.hdr.source_port_id.clock_id;
+
+        client_clkid->id[0] = src_mac[0];
+        client_clkid->id[1] = src_mac[1];
+        client_clkid->id[2] = src_mac[2];
+        client_clkid->id[3] = 0xFF;
+        client_clkid->id[4] = 0xFE;
+        client_clkid->id[5] = src_mac[3];
+        client_clkid->id[6] = src_mac[4];
+        client_clkid->id[7] = src_mac[5];
+
+#endif
 
         lp_stats->m_lat_data[hw_id_payload].inc_seq_num();
 #ifdef ERR_CNTRS_TEST
@@ -1990,6 +2130,12 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
     tx_per_flow_t *lp_s = &lp_stats->m_tx_per_flow[hw_id];
     lp_s->add_pkts(1);
     lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
+
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    /* For FUP packet */
+    lp_s->add_pkts(1);
+    lp_s->add_bytes(mi->pkt_len + 4); // We add 4 because of ethernet CRC
+#endif
 
     if (hw_id >= MAX_FLOW_STATS) {
         fsp_head->time_stamp = os_get_hr_tick_64();

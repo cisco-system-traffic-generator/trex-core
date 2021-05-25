@@ -191,6 +191,48 @@ COLD_FUNC void RXLatency::dump_err_pkt(const char* info, bool dump_latency) {
     }
 }
 
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+void
+RXLatency::save_timestamps_for_sync_pkt(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head, int port) {
+
+    struct timespec timestamp = {0, 0};
+
+    m_fup_seq_exp = fsp_head->flow_seq;
+
+    if (rte_eth_timesync_read_rx_timestamp(port, &timestamp, m->timesync) < 0) {
+        printf("Port %u RX timestamp registers not valid\n", port);
+    }
+#ifdef LAT_1588_DEBUG
+    printf("Port %u RX timestamp value %lu s %lu ns\n",
+            port, timestamp.tv_sec, timestamp.tv_nsec);
+#endif
+    m_sync_arrival_time_sec = timestamp.tv_sec;
+    m_sync_arrival_time_nsec = timestamp.tv_nsec;
+}
+
+void
+RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
+
+    if(fsp_head->flow_seq == m_fup_seq_exp) {
+
+        struct timespec ts_sync;
+
+        ts_sync.tv_nsec = ntohl(fsp_head->ptp_message.origin_tstamp.ns);
+        ts_sync.tv_sec =
+            ((uint64_t)ntohl(fsp_head->ptp_message.origin_tstamp.sec_lsb)) |
+            (((uint64_t)ntohs(fsp_head->ptp_message.origin_tstamp.sec_msb)) << 32);
+
+        fsp_head->time_stamp =  ts_sync.tv_nsec;
+#ifdef LAT_1588_DEBUG
+         printf("timestamp in FUP %lu s %lu ns\n",
+                             ts_sync.tv_sec, ts_sync.tv_nsec);
+#endif
+    } else {
+        printf(" Wrong flow seq in FUP \n");
+    }
+}
+
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
 void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
   uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
@@ -216,12 +258,24 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
             }
           }
           if (is_flow_stat_payload_id(ip_id)) {
+#ifndef LATENCY_IEEE_1588_TIMESTAMPING
             hr_time_t hr_time_now = os_get_hr_tick_64();
             if (unlikely(m_dump_err_pkts)) {
                 set_dump_info(m, fsp_head);
             }
             update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
             hw_id = get_hw_id((uint16_t)ip_id);
+#else
+            if (m->ol_flags & PKT_RX_IEEE1588_TMST) {
+                save_timestamps_for_sync_pkt(m, fsp_head, port);
+                m_rx_pg_stat_payload[fsp_head->hw_id].add_pkts(1);
+                m_rx_pg_stat_payload[fsp_head->hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
+            } else {
+                update_timestamps_for_fup_pkt(fsp_head);
+                update_stats_for_pkt(fsp_head, m->pkt_len, m_sync_arrival_time_nsec);
+            }
+            hw_id = get_hw_id((uint16_t)ip_id);
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
           }
         }
         if (hw_id < MAX_FLOW_STATS) {
@@ -303,6 +357,26 @@ RXLatency::handle_correct_flow(
     m_rx_pg_stat_payload[hw_id].add_pkts(1);
     m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
     uint64_t d = (hr_time_now - fsp_head->time_stamp );
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    if (d > NSEC_PER_SEC) {
+        /*
+         * Expected at times of second transition.
+         * Nothing to worry!. Just subtract the timestamp from NSEC_PER_SEC
+         * and add the new time in nsec (hr_time_now) to get the proper delta.
+         */
+        struct timespec ts_sync;
+
+        ts_sync.tv_sec =
+            ((uint64_t)ntohl(fsp_head->ptp_message.origin_tstamp.sec_lsb)) |
+            (((uint64_t)ntohs(fsp_head->ptp_message.origin_tstamp.sec_msb)) << 32);
+
+        if ( likely (ts_sync.tv_sec != m_sync_arrival_time_sec)) {
+            d =  hr_time_now + (NSEC_PER_SEC - fsp_head->time_stamp);
+        } else {
+            d = (fsp_head->time_stamp - hr_time_now);
+        }
+    }
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
     dsec_t ctime = ptime_convert_hr_dsec(d);
     curr_rfc2544->add_sample(ctime);
 }

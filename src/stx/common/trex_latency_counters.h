@@ -156,7 +156,21 @@ private:
         uint32_t &pkt_seq,
         uint32_t &exp_seq);
 
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    void save_timestamps_for_sync_pkt(
+        const rte_mbuf_t *m,
+        flow_stat_payload_header *fsp_head,
+        int port);
+    void update_timestamps_for_fup_pkt(
+        flow_stat_payload_header *fsp_head);
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 public:
+
+#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    uint32_t m_fup_seq_exp; // expected next seq num for Followup packet
+    uint64_t m_sync_arrival_time_nsec;
+    uint64_t m_sync_arrival_time_sec;
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
     rx_per_flow_t         m_rx_pg_stat[MAX_FLOW_STATS];
     rx_per_flow_t         m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];
