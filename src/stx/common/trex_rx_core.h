@@ -77,7 +77,7 @@ protected:
                      , TrexPlatformApi::driver_stat_cap_e type);
     int get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch);
     int get_rx_err_cntrs(CRxCoreErrCntrs *rx_err);
-
+    //int  get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch);
 
     void quit() {m_state = STATE_QUIT;}
     bool is_working() const {return (m_state != STATE_QUIT);}

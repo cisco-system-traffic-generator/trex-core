@@ -201,6 +201,7 @@ class rfc2544_info_t_ {
     // json latency object. In case of stop/start, we calculate latency graph from scratch,
     // so when stopping, we just "freeze" state for reporting by saving the json string
     Json::Value m_latency;
+    Json::Value m_vlan_latency;
 };
 
 class tx_per_flow_t_ {
@@ -389,6 +390,14 @@ class CFlowStatUserIdInfoPayload : public CFlowStatUserIdInfo {
         m_rfc2544_info.m_latency = json;
     }
 
+    inline void get_latency_vlan_json(Json::Value & json) const {
+        json = m_rfc2544_info.m_vlan_latency;
+    }
+
+    inline void set_latency_vlan_json(const Json::Value &json) {
+        m_rfc2544_info.m_vlan_latency = json;
+    }
+
     inline double get_jitter() const {
         return m_rfc2544_info.get_jitter();
     }
@@ -530,7 +539,7 @@ class CFlowStatRuleMgr {
     int get_max_hw_id_payload() {return m_max_hw_id_payload;}
     void periodic_update();
     bool dump_json(Json::Value &json, std::vector<uint32> pgids);
-
+    bool dump_vlan_json(Json::Value &json, std::vector<uint32> pgids);
  private:
     CFlowStatRuleMgr();
 
@@ -570,11 +579,9 @@ class CFlowStatRuleMgr {
     // we don't want to allocate them on the stack in the function.
     rx_per_flow_t m_rx_stats[MAX_FLOW_STATS];
     rx_per_flow_t m_rx_stats_payload[MAX_FLOW_STATS];
-    rx_per_flow_t m_rx_pg_tag_stat_payload[MAX_FLOW_STATS_VLAN_TAG_ENTY];
     tx_per_flow_t m_tx_stats[MAX_FLOW_STATS];
     tx_per_flow_t m_tx_stats_payload[MAX_FLOW_STATS_PAYLOAD];
     rfc2544_info_t m_rfc2544_info[MAX_FLOW_STATS_PAYLOAD];
-    rfc2544_info_t m_rfc2544_tag_info[MAX_FLOW_STATS_VLAN_TAG_ENTY];
 };
 
 #endif /* __TREX_STL_FS_H__ */

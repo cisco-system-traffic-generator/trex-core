@@ -519,6 +519,34 @@ int CRxCore::get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bo
     return 0;
 }
 
+#if 0
+int CRxCore::get_rfc2544_vlan_info_json (Json::Value &json, int min, int max, bool reset, bool period_switch)
+{
+      //Ketan -no rfcinfo param - convert it into Json
+     for (int hw_id = min; hw_id <= max; hw_id++) {
+        CRFC2544Info &curr_rfc2544 = m_rfc2544[hw_id];
+
+        if (reset) {
+            // need to stop first, so count will be consistent
+            curr_rfc2544.stop();
+        }
+
+        if (period_switch) {
+            curr_rfc2544.sample_period_end();
+        }
+        if (rfc2544_info != NULL) {
+            curr_rfc2544.export_data(rfc2544_info[hw_id - min]);
+        }
+
+        if (reset) {
+            curr_rfc2544.reset();
+        }
+    }
+    return 0;
+
+
+}
+#endif
 int CRxCore::get_rx_err_cntrs(CRxCoreErrCntrs *rx_err) {
     *rx_err = m_err_cntrs;
     return 0;

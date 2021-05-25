@@ -48,6 +48,8 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");
  */
 TREX_RPC_CMD(TrexRpcCmdGetActivePGIds,   "get_active_pgids");
 TREX_RPC_CMD(TrexRpcCmdGetPGIdsStats,    "get_pgid_stats");
+TREX_RPC_CMD(TrexRpcCmdGetActiveVlanPGIds,   "get_active_vlan_pgids");
+TREX_RPC_CMD(TrexRpcCmdGetPGIdsVlanStats,    "get_pgid_vlan_stats");
 
 
 /**
@@ -243,6 +245,68 @@ TrexRpcCmdGetPGIdsStats::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+/**
+ * get active packet group IDs for vlan stats
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetActiveVlanPGIds::_run(const Json::Value &params, Json::Value &result) {
+    flow_stat_active_t_new active_flow_stat;
+    flow_stat_active_it_t_new it;
+    int i = 0, j = 0;
+
+    Json::Value &section = result["result"];
+    section["ids"]["flow_stats"] = Json::arrayValue;
+    section["ids"]["latency"] = Json::arrayValue;
+
+    if (get_platform_api().get_active_vlan_pgids(active_flow_stat) < 0)
+        return TREX_RPC_CMD_INTERNAL_ERR;
+
+    for (auto &it : active_flow_stat) {
+        if (it.m_type == PGID_FLOW_STAT) {
+            section["ids"]["flow_stats"][i++] = it.m_pg_id;
+        } else {
+            section["ids"]["latency"][j++] = it.m_pg_id;
+        }
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
+/**
+ * get packet group IDs vlan stats
+ *
+ */
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetPGIdsVlanStats::_run(const Json::Value &params, Json::Value &result) {
+    flow_stat_active_t active_flow_stat;
+    flow_stat_active_it_t it;
+    std::vector<uint32_t> pgids_arr;
+
+    const Json::Value &pgids = parse_array(params, "pgids", result);
+
+    /* iterate over list */
+    for (auto &itr : pgids) {
+        try {
+            pgids_arr.push_back(itr.asUInt());
+        } catch (const std::exception &ex) {
+            generate_execute_err(result, ex.what());
+        }
+    }
+
+    Json::Value &section = result["result"];
+
+    try {
+        if (get_platform_api().get_pgid_vlan_stats(section, pgids_arr) != 0) {
+            return TREX_RPC_CMD_INTERNAL_ERR;
+        }
+    } catch (const std::exception &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+
+    return (TREX_RPC_CMD_OK);
+}
 
 /***************************
  * get all profiles configured 
@@ -1582,7 +1646,9 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
-    
+    m_cmds.push_back(new TrexRpcCmdGetActiveVlanPGIds(this));
+    m_cmds.push_back(new TrexRpcCmdGetPGIdsVlanStats(this)); 
+
     /* profiles */
     m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
 

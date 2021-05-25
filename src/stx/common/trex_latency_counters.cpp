@@ -6,6 +6,7 @@ CRFC2544Info
 *******************************************************************/
 void CRFC2544Info::create() {
     m_latency.Create();
+    m_latency_vlan.Create()
     m_exp_flow_seq = 0;
     m_prev_flow_seq = 0;
     reset();
@@ -29,6 +30,7 @@ void CRFC2544Info::reset() {
     m_ooo = 0;
     m_dup = 0;
     m_latency.Reset();
+    m_latency_vlan.Reset();
     m_jitter.reset();
 }
 
@@ -41,12 +43,16 @@ void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
     obj.set_jitter(m_jitter.get_jitter());
     m_latency.dump_json(json);
     obj.set_latency_json(json);
+   //TODO Ketan here we can pass the vlan stats json obj to rfc2544_info_t_
+    m_latency_vlan.dump_vlan_json(json);
+    obj.set_latency_vlan_json(json);
 }
 
 
 CRFC2544Info CRFC2544Info::operator+= (const CRFC2544Info& in) {
     this->m_seq += in.m_seq;
     this->m_latency += in.m_latency;
+    this->m_latency_vlan += in.m_latency_vlan;
     this->m_jitter = std::max(this->m_jitter, in.m_jitter);
     this->m_seq_err += in.m_seq_err;
     this->m_seq_err_events_too_big += in.m_seq_err_events_too_big;
@@ -62,6 +68,7 @@ std::ostream& operator<<(std::ostream& os, const CRFC2544Info& in) {
     os << "m_seq = " << in.m_seq << std::endl;
     os << "m_jitter = " << in.m_jitter << std::endl;
     os << "m_latency" << in.m_latency << std::endl;
+    os << "m_latency_vlan" << in.m_latency_vlan << std::endl;
     os << "m_seq_err_events_too_big = " << in.m_seq_err_events_too_big << std::endl;
     os << "m_seq_err_events_too_low = " << in.m_seq_err_events_too_low << std::endl;
     os << "m_ooo = " << in.m_ooo << std::endl;

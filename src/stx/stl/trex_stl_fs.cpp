@@ -1103,6 +1103,23 @@ int CFlowStatRuleMgr::get_active_pgids(flow_stat_active_t_new &result) {
     return 0;
 }
 
+// return list of active pgids with their type (latency of flow_stat)
+
+int CFlowStatRuleMgr::get_active_vlan_pgids(flow_stat_active_t_new &result) {
+    flow_stat_user_id_map_it_t it;
+    active_pgid one_active;
+    CFlowStatUserIdInfo *user_id_info;
+
+    for (it = m_user_id_map.begin(); it != m_user_id_map.end(); it++) {
+        one_active.m_pg_id = it->first;
+        user_id_info = it->second;
+        one_active.m_type = user_id_info->rfc2544_support() ? PGID_LATENCY : PGID_FLOW_STAT;
+        result.push_back(one_active);
+    }
+
+    return 0;
+}
+
 int CFlowStatRuleMgr::set_mode(enum flow_stat_mode_e mode) {
     if ( ! m_user_id_map.is_empty() )
         return -1;
@@ -1426,3 +1443,174 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
     return true;
 }
 
+// return false if no counters changed since last run. true otherwise
+// s_json - flow statistics json
+// l_json - latency data json
+bool CFlowStatRuleMgr::dump_vlan_json(Json::Value &json, std::vector<uint32> pgids) {
+    FUNC_ENTRY;
+    CRxCoreErrCntrs rx_err_cntrs;
+//    Json::FastWriter writer;
+//    Json::Value s_data_section;
+//    Json::Value l_data_section;
+//    Json::Value v_data_section;
+    bool send_all = true;
+
+    if (! m_api ) {
+        create();
+    }
+
+    uint16_t min_f = (m_max_hw_id >= 0) ? 0 : HW_ID_INIT;
+    uint16_t min_l = (m_max_hw_id_payload >= 0) ? 0 : HW_ID_INIT;
+    update_counters(false, min_f, m_max_hw_id, min_l, m_max_hw_id_payload, false);
+
+    if (pgids.size() != 0) {
+        if (pgids.size() > MAX_ALLOWED_PGID_LIST_LEN) {
+            throw TrexFStatEx("Asking information for too many packet group IDs. Max allowed is "
+                              + std::to_string(MAX_ALLOWED_PGID_LIST_LEN)
+                              , TrexException::T_FLOW_STAT_TOO_MANY_PG_IDS_FOR_DUMP);
+        }
+        send_all = false;
+    } else {
+        if (m_user_id_map.size() > MAX_ALLOWED_PGID_LIST_LEN) {
+            throw TrexFStatEx("Asking information for all packet group IDs. There are currently "
+                              + std::to_string(m_user_id_map.size())
+                              + " active IDs . Max allowed is "
+                              + std::to_string(MAX_ALLOWED_PGID_LIST_LEN)
+                              + ". Need to limit query size."
+                              , TrexException::T_FLOW_STAT_TOO_MANY_PG_IDS_FOR_DUMP);
+        }
+    }
+
+    //KETAN-- Later implement it clean way
+    //m_api->get_rfc2544_vlan_info_json(Json::Value &json , 0, m_max_hw_id_payload, false , false);
+    //m_api->get_rx_err_vlan_cntrs(&rx_err_cntrs);
+    m_api->get_rfc2544_info(m_rfc2544_info, 0, m_max_hw_id_payload, false, false);
+    m_api->get_rx_err_cntrs(&rx_err_cntrs);
+ 
+    // build json report
+    // general per port data
+    for (auto &port: m_port_ids) {
+            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            if (m_rx_cant_count_err[port] != 0)
+                s_data_section["g"]["rx_err"][str_port] = m_rx_cant_count_err[port];
+            if (m_tx_cant_count_err[port] != 0)
+                s_data_section["g"]["tx_err"][str_port] = m_tx_cant_count_err[port];
+    }
+
+    // payload rules rx errors
+    rx_err_cntrs.ToJson(&l_data_section["g"]);
+
+    // If given vector of pgids, create json containing only them, otherwise, use all pgids
+    flow_stat_user_id_map_it_t it_all;
+    std::vector<uint32_t>::iterator it_some;
+    bool is_finished = false;
+    if (send_all) {
+        it_all = m_user_id_map.begin();
+    } else {
+        it_some = pgids.begin();
+    }
+
+    while (! is_finished) {
+        uint32_t user_id;
+        CFlowStatUserIdInfo *user_id_info;
+
+        if (send_all) {
+            if (it_all == m_user_id_map.end()) {
+                break;
+            }
+            user_id = it_all->first;
+            user_id_info = it_all->second;
+        } else {
+            if (it_some == pgids.end()) {
+                break;
+            }
+            user_id = *it_some;
+            user_id_info = m_user_id_map.find_user_id(user_id);
+            if (user_id_info == NULL) {
+                // ID does not exist
+                it_some++;
+                continue;
+            }
+        }
+       std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream() << user_id) )->str();
+        v_data_section[str_user_id] = user_id_info->get_ver_id();
+        // flow stat json
+        for (auto &port: m_port_ids) {
+            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            s_data_section[str_user_id]["rp"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
+            if (m_cap & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)
+                s_data_section[str_user_id]["rb"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_bytes());
+            s_data_section[str_user_id]["tp"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_pkts());
+            s_data_section[str_user_id]["tb"][str_port] = Json::Value::UInt64(user_id_info->get_tx_cntr(port).get_bytes());
+
+            // truncate floats to two digits after decimal point
+            char temp_str[100];
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_rx_bps(port)));
+            s_data_section[str_user_id]["rbs"][str_port] = Json::Value(atof(temp_str));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_rx_pps(port)));
+            s_data_section[str_user_id]["rps"][str_port] = Json::Value(atof(temp_str));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_tx_bps(port)));
+            s_data_section[str_user_id]["tbs"][str_port] = Json::Value(atof(temp_str));
+            snprintf(temp_str, sizeof(temp_str), "%.2f", clear_nan_inf(user_id_info->get_tx_pps(port)));
+            s_data_section[str_user_id]["tps"][str_port] = Json::Value(atof(temp_str));
+        }
+       // latency info json
+        if (user_id_info->rfc2544_support()) {
+            CFlowStatUserIdInfoPayload *user_id_info_p = (CFlowStatUserIdInfoPayload *)user_id_info;
+            // payload object. Send also latency, jitter...
+            Json::Value lat_hist = Json::arrayValue;
+            if (user_id_info->is_hw_id()) {
+                // if mapped to hw_id, take info from what we just got from rx core
+                uint16_t hw_id = user_id_info->get_hw_id();
+                m_rfc2544_info[hw_id].get_latency_json(lat_hist);
+                user_id_info_p->set_seq_err_cnt(m_rfc2544_info[hw_id].get_seq_err_cnt());
+                user_id_info_p->set_ooo_cnt(m_rfc2544_info[hw_id].get_ooo_cnt());
+                user_id_info_p->set_dup_cnt(m_rfc2544_info[hw_id].get_dup_cnt());
+                user_id_info_p->set_seq_err_big_cnt(m_rfc2544_info[hw_id].get_seq_err_ev_big());
+                user_id_info_p->set_seq_err_low_cnt(m_rfc2544_info[hw_id].get_seq_err_ev_low());
+                l_data_section[str_user_id]["lat"] = lat_hist;
+                l_data_section[str_user_id]["lat"]["jit"] = m_rfc2544_info[hw_id].get_jitter_usec();
+            } else {
+                // Not mapped to hw_id. Get saved info.
+                user_id_info_p->get_latency_json(lat_hist);
+                if (lat_hist != Json::nullValue) {
+                    l_data_section[str_user_id]["lat"] = lat_hist;
+                    l_data_section[str_user_id]["lat"]["jit"] = user_id_info_p->get_jitter_usec();
+                }
+            }
+           if (user_id_info_p->get_seq_err_cnt() != 0) {
+                l_data_section[str_user_id]["er"]["drp"]
+                    = Json::Value::UInt64(user_id_info_p->get_seq_err_cnt());
+            }
+            if (user_id_info_p->get_ooo_cnt() != 0) {
+                l_data_section[str_user_id]["er"]["ooo"]
+                    = Json::Value::UInt64(user_id_info_p->get_ooo_cnt());
+            }
+            if (user_id_info_p->get_dup_cnt() != 0) {
+                l_data_section[str_user_id]["er"]["dup"]
+                    = Json::Value::UInt64(user_id_info_p->get_dup_cnt());
+            }
+            if (user_id_info_p->get_seq_err_big_cnt() != 0) {
+                l_data_section[str_user_id]["er"]["sth"]
+                    = Json::Value::UInt64(user_id_info_p->get_seq_err_big_cnt());
+            }
+            if (user_id_info_p->get_seq_err_low_cnt() != 0) {
+                l_data_section[str_user_id]["er"]["stl"]
+                    = Json::Value::UInt64(user_id_info_p->get_seq_err_low_cnt());
+            }
+        }
+
+
+        if (send_all) {
+            it_all++;
+        } else {
+            it_some++;
+        }
+    }
+
+    json["flow_stats"] = s_data_section;
+    json["latency"] = l_data_section;
+    json["ver_id"] = v_data_section;
+
+    return true;
+}

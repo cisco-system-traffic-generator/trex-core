@@ -77,6 +77,7 @@ public:
     virtual int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                                , TrexPlatformApi::driver_stat_cap_e type) const = 0;
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const = 0;
+    //virtual int  get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) const = 0;
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const = 0;
     virtual int reset_hw_flow_stats(uint8_t port_id) const = 0;
     virtual bool hw_rx_stat_supported() const = 0;
@@ -85,9 +86,11 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const = 0;
     virtual int get_active_pgids(flow_stat_active_t_new &result) const = 0;
+    virtual int get_active_vlan_pgids(flow_stat_active_t_new &result) const = 0;
     virtual int get_cpu_util_full(cpu_util_full_t &result) const = 0;
     virtual int get_mbuf_util(Json::Value &result) const = 0;
     virtual int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const = 0;
+    virtual int get_pgid_vlan_stats(Json::Value &json, std::vector<uint32_t> pgids) const = 0;
     virtual CFlowStatParser *get_flow_stat_parser() const = 0;
     virtual TRexPortAttr *getPortAttrObj(uint8_t port_id) const = 0;
     virtual void mark_for_shutdown() const = 0;
@@ -124,6 +127,7 @@ public:
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const;
     int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const;
+    //int get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) const;
     int get_rx_err_cntrs(void *rx_err_cntrs) const;
     int reset_hw_flow_stats(uint8_t port_id) const;
     bool hw_rx_stat_supported() const;
@@ -132,9 +136,11 @@ public:
     virtual int del_rx_flow_stat_rule(uint8_t port_id, uint16_t l3_type, uint8_t l4_proto
                                       , uint8_t ipv6_next_h, uint16_t id) const;
     int get_active_pgids(flow_stat_active_t_new &result) const;
+    int get_active_vlan_pgids(flow_stat_active_t_new &result) const;
     int get_cpu_util_full(cpu_util_full_t &result) const;
     int get_mbuf_util(Json::Value &result) const;
     int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const;
+    int get_pgid_vlan_stats(Json::Value &json, std::vector<uint32_t> pgids) const;
     void mark_for_shutdown() const;
     CFlowStatParser *get_flow_stat_parser() const;
     TRexPortAttr *getPortAttrObj(uint8_t port_id) const;
@@ -209,6 +215,7 @@ public:
     int get_flow_stats(uint8_t port_id, void *stats, void *tx_stats, int min, int max, bool reset
                        , TrexPlatformApi::driver_stat_cap_e type) const {return 0;};
     virtual int get_rfc2544_info(void *rfc2544_info, int min, int max, bool reset, bool period_switch) const {return 0;};
+    //virtual int get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) const { return 0;};
     virtual int get_rx_err_cntrs(void *rx_err_cntrs) const {return 0;};
     virtual int reset_hw_flow_stats(uint8_t port_id) const {return 0;};
     virtual bool hw_rx_stat_supported() const { return false; }
@@ -219,6 +226,8 @@ public:
 
     int get_active_pgids(flow_stat_active_t_new &result) const {return 0;}
     int get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {return 0;}
+    int get_active_vlan_pgids(flow_stat_active_t_new &result) const {return 0;}
+    int get_pgid_vlan_stats(Json::Value &json, std::vector<uint32_t> pgids) const {return 0;}
     int get_cpu_util_full(cpu_util_full_t &result) const {return 0;}
     int get_mbuf_util(Json::Value &result) const {return 0;}
     CFlowStatParser *get_flow_stat_parser() const {

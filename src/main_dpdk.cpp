@@ -6998,6 +6998,12 @@ COLD_FUNC int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector
     return 0;
 }
 
+COLD_FUNC int TrexDpdkPlatformApi::get_pgid_vlan_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
+    g_trex.sync_threads_stats();
+    CFlowStatRuleMgr::instance()->dump_vlan_json(json, pgids);
+    return 0;
+}
+
 COLD_FUNC CFlowStatParser *TrexDpdkPlatformApi::get_flow_stat_parser() const {
     return get_ex_drv()->get_flow_stat_parser();
 }

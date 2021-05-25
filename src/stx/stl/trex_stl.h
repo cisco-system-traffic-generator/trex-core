@@ -35,6 +35,7 @@ class TrexStatelessFSLatencyStats {
 public:
     virtual ~TrexStatelessFSLatencyStats(){};
     virtual int  get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch) = 0;
+    //virtual int  get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) = 0;
     virtual int  get_rx_err_cntrs(CRxCoreErrCntrs* rx_err_cnts) = 0;
     virtual int  get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset,
                          TrexPlatformApi::driver_stat_cap_e type, const std::vector<std::pair<uint8_t, uint8_t>> & core_ids) = 0;
@@ -47,6 +48,7 @@ private:
 public:
     TrexStatelessRxFSLatencyStats(CRxCore* rx);
     int  get_rfc2544_info(rfc2544_info_t *rfc2544_info, int min, int max, bool reset, bool period_switch) override;
+    //int  get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) override;
     int  get_rx_err_cntrs(CRxCoreErrCntrs* rx_err_cnts) override;
     int  get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset,
                         TrexPlatformApi::driver_stat_cap_e type, const std::vector<std::pair<uint8_t, uint8_t>> & core_ids) override;
@@ -71,6 +73,7 @@ public:
     int  get_rx_err_cntrs(CRxCoreErrCntrs* rx_err_cnts) override;
     int  get_rx_stats(uint8_t port_id, rx_per_flow_t *rx_stats, int min, int max, bool reset,
                         TrexPlatformApi::driver_stat_cap_e type, const std::vector<std::pair<uint8_t, uint8_t>> & core_ids) override;
+    //int  get_rfc2544_vlan_info_json(Json::Value &json, int min, int max, bool reset, bool period_switch) override;
     void reset_rx_stats(uint8_t port_id, const std::vector<std::pair<uint8_t, uint8_t>> & core_ids) override;
 };
 
