@@ -376,9 +376,10 @@ class STLCapture_Test(CStlGeneral_Test):
         return tcp_port
 
 
-    def test_tx_from_capture_port (self):
+    ## disabled due to https://github.com/cisco-system-traffic-generator/trex-core/issues/715
+    def _test_tx_from_capture_port (self):
         '''
-            test TX packets from the RX core using capture port mechanism
+            test TX packets from the RX core using capture port mechanism. 
         '''
         rx_capture_id = None
 
@@ -441,8 +442,8 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = [self.rx_port, self.tx_port], enabled = False)
             zmq_context.destroy()
 
-
-    def test_rx_from_capture_port_with_filter(self):
+    ## disabled due to https://github.com/cisco-system-traffic-generator/trex-core/issues/715
+    def _test_rx_from_capture_port_with_filter(self):
         '''
             test RX packets from the RX core using capture port mechanism
             and BPF filter on the port
@@ -548,8 +549,9 @@ class STLCapture_Test(CStlGeneral_Test):
             self.c.set_service_mode(ports = [self.rx_port], enabled = False)
             self.c.stop()
 
+    ## disabled due to https://github.com/cisco-system-traffic-generator/trex-core/issues/715
     @nottest
-    def test_capture_port_stress (self):
+    def _test_capture_port_stress (self):
         '''
             test RX & Tx packets from the RX core using capture port mechanism
             while start & stopping the capture port
