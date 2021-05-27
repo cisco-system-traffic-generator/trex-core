@@ -489,7 +489,8 @@ void CTcpFlow::update_new_template_assoc_info() {
 
 
 void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
-    m_tcp.m_tuneable_flags = 0;
+
+    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
 
     CTcpTuneables *tune = rw_db->get_c_tune();
     if (!tune)
@@ -528,7 +529,7 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
 }
 
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
-    m_tcp.m_tuneable_flags = 0;
+    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
 
     if (!tune)
         return;
