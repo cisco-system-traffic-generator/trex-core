@@ -424,6 +424,7 @@ void TrexAstf::profile_clear(cp_profile_id_t profile_id){
         send_message_to_dp(0, msg);
     }
     else { // STATE_IDLE
+        pid->publish_astf_profile_clear();
         delete_profile(profile_id);
     }
 }
@@ -626,8 +627,6 @@ void TrexAstfProfile::add_profile(cp_profile_id_t profile_id) {
     m_profile_id_map[instance->get_dp_profile_id()] = profile_id;
     m_states_cnt[instance->get_profile_state()]++;
 
-    instance->publish_astf_profile_state();
-
     int i;
     CSTTCp* lpstt = instance->get_stt_cp();
     if (!lpstt->m_init){
@@ -661,10 +660,9 @@ bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
     auto profile = m_profile_list[profile_id];
     profile->clear_counters(false);
     if (profile_id == DEFAULT_ASTF_PROFILE_ID) {
+        profile->profile_change_state(STATE_IDLE);
         profile->profile_init();
     } else {
-        profile->publish_astf_profile_clear();
-
         m_profile_id_map.erase(profile->get_dp_profile_id());
 
         auto state = profile->get_profile_state();
@@ -673,6 +671,7 @@ bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
 
         delete m_profile_list.find(profile_id)->second;
         m_profile_list.erase(profile_id);
+
     }
 
     return true;
@@ -1013,8 +1012,8 @@ void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
             profile_change_state(STATE_LOADED);
             break;
         case STATE_DELETE:
-            profile_change_state(STATE_IDLE);
             CAstfDB::free_instance(m_dp_profile_id);
+            publish_astf_profile_clear();
             {
                 auto astf = m_astf_obj;
                 m_astf_obj->delete_profile(m_cp_profile_id);
