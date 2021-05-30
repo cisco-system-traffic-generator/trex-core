@@ -469,6 +469,7 @@ class CTRexServer(object):
             except OSError as e:
                 if e.errno == errno.ESRCH:
                     logger.info('No such process, ignoring.')
+                    continue
                 raise
 
 
