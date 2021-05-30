@@ -495,6 +495,9 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.pkg_updated = True
             return
         else:
+            error = client.master_daemon.get_update_error()
+            if error:
+                print('Error happened while updating package. %s' % error)
             fatal('Hash does not match (%s), stuck with old package.' % master_pkg_sha1)
 
     def begin (self):

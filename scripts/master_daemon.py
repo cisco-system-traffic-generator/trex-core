@@ -49,20 +49,26 @@ def get_update_error():
 def _update_error(err):
     CUpdate.error = str(err)
 
-def _update_trex_process(package_path):
+def _update_trex_process(package_path, retries=3):
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir)
     file_name = 'trex_package.tar.gz'
 
     # getting new package
-    if package_path.startswith('http'):
-        ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
-    else:
-        if not os.path.isfile(package_path):
-            return _update_error('Given path "%s" does not exist!' % package_path)
-        ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
-    if ret_code:
-        return _update_error('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
+    for i in range(retries):
+        if package_path.startswith('http'):
+            ret_code, stdout, stderr = run_command('wget %s -O %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 600)
+        else:
+            if not os.path.isfile(package_path):
+                return _update_error('Given path "%s" does not exist!' % package_path)
+            ret_code, stdout, stderr = run_command('rsync -Lc %s %s' % (package_path, os.path.join(tmp_dir, file_name)), timeout = 300)
+        if not ret_code:
+            # successful
+            break
+        else:
+            # not successful
+            if i == (retries - 1):
+                return _update_error('Could not get requested package. Result: %s' % [ret_code, stdout, stderr])
 
     # calculating hash
     ret_code, stdout, stderr = run_command('sha1sum -b %s' % os.path.join(tmp_dir, file_name), timeout = 30)
@@ -80,7 +86,7 @@ def _update_trex_process(package_path):
     ret_code, stdout, stderr = run_command('tar -xzf %s' % os.path.join(tmp_dir, file_name), timeout = 120, cwd = tmp_dir)
     if ret_code:
         return _update_error('Could not untar the package. %s' % [ret_code, stdout, stderr])
-    
+
     tmp_files = glob(os.path.join(tmp_dir, '*'))
     unpacked_dirs = []
     for tmp_file in tmp_files:
@@ -172,6 +178,7 @@ def start_master_daemon():
     funcs_by_name['get_package_path'] = get_package_path
     funcs_by_name['get_package_sha1'] = get_package_sha1
     funcs_by_name['is_updating'] = is_updating
+    funcs_by_name['_update_error'] = _update_error
     funcs_by_name['get_update_error'] = get_update_error
     funcs_by_name['update_trex'] = update_trex
     funcs_by_name['save_coredump'] = save_coredump
