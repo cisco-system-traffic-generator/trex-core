@@ -64,6 +64,11 @@ class CAstfTrafficStats(object):
         if pid_input in self.tg_names_dict.keys():
             self.tg_names_dict.pop(pid_input)
 
+    def _remove_stats(self, pid_input = DEFAULT_PROFILE_ID):
+        if pid_input in self._ref.keys():
+            self._ref.pop(pid_input)
+        self._clear_tg_name(pid_input)
+
 
     def _epoch_changed(self, new_epoch, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         if is_sum:
