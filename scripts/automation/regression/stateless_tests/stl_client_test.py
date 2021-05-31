@@ -385,7 +385,10 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.clear_stats(clear_flow_stats = False, clear_latency_stats = False, clear_xstats = False)
         time.sleep(delay)
         tx_pps = self.c.get_stats(ports = [0])[0]['opackets'] / delay
-        assert (expected_pps * 0.9 < tx_pps < expected_pps * 1.1), 'expected TX ~%spps, got: %s' % (expected_pps, tx_pps)
+        f = 0.1
+        if self.is_VM:
+            f = 0.4 # hypervisor is not stable 
+        assert (expected_pps * (1.0 - f) < tx_pps < expected_pps * (1.0 + f)), 'expected TX ~%spps, got: %s' % (expected_pps, tx_pps)
 
     def test_pause_resume_update_streams(self):
         self.c.reset()
