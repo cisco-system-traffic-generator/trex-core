@@ -532,19 +532,16 @@ class HTMLInjector(object):
 
         self.input_filename  = input_filename
         self.output_filename = output_filename or input_filename
+        self.xml_doc = ""
 
 
     def __enter__ (self):
+      try:
+        self.xml_doc = LH.parse(self.input_filename)
+      except Exception as e:
+          print('Could not parse %s, error: %s' % (self.input_filename, e))
 
-        # read all the data from file as string
-        with open(self.input_filename, encoding="utf-8") as f:
-            try:
-                s = f.read()
-                self.xml_doc = LH.parse(io.StringIO(s))
-            except Exception as e:
-                print('Could not parse %s, error: %s' % (self.input_filename, e))
-
-        return self
+      return self
 
 
     def __exit__ (self, exc_type, exc_val, exc_tb):
