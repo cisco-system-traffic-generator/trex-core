@@ -379,6 +379,10 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             if (get_interrupt()==false) {
                 m_api->tx_tcp_output(m_pctx,m_flow);
             }
+
+            if (get_tx_mode_none_blocking()) {
+                return next_cmd();
+            }
         }
         break;
     case tcDELAY  :
