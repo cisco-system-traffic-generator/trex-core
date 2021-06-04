@@ -19,7 +19,6 @@ def inject_pcap (c, pcap_file, port, loop_count, ipg_usec, duration):
     return opackets
     #print("{0} packets were Tx on port {1}\n".format(opackets, port))
 
-    
 
 def setParserOptions():
     parser = argparse.ArgumentParser(prog="stl_pcap.py")
@@ -56,6 +55,7 @@ def setParserOptions():
 
     return parser
 
+
 def sizeof_fmt(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
@@ -85,7 +85,7 @@ def read_txt_file (filename):
 
 
 def start (args):
-    
+
     parser = setParserOptions()
     options = parser.parse_args(args)
     
@@ -105,7 +105,7 @@ def start (args):
             before = time.time()
             print ("{:} CAP {:} @ {:} - ".format(i, cap, sizeof_fmt(os.path.getsize(cap)))),
             injected = inject_pcap(c, cap, options.port, options.loop_count, options.ipg, options.duration)
-            print("took {:.2f} seconds for {:} packets").format(time.time() - before, injected)
+            print("took {:.2f} seconds for {:} packets".format(time.time() - before, injected))
 
     except STLError as e:
         print(e)
@@ -114,8 +114,10 @@ def start (args):
     finally:
         c.disconnect()
 
+
 def main ():
     start(sys.argv[1:])
+
 
 # inject pcap
 if __name__ == '__main__':
