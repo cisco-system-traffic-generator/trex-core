@@ -13,10 +13,10 @@ class Prof1():
                              'icmp': {},
                              }
 
-    def get_init_json(self, domain_name, client, ttl):
+    def get_init_json_client(self, domain_name, client, ttl):
         """Get a simple init json"""
         return {
-            "hosts": ["client-{}.emu".format(client), "client-{}.trex".format(client)],
+            "hosts": ["emu-client-{}".format(client), "trex-client-{}".format(client)],
             "txt": [
                 {
                     "field": "desc",
@@ -35,11 +35,44 @@ class Prof1():
             "ttl": ttl
         }
 
+    def get_init_json_ns(self, clients_size, vport):
+
+        # assumes vports can be {0, 1}
+        min_client = vport + 2 
+        max_client = 2 * clients_size + vport + 1 # We add 1 so that the generator will always get odd/even MACs.
+        min_hostname = 1 - vport
+        max_hostname = 2 * (clients_size - 1) + min_hostname + 1 # We add 1 so that the generator will always get odd/even MACs.
+
+        return {
+            "auto_play": True,
+            "auto_play_params": {
+                "rate": 2.0,
+                "min_client": "00:00:00:70:00:0{}".format(min_client),
+                "max_client": "00:00:00:70:00:{:02x}".format(max_client),
+                "client_step": 2,
+                "hostname_base": "trex-client-",
+                "min_hostname": min_hostname,
+                "max_hostname": max_hostname,
+                "hostname_step": 2,
+                "type": "A",
+                "class": "IN",
+                "ipv6": False,
+                "program": {
+                    "00:00:00:70:00:0{}".format(vport + 2): {
+                        "hostnames": ["emu-client-{}".format(min_hostname), "trex-client-{}".format(min_hostname)],
+                        "type": "TXT",
+                        "class": "Any",
+                        "ipv6": True
+                    },
+                }
+            }
+        }
+
     def create_profile(self, clients_size, ttl, domain_name1, domain_name2):
 
         ns_list = [
-            EMUNamespaceObj(ns_key = EMUNamespaceKey(vport  = 0), def_c_plugs = self.def_c_plugs),
-            EMUNamespaceObj(ns_key = EMUNamespaceKey(vport  = 1), def_c_plugs = self.def_c_plugs)
+            EMUNamespaceObj(ns_key = EMUNamespaceKey(vport  = 0), plugs = {'mdns': self.get_init_json_ns(clients_size, 0)}, def_c_plugs = self.def_c_plugs),
+            EMUNamespaceObj(ns_key = EMUNamespaceKey(vport  = 1), plugs = {'mdns': self.get_init_json_ns(clients_size, 1)}, def_c_plugs = self.def_c_plugs)
         ]
 
 
@@ -54,7 +87,7 @@ class Prof1():
                                      ipv4 = ipv4[i].V(),
                                      ipv4_dg = dgNs1.V(),
                                      ipv6 = ipv6[i].V(),
-                                     plugs = {'mdns': self.get_init_json(domain_name1, i, ttl),
+                                     plugs = {'mdns': self.get_init_json_client(domain_name1, i, ttl),
                                               'ipv6': {}})
             ns_list[0].add_clients(clientNs0)
 
@@ -62,7 +95,7 @@ class Prof1():
                                      ipv4 = ipv4[i+1].V(),
                                      ipv4_dg = dgNs0.V(),
                                      ipv6 = ipv6[i+1].V(),
-                                     plugs = {'mdns': self.get_init_json(domain_name2, i+1, ttl),
+                                     plugs = {'mdns': self.get_init_json_client(domain_name2, i+1, ttl),
                                               'ipv6': {}})
             ns_list[1].add_clients(clientNs1)
 
@@ -83,7 +116,7 @@ with two ports. Each port represents a namespace.
 Hence the number max number of clients per namespace can be 128/2 - 1 = 63.
         """
         parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
-        parser.add_argument('--clients', type = int, default = 2,
+        parser.add_argument('--clients', type = int, default = 63,
                     help='Number of clients to create in each namespace')
         parser.add_argument('--ttl', type=int, default=240, help="Time to live for mDNS responses.")
         parser.add_argument('--domain_name1', type=str, default="", help="Domain Name for mDNS namespace #1")

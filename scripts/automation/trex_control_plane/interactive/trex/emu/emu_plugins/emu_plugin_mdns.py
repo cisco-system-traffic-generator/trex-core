@@ -9,15 +9,114 @@ from trex.common.trex_types import listify
 class MDNSPlugin(EMUPluginBase):
     """
         Defines a mDNS (Multicast DNS) plugin based on `mDNS <https://en.wikipedia.org/wiki/Multicast_DNS>`_ 
+
         Implemented based on `RFC 6762 <https://tools.ietf.org/html/rfc6762>`_ 
     """
 
     plugin_name = 'mDNS'
 
     # init json examples for SDK
-    INIT_JSON_NS = None
+    INIT_JSON_NS = { 'mdns': "Pointer to INIT_JSON_NS below"  }
     """
-    There is currently no NS init json for mDNS.
+    :parameters:
+        auto_play: bool
+            Indicate if should automatically start generating traffic. Defaults to False.
+
+        auto_play_params: dictionary.
+            Dictionary specifying the paramaters of auto play, should be provided only in case autoplay is defined.
+
+            :auto_play_params:
+
+                rate: float
+                    Rate in seconds between two consequent queries. Defaults to 1.0.
+
+                min_client: string
+                    String representing the MAC address of the first client in the range of clients that will query.
+                    For example "00:00:00:70:00:01".
+
+                max_client: string
+                    String representing the MAC address of the last client in the range of clients that will query.
+
+                client_step: uint16
+                    Incremental step between two consecutive clients. Defaults to 1.
+
+                hostname_base: string
+                    String that will be used as format for hostname in queries. A number will be appended to it.
+
+                min_hostname: uint16
+                    Unsigned integer representing the minimal value that can be appended to a `hostname_base`.
+
+                max_hostname: uint16
+                    Unsigned integer representing the maximal value that can be appended to a `hostname_base`.
+
+                init_hostname: uint16
+                    Unsigned integer representing the initial value that can be appended to a `hostname_base`. Defaults to `min_hostname`.
+
+                hostname_step: uint16
+                    Incremental step between two consecutive hostnames. Defaults to 1.
+
+                type: string
+                    Dns Type. Allowed values are A, AAA, PTR and TXT. Defaults to A.
+
+                class: string
+                    Dns Class. Defaults to IN.
+
+                ipv6: bool
+                    Indicate if should send IPv6 traffic. Defaults to False.
+
+                program: dictionary
+                    Dictionary representing special/uncommon queries for clients. If a client entry is specified here, this has precedence over the standard query.
+
+                    :key: string
+                        MAC address of the client that sends the query.
+
+                    :value: dictionary
+
+                            hostnames: list
+                                List of strings that specifies which hostnames to query.
+
+                            type: string
+                                Dns Type. Allowed values are A, AAA, PTR and TXT. Defaults to A.
+
+                            class: string
+                                Dns Class. Defaults to IN.
+
+                            ipv6: bool
+                                Indicate if should send IPv6 traffic. Defaults to False.
+
+                    .. highlight:: python
+                    .. code-block:: python
+
+                        "program": {
+                            "00:00:01:00:00:01": {
+                                "hostnames": ["AppleTV"],
+                                "type": "TXT",
+                                "ipv6": true
+                            }
+                        }
+
+        .. highlight:: python
+        .. code-block:: python
+
+            {
+                "auto_play": true,
+                "auto_play_params": {
+                    "rate": 1.0,
+                    "min_client": "00:00:01:00:00:00",
+                    "max_client": "00:00:01:00:00:02",
+                    "hostname_base": "client-"
+                    "min_hostname": 0,
+                    "max_hostname": 2,
+                    "init_hostname": 1,
+                    "hostname_step": 1,
+                    "program": {
+                        "00:00:01:00:00:02": {
+                            "hostnames": ["UCS", "AppleTV"],
+                            "type": "TXT",
+                        }
+                    }
+                }
+            }
     """
 
     INIT_JSON_CLIENT = { 'mdns': "Pointer to INIT_JSON_CLIENT below" }
@@ -39,11 +138,11 @@ class MDNSPlugin(EMUPluginBase):
 
             :dictionary:
 
-                :field: string
-    
+                field: string
+
                     Field like HW, OS etc.
 
-                :value: string
+                value: string
 
                     Value of the field.
 
@@ -211,7 +310,7 @@ class MDNSPlugin(EMUPluginBase):
 
     @client_api('command', True)
     def flush_cache(self, ns_key):
-        """ Flush mDNS namepsace cache of resolved hostnames.
+        """ Flush mDNS namespace cache of resolved hostnames.
 
         :parameters:
             ns_key: EMUNamespaceKey
@@ -352,10 +451,11 @@ class MDNSPlugin(EMUPluginBase):
                                         )
         opts = parser.parse_args(line.split())
         keys_to_headers = [{'key': 'name',         'header': 'Hostname'},
-                           {'key': 'answer',       'header': 'IP/Domain Name'},
+                           {'key': 'answer',       'header': 'Answer'},
                            {'key': 'dns_type',     'header': 'Type'},
                            {'key': 'dns_class',    'header': 'Class'},
                            {'key': 'ttl',          'header': 'Time To Live'},
+                           {'key': 'time_left',    'header': 'Time Left'},
         ]
         args = {'title': 'mDNS Cache', 'empty_msg': 'No entries in mDNS cache.', 'keys_to_headers': keys_to_headers}
         if opts.all_ns:
