@@ -876,6 +876,8 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             break;
         case STATE_DELETE:
             m_stt_cp->m_update = false;
+            // to prevent unexpected access from reused default profile
+            m_stt_cp->clear_profile_ctx();
             m_active_cores = 1;
             break;
         case AMOUNT_OF_STATES:
