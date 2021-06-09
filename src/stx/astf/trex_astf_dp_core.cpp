@@ -31,7 +31,7 @@ limitations under the License.
 #include "trex_astf_dp_core.h"
 #include "trex_astf_topo.h"
 #include "trex_client_config.h"
-#include "tunnels/tunnel_factory_creator.h"
+#include "tunnels/tunnel_factory.h"
 
 using namespace std;
 
@@ -44,7 +44,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_active_profile_cnt = 0;
     m_profile_states.clear();
     m_mbuf_redirect_cache = nullptr;
-
+    m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_DP));
     if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
         // software RSS, need to create cache.
         uint8_t num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
@@ -57,6 +57,7 @@ TrexAstfDpCore::~TrexAstfDpCore() {
     delete m_mbuf_redirect_cache;
     m_mbuf_redirect_cache = nullptr;
     m_flow_gen->Delete_tcp_ctx();
+    delete(m_tunnel_handler);
 }
 
 void TrexAstfDpCore::stop() {
@@ -661,6 +662,9 @@ bool TrexAstfDpCore::rx_for_idle() {
 void inline TrexAstfDpCore::client_lookup_and_activate(uint32_t client, bool activate) {
      CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
      if (ip_info){
+         if (m_tunnel_handler && !activate){
+             m_tunnel_handler->delete_tunnel_context(ip_info->get_tunnel_info());
+         }
          ip_info->set_client_active(activate);
      }
 }
@@ -683,9 +687,6 @@ void TrexAstfDpCore::activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg
 Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     CIpInfoBase *ip_info = (CIpInfoBase *)cip_info;
     Json::Value c_data = Json::objectValue;
-#ifndef TREX_SIM
-    TunnelFactoryCreator tfc;
-#endif
    
     c_data["Found"] = 0;
     
@@ -698,11 +699,9 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     else
        c_data["state"] = "Inactive";
 
-#ifndef TREX_SIM 
     uint8_t type = ip_info->get_tunnel_type(); 
     if (type !=  TUNNEL_TYPE_NONE) 
-       c_data["tunnel_type"] =  tfc.get_tunnel_type(type);
-#endif 
+       c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
     return c_data;
 }
 
@@ -729,25 +728,18 @@ bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> ms
 }
 
 
-void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data, uint8_t tunnel_type) {
-
-#ifndef TREX_SIM
-    TunnelFactoryCreator tfc;
-#endif
+void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
     for (auto elem : msg_data) {
         CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
         if (ip_info) {
- 
-#ifndef TREX_SIM 
-           void *tunnel = ip_info->get_tunnel_info();
-           if (tunnel){
-               tfc.update_tunnel_object(elem, tunnel, tunnel_type);
+           void *tunnel_context = ip_info->get_tunnel_info();
+           if (tunnel_context){
+               m_tunnel_handler->update_tunnel_context(&elem, tunnel_context);
            } else {
-               void *tunnel = tfc.get_tunnel_object(elem, tunnel_type); 
-               ip_info->set_tunnel_info(tunnel);
-               ip_info->set_tunnel_type(tunnel_type);
+               void *tunnel_context = m_tunnel_handler->get_tunnel_context(&elem); 
+               ip_info->set_tunnel_info(tunnel_context);
+               ip_info->set_tunnel_type(m_tunnel_handler->get_tunnel_type());
            }
-#endif
         }
     }
 }

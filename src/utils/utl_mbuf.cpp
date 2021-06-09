@@ -76,7 +76,7 @@ struct rte_mbuf * utl_rte_pktmbuf_deepcopy(struct rte_mempool *mp,
     m = mc; /* root */
     pktlen = mi->pkt_len;
     origin_pktlen = mi->pkt_len;
-    
+    m->dynfield_ptr = mi->dynfield_ptr;
     uint16_t off=0;
         
     nseg = 0;
@@ -109,7 +109,6 @@ struct rte_mbuf * utl_rte_pktmbuf_deepcopy(struct rte_mempool *mp,
     }
     m->nb_segs = nseg;
     m->pkt_len = origin_pktlen;
-    
 
     return m;
 err:

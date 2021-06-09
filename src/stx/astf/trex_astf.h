@@ -29,6 +29,8 @@ limitations under the License.
 #include "trex_astf_defs.h"
 #include "stt_cp.h"
 
+#include "tunnels/tunnel_handler.h"
+
 class TrexAstfPort;
 class CSyncBarrier;
 class CRxAstfCore;
@@ -412,13 +414,20 @@ public:
         return &m_fl->m_client_config_info;
     }
 
+    void set_tunnel_handler(CTunnelHandler *tunnel_handler) {
+        m_tunnel_handler = tunnel_handler;
+    }
+
+    CTunnelHandler *get_tunnel_handler(){
+        return m_tunnel_handler;
+    }
+
 protected:
     void change_state(state_e new_state);
     void check_whitelist_states(const states_t &whitelist);
     //void check_blacklist_states(const states_t &blacklist);
 
     void ports_report_state(state_e state);
-
     state_latency_e m_l_state;
     uint32_t        m_latency_pps;
     bool            m_lat_with_traffic;
@@ -433,6 +442,7 @@ protected:
     std::string     m_topo_hash;
     bool            m_topo_parsed;
     uint64_t        m_epoch;
+    CTunnelHandler *m_tunnel_handler;
 
 public:
     bool                m_stopping_dp;

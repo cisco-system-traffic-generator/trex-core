@@ -531,8 +531,8 @@ public:
         return (m_tun_handle != NULL);
     }
 
-    inline bool is_gtpu_tunnel(){
-        return (CGlobalInfo::m_options.m_enable_gtpu != 0xFF);
+    inline bool is_tunnel(){
+        return (CGlobalInfo::m_options.m_enable_tunnel_port != 0xFF);
     }
 private:
     /* support either UDP or TCP for now */

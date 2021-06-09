@@ -961,6 +961,8 @@ main_src = SrcGroup(dir='src',
              '44bsd/tick_cmd_clock.cpp',
              '44bsd/udp.cpp',
 
+             'tunnels/gtp_man.cpp',
+
              'hdrh/hdr_time.c',
              'hdrh/hdr_encoding.c',
              'hdrh/hdr_histogram.c',
@@ -1007,9 +1009,6 @@ main_src = SrcGroup(dir='src',
              'bp_sim_stf.cpp',
              'trex_build_info.cpp',
              'dpdk_drv_filter.cpp',
-             'tunnels/gtp_tunnel.cpp',
-             'tunnels/tunnel.cpp',
-             'tunnels/tunnel_factory_creator.cpp',
 
              'drivers/trex_driver_base.cpp',
              'drivers/trex_driver_bnxt.cpp',

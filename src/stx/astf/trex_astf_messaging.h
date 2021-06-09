@@ -206,13 +206,12 @@ private:
 
 class TrexAstfDpUpdateTunnelClient : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpUpdateTunnelClient(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data, uint8_t tunnel_type);
+    TrexAstfDpUpdateTunnelClient(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
     CAstfDB* m_astf_db;
     std::vector<client_tunnel_data_t> m_msg_data;
-    uint8_t m_tunnel_type;
 };
 
 

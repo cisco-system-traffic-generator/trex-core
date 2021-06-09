@@ -41,8 +41,7 @@ limitations under the License.
 #include "trex_global.h"
 #include <random>
 #include "common/dlist.h"
-#include <tunnels/gtp_tunnel.h>
-#include <tunnels/tunnel_factory_creator.h>
+#include "tunnels/tunnel_handler.h"
 
 struct ActiveClientListNode {
     TCDListNode  m_node;

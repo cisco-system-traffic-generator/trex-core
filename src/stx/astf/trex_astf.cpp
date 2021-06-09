@@ -97,6 +97,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 
     m_profile_id_map[instance->get_dp_profile_id()] = DEFAULT_ASTF_PROFILE_ID;
     m_states_cnt[instance->get_profile_state()]++;
+    m_tunnel_handler = nullptr;
 }
 
 
@@ -107,6 +108,7 @@ TrexAstf::~TrexAstf() {
 
     delete m_rx;
     m_rx = nullptr;
+    delete(m_tunnel_handler);
 }
 
 

@@ -352,7 +352,7 @@ protected:
      * 
      */
     void validate_port_id(uint8_t port_id, Json::Value &result);
-
+public:
     /**
      * parse functions
      * 
@@ -629,7 +629,7 @@ protected:
     
     /* back pointer to the component */
     TrexRpcComponent  *m_component;
-    
+
     /* for debug */
     static bool        g_test_override_ownership;
     static bool        g_test_override_api;

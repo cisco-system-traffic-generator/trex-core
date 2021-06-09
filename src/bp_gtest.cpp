@@ -126,7 +126,6 @@ TEST_F(basic, limit_single_pkt) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/limit_single_pkt.yaml";
      po->out_file ="limit_single_pkt";
      bool res=t1.init();
@@ -139,7 +138,6 @@ TEST_F(basic, limit_multi_pkt) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/limit_multi_pkt.yaml";
      po->out_file ="limit_multi_pkt";
      bool res=t1.init();
@@ -152,7 +150,6 @@ TEST_F(basic, imix) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="imix";
      bool res=t1.init();
@@ -165,7 +162,6 @@ TEST_F(basic, imix_fast) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/imix_64_fast.yaml";
      po->out_file ="imix_64_fast";
      bool res=t1.init();
@@ -179,7 +175,6 @@ TEST_F(basic, dns) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns";
      bool res=t1.init();
@@ -194,7 +189,6 @@ TEST_F(basic, dns_flow_flip) {
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
      po->preview.setClientServerFlowFlip(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
 
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns_p";
@@ -211,7 +205,6 @@ TEST_F(basic, dns_flip) {
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
      po->preview.setClientServerFlip(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
 
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns_flip";
@@ -228,7 +221,6 @@ TEST_F(basic, dns_e) {
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
      po->preview.setClientServerFlowFlipAddr(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
 
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns_e";
@@ -247,7 +239,6 @@ TEST_F(basic, dns_packet_padding_test) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns";
      bool res=t1.init();
@@ -263,7 +254,6 @@ TEST_F(basic, dns_ipv6) {
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
      po->preview.set_ipv6_mode_enable(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns_ipv6";
      bool res=t1.init();
@@ -277,7 +267,6 @@ TEST_F(basic, dns_json) {
      t1.m_dump_json=true;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/dns.yaml";
      po->out_file ="dns";
      bool res=t1.init();
@@ -346,7 +335,6 @@ TEST_F(basic, dns_one_server) {
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/dns_one_server.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="dns_one_server";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -361,7 +349,6 @@ TEST_F(basic, sfr2) {
      po->preview.setVMode(0);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/sfr2.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="sfr2";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -375,7 +362,6 @@ TEST_F(basic, sfr3) {
      po->preview.setVMode(0);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/sfr3.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="sfr3";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -389,7 +375,6 @@ TEST_F(basic, sfr4) {
      po->preview.setVMode(0);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/sfr4.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="sfr_4";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -402,7 +387,6 @@ TEST_F(basic, per_template_gen1) {
      po->preview.setVMode(0);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/per_template_gen1.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="sfr_4";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -414,7 +398,6 @@ TEST_F(basic, per_template_gen2) {
      po->preview.setVMode(0);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/per_template_gen2.yaml";
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->out_file ="sfr_4";
      bool res=t1.init();
      EXPECT_EQ_UINT32(1, res?1:0)<< "pass";
@@ -443,7 +426,6 @@ TEST_F(basic, ipv6_convert) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="automation/regression/cfg/imix.yaml";
      po->out_file ="imix_v6";
      bool res=t1.init();
@@ -455,7 +437,6 @@ TEST_F(basic, ipv6_convert_http) {
      CTestBasic t1;
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
      po->cfg_file ="cap2/http_simple_ipv6.yaml";
@@ -472,7 +453,6 @@ TEST_F(basic, ipv6) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/ipv6.yaml";
      po->out_file ="ipv6";
      bool res=t1.init();
@@ -485,7 +465,6 @@ TEST_F(basic, ipv4_vlan) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/ipv4_load_balance.yaml";
      po->out_file ="ipv4_load_balance";
      bool res=t1.init();
@@ -499,7 +478,6 @@ TEST_F(basic, ipv6_vlan) {
      po->preview.setVMode(3);
      po->preview.set_ipv6_mode_enable(true);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/ipv6_load_balance.yaml";
      po->out_file ="ipv6_load_balance";
      bool res=t1.init();
@@ -514,7 +492,6 @@ TEST_F(basic, test_pcap_mode1) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/test_pcap_mode1.yaml";
      po->out_file ="pcap_mode1";
      t1.m_time_diff = 0.000005; // 5 nsec
@@ -529,7 +506,6 @@ TEST_F(basic, test_pcap_mode2) {
      CParserOption * po =&CGlobalInfo::m_options;
      po->preview.setVMode(3);
      po->preview.setFileWrite(true);
-     po->m_enable_gtpu = (uint16_t)0xFF;
      po->cfg_file ="cap2/test_pcap_mode2.yaml";
      po->out_file ="pcap_mode2";
      t1.m_time_diff = 0.000005; // 5 nsec
