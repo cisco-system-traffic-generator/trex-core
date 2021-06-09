@@ -33,6 +33,7 @@ limitations under the License.
 #include "44bsd/tcpip.h"
 #include "44bsd/tcp_dpdk.h"
 #include "44bsd/flow_table.h"
+#include "44bsd/tx_rx_callback.h"
 
 #include "mbuf.h"
 #include "utl_mbuf.h"
@@ -46,7 +47,7 @@ limitations under the License.
 #include <common/sim_event_driven.h>
 #include <common/n_uniform_prob.h>
 
-
+#include "tunnels/tunnel_handler.h"
 
 class CTcpSimEventStop : public CSimEventBase {
 
@@ -341,41 +342,37 @@ public:
     void set_rtt(uint32_t rtt_usec);
 
 public:
-    bool                    m_shaper_enable;
-    std::string             m_out_dir;
-    std::string             m_pcap_file;
-    CTcpSimShaper           m_shapers[2];
-
-    CTcpPerThreadCtx        m_c_ctx;  /* context */
-    CTcpPerThreadCtx        m_s_ctx;
-    CAstfDbRO               m_tcp_data_ro;
-
-    CEmulAppApiImpl         m_tcp_bh_api_impl_c;
-    CEmulAppApiImpl         m_tcp_bh_api_impl_s;
-
-    CTcpCtxPcapWrt          m_c_pcap; /* capture to file */
-    CTcpCtxPcapWrt          m_s_pcap;
-    bool                    m_debug;
-    cs_sim_mode_t           m_sim_type;
-    uint16_t                m_sim_data;
-
-
-    CTcpCtxDebug            m_io_debug;
-
-    CSimEventDriven         m_sim;
-    double                  m_rtt_sec;
-    double                  m_tx_diff;
-    double                  m_drop_ratio; /* 1 drop all, 0.0 no drop, valid in case of csSIM_DROP */
-    KxuNuBinRand *          m_drop_rnd;
-    KxuLCRand*              m_reorder_rnd;
-    uint16_t                m_vlan;
-    bool                    m_ipv6;
-    bool                    m_dump_json_counters;
-    bool                    m_check_counters;
-    bool                    m_skip_compare_file;
-    uint16_t                m_mss;
-    CTupleGeneratorSmart   *m_gen;
-
+    bool                        m_shaper_enable;
+    std::string                 m_out_dir;
+    std::string                 m_pcap_file;
+    CTcpSimShaper               m_shapers[2];
+    CTcpPerThreadCtx            m_c_ctx;  /* context */
+    CTcpPerThreadCtx            m_s_ctx;
+    CAstfDbRO                   m_tcp_data_ro;
+    CEmulAppApiImpl             m_tcp_bh_api_impl_c;
+    CEmulAppApiImpl             m_tcp_bh_api_impl_s;
+    CTcpCtxPcapWrt              m_c_pcap; /* capture to file */
+    CTcpCtxPcapWrt              m_s_pcap;
+    bool                        m_debug;
+    cs_sim_mode_t               m_sim_type;
+    uint16_t                    m_sim_data;
+    CTcpCtxDebug                m_io_debug;
+    CSimEventDriven             m_sim;
+    double                      m_rtt_sec;
+    double                      m_tx_diff;
+    double                      m_drop_ratio; /* 1 drop all, 0.0 no drop, valid in case of csSIM_DROP */
+    KxuNuBinRand *              m_drop_rnd;
+    KxuLCRand*                  m_reorder_rnd;
+    uint16_t                    m_vlan;
+    bool                        m_ipv6;
+    bool                        m_dump_json_counters;
+    bool                        m_check_counters;
+    bool                        m_skip_compare_file;
+    uint16_t                    m_mss;
+    CTupleGeneratorSmart        *m_gen;
+    CTunnelHandler              *m_tunnel;
+    std::vector<CTxRxCallback*> m_callbacks;
+    void                        *m_tunnel_info;
 };
 
 

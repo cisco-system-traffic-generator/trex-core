@@ -51,7 +51,11 @@ limitations under the License.
 #include "trex_rx_rpc_tunnel.h"
 #include "utl_json.h"
 
+#include "arpa/inet.h"
 
+#include "tunnels/gtp_man.h"
+#include "tunnels/tunnel_handler.h"
+#include "tunnels/tunnel_tx_rx_callback.h"
 
 class gt_tcp_long  : public testing::Test {
 
@@ -849,7 +853,10 @@ void tcp_gen_test(std::string pcap_file,
                   cs_sim_mode_t sim_mode=csSIM_NONE,
                   bool is_ipv6=false,
                   uint16_t mss=0,
-                  CClientServerTcpCfgExt * cfg=NULL){
+                  CClientServerTcpCfgExt * cfg=NULL,
+                  CTunnelHandler *tunnel=NULL,
+                  tunnel_cntxt_t tunnel_info=NULL,
+                  std::vector<CTxRxCallback*> *callbacks=NULL){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
 
@@ -875,6 +882,20 @@ void tcp_gen_test(std::string pcap_file,
 
     if (sim_mode!=csSIM_NONE){
         lpt1->set_simulate_rst_error(sim_mode);
+    }
+
+    if (tunnel != NULL) {
+        lpt1->m_tunnel = tunnel;
+        CTunnelTxRxCallback tunnel_tx_rx_callback(tunnel);
+        lpt1->m_callbacks.push_back(&tunnel_tx_rx_callback);
+    }
+
+    if (tunnel_info != NULL) {
+        lpt1->m_tunnel_info = tunnel_info;
+    }
+
+    if (callbacks != NULL) {
+        lpt1->m_callbacks.insert(lpt1->m_callbacks.end(), callbacks->begin(), callbacks->end());
     }
 
     switch (test_id) {
@@ -942,21 +963,57 @@ TEST_F(gt_tcp, tst30_vlan) {
 
 }
 
-TEST_F(gt_tcp, tst30_http_vlan) {
-
-    tcp_gen_test("tcp2_http_vlan",
+void http_vlan(CTunnelHandler *tunnel=NULL, void *tunnel_info=NULL, std::string file_ending="") {
+    tcp_gen_test("tcp2_http_vlan" + file_ending,
                  true,
                  tiHTTP,
-                 100);
+                 100,
+                 csSIM_NONE,
+                 false,
+                 0,
+                 NULL,
+                 tunnel,
+                 tunnel_info);
+}
 
+TEST_F(gt_tcp, tst30_http_vlan) {
+    http_vlan();
 }
 
 
-TEST_F(gt_tcp, tst30_http_simple) {
-    tcp_gen_test("tcp2_http_simple",
-                 true,
-                 tiHTTP);
+TEST_F(gt_tcp, tst30_http_vlan_gtpu) {
+    ipv4_addr_t src_ip, dst_ip;
+    inet_pton(AF_INET, "16.11.0.1", &src_ip);
+    inet_pton(AF_INET, "52.0.0.0", &dst_ip);
+    CGtpuCtx context(33554432, src_ip, dst_ip);
+    CGtpuMan gtpu_man((uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
+    http_vlan(&gtpu_man, &context, "_gtpu");
+}
 
+void http_simple(CTunnelHandler *tunnel=NULL, void *tunnel_info=NULL, std::string file_ending="") {
+    tcp_gen_test("tcp2_http_simple" + file_ending,
+                 true,
+                 tiHTTP,
+                 0,
+                 csSIM_NONE,
+                 false,
+                 0,
+                 NULL,
+                 tunnel,
+                 tunnel_info);
+}
+
+TEST_F(gt_tcp, tst30_http_simple) {
+    http_simple();
+}
+
+TEST_F(gt_tcp, tst30_http_simple_gtpu_ipv6) {
+    ipv6_addr_t src, dst;
+    inet_pton(AF_INET6, "ff05::b0b:9", src.addr);
+    inet_pton(AF_INET6, "ff04::3000:12", dst.addr);
+    CGtpuCtx context(33554432, &src, &dst);
+    CGtpuMan gtpu_man((uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
+    http_simple(&gtpu_man, &context, "_gtpu_ipv6");
 }
 
 TEST_F(gt_tcp, tst30_http_simple_cmd_rst) {

@@ -34,7 +34,6 @@ limitations under the License.
 #include <set>
 #include "trex_astf_dp_core.h"
 #include "trex_astf_messaging.h"
-#include <tunnels/tunnel_factory_creator.h>
 
 using namespace std;
 
@@ -120,10 +119,7 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
 TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
-TREX_RPC_CMD_EXT(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client",
-//  extended part 
-void inline parse_gtp_tunnel(const Json::Value &params, Json::Value &result,  std::vector<client_tunnel_data_t> &all_msg_data);
-);
+TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -830,36 +826,6 @@ TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
 }
 
 
-/*
- * Parse GTP tunnel data
-*/
-
-void inline 
-TrexRpcCmdUpdateTunnelClient::parse_gtp_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data){
-    
-    const Json::Value &attr = parse_array(params, "attr", result);
-   
-    for (auto each_client : attr) {
-        client_tunnel_data_t msg_data;
-        string src_ipv46, dst_ipv46;
-
-        msg_data.version     = parse_uint32(each_client, "version", result);
-        msg_data.client_ip   = parse_uint32(each_client, "client_ip", result);
-        src_ipv46            = parse_string(each_client, "sip", result);
-        dst_ipv46            = parse_string(each_client, "dip", result);
-
-        if (msg_data.version == 6) {
-           inet_pton(AF_INET6, src_ipv46.c_str(), msg_data.u1.src_ip);
-           inet_pton(AF_INET6, dst_ipv46.c_str(), msg_data.u2.dst_ip);
-        } else {
-           inet_pton(AF_INET, src_ipv46.c_str(), &msg_data.u1.src_ipv4);
-           inet_pton(AF_INET, dst_ipv46.c_str(), &msg_data.u2.dst_ipv4);
-        }
-
-        msg_data.teid  = parse_uint32(each_client, "teid", result);
-        all_msg_data.push_back(msg_data);
-    }
-}
 
 /****************************** component implementation ******************************/
 /*
@@ -878,13 +844,17 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
     std::vector<client_tunnel_data_t> all_msg_data;
 
     auto astf_db = CAstfDB::get_instance(0);
-    if (tunnel_type == TUNNEL_TYPE_GTP) {
-        parse_gtp_tunnel(params, result, all_msg_data);
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    if(tunnel_handler == nullptr) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+    if (tunnel_type == tunnel_handler->get_tunnel_type()) {
+        tunnel_handler->parse_tunnel(params, result, all_msg_data);
     } else {
         return TREX_RPC_CMD_INTERNAL_ERR;
     }
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data, tunnel_type);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data);
     get_astf_object()->send_message_to_all_dp(msg, false);
 
     result["result"] = Json::objectValue;

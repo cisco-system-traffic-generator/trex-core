@@ -1,10 +1,10 @@
 #include <common/gtest.h>
-#include "tunnels/gtp_adjust.h"
 #include "tunnels/gtp_man.h"
 #include "pal/linux/mbuf.h"
 #include "44bsd/tcp_dpdk.h"
 #include "utl_mbuf.h"
 #include "bp_sim.h"
+#include "arpa/inet.h"
 
 
 class gt_tunnel  : public testing::Test {
@@ -33,30 +33,36 @@ void create_pcap_and_compare(rte_mbuf_t* m, std::string pcap_file) {
 }
 
 
-void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip, std::string pcap_file) {
+void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, std::string src_ipv4_str, std::string dst_ipv4_str, std::string pcap_file) {
+    ipv4_addr_t src_ip, dst_ip;
+    inet_pton(AF_INET, src_ipv4_str.c_str(), &src_ip);
+    inet_pton(AF_INET, dst_ipv4_str.c_str(), &dst_ip);
     rte_mbuf_t* m = utl_rte_pktmbuf_mem_to_pkt(buf, len, 1024, tcp_pktmbuf_get_pool(0,1024));
-    CGtpuMan gtpu(teid, src_ip, dst_ip);
-    gtpu.Prepend(m);
+    CGtpuCtx context(teid, src_ip, dst_ip);
+    m->dynfield_ptr = &context;
+    CGtpuMan gtpu(TUNNEL_MODE_TX);
+    gtpu.on_tx(0, m);
     create_pcap_and_compare(m, pcap_file);
 }
 
 
-void prepend_ipv6_and_compare(char *buf, uint16_t len, uint32_t teid, uint16_t* src_ipv6, uint16_t* dst_ipv6, std::string pcap_file) {
-    ipv6_addr_t src;
-    ipv6_addr_t dst;
-    memcpy((void*)src.addr, (void *)src_ipv6, IPV6_ADDR_LEN);
-    memcpy((void*)dst.addr, (void *)dst_ipv6, IPV6_ADDR_LEN);
+void prepend_ipv6_and_compare(char *buf, uint16_t len, uint32_t teid, std::string src_ipv6_str, std::string dst_ipv6_str, std::string pcap_file) {
+    ipv6_addr_t src, dst;
+    inet_pton(AF_INET6, src_ipv6_str.c_str(), src.addr);
+    inet_pton(AF_INET6, dst_ipv6_str.c_str(), dst.addr);
     rte_mbuf_t* m = utl_rte_pktmbuf_mem_to_pkt(buf, len, 1024, tcp_pktmbuf_get_pool(0,1024));
-    CGtpuMan gtpu(teid, &src, &dst);
-    gtpu.Prepend(m);
+    CGtpuCtx context(teid, &src, &dst);
+    m->dynfield_ptr = &context;
+    CGtpuMan gtpu(TUNNEL_MODE_TX);
+    gtpu.on_tx(0, m);
     create_pcap_and_compare(m, pcap_file);
 }
 
 
 void adjust_and_compare(char *buf, uint16_t len, std::string pcap_file) {
     rte_mbuf_t* m = utl_rte_pktmbuf_mem_to_pkt(buf, len, 1024, tcp_pktmbuf_get_pool(0,1024));
-    CGtpuAdjust gtpu;
-    gtpu.Adjust(m);
+    CGtpuMan gtpu(TUNNEL_MODE_RX);
+    gtpu.on_rx(0, m);
     create_pcap_and_compare(m, pcap_file);
 }
 
@@ -69,7 +75,7 @@ TEST_F(gt_tunnel, tst1) {
                              0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08,
                              0x0A, 0x6B, 0x8B, 0x45, 0x92, 0x00, 0x00, 0x00, 0x00};
 
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 33554432, 269156353, 872415232, "tunnel_prepend.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 33554432, "16.11.0.1", "52.0.0.0", "tunnel_prepend.pcap");
 }
 
 
@@ -94,11 +100,7 @@ TEST_F(gt_tunnel, tst3) {
                             0x00, 0x50, 0x33, 0x58, 0xBD, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00,
                             0xF7, 0xE7, 0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01,
                             0x08, 0x0A, 0x6B, 0x8B, 0x46, 0x27, 0x00, 0x00, 0x00, 0x00};
-
-    uint8_t src[16] = {0xff, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x0b, 0x00, 0x09};
-    uint8_t dst[16] = {0xff, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x12};
-
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, (uint16_t *)src,  (uint16_t *)dst, "tunnel_prepend_ipv6.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6.pcap");
 }
 
 
@@ -125,7 +127,7 @@ TEST_F(gt_tunnel, tst5) {
                             0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x92, 0x2F, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x45, 0xF2, 0x00,
                             0x00, 0x00, 0x00};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 185270273, 16843019, "tunnel_prepend_with_vlan.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_with_vlan.pcap");
 }
 
 
@@ -150,11 +152,7 @@ TEST_F(gt_tunnel, tst7) {
                             0x47, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x57, 0x55, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x49, 0x39, 0x00, 0x00,
                             0x00, 0x00};
-
-    uint8_t src[16] = {0xff, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x0b, 0x00, 0x09};
-    uint8_t dst[16] = {0xff, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x12};
-
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432,  (uint16_t *)src,  (uint16_t *)dst, "tunnel_prepend_ipv6_with_vlan.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan.pcap");
 }
 
 
@@ -180,7 +178,7 @@ TEST_F(gt_tunnel, tst9) {
                             0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1A, 0xF9, 0xC7, 0x00, 0x19, 0x03, 0xA0,
                             0x88, 0x30, 0x00, 0x00, 0x00, 0x00, 0x80, 0x02, 0x20, 0x00, 0xDA, 0x47, 0x00, 0x00, 0x02,
                             0x04, 0x05, 0x8C, 0x01, 0x03, 0x03, 0x08, 0x01, 0x01, 0x04, 0x02};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 185270273, 16843019, "tunnel_prepend_ipv4_with_ipv6.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_ipv6.pcap");
 }
 
 
@@ -206,7 +204,7 @@ TEST_F(gt_tunnel, tst11) {
                             0x47, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x57, 0x55, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x49, 0x39, 0x00, 0x00,
                             0x00, 0x00};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 185270273, 16843019, "tunnel_prepend_ipv4_with_vlan_ipv6.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_vlan_ipv6.pcap");
 }
 
 
@@ -232,10 +230,7 @@ TEST_F(gt_tunnel, tst13) {
                              0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08,
                              0x0A, 0x6B, 0x8B, 0x45, 0x92, 0x00, 0x00, 0x00, 0x00};
 
-    uint8_t src[16] = {0xff, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x0b, 0x00, 0x09};
-    uint8_t dst[16] = {0xff, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x12};
-
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432,  (uint16_t *)src,  (uint16_t *)dst, "tunnel_prepend_ipv6_with_ipv4.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432,  "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_ipv4.pcap");
 }
 
 
@@ -260,11 +255,7 @@ TEST_F(gt_tunnel, tst15) {
                              0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x92, 0x2F, 0x00, 0x00, 0x02, 0x04,
                              0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x45, 0xF2, 0x00,
                              0x00, 0x00, 0x00};
-
-    uint8_t src[16] = {0xff, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x0b, 0x00, 0x09};
-    uint8_t dst[16] = {0xff, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x12};
-
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432,  (uint16_t *)src,  (uint16_t *)dst, "tunnel_prepend_ipv6_with_vlan_ipv4.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan_ipv4.pcap");
 }
 
 

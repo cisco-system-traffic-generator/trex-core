@@ -66,7 +66,7 @@
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
-#include "tunnels/tunnel.h"
+#include "tunnels/tunnel_factory.h"
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -647,8 +647,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
-    /*By Default GTPU is disabled , and port number is garbage here*/
-    po->m_enable_gtpu = (uint16_t)0xFF;
+    /*By Default tunnel is disabled , and port number is garbage here*/
+    po->m_enable_tunnel_port = (uint16_t)0xFF;
+    po->m_tunnel_type = TUNNEL_TYPE_NONE;
     uint32_t tmp_data;
     float tmp_double;
     
@@ -958,7 +959,8 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_GTPU:
                 sscanf(args.OptionArg(),"%d", &tmp_data);
-                po->m_enable_gtpu = (uint16_t)tmp_data;
+                po->m_enable_tunnel_port = (uint16_t)tmp_data;
+                po->m_tunnel_type = TUNNEL_TYPE_GTP;
                 break;                
 
             default:
@@ -1324,14 +1326,6 @@ COLD_FUNC void CPhyEthIF::rx_queue_setup(uint16_t rx_queue_id,
              "err=%d, port=%u\n",
              ret, m_repid);
 
-  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
-     ret = Tunnel::InstallRxCallback(m_repid, rx_queue_id);
-     if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Installing RxCallback"
-               "err=%d, port=%u queue=%u\n",
-               ret, m_repid, rx_queue_id);
-  }
-
 }
 
 COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
@@ -1348,14 +1342,6 @@ COLD_FUNC void CPhyEthIF::tx_queue_setup(uint16_t tx_queue_id,
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: "
                  "err=%d, port=%u queue=%u\n",
                  ret, m_repid, tx_queue_id);
-
-  if ( CGlobalInfo::m_options.is_gtpu_enabled()) {
-      ret =   Tunnel::InstallTxCallback(m_repid, tx_queue_id);
-      if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Installing Tx Callback: "
-                 "err=%d, port=%u queue=%u\n",
-                 ret, m_repid, tx_queue_id);
-  }
 
 }
 
@@ -1753,6 +1739,8 @@ public:
     CCoreEthIFTcp() {
         m_rx_queue_id[CLIENT_SIDE]=0xffff;
         m_rx_queue_id[SERVER_SIDE]=0xffff;
+        m_tunnel_callback = nullptr;
+        m_tunnel_handler = nullptr;
     }
 
     uint16_t     rx_burst(pkt_dir_t dir,
@@ -1766,8 +1754,25 @@ public:
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
+
+    void update_tunnel() {
+        m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
+        if (m_tunnel_handler) {
+            m_tunnel_handler->set_port(CGlobalInfo::m_options.m_enable_tunnel_port);
+            m_tunnel_handler->parse_options();
+            m_tunnel_callback = new CTunnelTxRxCallback(m_tunnel_handler);
+        }
+    }
+    ~CCoreEthIFTcp(){
+        delete(m_tunnel_handler);
+        delete(m_tunnel_callback);
+    }
 public:
-    uint16_t     m_rx_queue_id[CS_NUM]; 
+    uint16_t             m_rx_queue_id[CS_NUM];
+
+private:
+    CTunnelTxRxCallback *m_tunnel_callback;
+    CTunnelHandler      *m_tunnel_handler;
 };
 
 
@@ -2039,6 +2044,12 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
     uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
+    if (m_tunnel_callback != nullptr){
+        int i;
+        for (i=0;i<res;i++) {
+            m_tunnel_callback->on_rx(dir, rx_pkts[i]);
+        }
+    }
     return (res);
 }
 
@@ -2048,6 +2059,15 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
+    if (m_tunnel_callback) {
+        lp_port->m_port->tx_offload_csum(node_tcp->mbuf, 0);
+        int res = m_tunnel_callback->on_tx(lp_port->m_port->get_tvpid(), node_tcp->mbuf);
+        if (res) {
+            rte_pktmbuf_free(node_tcp->mbuf);
+            lp_stats->m_tx_drop+=1;
+            return (0);
+        }
+    }
     TrexCaptureMngr::getInstance().handle_pkt_tx(node_tcp->mbuf, lp_port->m_port->get_tvpid());
     send_pkt(lp_port,node_tcp->mbuf,lp_stats);
     return (0);
@@ -3145,6 +3165,13 @@ public:
         }
     }
 
+    void update_tunnel() {
+        int i;
+        for(i=0;i<BP_MAX_CORES;++i){
+            m_cores_vif_tcp[i].update_tunnel();
+        }
+    }
+
 private:
     bool is_all_dp_cores_finished();
     bool is_all_cores_finished();
@@ -3942,9 +3969,9 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     init_vif_cores();
     init_astf_vif_rx_queues();
     rx_interactive_conf();
-    
-    m_stx = new TrexAstf(get_stx_cfg());
-    
+    TrexAstf* astf = new TrexAstf(get_stx_cfg());
+    astf->set_tunnel_handler(get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_CP)));
+    m_stx = astf;
     start_master_astf();
 }
 
@@ -6120,10 +6147,6 @@ COLD_FUNC int update_global_info_from_platform_file(){
             cg->m_mac_info[i].copy_src(( char *)g_opts->m_mac_addr[i].u.m_mac.src)   ;
             cg->m_mac_info[i].copy_dest(( char *)g_opts->m_mac_addr[i].u.m_mac.dest)  ;
             g_opts->m_mac_addr[i].u.m_mac.is_set = 1;
-            if ( CGlobalInfo::m_options.m_enable_gtpu == i)
-            {
-              g_opts->m_ip_cfg[i].enable_gtp(1);
-            }
             g_opts->m_ip_cfg[i].set_def_gw(cg->m_mac_info[i].get_def_gw());
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
@@ -6829,7 +6852,7 @@ COLD_FUNC int main_test(int argc , char * argv[]){
         g_trex.stop_master();
         return (0);
     }
-
+    g_trex.update_tunnel();
     rte_eal_mp_remote_launch(slave_one_lcore, NULL, CALL_MAIN);
     RTE_LCORE_FOREACH_WORKER(lcore_id) {
         if (rte_eal_wait_lcore(lcore_id) < 0)

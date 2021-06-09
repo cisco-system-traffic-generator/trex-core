@@ -316,8 +316,7 @@ main_src = SrcGroup(dir='src',
             'utils/utl_port_map.cpp',
             'utils/utl_sync_barrier.cpp',
             'utils/utl_yaml.cpp',
-            'tunnels/gtp_man.cpp',
-            'tunnels/gtp_adjust.cpp'
+            'tunnels/gtp_man.cpp'
             ]);
 
 cmn_src = SrcGroup(dir='src/common',

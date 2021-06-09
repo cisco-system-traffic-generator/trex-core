@@ -190,7 +190,7 @@ int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         rte_mbuf_t *m){
     int dir=1;
     assert(tp->m_flow);
-    
+
     if (tp->m_flow->m_template.m_src_port==CLIENT_SIDE_PORT) {
         dir=0;
     }
@@ -299,6 +299,8 @@ bool CClientServerTcp::Create(std::string out_dir,
     m_mss=0;
     m_drop_rnd = nullptr;
     m_gen = nullptr;
+    m_tunnel = nullptr;
+    m_tunnel_info = nullptr;
 
     m_rtt_sec =0.05; /* 50msec */
     m_drop_ratio =0.0;
@@ -349,6 +351,9 @@ void CClientServerTcp::set_assoc_table(uint16_t port, CEmulAppProgram *prog, CTc
 
 void CClientServerTcp::on_tx(int dir,
                              rte_mbuf_t *m){
+    for (CTxRxCallback* callback : m_callbacks) {
+        callback->on_tx(dir, m);
+    }
     on_tx_shaper(dir,m); /* start shaping */
 }
 
@@ -532,7 +537,9 @@ void CClientServerTcp::on_tx_shaper(int dir, rte_mbuf_t *m){
 
 void CClientServerTcp::on_rx(int dir,
                              rte_mbuf_t *m){
-
+    for (CTxRxCallback* callback : m_callbacks) {
+        callback->on_rx(dir, m);
+    }
     /* write RX side */
     double t = m_sim.get_time();
     CTcpPerThreadCtx * ctx;
@@ -540,6 +547,9 @@ void CClientServerTcp::on_rx(int dir,
     if (dir==1) {
         ctx =&m_s_ctx,
         m_s_pcap.write_pcap_mbuf(m,t);
+        if(m_tunnel != NULL) {
+            m_tunnel->on_rx(0, m);
+        }
     }else{
         ctx =&m_c_ctx;
         m_c_pcap.write_pcap_mbuf(m,t);
@@ -1083,8 +1093,10 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     /* IW=1 */
     c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
     s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
-
-    c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,NULL);
+    if(m_tunnel != NULL) {
+        CGlobalInfo::m_options.m_enable_tunnel_port = 0;
+    }
+    c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,m_tunnel_info);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_src_ip(0x10000001);
     c_tuple.set_sport(1025);

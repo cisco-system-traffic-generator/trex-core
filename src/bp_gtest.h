@@ -115,7 +115,7 @@ public:
         fl.Create();
         m_saved_packet_padd_offset=0;
         fl.load_from_yaml(CGlobalInfo::m_options.cfg_file,m_threads);
-        CGlobalInfo::m_options.m_enable_gtpu = 0xFF;
+        CGlobalInfo::m_options.m_enable_tunnel_port = 0xFF;
 
         if (CGlobalInfo::m_options.client_cfg_file != "") {
             try {
