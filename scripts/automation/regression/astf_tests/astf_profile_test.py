@@ -398,6 +398,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'udp_topo_traffic.py',
                     'http_simple_emu.py',  # Emu profiles
                     'http_simple_emu_ipv6.py',
+                    'http_many.py',
                     ]
         self.duration=1
         try:
@@ -423,6 +424,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_split.py',
                     'http_simple_split_per_core.py',
                     'http_manual_tunables4.py',
+                    'http_many.py',
                     'http_simple_cc.py',
                     'http_simple_cc1.py',
                     'nginx.py',
