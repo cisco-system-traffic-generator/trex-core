@@ -657,7 +657,7 @@ next_in_chain:
 			d0->length = dst_off;
 		}
 
-		if (rte_pktmbuf_is_contiguous(mbuf) == 0) {
+		if (mbuf->next != NULL) {
 			mbuf = mbuf->next;
 			goto next_in_chain;
 		}
@@ -713,7 +713,7 @@ next_in_chain:
 	d0->flags = 0;
 
 	/* check if buffer is chained */
-	if (rte_pktmbuf_is_contiguous(mbuf) == 0) {
+	if (mbuf->next != NULL) {
 		if (n_free < 2)
 			return 0;
 		/* mark buffer as chained */
