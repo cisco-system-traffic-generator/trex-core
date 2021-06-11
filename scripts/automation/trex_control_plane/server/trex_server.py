@@ -240,7 +240,7 @@ class CTRexServer(object):
             logger.info("Processing get_files_list() command, given path: %s" % path)
             if not self._check_path_under_TRex_or_temp(path):
                 raise Exception('Given path should be under current TRex package or /tmp/trex_files')
-            return os.walk(path).next()[1:3]
+            return next(os.walk(path))[1:3]
         except Exception as e:
             err_str = "Error processing get_files_list(): %s" % e
             logger.error(err_str)
