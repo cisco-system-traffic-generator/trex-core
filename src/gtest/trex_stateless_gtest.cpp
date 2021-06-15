@@ -5075,6 +5075,7 @@ TEST_F(flow_stat_lat, pkt_decode) {
 }
 
 using flow_stat_payload_headers = std::vector<flow_stat_payload_header>;
+using flow_stat_payload_headers_ieee_1588 = std::vector<flow_stat_payload_header_ieee_1588>;
 using stats_for_pkt = std::tuple<rfc2544_info_t_, CRxCoreErrCntrs>;
 
 stats_for_pkt calculate_stats_for_pkts(
@@ -5099,6 +5100,35 @@ stats_for_pkt calculate_stats_for_pkts(
     std::for_each(fs_headers.begin(), fs_headers.end(),
                   [&latency_counter](flow_stat_payload_header& fsh){
         latency_counter.update_stats_for_pkt(&fsh, 10, 10);
+    });
+
+    rfc2544_info_t_ results;
+    rfc2544_info.export_data(results);
+    return stats_for_pkt(results, error_cntrs);
+}
+
+stats_for_pkt calculate_stats_for_pkts_ieee_1588(
+        flow_stat_payload_headers_ieee_1588& fs_headers,
+        bool rcv_all = true) {
+    // TODO: after further refactoring RXLatency::create should be used
+    //       to initialize RXLatency instance.
+    RXLatency latency_counter;
+
+    // TODO: Creating CRFC2544Info with unpredictable values and then calling
+    //       create() to reset the counters is unfortunate and should be fixed.
+    CRFC2544Info rfc2544_info;
+    rfc2544_info.create();
+
+    CRxCoreErrCntrs error_cntrs;
+
+    latency_counter.m_rcv_all = rcv_all;
+    latency_counter.m_rfc2544 = &rfc2544_info;
+    latency_counter.m_err_cntrs = &error_cntrs;
+    latency_counter.m_ip_id_base = 0;
+
+    std::for_each(fs_headers.begin(), fs_headers.end(),
+                  [&latency_counter](flow_stat_payload_header_ieee_1588& fsh){
+        latency_counter.update_stats_for_pkt_ieee_1588(&fsh, 10, 10);
     });
 
     rfc2544_info_t_ results;
@@ -5210,3 +5240,18 @@ TEST(latency_stats, out_of_order) {
     EXPECT_EQ(std::get<0>(results).get_ooo_cnt(), 1);
     EXPECT_EQ(std::get<0>(results).get_seq_err_ev_low(), 1);
 }
+
+#define PTP_DUMMY_PKT  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+TEST(latency_stats, out_of_order_ieee_1588) {
+    flow_stat_payload_headers_ieee_1588 fs_headers = {
+        {PTP_DUMMY_PKT, FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 1, 0},
+        {PTP_DUMMY_PKT, FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 3, 0},
+        {PTP_DUMMY_PKT, FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 2, 0},
+        {PTP_DUMMY_PKT, FLOW_STAT_PAYLOAD_MAGIC, 0, 0, 4, 0},
+    };
+
+    auto results = calculate_stats_for_pkts_ieee_1588(fs_headers, false);
+    EXPECT_EQ(std::get<0>(results).get_ooo_cnt(), 1);
+    EXPECT_EQ(std::get<0>(results).get_seq_err_ev_low(), 1);
+}
+

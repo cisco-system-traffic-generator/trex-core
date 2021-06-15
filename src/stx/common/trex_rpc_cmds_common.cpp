@@ -506,6 +506,7 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         port_json["is_link_supported"]  = api.getPortAttrObj(i)->is_link_change_supported();
         port_json["is_prom_supported"]  = api.getPortAttrObj(i)->is_prom_change_supported();
         port_json["is_vxlan_supported"] = api.getPortAttrObj(i)->is_vxlan_fs_supported();
+        port_json["is_ieee1588_supported"] = api.getPortAttrObj(i)->is_ieee1588_supported();
         port_json["is_virtual"]         = api.getPortAttrObj(i)->is_virtual();
         
         port_json["supp_speeds"] = Json::arrayValue;

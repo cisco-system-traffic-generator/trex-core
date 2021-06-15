@@ -590,6 +590,7 @@ public:
         uint16_t  m_rule_type;
         uint32_t  m_pg_id;
         uint16_t  m_hw_id;
+        bool      m_ieee_1588;
     } m_rx_check;
 
     uint32_t   m_burst_total_pkts; /* valid in case of burst stSINGLE_BURST,stMULTI_BURST*/

@@ -321,6 +321,10 @@ public:
         return m_ref_stream_info->is_latency_stream();
     }
 
+    inline bool is_latency_ieee_1588_enabled() {
+        return m_ref_stream_info->m_rx_check.m_ieee_1588;
+    }
+
     inline void set_mbuf_cache_dir(pkt_dir_t  dir){
         if (dir) {
             m_flags |=NODE_FLAGS_DIR;
@@ -396,6 +400,9 @@ public:
 
     rte_mbuf_t   * alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_stat_payload_header * &fsp_head
                                         , bool is_const);
+    rte_mbuf_t   * alloc_flow_stat_mbuf_ieee_1588(rte_mbuf_t *m,
+                                            struct flow_stat_payload_header_ieee_1588 * &fsp_head);
+
     bool alloc_flow_stat_mbuf_test_const();
     rte_mbuf_t   * alloc_node_with_vm();
 

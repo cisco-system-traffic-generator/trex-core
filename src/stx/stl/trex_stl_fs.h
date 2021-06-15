@@ -50,8 +50,6 @@ typedef std::map<uint32_t, uint16_t>::iterator flow_stat_map_it_t;
 
 class CRxCore;
 
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
-
 /* Values for the PTP messageType field. */
 #define SYNC                  0x0
 #define DELAY_REQ             0x1
@@ -102,10 +100,16 @@ struct sync_msg {
 	struct tstamp       origin_tstamp;
 } __rte_packed;
 
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
-
 struct flow_stat_payload_header {
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    uint8_t magic;
+    uint8_t flow_seq;
+    uint16_t hw_id;
+    uint32_t seq;
+    uint64_t time_stamp;
+    bool is_valid_ts(hr_time_t now);
+};
+
+struct flow_stat_payload_header_ieee_1588 {
     /*
      * Intentionally kept at the begining.
      * The PTP packet has to begin in the
@@ -113,19 +117,8 @@ struct flow_stat_payload_header {
      * header ends.
      */
     struct sync_msg ptp_message;
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
-    uint8_t magic;
-    uint8_t flow_seq;
-    uint16_t hw_id;
-    uint32_t seq;
-    uint64_t time_stamp;
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
+    struct flow_stat_payload_header fsp_hdr;
 } __rte_packed;
-#else
-    bool is_valid_ts(hr_time_t now);
-};
-
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
 class TrexFStatEx : public TrexException {
  public:

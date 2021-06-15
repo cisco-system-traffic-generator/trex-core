@@ -21,7 +21,7 @@ using namespace std;
 
 DpdkTRexPortAttr::DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual,
         bool fc_change_allowed, bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci,
-        bool device_flush_needed) {
+        bool device_flush_needed, bool is_ieee1588_allowed) {
 
     m_tvpid = tvpid;
     m_repid = repid;
@@ -37,6 +37,7 @@ DpdkTRexPortAttr::DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual
     flag_is_link_change_supported = (set_link_up(true) != -ENOTSUP);
     flag_is_prom_change_supported = is_prom_allowed;
     flag_is_vxlan_fs_supported = is_vxlan_fs_allowed;
+    flag_is_ieee1588_supported = is_ieee1588_allowed;
     flag_is_device_flush_needed = device_flush_needed;
     update_device_info();
     update_description();

@@ -490,6 +490,27 @@ rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_
     }
 }
 
+/*
+ * Allocate mbuf for flow stat (and latency with IEEE 1588) info sending
+ * m - Original mbuf (can be complicated mbuf data structure)
+ * fsp_head  - return pointer in which the flow stat info should be filled
+ * return new mbuf structure in which the fsp_head can be written. If needed, orginal mbuf is freed.
+ */
+rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf_ieee_1588(rte_mbuf_t *m,
+                                     struct flow_stat_payload_header_ieee_1588 *&fsp_head) {
+    rte_mbuf_t *m_ret = NULL;
+    uint16_t fsp_head_size = sizeof(struct flow_stat_payload_header_ieee_1588);
+
+    m_ret = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), rte_pktmbuf_data_len(m) );
+    assert(m_ret);
+    char *p = rte_pktmbuf_mtod(m, char*);
+    char *p_new = rte_pktmbuf_append(m_ret, rte_pktmbuf_data_len(m));
+    memcpy(p_new , p, rte_pktmbuf_data_len(m));
+    fsp_head = (struct flow_stat_payload_header_ieee_1588 *)(p_new + rte_pktmbuf_data_len(m) - fsp_head_size);
+    rte_pktmbuf_free(m);
+    return m_ret;
+}
+
 // test the const case of alloc_flow_stat_mbuf. The more complicated non const case is tested in the simulation.
 bool CGenNodeStateless::alloc_flow_stat_mbuf_test_const() {
     rte_mbuf_t *m, *m_test;

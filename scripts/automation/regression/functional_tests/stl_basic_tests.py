@@ -289,6 +289,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             'imix_wlc.py',          # expects tunables
             'udp_1pkt_vxlan.py',    # uses custom Scapy layer
             'icmpv6_fix_cs.py',     # cannot parse layer name from offset correctly (ICMPv6ND_NS classname and layer name do not match)
+            'udp_1pkt_src_ip_split_latency_ieee_1588.py', # cannot be tested on sim as IEEE 1588 is only supported on specific NICs
             ]
         exclude_dict = {}.fromkeys(exclude_list)
         output_file = os.path.join(self.generated_path, 'exported_to_code.py')
