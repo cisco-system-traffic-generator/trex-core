@@ -253,11 +253,12 @@ STLStreamDstMAC_PKT     =1
 STLStreamDstMAC_ARP     =2
 
 class STLFlowStatsInterface(object):
-    def __init__ (self, pg_id, vxlan):
+    def __init__ (self, pg_id, vxlan, ieee_1588):
         self.fields = {
             'enabled':      True,
             'stream_id':    pg_id,
             'vxlan':        vxlan,
+            'ieee_1588':    ieee_1588,
             }
 
     def to_json (self):
@@ -309,8 +310,8 @@ class STLFlowStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id, vxlan = False):
-        super(STLFlowStats, self).__init__(pg_id, vxlan)
+    def __init__(self, pg_id, vxlan = False, ieee_1588 = False):
+        super(STLFlowStats, self).__init__(pg_id, vxlan, ieee_1588)
         self.fields['rule_type'] = 'stats'
 
 
@@ -325,8 +326,8 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
 
     """
 
-    def __init__(self, pg_id, vxlan = False):
-        super(STLFlowLatencyStats, self).__init__(pg_id, vxlan)
+    def __init__(self, pg_id, vxlan = False, ieee_1588 = False):
+        super(STLFlowLatencyStats, self).__init__(pg_id, vxlan, ieee_1588)
         self.fields['rule_type'] = 'latency'
 
 

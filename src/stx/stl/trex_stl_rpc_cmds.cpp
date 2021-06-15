@@ -496,6 +496,16 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
 
             stream->m_rx_check.m_pg_id      = parse_uint32(rx, "stream_id", result);
             stream->m_rx_check.m_vxlan_skip = parse_bool(rx, "vxlan", result, false);
+            stream->m_rx_check.m_ieee_1588  = parse_bool(rx, "ieee_1588", result, false);
+            if(stream->m_rx_check.m_ieee_1588 == true) {
+                /* User enabled IEEE 1588 for Latency Measurment. Verify if its possible */
+                const TrexPlatformApi &api = get_platform_api();
+                if ( !(api.getPortAttrObj(stream->m_port_id)->is_ieee1588_supported())) {
+                    std::stringstream ss;
+                    ss << "Driver doesnt support IEEE-1588.";
+                    generate_execute_err(result, ss.str());
+                }
+            }
             std::string type = parse_string(rx, "rule_type", result);
             if (type == "latency") {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;

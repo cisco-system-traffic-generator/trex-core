@@ -3424,6 +3424,7 @@ class TRexClient(object):
             print('  LED status:    %s' % info['led_change_supported'])
             print('  Flow control:  %s' % info['fc_supported'])
             print('  VXLAN FS:      %s' % info['is_vxlan_supported'])
+            print('  IEEE 1588:     %s' % info['is_ieee1588_supported'])
             print('')
         else:
             if not opts.ports:

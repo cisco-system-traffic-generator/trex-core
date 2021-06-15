@@ -1084,6 +1084,7 @@ public:
 
 private:
     int send_sl_node(CGenNodeStateless * node_sl);
+    void fill_fsp_head(struct flow_stat_payload_header *fsp_head, uint16_t hw_id);
     int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };

@@ -143,6 +143,7 @@ RXLatency::RXLatency() {
     m_dump_err_pkts = false;
     m_dump_pkt = nullptr;
     m_dump_fsp_head = nullptr;
+    m_is_ieee_ref_cnt_set = false;
 }
 
 void
@@ -191,13 +192,12 @@ COLD_FUNC void RXLatency::dump_err_pkt(const char* info, bool dump_latency) {
     }
 }
 
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
 void
-RXLatency::save_timestamps_for_sync_pkt(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head, int port) {
+RXLatency::save_timestamps_for_sync_pkt(const rte_mbuf_t *m, flow_stat_payload_header_ieee_1588 *fsp_head, int port) {
 
     struct timespec timestamp = {0, 0};
 
-    m_fup_seq_exp = fsp_head->flow_seq;
+    m_fup_seq_exp = fsp_head->fsp_hdr.flow_seq;
 
     if (rte_eth_timesync_read_rx_timestamp(port, &timestamp, m->timesync) < 0) {
         printf("Port %u RX timestamp registers not valid\n", port);
@@ -211,9 +211,9 @@ RXLatency::save_timestamps_for_sync_pkt(const rte_mbuf_t *m, flow_stat_payload_h
 }
 
 void
-RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
+RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header_ieee_1588 *fsp_head) {
 
-    if(fsp_head->flow_seq == m_fup_seq_exp) {
+    if(fsp_head->fsp_hdr.flow_seq == m_fup_seq_exp) {
 
         struct timespec ts_sync;
 
@@ -222,7 +222,7 @@ RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
             ((uint64_t)ntohl(fsp_head->ptp_message.origin_tstamp.sec_lsb)) |
             (((uint64_t)ntohs(fsp_head->ptp_message.origin_tstamp.sec_msb)) << 32);
 
-        fsp_head->time_stamp =  ts_sync.tv_nsec;
+        fsp_head->fsp_hdr.time_stamp =  ts_sync.tv_nsec;
 #ifdef LAT_1588_DEBUG
          printf("timestamp in FUP %lu s %lu ns\n",
                              ts_sync.tv_sec, ts_sync.tv_nsec);
@@ -232,14 +232,39 @@ RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
     }
 }
 
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
-
 bool flow_stat_payload_header::is_valid_ts(hr_time_t now){
     int64_t d = (now - time_stamp);
     uint64_t d1  = std::abs(d) >>2;
     return (d1 < os_get_hr_freq()?true:false);
 }
 
+bool RXLatency::handle_flow_latency_stats_ieee_1588(const rte_mbuf_t *m, uint32_t& ip_id, int port) {
+    uint8_t tmp_buf_ieee_1588[sizeof(struct flow_stat_payload_header_ieee_1588)];
+    struct flow_stat_payload_header_ieee_1588 *fsp_head_ieee_1588 = 0;
+
+    if (m->ol_flags & PKT_RX_IEEE1588_TMST) {  /* IEEE-1588 - SYNC Pkt */
+        m_is_ieee_ref_cnt_set = true; /* Expect a FUP pkt. Set ref cnt */
+        fsp_head_ieee_1588 = (flow_stat_payload_header_ieee_1588 *)utl_rte_pktmbuf_get_last_bytes(
+            m, sizeof(struct flow_stat_payload_header_ieee_1588), tmp_buf_ieee_1588);
+
+        save_timestamps_for_sync_pkt(m, fsp_head_ieee_1588, port);
+
+    } else if (m_is_ieee_ref_cnt_set == true) { /* IEEE-1588 FUP Pkt */
+        m_is_ieee_ref_cnt_set = false; /* Got FUP pkt. Clear the ref cnt */
+        fsp_head_ieee_1588 = (flow_stat_payload_header_ieee_1588 *)utl_rte_pktmbuf_get_last_bytes(
+            m, sizeof(struct flow_stat_payload_header_ieee_1588), tmp_buf_ieee_1588);
+
+        update_timestamps_for_fup_pkt(fsp_head_ieee_1588);
+
+    } else {
+        printf(" ERR: Not expected to reach here\n");
+        return false;
+    }
+
+    update_stats_for_pkt_ieee_1588 (fsp_head_ieee_1588, m->pkt_len, m_sync_arrival_time_nsec);
+    return true;
+
+}
 
 bool RXLatency::handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip) {
     uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
@@ -272,20 +297,8 @@ bool RXLatency::handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,b
             hr_time_now = os_get_hr_tick_64();
             readtime = true;
         }
-
-#ifndef LATENCY_IEEE_1588_TIMESTAMPING
         update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
         return true;
-#else
-        if (m->ol_flags & PKT_RX_IEEE1588_TMST) {
-            save_timestamps_for_sync_pkt(m, fsp_head, port);
-            m_rx_pg_stat_payload[fsp_head->hw_id].add_pkts(1);
-            m_rx_pg_stat_payload[fsp_head->hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
-        } else {
-            update_timestamps_for_fup_pkt(fsp_head);
-            update_stats_for_pkt(fsp_head, m->pkt_len, m_sync_arrival_time_nsec);
-        }
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
     }
     return false;
 }
@@ -315,7 +328,11 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
     if (res == FSTAT_PARSER_E_OK){
         if (is_flow_stat_id(ip_id)) {
             if (is_flow_stat_payload_id(ip_id)) {
-                handle_flow_latency_stats(m, ip_id,false);
+                if (unlikely( (m->ol_flags & PKT_RX_IEEE1588_TMST) || (m_is_ieee_ref_cnt_set == true) )) {
+                    handle_flow_latency_stats_ieee_1588(m, ip_id, port);
+                } else {
+                    handle_flow_latency_stats(m, ip_id,false);
+                }
             } else {
                 update_flow_stats(m, ip_id);
             }
@@ -353,6 +370,35 @@ RXLatency::update_stats_for_pkt(
     }
 }
 
+void
+RXLatency::update_stats_for_pkt_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now) {
+    uint16_t hw_id = fsp_head->fsp_hdr.hw_id;
+    if (unlikely(fsp_head->fsp_hdr.magic != FLOW_STAT_PAYLOAD_MAGIC)
+            || hw_id >= MAX_FLOW_STATS_PAYLOAD) {
+        if (!m_rcv_all) {
+            m_err_cntrs->m_bad_header++;
+
+            if (unlikely(m_dump_err_pkts)) {
+                dump_err_pkt("bad_header: unexpected packet");
+            }
+        }
+    } else {
+        bool good_packet = true;
+        CRFC2544Info *curr_rfc2544 = &m_rfc2544[hw_id];
+
+        if (fsp_head->fsp_hdr.flow_seq != curr_rfc2544->get_exp_flow_seq()) {
+            good_packet = handle_unexpected_flow_ieee_1588(fsp_head, curr_rfc2544);
+        }
+
+        if (good_packet) {
+            handle_correct_flow_ieee_1588(fsp_head, curr_rfc2544, pkt_len, hr_time_now);
+        }
+    }
+}
+
 bool
 RXLatency::handle_unexpected_flow(
         flow_stat_payload_header *fsp_head,
@@ -382,6 +428,35 @@ RXLatency::handle_unexpected_flow(
     return good_packet;
 }
 
+bool
+RXLatency::handle_unexpected_flow_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        CRFC2544Info *curr_rfc2544) {
+    bool good_packet = true;
+    // bad flow seq num
+    // Might be the first packet of a new flow, packet from an old flow, or garbage.
+    if (fsp_head->fsp_hdr.flow_seq == curr_rfc2544->get_prev_flow_seq()) {
+        // packet from previous flow using this hw_id that arrived late
+        good_packet = false;
+        m_err_cntrs->m_old_flow++;
+    } else {
+        if (curr_rfc2544->no_flow_seq()) {
+            // first packet we see from this flow
+            curr_rfc2544->set_exp_flow_seq(fsp_head->fsp_hdr.flow_seq);
+        } else {
+            // garbage packet
+            good_packet = false;
+            m_err_cntrs->m_bad_header++;
+
+            if (unlikely(m_dump_err_pkts)) {
+                dump_err_pkt("bad_header: invalid hw_id");
+            }
+        }
+    }
+
+    return good_packet;
+}
+
 void
 RXLatency::handle_correct_flow(
         flow_stat_payload_header *fsp_head,
@@ -393,28 +468,44 @@ RXLatency::handle_correct_flow(
     m_rx_pg_stat_payload[hw_id].add_pkts(1);
     m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
     uint64_t d = (hr_time_now - fsp_head->time_stamp );
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
-    if (d > NSEC_PER_SEC) {
-        /*
-         * Expected at times of second transition.
-         * Nothing to worry!. Just subtract the timestamp from NSEC_PER_SEC
-         * and add the new time in nsec (hr_time_now) to get the proper delta.
-         */
-        struct timespec ts_sync;
-
-        ts_sync.tv_sec =
-            ((uint64_t)ntohl(fsp_head->ptp_message.origin_tstamp.sec_lsb)) |
-            (((uint64_t)ntohs(fsp_head->ptp_message.origin_tstamp.sec_msb)) << 32);
-
-        if ( likely (ts_sync.tv_sec != m_sync_arrival_time_sec)) {
-            d =  hr_time_now + (NSEC_PER_SEC - fsp_head->time_stamp);
-        } else {
-            d = (fsp_head->time_stamp - hr_time_now);
-        }
-    }
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
     dsec_t ctime = ptime_convert_hr_dsec(d);
     curr_rfc2544->add_sample(ctime);
+}
+
+void
+RXLatency::handle_correct_flow_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        CRFC2544Info *curr_rfc2544,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now) {
+    check_seq_number_and_update_stats_ieee_1588(fsp_head, curr_rfc2544);
+    uint16_t hw_id = fsp_head->fsp_hdr.hw_id;
+    m_rx_pg_stat_payload[hw_id].add_pkts(1);
+    m_rx_pg_stat_payload[hw_id].add_bytes(pkt_len + 4); // +4 for ethernet CRC
+
+    if (fsp_head->ptp_message.hdr.msg_type == FOLLOW_UP ) {
+        uint64_t d = (hr_time_now - fsp_head->fsp_hdr.time_stamp );
+        if (d > NSEC_PER_SEC) {
+            /*
+             * Expected at times of second transition.
+             * Nothing to worry!. Just subtract the timestamp from NSEC_PER_SEC
+             * and add the new time in nsec (hr_time_now) to get the proper delta.
+             */
+            struct timespec ts_sync;
+
+            ts_sync.tv_sec =
+                ((uint64_t)ntohl(fsp_head->ptp_message.origin_tstamp.sec_lsb)) |
+                (((uint64_t)ntohs(fsp_head->ptp_message.origin_tstamp.sec_msb)) << 32);
+
+            if ( likely (ts_sync.tv_sec != m_sync_arrival_time_sec)) {
+                d =  hr_time_now + (NSEC_PER_SEC - fsp_head->fsp_hdr.time_stamp);
+            } else {
+                d = (fsp_head->fsp_hdr.time_stamp - hr_time_now);
+            }
+        }
+        dsec_t ctime = ptime_convert_hr_dsec(d);
+        curr_rfc2544->add_sample(ctime);
+    }
 }
 
 void
@@ -433,6 +524,27 @@ RXLatency::check_seq_number_and_update_stats(
         }
     } else {
         curr_rfc2544->set_seq(pkt_seq + 1);
+    }
+}
+
+void
+RXLatency::check_seq_number_and_update_stats_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        CRFC2544Info *curr_rfc2544) {
+    uint32_t pkt_seq = fsp_head->fsp_hdr.seq;
+    uint32_t exp_seq = curr_rfc2544->get_seq();
+    if (unlikely(pkt_seq != exp_seq)) {
+        if ((int32_t)(pkt_seq - exp_seq) < 0) {
+            handle_seq_number_smaller_than_expected(
+                curr_rfc2544, pkt_seq, exp_seq);
+        } else {
+            handle_seq_number_bigger_than_expected(
+                curr_rfc2544, pkt_seq, exp_seq);
+        }
+    } else {
+        if(fsp_head->ptp_message.hdr.msg_type == FOLLOW_UP) {
+            curr_rfc2544->set_seq(pkt_seq + 1);
+        }
     }
 }
 

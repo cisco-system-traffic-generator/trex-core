@@ -4945,6 +4945,14 @@ int CErfIFStl::update_mac_addr_from_global_cfg(pkt_dir_t  dir, uint8_t * p){
     return (0);
 }
 
+void CErfIFStl::fill_fsp_head(struct flow_stat_payload_header *fsp_head, uint16_t hw_id) {
+    fsp_head->seq = 0x12345678;
+    fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
+    fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+    fsp_head->flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
+    fsp_head->time_stamp = 0x8899aabbccddeeff;
+}
+
 int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
     pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
 
@@ -4967,13 +4975,15 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
             /* latency packet. flow stat without latency handled like normal packet in simulation */
             uint16_t hw_id = node_sl->get_stat_hw_id();
             rte_mbuf_t *mi;
-            struct flow_stat_payload_header *fsp_head;
-            mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
-            fsp_head->seq = 0x12345678;
-            fsp_head->hw_id = hw_id - MAX_FLOW_STATS;
-            fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
-            fsp_head->flow_seq = FLOW_STAT_PAYLOAD_INITIAL_FLOW_SEQ;
-            fsp_head->time_stamp = 0x8899aabbccddeeff;
+            if ( !(node_sl->is_latency_ieee_1588_enabled())) {
+                struct flow_stat_payload_header *fsp_head;
+                mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
+                fill_fsp_head(fsp_head, hw_id);
+            } else {
+                struct flow_stat_payload_header_ieee_1588 *fsp_head_ieee_1588;
+                mi = node_sl->alloc_flow_stat_mbuf_ieee_1588(m, fsp_head_ieee_1588);
+                fill_fsp_head(&(fsp_head_ieee_1588->fsp_hdr), hw_id);
+            }
             fill_raw_packet(mi, (CGenNode *)node_sl, dir);
             rte_pktmbuf_free(mi);
         } else {

@@ -1,0 +1,26 @@
+Latency Measurments using IEEE 1588 packets in Latency Stream
+=============================================================
+
+== Feature Overview
+
+This feature is a combination of software and hardware NIC’s IEEE 1588 support. In HW terminology it is also referred as TimeSync feature. NIC can take timestamps of sent and received latency packets. Using DPDK APIs we can read these timestamps from the NIC HW register. Using the 2-step mechanism of IEEE 1588 (PTP) protocol we send the accurate timestamp (t1) which is read from the NIC in a Follow Up packet rather than in the same packet. Received timestamp (t2) is still taken on the first packet (SYNC) itself. In this way with a combination of software(PTP protocol, DPDK APIs) and HW support (leveraging IEEE 1588 support) more accurate latency and jitter measurements can be obtatined.
+
+== Limitations
+
+There are few limitations in this method of Latency Measurement which are listed below. (Some are Temporary)
+
+* The type and size of the latency packet is fixed. IP UDP packet with UDP payload carrying the PTP packet. Size is *106* bytes.
+* Since IEEE 1588 (PTP) protocol uses a well known port number. The latency stream which we create need to use destination port as *319*.
+* Not All types of NIC support this feature. Currently tested and verified on I40E. Around 8 types support IEEE 1588v2 as per DPDK documentation.
+* Since there is some work involved in DPDK to keep both Vector code and IEEE 1588 code working together currently we cannot enable the DPDK config (*RTE_LIBRTE_IEEE1588*) by default. So, in order to use this feature we need to enable RTE_LIBRTE_IEEE1588 config COMPILE time and then we can dynamically enable or disable this feature based on requirement.
+
+== How to Enable this Feature?
+
+Enable *RTE_LIBRTE_IEEE1588* in the corresponding DPDK config file (for example: src/pal/linux_dpdk/dpdk_2102_x86_64/rte_config.h) and build trex-core and copy the executables to the TRex Client.
+
+
+== How to Use?
+
+There is a new property added in the Latency stream through which we can enable or disable IEEE_1588 in python script ( for enabling, ieee_1588 = true). Other than that the Type, packet size and port number needs to be set as mentioned above in limitations section. Also please refer to the example provided for the same.
+
+scripts/stl/udp_1pkt_src_ip_split_latency_ieee_1588.py

@@ -668,6 +668,11 @@ class Port(object):
         else:
             info['is_vxlan_supported'] = 'N/A'
 
+        if 'is_ieee1588_supported' in info:
+            info['is_ieee1588_supported'] = 'yes' if info['is_ieee1588_supported'] else 'no'
+        else:
+            info['is_ieee1588_supported'] = 'N/A'
+
         if 'is_virtual' in info:
             info['is_virtual'] = 'yes' if info['is_virtual'] else 'no'
         else:

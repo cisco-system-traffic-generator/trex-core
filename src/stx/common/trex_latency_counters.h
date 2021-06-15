@@ -99,8 +99,12 @@ public:
 
     void handle_pkt(const rte_mbuf_t *m, int port);
     bool handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip);
+    bool handle_flow_latency_stats_ieee_1588(const rte_mbuf_t *m, uint32_t& ip_id, int port);
     void update_flow_stats(const rte_mbuf_t *m, uint32_t ip_id);
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
+                              uint32_t pkt_len,
+                              hr_time_t hr_time_now);
+    void update_stats_for_pkt_ieee_1588(flow_stat_payload_header_ieee_1588 *fsp_head,
                               uint32_t pkt_len,
                               hr_time_t hr_time_now);
     void set_dump_info(const rte_mbuf_t *m, flow_stat_payload_header *fsp_head);
@@ -141,13 +145,24 @@ private:
     bool handle_unexpected_flow(
         flow_stat_payload_header *fsp_head,
         CRFC2544Info *curr_rfc2544);
+    bool handle_unexpected_flow_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        CRFC2544Info *curr_rfc2544);
     void handle_correct_flow(
         flow_stat_payload_header *fsp_head,
         CRFC2544Info *curr_rfc2544,
         uint32_t pkt_len,
         hr_time_t hr_time_now);
+    void handle_correct_flow_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
+        CRFC2544Info *curr_rfc2544,
+        uint32_t pkt_len,
+        hr_time_t hr_time_now);
     void check_seq_number_and_update_stats(
         flow_stat_payload_header *fsp_head,
+        CRFC2544Info *curr_rfc2544);
+    void check_seq_number_and_update_stats_ieee_1588(
+        flow_stat_payload_header_ieee_1588 *fsp_head,
         CRFC2544Info *curr_rfc2544);
     void handle_seq_number_smaller_than_expected(
         CRFC2544Info *curr_rfc2544,
@@ -157,22 +172,18 @@ private:
         CRFC2544Info *curr_rfc2544,
         uint32_t &pkt_seq,
         uint32_t &exp_seq);
-
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
     void save_timestamps_for_sync_pkt(
         const rte_mbuf_t *m,
-        flow_stat_payload_header *fsp_head,
+        flow_stat_payload_header_ieee_1588 *fsp_head,
         int port);
     void update_timestamps_for_fup_pkt(
-        flow_stat_payload_header *fsp_head);
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
+        flow_stat_payload_header_ieee_1588 *fsp_head);
 public:
 
-#ifdef LATENCY_IEEE_1588_TIMESTAMPING
     uint32_t m_fup_seq_exp; // expected next seq num for Followup packet
     uint64_t m_sync_arrival_time_nsec;
     uint64_t m_sync_arrival_time_sec;
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
+    bool     m_is_ieee_ref_cnt_set;
 
     rx_per_flow_t         m_rx_pg_stat[MAX_FLOW_STATS];
     rx_per_flow_t         m_rx_pg_stat_payload[MAX_FLOW_STATS_PAYLOAD];

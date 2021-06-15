@@ -3687,6 +3687,8 @@ Example using Python API:
 We expect next packet to arrive with sequence number 16.
 * Continuation of Scenario 2: Receive a packet with seq num 11. We increment 'seq_too_low' by 1. We increment 'out_of_order' by 1. We *decrement* 'dropped' by 1. (The assumption is that one of the packets that was considered as dropped before has actually arrived out of order.)
 
+
+
 ==== Tutorial: HLT profiles
 
 HLTAPI traffic_config() function has a set of arguments for creating streams. +
@@ -3995,6 +3997,48 @@ You can simulate the profile using the STL simulator:
 ----
 [bash]>./stl-sim -f stl/dependent_field_engine_vars.py -o b.pcap
 ----
+
+
+==== Tutorial: Latency using hardware assist
+
+This feature is a combination of software and hardware NIC’s IEEE 1588 support. It is disable by default and should be enabled by this compilation flag RTE_LIBRTE_IEEE1588. When enabled there is a 30%-10% performance impcat on i40e and mlx5 drivers.
+In HW terminology it is also referred as TimeSync feature. NIC can take timestamps of sent and received latency packets.
+Using DPDK APIs we can read these timestamps from the NIC HW register. Using the 2-step mechanism of IEEE 1588 (PTP) protocol we send the accurate timestamp (t1) which is read from the NIC in a Follow Up packet rather than in the same packet. Received timestamp (t2) is still taken on the first packet (SYNC) itself. In this way with a combination of software(PTP protocol, DPDK APIs) and HW support (leveraging IEEE 1588 support) more accurate latency and jitter measurements can be obtatined.
+
+*Limitations*::
+
+There are few limitations in this method of Latency Measurement which are listed below. (Some are Temporary)
+
+* The type and size of the latency packet is fixed. IP UDP packet with UDP payload carrying the PTP packet. Size is *106* bytes.
+* Since IEEE 1588 (PTP) protocol uses a well known port number. The latency stream which we create need to use destination port as *319*.
+* Not All types of NIC support this feature. Currently tested and verified on I40E. Around 8 types support IEEE 1588v2 as per DPDK documentation.
+* Since there is some work involved in DPDK to keep both Vector code and IEEE 1588 code working together currently we cannot enable the DPDK config (*RTE_LIBRTE_IEEE1588*) by default. So, in order to use this feature we need to enable RTE_LIBRTE_IEEE1588 config COMPILE time and then we can dynamically enable or disable this feature based on requirement.
+
+
+*How to Use*::
+
+There is a new property added in the Latency stream through which we can enable or disable IEEE_1588 in python script ( for enabling, ieee_1588 = true). Other than that the Type, packet size and port number needs to be set as mentioned above in limitations section. Also please refer to the example provided for the same. have a look
+
+`scripts/stl/udp_1pkt_src_ip_split_latency_ieee_1588.py`
+
+[source,python]
+----
+        # packet for IEEE 1588
+        base_lat_pkt = Ether()/IP(src=src_ip,dst=dst_ip)/UDP(dport=319,sport=1025)
+
+        pkt = STLPktBuilder(pkt = base_pkt/pad,
+                            vm = vm)
+        stream = [STLStream(packet = pkt,
+                            mode = STLTXCont(pps=1)),
+
+                  # latency stream
+                  STLStream(packet = STLPktBuilder(pkt = base_lat_pkt/pad_latency),
+                            mode = STLTXCont(pps=1000),
+                            flow_stats = STLFlowLatencyStats(pg_id = 12+port_id, ieee_1588 = True)) # enable 1588
+
+----
+
+You can query if the driver support this feature using get `get_system_info` API
 
 === Dynamic multiple profiles
 

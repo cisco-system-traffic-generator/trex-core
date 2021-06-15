@@ -95,6 +95,7 @@ struct rte_mbuf {
     } hash;                   /**< hash information */
 
     void *  dynfield_ptr;
+    uint16_t timesync;
 
 } ;
 
@@ -190,6 +191,7 @@ uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_fl
 
 #define PKT_TX_TCP_SEG       (1ULL << 50)
 
+#define PKT_RX_IEEE1588_TMST   (1ULL << 10) /* RX IEEE1588 L2/L4 timestamped packet. */
 
 
 void rte_pktmbuf_free(rte_mbuf_t *m);
