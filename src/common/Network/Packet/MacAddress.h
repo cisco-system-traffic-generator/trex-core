@@ -23,10 +23,6 @@ limitations under the License.
 #define ETHER_ADDR_LEN  6 /**< Length of Ethernet address. */
 #endif
 
-#ifndef ETHER_GROUP_ADDR
-#define ETHER_GROUP_ADDR  0x01 /**< Multicast or broadcast Eth. address. */
-#endif
-
 class MacAddress
 {
 public:
@@ -103,12 +99,6 @@ public:
         static MacAddress defaultMac;
         return (*this == allZeros || *this == defaultMac);
     }
-
-    bool isUnicastAddress() const
-    {
-        return (data[0] & ETHER_GROUP_ADDR) == 0;
-    }
-
     void setIdentifierAsBogusAddr(uint32_t identifier)
     {
         *(uint32_t*)data = identifier;
