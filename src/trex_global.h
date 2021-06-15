@@ -439,6 +439,14 @@ public:
         return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
     }
 
+    void setLatencyIEEE1588Disable(bool enable) {
+        btSetMaskBit32(m_flags1, 24, 24, (enable ? 1 : 0) );
+    }
+
+    bool getLatencyIEEE1588Disable(){
+        return (btGetMaskBit32(m_flags1, 24, 24) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 

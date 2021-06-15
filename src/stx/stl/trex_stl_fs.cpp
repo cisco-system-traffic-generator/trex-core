@@ -640,13 +640,32 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
         break;
     case TrexPlatformApi::IF_STAT_PAYLOAD:
         uint16_t payload_len;
+        uint16_t size_flow_stat_payload_header;
+
         // compile_stream throws exception if something goes wrong
         compile_stream(stream, m_parser_pl);
 
         if (m_parser_pl->get_payload_len(stream->m_pkt.binary, stream->m_pkt.len, payload_len) < 0) {
             throw TrexFStatEx("Failed getting payload len", TrexException::T_FLOW_STAT_BAD_PKT_FORMAT);
         }
-        if (payload_len < sizeof(struct flow_stat_payload_header)) {
+
+        if ( stream->m_rx_check.m_ieee_1588 == true ) {
+#ifdef RTE_LIBRTE_IEEE1588
+            size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header_ieee_1588);
+#else
+            /* If IEEE 1588 feature is disabled by DEFINE, then its an issue*/
+            throw TrexFStatEx("Failed to start Latency stream with IEEE 1588. Enable RTE_LIBRTE_IEEE1588 in DPDK config to use this",
+                               TrexException::T_FLOW_STAT_UNSUPP_PKT_FORMAT);
+#endif
+            if (CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable()) {
+                stream->m_rx_check.m_ieee_1588 = false;
+                size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header); 
+            }
+        } else {
+            size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header);
+        }
+
+        if (payload_len < size_flow_stat_payload_header) {
             throw TrexFStatEx("Need at least " + std::to_string(sizeof(struct latency_header))
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
@@ -654,10 +673,10 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 
         if (pkt_len_data->m_min_pkt_len != pkt_len_data->m_max_pkt_len) {
             // We have field engine which changes packets size
-            uint16_t min_pkt_len = stream->m_pkt.len - payload_len + sizeof(struct flow_stat_payload_header);
-            if (min_pkt_len < 60 + sizeof(struct flow_stat_payload_header)) {
+            uint16_t min_pkt_len = stream->m_pkt.len - payload_len + size_flow_stat_payload_header;
+            if (min_pkt_len < 60 + size_flow_stat_payload_header) {
                 // We have first mbuf of 60, and then we need the payload data to be contiguous.
-                min_pkt_len = 60 + sizeof(struct flow_stat_payload_header);
+                min_pkt_len = 60 + size_flow_stat_payload_header;
             }
             if (pkt_len_data->m_min_pkt_len < min_pkt_len) {
                 throw TrexFStatEx("You specified field engine with minimum packet size of " + std::to_string(pkt_len_data->m_min_pkt_len) + " bytes."

@@ -61,6 +61,7 @@ public:
     virtual bool is_link_change_supported() { return flag_is_link_change_supported; }
     virtual bool is_prom_change_supported() { return flag_is_prom_change_supported; }
     virtual bool is_vxlan_fs_supported() { return flag_is_vxlan_fs_supported; }
+    virtual bool is_ieee1588_supported() { return flag_is_ieee1588_supported; }
     virtual const std::string &get_description() { return intf_info_st.description; }
     virtual int get_numa(void) { return intf_info_st.numa_node; }
     virtual const std::string& get_pci_addr(void) { return intf_info_st.pci_addr; }
@@ -117,6 +118,7 @@ protected:
     bool       flag_is_link_change_supported;
     bool       flag_is_prom_change_supported;
     bool       flag_is_vxlan_fs_supported;
+    bool       flag_is_ieee1588_supported;
 
     struct intf_info_st {
         std::string     pci_addr;
@@ -132,7 +134,7 @@ public:
 
     DpdkTRexPortAttr(uint8_t tvpid, uint8_t repid, bool is_virtual, bool fc_change_allowed,
             bool is_prom_allowed, bool is_vxlan_fs_allowed, bool has_pci,
-            bool device_flush_needed = false);
+            bool device_flush_needed = false,  bool is_ieee1588_allowed = false);
 
 /*    UPDATES    */
     virtual void update_link_status();
@@ -203,6 +205,7 @@ public:
         flag_is_link_change_supported = false;
         flag_is_prom_change_supported = false;
         flag_is_vxlan_fs_supported = false;
+        flag_is_ieee1588_supported = false;
         update_description();
     }
 
