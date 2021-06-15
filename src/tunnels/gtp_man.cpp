@@ -289,6 +289,8 @@ int CGtpuMan::prepend_ipv4_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t in
         /*Fix outer header IPv4 length */
         outer_ipv4->setTotalLength((uint16_t)(pkt->pkt_len - ETH_HDR_LEN));
     }
+    /*Fix ipv4 checksum*/
+    outer_ipv4->updateCheckSumFast();
     /*Fix UDP header length */
     UDPHeader* udp = (UDPHeader *)((uint8_t *)outer_ipv4 + IPV4_HDR_LEN);
     udp->setSourcePort(tch->getSourcePort());
