@@ -234,56 +234,83 @@ RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
 
 #endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
-void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
-  uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
-  CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
-  parser.set_vxlan_skip(CGlobalInfo::m_options.m_ip_cfg[port].get_vxlan_fs());
-  int ret = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
+void RXLatency::handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip) {
+    uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+    struct flow_stat_payload_header *fsp_head = 0;
 
-  if (m_rcv_all || (ret == 0)) {
-    uint32_t ip_id = 0;
-    int ret2 = parser.get_ip_id(ip_id);
-    if (m_rcv_all || (ret2 == 0)) {
-      if (m_rcv_all || is_flow_stat_id(ip_id)) {
-        uint16_t hw_id = get_hw_id((uint16_t)ip_id);
-        if (m_rcv_all || is_flow_stat_payload_id(ip_id)) {
-          struct flow_stat_payload_header *fsp_head =
-              (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
-                  m, sizeof(struct flow_stat_payload_header), tmp_buf);
-          if (m_rcv_all && (!is_flow_stat_id(ip_id) ||
-              (fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC &&
-               fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD))) {
-            ip_id = FLOW_STAT_PAYLOAD_IP_ID;
-          }
-          if (is_flow_stat_payload_id(ip_id)) {
-#ifndef LATENCY_IEEE_1588_TIMESTAMPING
-            hr_time_t hr_time_now = os_get_hr_tick_64();
-            if (unlikely(m_dump_err_pkts)) {
-                set_dump_info(m, fsp_head);
+    if (check_non_ip && !is_flow_stat_payload_id(ip_id)) {
+            fsp_head = (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
+                m, sizeof(struct flow_stat_payload_header), tmp_buf);
+
+        /* check if flow-latency-stat packet by payload magic.
+         * for the non-IP protocol (invalid ip_id) and IP proxy (changed ip_id) cases.
+         */
+        if (!is_flow_stat_id(ip_id) ||
+            ((fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) &&
+             (fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD))) {
+            /* except broadcast packet */
+            if (!(rte_pktmbuf_mtod(m, EthernetHeader *))->getDestMacP()->isDefaultAddress()) {
+                ip_id = FLOW_STAT_PAYLOAD_IP_ID;
             }
-            update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
-            hw_id = get_hw_id((uint16_t)ip_id);
-#else
-            if (m->ol_flags & PKT_RX_IEEE1588_TMST) {
-                save_timestamps_for_sync_pkt(m, fsp_head, port);
-                m_rx_pg_stat_payload[fsp_head->hw_id].add_pkts(1);
-                m_rx_pg_stat_payload[fsp_head->hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
-            } else {
-                update_timestamps_for_fup_pkt(fsp_head);
-                update_stats_for_pkt(fsp_head, m->pkt_len, m_sync_arrival_time_nsec);
-            }
-            hw_id = get_hw_id((uint16_t)ip_id);
-#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
-          }
         }
-        if (hw_id < MAX_FLOW_STATS) {
-          m_rx_pg_stat[hw_id].add_pkts(1);
-          m_rx_pg_stat[hw_id].add_bytes(m->pkt_len +
-                                        4); // +4 for ethernet CRC
-        }
-      }
     }
-  }
+
+    if (is_flow_stat_payload_id(ip_id)) {
+        if (!fsp_head){
+            fsp_head = (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
+                m, sizeof(struct flow_stat_payload_header), tmp_buf);
+        }
+
+#ifndef LATENCY_IEEE_1588_TIMESTAMPING
+        hr_time_t hr_time_now = os_get_hr_tick_64();
+        if (unlikely(m_dump_err_pkts)) {
+            set_dump_info(m, fsp_head);
+        }
+        update_stats_for_pkt(fsp_head, m->pkt_len, hr_time_now);
+#else
+        if (m->ol_flags & PKT_RX_IEEE1588_TMST) {
+            save_timestamps_for_sync_pkt(m, fsp_head, port);
+            m_rx_pg_stat_payload[fsp_head->hw_id].add_pkts(1);
+            m_rx_pg_stat_payload[fsp_head->hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
+        } else {
+            update_timestamps_for_fup_pkt(fsp_head);
+            update_stats_for_pkt(fsp_head, m->pkt_len, m_sync_arrival_time_nsec);
+        }
+#endif /* LATENCY_IEEE_1588_TIMESTAMPING */
+    }
+}
+
+void RXLatency::update_flow_stats(const rte_mbuf_t *m, uint32_t ip_id) {
+    uint16_t hw_id = get_hw_id((uint16_t)ip_id);
+    if (hw_id < MAX_FLOW_STATS) {
+        m_rx_pg_stat[hw_id].add_pkts(1);
+        m_rx_pg_stat[hw_id].add_bytes(m->pkt_len + 4); // +4 for ethernet CRC
+    }
+}
+
+void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
+    CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
+    parser.set_vxlan_skip(CGlobalInfo::m_options.m_ip_cfg[port].get_vxlan_fs());
+    int res = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
+    uint32_t ip_id = 0;
+    // valid IP
+    if (res == FSTAT_PARSER_E_OK){
+        parser.get_ip_id(ip_id);
+        if (is_flow_stat_id(ip_id)) {
+            if (is_flow_stat_payload_id(ip_id)) {
+                handle_flow_latency_stats(m, ip_id,false);
+            } else {
+                update_flow_stats(m, ip_id);
+            }
+        }
+    }
+
+    /* In case of software mode try non-ip */
+    if (m_rcv_all) {
+        if (res != FSTAT_PARSER_E_OK){ // try non-ip with magic 
+            handle_flow_latency_stats(m, ip_id,true);
+        }
+    }
 }
 
 void
