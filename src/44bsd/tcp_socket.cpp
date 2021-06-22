@@ -314,6 +314,10 @@ void CEmulApp::run_cmd_delay(htw_ticks_t ticks){
     if (m_timer.is_running()) {
         m_pctx->m_ctx->m_timer_w.timer_stop(&m_timer);
     }
+    /* to prevent unexpected loop at timer wheel */
+    if (unlikely(ticks == 0)) {
+        ticks = 1;
+    }
     m_pctx->m_ctx->m_timer_w.timer_start(&m_timer,ticks);
 }
 
