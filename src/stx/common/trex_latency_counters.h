@@ -98,7 +98,7 @@ public:
     void create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs);
 
     void handle_pkt(const rte_mbuf_t *m, int port);
-    void handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip);
+    bool handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip);
     void update_flow_stats(const rte_mbuf_t *m, uint32_t ip_id);
     void update_stats_for_pkt(flow_stat_payload_header *fsp_head,
                               uint32_t pkt_len,
