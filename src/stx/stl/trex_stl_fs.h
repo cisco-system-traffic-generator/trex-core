@@ -122,6 +122,7 @@ struct flow_stat_payload_header {
 #ifdef LATENCY_IEEE_1588_TIMESTAMPING
 } __rte_packed;
 #else
+    bool is_valid_ts(hr_time_t now);
 };
 
 #endif /* LATENCY_IEEE_1588_TIMESTAMPING */
