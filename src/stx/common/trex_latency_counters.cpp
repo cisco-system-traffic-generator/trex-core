@@ -234,20 +234,24 @@ RXLatency::update_timestamps_for_fup_pkt(flow_stat_payload_header *fsp_head) {
 
 #endif /* LATENCY_IEEE_1588_TIMESTAMPING */
 
+/* check if given time is reasonable, from 5 seconds before to now. */
+#define CHECK_TIME_SANITY(time) ((os_get_hr_tick_64() - (time)) < 5 * os_get_hr_freq())
+
 void RXLatency::handle_flow_latency_stats(const rte_mbuf_t *m, uint32_t& ip_id,bool check_non_ip) {
     uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
-    struct flow_stat_payload_header *fsp_head = 0;
+    struct flow_stat_payload_header *fsp_head = nullptr;
 
     if (check_non_ip && !is_flow_stat_payload_id(ip_id)) {
-            fsp_head = (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
-                m, sizeof(struct flow_stat_payload_header), tmp_buf);
+        fsp_head = (flow_stat_payload_header *)utl_rte_pktmbuf_get_last_bytes(
+            m, sizeof(struct flow_stat_payload_header), tmp_buf);
 
         /* check if flow-latency-stat packet by payload magic.
          * for the non-IP protocol (invalid ip_id) and IP proxy (changed ip_id) cases.
          */
         if (!is_flow_stat_id(ip_id) ||
             ((fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) &&
-             (fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD))) {
+             (fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD) &&
+             CHECK_TIME_SANITY(fsp_head->time_stamp))) {
             /* except broadcast packet */
             if (!(rte_pktmbuf_mtod(m, EthernetHeader *))->getDestMacP()->isDefaultAddress()) {
                 ip_id = FLOW_STAT_PAYLOAD_IP_ID;
@@ -293,22 +297,25 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
     parser.set_vxlan_skip(CGlobalInfo::m_options.m_ip_cfg[port].get_vxlan_fs());
     int res = parser.parse(rte_pktmbuf_mtod(m, uint8_t *), m->pkt_len);
     uint32_t ip_id = 0;
+    parser.get_ip_id(ip_id);
+
+    /* In case of software mode, try latency with magic */
+    if (m_rcv_all) {
+        handle_flow_latency_stats(m, ip_id,true);
+
+        if (is_flow_stat_payload_id(ip_id)) {
+            return; // handled as latency packet
+        }
+    }
+
     // valid IP
     if (res == FSTAT_PARSER_E_OK){
-        parser.get_ip_id(ip_id);
         if (is_flow_stat_id(ip_id)) {
             if (is_flow_stat_payload_id(ip_id)) {
                 handle_flow_latency_stats(m, ip_id,false);
             } else {
                 update_flow_stats(m, ip_id);
             }
-        }
-    }
-
-    /* In case of software mode try non-ip */
-    if (m_rcv_all) {
-        if (res != FSTAT_PARSER_E_OK){ // try non-ip with magic 
-            handle_flow_latency_stats(m, ip_id,true);
         }
     }
 }
