@@ -28,6 +28,7 @@ We provide here a reference to all the plugins, their methods, init JSONs and so
     plugins/cdp
     plugins/dhcp
     plugins/dhcpv6
+    plugins/dns
     plugins/dot1x
     plugins/icmp
     plugins/igmp

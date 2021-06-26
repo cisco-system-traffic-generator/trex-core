@@ -122,7 +122,6 @@ class MDNSPlugin(EMUPluginBase):
 
     INIT_JSON_CLIENT = { 'mdns': "Pointer to INIT_JSON_CLIENT below" }
     """
-
     :parameters:
 
         hosts: list
@@ -211,7 +210,7 @@ class MDNSPlugin(EMUPluginBase):
                     Name of the host we are querying.
 
                 dns_type: string
-                    Type of the mDNS query, supported types are A, AAAA, PTR, TXT. Default is A.
+                    Type of the mDNS query, supported types are A, AAAA, PTR, TXT. Default is "A".
 
                 dns_class: string
                     Class of the mDNS query. Default is "IN".
@@ -292,18 +291,19 @@ class MDNSPlugin(EMUPluginBase):
                             'dns_type': 'A',
                             'answer': '1.1.1.6',
                             'name': 'trex',
-                            'ttl': 238
+                            'ttl': 240,
+                            'time_left': 238
                         },
                         {
                             'dns_class': 'IN',
                             'dns_type': 'A',
                             'answer': '1.1.1.5',
                             'name': 'UCS',
-                            'ttl': 211
+                            'ttl': 240,
+                            'time_left': 211
                         }
                     ]
         """
-
         ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey, 'must': True}]
         EMUValidator.verify(ver_args)
         params = ns_key.conv_to_dict(add_tunnel_key = True)
@@ -363,9 +363,9 @@ class MDNSPlugin(EMUPluginBase):
                                         self.mdns_query_line.__doc__,
                                         parsing_opts.EMU_NS_GROUP,
                                         parsing_opts.MAC_ADDRESS,
-                                        parsing_opts.MDNS_QUERY_NAME,
-                                        parsing_opts.MDNS_QUERY_TYPE,
-                                        parsing_opts.MDNS_QUERY_CLASS,
+                                        parsing_opts.DNS_QUERY_NAME,
+                                        parsing_opts.DNS_QUERY_TYPE,
+                                        parsing_opts.DNS_QUERY_CLASS,
                                         parsing_opts.MDNS_QUERY_IPV6
                                         )
         opts = parser.parse_args(line.split())

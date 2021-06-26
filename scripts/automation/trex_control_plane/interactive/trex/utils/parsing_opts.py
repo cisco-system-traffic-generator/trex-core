@@ -1507,24 +1507,30 @@ class OPTIONS_DB_ARGS:
          'action': action_check_min_max(),
          'min_val': 0})
 
-    #MDNS Query
-    MDNS_QUERY_NAME = ArgumentPack(
-        ['-n', '--name'],
-        {'help': 'Hostname to query',
+    #DNS Query
+    DNS_DOMAIN_NAME = ArgumentPack(
+        ['-d', '--domain'],
+        {'help': 'Dns Domain',
          'required': True,
          'type': str})
 
-    MDNS_QUERY_TYPE = ArgumentPack(
+    DNS_QUERY_NAME = ArgumentPack(
+        ['-n', '--name'],
+        {'help': 'Hostname/Domain to query',
+         'required': True,
+         'type': str})
+
+    DNS_QUERY_TYPE = ArgumentPack(
         ['-t', '--type'],
-        {'help': 'mDNS query type',
+        {'help': 'DNS/mDNS query type',
          'dest': 'dns_type',
          'default': "A",
          'choices': ["A", "AAAA","TXT", "PTR"],
          'type': str})
 
-    MDNS_QUERY_CLASS = ArgumentPack(
+    DNS_QUERY_CLASS = ArgumentPack(
         ['-c', '--class'],
-        {'help': 'mDNS class type',
+        {'help': 'DNS/mDNS class type',
         'dest': 'dns_class',
         'default': "IN",
         'type': str})
