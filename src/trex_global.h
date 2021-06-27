@@ -532,7 +532,11 @@ public:
         m_vlan_port[1] = 100;
         memset(m_src_ipv6, 0, sizeof(m_src_ipv6));
         memset(m_dst_ipv6, 0, sizeof(m_dst_ipv6));
-        memset(m_ip_cfg, 0, sizeof(m_ip_cfg));
+        m_ip_cfg->set_ip(0);
+        m_ip_cfg->set_mask(0);
+        m_ip_cfg->set_def_gw(0);
+        m_ip_cfg->set_vlan(0);
+        m_ip_cfg->set_vxlan_fs(false);
         m_latency_rate = 0;
         m_latency_mask = 0xffffffff;
         m_latency_prev = 0;
