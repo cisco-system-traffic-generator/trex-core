@@ -335,6 +335,8 @@ class tx_per_flow_with_rate_t_ : public tx_per_flow_t_ {
         tx_per_flow_t_::clear();
         m_p_rate = 0;
         m_b_rate = 0;
+        m_pkts_base = 0;
+        m_bytes_base = 0;
         m_last_rate_calc_time = 0;
         m_calc_time_valid = false;
     }
