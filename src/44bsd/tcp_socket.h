@@ -497,6 +497,7 @@ typedef uint8_t tcp_app_state_t;
 class CEmulTxQueue {
 public:
     CEmulTxQueue(){
+        m_q_tot_bytes=0;
         m_tx_offset=0;
         m_v_cc=0;
         m_wnd_div_2=0;
@@ -509,6 +510,7 @@ public:
     void add_buffer(CMbufBuffer * b){
         m_q.push_back(b);
         m_v_cc+=b->len();
+        m_q_tot_bytes+=b->len();
     }
 
     void subtract_bytes(uint32_t bytes){
@@ -531,6 +533,7 @@ private:
     uint32_t                    m_wnd_div_2; /* the TCP Tx window size */
     uint32_t                    m_v_cc; /* number of bytes in the app level queue -> me move bytes to TCP queue */
     uint32_t                    m_tx_offset; /* offset into the vector */
+    uint32_t                    m_q_tot_bytes; /* total bytes of all the buffers */
     std::vector<CMbufBuffer *>  m_q; /* queue of buffers */
 };
 

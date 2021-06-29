@@ -384,7 +384,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
                 m_api->tx_tcp_output(m_pctx,m_flow);
             }
 
-            if (get_tx_mode_none_blocking()) {
+            if (get_tx_mode_none_blocking() && m_api->get_tx_sbspace(m_flow)) {
                 return next_cmd();
             }
         }
@@ -1056,50 +1056,23 @@ bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
     uint32_t z=m_q.size();
     assert(z>0);
 
-    uint32_t sum;
-    if (likely(z==1)) {
-        CMbufBuffer * b=m_q[0];
-        sum=b->len();
-    }else{
-        int i;
-        sum=0;
-        uint32_t new_offset = m_tx_offset + tx_bytes;
-
+    m_tx_offset += tx_bytes;
+    if (unlikely(z>1)) {
         /* update the vector, remove buffer if needed */
-        for (i=0;i<(int)z; i++ ) {
-            CMbufBuffer * b=m_q[i];
+        for (int i=0; i<(int)z; i++ ) {
+            CMbufBuffer * b=m_q[0];
             uint32_t c_len =b->len();
-            sum+=c_len;
-            if (new_offset < sum){
+            if (m_tx_offset < c_len){
                 break;
             }
-        }
-        /* remove the buffers */
-        if (i>0) {
-            /* i is the number of elemets to drop, 
-               sum is the number of bytes to fix */
-            int j;
-            sum=0;
-            for (j=0; j<i; j++) {
-                CMbufBuffer * b=m_q[0];
-                sum+=b->len();
-                m_q.erase(m_q.begin());
-            }
-            z=m_q.size();
-            m_tx_offset -= sum;
-        }
+            m_tx_offset -= c_len;
 
-        sum=0;
-        /* with new vector, calculate the sum again, could be size of 1 */
-        for (i=0;i<(int)z; i++ ) {
-            CMbufBuffer * b=m_q[i];
-            uint32_t c_len =b->len();
-            sum+=c_len;
+            m_q_tot_bytes -= c_len;
+            m_q.erase(m_q.begin());
         }
     }
 
-    m_tx_offset += tx_bytes;
-    uint32_t residue = sum - m_tx_offset; /* how much we have to send */
+    uint32_t residue = m_q_tot_bytes - m_tx_offset; /* how much we have to send */
 
     add_to_tcp_queue = bsd_umin(tx_bytes,m_v_cc);
     m_v_cc -= add_to_tcp_queue;
@@ -1125,6 +1098,7 @@ bool CEmulTxQueue::on_bh_tx_acked(uint32_t tx_bytes,
 void CEmulTxQueue::reset(){
     m_tx_offset=0;
     m_q.clear();
+    m_q_tot_bytes=0;
 }
 
 
