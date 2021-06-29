@@ -30,6 +30,7 @@ limitations under the License.
 #include <execinfo.h>
 #include <cxxabi.h>
 #include <dlfcn.h>
+#include <memory>
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
