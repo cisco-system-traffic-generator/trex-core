@@ -112,11 +112,7 @@ void dbg_printf(const char *fmt, ...)
 /************** class CFlowStatUserIdInfo ***************/
 CFlowStatUserIdInfo::CFlowStatUserIdInfo(uint16_t l3_proto, uint8_t l4_proto, uint8_t ipv6_next_h) {
     m_rx_cntr->clear();
-    m_rx_cntr->set_byte_base(0);
-    m_rx_cntr->set_pkt_base(0);
     m_tx_cntr->clear();
-    m_tx_cntr->set_byte_base(0);
-    m_tx_cntr->set_pkt_base(0);
     m_hw_id = HW_ID_INIT;
     m_l3_proto = l3_proto;
     m_l4_proto = l4_proto;
@@ -164,13 +160,9 @@ void CFlowStatUserIdInfo::reset_hw_id() {
     int i;
     for(i = 0; i < TREX_MAX_PORTS; i++) {
         m_rx_cntr[i].clear();
-        m_rx_cntr[i].set_byte_base(0);
-        m_rx_cntr[i].set_pkt_base(0);
     }
     for(i = 0; i < TREX_MAX_PORTS; i++) {
         m_tx_cntr[i].clear();
-        m_tx_cntr[i].set_byte_base(0);
-        m_tx_cntr[i].set_pkt_base(0);
     }
 }
 
