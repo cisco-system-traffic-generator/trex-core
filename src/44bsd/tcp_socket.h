@@ -123,7 +123,6 @@ void    sbappend_bytes(struct tcp_socket *so,
 #define sorwakeup(so)   { sowakeup((so), &(so)->so_rcv); \
               if ((so)->so_upcall) \
                 (*((so)->so_upcall))((so), (so)->so_upcallarg, M_DONTWAIT); \
-                
             }
 #else
 

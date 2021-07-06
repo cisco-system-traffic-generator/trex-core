@@ -157,6 +157,7 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
         lp->set_name(iname);
         
         if ( lp->parse(err)!=0){
+            delete lp;
             return(-1);
         }
         m_vec.push_back(lp);

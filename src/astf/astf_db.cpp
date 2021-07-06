@@ -610,19 +610,13 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
     uint32_t ip_end;
     uint32_t num_ips;
     std::string err_str;
-    const char* ip_start_str;
-    const char* ip_end_str;
-    std::string s;
-
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     for (int i = 0; i < ip_gen_list.size(); i++) {
-        s = ip_gen_list[i]["ip_start"].asString();
-        ip_start_str = s.c_str();
-        ip_start = ip_from_str(ip_start_str);
-        s = ip_gen_list[i]["ip_end"].asString();
-        ip_end_str = s.c_str();
-        ip_end = ip_from_str(ip_end_str);
+        std::string ip_start_str = ip_gen_list[i]["ip_start"].asString();
+        std::string ip_end_str = ip_gen_list[i]["ip_end"].asString();
+        ip_start = ip_from_str(ip_start_str.c_str());
+        ip_end = ip_from_str(ip_end_str.c_str());
         if (ip_end < ip_start) {
             err_str = std::string("IP start: ") + ip_start_str + " is bigger than IP end: " + ip_end_str;
             return CJsonData_err(CJsonData_err_pool_err, err_str);
@@ -1144,6 +1138,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         } else {
             fprintf(stderr, "wrong distribution string %s in json\n", s.c_str());
             my_lock.unlock();
+            delete ret;
             return((CAstfTemplatesRW *)0);
         }
 
@@ -1241,6 +1236,9 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
         if (!read_tunables(c_tuneable, m_val["templates"][index]["client_template"]["glob_info"])){
             my_lock.unlock();
+            delete c_tuneable;
+            delete temp_rw;
+            delete ret;
             return((CAstfTemplatesRW *)0);
         }
         temp_rw->set_tuneables(c_tuneable, s_tuneable);
@@ -1732,7 +1730,7 @@ void CAstfDbRO::Delete() {
 
 void CAstfDbRO::set_test_assoc_table(uint16_t port, CEmulAppProgram *prog, CTcpTuneables *tune) {
         CTcpDataAssocParams params(port,true);
-        CTcpTemplateInfo one_template;
+        CTcpTemplateInfo one_template{};
         one_template.m_tg_id = 0;
         m_assoc_trans.insert_vec(params, prog, tune, 0);
         m_num_of_tg_ids = 1;
