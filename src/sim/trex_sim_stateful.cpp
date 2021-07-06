@@ -490,7 +490,7 @@ bool CMergeCapFileRec::Create(std::string cap_file,
 
 
 
-#define MERGE_CAP_FILES (2)
+#define MERGE_CAP_FILES (3)
 
 class CMergeCapFile {
 public:
