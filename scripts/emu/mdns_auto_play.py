@@ -16,7 +16,7 @@ class Prof1():
     def get_init_json_client(self, domain_name, client, ttl):
         """Get a simple init json"""
         return {
-            "hosts": ["emu-client-{}".format(client), "trex-client-{}".format(client)],
+            "hosts": ["emu-client-{}._tcp.local".format(client), "trex-client-{}._tcp.local".format(client)],
             "txt": [
                 {
                     "field": "desc",
@@ -50,7 +50,7 @@ class Prof1():
                 "min_client": "00:00:00:70:00:0{}".format(min_client),
                 "max_client": "00:00:00:70:00:{:02x}".format(max_client),
                 "client_step": 2,
-                "hostname_base": "trex-client-",
+                "hostname_template": "trex-client-%v._tcp.local",
                 "min_hostname": min_hostname,
                 "max_hostname": max_hostname,
                 "hostname_step": 2,
@@ -59,9 +59,9 @@ class Prof1():
                 "ipv6": False,
                 "program": {
                     "00:00:00:70:00:0{}".format(vport + 2): {
-                        "hostnames": ["emu-client-{}".format(min_hostname), "trex-client-{}".format(min_hostname)],
+                        "hostnames": ["emu-client-{}._tcp.local".format(min_hostname), "trex-client-{}._tcp.local".format(min_hostname)],
                         "type": "TXT",
-                        "class": "Any",
+                        "class": "IN",
                         "ipv6": True
                     },
                 }
