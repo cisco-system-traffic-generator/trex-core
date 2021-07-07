@@ -40,8 +40,9 @@ class MDNSPlugin(EMUPluginBase):
                 client_step: uint16
                     Incremental step between two consecutive clients. Defaults to 1.
 
-                hostname_base: string
-                    String that will be used as format for hostname in queries. A number will be appended to it.
+                hostname_template: string
+                    String that will be used as template format for hostname in queries. One number will be injected in it.
+                    The number should be represented with %v, because the backend is in Golang.
 
                 min_hostname: uint16
                     Unsigned integer representing the minimal value that can be appended to a `hostname_base`.
