@@ -4,13 +4,15 @@ import trex.utils.parsing_opts as parsing_opts
 
 
 class DHCPV6Plugin(EMUPluginBase):
-    '''Defines DHCPV6 plugin
-        RFC 8415  DHCPv6 client
-    '''
+    """
+    Defines DHCPv6 plugin based on `DHCPv6 <https://en.wikipedia.org/wiki/DHCPv6>`_ 
+
+    Implemented based on `RFC 8415 Client <https://datatracker.ietf.org/doc/html/rfc8415>`_ 
+    """
 
     plugin_name = 'DHCPV6'
 
-    # init jsons example for SDK
+    # init json example for SDK
     INIT_JSON_NS = {'dhcpv6': {}}
     """
     :parameters:
@@ -21,34 +23,48 @@ class DHCPV6Plugin(EMUPluginBase):
     """
     :parameters:
         timerd: uint32
-            DHCP timer discover in sec.
+            DHCP timer discover in seconds.
+
         timero: uint32
-            DHCP timer offer in sec.
+            DHCP timer offer in seconds.
+
         options: dict
-            Dictionary that contains options 
+            Dictionary that contains DHCPv6 Options:
 
     :options:
 
-        sol: array of bytes can include a few options ([option1,len1, bytes1..,option2,len2, bytes1..]
-            for Solicit packet e.g. [0,6, 0,8,0, 17, 0, 23, 0, 24, 0,39, 0,6, 0,8,0, 17, 0, 23, 0, 24, 0,39] 2 options of vendor class 
+        rm_or: bool
+            Remove default Option Request (Should add another Option Request using **sol**, **req**)
 
-        req: array of bytes 
-            for Request packet same as sol field 
+        rm_vc: bool
+            Remove default Vendor Class Option
 
-        rel: array of bytes 
-            for Release packet same as sol field 
+        sol: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Solicit Packet.
 
-        reb: array of bytes 
-            for Rebind packet same as sol field 
+            Each byte list should be of the format [Code][Data] **(pay attention, no length)**.
 
-        ren: array of bytes
-            for Renew packet same as sol field 
+            For example:
 
-        rm_or: bool 
-            remove default option request (should add the same extended options using sol,req)
+                    .. highlight:: python
+                    .. code-block:: python
 
-        rm_vc: bool 
-            remove default vendor class
+                        "sol": [
+                           [0, 6, 0, 23, 0, 24, 0, 243, 0, 242, 0, 59, 0, 242, 0, 39], # Option Request - Code 6
+                           [0, 15, 98, 101, 115] # User Class Option - Code 15
+                        ]
+
+        req: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Request Packet.
+
+        rel: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Release Packet.
+
+        reb: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Rebind Packet.
+
+        ren: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Renew Packet.
 
     """
 

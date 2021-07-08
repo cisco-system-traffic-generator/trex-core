@@ -1,6 +1,5 @@
 from trex.emu.api import *
-import argparse
-import get_args 
+import get_args
 
 
 class Prof1():
@@ -24,10 +23,9 @@ class Prof1():
             ipv6 = Ipv6("2001:DB8:1::2")
 
             # create a different client each time
-            for i in range(clients_size):       
+            for i in range(clients_size):
                 client = EMUClientObj(mac     = mac[i].V(),
-                                      ipv6    = ipv6[i].V(),  
-
+                                      ipv6    = ipv6[i].V(),
                                       plugs   = {'ipv6': {},
                                                  'dhcpv6': {},
                                                 },
