@@ -196,6 +196,9 @@ TrexPublisher::publish_event(event_type_e type, const Json::Value &data) {
                 Json::Value valctx;
                 valctx =value;
                 valctx["seq"] = ctx->m_seq++;
+                if (ctx->m_qevents.empty()) {
+                    ctx->m_last_query = now_sec();
+                }
                 ctx->m_qevents.append(valctx);
             }
             else if (ctx->m_reader_mode) {
