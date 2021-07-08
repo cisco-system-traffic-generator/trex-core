@@ -1,11 +1,14 @@
 from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
 import trex.utils.parsing_opts as parsing_opts
-import json
 
 
 class DHCPPlugin(EMUPluginBase):
-    '''Defines DHCP plugin  RFC 2131 DHCP client side'''
+    """
+    Defines DHCP plugin based on `DHCP <https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol>`_ 
+
+    Implemented based on `RFC 2131 Client <https://datatracker.ietf.org/doc/html/rfc2131>`_ 
+    """
 
     plugin_name = 'DHCP'
 
@@ -20,11 +23,13 @@ class DHCPPlugin(EMUPluginBase):
     """
     :parameters:
         timerd: uint32
-            DHCP timer discover in sec.
+            DHCP timer discover in seconds.
+
         timero: uint32
-            DHCP timer offer in sec.
+            DHCP timer offer in seconds.
+
         options: dict
-            Dictionary that contains options 
+            Dictionary that contains DHCP Options:
 
     :options:
 
@@ -34,16 +39,27 @@ class DHCPPlugin(EMUPluginBase):
         requestDhcpClassIdOption: string 
             ClassIdOption option for request packet 
 
-        dis:  array of byte array 
-           generic options array for discover packet e.g. 
-           [[60,8,77,83,70,84,32,53,46,48],[60,8,77,83,70,84,32,53,46,48]]
+        dis: List[List[byte]]
+            List of byte lists. Each byte list represents an Option that will be added to a Discovery Packet.
 
-        req: array of byte array
-            generic options array for request packet
+            Each byte list should be of the format [Type][Data] **(pay attention, no length)**.
+
+            For example:
+
+                    .. highlight:: python
+                    .. code-block:: python
+
+                        "dis": [
+                            [60, 8, 77, 83, 70, 84, 32, 53, 46, 48], # Vendor Class Id - Type 60
+                            [0x0c, 0x68, 0x6f, 0x73, 0x74, 0x2d, 0x74, 0x72, 0x65, 0x78] # Hostname - Type 12
+                        ]
+
+        req: List[List[byte]]
+             List of byte lists. Each byte list represents an Option that will be added to a Request Packet.
 
 
-        ren: array of byte array
-            generic options array for renew packet
+        ren: List[List[byte]]
+             List of byte lists. Each byte list represents an Option that will be added to a Renew Packet.
 
     """
 
