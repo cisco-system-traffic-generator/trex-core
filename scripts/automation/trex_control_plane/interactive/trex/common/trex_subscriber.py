@@ -294,13 +294,21 @@ class TRexSubscriber():
             self.socket.close(linger = 0)
         
     def _wait_for_trigger (self):
-            try:
-               self.socket.recv() # block on event
-               return True 
-            except zmq.Again:
-               return False
-            except zmq.ContextTerminated:
-               return False
+        is_event = False
+        try:
+            while not is_event:
+                msg = self.socket.recv() # block on event
+                if msg == b'{}': # event message only
+                    is_event = True
+            # clear all pending messages
+            while True:
+                self.socket.recv(1) # non-block recv, causes zmq.Again when empty
+        except zmq.Again:
+            pass
+        except zmq.ContextTerminated:
+            return False
+
+        return is_event
 
     # thread function
     def _run (self):
@@ -349,6 +357,7 @@ class TRexSubscriber():
                     self.ctx.event_handler.on_event("subscriber timeout", self.get_timeout_sec())
                     got_data = False
 
+            time.sleep(0.01)
 
 
     def get_stats (self):
