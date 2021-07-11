@@ -8,7 +8,8 @@ _ext_libs = [ {'name': 'simple_enum'},
               {'name': 'pyzmq-ctypes'},
               {'name': 'jsonrpclib-pelix-0.4.1'},
               {'name': 'termstyle'},
-              {'name': 'netstat'}
+              {'name': 'netstat'},
+              {'name': 'jsonpickle-2.0.0'}
             ]
 
 def _import_server_modules():

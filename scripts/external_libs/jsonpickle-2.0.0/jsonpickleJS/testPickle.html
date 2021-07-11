@@ -1,0 +1,30 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns = "http://www.w3.org/1999/xhtml">
+<head>
+ <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <script data-main="main" src="ext/require/require.js"></script>
+
+</head>
+<body>
+<script type="text/javascript">
+  require(['main'], function (jsonpickle) {
+      tags = jsonpickle.tags;
+      
+      Thing = function (x) {
+          this.x = x;
+          this[tags.PY_CLASS] = '__main__.Thing';
+          this.subThing = undefined;
+      }
+      t = new Thing(5);
+      st = new Thing('hello');
+      t.subList = [5, 'a', st];      
+      st.subThing = t;      
+      t.subThing = st;
+      t.subThing2 = st;
+      o = jsonpickle.encode(t);
+      console.log(o);
+  });
+</script>
+See Console for output...
+</body>
+</html>

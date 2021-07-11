@@ -28,13 +28,14 @@ def verify_hlt(res):
 ### Main ###
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description = 'Use of Stateless through rpc_proxy. (Can be implemented in any language)')
+    parser = argparse.ArgumentParser(description = 'Use of Stateless/Emu through rpc_proxy. (Can be implemented in any language)')
     parser.add_argument('-s', '--server', type=str, default = 'localhost', dest='server', action = 'store',
                         help = 'Address of rpc proxy.')
     parser.add_argument('-p', '--port', type=int, default = 8095, dest='port', action = 'store',
                         help = 'Port of rpc proxy.\nDefault is 8095.')
     parser.add_argument('--master_port', type=int, default = 8091, dest='master_port', action = 'store',
                         help = 'Port of Master daemon.\nDefault is 8091.')
+    parser.add_argument('--emu', action = 'store_true', help = 'Create an Emu RPC proxy also. Warning: This can execute arbitrary Python code. Use at your own risk!!!')
     args = parser.parse_args()
 
     server = jsonrpclib.Server('http://%s:%s' % (args.server, args.port), timeout = 15)
@@ -43,11 +44,11 @@ if __name__ == '__main__':
 # Connecting
 
     try:
-        print('Connecting to STL RPC proxy server')
+        print('Connecting to STL/Emu RPC proxy server')
         server.check_connectivity()
         print('Connected')
     except Exception as e:
-        print('Could not connect to STL RPC proxy server: %s\nTrying to start it from Master daemon.' % e)
+        print('Could not connect to STL/Emu RPC proxy server: %s\nTrying to start it from Master daemon.' % e)
         try:
             master.check_connectivity()
             master.start_stl_rpc_proxy()
@@ -111,6 +112,47 @@ if __name__ == '__main__':
 
     print('Deleting Native Client instance')
     verify(server.native_proxy_del())
+
+# EMU
+
+    if args.emu:
+        print('Initializing Emu Client')
+        verify(server.emu_proxy_init(server = args.server, force = True))
+
+        print('Connecting to Emu Server')
+        verify(server.emu_connect())
+
+        print('Getting Emu Server version')
+        res = verify(server.emu_get_server_version())
+        print('Server version is: %s' % res[1])
+
+        CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
+        icmp_path  = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, 'emu', 'simple_icmp.py'))
+        if os.path.exists(icmp_path):
+            print('Loading profile {}'.format(icmp_path))
+            verify(server.emu_load_profile(profile = icmp_path, tunables = ['--clients', '2']))
+
+            print("Getting clients...")
+            res = verify(server.emu_method(func_name = "get_all_ns_and_clients"))
+            pprint(res)
+
+            print("Getting ARP counters for namespace...")
+            res = verify(server.emu_plugin_method(plugin_name = "arp", func_name = "get_counters", 
+                                                 **{
+                                                     'ns_key': {'vport': 0, 'tpid': [0, 0], 'py/object': 'trex.emu.trex_emu_profile.EMUNamespaceKey', 'tci': [0, 0]},
+                                                     'zero': True,
+                                                     'verbose': True
+                                                    }))
+            pprint(res)
+
+            print('Removing profile...')
+            res = verify(server.emu_remove_profile())
+
+        else:
+            print('Could not find path of icmp profile, skipping')
+
+        print('Deleting Emu Client instance')
+        verify(server.emu_proxy_del())
 
 # HLTAPI
 

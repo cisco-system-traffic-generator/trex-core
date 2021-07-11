@@ -263,6 +263,8 @@ parser.add_argument('--trex-daemon-port', type=int, default = 8090, dest='trex_d
                     help = 'Select port to which the TRex daemon server will listen.\nDefault is 8090.', action = 'store')
 parser.add_argument('--stl-rpc-proxy-port', type=int, default = 8095, dest='stl_rpc_proxy_port',
                     help = 'Select port to which the Stateless RPC proxy will listen.\nDefault is 8095.', action = 'store')
+parser.add_argument('--emu-rpc-proxy', action = 'store_true', dest = 'emu_rpc_proxy',
+                    help = 'Create an EMU RPC proxy also. Warning: This can execute arbitrary Python code. Use at your own risk!!!')
 parser.add_argument('-d', '--trex-dir', type=str, default = os.getcwd(), dest='trex_dir',
                     help = 'Path of TRex, default is current dir', action = 'store')
 parser.add_argument('--allow-update', default = False, dest='allow_update', action = 'store_true',
@@ -277,7 +279,10 @@ args.trex_dir = os.path.abspath(args.trex_dir)
 args.daemon_type = args.daemon_type or 'master_daemon'
 
 stl_rpc_proxy_dir  = os.path.join(args.trex_dir, 'automation', 'trex_control_plane', 'server')
-stl_rpc_proxy      = TCPDaemon('Stateless RPC proxy', args.stl_rpc_proxy_port, "su -s /bin/bash -c '%s rpc_proxy_server.py' nobody" % sys.executable, stl_rpc_proxy_dir)
+rpc_proxy_cmd = ("su -s /bin/bash -c '{} rpc_proxy_server.py --emu' nobody".format(sys.executable)
+                if args.emu_rpc_proxy
+                else "su -s /bin/bash -c '{} rpc_proxy_server.py' nobody".format(sys.executable))
+stl_rpc_proxy      = TCPDaemon('Stateless/Emu RPC proxy', args.stl_rpc_proxy_port, rpc_proxy_cmd, stl_rpc_proxy_dir)
 trex_daemon_server = TCPDaemon('TRex daemon server', args.trex_daemon_port, '%s trex_daemon_server start' % sys.executable, args.trex_dir)
 master_daemon      = TCPDaemon('Master daemon', args.master_port, start_master_daemon) # add ourself for easier check if running, kill etc.
 
