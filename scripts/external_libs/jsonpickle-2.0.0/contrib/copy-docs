@@ -1,0 +1,11 @@
+#!/bin/sh
+# This script requires a clone of jsonpickle.github.com sibling to jsonpickle.
+tox -e docs &&
+rsync -avrP \
+	--delete \
+	--exclude=.doctrees \
+	--exclude=.git \
+	--exclude=.gitignore \
+	--exclude=.buildinfo \
+	--exclude=.nojekyll \
+	build/html/ ../jsonpickle.github.com/

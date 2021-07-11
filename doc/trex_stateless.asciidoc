@@ -5979,35 +5979,33 @@ Thus, you can use Stateless TRex *from any language* supporting JSON-RPC.
 
 ===== How to run TRex side:
 
-// what does "side" mean in the heading?
-
 * Run the Stateless TRex server in one of 2 ways:
 
-** Run TRex directly in shell:
+** Option 1: Run TRex directly in shell:
 +
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -i
 ----
 
-** Run TRex via JSON-RPC command to trex_daemon_server:
+** Option 2: Run TRex via JSON-RPC command to `trex_daemon_server`:
 +
 [source,python]
 ----
 start_trex(trex_cmd_options, user, block_to_success = True, timeout = 40, stateless = True)
 ----
 
-* Run the RPC "proxy" to stateless in one of 2 ways:
+* Run the RPC "Proxy" to stateless in one of 2 ways:
 
-** Run directly:
+** Option 1: Run directly:
 +
 [source,bash]
 ----
-cd automation/trex_control_plane/interactive/trex/examples/stl
+cd scripts/automation/trex_control_plane/server/
 python rpc_proxy_server.py
 ----
 
-** Send JSON-RPC command to master_daemon:
+** Option 2: Send JSON-RPC command to `master_daemon`:
 +
 [source,python]
 ----
@@ -6015,14 +6013,13 @@ if not master_daemon.is_stl_rpc_proxy_running():
     master_daemon.start_stl_rpc_proxy()
 ----
 
-Done :)
 
-Now you can send requests to the rpc_proxy_server and get results as an array of 2 values:
+Now you can send requests to the `rpc_proxy_server` and get results as an array of 2 values:
 
-* If fail, result will be: [False, <traceback log with error>]
-* If success, result will be: [True, <return value of called function>]
+* If the request failed, result will be: [False, <traceback log with error>]
+* If the request succeded, result will be: [True, <return value of called function>]
 
-In the same directory of rpc_proxy_server.py, there is Python example of usage: *using_rpc_proxy.py*
+You can find an example of how to use the "Proxy" here: link:{github_stl_examples_path}/using_rpc_proxy.py[using_rpc_proxy.py]
 
 ===== Native Stateless API functions:
 
@@ -6035,8 +6032,19 @@ In the same directory of rpc_proxy_server.py, there is Python example of usage: 
 * reset
 * wait_on_traffic
 
-These functions can be called directly as server.push_remote(\'udp_traffic.pcap'). If you need any other function of a stateless client, you can either add it to rpc_proxy_server.py, or use this method: +
-server.*native_method*(<string of function name>, <args of the function>) +
+These functions can be called directly as 
+
+[source,python]
+----
+server.push_remote('udp_traffic.pcap').
+----
+
+If you need any other function of a stateless client, you can either add it to `rpc_proxy_server.py`, or use this method: +
+
+[source,python]
+----
+server.native_method(func_name="func_name", *args, **kwargs)
+----
 
 ===== HLTAPI Methods can be called here as well:
 
@@ -6132,7 +6140,146 @@ public class TrexMain {
 
 ----
 
-===== Bird Compilation
+==== Using Emu client via JSON-RPC
+
+Using the same idea as with the Stateless proxy, we added support for an Emu Proxy that will allow JSON-RPC communication *from any language* to the Emu Python Client, which itself communicates with the Emu server.
+
+The following figure provides a simple overview and the objects:
+
+image::images/emu_proxy.png[title="Emu Proxy Communication",align="left",width={p_width}, link="images/emu_proxy.png"]
+
+This design has some advantages:
+
+- You don't need to implement Client Code, ever.
+- You will get to use our Python Api, which is always updated.
+
+But also some disadvantages:
+
+- Passing Python classes via JSON-RPC from another language is difficult.
+- Slower.
+
+===== How to run:
+
+* Run TRex server using together with Emu, for example:
++
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -i --software --emu
+----
+
+* Run the RPC "Proxy" to Emu in one of 2 ways:
+
+** Option 1: Run directly:
++
+[source,bash]
+----
+cd scripts/automation/trex_control_plane/server/
+python rpc_proxy_server.py --emu #<1>
+----
+<1> Note the `--emu` flag. By default only the Stateless Proxy is created.
+
+** Option 2: Send JSON-RPC command to `master_daemon` which must be started with `--emu-rpc-proxy`.
++
+[source,python]
+----
+if not master_daemon.is_stl_rpc_proxy_running():
+    master_daemon.start_stl_rpc_proxy() <1>
+----
+<1> Make sure that the `master_daemon` is started with `--emu-rpc-proxy`.
+
+===== Emu Methods:
+
+* connect
+* load_profile
+* remove_profile
+* add_ns
+* remove_ns
+* add_clients
+* remove_clients
+* get_counters
+* get_server_version
+
+These methods can be called simply by prepending *emu_*. For example:
+
+[source,python]
+----
+server.emu_connect()
+----
+
+However make sure you initialize the Emu proxy first:
+
+[source,python]
+----
+server.emu_proxy_init(server = args.server, force = True)
+----
+
+For other `EmuClient` methods that are not listed above, you can use `emu_method`, i.e:
+
+[source,python]
+----
+server.emu_method(func_name = "get_all_ns_and_clients")
+----
+
+===== Emu Plugin Methods
+
+For plugin methods you can use `emu_plugin_method` by providing the `plugin_name` and the `func_name`:
+
+[source,python]
+----
+server.emu_plugin_method(plugin_name = "arp", func_name = "get_counters", 
+                         **{
+                             'ns_key': {'vport': 0, 'tpid': [0, 0], 'tci': [0, 0],
+                                        'py/object': 'trex.emu.trex_emu_profile.EMUNamespaceKey'},
+                             'zero': True,
+                             'verbose': True
+                            }))
+----
+
+===== Complex Python Types
+
+JSON-RPC supports primitive seriazable types like strings, numbers, list, dictionaries etc.. However, for a lot of EmuClient methods and Emu plugin methods we need complex types.
+Such examples are `EmuNamespaceKey`, `EmuClientKey`, etc.. +
+Unlike the Stateless Proxy, the Emu Proxy has support for non primitive types. We achieve this using link:https://jsonpickle.github.io[jsonpickle].
+
+[WARNING]
+=====================================================================
+jsonpickle can execute arbitrary Python code. Do not load jsonpickles from untrusted / unauthenticated sources.
+=====================================================================
+
+You can encode any Python Type into a string using `jsonpickle`
+
+[source,python]
+----
+import outer_packages
+import jsonpickle
+from trex.emu.api import *
+
+
+ns_key = EMUNamespaceKey(vport=0)
+
+enc = jsonpickle.encode(ns_key) <1>
+
+# type(enc) = string
+# enc = "{'vport': 0, 'tpid': [0, 0], 'tci': [0, 0], 'py/object': 'trex.emu.trex_emu_profile.EMUNamespaceKey'}"
+
+new_ns_key = jsonpickle.decode(enc) <2>
+
+# type(new_ns_key) = EMUNamespaceKey
+----
+<1> Encode the Python object to a string.
+<2> Decode the string to a Python object.
+
+From any JSON-RPC client, for example Java, you can send a jsonpickle encoded string to the Emu Proxy which will in terms decode it using jsonpickle. This way we can pass complex Python types to the Emu Proxy.
+
+[NOTE]
+=====================================================================
+`jsonpickle.decode` creates a new instance of the object using `__new__`
+and will not call `__init__`. This is it because it assumes that the object
+was initialized prior to encoding. Hence you need to be careful to use 
+valid jsonpickle encoded strings.
+=====================================================================
+
+==== Bird Compilation
 
 Just add "--with-bird" flag to configure command like so:
 [source,bash]

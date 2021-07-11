@@ -1,0 +1,23 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns = "http://www.w3.org/1999/xhtml">
+<head>
+ <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <script data-main="main" src="ext/require/require.js"></script>
+
+</head>
+<body>
+<script type="text/javascript">
+  require(['main'], function (jsonpickle) {
+      Thing = function (x) {
+          this.x = x;
+      }
+      var json = [];
+      json[0] = '[[5, 6, 7], {"py/id": 1}, {"hi": 8, "bye": {"py/id": 1}}, {"py/object": "__main__.Thing", "x": {"py/id": 1}}]';
+      json[1] = '{"py/object": "fractions.Fraction", "_denominator": 3, "_numerator": 1}';
+      o = jsonpickle.decode(json[0]);
+      console.log(o);
+  });
+</script>
+See Console for output...
+</body>
+</html>

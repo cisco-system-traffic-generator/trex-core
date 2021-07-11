@@ -1,0 +1,17 @@
+/.coverage
+/build
+/dist
+/docs/build
+/.eggs
+/env*
+/tags
+/.pytest_cache
+/.tox
+/.idea
+__pycache__
+*.py[cod]
+*.egg-info
+*.swp
+*#*
+*~
+*.tar.gz

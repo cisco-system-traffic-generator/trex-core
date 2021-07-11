@@ -1,0 +1,7 @@
+[run]
+omit = .tox/*
+parallel = true
+source = jsonpickle
+
+[report]
+show_missing = True
