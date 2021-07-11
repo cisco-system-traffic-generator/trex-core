@@ -26,6 +26,29 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.90 ==
+
+* EMU 
+** Add generic DHCPv4/DHCPv6 options
+** Add mDNS plugin
+** Add CDP plugin
+** Add LLDP plugin
+** Add Cisco TDL plugin (not finished)
+** Bug fixes
+
+* ASTF 
+** GTPU refactor/cleaup and bug fixes 
+** TSO was disabled by mistake, enable it
+
+* STL 
+** bug fixes 
+** FlowStats was broken in v2.89, fixed it in this version
+** Add accurate latency measurement (sub 1usec) for NIC with hardware IEEE 1588 support (compilation flag) 
+
+* DPDK drivers 
+** memif driver fix 
+** add bonding driver 
+
 == Release 2.89 ==
 
 * Fix mlx5 20MPPS limit -- see link:https://github.com/cisco-system-traffic-generator/trex-core/pull/675[675]. There is a need to upgrade the odef to 5.3.01  
