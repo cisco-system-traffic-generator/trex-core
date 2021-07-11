@@ -648,16 +648,17 @@ bool RXPortManager::is_emu_filter(rte_mbuf_t *m){
              (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
             return true;
         }
-        if (dst_port == MDNS_PORT) {
-            // MDNS
+        if (dst_port == MDNS_PORT && src_port == MDNS_PORT) {
+            // In MDNS both ports should equal.
             return true;
         }
     }
 
     if  ( (proto == IPPROTO_UDP) || (proto == IPPROTO_TCP) ) {
         UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
-        if ( (dst_port & 0xff00) ==0xff00 ) {
+        if ( (dst_port & 0xff00) == 0xff00 || (src_port & 0xff00) == 0xff00 ) {
             return true;
         }
     }

@@ -2187,6 +2187,24 @@ include::trex_port_service_mode.asciidoc[]
 |-
 |===
 
+==== Filters for EMU
+
+Emu can simulate different services, for example DHCP, DHCPv6, DNS, MDNS etc. Many of these protocols run of top of TCP and UDP. TRex needs a way to know if it should filter these services or not. This way it can know if a packet belongs to ASTF or Emu. For packets to be filtered to Emu we need to apply the filters:
+
+- `dchp`: Forward DHCP packets to DHCP plugin in Emu
+- `mdns`: Forward MDNS packets to MDNS plugin in Emu
+- `tran`: Forward packets to Transport plugin in Emu. Transport plugin simulates UDP/TCP. Emu transport generated packets use high source ports: [0xFF00-0xFFFF]. In order to separate the Emu's TCP/UDP from ASTF's TCP/UDP this filter forwards all packets whose source **or** destination port is in the aforementioned ranges to Emu.
+- `emu`: All of the previous flags together.
+
+[CAUTION]
+=====================================================================
+If you have applied the `trans` or `emu` filter, packets whose source or
+destination port is in [0xFF00-0xFFFF] will be forwarded to Emu, hence you
+will not get them in ASTF.
+=====================================================================
+
+
+
 === Client/Server only mode
 
 With ASTF mode, it is possible to  work in either client mode or server mode. This way TRex client side could be installed in one physical location on the network and TRex server in another.

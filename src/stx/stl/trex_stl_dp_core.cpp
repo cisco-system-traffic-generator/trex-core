@@ -55,7 +55,7 @@ COLD_FUNC bool TrexStatelessDpCore::check_service_filter(bool &drop) {
         uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
 
-        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT ))  ||
+        if ( (( src_port == DHCPv4_PORT || dst_port == DHCPv4_PORT )) ||
             (( src_port == DHCPv6_PORT || dst_port == DHCPv6_PORT ))) {
             drop = false;
             return true;
@@ -65,9 +65,10 @@ COLD_FUNC bool TrexStatelessDpCore::check_service_filter(bool &drop) {
     if ( (m_service_mask & TrexPort::TRANSPORT) && ((proto == IPPROTO_UDP) 
                                                      || (proto == IPPROTO_TCP)) ) {
         UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
 
-        if ( (dst_port&0xff00) == 0xff00){
+        if ( (dst_port&0xff00) == 0xff00 || (src_port&0xff00) == 0xff00 ) {
             drop = false;
             return true;
         }
@@ -75,9 +76,10 @@ COLD_FUNC bool TrexStatelessDpCore::check_service_filter(bool &drop) {
 
     if ( (m_service_mask & TrexPort::MDNS) && (proto == IPPROTO_UDP) ) {
         UDPHeader *l4_header = (UDPHeader *)m_parser->get_l4();
+        uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
 
-        if (dst_port == MDNS_PORT )  {
+        if (dst_port == MDNS_PORT && src_port == MDNS_PORT)  {
             drop = false;
             return true;
         }

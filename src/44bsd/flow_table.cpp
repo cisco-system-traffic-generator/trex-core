@@ -284,20 +284,22 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
     }
 
     if ( (m_service_filtered_mask & TrexPort::TRANSPORT) && 
-            ((parser.m_protocol == IPPROTO_UDP) 
-            || (parser.m_protocol == IPPROTO_TCP)) ) {
+            ((parser.m_protocol == IPPROTO_UDP) || (parser.m_protocol == IPPROTO_TCP)) ) {
         UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+        uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
-        if ((dst_port & 0xff00) == 0xff00) {
+        if ( (dst_port & 0xff00) == 0xff00 || (src_port & 0xff00) == 0xff00 ) {
             action = tREDIRECT_RX_CORE;
             return;
         }
     }
 
-    if  ((m_service_filtered_mask & TrexPort::MDNS) && (parser.m_protocol == IPPROTO_UDP)) {
+    if ( (m_service_filtered_mask & TrexPort::MDNS) && (parser.m_protocol == IPPROTO_UDP) ) {
         UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+        uint16_t src_port = l4_header->getSourcePort();
         uint16_t dst_port = l4_header->getDestPort();
-        if (dst_port == MDNS_PORT) {
+        if (dst_port == MDNS_PORT && src_port == MDNS_PORT) {
+            // In MDNS both ports should equal.
             action = tREDIRECT_RX_CORE;
             return;
         }
