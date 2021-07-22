@@ -1385,6 +1385,7 @@ COLD_FUNC void CPhyEthIF::start(){
     for (i=0;i<10; i++ ) {
         ret = rte_eth_dev_start(m_repid);
         if (ret==0) {
+            #ifdef RTE_LIBRTE_IEEE1588
             if ( !(CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable())) {
                 ret = rte_eth_timesync_enable(m_repid);
                 if (ret == 0 ) {
@@ -1398,6 +1399,7 @@ COLD_FUNC void CPhyEthIF::start(){
                     printf("TIMESYNC ENABLE FAILED \n",m_repid);
                 }
             }
+            #endif
             return;
         }
         delay(1000);
