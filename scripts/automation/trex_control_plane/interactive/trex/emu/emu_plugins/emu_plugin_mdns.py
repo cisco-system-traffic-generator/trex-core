@@ -30,6 +30,9 @@ class MDNSPlugin(EMUPluginBase):
                 rate: float
                     Rate in seconds between two consequent queries. Defaults to 1.0.
 
+                query_amount: uint64
+                    Amount of queries to send. Defaults to 0. The default value (zero) means infinite amount of queries.
+
                 min_client: string
                     String representing the MAC address of the first client in the range of clients that will query.
                     For example "00:00:00:70:00:01".
@@ -103,6 +106,7 @@ class MDNSPlugin(EMUPluginBase):
                 "auto_play": true,
                 "auto_play_params": {
                     "rate": 1.0,
+                    "query_amount": 5,
                     "min_client": "00:00:01:00:00:00",
                     "max_client": "00:00:01:00:00:02",
                     "hostname_base": "client-"

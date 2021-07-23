@@ -47,6 +47,7 @@ class Prof1():
             "auto_play": True,
             "auto_play_params": {
                 "rate": 2.0,
+                "query_amount": 100,
                 "min_client": "00:00:00:70:00:0{}".format(min_client),
                 "max_client": "00:00:00:70:00:{:02x}".format(max_client),
                 "client_step": 2,
