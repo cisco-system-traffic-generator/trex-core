@@ -148,6 +148,9 @@ if __name__ == '__main__':
             print('Removing profile...')
             res = verify(server.emu_remove_profile())
 
+            print('Disconnecting from Emu Server')
+            verify(server.emu_disconnect())
+
         else:
             print('Could not find path of icmp profile, skipping')
 
