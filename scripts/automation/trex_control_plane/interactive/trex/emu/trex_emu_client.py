@@ -1963,7 +1963,7 @@ class EMUClient(object):
                 o.w False
 
             :raises:
-            None
+                None
         """
         return self.conn.is_connected()
 
