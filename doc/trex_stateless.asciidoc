@@ -6190,6 +6190,8 @@ if not master_daemon.is_stl_rpc_proxy_running():
 ===== Emu Methods:
 
 * connect
+* is_connected
+* disconnect
 * load_profile
 * remove_profile
 * add_ns

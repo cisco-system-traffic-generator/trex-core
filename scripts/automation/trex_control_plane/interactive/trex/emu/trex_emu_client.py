@@ -1929,7 +1929,7 @@ class EMUClient(object):
         self.conn.rpc.set_timeout_sec(timeout_sec)
 
     @client_api('command', False)
-    def connect (self):
+    def connect(self):
         """
 
             Connects to the Emulation server
@@ -1941,14 +1941,31 @@ class EMUClient(object):
                 + :exc:`TRexError`
 
         """
-        
+
         # cleanup from previous connection
         self._disconnect()
-        
+
         rc = self._connect()
         if not rc:
             self._disconnect()
             raise TRexError(rc.err())
+
+    @client_api('getter', False)
+    def is_connected(self):
+        """
+            Indicate if the connection is established to the server.
+
+            :parameters:
+                None
+
+            :return:
+                True if the connection is established to the server
+                o.w False
+
+            :raises:
+            None
+        """
+        return self.conn.is_connected()
 
     @client_api('command', True)
     def acquire(self, force = False):
@@ -1959,7 +1976,7 @@ class EMUClient(object):
         pass
 
     @client_api('command', False)
-    def disconnect (self, release_ports = True):
+    def disconnect(self, release_ports = True):
         """
             Disconnects from the server
 

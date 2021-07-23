@@ -262,6 +262,8 @@ def run_server(port = 8095, emu = False):
                      ]
     emu_methods = [
                     'connect',
+                    'is_connected',
+                    'disconnect',
                     'load_profile',
                     'remove_profile',
                     'add_ns',
