@@ -1380,12 +1380,12 @@ COLD_FUNC void CPhyEthIF::start(){
 
     m_stats.Clear();
     int i;
-    struct timespec tp;
 
     for (i=0;i<10; i++ ) {
         ret = rte_eth_dev_start(m_repid);
         if (ret==0) {
             #ifdef RTE_LIBRTE_IEEE1588
+            struct timespec tp;
             if ( !(CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable())) {
                 ret = rte_eth_timesync_enable(m_repid);
                 if (ret == 0 ) {
