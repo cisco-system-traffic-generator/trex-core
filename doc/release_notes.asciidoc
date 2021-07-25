@@ -26,6 +26,15 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.91 ==
+
+* EMU
+** Add `query_amount` to mDNS replay 
+* Upgrade ZMQ proxy to support EMU. Add a way to control EMU using complex objects 
+* fixes 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/pull/678[678]
+** fix get_async_event to batch number of events 
+
 == Release 2.90 ==
 
 * EMU 
