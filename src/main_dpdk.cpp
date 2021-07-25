@@ -981,6 +981,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
         }
     } // End of while
 
+#ifndef RTE_LIBRTE_IEEE1588
+    po->preview.setLatencyIEEE1588Disable(true);
+#endif 
 
     /* if no specific mode was provided, fall back to defaults - stateless on intearactive, stateful on batch */
     if (get_op_mode() == OP_MODE_INVALID) {
@@ -1384,9 +1387,8 @@ COLD_FUNC void CPhyEthIF::start(){
     for (i=0;i<10; i++ ) {
         ret = rte_eth_dev_start(m_repid);
         if (ret==0) {
-            #ifdef RTE_LIBRTE_IEEE1588
-            struct timespec tp;
             if ( !(CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable())) {
+                struct timespec tp;
                 ret = rte_eth_timesync_enable(m_repid);
                 if (ret == 0 ) {
                     clock_gettime(CLOCK_REALTIME, &tp);
@@ -1399,7 +1401,6 @@ COLD_FUNC void CPhyEthIF::start(){
                     printf("TIMESYNC ENABLE FAILED \n",m_repid);
                 }
             }
-            #endif
             return;
         }
         delay(1000);
