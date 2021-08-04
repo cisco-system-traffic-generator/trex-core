@@ -4,7 +4,8 @@ import argparse
 
 class Prof1():
     def __init__(self):
-        self.def_ns_plugs  = None
+        self.mac = Mac('00:00:00:70:00:01')
+        self.def_ns_plugs  = {'igmp' : {'dmac':self.mac.V()}} 
         self.def_c_plugs  = {'arp': {'timer': 50},
                              'igmp': {},
                             }
