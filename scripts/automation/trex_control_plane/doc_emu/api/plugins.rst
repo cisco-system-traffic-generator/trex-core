@@ -37,4 +37,5 @@ We provide here a reference to all the plugins, their methods, init JSONs and so
     plugins/lldp
     plugins/mdns
     plugins/tdl
+    plugins/appsim
 
