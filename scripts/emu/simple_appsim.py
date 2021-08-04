@@ -42,10 +42,10 @@ NS_PROG = {
         },
         {
             "commands": [
-				{
-					"msec": 10,
-					"name": "keepalive"
-				},				
+                {
+                "msec": 10,
+                "name": "keepalive"
+                },
                 {
                     "min_pkts": 1,
                     "name": "rx_msg"
