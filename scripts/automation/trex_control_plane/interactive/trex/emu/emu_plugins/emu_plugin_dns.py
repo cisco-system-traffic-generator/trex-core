@@ -16,9 +16,106 @@ class DNSPlugin(EMUPluginBase):
     plugin_name = 'DNS'
 
     # init json examples for SDK
-    INIT_JSON_NS = None
+    INIT_JSON_NS = { 'dns': "Pointer to INIT_JSON_NS below"  }
     """
-    There is currently no NS init json for DNS.
+    :parameters:
+        auto_play: bool
+            Indicate if should automatically start generating traffic. Defaults to False.
+
+        auto_play_params: dictionary.
+            Dictionary specifying the paramaters of auto play, should be provided only in case autoplay is defined.
+
+            :auto_play_params:
+
+                rate: float
+                    Rate in seconds between two consequent queries. Defaults to 1.0.
+
+                query_amount: uint64
+                    Amount of queries to send. Defaults to 0. The default value (zero) means infinite amount of queries.
+
+                min_client: string
+                    String representing the MAC address of the first client in the range of clients that will query.
+                    For example "00:00:00:70:00:01".
+
+                max_client: string
+                    String representing the MAC address of the last client in the range of clients that will query.
+
+                client_step: uint16
+                    Incremental step between two consecutive clients. Defaults to 1.
+
+                hostname_template: string
+                    String that will be used as template format for hostname in queries. One number will be injected in it.
+                    The number should be represented with %v, because the backend is in Golang.
+
+                min_hostname: uint16
+                    Unsigned integer representing the minimal value that can be applied to `hostname_template`.
+
+                max_hostname: uint16
+                    Unsigned integer representing the maximal value that can be applied to `hostname_template`.
+
+                init_hostname: uint16
+                    Unsigned integer representing the initial value that can be applied to `hostname_template`. Defaults to `min_hostname`.
+
+                hostname_step: uint16
+                    Incremental step between two consecutive hostnames. Defaults to 1.
+
+                type: string
+                    Dns Type. Allowed values are A, AAA, PTR and TXT. Defaults to A.
+
+                class: string
+                    Dns Class. Defaults to IN.
+
+                program: dictionary
+                    Dictionary representing special/uncommon queries for clients. If a client entry is specified here, this has precedence over the standard query.
+
+                    :key: string
+                        MAC address of the client that sends the query.
+
+                    :value: dictionary
+
+                            hostnames: list
+                                List of strings that specifies which hostnames to query.
+
+                            type: string
+                                Dns Type. Allowed values are A, AAA, PTR and TXT. Defaults to A.
+
+                            class: string
+                                Dns Class. Defaults to IN.
+
+                    .. highlight:: python
+                    .. code-block:: python
+
+                        "program": {
+                            "00:00:01:00:00:01": {
+                                "hostnames": ["AppleTV"],
+                                "type": "TXT",
+                                "class": "Any"
+                            }
+                        }
+
+        .. highlight:: python
+        .. code-block:: python
+
+            {
+                "auto_play": true,
+                "auto_play_params": {
+                    "rate": 1.0,
+                    "query_amount": 5,
+                    "min_client": "00:00:01:00:00:00",
+                    "max_client": "00:00:01:00:00:02",
+                    "hostname_template": "client-%v"
+                    "min_hostname": 0,
+                    "max_hostname": 2,
+                    "init_hostname": 1,
+                    "hostname_step": 1,
+                    "program": {
+                        "00:00:01:00:00:02": {
+                            "hostnames": ["UCS", "AppleTV"],
+                            "type": "TXT",
+                        }
+                    }
+                }
+            }
     """
 
     INIT_JSON_CLIENT = { 'dns': "Pointer to INIT_JSON_CLIENT below" }
@@ -95,7 +192,7 @@ class DNSPlugin(EMUPluginBase):
                 emu_client: :class:`trex.emu.trex_emu_client.EMUClient`
                     Valid EMU client.
         """
-        super(DNSPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='dns_c_cnt')
+        super(DNSPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='dns_ns_cnt', client_cnt_rpc_cmd='dns_c_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -107,6 +204,16 @@ class DNSPlugin(EMUPluginBase):
     @update_docstring(EMUPluginBase._clear_client_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
     def clear_client_counters(self, c_key):
         return self._clear_client_counters(c_key)
+
+    @client_api('getter', True)
+    @update_docstring(EMUPluginBase._get_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def get_ns_counters(self, ns_key, cnt_filter=None, zero=True, verbose=True):
+        return self._get_ns_counters(ns_key, cnt_filter, zero, verbose)
+
+    @client_api('command', True)
+    @update_docstring(EMUPluginBase._clear_ns_counters.__doc__.replace("$PLUGIN_NAME", plugin_name))
+    def clear_ns_counters(self, ns_key):
+        return self._clear_ns_counters(ns_key)
 
     @client_api('command', True)
     def query(self, c_key, queries):
@@ -325,20 +432,35 @@ class DNSPlugin(EMUPluginBase):
         self.emu_c._send_plugin_cmd_to_client(cmd="dns_c_cache_flush", c_key=c_key)
 
     # Plugins methods
-    @plugin_api('dns_show_counters', 'emu')
+    @plugin_api('dns_show_c_counters', 'emu')
     def dns_show_client_counters_line(self, line):
         """Show DNS client counters.\n"""
         parser = parsing_opts.gen_parser(self,
-                                        "dns_show_counters",
+                                        "dns_show_c_counters_line",
                                         self.dns_show_client_counters_line.__doc__,
                                         parsing_opts.EMU_SHOW_CNT_GROUP,
                                         parsing_opts.EMU_NS_GROUP,
                                         parsing_opts.MAC_ADDRESS,
                                         parsing_opts.EMU_DUMPS_OPT
                                         )
-
         opts = parser.parse_args(line.split())
         self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
+        return True
+
+    @plugin_api('dns_show_ns_counters', 'emu')
+    def dns_show_ns_counters_line(self, line):
+        '''Show DNS namespace counters.\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "dns_show_ns_counters_line",
+                                        self.dns_show_ns_counters_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_ALL_NS,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('dns_query', 'emu')
@@ -400,7 +522,7 @@ class DNSPlugin(EMUPluginBase):
         opts = parser.parse_args(line.split())
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
-        entries = self.get_domain_entries(c_key=c_key, domain=opts.domain)
+        entries = listify(self.get_domain_entries(c_key=c_key, domain=opts.domain))
         # We filter out TXTs because the table should be kept compact.
         entries = [entry for entry  in entries if entry["type"] != "TXT"]
         keys_to_headers = [ {'key': 'answer', 'header': 'Answer'},

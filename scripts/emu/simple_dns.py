@@ -19,6 +19,9 @@ class Prof1():
         :parameters:
             is_name_server: bool
                 Indicate if the client is a name server.
+
+            dns_ip: str
+                IP address of Dns Name Server. Can be Ipv4 or Ipv6.
         """
 
         simple_client = {
