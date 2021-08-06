@@ -48,13 +48,13 @@ class MDNSPlugin(EMUPluginBase):
                     The number should be represented with %v, because the backend is in Golang.
 
                 min_hostname: uint16
-                    Unsigned integer representing the minimal value that can be appended to a `hostname_base`.
+                    Unsigned integer representing the minimal value that can be applied to `hostname_template`.
 
                 max_hostname: uint16
-                    Unsigned integer representing the maximal value that can be appended to a `hostname_base`.
+                    Unsigned integer representing the maximal value that can be applied to `hostname_template`.
 
                 init_hostname: uint16
-                    Unsigned integer representing the initial value that can be appended to a `hostname_base`. Defaults to `min_hostname`.
+                    Unsigned integer representing the initial value that can be applied to `hostname_template`. Defaults to `min_hostname`.
 
                 hostname_step: uint16
                     Incremental step between two consecutive hostnames. Defaults to 1.
@@ -109,7 +109,7 @@ class MDNSPlugin(EMUPluginBase):
                     "query_amount": 5,
                     "min_client": "00:00:01:00:00:00",
                     "max_client": "00:00:01:00:00:02",
-                    "hostname_base": "client-"
+                    "hostname_template": "client-%v"
                     "min_hostname": 0,
                     "max_hostname": 2,
                     "init_hostname": 1,
@@ -331,7 +331,7 @@ class MDNSPlugin(EMUPluginBase):
     def mdns_show_client_counters_line(self, line):
         """Show mDNS client counters.\n"""
         parser = parsing_opts.gen_parser(self,
-                                        "mdns_show_c_counters_mdns",
+                                        "mdns_show_c_counters_line",
                                         self.mdns_show_client_counters_line.__doc__,
                                         parsing_opts.EMU_SHOW_CNT_GROUP,
                                         parsing_opts.EMU_NS_GROUP,
