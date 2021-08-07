@@ -10,8 +10,16 @@ Bird plugin
 '''
 
 class Bird_Plugin(ConsolePlugin):
+
+    def __init__(self):
+        super(Bird_Plugin, self).__init__()
+        self.console = None
+
     def plugin_description(self):
         return 'Bird plugin for simple communication with PyBirdserver'
+
+    def set_plugin_console(self, trex_console):
+        self.console = trex_console
 
     def plugin_load(self):
         self.add_argument("-p", "--port", type = int,
@@ -69,10 +77,20 @@ class Bird_Plugin(ConsolePlugin):
         self.add_argument("--next-hop", type = str,
                 help     = 'next hop for each route, best practice with current bird interface ip')
 
-        self.pybird = PyBirdClient()
+        if self.console is None:
+            raise TRexError("Trex console must be provided in order to load Bird plugin")
+
+        self.pybird = PyBirdClient(ip=self.console.server)
         self.pybird.connect()
         self.pybird.acquire()
-        
+
+    def plugin_unload(self):
+        if self.console is None:
+            raise TRexError("Trex console must be provided in order to unload Bird plugin")
+
+        self.pybird.release()
+        self.pybird.disconnect()
+
     # Bird commands
     def do_add_node(self, port, mac, ipv4, ipv4_subnet, ipv6_enabled, ipv6, ipv6_subnet, vlans, tpids, mtu):
         ''' Simple adding bird node with arguments. '''
@@ -95,7 +113,7 @@ class Bird_Plugin(ConsolePlugin):
     def do_show_config(self):
         ''' Return the current bird configuration as it for now. '''
         print(self.pybird.get_config())
-    
+
     def do_show_protocols(self):
         ''' Show the bird protocols in a user friendly way. '''
         print(self.pybird.get_protocols_info())
