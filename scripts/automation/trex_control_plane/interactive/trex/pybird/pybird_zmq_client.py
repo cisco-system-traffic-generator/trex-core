@@ -84,7 +84,7 @@ class PyBirdClient():
         except zmq.Again:
             raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
         return self._get_response(rand_id)
-    
+
     def connect(self):
         ''' 
             Connect client to PyBird server. Only check versions and open the socket to bird.
@@ -114,7 +114,7 @@ class PyBirdClient():
 
                 force: bool
                 force acquire, will disconnect connected clients. False by default
-            
+
             :raises:
                 + :exc:`ConnectionException` in case of error
 
@@ -185,7 +185,7 @@ class PyBirdClient():
                     print('bird is not connected to dut, waiting for protocols: "%s"' % down_protocols)
                 time.sleep(poll_rate)
         raise Exception('timeout passed, protocols "%s" still down in bird' % down_protocols)
-        
+
     def set_empty_config(self):
         '''
             Command, setting the minimal bird configuration with no routes and no routing protocols.
@@ -228,7 +228,7 @@ class PyBirdClient():
     def disconnect(self):
         '''
             Disconnect client from server and close the socket. Must be called after releasing client.
-            
+
             :raises:
                 + :exc:`ConnectionError` in case client is not connected
         '''
@@ -272,7 +272,7 @@ class PyBirdClient():
                 return respond
             index_start = index_end
             fragment_length = 50000
-            
+
         raise ConfigurationException("Sent all the fragments, but did not get the configuration response")
 
 

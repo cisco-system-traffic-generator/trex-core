@@ -899,6 +899,7 @@ def run_console(client, logger, options):
                 return
 
         console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None)
+        console.server = options.server # set server in console so plugins can use it
 
         # run emu if needed
         console.emu_server = options.emu_server
