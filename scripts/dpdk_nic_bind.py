@@ -537,7 +537,7 @@ def get_tcp_port_usage(port):
     return res[0][7]
 
 def is_module_used(module):
-    refcnt_file = '/sys/module/%s/refcnt' % module
+    refcnt_file = '/sys/module/%s/refcnt' % module.replace('-', '_') # vfio-pci -> vfio_pci
     if not os.path.exists(refcnt_file):
         return False
     with open(refcnt_file) as f:
@@ -555,8 +555,11 @@ def get_pid_using_pci(pci_list):
             int(pid)
         except ValueError:
             continue
-        with open('/proc/%s/maps' % pid) as f:
-            f_cont = f.read()
+        try:
+            with open('/proc/%s/maps' % pid) as f:
+                f_cont = f.read()
+        except FileNotFoundError:
+            continue
         for pci in pci_list:
             if '/%s/' % pci in f_cont:
                 return int(pid)
@@ -596,7 +599,7 @@ def unbind_one(dev_id, force):
     dev = devices[dev_id]
     if not has_driver(dev_id):
         print("%s %s %s is not currently managed by any driver\n" % \
-            (dev[b"Slot"], dev[b"Device_str"], dev[b"Interface"]))
+            (dev["Slot"], dev["Device_str"], dev["Interface"]))
         return
 
     # Mellanox NICs do not need unbind
