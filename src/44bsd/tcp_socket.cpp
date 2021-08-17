@@ -380,7 +380,7 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             m_q.subtract_bytes(add_to_queue);
 
             m_state=te_SEND;
-            if (get_interrupt()==false) {
+            if (get_interrupt()==false && m_flags&taCONNECTED) {
                 m_api->tx_tcp_output(m_pctx,m_flow);
             }
 
