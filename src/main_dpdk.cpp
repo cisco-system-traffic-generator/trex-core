@@ -1773,7 +1773,8 @@ public:
     void update_tunnel() {
         m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
         if (m_tunnel_handler) {
-            m_tunnel_handler->set_port(CGlobalInfo::m_options.m_enable_tunnel_port);
+            m_tunnel_port = CGlobalInfo::m_options.m_enable_tunnel_port;
+            m_tunnel_handler->set_port(m_tunnel_port);
             m_tunnel_handler->parse_options();
             m_tunnel_callback = new CTunnelTxRxCallback(m_tunnel_handler);
         }
@@ -1788,6 +1789,7 @@ public:
 private:
     CTunnelTxRxCallback *m_tunnel_callback;
     CTunnelHandler      *m_tunnel_handler;
+    uint8_t             m_tunnel_port;
 };
 
 
@@ -2066,7 +2068,7 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-    if (m_tunnel_callback) {
+    if (m_tunnel_callback && m_tunnel_port == dir) {
         lp_port->m_port->tx_offload_csum(node_tcp->mbuf, 0);
         int res = m_tunnel_callback->on_tx(lp_port->m_port->get_tvpid(), node_tcp->mbuf);
         if (res) {
