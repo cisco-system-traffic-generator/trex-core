@@ -27,6 +27,7 @@ We provide here a reference to all the plugins, their methods, init JSONs and so
     plugins/arp
     plugins/cdp
     plugins/dhcp
+    plugins/dhcpsrv
     plugins/dhcpv6
     plugins/dns
     plugins/dot1x
