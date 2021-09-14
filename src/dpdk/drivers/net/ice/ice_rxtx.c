@@ -4102,7 +4102,7 @@ ice_recv_pkts_vec_avx2(void __rte_unused *rx_queue,
 			struct rte_mbuf __rte_unused **rx_pkts,
 			uint16_t __rte_unused nb_pkts)
 {
-	return ice_recv_pkts_vec(rx_queue,rx_pkts,nb_pkts);
+	return ice_recv_pkts(rx_queue,rx_pkts,nb_pkts);
 }
 
 uint16_t
@@ -4110,7 +4110,7 @@ ice_recv_scattered_pkts_vec_avx2(void __rte_unused *rx_queue,
 			struct rte_mbuf __rte_unused **rx_pkts,
 			uint16_t __rte_unused nb_pkts)
 {
-	return ice_recv_scattered_pkts_vec(rx_queue,rx_pkts,nb_pkts);
+	return ice_recv_scattered_pkts(rx_queue,rx_pkts,nb_pkts);
 }
 
 uint16_t
