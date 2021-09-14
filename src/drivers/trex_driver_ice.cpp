@@ -57,6 +57,14 @@ void CTRexExtendedDriverIce::clear_extended_stats(CPhyEthIF * _if){
     rte_eth_stats_reset(repid);
 }
 
+bool CTRexExtendedDriverIce::is_override_dpdk_params(CTrexDpdkParamsOverride & dpdk_p) {
+	dpdk_p.rx_desc_num_data_q = ICE_RX_DESC_NUM;
+	dpdk_p.rx_desc_num_dp_q = ICE_RX_DESC_NUM;
+	dpdk_p.tx_desc_num = ICE_TX_DESC_NUM;
+
+	return (true);
+}
+
 void CTRexExtendedDriverIce::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
@@ -64,6 +72,10 @@ void CTRexExtendedDriverIce::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
     cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
     cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
+    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
+    cfg->m_port_conf.rxmode.offloads = 0;
+    cfg->tx_offloads.common_required = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    cfg->tx_offloads.common_best_effort = 0;
 }
 
 void CTRexExtendedDriverIce::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {

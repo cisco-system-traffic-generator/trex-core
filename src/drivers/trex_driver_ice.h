@@ -24,6 +24,8 @@
 
 #include "trex_driver_base.h"
 
+#define ICE_RX_DESC_NUM 1024
+#define ICE_TX_DESC_NUM 1024
 
 class CTRexExtendedDriverIce : public CTRexExtendedDriverBase {
 public:
@@ -42,6 +44,7 @@ public:
 
     virtual int get_min_sample_rate(void);
 
+    virtual bool is_override_dpdk_params(CTrexDpdkParamsOverride & dpdk_p);
     virtual void update_configuration(port_cfg_t * cfg);
     virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
     virtual void clear_extended_stats(CPhyEthIF * _if);
