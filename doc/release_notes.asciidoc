@@ -26,6 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.92 ==
+
+* EMU
+** Add DHCP server plugin
+** Add DNS client/server plugin 
+** Add AppSim for simulating L7 application similar to ASTF block 
+** Add PPPoE plugin (experimental) 
+* ASTF 
+** fix GTPU drop in the server side 
+
 == Release 2.91 ==
 
 * EMU
