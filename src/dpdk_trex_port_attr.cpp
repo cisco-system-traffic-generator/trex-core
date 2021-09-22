@@ -112,9 +112,13 @@ int DpdkTRexPortAttr::get_xstats_values(xstats_values_t &xstats_values) {
     if (size < 0) {
         return size;
     }
-    xstats_values_tmp.resize(size);
-    xstats_values.resize(size);
-    size = rte_eth_xstats_get(m_repid, xstats_values_tmp.data(), size);
+
+    do {
+        xstats_values_tmp.resize(size);
+        xstats_values.resize(size);
+        size = rte_eth_xstats_get(m_repid, xstats_values_tmp.data(), size);
+    } while (size > xstats_values_tmp.size());
+
     if (size < 0) {
         return size;
     }
@@ -129,9 +133,13 @@ int DpdkTRexPortAttr::get_xstats_names(xstats_names_t &xstats_names){
     if (size < 0) {
         return size;
     }
-    xstats_names_tmp.resize(size);
-    xstats_names.resize(size);
-    size = rte_eth_xstats_get_names(m_repid, xstats_names_tmp.data(), size);
+
+    do {
+        xstats_names_tmp.resize(size);
+        xstats_names.resize(size);
+        size = rte_eth_xstats_get_names(m_repid, xstats_names_tmp.data(), size);
+    } while (size > xstats_names_tmp.size());
+
     if (size < 0) {
         return size;
     }
