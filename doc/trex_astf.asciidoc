@@ -3055,7 +3055,7 @@ link:cp_astf_docs/index.html[python index]
 |    err_rx_throttled   | | rx thread was throttled due too many packets in NIC rx queue 
 |    err_c_nf_throttled | | Number of client side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
 |    err_s_nf_throttled | | Number of server side flows that were not opened due to flow-table overflow. ( to enlarge the number see the trex_cfg file for dp_max_flows)
-|    err_s_nf_throttled | | Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
+|    err_flow_overflow  | | Number of too many flows events from maintenance thread. It is *not* the number of flows that weren't opened 
 |    err_c_tuple_err    | | How many flows were *not* opened in the client side because there were not enough clients in the pool. When this counter is reached, the TRex performance is affected due to the lookup for free ports. To solve this issue try adding more clients to the pool.
 |    rss_redirect_rx    | | Number of RSS redirected packets that were received from other cores.
 |    rss_redirect_tx    | | Number of RSS packets that were redirected to other cores.
