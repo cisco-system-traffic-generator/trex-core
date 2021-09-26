@@ -1088,11 +1088,11 @@ class WirelessWorker(multiprocessing.Process):
                                 capwap_assemble['buf'] += control_str
 
                                 if rx_pkt.is_last_fragment():
-                                    capwap_assemble['assembled'] = CAPWAP_CTRL(
+                                    capwap_assemble['assembled'] = bytes(CAPWAP_CTRL(
                                         header=capwap_assemble['header'],
                                         control_header=CAPWAP_Control_Header(
                                             capwap_assemble['buf'])
-                                    )
+                                    ))
                             else:
                                 if rx_pkt.is_last_fragment():
                                     ap.logger.error(

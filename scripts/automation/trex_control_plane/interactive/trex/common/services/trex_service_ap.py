@@ -300,7 +300,7 @@ class ServiceApBgMaintenance:
         if ap.is_debug:
             rx_pkt = Ether(rx_bytes)
             rx_pkt.show2()
-            rx_pkt.dump_offsets_tree()
+            #rx_pkt.dump_offsets_tree()
 
         if not ap.is_dtls_established:
             if rx_bytes[42:43] == b'\0': # discovery response
@@ -362,10 +362,10 @@ class ServiceApBgMaintenance:
                 capwap_assemble['buf'] += control_str
 
                 if rx_pkt.is_last_fragment():
-                    capwap_assemble['assembled'] = CAPWAP_CTRL(
+                    capwap_assemble['assembled'] = bytes(CAPWAP_CTRL(
                         header = capwap_assemble['header'],
                         control_header = CAPWAP_Control_Header(capwap_assemble['buf'])
-                        )
+                        ))
 
             else:
                 if rx_pkt.is_last_fragment():
