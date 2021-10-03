@@ -1,5 +1,4 @@
 from trex.common.trex_types import TRexError
-from trex.console.trex_tui import TrexTUI
 from trex.utils.text_opts import format_num, red, green
 from trex.utils import text_tables
 
@@ -13,10 +12,7 @@ class CAstfLatencyStats(object):
 
     @property
     def max_panel_size(self):
-        if TrexTUI.has_instance():
-            # 19 rows is for header, footer, spaces etc.
-            return TrexTUI.MIN_ROWS-19
-        return 0
+        return 45-19
 
 
     @property
