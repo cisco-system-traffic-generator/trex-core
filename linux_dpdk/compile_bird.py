@@ -56,7 +56,7 @@ def build_bird(dst, is_verbose = False):
     bird_down_path = "%s/bird-v%s" % (dst, BIRD_VER)
 
     # download bird
-    code, output = run_command("wget -O %s/bird.tar.gz %s" % (dst, bird_down_link))
+    code, output = run_command("wget --no-check-certificate -O %s/bird.tar.gz %s" % (dst, bird_down_link))
     if code != 0:
         raise Exception('cannot download bird link from "%s"' % bird_down_link)
     if is_verbose:
