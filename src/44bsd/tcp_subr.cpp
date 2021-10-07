@@ -54,6 +54,7 @@
 #include <astf/astf_db.h>
 #include <cmath>
 #include "utl_counter.h"
+#include "tunnels/tunnel_factory.h"
 
 //extern    struct inpcb *tcp_last_inpcb;
 
@@ -303,8 +304,11 @@ void CFlowBase::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_tg_id=tg_id;
 }
 
-void CFlowBase::Delete(){
-
+void CFlowBase::Delete() {
+    if (m_pctx->m_ctx->m_tunnel_handler) {
+         m_pctx->m_ctx->m_tunnel_handler->delete_tunnel_ctx(m_template.m_tunnel_ctx);
+    }
+    m_template.m_tunnel_ctx = nullptr;
 }
 
 void CFlowBase::init(){
@@ -316,6 +320,14 @@ void CFlowBase::init(){
 
 void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
     m_template.learn_ipv6_headers_from_network(net_ipv6);
+}
+
+ void CFlowBase::set_tunnel_ctx() {
+    if (m_pctx->m_ctx->m_tunnel_handler) {
+        uint8_t mode = m_pctx->m_ctx->m_tunnel_handler->get_mode();
+        assert((mode & TUNNEL_MODE_LOOPBACK) == TUNNEL_MODE_LOOPBACK);
+        m_template.m_tunnel_ctx = m_pctx->m_ctx->m_tunnel_handler->get_opposite_ctx();
+    }
 }
 
 
@@ -586,6 +598,7 @@ void CTcpFlow::Delete(){
         m_payload_info->remove_template_flow(this);
         m_payload_info = nullptr;
     }
+    CFlowBase::Delete();
 }
 
 
@@ -864,6 +877,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     }
     
     m_tick_var = new CAstfTickCmdClock(this);
+    m_tunnel_handler=nullptr;
     return(true);
 }
 

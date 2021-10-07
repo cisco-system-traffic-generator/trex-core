@@ -5,6 +5,8 @@
 #include "common/Network/Packet/IPHeader.h"
 #include "common/Network/Packet/IPv6Header.h"
 #include "tunnel_handler.h"
+#define ENCAPSULATION_LEN 36
+#define ENCAPSULATION6_LEN 56
 
 
 /*************** CGtpuCtx ****************/
@@ -49,13 +51,14 @@ public:
     CGtpuMan(uint8_t mode) : CTunnelHandler(mode){}
     int on_tx(uint8_t dir, rte_mbuf *pkt);
     int on_rx(uint8_t dir, rte_mbuf *pkt);
-    void* get_tunnel_context(client_tunnel_data_t *data);
-    void delete_tunnel_context(void *tunnel_context);
+    void* get_tunnel_ctx(client_tunnel_data_t *data);
+    void delete_tunnel_ctx(void *tunnel_context);
     tunnel_type get_tunnel_type();
     string get_tunnel_type_str();
-    void update_tunnel_context(client_tunnel_data_t *data, void *tunnel_context);
+    void update_tunnel_ctx(client_tunnel_data_t *data, void *tunnel_context);
     void parse_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data);
-    void parser_options();
+    void* get_opposite_ctx();
+    tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb();
 
 private:
     int prepend(rte_mbuf *pkt);
@@ -67,6 +70,6 @@ private:
     int validate_gtpu_udp(void *udp);
 
 private:
-    uint8_t      m_client_port;
+    uint8_t m_tunnel_context[ENCAPSULATION6_LEN];
 };
 #endif

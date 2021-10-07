@@ -312,6 +312,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
     uint16_t sum;
     uint16_t sum_both_dir = 0;
     get_port_ids(ports_id[0], ports_id[1]);
+    bool tunnel_loopback = CGlobalInfo::m_options.m_tunnel_loopback;
 
     for (dir=0; dir<CS_NUM; dir++) {
         CTcpPerThreadCtx  * ctx = mctx_dir[dir];
@@ -345,13 +346,23 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
                         }
                     #endif
                 }
-#endif
+#endif          
                 redirected = false;
                 if (unlikely(ASTF_SOFTWARE_RSS)) {
                     redirected = handle_astf_software_rss(dir, m, ctx, ports_id[dir]);
                 }
                 if (!redirected) {
-                    ctx->m_ft.rx_handle_packet(ctx, m, is_idle,ports_id[dir]);
+                    //remove the tunnel_ctx in server side in case of loopback mode
+                    int res=0;
+                    if (dir == SERVER_SIDE && tunnel_loopback) {
+                        res=ctx->m_tunnel_handler->on_rx(SERVER_SIDE, m);
+                        if (res) {
+                            rte_pktmbuf_free(m);
+                        }
+                    }
+                    if (!res) {
+                        ctx->m_ft.rx_handle_packet(ctx, m, is_idle,ports_id[dir]);
+                    }
                 }
             }
             sum+=cnt;
@@ -450,7 +461,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
                                                vlan,
                                                is_ipv6,
-                                               tuple.getTunHandle(),
+                                               tuple.getTunnelCtx(),
                                                true,
                                                tg_id,
                                                template_id);
@@ -462,7 +473,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
                                           tuple.getServerPort(),
                                           vlan,
                                           is_ipv6,
-                                          tuple.getTunHandle(),
+                                          tuple.getTunnelCtx(),
                                           tg_id,
                                           template_id);
     }

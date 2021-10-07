@@ -29,6 +29,7 @@
 #include "tick_cmd_clock.h"
 #include "os_time.h"
 #include <algorithm>
+#include "tunnels/tunnel_factory.h"
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
  *  The Regents of the University of California.  All rights reserved.
@@ -482,7 +483,7 @@ public:
                    uint16_t dst_port,
                    uint16_t vlan,
                    uint8_t  proto,
-                   void    *tun_handle,
+                   void    *tunnel_ctx,
                    bool     is_ipv6){
         m_vlan = vlan;
         m_src_ipv4 = src;
@@ -491,7 +492,7 @@ public:
         m_dst_port = dst_port;
         m_is_ipv6  = is_ipv6;
         m_proto    = proto;
-        m_tun_handle = tun_handle;
+        m_tunnel_ctx = tunnel_ctx;
     }
 
     void server_update_mac(uint8_t *pkt, CPerProfileCtx * pctx, tvpid_t port_id);
@@ -523,12 +524,8 @@ public:
         return(m_dst_port);
     }
 
-    void *get_tun_handle(){
-        return(m_tun_handle);
-    }
-
     inline bool is_tunnel_aware(){
-        return (m_tun_handle != NULL);
+        return (m_tunnel_ctx != NULL);
     }
 
     inline bool is_tunnel(){
@@ -559,12 +556,11 @@ public:
     uint16_t  m_dst_port;
     uint16_t  m_vlan;
     uint16_t  m_l4_pseudo_checksum;
-
+    void     *m_tunnel_ctx;
     uint8_t   m_offset_l4; /* offset of tcp_header, in template */
     uint8_t   m_offset_ip;  /* offset of ip_header in template */
     uint8_t   m_is_ipv6;
     uint8_t   m_proto;      /* 6 - TCP ,0x11- UDP */
-    void     *m_tun_handle;
 
     uint8_t   m_offload_flags;
     #define OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
@@ -635,20 +631,21 @@ public:
         c_template_id = m_c_template_idx;
     }
 
+    void set_tunnel_ctx();
 
 
 public:
-    uint8_t           m_c_idx_enable;
-    uint8_t           m_pad[3];
-    uint32_t          m_c_idx;
-    uint16_t          m_c_pool_idx;
-    uint16_t          m_c_template_idx;
-    uint16_t          m_tg_id;
-
-    CPerProfileCtx   *m_pctx;
-    flow_hash_ent_t   m_hash;  /* hash object - 64bit  */
-    CEmulApp          m_app;   
-    CFlowTemplate     m_template;  /* 128+32 bytes */
+    uint8_t              m_c_idx_enable;
+    uint8_t              m_pad[3];
+    uint32_t             m_c_idx;
+    uint16_t             m_c_pool_idx;
+    uint16_t             m_c_template_idx;
+    uint16_t             m_tg_id;
+   
+    CPerProfileCtx      *m_pctx;
+    flow_hash_ent_t      m_hash;  /* hash object - 64bit  */
+    CEmulApp             m_app;   
+    CFlowTemplate        m_template;  /* 128+32 bytes */
 };
 
 
@@ -1338,6 +1335,7 @@ public:
 
     CFlowTable           m_ft;
     struct  tcpiphdr tcp_saveti;
+    CTunnelHandler   *m_tunnel_handler;
 
     /* server port management */
 private:

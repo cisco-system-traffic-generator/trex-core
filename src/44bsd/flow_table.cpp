@@ -485,7 +485,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
                                   uint16_t dst_port,
                                   uint16_t vlan,
                                   bool is_ipv6,
-                                  void *tun_handle,
+                                  void *tunnel_ctx,
                                   bool client,
                                   uint16_t tg_id,
                                   uint16_t template_id){
@@ -496,7 +496,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, client, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tun_handle,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -509,7 +509,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
                                   uint16_t dst_port,
                                   uint16_t vlan,
                                   bool is_ipv6,
-                                  void *tun_handle,
+                                  void *tunnel_ctx,
                                   uint16_t tg_id,
                                   uint16_t template_id){
     CTcpFlow * flow = new (std::nothrow) CTcpFlow();
@@ -519,7 +519,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tun_handle,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -690,6 +690,9 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
         rte_pktmbuf_free(mbuf);
         return(false);
     }
+
+    //set the tunnel contexts to the server side in gtpu-loopback mode
+    flow->set_tunnel_ctx();
 
     flow->m_template.server_update_mac(pkt, pctx, port_id);
     if (is_ipv6) {
@@ -879,6 +882,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         rte_pktmbuf_free(mbuf);
         return(false);
     }
+
+    //set the tunnel contexts to the server side in gtpu-loopback mode
+    lptflow->set_tunnel_ctx();
 
     if (unlikely(temp->has_payload_params())) {
         /* payload params can be checked after it is received */

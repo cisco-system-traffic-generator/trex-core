@@ -44,7 +44,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_active_profile_cnt = 0;
     m_profile_states.clear();
     m_mbuf_redirect_cache = nullptr;
-    m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_DP));
+    m_tunnel_handler = nullptr;
     if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
         // software RSS, need to create cache.
         uint8_t num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
@@ -663,7 +663,8 @@ void inline TrexAstfDpCore::client_lookup_and_activate(uint32_t client, bool act
      CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
      if (ip_info){
          if (m_tunnel_handler && !activate){
-             m_tunnel_handler->delete_tunnel_context(ip_info->get_tunnel_info());
+             m_tunnel_handler->delete_tunnel_ctx(ip_info->get_tunnel_ctx());
+             ip_info->set_tunnel_ctx(nullptr);
          }
          ip_info->set_client_active(activate);
      }
@@ -699,7 +700,7 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     else
        c_data["state"] = "Inactive";
 
-    uint8_t type = ip_info->get_tunnel_type(); 
+    uint8_t type = m_tunnel_handler->get_tunnel_type(); 
     if (type !=  TUNNEL_TYPE_NONE) 
        c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
     return c_data;
@@ -732,15 +733,32 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
     for (auto elem : msg_data) {
         CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
         if (ip_info) {
-           void *tunnel_context = ip_info->get_tunnel_info();
-           if (tunnel_context){
-               m_tunnel_handler->update_tunnel_context(&elem, tunnel_context);
+           void *tunnel_ctx = ip_info->get_tunnel_ctx();
+           if (tunnel_ctx){
+               m_tunnel_handler->update_tunnel_ctx(&elem, tunnel_ctx);
            } else {
-               void *tunnel_context = m_tunnel_handler->get_tunnel_context(&elem); 
-               ip_info->set_tunnel_info(tunnel_context);
-               ip_info->set_tunnel_type(m_tunnel_handler->get_tunnel_type());
+               void *tunnel_ctx = m_tunnel_handler->get_tunnel_ctx(&elem); 
+               ip_info->set_tunnel_ctx(tunnel_ctx);
+               ip_info->set_tunnel_handler(m_tunnel_handler);
+               ip_info->set_tunnel_ctx_del_cb(m_tunnel_handler->get_tunnel_ctx_del_cb());
            }
         }
     }
 }
 
+
+void TrexAstfDpCore::init_tunnel_handler() {
+    bool loop_back = CGlobalInfo::m_options.m_tunnel_loopback;
+    uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
+    if (loop_back) {
+        tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
+    }
+    m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, tunnel_mode);
+    if (m_tunnel_handler) {
+        m_tunnel_handler->set_port(CGlobalInfo::m_options.m_enable_tunnel_port);
+        m_flow_gen->m_node_gen.m_v_if->set_tunnel_handler(m_tunnel_handler);
+    }
+    if (loop_back) {
+        m_flow_gen->m_s_tcp->m_tunnel_handler = m_tunnel_handler;
+    }
+}

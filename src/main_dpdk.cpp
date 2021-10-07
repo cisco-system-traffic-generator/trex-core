@@ -224,6 +224,7 @@ enum {
        OPT_HDRH,
        OPT_BNXT_SO,
        OPT_GTPU,
+       OPT_GTPU_LOOPBACK,
        OPT_DISABLE_IEEE_1588,
 
        /* no more pass this */
@@ -323,6 +324,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
         { OPT_GTPU,                   "--gtpu",            SO_REQ_SEP},
+        { OPT_GTPU_LOOPBACK,          "--gtpu-loopback",   SO_REQ_SEP},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -426,6 +428,7 @@ static int COLD_FUNC  usage() {
     printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
     printf(" --bird-server              : Enable bird service \n");
     printf(" --gtpu                     : Enable GTPU mode \n");
+    printf(" --gtpu-loopback            : Test mode GTPU\n");
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
@@ -654,6 +657,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     /*By Default tunnel is disabled , and port number is garbage here*/
     po->m_enable_tunnel_port = (uint16_t)0xFF;
     po->m_tunnel_type = TUNNEL_TYPE_NONE;
+    po->m_tunnel_loopback = false;
     uint32_t tmp_data;
     float tmp_double;
     
@@ -961,11 +965,16 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
+            case OPT_GTPU_LOOPBACK:
+                po->m_tunnel_loopback = true;
             case OPT_GTPU:
                 sscanf(args.OptionArg(),"%d", &tmp_data);
                 po->m_enable_tunnel_port = (uint16_t)tmp_data;
                 po->m_tunnel_type = TUNNEL_TYPE_GTP;
-                break;                
+                get_mode()->force_software_mode(true);
+                po->preview.setTsoOffloadDisable(true);
+                po->preview.setLroOffloadDisable(true);
+                break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
                 break;
@@ -1770,17 +1779,20 @@ public:
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
 
-    void update_tunnel() {
-        m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
+    void set_tunnel_handler(CTunnelHandler* tunnel_handler) {
+        m_tunnel_handler = tunnel_handler;
         if (m_tunnel_handler) {
+            m_tunnel_loopback = CGlobalInfo::m_options.m_tunnel_loopback;;
             m_tunnel_port = CGlobalInfo::m_options.m_enable_tunnel_port;
-            m_tunnel_handler->set_port(m_tunnel_port);
-            m_tunnel_handler->parse_options();
             m_tunnel_callback = new CTunnelTxRxCallback(m_tunnel_handler);
         }
     }
+
+    CTunnelHandler* get_tunnel_handler() {
+        return m_tunnel_handler;
+    }
+
     ~CCoreEthIFTcp(){
-        delete(m_tunnel_handler);
         delete(m_tunnel_callback);
     }
 public:
@@ -1790,6 +1802,7 @@ private:
     CTunnelTxRxCallback *m_tunnel_callback;
     CTunnelHandler      *m_tunnel_handler;
     uint8_t             m_tunnel_port;
+    bool                m_tunnel_loopback;
 };
 
 
@@ -2053,11 +2066,22 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
     uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
-    if (m_tunnel_callback != nullptr){
-        int i;
+    if (m_tunnel_callback != nullptr && dir == m_tunnel_port){
+        int i, num=0;
+        struct rte_mbuf *rx_pkts_tmp[nb_pkts];
         for (i=0;i<res;i++) {
-            m_tunnel_callback->on_rx(dir, rx_pkts[i]);
+            int res = m_tunnel_callback->on_rx(dir, rx_pkts[i]);
+            if (res) {
+                rte_pktmbuf_free(rx_pkts[i]);
+                continue;
+            }
+            rx_pkts_tmp[num] = rx_pkts[i];
+            num++;
         }
+        for (i=0;i<num;i++) {
+            rx_pkts[i]=rx_pkts_tmp[i];
+        }
+        res=num;
     }
     return (res);
 }
@@ -2068,7 +2092,7 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-    if (m_tunnel_callback && m_tunnel_port == dir) {
+    if (m_tunnel_callback && (m_tunnel_port == dir || m_tunnel_loopback)) {
         lp_port->m_port->tx_offload_csum(node_tcp->mbuf, 0);
         int res = m_tunnel_callback->on_tx(lp_port->m_port->get_tvpid(), node_tcp->mbuf);
         if (res) {
@@ -3180,13 +3204,6 @@ public:
             return (m_max_cores - 1 );
         } else {
             return (m_max_cores - BP_MASTER_AND_LATENCY );
-        }
-    }
-
-    void update_tunnel() {
-        int i;
-        for(i=0;i<BP_MAX_CORES;++i){
-            m_cores_vif_tcp[i].update_tunnel();
         }
     }
 
@@ -5368,6 +5385,7 @@ COLD_FUNC int CGlobalTRex::start_master_astf_common() {
         CFlowGenListPerThread *lpt = m_fl.m_threads_info[i];
         CVirtualIF *erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
+        lpt->init_tunnel_handler();
         lpt->set_sync_barrier(m_sync_barrier);
     }
 
@@ -6870,7 +6888,6 @@ COLD_FUNC int main_test(int argc , char * argv[]){
         g_trex.stop_master();
         return (0);
     }
-    g_trex.update_tunnel();
     rte_eal_mp_remote_launch(slave_one_lcore, NULL, CALL_MAIN);
     RTE_LCORE_FOREACH_WORKER(lcore_id) {
         if (rte_eal_wait_lcore(lcore_id) < 0)

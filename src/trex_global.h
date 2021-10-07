@@ -592,6 +592,7 @@ public:
         m_hdrh = false;
         m_tx_ring_size = 0;
         m_astf_best_effort_mode = false;
+        m_tunnel_loopback = false;
     }
 
     CParserOption(){
@@ -663,6 +664,7 @@ public:
     uint16_t        m_tx_ring_size;
     bool            m_astf_best_effort_mode;
     uint8_t         m_tunnel_type;
+    bool            m_tunnel_loopback;
 
 
 public:

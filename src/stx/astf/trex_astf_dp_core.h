@@ -171,6 +171,7 @@ protected:
 
 public:
     void on_profile_stop_event(profile_id_t profile_id);
+    void init_tunnel_handler();
 
 private:
     CTunnelHandler *m_tunnel_handler;
