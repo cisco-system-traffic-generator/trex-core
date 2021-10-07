@@ -61,6 +61,7 @@ void CUdpFlow::Delete(){
     INC_UDP_STAT(m_pctx, m_tg_id, udps_closed);
     disconnect();
     m_pctx->set_time_closed();
+    CFlowBase::Delete();
 }
 
 void CUdpFlow::init(){
@@ -81,10 +82,16 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
     UDPHeader * udp =(UDPHeader*)(p+ftp->m_offset_l4);
     /*Check if we need to update the stats when handle is not present for Special case*/
     if (ftp->is_tunnel()){
-        if (!ftp->is_tunnel_aware() && m_pctx->m_ctx->is_client_side()){
-            INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+        if (m_pctx->m_ctx->is_client_side()) {
+            if (!ftp->is_tunnel_aware()){
+                INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+            }
+            m->dynfield_ptr = ftp->m_tunnel_ctx;
         }
-        m->dynfield_ptr = ftp->m_tun_handle;
+        //add the server tunnel ctx, works in gtpu-loopback mode
+        else {
+            m->dynfield_ptr = ftp->m_tunnel_ctx;
+        }
     }
     if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
         if (!ftp->m_is_ipv6) {

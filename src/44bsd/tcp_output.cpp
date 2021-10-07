@@ -181,10 +181,15 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
 
     if (ftp->is_tunnel()){
         /*Check if we need to add any error counter for the special case*/
-        if (!ftp->is_tunnel_aware() && ctx->is_client_side()){
-           INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_notunnel);
+        if (ctx->is_client_side()) {
+            if (!ftp->is_tunnel_aware()){
+                INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_notunnel);
+            }
+            pkt.m_buf->dynfield_ptr = ftp->m_tunnel_ctx;
+        } else {
+            //add the server tunnel ctx, works in gtpu-loopback mode
+            pkt.m_buf->dynfield_ptr = ftp->m_tunnel_ctx;
         }
-        pkt.m_buf->dynfield_ptr = ftp->m_tun_handle;
      }
 
     if (m==0) {
