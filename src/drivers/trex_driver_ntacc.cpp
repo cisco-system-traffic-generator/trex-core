@@ -21,6 +21,7 @@
 
 #include "trex_driver_ntacc.h"
 #include "trex_driver_defines.h"
+#include "nt_compat.h"
 
 #include <rte_tailq.h>
 
@@ -86,19 +87,11 @@ CTRexExtendedDriverBaseNtAcc::~CTRexExtendedDriverBaseNtAcc() {
     }
 }
 
-void CTRexExtendedDriverBaseNtAcc::add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type,
+void CTRexExtendedDriverBaseNtAcc::add_del_rules(enum trex_rte_filter_op op, uint8_t port_id, uint16_t type,
     uint8_t l4_proto, int queue, uint32_t f_id, char *ntpl_str) {
-    int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_GENERIC);
-    if ( ret != 0 ){
-        rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_supported "
-                 "err=%d, port=%u \n",
-                 ret, port_id);
-    }
-
     // rte_flow.h cannot be included from C++ so we need to call a NtAcc specific C function.
-    if (op == RTE_ETH_FILTER_ADD) {
+    if (op == TREX_RTE_ETH_FILTER_ADD) {
         void *rte_flow = ntacc_add_rules(port_id, type, l4_proto, queue, ntpl_str);
-
         if (rte_flow == NULL) {
             rte_exit(EXIT_FAILURE, "Failed to add RTE_FLOW\n");
         }
@@ -124,15 +117,8 @@ void CTRexExtendedDriverBaseNtAcc::add_del_rules(enum rte_filter_op op, uint8_t 
     }
 }
 
-int CTRexExtendedDriverBaseNtAcc::add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type) {
-    int ret=rte_eth_dev_filter_supported(port_id, RTE_ETH_FILTER_GENERIC);
-
-    if ( ret != 0 ){
-        rte_exit(EXIT_FAILURE, "rte_eth_dev_filter_supported "
-                 "err=%d, port=%u \n",
-                 ret, port_id);
-    }
-    return ret;
+int CTRexExtendedDriverBaseNtAcc::add_del_eth_type_rule(uint8_t port_id, enum trex_rte_filter_op op, uint16_t eth_type) {
+    return 0;
 }
 
 int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_stateless(CPhyEthIF * _if) {
@@ -141,21 +127,15 @@ int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_stateless(CPhyEthIF 
 
 #if 0
     // Enable this when all NICs have rte_flow support
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 1, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 6, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 17, MAIN_DPDK_RX_Q, 0, NULL);
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 132, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_IPV4, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_IPV6, 0, MAIN_DPDK_RX_Q, 0, NULL);
 #else
     // Not all NICs have proper rte_flow support. use the Napatech Filter Language for now.
     char ntpl_str[] =
         "((Data[DynOffset = DynOffIpv4Frame; Offset = 1; DataType = ByteStr1 ; DataMask = [0:0]] == 1) OR "
         " (Data[DynOffset = DynOffIpv6Frame; Offset = 0; DataType = ByteStr2 ; DataMask = [11:11]] == 1)) AND "
         "Layer4Protocol == ICMP,UDP,TCP,SCTP";
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
 #endif
     return 0;
 }
@@ -164,20 +144,32 @@ int CTRexExtendedDriverBaseNtAcc::configure_rx_filter_rules_statefull(CPhyEthIF 
     set_rcv_all(_if, false);
     repid_t port_id =_if->get_repid();
 
+#if 0
+    // Enable this when all NICs have rte_flow support
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_UDP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_TCP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_SCTP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV4_OTHER, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_UDP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_TCP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_SCTP, 0, MAIN_DPDK_RX_Q, 0, NULL);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NONFRAG_IPV6_OTHER, 0, MAIN_DPDK_RX_Q, 0, NULL);
+#else
     char ntpl_str[] =
         "((Data[DynOffset = DynOffIpv4Frame; Offset = 1; DataType = ByteStr1 ; DataMask = [0:0]] == 1) OR "
         " (Data[DynOffset = DynOffIpv6Frame; Offset = 0; DataType = ByteStr2 ; DataMask = [11:11]] == 1) OR "
         " (Data[DynOffset = DynOffIpv4Frame; Offset = 8; DataType = ByteStr2] == 0xFF11,0xFF06,0xFF01) OR "
         " (Data[DynOffset = DynOffIpv6Frame; Offset = 6; DataType = ByteStr2] == 0x3CFF)) AND "
         "Layer4Protocol == ICMP,UDP,TCP,SCTP";
-    add_del_rules(RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
+    add_del_rules(TREX_RTE_ETH_FILTER_ADD, port_id, RTE_ETH_FLOW_NTPL, 0, MAIN_DPDK_RX_Q, 0, ntpl_str);
+#endif
     return 0;
 }
 
 
 int CTRexExtendedDriverBaseNtAcc::set_rcv_all(CPhyEthIF * _if, bool set_on) {
     repid_t port_id =_if->get_repid();
-    add_del_rules(set_on == true ? RTE_ETH_FILTER_ADD : RTE_ETH_FILTER_DELETE,
+    add_del_rules(set_on == true ? TREX_RTE_ETH_FILTER_ADD : TREX_RTE_ETH_FILTER_DELETE,
         port_id, RTE_ETH_FLOW_RAW, 0, MAIN_DPDK_RX_Q, 1, NULL);
     return 0;
 }
