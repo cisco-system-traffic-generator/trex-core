@@ -858,12 +858,12 @@ def configure(conf):
     conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
 
-    #if with_ntacc:
-    #    ntapi_ok = conf.check_ntapi(mandatory = False)
-    #    if not ntapi_ok:
-    #        Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
-    #                              'https://www.napatech.com/downloads/')
-    #        raise Exception("Cannot find libntapi");
+    if with_ntacc:
+        ntapi_ok = conf.check_ntapi(mandatory = False)
+        if not ntapi_ok:
+            Logs.pprint('RED', 'Cannot find NTAPI. If you need to use Napatech NICs, install the Napatech driver:\n' +
+                                  'https://www.napatech.com/downloads/')
+            raise Exception("Cannot find libntapi");
 
     conf.env.DPDK_NEW_MEMORY = new_memory
     if new_memory:
@@ -1017,7 +1017,7 @@ main_src = SrcGroup(dir='src',
              'drivers/trex_driver_ixgbe.cpp',
              'drivers/trex_driver_mlx5.cpp',
              'drivers/trex_driver_ice.cpp',
-             #'drivers/trex_driver_ntacc.cpp',
+             'drivers/trex_driver_ntacc.cpp',
              'drivers/trex_driver_vic.cpp',
              'drivers/trex_driver_virtual.cpp',
 
@@ -2474,21 +2474,18 @@ def build_prog (bld, build_obj):
             target   = build_obj.get_mlx4_target()
            )
 
-    #if bld.env.WITH_NTACC == True:
-    #    bld.shlib(
-    #      features='c',
-    #      includes = dpdk_includes_path +
-    #                 bld.env.dpdk_includes_verb_path,
-    #      cflags   = (cflags + DPDK_FLAGS +
-    #        ['-I/opt/napatech3/include',
-    #         '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
-    ##         '-DUSE_EXTERNAL_BUFFER',
-    #         '-DNO_NTACC_TOEPLITZ_SUPPORT']),
-    #      use =['ntapi'],
-    #
-    #      source   = ntacc_dpdk.file_list(top),
-    #      target   = build_obj.get_ntacc_target()
-    #    )
+    if bld.env.WITH_NTACC == True:
+        bld.shlib(
+          features='c',
+          includes = dpdk_includes_path +
+                     bld.env.dpdk_includes_verb_path,
+          cflags   = (cflags + DPDK_FLAGS +
+            ['-I/opt/napatech3/include',
+             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
+             '-DUSE_EXTERNAL_BUFFER']),
+          use =['ntapi'],
+          source   = ntacc_dpdk.file_list(top),
+          target   = build_obj.get_ntacc_target())
 
     # build the BPF as a shared library
     bld.shlib(features = 'c',

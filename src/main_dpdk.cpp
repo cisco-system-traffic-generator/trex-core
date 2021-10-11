@@ -1915,7 +1915,7 @@ HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
     uint16_t ret = lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,lp_port->m_table,len);
     if (likely( CGlobalInfo::m_options.m_is_queuefull_retry )) {
         while ( unlikely( ret<len ) ){
-            rte_delay_us(1);
+            rte_delay_us(1); 
             lp_stats->m_tx_queue_full += 1;
             uint16_t ret1=lp_port->m_port->tx_burst(lp_port->m_tx_queue_id,
                                                     &lp_port->m_table[ret],
@@ -6414,6 +6414,7 @@ COLD_FUNC int  update_dpdk_args(void){
         SET_ARGS("-d");
         SET_ARGS(bnxt_so_str.c_str());
     }
+#endif
 
     if ( lpp->get_ntacc_so_mode() ){
         std::string &ntacc_so_str = get_ntacc_so_string();
@@ -6421,7 +6422,6 @@ COLD_FUNC int  update_dpdk_args(void){
         SET_ARGS("-d");
         SET_ARGS(ntacc_so_str.c_str());
     }
-#endif
 
     if ( lpp->get_mlx5_so_mode() ){
         std::string &mlx5_so_str = get_mlx5_so_string();

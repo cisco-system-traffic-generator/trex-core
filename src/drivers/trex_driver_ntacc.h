@@ -74,9 +74,9 @@ private:
             uint8_t l4_proto, int queue, char *ntpl_str);
     void* (*ntacc_del_rules)(uint8_t port_id, void *rte_flow);
 
-    virtual void add_del_rules(enum rte_filter_op op, uint8_t port_id, uint16_t type,
+    virtual void add_del_rules(enum trex_rte_filter_op op, uint8_t port_id, uint16_t type,
                                uint8_t l4_proto, int queue, uint32_t f_id, char *ntpl_str);
-    virtual int add_del_eth_type_rule(uint8_t port_id, enum rte_filter_op op, uint16_t eth_type);
+    virtual int add_del_eth_type_rule(uint8_t port_id, enum trex_rte_filter_op op, uint16_t eth_type);
     virtual int configure_rx_filter_rules_stateless(CPhyEthIF * _if);
     virtual int configure_rx_filter_rules_statefull(CPhyEthIF * _if);
     struct fid_s {
