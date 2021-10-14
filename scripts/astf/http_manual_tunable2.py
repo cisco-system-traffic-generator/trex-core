@@ -34,7 +34,7 @@ class Prof1():
         info = ASTFGlobalInfoPerTemplate()
         info.tcp.mss = 1100
         info.tcp.initwnd = 1
-        info.tcp.no_delay = 1
+        info.tcp.no_delay = 0
 
         # template
         temp_c = ASTFTCPClientTemplate(program=prog_c,glob_info=info,ip_gen=ip_gen)

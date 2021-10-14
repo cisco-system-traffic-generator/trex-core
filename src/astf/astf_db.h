@@ -107,7 +107,7 @@ class CTcpTuneables {
         m_tcp_blackhole=0;
         m_tcp_delay_ack_msec=0;
         m_tcp_no_delay_counter=0;
-        m_tcp_no_delay=0; /* disable nagel */
+        m_tcp_no_delay=0; /* disable Nagle Algorithm */
         m_scheduler_rampup=0;
         m_ip_ttl=0;
         m_ip_tos=0;

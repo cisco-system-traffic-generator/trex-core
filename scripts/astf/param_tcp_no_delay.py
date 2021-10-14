@@ -1,7 +1,9 @@
 from trex.astf.api import *
 import argparse
 
-# disable nagle. will push any packet with PUSH (*NOT* standard it just to simulate Spirent) and will response with ACK imidiatly (standard)
+# Disable Nagle Algorithm
+# Will push any packet with PUSH (*NOT* standard, simulates Spirent)
+# and will respond with ACK immediately (standard)
 
 
 class Prof1():
@@ -22,13 +24,13 @@ class Prof1():
                            dist_server=ip_gen_s)
 
         c_glob_info = ASTFGlobalInfo()
-        c_glob_info.tcp.no_delay = 1
+        c_glob_info.tcp.no_delay = 2
         c_glob_info.tcp.mss = 1400
         c_glob_info.tcp.initwnd = 1
 
 
         s_glob_info = ASTFGlobalInfo()
-        s_glob_info.tcp.no_delay = 1
+        s_glob_info.tcp.no_delay = 2
         s_glob_info.tcp.mss = 1400
         s_glob_info.tcp.initwnd = 1
 
