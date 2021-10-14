@@ -48,7 +48,8 @@ class Prof1():
         if mss:
           info.tcp.mss = mss
         info.tcp.initwnd = 2  # start big
-        info.tcp.no_delay = 1   # to get fast feedback for acks
+        info.tcp.no_delay = 0  # to get fast feedback for acks
+        info.tcp.no_delay_counter = 2 * mss
         info.tcp.rxbufsize = win * 1024  # 1MB window 
         info.tcp.txbufsize = win * 1024  
 

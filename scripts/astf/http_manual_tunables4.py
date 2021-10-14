@@ -51,7 +51,7 @@ class Prof1():
         #info.tcp.rxbufsize = 1102  # split the buffer to MSS and ack every buffer, no need the no_delay option
         #info.tcp.txbufsize = 1100
         info.tcp.initwnd = 1
-        #info.tcp.no_delay = 1
+        #info.tcp.no_delay = 0
         info.tcp.do_rfc1323 =0
 
         # template
