@@ -2481,8 +2481,7 @@ def build_prog (bld, build_obj):
                      bld.env.dpdk_includes_verb_path,
           cflags   = (cflags + DPDK_FLAGS +
             ['-I/opt/napatech3/include',
-             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"',
-             '-DUSE_EXTERNAL_BUFFER']),
+             '-DNAPATECH3_LIB_PATH=\"/opt/napatech3/lib\"']),
           use =['ntapi'],
           source   = ntacc_dpdk.file_list(top),
           target   = build_obj.get_ntacc_target())
