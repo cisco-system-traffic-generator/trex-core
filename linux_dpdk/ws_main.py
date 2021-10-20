@@ -871,7 +871,7 @@ def configure(conf):
         s = '#ifndef RTE_EAL_NUMA_AWARE_HUGEPAGES\n'
         s += '#define RTE_EAL_NUMA_AWARE_HUGEPAGES 1\n'
         s += '#endif\n'
-        write_file(os.path.join(conf.options.out, H_DPDK_CONFIG), s)
+        write_file(os.path.join(conf.bldnode.abspath(), H_DPDK_CONFIG), s)
 
 def search_in_paths(paths):
     for path in paths:
