@@ -70,7 +70,8 @@ struct cpu_vct_st {
 
 enum pgid_types_e {
     PGID_FLOW_STAT,
-    PGID_LATENCY
+    PGID_LATENCY,
+    PGID_TPG, // Tagged Packet Group Identifier
 };
 
 struct active_pgid {

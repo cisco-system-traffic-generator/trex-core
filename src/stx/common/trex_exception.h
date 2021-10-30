@@ -55,8 +55,9 @@ class TrexException : public std::runtime_error
         T_FLOW_STAT_RX_CORE_START_FAIL,
         T_FLOW_STAT_BAD_HW_ID,
         T_FLOW_STAT_TOO_MANY_PG_IDS_FOR_DUMP,
+        T_FLOW_STAT_INVALID_TPGID,
+        T_FLOW_STAT_TPG_NOT_ENABLED,
         T_RX_PKT_PARSE_ERR,
-
         T_INVALID,
     };
 

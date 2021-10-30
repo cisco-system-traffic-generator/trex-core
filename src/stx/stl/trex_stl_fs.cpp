@@ -605,7 +605,7 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     stream_dump(stream);
 #endif
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return 0;
     }
 
@@ -664,14 +664,14 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 #endif
             if (CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable()) {
                 stream->m_rx_check.m_ieee_1588 = false;
-                size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header); 
+                size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header);
             }
         } else {
             size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header);
         }
 
         if (payload_len < size_flow_stat_payload_header) {
-            throw TrexFStatEx("Need at least " + std::to_string(sizeof(struct latency_header))
+            throw TrexFStatEx("Need at least " + std::to_string(size_flow_stat_payload_header)
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
@@ -726,7 +726,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
     stream_dump(stream);
 #endif
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return 0;
     }
 
@@ -836,13 +836,13 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     int ret;
     // Streams which does not need statistics might be started, before any stream that do
-    // need statistcs, so start_stream might be called before add_stream
+    // need statistics, so start_stream might be called before add_stream
     if (! m_api ) {
         create();
     }
 
     // first handle streams that do not need rx stat
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream() ) {
         try {
             compile_stream(stream, m_parser_ipid);
         } catch (TrexFStatEx&) {
@@ -864,7 +864,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         return 0;
     }
 
-    // from here, we know the stream need rx stat
+    // from here, we know the stream needs rx stat
 
     TrexPlatformApi::driver_stat_cap_e rule_type = (TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type;
 
@@ -1085,7 +1085,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
         ret = m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id);
 
         if (ret == 0) {
-            // If we stopped the last stream trasnimitting on this hw_id,
+            // If we stopped the last stream transimitting on this hw_id,
             // read counters one last time to make sure everything is in sync
             if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
                 update_counters(false, hw_id, hw_id, HW_ID_INIT, HW_ID_INIT, true);
@@ -1104,7 +1104,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
         if (get_dpdk_mode()->dp_rx_queues()) {
             get_stateless_obj()->unset_latency_feature();
         } else {
-            send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+            send_start_stop_msg_to_rx(false); // No more transmitting streams. Rx core should get into idle loop.
         }
     }
     return ret;
