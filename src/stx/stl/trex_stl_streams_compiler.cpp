@@ -313,10 +313,10 @@ TrexStreamsCompiler::direct_pass(GraphNodeMap *nodes) {
 
 /**
  * when a stream points to a non-found next stream 
- *  
- * can be: 
- * 1. the next stream does not exists 
- * 2. mixing of latency / non-latency streams 
+ *
+ * can be:
+ * 1. the next stream does not exists
+ * 2. mixing of sequenced / non-sequenced streams
  * 
  * @author imarom (3/22/2018)
  */
@@ -335,12 +335,12 @@ TrexStreamsCompiler::on_next_not_found(const TrexStream *stream) {
     } else if ( !next->m_enabled ) {
         ss << "stream " << stream->m_stream_id << " is pointing to disabled stream " << stream->m_next_stream_id;
 
-    } else if (stream->is_latency_stream() != next->is_latency_stream()) {
+    } else if (stream->is_sequenced_stream() != next->is_sequenced_stream()) {
 
-        if (stream->is_latency_stream()) {
-            ss << "latency stream " << stream->m_stream_id << " is pointing to a non-latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
+        if (stream->is_sequenced_stream()) {
+            ss << "Sequenced stream " << stream->m_stream_id << " is pointing to a non-sequenced stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } else {
-            ss << "non-latency stream " << stream->m_stream_id << " is pointing to a latency stream " << stream->m_next_stream_id << " (mixing is not allowed)";
+            ss << "Non-sequenced stream " << stream->m_stream_id << " is pointing to a sequenced stream " << stream->m_next_stream_id << " (mixing is not allowed)";
         } 
     } else {
         /* unknown problem */
@@ -481,33 +481,33 @@ TrexStreamsCompiler::compile_internal(uint8_t                                por
         indirect_objs[i] = nullptr;
     }
 
-    /* divide the streams to latency and non latency */
-    std::vector<TrexStream *> latency_streams;
-    std::vector<TrexStream *> non_latency_streams;
+    /* divide the streams to sequenced and non sequenced */
+    std::vector<TrexStream *> sequenced_streams;
+    std::vector<TrexStream *> non_sequenced_streams;
 
     for (const auto stream : streams) {
-        if (stream->is_latency_stream()) {
-            latency_streams.push_back(stream);
+        if (stream->is_sequenced_stream()) {
+            sequenced_streams.push_back(stream);
         } else {
-            non_latency_streams.push_back(stream);
+            non_sequenced_streams.push_back(stream);
         }
     }
 
 
-    /* non latency streams - compile on non-direct objs */
-    compile_non_latency_streams(port_id,
-                                non_latency_streams,
+    /* non sequenced streams - compile on non-direct objs */
+    compile_non_sequenced_streams(port_id,
+                                non_sequenced_streams,
                                 indirect_objs,
                                 indirect_core_count,
                                 factor);
 
-    
+
     /* migrate to direct cores */
     migrate_to_direct_cores(core_mask, indirect_objs, objs);
 
-    /* now handle the latency streams on a direct core (lowest) - if any */
-    compile_latency_streams(port_id,
-                            latency_streams,
+    /* now handle the sequenced streams on a direct core (lowest) - if any */
+    compile_sequenced_streams(port_id,
+                            sequenced_streams,
                             objs[0]);
 
 }
@@ -546,11 +546,11 @@ TrexStreamsCompiler::migrate_to_direct_cores(const TrexDPCoreMask               
 
 
 void
-TrexStreamsCompiler::compile_non_latency_streams(uint8_t                                port_id,
-                                                 const std::vector<TrexStream *>        &streams,
-                                                 std::vector<TrexStreamsCompiledObj *>  &objs,
-                                                 uint8_t                                dp_core_count,
-                                                 double                                 factor) {
+TrexStreamsCompiler::compile_non_sequenced_streams(uint8_t                                port_id,
+                                                   const std::vector<TrexStream *>        &streams,
+                                                   std::vector<TrexStreamsCompiledObj *>  &objs,
+                                                   uint8_t                                dp_core_count,
+                                                   double                                 factor) {
 
     GraphNodeMap nodes;
 
@@ -577,11 +577,11 @@ TrexStreamsCompiler::compile_non_latency_streams(uint8_t                        
 
 
 void
-TrexStreamsCompiler::compile_latency_streams(uint8_t                                port_id,
-                                             const std::vector<TrexStream *>        &streams,
-                                             TrexStreamsCompiledObj                 *&latency_obj) {
+TrexStreamsCompiler::compile_sequenced_streams(uint8_t                                port_id,
+                                               const std::vector<TrexStream *>        &streams,
+                                               TrexStreamsCompiledObj                 *&sequenced_obj) {
 
-    /* no latency streams ? */
+    /* no sequenced streams ? */
     if (streams.size() == 0) {
         return;
     }
@@ -591,28 +591,28 @@ TrexStreamsCompiler::compile_latency_streams(uint8_t                            
     /* compile checks */
     pre_compile_check(streams, nodes);
 
-    if (latency_obj == nullptr) {
-        latency_obj = new TrexStreamsCompiledObj(port_id);
+    if (sequenced_obj == nullptr) {
+        sequenced_obj = new TrexStreamsCompiledObj(port_id);
         /* start with true */
-        latency_obj->m_all_continues = true;
+        sequenced_obj->m_all_continues = true;
     } 
 
     /* offset for stream IDs */
-    uint32_t id_offset = latency_obj->size();
+    uint32_t id_offset = sequenced_obj->size();
 
     std::vector<TrexStreamsCompiledObj *> objs;
-    objs.push_back(latency_obj);
+    objs.push_back(sequenced_obj);
 
-    /* compile all latency streams */
+    /* compile all sequenced streams */
     for (auto const stream : streams) {
 
         /* skip non-enabled streams */
         if (!stream->m_enabled) {
             continue;
         }
-     
+
         if (stream->get_type() != TrexStream::stCONTINUOUS) {
-            latency_obj->m_all_continues = false;
+            sequenced_obj->m_all_continues = false;
         }
 
         /* fix the stream ids */
@@ -833,8 +833,7 @@ TrexStreamsCompiler::compile_stream_on_single_core(TrexStream *stream,
  * @param offset_usec 
  * @param stream 
  */
-void
-TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *stream) {
+void TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *stream) {
 
     /* for fixed rate streams such as latency - simply add a fix rate addition */
     if (stream->is_fixed_rate_stream()) {
@@ -844,11 +843,11 @@ TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *st
     }
 
     switch (stream->get_type()) {
-   
+
     case TrexStream::stCONTINUOUS:
         add_rate_events_for_stream_cont(offset_usec, stream);
         return;
-        
+
     case TrexStream::stSINGLE_BURST:
         add_rate_events_for_stream_single_burst(offset_usec, stream);
         return;
@@ -860,7 +859,7 @@ TrexStreamsGraph::add_rate_events_for_stream(double &offset_usec, TrexStream *st
 }
 
 /**
- * continous stream
+ * continuos stream
  * 
  */
 void

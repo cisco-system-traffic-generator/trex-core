@@ -499,7 +499,12 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         if (rx_caps & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT) {
             port_json["rx"]["caps"].append("rx_bytes");
         }
-        
+        bool software_mode = !CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed();
+        if (get_is_stateless() && software_mode) {
+            // Tagged Packet Grouping is supported in stateless software mode only.
+            port_json["rx"]["caps"].append("tpg");
+        }
+
         port_json["rx"]["counters"]     = rx_count_num;
         port_json["is_fc_supported"]    = api.getPortAttrObj(i)->is_fc_change_supported();
         port_json["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
