@@ -69,13 +69,11 @@ class CFlowStatParser {
     virtual uint16_t get_vxlan_payload_offset(uint8_t *pkt, uint16_t len);
     void set_vxlan_skip(bool enable){
         if (enable) {
-          m_flags |=  FSTAT_PARSER_VXLAN_SKIP;
-        }else{
-          m_flags &= ~FSTAT_PARSER_VXLAN_SKIP;
+            set_flag(FSTAT_PARSER_VXLAN_SKIP);
+        } else {
+            unset_flag(FSTAT_PARSER_VXLAN_SKIP);
         }
-
     }
-    bool get_vxlan_skip() { return ((m_flags & FSTAT_PARSER_VXLAN_SKIP)?true:false); }
 
     virtual int get_ip_id(uint32_t &ip_id);
     virtual void set_ip_id(uint32_t ip_id);
@@ -86,7 +84,26 @@ class CFlowStatParser {
     virtual uint16_t get_pkt_size();
     virtual uint8_t get_ttl();
     bool is_fs_latency(rte_mbuf_t *m);
+    /**
+     * Is pkt a Tagged Packet Group packet?
+     *
+     * @param m
+     *   Mbuf of the packet
+     *
+     * @return bool
+     *   True iff the Packet is a Tagged Packet Group Packet
+     */
+    bool is_tpg_pkt(const rte_mbuf_t* m);
     uint8_t get_protocol();
+
+    /**
+     * Return Vlan Offset of the packet.
+     * 
+     * @return uint16_t
+     *  In case there is no Vlans, returns 0.
+     *  In case there are multiple Vlans (QinQ), returns the offset of the first one.
+    **/
+    inline uint8_t get_vlan_offset() { return m_vlan_offset; }
 
     uint8_t *get_l3() {
         if (m_ipv4)
@@ -128,6 +145,10 @@ class CFlowStatParser {
     }
 
  private:
+
+    inline void set_flag(CFlowStatParser_flags flag) { m_flags |= flag; }
+    inline void unset_flag(CFlowStatParser_flags flag) { m_flags &= (~flag); }
+    inline bool is_flag_set(CFlowStatParser_flags flag) const { return ((m_flags & flag) == flag); }
     char *create_test_pkt(int ip_ver, uint16_t l4_proto, uint8_t ttl
                           , uint32_t ip_id, uint16_t flags, int &pkt_size);
     CFlowStatParser_err_t _parse(uint8_t *p, uint16_t len);
