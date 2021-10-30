@@ -56,6 +56,7 @@ void CFlowStatParser::reset() {
     m_ipv6 = 0;
     m_l4_proto = 0;
     m_l4 = 0;
+    m_vlan_offset = 0;
 }
 
 std::string CFlowStatParser::get_error_str(CFlowStatParser_err_t err) {
@@ -86,7 +87,7 @@ std::string CFlowStatParser::get_error_str(CFlowStatParser_err_t err) {
 
 CFlowStatParser_err_t CFlowStatParser::parse(uint8_t *p, uint16_t len) {
     CFlowStatParser_err_t res = _parse(p, len);
-    if (get_vxlan_skip() && (res == FSTAT_PARSER_E_OK)) {
+    if (is_flag_set(FSTAT_PARSER_VXLAN_SKIP) && (res == FSTAT_PARSER_E_OK)) {
       uint16_t vxlan_skip = get_vxlan_rx_payload_offset(p,len);
       if (vxlan_skip) {
         res = _parse(p + vxlan_skip, len - vxlan_skip);
@@ -178,15 +179,23 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
             finished = true;
             break;
         case EthernetHeader::Protocol::QINQ :
-            if (! (m_flags & FSTAT_PARSER_QINQ_SUPP))
+            // QinQ 0x88A8 ethernet type
+            if (!is_flag_set(FSTAT_PARSER_QINQ_SUPP)) {
                 return FSTAT_PARSER_E_QINQ_NOT_SUP;
+            }
         case EthernetHeader::Protocol::VLAN :
-            if (! (m_flags & FSTAT_PARSER_VLAN_SUPP))
+            if (!is_flag_set(FSTAT_PARSER_VLAN_SUPP)) {
                 return FSTAT_PARSER_E_VLAN_NOT_SUP;
+            }
             // In QINQ, we also allow multiple 0x8100 headers
-            if (has_vlan && (! (m_flags & FSTAT_PARSER_QINQ_SUPP)))
+            if (has_vlan && (!is_flag_set(FSTAT_PARSER_QINQ_SUPP))) {
                 return FSTAT_PARSER_E_QINQ_NOT_SUP;
-            has_vlan = true;
+            }
+            if (!has_vlan) {
+                // First time seeing a VLAN
+                m_vlan_offset = min_len;
+                has_vlan = true;
+            }
             min_len += sizeof(VLANHeader);
             if (len < min_len)
                 return FSTAT_PARSER_E_TOO_SHORT;
@@ -196,15 +205,16 @@ CFlowStatParser_err_t CFlowStatParser::_parse(uint8_t * p, uint16_t len) {
             break;
         case EthernetHeader::Protocol::MPLS_Unicast :
         case EthernetHeader::Protocol::MPLS_Multicast :
-            if (! (m_flags & FSTAT_PARSER_MPLS_SUPP))
+            if (!is_flag_set(FSTAT_PARSER_MPLS_SUPP)) {
                 return FSTAT_PARSER_E_MPLS_NOT_SUP;
+            }
             break;
         default:
             return FSTAT_PARSER_E_UNKNOWN_HDR;
         }
     }
 
-    if (unlikely(m_flags & FSTAT_PARSER_VLAN_NEEDED) && ! has_vlan) {
+    if (unlikely(is_flag_set(FSTAT_PARSER_VLAN_NEEDED) && ! has_vlan)) {
         return FSTAT_PARSER_E_VLAN_NEEDED;
     }
     return FSTAT_PARSER_E_OK;
@@ -355,6 +365,15 @@ bool CFlowStatParser::is_fs_latency(rte_mbuf_t *m){
 
     return ((fsp_head->magic == FLOW_STAT_PAYLOAD_MAGIC) &&
             (fsp_head->hw_id < MAX_FLOW_STATS_PAYLOAD));
+}
+
+bool CFlowStatParser::is_tpg_pkt(const rte_mbuf_t* m) {
+    uint8_t tmp_buf[sizeof(struct tpg_payload_header)];
+    struct tpg_payload_header* tpg_header =
+        (tpg_payload_header *)utl_rte_pktmbuf_get_last_bytes(
+            m, sizeof(struct tpg_payload_header), tmp_buf);
+
+    return (tpg_header->magic == TPG_PAYLOAD_MAGIC);
 }
 
 uint8_t CFlowStatParser::get_ttl(){
