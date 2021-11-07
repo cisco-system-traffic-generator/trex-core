@@ -41,6 +41,7 @@ class TrexStream;
 class CGenNodePCAP;
 class ServiceModeWrapper;
 class CFlowStatParser;
+class TPGDpMgr;
 
 class CDpOneStream  {
 public:
@@ -204,6 +205,7 @@ public:
         NO_FEATURES  = 0,
         LATENCY      = 1,
         CAPTURE      = 1 << 1,
+        TPG          = 1 << 2,  // Tagged Packet Grouping
     };
 
  
@@ -321,6 +323,29 @@ public:
     inline void unset_latency_feature() { unset_feature(LATENCY); }
     inline void set_capture_feature()   { set_feature(CAPTURE); }
     inline void unset_capture_feature() { unset_feature(CAPTURE); }
+    inline void set_tpg_feature() { set_feature(TPG); }
+    inline void unset_tpg_feature() { unset_feature(TPG); }
+
+    /**
+     * Enable Tagged Packet Grouping.
+     *
+     * @param num_tpgids
+     *   The maximal number of Tagged Packet Group Identifiers.
+     */
+    void enable_tpg(uint32_t num_tpgids);
+
+    /**
+     * Disable Tagged Packet Grouping.
+     **/
+    void disable_tpg();
+
+    /**
+     * Get the Tagged Packet Group DP Manager.
+     *
+     * @return TPGDpMgr*
+     *   Pointer to the TaggedPacketGroup Dp Manager.
+     **/
+    inline TPGDpMgr* get_tpg_dp_mgr() { return m_tpg_mgr; }
 
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
@@ -394,6 +419,8 @@ private:
     CFlowStatParser *          m_parser;
 
     uint8_t                    m_features;
+
+    TPGDpMgr*                  m_tpg_mgr;               // Tagged Packet Group Data Plane Manager
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */

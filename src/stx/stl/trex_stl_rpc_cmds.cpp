@@ -121,6 +121,15 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdPushRemote, "push_remote");
  */
 TREX_RPC_CMD_OWNED(TrexRpcCmdSetServiceMode, "service");
 
+/**
+ * Tagged Packet Grouping
+ */
+TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupCpRx, "enable_tpg_cp_rx");
+TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupDp, "enable_tpg_dp");
+TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPacketGroupIdStats, "get_tpgid_stats");
+
 
 /****************************** commands implementation ******************************/
 
@@ -199,7 +208,7 @@ TrexRpcCmdGetActivePGIds::_run(const Json::Value &params, Json::Value &result) {
     for (auto &it : active_flow_stat) {
         if (it.m_type == PGID_FLOW_STAT) {
             section["ids"]["flow_stats"][i++] = it.m_pg_id;
-        } else {
+        } else if (it.m_type == PGID_LATENCY) {
             section["ids"]["latency"][j++] = it.m_pg_id;
         }
     }
@@ -498,11 +507,11 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
             stream->m_rx_check.m_vxlan_skip = parse_bool(rx, "vxlan", result, false);
             stream->m_rx_check.m_ieee_1588  = parse_bool(rx, "ieee_1588", result, false);
             if(stream->m_rx_check.m_ieee_1588 == true) {
-                /* User enabled IEEE 1588 for Latency Measurment. Verify if its possible */
+                /* User enabled IEEE 1588 for Latency Measurement. Verify if its possible */
                 const TrexPlatformApi &api = get_platform_api();
                 if ( !(api.getPortAttrObj(stream->m_port_id)->is_ieee1588_supported())) {
                     std::stringstream ss;
-                    ss << "Driver doesnt support IEEE-1588.";
+                    ss << "Driver doesn't support IEEE-1588.";
                     generate_execute_err(result, ss.str());
                 }
             }
@@ -514,11 +523,15 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                     ss << "Core ID pinning is not supported for latency streams.";
                     generate_execute_err(result, ss.str());
                 }
+            } else if (type == "tpg") {
+                // Tagged Packet Group
+                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_TPG_PAYLOAD;
             } else {
+                // Default to Flow Stats with IP Id
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             }
         }
-        
+
         /* make sure this is a valid stream to add */
         validate_stream(profile_id, stream, result);
         port->add_stream(profile_id, stream.get());
@@ -653,7 +666,7 @@ TrexRpcCmdAddStream::parse_vm_instr_tuple_flow_var(const Json::Value &inst, std:
     uint32_t limit_flows  = parse_uint32(inst, "limit_flows", result);
     uint16_t flags        = parse_uint16(inst, "flags", result);
 
-    /* archiecture limitation - limit_flows must be greater or equal to DP core count */
+    /* Architecture limitation - limit_flows must be greater or equal to DP core count */
     if ( (limit_flows != 0) && (limit_flows < get_platform_api().get_dp_core_count())) {
         std::stringstream ss;
         ss << "cannot limit flows to less than " << (uint32_t)get_platform_api().get_dp_core_count();
@@ -1569,6 +1582,172 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
     return (TREX_RPC_CMD_OK);
 }
 
+
+/***************************
+ * Tagged Packet Group
+ **************************/
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableTaggedPacketGroupCpRx::_run(const Json::Value &params, Json::Value &result) {
+
+    // Verify software mode
+    if (CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed()) {
+        generate_execute_err(result, "Tagged Packet Group can be enabled only in software mode");
+    }
+
+    TrexStateless* stl = get_stateless_obj();
+
+    if (stl->get_tpg_state() != TPGState::DISABLED) {
+        // Should be able to enable iff the feature is disabled.
+        generate_execute_err(result, "Tagged Packet Grouping is already enabled.");
+    }
+
+    std::vector<uint8_t> ports_vec;
+    uint8_t num_ports = CGlobalInfo::m_options.get_expected_ports(); // Num of ports in the system
+    uint32_t num_tpgids = parse_uint32(params, "num_tpgids", result);  // Num TPGId's the user provided
+    const Json::Value& ports = parse_array(params, "ports", result); // List of ports the user provided.
+
+    // Create ports vector
+    if (ports.size() == 0)  {
+        // Not provided, get all ports.
+        for (uint8_t i = 0; i < num_ports; i++) {
+            ports_vec.push_back(i);
+        }
+    } else {
+        for (auto &itr : ports) {
+            uint8_t port = itr.asUInt();
+            if (port >= num_ports) {
+                generate_execute_err(result, "Invalid port number: " + std::to_string(port) + " Max port number: " + std::to_string(num_ports - 1));
+            }
+            ports_vec.push_back(port);
+        }
+    }
+
+    // If we got here, the feature is not enabled.
+    stl->create_tpg_mgr(ports_vec, num_tpgids);
+
+    PacketGroupTagMgr* tag_mgr = stl->m_tpg_mgr->get_tag_mgr();
+
+    const Json::Value& tags = parse_array(params, "tags", result);
+    uint16_t tag = 0;
+    for (auto& itr: tags) {
+        const Json::Value& value = parse_object(itr, "value", result);
+        std::string type = parse_string(itr, "type", result);
+        if (type == "Dot1Q") {
+            uint16_t vlan = parse_uint16(value, "vlan", result);
+            if (!tag_mgr->add_dot1q_tag(vlan, tag)) {
+                generate_execute_err(result, "Vlan " + std::to_string(vlan) + " already registered as Dot1Q tag!") ;
+            }
+        } else if (type == "QinQ") {
+            const Json::Value& vlans = parse_array(value, "vlans", result);
+            if (vlans.size() != 2) {
+                generate_parse_err(result, "QinQ must contain 2 Vlans");
+            }
+            uint16_t inner_vlan = vlans[0].asUInt();
+            uint16_t outter_vlan = vlans[1].asUInt();
+            if (!tag_mgr->add_qinq_tag(inner_vlan, outter_vlan, tag)) {
+                generate_execute_err(result, "QinQ [" + std::to_string(inner_vlan) + "," + std::to_string(outter_vlan) + "] already registered as QinQ tag!") ;
+            }
+        } else {
+            stl->destroy_tpg_mgr();
+            generate_parse_err(result, "Tag type " + type + " is not supported!");
+        }
+        tag++;
+    }
+
+    stl->enable_tpg_cp_rx(); // Notify CP, Rx. Rx can take forever to allocate, so we do this async.
+
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableTaggedPacketGroupDp::_run(const Json::Value &params, Json::Value &result) {
+
+    TrexStateless* stl = get_stateless_obj();
+
+    if (stl->get_tpg_state() != TPGState::ENABLED_CP_RX) {
+        // Enabling the feature in DP is possible iff the feature is previously enabled in CP and Rx.
+        generate_execute_err(result, "Tagged Packet Group in Dp can be enabled only after Cp and Rx.");
+    }
+
+    stl->enable_tpg_dp();
+
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdDisableTaggedPacketGroup::_run(const Json::Value &params, Json::Value &result) {
+
+    TrexStateless* stl = get_stateless_obj();
+
+    if (stl->get_tpg_state() != TPGState::ENABLED) {
+        // Disabling the feature is possible only if the feature is already enabled.
+        generate_execute_err(result, "Tagged Packet Group is not enabled.");
+    }
+
+    stl->disable_tpg();    // Notify DPs, CP and Rx (async)
+    stl->destroy_tpg_mgr();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetTaggedPktGroupState::_run(const Json::Value &params, Json::Value &result) {
+
+    TrexStateless* stl = get_stateless_obj();
+
+    stl->update_tpg_state();
+
+    result["result"] = stl->get_tpg_state();
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetTaggedPacketGroupIdStats::_run(const Json::Value &params, Json::Value &result) {
+
+    TrexStateless* stl = get_stateless_obj();
+
+    if (stl->get_tpg_state() != TPGState::ENABLED) {
+        // Collecting stats is possible only if the feature is already enabled.
+        generate_execute_err(result, "Tagged Packet Group is not enabled.");
+    }
+
+    uint8_t port_id = parse_port(params, result); // Validates the port aswell.
+    uint32_t tpgid = parse_uint32(params, "tpgid", result);  // Tagged Packet Group Identifier
+    uint16_t min_tag = parse_uint16(params, "min_tag", result);  // Min Tag
+    uint16_t max_tag = parse_uint16(params, "max_tag", result);  // Max Tag
+    bool unknown_tag = parse_bool(params, "unknown_tag", result, false); // Unknown Tag, default False.
+
+    // Server Side Validation
+    if (min_tag >= max_tag) {
+        generate_execute_err(result, "Min Tag = " + std::to_string(min_tag) + " must be smaller than Max Tag = " + std::to_string(max_tag));
+    }
+
+    TPGCpMgr* tpg_mgr = stl->m_tpg_mgr;
+    uint16_t num_tags = tpg_mgr->get_tag_mgr()->get_num_tags();
+
+    if (max_tag > num_tags) {
+        generate_execute_err(result, "Max Tag " + std::to_string(max_tag) + " is larger than number of tags " + std::to_string(num_tags));
+    }
+
+    if (!tpg_mgr->is_port_collecting(port_id)) {
+        generate_execute_err(result, "Port " + std::to_string(unsigned(port_id)) + " is not a valid port for TPG stats.");
+    }
+
+    if (tpgid >= tpg_mgr->get_num_tpgids()) {
+        generate_execute_err(result, "tpgid " + std::to_string(tpgid) + " is bigger than the max allowed tpgid.");
+    }
+
+    // Collect Stats from Rx
+    Json::Value& section = result["result"];
+
+    stl->get_stl_rx()->get_tpgid_stats(section, port_id, tpgid, min_tag, max_tag, unknown_tag);
+
+    return (TREX_RPC_CMD_OK);
+}
+
 /****************************** component implementation ******************************/
 
 /**
@@ -1584,7 +1763,7 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
-    
+
     /* profiles */
     m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
 
@@ -1595,7 +1774,7 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdAddStream(this));
     m_cmds.push_back(new TrexRpcCmdRemoveStream(this));
     m_cmds.push_back(new TrexRpcCmdRemoveAllStreams(this));
-    
+
     /* traffic */
     m_cmds.push_back(new TrexRpcCmdStartTraffic(this));
     m_cmds.push_back(new TrexRpcCmdStopTraffic(this));
@@ -1607,12 +1786,19 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdUpdateStreams(this));
     m_cmds.push_back(new TrexRpcCmdValidate(this));
     m_cmds.push_back(new TrexRpcCmdRemoveRXFilters(this));
-    
+
     /* service mode */
     m_cmds.push_back(new TrexRpcCmdSetServiceMode(this));
-    
+
     /* pcap */
     m_cmds.push_back(new TrexRpcCmdPushRemote(this));
+
+    /* Tagged Packet Group */
+    m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroupCpRx(this));
+    m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroupDp(this));
+    m_cmds.push_back(new TrexRpcCmdDisableTaggedPacketGroup(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupState(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPacketGroupIdStats(this));
 }
 
 

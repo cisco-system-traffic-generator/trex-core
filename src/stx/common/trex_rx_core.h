@@ -31,6 +31,7 @@
 #include "trex_capture.h"
 #include "trex_rx_tx.h"
 #include "trex_latency_counters.h"
+#include "stl/trex_stl_tpg.h"
 
 class TrexCpToRxMsgBase;
 
@@ -67,6 +68,8 @@ protected:
         m_is_active      = false;
         m_ex_zmq_enabled = false;
         m_ezmq_use_tcp   = false;
+        m_tag_mgr        = nullptr;
+        m_tpg_enabled    = false;
     }
     ~CRxCore();
     
@@ -156,6 +159,55 @@ protected:
     virtual void handle_astf_latency_pkt(const rte_mbuf_t *m,
                                          uint8_t port_id);
 
+    /**
+     * Indicate if Tagged Packet Grouping is enabled/disabled in RX.
+     * Enabling/Disabling TPG is Rx can take a long time since
+     * we might allocate/deallocate a lot of memory.
+     *
+     * @return bool
+     *  True iff TPG is enabled in Rx.
+     **/
+
+    bool is_tpg_enabled() { return m_tpg_enabled; }
+
+    /**
+     * Enable Tagged Packet Grouping
+     * Dynamically allocate counters for tagged packets
+     *
+     * @param tpg_mgr
+     *   Tagged Packet Group Control Plane Manager.
+     **/
+    void enable_tpg(TPGCpMgr* tag_mgr);
+
+    /**
+     * Disable Tagged Packet Grouping.
+     * Remove all dynamically allocated counters in all ports.
+     */
+    void disable_tpg();
+
+    /**
+     * Get Tagged Packet Group Statistics
+     *
+     * @param stats
+     *   Json on which we dump the statistics.
+     *
+     * @param port_id
+     *   Port on which we collect the stats
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier for which we collect the stats
+     *
+     * @param min_tag
+     *   Minimal Tag to collect stats for. Inclusive.
+     *
+     * @param max_tag
+     *   Maximal Tag for which to collect stats for. Exclusive.
+     *
+     * @param unknown_tag
+     *   Dump the stats collected on unknown tags aswell.
+     **/
+    void get_tpgid_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+
  protected:
     uint32_t handle_msg_packets(void);
     uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing *r);
@@ -199,46 +251,36 @@ protected:
 
 
  protected:
-    TrexMonitor      m_monitor;
-    uint32_t         m_tx_cores;
-    bool             m_capture;
-    state_e          m_state;
-    CNodeRing       *m_ring_from_cp;
-    CMessagingManager * m_rx_dp;
-    CCpuUtlDp        m_cpu_dp_u;
-    CCpuUtlCp        m_cpu_cp_u;
-
-    dsec_t           m_sync_time_sec;
-    dsec_t           m_sync_time_period;
-    dsec_t           m_grat_arp_sec;
-
-    uint64_t         m_rx_pkts;
-
-    CRxCoreErrCntrs  m_err_cntrs;
-    CRFC2544Info     m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
-
-    rx_port_mg_map_t m_rx_port_mngr_map;
-    rx_port_mg_vec_t m_rx_port_mngr_vec;
-
-    CPPSMeasure      m_rx_pps;
-    
-    TXQueue          m_tx_queue;
+    TrexMonitor             m_monitor;
+    uint32_t                m_tx_cores;
+    bool                    m_capture;
+    state_e                 m_state;
+    CNodeRing*              m_ring_from_cp;
+    CMessagingManager*      m_rx_dp;
+    CCpuUtlDp               m_cpu_dp_u;
+    CCpuUtlCp               m_cpu_cp_u;
+    dsec_t                  m_sync_time_sec;
+    dsec_t                  m_sync_time_period;
+    dsec_t                  m_grat_arp_sec;
+    uint64_t                m_rx_pkts;
+    CRxCoreErrCntrs         m_err_cntrs;
+    CRFC2544Info            m_rfc2544[MAX_FLOW_STATS_PAYLOAD];
+    rx_port_mg_map_t        m_rx_port_mngr_map;
+    rx_port_mg_vec_t        m_rx_port_mngr_vec;
+    CPPSMeasure             m_rx_pps;
+    TXQueue                 m_tx_queue;
+    PacketGroupTagMgr*      m_tag_mgr;      // TPG Tag Manager (allocated on Rx)
 
     /* accessed from control core */
-    volatile bool    m_is_active;
-
-    void *          m_zmq_ctx;
-    
-    void *          m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
-
-    void *          m_zmq_tx_socket; // // in respect to TRex interface (emu->tx)
-
-    CZmqPacketWriter  m_zmq_wr;
-
-    CZmqPacketReader  m_zmq_rd;
-
-    bool              m_ex_zmq_enabled;
-    bool              m_ezmq_use_tcp;
+    volatile bool           m_is_active;
+    volatile bool           m_tpg_enabled; // Indicate to CP if TPG is enabled/disabled
+    void*                   m_zmq_ctx;
+    void*                   m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
+    void*                   m_zmq_tx_socket; // in respect to TRex interface (emu->tx)
+    CZmqPacketWriter        m_zmq_wr;
+    CZmqPacketReader        m_zmq_rd;
+    bool                    m_ex_zmq_enabled;
+    bool                    m_ezmq_use_tcp;
 
 };
 #endif

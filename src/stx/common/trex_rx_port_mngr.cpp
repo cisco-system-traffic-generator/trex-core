@@ -452,13 +452,14 @@ RXPortManager::RXPortManager() : m_feature_api(this) {
     clear_all_features();
     m_stack          = nullptr;
     m_io             = nullptr;
+    m_tpg            = nullptr;
     m_port_id        = UINT8_MAX;
 }
 
 RXPortManager::~RXPortManager(void) {
     delete m_stack;
     delete m_parser;
-    m_stack = nullptr;
+    delete m_tpg;
 }
 
 struct CPlatformYamlInfo;
@@ -575,6 +576,19 @@ bool RXPortManager::stop_capture_port(std::string &err) {
     return true;
 }
 
+void RXPortManager::enable_tpg(uint32_t m_num_tpgids, PacketGroupTagMgr* tag_mgr) {
+    set_feature(TPG);
+    assert(m_tpg == nullptr);
+    m_tpg = new RxTPGPerPort(m_port_id, m_num_tpgids, tag_mgr);
+}
+
+void RXPortManager::disable_tpg() {
+    // This function should be safe even if called on a disabled instance.
+    unset_feature(TPG);
+    delete m_tpg;
+    m_tpg = nullptr;
+}
+
 void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 
     /* handle features */
@@ -584,6 +598,10 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 
     if (is_feature_set(LATENCY)) {
         m_latency.handle_pkt(m, m_port_id);
+    }
+
+    if (is_feature_set(TPG) && m_tpg) {
+        m_tpg->handle_pkt(m);
     }
 
     if (is_feature_set(QUEUE)) {
