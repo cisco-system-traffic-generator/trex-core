@@ -38,6 +38,7 @@ CRxCore::~CRxCore(void) {
         delete iter_pair.second;
         iter_pair.second = nullptr;
     }
+    delete m_tag_mgr;
 }
 
 
@@ -284,7 +285,8 @@ bool CRxCore::should_be_hot() {
         if ( TrexCaptureMngr::getInstance().is_active(mngr_pair.first)
             || mngr_pair.second->is_feature_set(RXPortManager::LATENCY)
             || mngr_pair.second->is_feature_set(RXPortManager::CAPWAP_PROXY)
-            || mngr_pair.second->is_feature_set(RXPortManager::CAPTURE_PORT) ) {
+            || mngr_pair.second->is_feature_set(RXPortManager::CAPTURE_PORT)
+            || mngr_pair.second->is_feature_set(RXPortManager::TPG) ) {
             return true;
         }
     }
@@ -651,3 +653,45 @@ CRxCore::tx_pkt(int port_id, const std::string &pkt) {
     return m_rx_port_mngr_vec[port_id]->tx_pkt(pkt);
 }
 
+/**************************************
+ * Tagged Packet Group
+*************************************/
+
+void CRxCore::enable_tpg(TPGCpMgr* tpg_mgr) {
+    /**
+     * NOTE: All the statistics are allocated here. This can take a very long time, hence
+     * we need to stop the watchdog.
+     **/
+    TrexWatchDog::getInstance().stop();
+    const std::vector<uint8_t>& port_vec = tpg_mgr->get_ports();
+    uint32_t num_tpgids = tpg_mgr->get_num_tpgids();
+    m_tag_mgr = new PacketGroupTagMgr(tpg_mgr->get_tag_mgr()); // Clone the Tag Manager for a locality performance impact
+
+    for (uint8_t port: port_vec) {
+        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, m_tag_mgr);
+    }
+
+    TrexWatchDog::getInstance().start();
+    m_tpg_enabled = true;
+}
+
+void CRxCore::disable_tpg() {
+    /**
+     * NOTE: All the statistics are allocated here. This can take a very long time, hence
+     * we need to stop the watchdog.
+     **/
+    TrexWatchDog::getInstance().stop();
+    for (auto& port_mgr : m_rx_port_mngr_vec) {
+        port_mgr->disable_tpg();
+    }
+    delete m_tag_mgr;
+    m_tag_mgr = nullptr;
+    TrexWatchDog::getInstance().start();
+    m_tpg_enabled = false;
+}
+
+void CRxCore::get_tpgid_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+    Json::Value& port_stats = stats[std::to_string(port_id)];
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->get_tpgid_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag);
+}

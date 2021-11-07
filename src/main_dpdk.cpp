@@ -398,7 +398,7 @@ static int COLD_FUNC  usage() {
     printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
-    printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
+    printf(" -p                         : Send all flow packets from the same interface (chosen randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
     printf("                              e.g --pm 2.0 will multiply all the results bps in this factor \n");
     printf(" --prefix <nam>             : For running multi TRex instances on the same machine. Each instance should have different name \n");
@@ -654,7 +654,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     uint32_t tmp_data;
     float tmp_double;
     
-    /* first run - pass all parameters for existance */
+    /* first run - pass all parameters for existence */
     OptHash args_set = args_first_pass(argc, argv, po);
     
     
@@ -987,7 +987,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     }
 
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
-        parse_err("--learn mode is not supported with --ipv6, beacuse there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
+        parse_err("--learn mode is not supported with --ipv6, because there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
                   "If you think it is important, please open a defect or write to TRex mailing list\n");
     }
 
@@ -1002,14 +1002,14 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     }
 
     if (po->m_platform_factor==0.0){
-        parse_err(" you must provide a non zero multipler for platform -pm 0 is not valid \n");
+        parse_err(" you must provide a non zero multiplier for platform -pm 0 is not valid \n");
     }
 
-    /* if we have a platform factor we need to devided by it so we can still work with normalized yaml profile  */
+    /* if we have a platform factor we need to divided by it so we can still work with normalized yaml profile  */
     po->m_factor = po->m_factor/po->m_platform_factor;
 
     if (po->m_factor==0.0) {
-        parse_err(" you must provide a non zero multipler -m 0 is not valid \n");
+        parse_err(" you must provide a non zero multiplier -m 0 is not valid \n");
     }
 
 
@@ -1641,6 +1641,7 @@ public:
     __attribute__ ((noinline)) int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
                                                        , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats);
+    __attribute__ ((noinline)) rte_mbuf*  update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const);
     __attribute__ ((noinline)) rte_mbuf * update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
                                                        , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats, bool is_const);
@@ -1668,6 +1669,14 @@ public:
         return m_ports;
     }
 
+    /**
+     * Set DP Core back pointer in Virtual Interface.
+     *
+     * @param dp_core
+     *   Pointer to Dp core
+     **/
+    virtual void set_dp_core(TrexDpCore* dp_core) { m_dp_core = dp_core; }
+
 protected:
 
     int send_burst(CCorePerPort * lp_port,
@@ -1692,6 +1701,7 @@ protected:
     uint16_t     m_mbuf_cache;
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
     CNodeRing *  m_ring_to_rx;
+    TrexDpCore*  m_dp_core;       // Back Pointer to Dp Core
 
 } __rte_cache_aligned;
 
@@ -1699,10 +1709,10 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats);
-
+    virtual rte_mbuf* update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const);
     virtual rte_mbuf* update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-
+    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid);
     virtual void update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                      uint16_t hw_id_payload);
 
@@ -1721,6 +1731,20 @@ public:
     virtual int send_node_service_mode(CGenNode *node);
 
 protected:
+
+    /**
+     * Update mbuf in case of flow stats/latency/TPG.
+     *
+     * @param node_sl
+     *   Node that we are going to update.
+     * @param m
+     *   Mbuf generated from the node prior to updating
+     *
+     * @return rte_mbuf_t*
+     *    Mbuf after updating
+     **/
+
+    rte_mbuf_t* update_stat_node(CGenNodeStateless* node_sl, rte_mbuf_t* m);
     template <bool SERVICE_MODE> inline int send_node_common(CGenNode *no);
 
     inline rte_mbuf_t * generate_node_pkt(CGenNodeStateless *node_sl)   __attribute__ ((always_inline));
@@ -1737,6 +1761,17 @@ public:
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
+
+    /**
+     * Get a pointer to the Stateless DP core.
+     *
+     * @return TrexStatelessDpCore*
+     *  A pointer to the Dp core that contains this VIF.
+     **/
+    TrexStatelessDpCore* get_dp_core() {
+        return (TrexStatelessDpCore*)m_dp_core;
+    }
+
 public:
     uint16_t     m_rx_queue_id[CS_NUM]; 
 };
@@ -1780,6 +1815,14 @@ public:
     CTunnelHandler* get_tunnel_handler() {
         return m_tunnel_handler;
     }
+
+    /**
+     * Get a pointer to the ASTF DP core.
+     *
+     * @return TrexAstfDpCore*
+     *  A pointer to the Dp core that contains this VIF.
+     **/
+    TrexAstfDpCore* get_dp_core() { return (TrexAstfDpCore*)m_dp_core; }
 
     ~CCoreEthIFTcp(){
         delete(m_tunnel_callback);
@@ -2093,6 +2136,28 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     return (0);
 }
 
+HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid) {
+
+    uint32_t INVALID_SEQ = 0xBADF00D;
+    TrexStatelessDpCore* stl_dp_core = get_dp_core();
+    uint32_t seq;
+    if (stl_dp_core == nullptr) {
+        seq = INVALID_SEQ;
+    } else {
+        TPGDpMgr* tpg_dp_mgr = stl_dp_core->get_tpg_dp_mgr();
+        if (tpg_dp_mgr == nullptr) {
+            seq = INVALID_SEQ;
+        } else {
+            seq = tpg_dp_mgr->get_seq(tpgid);
+            tpg_dp_mgr->inc_seq(tpgid);
+        }
+    }
+    tpg_header->magic = TPG_PAYLOAD_MAGIC;
+    tpg_header->tpgid = tpgid;
+    tpg_header->seq = seq;
+    tpg_header->reserved = 0;
+}
+
 HOT_FUNC void CCoreEthIFStateless::update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                                         uint16_t hw_id_payload) {
     fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
@@ -2101,6 +2166,13 @@ HOT_FUNC void CCoreEthIFStateless::update_fsp_head_lat(struct flow_stat_payload_
     fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
 }
 
+HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const) {
+    struct tpg_payload_header* tpg_header;
+    uint32_t tpgid = node_sl->get_stat_pgid();
+    rte_mbuf* mi = node_sl->alloc_tpg_mbuf(m, tpg_header, is_const);
+    update_tpg_header(tpg_header, tpgid);
+    return mi;
+}
 HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
@@ -2196,7 +2268,7 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
 HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats) {
     uint16_t hw_id = node_sl->get_stat_hw_id();
-    if (hw_id >= MAX_FLOW_STATS) {
+    if (hw_id >= MAX_FLOW_STATS || node_sl->is_tpg_stream()) {
         send_pkt_lat(lp_port, node_sl, m, lp_stats);
     } else {
         send_pkt(lp_port, m, lp_stats);
@@ -2260,6 +2332,25 @@ HOT_FUNC int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
     return send_node_common<true>(node);
 }
 
+rte_mbuf_t* CCoreEthIFStateless::update_stat_node(CGenNodeStateless* node_sl, rte_mbuf_t* m) {
+    if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
+        // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
+        // assert here just to make sure.
+        assert(1);
+    }
+    bool is_const                     = (node_sl->get_cache_mbuf()) ? true : false;
+    pkt_dir_t dir                     = (pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *lp_port             = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
+
+    if ( unlikely(node_sl->is_tpg_stream())) {
+        m = update_node_tpg(m, node_sl, is_const);
+    } else {
+        m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, is_const);
+    }
+    return m;
+}
+
 /**
  * this is the common function and it is templated
  * for two compiler evaluation for performance
@@ -2277,12 +2368,7 @@ int CCoreEthIFStateless::send_node_common(CGenNode *node) {
     rte_mbuf_t *m = generate_node_pkt(node_sl);
 
     if (unlikely(node_sl->is_stat_needed())) {
-        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
-            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
-            // assert here just to make sure.
-            assert(1);
-        }
-        m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
+        m = update_stat_node(node_sl, m);
     }
 
     /* template boolean - this will be removed at compile time */
@@ -5342,6 +5428,7 @@ COLD_FUNC int CGlobalTRex::start_master_stateless(){
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         lpt->set_sync_barrier(m_sync_barrier);
+        erf_vif->set_dp_core(lpt->get_dp_core());
     }
     m_fl_was_init=true;
 
@@ -5371,6 +5458,7 @@ COLD_FUNC int CGlobalTRex::start_master_astf_common() {
         CVirtualIF *erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         lpt->set_sync_barrier(m_sync_barrier);
+        erf_vif->set_dp_core(lpt->get_dp_core());
     }
 
     m_fl_was_init = true;
@@ -7249,6 +7337,10 @@ COLD_FUNC int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16
 }
 
 COLD_FUNC int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
+    /**
+    NOTE: The active pgids don't include Tagged Packet Group Identifiers.
+    This is because the number of tpgids can be enormous.
+    **/
     return CFlowStatRuleMgr::instance()->get_active_pgids(result);
 }
 

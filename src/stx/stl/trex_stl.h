@@ -25,6 +25,7 @@ limitations under the License.
 #include <vector>
 
 #include "common/trex_stx.h"
+#include "trex_stl_tpg.h"
 
 class TrexStatelessPort;
 class TrexStateless;
@@ -144,6 +145,62 @@ public:
 
     void unset_latency_feature();
 
+    /**
+     * Create a new Tagged Packet Group Control Plane Manager.
+     *
+     * @param ports
+     *   Vector of ports on which TPG will be active.
+     *
+     * @param num_tpgids
+     *   Number of TPGIDs
+    **/
+    void create_tpg_mgr(const std::vector<uint8_t>& ports, uint32_t num_tpgids);
+
+    /**
+     * Destroy the Tagged Packet Group Control Plane Manager.
+    **/
+    void destroy_tpg_mgr();
+
+    /**
+     * Get the state of Tagged Packet Grouping
+     *
+     * @return TPGState
+     *   State of Tagged Packet Grouping
+     **/
+    inline TPGState get_tpg_state() const { return m_tpg_state; }
+
+    /**
+     * Set the state for the TPG state machine
+     *
+     * @param TPGState
+     *   New state to set
+     */
+    void set_tpg_state(TPGState state) { m_tpg_state = state; }
+
+    /**
+     * Update the state of Tagged Packet Grouping by checking if Rx has finished
+     * using shared memory.
+     **/
+    void update_tpg_state();
+
+    /**
+     * Enable Tagged Packet Grouping in Control Plane and send an Enable Message to the Rx core.
+     * This message is non blocking.
+    **/
+    void enable_tpg_cp_rx();
+
+    /**
+     * Enable Tagged Packet Grouping in Data Plane by sending a message to all data planes.
+     * This message is blocking.
+     *
+    **/
+    void enable_tpg_dp();
+
+    /**
+     * Disable Tagged Packet Grouping by sending a Disable Message to the Rx Core.
+     * This message is blocking.
+    **/
+    void disable_tpg();
     virtual void set_capture_feature(const std::set<uint8_t>& rx_ports);
 
     virtual void unset_capture_feature();
@@ -152,13 +209,17 @@ public:
 
     friend TrexStatelessMulticoreSoftwareFSLatencyStats;
 
-    
+
 protected:
-    
+
     void _shutdown();
 
 public:
-    TrexStatelessFSLatencyStats*        m_stats;
+    TrexStatelessFSLatencyStats*    m_stats;                // TRex Stateless Flow Stats and Latency Statistics
+    TPGCpMgr*                       m_tpg_mgr;              // Tagged Packet Group Control Plane Manager
+
+private:
+    TPGState                        m_tpg_state;            // State Machine for Tagged Packet Grouping
 };
 
 

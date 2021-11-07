@@ -356,6 +356,7 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_dp_port_events.cpp',
                                      'trex_dp_core.cpp',
                                      'trex_latency_counters.cpp',
+                                     'trex_tpg_stats.cpp',
                                      'trex_messaging.cpp',
                                      'trex_owner.cpp',
                                      'trex_rx_core.cpp',
@@ -384,12 +385,10 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
                                     'trex_stl_port.cpp',
                                     'trex_stl_streams_compiler.cpp',
                                     'trex_stl_vm_splitter.cpp',
-
                                     'trex_stl_dp_core.cpp',
                                     'trex_stl_fs.cpp',
-
                                     'trex_stl_messaging.cpp',
-                                    
+                                    'trex_stl_tpg.cpp',
                                     'trex_stl_rpc_cmds.cpp'
 
                                     ])

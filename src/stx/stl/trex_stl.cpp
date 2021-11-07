@@ -182,10 +182,12 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* create RX core */
     CRxCore *rx = new CRxCore();
     rx->create(cfg.m_rx_cfg);
-    
+
     m_rx = rx;
 
     m_stats = nullptr;
+    m_tpg_mgr = nullptr;
+    m_tpg_state = TPGState::DISABLED;
 }
 
 
@@ -195,17 +197,17 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
  * @author imarom (08-Oct-15)
  */
 TrexStateless::~TrexStateless() {
-    
+
     /* release memory for ports */
     for (auto &port : m_ports) {
         delete port.second;
     }
 
     delete m_stats;
+    delete m_tpg_mgr;
 
     /* RX core */
     delete m_rx;
-    m_rx = nullptr;
 }
 
 
@@ -339,3 +341,86 @@ TrexStatelessFSLatencyStats* TrexStateless::get_stats() {
     assert(m_stats);
     return m_stats;
 }
+
+void TrexStateless::create_tpg_mgr(const std::vector<uint8_t>& ports, uint32_t num_tpgids) {
+    assert(m_tpg_mgr == nullptr);
+    m_tpg_mgr = new TPGCpMgr(ports, num_tpgids);
+}
+
+void TrexStateless::destroy_tpg_mgr() {
+    delete m_tpg_mgr;
+    m_tpg_mgr = nullptr;
+}
+
+void TrexStateless::update_tpg_state() {
+
+    // Update State based on Rx.
+    if (! (m_tpg_state == TPGState::ENABLED_CP || m_tpg_state == TPGState::DISABLED_DP_CP)) {
+        // Not awaiting Rx, state is synced.
+        return;
+    }
+
+    bool tpg_rx_enabled = get_stl_rx()->is_tpg_enabled();
+    if (m_tpg_state == TPGState::ENABLED_CP && tpg_rx_enabled) {
+        // We were awaiting for Rx to finish allocating and Rx has finished.
+        m_tpg_state = TPGState::ENABLED_CP_RX;
+    }
+    if (m_tpg_state == TPGState::DISABLED_DP_CP && !tpg_rx_enabled) {
+        // We were awaiting for Rx to finish deallocating and Rx has finished.
+        m_tpg_state = TPGState::DISABLED;
+    }
+}
+
+void TrexStateless::enable_tpg_cp_rx() {
+    TPGStreamMgr::instance()->set_num_tpgids(m_tpg_mgr->get_num_tpgids());
+
+    // Enable the feature in Rx, this can take a long time so don't wait.
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxEnableTaggedPktGroup(m_tpg_mgr);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+
+    m_tpg_state = TPGState::ENABLED_CP;
+}
+
+void TrexStateless::enable_tpg_dp() {
+
+    uint32_t num_tpgids = m_tpg_mgr->get_num_tpgids();
+
+    // Set the feature in DP so we can start redirecting packets
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpSetTPGFeature(reply, num_tpgids);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+
+    m_tpg_state = TPGState::ENABLED;
+}
+
+void TrexStateless::disable_tpg() {
+
+    // Unset the feature in DP
+    // This needs to be done first so we don't keep redirecting packets when we don't have counters.
+    for (uint8_t core_id = 0; core_id < m_dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpUnsetTPGFeature(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+
+    // Unset the feature in Rx. This can take a long time deallocating the packets, hence async.
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxDisableTaggedPktGroup();
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+
+    m_tpg_state = TPGState::DISABLED_DP_CP;
+
+    /**
+     NOTE: We intentionally don't cleanup the TPGStreamMgr. The states of the streams are relevant even
+     if the user disables and re-enables TPG. However, since TPGStreamMgr is a singleton implemented
+     as a static variable, we will not have any memory leak.
+     **/
+}
+

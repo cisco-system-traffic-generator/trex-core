@@ -31,6 +31,8 @@
 #include "trex_rx_feature_api.h"
 #include "trex_stack_base.h"
 #include "trex_latency_counters.h"
+#include "trex_tpg_stats.h"
+#include "stl/trex_stl_tpg.h"
 
 class CPortLatencyHWBase;
 class BPFFilter;
@@ -286,8 +288,8 @@ public:
         CAPTURE_PORT = 1 << 3,
         CAPWAP_PROXY = 1 << 4,
         ASTF_LATENCY = 1 << 5,
-        
-        EZMQ = 1 << 6,
+        EZMQ         = 1 << 6,
+        TPG          = 1 << 7,
 
     };
 
@@ -346,6 +348,34 @@ public:
     void disable_latency() {
         unset_feature(LATENCY);
     }
+
+    /* Tagged Packet Grouping */
+
+    /**
+     * Enable Tagged Packet Grouping for this port.
+     * Allocate counters dynamically for the port, size of NUM_PGIDS x NUM_TAGS.
+     *
+     * @param num_pgids
+     *    Number of Packet Groups Identifiers
+     *
+     * @param tag_mgr
+     *    Tag Manager to map Dot1Q, QinQ to Tag.
+    **/
+    void enable_tpg(uint32_t num_pgids, PacketGroupTagMgr* tag_mgr);
+
+    /**
+     * Disable Tagged Packet Group for this port.
+     * Note that this needs to be safe even if the feature is not enabled.
+    **/
+    void disable_tpg();
+
+    /**
+     * Get the TPG object for Rx port that collects the stats.
+     *
+     * @return RxTPGPerPort*
+     *   Rx TPG object that collects stats
+     */
+    RxTPGPerPort* get_rx_tpg() { return m_tpg; }
 
     /* queue */
     void start_queue(uint32_t size) {
@@ -435,12 +465,12 @@ public:
     /**
      * TX packets immediately (no queue)
      *  
-     * returns true in case packets was transmitted succesfully 
+     * returns true in case packets was transmitted successfully
      */
     bool tx_pkt(const std::string &pkt);
     bool tx_pkt(rte_mbuf_t *m);
-    
-    
+
+
     bool has_features_set() {
         return (m_features != NO_FEATURES);
     }
@@ -504,6 +534,7 @@ private:
     CCpuUtlDpPredict             m_cpu_pred;
     CPortLatencyHWBase          *m_io;
     RxAstfLatency                m_astf_latency;
+    RxTPGPerPort*                m_tpg;             // Tagged Packet Group Counters per Port
     /* stats to ignore (ARP and etc.) */
     CRXCoreIgnoreStat            m_ign_stats;
     CRXCoreIgnoreStat            m_ign_stats_prev;

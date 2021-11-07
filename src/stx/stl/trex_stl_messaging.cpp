@@ -333,6 +333,22 @@ bool TrexStatelessRxDisableLatency::handle (CRxCore *rx_core) {
     return true;
 }
 
+/*************************
+  Tagged Packet Group
+ ************************/
+bool TrexStatelessRxEnableTaggedPktGroup::handle(CRxCore* rx_core) {
+    rx_core->enable_tpg(m_tpg_mgr);
+    return true;
+}
+
+bool TrexStatelessRxDisableTaggedPktGroup::handle(CRxCore* rx_core) {
+    rx_core->disable_tpg();
+    return true;
+}
+
+/*************************
+  DP Features
+ ************************/
 bool TrexStatelessDpSetLatencyFeature::handle(TrexDpCore *dp_core) {
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     stl_core->set_latency_feature();
@@ -340,8 +356,7 @@ bool TrexStatelessDpSetLatencyFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpSetLatencyFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpSetLatencyFeature::clone() {
     TrexStatelessDpSetLatencyFeature *new_msg = new TrexStatelessDpSetLatencyFeature(m_reply);
     return new_msg;
 }
@@ -353,8 +368,7 @@ bool TrexStatelessDpUnsetLatencyFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpUnsetLatencyFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpUnsetLatencyFeature::clone() {
     TrexStatelessDpUnsetLatencyFeature *new_msg = new TrexStatelessDpUnsetLatencyFeature(m_reply);
     return new_msg;
 }
@@ -366,8 +380,7 @@ bool TrexStatelessDpSetCaptureFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpSetCaptureFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpSetCaptureFeature::clone() {
     TrexStatelessDpSetCaptureFeature *new_msg = new TrexStatelessDpSetCaptureFeature(m_reply);
     return new_msg;
 }
@@ -379,8 +392,31 @@ bool TrexStatelessDpUnsetCaptureFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpUnsetCaptureFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpUnsetCaptureFeature::clone() {
     TrexStatelessDpUnsetCaptureFeature *new_msg = new TrexStatelessDpUnsetCaptureFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpSetTPGFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->enable_tpg(m_num_pgids);
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpSetTPGFeature::clone() {
+    TrexStatelessDpSetTPGFeature *new_msg = new TrexStatelessDpSetTPGFeature(m_reply, m_num_pgids);
+    return new_msg;
+}
+
+bool TrexStatelessDpUnsetTPGFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->disable_tpg();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpUnsetTPGFeature::clone() {
+    TrexStatelessDpUnsetTPGFeature *new_msg = new TrexStatelessDpUnsetTPGFeature(m_reply);
     return new_msg;
 }

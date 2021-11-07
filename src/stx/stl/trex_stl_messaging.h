@@ -28,6 +28,7 @@ limitations under the License.
 class TrexDpCore;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
+class TPGCpMgr;
 
 
 /**
@@ -258,7 +259,7 @@ private:
 
 
 /**
- * psuh a PCAP message
+ * push a PCAP message
  */
 class TrexStatelessDpPushPCAP : public TrexCpToDpMsgBase {
 public:
@@ -375,9 +376,9 @@ class TrexStatelessRxEnableLatency : public TrexCpToRxMsgBase {
 public:
     TrexStatelessRxEnableLatency(MsgReply<bool> &reply) : m_reply(reply) {
     }
-    
+
     bool handle (CRxCore *rx_core);
-    
+
 private:
     MsgReply<bool>    &m_reply;
 };
@@ -387,6 +388,27 @@ class TrexStatelessRxDisableLatency : public TrexCpToRxMsgBase {
 public:
     bool handle (CRxCore *rx_core);
 };
+
+class TrexStatelessRxEnableTaggedPktGroup: public TrexCpToRxMsgBase {
+public:
+    TrexStatelessRxEnableTaggedPktGroup(TPGCpMgr* tpg_mgr)
+                                        : m_tpg_mgr(tpg_mgr) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    TPGCpMgr*                  m_tpg_mgr;          // Pointer to Control Plane TPG Manager.
+};
+
+class TrexStatelessRxDisableTaggedPktGroup: public TrexCpToRxMsgBase {
+public:
+    TrexStatelessRxDisableTaggedPktGroup() {}
+
+    bool handle(CRxCore *rx_core);
+
+};
+
+
 
 class TrexStatelessDpSetLatencyFeature : public TrexCpToDpMsgBase {
 public:
@@ -430,6 +452,28 @@ public:
 
 private:
     MsgReply<bool>      &m_reply;
+};
+
+
+class TrexStatelessDpSetTPGFeature : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpSetTPGFeature(MsgReply<bool>& reply, uint32_t num_pgids) : m_reply(reply), m_num_pgids(num_pgids) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>&     m_reply;
+    uint32_t            m_num_pgids;
+};
+
+class TrexStatelessDpUnsetTPGFeature: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpUnsetTPGFeature(MsgReply<bool>& reply) : m_reply(reply) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>&     m_reply;
 };
 
 

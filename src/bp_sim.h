@@ -72,6 +72,7 @@ limitations under the License.
 /* stateless includes */
 #include "stl/trex_stl_dp_core.h"
 #include "stl/trex_stl_fs.h"
+#include "stl/trex_stl_tpg.h"
 #include "hot_section.h"
 
 /* astf includes */
@@ -415,6 +416,15 @@ public:
     virtual CTunnelHandler* get_tunnel_handler() {
         return nullptr;
     }
+
+    /**
+     * Set back pointer to DP core. Provide an empty implementation for
+     * the base class, so that simulator interfaces won't have to implement this.
+     *
+     * @param dp_core
+     *   Pointer to DP core.
+     */
+    virtual void set_dp_core(TrexDpCore* dp_core) {}
 
 
 protected:
@@ -1091,8 +1101,49 @@ public:
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
 private:
+
+    /**
+     * Handle a Latency packet by appending the Flow Stat Latency Header
+     * to the end of the payload.
+     *
+     * @param m
+     *   The original mbuf of the node
+     *
+     * @param node_sl
+     *   The stateless node.
+     *
+     * @param is_const
+     *   Is the mbuf const?
+     */
+    void handle_latency_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const);
+
+    /**
+     * Handle a TPG packet by appending the Tagged Packet Group Header
+     * to the end of the payload.
+     *
+     * @param m
+     *   The original mbuf of the node
+     *
+     * @param node_sl
+     *   The stateless node.
+     *
+     * @param is_const
+     *   Is the mbuf const?
+     */
+    void handle_tpg_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const);
     int send_sl_node(CGenNodeStateless * node_sl);
     void fill_fsp_head(struct flow_stat_payload_header *fsp_head, uint16_t hw_id);
+
+    /**
+     * Fill Tagged Packet Group Header. In case of Simulator, the sequence is not kept.
+     *
+     * @param tpg_header
+     *   Tagged Packet Group Header to fill.
+     *
+     * @param pgid
+     *   Packet Group Identifier to put in the header.
+     **/
+    void fill_tpg_header(struct tpg_payload_header* tpg_head, uint32_t pgid);
     int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };
