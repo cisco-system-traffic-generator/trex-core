@@ -285,8 +285,7 @@ void CTimeHistogram::dump_json(Json::Value & json, bool add_histogram) {
         for (j = 0; j < HISTOGRAM_SIZE_LOG; j++) {
             for (i = 0; i < HISTOGRAM_SIZE; i++) {
                 if (m_hcnt[j][i] > 0) {
-                    std::string key = static_cast<std::ostringstream*>( &(std::ostringstream()
-                                                                          << int(base * (i + 1)) ) )->str();
+                    std::string key = std::to_string(int(base * (i + 1)));
                     json["histogram"][key] = Json::Value::UInt64(m_hcnt[j][i]);
                 }
             }
