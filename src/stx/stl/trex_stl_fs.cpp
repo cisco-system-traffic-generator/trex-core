@@ -1323,7 +1323,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
     // build json report
     // general per port data
     for (auto &port: m_port_ids) {
-            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            std::string str_port = std::to_string(int(port));
             if (m_rx_cant_count_err[port] != 0)
                 s_data_section["g"]["rx_err"][str_port] = m_rx_cant_count_err[port];
             if (m_tx_cant_count_err[port] != 0)
@@ -1366,11 +1366,11 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
             }
         }
 
-        std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream() << user_id) )->str();
+        std::string str_user_id = std::to_string(user_id);
         v_data_section[str_user_id] = user_id_info->get_ver_id();
         // flow stat json
         for (auto &port: m_port_ids) {
-            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            std::string str_port = std::to_string(int(port));
             s_data_section[str_user_id]["rp"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
             if (m_cap & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)
                 s_data_section[str_user_id]["rb"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_bytes());
