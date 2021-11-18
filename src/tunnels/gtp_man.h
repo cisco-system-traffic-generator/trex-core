@@ -14,10 +14,10 @@ class CGtpuCtx {
 
 public:
     /** The ipv4 and ipv6 have to be in network order*/
-    CGtpuCtx(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip);
-    CGtpuCtx(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6);
-    void update_ipv4_gtpu_info(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip);
-    void update_ipv6_gtpu_info(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6);
+    CGtpuCtx(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip, uint16_t src_port);
+    CGtpuCtx(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6, uint16_t src_port);
+    void update_ipv4_gtpu_info(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip, uint16_t src_port);
+    void update_ipv6_gtpu_info(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6, uint16_t src_port);
     int32_t get_teid();
     ipv4_addr_t get_src_ipv4();
     ipv4_addr_t get_dst_ipv4();
@@ -28,14 +28,15 @@ public:
     ~CGtpuCtx();
 
 private:
-    void store_ipv4_members(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip);
-    void store_ipv6_members(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6);
+    void store_ipv4_members(uint32_t teid, ipv4_addr_t src_ip, ipv4_addr_t dst_ip, uint16_t src_port);
+    void store_ipv6_members(uint32_t teid, ipv6_addr_t* src_ipv6, ipv6_addr_t* dst_ipv6, uint16_t src_port);
     void store_ipv4_gtpu_info();
     void store_ipv6_gtpu_info();
     void store_udp_gtpu(void *udp);
 
 private:
     uint32_t     m_teid;
+    uint16_t     m_src_port;
     uint8_t      *m_outer_hdr;
     bool         m_ipv6_set;
     ipv4_ipv6_t  m_src;
@@ -59,6 +60,7 @@ public:
     void parse_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data);
     void* get_opposite_ctx();
     tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb();
+    bool is_tunnel_supported(std::string &error_msg);
 
 private:
     int prepend(rte_mbuf *pkt);

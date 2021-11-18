@@ -593,6 +593,7 @@ public:
         m_tx_ring_size = 0;
         m_astf_best_effort_mode = false;
         m_tunnel_loopback = false;
+        m_tunnel_enabled = false;
     }
 
     CParserOption(){
@@ -642,7 +643,7 @@ public:
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
     bool            m_ezmq_ch_enabled;
-    uint8_t         m_enable_tunnel_port;
+    bool            m_tunnel_enabled;
     bool            m_emzq_ch_tcp;
     std::string     m_emzq_ipc_file_path;
     std::string     m_stack_type;
@@ -663,7 +664,6 @@ public:
     uint32_t        m_lowend_core;
     uint16_t        m_tx_ring_size;
     bool            m_astf_best_effort_mode;
-    uint8_t         m_tunnel_type;
     bool            m_tunnel_loopback;
 
 
@@ -748,11 +748,6 @@ public:
     }
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
-
-    bool is_tunnel_enabled() {
-        return (m_enable_tunnel_port != 0xFF);
-    }
-
     void verify();
 };
 

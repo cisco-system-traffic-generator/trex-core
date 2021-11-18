@@ -14,12 +14,7 @@ logging.basicConfig(level=logging.INFO)
 import time
 import socket
 
-class Tunnel:
-    def __init__(self,sip,dip,teid,version):
-        self.sip = sip
-        self.dip = dip
-        self.teid = teid
-        self.version = version
+from trex.astf.trex_astf_client import Tunnel
 
 class Client:
     def __init__(self, server):
@@ -27,22 +22,23 @@ class Client:
         logging.info("Trex Server IP Used (%s)", server)
         self.client = ASTFClient(server = server)
         self.client.connect()
+        self.client.reset()
         self.count = 0
         self.load_profile_script ="http_many.py"
         self.add_client_cnt = 10
         self.status_change_client_cnt = 10
 
+
     def load_profile_file(self):
 
-        self.client.reset()
         self.client.load_profile(self.load_profile_script)
         self.client.clear_stats()
         self.client.set_port_attr(promiscuous = True, multicast = True)
         self.client.start()
 
-    def build_client_record(self, client_ip, sip, dip, teid, version):
+    def build_client_record(self, client_ip, sip, dip, sport, teid, version):
         logging.debug('Client Add %s', self.uint32_to_ip(client_ip))
-        self.client_db[client_ip] = Tunnel(sip, dip, teid, version)
+        self.client_db[client_ip] = Tunnel(sip, dip, sport, teid, version)
 
     def insert_records(self, add_activate=False):
         try:
@@ -53,12 +49,11 @@ class Client:
                count +=1
                self.count += 1
 
-           self.client_db.clear();
-           logging.info("Clients Added [%d]", count)
+           self.client_db.clear()
+           logging.info("Clients Added [%d]", (count/len(self.client.get_all_ports())) * 2)
 
-        except:
-           logging.error("Connection Lost while inserting")
-
+        except Exception as e:
+           logging.error(e)
 
     def enable_disable_records(self, thread_id, client_ip_list = None, is_enable = False, is_range=False):
         try:
@@ -80,15 +75,21 @@ class Client:
 
 
     def add_clients(self):
+        loop = len(self.client.get_all_ports()) / 2
         ip_prefix = "11.11.0."
+        ip_offset = 0
         sip = "11.11.0.1"
         dip = "1.1.1.11"
+        sport = 5000
         teid = 1
-        while teid <= self.add_client_cnt:
-            c_ip = ip_prefix + str(teid)
-            c_ip = self.ip_to_uint32(c_ip)
-            self.build_client_record(c_ip, sip, dip, teid, 4)
-            teid += 1
+        for _ in range(loop):
+            teid = 1
+            while teid <= self.add_client_cnt:
+                c_ip = ip_prefix + str(teid)
+                c_ip = self.ip_to_uint32(c_ip) + ip_offset
+                self.build_client_record(c_ip, sip, dip, sport, teid, 4)
+                teid += 1
+            ip_offset += self.ip_to_uint32("1.0.0.0")
 
         self.insert_records()
 
@@ -138,13 +139,17 @@ class Client:
 def run_test ():
 
         client = Client("127.0.0.1")
- 
+        try:
+            client.client.activate_tunnel(tunnel_type=1, activate=True, loopback=False)
+        except Exception as e:
+            logging.error(e)
+            return
+
         client.load_profile_file()
 
         logging.info(client.get_clients_info(False, "", "").data())
         client.add_clients()
-        logging.info(client.get_clients_info(True, "11.11.0.5", "11.11.0.6").data())
         client.status_change_clients(True, True, "11.11.0.1", "11.11.0.10")
- 
+
 if __name__ == "__main__":
     run_test()

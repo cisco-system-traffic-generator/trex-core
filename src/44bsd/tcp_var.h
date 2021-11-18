@@ -529,7 +529,7 @@ public:
     }
 
     inline bool is_tunnel(){
-        return (CGlobalInfo::m_options.m_enable_tunnel_port != 0xFF);
+        return CGlobalInfo::m_options.m_tunnel_enabled;
     }
 private:
     /* support either UDP or TCP for now */

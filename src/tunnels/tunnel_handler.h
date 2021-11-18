@@ -29,6 +29,7 @@ typedef struct client_tunnel_data {
     uint32_t client_ip;
     uint32_t teid;
     uint32_t version;
+    uint16_t src_port;
     uint8_t  type;
     ipv4_ipv6_t src;
     ipv4_ipv6_t dst;
@@ -53,6 +54,7 @@ public:
     virtual void update_tunnel_ctx(client_tunnel_data_t *data, void *tunnel_context) = 0;
     virtual void parse_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data) = 0;
     virtual void* get_opposite_ctx() = 0;
+    virtual bool is_tunnel_supported(std::string &error_msg) = 0;
     virtual tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb() = 0;
     virtual uint8_t get_mode() {
         return m_mode;
@@ -64,7 +66,9 @@ public:
     virtual ~CTunnelHandler(){}
 protected:
     uint8_t m_mode;
-    uint8_t m_port_id;
     bool    m_context_ready;
+
+public:
+    uint8_t m_port_id;
 };
 #endif

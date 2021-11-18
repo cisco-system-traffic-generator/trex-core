@@ -6,7 +6,7 @@ import time
 import os
 import shlex
 
-from ..utils.common import get_current_user, user_input, PassiveTimer
+from ..utils.common import get_current_user, ip2int, user_input, PassiveTimer
 from ..utils import parsing_opts, text_tables
 
 from ..common.trex_api_annotators import client_api, console_api
@@ -34,10 +34,13 @@ astf_states = [
     'STATE_ASTF_CLEANUP',
     'STATE_ASTF_DELETE']
 
-class TunnelType:
-      NONE = 0
-      GTP  = 1
-      
+class Tunnel:
+    def __init__(self, sip, dip, sport, teid, version):
+        self.sip      = sip
+        self.dip      = dip
+        self.sport = sport
+        self.teid     = teid
+        self.version  = version
 
 class ASTFClient(TRexClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
@@ -1221,16 +1224,17 @@ class ASTFClient(TRexClient):
         json_attr = []
 
         for key, value in client_list.items():
-            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'teid' : value.teid, "version" :value.version})
+            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'sport' : value.sport, 'teid' : value.teid, "version" :value.version})
  
         return json_attr
 
     # execute 'method' for inserting/updateing tunnel info for clients
+    @client_api('command', True)
     def update_tunnel_client_record (self, client_list, tunnel_type):
 
         json_attr = []
         
-        if tunnel_type == TunnelType.GTP:
+        if tunnel_type == parsing_opts.TunnelType.GTPU:
            json_attr = self._update_gtp_tunnel(client_list)
         else:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
@@ -1238,7 +1242,58 @@ class ASTFClient(TRexClient):
         params = {"tunnel_type": tunnel_type,
                   "attr": json_attr }
 
-        return self._transmit("update_tunnel_client", params)
+        self.ctx.logger.pre_cmd("update_tunnel_client.\n")
+        rc = self._transmit("update_tunnel_client", params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+    # check if the tunnel-type is supported
+    @client_api('command', True)
+    def is_tunnel_supported(self, tunnel_type=1):
+        '''
+        parameters:
+            tunnel_type: currently only type 1 (gtpu) is supported
+        ret: 
+            dict {is_tunnel_supported: true/false,
+                  error_msg: why the tunnel is not supported}
+        '''
+        params = {'tunnel_type': tunnel_type}
+        rc = self._transmit("is_tunnel_supported", params = params)
+        if not rc:
+            raise TRexError(rc.err())
+        return rc.data()
+
+    #activate/deactivate tunnel mode
+    @client_api('command', True)
+    def activate_tunnel(self, tunnel_type=1 ,activate=True, loopback=False):
+        if activate == True:
+            tunnel_supported_info = self.is_tunnel_supported(tunnel_type)
+            if not tunnel_supported_info['is_tunnel_supported']:
+                raise TRexError(tunnel_supported_info['error_msg'])
+
+        params = {
+            'tunnel_type': tunnel_type,
+            'activate': activate,
+            'loopback': loopback
+            }
+
+        if tunnel_type != parsing_opts.TunnelType.GTPU:
+           raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
+
+        prefix = "Activating"
+        if not activate:
+            prefix = "Deactivating"
+        pre_cmd = prefix + ' tunnel mode'
+        if loopback:
+            pre_cmd += ' with loopback'
+
+        self.ctx.logger.pre_cmd(pre_cmd + '.\n')
+        rc = self._transmit("activate_tunnel_mode", params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+        return True
 
     # execute 'method' for Making  a client active/inactive
     def set_client_enable(self, client_list, is_enable):
@@ -1773,3 +1828,61 @@ class ASTFClient(TRexClient):
             self.logger.info(format_text("No profiles found with desired filter.\n", "bold", "magenta"))
 
         text_tables.print_table_with_header(table, header = 'Profile states')
+
+
+    @console_api('update_tunnel', 'ASTF', True)
+    def update_clients_tunnel(self, line):
+        '''update the clients tunnel context'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'update_clients_tunnel',
+            self.update_clients_tunnel.__doc__,
+            parsing_opts.CLIENT_START,
+            parsing_opts.CLIENT_END,
+            parsing_opts.TEID,
+            parsing_opts.VERSION,
+            parsing_opts.SPORT,
+            parsing_opts.SRC_IP,
+            parsing_opts.DST_IP,
+            parsing_opts.TUNNEL_TYPE
+            )
+        opts = parser.parse_args(shlex.split(line))
+        if opts.ipv6 and (not is_valid_ipv6(opts.src_ip) or not is_valid_ipv6(opts.dst_ip)):
+            raise TRexError("invalid IPv6 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+
+        if not opts.ipv6 and (not is_valid_ipv4(opts.src_ip) or not is_valid_ipv4(opts.dst_ip)):
+            raise TRexError("invalid IPv4 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+
+        c_start = ip2int(opts.c_start)
+        c_end = ip2int(opts.c_end)
+        if (c_end < c_start):
+            raise TRexError("invalid Client range: client_start: '{0}', client_end: {1}".format(opts.c_start, opts.c_end))
+        print("src port is:{0}".format(opts.sport))
+        version = 4
+        if opts.ipv6:
+            version = 6
+
+        client_db = dict()
+        count = 0
+        for ip_num in range(c_start, c_end + 1):
+            client_db[ip_num] = Tunnel(opts.src_ip, opts.dst_ip, opts.sport, opts.teid + count, version)
+            count+=1
+
+        self.update_tunnel_client_record(client_db, opts.type)
+
+
+
+    @console_api('tunnel', 'ASTF', True)
+    def activate_tunnel_line(self, line):
+        '''activate/deactivate tunnel mode command'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'tunnel',
+            self.activate_tunnel_line.__doc__,
+            parsing_opts.TUNNEL_TYPE,
+            parsing_opts.TUNNEL_OFF,
+            parsing_opts.LOOPBACK
+            )
+        opts = parser.parse_args(shlex.split(line))
+        self.activate_tunnel(opts.type, not opts.off, opts.loopback)

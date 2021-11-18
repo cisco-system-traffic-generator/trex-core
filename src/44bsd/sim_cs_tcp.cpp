@@ -1093,9 +1093,6 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     /* IW=1 */
     c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
     s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
-    if(m_tunnel != NULL) {
-        CGlobalInfo::m_options.m_enable_tunnel_port = 0;
-    }
     c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,m_tunnel_info);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_src_ip(0x10000001);

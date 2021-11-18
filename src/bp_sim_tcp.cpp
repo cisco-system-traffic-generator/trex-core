@@ -421,6 +421,16 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
         return;
     }
 
+    if (unlikely(CGlobalInfo::m_options.m_tunnel_enabled)) {
+        if (!tuple.getTunnelCtx()){
+            CTupleGeneratorSmart * lpgen = cur->m_tuple_gen.get_gen();
+            if (lpgen->IsFreePortRequired(cur->m_client_pool_idx) ){
+                lpgen->FreePort(cur->m_client_pool_idx,tuple.getClientId(), tuple.getClientPort());
+            }
+            return;
+        }
+    }
+
     /* it is not set by generator, need to take it from the pcap file */
     tuple.setServerPort(cur_tmp_ro->get_dport(template_id));
 

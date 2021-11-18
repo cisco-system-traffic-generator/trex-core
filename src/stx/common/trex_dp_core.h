@@ -159,8 +159,6 @@ public:
         assert(0);
     }
 
-    virtual void init_tunnel_handler() {}
-
 protected:
 
     /**

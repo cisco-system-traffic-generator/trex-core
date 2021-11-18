@@ -217,12 +217,17 @@ public:
         return m_rx;
     }
 
+    uint8_t get_dp_core_count() {
+        return m_dp_core_count;
+    }
+
     /**
      * check for messages from any core
      * 
      */
     void check_for_dp_messages();
     bool has_dp_messages();
+    void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
 
     /**
      *  get ticket for async ops
@@ -239,7 +244,6 @@ protected:
 
     void check_for_dp_message_from_core(int thread_id);
     void send_msg_to_all_dp(TrexCpToDpMsgBase *msg);
-    void send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg);
     
     /* no copy or assignment */
     TrexSTX(TrexSTX const&)              = delete;  

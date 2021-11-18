@@ -699,10 +699,11 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
        c_data["state"] = "Active";
     else
        c_data["state"] = "Inactive";
-
-    uint8_t type = m_tunnel_handler->get_tunnel_type(); 
-    if (type !=  TUNNEL_TYPE_NONE) 
-       c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+    if (m_tunnel_handler) {
+        uint8_t type = m_tunnel_handler->get_tunnel_type(); 
+        if (type !=  TUNNEL_TYPE_NONE) 
+        c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+    }
     return c_data;
 }
 
@@ -730,6 +731,7 @@ bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> ms
 
 
 void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
+    assert(m_tunnel_handler);
     for (auto elem : msg_data) {
         CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
         if (ip_info) {
@@ -737,7 +739,7 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
            if (tunnel_ctx){
                m_tunnel_handler->update_tunnel_ctx(&elem, tunnel_ctx);
            } else {
-               void *tunnel_ctx = m_tunnel_handler->get_tunnel_ctx(&elem); 
+               void *tunnel_ctx = m_tunnel_handler->get_tunnel_ctx(&elem);
                ip_info->set_tunnel_ctx(tunnel_ctx);
                ip_info->set_tunnel_handler(m_tunnel_handler);
                ip_info->set_tunnel_ctx_del_cb(m_tunnel_handler->get_tunnel_ctx_del_cb());
@@ -747,18 +749,26 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
 }
 
 
-void TrexAstfDpCore::init_tunnel_handler() {
-    bool loop_back = CGlobalInfo::m_options.m_tunnel_loopback;
-    uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
-    if (loop_back) {
-        tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
+void TrexAstfDpCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback, MsgReply<bool> &reply) {
+    if (activate) {
+        uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
+        if (loopback) {
+            tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
+        }
+        m_tunnel_handler = create_tunnel_handler(tunnel_type, tunnel_mode);
+        if (!m_tunnel_handler) {
+            reply.set_reply(false);
+            return;
+        }
+        m_flow_gen->m_node_gen.m_v_if->set_tunnel(m_tunnel_handler, loopback);
+        if (loopback) {
+            m_flow_gen->m_s_tcp->m_tunnel_handler = m_tunnel_handler;
+        }
+    } else {
+        delete m_tunnel_handler;
+        m_tunnel_handler = nullptr;
+        m_flow_gen->m_s_tcp->m_tunnel_handler = nullptr;
+        m_flow_gen->m_node_gen.m_v_if->delete_tunnel();
     }
-    m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, tunnel_mode);
-    if (m_tunnel_handler) {
-        m_tunnel_handler->set_port(CGlobalInfo::m_options.m_enable_tunnel_port);
-        m_flow_gen->m_node_gen.m_v_if->set_tunnel_handler(m_tunnel_handler);
-    }
-    if (loop_back) {
-        m_flow_gen->m_s_tcp->m_tunnel_handler = m_tunnel_handler;
-    }
+    reply.set_reply(true);
 }
