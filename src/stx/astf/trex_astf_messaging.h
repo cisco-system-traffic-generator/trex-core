@@ -214,6 +214,24 @@ private:
     std::vector<client_tunnel_data_t> m_msg_data;
 };
 
+/**
+ * a message to init dps tunnel handler
+ */
+class TrexAstfDpInitTunnelHandler : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpInitTunnelHandler(bool activate, uint8_t tunnel_type, bool loopback_mode, MsgReply<bool> &reply) : m_reply(reply) {
+        m_activate = activate;
+        m_tunnel_type = tunnel_type;
+        m_loopback_mode = loopback_mode;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    bool m_activate;
+    uint8_t m_tunnel_type;
+    bool m_loopback_mode;
+    MsgReply<bool> &m_reply;
+};
 
 #endif /* __TREX_STL_MESSAGING_H__ */
 

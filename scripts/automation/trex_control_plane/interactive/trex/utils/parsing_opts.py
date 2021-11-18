@@ -361,7 +361,17 @@ def check_mac_addr (addr):
         
     return addr
 
-    
+def check_valid_port(port_str):
+    try:
+        port = int(port_str)
+    except ValueError:
+        raise argparse.ArgumentTypeError("invalid port type: '{0}'".format(port_str))
+
+    if not (1 <= port and port <= 65535):
+        raise argparse.ArgumentTypeError("invalid port number: '{0}' - valid range is 1 to 65535".format(port))
+
+    return port
+
 def decode_tunables (tunable_str):
     tunables = {}
 
@@ -389,6 +399,22 @@ def decode_tunables (tunable_str):
         tunables[m.group(1)] = val
 
     return tunables
+
+class TunnelType:
+      NONE = 0
+      GTPU  = 1
+
+tunnel_types = TunnelType()
+supported_tunnels = [attr for attr in dir(tunnel_types) if not callable(getattr(tunnel_types, attr)) and not attr.startswith("__") and attr != 'NONE']
+supported_tunnels = str(supported_tunnels).replace('[', '').replace(']', '')
+
+
+def get_tunnel_type(tunnel_type_str):
+    tunnel_type_str = tunnel_type_str.lower()
+    if tunnel_type_str == "gtpu":
+        return TunnelType.GTPU
+    else:
+        raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_str))
 
 
 def convert_old_tunables_to_new_tunables(tunable_str, help=False):
@@ -742,6 +768,67 @@ class OPTIONS_DB_ARGS:
         {"action": "store_true",
          'default': False,
          'help': "Set if you want to stop active ports before appyling command."})
+
+    LOOPBACK = ArgumentPack(
+        ['--loopback'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to enable tunnel-loopback mode."})
+
+    TUNNEL_OFF = ArgumentPack(
+        ['--off'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to deactivate tunnel mode."})
+
+    TUNNEL_TYPE = ArgumentPack(
+        ['--type'],
+        {'required': True,
+         'type': get_tunnel_type,
+         'help': "The tunnel type for example --type gtpu. " +
+                 "Currently the supported tunnels are: " + supported_tunnels + "."})
+
+    CLIENT_START = ArgumentPack(
+        ['--c_start'],
+        {"required": True,
+         'type': check_ipv4_addr,
+         'help': "The first client that you want to update its tunnel."})
+
+    CLIENT_END = ArgumentPack(
+        ['--c_end'],
+        {"required": True,
+         'type': check_ipv4_addr,
+         'help': "The last client that you want to update its tunnel."})
+
+    VERSION = ArgumentPack(
+        ['--ipv6'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want ipv6 instead of ipv4."})
+
+    TEID = ArgumentPack(
+        ['--teid'],
+        {'type' : int,
+         'required': True,
+         'help': "The tunnel teid of the first client. The teid of the second client is going to be teid+1"})
+
+    SRC_IP = ArgumentPack(
+        ['--src_ip'],
+        {'type' : str,
+         'required': True,
+         'help': "The tunnel src ip."})
+
+    DST_IP = ArgumentPack(
+        ['--dst_ip'],
+        {'type' : str,
+         'required': True,
+         'help': "The tunnel dst ip."})
+
+    SPORT = ArgumentPack(
+        ['--sport'],
+        {'type' : check_valid_port,
+         'required': True,
+         'help': "The source port of the tunnel."})
 
     REMOVE = ArgumentPack(
         ['--remove'],

@@ -205,7 +205,7 @@ static int parse_options(int argc,
      po->preview.clean();
      po->preview.setFileWrite(true);
      /*By Default Tunnel is disabled , and port number is garbage here*/
-     po->m_enable_tunnel_port = (uint16_t)0xFF;
+     po->m_tunnel_enabled = false;
 
      /* by default - type is stateful */
      params["type"] = OPT_TYPE_SF;

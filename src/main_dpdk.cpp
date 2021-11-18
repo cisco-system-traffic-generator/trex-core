@@ -66,7 +66,7 @@
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
-#include "tunnels/tunnel_factory.h"
+#include "tunnels/tunnel_handler.h"
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -223,8 +223,6 @@ enum {
        OPT_IGNORE_528_ISSUE,
        OPT_HDRH,
        OPT_BNXT_SO,
-       OPT_GTPU,
-       OPT_GTPU_LOOPBACK,
        OPT_DISABLE_IEEE_1588,
 
        /* no more pass this */
@@ -323,8 +321,6 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
-        { OPT_GTPU,                   "--gtpu",            SO_REQ_SEP},
-        { OPT_GTPU_LOOPBACK,          "--gtpu-loopback",   SO_REQ_SEP},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -427,8 +423,6 @@ static int COLD_FUNC  usage() {
     printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
     printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
     printf(" --bird-server              : Enable bird service \n");
-    printf(" --gtpu                     : Enable GTPU mode \n");
-    printf(" --gtpu-loopback            : Test mode GTPU\n");
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
@@ -655,8 +649,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
     /*By Default tunnel is disabled , and port number is garbage here*/
-    po->m_enable_tunnel_port = (uint16_t)0xFF;
-    po->m_tunnel_type = TUNNEL_TYPE_NONE;
+    po->m_tunnel_enabled = false;
     po->m_tunnel_loopback = false;
     uint32_t tmp_data;
     float tmp_double;
@@ -964,16 +957,6 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
-                break;
-            case OPT_GTPU_LOOPBACK:
-                po->m_tunnel_loopback = true;
-            case OPT_GTPU:
-                sscanf(args.OptionArg(),"%d", &tmp_data);
-                po->m_enable_tunnel_port = (uint16_t)tmp_data;
-                po->m_tunnel_type = TUNNEL_TYPE_GTP;
-                get_mode()->force_software_mode(true);
-                po->preview.setTsoOffloadDisable(true);
-                po->preview.setLroOffloadDisable(true);
                 break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
@@ -1779,13 +1762,19 @@ public:
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
 
-    void set_tunnel_handler(CTunnelHandler* tunnel_handler) {
+    void set_tunnel(CTunnelHandler* tunnel_handler, bool loopback=false) {
         m_tunnel_handler = tunnel_handler;
         if (m_tunnel_handler) {
-            m_tunnel_loopback = CGlobalInfo::m_options.m_tunnel_loopback;;
-            m_tunnel_port = CGlobalInfo::m_options.m_enable_tunnel_port;
+            m_tunnel_loopback = loopback;
+            m_tunnel_port = tunnel_handler->m_port_id;
             m_tunnel_callback = new CTunnelTxRxCallback(m_tunnel_handler);
         }
+    }
+
+    void delete_tunnel() {
+        delete m_tunnel_callback;
+        m_tunnel_handler = nullptr;
+        m_tunnel_callback = nullptr;
     }
 
     CTunnelHandler* get_tunnel_handler() {
@@ -2070,8 +2059,7 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
         int i, num=0;
         struct rte_mbuf *rx_pkts_tmp[nb_pkts];
         for (i=0;i<res;i++) {
-            int res = m_tunnel_callback->on_rx(dir, rx_pkts[i]);
-            if (res) {
+            if (m_tunnel_callback->on_rx(dir, rx_pkts[i])) {
                 rte_pktmbuf_free(rx_pkts[i]);
                 continue;
             }
@@ -2094,10 +2082,9 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
     if (m_tunnel_callback && (m_tunnel_port == dir || m_tunnel_loopback)) {
         lp_port->m_port->tx_offload_csum(node_tcp->mbuf, 0);
-        int res = m_tunnel_callback->on_tx(lp_port->m_port->get_tvpid(), node_tcp->mbuf);
+        int res = m_tunnel_callback->on_tx(dir, node_tcp->mbuf);
         if (res) {
             rte_pktmbuf_free(node_tcp->mbuf);
-            lp_stats->m_tx_drop+=1;
             return (0);
         }
     }
@@ -4004,9 +3991,7 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     init_vif_cores();
     init_astf_vif_rx_queues();
     rx_interactive_conf();
-    TrexAstf* astf = new TrexAstf(get_stx_cfg());
-    astf->set_tunnel_handler(get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_CP)));
-    m_stx = astf;
+    m_stx = new TrexAstf(get_stx_cfg());
     start_master_astf();
 }
 
@@ -5385,7 +5370,6 @@ COLD_FUNC int CGlobalTRex::start_master_astf_common() {
         CFlowGenListPerThread *lpt = m_fl.m_threads_info[i];
         CVirtualIF *erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
-        lpt->init_tunnel_handler();
         lpt->set_sync_barrier(m_sync_barrier);
     }
 

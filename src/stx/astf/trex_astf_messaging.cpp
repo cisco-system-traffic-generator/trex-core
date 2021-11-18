@@ -260,5 +260,14 @@ TrexCpToDpMsgBase* TrexAstfDpUpdateTunnelClient::clone() {
     return new TrexAstfDpUpdateTunnelClient(m_astf_db, m_msg_data);
 }
 
+/*************************
+*  Init dps tunnel handler
+*************************/
+bool TrexAstfDpInitTunnelHandler::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->activate_tunnel_handler(m_activate, m_tunnel_type, m_loopback_mode, m_reply);
+    return true;
+}
 
-
+TrexCpToDpMsgBase* TrexAstfDpInitTunnelHandler::clone() {
+    return new TrexAstfDpInitTunnelHandler(m_activate, m_tunnel_type, m_loopback_mode, m_reply);
+}

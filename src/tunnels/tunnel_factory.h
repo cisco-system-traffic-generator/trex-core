@@ -3,7 +3,7 @@
 #include "gtp_man.h"
 #include "tunnel_tx_rx_callback.h"
 
-inline CTunnelHandler *get_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
+inline CTunnelHandler *create_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
     CTunnelHandler *tunnel = nullptr;
     switch (tunnel_type) {
         case TUNNEL_TYPE_GTP: {

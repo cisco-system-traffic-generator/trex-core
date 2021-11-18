@@ -11,6 +11,7 @@ import string
 import glob
 from nose.tools import assert_raises, nottest
 from functools import wraps
+from trex.astf.trex_astf_client import Tunnel
 
 class DynamicProfileTest:
 
@@ -259,7 +260,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False,short_duration = False):
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False, tunnel_info = None):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
@@ -274,6 +275,9 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         c.load_profile(self.get_profile_by_name(profile_name))
         c.clear_stats()
         c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000)
+        if tunnel_info:
+            tunnel_type, clients_list = tunnel_info["tunnel_type"], tunnel_info["clients_list"]
+            c.update_tunnel_client_record(clients_list, tunnel_type)
         c.wait_on_traffic()
         stats = c.get_stats()
         if check_counters:
@@ -411,6 +415,40 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                 self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=False, ipv6 =False, check_counters=False, nc = True)
         finally:
             self.duration = duration
+
+    def test_gtpu_mode(self):
+        c = self.astf_trex
+        if not c.is_tunnel_supported(tunnel_type=1)['is_tunnel_supported']:
+            self.skip("tunnel is no supported")
+        
+        duration = self.duration
+        self.duration = 1
+        fname = 'http_simple.py'
+        version = 4
+        sport = 5000
+        add_client_cnt = 255
+        client_db = dict()
+        ip_prefix = "16.0.0."
+        sip = "11.11.0.1"
+        dip = "1.1.1.11"
+        teid = 0
+        while teid <= add_client_cnt:
+            c_ip = ip_prefix + str(teid)
+            c_ip = ip2int(c_ip)
+            client_db[c_ip] = Tunnel(sip, dip, sport, teid, version)
+            teid += 1
+
+        tunnel_info = {"clients_list": client_db, "tunnel_type" : 1}
+
+        try:
+            c.reset()
+            c.activate_tunnel(tunnel_type=1, activate=True, loopback=True)
+            print(" running {}".format(fname))
+            self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=True, ipv6 =False, check_counters=True, nc = True,  tunnel_info=tunnel_info)
+        finally:
+            self.duration = duration
+            c.reset()
+            c.activate_tunnel(tunnel_type=1, activate=False, loopback=False)
 
 
     def test_astf_prof_profiles_dynamic_profile(self):

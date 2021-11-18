@@ -119,6 +119,8 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
 TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
+TREX_RPC_CMD(TrexRpcCmdIsTunnelSupported,  "is_tunnel_supported");
+TREX_RPC_CMD(TrexRpcCmdActivateTunnelMode,  "activate_tunnel_mode");
 TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
 /****************************** commands implementation ******************************/
 
@@ -844,14 +846,15 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
     std::vector<client_tunnel_data_t> all_msg_data;
 
     auto astf_db = CAstfDB::get_instance(0);
-    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
-    if(tunnel_handler == nullptr) {
-        return TREX_RPC_CMD_INTERNAL_ERR;
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result, "The tunnel mode needs to be activated");
     }
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    assert(tunnel_handler);
     if (tunnel_type == tunnel_handler->get_tunnel_type()) {
         tunnel_handler->parse_tunnel(params, result, all_msg_data);
     } else {
-        return TREX_RPC_CMD_INTERNAL_ERR;
+        generate_execute_err(result, "tunnel type is not supported");
     }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data);
@@ -862,6 +865,68 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
 
 }
 
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *astf = get_astf_object();
+    bool is_idle = (astf->get_state() == AstfProfileState::STATE_IDLE) ? true : false;
+
+    if (!is_idle) {
+        generate_execute_err(result, "The server state should be IDLE");
+    }
+
+    uint8_t tunnel_type = parse_uint16(params, "tunnel_type", result);
+    bool loopback = parse_bool(params, "loopback", result);
+    bool activate = parse_bool(params, "activate", result);
+    bool is_tunnel_enabled = CGlobalInfo::m_options.m_tunnel_enabled;
+
+    if (is_tunnel_enabled && activate) {
+        generate_execute_err(result, "The tunnel mode have been already activated");
+    }
+
+    if (!is_tunnel_enabled && !activate) {
+        generate_execute_err(result, "The tunnel mode is already off");
+    }
+
+    astf->activate_tunnel_handler(activate, tunnel_type);
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    if (tunnel_handler == nullptr && activate) {
+        generate_execute_err(result, "The tunnel handler is null on tunnel mode: tunnel type is not supported");
+    }
+    if (tunnel_handler && !activate) {
+        generate_execute_err(result, "The tunnel handler is not null and the tunnel mode is off");
+    }
+    CGlobalInfo::m_options.m_tunnel_loopback = loopback && activate;
+    CGlobalInfo::m_options.m_tunnel_enabled = activate;
+
+    uint8_t dp_core_count = astf->get_dp_core_count();
+    for (uint8_t core_id = 0; core_id < dp_core_count; core_id++) {
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase *msg = new TrexAstfDpInitTunnelHandler(activate, tunnel_type, loopback, reply);
+        astf->send_msg_to_dp(core_id, msg);
+        assert(reply.wait_for_reply());
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdIsTunnelSupported::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t tunnel_type     = parse_uint16(params, "tunnel_type", result);
+    CTunnelHandler *tunnel_handler = create_tunnel_handler(tunnel_type, (uint8_t)(TUNNEL_MODE_CP));
+    assert(tunnel_handler);
+    std::string error_msg = "";
+    //there are certain flags that required for the tunnel mode to work for example in gtpu mode: --software --tso-disable --lro-disable are required
+    bool is_tunnel_supported = tunnel_handler->is_tunnel_supported(error_msg);
+    result["result"]["is_tunnel_supported"] = is_tunnel_supported;
+    if (!is_tunnel_supported) {
+        result["result"]["error_msg"] = "Tunnel is not supported: " + error_msg;
+    }
+    delete tunnel_handler;
+    return (TREX_RPC_CMD_OK);
+}
 
 /****************************** component implementation ******************************/
 
@@ -897,4 +962,6 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
     m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
     m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
+    m_cmds.push_back(new TrexRpcCmdActivateTunnelMode(this));
+    m_cmds.push_back(new TrexRpcCmdIsTunnelSupported(this));
 }

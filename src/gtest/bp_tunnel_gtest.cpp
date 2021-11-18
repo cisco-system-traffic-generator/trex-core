@@ -33,12 +33,12 @@ void create_pcap_and_compare(rte_mbuf_t* m, std::string pcap_file) {
 }
 
 
-void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, std::string src_ipv4_str, std::string dst_ipv4_str, std::string pcap_file) {
+void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, uint16_t src_port, std::string src_ipv4_str, std::string dst_ipv4_str, std::string pcap_file) {
     ipv4_addr_t src_ip, dst_ip;
     inet_pton(AF_INET, src_ipv4_str.c_str(), &src_ip);
     inet_pton(AF_INET, dst_ipv4_str.c_str(), &dst_ip);
     rte_mbuf_t* m = utl_rte_pktmbuf_mem_to_pkt(buf, len, 1024, tcp_pktmbuf_get_pool(0,1024));
-    CGtpuCtx context(teid, src_ip, dst_ip);
+    CGtpuCtx context(teid, src_ip, dst_ip, src_port);
     m->dynfield_ptr = &context;
     CGtpuMan gtpu(TUNNEL_MODE_TX);
     gtpu.on_tx(0, m);
@@ -46,12 +46,12 @@ void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, std::strin
 }
 
 
-void prepend_ipv6_and_compare(char *buf, uint16_t len, uint32_t teid, std::string src_ipv6_str, std::string dst_ipv6_str, std::string pcap_file) {
+void prepend_ipv6_and_compare(char *buf, uint16_t len, uint32_t teid, uint16_t src_port, std::string src_ipv6_str, std::string dst_ipv6_str, std::string pcap_file) {
     ipv6_addr_t src, dst;
     inet_pton(AF_INET6, src_ipv6_str.c_str(), src.addr);
     inet_pton(AF_INET6, dst_ipv6_str.c_str(), dst.addr);
     rte_mbuf_t* m = utl_rte_pktmbuf_mem_to_pkt(buf, len, 1024, tcp_pktmbuf_get_pool(0,1024));
-    CGtpuCtx context(teid, &src, &dst);
+    CGtpuCtx context(teid, &src, &dst, src_port);
     m->dynfield_ptr = &context;
     CGtpuMan gtpu(TUNNEL_MODE_TX);
     gtpu.on_tx(0, m);
@@ -75,7 +75,7 @@ TEST_F(gt_tunnel, tst1) {
                              0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08,
                              0x0A, 0x6B, 0x8B, 0x45, 0x92, 0x00, 0x00, 0x00, 0x00};
 
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 33554432, "16.11.0.1", "52.0.0.0", "tunnel_prepend.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 33554432, 59082, "16.11.0.1", "52.0.0.0", "tunnel_prepend.pcap");
 }
 
 
@@ -100,7 +100,7 @@ TEST_F(gt_tunnel, tst3) {
                             0x00, 0x50, 0x33, 0x58, 0xBD, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00,
                             0xF7, 0xE7, 0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01,
                             0x08, 0x0A, 0x6B, 0x8B, 0x46, 0x27, 0x00, 0x00, 0x00, 0x00};
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, 63161, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6.pcap");
 }
 
 
@@ -127,7 +127,7 @@ TEST_F(gt_tunnel, tst5) {
                             0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x92, 0x2F, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x45, 0xF2, 0x00,
                             0x00, 0x00, 0x00};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_with_vlan.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 1709, "11.11.0.1", "1.1.1.11", "tunnel_prepend_with_vlan.pcap");
 }
 
 
@@ -152,7 +152,7 @@ TEST_F(gt_tunnel, tst7) {
                             0x47, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x57, 0x55, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x49, 0x39, 0x00, 0x00,
                             0x00, 0x00};
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, 1706, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan.pcap");
 }
 
 
@@ -178,7 +178,7 @@ TEST_F(gt_tunnel, tst9) {
                             0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1A, 0xF9, 0xC7, 0x00, 0x19, 0x03, 0xA0,
                             0x88, 0x30, 0x00, 0x00, 0x00, 0x00, 0x80, 0x02, 0x20, 0x00, 0xDA, 0x47, 0x00, 0x00, 0x02,
                             0x04, 0x05, 0x8C, 0x01, 0x03, 0x03, 0x08, 0x01, 0x01, 0x04, 0x02};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_ipv6.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 63943, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_ipv6.pcap");
 }
 
 
@@ -204,7 +204,7 @@ TEST_F(gt_tunnel, tst11) {
                             0x47, 0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x57, 0x55, 0x00, 0x00, 0x02, 0x04,
                             0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x49, 0x39, 0x00, 0x00,
                             0x00, 0x00};
-    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_vlan_ipv6.pcap");
+    prepend_ipv4_and_compare((char *)buf, sizeof(buf), 167772160, 1706, "11.11.0.1", "1.1.1.11", "tunnel_prepend_ipv4_with_vlan_ipv6.pcap");
 }
 
 
@@ -230,7 +230,7 @@ TEST_F(gt_tunnel, tst13) {
                              0x00, 0x00, 0x02, 0x04, 0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08,
                              0x0A, 0x6B, 0x8B, 0x45, 0x92, 0x00, 0x00, 0x00, 0x00};
 
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432,  "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_ipv4.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, 59082, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_ipv4.pcap");
 }
 
 
@@ -255,7 +255,7 @@ TEST_F(gt_tunnel, tst15) {
                              0xC6, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x02, 0x80, 0x00, 0x92, 0x2F, 0x00, 0x00, 0x02, 0x04,
                              0x05, 0xB4, 0x01, 0x03, 0x03, 0x00, 0x01, 0x01, 0x08, 0x0A, 0x6B, 0x8B, 0x45, 0xF2, 0x00,
                              0x00, 0x00, 0x00};
-    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan_ipv4.pcap");
+    prepend_ipv6_and_compare((char *)buf, sizeof(buf), 33554432, 1709, "ff05::b0b:9", "ff04::3000:12", "tunnel_prepend_ipv6_with_vlan_ipv4.pcap");
 }
 
 

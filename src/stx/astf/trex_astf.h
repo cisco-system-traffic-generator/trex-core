@@ -29,7 +29,7 @@ limitations under the License.
 #include "trex_astf_defs.h"
 #include "stt_cp.h"
 
-#include "tunnels/tunnel_handler.h"
+#include "tunnels/tunnel_factory.h"
 
 class TrexAstfPort;
 class CSyncBarrier;
@@ -414,8 +414,13 @@ public:
         return &m_fl->m_client_config_info;
     }
 
-    void set_tunnel_handler(CTunnelHandler *tunnel_handler) {
-        m_tunnel_handler = tunnel_handler;
+    void activate_tunnel_handler(bool activate, uint8_t type) {
+        if (activate) {
+            m_tunnel_handler = create_tunnel_handler(type, (uint8_t)(TUNNEL_MODE_CP));
+        } else {
+            delete m_tunnel_handler;
+            m_tunnel_handler = nullptr;
+        }
     }
 
     CTunnelHandler *get_tunnel_handler(){

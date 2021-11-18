@@ -408,8 +408,9 @@ public:
     virtual void set_rx_burst_time(double time){
     }
 
-    virtual void set_tunnel_handler(CTunnelHandler *tunnel_handler) {
-    }
+    virtual void set_tunnel(CTunnelHandler* tunnel_handler, bool loopback=false) {}
+
+    virtual void delete_tunnel() {}
 
     virtual CTunnelHandler* get_tunnel_handler() {
         return nullptr;
@@ -3074,10 +3075,6 @@ public:
 
     void set_vif(CVirtualIF * v_if){
         m_node_gen.set_vif(v_if);
-    }
-
-    void init_tunnel_handler() {
-        m_dp_core->init_tunnel_handler();
     }
 
     void set_sync_barrier(CSyncBarrier * sync_b){
