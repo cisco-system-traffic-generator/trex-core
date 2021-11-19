@@ -1709,10 +1709,10 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats);
-    virtual rte_mbuf* update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const);
+    virtual rte_mbuf* update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const, pkt_dir_t dir);
     virtual rte_mbuf* update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid);
+    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, pkt_dir_t dir);
     virtual void update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                      uint16_t hw_id_payload);
 
@@ -2136,7 +2136,7 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     return (0);
 }
 
-HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid) {
+HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, pkt_dir_t dir) {
 
     uint32_t INVALID_SEQ = 0xBADF00D;
     TrexStatelessDpCore* stl_dp_core = get_dp_core();
@@ -2144,7 +2144,7 @@ HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* 
     if (stl_dp_core == nullptr) {
         seq = INVALID_SEQ;
     } else {
-        TPGDpMgr* tpg_dp_mgr = stl_dp_core->get_tpg_dp_mgr();
+        TPGDpMgrPerSide* tpg_dp_mgr = stl_dp_core->get_tpg_dp_mgr(dir);
         if (tpg_dp_mgr == nullptr) {
             seq = INVALID_SEQ;
         } else {
@@ -2166,11 +2166,11 @@ HOT_FUNC void CCoreEthIFStateless::update_fsp_head_lat(struct flow_stat_payload_
     fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
 }
 
-HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const) {
+HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const, pkt_dir_t dir) {
     struct tpg_payload_header* tpg_header;
     uint32_t tpgid = node_sl->get_stat_pgid();
     rte_mbuf* mi = node_sl->alloc_tpg_mbuf(m, tpg_header, is_const);
-    update_tpg_header(tpg_header, tpgid);
+    update_tpg_header(tpg_header, tpgid, dir);
     return mi;
 }
 HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
@@ -2344,7 +2344,7 @@ rte_mbuf_t* CCoreEthIFStateless::update_stat_node(CGenNodeStateless* node_sl, rt
     CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
 
     if ( unlikely(node_sl->is_tpg_stream())) {
-        m = update_node_tpg(m, node_sl, is_const);
+        m = update_node_tpg(m, node_sl, is_const, dir);
     } else {
         m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, is_const);
     }

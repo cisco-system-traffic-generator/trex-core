@@ -75,7 +75,7 @@ uint16_t PacketGroupTagMgr::get_qinq_tag(uint16_t inner_vlan, uint16_t outter_vl
 }
 
 bool PacketGroupTagMgr::add_dot1q_tag(uint16_t vlan, uint16_t tag) {
-    if (dot1q_tag_exists(vlan)) {
+    if (dot1q_tag_exists(vlan) || !valid_vlan(vlan)) {
         return false;
     }
     Dot1QTag* dot1q_tag = new Dot1QTag(vlan, tag);
@@ -85,7 +85,7 @@ bool PacketGroupTagMgr::add_dot1q_tag(uint16_t vlan, uint16_t tag) {
 }
 
 bool PacketGroupTagMgr::add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, uint16_t tag) {
-    if (qinq_tag_exists(inner_vlan, outter_vlan)) {
+    if (qinq_tag_exists(inner_vlan, outter_vlan) || !valid_vlan(inner_vlan) || !valid_vlan(outter_vlan)) {
         return false;
     }
     QinQTag* qinq_tag = new QinQTag(inner_vlan, outter_vlan, tag);
@@ -177,7 +177,7 @@ void TPGStreamMgr::add_stream(TrexStream* stream) {
                           TrexException::T_FLOW_STAT_INVALID_TPGID);
     }
 
-    const bool tpgid_in_use = m_active_tpgids.find(tpgid) != m_active_tpgids.end();
+    const bool tpgid_in_use = m_active_tpgids.find(tpgid_key(stream->m_port_id, tpgid)) != m_active_tpgids.end();
     if (tpgid_in_use) {
         throw TrexFStatEx("Tagged Packet Group ID " + std::to_string(tpgid) + " already in use. Can't use the same id for two streams.", 
                           TrexException::T_FLOW_STAT_DUP_PG_ID);
@@ -217,7 +217,7 @@ void TPGStreamMgr::add_stream(TrexStream* stream) {
     }
 
     // Add the TPGID to set of active tpgids
-    m_active_tpgids.insert(tpgid);
+    m_active_tpgids.insert(tpgid_key(stream->m_port_id, tpgid));
 
     // Keep stream state
     m_stream_states[stream_key(stream)] = TPGStreamAdded;
@@ -239,7 +239,7 @@ void TPGStreamMgr::del_stream(TrexStream* stream) {
 
     /** Remove the stream from set of active tpgids **/
     uint32_t tpgid = stream->m_rx_check.m_pg_id;
-    m_active_tpgids.erase(tpgid);
+    m_active_tpgids.erase(tpgid_key(stream->m_port_id, tpgid));
 
 }
 
@@ -294,26 +294,27 @@ void TPGStreamMgr::copy_state(TrexStream* from, TrexStream* to) {
 
 /**************************************
  * Tagged Packet Group Data Plane Manager
+ * Per Side
  *************************************/
-TPGDpMgr::TPGDpMgr(uint32_t num_tpgids) : m_num_tpgids(num_tpgids) {
+TPGDpMgrPerSide::TPGDpMgrPerSide(uint32_t num_tpgids) : m_num_tpgids(num_tpgids) {
     m_seq_array = new uint32_t[m_num_tpgids];
     for (int i = 0; i < m_num_tpgids; i++) {
         m_seq_array[i] = 0;
     }
 }
 
-TPGDpMgr::~TPGDpMgr() {
+TPGDpMgrPerSide::~TPGDpMgrPerSide() {
     delete[] m_seq_array;
 }
 
-uint32_t TPGDpMgr::get_seq(uint32_t tpgid) {
+uint32_t TPGDpMgrPerSide::get_seq(uint32_t tpgid) {
     if (tpgid >= m_num_tpgids) {
         return 0;
     }
     return m_seq_array[tpgid];
 }
 
-void TPGDpMgr::inc_seq(uint32_t tpgid) {
+void TPGDpMgrPerSide::inc_seq(uint32_t tpgid) {
     if (tpgid >= m_num_tpgids) {
         return;
     }

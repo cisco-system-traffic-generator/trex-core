@@ -506,11 +506,21 @@ private:
         return port_id << 32 | stream->m_stream_id;
     }
 
+    /**
+     * Make a key that identifies each tpgid uniquely per port.
+     * We don't want to limit the user to unique tpgid in the system,
+     * rather unique tpgid per port.
+     **/
+    uint64_t tpgid_key(uint8_t port_id, uint32_t tpgid) {
+        uint64_t port_id_ext = port_id;
+        return port_id_ext << 32 | tpgid;
+    }
+
     TPGStreamMgr();  // Make the constructor private, so none except for us can create instances.
 
     static TPGStreamMgr*                            m_instance;      // Instance object
     CFlowStatParser*                                m_parser;        // Parser
-    std::set<uint32_t>                              m_active_tpgids; // Active Tagged Packet Group Identifiers
+    std::set<uint64_t>                              m_active_tpgids; // Active Tagged Packet Group Identifiers Per Port
     std::unordered_map<uint64_t, TPGStreamState>    m_stream_states; // State of the streams
     uint32_t                                        m_num_tpgids;    // Number of Tagged Packet Group Identifiers
     bool                                            m_software_mode; // Are we running in software mode
@@ -520,13 +530,17 @@ private:
 /**************************************
  * Tagged Packet Group Data Plane Manager
  *************************************/
-class TPGDpMgr {
+class TPGDpMgrPerSide {
+    /**
+    Tagged Packet Group Data Plane Manager Per Core and Per Side.
+    **/
+
 public:
 
-    TPGDpMgr(uint32_t num_tpgids);
-    ~TPGDpMgr();
-    TPGDpMgr(const TPGDpMgr&) = delete;
-    TPGDpMgr& operator=(const TPGDpMgr&) = delete;
+    TPGDpMgrPerSide(uint32_t num_tpgids);
+    ~TPGDpMgrPerSide();
+    TPGDpMgrPerSide(const TPGDpMgrPerSide&) = delete;
+    TPGDpMgrPerSide& operator=(const TPGDpMgrPerSide&) = delete;
 
     /**
      * Get the next sequence number for a TPGID.
@@ -549,8 +563,8 @@ public:
 
 private:
 
-    uint32_t*       m_seq_array;      // Sequence number for each tpgid.
-    uint32_t        m_num_tpgids;     // Number of Tagged Packet Group Identifiers.
+    uint32_t*     m_seq_array;       // Sequence number for each tpgid per each port.
+    uint32_t      m_num_tpgids;      // Number of Tagged Packet Group Identifiers.
 };
 
 #endif /* __TREX_TAGGED_PACKET_GROUPS_H__ */

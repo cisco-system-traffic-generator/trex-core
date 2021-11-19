@@ -1039,7 +1039,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 
     int ret = -1;
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return -1;
     }
 

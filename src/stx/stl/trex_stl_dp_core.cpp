@@ -1153,16 +1153,18 @@ TrexStatelessDpCore::TrexStatelessDpCore(uint8_t thread_id, CFlowGenListPerThrea
     int i;
     for (i=0; i<NUM_PORTS_PER_CORE; i++) {
         m_ports[i].create(core);
+        m_tpg_mgr[i] = nullptr;
     }
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     m_features = NO_FEATURES;
-    m_tpg_mgr = nullptr;
 }
 
 TrexStatelessDpCore::~TrexStatelessDpCore() {
     delete m_wrapper;
     delete m_parser;
-    delete m_tpg_mgr;
+    for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
+        delete m_tpg_mgr[port];
+    }
 }
 
 
@@ -1824,14 +1826,18 @@ TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled, bool filter
 }
 
 void TrexStatelessDpCore::enable_tpg(uint32_t num_tpgids) {
-    m_tpg_mgr = new TPGDpMgr(num_tpgids);
+    for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
+        m_tpg_mgr[port] = new TPGDpMgrPerSide(num_tpgids);
+    }
     set_tpg_feature();
 }
 
 void TrexStatelessDpCore::disable_tpg() {
     unset_tpg_feature();
-    delete m_tpg_mgr;
-    m_tpg_mgr = nullptr;
+    for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
+        delete m_tpg_mgr[port];
+        m_tpg_mgr[port] = nullptr;
+    }
 }
 
 void

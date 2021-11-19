@@ -128,7 +128,9 @@ TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupCpRx, "enable_tpg_cp_rx");
 TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupDp, "enable_tpg_dp");
 TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPacketGroupIdStats, "get_tpgid_stats");
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStatus, "get_tpg_status");
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupIdStats, "get_tpgid_stats");
+
 
 
 /****************************** commands implementation ******************************/
@@ -1629,29 +1631,43 @@ TrexRpcCmdEnableTaggedPacketGroupCpRx::_run(const Json::Value &params, Json::Val
 
     const Json::Value& tags = parse_array(params, "tags", result);
     uint16_t tag = 0;
+    std::string err_msg = "";
+    bool error = false;
     for (auto& itr: tags) {
         const Json::Value& value = parse_object(itr, "value", result);
         std::string type = parse_string(itr, "type", result);
         if (type == "Dot1Q") {
             uint16_t vlan = parse_uint16(value, "vlan", result);
             if (!tag_mgr->add_dot1q_tag(vlan, tag)) {
-                generate_execute_err(result, "Vlan " + std::to_string(vlan) + " already registered as Dot1Q tag!") ;
+                err_msg = "Vlan " + std::to_string(vlan) + " already exists or is invalid!";
+                error = true;
+                break;
             }
         } else if (type == "QinQ") {
             const Json::Value& vlans = parse_array(value, "vlans", result);
             if (vlans.size() != 2) {
-                generate_parse_err(result, "QinQ must contain 2 Vlans");
+                err_msg = "QinQ must contain 2 Vlans";
+                error = true;
+                break;
             }
             uint16_t inner_vlan = vlans[0].asUInt();
             uint16_t outter_vlan = vlans[1].asUInt();
             if (!tag_mgr->add_qinq_tag(inner_vlan, outter_vlan, tag)) {
-                generate_execute_err(result, "QinQ [" + std::to_string(inner_vlan) + "," + std::to_string(outter_vlan) + "] already registered as QinQ tag!") ;
+                err_msg = "QinQ (" + std::to_string(inner_vlan) + "," + std::to_string(outter_vlan) + ") already exists or is invalid!";
+                error = true;
+                break;
             }
         } else {
-            stl->destroy_tpg_mgr();
-            generate_parse_err(result, "Tag type " + type + " is not supported!");
+            err_msg = "Tag type " + type + " is not supported!";
+            error = true;
+            break;
         }
         tag++;
+    }
+
+    if (error) {
+        stl->destroy_tpg_mgr();
+        generate_execute_err(result, err_msg);
     }
 
     stl->enable_tpg_cp_rx(); // Notify CP, Rx. Rx can take forever to allocate, so we do this async.
@@ -1705,7 +1721,40 @@ TrexRpcCmdGetTaggedPktGroupState::_run(const Json::Value &params, Json::Value &r
 }
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetTaggedPacketGroupIdStats::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetTaggedPktGroupStatus::_run(const Json::Value &params, Json::Value &result) {
+
+    TrexStateless* stl = get_stateless_obj();
+
+    Json::Value& status = result["result"];
+
+    bool enabled = stl->get_tpg_state() == TPGState::ENABLED;
+
+    status["enabled"] = enabled;
+
+    Json::Value& status_data = status["data"];
+
+    std::vector<uint8_t> ports;
+    uint32_t num_tpgids = 0;
+    uint16_t num_tags = 0;
+
+    if (enabled) {
+        ports = stl->m_tpg_mgr->get_ports();
+        num_tpgids = stl->m_tpg_mgr->get_num_tpgids();
+        num_tags = stl->m_tpg_mgr->get_tag_mgr()->get_num_tags();
+    }
+
+    status_data["ports"] = Json::arrayValue;
+    for (int i = 0; i < ports.size(); i++) {
+        status_data["ports"][i] = ports[i];
+    }
+    status_data["num_tpgids"] = num_tpgids;
+    status_data["num_tags"] = num_tags;
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetTaggedPktGroupIdStats::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStateless* stl = get_stateless_obj();
 
@@ -1798,7 +1847,8 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroupDp(this));
     m_cmds.push_back(new TrexRpcCmdDisableTaggedPacketGroup(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupState(this));
-    m_cmds.push_back(new TrexRpcCmdGetTaggedPacketGroupIdStats(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStatus(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupIdStats(this));
 }
 
 
