@@ -274,15 +274,15 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
             // QinQ
             pkt_ptr += sizeof(VLANHeader);
             VLANHeader* secondVlan = (VLANHeader*)pkt_ptr;
-            tag_exists = m_tag_mgr->qinq_tag_exists(vlan->getVlanTag(), secondVlan->getVlanTag());
+            tag_exists = m_tag_mgr->qinq_tag_exists(vlan->getTagID(), secondVlan->getTagID());
             if (tag_exists) {
-                tag_id = m_tag_mgr->get_qinq_tag(vlan->getVlanTag(), secondVlan->getVlanTag());
+                tag_id = m_tag_mgr->get_qinq_tag(vlan->getTagID(), secondVlan->getTagID());
             }
         } else {
             // Dot1Q
-            tag_exists = m_tag_mgr->dot1q_tag_exists(vlan->getVlanTag());
+            tag_exists = m_tag_mgr->dot1q_tag_exists(vlan->getTagID());
             if (tag_exists) {
-                tag_id = m_tag_mgr->get_dot1q_tag(vlan->getVlanTag());
+                tag_id = m_tag_mgr->get_dot1q_tag(vlan->getTagID());
             }
         }
     }

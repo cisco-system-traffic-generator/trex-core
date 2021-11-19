@@ -50,6 +50,11 @@ class CTPGTagCntr {
 
 public:
 
+    /** Testing Classes. Friendship is not inherited. **/
+    friend class TaggedPktGroupTest;
+    friend class TPGTagCntrTest;
+    friend class TPGRxStatsTest;
+
     CTPGTagCntr() { init(); }
 
     /**

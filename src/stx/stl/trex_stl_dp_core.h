@@ -41,7 +41,7 @@ class TrexStream;
 class CGenNodePCAP;
 class ServiceModeWrapper;
 class CFlowStatParser;
-class TPGDpMgr;
+class TPGDpMgrPerSide;
 
 class CDpOneStream  {
 public:
@@ -342,10 +342,13 @@ public:
     /**
      * Get the Tagged Packet Group DP Manager.
      *
-     * @return TPGDpMgr*
+     * @param dir
+     *   Direction
+     *
+     * @return TPGDpMgrPerSide*
      *   Pointer to the TaggedPacketGroup Dp Manager.
      **/
-    inline TPGDpMgr* get_tpg_dp_mgr() { return m_tpg_mgr; }
+    inline TPGDpMgrPerSide* get_tpg_dp_mgr(uint8_t dir) { return m_tpg_mgr[dir]; }
 
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
@@ -420,7 +423,7 @@ private:
 
     uint8_t                    m_features;
 
-    TPGDpMgr*                  m_tpg_mgr;               // Tagged Packet Group Data Plane Manager
+    TPGDpMgrPerSide*           m_tpg_mgr[NUM_PORTS_PER_CORE];               // Tagged Packet Group Data Plane Manager
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */
