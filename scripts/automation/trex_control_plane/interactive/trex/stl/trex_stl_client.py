@@ -1985,17 +1985,6 @@ class STLClient(TRexClient):
     @console_api('start', 'STL', True)
     def start_line (self, line):
         '''Start selected traffic on specified ports on TRex\n'''
-
-        # parse tunables with the previous form. (-t var1=x1,var2=x2..)
-        def parse_tunables_old_version(tunables_parameters):
-            parser = parsing_opts.gen_parser(self,
-                                "start",
-                                self.start_line.__doc__,
-                                parsing_opts.TUNABLES)
-
-            args = parser.parse_args(tunables_parameters.split())
-            return args.tunables
-
         # parser for parsing the start command arguments
         parser = parsing_opts.gen_parser(self,
                             "start",
@@ -2019,15 +2008,11 @@ class STLClient(TRexClient):
         # newer version.
         tunable_dict = {}
         if "-t" in line and '=' in line:
-            tunable_parameter = "-t " + line.split("-t")[1].strip("-h").strip("--help").strip()
-            tunable_dict = parse_tunables_old_version(tunable_parameter)
-            tunable_list = []
-            # converting from tunables dictionary to list 
-            for tunable_key in tunable_dict:
-                tunable_list.extend(["--{}".format(tunable_key), str(tunable_dict[tunable_key])])
-            if any(h in opts.tunables for h in help_flags):
-                tunable_list.append("--help")
-            opts.tunables = tunable_list
+            tun_list = opts.tunables
+            tunable_dict = parsing_opts.decode_tunables(tun_list[0])
+            opts.tunables = parsing_opts.convert_old_tunables_to_new_tunables(tun_list[0])
+            opts.tunables.extend(tun_list[1:])
+        tunable_dict["tunables"] = opts.tunables
 
         ports = []
         for port in opts.ports:
@@ -2046,14 +2031,6 @@ class STLClient(TRexClient):
         # just for sanity - will be checked on the API as well
         self.__decode_core_mask(port_id_list, core_mask)
 
-        # process tunables
-        if type(opts.tunables) is list:
-            tunables = opts.tunables
-        else:
-            tunables = []
-
-
-        tunable_dict["tunables"] = tunables
         streams_per_profile = {}
         streams_per_port = {}
         # pack the profile
@@ -2065,7 +2042,7 @@ class STLClient(TRexClient):
                                           direction = port_id % 2,
                                           port_id = port_id,
                                           **tunable_dict)
-                if any(h in tunables for h in help_flags):
+                if any(h in opts.tunables for h in help_flags):
                     return True
                 if profile is None:
                     print('Failed to convert STL profile')

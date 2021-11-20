@@ -164,9 +164,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_sim (self, yaml, output, options = "", silent = False, obj = None, tunables = None):
         if output:
-            user_cmd = "-f {0} -o {1} {2} -p {3}".format(yaml, output, options, self.scripts_path)
+            user_cmd = "-f {0} -o {1} -p {2} {3}".format(yaml, output, self.scripts_path, options)
         else:
-            user_cmd = "-f {0} {1} -p {2}".format(yaml, options, self.scripts_path)
+            user_cmd = "-f {0} -p {1} {2}".format(yaml, self.scripts_path, options)
 
         if silent:
             user_cmd += " --silent"
@@ -374,18 +374,18 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         # test with simple vars
         print(format_text("\nTesting multiple flow vars for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=vars,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=vars,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
 
         # test with tuple
         print(format_text("\nTesting multiple tuple generators for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=tuple,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=tuple,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
         # test with complex topology
         print(format_text("\nTesting complex topology for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=topology,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=topology,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
         # some tests
