@@ -391,6 +391,20 @@ def decode_tunables (tunable_str):
     return tunables
 
 
+def convert_old_tunables_to_new_tunables(tunable_str, help=False):
+    try:
+        tunable_dict = decode_tunables(tunable_str)
+    except argparse.ArgumentTypeError as e:
+        raise TRexError(e)
+    tunable_list = []
+    # converting from tunables dictionary to list 
+    for tunable_key in tunable_dict:
+        tunable_list.extend(["--{}".format(tunable_key), str(tunable_dict[tunable_key])])
+    if help:
+        tunable_list.append("--help")
+    return tunable_list
+
+
 class OPTIONS_DB_ARGS:
     MULTIPLIER = ArgumentPack(
         ['-m', '--multiplier'],
@@ -1946,6 +1960,8 @@ def populate_parser (parser, *args):
         except KeyError as e:
             cause = e.args[0]
             raise KeyError("The attribute '{0}' is missing as a field of the {1} option.\n".format(cause, param))
+
+
 
 def gen_parser(client, op_name, description, *args, **kw):
     parser = CCmdArgParser(client, prog=op_name, conflict_handler='resolve',
