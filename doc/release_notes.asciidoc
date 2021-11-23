@@ -26,6 +26,18 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.93 ==
+
+* ASTF 
+** GTPU hardening - see in manual for more info 
+*** More than 2 ports support
+*** Support loopback mode for testing 
+*** Support only software mode (HW RSS is not longer supported)
+*** src port is part of the GTPU tunnel, need to configure in RPC 
+
+* DPDK 
+** mlx5 add timestamp format support to DevX
+
 == Release 2.92 ==
 
 * EMU
