@@ -2165,7 +2165,7 @@ client.activate_tunnel(tunnel_type=1, activate=False) <2>
 <1> Activating GTPU mode
 <2> Deactivating GTPU mode
 
-See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/astf/trex_astf_client.py#L36[tunnel_type]
+See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
 
 
 ===== Tutorial: GTPU Loopback mode
@@ -2209,7 +2209,7 @@ client.activate_tunnel(tunnel_type=1, activate=False)                <2>
 <1> Activating GTPU mode with loopback mode
 <2> Deactivating GTPU mode
 
-See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/astf/trex_astf_client.py#L36[tunnel_type]
+See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
 
 
 ===== GTPU traffic tutorials
@@ -3250,6 +3250,10 @@ In short, the redirection to the correct core is done using the source port of L
 
 Naturally, all this logic has a performance impact. Fortunately, based on our tests, the impact is minor. This offers the possibility to scale in software mode as well. When reaching very high scale, a redirect drop counter will show in the flow table counters. This implies that the cores can't keep up with redirecting at the actual rate.
 
+[NOTE]
+=====================================================================
+From version v2.93, when software RSS is on, and one of the redirects queues is full. TRex tries to send packets in case the queue-drop flag was not used, and drops the packets in case the queue-drop flag was used.
+=====================================================================
 
 === Dynamic multiple profiles support
 

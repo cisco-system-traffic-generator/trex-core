@@ -436,6 +436,7 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     FT_S_ADD_CNT_OK(rss_redirect_rx, "rss rx packets redirected");
     FT_S_ADD_CNT_OK(rss_redirect_tx, "rss tx packets redirected");
     FT_S_ADD_CNT_E(rss_redirect_drops, "rss packets to redirect dropped");
+    FT_S_ADD_CNT_OK(rss_redirect_queue_full, "rss tx queue full");
 
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");

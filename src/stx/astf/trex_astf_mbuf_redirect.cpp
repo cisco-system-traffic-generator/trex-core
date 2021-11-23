@@ -24,6 +24,8 @@ limitations under the License.
 
 using namespace std;
 
+#define MAX_ENQUEUE_TRIES 20000
+
 MbufCachePerDp::MbufCachePerDp(MbufRedirectCache* redirect_cache, CMbufRing* ring_to_dp) {
     m_cache_size = 0;
     m_ring_to_dp = ring_to_dp;
@@ -43,9 +45,25 @@ void MbufCachePerDp::add(rte_mbuf_t* mbuf, bool flush_now) {
 
 void MbufCachePerDp::flush() {
     CFlowTable& ft = m_redirect_cache->m_ctx->m_ft;
-    if (m_ring_to_dp->EnqueueBulk(m_cache, m_cache_size)) {
+    bool success = m_ring_to_dp->EnqueueBulk(m_cache, m_cache_size);
+    if (likely(CGlobalInfo::m_options.m_is_queuefull_retry)) {
+        uint16_t tries = 0;
+        while (unlikely(!success)){
+            if (tries >= MAX_ENQUEUE_TRIES) {
+                break;
+            }
+            #ifndef TREX_SIM
+                rte_delay_us(1);
+            #endif
+            success = m_ring_to_dp->EnqueueBulk(m_cache, m_cache_size);
+            tries+=1;
+            ft.inc_rss_redirect_queue_full(1);
+        }
+    }
+    if (likely(success)) {
         ft.inc_rss_redirect_tx_cnt(m_cache_size);
-    } else {
+    }
+    else { /* CPU has burst of packets larger than TX can send. Need to drop packets */
         ft.inc_rss_redirect_drop_cnt(m_cache_size);
         for (int i = 0; i < m_cache_size; i++) {
             rte_pktmbuf_free(m_cache[i]);
