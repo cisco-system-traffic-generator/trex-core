@@ -193,6 +193,7 @@ struct  CFlowTableIntStats {
     uint32_t        m_rss_redirect_rx;              // Incoming redirected packets
     uint32_t        m_rss_redirect_tx;              // Outgoing Redirected packets 
     uint32_t        m_rss_redirect_drops;           // How many packets were dropped cause of unsuccessful RSS redirect?
+    uint32_t        m_rss_redirect_queue_full;      // How many times the tx queue was full while trying to insert new packets.
 };
 
 class  CSttFlowTableStats {
@@ -325,6 +326,10 @@ public:
 
       void inc_rss_redirect_drop_cnt(uint32_t count) {
           m_sts.m_sts.m_rss_redirect_drops += count;
+      }
+
+      void inc_rss_redirect_queue_full(uint32_t count) {
+          m_sts.m_sts.m_rss_redirect_queue_full += count;
       }
 
       bool flow_table_resource_ok(){
