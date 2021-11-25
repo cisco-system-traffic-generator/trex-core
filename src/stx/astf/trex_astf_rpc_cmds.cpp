@@ -757,7 +757,7 @@ TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
         return TREX_RPC_CMD_INTERNAL_ERR;
     }
 
-    Json::Value thread_result;
+    std::vector<Json::Value> dps_results;
     std::vector<uint32_t> msg_data;
 
     uint32_t client_start_ip = 0, client_end_ip = 0;
@@ -774,53 +774,24 @@ TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
         }
     }
 
-    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+    uint8_t dp_core_count = get_astf_object()->get_dp_core_count();
+    for (uint8_t core_id = 0; core_id < dp_core_count; core_id++) {
         static MsgReply<Json::Value> reply;
         reply.reset();
-
         TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(astf_db, msg_data, is_range, reply);
-        get_astf_object()->send_message_to_dp(0, msg, true);
+        get_astf_object()->send_msg_to_dp(core_id, msg);
+        dps_results.push_back(reply.wait_for_reply());
+    }
 
-        if (thread_id == 0){
-            // Prepare a skeleton of result
-            result["result"] = reply.wait_for_reply();
-            continue;
+    assert(dps_results.size() != 0);
+    result["result"] = dps_results[0];
+    for (int i=0;i<dps_results.size();i++) {
+        Json::Value::Members dp_clients = dps_results[i].getMemberNames();
+        for (auto client : dp_clients) {
+            if (dps_results[i][client]["Found"] == 1) {
+                result["result"][client] = dps_results[i][client];
+            }
         }
-        else
-           thread_result = reply.wait_for_reply();
-
-        uint32_t idx = 0;
-        uint32_t client_ip = 0;
-        uint32_t found_count = 0;
-        while(true){
-            if (!is_range){
-                client_ip = msg_data[idx];
-                if (++idx >= msg_data.size()) break;
-            }
-            else {
-                client_ip = client_start_ip + idx;
-                if (client_ip > client_end_ip) break; 
-            }
-            
-            // If its already found move next
-            if (result["result"][to_string(client_ip)]["Found"] == 1){
-                found_count++;
-                continue;
-            }
-            // If Not present , no need to modify 
-            if (thread_result[to_string(client_ip)]["Found"] == 0){
-                continue;
-            }
-            
-            // Update result
-            result["result"][to_string(client_ip)] = thread_result[to_string(client_ip)];
-        }
- 
-        // Found records in current thread, no need to check other threads
-        if (is_range && found_count == (client_end_ip - client_start_ip + 1)) break;
-
-        if (!is_range && found_count == msg_data.size()) break;
-        
     }
 
     return (TREX_RPC_CMD_OK);

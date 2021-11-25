@@ -149,6 +149,7 @@ def run_test ():
 
         logging.info(client.get_clients_info(False, "", "").data())
         client.add_clients()
+        logging.info(client.get_clients_info(True, "11.11.0.5", "11.11.0.6").data())
         client.status_change_clients(True, True, "11.11.0.1", "11.11.0.10")
 
 if __name__ == "__main__":
