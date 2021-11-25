@@ -700,9 +700,9 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     else
        c_data["state"] = "Inactive";
     if (m_tunnel_handler) {
-        uint8_t type = m_tunnel_handler->get_tunnel_type(); 
-        if (type !=  TUNNEL_TYPE_NONE) 
-        c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+        if (ip_info->get_tunnel_ctx()) {
+            c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+        }
     }
     return c_data;
 }
