@@ -678,6 +678,9 @@ void split_ips(uint32_t thread_id,
     uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
     
     portion.m_ip_start  = poolinfo.get_ip_start()  + thread_id*chunks + dual_if_mask;
+    if (thread_id + 1 == total_threads) {
+        chunks += poolinfo.getTotalIps() % total_threads;
+    }
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
 
@@ -699,6 +702,9 @@ void split_ips_v2( uint32_t total_threads,
     uint32_t dual_if_mask=(dual_port_id*poolinfo.getDualMask());
 
     portion.m_ip_start  = poolinfo.get_ip_start()  + (rss_thread_id+rss_max_threads*dual_port_id)*chunks + dual_if_mask;
+    if (rss_thread_id + 1 == rss_max_threads) {
+        chunks += poolinfo.getTotalIps() % total_threads;
+    }
     portion.m_ip_end    = portion.m_ip_start + chunks -1 ;
 }
 
