@@ -466,7 +466,7 @@ class STLClient_Test(CStlGeneral_Test):
 
         default_mult  = self.get_benchmark_param('mult',default="30%")
         skip_tests_per_setup     = self.get_benchmark_param('skip',default=[])
-        skip_tests_global = ['imix_wlc.py','udp_1pkt_dot1q.py','udp_1pkt_multi.py']
+        skip_tests_global = ['imix_wlc.py','udp_1pkt_dot1q.py','udp_1pkt_multi.py', 'tpg_tags_conf.py']
 
         try:
             for profile in self.profiles:

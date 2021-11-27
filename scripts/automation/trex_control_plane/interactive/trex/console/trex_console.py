@@ -534,11 +534,11 @@ class TRexConsole(TRexGeneralCmd):
 
     ############### start
 
-    def complete_start(self, text, line, begidx, endidx):
+    def complete_start(self, text, line, begidx, endidx, parse_argument=parsing_opts.FILE_PATH):
         s = line.split()
         l = len(s)
 
-        file_flags = parsing_opts.get_flags(parsing_opts.FILE_PATH)
+        file_flags = parsing_opts.get_flags(parse_argument)
 
         if (l > 1) and (s[l - 1] in file_flags):
             return TRexConsole.tree_autocomplete("")
@@ -549,9 +549,12 @@ class TRexConsole(TRexGeneralCmd):
     complete_push = complete_start
     complete_hello = complete_start
 
-
     def complete_profile(self, text, line, begidx, endidx):
         return self.complete_start(text,line, begidx, endidx)
+
+    # Tagged Packet Group
+    def complete_tpg_enable(self, text, line, begidx, endidx):
+        return self.complete_start(text, line, begidx, endidx, parsing_opts.TPG_TAGS_CONF)
 
     # tui
     @verify_connected
