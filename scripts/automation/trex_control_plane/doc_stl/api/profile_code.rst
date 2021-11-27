@@ -76,11 +76,59 @@ STLStream modes
     :members: 
     :member-order: bysource
 
+.. autoclass:: trex.stl.trex_stl_streams.STLTaggedPktGroup
+    :members: 
+    :member-order: bysource
+
 .. autoclass:: trex.stl.trex_stl_streams.STLFlowLatencyStats
     :members: 
     :member-order: bysource
-    
 
+STLTaggedPktGroupTagConf
+------------------------
+
+.. autoclass:: trex.stl.trex_stl_streams.STLTaggedPktGroupTagConf
+    :members: 
+    :member-order: bysource
+
+.. code-block:: python
+
+    # Tagged Packet Group Tag Configuration - Python File
+
+    import argparse
+
+
+    MIN_VLAN, MAX_VLAN = 1, (1 << 12) - 1
+
+
+    class TPGConf():
+
+        def get_tpg_conf(self, tunables, **kwargs):
+            parser = argparse.ArgumentParser(description="TPG Configuration File for Dot1Q",
+                                            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+            parser.add_argument("--min-vlan", type=int, default=1, help="Min Vlan Tag to have in the configuration")
+            parser.add_argument("--max-vlan", type=int, default=MAX_VLAN-1, help="Max Vlan Tag to have in configuration")
+            args = parser.parse_args(tunables)
+
+            if args.min_vlan < MIN_VLAN:
+                raise Exception("Min Vlan must be greater or equal to {}".format(MIN_VLAN))
+
+            if args.max_vlan >= MAX_VLAN:
+                raise Exception("Max Vlan must be smaller than {}".format(MAX_VLAN))
+
+            tpg_conf = [
+                {
+                    "type": "Dot1Q",
+                    "value": {
+                        "vlan": i
+                    }
+                } for i in range(args.min_vlan, args.max_vlan)]
+            return tpg_conf
+
+
+    def register():
+        return TPGConf()
 
 
 STLProfile snippet

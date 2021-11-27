@@ -93,28 +93,25 @@ class STLTXMode(object):
             self.fields['rate']['type']  = 'percentage'
             self.fields['rate']['value'] = percentage
 
-        
-
     def to_json (self):
         return dict(self.fields)
-
 
     @staticmethod
     def from_json (json_data):
         try:
             mode = json_data['mode']
             rate = mode['rate']
-            
+
             # check the rate type
             if rate['type'] not in ['pps', 'bps_L1', 'bps_L2', 'percentage']:
                 raise TRexError("from_json: invalid rate type '{0}'".format(rate['type']))
-            
+
             # construct the pair
             kwargs = {rate['type'] : rate['value']}
-            
+
             if mode['type'] == 'single_burst':
                 return STLTXSingleBurst(total_pkts = mode['total_pkts'], **kwargs)
-                
+
             elif mode['type'] == 'multi_burst':
                 return STLTXMultiBurst(pkts_per_burst = mode['pkts_per_burst'],
                                        ibg            = mode['ibg'],
@@ -130,9 +127,8 @@ class STLTXMode(object):
                 
         except KeyError as e:
             raise TRexError("from_json: missing field {0} from JSON".format(e))
-            
-        
-        
+
+
 # continuous mode
 class STLTXCont(STLTXMode):
     """ Continuous mode """
@@ -140,7 +136,7 @@ class STLTXCont(STLTXMode):
     def __init__ (self, **kwargs):
         """ 
         Continuous mode
-        
+
          see :class:`trex.stl.trex_stl_streams.STLTXMode` for rate 
 
         .. code-block:: python
@@ -158,6 +154,7 @@ class STLTXCont(STLTXMode):
     @staticmethod
     def __str__ ():
         return "Continuous"
+
 
 # single burst mode
 class STLTXSingleBurst(STLTXMode):
@@ -193,6 +190,7 @@ class STLTXSingleBurst(STLTXMode):
     @staticmethod
     def __str__ ():
         return "Single Burst"
+
 
 # multi burst mode
 class STLTXMultiBurst(STLTXMode):
@@ -265,35 +263,34 @@ class STLFlowStatsInterface(object):
         """ Dump as json"""
         return dict(self.fields)
 
-
     @staticmethod
     def from_json (json_data):
         '''
         create the object from JSON output
         '''
-        
+
         try:
             # no flow stats
             if not json_data['enabled']:
                 return None
-                
+
             # flow stats
             if json_data['rule_type'] == 'stats':
                 return STLFlowStats(pg_id = json_data['stream_id'])
-                
+
             # latency
             elif json_data['rule_type'] == 'latency':
                 return STLFlowLatencyStats(pg_id = json_data['stream_id'])
-                
+
+            elif json_data['rule_type'] == "tpg":
+                return STLTaggedPktGroup(tpgid = json_data['stream_id'])
+
             else:
                 raise TRexError("from_json: invalid flow stats type {0}".format(json_data['rule_type']))
-                
-                
+
         except KeyError as e:
             raise TRexError("from_json: missing field {0} from JSON".format(e))
 
-        
-        
     @staticmethod
     def defaults ():
         return {'enabled' : False}
@@ -315,6 +312,32 @@ class STLFlowStats(STLFlowStatsInterface):
         self.fields['rule_type'] = 'stats'
 
 
+class STLTaggedPktGroup(STLFlowStatsInterface):
+    """
+    Define per stream Tagged Packet Group statistics.
+
+    The tagged packet group appends a TPG header to the end of the payload (overriding the last 16 bytes)
+    and keeps sequence of the packets.
+
+    It calculates statistics per tag, which can be Dot1Q or QinQ.
+
+        .. note:: You can't apply the same tpgid to more than one stream.
+
+        .. note:: Supported only in Software mode.
+
+    .. code-block:: python
+
+        # STLTaggedPktGroup Example
+
+        tpg_stats = STLTaggedPktGroup(tpgid = 7)
+
+    """
+
+    def __init__(self, tpgid):
+        super(STLTaggedPktGroup, self).__init__(pg_id=tpgid, vxlan=False, ieee_1588=False)
+        self.fields['rule_type'] = 'tpg'
+
+
 class STLFlowLatencyStats(STLFlowStatsInterface):
     """ Define per stream basic stats + latency, jitter, packet reorder/loss
 
@@ -329,6 +352,116 @@ class STLFlowLatencyStats(STLFlowStatsInterface):
     def __init__(self, pg_id, vxlan = False, ieee_1588 = False):
         super(STLFlowLatencyStats, self).__init__(pg_id, vxlan, ieee_1588)
         self.fields['rule_type'] = 'latency'
+
+
+class STLTaggedPktGroupTagConf:
+    """
+    A class to facilitates the loading of Tagged Packet Group Tag Configurations.
+    """
+
+    @classmethod
+    def load(cls, tpg_conf_path, **kwargs):
+        """
+        Load the Tagged Packet Group Tag Configuration. The configuration can be loaded by a Python file or a Json file.
+
+        :parameters:
+            tpg_conf_path: Path to a Json or Python file.
+        """
+
+        if not os.path.isfile(tpg_conf_path):
+            raise TRexError("File '{}' does not exist".format(tpg_conf_path))
+
+        if tpg_conf_path.endswith('.py'):
+            return cls.load_py(tpg_conf_path, **kwargs)
+        elif tpg_conf_path.endswith('.json'):
+            return cls.load_json(tpg_conf_path)
+        else:
+            raise TRexError("TPG Configuration file must be a Json/Python file. {} is invalid.".format(tpg_conf_path))
+
+    @staticmethod
+    def load_py(tpg_conf_path, **kwargs):
+        """
+        Load the Tagged Packet Group Tag Configuration from a Python file. Any tunables for the Python file must be passed
+        through the *kwargs* parameter. The kwargs supports the following two formats:
+
+
+        .. code-block:: python
+
+            kwargs = {
+                "tunable1": '1',
+                "tunable2": "value"
+            }
+
+        or
+
+        .. code-block:: python
+
+            kwargs = {
+                "tunables": [
+                    '--tunable1', '1',
+                    '--tunable2', 'value'
+                ]
+            }
+
+        .. note:: The old way of passing tunables in the format of **tunable1=1,tunable2=value** is not supported for this class.
+
+        :parameters:
+            tpg_conf_path: Path to a Python file that contains the tag configuration. One such example can be seen in *stl/tpg_tags_conf.py*.
+        """
+
+        # In case tunables are not already argparse format, convert them.
+        # This can be the case someone is calling from this from the Api.
+        if "tunables" not in kwargs:
+            tunable_list = []
+            # Aggregate tunables into a tunables list.
+            for tunable_key in kwargs:
+                tunable_list.extend(["--{}".format(tunable_key), str(kwargs[tunable_key])])
+            kwargs["tunables"] = tunable_list
+
+        basedir = os.path.dirname(tpg_conf_path)
+        sys.path.insert(0, basedir)
+        dont_write_bytecode = sys.dont_write_bytecode
+
+        try:
+            filename = os.path.basename(tpg_conf_path).split('.')[0]  # remove the file extension
+            sys.dont_write_bytecode = True
+            module = __import__(filename, globals(), locals(), [], 0)  # import the file
+            imp.reload(module)  # reload the update
+
+            try:
+                tpg_conf = module.register().get_tpg_conf(**kwargs)
+            except SystemExit:
+                # called ".. -t --help", return None
+                return None
+            return tpg_conf
+
+        except Exception as e:
+            a, b, tb = sys.exc_info()
+            x =''.join(traceback.format_list(traceback.extract_tb(tb)[1:])) + a.__name__ + ": " + str(b) + "\n"
+
+            summary = "\nPython Traceback follows:\n\n" + x
+            raise TRexError(summary)
+
+        finally:
+            sys.dont_write_bytecode = dont_write_bytecode
+            sys.path.remove(basedir)
+
+    @staticmethod
+    def load_json(tpg_conf_path):
+        """
+        Load the Tagged Packet Group Tag Configuration from a Json file.
+
+        :parameters:
+            tpg_conf_path: Path to a Json file that contains the tag configuration. One such example can be seen in *stl/tpg_tags_conf.json*.
+        """
+        tpg_conf = None
+        try:
+            with open(tpg_conf_path) as f:
+                tpg_conf = json.load(f)
+        except Exception as e:
+            err = "Couldn't load Json as expected. The following exception occurred:\n" + str(e)
+            raise TRexError(err)
+        return tpg_conf
 
 
 class STLStream(object):
@@ -422,7 +555,7 @@ class STLStream(object):
                   core_id: int
                         Pins the stream to core_id in case core_id is specified and 0 <= core_id < number of cores.
                         Default value = -1.
-                        Negative value (default) keeps the current behaviour.
+                        Negative value (default) keeps the current behavior.
         """
 
 
@@ -512,13 +645,11 @@ class STLStream(object):
         else:
             self.fields['flow_stats'] = flow_stats.to_json()
 
-
     def __str__ (self):
         s =  "Stream Name: {0}\n".format(self.name)
         s += "Stream Next: {0}\n".format(self.next)
         s += "Stream JSON:\n{0}\n".format(json.dumps(self.fields, indent = 4, separators=(',', ': '), sort_keys = True))
         return s
-
 
     def get_id (self):
         """ Get the stream id after resolution  """
@@ -539,7 +670,6 @@ class STLStream(object):
         """ Get next stream object """
         return self.next
 
-
     def has_flow_stats (self):
         """ Return True if stream was configured with flow stats """
         return self.fields['flow_stats']['enabled']
@@ -551,8 +681,7 @@ class STLStream(object):
     def get_flow_stats_type (self):
         """ Returns flow stats type if exists """
         return self.fields['flow_stats'].get('rule_type')
-        
-        
+
     def get_pkt (self):
         """ Get packet as string """
         return self.pkt
@@ -568,7 +697,7 @@ class STLStream(object):
     def is_dummy (self):
         """ return true if stream is marked as dummy stream """
         return ( (self.fields['flags'] & 0x8) == 0x8 )
-        
+
     def get_pkt_type (self):
         """ Get packet description. Example: IP:UDP """
         if self.is_dummy():
@@ -580,7 +709,6 @@ class STLStream(object):
 
     def get_mode (self):
         return 'delay' if self.is_dummy() else self.mode_desc
-        
 
     @staticmethod
     def get_rate_from_field (rate_json):
@@ -636,7 +764,6 @@ class STLStream(object):
                         inst[name] = "'%s.%s'" % (ret[0], ret[2])
                     else:
                         inst[name] = "'%s:%s.%s'" % ret[0:3]
-
 
     # returns the Python code (text) to build this stream, inside the code it will be in variable "stream"
     def to_code(self):
@@ -733,7 +860,13 @@ class STLStream(object):
             stream_params_list.append('isg = %s' % self.fields['isg'])
         if default_STLStream.fields['flow_stats'] != self.fields['flow_stats']:
             if 'rule_type' in self.fields['flow_stats']:
-                stream_params_list.append('flow_stats = %s(%s)' % ('STLFlowStats' if self.fields['flow_stats']['rule_type'] == 'stats' else 'STLFlowLatencyStats', self.fields['flow_stats']['stream_id']))
+                rule_type_class_dispatcher = {
+                    "stats": "STLFlowStats",
+                    "latency": "STLFlowLatencyStats",
+                    "tpg": "STLTaggedPktGroup"
+                }
+                rule_type = self.fields['flow_stats']['rule_type']
+                stream_params_list.append('flow_stats = %s(%s)' % (rule_type_class_dispatcher[rule_type], self.fields['flow_stats']['stream_id']))
         if default_STLStream.next != self.next:
             stream_params_list.append('next = %s' % STLStream.__add_quotes(self.next))
         if default_STLStream.id != self.id:
@@ -821,8 +954,6 @@ class STLStream(object):
     def __replchars_to_hex(match):
         return r'\x{0:02x}'.format(ord(match.group()))
 
-        
-
     def to_json (self):
         """ convert stream object to JSON """
         json_data = dict(self.fields)
@@ -835,7 +966,6 @@ class STLStream(object):
             json_data['next'] = self.next
 
         return json_data
-
 
     @staticmethod
     def from_json (json_data):
@@ -869,15 +999,14 @@ class STLStream(object):
             
         except KeyError as e:
             raise TRexError("from_json: missing field {0} from JSON".format(e))
-            
-        
+
     def clone (self):
         return STLStream.from_json(self.to_json())
 
-        
+
 # profile class
 class STLProfile(object):
-    """ Describe a list of streams   
+    """ Describe a list of streams
 
         .. code-block:: python
 
@@ -929,7 +1058,6 @@ class STLProfile(object):
         self.streams = streams
         self.meta = None
 
-
     def get_streams (self):
         """ Get the list of streams"""
         return self.streams
@@ -946,8 +1074,6 @@ class STLProfile(object):
     def has_flow_stats (self):
         return any([x.has_flow_stats() for x in self.get_streams()])
 
-        
-  
     @staticmethod
     def __flatten_json (stream_list):
         # GUI provides a YAML/JSON from the RPC capture - flatten it to match
@@ -959,8 +1085,7 @@ class STLProfile(object):
                 d = stream['stream']
                 del stream['stream']
                 stream.update(d)
-        
-                        
+
     @staticmethod
     def __load_plain (plain_file, fmt):
         """
@@ -983,20 +1108,16 @@ class STLProfile(object):
             
         return STLProfile.from_json(data)
 
-                    
-        
     @staticmethod
     def load_yaml (yaml_file):
         """ Load (from YAML file) a profile with a number of streams """
         return STLProfile.__load_plain(yaml_file, fmt = 'yaml')
-    
-        
+
     @staticmethod
     def load_json (json_file):
         """ Load (from JSON file) a profile with a number of streams """
         return STLProfile.__load_plain(json_file, fmt = 'json')
 
-        
     @staticmethod
     def get_module_tunables(module):
         # remove self and variables
@@ -1016,7 +1137,6 @@ class STLProfile(object):
             output[t] = d
 
         return output
-
 
     @staticmethod
     def load_py (python_file, direction = 0, port_id = 0, **kwargs):
@@ -1075,7 +1195,6 @@ class STLProfile(object):
             sys.dont_write_bytecode = dont_write_bytecode
             sys.path.remove(basedir)
 
-    
     # loop_count = 0 means loop forever
     @staticmethod
     def load_pcap (pcap_file,
@@ -1118,7 +1237,7 @@ class STLProfile(object):
                         can be 'MAC' or 'IP'
 
                   min_ipg_usec   : float
-                       Minumum inter packet gap in usec. Used to guard from too small IPGs.
+                       Minimum inter packet gap in usec. Used to guard from too small IPGs.
 
                   src_mac_pcap : bool
                         Source MAC address will be taken from pcap file if True.
@@ -1204,7 +1323,6 @@ class STLProfile(object):
         except Scapy_Exception as e:
             raise TRexError("failed to open PCAP file {0}: '{1}'".format(pcap_file, str(e)))
 
-
     @staticmethod
     def __pkts_to_streams (pkts, loop_count, vm, packet_hook, start_delay_usec = 0, end_delay_usec = 0, src_mac_pcap = False, dst_mac_pcap = False):
         streams = []
@@ -1266,14 +1384,12 @@ class STLProfile(object):
 
         return profile
 
-      
-
     @staticmethod
     def load (filename, direction = 0, port_id = 0, **kwargs):
         """ Load a profile by its type. Supported types are: 
            * py
            * json
-           * pcap file that converted to profile automaticly 
+           * pcap file that converted to profile automatically
 
            :Parameters:
               filename  : string as filename 
@@ -1318,12 +1434,10 @@ class STLProfile(object):
             cnt = cnt +1 
             stream.to_pkt_dump()
 
-            
     def to_json (self):
         """ convert profile to JSON object """
         return [s.to_json() for s in self.get_streams()]
-        
-        
+
     @staticmethod
     def from_json (json_data):
         """ create profile object from JSON object """
@@ -1337,9 +1451,7 @@ class STLProfile(object):
         profile.meta = {'type': 'json'}
         
         return profile
-        
-        
-    
+
     def dump_to_code (self, profile_file = None):
         """ Convert the profile to Python native profile. """
         profile_dump = '''# !!! Auto-generated code !!!
@@ -1364,8 +1476,6 @@ def register():
                 f.write(profile_dump)
 
         return profile_dump
-
-
 
     def __len__ (self):
         return len(self.streams)
@@ -1433,7 +1543,6 @@ class PCAPReader(object):
 
         return self.pkt_groups
 
-
     # generate two groups based on MACs
     def generate_mac_groups (self):
         for i, (pkt, _) in enumerate(self.pkts_arr):
@@ -1447,7 +1556,6 @@ class PCAPReader(object):
         for pkt, ts in self.pkts_arr:
             group = 1 if pkt.src in mac_groups[1] else 0
             self.pkt_groups[group].append((bytes(pkt), ts))
-
 
     # generate two groups based on IPs
     def generate_ip_groups (self):
@@ -1472,7 +1580,6 @@ class PCAPReader(object):
             if ip and ip.src in ip_groups[1]:
                 group = 1
             self.pkt_groups[group].append((bytes(pkt), ts))
-
 
 
 # a simple graph object - used to split to two groups
@@ -1502,7 +1609,6 @@ class Graph(object):
         # undirected - add two ways
         self.db[v1].add(v2)
         self.db[v2].add(v1)
-
 
     # create a 2-color of the graph if possible
     def split (self):

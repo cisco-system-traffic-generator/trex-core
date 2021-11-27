@@ -1640,8 +1640,7 @@ class OPTIONS_DB_ARGS:
         ['-6', '--ipv6'],
         {'help': 'Send query using Ipv6',
         'dest': 'ipv6',
-        'action': 'store_true'}
-    )
+        'action': 'store_true'})
 
     MDNS_HOSTS_LIST = ArgumentPack(
         ['--hosts'], # -h is taken by help
@@ -1650,8 +1649,73 @@ class OPTIONS_DB_ARGS:
          'type': str, 
          'nargs': '+', # at least one argument must be provided , -h Host1 Host2 Host3
          'required': True
-        }
-    )
+        })
+
+    # Tagged Packet Group
+    TPG_PORT = ArgumentPack(
+        ['-p', '--port'],
+        {'help': 'Port that collects stats.',
+         'dest': 'port',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_PORTS = ArgumentPack(
+        ['-p', '--ports'],
+        {'nargs': '+',
+         'dest': 'ports',
+         'action': 'merge',
+         'type': int,
+         'help': 'A list of ports to collect TPG stats',
+         'default': []})
+
+    TPG_ID = ArgumentPack(
+        ['--tpgid'],
+        {'help': 'Tpgid for which we collect stats',
+         'dest': 'tpgid',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_MIN_TAG = ArgumentPack(
+        ['--min-tag'],
+        {'help': 'Min Tag for which we collect the stats. Defaults to 0.',
+         'dest': 'min_tag',
+         'required': False,
+         'default': 0,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_MAX_TAG = ArgumentPack(
+        ['--max-tag'],
+        {'help': 'Max Tag for which we collect the stats.',
+         'dest': 'max_tag',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_UNKNOWN_TAG = ArgumentPack(
+        ['--unknown'],
+        {'help': "Show Unknown Tag Stats. Defaults to False.",
+         'dest': "unknown_tag",
+         'default': False,
+         'action': "store_true"})
+
+    TPG_NUM_TPGIDS = ArgumentPack(
+        ["--num-tpgids"],
+        {'help': "Number of Tagged Packet Groups",
+         'dest': "num_tpgids",
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0,
+         'max_val': (2**32)-1})
+
+    TPG_TAGS_CONF = ArgumentPack(
+        ["--tags"],
+        {'help': "Json/Python file of TPG Tag Configuration",
+         'dest': "tags_conf",
+         'required': True,
+         'type': is_valid_file})
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1735,6 +1799,27 @@ class OPTIONS_DB_GROUPS:
             MBUF_STATS,
             EXTENDED_STATS,
             EXTENDED_INC_ZERO_STATS,
+        ],
+        {})
+
+    TPG_STL_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+            TPG_MIN_TAG,
+            TPG_MAX_TAG,
+            TPG_UNKNOWN_TAG,
+        ],
+        {})
+
+    TPG_ENABLE = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORTS,
+            TPG_NUM_TPGIDS,
+            TPG_TAGS_CONF,
+            ARGPARSE_TUNABLES,
         ],
         {})
 
