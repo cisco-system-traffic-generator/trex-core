@@ -202,7 +202,7 @@ public:
      * @param unknown_tag
      *   Add the stats for unknown tags in the Json too.
      **/
-    void get_tpgid_stats(Json::Value& stats, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+    void get_tpg_stats(Json::Value& stats, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
 
 private:
 
@@ -295,7 +295,7 @@ public:
      * @param unknown_tag
      *   Add the stats for unknown tags in the Json too.
      **/
-    void get_tpgid_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+    void get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
 
 private:
 

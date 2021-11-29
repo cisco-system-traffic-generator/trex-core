@@ -677,7 +677,7 @@ void CRxCore::enable_tpg(TPGCpMgr* tpg_mgr) {
 
 void CRxCore::disable_tpg() {
     /**
-     * NOTE: All the statistics are allocated here. This can take a very long time, hence
+     * NOTE: All the statistics are de-allocated here. This can take a very long time, hence
      * we need to stop the watchdog.
      **/
     TrexWatchDog::getInstance().stop();
@@ -690,8 +690,8 @@ void CRxCore::disable_tpg() {
     m_tpg_enabled = false;
 }
 
-void CRxCore::get_tpgid_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
     Json::Value& port_stats = stats[std::to_string(port_id)];
     RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
-    rx_tpg->get_tpgid_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag);
+    rx_tpg->get_tpg_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag);
 }

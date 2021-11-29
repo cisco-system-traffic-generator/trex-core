@@ -4519,7 +4519,7 @@ Lastly, we enable TPG, start the streams and collect stats.
         # verify the counters
         for i in range(num_streams):
             # stream number = tpgid
-            stats = c.get_tpgid_stats(port=rx_port, tpgid=i, min_tag=0, 
+            stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0, 
                                 max_tag=num_tags, max_sections=num_tags)[0]  # <5>
 
             tpgid_passed = verify_stream_stats(stats, streams[i].get_pkt_len(), 

@@ -5688,20 +5688,20 @@ public:
 
         CTPGTagCntr exp = CTPGTagCntr();
         Json::Value stats;
-        group_cntr->get_tpgid_stats(stats, 0, num_tags, false);
+        group_cntr->get_tpg_stats(stats, 0, num_tags, false);
         // Key should be "0-5" and all values should be 0.
         stats = stats["0-" + std::to_string(tag-1)];
         VALIDATE_STATS_JSON(stats, &exp);
 
         Json::Value stats_tag;
-        group_cntr->get_tpgid_stats(stats_tag, tag, num_tags, false);
+        group_cntr->get_tpg_stats(stats_tag, tag, num_tags, false);
         // Key should be 6
         stats_tag = stats_tag[std::to_string(tag)];
         exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
         VALIDATE_STATS_JSON(stats_tag, &exp);
 
         Json::Value remaining_stats;
-        group_cntr->get_tpgid_stats(remaining_stats, tag, num_tags, false);
+        group_cntr->get_tpg_stats(remaining_stats, tag, num_tags, false);
         // Key should be "7-9"
         remaining_stats = stats[std::to_string(tag+1) + "-" + std::to_string(num_tags-1)];
         exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
@@ -5723,7 +5723,7 @@ public:
 
         CTPGGroupCntr* group_cntr = port_cntr->get_pkt_group_cntr(tpgid);
         Json::Value stats;
-        group_cntr->get_tpgid_stats(stats, 0, num_tags, true);
+        group_cntr->get_tpg_stats(stats, 0, num_tags, true);
 
         CTPGTagCntr exp = CTPGTagCntr(); // By default set to 0
         VALIDATE_STATS_JSON(stats["0"], &exp);
@@ -5754,19 +5754,19 @@ public:
         CTPGTagCntr exp = CTPGTagCntr(); // By default set to 0
         CTPGGroupCntr* group_cntr = port_cntr->get_pkt_group_cntr(tpgid);
         Json::Value stats;
-        group_cntr->get_tpgid_stats(stats, 0, num_tags, false);
+        group_cntr->get_tpg_stats(stats, 0, num_tags, false);
 
         VALIDATE_STATS_JSON(stats["0-1"], &exp); // Compressed the first ones.
 
-        group_cntr->get_tpgid_stats(stats, 2, num_tags, false);
+        group_cntr->get_tpg_stats(stats, 2, num_tags, false);
         exp.set_cntrs(4, 336, 0, 0, 1, 1, 0);
         VALIDATE_STATS_JSON(stats["2"], &exp);
 
-        group_cntr->get_tpgid_stats(stats, 3, num_tags, false);
+        group_cntr->get_tpg_stats(stats, 3, num_tags, false);
         exp.set_cntrs(4, 336, 0, 1, 1, 0, 1);
         VALIDATE_STATS_JSON(stats["3"], &exp);
 
-        group_cntr->get_tpgid_stats(stats, 4, num_tags, false);
+        group_cntr->get_tpg_stats(stats, 4, num_tags, false);
         exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
         VALIDATE_STATS_JSON(stats["4-9"], &exp);
 
@@ -5828,7 +5828,7 @@ public:
         // let's see the stats are successfully parsed
 
         Json::Value stats;
-        rx_tpg_port->get_tpgid_stats(stats, tpg_header->tpgid, 0, 1, false);
+        rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, false);
 
         Json::Value& tpgid_stats = stats[std::to_string(tpg_header->tpgid)];
         Json::Value& tag_stats = tpgid_stats[std::to_string(tag_mgr->get_qinq_tag(20, 30))];
@@ -5896,7 +5896,7 @@ public:
         // let's see the stats are successfully parsed
 
         Json::Value stats;
-        rx_tpg_port->get_tpgid_stats(stats, tpg_header->tpgid, 0, 1, true);
+        rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, true);
 
         Json::Value& tpgid_stats = stats[std::to_string(tpg_header->tpgid)];
         Json::Value& tag_stats = tpgid_stats[std::to_string(tag_mgr->get_dot1q_tag(7))];

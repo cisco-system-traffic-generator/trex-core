@@ -202,7 +202,7 @@ def rx_example(tx_port, rx_port, burst_size, pps, qinq, vlans, verbose, ignore_s
             if verbose:
                 print("*"*LINE_LENGTH)
                 print("Verifying stats for tpgid {}".format(i))
-            stats = c.get_tpgid_stats(port=rx_port, tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags)[0]
+            stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags)[0]
 
             tpgid_passed = verify_stream_stats(stats, streams[i].get_pkt_len(), rx_port, burst_size, i, verbose, ignore_seq_err)
             if not tpgid_passed:
