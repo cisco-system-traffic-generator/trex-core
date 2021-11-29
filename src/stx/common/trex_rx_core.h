@@ -206,7 +206,7 @@ protected:
      * @param unknown_tag
      *   Dump the stats collected on unknown tags aswell.
      **/
-    void get_tpgid_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+    void get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
 
  protected:
     uint32_t handle_msg_packets(void);

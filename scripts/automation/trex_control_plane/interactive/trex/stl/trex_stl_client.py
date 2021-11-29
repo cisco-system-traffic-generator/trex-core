@@ -129,7 +129,7 @@ class STLClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'STL', 'major': 5, 'minor': 0}
+        api_ver = {'name': 'STL', 'major': 5, 'minor': 1}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -1830,7 +1830,7 @@ class STLClient(TRexClient):
         return rc.data()
 
     @client_api('getter', True)
-    def get_tpgid_stats(self, port, tpgid, min_tag, max_tag, max_sections = 50, unknown_tag = False):
+    def get_tpg_stats(self, port, tpgid, min_tag, max_tag, max_sections = 50, unknown_tag = False):
         """
         Get Tagged Packet Group Identifier statistics that are received in this port,
         for this Tagged Packet Group Identifier in [min, max) tag_range.
@@ -1869,7 +1869,7 @@ class STLClient(TRexClient):
             .. highlight:: python
             .. code-block:: python
 
-                print(get_tpgid_stats(port=3, tpgid=1, min_tag=0, max_tag=4000, unknown_tag=True)[0])
+                print(get_tpg_stats(port=3, tpgid=1, min_tag=0, max_tag=4000, unknown_tag=True)[0])
 
                 {'3': {'1': {
                             '0-200': {'bytes': 0,
@@ -1908,7 +1908,7 @@ class STLClient(TRexClient):
 
             uint16: Indicates the next tag to start collecting from. In case all the tags were collected this will equal *max_tag*.
         """
-        self.psv.validate('get_tpgid_stats', [port])
+        self.psv.validate('get_tpg_stats', [port])
         validate_type("tpgid", tpgid, int)
         validate_type("min_tag", min_tag, int)
         validate_type("max_tag", max_tag, int)
@@ -1918,7 +1918,7 @@ class STLClient(TRexClient):
         if min_tag >=max_tag:
             raise TRexError("Min Tag {} must be smaller than Max Tag {}".format(min_tag, max_tag))
 
-        def get_tpgid_stats_section(self, port, tpgid, min_tag, max_tag, unknown_tag):
+        def get_tpg_stats_section(self, port, tpgid, min_tag, max_tag, unknown_tag):
             """
             Get TPGID stats from the server for one section only.
 
@@ -1948,7 +1948,7 @@ class STLClient(TRexClient):
                 "max_tag": max_tag,
                 "unknown_tag": unknown_tag,
             }
-            rc = self._transmit("get_tpgid_stats", params=params)
+            rc = self._transmit("get_tpg_stats", params=params)
             if not rc:
                 raise TRexError(rc)
             return rc.data()
@@ -1993,7 +1993,7 @@ class STLClient(TRexClient):
         # Loop until finished or reached max sections
         while not done and sections < max_sections:
             # Collect one section of stats from the server
-            section_stats = get_tpgid_stats_section(self, port, tpgid, _min_tag, max_tag, unknown_tag)
+            section_stats = get_tpg_stats_section(self, port, tpgid, _min_tag, max_tag, unknown_tag)
             # Calculate the next min tag.
             _min_tag = _get_next_min_tag(section_stats, port, tpgid)
 
@@ -2734,7 +2734,7 @@ class STLClient(TRexClient):
             stats = None
             try:
                 unknown_tag = first_iteration and opts.unknown_tag
-                stats, new_current_tag = self.get_tpgid_stats(opts.port, opts.tpgid, current_tag, opts.max_tag, max_sections=MAX_TAGS_TO_SHOW, unknown_tag=unknown_tag)
+                stats, new_current_tag = self.get_tpg_stats(opts.port, opts.tpgid, current_tag, opts.max_tag, max_sections=MAX_TAGS_TO_SHOW, unknown_tag=unknown_tag)
             except TRexError as e:
                 s = format_text("{}".format(e.brief()), "bold", "red")
                 raise TRexError(s)

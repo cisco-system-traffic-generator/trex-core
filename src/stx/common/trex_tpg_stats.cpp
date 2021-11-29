@@ -154,7 +154,7 @@ CTPGTagCntr* CTPGGroupCntr::get_unknown_tag_cntr() {
     return m_unknown_tag_cntrs;
 }
 
-void CTPGGroupCntr::get_tpgid_stats(Json::Value& stats, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+void CTPGGroupCntr::get_tpg_stats(Json::Value& stats, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
     CTPGTagCntr* ref_cntr = get_tag_cntr(min_tag);
     uint16_t i = min_tag + 1;
     while (i < max_tag) {
@@ -290,8 +290,8 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
     m_port_cntr->update_cntrs(tpg_header->tpgid, tpg_header->seq, m->pkt_len, tag_id, tag_exists);
 }
 
-void RxTPGPerPort::get_tpgid_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+void RxTPGPerPort::get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
     Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
     CTPGGroupCntr* tpgid_cntr = m_port_cntr->get_pkt_group_cntr(tpgid); // This is not nullptr, tpgid was validated to be in range
-    tpgid_cntr->get_tpgid_stats(tpgid_stats, min_tag, max_tag, unknown_tag);
+    tpgid_cntr->get_tpg_stats(tpgid_stats, min_tag, max_tag, unknown_tag);
 }

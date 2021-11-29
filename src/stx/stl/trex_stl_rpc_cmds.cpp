@@ -129,7 +129,7 @@ TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupDp, "enable_tpg_dp");
 TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStatus, "get_tpg_status");
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupIdStats, "get_tpgid_stats");
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStats, "get_tpg_stats");
 
 
 
@@ -1754,7 +1754,7 @@ TrexRpcCmdGetTaggedPktGroupStatus::_run(const Json::Value &params, Json::Value &
 }
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetTaggedPktGroupIdStats::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &result) {
 
     TrexStateless* stl = get_stateless_obj();
 
@@ -1792,7 +1792,7 @@ TrexRpcCmdGetTaggedPktGroupIdStats::_run(const Json::Value &params, Json::Value 
     // Collect Stats from Rx
     Json::Value& section = result["result"];
 
-    stl->get_stl_rx()->get_tpgid_stats(section, port_id, tpgid, min_tag, max_tag, unknown_tag);
+    stl->get_stl_rx()->get_tpg_stats(section, port_id, tpgid, min_tag, max_tag, unknown_tag);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1848,7 +1848,7 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdDisableTaggedPacketGroup(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupState(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStatus(this));
-    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupIdStats(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStats(this));
 }
 
 
