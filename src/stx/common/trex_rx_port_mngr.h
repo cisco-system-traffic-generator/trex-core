@@ -235,16 +235,14 @@ public:
     
     void write_pkt(struct rte_mbuf  *m,uint8_t vport);
 
-public:
-
-   void * m_socket; 
-   int    m_pkts_cnt;
-   int    m_b_size; 
-   char   m_buf[ZMQ_BUFFER_SIZE];
-   int   cnt_err; 
+private:
+    void    * m_socket;
+    int       m_pkts_cnt;
+    int       m_b_size;
+    char      m_buf[ZMQ_BUFFER_SIZE];
+    hr_time_t err_first_ts;
 
    CRxCoreErrCntrs * m_cnt;
-    
 };
 
 

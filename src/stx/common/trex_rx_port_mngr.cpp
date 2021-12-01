@@ -875,6 +875,7 @@ RXFeatureAPI::get_port_id() {
 
 //#########################################################
 
+const hr_time_t err_duration_max = ptime_convert_dsec_hr(0.1); // 100 msec before restarting ZMQ
 
 bool  CZmqPacketWriter::flush(){
     if ( m_pkts_cnt == 0 ){
@@ -892,16 +893,17 @@ bool  CZmqPacketWriter::flush(){
     if (res < 0) {
         m_cnt->m_ezmq_tx_to_emu_err++;
         if (errno == EAGAIN){
-            cnt_err++;
-            if (cnt_err > 10) {
-                r = true; 
+            if ( err_first_ts == 0 ) {
+                err_first_ts = os_get_hr_tick_64();
+            } else if ( err_first_ts + err_duration_max > os_get_hr_tick_64() ) {
+                r = true;
                 m_cnt->m_ezmq_tx_to_emu_restart++;
             }
         }
     }else{
-        cnt_err = 0;
+        err_first_ts = 0;
         m_cnt->m_ezmq_tx_to_emu++;
-    }        
+    }
 
     m_pkts_cnt=0;
     m_b_size=4;
@@ -948,7 +950,7 @@ bool CZmqPacketWriter::Create(void * socket,CRxCoreErrCntrs * cnt){
     m_socket = socket;
     m_pkts_cnt =0;
     m_b_size = 4; 
-    cnt_err =0;
+    err_first_ts = 0;
     m_cnt = cnt;
     return true;
 }
