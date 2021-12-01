@@ -51,8 +51,10 @@ for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
         PATH_ARR.append(path)
 os.environ['PATH'] = ':'.join(PATH_ARR)
 
+
 def if_list_remove_sub_if(if_list):
     return if_list
+
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -309,6 +311,7 @@ class ConfigCreator(object):
             print('Saved to %s.' % filename)
         return config_str
 
+
 # only load igb_uio if it's available
 def load_igb_uio():
     loaded_mods = dpdk_nic_bind.get_loaded_modules()
@@ -321,6 +324,7 @@ def load_igb_uio():
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if os.path.exists(km):
         return os.system('insmod %s' % km) == 0
+
 
 # try to compile igb_uio if it's missing
 def compile_and_load_igb_uio():
@@ -374,16 +378,20 @@ def compile_and_load_igb_uio():
         print('Failed inserting igb_uio module.')
         sys.exit(-1)
 
+
 class map_driver(object):
     args=None;
     cfg_file='/etc/trex_cfg.yaml'
     parent_args = None
 
+
 def pa():
     return map_driver.parent_args
 
+
 class DpdkSetup(Exception):
     pass
+
 
 class CIfMap:
 
@@ -435,7 +443,6 @@ Other network devices
     def get_only_mellanox_nics(self):
         return self.m_is_mellanox_mode
 
-
     def read_pci (self,pci_id,reg_id):
         out=subprocess.check_output(['setpci', '-s',pci_id, '%s.w' %(reg_id)])
         out=out.decode(errors='replace');
@@ -480,7 +487,6 @@ Other network devices
             out=subprocess.check_output(['ifconfig', dev_id,'mtu',str(new_mtu)])
             out=out.decode(errors='replace');
 
-
     def set_max_mtu_mlx_device(self,dev_id):
         mtu=9*1024+22
         dev_mtu=self.get_mtu_mlx (dev_id);
@@ -489,7 +495,6 @@ Other network devices
             if self.get_mtu_mlx(dev_id) != mtu:
                 print("Could not set MTU to %d" % mtu)
                 sys.exit(-1);
-
 
     def disable_flow_control_mlx_device (self,dev_id):
 
@@ -530,7 +535,6 @@ Other network devices
             else:
                 print("No valid OFED version '%s' found." % (lines[0]))
                 sys.exit(-1);
-
 
     def verify_ofed_os(self):
         err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.9\n'
@@ -593,7 +597,6 @@ Other network devices
         except Exception as e:
             raise DpdkSetup('Error: "linux_based" stack mode requires ethtool installed on your machine. Install it or do not use this mode.')
 
-
     def do_bind_all(self, drv, pci, force = False):
         assert type(pci) is list
         cmd = '{ptn} dpdk_nic_bind.py --bind={drv} {pci} {frc}'.format(
@@ -623,7 +626,6 @@ Other network devices
         if ret:
             raise VFIOBindErr('Binding to vfio_pci failed')
 
-
     def pci_name_to_full_name (self,pci_name):
         if pci_name == 'dummy':
             return pci_name
@@ -642,7 +644,6 @@ Other network devices
 
         err=" %s is not a valid pci address \n" %pci_name;
         raise DpdkSetup(err)
-
 
     def run_dpdk_lspci (self):
         dpdk_nic_bind.get_nic_details()
@@ -684,7 +685,7 @@ Other network devices
         if trex_path not in sys.path:
             sys.path.insert(1, trex_path)
         from trex.astf.trex_astf_profile import ASTFProfile
-        from trex.astf.sim import decode_tunables
+        from trex.utils.parsing_opts import decode_tunables
 
         tunables = {}
         if pa().tunable:
@@ -699,7 +700,6 @@ Other network devices
         with open(dst_json_file, 'w') as f:
             f.write(json_content)
         os.chmod(dst_json_file, 0o777)
-
 
     def verify_stf_file(self):
         """ check the input file of STF """
@@ -721,7 +721,6 @@ Other network devices
             if os.path.isfile(filename):
                 return (True,filename,int(obj))
         return (False,None,None)
-
 
     def config_hugepages(self, wanted_count = None):
         mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
@@ -822,7 +821,6 @@ Other network devices
             if ret:
                 print("Could not start EMU service.\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
-
 
     # check vdev Linux interfaces status
     # return True if interfaces are vdev
@@ -1067,7 +1065,6 @@ Other network devices
             return mlx5_present + mlx4_present
         elif Napatech_cnt:
             return NTACC_EXIT_CODE
-
 
     def do_return_to_linux(self):
         if not self.m_devices:
@@ -1613,8 +1610,10 @@ def signal_handler(sig, frame):
     traceback.print_stack(frame)
     sys.exit(1)
 
+
 def should_scapy_server_run():
     return not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf)
+
 
 def kill_scapy():
     ret = os.system('%s general_daemon_server stop -n Scapy' % sys.executable)
@@ -1622,17 +1621,20 @@ def kill_scapy():
         print("Could not stop scapy daemon server.")
         sys.exit(-1)
 
+
 def kill_pybird():
         ret = os.system('%s general_daemon_server stop -n PyBird' % sys.executable)
         if ret:
             print("Could not stop bird daemon server.")
             sys.exit(-1)
 
+
 def kill_emu():
         ret = os.system('%s general_daemon_server stop -n Emu' % sys.executable)
         if ret:
             print("Could not stop EMU service.")
             sys.exit(-1)
+
 
 def cleanup_servers():
     ''' cleanup scapy and bird servers '''
@@ -1698,9 +1700,5 @@ def main ():
         sys.exit(-1)
 
 
-
-
-
 if __name__ == '__main__':
     main()
-
