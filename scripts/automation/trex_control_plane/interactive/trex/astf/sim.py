@@ -242,9 +242,11 @@ def profile_from_pcap(pcap, mss):
                        cap_list = [ASTFCapInfo(file = pcap,
                                                cps = 1)])
 
+
 def fatal(msg):
     print(msg)
     sys.exit(1)
+
 
 def main(args=None):
 
@@ -343,8 +345,8 @@ def execute_inplace (opts):
         execute_bp_sim(opts)
     except Exception as e:
         fatal(e)
-        
-        
+
+
 def execute_with_chdir (opts):
     
     
