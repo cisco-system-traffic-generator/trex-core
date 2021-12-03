@@ -233,13 +233,13 @@ void CTPGPortCntr::update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_l
  * RxTPGPerPort
  *************************************/
 RxTPGPerPort::RxTPGPerPort(uint8_t port_id, uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr) {
-
     m_port_cntr = new CTPGPortCntr(port_id, num_tpgids, tag_mgr->get_num_tags());
-    m_tag_mgr = tag_mgr;
+    m_tag_mgr = new PacketGroupTagMgr(tag_mgr); // Clone the Tag Manager for a locality performance impact
 }
 
 RxTPGPerPort::~RxTPGPerPort() {
     delete m_port_cntr;
+    delete m_tag_mgr;
 }
 
 void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {

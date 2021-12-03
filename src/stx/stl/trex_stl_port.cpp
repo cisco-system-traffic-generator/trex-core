@@ -928,12 +928,21 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
     TrexStatelessProfile *mprofile = new TrexStatelessProfile(m_port_id, default_profile);
     mprofile->m_dp_profile_id = ++m_dp_profile_id_inc;
     m_profile_table.add_profile(mprofile);
+    m_tpg_ctx = nullptr;
 }
 
 TrexStatelessPort::~TrexStatelessPort() {
 
     stop_traffic("*");
     remove_and_delete_all_streams("*");
+}
+
+void TrexStatelessPort::release() {
+    if (m_tpg_ctx != nullptr) {
+        std::string err_msg = "Please disable TPG in port " + std::to_string(unsigned(m_port_id)) + " before releasing.";
+        throw TrexException(err_msg);
+    }
+    TrexPort::release();
 }
 
 

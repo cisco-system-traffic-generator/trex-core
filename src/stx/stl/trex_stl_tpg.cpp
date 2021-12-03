@@ -22,6 +22,7 @@ limitations under the License.
 #include "trex_stl_tpg.h"
 #include "flow_stat_parser.h"
 #include "trex_stl.h"
+#include "trex_stl_port.h"
 
 // Pure Abstract Destructor needs implementation.
 BasePacketGroupTag::~BasePacketGroupTag() {}
@@ -97,11 +98,17 @@ bool PacketGroupTagMgr::add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, 
 /**************************************
  * Tagged Packet Group Control Plane Manager
  *************************************/
-TPGCpMgr::TPGCpMgr(const std::vector<uint8_t>& ports, uint32_t num_tpgids) : m_ports(ports), m_num_tpgids(num_tpgids) {
+TPGCpCtx::TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
+                   const std::vector<uint8_t>& rx_ports,
+                   const std::set<uint8_t>& cores,
+                   const uint32_t num_tpgids,
+                   const std::string& username) : 
+                   m_acquired_ports(acquired_ports), m_rx_ports(rx_ports), m_cores(cores), m_num_tpgids(num_tpgids), m_username(username) {
     m_tag_mgr = new PacketGroupTagMgr();
+    m_tpg_state = TPGState::DISABLED;
 }
 
-TPGCpMgr::~TPGCpMgr() {
+TPGCpCtx::~TPGCpCtx() {
     delete m_tag_mgr;
 }
 
@@ -113,7 +120,7 @@ TPGCpMgr::~TPGCpMgr() {
 // Instantiate the static variable */
 TPGStreamMgr* TPGStreamMgr::m_instance = nullptr;
 
-TPGStreamMgr::TPGStreamMgr() : m_num_tpgids(0) {
+TPGStreamMgr::TPGStreamMgr() {
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
     m_software_mode = !CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed();
 }
@@ -156,10 +163,14 @@ void TPGStreamMgr::add_stream(TrexStream* stream) {
         throw TrexFStatEx("TPG is supported only in software mode!", TrexException::T_FLOW_STAT_BAD_RULE_TYPE_FOR_IF);
     }
 
+    uint8_t port_id = stream->m_port_id;
+
+    TrexStatelessPort* stream_port = get_stateless_obj()->get_port_by_id(port_id);
+    TPGCpCtx* tpg_ctx = stream_port->get_tpg_ctx();
+
     // Let's check if TPG is enabled
-    TPGState tpg_state = get_stateless_obj()->get_tpg_state();
-    if (tpg_state != TPGState::ENABLED) {
-        throw TrexFStatEx("Trying to add a TPG stream but TPG isn't enabled", TrexException::T_FLOW_STAT_TPG_NOT_ENABLED);
+    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::ENABLED) {
+        throw TrexFStatEx("Trying to add a TPG stream but TPG isn't enabled in this port.", TrexException::T_FLOW_STAT_TPG_NOT_ENABLED);
     }
 
     if (stream_exists(stream)) {
@@ -171,9 +182,10 @@ void TPGStreamMgr::add_stream(TrexStream* stream) {
 
     /** Verify TPGID validity **/
     uint32_t tpgid = stream->m_rx_check.m_pg_id;
+    uint32_t num_tpgids = tpg_ctx->get_num_tpgids();
 
-    if (tpgid >= m_num_tpgids) {
-        throw TrexFStatEx("Invalid tpgid " + std::to_string(tpgid) + ". The maximal tpgid allowed is " + std::to_string(m_num_tpgids-1), 
+    if (tpgid >= num_tpgids) {
+        throw TrexFStatEx("Invalid tpgid " + std::to_string(tpgid) + ". The maximal tpgid allowed for this port is " + std::to_string(num_tpgids-1),
                           TrexException::T_FLOW_STAT_INVALID_TPGID);
     }
 
@@ -217,7 +229,7 @@ void TPGStreamMgr::add_stream(TrexStream* stream) {
     }
 
     // Add the TPGID to set of active tpgids
-    m_active_tpgids.insert(tpgid_key(stream->m_port_id, tpgid));
+    m_active_tpgids.insert(tpgid_key(port_id, tpgid));
 
     // Keep stream state
     m_stream_states[stream_key(stream)] = TPGStreamAdded;

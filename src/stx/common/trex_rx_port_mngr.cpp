@@ -576,10 +576,10 @@ bool RXPortManager::stop_capture_port(std::string &err) {
     return true;
 }
 
-void RXPortManager::enable_tpg(uint32_t m_num_tpgids, PacketGroupTagMgr* tag_mgr) {
+void RXPortManager::enable_tpg(uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr) {
     set_feature(TPG);
     assert(m_tpg == nullptr);
-    m_tpg = new RxTPGPerPort(m_port_id, m_num_tpgids, tag_mgr);
+    m_tpg = new RxTPGPerPort(m_port_id, num_tpgids, tag_mgr);
 }
 
 void RXPortManager::disable_tpg() {

@@ -299,7 +299,7 @@ public:
 
 private:
 
-    PacketGroupTagMgr*  m_tag_mgr;      // Packet Group Tag Manager
+    PacketGroupTagMgr*  m_tag_mgr;      // Packet Group Tag Manager. Cloned in Rx for a performance impact.
     CTPGPortCntr*       m_port_cntr;    // Counters per port
 };
 

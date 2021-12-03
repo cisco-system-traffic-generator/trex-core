@@ -28,7 +28,7 @@ limitations under the License.
 class TrexDpCore;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
-class TPGCpMgr;
+class TPGCpCtx;
 
 
 /**
@@ -391,20 +391,24 @@ public:
 
 class TrexStatelessRxEnableTaggedPktGroup: public TrexCpToRxMsgBase {
 public:
-    TrexStatelessRxEnableTaggedPktGroup(TPGCpMgr* tpg_mgr)
-                                        : m_tpg_mgr(tpg_mgr) {}
+    TrexStatelessRxEnableTaggedPktGroup(TPGCpCtx* tpg_ctx)
+                                        : m_tpg_ctx(tpg_ctx) {}
 
     bool handle(CRxCore *rx_core);
 
 private:
-    TPGCpMgr*                  m_tpg_mgr;          // Pointer to Control Plane TPG Manager.
+    TPGCpCtx*                  m_tpg_ctx;          // Pointer to Control Plane TPG Context.
 };
 
 class TrexStatelessRxDisableTaggedPktGroup: public TrexCpToRxMsgBase {
 public:
-    TrexStatelessRxDisableTaggedPktGroup() {}
+    TrexStatelessRxDisableTaggedPktGroup(TPGCpCtx* tpg_ctx)
+                                         : m_tpg_ctx(tpg_ctx) {}
 
     bool handle(CRxCore *rx_core);
+
+private:
+    TPGCpCtx*                  m_tpg_ctx;          // Pointer to Control Plane TPG Context.
 
 };
 

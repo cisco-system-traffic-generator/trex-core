@@ -337,12 +337,12 @@ bool TrexStatelessRxDisableLatency::handle (CRxCore *rx_core) {
   Tagged Packet Group
  ************************/
 bool TrexStatelessRxEnableTaggedPktGroup::handle(CRxCore* rx_core) {
-    rx_core->enable_tpg(m_tpg_mgr);
+    rx_core->enable_tpg(m_tpg_ctx);
     return true;
 }
 
 bool TrexStatelessRxDisableTaggedPktGroup::handle(CRxCore* rx_core) {
-    rx_core->disable_tpg();
+    rx_core->disable_tpg(m_tpg_ctx);
     return true;
 }
 

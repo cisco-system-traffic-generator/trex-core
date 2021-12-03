@@ -94,7 +94,6 @@ TrexPort::acquire(const std::string &user, uint32_t session_id, bool force) {
 
 void
 TrexPort::release(void) {
-    
 
     Json::Value data;
 
@@ -112,12 +111,12 @@ TrexPort::release(void) {
 void 
 TrexPort::start_rx_queue(uint64_t size) {
     static MsgReply<bool> reply;
-    
+
     reply.reset();
-    
+
     TrexRxStartQueue *msg = new TrexRxStartQueue(m_port_id, size, reply);
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
-    
+
     /* we cannot return ACK to the user until the RX core has approved
        this might cause the user to lose some packets from the queue
      */

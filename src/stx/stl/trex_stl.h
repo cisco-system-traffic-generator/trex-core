@@ -146,61 +146,99 @@ public:
     void unset_latency_feature();
 
     /**
-     * Create a new Tagged Packet Group Control Plane Manager.
+     * Create a new Tagged Packet Group Control Plane Context.
      *
-     * @param ports
+     * @param username
+     *   Username that is creating the TPG context.
+     *
+     * @param acquired_ports
      *   Vector of ports on which TPG will be active.
+     *
+     * @param rx_ports
+     *   Vector of ports on which TPG will collect.
      *
      * @param num_tpgids
      *   Number of TPGIDs
-    **/
-    void create_tpg_mgr(const std::vector<uint8_t>& ports, uint32_t num_tpgids);
-
-    /**
-     * Destroy the Tagged Packet Group Control Plane Manager.
-    **/
-    void destroy_tpg_mgr();
-
-    /**
-     * Get the state of Tagged Packet Grouping
      *
-     * @return TPGState
-     *   State of Tagged Packet Grouping
+     * @return bool
+     *   True iff the context was created successfully.
+    **/
+    bool create_tpg_ctx(const std::string& username,
+                        const std::vector<uint8_t>& acquired_ports,
+                        const std::vector<uint8_t>& rx_ports,
+                        const uint32_t num_tpgids);
+
+    /**
+     * Destroy the Tagged Packet Group Control Plane Context.
+     *
+     * @param username
+     *   Username whose TPG context we destroy.
+     *
+     * @return bool
+     *   True iff the context was destroyed successfully.
+    **/
+    bool destroy_tpg_ctx(const std::string& username);
+
+    /**
+     * Get Tagged Packet Group Control Plane Context.
+     * If the context doesn't exist, it return nullptr.
+     *
+     * @param username
+     *   Username whose TPG context we are trying to get.
+     *
+     * @return TPGCpCtx
+     *   Pointer to context if context exists, else nullptr.
      **/
-    inline TPGState get_tpg_state() const { return m_tpg_state; }
-
-    /**
-     * Set the state for the TPG state machine
-     *
-     * @param TPGState
-     *   New state to set
-     */
-    void set_tpg_state(TPGState state) { m_tpg_state = state; }
+    TPGCpCtx* get_tpg_ctx(const std::string& username);
 
     /**
      * Update the state of Tagged Packet Grouping by checking if Rx has finished
      * using shared memory.
+     *
+     * @param username
+     *   Username for whom we update the TPG State.
+     *
+     * @return TPGState
+     *   The updated state.
      **/
-    void update_tpg_state();
+    TPGState update_tpg_state(const std::string& username);
 
     /**
      * Enable Tagged Packet Grouping in Control Plane and send an Enable Message to the Rx core.
      * This message is non blocking.
+     *
+     * @param username
+     *   Username for whom we enable TPG.
+     *
+     * @return bool
+     *   True iff TPG was enabled successfully in Control Plane and message was sent to Rx.
     **/
-    void enable_tpg_cp_rx();
+    bool enable_tpg_cp_rx(const std::string& username);
 
     /**
      * Enable Tagged Packet Grouping in Data Plane by sending a message to all data planes.
      * This message is blocking.
      *
+     * @param username
+     *   Username for whom we enable TPG.
+     *
+     * @return bool
+     **  True iff TPG was enabled successfully in Data Plane.
     **/
-    void enable_tpg_dp();
+    bool enable_tpg_dp(const std::string& username);
 
     /**
-     * Disable Tagged Packet Grouping by sending a Disable Message to the Rx Core.
-     * This message is blocking.
+     * Disable Tagged Packet Grouping by sending disable messages to Dps and Rx.
+     * The messages to DP is blocking.
+     * This message to Rx is non blocking.
+     *
+     * @param username
+     *   Username for whom we disable TPG.
+     *
+     * @return bool
+     **  True iff TPG was disabled successfully in Data Plane.
     **/
-    void disable_tpg();
+    bool disable_tpg(const std::string& username);
     virtual void set_capture_feature(const std::set<uint8_t>& rx_ports);
 
     virtual void unset_capture_feature();
@@ -214,12 +252,23 @@ protected:
 
     void _shutdown();
 
-public:
-    TrexStatelessFSLatencyStats*    m_stats;                // TRex Stateless Flow Stats and Latency Statistics
-    TPGCpMgr*                       m_tpg_mgr;              // Tagged Packet Group Control Plane Manager
+    /**
+     * Check if Tagged Packet Group Control Plane Context exists per username.
+     *
+     * @param username
+     *   Username that we are trying to check if he has a TPG Context.
+     *
+     * @return bool
+     *   True if the context exists.
+    **/
+    bool tpg_ctx_exists(const std::string& username) {
+        return m_tpg_ctx_per_user.find(username) != m_tpg_ctx_per_user.end();
+    }
 
-private:
-    TPGState                        m_tpg_state;            // State Machine for Tagged Packet Grouping
+public:
+    TrexStatelessFSLatencyStats*                    m_stats;                // TRex Stateless Flow Stats and Latency Statistics
+
+    std::unordered_map<std::string, TPGCpCtx*>      m_tpg_ctx_per_user;     // Tagged Packet Group Control Plane Manager per User
 };
 
 
