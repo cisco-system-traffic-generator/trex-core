@@ -5338,26 +5338,59 @@ TEST_F(TaggedPktGroupTest, PacketGroupTagMgr) {
     delete tag_mgr;
 }
 
-TEST_F(TaggedPktGroupTest, TPGCpMgr) {
-    std::vector<uint8_t> ports {1, 3};
+TEST_F(TaggedPktGroupTest, TPGCpCtx) {
+    std::vector<uint8_t> acquired_ports {0, 1};
+    std::vector<uint8_t> rx_ports {1};
+    std::set<uint8_t> cores {0};
     uint32_t num_tpgids = 20;
-    TPGCpMgr* cp_mgr = new TPGCpMgr(ports, num_tpgids);
-    EXPECT_EQ(num_tpgids, cp_mgr->get_num_tpgids());
-    const std::vector<uint8_t>& rcv_ports = cp_mgr->get_ports();
-    ASSERT_EQ(ports.size(), rcv_ports.size());
-    for (int i = 0; i < ports.size(); ++i) {
-        EXPECT_EQ(ports[i], rcv_ports[i]) << "Vectors ports and rcv_ports differ at index " << i;
-    }
-    EXPECT_TRUE(cp_mgr->is_port_collecting(1));      // Port 1 is collecting
-    EXPECT_FALSE(cp_mgr->is_port_collecting(2));     // Port 2 is not collecting
-    EXPECT_TRUE(cp_mgr->is_port_collecting(3));      // Port 3 is collecting
+    const std::string username = "bdollma";
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
+    EXPECT_EQ(num_tpgids, tpg_ctx->get_num_tpgids());
 
-    PacketGroupTagMgr* tag_mgr = cp_mgr->get_tag_mgr();
+    const std::vector<uint8_t>& rcv_acq_ports = tpg_ctx->get_acquired_ports();
+    ASSERT_EQ(acquired_ports.size(), rcv_acq_ports.size());
+    for (int i = 0; i < acquired_ports.size(); ++i) {
+        EXPECT_EQ(acquired_ports[i], rcv_acq_ports[i]) << "Vectors acquired_ports and rcv_acq_ports differ at index " << i;
+    }
+
+    const std::vector<uint8_t>& rcv_rx_ports = tpg_ctx->get_rx_ports();
+    ASSERT_EQ(rx_ports.size(), rcv_rx_ports.size());
+    for (int i = 0; i < rx_ports.size(); ++i) {
+        EXPECT_EQ(rx_ports[i], rcv_rx_ports[i]) << "Vectors rx_ports and rcv_rx_ports differ at index " << i;
+    }
+    EXPECT_TRUE(tpg_ctx->is_port_collecting(1));      // Port 1 is collecting
+    EXPECT_FALSE(tpg_ctx->is_port_collecting(0));     // Port 2 is not collecting
+    EXPECT_FALSE(tpg_ctx->is_port_collecting(3));     // Port 3 is collecting
+
+    EXPECT_EQ(username, tpg_ctx->get_username());
+
+    const std::set<uint8>& rcv_cores = tpg_ctx->get_cores();
+    ASSERT_EQ(cores.size(), rcv_cores.size());
+
+    PacketGroupTagMgr* tag_mgr = tpg_ctx->get_tag_mgr();
     EXPECT_EQ(tag_mgr->get_num_tags(), 0);
     EXPECT_FALSE(tag_mgr->dot1q_tag_exists(1));
     EXPECT_TRUE(tag_mgr->add_dot1q_tag(7, 0));
 
-    delete cp_mgr;
+    // Create another TPG context
+    acquired_ports = {2, 3};
+    rx_ports = {3};
+    cores = {1};
+    num_tpgids = 2;
+    const std::string other_user = "bes";
+    TPGCpCtx* second_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, other_user);
+
+    EXPECT_EQ(num_tpgids, second_ctx->get_num_tpgids());
+    EXPECT_EQ(other_user, second_ctx->get_username());
+    EXPECT_TRUE(second_ctx->is_port_collecting(3));
+    EXPECT_FALSE(second_ctx->is_port_collecting(2));
+    EXPECT_FALSE(second_ctx->is_port_collecting(1));
+
+    tag_mgr = second_ctx->get_tag_mgr();
+    EXPECT_EQ(tag_mgr->get_num_tags(), 0);
+
+    delete tpg_ctx;
+    delete second_ctx;
 }
 
 TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
@@ -5442,7 +5475,7 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
         assert(e.type() == TrexException::T_FLOW_STAT_NON_EXIST_ID);
     }
 
-    // Add stream without enabling TPG
+    // Add stream without creating TPG Context.
     EXPECT_THROW({
         try {
             TPGStreamMgr::instance()->add_stream(&stream);
@@ -5452,11 +5485,29 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
         }
     }, TrexFStatEx);
 
-    // Fake enable TPG
+    // Add context but don't enable yet
+    std::vector<uint8_t> acquired_ports = {0, 1};
+    std::vector<uint8_t> rx_ports = {0, 1};
+    std::set<uint8_t> cores = {0};
+    uint32_t num_tpgids = 5;
+    std::string username = "bdollma";
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
     TrexStateless* stl = get_stateless_obj();
-    stl->set_tpg_state(TPGState::ENABLED);
+    stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
 
-    // Num of tpgids is not set in TPGStreamMgr
+    // TPG is not enabled yet
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_TPG_NOT_ENABLED);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    tpg_ctx->set_tpg_state(TPGState::ENABLED); // Enable TPG
+
+    // Num of tpgids is too small
     EXPECT_THROW({
         try {
             TPGStreamMgr::instance()->add_stream(&stream);
@@ -5466,7 +5517,11 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
         }
     }, TrexFStatEx);
 
-    TPGStreamMgr::instance()->set_num_tpgids(tpgid+1);
+    num_tpgids = tpgid+1;
+    delete tpg_ctx;
+    tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
+    tpg_ctx->set_tpg_state(TPGState::ENABLED);
+    stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
 
     // Stream too short
     EXPECT_THROW({
@@ -5518,6 +5573,8 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
 
     // Do not want the destructor to try to free it
     stream.m_pkt.binary = NULL;
+
+    delete tpg_ctx;
 }
 
 TEST_F(TaggedPktGroupTest, TPGDpMgrPerSide) {

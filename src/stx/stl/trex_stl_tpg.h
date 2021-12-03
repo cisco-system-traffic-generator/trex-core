@@ -275,25 +275,81 @@ private:
     uint16_t                                  m_num_tags;     // Number of Tags
 };
 
+/**
+ * TPGState represents the state machine for the Tagged Packet Group Feature.
+ * 1. By default the feature is disabled and the State Machine is set to DISABLED.
+ * 2. When a user enables TPG (via RPC), we move to ENABLED_CP. In this state we allocate
+ *    the PacketGroupTagMgr in CP and send an async message to start allocating to Rx (which can take a lot of time).
+ * 3. When the allocation finishes we move to ENABLED_CP_RX.
+ * 4. After number 3 finishes, the RPC enables TPG in DP. Now we move to ENABLED.
+ * 5. The user can disable TPG via RPC. We disable TPG in DP, send a async message to Rx to deallocate
+      and move to DISABLED_DP.
+ * 6. When the deallocation finishes we move to DISABLED_DP_RX. At this point the TPGCpCtx can be destroyed.
+
+    The following diagram describes the state machine:
+
+     -------------            -------------       -------------
+    |             | USER RPC |             |     |             |
+    |   DISABLED  | -------> |  ENABLED_CP | --> |   ENABLED   |
+    |             |          |             |     |    CP_RX    |
+     -------------            -------------       ------------- 
+                                                         |
+                                          AUTOMATIC RPC  |
+                                                         ↓
+     ------------          ------------              -----------
+    |            |        |            |  USER RPC  |           |
+    |  DISABLED  | <----- |  DISABLED  |  <-------  |  ENABLED  |
+    |   DP_RX    |        |     DP     |            |           |
+     ------------          ------------              -----------
+
+**/
+enum TPGState {
+    DISABLED,       // Tagged Packet Group is disabled. Default state.
+    ENABLED_CP,     // Tagged Packet Group is enabled at CP. Message sent to Rx but it hasn't finished allocating.
+    ENABLED_CP_RX,  // Tagged Packet Group is enabled at CP and Rx.
+    ENABLED,        // Tagged Packet Group is enabled at CP, Rx and DP.
+    DISABLED_DP,    // Tagged Packet Group is disabled at DP. Message sent to Rx but it hasn't finished deallocating.
+    DISABLED_DP_RX, // Tagged Packet Group is disabled at DP and Rx.
+};
 
 /**************************************
- * Tagged Packet Group Control Plane Manager
+ * Tagged Packet Group Control Plane Context
  *************************************/
-class TPGCpMgr {
+class TPGCpCtx {
 public:
 
-    TPGCpMgr(const std::vector<uint8_t>& ports, uint32_t num_tpgids);
-    ~TPGCpMgr();
-    TPGCpMgr(const TPGCpMgr&) = delete;
-    TPGCpMgr& operator=(const TPGCpMgr&) = delete;
+    TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
+             const std::vector<uint8_t>& rx_ports,
+             const std::set<uint8_t>& cores,
+             const uint32_t num_tpgids,
+             const std::string& username);
+    ~TPGCpCtx();
+    TPGCpCtx(const TPGCpCtx&) = delete;
+    TPGCpCtx& operator=(const TPGCpCtx&) = delete;
 
     /**
-     * Get the vector of ports on which TPG must be active.
+     * Get the vector of ports on which this TPG context resides (Tx + Rx)
      *
      * @return vector<uint8_t>
-     *   Vector of ports on which Tagged Packet Grouping will be active.
+     *   Vector of ports on which this Tagged Packet Grouping context resides.
      **/
-    const std::vector<uint8_t>& get_ports() { return m_ports; }
+    const std::vector<uint8_t>& get_acquired_ports() { return m_acquired_ports; }
+
+    /**
+     * Get the vector of ports on which this TPG context collects (Rx)
+     *
+     * @return vector<uint8_t>
+     *   Vector of ports on which this Tagged Packet Grouping context collects.
+     **/
+    const std::vector<uint8_t>& get_rx_ports() { return m_rx_ports; }
+
+    /**
+     * Get the set of cores on which this TPG context resides.
+     *
+     * @return set<uint8_t>
+     *   Set of cores on which this Tagged Packet Grouping context resides.
+     **/
+    const std::set<uint8_t>& get_cores() { return m_cores; }
 
     /**
      * Get the number of Tagged Packet Group Identifiers.
@@ -304,12 +360,36 @@ public:
     const uint32_t get_num_tpgids() { return m_num_tpgids; }
 
     /**
+     * Get the username that defines this TPG context.
+     *
+     * @return string
+     *   Username that defines this context.
+     */
+    const std::string get_username() { return m_username; }
+
+    /**
      * Get the Packet Group Tag Manager
      *
      * @return
      *   Packet Group Tag Manager
      */
     PacketGroupTagMgr* get_tag_mgr() { return m_tag_mgr; }
+
+    /**
+     * Get the state of Tagged Packet Group Context.
+     *
+     * @return TPGState
+     *   State of Tagged Packet Group Context
+     */
+    const TPGState get_tpg_state() { return m_tpg_state; }
+
+    /**
+     * Set the state of Tagged Packet Group Context.
+     *
+     * @param tpg_state
+     *   State of Tagged Packet Group Context
+     */
+    void set_tpg_state(TPGState tpg_state) { m_tpg_state = tpg_state; }
 
     /**
      * Check if port set to collect TPG stats.
@@ -321,49 +401,17 @@ public:
      *   True iff port is defined as a port that collects TPG stats.
      **/
     bool is_port_collecting(uint8_t port_id) {
-        return std::find(m_ports.begin(), m_ports.end(), port_id) != m_ports.end();
+        return std::find(m_rx_ports.begin(), m_rx_ports.end(), port_id) != m_rx_ports.end();
     }
 
 private:
-    const std::vector<uint8_t>    m_ports;            // Ports on which TPG is active
+    const std::vector<uint8_t>    m_acquired_ports;   // Ports on which this TPG context resides (Tx + Rx)
+    const std::vector<uint8_t>    m_rx_ports;         // Ports on which this TPG context collects
+    const std::set<uint8_t>       m_cores;            // Cores on which this TPG context resides
     const uint32_t                m_num_tpgids;       // Number of Tagged Packet Group Identifiers
+    const std::string             m_username;         // Username that defines this TPG context.
     PacketGroupTagMgr*            m_tag_mgr;          // Tag Manager
-};
-
-/**
- * TPGState represents the state machine for the Tagged Packet Group Feature.
- * 1. By default the feature is disabled and the State Machine is set to TPG_DISABLED.
- * 2. When a user enables TPG (via RPC), we move to TPG_ENABLED_CP. In this state we allocate
- *    the PacketGroupTagMgr in CP and send an async message to start allocating to Rx (which can take a lot of time).
- * 3. When the allocation finishes we move to TPG_ENABLED_CP_RX.
- * 4. After number 3 finishes, the RPC enables TPG in DP. Now we move to TPG_ENABLED.
- * 5. The user can disable TPG via RPC. We disable TPG in DP and CP, sent a async message to Rx to deallocate
-      and move to TPG_DISABLED_DP_CP.
-   6. When the deallocation finished e move to TPG_DISABLED.
-
-    The following diagram describes the state machine:
-
-     -------------            -------------      -------------
-    |             | USER RPC |             |    |             |
-    |   DISABLED  | -------> |  ENABLED_CP | -> |   ENABLED   |
-    |             |          |             |    |    CP_RX    |
-     -------------            -------------      ------------- 
-            ↑                                          |
-            |                            AUTOMATIC RPC |
-            |                                          ↓
-     -------------                              -------------
-    |             |       USER RPC             |             |
-    |   DISABLED  |       <-------             |   ENABLED   |
-    |    DP_CP    |                            |             |
-     -------------                              -------------
-
-**/
-enum TPGState {
-    DISABLED,       // Tagged Packet Group is disabled. Default state.
-    ENABLED_CP,     // Tagged Packet Group is enabled at CP. Message sent to Rx but it hasn't finished allocating.
-    ENABLED_CP_RX,  // Tagged Packet Group is enabled at CP and Rx.
-    ENABLED,        // Tagged Packet Group is enabled at CP, Rx and DP.
-    DISABLED_DP_CP, // Tagged Packet Group is disabled at DP. Message sent to Rx but it hasn't finished deallocating.
+    TPGState                      m_tpg_state;        // State Machine for Tagged Packet Grouping
 };
 
 /**************************************
@@ -470,11 +518,6 @@ public:
      */
     void copy_state(TrexStream* from, TrexStream* to);
 
-    /**
-     * Set the maximal number of TPGIDs defined by the user.
-     **/
-    inline void set_num_tpgids(uint32_t num_tpgids) { m_num_tpgids = num_tpgids; }
-
 private:
 
     /**
@@ -522,7 +565,6 @@ private:
     CFlowStatParser*                                m_parser;        // Parser
     std::set<uint64_t>                              m_active_tpgids; // Active Tagged Packet Group Identifiers Per Port
     std::unordered_map<uint64_t, TPGStreamState>    m_stream_states; // State of the streams
-    uint32_t                                        m_num_tpgids;    // Number of Tagged Packet Group Identifiers
     bool                                            m_software_mode; // Are we running in software mode
 };
 

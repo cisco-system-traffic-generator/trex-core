@@ -68,8 +68,6 @@ protected:
         m_is_active      = false;
         m_ex_zmq_enabled = false;
         m_ezmq_use_tcp   = false;
-        m_tag_mgr        = nullptr;
-        m_tpg_enabled    = false;
     }
     ~CRxCore();
     
@@ -163,27 +161,34 @@ protected:
      * Indicate if Tagged Packet Grouping is enabled/disabled in RX.
      * Enabling/Disabling TPG is Rx can take a long time since
      * we might allocate/deallocate a lot of memory.
+     * This function is used both from Control Plane and Rx.
+     *
+     * @param username
+     *   Username for which we are checking if TPG is enabled.
      *
      * @return bool
-     *  True iff TPG is enabled in Rx.
+     *  True iff TPG is enabled in Rx for this username.
      **/
 
-    bool is_tpg_enabled() { return m_tpg_enabled; }
+    bool is_tpg_enabled(const std::string& username);
 
     /**
      * Enable Tagged Packet Grouping
      * Dynamically allocate counters for tagged packets
      *
-     * @param tpg_mgr
-     *   Tagged Packet Group Control Plane Manager.
+     * @param tpg_ctx
+     *   Tagged Packet Group Control Plane Context.
      **/
-    void enable_tpg(TPGCpMgr* tag_mgr);
+    void enable_tpg(TPGCpCtx* tpg_ctx);
 
     /**
      * Disable Tagged Packet Grouping.
-     * Remove all dynamically allocated counters in all ports.
+     * Remove all dynamically allocated counters in all ports of this context.
+     *
+     * @param tpg_ctx
+     *   Tagged Packet Group Control Plane Context.
      */
-    void disable_tpg();
+    void disable_tpg(TPGCpCtx* tpg_ctx);
 
     /**
      * Get Tagged Packet Group Statistics
@@ -269,18 +274,17 @@ protected:
     rx_port_mg_vec_t        m_rx_port_mngr_vec;
     CPPSMeasure             m_rx_pps;
     TXQueue                 m_tx_queue;
-    PacketGroupTagMgr*      m_tag_mgr;      // TPG Tag Manager (allocated on Rx)
 
     /* accessed from control core */
-    volatile bool           m_is_active;
-    volatile bool           m_tpg_enabled; // Indicate to CP if TPG is enabled/disabled
-    void*                   m_zmq_ctx;
-    void*                   m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
-    void*                   m_zmq_tx_socket; // in respect to TRex interface (emu->tx)
-    CZmqPacketWriter        m_zmq_wr;
-    CZmqPacketReader        m_zmq_rd;
-    bool                    m_ex_zmq_enabled;
-    bool                    m_ezmq_use_tcp;
+    volatile bool                           m_is_active;
+    std::unordered_map<std::string, bool>   m_tpg_enabled; // Indicate to CP if TPG is enabled/disabled per user
+    void*                                   m_zmq_ctx;
+    void*                                   m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
+    void*                                   m_zmq_tx_socket; // in respect to TRex interface (emu->tx)
+    CZmqPacketWriter                        m_zmq_wr;
+    CZmqPacketReader                        m_zmq_rd;
+    bool                                    m_ex_zmq_enabled;
+    bool                                    m_ezmq_use_tcp;
 
 };
 #endif

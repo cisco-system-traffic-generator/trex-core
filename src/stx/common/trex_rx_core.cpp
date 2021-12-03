@@ -38,7 +38,6 @@ CRxCore::~CRxCore(void) {
         delete iter_pair.second;
         iter_pair.second = nullptr;
     }
-    delete m_tag_mgr;
 }
 
 
@@ -657,37 +656,50 @@ CRxCore::tx_pkt(int port_id, const std::string &pkt) {
  * Tagged Packet Group
 *************************************/
 
-void CRxCore::enable_tpg(TPGCpMgr* tpg_mgr) {
+bool CRxCore::is_tpg_enabled(const std::string& username) {
+    // Value can exist in this map only as true (only when the feature is enabled)
+    return (m_tpg_enabled.find(username) != m_tpg_enabled.end());
+}
+
+void CRxCore::enable_tpg(TPGCpCtx* tpg_ctx) {
     /**
      * NOTE: All the statistics are allocated here. This can take a very long time, hence
      * we need to stop the watchdog.
      **/
+    const std::string username = tpg_ctx->get_username();
+    if (is_tpg_enabled(username)) {
+        // TPG already enabled for this username in Rx.
+        return;
+    }
     TrexWatchDog::getInstance().stop();
-    const std::vector<uint8_t>& port_vec = tpg_mgr->get_ports();
-    uint32_t num_tpgids = tpg_mgr->get_num_tpgids();
-    m_tag_mgr = new PacketGroupTagMgr(tpg_mgr->get_tag_mgr()); // Clone the Tag Manager for a locality performance impact
+    const std::vector<uint8_t>& rx_ports_vec = tpg_ctx->get_rx_ports();
+    uint32_t num_tpgids = tpg_ctx->get_num_tpgids();
 
-    for (uint8_t port: port_vec) {
-        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, m_tag_mgr);
+    for (uint8_t port: rx_ports_vec) {
+        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, tpg_ctx->get_tag_mgr());
     }
 
+    m_tpg_enabled[username] = true; // Add entry to map
     TrexWatchDog::getInstance().start();
-    m_tpg_enabled = true;
 }
 
-void CRxCore::disable_tpg() {
+void CRxCore::disable_tpg(TPGCpCtx* tpg_ctx) {
     /**
      * NOTE: All the statistics are de-allocated here. This can take a very long time, hence
      * we need to stop the watchdog.
      **/
-    TrexWatchDog::getInstance().stop();
-    for (auto& port_mgr : m_rx_port_mngr_vec) {
-        port_mgr->disable_tpg();
+    const std::string username = tpg_ctx->get_username();
+    if (!is_tpg_enabled(username)) {
+        // TPG already disabled for this username.
+        return;
     }
-    delete m_tag_mgr;
-    m_tag_mgr = nullptr;
+    TrexWatchDog::getInstance().stop();
+    const std::vector<uint8_t>& rx_ports_vec = tpg_ctx->get_rx_ports();
+    for (uint8_t port : rx_ports_vec) {
+        m_rx_port_mngr_vec[port]->disable_tpg();
+    }
+    m_tpg_enabled.erase(username); // Remove entry from map.
     TrexWatchDog::getInstance().start();
-    m_tpg_enabled = false;
 }
 
 void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
