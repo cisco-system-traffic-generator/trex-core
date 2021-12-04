@@ -4257,7 +4257,18 @@ NOTE: The *tag_id* is what we use to collect the stats.
 ===== Collecting port
 
 When enabling TPG, the user can specify on which ports he is interested collecting stats. This is the Rx port. In case the user doesn't provide a port, or a list of ports,
-by default TRex collects on all ports. Note that any port can collect and transmit.
+by default TRex collects on all the ports this user owns. Note that any port that the user has acquired can collect and transmit.
+
+===== Tagged Packet Group Context
+
+TPG works on per user basis, instead of the classic per port. When TPG is enabled, it is enabled for the user running the command on the ports he has acquired. A TPG instance per user is called a TPG context.
+
+* If the user acquires more ports after enabling TPG, TPG won't work on the new acquired ports.
+* If someone tries to acquire by force a port on which some TPG context resides, that TPG context is destroyed.
+* Ports can't be released if a TPG context is active on them.
+
+For more info, read the multiple user support section.
+
 
 ==== Limitations
 
@@ -4271,6 +4282,7 @@ The following conditions are requisite for TPG:
 ** Dot1Q
 ** QinQ
 * tag_id is limited to 16 bit.
+* Multiple User support is done through username, hence no session separation.
 
 Some more details:
 
@@ -4283,6 +4295,8 @@ these streams (which can attached to different Data Plane Cores) can put the seq
 
 In order to install the magic, tpgid and sequence number we require some overhead in the packet. That is why the last 16 bytes of the packet payload will be overridden.
 Packets that don't have at least 16 bytes of payload can't be used for TPG.
+
+Each TPG context is keyed by the username that creates it. The session that the username uses plays no factor.
 
 ==== Client Api
 
@@ -4725,6 +4739,305 @@ trex>tpg_status
 
 Tagged Packet Group is disabled
 ----
+
+==== Multiple Users Support
+
+TPG works on an user basis. We will understand this best through an example.
+
+In this example, we have a setup with 4 ports. Ports 0 and 3 are connected on a loopback and so are ports 1 and 2. Theoretically two different users can use the same TRex server at the same time,
+one user can work on ports 0 and 3, while the other on ports 1 and 2.
+
+So, *user1* uses the TRex Console on ports 0 and 3,
+
+[source, bash]
+----
+./trex-console -a 0 3 -u user1
+----
+
+while *user2* does so on ports 1 and 2.
+
+[source, bash]
+----
+./trex-console -a 1 2 -u user2
+----
+
+Both users start with TPG disabled. For example:
+
+[source, bash]
+----
+trex (ports: 0, 3)>tpg_status
+
+Tagged Packet Group is disabled
+----
+
+Now let's try and enable TPG for *user1*.
+
+[source, bash]
+----
+trex (ports: 0, 3)>tpg_enable -p 3 --num-tpgids 3 --tags stl/tpg_tags_conf.py -t --max-vlan 3   #<1>
+
+Enabling Tagged Packet Group                                 [SUCCESS]
+
+trex (ports: 0, 3)>tpg_status
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2
+----
+<1> User1 owns both ports 0 and 3 when he enabled TPG. He can transmit TPG streams from both of the ports but stats will be collected only at port 3.
+
+However, if we try and collect the status from the console that *user2* owns:
+
+[source, bash]
+----
+trex (ports: 1, 2)>tpg_status
+
+Tagged Packet Group is disabled
+----
+
+Yet, *user2* can see the TPG status of each port and each user, for example:
+
+[source, bash]
+----
+trex (ports: 1, 2)>tpg_status -u user1
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2
+
+trex (ports: 1, 2)>tpg_status -p 3
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2
+----
+
+*User2* can create his own TPG context on his own ports:
+
+[source, bash]
+----
+trex (ports: 1, 2)>tpg_enable --num-tpgids 10 --tags stl/tpg_tags_conf.py -t --max-vlan 10
+
+Enabling Tagged Packet Group                                 [SUCCESS]
+
+trex (ports: 1, 2)>tpg_status
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user2   |     [1, 2]     |  [1, 2]  |    10     |    9
+----
+
+Statistics can be collected by any user for any port that collects TPG stats. For example *user1* can get the statistics of port 2 even if this is not owned by him:
+
+[source, bash]
+----
+trex (ports: 0, 3)>tpg_stats -p 2 --tpgid 2 --max-tag 3
+Port 2, Tpgid 2, Tags = [0, 3]
+
+Tag Id | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+-------+---------+-------+-----------+-------------+---------------+------------+-------------
+ 0-2   |    0    |   0   |     0     |      0      |       0       |     0      |      0
+----
+
+Equally, *user2* can collect stats on port 3 (port 0 doesn't collect TPG):
+
+[source, bash]
+----
+trex (ports: 1, 2)>tpg_stats -p 0 --tpgid 0 --max-tag 1
+
+tpg_stats - Port 0 is not a valid port for TPG stats.
+
+trex (ports: 1, 2)>tpg_stats -p 3 --tpgid 0 --max-tag 1
+Port 3, Tpgid 0, Tags = [0, 1]
+
+Tag Id | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+-------+---------+-------+-----------+-------------+---------------+------------+-------------
+  0    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+----
+
+===== Changing Port Ownership
+
+Changing port ownership creates multiple corner cases when using TPG. We will show now a few examples that explain the behavior of each case.
+
+**Acquiring more ports**
+
+Suppose that *user1* starts with ports 0, 3. 
+
+[source, bash]
+----
+./trex-console -a 0 3 -u user1
+----
+
+He enables TPG on them:
+
+[source, bash]
+----
+trex (ports: 0, 3)>tpg_enable -p 3 --num-tpgids 3 --tags stl/tpg_tags_conf.py -t --max-vlan 3
+
+Enabling Tagged Packet Group                                 [SUCCESS]
+
+trex (ports: 0, 3)>tpg_status
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2
+----
+
+Now he acquires ports 1 and 2:
+
+[source, bash]
+----
+trex (ports: 0, 3)>acquire -p 1 2
+
+Acquiring ports [1, 2]:                                      [SUCCESS]
+
+9.29 [ms]
+
+trex>tpg_status
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2         #<1>
+----
+<1> Note that nothing changed TPG wise.
+
+If he tries to start some TPG traffic at ports 1 and 2 he will fail:
+
+[source, bash]
+----
+trex>start -p 1 2 -f stl/tpg_dot1q_vm.py
+
+Removing all streams from port(s) [1._, 2._]:                [SUCCESS]
+
+
+Attaching 1 streams to port(s) [1._]:                        [FAILED]
+
+
+start - Port 1 : *** Trying to add a TPG stream but TPG is not enabled in this port.
+----
+
+**Releasing ports**
+
+Continuing the previous example, now let's suppose *user1* wants to release ports 0 and 3 since he acquired ports 1 and 2.
+
+However, he can't do this without disabling TPG.
+
+[source, bash]
+----
+trex>release -p 0 3
+
+Releasing ports [0, 3]:                                      [FAILED]
+
+
+release - Port 0 : *** Please disable TPG in port 0 before releasing.
+Port 3 : *** Please disable TPG in port 3 before releasing.             #<1>
+
+trex>tpg_disable                                                        #<2>
+
+Disabling Tagged Packet Group                                [SUCCESS]
+
+trex>release -p 0 3                                                     #<3>
+
+Releasing ports [0, 3]:                                      [SUCCESS]
+
+7.07 [ms]
+
+trex (ports: 1, 2)>
+----
+<1> Releasing fails since there is an active TPG context on this port.
+<2> TPG context is disabled
+<3> Releasing succeeds.
+
+**Force Acquiring ports**
+
+Let's look at a completely new example. *user1* acquires ports 0 and 3.
+
+[source, bash]
+----
+./trex-console -a 0 3 -u user1
+----
+
+He enables TPG on them:
+
+[source, bash]
+----
+trex (ports: 0, 3)>tpg_enable -p 3 --num-tpgids 3 --tags stl/tpg_tags_conf.py -t --max-vlan 3
+
+Enabling Tagged Packet Group                                 [SUCCESS]
+
+trex (ports: 0, 3)>tpg_status
+
+Tagged Packet Group is enabled
+
+Tagged Packet Group Data
+
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 3]     |   [3]    |     3     |    2
+----
+
+Now comes *user2* and acquires ports 1 and 2.
+
+[source, bash]
+----
+./trex-console -a 1 2 -u user2
+----
+
+*user2* however is greedy and wants to acquire ports 0 and 3. He tries first without force.
+
+[source, bash]
+----
+trex (ports: 1, 2)>acquire -p 0 3
+
+Acquiring ports [0, 3]:                                      [FAILED]
+
+
+acquire - Port 0 : *** port is already owned by another session of 'user1'
+Port 3 : *** port is already owned by another session of 'user1'
+----
+
+However, he now decides to use force:
+
+[source, bash]
+----
+trex (ports: 1, 2)>acquire -p 0 3 --force
+
+Force acquiring ports [0, 3]:
+Found TPG Context of user user1 in ports [0, 3]               #<1>
+Disabling Tagged Packet Group                                [SUCCESS]
+
+[SUCCESS]
+
+205.12 [ms]
+
+trex>
+----
+<1> When using the force flag, existing TPG contexts on the ports that are going to be acquired are disabled.
+
 
 === Functional Tutorials
 
