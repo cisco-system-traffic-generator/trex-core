@@ -183,7 +183,7 @@ def rx_example(tx_port, rx_port, burst_size, pps, qinq, vlans, verbose, ignore_s
         num_tags = len(tags)
 
         # enable tpg
-        c.enable_tpg(num_tpgids=num_streams, tags=tags, ports=[rx_port])
+        c.enable_tpg(num_tpgids=num_streams, tags=tags, rx_ports=[rx_port])
 
         # add the streams
         c.add_streams(streams, ports=[tx_port])

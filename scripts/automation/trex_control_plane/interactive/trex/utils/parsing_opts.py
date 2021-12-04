@@ -1666,7 +1666,7 @@ class OPTIONS_DB_ARGS:
          'dest': 'ports',
          'action': 'merge',
          'type': int,
-         'help': 'A list of ports to collect TPG stats',
+         'help': 'A list of ports to collect TPG stats. Defaults to all acquired ports.',
          'default': []})
 
     TPG_ID = ArgumentPack(
@@ -1716,6 +1716,15 @@ class OPTIONS_DB_ARGS:
          'dest': "tags_conf",
          'required': True,
          'type': is_valid_file})
+
+    TPG_USERNAME = ArgumentPack(
+        ["-u", "--username"],
+        {"help": "TPG username. Defaults to actual username.",
+         "dest": "username",
+         "default": None,
+         "type": str,
+        }
+    )
 
 OPTIONS_DB = {}
 opt_index = 0
