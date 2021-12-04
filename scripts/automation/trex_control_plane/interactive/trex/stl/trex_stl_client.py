@@ -75,7 +75,8 @@ class TPGState:
     ENABLED_CP     = 1      # Tagged Packet Group Control Plane is enabled, message sent to Rx.
     ENABLED_CP_RX  = 2      # Tagged Packet Group Control Plane and Rx are enabled. Awaiting Data Plane.
     ENABLED        = 3      # Tagged Packet Group is enabled.
-    DISABLED_DP_CP = 4      # Tagged Packet Group Data/Control Plane disabled, message sent to Rx.
+    DISABLED_DP    = 4      # Tagged Packet Group Data Plane disabled, message sent to Rx.
+    DISABLED_DP_RX = 5      # Tagged Packet Group Data Plane and Rx disabled. Object can be destroyed.
 
 
 class STLClient(TRexClient):
@@ -376,6 +377,14 @@ class STLClient(TRexClient):
 
         if force:
             self.ctx.logger.pre_cmd("Force acquiring ports {0}:".format(ports))
+            for port in ports:
+                tpg_status = self.get_tpg_status(port=port)
+                enabled = tpg_status.get("enabled", False)
+                if enabled:
+                    username = tpg_status["data"]["username"]
+                    tpg_ports = tpg_status["data"]["acquired_ports"]
+                    self.ctx.logger.pre_cmd(format_text("Found TPG Context of user {} in ports {}".format(username, tpg_ports), "yellow"))
+                    self.disable_tpg(username)
         else:
             self.ctx.logger.pre_cmd("Acquiring ports {0}:".format(ports))
 
@@ -1623,7 +1632,7 @@ class STLClient(TRexClient):
     # Tagged Packet Grouping #
     ##########################
     @client_api('command', True)
-    def enable_tpg(self, num_tpgids, tags, ports = None):
+    def enable_tpg(self, num_tpgids, tags, rx_ports = None):
         """
         Enable Tagged Packet Grouping.
 
@@ -1675,9 +1684,9 @@ class STLClient(TRexClient):
                 value                            Dictionary that contains the value for the tag. Differs on each tag type.
                 ===============================  ===============
 
-            ports: list
-                List of rx ports on which we gather Tagged Packet Group Statistics. Optional. If not provided, 
-                data will be gathered on all ports.
+            rx_ports: list
+                List of rx ports on which we gather Tagged Packet Group Statistics. Optional. If not provided,
+                data will be gathered on all acquired ports.
         """
         def _validate_tag(tag):
             """
@@ -1734,32 +1743,46 @@ class STLClient(TRexClient):
                 for vlan in vlans:
                     _verify_vlan(vlan)
 
-        ports = ports if ports is not None else self.get_acquired_ports()
 
-        self.psv.validate('enable_tpg', ports)
+        acquired_ports = self.get_acquired_ports()
+        rx_ports = rx_ports if rx_ports is not None else acquired_ports
+
+        self.psv.validate('enable_tpg', rx_ports)
         validate_type("num_tpgids", num_tpgids, int)
         validate_type("tags", tags, list)
 
         for tag in tags:
             _validate_tag(tag)
 
+        # Validate that Rx ports are included in Acquired Ports
+        if not set(rx_ports).issubset(set(acquired_ports)):
+            raise TRexError("TPG Rx Ports {} must be acquired".format(rx_ports))
+
         self.ctx.logger.pre_cmd("Enabling Tagged Packet Group")
 
         # Enable TPG in CP and Rx async.
-        rc = self._transmit("enable_tpg_cp_rx", params = {"num_tpgids": num_tpgids, "ports": ports, "tags": tags})
+        params = {
+            "num_tpgids": num_tpgids,
+            "ports": acquired_ports,
+            "rx_ports": rx_ports,
+            "username": self.ctx.username,
+            "session_id": self.ctx.session_id,
+            "tags": tags
+        }
+        rc = self._transmit("enable_tpg_cp_rx", params=params)
 
         if not rc:
             raise TRexError(rc)
 
         tpg_state = TPGState.DISABLED
         while tpg_state != TPGState.ENABLED_CP_RX:
-            rc = self._transmit("get_tpg_state")
+            rc = self._transmit("get_tpg_state", params={"username": self.ctx.username})
             if not rc:
                 raise TRexError(rc)
             tpg_state = rc.data()
 
         # Enable TPG in DP Sync
-        rc = self._transmit("enable_tpg_dp")
+        rc = self._transmit("enable_tpg_dp", params={"username": self.ctx.username})
 
         self.ctx.logger.post_cmd(rc)
 
@@ -1767,7 +1790,7 @@ class STLClient(TRexClient):
             raise TRexError(rc)
 
     @client_api('command', True)
-    def disable_tpg(self):
+    def disable_tpg(self, username=None):
         """
         Disable Tagged Packet Grouping.
 
@@ -1776,29 +1799,51 @@ class STLClient(TRexClient):
         1. Disable TPG in DPs and Cp. Send a message to Rx to start deallocating.
 
         2. Wait until Rx finishes deallocating.
+
+        :parameters:
+            username: string
+                Username whose TPG context we want to disable. Optional. If not provided, we disable for the calling user.
         """
         self.ctx.logger.pre_cmd("Disabling Tagged Packet Group")
 
         # Disable TPG RPC simply indicates to the server to start deallocating the memory, it doesn't mean
         # it has finished deallocating
-        rc = self._transmit("disable_tpg")
+        username = self.ctx.username if username is None else username
+        rc = self._transmit("disable_tpg", params={"username": username})
 
         if not rc:
             raise TRexError(rc)
 
         tpg_state = TPGState.ENABLED
-        while tpg_state != TPGState.DISABLED:
-            rc = self._transmit("get_tpg_state")
+        while tpg_state != TPGState.DISABLED_DP_RX:
+            rc = self._transmit("get_tpg_state", params={"username": username})
             if not rc:
                 raise TRexError(rc)
             tpg_state = rc.data()
 
+        # State is set to TPGState.DISABLED_DP_RX, we can proceed to destroying the context.
+        rc = self._transmit("destroy_tpg_ctx", params={"username": username})
+
+        if not rc:
+            raise TRexError(rc)
+
         self.ctx.logger.post_cmd(rc)
 
     @client_api('getter', True)
-    def get_tpg_status(self):
+    def get_tpg_status(self, username=None, port=None):
         """
-        Get Tagged Packet Group Status from the server.
+        Get Tagged Packet Group Status from the server. We can collect the TPG status for a user or for a port.
+        If no parameters are provided we will collect for the calling user. 
+
+        .. note:: Only one between username and port should be provided.
+
+        :parameters:
+            username: str
+                Username whose TPG status we want to check. Optional. In case it isn't provided,
+                the username that runs the command will be used.
+
+            port: uint8
+                Port whose TPG status we want to check. Optional.
 
         :returns:
             dict: Tagged Packet Group Status from the server. The dictionary contains the following keys:
@@ -1808,21 +1853,34 @@ class STLClient(TRexClient):
 
                     {
                         "enabled": true,
-                        "ports": [0, 1],
+                        "rx_ports": [1],
+                        "acquired_ports": [0, 1],
                         "num_tpgids": 3,
-                        "num_tags": 10
+                        "num_tags": 10,
+                        "username": "bdollma"
                     }
 
                 ===============================  ===============
                 key                               Meaning
                 ===============================  ===============
                 enabled                          Boolean indicated if TPG is enabled/disabled.
-                ports                            Ports on which TPG is enabled. Relevant only if TPG is enabled.
+                rx_ports                         Ports on which TPG is collecting stats. Relevant only if TPG is enabled.
+                acquired_ports                   Ports on which TPG can transmit. Relevant only if TPG is enabled.
                 num_tpgids                       Number of Tagged Packet Groups. Relevant only if TPG is enabled.
                 num_tags                         Number of Tagged Packet Group Tags. Relevant only if TPG is enabled.
+                username                         User that owns this instance of TPG. Relevant only if TPG is enabled.
                 ===============================  ===============
         """
-        rc = self._transmit("get_tpg_status")
+        params = {}
+        if port is None:
+            params = {"username": self.ctx.username if username is None else username}
+        else:
+            self.psv.validate('get_tpg_status', [port])
+            if username is not None:
+                raise TRexError("Should provide only one between port and username for TPG status.")
+            params = {"port_id": port}
+
+        rc = self._transmit("get_tpg_status", params=params)
 
         if not rc:
             raise TRexError(rc)
@@ -2653,6 +2711,8 @@ class STLClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "tpg_status",
                                          self.show_tpg_status.__doc__,
+                                         parsing_opts.TPG_USERNAME,
+                                         parsing_opts.SINGLE_PORT_NOT_REQ
                                         )
 
         opts = parser.parse_args(line.split())
@@ -2662,7 +2722,7 @@ class STLClient(TRexClient):
 
         status = None
         try:
-            status = self.get_tpg_status()
+            status = self.get_tpg_status(opts.username, opts.port)
         except TRexError as e:
             s = format_text("{}".format(e.brief()), "bold", "red")
             raise TRexError(s)
@@ -2684,9 +2744,11 @@ class STLClient(TRexClient):
             if data is None:
                 self.logger.info(format_text("Data not found in server status response.\n", "bold", "magenta"))
 
-            keys_to_headers = [     {'key': 'num_tags',         'header': 'Num Tags'},
+            keys_to_headers = [     {'key': 'username',         'header': 'Username'},
+                                    {'key': 'acquired_ports',   'header': 'Acquired Ports'},
+                                    {'key': 'rx_ports',         'header': 'Rx Ports'},
                                     {'key': 'num_tpgids',       'header': 'Num TPGId'},
-                                    {'key': 'ports',            'header': 'Ports'},
+                                    {'key': 'num_tags',         'header': 'Num Tags'},
             ]
             kwargs = {'title': 'Tagged Packet Group Data',
                       'empty_msg': 'No status found', 
