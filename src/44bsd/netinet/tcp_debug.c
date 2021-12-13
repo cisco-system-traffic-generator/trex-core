@@ -32,7 +32,6 @@
  *	@(#)tcp_debug.c	8.1 (Berkeley) 6/10/93
  */
 
-#ifdef TREX_FBSD
 
 #include "sys_inet.h"
 
@@ -58,70 +57,6 @@ static const char *prurequests[] = {
 static const int tcpconsdebug = 1;
 #endif
 
-void tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen, struct tcphdr *th, int req);
-
-#else /* !TREX_FBSD */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include "opt_inet.h"
-#include "opt_inet6.h"
-#include "opt_tcpdebug.h"
-
-#ifdef TCPDEBUG
-/* load symbolic names */
-#define PRUREQUESTS
-#define TCPSTATES
-#define	TCPTIMERS
-#define	TANAMES
-#endif
-
-#include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/kernel.h>
-#include <sys/lock.h>
-#include <sys/mbuf.h>
-#include <sys/mutex.h>
-#include <sys/protosw.h>
-#include <sys/socket.h>
-
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#ifdef INET6
-#include <netinet/ip6.h>
-#endif
-#include <netinet/ip_var.h>
-#include <netinet/tcp.h>
-#include <netinet/tcp_fsm.h>
-#include <netinet/tcp_timer.h>
-#include <netinet/tcp_var.h>
-#include <netinet/tcpip.h>
-#include <netinet/tcp_debug.h>
-
-#ifdef TCPDEBUG
-static int		tcpconsdebug = 0;
-#endif
-
-/*
- * Global ring buffer of TCP debugging state.  Each entry captures a snapshot
- * of TCP connection state at any given moment.  tcp_debx addresses at the
- * next available slot.  There is no explicit export of this data structure;
- * it will be read via /dev/kmem by debugging tools.
- */
-static struct tcp_debug	tcp_debug[TCP_NDEBUG];
-static int		tcp_debx;
-
-/*
- * All global state is protected by tcp_debug_mtx; tcp_trace() is split into
- * two parts, one of which saves connection and other state into the global
- * array (locked by tcp_debug_mtx).
- */
-struct mtx		tcp_debug_mtx;
-MTX_SYSINIT(tcp_debug_mtx, &tcp_debug_mtx, "tcp_debug_mtx", MTX_DEF);
-
-#endif /* !TREX_FBSD */
 
 /*
  * Save TCP state at a given moment; optionally, both tcpcb and TCP packet
@@ -131,68 +66,7 @@ void
 tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
     struct tcphdr *th, int req)
 {
-#ifndef TREX_FBSD
-#ifdef INET6
-	int isipv6;
-#endif /* INET6 */
-	tcp_seq seq, ack;
-	int len, flags;
-	struct tcp_debug *td;
-
-	mtx_lock(&tcp_debug_mtx);
-	td = &tcp_debug[tcp_debx++];
-	if (tcp_debx == TCP_NDEBUG)
-		tcp_debx = 0;
-	bzero(td, sizeof(*td));
-#ifdef INET6
-	isipv6 = (ipgen != NULL && ((struct ip *)ipgen)->ip_v == 6) ? 1 : 0;
-#endif /* INET6 */
-	td->td_family =
-#ifdef INET6
-	    (isipv6 != 0) ? AF_INET6 :
-#endif
-	    AF_INET;
-#ifdef INET
-	td->td_time = iptime();
-#endif
-	td->td_act = act;
-	td->td_ostate = ostate;
-	td->td_tcb = (caddr_t)tp;
-	if (tp != NULL)
-		td->td_cb = *tp;
-	if (ipgen != NULL) {
-		switch (td->td_family) {
-#ifdef INET
-		case AF_INET:
-			bcopy(ipgen, &td->td_ti.ti_i, sizeof(td->td_ti.ti_i));
-			break;
-#endif
-#ifdef INET6
-		case AF_INET6:
-			bcopy(ipgen, td->td_ip6buf, sizeof(td->td_ip6buf));
-			break;
-#endif
-		}
-	}
-	if (th != NULL) {
-		switch (td->td_family) {
-#ifdef INET
-		case AF_INET:
-			td->td_ti.ti_t = *th;
-			break;
-#endif
-#ifdef INET6
-		case AF_INET6:
-			td->td_ti6.th = *th;
-			break;
-#endif
-		}
-	}
-	td->td_req = req;
-	mtx_unlock(&tcp_debug_mtx);
-#endif  /* !TREX_FBSD */
 #ifdef TCPDEBUG
-#ifdef TREX_FBSD
 	tcp_seq seq, ack;
 	int len, flags;
 #ifdef INET6
@@ -205,26 +79,19 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
         printf("\n(%3.3f) ", tcp_timer_ticks_to_msec(tcp_getticks(tp))/1000.0f);
         if (act == TA_USER)
                 printf("--- ");
-#endif /* TREX_FBSD */
 	if (tcpconsdebug == 0)
 		return;
 	if (tp != NULL)
-#ifndef TREX_FBSD
-		printf("%p %s:", tp, tcpstates[ostate]);
-#else
 	{
 		printf("[%s] ", tp->t_flags2 & TF2_SERVER_ROLE ? "S": "C");
 		printf("%p %s:", tp, ostate >= TCP_NSTATES ? "-": tcpstates[ostate]);
 	}
-#endif
 	else
 		printf("???????? ");
 	printf("%s ", tanames[act]);
 	switch (act) {
-#ifdef TREX_FBSD
 	case TA_RESPOND:
                 act = TA_OUTPUT;
-#endif
 	case TA_INPUT:
 	case TA_OUTPUT:
 	case TA_DROP:
@@ -241,19 +108,8 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 			seq = ntohl(seq);
 			ack = ntohl(ack);
 		}
-#ifndef TREX_FBSD
-		if (act == TA_OUTPUT)
-			len -= sizeof (struct tcphdr);
-#else
-			len -= th->th_off * 4;
-#endif
-#ifndef TREX_FBSD
-		if (len)
-			printf("[%x..%x)", seq, seq+len);
-		else
-			printf("%x", seq);
-		printf("@%x, urp=%x", ack, th->th_urp);
-#else /* TREX_FBSD */
+		len -= th->th_off * 4;
+
                 tcp_seq iseq = 0, iack = 0;
                 if (tp != NULL) {
                         switch(act) {
@@ -277,7 +133,7 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 		else
 			printf("%x", seq-iseq);
 		printf("@%x, urp=%x", ack-iack, th->th_urp);
-#endif /* TREX_FBSD */
+
 		flags = th->th_flags;
 		if (flags) {
 			char *cp = "<";

@@ -31,7 +31,6 @@
  *	@(#)tcp_output.c	8.4 (Berkeley) 5/24/95
  */
 
-#ifdef TREX_FBSD
 
 #include "sys_inet.h"
 #define TCPOUTFLAGS             // tcp_outflags @ tcp_fsm.h
@@ -59,119 +58,6 @@ int tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp);
 #define ticks               tcp_getticks(tp)
 #define tcp_ts_getticks()   tcp_getticks(tp)
 
-#else   /* !TREX_FBSD */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include "opt_inet.h"
-#include "opt_inet6.h"
-#include "opt_ipsec.h"
-#include "opt_kern_tls.h"
-#include "opt_tcpdebug.h"
-
-#include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/arb.h>
-#include <sys/domain.h>
-#ifdef TCP_HHOOK
-#include <sys/hhook.h>
-#endif
-#include <sys/kernel.h>
-#ifdef KERN_TLS
-#include <sys/ktls.h>
-#endif
-#include <sys/lock.h>
-#include <sys/mbuf.h>
-#include <sys/mutex.h>
-#include <sys/protosw.h>
-#include <sys/qmath.h>
-#include <sys/sdt.h>
-#include <sys/socket.h>
-#include <sys/socketvar.h>
-#include <sys/sysctl.h>
-#include <sys/stats.h>
-
-#include <net/if.h>
-#include <net/route.h>
-#include <net/route/nhop.h>
-#include <net/vnet.h>
-
-#include <netinet/in.h>
-#include <netinet/in_kdtrace.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/in_pcb.h>
-#include <netinet/ip_var.h>
-#include <netinet/ip_options.h>
-#ifdef INET6
-#include <netinet6/in6_pcb.h>
-#include <netinet/ip6.h>
-#include <netinet6/ip6_var.h>
-#endif
-#include <netinet/tcp.h>
-#define	TCPOUTFLAGS
-#include <netinet/tcp_fsm.h>
-#include <netinet/tcp_log_buf.h>
-#include <netinet/tcp_seq.h>
-#include <netinet/tcp_timer.h>
-#include <netinet/tcp_var.h>
-#include <netinet/tcpip.h>
-#include <netinet/cc/cc.h>
-#include <netinet/tcp_fastopen.h>
-#ifdef TCPPCAP
-#include <netinet/tcp_pcap.h>
-#endif
-#ifdef TCPDEBUG
-#include <netinet/tcp_debug.h>
-#endif
-#ifdef TCP_OFFLOAD
-#include <netinet/tcp_offload.h>
-#endif
-
-#include <netipsec/ipsec_support.h>
-
-#include <machine/in_cksum.h>
-
-#include <security/mac/mac_framework.h>
-
-VNET_DEFINE(int, path_mtu_discovery) = 1;
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, path_mtu_discovery, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(path_mtu_discovery), 1,
-	"Enable Path MTU Discovery");
-
-VNET_DEFINE(int, tcp_do_tso) = 1;
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, tso, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_do_tso), 0,
-	"Enable TCP Segmentation Offload");
-
-VNET_DEFINE(int, tcp_sendspace) = 1024*32;
-#define	V_tcp_sendspace	VNET(tcp_sendspace)
-SYSCTL_INT(_net_inet_tcp, TCPCTL_SENDSPACE, sendspace, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_sendspace), 0, "Initial send socket buffer size");
-
-VNET_DEFINE(int, tcp_do_autosndbuf) = 1;
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, sendbuf_auto, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_do_autosndbuf), 0,
-	"Enable automatic send buffer sizing");
-
-VNET_DEFINE(int, tcp_autosndbuf_inc) = 8*1024;
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, sendbuf_inc, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_autosndbuf_inc), 0,
-	"Incrementor step size of automatic send buffer");
-
-VNET_DEFINE(int, tcp_autosndbuf_max) = 2*1024*1024;
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, sendbuf_max, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_autosndbuf_max), 0,
-	"Max size of automatic send buffer");
-
-VNET_DEFINE(int, tcp_sendbuf_auto_lowat) = 0;
-#define	V_tcp_sendbuf_auto_lowat	VNET(tcp_sendbuf_auto_lowat)
-SYSCTL_INT(_net_inet_tcp, OID_AUTO, sendbuf_auto_lowat, CTLFLAG_VNET | CTLFLAG_RW,
-	&VNET_NAME(tcp_sendbuf_auto_lowat), 0,
-	"Modify threshold for auto send buffer growth to account for SO_SNDLOWAT");
-
-#endif  /* !TREX_FBSD */
 
 /*
  * Make sure that either retransmit or persist timer is set for SYN, FIN and
@@ -233,25 +119,12 @@ tcp_int_output(struct tcpcb *tp)
 int
 tcp_output(struct tcpcb *tp)
 {
-#ifndef TREX_FBSD
-	struct socket *so = tp->t_inpcb->inp_socket;
-#else
 	struct socket *so = tcp_getsocket(tp);
-#endif
 	int32_t len;
 	uint32_t recwin, sendwin;
 	int off, flags, error = 0;	/* Keep compiler happy */
-#ifndef TREX_FBSD
-	u_int if_hw_tsomaxsegcount = 0;
-	u_int if_hw_tsomaxsegsize = 0;
-#endif
 	struct mbuf *m;
 	struct ip *ip = NULL;
-#ifdef TCPDEBUG
-#ifndef TREX_FBSD
-	struct ipovly *ipov = NULL;
-#endif /* !TREX_FBSD */
-#endif
 	struct tcphdr *th;
 	u_char opt[TCP_MAXOLEN];
 	unsigned ipoptlen, optlen, hdrlen;
@@ -261,7 +134,7 @@ tcp_output(struct tcpcb *tp)
 	int idle, sendalot, curticks;
 	int sack_rxmit, sack_bytes_rxmt;
 	struct sackhole *p;
-	int tso, mtu;
+	int tso;
 	struct tcpopt to;
 #ifdef TCP_RFC7413
 	unsigned int wanted_cookie = 0;
@@ -274,18 +147,7 @@ tcp_output(struct tcpcb *tp)
 	struct ip6_hdr *ip6 = NULL;
 	int isipv6;
 
-#ifndef TREX_FBSD
-	isipv6 = (tp->t_inpcb->inp_vflag & INP_IPV6) != 0;
-#else
 	isipv6 = tcp_isipv6(tp);
-#endif
-#endif
-#ifdef KERN_TLS
-	const bool hw_tls = (so->so_snd.sb_flags & SB_TLS_IFNET) != 0;
-#else
-#ifndef TREX_FBSD
-	const bool hw_tls = false;
-#endif
 #endif
 
 	NET_EPOCH_ASSERT();
@@ -338,7 +200,6 @@ again:
 		tcp_sack_adjust(tp);
 	sendalot = 0;
 	tso = 0;
-	mtu = 0;
 	off = tp->snd_nxt - tp->snd_una;
 	sendwin = min(tp->snd_wnd, tp->snd_cwnd);
 
@@ -606,18 +467,7 @@ after_sack_rexmit:
 		ipsec_optlen = IPSEC_HDRSIZE(ipv4, tp->t_inpcb);
 #endif /* INET */
 #endif /* IPSEC */
-#ifndef TREX_FBSD // no IP options in IP header
-#ifdef INET6
-	if (isipv6)
-		ipoptlen = ip6_optlen(tp->t_inpcb);
-	else
-#endif
-	if (tp->t_inpcb->inp_options)
-		ipoptlen = tp->t_inpcb->inp_options->m_len -
-				offsetof(struct ipoption, ipopt_list);
-	else
-#endif /* !TREX_FBSD */
-		ipoptlen = 0;
+	ipoptlen = 0;
 #if defined(IPSEC) || defined(IPSEC_SUPPORT)
 	ipoptlen += ipsec_optlen;
 #endif
@@ -843,16 +693,7 @@ send:
 	 *	max_linkhdr + sizeof (struct tcpiphdr) + optlen <= MCLBYTES
 	 */
 	optlen = 0;
-#ifndef TREX_FBSD
-#ifdef INET6
-	if (isipv6)
-		hdrlen = sizeof (struct ip6_hdr) + sizeof (struct tcphdr);
-	else
-#endif
-		hdrlen = sizeof (struct tcpiphdr);
-#else
 	hdrlen = sizeof (struct tcphdr);
-#endif
 
 	if (flags & TH_SYN) {
 		tp->snd_nxt = tp->iss;
@@ -868,11 +709,7 @@ send:
 	if ((tp->t_flags & TF_NOOPT) == 0) {
 		/* Maximum segment size. */
 		if (flags & TH_SYN) {
-#ifndef TREX_FBSD
-			to.to_mss = tcp_mssopt(&tp->t_inpcb->inp_inc);
-#else
 			to.to_mss = tcp_mssopt(tp);
-#endif
 			to.to_flags |= TOF_MSS;
 
 #ifdef TCP_RFC7413
@@ -955,11 +792,7 @@ send:
 #endif /* TCP_SIGNATURE */
 
 		/* Processing the options. */
-#ifndef TREX_FBSD
-		hdrlen += optlen = tcp_addoptions(&to, opt);
-#else
 		hdrlen += optlen = tcp_addoptions(tp, &to, opt);
-#endif
 #ifdef TCP_RFC7413
 		/*
 		 * If we wanted a TFO option to be added, but it was unable
@@ -981,18 +814,8 @@ send:
 		flags &= ~TH_FIN;
 
 		if (tso) {
-#ifndef TREX_FBSD
-			u_int if_hw_tsomax;
-#endif
 			u_int moff;
 			int max_len;
-
-			/* extract TSO information */
-#ifndef TREX_FBSD /* change tp->t_tsomax to have TCP payload size only */
-			if_hw_tsomax = tp->t_tsomax;
-			if_hw_tsomaxsegcount = tp->t_tsomaxsegcount;
-			if_hw_tsomaxsegsize = tp->t_tsomaxsegsize;
-#endif
 
 			/*
 			 * Limit a TSO burst to prevent it from
@@ -1006,26 +829,15 @@ send:
 			 * Check if we should limit by maximum payload
 			 * length:
 			 */
-#ifndef TREX_FBSD
-			if (if_hw_tsomax != 0) {
-				/* compute maximum TSO length */
-				max_len = (if_hw_tsomax - hdrlen -
-				    max_linkhdr);
-#else /* TREX_FBSD */
 			if (tp->t_tsomax != 0) {
 				max_len = tp->t_tsomax - optlen;
-#endif
 				if (max_len <= 0) {
 					len = 0;
 				} else if (len > max_len) {
 					sendalot = 1;
 					len = max_len;
 				}
-#ifndef TREX_FBSD
 			}
-#else
-			}
-#endif
 
 			/*
 			 * Prevent the last segment from being
@@ -1087,17 +899,6 @@ send:
 	KASSERT(len + hdrlen + ipoptlen <= IP_MAXPACKET,
 	    ("%s: len > IP_MAXPACKET", __func__));
 
-#ifndef TREX_FBSD /* no need to check */
-/*#ifdef DIAGNOSTIC*/
-#ifdef INET6
-	if (max_linkhdr + hdrlen > MCLBYTES)
-#else
-	if (max_linkhdr + hdrlen > MHLEN)
-#endif
-		panic("tcphdr too big");
-/*#endif*/
-#endif /* !TREX_FBSD */
-
 	/*
 	 * This KASSERT is here to catch edge cases at a well defined place.
 	 * Before, those had triggered (random) panic conditions further down.
@@ -1110,12 +911,6 @@ send:
 	 * the template for sends on this connection.
 	 */
 	if (len) {
-#ifndef TREX_FBSD
-		struct mbuf *mb;
-		struct sockbuf *msb;
-		u_int moff;
-#endif
-
 		if ((tp->t_flags & TF_FORCEDATA) && len == 1) {
 			TCPSTAT_INC(tcps_sndprobe);
 #ifdef STATS
@@ -1129,12 +924,6 @@ send:
 		} else if (SEQ_LT(tp->snd_nxt, tp->snd_max) || sack_rxmit) {
 			tp->t_sndrexmitpack++;
 			TCPSTAT_INC(tcps_sndrexmitpack);
-#ifdef TREX_FBSD
-			if (!sack_rxmit && len > (tp->snd_max - tp->snd_nxt)) {
-				TCPSTAT_ADD(tcps_sndrexmitbyte, tp->snd_max - tp->snd_nxt);
-				TCPSTAT_ADD(tcps_sndbyte_ok, len - (tp->snd_max - tp->snd_nxt));
-			} else
-#endif
 			TCPSTAT_ADD(tcps_sndrexmitbyte, len);
 #ifdef STATS
 			stats_voi_update_abs_u32(tp->t_stats, VOI_TCP_RETXPB,
@@ -1142,78 +931,18 @@ send:
 #endif /* STATS */
 		} else {
 			TCPSTAT_INC(tcps_sndpack);
-#ifndef TREX_FBSD
-			TCPSTAT_ADD(tcps_sndbyte, len);
-#else
 			TCPSTAT_ADD(tcps_sndbyte_ok, len);
-#endif
 #ifdef STATS
 			stats_voi_update_abs_u64(tp->t_stats, VOI_TCP_TXPB,
 			    len);
 #endif /* STATS */
 		}
 
-#ifndef TREX_FBSD
-#ifdef INET6
-		if (MHLEN < hdrlen + max_linkhdr)
-			m = m_getcl(M_NOWAIT, MT_DATA, M_PKTHDR);
-		else
-#endif
-			m = m_gethdr(M_NOWAIT, MT_DATA);
-
-		if (m == NULL) {
-			SOCKBUF_UNLOCK(&so->so_snd);
-			error = ENOBUFS;
-			sack_rxmit = 0;
-			goto out;
-		}
-
-		m->m_data += max_linkhdr;
-		m->m_len = hdrlen;
-
-		/*
-		 * Start the m_copy functions from the closest mbuf
-		 * to the offset in the socket buffer chain.
-		 */
-		mb = sbsndptr_noadv(&so->so_snd, off, &moff);
-		if (len <= MHLEN - hdrlen - max_linkhdr && !hw_tls) {
-			m_copydata(mb, moff, len,
-			    mtod(m, caddr_t) + hdrlen);
-			if (SEQ_LT(tp->snd_nxt, tp->snd_max))
-				sbsndptr_adv(&so->so_snd, mb, len);
-			m->m_len += len;
-		} else {
-			if (SEQ_LT(tp->snd_nxt, tp->snd_max))
-				msb = NULL;
-			else
-				msb = &so->so_snd;
-			m->m_next = tcp_m_copym(mb, moff,
-			    &len, if_hw_tsomaxsegcount,
-			    if_hw_tsomaxsegsize, msb, hw_tls);
-			if (len <= (tp->t_maxseg - optlen)) {
-				/*
-				 * Must have ran out of mbufs for the copy
-				 * shorten it to no longer need tso. Lets
-				 * not put on sendalot since we are low on
-				 * mbufs.
-				 */
-				tso = 0;
-			}
-			if (m->m_next == NULL) {
-				SOCKBUF_UNLOCK(&so->so_snd);
-				(void) m_free(m);
-				error = ENOBUFS;
-				sack_rxmit = 0;
-				goto out;
-			}
-		}
-#else /* TREX_FBSD */
 		if (tcp_build_pkt(tp, off, len, hdrlen, optlen, &m, &th) != 0) {
 			error = ENOBUFS;
 			sack_rxmit = 0;
 			goto out;
 		}
-#endif /* TREX_FBSD */
 
 		/*
 		 * If we're sending everything we've got, set PUSH.
@@ -1236,51 +965,13 @@ send:
 		else
 			TCPSTAT_INC(tcps_sndwinup);
 
-#ifndef TREX_FBSD
-		m = m_gethdr(M_NOWAIT, MT_DATA);
-		if (m == NULL) {
-			error = ENOBUFS;
-			sack_rxmit = 0;
-			goto out;
-		}
-#ifdef INET6
-		if (isipv6 && (MHLEN < hdrlen + max_linkhdr) &&
-		    MHLEN >= hdrlen) {
-			M_ALIGN(m, hdrlen);
-		} else
-#endif
-		m->m_data += max_linkhdr;
-		m->m_len = hdrlen;
-#else /* TREX_FBSD */
 		if (tcp_build_pkt(tp, 0, 0, hdrlen, optlen, &m, &th) != 0) {
 			error = ENOBUFS;
 			sack_rxmit = 0;
 			goto out;
 		}
-#endif /* TREX_FBSD */
 	}
 	SOCKBUF_UNLOCK_ASSERT(&so->so_snd);
-#ifndef TREX_FBSD
-	m->m_pkthdr.rcvif = (struct ifnet *)0;
-#ifdef MAC
-	mac_inpcb_create_mbuf(tp->t_inpcb, m);
-#endif
-#ifdef INET6
-	if (isipv6) {
-		ip6 = mtod(m, struct ip6_hdr *);
-		th = (struct tcphdr *)(ip6 + 1);
-		tcpip_fillheaders(tp->t_inpcb, ip6, th);
-	} else
-#endif /* INET6 */
-	{
-		ip = mtod(m, struct ip *);
-#ifdef TCPDEBUG
-		ipov = (struct ipovly *)ip;
-#endif
-		th = (struct tcphdr *)(ip + 1);
-		tcpip_fillheaders(tp->t_inpcb, ip, th);
-	}
-#else /* TREX_FBSD */
 	/* to support ECN in IP header */
 #ifdef INET6
 	if (isipv6) {
@@ -1290,7 +981,6 @@ send:
 	{
 		ip = ((struct ip *)th) - 1;
 	}
-#endif /* TREX_FBSD */
 
 	/*
 	 * Fill in fields, remembering maximum advertised
@@ -1432,10 +1122,6 @@ send:
 	} else
 		tp->t_flags &= ~TF_RXWIN0SENT;
 	if (SEQ_GT(tp->snd_up, tp->snd_nxt)) {
-#ifndef TREX_FBSD /* not support this for now - hhaim */
-		th->th_urp = htons((u_short)(tp->snd_up - tp->snd_nxt));
-		th->th_flags |= TH_URG;
-#endif
 	} else
 		/*
 		 * If no urgent pointer to send, then we pull
@@ -1444,75 +1130,6 @@ send:
 		 * number wraparound.
 		 */
 		tp->snd_up = tp->snd_una;		/* drag it along */
-
-#ifndef TREX_FBSD
-	/*
-	 * Put TCP length in extended header, and then
-	 * checksum extended header and data.
-	 */
-	m->m_pkthdr.len = hdrlen + len; /* in6_cksum() need this */
-	m->m_pkthdr.csum_data = offsetof(struct tcphdr, th_sum);
-
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-	if (to.to_flags & TOF_SIGNATURE) {
-		/*
-		 * Calculate MD5 signature and put it into the place
-		 * determined before.
-		 * NOTE: since TCP options buffer doesn't point into
-		 * mbuf's data, calculate offset and use it.
-		 */
-		if (!TCPMD5_ENABLED() || (error = TCPMD5_OUTPUT(m, th,
-		    (u_char *)(th + 1) + (to.to_signature - opt))) != 0) {
-			/*
-			 * Do not send segment if the calculation of MD5
-			 * digest has failed.
-			 */
-			m_freem(m);
-			goto out;
-		}
-	}
-#endif
-#ifdef INET6
-	if (isipv6) {
-		/*
-		 * There is no need to fill in ip6_plen right now.
-		 * It will be filled later by ip6_output.
-		 */
-		m->m_pkthdr.csum_flags = CSUM_TCP_IPV6;
-		th->th_sum = in6_cksum_pseudo(ip6, sizeof(struct tcphdr) +
-		    optlen + len, IPPROTO_TCP, 0);
-	}
-#endif
-#if defined(INET6) && defined(INET)
-	else
-#endif
-#ifdef INET
-	{
-		m->m_pkthdr.csum_flags = CSUM_TCP;
-		th->th_sum = in_pseudo(ip->ip_src.s_addr, ip->ip_dst.s_addr,
-		    htons(sizeof(struct tcphdr) + IPPROTO_TCP + len + optlen));
-
-		/* IP version must be set here for ipv4/ipv6 checking later */
-		KASSERT(ip->ip_v == IPVERSION,
-		    ("%s: IP version incorrect: %d", __func__, ip->ip_v));
-	}
-#endif
-
-	/*
-	 * Enable TSO and specify the size of the segments.
-	 * The TCP pseudo header checksum is always provided.
-	 */
-	if (tso) {
-		KASSERT(len > tp->t_maxseg - optlen,
-		    ("%s: len <= tso_segsz", __func__));
-		m->m_pkthdr.csum_flags |= CSUM_TSO;
-		m->m_pkthdr.tso_segsz = tp->t_maxseg - optlen;
-	}
-
-	KASSERT(len + hdrlen == m_length(m, NULL),
-	    ("%s: mbuf chain shorter than expected: %d + %u != %u",
-	    __func__, len, hdrlen, m_length(m, NULL)));
-#endif /* !TREX_FBSD */
 
 #ifdef TCP_HHOOK
 	/* Run HHOOK_TCP_ESTABLISHED_OUT helper hooks. */
@@ -1524,25 +1141,9 @@ send:
 	 * Trace.
 	 */
 	if (so->so_options & SO_DEBUG) {
-#ifndef TREX_FBSD
-		u_short save = 0;
-#ifdef INET6
-		if (!isipv6)
-#endif
-		{
-			save = ipov->ih_len;
-			ipov->ih_len = htons(m->m_pkthdr.len /* - hdrlen + (th->th_off << 2) */);
-		}
-		tcp_trace(TA_OUTPUT, tp->t_state, tp, mtod(m, void *), th, 0);
-#ifdef INET6
-		if (!isipv6)
-#endif
-		ipov->ih_len = save;
-#else   /* TREX_FBSD */
 		void *ipgen = isipv6 ? (void *)ip6 : (void *)ip;
 
 		tcp_trace(TA_OUTPUT, tp->t_state, tp, ipgen, th, 0);
-#endif
 	}
 #endif /* TCPDEBUG */
 	TCP_PROBE3(debug__output, tp, th, m);
@@ -1561,95 +1162,7 @@ send:
 	 * m->m_pkthdr.len should have been set before checksum calculation,
 	 * because in6_cksum() need it.
 	 */
-#ifndef TREX_FBSD
-#ifdef INET6
-	if (isipv6) {
-		/*
-		 * we separately set hoplimit for every segment, since the
-		 * user might want to change the value via setsockopt.
-		 * Also, desired default hop limit might be changed via
-		 * Neighbor Discovery.
-		 */
-		ip6->ip6_hlim = in6_selecthlim(tp->t_inpcb, NULL);
-
-		/*
-		 * Set the packet size here for the benefit of DTrace probes.
-		 * ip6_output() will set it properly; it's supposed to include
-		 * the option header lengths as well.
-		 */
-		ip6->ip6_plen = htons(m->m_pkthdr.len - sizeof(*ip6));
-
-		if (V_path_mtu_discovery && tp->t_maxseg > V_tcp_minmss)
-			tp->t_flags2 |= TF2_PLPMTU_PMTUD;
-		else
-			tp->t_flags2 &= ~TF2_PLPMTU_PMTUD;
-
-		if (tp->t_state == TCPS_SYN_SENT)
-			TCP_PROBE5(connect__request, NULL, tp, ip6, tp, th);
-
-		TCP_PROBE5(send, NULL, tp, ip6, tp, th);
-
-#ifdef TCPPCAP
-		/* Save packet, if requested. */
-		tcp_pcap_add(th, m, &(tp->t_outpkts));
-#endif
-
-		/* TODO: IPv6 IP6TOS_ECT bit on */
-		error = ip6_output(m, tp->t_inpcb->in6p_outputopts,
-		    &tp->t_inpcb->inp_route6,
-		    ((so->so_options & SO_DONTROUTE) ?  IP_ROUTETOIF : 0),
-		    NULL, NULL, tp->t_inpcb);
-
-		if (error == EMSGSIZE && tp->t_inpcb->inp_route6.ro_nh != NULL)
-			mtu = tp->t_inpcb->inp_route6.ro_nh->nh_mtu;
-	}
-#endif /* INET6 */
-#if defined(INET) && defined(INET6)
-	else
-#endif
-#ifdef INET
-    {
-	ip->ip_len = htons(m->m_pkthdr.len);
-#ifdef INET6
-	if (tp->t_inpcb->inp_vflag & INP_IPV6PROTO)
-		ip->ip_ttl = in6_selecthlim(tp->t_inpcb, NULL);
-#endif /* INET6 */
-	/*
-	 * If we do path MTU discovery, then we set DF on every packet.
-	 * This might not be the best thing to do according to RFC3390
-	 * Section 2. However the tcp hostcache migitates the problem
-	 * so it affects only the first tcp connection with a host.
-	 *
-	 * NB: Don't set DF on small MTU/MSS to have a safe fallback.
-	 */
-	if (V_path_mtu_discovery && tp->t_maxseg > V_tcp_minmss) {
-		ip->ip_off |= htons(IP_DF);
-		tp->t_flags2 |= TF2_PLPMTU_PMTUD;
-	} else {
-		tp->t_flags2 &= ~TF2_PLPMTU_PMTUD;
-	}
-
-	if (tp->t_state == TCPS_SYN_SENT)
-		TCP_PROBE5(connect__request, NULL, tp, ip, tp, th);
-
-	TCP_PROBE5(send, NULL, tp, ip, tp, th);
-
-#ifdef TCPPCAP
-	/* Save packet, if requested. */
-	tcp_pcap_add(th, m, &(tp->t_outpkts));
-#endif
-
-	error = ip_output(m, tp->t_inpcb->inp_options, &tp->t_inpcb->inp_route,
-	    ((so->so_options & SO_DONTROUTE) ? IP_ROUTETOIF : 0), 0,
-	    tp->t_inpcb);
-
-	if (error == EMSGSIZE && tp->t_inpcb->inp_route.ro_nh != NULL)
-		mtu = tp->t_inpcb->inp_route.ro_nh->nh_mtu;
-    }
-#endif /* INET */
-#else /* TREX_FBSD */
         error = tcp_ip_output(tp, m);
-#endif
 
 out:
 	/*
@@ -1813,14 +1326,6 @@ timer:
 			 */
 			if (tso)
 				tp->t_flags &= ~TF_TSO;
-#ifndef TREX_FBSD /* TCP_MSS_UPDATE */
-			if (mtu != 0) {
-				tcp_mss_update(tp, -1, mtu, NULL, NULL);
-				goto again;
-			}
-#else /* TREX_FBSD */
-			(void) mtu;
-#endif
 			return (error);
 		case EHOSTDOWN:
 		case EHOSTUNREACH:
@@ -1871,12 +1376,7 @@ tcp_setpersist(struct tcpcb *tp)
 	int tt;
 
 	tp->t_flags &= ~TF_PREVVALID;
-#ifndef TREX_FBSD
-	if (tcp_timer_active(tp, TT_REXMT))
-		panic("tcp_setpersist: retransmit pending");
-#else
 	assert(!tcp_timer_active(tp, TT_REXMT));
-#endif
 	/*
 	 * Start/restart persistence timer.
 	 */
@@ -1904,13 +1404,8 @@ tcp_setpersist(struct tcpcb *tp)
  * TCP Timestamps (12 bytes) and TCP Signatures (18 bytes) are present,
  * we only have 10 bytes for SACK options (40 - (12 + 18)).
  */
-#ifndef TREX_FBSD
-int
-tcp_addoptions(struct tcpopt *to, u_char *optp)
-#else
 int
 tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp)
-#endif
 {
 	u_int32_t mask, optlen = 0;
 
@@ -2044,11 +1539,7 @@ tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp)
 			break;
 			}
 		default:
-#ifndef TREX_FBSD
-			panic("%s: unknown TCP option type", __func__);
-#else
 			printf("%s: unknown TCP option type(0x%x)", __func__, mask);
-#endif
 			break;
 		}
 	}
@@ -2073,176 +1564,6 @@ tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp)
 	return (optlen);
 }
 
-#ifndef TREX_FBSD
-/*
- * This is a copy of m_copym(), taking the TSO segment size/limit
- * constraints into account, and advancing the sndptr as it goes.
- */
-struct mbuf *
-tcp_m_copym(struct mbuf *m, int32_t off0, int32_t *plen,
-    int32_t seglimit, int32_t segsize, struct sockbuf *sb, bool hw_tls)
-{
-#ifdef KERN_TLS
-	struct ktls_session *tls, *ntls;
-	struct mbuf *start;
-#endif
-	struct mbuf *n, **np;
-	struct mbuf *top;
-	int32_t off = off0;
-	int32_t len = *plen;
-	int32_t fragsize;
-	int32_t len_cp = 0;
-	int32_t *pkthdrlen;
-	uint32_t mlen, frags;
-	bool copyhdr;
-
-	KASSERT(off >= 0, ("tcp_m_copym, negative off %d", off));
-	KASSERT(len >= 0, ("tcp_m_copym, negative len %d", len));
-	if (off == 0 && m->m_flags & M_PKTHDR)
-		copyhdr = true;
-	else
-		copyhdr = false;
-	while (off > 0) {
-		KASSERT(m != NULL, ("tcp_m_copym, offset > size of mbuf chain"));
-		if (off < m->m_len)
-			break;
-		off -= m->m_len;
-		if ((sb) && (m == sb->sb_sndptr)) {
-			sb->sb_sndptroff += m->m_len;
-			sb->sb_sndptr = m->m_next;
-		}
-		m = m->m_next;
-	}
-	np = &top;
-	top = NULL;
-	pkthdrlen = NULL;
-#ifdef KERN_TLS
-	if (hw_tls && (m->m_flags & M_EXTPG))
-		tls = m->m_epg_tls;
-	else
-		tls = NULL;
-	start = m;
-#endif
-	while (len > 0) {
-		if (m == NULL) {
-			KASSERT(len == M_COPYALL,
-			    ("tcp_m_copym, length > size of mbuf chain"));
-			*plen = len_cp;
-			if (pkthdrlen != NULL)
-				*pkthdrlen = len_cp;
-			break;
-		}
-#ifdef KERN_TLS
-		if (hw_tls) {
-			if (m->m_flags & M_EXTPG)
-				ntls = m->m_epg_tls;
-			else
-				ntls = NULL;
-
-			/*
-			 * Avoid mixing TLS records with handshake
-			 * data or TLS records from different
-			 * sessions.
-			 */
-			if (tls != ntls) {
-				MPASS(m != start);
-				*plen = len_cp;
-				if (pkthdrlen != NULL)
-					*pkthdrlen = len_cp;
-				break;
-			}
-		}
-#endif
-		mlen = min(len, m->m_len - off);
-		if (seglimit) {
-			/*
-			 * For M_EXTPG mbufs, add 3 segments
-			 * + 1 in case we are crossing page boundaries
-			 * + 2 in case the TLS hdr/trailer are used
-			 * It is cheaper to just add the segments
-			 * than it is to take the cache miss to look
-			 * at the mbuf ext_pgs state in detail.
-			 */
-			if (m->m_flags & M_EXTPG) {
-				fragsize = min(segsize, PAGE_SIZE);
-				frags = 3;
-			} else {
-				fragsize = segsize;
-				frags = 0;
-			}
-
-			/* Break if we really can't fit anymore. */
-			if ((frags + 1) >= seglimit) {
-				*plen =	len_cp;
-				if (pkthdrlen != NULL)
-					*pkthdrlen = len_cp;
-				break;
-			}
-
-			/*
-			 * Reduce size if you can't copy the whole
-			 * mbuf. If we can't copy the whole mbuf, also
-			 * adjust len so the loop will end after this
-			 * mbuf.
-			 */
-			if ((frags + howmany(mlen, fragsize)) >= seglimit) {
-				mlen = (seglimit - frags - 1) * fragsize;
-				len = mlen;
-				*plen = len_cp + len;
-				if (pkthdrlen != NULL)
-					*pkthdrlen = *plen;
-			}
-			frags += howmany(mlen, fragsize);
-			if (frags == 0)
-				frags++;
-			seglimit -= frags;
-			KASSERT(seglimit > 0,
-			    ("%s: seglimit went too low", __func__));
-		}
-		if (copyhdr)
-			n = m_gethdr(M_NOWAIT, m->m_type);
-		else
-			n = m_get(M_NOWAIT, m->m_type);
-		*np = n;
-		if (n == NULL)
-			goto nospace;
-		if (copyhdr) {
-			if (!m_dup_pkthdr(n, m, M_NOWAIT))
-				goto nospace;
-			if (len == M_COPYALL)
-				n->m_pkthdr.len -= off0;
-			else
-				n->m_pkthdr.len = len;
-			pkthdrlen = &n->m_pkthdr.len;
-			copyhdr = false;
-		}
-		n->m_len = mlen;
-		len_cp += n->m_len;
-		if (m->m_flags & (M_EXT|M_EXTPG)) {
-			n->m_data = m->m_data + off;
-			mb_dupcl(n, m);
-		} else
-			bcopy(mtod(m, caddr_t)+off, mtod(n, caddr_t),
-			    (u_int)n->m_len);
-
-		if (sb && (sb->sb_sndptr == m) &&
-		    ((n->m_len + off) >= m->m_len) && m->m_next) {
-			sb->sb_sndptroff += m->m_len;
-			sb->sb_sndptr = m->m_next;
-		}
-		off = 0;
-		if (len != M_COPYALL) {
-			len -= n->m_len;
-		}
-		m = m->m_next;
-		np = &n->m_next;
-	}
-	return (top);
-nospace:
-	m_freem(top);
-	return (NULL);
-}
-#endif /* !TREX_FBSD */
 
 #ifdef TCP_SB_AUTOSIZE
 void

@@ -47,7 +47,6 @@
  *   http://caia.swin.edu.au/urp/newtcp/
  */
 
-#ifdef  TREX_FBSD
 
 #include "sys_inet.h"
 #include "tcp_int.h"
@@ -61,41 +60,12 @@ extern u_int tcp_maxseg(const struct tcpcb *);
 
 #define ticks   tcp_getticks(ccv->ccvc.tcp)
 
-#else   /* !TREX_FBSD */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include <sys/param.h>
-#include <sys/kernel.h>
-#include <sys/limits.h>
-#include <sys/malloc.h>
-#include <sys/module.h>
-#include <sys/socket.h>
-#include <sys/socketvar.h>
-#include <sys/sysctl.h>
-#include <sys/systm.h>
-
-#include <net/vnet.h>
-
-#include <netinet/tcp.h>
-#include <netinet/tcp_seq.h>
-#include <netinet/tcp_timer.h>
-#include <netinet/tcp_var.h>
-#include <netinet/cc/cc.h>
-#include <netinet/cc/cc_cubic.h>
-#include <netinet/cc/cc_module.h>
-
-#endif  /* !TREX_FBSD */
 
 static void	cubic_ack_received(struct cc_var *ccv, uint16_t type);
 static void	cubic_cb_destroy(struct cc_var *ccv);
 static int	cubic_cb_init(struct cc_var *ccv);
 static void	cubic_cong_signal(struct cc_var *ccv, uint32_t type);
 static void	cubic_conn_init(struct cc_var *ccv);
-#ifndef TREX_FBSD
-static int	cubic_mod_init(void);
-#endif
 static void	cubic_post_recovery(struct cc_var *ccv);
 static void	cubic_record_rtt(struct cc_var *ccv);
 static void	cubic_ssthresh_update(struct cc_var *ccv, uint32_t maxseg);
@@ -134,10 +104,6 @@ struct cubic {
 	int		t_last_cong_prev;
 };
 
-#ifndef TREX_FBSD
-static MALLOC_DEFINE(M_CUBIC, "cubic data",
-    "Per connection data required for the CUBIC congestion control algorithm");
-#endif
 
 struct cc_algo cubic_cc_algo = {
 	.name = "cubic",
@@ -146,9 +112,6 @@ struct cc_algo cubic_cc_algo = {
 	.cb_init = cubic_cb_init,
 	.cong_signal = cubic_cong_signal,
 	.conn_init = cubic_conn_init,
-#ifndef TREX_FBSD
-	.mod_init = cubic_mod_init,
-#endif
 	.post_recovery = cubic_post_recovery,
 	.after_idle = cubic_after_idle,
 };
@@ -274,11 +237,7 @@ cubic_after_idle(struct cc_var *ccv)
 static void
 cubic_cb_destroy(struct cc_var *ccv)
 {
-#ifndef TREX_FBSD
-	free(ccv->cc_data, M_CUBIC);
-#else
 	free(ccv->cc_data);
-#endif
 }
 
 static int
@@ -286,11 +245,7 @@ cubic_cb_init(struct cc_var *ccv)
 {
 	struct cubic *cubic_data;
 
-#ifndef TREX_FBSD
-	cubic_data = malloc(sizeof(struct cubic), M_CUBIC, M_NOWAIT|M_ZERO);
-#else
 	cubic_data = malloc(sizeof(struct cubic));
-#endif
 
 	if (cubic_data == NULL)
 		return (ENOMEM);
@@ -379,13 +334,6 @@ cubic_conn_init(struct cc_var *ccv)
 	cubic_data->max_cwnd = CCV(ccv, snd_cwnd);
 }
 
-#ifndef TREX_FBSD
-static int
-cubic_mod_init(void)
-{
-	return (0);
-}
-#endif /* !TREX_FBSD */
 
 /*
  * Perform any necessary tasks before we exit congestion recovery.
@@ -517,7 +465,3 @@ cubic_ssthresh_update(struct cc_var *ccv, uint32_t maxseg)
 	CCV(ccv, snd_ssthresh) = max(ssthresh, 2 * maxseg);
 }
 
-#ifndef TREX_FBSD
-DECLARE_CC_MODULE(cubic, &cubic_cc_algo);
-MODULE_VERSION(cubic, 1);
-#endif

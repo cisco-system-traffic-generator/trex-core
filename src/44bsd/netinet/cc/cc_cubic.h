@@ -41,10 +41,6 @@
 #ifndef _NETINET_CC_CUBIC_H_
 #define _NETINET_CC_CUBIC_H_
 
-#ifndef TREX_FBSD
-#include <sys/limits.h>
-#endif
-
 /* Number of bits of precision for fixed point math calcs. */
 #define	CUBIC_SHIFT		8
 
@@ -82,10 +78,6 @@
 
 /* Userland only bits. */
 #ifndef _KERNEL
-
-#ifndef TREX_FBSD
-extern int hz;
-#endif
 
 /*
  * Implementation based on the formulae found in the CUBIC Internet Draft

@@ -55,7 +55,6 @@
  *
  */
 
-#ifdef  TREX_FBSD
 
 #include "sys_inet.h"
 #include "tcp_int.h"
@@ -74,67 +73,21 @@ extern u_int tcp_maxseg(const struct tcpcb *);
 #define V_cc_do_abe             0
 #define V_cc_abe_frlossreduce   0
 
-#else   /* !TREX_FBSD */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include <sys/param.h>
-#include <sys/kernel.h>
-#include <sys/malloc.h>
-#include <sys/module.h>
-#include <sys/socket.h>
-#include <sys/socketvar.h>
-#include <sys/sysctl.h>
-#include <sys/systm.h>
-
-#include <net/vnet.h>
-
-#include <netinet/tcp.h>
-#include <netinet/tcp_seq.h>
-#include <netinet/tcp_var.h>
-#include <netinet/cc/cc.h>
-#include <netinet/cc/cc_module.h>
-#include <netinet/cc/cc_newreno.h>
-
-static MALLOC_DEFINE(M_NEWRENO, "newreno data",
-	"newreno beta values");
-
-#endif  /* !TREX_FBSD */
-
-#ifndef TREX_FBSD
-static void	newreno_cb_destroy(struct cc_var *ccv);
-#endif
 static void	newreno_ack_received(struct cc_var *ccv, uint16_t type);
 static void	newreno_after_idle(struct cc_var *ccv);
 static void	newreno_cong_signal(struct cc_var *ccv, uint32_t type);
 static void	newreno_post_recovery(struct cc_var *ccv);
-#ifndef TREX_FBSD
-static int newreno_ctl_output(struct cc_var *ccv, struct sockopt *sopt, void *buf);
-#endif
 
-#ifndef TREX_FBSD
-VNET_DEFINE_STATIC(uint32_t, newreno_beta) = 50;
-VNET_DEFINE_STATIC(uint32_t, newreno_beta_ecn) = 80;
-#define V_newreno_beta VNET(newreno_beta)
-#define V_newreno_beta_ecn VNET(newreno_beta_ecn)
-#else /* TREX_FBSD */
 #define V_newreno_beta 50
 #define V_newreno_beta_ecn 80
-#endif /* TREX_FBSD */
 
 struct cc_algo newreno_cc_algo = {
 	.name = "newreno",
-#ifndef TREX_FBSD
-	.cb_destroy = newreno_cb_destroy,
-#endif
 	.ack_received = newreno_ack_received,
 	.after_idle = newreno_after_idle,
 	.cong_signal = newreno_cong_signal,
 	.post_recovery = newreno_post_recovery,
-#ifndef TREX_FBSD
-	.ctl_output = newreno_ctl_output,
-#endif
 };
 
 struct newreno {
@@ -142,29 +95,6 @@ struct newreno {
 	uint32_t beta_ecn;
 };
 
-#ifndef TREX_FBSD
-static inline struct newreno *
-newreno_malloc(struct cc_var *ccv)
-{
-	struct newreno *nreno;
-
-	nreno = malloc(sizeof(struct newreno), M_NEWRENO, M_NOWAIT);
-	if (nreno != NULL) {
-		/* NB: nreno is not zeroed, so initialise all fields. */
-		nreno->beta = V_newreno_beta;
-		nreno->beta_ecn = V_newreno_beta_ecn;
-		ccv->cc_data = nreno;
-	}
-
-	return (nreno);
-}
-
-static void
-newreno_cb_destroy(struct cc_var *ccv)
-{
-	free(ccv->cc_data, M_NEWRENO);
-}
-#endif /* !TREX_FBSD */
 
 static void
 newreno_ack_received(struct cc_var *ccv, uint16_t type)
@@ -256,11 +186,7 @@ newreno_after_idle(struct cc_var *ccv)
 	 * maximum of the former ssthresh or 3/4 of the old cwnd, to
 	 * not exit slow-start prematurely.
 	 */
-#ifndef TREX_FBSD
-	rw = tcp_compute_initwnd(tcp_maxseg(ccv->ccvc.tcp));
-#else
 	rw = tcp_compute_initwnd(ccv->ccvc.tcp, tcp_maxseg(ccv->ccvc.tcp));
-#endif
 
 	CCV(ccv, snd_ssthresh) = max(CCV(ccv, snd_ssthresh),
 	    CCV(ccv, snd_cwnd)-(CCV(ccv, snd_cwnd)>>2));
@@ -361,98 +287,3 @@ newreno_post_recovery(struct cc_var *ccv)
 	}
 }
 
-#ifndef TREX_FBSD
-static int
-newreno_ctl_output(struct cc_var *ccv, struct sockopt *sopt, void *buf)
-{
-	struct newreno *nreno;
-	struct cc_newreno_opts *opt;
-
-	if (sopt->sopt_valsize != sizeof(struct cc_newreno_opts))
-		return (EMSGSIZE);
-
-	nreno = ccv->cc_data;
-	opt = buf;
-
-	switch (sopt->sopt_dir) {
-	case SOPT_SET:
-		/* We cannot set without cc_data memory. */
-		if (nreno == NULL) {
-			nreno = newreno_malloc(ccv);
-			if (nreno == NULL)
-				return (ENOMEM);
-		}
-		switch (opt->name) {
-		case CC_NEWRENO_BETA:
-			nreno->beta = opt->val;
-			break;
-		case CC_NEWRENO_BETA_ECN:
-			if (!V_cc_do_abe)
-				return (EACCES);
-			nreno->beta_ecn = opt->val;
-			break;
-		default:
-			return (ENOPROTOOPT);
-		}
-		break;
-	case SOPT_GET:
-		switch (opt->name) {
-		case CC_NEWRENO_BETA:
-			opt->val = (nreno == NULL) ?
-			    V_newreno_beta : nreno->beta;
-			break;
-		case CC_NEWRENO_BETA_ECN:
-			opt->val = (nreno == NULL) ?
-			    V_newreno_beta_ecn : nreno->beta_ecn;
-			break;
-		default:
-			return (ENOPROTOOPT);
-		}
-		break;
-	default:
-		return (EINVAL);
-	}
-
-	return (0);
-}
-#endif /* !TREX_FBSD */
-
-#ifndef TREX_FBSD
-static int
-newreno_beta_handler(SYSCTL_HANDLER_ARGS)
-{
-	int error;
-	uint32_t new;
-
-	new = *(uint32_t *)arg1;
-	error = sysctl_handle_int(oidp, &new, 0, req);
-	if (error == 0 && req->newptr != NULL ) {
-		if (arg1 == &VNET_NAME(newreno_beta_ecn) && !V_cc_do_abe)
-			error = EACCES;
-		else if (new == 0 || new > 100)
-			error = EINVAL;
-		else
-			*(uint32_t *)arg1 = new;
-	}
-
-	return (error);
-}
-
-SYSCTL_DECL(_net_inet_tcp_cc_newreno);
-SYSCTL_NODE(_net_inet_tcp_cc, OID_AUTO, newreno,
-    CTLFLAG_RW | CTLFLAG_MPSAFE, NULL,
-    "New Reno related settings");
-
-SYSCTL_PROC(_net_inet_tcp_cc_newreno, OID_AUTO, beta,
-    CTLFLAG_VNET | CTLTYPE_UINT | CTLFLAG_RW | CTLFLAG_NEEDGIANT,
-    &VNET_NAME(newreno_beta), 3, &newreno_beta_handler, "IU",
-    "New Reno beta, specified as number between 1 and 100");
-
-SYSCTL_PROC(_net_inet_tcp_cc_newreno, OID_AUTO, beta_ecn,
-    CTLFLAG_VNET | CTLTYPE_UINT | CTLFLAG_RW | CTLFLAG_NEEDGIANT,
-    &VNET_NAME(newreno_beta_ecn), 3, &newreno_beta_handler, "IU",
-    "New Reno beta ecn, specified as number between 1 and 100");
-
-DECLARE_CC_MODULE(newreno, &newreno_cc_algo);
-MODULE_VERSION(newreno, 1);
-#endif /* !TREX_FBSD */

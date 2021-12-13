@@ -72,7 +72,6 @@
  * Research Laboratory (NRL).
  */
 
-#ifdef  TREX_FBSD
 
 #include "sys_inet.h"
 #include "tcp_int.h"
@@ -98,87 +97,6 @@ static void tcp_sackhole_free(struct tcpcb *tp, struct sackhole *hole);
 static struct sackhole * tcp_sackhole_insert(struct tcpcb *tp, tcp_seq start, tcp_seq end, struct sackhole *after);
 static void tcp_sackhole_remove(struct tcpcb *tp, struct sackhole *hole);
 
-#else   /* ! TREX_FBSD */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include "opt_inet.h"
-#include "opt_inet6.h"
-#include "opt_tcpdebug.h"
-
-#include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/kernel.h>
-#include <sys/sysctl.h>
-#include <sys/malloc.h>
-#include <sys/mbuf.h>
-#include <sys/proc.h>		/* for proc0 declaration */
-#include <sys/protosw.h>
-#include <sys/socket.h>
-#include <sys/socketvar.h>
-#include <sys/syslog.h>
-#include <sys/systm.h>
-
-#include <machine/cpu.h>	/* before tcp_seq.h, for tcp_random18() */
-
-#include <vm/uma.h>
-
-#include <net/if.h>
-#include <net/if_var.h>
-#include <net/route.h>
-#include <net/vnet.h>
-
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/in_var.h>
-#include <netinet/in_pcb.h>
-#include <netinet/ip_var.h>
-#include <netinet/ip6.h>
-#include <netinet/icmp6.h>
-#include <netinet6/nd6.h>
-#include <netinet6/ip6_var.h>
-#include <netinet6/in6_pcb.h>
-#include <netinet/tcp.h>
-#include <netinet/tcp_fsm.h>
-#include <netinet/tcp_seq.h>
-#include <netinet/tcp_timer.h>
-#include <netinet/tcp_var.h>
-#include <netinet6/tcp6_var.h>
-#include <netinet/tcpip.h>
-#ifdef TCPDEBUG
-#include <netinet/tcp_debug.h>
-#endif /* TCPDEBUG */
-
-#include <machine/in_cksum.h>
-
-VNET_DECLARE(struct uma_zone *, sack_hole_zone);
-#define	V_sack_hole_zone		VNET(sack_hole_zone)
-
-SYSCTL_NODE(_net_inet_tcp, OID_AUTO, sack, CTLFLAG_RW | CTLFLAG_MPSAFE, 0,
-    "TCP SACK");
-VNET_DEFINE(int, tcp_do_sack) = 1;
-#define	V_tcp_do_sack			VNET(tcp_do_sack)
-SYSCTL_INT(_net_inet_tcp_sack, OID_AUTO, enable, CTLFLAG_VNET | CTLFLAG_RW,
-    &VNET_NAME(tcp_do_sack), 0, "Enable/Disable TCP SACK support");
-
-VNET_DEFINE(int, tcp_sack_maxholes) = 128;
-SYSCTL_INT(_net_inet_tcp_sack, OID_AUTO, maxholes, CTLFLAG_VNET | CTLFLAG_RW,
-    &VNET_NAME(tcp_sack_maxholes), 0,
-    "Maximum number of TCP SACK holes allowed per connection");
-
-VNET_DEFINE(int, tcp_sack_globalmaxholes) = 65536;
-SYSCTL_INT(_net_inet_tcp_sack, OID_AUTO, globalmaxholes, CTLFLAG_VNET | CTLFLAG_RW,
-    &VNET_NAME(tcp_sack_globalmaxholes), 0,
-    "Global maximum number of TCP SACK holes");
-
-VNET_DEFINE(int, tcp_sack_globalholes) = 0;
-SYSCTL_INT(_net_inet_tcp_sack, OID_AUTO, globalholes, CTLFLAG_VNET | CTLFLAG_RD,
-    &VNET_NAME(tcp_sack_globalholes), 0,
-    "Global number of TCP SACK holes currently allocated");
-
-#endif  /* ! TREX_FBSD */
 
 /*
  * This function will find overlaps with the currently stored sackblocks
@@ -478,21 +396,12 @@ tcp_sackhole_alloc(struct tcpcb *tp, tcp_seq start, tcp_seq end)
 {
 	struct sackhole *hole;
 
-#ifndef TREX_FBSD
-	if (tp->snd_numholes >= V_tcp_sack_maxholes ||
-	    V_tcp_sack_globalholes >= V_tcp_sack_globalmaxholes) {
-#else
 	if (tp->snd_numholes >= V_tcp_sack_maxholes) {
-#endif
 		TCPSTAT_INC(tcps_sack_sboverflow);
 		return NULL;
 	}
 
-#ifndef TREX_FBSD
-	hole = (struct sackhole *)uma_zalloc(V_sack_hole_zone, M_NOWAIT);
-#else
 	hole = (struct sackhole *)malloc(sizeof(struct sackhole));
-#endif
 	if (hole == NULL)
 		return NULL;
 
@@ -501,9 +410,6 @@ tcp_sackhole_alloc(struct tcpcb *tp, tcp_seq start, tcp_seq end)
 	hole->rxmit = start;
 
 	tp->snd_numholes++;
-#ifndef TREX_FBSD
-	atomic_add_int(&V_tcp_sack_globalholes, 1);
-#endif
 
 	return hole;
 }
@@ -515,16 +421,9 @@ static void
 tcp_sackhole_free(struct tcpcb *tp, struct sackhole *hole)
 {
 
-#ifndef TREX_FBSD
-	uma_zfree(V_sack_hole_zone, hole);
-#else
 	free(hole);
-#endif
 
 	tp->snd_numholes--;
-#ifndef TREX_FBSD
-	atomic_subtract_int(&V_tcp_sack_globalholes, 1);
-#endif
 
 	KASSERT(tp->snd_numholes >= 0, ("tp->snd_numholes >= 0"));
 	KASSERT(V_tcp_sack_globalholes >= 0, ("tcp_sack_globalholes >= 0"));
