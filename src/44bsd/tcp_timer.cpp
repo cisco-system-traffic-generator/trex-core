@@ -42,6 +42,7 @@
 #include "tcp_var.h"
 #include "tcpip.h"
 
+#ifndef TREX_FBSD
 
 const int   tcp_backoff[TCP_MAXRXTSHIFT + 1] =
     { 1, 2, 4, 8, 16, 32 };
@@ -54,7 +55,9 @@ const int	tcp_syn_backoff[TCP_MAXRXTSHIFT + 1] =
 
 int tcp_totbackoff = 511;   /* sum of tcp_backoff[] */
 
+#endif /* !TREX_FBSD */
 
+#ifndef TREX_FBSD
 /*
  * Fast timeout routine for processing delayed acks
  */
@@ -68,10 +71,12 @@ void tcp_fasttimo(CPerProfileCtx * pctx, struct tcpcb *tp){
             (void) tcp_output(pctx,tp);
         }
 }
+#endif
 
 
 
 
+#ifndef TREX_FBSD
 
 /*
  * Cancel all timers for TCP tp.
@@ -254,6 +259,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
     return (tp);
 }
 
+#endif /* !TREX_FBSD */
 
 
 /*
@@ -263,6 +269,7 @@ tcp_timers(CPerProfileCtx * pctx,struct tcpcb *tp, int timer){
  */
 void tcp_slowtimo(CPerProfileCtx * pctx, struct tcpcb *tp)
 {
+#ifndef TREX_FBSD
     int i;
 
     if (tp->t_state == TCPS_LISTEN)
@@ -280,5 +287,5 @@ void tcp_slowtimo(CPerProfileCtx * pctx, struct tcpcb *tp)
     if (tp->t_rtt){
         tp->t_rtt++;
     }
+#endif /* !TREX_FBSD */
 }
-

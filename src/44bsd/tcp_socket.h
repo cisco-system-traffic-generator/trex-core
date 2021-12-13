@@ -48,13 +48,22 @@
 
 
 
+#ifdef TREX_FBSD
+#include "netinet/tcp_socket.h"
+struct mbuf: public rte_mbuf {};
+#else /* !TREX_FBSD */
 struct  sockbuf {
     uint32_t    sb_cc;      /* actual chars in buffer */
     uint32_t    sb_hiwat;   /* max actual char count */
     short       sb_flags;   /* flags, see below */
     //short sb_timeo;   /* timeout for read/write */
 };
+#endif /* !TREX_FBSD */
 
+#ifdef TREX_FBSD
+#define US_SO_DEBUG     SO_DEBUG
+#define US_SO_KEEPALIVE SO_KEEPALIVE
+#else /* !TREX_FBSD */
 // so_state
 #define US_SS_CANTRCVMORE  1
 
@@ -80,6 +89,7 @@ struct  sockbuf {
 #define US_SO_NO_OFFLOAD    0x4000      /* socket cannot be offloaded */
 #define US_SO_NO_DDP    0x8000      /* disable direct data placement */
 
+#endif /* !TREX_FBSD */
 
 #define SB_MAX      (256*1024)  /* default for max chars in sockbuf */
 #define SB_LOCK     0x01        /* lock on data queue */
@@ -95,8 +105,10 @@ struct  sockbuf {
 
 struct tcp_socket * sonewconn(struct tcp_socket *head, int connstatus);
 
+#ifndef TREX_FBSD
 uint32_t    sbspace(struct sockbuf *sb); 
 //void    sbdrop(struct sockbuf *sb, int len);
+#endif /* !TREX_FBSD */
 
 int soabort(struct tcp_socket *so);
 void sowwakeup(struct tcp_socket *so);
@@ -896,7 +908,7 @@ private:
 class CTcpPerThreadCtx;
 
 
-class   CTcpSockBuf {
+class CTcpSockBuf: public sockbuf {
 
 public:
     void Create(uint32_t max_size){
@@ -930,11 +942,6 @@ public:
     inline void get_by_offset(struct tcp_socket *so,uint32_t offset,
                               CBufMbufRef & res);
 
-public:
-
-    uint32_t    sb_cc;      /* actual chars in buffer */
-    uint32_t    sb_hiwat;   /* max actual char count */
-    uint32_t    sb_flags;   /* flags, see below */
 };
 
 
@@ -944,6 +951,12 @@ public:
  * handle on protocol and pointer to protocol
  * private data and error information.
  */
+#ifdef TREX_FBSD
+class tcp_socket: public socket {
+public:
+    CEmulApp  *      m_app; /* call back pointer */
+};
+#else
 struct tcp_socket {
     short   so_options; 
     int     so_error;
@@ -956,6 +969,7 @@ struct tcp_socket {
 
     CEmulApp  *      m_app; /* call back pointer */
 };
+#endif
 
 
 inline void check_defer_functions(CEmulApp  *   app){

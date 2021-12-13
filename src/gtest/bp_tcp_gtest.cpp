@@ -119,7 +119,7 @@ TEST_F(gt_tcp, tst1) {
 TEST_F(gt_tcp, tst3) {
     printf(" MSS %d \n",(int)TCP_MSS);
     printf(" sizeof_tcpcb %d \n",(int)sizeof(tcpcb));
-    tcpstat tcp_stats;
+    CTcpStats tcp_stats;
     tcp_stats.Clear();
     tcp_stats.m_sts.tcps_accepts++;
     tcp_stats.m_sts.tcps_connects++;
@@ -859,6 +859,7 @@ void tcp_gen_test(std::string pcap_file,
                   std::vector<CTxRxCallback*> *callbacks=NULL){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
+    CTunnelTxRxCallback tunnel_tx_rx_callback(tunnel);
 
     lpt1->Create("generated",pcap_file);
     if (debug_mode){
@@ -886,7 +887,6 @@ void tcp_gen_test(std::string pcap_file,
 
     if (tunnel != NULL) {
         lpt1->m_tunnel = tunnel;
-        CTunnelTxRxCallback tunnel_tx_rx_callback(tunnel);
         lpt1->m_callbacks.push_back(&tunnel_tx_rx_callback);
     }
 

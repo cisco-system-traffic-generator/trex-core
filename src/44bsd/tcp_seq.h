@@ -36,6 +36,10 @@
  *  @(#)tcp_seq.h   8.3 (Berkeley) 6/21/95
  */
 
+#ifdef TREX_FBSD
+#include "netinet/tcp_seq.h"
+#else /* !TREX_FBSD */
+
 /*
  * TCP sequence numbers are 32 bit integers operated
  * on with modular arithmetic.  These macros can be
@@ -57,6 +61,7 @@
 #define tcp_sendseqinit(tp) \
     (tp)->snd_una = (tp)->snd_nxt = (tp)->snd_max = (tp)->snd_up = \
         (tp)->iss
+#endif /* !TREX_FBSD */
 
 /*
  * Increment for tcp_iss each second.

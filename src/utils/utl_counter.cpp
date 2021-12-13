@@ -138,7 +138,11 @@ bool  CTblGCounters::dump_line(FILE *fd,int index,bool desc){
     uint8_t size = m_counters.size();
     CGTblClmCounters* lp=m_counters[0];
     CGSimpleBase* lpcnt=lp->get_cnt(index);
+#ifndef TREX_FBSD
     fprintf(fd," %20s  |", lpcnt->get_name().c_str());
+#else
+    fprintf(fd," %26s  |", lpcnt->get_name().c_str());
+#endif
     for (i=0; i<size; i++) {
         lp=m_counters[i];
         lpcnt=lp->get_cnt(index);
@@ -262,7 +266,11 @@ void CTblGCounters::dump_table(FILE *fd,bool zeros,bool desc){
 
     uint8_t size=m_counters.size();
     int i;
+#ifndef TREX_FBSD
     fprintf(fd," %20s  |","");
+#else
+    fprintf(fd," %26s  |","");
+#endif
     for (i=0; i<size; i++) {
         CGTblClmCounters* lp=m_counters[i];
         fprintf(fd," %15s ",lp->get_name().c_str());

@@ -36,6 +36,9 @@
  *  @(#)tcp_fsm.h   8.1 (Berkeley) 6/10/93
  */
 
+#ifdef TREX_FBSD
+#include "netinet/tcp_fsm.h"
+#else /* !TREX_FBSD */
 /*
  * TCP FSM state definitions.
  * Per RFC793, September, 1981.
@@ -66,5 +69,6 @@
 int tcp_acounts[TCP_NSTATES][PRU_NREQ];
 #endif
 
+#endif /* !TREX_FBSD */
 
 #endif

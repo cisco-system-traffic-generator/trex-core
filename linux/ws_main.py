@@ -82,6 +82,7 @@ class SrcGroups:
 def options(opt):
     
     opt.load('compiler_cxx')
+    opt.load('compiler_c')
 
     co = opt.option_groups['configure options']
     co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
@@ -189,6 +190,7 @@ def configure_gcc(conf, explicit_paths = None):
     # use the system path
     if explicit_paths is None:
         conf.load('g++')
+        conf.load('gcc')
         return
 
     if type(explicit_paths) is not list:
@@ -202,6 +204,7 @@ def configure_gcc(conf, explicit_paths = None):
     try:
         conf.environ['PATH'] = explicit_path
         conf.load('g++')
+        conf.load('gcc')
     finally:
         conf.environ['PATH'] = saved
 
@@ -345,6 +348,19 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+tcp_src = SrcGroup(dir='src/44bsd/netinet',
+    src_list=[
+        'tcp_output.c',
+        'tcp_input.c',
+
+        'tcp_debug.c',
+        'tcp_sack.c',
+        'tcp_timer.c',
+        'tcp_subr.c',
+
+        'cc/cc_newreno.c',
+        'cc/cc_cubic.c',
+        ]);
 
 # STX - common code
 stx_src = SrcGroup(dir='src/stx/common',
@@ -513,7 +529,13 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-Wno-strict-aliasing',
                  '-Wno-address-of-packed-member',]
 
-
+cflags_base   =['-DWIN_UCODE_SIM',
+                '-DTREX_SIM',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                ]
 
 
 includes_path =''' ../src/pal/linux/
@@ -538,6 +560,7 @@ includes_path =''' ../src/pal/linux/
               ''';
 
 
+tcp_includes_path = '../src/44bsd ../src/44bsd/netinet'
 
 
 
@@ -653,6 +676,9 @@ class build_option:
     def get_target (self):
         return self.update_executable_name(self.name);
 
+    def get_tcp_target (self):
+        return self.update_executable_name("tcp")
+
     def get_flags (self, is_sanitized = False):
         flags = self.cxxcomp_flags(cxxflags_base);
         if is_sanitized:
@@ -663,7 +689,17 @@ class build_option:
             ]
 
         return flags
-        
+
+    def get_c_flags (self, is_sanitized = False):
+        flags = self.cxxcomp_flags(cflags_base);
+        if is_sanitized:
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
+        return flags
 
     def get_src (self):
         return self.src.file_list(top)
@@ -718,15 +754,21 @@ def build_prog (bld, build_obj):
     is_sanitized = bld.env.SANITIZED
     
     cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
+    cflags    = build_obj.get_c_flags(is_sanitized)
     linkflags = build_obj.get_link_flags(is_sanitized)
-    
-        
+
+    bld.stlib(features = 'c',
+              includes = tcp_includes_path,
+              cflags   = cflags + ['-DINET', '-DINET6', '-DTREX_FBSD', '-fno-builtin'],
+              source   = tcp_src.file_list(top),
+              target   = build_obj.get_tcp_target())
+
     bld.program(features='cxx cxxprogram', 
-                includes =  includes_path,
-                cxxflags =  cxxflags,
+                includes =  includes_path + tcp_includes_path,
+                cxxflags =  cxxflags + ['-DTREX_FBSD'],
                 linkflags = linkflags,
                 source = build_obj.get_src(),
-                use = build_obj.get_use_libs(),
+                use = build_obj.get_use_libs() + [build_obj.get_tcp_target()],
                 lib = ['pthread', 'z', 'dl'],
                 rpath  = bld.env.RPATH + build_obj.get_rpath(),
                 target = build_obj.get_target())
@@ -752,7 +794,6 @@ def build(bld):
     for obj in build_types:
         build_type(bld,obj);
 
-    
 
 def build_info(bld):
     pass;

@@ -36,10 +36,17 @@ limitations under the License.
 #include <sstream>
 #include <unistd.h>
 
+#ifdef TREX_FBSD
+void sbreserve(struct sockbuf *sb, u_int cc) {
+    sb->sb_hiwat = cc;
+}
+#endif
 
+#ifndef TREX_FBSD
 uint32_t sbspace(struct sockbuf *sb){
     return(sb->sb_hiwat - sb->sb_cc);
 }
+#endif
 
 
 void sbflush (struct sockbuf *sb){
@@ -62,6 +69,15 @@ void    sbappend(struct tcp_socket *so,
         /* zero mean got FIN */
     }
 }
+#ifdef TREX_FBSD
+void sbappend(struct sockbuf *sb, struct mbuf *m, int flags, struct socket *so) {
+    sbappend(static_cast<struct tcp_socket*>(so), sb, m, m->pkt_len);
+}
+
+void sbdrop(struct sockbuf *sb, int len, struct socket *so) {
+    static_cast<CTcpSockBuf*>(sb)->sbdrop((struct tcp_socket *)so, len);
+}
+#endif
 
 
 void    sbappend_bytes(struct tcp_socket *so,
@@ -147,6 +163,24 @@ void    soisdisconnected(struct tcp_socket *so){
     so->m_app->on_bh_event(te_SOISDISCONNECTED);
 }
 
+#ifdef TREX_FBSD
+void sorwakeup(struct socket *so) {
+    sorwakeup((struct tcp_socket *)so);
+}
+void sowwakeup(struct socket *so) {
+    sowwakeup((struct tcp_socket *)so);
+}
+void soisconnected(struct socket *so) {
+    soisconnected((struct tcp_socket *)so);
+}
+void soisdisconnected(struct socket *so) {
+    soisdisconnected((struct tcp_socket *)so);
+}
+void socantrcvmore(struct socket *so) {
+    ((struct tcp_socket *)so)->so_rcv.sb_state |= SBS_CANTRCVMORE;
+    socantrcvmore((struct tcp_socket *)so);
+}
+#endif
 
 
 void CBufMbufRef::Dump(FILE *fd){
@@ -651,7 +685,15 @@ void CEmulApp::on_bh_event(tcp_app_events_t event){
             m_flags|=taDO_DPC_NEXT;
             m_flags&=(~taDO_WAIT_CONNECTED);
         }
+#ifdef TREX_FBSD
+        m_pctx->set_time_connects();
+#endif
     }
+#ifdef TREX_FBSD
+    if (event==te_SOISDISCONNECTED) {
+        m_pctx->set_time_closed();
+    }
+#endif
     EMUL_LOG(0, "EVENT [%d]- %s \n",m_debug_id,get_tcp_app_events_name(event).c_str());
 }
 

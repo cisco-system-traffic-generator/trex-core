@@ -38,6 +38,11 @@
 
 #include <common/basic_utils.h>
         
+#ifdef TREX_FBSD
+#include "netinet/tcp.h"
+#define TCP_TSO_MAX_DEFAULT (56*1024) /* maximum packet size to TSO */
+#define TCP_INITWND_FACTOR (10)
+#else /* !TREX_FBSD */
              
 typedef uint32_t  tcp_seq;
 /*
@@ -104,5 +109,7 @@ struct tcphdr {
  */
 #define TCP_NODELAY 0x01    /* don't delay send to coalesce packets */
 #define TCP_MAXSEG  0x02    /* set maximum segment size */
+
+#endif /* !TREX_FBSD */
 
 #endif

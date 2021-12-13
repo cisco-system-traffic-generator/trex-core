@@ -40,11 +40,16 @@
 #include "tcp_var.h"
 #include "tcpip.h"
 
+#ifdef TREX_FBSD
+#include "netinet/tcp_debug.h"
+#else /* !TREX_FBSD */
+
 #define TA_INPUT    0
 #define TA_OUTPUT   1
 #define TA_USER     2
 #define TA_RESPOND  3
 #define TA_DROP     4
 
+#endif /* !TREX_FBSD */
 
 #endif

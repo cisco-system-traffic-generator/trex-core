@@ -413,6 +413,15 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_reasfree,"free tcp reasembly ctx");
     TCP_S_ADD_CNT_E(tcps_nombuf,"no mbuf for tcp - drop the packets");
 
+#ifdef TREX_FBSD
+    TCP_S_ADD_CNT_E(tcps_sack_recovery_episode,"SACK recovery episodes");
+    TCP_S_ADD_CNT_E(tcps_sack_rexmits,"SACK rexmit segments");
+    TCP_S_ADD_CNT_E(tcps_sack_rexmit_bytes,"SACK rexmit bytes");
+    TCP_S_ADD_CNT_E(tcps_sack_rcv_blocks,"SACK blocks (options) received");
+    TCP_S_ADD_CNT_E(tcps_sack_send_blocks,"SACK blocks (options) sent");
+    TCP_S_ADD_CNT_E(tcps_sack_sboverflow,"times scoreboard overflowed");
+#endif /* TREX_FBSD */
+
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"UDP");
     create_bar(&m_clm,"-");

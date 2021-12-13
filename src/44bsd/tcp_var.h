@@ -14,8 +14,14 @@
 #include "tcp_timer.h"
 #include "mbuf.h"
 #include "tcp_socket.h"
+//#ifndef TREX_FBSD
 #include "tcp_fsm.h"
 #include "tcp_debug.h"
+//#endif
+#ifdef TREX_FBSD
+#define EXTEND_TCPCB
+#include "netinet/tcp_int.h"
+#endif /* TREX_FBSD */
 #include <vector>
 #include "tcp_dpdk.h"
 #include "tcp_bsd_utl.h"
@@ -98,16 +104,24 @@ struct CTcpPkt {
 #define PACKET_TEMPLATE_SIZE (128)
 
 
+#ifndef TREX_FBSD
 struct tcpcb {
+#else
+struct tcpcb: public tcpcb_base {
+#endif
 
-    tcp_socket m_socket; 
+    tcp_socket m_socket;
 
     /* ====== size 8 bytes  */
 
+#ifndef TREX_FBSD
     uint16_t t_timer[TCPT_NTIMERS];  /* tcp timers */
     char    t_force;        /* 1 if forcing out a byte */
+#endif
     uint8_t mbuf_socket;    /* mbuf socket */
+#ifndef TREX_FBSD
     uint8_t t_dupacks;      /* consecutive dup acks recd */
+#endif
     uint16_t t_pkts_cnt;    /* packets arrived until ack */
     uint16_t m_delay_limit; /* packets limit without ack */
 #define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
@@ -119,6 +133,7 @@ struct tcpcb {
     uint8_t m_tuneable_flags;
     /*====== end =============*/
 
+#ifndef TREX_FBSD
     /* ======= size 12 bytes  */
 
     int16_t t_state;        /* state of this connection */
@@ -139,11 +154,15 @@ struct tcpcb {
 #define TF_NODELAY_PUSH 0x0400      /* other side said I could SACK */
 
     uint16_t  m_max_tso;        /* maximum packet size input to TSO */
+#else /* TREX_FBSD */
+#define m_max_tso   t_tsomax
+#endif /* TREX_FBSD */
 
     /*====== end =============*/
 
     /*====== size 15*4 = 60 bytes  */
 
+#ifndef TREX_FBSD
 /*
  * The following fields are used as in the protocol specification.
  * See RFC783, Dec. 1981, page 21.
@@ -210,6 +229,7 @@ struct tcpcb {
     uint32_t  ts_recent;      /* timestamp echo data */
     uint32_t  ts_recent_age;      /* when last updated */
     tcp_seq last_ack_sent;
+#endif /* !TREX_FBSD */
 
     /*====== size 128 + 8 = 132 bytes  */
 
@@ -251,6 +271,7 @@ public:
     
 };
 
+#ifndef TREX_FBSD
 #define intotcpcb(ip)   ((struct tcpcb *)(ip)->inp_ppcb)
 #define sototcpcb(so)   (intotcpcb(sotoinpcb(so)))
 
@@ -283,6 +304,7 @@ public:
  */
 #define TCP_REXMTVAL(tp) \
     (((tp)->t_srtt >> TCP_RTT_SHIFT) + (tp)->t_rttvar)
+#endif /* !TREX_FBSD */
 
 /* XXX
  * We want to avoid doing m_pullup on incoming packets but that
@@ -295,6 +317,9 @@ public:
 #define REASS_MBUF(ti) (*(struct mbuf **)&((ti)->ti_t))
 
 
+#ifdef TREX_FBSD
+struct  tcpstat_int_t: public tcpstat {
+#else
 struct  tcpstat_int_t {
     uint64_t    tcps_connattempt;   /* connections initiated */
     uint64_t    tcps_accepts;       /* connections accepted */
@@ -328,8 +353,10 @@ struct  tcpstat_int_t {
     uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
     uint64_t    tcps_keepprobe;     /* keepalive probes sent */
     uint64_t    tcps_keepdrops;     /* connections dropped in keepalive */
+#endif
     uint64_t    tcps_testdrops;     /* connections dropped at the end of the test due to --nc  */
 
+#ifndef TREX_FBSD
     uint64_t    tcps_sndrexmitpack; /* data packets retransmitted */
     uint64_t    tcps_sndrexmitbyte; /* data bytes retransmitted */
     uint64_t    tcps_sndprobe;      /* window probes sent */
@@ -343,9 +370,11 @@ struct  tcpstat_int_t {
     uint64_t    tcps_rcvdupbyte;    /* duplicate-only bytes received */
     uint64_t    tcps_rcvpartduppack;    /* packets with some duplicate data */
     uint64_t    tcps_rcvpartdupbyte;    /* dup. bytes in part-dup. packets */
+#endif
     uint64_t    tcps_rcvoopackdrop;     /* OOO packet drop due to queue len */
     uint64_t    tcps_rcvoobytesdrop;     /* OOO bytes drop due to queue len */
 
+#ifndef TREX_FBSD
     uint64_t    tcps_rcvoopack;     /* out-of-order packets received */
     uint64_t    tcps_rcvoobyte;     /* out-of-order bytes received */
     uint64_t    tcps_rcvpackafterwin;   /* packets with data after window */
@@ -359,12 +388,15 @@ struct  tcpstat_int_t {
     uint64_t    tcps_predack;       /* times hdr predict ok for acks */
     uint64_t    tcps_persistdrop;   /* timeout in persist state */
     uint64_t    tcps_badsyn;        /* bogus SYN, e.g. premature ACK */
+#endif
 
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
     uint64_t    tcps_notunnel;       /* no GTP Tunnel for tcp - drop the packets */
+#ifndef TREX_FBSD
     uint64_t    tcps_rcvackbyte_of;    /* bytes acked by rcvd acks */
+#endif
 };
 
 /*
@@ -372,14 +404,14 @@ struct  tcpstat_int_t {
  * Many of these should be kept per connection,
  * but that's inconvenient at the moment.
  */
-struct  tcpstat {
+struct  CTcpStats {
 
     tcpstat_int_t*  m_sts_tg_id;
     tcpstat_int_t   m_sts;
     uint16_t        m_num_of_tg_ids;
 public:
-    tcpstat(uint16_t num_of_tg_ids=1);
-    ~tcpstat();
+    CTcpStats(uint16_t num_of_tg_ids=1);
+    ~CTcpStats();
     void Init(uint16_t num_of_tg_ids);
     void Clear();
     void ClearPerTGID(uint16_t tg_id);
@@ -387,7 +419,9 @@ public:
     void Resize(uint16_t new_num_of_tg_ids);
 };
 
+#ifndef TREX_FBSD
 #define PRU_SLOWTIMO        19  /* 500ms timeout */
+#endif
 
 
 #ifdef TREX_SIM
@@ -891,6 +925,7 @@ class CAstfTemplatesRW;
 class CTcpTuneables;
 class CGenNode;
 
+#ifndef TREX_FBSD
 static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     uint32_t calc =mss*initwnd;
 
@@ -899,34 +934,51 @@ static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
     }
     return((uint16_t)calc);
 }
+#endif
 
 typedef void (*on_stopped_cb_t)(void *data, profile_id_t profile_id);
 
+#ifdef TREX_FBSD
+class CTcpTunableCtx: public tcp_tune {
+#else
 class CTcpTunableCtx {
+#endif
 public:
     /* TUNABLEs */
     uint32_t  tcp_tx_socket_bsize;
     uint32_t  tcp_rx_socket_bsize;
 
+#ifndef TREX_FBSD
     int tcprexmtthresh;
     int tcp_mssdflt;
     int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
     int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
+#else
+#define tcp_initwnd_factor  tcp_initcwnd_segments
+#endif
     uint32_t  sb_max ; /* socket max char */
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
+#ifndef TREX_FBSD
     int tcp_do_rfc1323;
+#endif
     int tcp_no_delay;
     int tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
+#ifndef TREX_FBSD
     int tcp_keepinit;
     int tcp_keepidle;       /* time before keepalive probes begin */
     int tcp_keepintvl;      /* time between keepalive probes */
+#endif
     int tcp_blackhole;
+#ifndef TREX_FBSD
     int tcp_keepcnt;
+#endif
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
     uint32_t tcp_fast_ticks;
+#ifndef TREX_FBSD
     uint32_t tcp_slow_fast_ratio;
+#endif
     int tcp_ttl;            /* time to live for TCP segs */
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
@@ -950,7 +1002,7 @@ public:
     CAstfTemplatesRW  * m_template_rw;
     CAstfDbRO         * m_template_ro;
 
-    struct tcpstat      m_tcpstat; /* tcp statistics */
+    struct CTcpStats    m_tcpstat; /* tcp statistics */
     struct CUdpStats    m_udpstat; /* udp statistics */
 
     uint32_t            m_stop_id;
@@ -1440,7 +1492,7 @@ public:
     void set_template_ro(CAstfDbRO* t, profile_id_t profile_id=0) { get_profile_ctx(profile_id)->m_template_ro = t; }
     void set_template_rw(CAstfTemplatesRW* t, profile_id_t profile_id) { get_profile_ctx(profile_id)->m_template_rw = t; }
 
-    struct tcpstat* get_tcpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
+    struct CTcpStats* get_tcpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
     struct CUdpStats* get_udpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_udpstat; }
 };
 
@@ -1630,13 +1682,13 @@ public:
 
     /* get space in bytes in the tx queue */
     virtual uint32_t get_tx_sbspace(CTcpFlow * flow){
-        return (flow->m_tcp.m_socket.so_snd.get_sbspace());
+        return (((CTcpSockBuf*)&flow->m_tcp.m_socket.so_snd)->get_sbspace());
     }
 
     /* add bytes to tx queue */
     virtual void tx_sbappend(CTcpFlow * flow,uint32_t bytes){
         INC_STAT_CNT(flow->m_pctx, flow->m_tg_id, tcps_sndbyte,bytes);
-        flow->m_tcp.m_socket.so_snd.sbappend(bytes);
+        ((CTcpSockBuf*)&flow->m_tcp.m_socket.so_snd)->sbappend(bytes);
     }
 
     virtual uint32_t  rx_drain(CTcpFlow * flow){
@@ -1726,12 +1778,17 @@ public:
 
 
 inline void CTcpFlow::on_tick(){
+#ifndef TREX_FBSD
         on_fast_tick();
         m_tick++;
         if (m_tick == m_pctx->m_tunable_ctx.tcp_slow_fast_ratio) {
             on_slow_tick();
             m_tick=0;
         }
+#else
+        m_tick++;
+        tcp_handle_timers(&m_tcp);
+#endif
 }
 
 

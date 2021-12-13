@@ -48,6 +48,10 @@
 #include <common/Network/Packet/EthernetHeader.h>
 #include <common/Network/Packet/VLANHeader.h>
 
+#ifdef TREX_FBSDx
+#include "netinet/tcpip.h"
+#define ti_len      ti_i.ih_len
+#else
  
 struct tcpiphdr {
     uint16_t  ih_len;
@@ -63,5 +67,6 @@ struct tcpiphdr {
 #define ti_sum      ti_t.th_sum
 #define ti_urp      ti_t.th_urp
 
+#endif
 
 #endif

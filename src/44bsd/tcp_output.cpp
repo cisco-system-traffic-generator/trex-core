@@ -277,7 +277,7 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
 
     m->pkt_len += dlen;
 
-    CTcpSockBuf *lptxs=&tp->m_socket.so_snd;
+    CTcpSockBuf *lptxs=(CTcpSockBuf*)&tp->m_socket.so_snd;
     while (dlen>0) {
         /* get blocks from socket buffer */
         CBufMbufRef  rb;
@@ -346,6 +346,30 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
     return(res);
 }
 
+#ifdef TREX_FBSD
+int
+tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp)
+{
+    CTcpPkt pkt;
+    int res;
+
+    pkt.m_optlen = optlen;
+    if (len) {
+        res = tcp_build_dpkt(tp->m_flow->m_pctx, tp, off, len, hdrlen, pkt);
+    } else {
+        res = tcp_build_cpkt(tp->m_flow->m_pctx, tp, hdrlen, pkt);
+    }
+
+    if (res == 0) {
+        *mp = (struct mbuf *)pkt.m_buf;
+        if (thp) {
+            *thp = (struct tcphdr *)pkt.lpTcp;
+        }
+    }
+
+    return res;
+}
+#endif
 
 /*
  * Send a single message to the TCP at address specified by
@@ -366,6 +390,7 @@ void tcp_respond(CPerProfileCtx * pctx,
             tcp_seq seq, 
             int flags){
     assert(tp);
+#ifndef TREX_FBSD
     uint32_t win = sbspace(&tp->m_socket.so_rcv);
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
@@ -381,11 +406,18 @@ void tcp_respond(CPerProfileCtx * pctx,
     ti->setWindowSize((uint16_t) (win >> tp->rcv_scale));
 
     ctx->m_cb->on_tx(ctx,tp,pkt.m_buf);
+#else
+    tcp_int_respond(tp, ack, seq, flags);
+#endif
 }
 
 
 
-
+#ifdef TREX_FBSD
+HOT_FUNC int tcp_output(CPerProfileCtx * pctx,struct tcpcb *tp) {
+    return tcp_int_output(tp);
+}
+#else
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */
@@ -886,5 +918,5 @@ void tcp_setpersist(CPerProfileCtx * pctx,
     }
 }
 
-
+#endif /* !TREX_FBSD */
 

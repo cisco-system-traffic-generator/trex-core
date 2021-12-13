@@ -1057,6 +1057,21 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp'])
 
+tcp_src = SrcGroup(dir='src/44bsd/netinet',
+    src_list=[
+        'tcp_output.c',
+        'tcp_input.c',
+
+        'tcp_debug.c',
+        'tcp_sack.c',
+        'tcp_timer.c',
+        'tcp_subr.c',
+
+        'cc/cc_newreno.c',
+        'cc/cc_cubic.c',
+        ]);
+
+
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
         src_list=[
@@ -2078,6 +2093,7 @@ includes_path = '''
                   '''
 
 
+tcp_includes_path = '../src/44bsd ../src/44bsd/netinet'
 
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
@@ -2230,6 +2246,9 @@ class build_option:
 
     def get_bnxtso_target (self):
         return self.update_executable_name("libbnxt")+'.so'
+
+    def get_tcp_target(self):
+        return self.update_executable_name("tcp")
 
     def get_mlx5_flags(self):
         flags=[]
@@ -2491,16 +2510,21 @@ def build_prog (bld, build_obj):
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
+    bld.stlib(features = 'c',
+              includes = tcp_includes_path,
+              cflags   = cflags + ['-DINET', '-DINET6', '-DTREX_FBSD', '-fno-builtin'],
+              source   = tcp_src.file_list(top),
+              target   = build_obj.get_tcp_target())
 
     inc_path = dpdk_includes_path + includes_path
     cxxflags_ext = ['',]
 
     bld.program(features='cxx cxxprogram',
-                includes =inc_path,
-                cxxflags = ( cxxflags + ['-std=gnu++11',]),
+                includes =inc_path + tcp_includes_path,
+                cxxflags = ( cxxflags + ['-std=gnu++11', '-DTREX_FBSD']),
                 linkflags = linkflags ,
                 lib=['pthread','dl', 'z'] + lib_ext,
-                use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
+                use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq', build_obj.get_tcp_target()],
                 source = bp.file_list(top) + debug_file_list,
                 rpath = rpath_linkage,
                 target = build_obj.get_target())

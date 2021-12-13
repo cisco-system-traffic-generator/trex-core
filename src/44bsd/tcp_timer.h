@@ -36,6 +36,9 @@
  *  @(#)tcp_timer.h 8.1 (Berkeley) 6/10/93
  */
 
+#ifdef TREX_FBSD
+#include "netinet/tcp_timer.h"
+#else /* !TREX_FBSD */
 /*
  * Definitions of the TCP timers.  These timers are counted
  * down PR_SLOWHZ times a second.
@@ -130,5 +133,6 @@ extern const int tcp_backoff[];
 extern const int tcp_syn_backoff[];
 
 
+#endif /* !TREX_FBSD */
 
 #endif
