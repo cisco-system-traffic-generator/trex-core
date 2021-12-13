@@ -91,8 +91,6 @@ tcp_default_fb_init(struct tcpcb *tp)
 
 	struct socket *so;
 
-	INP_WLOCK_ASSERT(tp->t_inpcb);
-
 	KASSERT(tp->t_state >= 0 && tp->t_state < TCPS_TIME_WAIT,
 	    ("%s: connection %p in unexpected state %d", __func__, tp,
 	    tp->t_state));
@@ -153,8 +151,6 @@ tcp_default_fb_init(struct tcpcb *tp)
 static void
 tcp_default_fb_fini(struct tcpcb *tp, int tcb_is_purged)
 {
-
-	INP_WLOCK_ASSERT(tp->t_inpcb);
 	return;
 }
 
@@ -196,7 +192,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	bool incl_opts;
 
 	KASSERT(tp != NULL || m != NULL, ("tcp_respond: tp and m both NULL"));
-	NET_EPOCH_ASSERT();
 
 #ifdef TCPDEBUG
 	isipv6 = tcp_isipv6(tp);
@@ -255,30 +250,14 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 		tlen += optlen = tcp_addoptions(tp, &to, optp);
 	} else
 		optlen = 0;
-#ifdef MAC
-	if (inp != NULL) {
-		/*
-		 * Packet is associated with a socket, so allow the
-		 * label of the response to reflect the socket label.
-		 */
-		INP_WLOCK_ASSERT(inp);
-		mac_inpcb_create_mbuf(inp, m);
-	} else {
-		/*
-		 * Packet is not associated with a socket, so possibly
-		 * update the label in place.
-		 */
-		mac_netinet_tcp_reply(m);
-	}
-#endif
-#ifdef TREX_FBSD
+
         if (tcp_build_pkt(tp, 0, 0, tlen, optlen, &m, &nth) != 0) {
                 return;
         }
 	if (optlen) {
 		bcopy(opt, nth + 1, optlen);
 	}
-#endif
+
 	nth->th_seq = htonl(seq);
 	nth->th_ack = htonl(ack);
 	nth->th_x2 = 0;
@@ -305,10 +284,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	if (tp == NULL || (tcp_getsocket(tp)->so_options & SO_DEBUG))
 		tcp_trace(TA_RESPOND, tp->t_state, tp, ipgen, nth, 0);
 #endif
-	TCP_PROBE3(debug__output, tp, nth, m);
-	if (flags & TH_RST)
-		TCP_PROBE5(accept__refused, NULL, NULL, m, tp, nth);
-
 	tcp_ip_output(tp, m);
 }
 
@@ -463,7 +438,6 @@ tcp_close(struct tcpcb *tp)
 	TCPSTAT_INC(tcps_closed);
 	if (tp->t_state != TCPS_CLOSED)
 		tcp_state_change(tp, TCPS_CLOSED);
-	KASSERT(inp->inp_socket != NULL, ("tcp_close: inp_socket NULL"));
 	so = tcp_getsocket(tp);
 	soisdisconnected(so);
 	return (tp);

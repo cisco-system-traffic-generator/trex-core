@@ -100,8 +100,6 @@ hhook_run_tcp_est_out(struct tcpcb *tp, struct tcphdr *th,
 static void inline
 cc_after_idle(struct tcpcb *tp)
 {
-	INP_WLOCK_ASSERT(tp->t_inpcb);
-
 	if (CC_ALGO(tp)->after_idle != NULL)
 		CC_ALGO(tp)->after_idle(tp->ccv);
 }
@@ -149,9 +147,6 @@ tcp_output(struct tcpcb *tp)
 
 	isipv6 = tcp_isipv6(tp);
 #endif
-
-	NET_EPOCH_ASSERT();
-	INP_WLOCK_ASSERT(tp->t_inpcb);
 
 #ifdef TCP_OFFLOAD
 	if (tp->t_flags & TF_TOE)
@@ -267,7 +262,6 @@ after_sack_rexmit:
 	if (tp->t_flags & TF_NEEDSYN)
 		flags |= TH_SYN;
 
-	SOCKBUF_LOCK(&so->so_snd);
 	/*
 	 * If in persist timeout with window of 0, send 1 byte.
 	 * Otherwise, if window is small but nonzero
@@ -673,11 +667,9 @@ dontupdate:
 	 * No reason to send a segment, just return.
 	 */
 just_return:
-	SOCKBUF_UNLOCK(&so->so_snd);
 	return (0);
 
 send:
-	SOCKBUF_LOCK_ASSERT(&so->so_snd);
 	if (len > 0) {
 		if (len >= tp->t_maxseg)
 			tp->t_flags2 |= TF2_PLPMTU_MAXSEGSNT;
@@ -883,7 +875,6 @@ send:
 				 * byte of the payload can be put into the
 				 * TCP segment.
 				 */
-				SOCKBUF_UNLOCK(&so->so_snd);
 				error = EMSGSIZE;
 				sack_rxmit = 0;
 				goto out;
@@ -953,9 +944,7 @@ send:
 		if (((uint32_t)off + (uint32_t)len == sbused(&so->so_snd)) &&
 		    !(flags & TH_SYN))
 			flags |= TH_PUSH;
-		SOCKBUF_UNLOCK(&so->so_snd);
 	} else {
-		SOCKBUF_UNLOCK(&so->so_snd);
 		if (tp->t_flags & TF_ACKNOW)
 			TCPSTAT_INC(tcps_sndacks);
 		else if (flags & (TH_SYN|TH_FIN|TH_RST))
@@ -971,7 +960,6 @@ send:
 			goto out;
 		}
 	}
-	SOCKBUF_UNLOCK_ASSERT(&so->so_snd);
 	/* to support ECN in IP header */
 #ifdef INET6
 	if (isipv6) {
@@ -1146,12 +1134,6 @@ send:
 		tcp_trace(TA_OUTPUT, tp->t_state, tp, ipgen, th, 0);
 	}
 #endif /* TCPDEBUG */
-	TCP_PROBE3(debug__output, tp, th, m);
-
-	/* We're getting ready to send; log now. */
-	TCP_LOG_EVENT(tp, th, &so->so_rcv, &so->so_snd, TCP_LOG_OUT, ERRNO_UNK,
-	    len, NULL, false);
-
 	/*
 	 * Fill in IP length and desired time to live and
 	 * send to IP level.  There should be a better way
@@ -1275,10 +1257,6 @@ timer:
 		    tcp_clean_dsack_blocks(tp);
 	}
 	if (error) {
-		/* Record the error. */
-		TCP_LOG_EVENT(tp, NULL, &so->so_rcv, &so->so_snd, TCP_LOG_OUT,
-		    error, 0, NULL, false);
-
 		/*
 		 * We know that the packet was lost, so back out the
 		 * sequence number advance, if any.
@@ -1304,7 +1282,6 @@ timer:
 			} else
 				tp->snd_nxt -= len;
 		}
-		SOCKBUF_UNLOCK_ASSERT(&so->so_snd);	/* Check gotos. */
 		switch (error) {
 		case EACCES:
 		case EPERM:

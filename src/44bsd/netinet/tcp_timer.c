@@ -228,7 +228,6 @@ void
 tcp_timer_persist(void *xtp)
 {
 	struct tcpcb *tp = xtp;
-	CURVNET_SET(tp->t_vnet);
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -280,7 +279,6 @@ void
 tcp_timer_rexmt(void * xtp)
 {
 	struct tcpcb *tp = xtp;
-	CURVNET_SET(tp->t_vnet);
 	int rexmt;
 #ifdef TCPDEBUG
 	int ostate;
@@ -288,7 +286,6 @@ tcp_timer_rexmt(void * xtp)
 	ostate = tp->t_state;
 #endif
 	tcp_free_sackholes(tp);
-	TCP_LOG_EVENT(tp, NULL, NULL, NULL, TCP_LOG_RTO, 0, 0, NULL, false);
 	if (tp->t_fb->tfb_tcp_rexmit_tmr) {
 		/* The stack has a timer action too. */
 		(*tp->t_fb->tfb_tcp_rexmit_tmr)(tp);
