@@ -186,7 +186,7 @@ int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
 
 
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
-                        struct tcpcb * tp,
+                        struct CTcpCb * tp,
                         rte_mbuf_t *m){
     int dir=1;
     assert(tp->m_flow);
@@ -611,8 +611,8 @@ int CClientServerTcp::test2(){
     app_c = &c_flow->m_app;
 
     /* IW=1 */
-    c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
-    s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
+    c_pctx->m_tunable_ctx.tcp_initwnd_factor = 1;
+    s_pctx->m_tunable_ctx.tcp_initwnd_factor = 1;
 
 
     /* CONST */
@@ -661,7 +661,7 @@ int CClientServerTcp::test2(){
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 
@@ -1091,8 +1091,9 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
     }
 
     /* IW=1 */
-    c_pctx->m_tunable_ctx.tcp_initwnd = c_pctx->m_tunable_ctx.tcp_mssdflt;
-    s_pctx->m_tunable_ctx.tcp_initwnd = s_pctx->m_tunable_ctx.tcp_mssdflt;
+    c_pctx->m_tunable_ctx.tcp_initwnd_factor = 1;
+    s_pctx->m_tunable_ctx.tcp_initwnd_factor = 1;
+
     c_flow = m_c_ctx.m_ft.alloc_flow(c_pctx,0x10000001,0x30000001,1025,80,m_vlan,m_ipv6,m_tunnel_info);
     CFlowKeyTuple   c_tuple;
     c_tuple.set_src_ip(0x10000001);
@@ -1150,7 +1151,7 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 
@@ -1291,7 +1292,7 @@ int CClientServerTcp::fill_from_file() {
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 

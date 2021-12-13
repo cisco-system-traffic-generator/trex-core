@@ -949,12 +949,12 @@ def getstatusoutput(cmd):
 main_src = SrcGroup(dir='src',
         src_list=[
              '44bsd/tcp_output.cpp',
-             '44bsd/tcp_timer.cpp',
-             '44bsd/tcp_debug.cpp',
+             #'44bsd/tcp_timer.cpp',
+             #'44bsd/tcp_debug.cpp',
              '44bsd/tcp_subr.cpp',
              '44bsd/flow_table.cpp',
              '44bsd/tcp_input.cpp',
-             '44bsd/tcp_usrreq.cpp',
+             #'44bsd/tcp_usrreq.cpp',
              '44bsd/tcp_socket.cpp',
              '44bsd/tcp_dpdk.cpp',
              '44bsd/sch_rampup.cpp',
@@ -1056,6 +1056,21 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'UDPHeader.cpp',
            'MacAddress.cpp',
            'VLANHeader.cpp'])
+
+tcp_src = SrcGroup(dir='src/44bsd/netinet',
+    src_list=[
+        'tcp_output.c',
+        'tcp_input.c',
+
+        'tcp_debug.c',
+        'tcp_sack.c',
+        'tcp_timer.c',
+        'tcp_subr.c',
+
+        'cc/cc_newreno.c',
+        'cc/cc_cubic.c',
+        ]);
+
 
 # JSON package
 json_src = SrcGroup(dir='external_libs/json',
@@ -2079,6 +2094,7 @@ includes_path = '''
                   '''
 
 
+tcp_includes_path = '../src/44bsd/netinet'
 
 bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
@@ -2231,6 +2247,9 @@ class build_option:
 
     def get_bnxtso_target (self):
         return self.update_executable_name("libbnxt")+'.so'
+
+    def get_tcp_target(self):
+        return self.update_executable_name("tcp")
 
     def get_mlx5_flags(self):
         flags=[]
@@ -2492,16 +2511,23 @@ def build_prog (bld, build_obj):
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
+    bld.objects(
+        features = 'c',
+        includes = tcp_includes_path,
+        cflags   = cflags,
+        source   = tcp_src.file_list(top),
+        target   = build_obj.get_tcp_target()
+        )
 
     inc_path = dpdk_includes_path + includes_path
     cxxflags_ext = ['',]
 
     bld.program(features='cxx cxxprogram',
-                includes =inc_path,
-                cxxflags = ( cxxflags + ['-std=gnu++11',]),
+                includes =inc_path + tcp_includes_path,
+                cxxflags = ( cxxflags + ['-std=gnu++11']),
                 linkflags = linkflags ,
                 lib=['pthread','dl', 'z'] + lib_ext,
-                use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq'],
+                use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq', build_obj.get_tcp_target()],
                 source = bp.file_list(top) + debug_file_list,
                 rpath = rpath_linkage,
                 target = build_obj.get_target())

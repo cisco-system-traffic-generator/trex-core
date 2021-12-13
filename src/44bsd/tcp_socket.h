@@ -48,40 +48,13 @@
 
 
 
-struct  sockbuf {
-    uint32_t    sb_cc;      /* actual chars in buffer */
-    uint32_t    sb_hiwat;   /* max actual char count */
-    short       sb_flags;   /* flags, see below */
-    //short sb_timeo;   /* timeout for read/write */
-};
+#include "netinet/tcp_socket.h"
+struct mbuf: public rte_mbuf {};
 
-// so_state
-#define US_SS_CANTRCVMORE  1
+#define US_SO_DEBUG     SO_DEBUG
+#define US_SO_KEEPALIVE SO_KEEPALIVE
 
-
-#define US_SO_DEBUG 0x0001      /* turn on debugging info recording */
-#define US_SO_ACCEPTCONN    0x0002      /* socket has had listen() */
-#define US_SO_REUSEADDR 0x0004      /* allow local address reuse */
-#define US_SO_KEEPALIVE 0x0008      /* keep connections alive */
-#define US_SO_DONTROUTE 0x0010      /* just use interface addresses */
-#define US_SO_BROADCAST 0x0020      /* permit sending of broadcast msgs */
-
-#define US_SO_LINGER    0x0080      /* linger on close if data present */
-#define US_SO_OOBINLINE 0x0100      /* leave received OOB data in line */
-//#if __BSD_VISIBLE
-
-#define US_SO_REUSEPORT 0x0200      /* allow local address & port reuse */
-
-#define US_SO_TIMESTAMP 0x0400      /* timestamp received dgram traffic */
-#define US_SO_NOSIGPIPE 0x0800      /* no SIGPIPE from EPIPE */
-#define US_SO_ACCEPTFILTER  0x1000      /* there is an accept filter */
-#define US_SO_BINTIME   0x2000      /* timestamp received dgram traffic */
-//#endif
-#define US_SO_NO_OFFLOAD    0x4000      /* socket cannot be offloaded */
-#define US_SO_NO_DDP    0x8000      /* disable direct data placement */
-
-
-#define SB_MAX      (256*1024)  /* default for max chars in sockbuf */
+//#define SB_MAX      (256*1024)  /* default for max chars in sockbuf */
 #define SB_LOCK     0x01        /* lock on data queue */
 #define SB_WANT     0x02        /* someone is waiting to lock */
 #define SB_WAIT     0x04        /* someone is waiting for data/space */
@@ -93,22 +66,11 @@ struct  sockbuf {
 
 
 
-struct tcp_socket * sonewconn(struct tcp_socket *head, int connstatus);
-
-uint32_t    sbspace(struct sockbuf *sb); 
-//void    sbdrop(struct sockbuf *sb, int len);
-
-int soabort(struct tcp_socket *so);
 void sowwakeup(struct tcp_socket *so);
 void sorwakeup(struct tcp_socket *so);
 
-
 void    soisdisconnected(struct tcp_socket *so);
 void    soisdisconnecting(struct tcp_socket *so);
-
-
-void sbflush (struct sockbuf *sb);
-//void    sbappend(struct sockbuf *sb, struct rte_mbuf *m);
 
 void    sbappend(struct tcp_socket *so,
                  struct sockbuf *sb, 
@@ -896,7 +858,7 @@ private:
 class CTcpPerThreadCtx;
 
 
-class   CTcpSockBuf {
+class CTcpSockBuf: public sockbuf {
 
 public:
     void Create(uint32_t max_size){
@@ -930,11 +892,6 @@ public:
     inline void get_by_offset(struct tcp_socket *so,uint32_t offset,
                               CBufMbufRef & res);
 
-public:
-
-    uint32_t    sb_cc;      /* actual chars in buffer */
-    uint32_t    sb_hiwat;   /* max actual char count */
-    uint32_t    sb_flags;   /* flags, see below */
 };
 
 
@@ -944,16 +901,8 @@ public:
  * handle on protocol and pointer to protocol
  * private data and error information.
  */
-struct tcp_socket {
-    short   so_options; 
-    int     so_error;
-    int     so_state;
-/*
- * Variables for socket buffering.
- */
-    struct  sockbuf so_rcv;
-    CTcpSockBuf     so_snd;
-
+struct tcp_socket: public socket {
+public:
     CEmulApp  *      m_app; /* call back pointer */
 };
 

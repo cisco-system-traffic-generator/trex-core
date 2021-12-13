@@ -62,7 +62,7 @@ private:
     void clear_aggregated_counters();
 
 public:
-    tcpstat             m_tcp;
+    CTcpStats           m_tcp;
     CUdpStats           m_udp;
     CSttFlowTableStats  m_ft;
 
