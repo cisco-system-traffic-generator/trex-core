@@ -102,26 +102,6 @@ static void tcp_newreno_partial_ack(struct tcpcb *, struct tcphdr *);
 #define tcp_ts_getticks()   tcp_getticks(tp)
 
 
-#ifdef TCP_HHOOK
-/*
- * Wrapper for the TCP established input helper hook.
- */
-void
-hhook_run_tcp_est_in(struct tcpcb *tp, struct tcphdr *th, struct tcpopt *to)
-{
-	struct tcp_hhook_data hhook_data;
-
-	if (V_tcp_hhh[HHOOK_TCP_EST_IN]->hhh_nhooks > 0) {
-		hhook_data.tp = tp;
-		hhook_data.th = th;
-		hhook_data.to = to;
-
-		hhook_run_hooks(V_tcp_hhh[HHOOK_TCP_EST_IN], &hhook_data,
-		    tp->osd);
-	}
-}
-#endif
-
 /*
  * CC wrapper hook functions
  */
@@ -129,10 +109,6 @@ void
 cc_ack_received(struct tcpcb *tp, struct tcphdr *th, uint16_t nsegs,
     uint16_t type)
 {
-#ifdef STATS
-	int32_t gput;
-#endif
-
 	tp->ccv->nsegs = nsegs;
 	tp->ccv->bytes_this_ack = BYTES_THIS_ACK(tp, th);
 	if ((!V_tcp_do_newcwv && (tp->snd_cwnd <= tp->snd_wnd)) ||
@@ -143,35 +119,6 @@ cc_ack_received(struct tcpcb *tp, struct tcphdr *th, uint16_t nsegs,
 		tp->ccv->flags &= ~CCF_CWND_LIMITED;
 
 	if (type == CC_ACK) {
-#ifdef STATS
-		stats_voi_update_abs_s32(tp->t_stats, VOI_TCP_CALCFRWINDIFF,
-		    ((int32_t)tp->snd_cwnd) - tp->snd_wnd);
-		if (!IN_RECOVERY(tp->t_flags))
-			stats_voi_update_abs_u32(tp->t_stats, VOI_TCP_ACKLEN,
-			   tp->ccv->bytes_this_ack / (tcp_maxseg(tp) * nsegs));
-		if ((tp->t_flags & TF_GPUTINPROG) &&
-		    SEQ_GEQ(th->th_ack, tp->gput_ack)) {
-			/*
-			 * Compute goodput in bits per millisecond.
-			 */
-			gput = (((int64_t)(th->th_ack - tp->gput_seq)) << 3) /
-			    max(1, tcp_ts_getticks() - tp->gput_ts);
-			stats_voi_update_abs_u32(tp->t_stats, VOI_TCP_GPUT,
-			    gput);
-			/*
-			 * XXXLAS: This is a temporary hack, and should be
-			 * chained off VOI_TCP_GPUT when stats(9) grows an API
-			 * to deal with chained VOIs.
-			 */
-			if (tp->t_stats_gput_prev > 0)
-				stats_voi_update_abs_s32(tp->t_stats,
-				    VOI_TCP_GPUT_ND,
-				    ((gput - tp->t_stats_gput_prev) * 100) /
-				    tp->t_stats_gput_prev);
-			tp->t_flags &= ~TF_GPUTINPROG;
-			tp->t_stats_gput_prev = gput;
-		}
-#endif /* STATS */
 		if (tp->snd_cwnd > tp->snd_ssthresh) {
 			tp->t_bytes_acked += tp->ccv->bytes_this_ack;
 			if (tp->t_bytes_acked >= tp->snd_cwnd) {
@@ -189,9 +136,6 @@ cc_ack_received(struct tcpcb *tp, struct tcphdr *th, uint16_t nsegs,
 		tp->ccv->curack = th->th_ack;
 		CC_ALGO(tp)->ack_received(tp->ccv, type);
 	}
-#ifdef STATS
-	stats_voi_update_abs_ulong(tp->t_stats, VOI_TCP_LCWIN, tp->snd_cwnd);
-#endif
 }
 
 void
@@ -219,10 +163,6 @@ cc_conn_init(struct tcpcb *tp)
 void inline
 cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type)
 {
-#ifdef STATS
-	stats_voi_update_abs_u32(tp->t_stats, VOI_TCP_CSIG, type);
-#endif
-
 	switch(type) {
 	case CC_NDUPACK:
 		if (!IN_FASTRECOVERY(tp->t_flags)) {
@@ -641,69 +581,6 @@ dropunlock:
 	return;
 }
 
-#ifdef TCP_SB_AUTOSIZE
-/*
- * Automatic sizing of receive socket buffer.  Often the send
- * buffer size is not optimally adjusted to the actual network
- * conditions at hand (delay bandwidth product).  Setting the
- * buffer size too small limits throughput on links with high
- * bandwidth and high delay (eg. trans-continental/oceanic links).
- *
- * On the receive side the socket buffer memory is only rarely
- * used to any significant extent.  This allows us to be much
- * more aggressive in scaling the receive socket buffer.  For
- * the case that the buffer space is actually used to a large
- * extent and we run out of kernel memory we can simply drop
- * the new segments; TCP on the sender will just retransmit it
- * later.  Setting the buffer size too big may only consume too
- * much kernel memory if the application doesn't read() from
- * the socket or packet loss or reordering makes use of the
- * reassembly queue.
- *
- * The criteria to step up the receive buffer one notch are:
- *  1. Application has not set receive buffer size with
- *     SO_RCVBUF. Setting SO_RCVBUF clears SB_AUTOSIZE.
- *  2. the number of bytes received during 1/2 of an sRTT
- *     is at least 3/8 of the current socket buffer size.
- *  3. receive buffer size has not hit maximal automatic size;
- *
- * If all of the criteria are met we increaset the socket buffer
- * by a 1/2 (bounded by the max). This allows us to keep ahead
- * of slow-start but also makes it so our peer never gets limited
- * by our rwnd which we then open up causing a burst.
- *
- * This algorithm does two steps per RTT at most and only if
- * we receive a bulk stream w/o packet losses or reorderings.
- * Shrinking the buffer during idle times is not necessary as
- * it doesn't consume any memory when idle.
- *
- * TODO: Only step up if the application is actually serving
- * the buffer to better manage the socket buffer resources.
- */
-int
-tcp_autorcvbuf(struct mbuf *m, struct tcphdr *th, struct socket *so,
-    struct tcpcb *tp, int tlen)
-{
-	int newsize = 0;
-
-	if (V_tcp_do_autorcvbuf && (so->so_rcv.sb_flags & SB_AUTOSIZE) &&
-	    tp->t_srtt != 0 && tp->rfbuf_ts != 0 &&
-	    TCP_TS_TO_TICKS(tcp_ts_getticks() - tp->rfbuf_ts) >
-	    ((tp->t_srtt >> TCP_RTT_SHIFT)/2)) {
-		if (tp->rfbuf_cnt > ((so->so_rcv.sb_hiwat / 2)/ 4 * 3) &&
-		    so->so_rcv.sb_hiwat < V_tcp_autorcvbuf_max) {
-			newsize = min((so->so_rcv.sb_hiwat + (so->so_rcv.sb_hiwat/2)), V_tcp_autorcvbuf_max);
-		}
-
-		/* Start over with next RTT. */
-		tp->rfbuf_ts = 0;
-		tp->rfbuf_cnt = 0;
-	} else {
-		tp->rfbuf_cnt += tlen;	/* add up */
-	}
-	return (newsize);
-}
-#endif  /* TCP_SB_AUTOSIZE */
 
 void
 tcp_handle_wakeup(struct tcpcb *tp, struct socket *so)
@@ -747,17 +624,12 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	thflags = th->th_flags;
 	tp->sackhint.last_sack_ack = 0;
 	sack_changed = 0;
-	nsegs = 1;
+	nsegs = 1;      /* TREX_FBSD: LRO not supported */
 
 	KASSERT(tp->t_state > TCPS_LISTEN, ("%s: TCPS_LISTEN",
 	    __func__));
 	KASSERT(tp->t_state != TCPS_TIME_WAIT, ("%s: TCPS_TIME_WAIT",
 	    __func__));
-
-#ifdef TCPPCAP
-	/* Save segment, if requested. */
-	tcp_pcap_add(th, m, &(tp->t_inpkts));
-#endif
 
 	if ((thflags & TH_SYN) && (thflags & TH_FIN) && V_drop_synfin) {
 		goto drop;
@@ -786,9 +658,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	 * For the SYN_SENT state the scale is zero.
 	 */
 	tiwin = th->th_win << tp->snd_scale;
-#ifdef STATS
-	stats_voi_update_abs_ulong(tp->t_stats, VOI_TCP_FRWIN, tiwin);
-#endif
 
 	/*
 	 * TCP ECN processing.
@@ -887,24 +756,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 		if ((tp->t_flags & TF_SACK_PERMIT) &&
 		    (to.to_flags & TOF_SACKPERM) == 0)
 			tp->t_flags &= ~TF_SACK_PERMIT;
-#ifdef TCP_RFC7413
-		if (IS_FASTOPEN(tp->t_flags)) {
-			if (to.to_flags & TOF_FASTOPEN) {
-				uint16_t mss;
-
-				if (to.to_flags & TOF_MSS)
-					mss = to.to_mss;
-				else
-					if ((tp->t_inpcb->inp_vflag & INP_IPV6) != 0)
-						mss = TCP6_MSS;
-					else
-						mss = TCP_MSS;
-				tcp_fastopen_update_cache(tp, mss,
-				    to.to_tfo_len, to.to_tfo_cookie);
-			} else
-				tcp_fastopen_disable_path(tp);
-		}
-#endif
 	}
 
 	/*
@@ -1015,11 +866,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 				}
 				acked = BYTES_THIS_ACK(tp, th);
 
-#ifdef TCP_HHOOK
-				/* Run HHOOK_TCP_ESTABLISHED_IN helper hooks. */
-				hhook_run_tcp_est_in(tp, th, &to);
-#endif
-
 				TCPSTAT_ADD(tcps_rcvackpack, nsegs);
 				TCPSTAT_ADD(tcps_rcvackbyte, acked);
 				sbdrop(&so->so_snd, acked, so);
@@ -1071,10 +917,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 			}
 		} else if (th->th_ack == tp->snd_una &&
 		    tlen <= sbspace(&so->so_rcv)) {
-#ifdef TCP_SB_AUTOSIZE
-			int newsize = 0;	/* automatic sockbuf scaling */
-#endif
-
 			/*
 			 * This is a pure, in-sequence data packet with
 			 * nothing on the reassembly queue and we have enough
@@ -1112,24 +954,10 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 				    (void *)tcp_saveipgen, &tcp_savetcp, 0);
 #endif
 
-#ifdef TCP_SB_AUTOSIZE
-			newsize = tcp_autorcvbuf(m, th, so, tp, tlen);
-#endif
-
 			/* Add data to socket buffer. */
 			if (so->so_rcv.sb_state & SBS_CANTRCVMORE) {
 				m_freem(m);
 			} else {
-#ifdef TCP_SB_AUTOSIZE
-				/*
-				 * Set new socket buffer size.
-				 * Give up when limit is reached.
-				 */
-				if (newsize)
-					if (!sbreserve_locked(&so->so_rcv,
-					    newsize, so, NULL))
-						so->so_rcv.sb_flags &= ~SB_AUTOSIZE;
-#endif /* TCP_SB_AUTOSIZE */
 				m_adj(m, drop_hdrlen);	/* delayed header drop */
 				sbappendstream_locked(&so->so_rcv, m, 0, so);
 			}
@@ -1167,28 +995,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 				rstreason = BANDLIM_RST_OPENPORT;
 				goto dropwithreset;
 		}
-#ifdef TCP_RFC7413
-		if (IS_FASTOPEN(tp->t_flags)) {
-			/*
-			 * When a TFO connection is in SYN_RECEIVED, the
-			 * only valid packets are the initial SYN, a
-			 * retransmit/copy of the initial SYN (possibly with
-			 * a subset of the original data), a valid ACK, a
-			 * FIN, or a RST.
-			 */
-			if ((thflags & (TH_SYN|TH_ACK)) == (TH_SYN|TH_ACK)) {
-				rstreason = BANDLIM_RST_OPENPORT;
-				goto dropwithreset;
-			} else if (thflags & TH_SYN) {
-				/* non-initial SYN is ignored */
-				if ((tcp_timer_active(tp, TT_DELACK) ||
-				     tcp_timer_active(tp, TT_REXMT)))
-					goto drop;
-			} else if (!(thflags & (TH_ACK|TH_FIN|TH_RST))) {
-				goto drop;
-			}
-		}
-#endif
 		break;
 
 	/*
@@ -1222,9 +1028,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 
 			TCPSTAT_INC(tcps_connects);
 			soisconnected(so);
-#ifdef MAC
-			mac_socketpeer_set_from_mbuf(m, so);
-#endif
 			/* Do window scaling on this connection? */
 			if ((tp->t_flags & (TF_RCVD_SCALE|TF_REQ_SCALE)) ==
 				(TF_RCVD_SCALE|TF_REQ_SCALE)) {
@@ -1233,17 +1036,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 			tp->rcv_adv += min(tp->rcv_wnd,
 			    TCP_MAXWIN << tp->rcv_scale);
 			tp->snd_una++;		/* SYN is acked */
-#ifdef TCP_RFC7413
-			/*
-			 * If not all the data that was sent in the TFO SYN
-			 * has been acked, resend the remainder right away.
-			 */
-			if (IS_FASTOPEN(tp->t_flags) &&
-			    (tp->snd_una != tp->snd_max)) {
-				tp->snd_nxt = th->th_ack;
-				tfo_partial_ack = 1;
-			}
-#endif
 			/*
 			 * If there's data, delay ACK; if there's also a FIN
 			 * ACKNOW will be turned on later.
@@ -1592,13 +1384,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	if ((thflags & TH_ACK) == 0) {
 		if (tp->t_state == TCPS_SYN_RECEIVED ||
 		    (tp->t_flags & TF_NEEDSYN)) {
-#ifdef TCP_RFC7413
-			if (tp->t_state == TCPS_SYN_RECEIVED &&
-			    IS_FASTOPEN(tp->t_flags)) {
-				tp->snd_wnd = tiwin;
-				cc_conn_init(tp);
-			}
-#endif
 			goto step6;
 		} else if (tp->t_flags & TF_ACKNOW)
 			goto dropafterack;
@@ -1631,12 +1416,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 		 *      SYN-RECEIVED* -> FIN-WAIT-1
 		 */
 		tp->t_starttime = ticks;
-#ifdef TCP_RFC7413
-		if (IS_FASTOPEN(tp->t_flags) && tp->t_tfo_pending) {
-			tcp_fastopen_decrement_counter(tp->t_tfo_pending);
-			tp->t_tfo_pending = NULL;
-		}
-#endif
 		if (tp->t_flags & TF_NEEDFIN) {
 			tcp_state_change(tp, TCPS_FIN_WAIT_1);
 			tp->t_flags &= ~TF_NEEDFIN;
@@ -1649,10 +1428,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 			 * snd_cwnd reduction that occurs when a TFO SYN|ACK
 			 * is retransmitted.
 			 */
-#ifndef TCP_RFC7413
-			if (!IS_FASTOPEN(tp->t_flags))
-#endif
-				cc_conn_init(tp);
+			cc_conn_init(tp);
 			tcp_timer_activate(tp, TT_KEEP, TP_KEEPIDLE(tp));
 		}
 		/*
@@ -1700,11 +1476,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 			 * from the last ack with SACK doesn't get used.
 			 */
 			tp->sackhint.sacked_bytes = 0;
-
-#ifdef TCP_HHOOK
-		/* Run HHOOK_TCP_ESTABLISHED_IN helper hooks. */
-		hhook_run_tcp_est_in(tp, th, &to);
-#endif
 
 		if (SEQ_LEQ(th->th_ack, tp->snd_una)) {
 			u_int maxseg;
@@ -2233,12 +2004,7 @@ step6:
 	 * case PRU_RCVD).  If a FIN has already been received on this
 	 * connection then we just ignore the text.
 	 */
-#ifdef TCP_RFC7413
-	tfo_syn = ((tp->t_state == TCPS_SYN_RECEIVED) &&
-		   IS_FASTOPEN(tp->t_flags));
-#else
 	tfo_syn = false;
-#endif
 	if ((tlen || (thflags & TH_FIN) || (tfo_syn && tlen > 0)) &&
 	    TCPS_HAVERCVDFIN(tp->t_state) == 0) {
 		tcp_seq save_start = th->th_seq;
@@ -2590,23 +2356,6 @@ tcp_dooptions(struct tcpcb *tp, struct tcpopt *to, u_char *cp, int cnt, int flag
 			to->to_sacks = cp + 2;
 			TCPSTAT_INC(tcps_sack_rcv_blocks);
 			break;
-#ifdef TCP_RFC7413
-		case TCPOPT_FAST_OPEN:
-			/*
-			 * Cookie length validation is performed by the
-			 * server side cookie checking code or the client
-			 * side cookie cache update code.
-			 */
-			if (!(flags & TO_SYN))
-				continue;
-			if (!V_tcp_fastopen_client_enable &&
-			    !V_tcp_fastopen_server_enable)
-				continue;
-			to->to_flags |= TOF_FASTOPEN;
-			to->to_tfo_len = optlen - 2;
-			to->to_tfo_cookie = to->to_tfo_len ? cp + 2 : NULL;
-			break;
-#endif
 		default:
 			continue;
 		}
@@ -2625,10 +2374,6 @@ tcp_xmit_timer(struct tcpcb *tp, int rtt)
 
 	TCPSTAT_INC(tcps_rttupdated);
 	tp->t_rttupdated++;
-#ifdef STATS
-	stats_voi_update_abs_u32(tp->t_stats, VOI_TCP_RTT,
-	    imax(0, rtt * 1000 / hz));
-#endif
 	if ((tp->t_srtt != 0) && (tp->t_rxtshift <= TCP_RTT_INVALIDATE)) {
 		/*
 		 * srtt is stored as fixed point with 5 bits after the

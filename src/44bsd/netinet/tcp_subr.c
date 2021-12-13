@@ -431,10 +431,6 @@ tcp_close(struct tcpcb *tp)
 {
 	struct socket *so;
 
-#ifdef TCP_OFFLOAD
-	if (tp->t_state == TCPS_LISTEN)
-		tcp_offload_listen_stop(tp);
-#endif
 	TCPSTAT_INC(tcps_closed);
 	if (tp->t_state != TCPS_CLOSED)
 		tcp_state_change(tp, TCPS_CLOSED);

@@ -147,9 +147,6 @@ struct tcpcb {
 	uint32_t  snd_cwnd;		/* congestion-controlled window */
 	/* Cache line 2 */
 	u_int32_t  ts_offset;		/* our timestamp offset */
-#ifdef TCP_SB_AUTOSIZE
-	u_int32_t	rfbuf_ts;	/* recv buffer autoscaling timestamp */
-#endif
 	int	rcv_numsacks;		/* # distinct sack blks present */
 	u_int	t_tsomax;		/* TSO total burst length limit in bytes */
 	tcp_seq	rcv_nxt;		/* receive next */
@@ -211,18 +208,11 @@ struct tcpcb {
 	struct sackblk sackblks[MAX_SACK_BLKS]; /* seq nos. of sack blocks */
 	struct sackhint	sackhint;	/* SACK scoreboard hint */
 	int	t_rttlow;		/* smallest observerved RTT */
-#ifdef TCP_SB_AUTOSIZE
-	int	rfbuf_cnt;		/* recv buffer autoscaling byte count */
-#endif
 	int	t_sndrexmitpack;	/* retransmit packets sent */
 	struct cc_algo	*cc_algo;	/* congestion control algorithm */
 	struct cc_var	*ccv;		/* congestion control specific vars */
 	int	t_bytes_acked;		/* # bytes acked during current RTT */
 	int	t_dupacks;		/* consecutive dup acks recd */
-#ifdef TCPPCAP
-	struct mbufq t_inpkts;		/* List of saved input packets. */
-	struct mbufq t_outpkts;		/* List of saved output packets. */
-#endif
 
 	struct tcp_tune *t_tune;	/* pointer to TCP tunable values */
 	struct tcpstat *t_stat;		/* pointer to TCP counters */
@@ -323,12 +313,6 @@ struct tcp_function_block {
 #define	IN_RECOVERY(t_flags) (t_flags & (TF_CONGRECOVERY | TF_FASTRECOVERY))
 #define	ENTER_RECOVERY(t_flags) t_flags |= (TF_CONGRECOVERY | TF_FASTRECOVERY)
 #define	EXIT_RECOVERY(t_flags) t_flags &= ~(TF_CONGRECOVERY | TF_FASTRECOVERY)
-
-#if defined(_KERNEL) && !defined(TCP_RFC7413)
-#define	IS_FASTOPEN(t_flags)		(false)
-#else
-#define	IS_FASTOPEN(t_flags)		(t_flags & TF_FASTOPEN)
-#endif
 
 #define	BYTES_THIS_ACK(tp, th)	(th->th_ack - tp->snd_una)
 
@@ -612,11 +596,6 @@ struct tcp_hhook_data {
 	int		tso;
 	tcp_seq		curack;
 };
-#ifdef TCP_HHOOK
-void hhook_run_tcp_est_out(struct tcpcb *tp,
-	struct tcphdr *th, struct tcpopt *to,
-	uint32_t len, int tso);
-#endif
 #endif
 
 /*
@@ -739,10 +718,6 @@ VNET_DECLARE(uint32_t, tcp_map_entries_limit);
 VNET_DECLARE(uint32_t, tcp_map_split_limit);
 VNET_DECLARE(int, tcp_minmss);
 VNET_DECLARE(int, tcp_mssdflt);
-#ifdef STATS
-VNET_DECLARE(int, tcp_perconn_stats_dflt_tpl);
-VNET_DECLARE(int, tcp_perconn_stats_enable);
-#endif /* STATS */
 VNET_DECLARE(int, tcp_recvspace);
 VNET_DECLARE(int, tcp_sack_globalholes);
 VNET_DECLARE(int, tcp_sack_globalmaxholes);
@@ -784,10 +759,6 @@ VNET_DECLARE(struct inpcbinfo, tcbinfo);
 #define	V_tcp_map_split_limit		VNET(tcp_map_split_limit)
 #define	V_tcp_minmss			VNET(tcp_minmss)
 #define	V_tcp_mssdflt			VNET(tcp_mssdflt)
-#ifdef STATS
-#define	V_tcp_perconn_stats_dflt_tpl	VNET(tcp_perconn_stats_dflt_tpl)
-#define	V_tcp_perconn_stats_enable	VNET(tcp_perconn_stats_enable)
-#endif /* STATS */
 #define	V_tcp_recvspace			VNET(tcp_recvspace)
 #define	V_tcp_sack_globalholes		VNET(tcp_sack_globalholes)
 #define	V_tcp_sack_globalmaxholes	VNET(tcp_sack_globalmaxholes)
@@ -796,11 +767,6 @@ VNET_DECLARE(struct inpcbinfo, tcbinfo);
 #define	V_tcp_sendspace			VNET(tcp_sendspace)
 #define	V_tcp_udp_tunneling_overhead	VNET(tcp_udp_tunneling_overhead)
 #define	V_tcp_udp_tunneling_port	VNET(tcp_udp_tunneling_port)
-
-#ifdef TCP_HHOOK
-VNET_DECLARE(struct hhook_head *, tcp_hhh[HHOOK_TCP_LAST + 1]);
-#define	V_tcp_hhh		VNET(tcp_hhh)
-#endif
 
 int	 tcp_addoptions(struct tcpopt *, u_char *);
 int	 tcp_ccalgounload(struct cc_algo *unload_algo);
@@ -837,10 +803,6 @@ void 	cc_conn_init(struct tcpcb *tp);
 void 	cc_post_recovery(struct tcpcb *tp, struct tcphdr *th);
 void    cc_ecnpkt_handler(struct tcpcb *tp, struct tcphdr *th, uint8_t iptos);
 void	cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type);
-#ifdef TCP_HHOOK
-void	hhook_run_tcp_est_in(struct tcpcb *tp,
-			    struct tcphdr *th, struct tcpopt *to);
-#endif
 
 int	 tcp_input(struct mbuf **, int *, int);
 int	 tcp_autorcvbuf(struct mbuf *, struct tcphdr *, struct socket *,
@@ -1003,15 +965,6 @@ struct tcp_tune {
 
 #define V_tcp_do_tso                1
 #define V_tcp_delack_enabled        1
-
-#ifdef TCP_SB_AUTOSIZE
-#define V_tcp_do_autosndbuf         1
-#define V_tcp_autosndbuf_max        (2*1024*1024)
-#define V_tcp_autosndbuf_inc        (8*1024)
-#define V_tcp_sendbuf_auto_lowat    0
-#define V_tcp_do_autorcvbuf         1
-#define V_tcp_autorcvbuf_max        (2*1024*1024)
-#endif /* TCP_SB_AUTOSIZE */
 
 #define V_tcp_do_sack               TCP_TUNE(tcp_do_sack)
 #define V_tcp_sack_maxholes         128
