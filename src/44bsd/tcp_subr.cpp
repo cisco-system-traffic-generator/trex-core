@@ -44,6 +44,7 @@
 #include "tcp_var.h"
 #include "tcpip.h"
 #include "tcp_debug.h"
+#include "netinet/tcp_mbuf.h"
 #include "tcp_socket.h"
 #include <common/utl_gcc_diag.h>
 #include <common/basic_utils.h>
@@ -62,33 +63,33 @@
 #define MYC_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)m_sts.f)
 
 
-tcpstat::tcpstat(uint16_t num_of_tg_ids){
+CTcpStats::CTcpStats(uint16_t num_of_tg_ids){
     Init(num_of_tg_ids);
 }
 
-tcpstat::~tcpstat() {
+CTcpStats::~CTcpStats() {
     delete[] m_sts_tg_id;
 }
 
-void tcpstat::Init(uint16_t num_of_tg_ids) {
+void CTcpStats::Init(uint16_t num_of_tg_ids) {
         m_sts_tg_id = new tcpstat_int_t[num_of_tg_ids];
-        assert(m_sts_tg_id && "Operator new failed in tcp_subr.cpp/tcpstat::Init");
+        assert(m_sts_tg_id && "Operator new failed in tcp_subr.cpp/CTcpStats::Init");
         m_num_of_tg_ids = num_of_tg_ids;
         Clear();
 }
 
-void tcpstat::Clear(){
+void CTcpStats::Clear(){
     for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++){
         ClearPerTGID(tg_id);
     }
     memset(&m_sts,0,sizeof(tcpstat_int_t));
 }
 
-void tcpstat::ClearPerTGID(uint16_t tg_id){
+void CTcpStats::ClearPerTGID(uint16_t tg_id){
     memset(m_sts_tg_id+tg_id,0,sizeof(tcpstat_int_t));
 }
 
-void tcpstat::Dump(FILE *fd){
+void CTcpStats::Dump(FILE *fd){
 
     MYC(tcps_connattempt);
     MYC(tcps_accepts);     
@@ -151,126 +152,45 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_reasfree);
     MYC(tcps_nombuf);
     MYC(tcps_notunnel);
+
+    MYC(tcps_sack_recovery_episode);
+    MYC(tcps_sack_rexmits);
+    MYC(tcps_sack_rexmit_bytes);
+    MYC(tcps_sack_rcv_blocks);
+    MYC(tcps_sack_send_blocks);
+    MYC(tcps_sack_sboverflow);
 }
 
-void tcpstat::Resize(uint16_t new_num_of_tg_ids) {
+void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
     delete[] m_sts_tg_id;
     Init(new_num_of_tg_ids);
 }
 
-/*
- * Initiate connection to peer.
- * Create a template for use in transmissions on this connection.
- * Enter SYN_SENT state, and mark socket as connecting.
- * Start keep-alive timer, and seed output sequence space.
- * Send initial segment on connection.
- */
-int tcp_connect(CPerProfileCtx * pctx,
-                struct tcpcb *tp) {
-    int error;
 
-    /* Compute window scaling to request.  */
-    while (tp->request_r_scale < TCP_MAX_WINSHIFT &&
-        (TCP_MAXWIN << tp->request_r_scale) < tp->m_socket.so_rcv.sb_hiwat){
-        tp->request_r_scale++;
-    }
-
-    soisconnecting(&tp->m_socket);
-
-    CTcpPerThreadCtx * ctx = pctx->m_ctx;
-    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
-
-    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_connattempt);
-    tp->t_state = TCPS_SYN_SENT;
-    tp->t_timer[TCPT_KEEP] = tctx->tcp_keepinit;
-    tp->iss = ctx->tcp_iss; 
-    ctx->tcp_iss += TCP_ISSINCR/4;
-    tcp_sendseqinit(tp);
-    error = tcp_output(pctx,tp);
-    return (error);
-}
-#ifdef  TREX_SIM
-int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp) { return tcp_connect(DEFAULT_PROFILE_CTX(ctx), tp); }
-#endif
-
-int tcp_listen(CPerProfileCtx * pctx,
-                struct tcpcb *tp) {
-    assert( tp->t_state == TCPS_CLOSED);
-    tp->t_state = TCPS_LISTEN;
-    return(0);
-}
-
-
-/*
- * User issued close, and wish to trail through shutdown states:
- * if never received SYN, just forget it.  If got a SYN from peer,
- * but haven't sent FIN, then go to FIN_WAIT_1 state to send peer a FIN.
- * If already got a FIN from peer, then almost done; go to LAST_ACK
- * state.  In all other cases, have already sent FIN to peer (e.g.
- * after PRU_SHUTDOWN), and just have to play tedious game waiting
- * for peer to send FIN or not respond to keep-alives, etc.
- * We can let the user exit from the close as soon as the FIN is acked.
- */
-struct tcpcb * tcp_usrclosed(CPerProfileCtx * pctx,
-                             struct tcpcb *tp){
-
-    switch (tp->t_state) {
-
-    case TCPS_CLOSED:
-    case TCPS_LISTEN:
-    case TCPS_SYN_SENT:
-        tp->t_state = TCPS_CLOSED;
-        tp = tcp_close(pctx,tp);
-        break;
-
-    case TCPS_SYN_RECEIVED:
-    case TCPS_ESTABLISHED:
-        tp->t_state = TCPS_FIN_WAIT_1;
-        break;
-
-    case TCPS_CLOSE_WAIT:
-        tp->t_state = TCPS_LAST_ACK;
-        break;
-    }
-    if ((tp->t_state != TCPS_CLOSED) && tp->t_state >= TCPS_FIN_WAIT_2){
-        soisdisconnected(&tp->m_socket);
-    }
-    return (tp);
-}
-
-
-
-/*
- * Initiate (or continue) disconnect.
- * If embryonic state, just send reset (once).
- * If in ``let data drain'' option and linger null, just drop.
- * Otherwise (hard), mark socket disconnecting and drop
- * current input data; switch states based on user close, and
- * send segment to peer (with FIN).
- */
-struct tcpcb * tcp_disconnect(CPerProfileCtx * pctx,
-                   struct tcpcb *tp){
-
-    struct tcp_socket *so = &tp->m_socket;
-
-    if (tp->t_state < TCPS_ESTABLISHED)
-        tp = tcp_close(pctx,tp);
-    else if (1 /*(so->so_options & SO_LINGER) && so->so_linger == 0*/){
-        tp = tcp_drop_now(pctx,tp, 0);
-    } else {
-        soisdisconnecting(so);
-        sbflush(&so->so_rcv);
-        tp = tcp_usrclosed(pctx,tp);
-        if (tp->t_state != TCPS_CLOSED)
-            (void) tcp_output(pctx,tp);
-    }
-    return (tp);
-}
-
+static struct cc_algo *cc_algo_list[] = {
+    &newreno_cc_algo,
+    &cubic_cc_algo
+};
 
 void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
+
+    int cc_algo_idx = m_pctx->m_tunable_ctx.tcp_cc_algo;
+
+    if (cc_algo_idx >= sizeof(cc_algo_list)/sizeof(struct cc_algo*)) {
+        cc_algo_idx = 0;
+    }
+
+    struct tcpcb_param init_param = {
+        .fb = NULL,
+        .cc_algo = cc_algo_list[cc_algo_idx],
+        .tune = &m_pctx->m_tunable_ctx,
+        .stat = &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id],
+        .stat_ex = &m_pctx->m_tcpstat.m_sts,
+        .tcp_ticks = &m_pctx->m_ctx->tcp_now
+    };
+    tcp_inittcpcb(&m_tcp, &init_param);
 
     if (m_template.is_tcp_tso()){
         /* to cache the info*/
@@ -278,6 +198,7 @@ void CTcpFlow::init(){
     }
 
     if (m_tcp.is_tso()){
+        m_tcp.t_flags |= TF_TSO;
         if (m_tcp.t_maxseg >m_tcp.m_max_tso ){
             m_tcp.m_max_tso=m_tcp.t_maxseg;
         }
@@ -289,6 +210,7 @@ void CTcpFlow::init(){
     m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
 
     /* register the timer */
+    m_timer_ticks = tw_time_msec_to_ticks(tcp_timer_ticks_to_msec(m_pctx->m_tunable_ctx.tcp_delacktime));
     m_pctx->m_ctx->timer_w_start(this);
 }
 
@@ -341,21 +263,19 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_payload_info = nullptr;
 
     /* TCP_OPTIM  */
-    tcpcb *tp=&m_tcp;
-    memset((char *) tp, 0,sizeof(struct tcpcb));
+    CTcpCb *tp=&m_tcp;
+    memset((char *) tp, 0,sizeof(struct CTcpCb));
     m_timer.m_type = ttTCP_FLOW; 
 
     CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
-    tp->m_socket.so_snd.Create(tctx->tcp_tx_socket_bsize);
+    ((CTcpSockBuf*)&tp->m_socket.so_snd)->Create(tctx->tcp_tx_socket_bsize);
     tp->m_socket.so_rcv.sb_hiwat = tctx->tcp_rx_socket_bsize;
 
-    tp->t_maxseg = tctx->tcp_mssdflt;
     tp->m_max_tso = tctx->tcp_max_tso;
 
     tp->mbuf_socket = pctx->m_ctx->m_mbuf_socket;
 
-    tp->t_flags = tctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
     if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
         tp->t_flags |= TF_NODELAY;
     }
@@ -367,21 +287,9 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     tp->t_pkts_cnt = 0;
     tp->m_reass_disabled = false;
 
-        /*
-         * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
-         * rtt estimate.  Set rttvar so that srtt + 2 * rttvar gives
-         * reasonable initial retransmit time.
-         */
-        tp->t_srtt = TCPTV_SRTTBASE;
-    tp->t_rttvar = tctx->tcp_rttdflt * PR_SLOWHZ ;
-    tp->t_rttmin = TCPTV_MIN;
-    TCPT_RANGESET(tp->t_rxtcur, 
-        ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
-        TCPTV_MIN, TCPTV_REXMTMAX);
-    tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
-    tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
     /* back pointer */
     tp->m_flow=this;
+    tp->m_ctx = m_pctx->m_ctx;
 }
 #ifdef  TREX_SIM
 void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
@@ -416,6 +324,9 @@ void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx, CServerIpPayload
 
     this->m_pctx = pctx;
     this->m_tg_id = 0;
+    // update statistics in the temporary flow pctx
+    this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[this->m_tg_id];
+    this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
 
     m_app.set_flow_ctx(pctx, this);
 
@@ -488,6 +399,11 @@ void CTcpFlow::update_new_template_assoc_info() {
     pctx->m_flow_cnt += 1;
 
     delete this->m_pctx;    // free interim profile
+
+    this->m_tcp.t_tune = &pctx->m_tunable_ctx;
+    // update statistics in the resolved pctx
+    this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[tg_id];
+    this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
 
     this->m_pctx = pctx;
     this->m_tg_id = tg_id;
@@ -580,18 +496,8 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
 }
 
 
-void CTcpFlow::on_slow_tick(){
-    tcp_slowtimo(m_pctx, &m_tcp);
-}
-
-
-void CTcpFlow::on_fast_tick(){
-    tcp_fasttimo(m_pctx, &m_tcp);
-}
-
-
 void CTcpFlow::Delete(){
-    struct tcpcb *tp=&m_tcp;
+    struct CTcpCb *tp=&m_tcp;
     tcp_reass_clean(m_pctx,tp);
     m_pctx->m_ctx->timer_w_stop(this);
     if (m_payload_info) {
@@ -599,6 +505,7 @@ void CTcpFlow::Delete(){
         m_payload_info = nullptr;
     }
     CFlowBase::Delete();
+    tcp_discardcb(tp);
 }
 
 
@@ -699,38 +606,29 @@ bool CTcpPerThreadCtx::is_open_flow_enabled(){
 
 /* tick every 50msec TCP_TIMER_W_TICK */
 void CTcpPerThreadCtx::timer_w_on_tick(){
+    m_tick++;
+#ifdef TREX_SIM
+    tcp_now += tcp_timer_msec_to_ticks(TCP_TIMER_W_TICK);
+#else
+    if (m_tick == tcp_timer_ticks_to_msec(TCP_TIMER_W_1_MS)) {
+        tcp_now++;                  /* for timestamps */
+        m_tick=0;
+    }
+#endif
 #ifndef TREX_SIM
     /* we have two levels on non-sim */
     m_timer_w.on_tick_level((void*)this,ctx_timer,16);
 #else
     m_timer_w.on_tick_level0((void*)this,ctx_timer);
 #endif
-
-    if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
-        tcp_iss += TCP_ISSINCR/PR_SLOWHZ;       /* increment iss */
-        tcp_now++;                  /* for timestamps */
-        m_tick=0;
-    } else{
-        m_tick++;
-    }
 }
 
-#ifndef TREX_SIM
-static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
-    double factor = round((double)TCP_TIMER_TICK_SLOW_MS/(double)tcp_delay_ack_msec);
-    uint16_t res=(uint16_t)factor;
-    if (res<1) {
-        res=1;
-    }
-    return(res);
-}
-#endif
 
 CTcpTunableCtx::CTcpTunableCtx() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
-    tcp_fast_ticks = TCP_FAST_TICK_;
-    tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR); 
+    tcp_delacktime = tcp_timer_msec_to_ticks(TCP_TIMER_TICK_FAST_MS);
+    tcp_do_sack = 1;
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepinit = TCPTV_KEEP_INIT;
@@ -739,14 +637,14 @@ CTcpTunableCtx::CTcpTunableCtx() {
     tcp_no_delay = 0;
     tcp_no_delay_counter = 0;
     tcp_rx_socket_bsize = 32*1024;
-    tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_tx_socket_bsize = 32*1024;
     tcprexmtthresh = 3;
     use_inbound_mac = 1;
 
+    tcp_cc_algo = 0;
+
     sb_max = SB_MAX;        /* patchable, not used  */
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
-    tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
     tcp_maxidle = std::min(tcp_keepcnt * tcp_keepintvl, TCPTV_2MSL);
@@ -762,12 +660,10 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
         tcp_mssdflt = tune->m_tcp_mss;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
         tcp_initwnd_factor = tune->m_tcp_initwnd;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
@@ -809,8 +705,7 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
-        tcp_fast_ticks =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
-        tcp_slow_fast_ratio = _update_slow_fast_ratio(tune->m_tcp_delay_ack_msec);
+        tcp_delacktime = tcp_timer_msec_to_ticks(tune->m_tcp_delay_ack_msec);
     }
     #endif
 
@@ -820,6 +715,14 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::dont_use_inbound_mac)) {
         use_inbound_mac = ((int)tune->m_dont_use_inbound_mac == 0);
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_sack)) {
+        tcp_do_sack = (int)tune->m_tcp_do_sack;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_cc_algo)) {
+        tcp_cc_algo = (int)tune->m_tcp_cc_algo;
     }
 }
 
@@ -899,7 +802,7 @@ void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
 }
 
 int CTcpTunableCtx::convert_slow_sec_to_ticks(uint16_t sec) {
-    float sec_to_ticks = 1000.0f / TCP_TIMER_TICK_SLOW_MS;
+    float sec_to_ticks = 1000.0f;
     return int(round(float(sec) * sec_to_ticks));
 }
 
@@ -1730,195 +1633,82 @@ void CFlowTemplate::build_template(CPerProfileCtx * pctx,
 
 
 
-/*
- * Drop a TCP connection, reporting
- * the specified error.  If connection is synchronized,
- * then send a RST to peer.
- */
-struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
-                            struct tcpcb *tp, 
-                            int res){
-    struct tcp_socket *so = &tp->m_socket;
-    uint16_t tg_id = tp->m_flow->m_tg_id;
-    if (TCPS_HAVERCVDSYN(tp->t_state)) {
-        tp->t_state = TCPS_CLOSED;
-        (void) tcp_output(pctx,tp);
-        INC_STAT(pctx, tg_id, tcps_drops);
-    } else{
-        INC_STAT(pctx, tg_id, tcps_conndrops);
-    }
-    if (res == ETIMEDOUT && tp->t_softerror){
-        res = tp->t_softerror;
-    }
-    so->so_error = res;
-    return (tcp_close(pctx,tp));
+
+#if 0
+void *
+m_data(struct mbuf *m)
+{
+    return rte_pktmbuf_mtod((struct rte_mbuf *)m, void *);
 }
 
-
-/*
- * Close a TCP control block:
- *  discard all space held by the tcp
- *  discard internet protocol block
- *  wake up any sleepers
- */
-struct tcpcb *  
-tcp_close(CPerProfileCtx * pctx,
-          struct tcpcb *tp){
-
-
-// no need for that , RTT will be calculated again for each flow 
-#ifdef RTV_RTT
-    register struct rtentry *rt;
-
-    /*
-     * If we sent enough data to get some meaningful characteristics,
-     * save them in the routing entry.  'Enough' is arbitrarily 
-     * defined as the sendpipesize (default 4K) * 16.  This would
-     * give us 16 rtt samples assuming we only get one sample per
-     * window (the usual case on a long haul net).  16 samples is
-     * enough for the srtt filter to converge to within 5% of the correct
-     * value; fewer samples and we could save a very bogus rtt.
-     *
-     * Don't update the default route's characteristics and don't
-     * update anything that the user "locked".
-     */
-    if (SEQ_LT(tp->iss + so->so_snd.sb_hiwat * 16, tp->snd_max) &&
-        (rt = inp->inp_route.ro_rt) &&
-        ((struct sockaddr_in *)rt_key(rt))->sin_addr.s_addr != INADDR_ANY) {
-        uint32_t  i;
-
-        if ((rt->rt_rmx.rmx_locks & RTV_RTT) == 0) {
-            i = tp->t_srtt *
-                (RTM_RTTUNIT / (PR_SLOWHZ * TCP_RTT_SCALE));
-            if (rt->rt_rmx.rmx_rtt && i)
-                /*
-                 * filter this update to half the old & half
-                 * the new values, converting scale.
-                 * See route.h and tcp_var.h for a
-                 * description of the scaling constants.
-                 */
-                rt->rt_rmx.rmx_rtt =
-                    (rt->rt_rmx.rmx_rtt + i) / 2;
-            else
-                rt->rt_rmx.rmx_rtt = i;
-        }
-        if ((rt->rt_rmx.rmx_locks & RTV_RTTVAR) == 0) {
-            i = tp->t_rttvar *
-                (RTM_RTTUNIT / (PR_SLOWHZ * TCP_RTTVAR_SCALE));
-            if (rt->rt_rmx.rmx_rttvar && i)
-                rt->rt_rmx.rmx_rttvar =
-                    (rt->rt_rmx.rmx_rttvar + i) / 2;
-            else
-                rt->rt_rmx.rmx_rttvar = i;
-        }
-        /*
-         * update the pipelimit (ssthresh) if it has been updated
-         * already or if a pipesize was specified & the threshhold
-         * got below half the pipesize.  I.e., wait for bad news
-         * before we start updating, then update on both good
-         * and bad news.
-         */
-        if ((rt->rt_rmx.rmx_locks & RTV_SSTHRESH) == 0 &&
-            (i = tp->snd_ssthresh) && rt->rt_rmx.rmx_ssthresh ||
-            i < (rt->rt_rmx.rmx_sendpipe / 2)) {
-            /*
-             * convert the limit from user data bytes to
-             * packets then to packet data bytes.
-             */
-            i = (i + tp->t_maxseg / 2) / tp->t_maxseg;
-            if (i < 2)
-                i = 2;
-            i *= (uint32_t)(tp->t_maxseg + sizeof (struct tcpiphdr));
-            if (rt->rt_rmx.rmx_ssthresh)
-                rt->rt_rmx.rmx_ssthresh =
-                    (rt->rt_rmx.rmx_ssthresh + i) / 2;
-            else
-                rt->rt_rmx.rmx_ssthresh = i;
-        }
-    }
-#endif /* RTV_RTT */
-    /* free the reassembly queue, if any */
-
-    /* mark it as close and return zero */
-    tp->t_state = TCPS_CLOSED;
-    /* TBD -- back pointer to flow and delete it */
-    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_closed);
-    pctx->set_time_closed();
-    return((struct tcpcb *)tp);
+void
+m_adj(struct mbuf *m, int req_len)
+{
+    if (req_len >= 0)
+        rte_pktmbuf_adj((struct rte_mbuf *)m, req_len);
+    else
+        rte_pktmbuf_trim((struct rte_mbuf *)m, req_len);
 }
 
-void tcp_drain(){
+void
+m_freem(struct mbuf *m)
+{
+    if (m != NULL) {
+        rte_pktmbuf_free((struct rte_mbuf *)m);
+    }
+}
+#endif
 
+
+#if 0
+uint32_t
+tcp_getticks(struct tcpcb *tp)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    return ctx->tcp_now;
+}
+#endif
+
+uint32_t
+tcp_new_isn(struct tcpcb *tp)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    uint32_t new_isn = ctx->tcp_iss;
+
+    ctx->tcp_iss += TCP_ISSINCR/4;
+    return new_isn;
 }
 
 #if 0
-/*
- * Notify a tcp user of an asynchronous error;
- * store error as soft error, but wake up user
- * (for now, won't do anything until can select for soft error).
- */
-void
-tcp_notify(inp, error)
-    struct inpcb *inp;
-    int error;
+bool
+tcp_isipv6(struct tcpcb *tp)
 {
-    register struct tcpcb *tp = (struct tcpcb *)inp->inp_ppcb;
-    register struct socket *so = inp->inp_socket;
-
-    /*
-     * Ignore some errors if we are hooked up.
-     * If connection hasn't completed, has retransmitted several times,
-     * and receives a second error, give up now.  This is better
-     * than waiting a long time to establish a connection that
-     * can never complete.
-     */
-    if (tp->t_state == TCPS_ESTABLISHED &&
-         (error == EHOSTUNREACH || error == ENETUNREACH ||
-          error == EHOSTDOWN)) {
-        return;
-    } else if (tp->t_state < TCPS_ESTABLISHED && tp->t_rxtshift > 3 &&
-        tp->t_softerror)
-        so->so_error = error;
-    else 
-        tp->t_softerror = error;
-    wakeup((caddr_t) &so->so_timeo);
-    sorwakeup(so);
-    sowwakeup(so);
-}
-
-void
-tcp_ctlinput(cmd, sa, ip)
-    int cmd;
-    struct sockaddr *sa;
-    register struct ip *ip;
-{
-    register struct tcphdr *th;
-    extern struct in_addr zeroin_addr;
-    extern u_char inetctlerrmap[];
-    void (*notify) __P((struct inpcb *, int)) = tcp_notify;
-
-    if (cmd == PRC_QUENCH)
-        notify = tcp_quench;
-    else if (!PRC_IS_REDIRECT(cmd) &&
-         ((unsigned)cmd > PRC_NCMDS || inetctlerrmap[cmd] == 0))
-        return;
-    if (ip) {
-        th = (struct tcphdr *)((caddr_t)ip + (ip->ip_hl << 2));
-        in_pcbnotify(&tcb, sa, th->th_dport, ip->ip_src, th->th_sport,
-            cmd, notify);
-    } else
-        in_pcbnotify(&tcb, sa, 0, zeroin_addr, 0, cmd, notify);
+    return ((CTcpCb*)tp)->m_flow->m_template.m_is_ipv6;
 }
 #endif
-/*
- * When a source quench is received, close congestion window
- * to one segment.  We will gradually open it again as we proceed.
- */
-void tcp_quench(struct tcpcb *tp){
 
-    tp->snd_cwnd = tp->t_maxseg;
+struct socket *
+tcp_getsocket(struct tcpcb *tp)
+{
+    return (struct socket*)&((CTcpCb*)tp)->m_socket;
 }
 
+int
+tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
 
+    return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
+}
 
+void
+tcp_timer_reset(struct tcpcb *tp, uint32_t msec)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    CTcpFlow * flow = ((CTcpCb*)tp)->m_flow;
+
+    ctx->timer_w_stop(flow);
+    flow->m_timer_ticks = tw_time_msec_to_ticks(msec);
+    ctx->timer_w_start(flow);
+}
 

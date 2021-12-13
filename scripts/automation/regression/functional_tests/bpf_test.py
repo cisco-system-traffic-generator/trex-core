@@ -1,4 +1,5 @@
 import os
+import platform
 
 import functional_general_test
 from trex_scenario import CTRexScenario
@@ -9,7 +10,7 @@ from ctypes import CDLL, c_char_p, c_int, c_void_p, c_uint32, c_buffer
 
 so_path = os.path.join(CTRexScenario.scripts_path, 'so')
 
-libbpf_path = os.path.join(so_path, 'libbpf-64-debug.so')
+libbpf_path = os.path.join(so_path, platform.machine(), 'libbpf-64-debug.so')
 
 
 try:

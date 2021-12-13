@@ -36,15 +36,16 @@ limitations under the License.
 #include <sstream>
 #include <unistd.h>
 
-
-uint32_t sbspace(struct sockbuf *sb){
-    return(sb->sb_hiwat - sb->sb_cc);
+#if 0
+void sbreserve(struct sockbuf *sb, u_int cc) {
+    sb->sb_hiwat = cc;
 }
 
 
 void sbflush (struct sockbuf *sb){
     sb->sb_cc=0;
 }
+#endif
 
 void    sbappend(struct tcp_socket *so,
                  struct sockbuf *sb, 
@@ -61,6 +62,14 @@ void    sbappend(struct tcp_socket *so,
         so->m_app->on_bh_event(te_SOOTHERISDISCONNECTING);
         /* zero mean got FIN */
     }
+}
+
+void sbappend(struct sockbuf *sb, struct mbuf *m, int flags, struct socket *so) {
+    sbappend(static_cast<struct tcp_socket*>(so), sb, m, m->pkt_len);
+}
+
+void sbdrop(struct sockbuf *sb, int len, struct socket *so) {
+    static_cast<CTcpSockBuf*>(sb)->sbdrop((struct tcp_socket *)so, len);
 }
 
 
@@ -147,6 +156,25 @@ void    soisdisconnected(struct tcp_socket *so){
     so->m_app->on_bh_event(te_SOISDISCONNECTED);
 }
 
+void sorwakeup(struct socket *so) {
+    sorwakeup((struct tcp_socket *)so);
+}
+void sowwakeup(struct socket *so) {
+    sowwakeup((struct tcp_socket *)so);
+}
+void soisconnecting(struct socket *so) {
+    soisconnecting((struct tcp_socket *)so);
+}
+void soisconnected(struct socket *so) {
+    soisconnected((struct tcp_socket *)so);
+}
+void soisdisconnected(struct socket *so) {
+    soisdisconnected((struct tcp_socket *)so);
+}
+void socantrcvmore(struct socket *so) {
+    ((struct tcp_socket *)so)->so_rcv.sb_state |= SBS_CANTRCVMORE;
+    socantrcvmore((struct tcp_socket *)so);
+}
 
 
 void CBufMbufRef::Dump(FILE *fd){
@@ -262,7 +290,7 @@ void CEmulApp::tcp_udp_close(){
     if (is_udp_flow()) {
         m_api->disconnect(m_pctx,m_flow);
     }else{
-        tcp_usrclosed(m_pctx,&m_flow->m_tcp);
+        tcp_usrclosed(&m_flow->m_tcp);
         if (get_interrupt()==false) {
             m_api->tx_tcp_output(m_pctx,m_flow);
         }else{
@@ -280,7 +308,7 @@ void CEmulApp::tcp_udp_close_dpc(){
         m_api->disconnect(m_pctx,m_flow);
     } else{
         if (!m_flow->is_close_was_called()){
-            tcp_usrclosed(m_pctx,&m_flow->m_tcp);
+            tcp_usrclosed(&m_flow->m_tcp);
         }
         m_api->tx_tcp_output(m_pctx,m_flow);
     }
@@ -651,6 +679,10 @@ void CEmulApp::on_bh_event(tcp_app_events_t event){
             m_flags|=taDO_DPC_NEXT;
             m_flags&=(~taDO_WAIT_CONNECTED);
         }
+        m_pctx->set_time_connects();
+    }
+    else if (event==te_SOISDISCONNECTED) {
+        m_pctx->set_time_closed();
     }
     EMUL_LOG(0, "EVENT [%d]- %s \n",m_debug_id,get_tcp_app_events_name(event).c_str());
 }
@@ -1100,8 +1132,4 @@ void CEmulTxQueue::reset(){
     m_q.clear();
     m_q_tot_bytes=0;
 }
-
-
-
-
 
