@@ -155,13 +155,12 @@ tcp_default_fb_fini(struct tcpcb *tp, int tcb_is_purged)
 }
 
 
-#ifdef TREX_FBSD
 void
 tcp_int_respond(struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags)
 {
 	tcp_respond(tp, NULL, NULL, NULL, ack, seq, flags);
 }
-#endif
+
 /*
  * Send a single message to the TCP at address specified by
  * the given TCP/IP header.  If m == NULL, then we make a copy
@@ -223,7 +222,7 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
         u_char opt[TCP_MAXOLEN];
         optp = &opt[0];
 	if (incl_opts) {
-#ifdef TREX_FBSD /* support SYN respose, from syncache_respond */
+                /* TREX_FBSD: support SYN respose, from syncache_respond */
                 if (flags & TH_SYN) {
                         to.to_mss = tcp_mssopt(tp);
                         to.to_flags = TOF_MSS;
@@ -234,7 +233,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
                         if (tp->t_flags & TF_SACK_PERMIT)
                                 to.to_flags |= TOF_SACKPERM;
                 }
-#endif
 		/* Timestamps. */
 		if (tp->t_flags & TF_RCVD_TSTMP) {
 			to.to_tsval = tcp_ts_getticks() + tp->ts_offset;
@@ -380,13 +378,9 @@ tcp_drop(struct tcpcb *tp, int errno)
 void
 tcp_discardcb(struct tcpcb *tp)
 {
-	int released __unused;
-
-#ifdef TREX_FBSD
         if (tp->t_fb == NULL) {
                 return;
         }
-#endif
 
 	/*
 	 * Make sure that all of our timers are stopped before we delete the

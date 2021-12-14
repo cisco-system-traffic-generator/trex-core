@@ -81,13 +81,11 @@ cc_after_idle(struct tcpcb *tp)
 		CC_ALGO(tp)->after_idle(tp->ccv);
 }
 
-#ifdef TREX_FBSD
 int
 tcp_int_output(struct tcpcb *tp)
 {
 	return tp->t_fb->tfb_tcp_output(tp);
 }
-#endif
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */

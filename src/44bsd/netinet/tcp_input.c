@@ -1495,11 +1495,9 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 					tp->t_dupacks = 0;
 					break;
 				}
-#ifdef TREX_FBSD /* trex-core compatible */
-                            /* we can get ack on FIN-ACK and it should not considered dup */
-                            if (tp->t_state != TCPS_FIN_WAIT_2)
-#endif
-				TCPSTAT_INC(tcps_rcvdupack);
+				/* TREX_FBSD: we can get ack on FIN-ACK and it should not considered dup */
+				if (tp->t_state != TCPS_FIN_WAIT_2)
+					TCPSTAT_INC(tcps_rcvdupack);
 				/*
 				 * If we have outstanding data (other than
 				 * a window probe), this is a completely

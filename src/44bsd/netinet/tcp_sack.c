@@ -515,11 +515,10 @@ tcp_sack_doack(struct tcpcb *tp, struct tcpopt *to, tcp_seq th_ack)
 			    SEQ_LEQ(sack.end, tp->snd_max)) {
 				sack_blocks[num_sack_blks++] = sack;
 			}
-#ifdef TREX_FBSD /* remove warning: array-bounds */
+			/* TREX_FBSD: remove warning: array-bounds */
 			if (num_sack_blks > sizeof(sack_blocks)/sizeof(sack_blocks[0])) {
 				break;
 			}
-#endif
 		}
 	}
 	/*
@@ -534,9 +533,8 @@ tcp_sack_doack(struct tcpcb *tp, struct tcpopt *to, tcp_seq th_ack)
 	 * pass. The overhead of sorting up to 4+1 elements is less than
 	 * making up to 4+1 passes over the scoreboard.
 	 */
-#ifdef TREX_FBSD /* remove warning: array-bounds */
+	/* TREX_FBSD: remove warning: array-bounds */
 	num_sack_blks = min(num_sack_blks, sizeof(sack_blocks)/sizeof(sack_blocks[0]));
-#endif
 	for (i = 0; i < num_sack_blks; i++) {
 		for (j = i + 1; j < num_sack_blks; j++) {
 			if (SEQ_GT(sack_blocks[i].end, sack_blocks[j].end)) {

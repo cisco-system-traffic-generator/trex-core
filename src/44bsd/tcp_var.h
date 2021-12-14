@@ -14,14 +14,10 @@
 #include "tcp_timer.h"
 #include "mbuf.h"
 #include "tcp_socket.h"
-//#ifndef TREX_FBSD
 #include "tcp_fsm.h"
 #include "tcp_debug.h"
-//#endif
-#ifdef TREX_FBSD
 #define EXTEND_TCPCB
 #include "netinet/tcp_int.h"
-#endif /* TREX_FBSD */
 #include <vector>
 #include "tcp_dpdk.h"
 #include "tcp_bsd_utl.h"
@@ -104,24 +100,13 @@ struct CTcpPkt {
 #define PACKET_TEMPLATE_SIZE (128)
 
 
-#ifndef TREX_FBSD
-struct tcpcb {
-#else
 struct tcpcb: public tcpcb_base {
-#endif
 
     tcp_socket m_socket;
 
     /* ====== size 8 bytes  */
 
-#ifndef TREX_FBSD
-    uint16_t t_timer[TCPT_NTIMERS];  /* tcp timers */
-    char    t_force;        /* 1 if forcing out a byte */
-#endif
     uint8_t mbuf_socket;    /* mbuf socket */
-#ifndef TREX_FBSD
-    uint8_t t_dupacks;      /* consecutive dup acks recd */
-#endif
     uint16_t t_pkts_cnt;    /* packets arrived until ack */
     uint16_t m_delay_limit; /* packets limit without ack */
 #define TUNE_HAS_PARENT_FLOW         0x01 /* means that this object is part of a bigger object */
@@ -133,103 +118,11 @@ struct tcpcb: public tcpcb_base {
     uint8_t m_tuneable_flags;
     /*====== end =============*/
 
-#ifndef TREX_FBSD
-    /* ======= size 12 bytes  */
-
-    int16_t t_state;        /* state of this connection */
-    int16_t t_rxtshift;     /* log(2) of rexmt exp. backoff */
-    int16_t t_rxtcur;       /* current retransmit value */
-    u_short t_maxseg;       /* maximum segment size */
-    u_short t_flags;
-#define TF_ACKNOW   0x0001      /* ack peer immediately */
-#define TF_DELACK   0x0002      /* ack, but try to delay it */
-#define TF_NODELAY  0x0004      /* don't delay packets to coalesce */
-#define TF_NOOPT    0x0008      /* don't use tcp options */
-#define TF_SENTFIN  0x0010      /* have sent FIN */
-#define TF_REQ_SCALE    0x0020      /* have/will request window scaling */
-#define TF_RCVD_SCALE   0x0040      /* other side has requested scaling */
-#define TF_REQ_TSTMP    0x0080      /* have/will request timestamps */
-#define TF_RCVD_TSTMP   0x0100      /* a timestamp was received in SYN */
-#define TF_SACK_PERMIT  0x0200      /* other side said I could SACK */
-#define TF_NODELAY_PUSH 0x0400      /* other side said I could SACK */
-
-    uint16_t  m_max_tso;        /* maximum packet size input to TSO */
-#else /* TREX_FBSD */
 #define m_max_tso   t_tsomax
-#endif /* TREX_FBSD */
 
     /*====== end =============*/
 
     /*====== size 15*4 = 60 bytes  */
-
-#ifndef TREX_FBSD
-/*
- * The following fields are used as in the protocol specification.
- * See RFC783, Dec. 1981, page 21.
- */
-/* send sequence variables */
-    tcp_seq snd_una;        /* send unacknowledged */
-    tcp_seq snd_nxt;        /* send next */
-    tcp_seq snd_up;         /* send urgent pointer */
-    tcp_seq snd_wl1;        /* window update seg seq number */
-    tcp_seq snd_wl2;        /* window update seg ack number */
-    tcp_seq iss;            /* initial send sequence number */
-    uint32_t snd_wnd;        /* send window */
-/* receive sequence variables */
-    uint32_t  rcv_wnd;        /* receive window */
-    tcp_seq rcv_nxt;        /* receive next */
-    tcp_seq rcv_up;         /* receive urgent pointer */
-    tcp_seq irs;            /* initial receive sequence number */
-/*
- * Additional variables for this implementation.
- */
-/* receive variables */
-    tcp_seq rcv_adv;        /* advertised window */
-/* retransmit variables */
-    tcp_seq snd_max;        /* highest sequence number sent;
-                     * used to recognize retransmits
-                     */
-/* congestion control (for slow start, source quench, retransmit after loss) */
-    uint32_t  snd_cwnd;       /* congestion-controlled window */
-    uint32_t  snd_ssthresh;       /* snd_cwnd size threshhold for
-                     * for slow start exponential to
-                     * linear switch
-                     */
-/*
- * transmit timing stuff.  See below for scale of srtt and rttvar.
- * "Variance" is actually smoothed difference.
- */
-    /*====== end =============*/
-
-    /*====== size 13 *4 = 48 bytes  */
-
-    u_short t_idle;         /* inactivity time */
-    int16_t t_rtt;          /* round trip time */
-    int16_t t_srtt;         /* smoothed round-trip time */
-    int16_t t_rttvar;       /* variance in round-trip time */
-
-    tcp_seq t_rtseq;        /* sequence number being timed */
-    uint32_t max_sndwnd;     /* largest window peer has offered */
-    u_short t_rttmin;       /* minimum rtt allowed */
-
-/* out-of-band data */
-#if 0
-    char    t_oobflags;     /* have some */
-    char    t_iobc;         /* input character */
-#endif
-#define TCPOOB_HAVEDATA 0x01
-#define TCPOOB_HADDATA  0x02
-    int16_t t_softerror;        /* possible error not yet reported */
-
-/* RFC 1323 variables */
-    u_char  snd_scale;      /* window scaling for send window */
-    u_char  rcv_scale;      /* window scaling for recv window */
-    u_char  request_r_scale;    /* pending window scaling */
-    u_char  requested_s_scale;
-    uint32_t  ts_recent;      /* timestamp echo data */
-    uint32_t  ts_recent_age;      /* when last updated */
-    tcp_seq last_ack_sent;
-#endif /* !TREX_FBSD */
 
     /*====== size 128 + 8 = 132 bytes  */
 
@@ -271,40 +164,6 @@ public:
     
 };
 
-#ifndef TREX_FBSD
-#define intotcpcb(ip)   ((struct tcpcb *)(ip)->inp_ppcb)
-#define sototcpcb(so)   (intotcpcb(sotoinpcb(so)))
-
-/*
- * The smoothed round-trip time and estimated variance
- * are stored as fixed point numbers scaled by the values below.
- * For convenience, these scales are also used in smoothing the average
- * (smoothed = (1/scale)sample + ((scale-1)/scale)smoothed).
- * With these scales, srtt has 3 bits to the right of the binary point,
- * and thus an "ALPHA" of 0.875.  rttvar has 2 bits to the right of the
- * binary point, and is smoothed with an ALPHA of 0.75.
- */
-#define TCP_RTT_SCALE       8   /* multiplier for srtt; 3 bits frac. */
-#define TCP_RTT_SHIFT       3   /* shift for srtt; 3 bits frac. */
-#define TCP_RTTVAR_SCALE    4   /* multiplier for rttvar; 2 bits */
-#define TCP_RTTVAR_SHIFT    2   /* multiplier for rttvar; 2 bits */
-
-/*
- * The initial retransmission should happen at rtt + 4 * rttvar.
- * Because of the way we do the smoothing, srtt and rttvar
- * will each average +1/2 tick of bias.  When we compute
- * the retransmit timer, we want 1/2 tick of rounding and
- * 1 extra tick because of +-1/2 tick uncertainty in the
- * firing of the timer.  The bias will give us exactly the
- * 1.5 tick we need.  But, because the bias is
- * statistical, we have to test that we don't drop below
- * the minimum feasible timer (which is 2 ticks).
- * This macro assumes that the value of TCP_RTTVAR_SCALE
- * is the same as the multiplier for rttvar.
- */
-#define TCP_REXMTVAL(tp) \
-    (((tp)->t_srtt >> TCP_RTT_SHIFT) + (tp)->t_rttvar)
-#endif /* !TREX_FBSD */
 
 /* XXX
  * We want to avoid doing m_pullup on incoming packets but that
@@ -317,86 +176,16 @@ public:
 #define REASS_MBUF(ti) (*(struct mbuf **)&((ti)->ti_t))
 
 
-#ifdef TREX_FBSD
 struct  tcpstat_int_t: public tcpstat {
-#else
-struct  tcpstat_int_t {
-    uint64_t    tcps_connattempt;   /* connections initiated */
-    uint64_t    tcps_accepts;       /* connections accepted */
-    uint64_t    tcps_connects;      /* connections established */
-    uint64_t    tcps_closed;        /* conn. closed (includes drops) */
-    uint64_t    tcps_segstimed;     /* segs where we tried to get rtt */
-    uint64_t    tcps_rttupdated;    /* times we succeeded */
-    uint64_t    tcps_delack;        /* delayed acks sent */
-    uint64_t    tcps_sndtotal;      /* total packets sent */
-    uint64_t    tcps_sndpack;       /* data packets sent */
-
-    uint64_t    tcps_sndbyte;       /* data bytes sent by application layer  */
-    uint64_t    tcps_sndbyte_ok;    /* data bytes sent by tcp  */
-
-    uint64_t    tcps_sndctrl;       /* control (SYN|FIN|RST) packets sent */
-    uint64_t    tcps_sndacks;       /* ack-only packets sent */
-    uint64_t    tcps_rcvtotal;      /* total packets received */
-    uint64_t    tcps_rcvpack;       /* packets received in sequence */
-    uint64_t    tcps_rcvbyte;       /* bytes received in sequence */
-    uint64_t    tcps_rcvackpack;    /* rcvd ack packets */
-    uint64_t    tcps_rcvackbyte;    /* bytes acked by rcvd acks */
-    uint64_t    tcps_preddat;       /* times hdr predict ok for data pkts */
-
-/* ERRORs */
-    uint64_t    tcps_drops;     /* connections dropped */
-    uint64_t    tcps_conndrops;     /* embryonic connections dropped */
-    uint64_t    tcps_timeoutdrop;   /* conn. dropped in rxmt timeout */
-    uint64_t    tcps_rexmttimeo;    /* retransmit timeouts */
-    uint64_t    tcps_rexmttimeo_syn;  /* retransmit SYN timeouts */
-    uint64_t    tcps_persisttimeo;  /* persist timeouts */
-    uint64_t    tcps_keeptimeo;     /* keepalive timeouts */
-    uint64_t    tcps_keepprobe;     /* keepalive probes sent */
-    uint64_t    tcps_keepdrops;     /* connections dropped in keepalive */
-#endif
     uint64_t    tcps_testdrops;     /* connections dropped at the end of the test due to --nc  */
 
-#ifndef TREX_FBSD
-    uint64_t    tcps_sndrexmitpack; /* data packets retransmitted */
-    uint64_t    tcps_sndrexmitbyte; /* data bytes retransmitted */
-    uint64_t    tcps_sndprobe;      /* window probes sent */
-    uint64_t    tcps_sndurg;        /* packets sent with URG only */
-    uint64_t    tcps_sndwinup;      /* window update-only packets sent */
-
-    uint64_t    tcps_rcvbadsum;     /* packets received with ccksum errs */
-    uint64_t    tcps_rcvbadoff;     /* packets received with bad offset */
-    uint64_t    tcps_rcvshort;      /* packets received too short */
-    uint64_t    tcps_rcvduppack;    /* duplicate-only packets received */
-    uint64_t    tcps_rcvdupbyte;    /* duplicate-only bytes received */
-    uint64_t    tcps_rcvpartduppack;    /* packets with some duplicate data */
-    uint64_t    tcps_rcvpartdupbyte;    /* dup. bytes in part-dup. packets */
-#endif
     uint64_t    tcps_rcvoopackdrop;     /* OOO packet drop due to queue len */
     uint64_t    tcps_rcvoobytesdrop;     /* OOO bytes drop due to queue len */
-
-#ifndef TREX_FBSD
-    uint64_t    tcps_rcvoopack;     /* out-of-order packets received */
-    uint64_t    tcps_rcvoobyte;     /* out-of-order bytes received */
-    uint64_t    tcps_rcvpackafterwin;   /* packets with data after window */
-    uint64_t    tcps_rcvbyteafterwin;   /* bytes rcvd after window */
-    uint64_t    tcps_rcvafterclose; /* packets rcvd after "close" */
-    uint64_t    tcps_rcvwinprobe;   /* rcvd window probe packets */
-    uint64_t    tcps_rcvdupack;     /* rcvd duplicate acks */
-    uint64_t    tcps_rcvacktoomuch; /* rcvd acks for unsent data */
-    uint64_t    tcps_rcvwinupd;     /* rcvd window update packets */
-    uint64_t    tcps_pawsdrop;      /* segments dropped due to PAWS */
-    uint64_t    tcps_predack;       /* times hdr predict ok for acks */
-    uint64_t    tcps_persistdrop;   /* timeout in persist state */
-    uint64_t    tcps_badsyn;        /* bogus SYN, e.g. premature ACK */
-#endif
 
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
     uint64_t    tcps_notunnel;       /* no GTP Tunnel for tcp - drop the packets */
-#ifndef TREX_FBSD
-    uint64_t    tcps_rcvackbyte_of;    /* bytes acked by rcvd acks */
-#endif
 };
 
 /*
@@ -418,10 +207,6 @@ public:
     void Dump(FILE *fd);
     void Resize(uint16_t new_num_of_tg_ids);
 };
-
-#ifndef TREX_FBSD
-#define PRU_SLOWTIMO        19  /* 500ms timeout */
-#endif
 
 
 #ifdef TREX_SIM
@@ -925,60 +710,24 @@ class CAstfTemplatesRW;
 class CTcpTuneables;
 class CGenNode;
 
-#ifndef TREX_FBSD
-static inline uint16_t _update_initwnd(uint16_t mss,uint16_t initwnd){
-    uint32_t calc =mss*initwnd;
-
-    if (calc>48*1024) {
-        calc=48*1024;
-    }
-    return((uint16_t)calc);
-}
-#endif
-
 typedef void (*on_stopped_cb_t)(void *data, profile_id_t profile_id);
 
-#ifdef TREX_FBSD
 class CTcpTunableCtx: public tcp_tune {
-#else
-class CTcpTunableCtx {
-#endif
 public:
     /* TUNABLEs */
     uint32_t  tcp_tx_socket_bsize;
     uint32_t  tcp_rx_socket_bsize;
 
-#ifndef TREX_FBSD
-    int tcprexmtthresh;
-    int tcp_mssdflt;
-    int tcp_initwnd_factor; /* slow start initwnd, should be 1 in default but for optimization we start at 5 */
-    int tcp_initwnd;        /*  tcp_initwnd_factor *tcp_mssdflt*/
-#else
 #define tcp_initwnd_factor  tcp_initcwnd_segments
-#endif
     uint32_t  sb_max ; /* socket max char */
     int tcp_max_tso;   /* max tso default */
     int tcp_rttdflt;
-#ifndef TREX_FBSD
-    int tcp_do_rfc1323;
-#endif
     int tcp_no_delay;
     int tcp_no_delay_counter; /* number of recv bytes to wait until ack them */
-#ifndef TREX_FBSD
-    int tcp_keepinit;
-    int tcp_keepidle;       /* time before keepalive probes begin */
-    int tcp_keepintvl;      /* time between keepalive probes */
-#endif
     int tcp_blackhole;
-#ifndef TREX_FBSD
-    int tcp_keepcnt;
-#endif
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
     uint32_t tcp_fast_ticks;
-#ifndef TREX_FBSD
-    uint32_t tcp_slow_fast_ratio;
-#endif
     int tcp_ttl;            /* time to live for TCP segs */
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
@@ -1778,17 +1527,8 @@ public:
 
 
 inline void CTcpFlow::on_tick(){
-#ifndef TREX_FBSD
-        on_fast_tick();
-        m_tick++;
-        if (m_tick == m_pctx->m_tunable_ctx.tcp_slow_fast_ratio) {
-            on_slow_tick();
-            m_tick=0;
-        }
-#else
         m_tick++;
         tcp_handle_timers(&m_tcp);
-#endif
 }
 
 
