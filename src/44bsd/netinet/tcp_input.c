@@ -286,7 +286,6 @@ cc_ecnpkt_handler(struct tcpcb *tp, struct tcphdr *th, uint8_t iptos)
 	}
 }
 
-
 static inline void
 tcp_fields_to_host(struct tcphdr *th)
 {

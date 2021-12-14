@@ -47,15 +47,14 @@ extern void cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type);
 extern struct tcpcb * tcp_drop(struct tcpcb *, int);
 extern struct tcpcb * tcp_close(struct tcpcb *);
 extern void tcp_respond(struct tcpcb *, void *, struct tcphdr *, struct mbuf *, tcp_seq, tcp_seq, int);
-extern struct tcptemp * tcpip_maketemplate(struct inpcb *);
 extern void tcp_timer_discard(void *);
 
 /* defined functions */
-void tcp_timer_2msl(void *xtp);
-void tcp_timer_keep(void *xtp);
-void tcp_timer_persist(void *xtp);
-void tcp_timer_rexmt(void *xtp);
-void tcp_timer_delack(void *xtp);
+void tcp_timer_2msl(struct tcpcb *tp);
+void tcp_timer_keep(struct tcpcb *tp);
+void tcp_timer_persist(struct tcpcb *tp);
+void tcp_timer_rexmt(struct tcpcb *tp);
+void tcp_timer_delack(struct tcpcb *tp);
 
 void tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta);
 int tcp_timer_active(struct tcpcb *tp, uint32_t timer_type);
@@ -65,7 +64,7 @@ void tcp_cancel_timers(struct tcpcb *tp);
 #define ticks   tcp_getticks(tp)
 
 
-typedef void (*timer_handle_t)(void *);
+typedef void (*timer_handle_t)(struct tcpcb *);
 static timer_handle_t tcp_timer_handlers[TCPT_NTIMERS] = {
 	tcp_timer_delack,
 	tcp_timer_rexmt,
@@ -77,16 +76,16 @@ static timer_handle_t tcp_timer_handlers[TCPT_NTIMERS] = {
 void
 tcp_handle_timers(struct tcpcb *tp)
 {
-        uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
-        uint32_t now_tick = ticks;
-        uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
+	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
+	uint32_t now_tick = ticks;
+	uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
 
 	tp->m_timer.last_tick = now_tick;
 
 	for (int i = 0; tt_flags && i < TCPT_NTIMERS; i++ ) {
 		if ((tt_flags & (1 << i)) == 0)
 			continue;
-                tt_flags &= ~(1 << i);
+		tt_flags &= ~(1 << i);
 
 		if (tp->m_timer.tt_timer[i] <= tick_passed) {
 			tp->m_timer.tt_flags &= ~(1 << i);
@@ -95,12 +94,6 @@ tcp_handle_timers(struct tcpcb *tp)
 			tp->m_timer.tt_timer[i] -= tick_passed;
 		}
 	}
-}
-
-void
-tcp_cancel_timers(struct tcpcb *tp)
-{
-	tp->m_timer.tt_flags = 0;
 }
 
 
@@ -117,18 +110,16 @@ const int tcp_totbackoff = 511;	/* sum of tcp_backoff[] */
  */
 
 void
-tcp_timer_delack(void *xtp)
+tcp_timer_delack(struct tcpcb *tp)
 {
-	struct tcpcb *tp = xtp;
 	tp->t_flags |= TF_ACKNOW;
 	TCPSTAT_INC(tcps_delack);
 	(void) tp->t_fb->tfb_tcp_output(tp);
 }
 
 void
-tcp_timer_2msl(void *xtp)
+tcp_timer_2msl(struct tcpcb *tp)
 {
-	struct tcpcb *tp = xtp;
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -150,10 +141,8 @@ tcp_timer_2msl(void *xtp)
 }
 
 void
-tcp_timer_keep(void *xtp)
+tcp_timer_keep(struct tcpcb *tp)
 {
-	struct tcpcb *tp = xtp;
-	struct tcptemp *t_template;
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -201,7 +190,6 @@ tcp_timer_keep(void *xtp)
 		 * correspondent TCP to respond.
 		 */
 		TCPSTAT_INC(tcps_keepprobe);
-		(void) t_template;
 		tcp_respond(tp, NULL, (struct tcphdr *)NULL, (struct mbuf *)NULL,
 			    tp->rcv_nxt, tp->snd_una - 1, TH_ACK);
 		tcp_timer_activate(tp, TT_KEEP, TP_KEEPINTVL(tp));
@@ -209,8 +197,8 @@ tcp_timer_keep(void *xtp)
 		tcp_timer_activate(tp, TT_KEEP, TP_KEEPIDLE(tp));
 
 #ifdef TCPDEBUG
-        if (tcp_getsocket(tp)->so_options & SO_DEBUG)
-                tcp_trace(TA_USER, ostate, tp, (void *)0, (struct tcphdr *)0, PRU_SLOWTIMO|(TT_KEEP<<8));
+	if (tcp_getsocket(tp)->so_options & SO_DEBUG)
+		tcp_trace(TA_USER, ostate, tp, (void *)0, (struct tcphdr *)0, PRU_SLOWTIMO|(TT_KEEP<<8));
 #endif
 	return;
 
@@ -225,9 +213,8 @@ dropit:
 }
 
 void
-tcp_timer_persist(void *xtp)
+tcp_timer_persist(struct tcpcb *tp)
 {
-	struct tcpcb *tp = xtp;
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -272,13 +259,12 @@ out:
 	if (tp != NULL && (tcp_getsocket(tp)->so_options & SO_DEBUG))
 		tcp_trace(TA_USER, ostate, tp, NULL, NULL, PRU_SLOWTIMO|(TT_PERSIST<<8));
 #endif
-        return;
+	return;
 }
 
 void
-tcp_timer_rexmt(void * xtp)
+tcp_timer_rexmt(struct tcpcb *tp)
 {
-	struct tcpcb *tp = xtp;
 	int rexmt;
 #ifdef TCPDEBUG
 	int ostate;
@@ -338,7 +324,7 @@ tcp_timer_rexmt(void * xtp)
 	} else
 		tp->t_flags &= ~TF_PREVVALID;
 	if ((tp->t_state == TCPS_SYN_SENT) ||
-            (tp->t_state == TCPS_LISTEN) ||
+	    (tp->t_state == TCPS_LISTEN) ||
 	    (tp->t_state == TCPS_SYN_RECEIVED)) {
 		rexmt = tcp_rexmit_initial * tcp_syn_backoff[tp->t_rxtshift];
 		TCPSTAT_INC(tcps_rexmttimeo_syn);
@@ -348,17 +334,17 @@ tcp_timer_rexmt(void * xtp)
 	}
 	TCPT_RANGESET(tp->t_rxtcur, rexmt,
 		      tp->t_rttmin, TCPTV_REXMTMAX);
-#ifdef TREX_FBSD
-        if (tp->t_state == TCPS_LISTEN) {
-                tcp_respond(tp, NULL, (struct tcphdr *)NULL, (struct mbuf *)NULL, tp->irs + 1, tp->iss, TH_ACK|TH_SYN);
-                tcp_timer_activate(tp, TT_REXMT, tp->t_rxtcur);
+
+	/* TREX_FBSD: to alter the syncache_timer */
+	if (tp->t_state == TCPS_LISTEN) {
+		tcp_respond(tp, NULL, (struct tcphdr *)NULL, (struct mbuf *)NULL, tp->irs + 1, tp->iss, TH_ACK|TH_SYN);
+		tcp_timer_activate(tp, TT_REXMT, tp->t_rxtcur);
 #ifdef TCPDEBUG
-                if (tp != NULL && (tcp_getsocket(tp)->so_options & SO_DEBUG))
-                        tcp_trace(TA_USER, ostate, tp, (void *)0, (struct tcphdr *)0, PRU_SLOWTIMO|(TT_REXMT<<8));
+		if (tp != NULL && (tcp_getsocket(tp)->so_options & SO_DEBUG))
+			tcp_trace(TA_USER, ostate, tp, (void *)0, (struct tcphdr *)0, PRU_SLOWTIMO|(TT_REXMT<<8));
 #endif
-                return;
-        }
-#endif
+		return;
+	}
 
 	tp->snd_nxt = tp->snd_una;
 	tp->snd_recover = tp->snd_max;
@@ -379,8 +365,9 @@ out:
 	if (tp != NULL && (tcp_getsocket(tp)->so_options & SO_DEBUG))
 		tcp_trace(TA_USER, ostate, tp, (void *)0, (struct tcphdr *)0, PRU_SLOWTIMO|(TT_REXMT<<8));
 #endif
-        return;
+	return;
 }
+
 
 void
 tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
@@ -404,4 +391,10 @@ void
 tcp_timer_stop(struct tcpcb *tp, uint32_t timer_type)
 {
 	tp->m_timer.tt_flags &= ~(1 << timer_type);
+}
+
+void
+tcp_cancel_timers(struct tcpcb *tp)
+{
+	tp->m_timer.tt_flags = 0;
 }

@@ -45,13 +45,13 @@
 #ifdef TCPDEBUG
 // <sys/protosw.h>
 static const char *prurequests[] = {
-        "ATTACH",       "DETACH",       "BIND",         "LISTEN",
-        "CONNECT",      "ACCEPT",       "DISCONNECT",   "SHUTDOWN",
-        "RCVD",         "SEND",         "ABORT",        "CONTROL",
-        "SENSE",        "RCVOOB",       "SENDOOB",      "SOCKADDR",
-        "PEERADDR",     "CONNECT2",     "FASTTIMO",     "SLOWTIMO",
-        "PROTORCV",     "PROTOSEND",    "SEND_EOF",     "SOSETLABEL",
-        "CLOSE",        "FLUSH",
+	"ATTACH",	"DETACH",	"BIND",		"LISTEN",
+	"CONNECT",	"ACCEPT",	"DISCONNECT",	"SHUTDOWN",
+	"RCVD",		"SEND",		"ABORT",	"CONTROL",
+	"SENSE",	"RCVOOB",	"SENDOOB",	"SOCKADDR",
+	"PEERADDR",	"CONNECT2",	"FASTTIMO",	"SLOWTIMO",
+	"PROTORCV",	"PROTOSEND",	"SEND_EOF",	"SOSETLABEL",
+	"CLOSE",	"FLUSH",
 };
 
 static const int tcpconsdebug = 1;
@@ -74,11 +74,11 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	isipv6 = (ipgen != NULL && ((struct ip *)ipgen)->ip_v == 6) ? 1 : 0;
 #endif /* INET6 */
 #define TF2_SERVER_ROLE 0x80000000
-        if (tp->t_state == TCPS_LISTEN)
-                tp->t_flags2 |= TF2_SERVER_ROLE;
-        printf("\n(%3.3f) ", tcp_timer_ticks_to_msec(tcp_getticks(tp))/1000.0f);
-        if (act == TA_USER)
-                printf("--- ");
+	if (tp->t_state == TCPS_LISTEN)
+		tp->t_flags2 |= TF2_SERVER_ROLE;
+	printf("\n(%3.3f) ", tcp_timer_ticks_to_msec(tcp_getticks(tp))/1000.0f);
+	if (act == TA_USER)
+		printf("--- ");
 	if (tcpconsdebug == 0)
 		return;
 	if (tp != NULL)
@@ -91,7 +91,7 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	printf("%s ", tanames[act]);
 	switch (act) {
 	case TA_RESPOND:
-                act = TA_OUTPUT;
+		act = TA_OUTPUT;
 	case TA_INPUT:
 	case TA_OUTPUT:
 	case TA_DROP:
@@ -110,23 +110,23 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 		}
 		len -= th->th_off * 4;
 
-                tcp_seq iseq = 0, iack = 0;
-                if (tp != NULL) {
-                        switch(act) {
-                        case TA_OUTPUT:
-                            iseq = tp->iss;
-                            iack = tp->irs;
-                            break;
-                        case TA_INPUT:
-                        case TA_DROP:
-                            iseq = tp->irs;
-                            iack = tp->iss;
-                            break;
-                        }
-                }
+		tcp_seq iseq = 0, iack = 0;
+		if (tp != NULL) {
+			switch(act) {
+			case TA_OUTPUT:
+			    iseq = tp->iss;
+			    iack = tp->irs;
+			    break;
+			case TA_INPUT:
+			case TA_DROP:
+			    iseq = tp->irs;
+			    iack = tp->iss;
+			    break;
+			}
+		}
 #if 0
-                if (act == TA_INPUT && th->th_flags & TH_SYN)
-                        ack = iack;
+		if (act == TA_INPUT && th->th_flags & TH_SYN)
+			ack = iack;
 #endif
 		if (len)
 			printf("[%x..%x)", seq-iseq, seq+len-iseq);
@@ -161,29 +161,29 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	if (tp == NULL)
 		return;
 #ifdef TREX_FBSD
-    if (tp->t_state < TCPS_SYN_SENT && !tp->t_starttime) {
+	if (tp->t_state < TCPS_SYN_SENT && !tp->t_starttime) {
 #endif
-	printf(
-	"\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
-	    (u_long)tp->rcv_nxt, (u_long)tp->rcv_wnd, (u_long)tp->rcv_up,
-	    (u_long)tp->snd_una, (u_long)tp->snd_nxt, (u_long)tp->snd_max);
+		printf(
+		"\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
+		    (u_long)tp->rcv_nxt, (u_long)tp->rcv_wnd, (u_long)tp->rcv_up,
+		    (u_long)tp->snd_una, (u_long)tp->snd_nxt, (u_long)tp->snd_max);
 #ifdef TREX_FBSD
-    } else {
-	printf("\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
-	    (u_long)(tp->rcv_nxt-tp->irs), (u_long)tp->rcv_wnd, (u_long)(tp->rcv_up-tp->irs),
-	    (u_long)(tp->snd_una-tp->iss), (u_long)(tp->snd_nxt-tp->iss), (u_long)(tp->snd_max-tp->iss));
-    }
+	} else {
+		printf("\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
+		    (u_long)(tp->rcv_nxt-tp->irs), (u_long)tp->rcv_wnd, (u_long)(tp->rcv_up-tp->irs),
+		    (u_long)(tp->snd_una-tp->iss), (u_long)(tp->snd_nxt-tp->iss), (u_long)(tp->snd_max-tp->iss));
+	}
 #endif
 #ifdef TREX_FBSD
-    if (tp->t_state < TCPS_ESTABLISHED && !tp->t_starttime) {
+	if (tp->t_state < TCPS_ESTABLISHED && !tp->t_starttime) {
 #endif
-	printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
-	    (u_long)tp->snd_wl1, (u_long)tp->snd_wl2, (u_long)tp->snd_wnd);
+		printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
+		    (u_long)tp->snd_wl1, (u_long)tp->snd_wl2, (u_long)tp->snd_wnd);
 #ifdef TREX_FBSD
-    } else {
-	printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
-	    (u_long)(tp->snd_wl1-tp->irs), (u_long)(tp->snd_wl2-tp->iss), (u_long)tp->snd_wnd);
-    }
+	} else {
+		printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
+		    (u_long)(tp->snd_wl1-tp->irs), (u_long)(tp->snd_wl2-tp->iss), (u_long)tp->snd_wnd);
+	}
 #endif
 #endif /* TCPDEBUG */
 }
