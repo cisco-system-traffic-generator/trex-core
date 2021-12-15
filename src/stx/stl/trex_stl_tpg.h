@@ -303,7 +303,7 @@ private:
      ------------          ------------              -----------
 
 **/
-enum TPGState {
+enum class TPGState {
     DISABLED,       // Tagged Packet Group is disabled. Default state.
     ENABLED_CP,     // Tagged Packet Group is enabled at CP. Message sent to Rx but it hasn't finished allocating.
     ENABLED_CP_RX,  // Tagged Packet Group is enabled at CP and Rx.

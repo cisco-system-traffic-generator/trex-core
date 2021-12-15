@@ -344,6 +344,9 @@ TrexStatelessFSLatencyStats* TrexStateless::get_stats() {
     return m_stats;
 }
 
+/**************************************
+ * Tagged Packet Group
+*************************************/
 bool TrexStateless::create_tpg_ctx(const std::string& username,
                                    const std::vector<uint8_t>& acquired_ports,
                                    const std::vector<uint8_t>& rx_ports,
@@ -396,8 +399,15 @@ TPGState TrexStateless::update_tpg_state(const std::string& username) {
         return state;
     }
 
-    // Update State based on Rx.
-    bool tpg_rx_enabled = get_stl_rx()->is_tpg_enabled(username);
+    // Update State based on Rx status
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxIsTPGEnabled(username, reply);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    bool tpg_rx_enabled = reply.wait_for_reply();
+
+
     if (state == TPGState::ENABLED_CP && tpg_rx_enabled) {
         // We were awaiting for Rx to finish allocating and Rx has finished.
         tpg_ctx->set_tpg_state(TPGState::ENABLED_CP_RX);
@@ -486,7 +496,7 @@ bool TrexStateless::disable_tpg(const std::string& username) {
     tpg_ctx->set_tpg_state(TPGState::DISABLED_DP);
 
     // Unset the feature in Rx. This can take a long time deallocating the packets, hence async.
-    TrexCpToRxMsgBase *msg = new TrexStatelessRxDisableTaggedPktGroup(tpg_ctx);
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxDisableTaggedPktGroup(username);
     CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     ring->SecureEnqueue((CGenNode*)msg, true);
 

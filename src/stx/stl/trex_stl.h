@@ -192,8 +192,8 @@ public:
     TPGCpCtx* get_tpg_ctx(const std::string& username);
 
     /**
-     * Update the state of Tagged Packet Grouping by checking if Rx has finished
-     * using shared memory.
+     * Update/Sync the state of Tagged Packet Grouping by checking if Rx has finished
+     * using a blocking message.
      *
      * @param username
      *   Username for whom we update the TPG State.
@@ -205,7 +205,7 @@ public:
 
     /**
      * Enable Tagged Packet Grouping in Control Plane and send an Enable Message to the Rx core.
-     * This message is non blocking.
+     * The message is non blocking/async.
      *
      * @param username
      *   Username for whom we enable TPG.
@@ -217,7 +217,7 @@ public:
 
     /**
      * Enable Tagged Packet Grouping in Data Plane by sending a message to all data planes.
-     * This message is blocking.
+     * The message is blocking.
      *
      * @param username
      *   Username for whom we enable TPG.
@@ -229,8 +229,8 @@ public:
 
     /**
      * Disable Tagged Packet Grouping by sending disable messages to Dps and Rx.
-     * The messages to DP is blocking.
-     * This message to Rx is non blocking.
+     * The message to DP is blocking.
+     * The message to Rx is non blocking.
      *
      * @param username
      *   Username for whom we disable TPG.

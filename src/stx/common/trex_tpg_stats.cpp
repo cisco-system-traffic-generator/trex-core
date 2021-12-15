@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2021-2021 Cisco Systems, Inc.
+Copyright (c) 2021-2022 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,22 +21,21 @@ limitations under the License.
 
 #include "trex_tpg_stats.h"
 #include "stl/trex_stl_fs.h"
+#include <pthread.h>
 #include "common/Network/Packet/VLANHeader.h"
 
 /*******************************************************************
  CTPGTagCntr
 *******************************************************************/
-
-void CTPGTagCntr::init() {
-    m_pkts = 0;
-    m_bytes = 0;
-    m_seq_err = 0;
-    m_seq_err_too_big = 0;
-    m_seq_err_too_small = 0;
-    m_ooo = 0;
-    m_dup = 0;
-    m_exp_seq = 0;
-}
+CTPGTagCntr::CTPGTagCntr() :
+    m_pkts(0),
+    m_bytes(0),
+    m_seq_err(0),
+    m_seq_err_too_big(0),
+    m_seq_err_too_small(0),
+    m_ooo(0),
+    m_dup(0),
+    m_exp_seq(0) {}
 
 void CTPGTagCntr::update_cntrs(uint32_t rcv_seq, uint32_t pkt_len) {
     if (rcv_seq > m_exp_seq) {
@@ -127,119 +126,13 @@ std::ostream& operator<<(std::ostream& os, const CTPGTagCntr& tag) {
     return os;
 }
 
-/*******************************************************************
-CTPGGroupCntr
-*******************************************************************/
-CTPGGroupCntr::CTPGGroupCntr(uint32_t tpgid, uint16_t num_tags)
-                      : m_tpgid(tpgid), m_num_tags(num_tags) {
-
-    m_unknown_tag_cntrs = new CTPGTagCntr();
-    m_tag_counters = new CTPGTagCntr[num_tags];
-}
-
-CTPGGroupCntr::~CTPGGroupCntr() {
-    delete m_unknown_tag_cntrs;
-    delete[] m_tag_counters;
-}
-
-CTPGTagCntr* CTPGGroupCntr::get_tag_cntr(uint16_t tag) {
-    if (tag >= m_num_tags) {
-        std::string msg = "Tag " + std::to_string(tag) + " is out of bounds.";
-        throw std::out_of_range (msg);
-    }
-    return &m_tag_counters[tag];
-}
-
-CTPGTagCntr* CTPGGroupCntr::get_unknown_tag_cntr() {
-    return m_unknown_tag_cntrs;
-}
-
-void CTPGGroupCntr::get_tpg_stats(Json::Value& stats, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
-    CTPGTagCntr* ref_cntr = get_tag_cntr(min_tag);
-    uint16_t i = min_tag + 1;
-    while (i < max_tag) {
-        if (*ref_cntr == *get_tag_cntr(i)) {
-            i++;
-        } else {
-            break;
-        }
-    }
-    std::string key = "";
-    if (i != min_tag + 1) {
-        key = std::to_string(min_tag) + "-" + std::to_string(i-1); // i-1 to make it inclusive
-    } else {
-        key = std::to_string(min_tag);
-    }
-
-    Json::Value& tpgid_stats = stats[key];
-    ref_cntr->dump_json(tpgid_stats);
-
-    if (unknown_tag) {
-        Json::Value& unknown_tag_stats = stats["unknown_tag"];
-        m_unknown_tag_cntrs->dump_json(unknown_tag_stats);
-    }
-}
-
-/*******************************************************************
-CTPGPortCntr
-*******************************************************************/
-CTPGPortCntr::CTPGPortCntr(uint8_t port_id, uint32_t num_tpgids, uint16_t num_tags)
-                      : m_port_id(port_id), m_num_tpgids(num_tpgids), m_num_tags(num_tags) {
-
-    m_group_counters = new CTPGGroupCntr*[m_num_tpgids];
-    for (int i = 0; i < m_num_tpgids; i++) {
-        m_group_counters[i] = new CTPGGroupCntr(i, m_num_tags);
-    }
-}
-
-CTPGPortCntr::~CTPGPortCntr() {
-    for (int i = 0; i < m_num_tpgids; i++) {
-        delete m_group_counters[i];
-    }
-    delete[] m_group_counters;
-}
-
-CTPGGroupCntr* CTPGPortCntr::get_pkt_group_cntr(uint32_t tpgid) {
-    if (tpgid >= m_num_tpgids) {
-        std::string msg = "Packet Group Identifier" + std::to_string(tpgid) + " is out of bounds.";
-        throw std::out_of_range (msg);
-    }
-    return m_group_counters[tpgid];
-}
-
-void CTPGPortCntr::update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id, bool tag_exists) {
-    if (tpgid >= m_num_tpgids) {
-        // Invalid tpgid, ignore.
-        return;
-    }
-    CTPGGroupCntr* pg_cntr = get_pkt_group_cntr(tpgid);
-    CTPGTagCntr* tag_cntr = nullptr;
-    if (tag_exists) {
-        tag_cntr = pg_cntr->get_tag_cntr(tag_id);
-    } else {
-        /**
-         * Counters based on sequencing are irrelevant in case the tag is not known.
-         * For example, we can receive seq = 3 in Vlan 3, and seq = 5 in Vlan 5.
-         * We will count this as seq_err even though it isn't necessarily.
-         */
-        tag_cntr = pg_cntr->get_unknown_tag_cntr();
-    }
-
-    tag_cntr->update_cntrs(rcv_seq, pkt_len);
-}
-
-
 /**************************************
  * RxTPGPerPort
  *************************************/
-RxTPGPerPort::RxTPGPerPort(uint8_t port_id, uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr) {
-    m_port_cntr = new CTPGPortCntr(port_id, num_tpgids, tag_mgr->get_num_tags());
-    m_tag_mgr = new PacketGroupTagMgr(tag_mgr); // Clone the Tag Manager for a locality performance impact
-}
+RxTPGPerPort::RxTPGPerPort(uint8_t port_id, uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr, CTPGTagCntr* cntrs)
+                          : m_port_id(port_id), m_num_tpgids(num_tpgids), m_tag_mgr(tag_mgr), m_cntrs(cntrs) {
 
-RxTPGPerPort::~RxTPGPerPort() {
-    delete m_port_cntr;
-    delete m_tag_mgr;
+    m_num_tags = m_tag_mgr->get_num_tags();
 }
 
 void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
@@ -256,7 +149,7 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
     }
 
     // This is a TPG packet
-    uint8_t* pkt_ptr = rte_pktmbuf_mtod(m, uint8_t *);
+    uint8_t* pkt_ptr = rte_pktmbuf_mtod(m, uint8_t*);
 
     CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW); // Support Dot1Q, QinQ.
     parser.set_vxlan_skip(false); // Ignore VxLAN for now.
@@ -287,11 +180,167 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
         }
     }
 
-    m_port_cntr->update_cntrs(tpg_header->tpgid, tpg_header->seq, m->pkt_len, tag_id, tag_exists);
+    update_cntrs(tpg_header->tpgid, tpg_header->seq, m->pkt_len, tag_id, tag_exists);
+}
+
+void RxTPGPerPort::update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id, bool tag_exists) {
+    if (tpgid >= m_num_tpgids) {
+        // Invalid tpgid, ignore.
+        return;
+    }
+    CTPGTagCntr* tag_cntr = nullptr;
+    if (tag_exists) {
+        tag_cntr = get_tag_cntr(tpgid, tag_id);
+    } else {
+        /**
+         * Counters based on sequencing are irrelevant in case the tag is not known.
+         * For example, we can receive seq = 3 in Vlan 3, and seq = 5 in Vlan 5.
+         * We will count this as seq_err even though it isn't necessarily.
+         */
+        tag_cntr = get_unknown_tag_cntr(tpgid);
+    }
+
+    tag_cntr->update_cntrs(rcv_seq, pkt_len);
+}
+
+CTPGTagCntr* RxTPGPerPort::get_tag_cntr(uint32_t tpgid, uint16_t tag) {
+    if (tpgid >= m_num_tpgids || tag >= m_num_tags) {
+        return nullptr;
+    }
+    return m_cntrs + tpgid * (m_num_tags + 1) + tag;
+}
+
+CTPGTagCntr* RxTPGPerPort::get_unknown_tag_cntr(uint32_t tpgid) {
+    // Unkown tag is last at each tpgid
+    if (tpgid >= m_num_tpgids) {
+        return nullptr;
+    }
+    return m_cntrs +  tpgid * (m_num_tags + 1) + m_num_tags;
 }
 
 void RxTPGPerPort::get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
     Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
-    CTPGGroupCntr* tpgid_cntr = m_port_cntr->get_pkt_group_cntr(tpgid); // This is not nullptr, tpgid was validated to be in range
-    tpgid_cntr->get_tpg_stats(tpgid_stats, min_tag, max_tag, unknown_tag);
+
+    CTPGTagCntr* ref_cntr = get_tag_cntr(tpgid, min_tag);
+    uint16_t i = min_tag + 1;
+    while (i < max_tag) {
+        if (*ref_cntr != *get_tag_cntr(tpgid, i)) {
+            break;
+        }
+        i++;
+    }
+
+    std::string key = "";
+    if (i != min_tag + 1) {
+        key = std::to_string(min_tag) + "-" + std::to_string(i-1); // i-1 to make it inclusive
+    } else {
+        key = std::to_string(min_tag);
+    }
+
+    Json::Value& key_stats = tpgid_stats[key];
+    ref_cntr->dump_json(key_stats);
+
+    if (unknown_tag) {
+        Json::Value& unknown_tag_stats = tpgid_stats["unknown_tag"];
+        get_unknown_tag_cntr(tpgid)->dump_json(unknown_tag_stats);
+    }
 }
+
+
+/**************************************
+ * TPGRxCtx
+ *************************************/
+
+TPGRxCtx::TPGRxCtx(const std::vector<uint8_t>& rx_ports,
+                   const uint32_t num_tpgids,
+                   const std::string& username,
+                   PacketGroupTagMgr* tag_mgr) :
+                   m_rx_ports(rx_ports), m_num_tpgids(num_tpgids), m_username(username), m_cntrs(nullptr), m_state(TPGRxState::DISABLED), m_thread(nullptr) {
+
+    m_tag_mgr = new PacketGroupTagMgr(tag_mgr); // Clone this for locality on NUMA
+}
+
+TPGRxCtx::~TPGRxCtx() {
+    delete m_thread;    // Delete detached thread
+    delete m_tag_mgr;   // Remove the clone
+    free(m_cntrs);      // Free the counters if needed
+}
+
+void TPGRxCtx::allocate() {
+    spawn_thread("TPG Rx Counter Allocator", &TPGRxCtx::_allocate);
+}
+
+void TPGRxCtx::deallocate() {
+    spawn_thread("TPG Rx Counter Deallocator", &TPGRxCtx::_deallocate);
+}
+
+void TPGRxCtx::spawn_thread(const std::string& name, std::function<void(TPGRxCtx*)> func) {
+    if (m_thread) {
+        throw TrexException("Context is already allocating/deallocating.");
+    }
+    m_thread = new std::thread(func, this);
+    if (!m_thread) {
+        throw TrexException("Unable to create TPG counter thread");
+    }
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(sched_getcpu(), &cpuset);
+    auto thread_handle = m_thread->native_handle();
+    int rc = pthread_setaffinity_np(thread_handle, sizeof(cpu_set_t), &cpuset); // Run with same affinity as master
+    if (rc != 0) {
+        // Return Code is non zero
+        throw TrexException("Error setting affinity for allocating thread");
+    }
+    pthread_setname_np(thread_handle, name.c_str());
+    m_thread->detach();
+}
+
+void TPGRxCtx::destroy_thread() {
+    delete m_thread;
+    m_thread = nullptr;
+}
+
+void TPGRxCtx::_allocate() {
+    uint8_t num_ports = m_rx_ports.size();
+    uint16_t num_tags = m_tag_mgr->get_num_tags() + 1; // + 1 for unkown tags
+    uint64_t num_cntrs = num_ports * m_num_tpgids * num_tags;
+    /**
+     * NOTE: Use calloc to distribute the workload based on COW (Copy on Write).
+     **/
+    m_cntrs = (CTPGTagCntr*)calloc(num_cntrs, sizeof(CTPGTagCntr));
+
+    // Update state safely
+    set_state(TPGRxState::AWAITING_ENABLE);
+}
+
+void TPGRxCtx::_deallocate() {
+    free(m_cntrs);
+    m_cntrs = nullptr;
+
+    // Update state safely
+    set_state(TPGRxState::AWAITING_DISABLE);
+}
+
+CTPGTagCntr* TPGRxCtx::get_port_cntr(uint8_t port_id) {
+    uint16_t num_tags = m_tag_mgr->get_num_tags() + 1; // + 1 for unknown tag
+    for (int i = 0; i < m_rx_ports.size(); i++) {
+        if (m_rx_ports[i] == port_id) {
+            // Found it
+            uint64_t offset = i * m_num_tpgids * num_tags;
+            return m_cntrs + offset;
+        }
+    }
+    // Couldn't find port
+    return nullptr;
+}
+
+void TPGRxCtx::set_state(TPGRxState state) {
+    std::lock_guard<std::mutex> l(m_state_mutex);
+    m_state = state;
+} // auto unlock (lock_guard, RAII)
+
+TPGRxState TPGRxCtx::get_state() {
+    std::lock_guard<std::mutex> l(m_state_mutex);
+    return m_state;
+} // auto unlock (lock_guard, RAII)

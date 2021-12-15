@@ -402,14 +402,26 @@ private:
 
 class TrexStatelessRxDisableTaggedPktGroup: public TrexCpToRxMsgBase {
 public:
-    TrexStatelessRxDisableTaggedPktGroup(TPGCpCtx* tpg_ctx)
-                                         : m_tpg_ctx(tpg_ctx) {}
+    TrexStatelessRxDisableTaggedPktGroup(const std::string& username)
+                                         : m_username(username) {}
 
     bool handle(CRxCore *rx_core);
 
 private:
-    TPGCpCtx*                  m_tpg_ctx;          // Pointer to Control Plane TPG Context.
+    const std::string       m_username;     // User for whom we are disabling TPG
 
+};
+
+class TrexStatelessRxIsTPGEnabled: public TrexCpToRxMsgBase {
+public:
+    TrexStatelessRxIsTPGEnabled(const std::string& username, MsgReply<bool>& reply)
+                                         : m_username(username), m_reply(reply) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    const std::string       m_username;     // User for whom we are checking if TPG is enabled.
+    MsgReply<bool>&         m_reply;        // Reply object
 };
 
 
