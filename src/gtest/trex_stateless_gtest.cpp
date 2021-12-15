@@ -5731,117 +5731,164 @@ class TPGRxStatsTest : public TaggedPktGroupTest {
     **/
 public:
 
-    void TestExpectedPath() {
+    void TestSanity() {
         uint8_t port_id = 0;
         uint32_t num_tpgids = 10;
-        uint16_t num_tags = 4095;
-        CTPGPortCntr* port_cntr = new CTPGPortCntr(port_id, num_tpgids, num_tags);
-        EXPECT_THROW(port_cntr->get_pkt_group_cntr(4095), std::out_of_range);
+        uint16_t num_tags = 25;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + 1) * num_tpgids, sizeof(CTPGTagCntr)); // 25 Tags + 1 Unknown , 10 TPGIDS
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
 
         uint16_t tpgid = 3;
         uint16_t tag = 6;
-        port_cntr->update_cntrs(tpgid, 0, 60, tag, true);
-        CTPGGroupCntr* group_cntr = port_cntr->get_pkt_group_cntr(tpgid);
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, tag, true); // Tag 6
+        rx_tpg_port->update_cntrs(tpgid, 0, 72, 0, false); // Unknown
+        tag = 24;
+        rx_tpg_port->update_cntrs(tpgid, 0, 80, tag, true); // Tag 24
+
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, true);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 6, num_tags, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 7, num_tags, true);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 24, num_tags, true);
+
 
         CTPGTagCntr exp = CTPGTagCntr();
-        Json::Value stats;
-        group_cntr->get_tpg_stats(stats, 0, num_tags, false);
-        // Key should be "0-5" and all values should be 0.
-        stats = stats["0-" + std::to_string(tag-1)];
-        VALIDATE_STATS_JSON(stats, &exp);
-
-        Json::Value stats_tag;
-        group_cntr->get_tpg_stats(stats_tag, tag, num_tags, false);
-        // Key should be 6
-        stats_tag = stats_tag[std::to_string(tag)];
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["0-5"], &exp);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["7-23"], &exp);
         exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
-        VALIDATE_STATS_JSON(stats_tag, &exp);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["6"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["24"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["unknown_tag"], &exp);
 
-        Json::Value remaining_stats;
-        group_cntr->get_tpg_stats(remaining_stats, tag, num_tags, false);
-        // Key should be "7-9"
-        remaining_stats = stats[std::to_string(tag+1) + "-" + std::to_string(num_tags-1)];
-        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
-        VALIDATE_STATS_JSON(remaining_stats, &exp);
+        tpgid = 0;
+        tag = 0;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, tag, true); // Tag 0
 
-        delete port_cntr;
+        CTPGTagCntr* tag_ptr = rx_tpg_port->get_tag_cntr(tpgid, tag);
+        exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        EXPECT_EQ(*tag_ptr, exp);
+
+        tpgid = 9;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, 0, false); // Unknown
+        tag_ptr = rx_tpg_port->get_unknown_tag_cntr(tpgid);
+        EXPECT_EQ(*tag_ptr, exp);
+
+        tag_ptr = rx_tpg_port->get_tag_cntr(5, 30);
+        EXPECT_EQ(nullptr, tag_ptr);
+
+        tag_ptr = rx_tpg_port->get_tag_cntr(15, 2);
+        EXPECT_EQ(nullptr, tag_ptr);
+
+        delete(rx_tpg_port);
+        free(port_cntr);
+        delete tag_mgr;
+
     }
 
     void TestUnknownTags() {
         uint8_t port_id = 0;
         uint32_t num_tpgids = 2;
-        uint16_t num_tags = 5;
-        CTPGPortCntr* port_cntr = new CTPGPortCntr(port_id, num_tpgids, num_tags);
+        uint16_t num_tags = 2;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        tag_mgr->add_qinq_tag(20, 30, 0);    // QinQ (20, 30) = Tag 0
+        tag_mgr->add_dot1q_tag(7, 1); // Dot1Q(7) = Tag 1
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + 1) * num_tpgids, sizeof(CTPGTagCntr)); // 2 Tags + 1 Unknown , 2 TPGIDS
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
 
         uint16_t tpgid = 1;
         // Sequence 0 and 1 is received with unknown tag
-        port_cntr->update_cntrs(tpgid, 0, 60, 0, false);
-        port_cntr->update_cntrs(tpgid, 1, 60, 0, false);
 
-        CTPGGroupCntr* group_cntr = port_cntr->get_pkt_group_cntr(tpgid);
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, 0, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60, 0, false);
+
         Json::Value stats;
-        group_cntr->get_tpg_stats(stats, 0, num_tags, true);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, 2, true);
+        stats = stats[std::to_string(tpgid)];
 
-        CTPGTagCntr exp = CTPGTagCntr(); // By default set to 0
-        VALIDATE_STATS_JSON(stats["0"], &exp);
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(stats["0-1"], &exp);
 
         exp.set_cntrs(2, 128, 0, 0, 0, 0, 0);
         VALIDATE_STATS_JSON(stats["unknown_tag"], &exp);
 
-        delete port_cntr;
+        delete rx_tpg_port;
+        free(port_cntr);
     }
 
     void TestWithSomeErrors() {
         uint8_t port_id = 0;
-        uint32_t num_tpgids = 3;
-        uint16_t num_tags = 10;
-        CTPGPortCntr* port_cntr = new CTPGPortCntr(port_id, num_tpgids, num_tags);
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 25;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + 1) * num_tpgids, sizeof(CTPGTagCntr)); // 25 Tags + 1 Unknown , 10 TPGIDS
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
 
         uint16_t tpgid = 2;
-        port_cntr->update_cntrs(tpgid, 0, 60,  2, true);
-        port_cntr->update_cntrs(tpgid, 1, 100, 2, true);
-        port_cntr->update_cntrs(tpgid, 1, 60,  2, true);
-        port_cntr->update_cntrs(tpgid, 2, 100, 2, true);
+        rx_tpg_port->update_cntrs(tpgid, 0, 60,  2, true); // Tag 2
+        rx_tpg_port->update_cntrs(tpgid, 1, 100, 2, true);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60,  2, true);
+        rx_tpg_port->update_cntrs(tpgid, 2, 100, 2, true);
 
-        port_cntr->update_cntrs(tpgid, 0, 60,  3, true);
-        port_cntr->update_cntrs(tpgid, 1, 100, 3, true);
-        port_cntr->update_cntrs(tpgid, 3, 60,  3, true);
-        port_cntr->update_cntrs(tpgid, 2, 100, 3, true);
+        rx_tpg_port->update_cntrs(tpgid, 0, 60,  3, true);  // Tag 3
+        rx_tpg_port->update_cntrs(tpgid, 1, 100, 3, true);
+        rx_tpg_port->update_cntrs(tpgid, 3, 60,  3, true);
+        rx_tpg_port->update_cntrs(tpgid, 2, 100, 3, true);
 
-        CTPGTagCntr exp = CTPGTagCntr(); // By default set to 0
-        CTPGGroupCntr* group_cntr = port_cntr->get_pkt_group_cntr(tpgid);
+        CTPGTagCntr exp = CTPGTagCntr();
         Json::Value stats;
-        group_cntr->get_tpg_stats(stats, 0, num_tags, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, false);
+        Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
 
-        VALIDATE_STATS_JSON(stats["0-1"], &exp); // Compressed the first ones.
+        VALIDATE_STATS_JSON(tpgid_stats["0-1"], &exp); // Compressed the first ones.
 
-        group_cntr->get_tpg_stats(stats, 2, num_tags, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 2, num_tags, false);
         exp.set_cntrs(4, 336, 0, 0, 1, 1, 0);
-        VALIDATE_STATS_JSON(stats["2"], &exp);
+        VALIDATE_STATS_JSON(tpgid_stats["2"], &exp);
 
-        group_cntr->get_tpg_stats(stats, 3, num_tags, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 3, num_tags, false);
         exp.set_cntrs(4, 336, 0, 1, 1, 0, 1);
-        VALIDATE_STATS_JSON(stats["3"], &exp);
+        VALIDATE_STATS_JSON(tpgid_stats["3"], &exp);
 
-        group_cntr->get_tpg_stats(stats, 4, num_tags, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 4, num_tags, false);
         exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
-        VALIDATE_STATS_JSON(stats["4-9"], &exp);
+        VALIDATE_STATS_JSON(tpgid_stats["4-9"], &exp);
 
-        delete port_cntr;
+        delete rx_tpg_port;
+        free(port_cntr);
     }
 
     void TestRxHandleValidTag() {
 
         /**
-            Short Sanity Check for TPG Rx Handle
-        **/
+         * Short Sanity Check for TPG Rx Handle
+         **/
 
         uint8_t port_id = 0;
         uint32_t num_tpgids = 10;
+        uint16_t num_tags = 1;
         PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
         tag_mgr->add_qinq_tag(20, 30, 0);    // QinQ (20, 30) = Tag 0
 
-        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr);
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + 1) * num_tpgids, sizeof(CTPGTagCntr)); // 1 Tag + 1 Unknown * 10 tpgid
+
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
 
         uint8_t test_pkt[] = {
             // Ether header
@@ -5894,22 +5941,26 @@ public:
         exp.set_cntrs(1, sizeof(test_pkt) + 4, 3, 1, 0, 0, 0);
         VALIDATE_STATS_JSON(tag_stats, &exp);
 
-        delete tag_mgr;
         delete rx_tpg_port;
+        free(port_cntr);
+        delete tag_mgr;
     }
 
     void TestRxHandleInvalidTag() {
 
         /**
-            Short Check if an unkown tag is received.
-        **/
+         * Short Check if an unkown tag is received.
+         **/
 
         uint8_t port_id = 0;
         uint32_t num_tpgids = 10;
+        uint16_t num_tags = 1;
         PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
         tag_mgr->add_dot1q_tag(7, 0);    // Vlan 7 - Tag 0
 
-        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr);
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + 1) * num_tpgids, sizeof(CTPGTagCntr)); // 1 Tag + 1 Unknown * 10 tpgid
+
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
 
         uint8_t test_pkt[] = {
             // Ether header
@@ -5964,13 +6015,15 @@ public:
         exp.set_cntrs(1, sizeof(test_pkt) + 4, 3, 1, 0, 0, 0);
         VALIDATE_STATS_JSON(unknown_stats, &exp);
 
-        delete tag_mgr;
         delete rx_tpg_port;
+        free(port_cntr);
+        delete tag_mgr;
     }
+
 };
 
 TEST_F(TPGRxStatsTest, PortCntrTest) {
-    TestExpectedPath();
+    TestSanity();
     TestUnknownTags();
     TestWithSomeErrors();
     TestRxHandleValidTag();

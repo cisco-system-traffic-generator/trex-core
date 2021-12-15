@@ -576,14 +576,13 @@ bool RXPortManager::stop_capture_port(std::string &err) {
     return true;
 }
 
-void RXPortManager::enable_tpg(uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr) {
+void RXPortManager::enable_tpg(uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr, CTPGTagCntr* port_cntrs) {
     set_feature(TPG);
     assert(m_tpg == nullptr);
-    m_tpg = new RxTPGPerPort(m_port_id, num_tpgids, tag_mgr);
+    m_tpg = new RxTPGPerPort(m_port_id, num_tpgids, tag_mgr, port_cntrs);
 }
 
 void RXPortManager::disable_tpg() {
-    // This function should be safe even if called on a disabled instance.
     unset_feature(TPG);
     delete m_tpg;
     m_tpg = nullptr;
@@ -600,7 +599,7 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
         m_latency.handle_pkt(m, m_port_id);
     }
 
-    if (is_feature_set(TPG) && m_tpg) {
+    if (is_feature_set(TPG)) {
         m_tpg->handle_pkt(m);
     }
 

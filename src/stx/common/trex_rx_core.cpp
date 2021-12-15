@@ -38,6 +38,11 @@ CRxCore::~CRxCore(void) {
         delete iter_pair.second;
         iter_pair.second = nullptr;
     }
+
+    // Remove active TPG contexts, no need to erase from map since the object is getting destroyed.
+    for (auto& iter_pair : m_tpg_ctx) {
+        delete iter_pair.second;
+    }
 }
 
 
@@ -285,7 +290,7 @@ bool CRxCore::should_be_hot() {
             || mngr_pair.second->is_feature_set(RXPortManager::LATENCY)
             || mngr_pair.second->is_feature_set(RXPortManager::CAPWAP_PROXY)
             || mngr_pair.second->is_feature_set(RXPortManager::CAPTURE_PORT)
-            || mngr_pair.second->is_feature_set(RXPortManager::TPG) ) {
+            || mngr_pair.second->is_feature_set(RXPortManager::TPG)) {
             return true;
         }
     }
@@ -359,13 +364,13 @@ void CRxCore::init_work_stage() {
  * return true if anything was done
  */
 bool CRxCore::work_tick() {
-    
+
     bool did_something = false;
     int pkt_cnt;
     int limit = 30;
 
     /* TODO: add a scheduler - will solve all problems here */
-    
+
     /* continue while pending packets are waiting or limit reached */
     do {
         pkt_cnt = process_all_pending_pkts();
@@ -373,7 +378,7 @@ bool CRxCore::work_tick() {
         limit--;
         did_something |= (pkt_cnt > 0);
     } while ( pkt_cnt && limit );
-    
+
     dsec_t now = now_sec();
 
     /* until a scheduler is added here - dirty IFs */
@@ -385,15 +390,19 @@ bool CRxCore::work_tick() {
         if (periodic_check_for_cp_messages()) {
             did_something = true;
         }
-        
+
+        if (unlikely(m_working_tpg_threads != 0)) {
+            did_something = handle_tpg_threads();
+        }
+
         m_sync_time_sec = now + m_sync_time_period;
     }
 
     /* pass a tick to the TX queue
-     
+
        */
     m_tx_queue.tick();
-    
+
     return did_something;
 }
 
@@ -534,65 +543,57 @@ double CRxCore::get_cpu_util() {
 }
 
 
-void
-CRxCore::start_queue(uint8_t port_id, uint64_t size) {
+void CRxCore::start_queue(uint8_t port_id, uint64_t size) {
     m_rx_port_mngr_vec[port_id]->start_queue(size);
     recalculate_next_state();
 }
 
-void
-CRxCore::stop_queue(uint8_t port_id) {
+void CRxCore::stop_queue(uint8_t port_id) {
     m_rx_port_mngr_vec[port_id]->stop_queue();
     recalculate_next_state();
 }
 
-bool
-CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
+bool CRxCore::start_capwap_proxy(uint8_t port_id, uint8_t pair_port_id, bool is_wireless_side, Json::Value capwap_map, uint32_t wlc_ip) {
     bool rc;
     rc = m_rx_port_mngr_vec[port_id]->start_capwap_proxy(pair_port_id, is_wireless_side, capwap_map, wlc_ip);
     recalculate_next_state();
     return rc;
 }
 
-bool
-CRxCore::add_to_capwap_proxy(uint8_t port_id, Json::Value capwap_map) {
+bool CRxCore::add_to_capwap_proxy(uint8_t port_id, Json::Value capwap_map) {
     bool rc;
     rc = m_rx_port_mngr_vec[port_id]->add_to_capwap_proxy(capwap_map);
     recalculate_next_state();
     return rc;
 }
 
-void
-CRxCore::stop_capwap_proxy(uint8_t port_id) {
+void CRxCore::stop_capwap_proxy(uint8_t port_id) {
     m_rx_port_mngr_vec[port_id]->stop_capwap_proxy();
     recalculate_next_state();
 }
 
-void
-CRxCore::enable_latency() {
+void CRxCore::enable_latency() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->enable_latency();
     }
-    
+
     recalculate_next_state();
 }
 
-void
-CRxCore::enable_astf_latency_fia(bool enable) {
+void CRxCore::enable_astf_latency_fia(bool enable) {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->enable_astf_latency(enable);
     }
-    
+
     recalculate_next_state();
 }
 
 
-void
-CRxCore::disable_latency() {
+void CRxCore::disable_latency() {
     for (auto &mngr_pair : m_rx_port_mngr_map) {
         mngr_pair.second->disable_latency();
     }
-    
+
     recalculate_next_state();
 }
 
@@ -604,8 +605,7 @@ RXPortManager &CRxCore::get_rx_port_mngr(uint8_t port_id) {
     return *m_rx_port_mngr_vec[port_id];
 }
 
-void
-CRxCore::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
+void CRxCore::get_ignore_stats(int port_id, CRXCoreIgnoreStat &stat, bool get_diff) {
     m_rx_port_mngr_vec[port_id]->get_ignore_stats(stat, get_diff);
 }
 
@@ -624,31 +624,29 @@ bool CRxCore::has_port(const std::string &mac_buf) {
  * sends packets through the RX core TX queue
  * 
 */
-uint32_t
-CRxCore::tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec) {
+uint32_t CRxCore::tx_pkts(int port_id, const std::vector<std::string> &pkts, uint32_t ipg_usec) {
 
     double time_to_send_sec = now_sec();
     uint32_t pkts_sent      = 0;
-    
+
     for (const auto &pkt : pkts) {
         bool rc = m_tx_queue.push(port_id, pkt, time_to_send_sec);
         if (!rc) {
             break;
-            
+
         }
-        
+
         pkts_sent++;
         time_to_send_sec += usec_to_sec(ipg_usec);
     }
-    
+
     return pkts_sent;
 }
 
 /**
  * forward the actual send to the port manager
  */
-bool
-CRxCore::tx_pkt(int port_id, const std::string &pkt) {
+bool CRxCore::tx_pkt(int port_id, const std::string &pkt) {
     return m_rx_port_mngr_vec[port_id]->tx_pkt(pkt);
 }
 
@@ -657,49 +655,113 @@ CRxCore::tx_pkt(int port_id, const std::string &pkt) {
 *************************************/
 
 bool CRxCore::is_tpg_enabled(const std::string& username) {
-    // Value can exist in this map only as true (only when the feature is enabled)
-    return (m_tpg_enabled.find(username) != m_tpg_enabled.end());
+    if (!tpg_ctx_exists(username)) {
+        // Context doesn't exist.
+        return false;
+    }
+    TPGRxState state = m_tpg_ctx[username]->get_state(); // Get state safely
+    return state == TPGRxState::ENABLED;
 }
 
-void CRxCore::enable_tpg(TPGCpCtx* tpg_ctx) {
+bool CRxCore::tpg_ctx_exists(const std::string& username) {
+    return (m_tpg_ctx.find(username) != m_tpg_ctx.end());
+}
+
+void CRxCore::enable_tpg_ctx(TPGCpCtx* tpg_cp_ctx) {
     /**
-     * NOTE: All the statistics are allocated here. This can take a very long time, hence
-     * we need to stop the watchdog.
+     * NOTE: All the statistics are allocated here.
+     * We do this is another thread so that this function will be non blocking.
+     * NOTE: The TPG context is *not* enabled after this function, since this is async.
      **/
-    const std::string username = tpg_ctx->get_username();
-    if (is_tpg_enabled(username)) {
-        // TPG already enabled for this username in Rx.
+    const std::string username = tpg_cp_ctx->get_username();
+    if (tpg_ctx_exists(username)) {
+        // TPG context already exists for this username
         return;
     }
-    TrexWatchDog::getInstance().stop();
-    const std::vector<uint8_t>& rx_ports_vec = tpg_ctx->get_rx_ports();
-    uint32_t num_tpgids = tpg_ctx->get_num_tpgids();
+
+    // Create a new context
+    TPGRxCtx* tpg_rx_ctx = new TPGRxCtx(tpg_cp_ctx->get_rx_ports(),
+                                        tpg_cp_ctx->get_num_tpgids(),
+                                        username,
+                                        tpg_cp_ctx->get_tag_mgr());
+
+    m_tpg_ctx[username] = tpg_rx_ctx;          // Add entry to map
+
+    // Start allocating
+    m_working_tpg_threads++;        // Increase the ref counter
+    tpg_rx_ctx->allocate();         // Starts allocating in another thread
+}
+
+void CRxCore::disable_tpg_ctx(const std::string& username) {
+    /**
+     * NOTE: All the statistics are de-allocated here. We do this is another thread so that
+     * this function will be non blocking.
+     **/
+    if (!tpg_ctx_exists(username)) {
+        // TPG context doesn't exist for this user.
+        return;
+    }
+    TPGRxCtx* tpg_rx_ctx = m_tpg_ctx[username];
+    m_working_tpg_threads++;             // Increase the ref counter
+    tpg_rx_ctx->deallocate();            // Start deallocating in another thread
+}
+
+
+bool CRxCore::handle_tpg_threads() {
+    /**
+     * NOTE: Called by the scheduler periodically if there is an allocating/deallocating thread working.
+     **/
+
+    bool work_done = false;
+    std::vector<std::string> to_erase;
+    for (auto& tpg_ctx : m_tpg_ctx) {
+            TPGRxState tpg_rx_state = tpg_ctx.second->get_state();
+            if (unlikely(tpg_rx_state == TPGRxState::AWAITING_ENABLE)) {
+                // Post allocation - Awaiting context enablement.
+                _enable_tpg_ctx(tpg_ctx.second);
+                work_done = true;
+            }
+            if (unlikely(tpg_rx_state == TPGRxState::AWAITING_DISABLE)) {
+                // Post deallocation - Awaiting context disablement
+                _disable_tpg_ctx(tpg_ctx.second);
+                to_erase.push_back(tpg_ctx.first);
+                work_done = true;
+            }
+    }
+    for (std::string& username : to_erase) {
+        m_tpg_ctx.erase(username);
+    }
+    return work_done;
+}
+
+void CRxCore::_enable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
+    m_working_tpg_threads--;
+    tpg_rx_ctx->destroy_thread(); // Thread has finished working
+    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
+    uint32_t num_tpgids = tpg_rx_ctx->get_num_tpgids();
 
     for (uint8_t port: rx_ports_vec) {
-        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, tpg_ctx->get_tag_mgr());
+        CTPGTagCntr* port_cntr = tpg_rx_ctx->get_port_cntr(port);
+        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, tpg_rx_ctx->get_tag_mgr(), port_cntr);
     }
 
-    m_tpg_enabled[username] = true; // Add entry to map
-    TrexWatchDog::getInstance().start();
+    tpg_rx_ctx->set_state(TPGRxState::ENABLED);
 }
 
-void CRxCore::disable_tpg(TPGCpCtx* tpg_ctx) {
-    /**
-     * NOTE: All the statistics are de-allocated here. This can take a very long time, hence
-     * we need to stop the watchdog.
-     **/
-    const std::string username = tpg_ctx->get_username();
-    if (!is_tpg_enabled(username)) {
-        // TPG already disabled for this username.
-        return;
-    }
-    TrexWatchDog::getInstance().stop();
-    const std::vector<uint8_t>& rx_ports_vec = tpg_ctx->get_rx_ports();
-    for (uint8_t port : rx_ports_vec) {
+void CRxCore::_disable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
+    m_working_tpg_threads--;
+    tpg_rx_ctx->destroy_thread(); // Thread has finished working
+    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
+
+    for (uint8_t port: rx_ports_vec) {
         m_rx_port_mngr_vec[port]->disable_tpg();
     }
-    m_tpg_enabled.erase(username); // Remove entry from map.
-    TrexWatchDog::getInstance().start();
+
+    delete tpg_rx_ctx;
+    /**
+     Theoretically we should remove the username from the map here.
+     However we are looping the map right now, hence the caller removes it
+     **/
 }
 
 void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {

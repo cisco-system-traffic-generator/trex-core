@@ -1793,7 +1793,8 @@ TrexRpcCmdGetTaggedPktGroupState::_run(const Json::Value &params, Json::Value &r
 
     TPGState state = stl->update_tpg_state(username);
 
-    result["result"] = state;
+    // TPGState is an enum class, hence we need to cast it back to an integer.
+    result["result"] = static_cast<int>(state);
 
     return (TREX_RPC_CMD_OK);
 }

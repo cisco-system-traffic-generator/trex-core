@@ -351,19 +351,21 @@ public:
 
     /**
      * Enable Tagged Packet Grouping for this port.
-     * Allocate counters dynamically for the port, size of NUM_PGIDS x NUM_TAGS.
+     * NOTE: The counters are already allocated, here we simply allocate an interface to interact with the counters.
      *
      * @param num_pgids
      *    Number of Packet Groups Identifiers
      *
      * @param tag_mgr
      *    Tag Manager to map Dot1Q, QinQ to Tag.
+     *
+     * @param port_cntrs
+     *   Pointer to the first tag counter for this port.
     **/
-    void enable_tpg(uint32_t num_pgids, PacketGroupTagMgr* tag_mgr);
+    void enable_tpg(uint32_t num_pgids, PacketGroupTagMgr* tag_mgr, CTPGTagCntr* port_cntrs);
 
     /**
      * Disable Tagged Packet Group for this port.
-     * Note that this needs to be safe even if the feature is not enabled.
     **/
     void disable_tpg();
 
