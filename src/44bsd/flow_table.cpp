@@ -348,8 +348,7 @@ HOT_FUNC void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
 
 void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple) {
     if ( lpTcp->getAckFlag() ){
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
+        tcp_int_respond(&flow->m_tcp,
                      0,
                      lpTcp->getAckNumber(),
                      TH_RST);
@@ -366,8 +365,7 @@ void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple
             /* keep-alive packet  */
             seq = lpTcp->getAckNumber();
         }
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
+        tcp_int_respond(&flow->m_tcp,
                      lpTcp->getSeqNumber()+tlen,
                      seq,
                      TH_RST|TH_ACK);
@@ -407,13 +405,7 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
         tcphdr = *lpTcp;
     }
 
-    tcp_flow_input(flow->m_pctx,
-                   &flow->m_tcp,
-                   mbuf,
-                   lpTcp,
-                   ftuple.m_l7_offset,
-                   ftuple.m_l7_total_len
-                   );
+    tcp_int_input(&flow->m_tcp, (struct mbuf*)mbuf, (struct tcphdr*)lpTcp, ftuple.m_l7_offset, ftuple.m_l7_total_len, 0);
 
     flow->check_defer_function();
 

@@ -369,31 +369,3 @@ tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uin
     return res;
 }
 
-/*
- * Send a single message to the TCP at address specified by
- * the given TCP/IP header.  If m == 0, then we make a copy
- * of the tcpiphdr at ti and send directly to the addressed host.
- * This is used to force keep alive messages out using the TCP
- * template for a connection tp->t_template.  If flags are given
- * then we send a message back to the TCP which originated the
- * segment ti, and discard the mbuf containing it and any other
- * attached mbufs.
- *
- * In any case the ack and sequence number of the transmitted
- * segment are as specified by the parameters.
- */
-void tcp_respond(CPerProfileCtx * pctx,
-            struct tcpcb *tp, 
-            tcp_seq ack, 
-            tcp_seq seq, 
-            int flags){
-    assert(tp);
-    tcp_int_respond(tp, ack, seq, flags);
-}
-
-
-
-HOT_FUNC int tcp_output(CPerProfileCtx * pctx,struct tcpcb *tp) {
-    return tcp_int_output(tp);
-}
-

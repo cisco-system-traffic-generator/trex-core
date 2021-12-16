@@ -300,7 +300,7 @@ tcp_fields_to_host(struct tcphdr *th)
 }
 
 void
-tcp_int_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos)
+tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos)
 {
 	struct ip *ip = NULL;
 	struct socket *so = NULL;

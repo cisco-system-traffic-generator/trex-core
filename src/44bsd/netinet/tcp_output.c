@@ -84,11 +84,6 @@ cc_after_idle(struct tcpcb *tp)
 		CC_ALGO(tp)->after_idle(tp->ccv);
 }
 
-int
-tcp_int_output(struct tcpcb *tp)
-{
-	return tp->t_fb->tfb_tcp_output(tp);
-}
 /*
  * Tcp output routine: figure out what should be sent and send it.
  */

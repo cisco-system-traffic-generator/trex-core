@@ -413,18 +413,6 @@ struct tcpcb *debug_flow;
 #endif
 
 
-HOT_FUNC int tcp_flow_input(CPerProfileCtx * pctx,
-                    struct tcpcb *tp,
-                    struct rte_mbuf *m,
-                    TCPHeader *tcp,
-                    int offset_l7,
-                    int total_l7_len
-                    ){
-    tcp_int_input(tp, (struct mbuf*)m, (struct tcphdr*)tcp, offset_l7, total_l7_len, 0);
-    return 0;
-}
-
-
 CTcpTuneables * tcp_get_parent_tunable(CPerProfileCtx * pctx,
                                       struct tcpcb *tp){
 

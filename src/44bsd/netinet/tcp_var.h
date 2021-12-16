@@ -612,9 +612,12 @@ extern "C" {
 #endif
 
 /* provided functions */
-int tcp_int_output(struct tcpcb *tp);
-void tcp_int_respond(struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
-void tcp_int_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
+#define tcp_int_output(tp)  (tp)->t_fb->tfb_tcp_output(tp)
+int tcp_output(struct tcpcb *tp);
+#define tcp_int_respond(tp,ack,seq,flags)   tcp_respond(tp, NULL, NULL, NULL, ack, seq, flags)
+void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_seq ack, tcp_seq seq, int flags);
+#define tcp_int_input(tp,m,th,toff,tlen,iptos)  tcp_input(tp, m, th, toff, tlen, iptos)
+void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
 void tcp_handle_timers(struct tcpcb *tp);
 void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
 struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat);

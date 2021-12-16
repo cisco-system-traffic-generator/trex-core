@@ -158,12 +158,6 @@ tcp_default_fb_fini(struct tcpcb *tp, int tcb_is_purged)
 }
 
 
-void
-tcp_int_respond(struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags)
-{
-	tcp_respond(tp, NULL, NULL, NULL, ack, seq, flags);
-}
-
 /*
  * Send a single message to the TCP at address specified by
  * the given TCP/IP header.  If m == NULL, then we make a copy

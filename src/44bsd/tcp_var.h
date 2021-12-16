@@ -1315,15 +1315,6 @@ private:
 #define INC_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_tcpstat.m_sts.p += cnt; ctx->m_tcpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 
-void tcp_fasttimo(CPerProfileCtx * pctx, struct tcpcb *tp);
-void tcp_slowtimo(CPerProfileCtx * pctx, struct tcpcb *tp);
-
-int  tcp_output(CPerProfileCtx * pctx,struct tcpcb * tp);
-struct tcpcb *  tcp_close(CPerProfileCtx * pctx,struct tcpcb *tp);
-void  tcp_setpersist(CPerProfileCtx * pctx,struct tcpcb *tp);
-void  tcp_respond(CPerProfileCtx * pctx,struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
-int  tcp_mss(CPerProfileCtx * pctx,struct tcpcb *tp, u_int offer);
-
 CTcpTuneables * tcp_get_parent_tunable(CPerProfileCtx * pctx,struct tcpcb *tp);
 
 int tcp_reass(CPerProfileCtx * pctx,
@@ -1338,23 +1329,8 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 #endif
 
 
-int tcp_flow_input(CPerProfileCtx * pctx,
-                   struct tcpcb *tp, 
-                   struct rte_mbuf *m,
-                   TCPHeader *tcp,
-                   int offset_l7,
-                   int total_l7_len);
-
-
-void tcp_trace(CPerProfileCtx * pctx,short act, short ostate, struct tcpcb * tp, struct tcpiphdr * ti, TCPHeader * tio, int req);
-
 const char ** tcp_get_tcpstate();
 
-
-void tcp_quench(struct tcpcb *tp);
-void     tcp_xmit_timer(CPerProfileCtx * pctx,struct tcpcb *, int16_t rtt);
-
-void tcp_canceltimers(struct tcpcb *tp);
 
 int tcp_build_cpkt(CPerProfileCtx * pctx,
                    struct tcpcb *tp,
@@ -1367,14 +1343,6 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
                    uint32_t dlen,
                    uint16_t  tcphlen,
                    CTcpPkt &pkt);
-
-
-
-
-struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
-                            struct tcpcb *tp, 
-                            int res);
-
 
 
 inline bool tcp_reass_is_exists(struct tcpcb *tp){
@@ -1440,7 +1408,7 @@ public:
 
 
     virtual void tx_tcp_output(CPerProfileCtx * pctx,CTcpFlow *         flow){
-        tcp_output(pctx,&flow->m_tcp);
+        tcp_int_output(&flow->m_tcp);
     }
 
     virtual void disconnect(CPerProfileCtx * pctx,
