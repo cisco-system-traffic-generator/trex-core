@@ -49,9 +49,9 @@
 
 
 #include "sys_inet.h"
-#include "tcp_int.h"
+#include "tcp_var.h"
 
-#include <netinet/cc/cc_cubic.h>
+#include "cc/cc_cubic.h"
 
 /* tcp_input.c */
 extern int tcp_compute_pipe(struct tcpcb *);

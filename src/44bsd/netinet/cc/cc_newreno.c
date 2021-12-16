@@ -57,9 +57,9 @@
 
 
 #include "sys_inet.h"
-#include "tcp_int.h"
+#include "tcp_var.h"
 
-#include <netinet/cc/cc_newreno.h>
+#include "cc/cc_newreno.h"
 
 /* tcp_input.c */
 extern uint32_t tcp_compute_initwnd(struct tcpcb *, uint32_t);

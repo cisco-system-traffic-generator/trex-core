@@ -51,7 +51,11 @@
 
 
 #include "sys_inet.h"
-#include "tcp_int.h"
+#include "tcp_var.h"
+
+#include "tcp_mbuf.h"
+#include "tcp_seq.h"
+#include "tcp_debug.h"
 
 /* tcp_debug.c */
 extern void tcp_trace(short, short, struct tcpcb *, void *, struct tcphdr *, int);
@@ -504,6 +508,7 @@ tcp_int_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int
 #endif
 		tcp_dooptions(tp, &to, optp, optlen, TO_SYN);
 
+		/* TREX_FBSD: update tcp options immediately due to syncache removed */
 #define tcp_new_ts_offset(x)    0
                 if (V_tcp_do_rfc1323) {
                         if (to.to_flags & TOF_TS) {

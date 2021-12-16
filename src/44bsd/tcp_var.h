@@ -17,7 +17,7 @@
 #include "tcp_fsm.h"
 #include "tcp_debug.h"
 #define EXTEND_TCPCB
-#include "netinet/tcp_int.h"
+#include "netinet/tcp_var.h"
 #include <vector>
 #include "tcp_dpdk.h"
 #include "tcp_bsd_utl.h"

@@ -33,7 +33,9 @@
 
 
 #include "sys_inet.h"
-#include "tcp_int.h"
+#include "tcp_var.h"
+
+#include "tcp_debug.h"
 
 /* tcp_debug.c */
 extern void tcp_trace(short, short, struct tcpcb *, void *, struct tcphdr *, int);

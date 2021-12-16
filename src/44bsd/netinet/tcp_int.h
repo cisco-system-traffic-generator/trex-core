@@ -5,27 +5,24 @@
 /* Linux headers */
 #include <stdint.h>
 #include <sys/types.h>
-
-
-/* BSD system header */
-#include <netinet/queue.h>
+#include <stdbool.h>
 
 
 /* mbuf and socket headers */
-#include <netinet/tcp_mbuf.h>
-#include <netinet/tcp_socket.h>
+#include "tcp_mbuf.h"
+#include "tcp_socket.h"
 
 
 /* BSD TCP headers */ 
-#include <netinet/tcp_seq.h>
-#include <netinet/tcp.h>
+#include "tcp_seq.h"
+#include "tcp.h"
 
-#include <netinet/tcp_timer.h>
-#include <netinet/cc/cc.h>
-#include <netinet/tcp_var.h>
+#include "tcp_timer.h"
+#include "cc/cc.h"
+#include "tcp_var.h"
 
 
-#include <netinet/tcp_debug.h>
+#include "tcp_debug.h"
 
 
 #ifdef __cplusplus

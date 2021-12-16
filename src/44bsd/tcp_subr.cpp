@@ -44,6 +44,7 @@
 #include "tcp_var.h"
 #include "tcpip.h"
 #include "tcp_debug.h"
+#include "netinet/tcp_mbuf.h"
 #include "tcp_socket.h"
 #include <common/utl_gcc_diag.h>
 #include <common/basic_utils.h>

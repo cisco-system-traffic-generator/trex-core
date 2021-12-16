@@ -27,6 +27,8 @@ limitations under the License.
 #include "dpdk_port_map.h"
 #include "trex_global.h"
 
+#include "tcpip.h"
+
 struct flow_key_t {
   bool operator==(const flow_key_t &k) const {
     return as_uint64[0] == k.as_uint64[0] && as_uint64[1] == k.as_uint64[1];

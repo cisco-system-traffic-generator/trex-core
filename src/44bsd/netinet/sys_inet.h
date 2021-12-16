@@ -25,13 +25,12 @@
 #define __predict_true(exp) __builtin_expect(!!(exp), 1)
 
 
-#include <netinet/queue.h>
-
-
 // <sys/systm.h>
 #define KASSERT(exp,msg)    do {} while(0)
+#if !defined(__cplusplus)
 #define bcopy(from, to, len) __builtin_memmove((to), (from), (len))
 #define memmove(dest, src, n) __builtin_memmove((dest), (src), (n))
+#endif
 
 
 // <sys/param.h>

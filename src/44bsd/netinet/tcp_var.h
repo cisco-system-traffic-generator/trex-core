@@ -35,10 +35,17 @@
 #ifndef _NETINET_TCP_VAR_H_
 #define _NETINET_TCP_VAR_H_
 
-#include <netinet/tcp.h>
-#include <netinet/tcp_fsm.h>
+
+#include "tcp.h"
+#include "tcp_fsm.h"
 
 #define _WANT_TCPCB
+
+#include <sys/queue.h>      // TAILQ_HEAD, TAILQ_ENTRY, ...
+#include "tcp_socket.h"     // struct socket
+#include "tcp_timer.h"      // struct tcp_timer
+#include "cc/cc.h"          // struct cc_var
+
 
 #define TCP_END_BYTE_INFO 8	/* Bytes that makeup the "end information array" */
 /* Types of ending byte info */
@@ -596,6 +603,39 @@ struct tcp_tune {
 #define V_tcp_do_rfc1323            TCP_TUNE(tcp_do_rfc1323)           // 1
 #define V_tcprexmtthresh            TCP_TUNE(tcprexmtthresh)           // 3
 #define V_tcp_delacktime            TCP_TUNE(tcp_delacktime)
+
+
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* provided functions */
+int tcp_int_output(struct tcpcb *tp);
+void tcp_int_respond(struct tcpcb *tp, tcp_seq ack, tcp_seq seq, int flags);
+void tcp_int_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
+void tcp_handle_timers(struct tcpcb *tp);
+void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
+struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat);
+void tcp_discardcb(struct tcpcb *tp);
+struct tcpcb * tcp_drop(struct tcpcb *, int res);
+struct tcpcb * tcp_close(struct tcpcb *);
+
+/* required functions */
+uint32_t tcp_getticks(struct tcpcb *tp);
+int tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp);
+int tcp_ip_output(struct tcpcb *tp, struct mbuf *m);
+int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlenp, struct mbuf *m);
+bool tcp_reass_is_empty(struct tcpcb *tp);
+bool tcp_check_no_delay(struct tcpcb *, int);
+bool tcp_isipv6(struct tcpcb *);
+struct socket* tcp_getsocket(struct tcpcb *);
+uint32_t tcp_new_isn(struct tcpcb *);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 
 #endif /* _NETINET_TCP_VAR_H_ */

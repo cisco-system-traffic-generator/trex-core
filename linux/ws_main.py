@@ -253,12 +253,12 @@ bp_sim_gtest = SrcGroup(dir='src',
 main_src = SrcGroup(dir='src',
         src_list=[
             '44bsd/tcp_output.cpp',
-            '44bsd/tcp_timer.cpp',
-            '44bsd/tcp_debug.cpp',
+            #'44bsd/tcp_timer.cpp',
+            #'44bsd/tcp_debug.cpp',
             '44bsd/tcp_subr.cpp',
             '44bsd/flow_table.cpp',
             '44bsd/tcp_input.cpp',
-            '44bsd/tcp_usrreq.cpp',
+            #'44bsd/tcp_usrreq.cpp',
             '44bsd/tcp_socket.cpp',
             '44bsd/tcp_dpdk.cpp',
             '44bsd/sim_cs_tcp.cpp',
@@ -560,7 +560,7 @@ includes_path =''' ../src/pal/linux/
               ''';
 
 
-tcp_includes_path = '../src/44bsd ../src/44bsd/netinet'
+tcp_includes_path = '../src/44bsd/netinet'
 
 
 

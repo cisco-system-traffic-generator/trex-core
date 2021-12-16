@@ -35,6 +35,9 @@
 #ifndef _NETINET_TCP_H_
 #define _NETINET_TCP_H_
 
+#include <sys/types.h>
+#include <stdint.h>
+
 #define __BSD_VISIBLE   1
 
 #if __BSD_VISIBLE
@@ -122,7 +125,7 @@ struct tcphdr {
  *
  * We use explicit numerical definition here to avoid header pollution.
  */
-#define	TCP_MSS		(1500-20-20)    /* trex-core */
+#define	TCP_MSS		(1500-20-20)    /* TREX_FBSD: old stack compatible */
 #define	TCP6_MSS	1220
 
 /*

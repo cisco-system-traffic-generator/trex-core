@@ -71,6 +71,9 @@
  * amount of time probing, then we drop the connection.
  */
 
+
+#include <stdint.h>
+
 // <sys/kernel.h>
 #define hz              1000
 

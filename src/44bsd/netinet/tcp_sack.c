@@ -74,7 +74,8 @@
 
 
 #include "sys_inet.h"
-#include "tcp_int.h"
+#include "tcp_var.h"
+#include "tcp_seq.h"
 
 /* tcp_subr.c */
 extern u_int tcp_maxseg(const struct tcpcb *);

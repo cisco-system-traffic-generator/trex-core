@@ -34,7 +34,10 @@
 
 #include "sys_inet.h"
 #define TCPOUTFLAGS             // tcp_outflags @ tcp_fsm.h
-#include "tcp_int.h"
+#include "tcp_var.h"
+
+#include "tcp_seq.h"
+#include "tcp_debug.h"
 
 /* tcp_input.c */
 extern int tcp_mssopt(struct tcpcb *);

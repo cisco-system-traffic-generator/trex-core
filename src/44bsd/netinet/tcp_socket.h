@@ -1,6 +1,8 @@
 #ifndef _TCP_SOCKET_H_
 #define _TCP_SOCKET_H_
 
+#include <sys/types.h>
+
 struct sockbuf {
     u_int   sb_cc;          /* (a) chars in buffer */
     u_int   sb_hiwat;       /* (a) max actual char count */
@@ -38,12 +40,17 @@ struct socket {
     struct sockbuf so_rcv, so_snd;
 };
 
+struct mbuf;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define sbreserve_locked(sb,cc,so,td)   sbreserve(sb,cc)
-void sbreserve(struct sockbuf *sb, u_int cc);
+static inline void
+sbreserve(struct sockbuf *sb, u_int cc) {
+    sb->sb_hiwat = cc;
+}
 /* for so_rcv */
 #define sbappendstream_locked(sb,m,flags,so)   sbappend(sb,m,flags,so)
 void sbappend(struct sockbuf *sb, struct mbuf *m, int flags, struct socket *so);

@@ -36,10 +36,11 @@ limitations under the License.
 #include <sstream>
 #include <unistd.h>
 
+#if 0
 void sbreserve(struct sockbuf *sb, u_int cc) {
     sb->sb_hiwat = cc;
 }
-
+#endif
 
 
 void sbflush (struct sockbuf *sb){

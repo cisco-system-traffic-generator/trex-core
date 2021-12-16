@@ -36,8 +36,7 @@
  *  @(#)tcp.h   8.1 (Berkeley) 6/10/93
  */
 
-#include <common/basic_utils.h>
-        
+
 #include "netinet/tcp.h"
 #define TCP_TSO_MAX_DEFAULT (56*1024) /* maximum packet size to TSO */
 #define TCP_INITWND_FACTOR (10)
