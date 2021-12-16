@@ -16,7 +16,6 @@
 #include "tcp_socket.h"
 #include "tcp_fsm.h"
 #include "tcp_debug.h"
-#define EXTEND_TCPCB
 #include "netinet/tcp_var.h"
 #include <vector>
 #include "tcp_dpdk.h"
@@ -100,7 +99,7 @@ struct CTcpPkt {
 #define PACKET_TEMPLATE_SIZE (128)
 
 
-struct tcpcb: public tcpcb_base {
+struct CTcpCb: public tcpcb {
 
     tcp_socket m_socket;
 
@@ -133,7 +132,7 @@ struct tcpcb: public tcpcb_base {
 public:
 
     
-    tcpcb() {
+    CTcpCb() {
         m_tuneable_flags = 0;
         m_delay_limit    = 0;
         t_pkts_cnt       = 0;
@@ -630,7 +629,7 @@ public:
 
 public:
     CHTimerObj        m_timer; /* 32 bytes */ 
-    tcpcb             m_tcp;
+    CTcpCb            m_tcp;
     uint8_t           m_tick;
 
     CServerTemplateInfo*    m_template_info; /* to save the identified template */
@@ -693,7 +692,7 @@ public:
     virtual ~CTcpCtxCb(){
     }
     virtual int on_tx(CTcpPerThreadCtx *ctx,
-                      struct tcpcb * tp,
+                      struct CTcpCb * tp,
                       rte_mbuf_t *m)=0;
 
     virtual int on_flow_close(CTcpPerThreadCtx *ctx,
@@ -1270,29 +1269,29 @@ public:
  }
 
  int pre_tcp_reass(CPerProfileCtx * pctx,
-              struct tcpcb *tp, 
+              struct CTcpCb *tp, 
               struct tcpiphdr *ti, 
               struct rte_mbuf *m);
 
  int tcp_reass_no_data(CPerProfileCtx * pctx,
-                         struct tcpcb *tp);
+                         struct CTcpCb *tp);
 
  int tcp_reass(CPerProfileCtx * pctx,
-                          struct tcpcb *tp, 
+                          struct CTcpCb *tp, 
                           struct tcpiphdr *ti, 
                           struct rte_mbuf *m);
 
 #ifdef  TREX_SIM
  int pre_tcp_reass(CTcpPerThreadCtx * ctx,
-              struct tcpcb *tp,
+              struct CTcpCb *tp,
               struct tcpiphdr *ti,
               struct rte_mbuf *m) { return pre_tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
 
  int tcp_reass_no_data(CTcpPerThreadCtx * ctx,
-                         struct tcpcb *tp) { return tcp_reass_no_data(DEFAULT_PROFILE_CTX(ctx), tp); }
+                         struct CTcpCb *tp) { return tcp_reass_no_data(DEFAULT_PROFILE_CTX(ctx), tp); }
 
  int tcp_reass(CTcpPerThreadCtx * ctx,
-                          struct tcpcb *tp,
+                          struct CTcpCb *tp,
                           struct tcpiphdr *ti,
                           struct rte_mbuf *m) { return tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
 #endif
@@ -1315,15 +1314,15 @@ private:
 #define INC_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_tcpstat.m_sts.p += cnt; ctx->m_tcpstat.m_sts_tg_id[tg_id].p += cnt; }
 
 
-CTcpTuneables * tcp_get_parent_tunable(CPerProfileCtx * pctx,struct tcpcb *tp);
+CTcpTuneables * tcp_get_parent_tunable(CPerProfileCtx * pctx,struct CTcpCb *tp);
 
 int tcp_reass(CPerProfileCtx * pctx,
-              struct tcpcb *tp,
+              struct CTcpCb *tp,
               struct tcpiphdr *ti,
               struct rte_mbuf *m);
 #ifdef  TREX_SIM
 int tcp_reass(CTcpPerThreadCtx * ctx,
-              struct tcpcb *tp,
+              struct CTcpCb *tp,
               struct tcpiphdr *ti,
               struct rte_mbuf *m);
 #endif
@@ -1333,46 +1332,46 @@ const char ** tcp_get_tcpstate();
 
 
 int tcp_build_cpkt(CPerProfileCtx * pctx,
-                   struct tcpcb *tp,
+                   struct CTcpCb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt);
 
 int tcp_build_dpkt(CPerProfileCtx * pctx,
-                   struct tcpcb *tp,
+                   struct CTcpCb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
                    uint16_t  tcphlen,
                    CTcpPkt &pkt);
 
 
-inline bool tcp_reass_is_exists(struct tcpcb *tp){
+inline bool tcp_reass_is_exists(struct CTcpCb *tp){
     return (tp->m_tpc_reass != ((CTcpReass *)0));
 }
 
 inline void tcp_reass_alloc(CPerProfileCtx * pctx,
-                            struct tcpcb *tp){
+                            struct CTcpCb *tp){
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasalloc);
     tp->m_tpc_reass = new CTcpReass();
 }
 
 inline void tcp_reass_free(CPerProfileCtx * pctx,
-                            struct tcpcb *tp){
+                            struct CTcpCb *tp){
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasfree);
     delete tp->m_tpc_reass;
     tp->m_tpc_reass=(CTcpReass *)0;
 }
 
 inline void tcp_reass_clean(CPerProfileCtx * pctx,
-                            struct tcpcb *tp){
+                            struct CTcpCb *tp){
     if (tcp_reass_is_exists(tp) ){
         tcp_reass_free(pctx,tp);
     }
 }
 
-extern struct tcpcb *debug_flow; 
+extern struct CTcpCb *debug_flow; 
 
 
-inline void tcp_set_debug_flow(struct tcpcb * debug){
+inline void tcp_set_debug_flow(struct CTcpCb * debug){
 #ifdef    TCPDEBUG
     debug_flow  =debug;
 #endif

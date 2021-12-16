@@ -46,7 +46,7 @@ limitations under the License.
 class CTcpIOCb : public CTcpCtxCb {
 public:
    int on_tx(CTcpPerThreadCtx *ctx,
-             struct tcpcb * tp,
+             struct CTcpCb * tp,
              rte_mbuf_t *m);
 
    int on_flow_close(CTcpPerThreadCtx *ctx,
@@ -99,7 +99,7 @@ int CTcpIOCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
 }
 
 int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
-                      struct tcpcb * tp,
+                      struct CTcpCb * tp,
                       rte_mbuf_t *m){
     CNodeTcp node_tcp;
     node_tcp.dir  = m_dir;

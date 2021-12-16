@@ -131,11 +131,7 @@ struct sackhint {
  * Organized for 64 byte cacheline efficiency based
  * on common tcp_input/tcp_output processing.
  */
-#ifdef EXTEND_TCPCB
-struct tcpcb_base {
-#else
 struct tcpcb {
-#endif
 	/* Cache line 1 */
 	struct tcp_function_block *t_fb;/* TCP function call block */
 	uint32_t t_maxseg:24;		/* maximum segment size */

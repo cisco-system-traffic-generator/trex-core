@@ -118,7 +118,7 @@ TEST_F(gt_tcp, tst1) {
 
 TEST_F(gt_tcp, tst3) {
     printf(" MSS %d \n",(int)TCP_MSS);
-    printf(" sizeof_tcpcb %d \n",(int)sizeof(tcpcb));
+    printf(" sizeof_tcpcb %d \n",(int)sizeof(CTcpCb));
     CTcpStats tcp_stats;
     tcp_stats.Clear();
     tcp_stats.m_sts.tcps_accepts++;
@@ -1728,7 +1728,7 @@ TEST_F(gt_tcp, tst42) {
     ctx.Create(100,true);
     flow.Create(&ctx);
 
-    tcpcb * tp=&flow.m_tcp;
+    CTcpCb * tp=&flow.m_tcp;
 
     tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
 
@@ -1809,7 +1809,7 @@ TEST_F(gt_tcp, tst43) {
     flow.set_app(app_c);
 
 
-    tcpcb * tp=&flow.m_tcp;
+    CTcpCb * tp=&flow.m_tcp;
 
     tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
 

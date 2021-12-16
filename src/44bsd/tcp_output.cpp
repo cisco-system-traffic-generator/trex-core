@@ -75,7 +75,7 @@ const char ** tcp_get_tcpstate(){
 
 
 static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
-                                      struct tcpcb *tp,
+                                      struct CTcpCb *tp,
                                       CTcpPkt &pkt,
                                       uint32_t dlen,
                                       uint16_t tcphlen){
@@ -170,7 +170,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
  */
 static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
-                                  struct tcpcb *tp,
+                                  struct CTcpCb *tp,
                                   uint16_t tcphlen,
                                   CTcpPkt &pkt){
     int len= ftp->m_offset_l4+tcphlen;
@@ -209,7 +209,7 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
 }
 
 int tcp_build_cpkt(CPerProfileCtx * pctx,
-                   struct tcpcb *tp,
+                   struct CTcpCb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt){
     assert(tp->m_flow);
@@ -257,7 +257,7 @@ static inline uint16_t update_next_mbuf(rte_mbuf_t   *mi,
  */
 static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
                                   CFlowTemplate *ftp,
-                                  struct tcpcb *tp,
+                                  struct CTcpCb *tp,
                                   uint32_t offset, 
                                   uint32_t dlen,
                                   uint16_t tcphlen, 
@@ -331,7 +331,7 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
 /* len : if TSO==true, it is the TSO packet size (before segmentation), 
          else it is the packet size */
 int tcp_build_dpkt(CPerProfileCtx * pctx,
-                   struct tcpcb *tp,
+                   struct CTcpCb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
                    uint16_t tcphlen, 
@@ -347,8 +347,9 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
 }
 
 int
-tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp)
+tcp_build_pkt(struct tcpcb *_tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp)
 {
+    CTcpCb *tp = static_cast<CTcpCb*>(_tp);
     CTcpPkt pkt;
     int res;
 

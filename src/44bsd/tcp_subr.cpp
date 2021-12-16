@@ -243,8 +243,8 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_payload_info = nullptr;
 
     /* TCP_OPTIM  */
-    tcpcb *tp=&m_tcp;
-    memset((char *) tp, 0,sizeof(struct tcpcb));
+    CTcpCb *tp=&m_tcp;
+    memset((char *) tp, 0,sizeof(struct CTcpCb));
     m_timer.m_type = ttTCP_FLOW; 
 
     CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
@@ -473,7 +473,7 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
 
 
 void CTcpFlow::Delete(){
-    struct tcpcb *tp=&m_tcp;
+    struct CTcpCb *tp=&m_tcp;
     tcp_reass_clean(m_pctx,tp);
     m_pctx->m_ctx->timer_w_stop(this);
     if (m_payload_info) {
@@ -1633,14 +1633,14 @@ m_freem(struct mbuf *m)
 uint32_t
 tcp_getticks(struct tcpcb *tp)
 {
-    CTcpPerThreadCtx* ctx = tp->m_flow->m_pctx->m_ctx;
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_flow->m_pctx->m_ctx;
     return ctx->tcp_now;
 }
 
 uint32_t
 tcp_new_isn(struct tcpcb *tp)
 {
-    CTcpPerThreadCtx* ctx = tp->m_flow->m_pctx->m_ctx;
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_flow->m_pctx->m_ctx;
     uint32_t new_isn = ctx->tcp_iss;
 
     ctx->tcp_iss += TCP_ISSINCR/4;
@@ -1650,20 +1650,20 @@ tcp_new_isn(struct tcpcb *tp)
 bool
 tcp_isipv6(struct tcpcb *tp)
 {
-    return tp->m_flow->m_template.m_is_ipv6;
+    return ((CTcpCb*)tp)->m_flow->m_template.m_is_ipv6;
 }
 
 struct socket *
 tcp_getsocket(struct tcpcb *tp)
 {
-    return (struct socket*)&tp->m_socket;
+    return (struct socket*)&((CTcpCb*)tp)->m_socket;
 }
 
 int
 tcp_ip_output(struct tcpcb *tp, struct mbuf *m)
 {
-    CTcpPerThreadCtx* ctx = tp->m_flow->m_pctx->m_ctx;
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_flow->m_pctx->m_ctx;
 
-    ctx->m_cb->on_tx(ctx, tp, (struct rte_mbuf*)m);
+    ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
     return 0;
 }

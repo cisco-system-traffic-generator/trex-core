@@ -186,7 +186,7 @@ int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
 
 
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
-                        struct tcpcb * tp,
+                        struct CTcpCb * tp,
                         rte_mbuf_t *m){
     int dir=1;
     assert(tp->m_flow);
