@@ -661,7 +661,7 @@ int CClientServerTcp::test2(){
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 
@@ -1151,7 +1151,7 @@ int CClientServerTcp::simple_http_generic(method_program_cb_t cb){
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 
@@ -1292,7 +1292,7 @@ int CClientServerTcp::fill_from_file() {
 
     /* start client */
     app_c->start(true);
-    tcp_connect(&m_c_ctx,&c_flow->m_tcp);
+    tcp_connect(&c_flow->m_tcp);
 
     m_sim.run_sim();
 

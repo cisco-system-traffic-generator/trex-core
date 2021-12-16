@@ -577,7 +577,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
 
         /* start connect */
         app_c->start(true);
-        tcp_connect(tcp_flow->m_pctx,&tcp_flow->m_tcp);
+        tcp_connect(&tcp_flow->m_tcp);
     }
     /* WARNING -- flow might be not valid here !!!! */
 }

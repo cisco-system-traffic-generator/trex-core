@@ -520,7 +520,7 @@ tcp_int_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int
                         if (to.to_flags & TOF_SCALE) {
                                 int wscale = 0;
                                 while (wscale < TCP_MAX_WINSHIFT &&
-                                    (TCP_MAXWIN << wscale) < (2*1024*1024))
+                                    (TCP_MAXWIN << wscale) < so->so_rcv.sb_hiwat)
                                         wscale++;
                                 tp->t_flags |= TF_REQ_SCALE|TF_RCVD_SCALE;
                                 tp->snd_scale = to.to_wscale;
@@ -2446,6 +2446,7 @@ tcp_xmit_timer(struct tcpcb *tp, int rtt)
 void
 tcp_mss(struct tcpcb *tp, int offer)
 {
+#if 0 /* TREX_FBSD: do nothing for old stack compatibility */
 	int mss;
 	uint32_t bufsize;
 	struct socket *so;
@@ -2484,6 +2485,7 @@ tcp_mss(struct tcpcb *tp, int offer)
 		if (bufsize > so->so_rcv.sb_hiwat)
 			(void)sbreserve_locked(&so->so_rcv, bufsize, so, NULL);
 	}
+#endif
 }
 
 /*

@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 
+
 struct sockbuf {
     u_int   sb_cc;          /* (a) chars in buffer */
     u_int   sb_hiwat;       /* (a) max actual char count */
@@ -16,6 +17,8 @@ struct sockbuf {
 static inline long sbspace(struct sockbuf *sb) {
     return sb->sb_hiwat - sb->sb_cc;
 }
+
+#define SB_MAX  (2*1024*1024)   /* default for max chars in sockbuf */
 
 
 struct socket {
@@ -59,6 +62,7 @@ void sbdrop(struct sockbuf *sb, int len, struct socket *so);
 
 void sorwakeup(struct socket *so);
 void sowwakeup(struct socket *so);
+void soisconnecting(struct socket *so);
 void soisconnected(struct socket *so);
 void soisdisconnected(struct socket *so);
 void socantrcvmore(struct socket *so);  /* socantrcvmore need to set SBS_CANTRCVMORE to so_rcv.sb_state */

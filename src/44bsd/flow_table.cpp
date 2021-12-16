@@ -932,7 +932,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     }
 
     /* start listen */
-    tcp_listen(lptflow->m_pctx,&lptflow->m_tcp);
+    tcp_listen(&lptflow->m_tcp);
 
     /* process SYN packet */
     process_tcp_packet(ctx,lptflow,mbuf,lpTcp,ftuple);

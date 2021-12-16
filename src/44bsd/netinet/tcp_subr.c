@@ -501,3 +501,152 @@ tcp_state_change(struct tcpcb *tp, int newstate)
 	tp->t_state = newstate;
 }
 
+
+/* TREX_FBSD: tcp_usrreq.c */
+
+#include "tcp_seq.h"
+
+/*
+ * TCP protocol interface to socket abstraction.
+ */
+
+
+int
+tcp_listen(struct tcpcb *tp)
+{
+	assert(tp->t_state == TCPS_CLOSED);
+	tcp_state_change(tp, TCPS_LISTEN);
+	return(0);
+}
+
+
+/*
+ * Common subroutine to open a TCP connection to remote host specified
+ * by struct sockaddr_in in mbuf *nam.  Call in_pcbbind to assign a local
+ * port number if needed.  Call in_pcbconnect_setup to do the routing and
+ * to choose a local host address (interface).  If there is an existing
+ * incarnation of the same connection in TIME-WAIT state and if the remote
+ * host was sending CC options and if the connection duration was < MSL, then
+ * truncate the previous TIME-WAIT state and proceed.
+ * Initialize connection parameters and enter SYN-SENT state.
+ */
+int
+tcp_connect(struct tcpcb *tp)
+{
+	struct socket *so = tcp_getsocket(tp);
+	int error;
+
+	/*
+	 * Compute window scaling to request:
+	 * Scale to fit into sweet spot.  See tcp_syncache.c.
+	 * XXX: This should move to tcp_output().
+	 */
+	while (tp->request_r_scale < TCP_MAX_WINSHIFT &&
+	    (TCP_MAXWIN << tp->request_r_scale) < so->so_rcv.sb_hiwat)
+		tp->request_r_scale++;
+
+	soisconnecting(so);
+	TCPSTAT_INC(tcps_connattempt);
+	tcp_state_change(tp, TCPS_SYN_SENT);
+	tp->iss = tcp_new_isn(tp);
+#define tcp_new_ts_offset(x)    0
+	if (tp->t_flags & TF_REQ_TSTMP)
+		tp->ts_offset = tcp_new_ts_offset(tp);
+	tcp_sendseqinit(tp);
+
+	/* TREX_FBSD: added for old stack comapatibility */
+	tcp_timer_activate(tp, TT_KEEP, TP_KEEPINIT(tp));
+	error = tp->t_fb->tfb_tcp_output(tp);
+
+	return error;
+}
+
+
+/*
+ * Initiate (or continue) disconnect.
+ * If embryonic state, just send reset (once).
+ * If in ``let data drain'' option and linger null, just drop.
+ * Otherwise (hard), mark socket disconnecting and drop
+ * current input data; switch states based on user close, and
+ * send segment to peer (with FIN).
+ */
+void
+tcp_disconnect(struct tcpcb *tp)
+{
+#if 0
+	struct socket *so = tcp_getsocket(tp);
+#endif
+
+	/*
+	 * Neither tcp_close() nor tcp_drop() should return NULL, as the
+	 * socket is still open.
+	 */
+	if (tp->t_state < TCPS_ESTABLISHED &&
+	    !(tp->t_state > TCPS_LISTEN /*&& IS_FASTOPEN(tp->t_flags)*/)) {
+		tp = tcp_close(tp);
+		KASSERT(tp != NULL,
+		    ("tcp_disconnect: tcp_close() returned NULL"));
+	} else /*if ((so->so_options & SO_LINGER) && so->so_linger == 0)*/ {
+		tp = tcp_drop(tp, 0);
+		KASSERT(tp != NULL,
+		    ("tcp_disconnect: tcp_drop() returned NULL"));
+#if 0
+	} else {
+		soisdisconnecting(so);
+		sbflush(&so->so_rcv);
+		tcp_usrclosed(tp);
+		if (tp->t)state != TCPS_CLOSED)
+			tp->t_fb->tfb_tcp_output(tp);
+#endif
+	}
+}
+
+/*
+ * User issued close, and wish to trail through shutdown states:
+ * if never received SYN, just forget it.  If got a SYN from peer,
+ * but haven't sent FIN, then go to FIN_WAIT_1 state to send peer a FIN.
+ * If already got a FIN from peer, then almost done; go to LAST_ACK
+ * state.  In all other cases, have already sent FIN to peer (e.g.
+ * after PRU_SHUTDOWN), and just have to play tedious game waiting
+ * for peer to send FIN or not respond to keep-alives, etc.
+ * We can let the user exit from the close as soon as the FIN is acked.
+ */
+void
+tcp_usrclosed(struct tcpcb *tp)
+{
+	switch (tp->t_state) {
+	case TCPS_LISTEN:
+		tcp_state_change(tp, TCPS_CLOSED);
+		/* FALLTHROUGH */
+	case TCPS_CLOSED:
+		tp = tcp_close(tp);
+		/*
+		 * tcp_close() should never return NULL here as the socket is
+		 * still open.
+		 */
+		KASSERT(tp != NULL,
+		    ("tcp_usrclosed: tcp_close() returned NULL"));
+		break;
+
+	case TCPS_SYN_SENT:
+	case TCPS_SYN_RECEIVED:
+		tp->t_flags |= TF_NEEDFIN;
+		break;
+
+	case TCPS_ESTABLISHED:
+		tcp_state_change(tp, TCPS_FIN_WAIT_1);
+		break;
+
+	case TCPS_CLOSE_WAIT:
+		tcp_state_change(tp, TCPS_LAST_ACK);
+		break;
+	}
+	if (tp->t_state >= TCPS_FIN_WAIT_2) {
+		soisdisconnected(tcp_getsocket(tp));
+		/* Prevent the connection hanging in FIN_WAIT_2 forever. */
+		if (tp->t_state == TCPS_FIN_WAIT_2) {
+			tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL);
+		}
+	}
+}
+

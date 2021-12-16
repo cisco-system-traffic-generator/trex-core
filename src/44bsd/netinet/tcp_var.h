@@ -621,6 +621,10 @@ struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, str
 void tcp_discardcb(struct tcpcb *tp);
 struct tcpcb * tcp_drop(struct tcpcb *, int res);
 struct tcpcb * tcp_close(struct tcpcb *);
+int tcp_connect(struct tcpcb *);
+int tcp_listen(struct tcpcb *);
+void tcp_disconnect(struct tcpcb *);
+void tcp_usrclosed(struct tcpcb *);
 
 /* required functions */
 uint32_t tcp_getticks(struct tcpcb *tp);

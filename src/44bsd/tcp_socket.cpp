@@ -162,6 +162,9 @@ void sorwakeup(struct socket *so) {
 void sowwakeup(struct socket *so) {
     sowwakeup((struct tcp_socket *)so);
 }
+void soisconnecting(struct socket *so) {
+    soisconnecting((struct tcp_socket *)so);
+}
 void soisconnected(struct socket *so) {
     soisconnected((struct tcp_socket *)so);
 }
@@ -287,7 +290,7 @@ void CEmulApp::tcp_udp_close(){
     if (is_udp_flow()) {
         m_api->disconnect(m_pctx,m_flow);
     }else{
-        tcp_usrclosed(m_pctx,&m_flow->m_tcp);
+        tcp_usrclosed(&m_flow->m_tcp);
         if (get_interrupt()==false) {
             m_api->tx_tcp_output(m_pctx,m_flow);
         }else{
@@ -305,7 +308,7 @@ void CEmulApp::tcp_udp_close_dpc(){
         m_api->disconnect(m_pctx,m_flow);
     } else{
         if (!m_flow->is_close_was_called()){
-            tcp_usrclosed(m_pctx,&m_flow->m_tcp);
+            tcp_usrclosed(&m_flow->m_tcp);
         }
         m_api->tx_tcp_output(m_pctx,m_flow);
     }

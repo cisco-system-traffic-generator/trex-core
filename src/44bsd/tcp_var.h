@@ -1318,14 +1318,6 @@ private:
 void tcp_fasttimo(CPerProfileCtx * pctx, struct tcpcb *tp);
 void tcp_slowtimo(CPerProfileCtx * pctx, struct tcpcb *tp);
 
-int tcp_listen(CPerProfileCtx * pctx,struct tcpcb *tp);
-
-int tcp_connect(CPerProfileCtx * pctx,struct tcpcb *tp);
-struct tcpcb * tcp_usrclosed(CPerProfileCtx * pctx,struct tcpcb *tp);
-struct tcpcb * tcp_disconnect(CPerProfileCtx * pctx,struct tcpcb *tp);
-
-
-
 int  tcp_output(CPerProfileCtx * pctx,struct tcpcb * tp);
 struct tcpcb *  tcp_close(CPerProfileCtx * pctx,struct tcpcb *tp);
 void  tcp_setpersist(CPerProfileCtx * pctx,struct tcpcb *tp);
@@ -1339,7 +1331,6 @@ int tcp_reass(CPerProfileCtx * pctx,
               struct tcpiphdr *ti,
               struct rte_mbuf *m);
 #ifdef  TREX_SIM
-int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp);
 int tcp_reass(CTcpPerThreadCtx * ctx,
               struct tcpcb *tp,
               struct tcpiphdr *ti,
@@ -1454,7 +1445,7 @@ public:
 
     virtual void disconnect(CPerProfileCtx * pctx,
                             CTcpFlow *         flow){
-        tcp_disconnect(pctx,&flow->m_tcp);
+        tcp_disconnect(&flow->m_tcp);
     }
 
 public:
