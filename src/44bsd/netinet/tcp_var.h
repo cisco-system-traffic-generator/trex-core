@@ -132,7 +132,7 @@ struct sackhint {
  * on common tcp_input/tcp_output processing.
  */
 struct tcpcb {
-        /* data structures per tcpcb */
+	/* data structures per tcpcb */
 	struct tcp_timer m_timer;	/* TCP timer */
 	struct cc_var m_ccv;		/* congestion control specific vars */
 	struct socket m_socket;
@@ -256,7 +256,7 @@ struct tcp_function_block {
 	int	(*tfb_tcp_output)(struct tcpcb *);
 	void	(*tfb_tcp_do_segment)(struct mbuf *, struct tcphdr *,
 			    struct socket *, struct tcpcb *,
-		        int, int, uint8_t);
+			int, int, uint8_t);
 	/* Optional memory allocation/free routine */
 	int	(*tfb_tcp_fb_init)(struct tcpcb *);
 	void	(*tfb_tcp_fb_fini)(struct tcpcb *, int);
@@ -542,27 +542,27 @@ struct	tcpstat {
 
 #define TCPSTAT_ADD(name, val)                  \
     do {                                        \
-        tp->t_stat->name += val;                \
-        if (tp->t_stat_ex)                      \
-            tp->t_stat_ex->name += val;         \
+	tp->t_stat->name += val;                \
+	if (tp->t_stat_ex)                      \
+	    tp->t_stat_ex->name += val;         \
     } while(0)
 #define TCPSTAT_INC(name)           TCPSTAT_ADD(name, 1)
 
 
 /* localized global TCP tunable values */
 struct tcp_tune {
-        int tcp_do_rfc1323;     /* (1) Enable rfc1323 (high performance TCP) extensions */
-        int tcp_do_sack;        /* (1) Enable/Disable TCP SACK support */
-        int tcp_mssdflt;        /* (TCP_MSS) Default TCP Maximum Segment Size */
-        //int tcp_v6mssdflt;      /* (TCP6_MSS) Default TCP Maximum Segment Size for IPv6 */
-        int tcp_initcwnd_segments;  /* (10) Slow-start flight size (initial congestion window) in number of segments (10) */
-        int tcprexmtthresh;     /* (3) number of duplicate ack to trigger retransmission */
+	int tcp_do_rfc1323;     /* (1) Enable rfc1323 (high performance TCP) extensions */
+	int tcp_do_sack;        /* (1) Enable/Disable TCP SACK support */
+	int tcp_mssdflt;        /* (TCP_MSS) Default TCP Maximum Segment Size */
+	//int tcp_v6mssdflt;      /* (TCP6_MSS) Default TCP Maximum Segment Size for IPv6 */
+	int tcp_initcwnd_segments;  /* (10) Slow-start flight size (initial congestion window) in number of segments (10) */
+	int tcprexmtthresh;     /* (3) number of duplicate ack to trigger retransmission */
 
-        int tcp_keepinit;       /* (TCPTV_KEEP_INIT) time to establish connection */
-        int tcp_keepidle;       /* (TCPTV_KEEP_IDLE) time before keepalive probes begin */
-        int tcp_keepintvl;      /* (TCPTV_KEEPINTVL) time between keepalive probes */
-        int tcp_keepcnt;        /* (TCPTV_KEEPCNT) Number of keepalive probes to send */
-        int tcp_delacktime;     /* (TCPTV_DELACK) Time before a delayed ACK is sent */
+	int tcp_keepinit;       /* (TCPTV_KEEP_INIT) time to establish connection */
+	int tcp_keepidle;       /* (TCPTV_KEEP_IDLE) time before keepalive probes begin */
+	int tcp_keepintvl;      /* (TCPTV_KEEPINTVL) time between keepalive probes */
+	int tcp_keepcnt;        /* (TCPTV_KEEPCNT) Number of keepalive probes to send */
+	int tcp_delacktime;     /* (TCPTV_DELACK) Time before a delayed ACK is sent */
 };
 
 #define TCP_TUNE(name)              tp->t_tune->name

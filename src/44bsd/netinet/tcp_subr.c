@@ -216,20 +216,20 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	tlen = sizeof (struct tcphdr);
 	to.to_flags = 0;
 
-        u_char opt[TCP_MAXOLEN];
-        optp = &opt[0];
+	u_char opt[TCP_MAXOLEN];
+	optp = &opt[0];
 	if (incl_opts) {
-                /* TREX_FBSD: support SYN respose, from syncache_respond */
-                if (flags & TH_SYN) {
-                        to.to_mss = tcp_mssopt(tp);
-                        to.to_flags = TOF_MSS;
-                        if (tp->t_flags & TF_REQ_SCALE) {
-                                to.to_wscale = tp->request_r_scale;
-                                to.to_flags |= TOF_SCALE;
-                        }
-                        if (tp->t_flags & TF_SACK_PERMIT)
-                                to.to_flags |= TOF_SACKPERM;
-                }
+		/* TREX_FBSD: support SYN respose, from syncache_respond */
+		if (flags & TH_SYN) {
+			to.to_mss = tcp_mssopt(tp);
+			to.to_flags = TOF_MSS;
+			if (tp->t_flags & TF_REQ_SCALE) {
+				to.to_wscale = tp->request_r_scale;
+				to.to_flags |= TOF_SCALE;
+			}
+			if (tp->t_flags & TF_SACK_PERMIT)
+				to.to_flags |= TOF_SACKPERM;
+		}
 		/* Timestamps. */
 		if (tp->t_flags & TF_RCVD_TSTMP) {
 			to.to_tsval = tcp_ts_getticks() + tp->ts_offset;
@@ -246,9 +246,9 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	} else
 		optlen = 0;
 
-        if (tcp_build_pkt(tp, 0, 0, tlen, optlen, &m, &nth) != 0) {
-                return;
-        }
+	if (tcp_build_pkt(tp, 0, 0, tlen, optlen, &m, &nth) != 0) {
+		return;
+	}
 	if (optlen) {
 		bcopy(opt, nth + 1, optlen);
 	}
@@ -275,7 +275,7 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 #endif
 
 #ifdef TCPDEBUG
-        ipgen = ((void *)nth) - (isipv6 ? sizeof(struct ip6_hdr) : sizeof(struct ip));
+	ipgen = ((void *)nth) - (isipv6 ? sizeof(struct ip6_hdr) : sizeof(struct ip));
 	if (tp == NULL || (tcp_getsocket(tp)->so_options & SO_DEBUG))
 		tcp_trace(TA_RESPOND, tp->t_state, tp, ipgen, nth, 0);
 #endif
@@ -301,8 +301,8 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 	tp->ccv->ccvc.tcp = tp;
 
 	tp->t_fb = fb ? fb : &tcp_def_funcblk;
-        tp->t_tune = tune;
-        tp->t_stat = stat;
+	tp->t_tune = tune;
+	tp->t_stat = stat;
 	/*
 	 * Use the current system default CC algorithm.
 	 */
@@ -321,7 +321,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 #endif /* INET6 */
 		V_tcp_mssdflt;
 
-        tcp_handle_timers(tp);  /* initial update of last_tick */
+	tcp_handle_timers(tp);  /* initial update of last_tick */
 
 	if (V_tcp_do_rfc1323)
 		tp->t_flags = (TF_REQ_SCALE|TF_REQ_TSTMP);
@@ -375,9 +375,9 @@ tcp_drop(struct tcpcb *tp, int errno)
 void
 tcp_discardcb(struct tcpcb *tp)
 {
-        if (tp->t_fb == NULL) {
-                return;
-        }
+	if (tp->t_fb == NULL) {
+		return;
+	}
 
 	/*
 	 * Make sure that all of our timers are stopped before we delete the

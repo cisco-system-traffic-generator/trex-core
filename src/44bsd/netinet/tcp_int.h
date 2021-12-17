@@ -13,7 +13,7 @@
 #include "tcp_socket.h"
 
 
-/* BSD TCP headers */ 
+/* BSD TCP headers */
 #include "tcp_seq.h"
 #include "tcp.h"
 

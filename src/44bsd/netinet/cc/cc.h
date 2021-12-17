@@ -148,8 +148,8 @@ struct cc_algo {
  *
 #define CCV(ccv, what)                                                  \
 (*(                                                                     \
-        (ccv)->type == IPPROTO_TCP ?    &(ccv)->ccvc.tcp->what :        \
-                                        &(ccv)->ccvc.sctp->what         \
+	(ccv)->type == IPPROTO_TCP ?    &(ccv)->ccvc.tcp->what :        \
+					&(ccv)->ccvc.sctp->what         \
 ))
  */
 #define CCV(ccv, what) (ccv)->ccvc.tcp->what

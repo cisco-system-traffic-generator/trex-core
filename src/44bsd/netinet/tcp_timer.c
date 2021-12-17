@@ -391,13 +391,13 @@ tcp_handle_timers(struct tcpcb *tp)
 		if (tp->m_timer.tt_timer[i] <= tick_passed) {
 			tp->m_timer.tt_flags &= ~(1 << i);
 			tp->m_timer.tt_timer[i] = 0;
-                        switch(i) {
-                        case TT_DELACK: tcp_timer_delack(tp); break;
-                        case TT_REXMT: tcp_timer_rexmt(tp); break;
-                        case TT_PERSIST: tcp_timer_persist(tp); break;
-                        case TT_KEEP: tcp_timer_keep(tp); break;
-                        case TT_2MSL: tcp_timer_2msl(tp); break;
-                        }
+			switch(i) {
+			case TT_DELACK: tcp_timer_delack(tp); break;
+			case TT_REXMT: tcp_timer_rexmt(tp); break;
+			case TT_PERSIST: tcp_timer_persist(tp); break;
+			case TT_KEEP: tcp_timer_keep(tp); break;
+			case TT_2MSL: tcp_timer_2msl(tp); break;
+			}
 		} else {
 			tp->m_timer.tt_timer[i] -= tick_passed;
 		}

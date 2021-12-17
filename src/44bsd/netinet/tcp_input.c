@@ -254,7 +254,7 @@ cc_post_recovery(struct tcpcb *tp, struct tcphdr *th)
 	    !(thflags & TH_PUSH) &&					\
 	    (tlen <= tp->t_maxseg) &&					\
 	    (V_tcp_delack_enabled || (tp->t_flags & TF_NEEDSYN)) &&	\
-            !tcp_check_no_delay(tp, tlen))
+	    !tcp_check_no_delay(tp, tlen))
 /* !tcp_timer_active(tp, TT_DELACK) forces ACK on every other packet */
 /* !(thflags & TH_PUSH) for trex-core compatible */
 #endif /* TREX_FBSD */
@@ -328,7 +328,7 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 #endif
 
 #ifdef INET6
-        isipv6 = tcp_isipv6(tp);
+	isipv6 = tcp_isipv6(tp);
 #endif
 
 	to.to_flags = 0;
@@ -388,8 +388,8 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 		tcp_savetcp = *th;
 	}
 #else
-        (void) ip;
-        (void) ip6;
+	(void) ip;
+	(void) ip6;
 #endif /* TCPDEBUG */
 	/*
 	 * When the socket is accepting connections (the INPCB is in LISTEN
@@ -416,15 +416,15 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 			tcp_timer_activate(tp, TT_REXMT, 0);
 			tcp_state_change(tp, TCPS_SYN_RECEIVED);
 
-                        tcp_rcvseqinit(tp);
-                        tcp_sendseqinit(tp);
+			tcp_rcvseqinit(tp);
+			tcp_sendseqinit(tp);
 
-                        tp->snd_wl1 = tp->irs;
-                        tp->snd_max = tp->iss + 1;
-                        tp->snd_nxt = tp->iss + 1;
-                        tp->rcv_wnd = imax(sbspace(&so->so_rcv), 0);
-                        tp->rcv_adv += tp->rcv_wnd;
-                        tp->last_ack_sent = tp->rcv_nxt;
+			tp->snd_wl1 = tp->irs;
+			tp->snd_max = tp->iss + 1;
+			tp->snd_nxt = tp->iss + 1;
+			tp->rcv_wnd = imax(sbspace(&so->so_rcv), 0);
+			tp->rcv_adv += tp->rcv_wnd;
+			tp->last_ack_sent = tp->rcv_nxt;
 
 			//tp->t_flags |= TF_REQ_TSTMP|TF_RCVD_TSTMP;
 			//tp->t_flags |= TF_ACKNOW;
@@ -510,41 +510,41 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 
 		/* TREX_FBSD: update tcp options immediately due to syncache removed */
 #define tcp_new_ts_offset(x)    0
-                if (V_tcp_do_rfc1323) {
-                        if (to.to_flags & TOF_TS) {
-                                tp->t_flags |= TF_REQ_TSTMP|TF_RCVD_TSTMP;
-                                tp->ts_recent = to.to_tsval;
-                                tp->ts_recent_age = tcp_ts_getticks();
-                                tp->ts_offset = tcp_new_ts_offset(inc);
-                        }
-                        if (to.to_flags & TOF_SCALE) {
-                                int wscale = 0;
-                                while (wscale < TCP_MAX_WINSHIFT &&
-                                    (TCP_MAXWIN << wscale) < so->so_rcv.sb_hiwat)
-                                        wscale++;
-                                tp->t_flags |= TF_REQ_SCALE|TF_RCVD_SCALE;
-                                tp->snd_scale = to.to_wscale;
-                                tp->request_r_scale = wscale;
-                        }
-                }
-                if (to.to_flags & TOF_SACKPERM)
-                        tp->t_flags |= TF_SACK_PERMIT;
-                if (((th->th_flags & (TH_ECE|TH_CWR)) == (TH_ECE|TH_CWR)) && V_tcp_do_ecn) {
-                        tp->t_flags2 |= TF2_ECN_PERMIT;
-                        //tp->t_flags2 |= TF2_ECN_SND_ECE; // ??
-                        TCPSTAT_INC(tcps_ecn_shs);
-                }
+		if (V_tcp_do_rfc1323) {
+			if (to.to_flags & TOF_TS) {
+				tp->t_flags |= TF_REQ_TSTMP|TF_RCVD_TSTMP;
+				tp->ts_recent = to.to_tsval;
+				tp->ts_recent_age = tcp_ts_getticks();
+				tp->ts_offset = tcp_new_ts_offset(inc);
+			}
+			if (to.to_flags & TOF_SCALE) {
+				int wscale = 0;
+				while (wscale < TCP_MAX_WINSHIFT &&
+				    (TCP_MAXWIN << wscale) < so->so_rcv.sb_hiwat)
+					wscale++;
+				tp->t_flags |= TF_REQ_SCALE|TF_RCVD_SCALE;
+				tp->snd_scale = to.to_wscale;
+				tp->request_r_scale = wscale;
+			}
+		}
+		if (to.to_flags & TOF_SACKPERM)
+			tp->t_flags |= TF_SACK_PERMIT;
+		if (((th->th_flags & (TH_ECE|TH_CWR)) == (TH_ECE|TH_CWR)) && V_tcp_do_ecn) {
+			tp->t_flags2 |= TF2_ECN_PERMIT;
+			//tp->t_flags2 |= TF2_ECN_SND_ECE; // ??
+			TCPSTAT_INC(tcps_ecn_shs);
+		}
 
 		if (to.to_flags & TOF_MSS)
 			tcp_mss(tp, to.to_mss);
 
-                if (!tcp_timer_active(tp, TT_REXMT))
-                        tp->iss = tcp_new_isn(tp);
+		if (!tcp_timer_active(tp, TT_REXMT))
+			tp->iss = tcp_new_isn(tp);
 		tp->irs = th->th_seq;
 
-                /* send SYN+ACK, tp->iss should be intialized already */
+		/* send SYN+ACK, tp->iss should be intialized already */
 		tcp_respond(tp, NULL, NULL, m, tp->irs + 1, tp->iss, TH_SYN|TH_ACK);
-                tcp_timer_activate(tp, TT_REXMT, tp->t_rxtcur);
+		tcp_timer_activate(tp, TT_REXMT, tp->t_rxtcur);
 
 		/*
 		 * Entry added to syncache and mbuf consumed.

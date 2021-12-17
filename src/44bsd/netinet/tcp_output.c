@@ -268,7 +268,7 @@ after_sack_rexmit:
 		else {
 			int32_t cwin;
 
-                        /*
+			/*
 			 * We are inside of a SACK recovery episode and are
 			 * sending new data, having retransmitted all the
 			 * data possible in the scoreboard.
@@ -990,7 +990,7 @@ send:
 	 * m->m_pkthdr.len should have been set before checksum calculation,
 	 * because in6_cksum() need it.
 	 */
-        error = tcp_ip_output(tp, m);
+	error = tcp_ip_output(tp, m);
 
 out:
 	/*
