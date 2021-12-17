@@ -1653,11 +1653,13 @@ tcp_isipv6(struct tcpcb *tp)
     return ((CTcpCb*)tp)->m_flow->m_template.m_is_ipv6;
 }
 
+#if 0
 struct socket *
 tcp_getsocket(struct tcpcb *tp)
 {
     return (struct socket*)&((CTcpCb*)tp)->m_socket;
 }
+#endif
 
 int
 tcp_ip_output(struct tcpcb *tp, struct mbuf *m)

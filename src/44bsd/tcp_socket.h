@@ -66,20 +66,11 @@ struct mbuf: public rte_mbuf {};
 
 
 
-struct tcp_socket * sonewconn(struct tcp_socket *head, int connstatus);
-
-
-int soabort(struct tcp_socket *so);
 void sowwakeup(struct tcp_socket *so);
 void sorwakeup(struct tcp_socket *so);
 
-
 void    soisdisconnected(struct tcp_socket *so);
 void    soisdisconnecting(struct tcp_socket *so);
-
-
-void sbflush (struct sockbuf *sb);
-//void    sbappend(struct sockbuf *sb, struct rte_mbuf *m);
 
 void    sbappend(struct tcp_socket *so,
                  struct sockbuf *sb, 
@@ -911,8 +902,10 @@ public:
  * private data and error information.
  */
 class tcp_socket: public socket {
+#if 0
 public:
     CEmulApp  *      m_app; /* call back pointer */
+#endif
 };
 
 

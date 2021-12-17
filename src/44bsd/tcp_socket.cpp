@@ -40,12 +40,12 @@ limitations under the License.
 void sbreserve(struct sockbuf *sb, u_int cc) {
     sb->sb_hiwat = cc;
 }
-#endif
 
 
 void sbflush (struct sockbuf *sb){
     sb->sb_cc=0;
 }
+#endif
 
 void    sbappend(struct tcp_socket *so,
                  struct sockbuf *sb, 
@@ -135,7 +135,7 @@ void    socantrcvmore(struct tcp_socket *so){
 
 
 /* delete a socket */
-int soabort(struct tcp_socket *so){
+int soabort(struct socket *so){
     so->m_app->on_bh_event(te_SOABORT);
     return(0);
 }
@@ -1132,8 +1132,4 @@ void CEmulTxQueue::reset(){
     m_q.clear();
     m_q_tot_bytes=0;
 }
-
-
-
-
 

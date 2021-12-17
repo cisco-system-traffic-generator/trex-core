@@ -281,7 +281,7 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
     while (dlen>0) {
         /* get blocks from socket buffer */
         CBufMbufRef  rb;
-        lptxs->get_by_offset(&tp->m_socket,offset,rb);
+        lptxs->get_by_offset((tcp_socket*)&tp->m_socket,offset,rb);
         assert(rb.get_mbuf_size()>0);
 
         rte_mbuf_t   * mn=rb.m_mbuf;

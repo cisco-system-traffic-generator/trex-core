@@ -101,7 +101,7 @@ struct CTcpPkt {
 
 struct CTcpCb: public tcpcb {
 
-    tcp_socket m_socket;
+//    tcp_socket m_socket;
 
     /* ====== size 8 bytes  */
 

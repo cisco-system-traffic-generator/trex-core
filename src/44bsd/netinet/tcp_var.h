@@ -132,10 +132,19 @@ struct sackhint {
  * on common tcp_input/tcp_output processing.
  */
 struct tcpcb {
+        /* data structures per tcpcb */
+	struct tcp_timer m_timer;	/* TCP timer */
+	struct cc_var m_ccv;		/* congestion control specific vars */
+	struct socket m_socket;
+
+	struct tcp_tune *t_tune;	/* pointer to TCP tunable values */
+	struct tcpstat *t_stat;		/* pointer to TCP counters */
+	struct tcpstat *t_stat_ex;	/* extra pointer to TCP counters */
+
 	/* Cache line 1 */
 	struct tcp_function_block *t_fb;/* TCP function call block */
-	uint32_t t_maxseg:24;		/* maximum segment size */
-	uint32_t t_state:4;		/* state of this connection */
+	u_short t_maxseg;		/* maximum segment size */
+	u_short t_state;		/* state of this connection */
 	u_int	t_flags;
 	tcp_seq	snd_una;		/* sent but unacknowledged */
 	tcp_seq	snd_max;		/* highest sequence number sent;
@@ -213,14 +222,6 @@ struct tcpcb {
 	struct cc_var	*ccv;		/* congestion control specific vars */
 	int	t_bytes_acked;		/* # bytes acked during current RTT */
 	int	t_dupacks;		/* consecutive dup acks recd */
-
-	struct tcp_tune *t_tune;	/* pointer to TCP tunable values */
-	struct tcpstat *t_stat;		/* pointer to TCP counters */
-	struct tcpstat *t_stat_ex;	/* extra pointer to TCP counters */
-
-        /* data structures per tcpcb */
-	struct tcp_timer m_timer;	/* TCP timer */
-	struct cc_var m_ccv;		/* congestion control specific vars */
 
 };
 #endif	/* _KERNEL || _WANT_TCPCB */
@@ -633,7 +634,8 @@ int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlen
 bool tcp_reass_is_empty(struct tcpcb *tp);
 bool tcp_check_no_delay(struct tcpcb *, int);
 bool tcp_isipv6(struct tcpcb *);
-struct socket* tcp_getsocket(struct tcpcb *);
+//struct socket* tcp_getsocket(struct tcpcb *);
+#define tcp_getsocket(tp)       (&(tp)->m_socket)
 uint32_t tcp_new_isn(struct tcpcb *);
 
 #ifdef __cplusplus

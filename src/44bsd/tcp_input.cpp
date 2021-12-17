@@ -146,7 +146,7 @@ int CTcpReass::tcp_reass_no_data(CPerProfileCtx * pctx,
 
     flags = (m_blocks[0].m_flags==1) ? TH_FIN :0;
 
-    sbappend_bytes(&tp->m_socket,
+    sbappend_bytes((struct tcp_socket*)&tp->m_socket,
                    &tp->m_socket.so_rcv ,
                    m_blocks[0].m_len);
 
