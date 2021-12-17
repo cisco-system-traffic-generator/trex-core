@@ -52,6 +52,7 @@ extern void tcp_respond(struct tcpcb *, void *, struct tcphdr *, struct mbuf *, 
 extern void tcp_timer_discard(void *);
 
 /* defined functions */
+#if 0
 void tcp_timer_2msl(struct tcpcb *tp);
 void tcp_timer_keep(struct tcpcb *tp);
 void tcp_timer_persist(struct tcpcb *tp);
@@ -61,42 +62,13 @@ void tcp_timer_delack(struct tcpcb *tp);
 void tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta);
 int tcp_timer_active(struct tcpcb *tp, uint32_t timer_type);
 void tcp_cancel_timers(struct tcpcb *tp);
+#else
+void tcp_handle_timers(struct tcpcb *tp);
+#endif
 
 #define tcp_maxpersistidle  TCPTV_KEEP_IDLE
 #define ticks   tcp_getticks(tp)
 
-
-typedef void (*timer_handle_t)(struct tcpcb *);
-static timer_handle_t tcp_timer_handlers[TCPT_NTIMERS] = {
-	tcp_timer_delack,
-	tcp_timer_rexmt,
-	tcp_timer_persist,
-	tcp_timer_keep,
-	tcp_timer_2msl
-};
-
-void
-tcp_handle_timers(struct tcpcb *tp)
-{
-	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
-	uint32_t now_tick = ticks;
-	uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
-
-	tp->m_timer.last_tick = now_tick;
-
-	for (int i = 0; tt_flags && i < TCPT_NTIMERS; i++ ) {
-		if ((tt_flags & (1 << i)) == 0)
-			continue;
-		tt_flags &= ~(1 << i);
-
-		if (tp->m_timer.tt_timer[i] <= tick_passed) {
-			tp->m_timer.tt_flags &= ~(1 << i);
-			(tcp_timer_handlers[i])(tp);
-		} else {
-			tp->m_timer.tt_timer[i] -= tick_passed;
-		}
-	}
-}
 
 
 const int tcp_backoff[TCP_MAXRXTSHIFT + 1] =
@@ -111,7 +83,7 @@ const int tcp_totbackoff = 511;	/* sum of tcp_backoff[] */
  * TCP timer processing.
  */
 
-void
+static inline void
 tcp_timer_delack(struct tcpcb *tp)
 {
 	tp->t_flags |= TF_ACKNOW;
@@ -119,7 +91,7 @@ tcp_timer_delack(struct tcpcb *tp)
 	(void) tp->t_fb->tfb_tcp_output(tp);
 }
 
-void
+static inline void
 tcp_timer_2msl(struct tcpcb *tp)
 {
 #ifdef TCPDEBUG
@@ -142,7 +114,7 @@ tcp_timer_2msl(struct tcpcb *tp)
 #endif
 }
 
-void
+static inline void
 tcp_timer_keep(struct tcpcb *tp)
 {
 #ifdef TCPDEBUG
@@ -214,7 +186,7 @@ dropit:
 #endif
 }
 
-void
+static inline void
 tcp_timer_persist(struct tcpcb *tp)
 {
 #ifdef TCPDEBUG
@@ -264,7 +236,7 @@ out:
 	return;
 }
 
-void
+static inline void
 tcp_timer_rexmt(struct tcpcb *tp)
 {
 	int rexmt;
@@ -400,3 +372,35 @@ tcp_cancel_timers(struct tcpcb *tp)
 {
 	tp->m_timer.tt_flags = 0;
 }
+
+
+void
+tcp_handle_timers(struct tcpcb *tp)
+{
+	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
+	uint32_t now_tick = ticks;
+	uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
+
+	tp->m_timer.last_tick = now_tick;
+
+	for (int i = 0; tt_flags && i < TCPT_NTIMERS; i++ ) {
+		if ((tt_flags & (1 << i)) == 0)
+			continue;
+		tt_flags &= ~(1 << i);
+
+		if (tp->m_timer.tt_timer[i] <= tick_passed) {
+			tp->m_timer.tt_flags &= ~(1 << i);
+			tp->m_timer.tt_timer[i] = 0;
+                        switch(i) {
+                        case TT_DELACK: tcp_timer_delack(tp); break;
+                        case TT_REXMT: tcp_timer_rexmt(tp); break;
+                        case TT_PERSIST: tcp_timer_persist(tp); break;
+                        case TT_KEEP: tcp_timer_keep(tp); break;
+                        case TT_2MSL: tcp_timer_2msl(tp); break;
+                        }
+		} else {
+			tp->m_timer.tt_timer[i] -= tick_passed;
+		}
+	}
+}
+
