@@ -99,6 +99,8 @@ struct CTcpPkt {
 #define PACKET_TEMPLATE_SIZE (128)
 
 
+class CTcpPerThreadCtx;
+
 struct CTcpCb: public tcpcb {
 
 //    tcp_socket m_socket;
@@ -127,6 +129,7 @@ struct CTcpCb: public tcpcb {
 
     CTcpReass * m_tpc_reass; /* tcp reassembley object, allocated only when needed */
     CTcpFlow  * m_flow;      /* back pointer to flow*/
+    CTcpPerThreadCtx* m_ctx; /* direct link to the current TCP thread context */
     bool m_reass_disabled;   /* don't reassemble ooo packet, to make payload content in order */
 
 public:
