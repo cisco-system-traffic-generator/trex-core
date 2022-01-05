@@ -99,9 +99,6 @@ tcp_output(struct tcpcb *tp)
 	struct tcphdr *th;
 	u_char opt[TCP_MAXOLEN];
 	unsigned ipoptlen, optlen, hdrlen;
-#if defined(IPSEC) || defined(IPSEC_SUPPORT)
-	unsigned ipsec_optlen = 0;
-#endif
 	int idle, sendalot, curticks;
 	int sack_rxmit, sack_bytes_rxmt;
 	struct sackhole *p;
@@ -362,27 +359,7 @@ after_sack_rexmit:
 	 * the right thing below to provide length of just ip options and thus
 	 * checking for ipoptlen is enough to decide if ip options are present.
 	 */
-#if defined(IPSEC) || defined(IPSEC_SUPPORT)
-	/*
-	 * Pre-calculate here as we save another lookup into the darknesses
-	 * of IPsec that way and can actually decide if TSO is ok.
-	 */
-#ifdef INET6
-	if (isipv6 && IPSEC_ENABLED(ipv6))
-		ipsec_optlen = IPSEC_HDRSIZE(ipv6, tp->t_inpcb);
-#ifdef INET
-	else
-#endif
-#endif /* INET6 */
-#ifdef INET
-	if (IPSEC_ENABLED(ipv4))
-		ipsec_optlen = IPSEC_HDRSIZE(ipv4, tp->t_inpcb);
-#endif /* INET */
-#endif /* IPSEC */
 	ipoptlen = 0;
-#if defined(IPSEC) || defined(IPSEC_SUPPORT)
-	ipoptlen += ipsec_optlen;
-#endif
 
 	if ((tp->t_flags & TF_TSO) && V_tcp_do_tso && len > tp->t_maxseg &&
 	    ((tp->t_flags & TF_SIGNATURE) == 0) &&
@@ -588,12 +565,6 @@ just_return:
 	return (0);
 
 send:
-	if (len > 0) {
-		if (len >= tp->t_maxseg)
-			tp->t_flags2 |= TF2_PLPMTU_MAXSEGSNT;
-		else
-			tp->t_flags2 &= ~TF2_PLPMTU_MAXSEGSNT;
-	}
 	/*
 	 * Before ESTABLISHED, force sending of initial options
 	 * unless TCP set not to do any options.
@@ -649,15 +620,6 @@ send:
 				to.to_sacks = (u_char *)tp->sackblks;
 			}
 		}
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-		/* TCP-MD5 (RFC2385). */
-		/*
-		 * Check that TCP_MD5SIG is enabled in tcpcb to
-		 * account the size needed to set this TCP option.
-		 */
-		if (tp->t_flags & TF_SIGNATURE)
-			to.to_flags |= TOF_SIGNATURE;
-#endif /* TCP_SIGNATURE */
 
 		/* Processing the options. */
 		hdrlen += optlen = tcp_addoptions(tp, &to, opt);

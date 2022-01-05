@@ -371,55 +371,6 @@ struct tcpopt {
  */
 #define	TO_SYN		0x01		/* parse SYN-only options */
 
-#if 0
-struct hc_metrics_lite {	/* must stay in sync with hc_metrics */
-	uint32_t	rmx_mtu;	/* MTU for this path */
-	uint32_t	rmx_ssthresh;	/* outbound gateway buffer limit */
-	uint32_t	rmx_rtt;	/* estimated round trip time */
-	uint32_t	rmx_rttvar;	/* estimated rtt variance */
-	uint32_t	rmx_cwnd;	/* congestion window */
-	uint32_t	rmx_sendpipe;   /* outbound delay-bandwidth product */
-	uint32_t	rmx_recvpipe;   /* inbound delay-bandwidth product */
-};
-
-/*
- * Used by tcp_maxmtu() to communicate interface specific features
- * and limits at the time of connection setup.
- */
-struct tcp_ifcap {
-	int	ifcap;
-	u_int	tsomax;
-	u_int	tsomaxsegcount;
-	u_int	tsomaxsegsize;
-};
-
-#ifndef _NETINET_IN_PCB_H_
-struct in_conninfo;
-#endif /* _NETINET_IN_PCB_H_ */
-
-struct tcptw {
-	struct inpcb	*tw_inpcb;	/* XXX back pointer to internet pcb */
-	tcp_seq		snd_nxt;
-	tcp_seq		rcv_nxt;
-	tcp_seq		iss;
-	tcp_seq		irs;
-	u_short		last_win;	/* cached window value */
-	short		tw_so_options;	/* copy of so_options */
-	struct ucred	*tw_cred;	/* user credentials */
-	u_int32_t	t_recent;
-	u_int32_t	ts_offset;	/* our timestamp offset */
-	u_int		t_starttime;
-	int		tw_time;
-	TAILQ_ENTRY(tcptw) tw_2msl;
-	void		*tw_pspare;	/* TCP_SIGNATURE */
-	u_int		*tw_spare;	/* TCP_SIGNATURE */
-};
-
-#define	intotcpcb(ip)	((struct tcpcb *)(ip)->inp_ppcb)
-#define	intotw(ip)	((struct tcptw *)(ip)->inp_ppcb)
-#define	sototcpcb(so)	(intotcpcb(sotoinpcb(so)))
-#endif
-
 /*
  * The smoothed round-trip time and estimated variance
  * are stored as fixed point numbers scaled by the values below.
@@ -595,7 +546,6 @@ struct tcp_tune {
 #define V_tcp_do_newcwv             0
 
 #define V_tcp_mssdflt               TCP_TUNE(tcp_mssdflt)
-#define V_tcp_v6mssdflt             TCP_TUNE(tcp_mssdflt)
 #define V_tcp_initcwnd_segments     TCP_TUNE(tcp_initcwnd_segments)    // 10
 #define V_tcp_do_rfc1323            TCP_TUNE(tcp_do_rfc1323)           // 1
 #define V_tcprexmtthresh            TCP_TUNE(tcprexmtthresh)           // 3

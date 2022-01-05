@@ -509,13 +509,12 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 		tcp_dooptions(tp, &to, optp, optlen, TO_SYN);
 
 		/* TREX_FBSD: update tcp options immediately due to syncache removed */
-#define tcp_new_ts_offset(x)    0
 		if (V_tcp_do_rfc1323) {
 			if (to.to_flags & TOF_TS) {
 				tp->t_flags |= TF_REQ_TSTMP|TF_RCVD_TSTMP;
 				tp->ts_recent = to.to_tsval;
 				tp->ts_recent_age = tcp_ts_getticks();
-				tp->ts_offset = tcp_new_ts_offset(inc);
+				tp->ts_offset = 0;
 			}
 			if (to.to_flags & TOF_SCALE) {
 				int wscale = 0;
@@ -552,18 +551,6 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 		 */
 		return;
 	}
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-	if (tp->t_flags & TF_SIGNATURE) {
-		tcp_dooptions(&to, optp, optlen, thflags);
-		if ((to.to_flags & TOF_SIGNATURE) == 0) {
-			TCPSTAT_INC(tcps_sig_err_nosigopt);
-			goto dropunlock;
-		}
-		if (!TCPMD5_ENABLED() ||
-		    TCPMD5_INPUT(m, th, to.to_signature) != 0)
-			goto dropunlock;
-	}
-#endif
 
 	/*
 	 * Segment belongs to a connection in SYN_SENT, ESTABLISHED or later
@@ -606,7 +593,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	uint32_t tiwin;
 	uint16_t nsegs;
 	struct tcpopt to;
-	int tfo_syn;
 
 #ifdef TCPDEBUG
 	/*
@@ -698,13 +684,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	    (th->th_off << 2) - sizeof(struct tcphdr),
 	    (thflags & TH_SYN) ? TO_SYN : 0);
 
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-	if ((tp->t_flags & TF_SIGNATURE) != 0 &&
-	    (to.to_flags & TOF_SIGNATURE) == 0) {
-		TCPSTAT_INC(tcps_sig_err_sigopt);
-		/* XXX: should drop? */
-	}
-#endif
 	/*
 	 * If echoed timestamp is later than the current time,
 	 * fall back to non RFC1323 RTT calculation.  Normalize
@@ -1026,8 +1005,6 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 		tp->irs = th->th_seq;
 		tcp_rcvseqinit(tp);
 		if (thflags & TH_ACK) {
-			int tfo_partial_ack = 0;
-
 			TCPSTAT_INC(tcps_connects);
 			soisconnected(so);
 			/* Do window scaling on this connection? */
@@ -1042,7 +1019,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 			 * If there's data, delay ACK; if there's also a FIN
 			 * ACKNOW will be turned on later.
 			 */
-			if (DELAY_ACK(tp, tlen) && tlen != 0 && !tfo_partial_ack)
+			if (DELAY_ACK(tp, tlen) && tlen != 0)
 				tcp_timer_activate(tp, TT_DELACK,
 				    V_tcp_delacktime);
 			else
@@ -2004,8 +1981,7 @@ step6:
 	 * case PRU_RCVD).  If a FIN has already been received on this
 	 * connection then we just ignore the text.
 	 */
-	tfo_syn = false;
-	if ((tlen || (thflags & TH_FIN) || (tfo_syn && tlen > 0)) &&
+	if ((tlen || (thflags & TH_FIN)) &&
 	    TCPS_HAVERCVDFIN(tp->t_state) == 0) {
 		tcp_seq save_start = th->th_seq;
 		tcp_seq save_rnxt  = tp->rcv_nxt;
@@ -2025,9 +2001,8 @@ step6:
 		 */
 		if (th->th_seq == tp->rcv_nxt &&
 		    SEGQ_EMPTY(tp) &&
-		    (TCPS_HAVEESTABLISHED(tp->t_state) ||
-		     tfo_syn)) {
-			if (DELAY_ACK(tp, tlen) || tfo_syn)
+		    (TCPS_HAVEESTABLISHED(tp->t_state))) {
+			if (DELAY_ACK(tp, tlen))
 				tp->t_flags |= TF_DELACK;
 			else
 				tp->t_flags |= TF_ACKNOW;

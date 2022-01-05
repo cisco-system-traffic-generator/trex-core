@@ -164,22 +164,17 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	printf("\n");
 	if (tp == NULL)
 		return;
-	if (tp->t_state < TCPS_SYN_SENT && !tp->t_starttime) {
-		printf(
-		"\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
-		    (u_long)tp->rcv_nxt, (u_long)tp->rcv_wnd, (u_long)tp->rcv_up,
-		    (u_long)tp->snd_una, (u_long)tp->snd_nxt, (u_long)tp->snd_max);
-	} else {
-		printf("\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
-		    (u_long)(tp->rcv_nxt-tp->irs), (u_long)tp->rcv_wnd, (u_long)(tp->rcv_up-tp->irs),
-		    (u_long)(tp->snd_una-tp->iss), (u_long)(tp->snd_nxt-tp->iss), (u_long)(tp->snd_max-tp->iss));
+
+        /* to print out relative seq value */
+	tcp_seq irs = 0, iss = 0;
+	if (tp->t_state >= TCPS_SYN_SENT || tp->t_starttime) {
+		irs = tp->irs;
+		iss = tp->iss;
 	}
-	if (tp->t_state < TCPS_ESTABLISHED && !tp->t_starttime) {
-		printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
-		    (u_long)tp->snd_wl1, (u_long)tp->snd_wl2, (u_long)tp->snd_wnd);
-	} else {
-		printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
-		    (u_long)(tp->snd_wl1-tp->irs), (u_long)(tp->snd_wl2-tp->iss), (u_long)tp->snd_wnd);
-	}
+	printf("\trcv_(nxt,wnd,up) (%lx,%lx,%lx) snd_(una,nxt,max) (%lx,%lx,%lx)\n",
+	    (u_long)(tp->rcv_nxt-irs), (u_long)tp->rcv_wnd, (u_long)(tp->rcv_up-irs),
+	    (u_long)(tp->snd_una-iss), (u_long)(tp->snd_nxt-iss), (u_long)(tp->snd_max-iss));
+	printf("\tsnd_(wl1,wl2,wnd) (%lx,%lx,%lx)\n",
+	    (u_long)(tp->snd_wl1-irs), (u_long)(tp->snd_wl2-iss), (u_long)tp->snd_wnd);
 #endif /* TCPDEBUG */
 }

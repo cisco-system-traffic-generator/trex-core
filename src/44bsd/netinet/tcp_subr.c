@@ -236,11 +236,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 			to.to_tsecr = tp->ts_recent;
 			to.to_flags |= TOF_TS;
 		}
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-		/* TCP-MD5 (RFC2385). */
-		if (tp->t_flags & TF_SIGNATURE)
-			to.to_flags |= TOF_SIGNATURE;
-#endif
 		/* Add the options. */
 		tlen += optlen = tcp_addoptions(tp, &to, optp);
 	} else
@@ -264,16 +259,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 		nth->th_win = htons((u_short)win);
 	nth->th_urp = 0;
 
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-	if (to.to_flags & TOF_SIGNATURE) {
-		if (!TCPMD5_ENABLED() ||
-		    TCPMD5_OUTPUT(m, nth, to.to_signature) != 0) {
-			m_freem(m);
-			return;
-		}
-	}
-#endif
-
 #ifdef TCPDEBUG
 	ipgen = ((void *)nth) - (isipv6 ? sizeof(struct ip6_hdr) : sizeof(struct ip));
 	if (tp == NULL || (tcp_getsocket(tp)->so_options & SO_DEBUG))
@@ -291,10 +276,6 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 struct tcpcb *
 tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat)
 {
-#ifdef INET6
-	int isipv6 = tcp_isipv6(tp);
-#endif /* INET6 */
-
 	/* Initialise cc_var struct for this tcpcb. */
 	tp->ccv = &tp->m_ccv;
 	tp->ccv->type = IPPROTO_TCP;
@@ -315,11 +296,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 			return (NULL);
 		}
 
-	tp->t_maxseg =
-#ifdef INET6
-		isipv6 ? V_tcp_v6mssdflt :
-#endif /* INET6 */
-		V_tcp_mssdflt;
+	tp->t_maxseg = V_tcp_mssdflt;
 
 	tcp_handle_timers(tp);  /* initial update of last_tick */
 
@@ -455,10 +432,6 @@ tcp_maxseg(const struct tcpcb *tp)
 			optlen = TCPOLEN_TSTAMP_APPA;
 		else
 			optlen = 0;
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-		if (tp->t_flags & TF_SIGNATURE)
-			optlen += PADTCPOLEN(TCPOLEN_SIGNATURE);
-#endif
 		if ((tp->t_flags & TF_SACK_PERMIT) && tp->rcv_numsacks > 0) {
 			optlen += TCPOLEN_SACKHDR;
 			optlen += tp->rcv_numsacks * TCPOLEN_SACK;
@@ -471,14 +444,9 @@ tcp_maxseg(const struct tcpcb *tp)
 			optlen = PADTCPOLEN(TCPOLEN_MAXSEG);
 		if (tp->t_flags & TF_REQ_SCALE)
 			optlen += PADTCPOLEN(TCPOLEN_WINDOW);
-#if defined(IPSEC_SUPPORT) || defined(TCP_SIGNATURE)
-		if (tp->t_flags & TF_SIGNATURE)
-			optlen += PADTCPOLEN(TCPOLEN_SIGNATURE);
-#endif
 		if (tp->t_flags & TF_SACK_PERMIT)
 			optlen += PADTCPOLEN(TCPOLEN_SACK_PERMITTED);
 	}
-#undef PAD
 	optlen = min(optlen, TCP_MAXOLEN);
 	return (tp->t_maxseg - optlen);
 }
@@ -543,9 +511,8 @@ tcp_connect(struct tcpcb *tp)
 	TCPSTAT_INC(tcps_connattempt);
 	tcp_state_change(tp, TCPS_SYN_SENT);
 	tp->iss = tcp_new_isn(tp);
-#define tcp_new_ts_offset(x)    0
 	if (tp->t_flags & TF_REQ_TSTMP)
-		tp->ts_offset = tcp_new_ts_offset(tp);
+		tp->ts_offset = 0;
 	tcp_sendseqinit(tp);
 
 	/* TREX_FBSD: added for old stack comapatibility */
