@@ -343,37 +343,6 @@ out:
 }
 
 
-void
-tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
-{
-	if (delta == 0) {
-		tp->m_timer.tt_flags &= ~(1 << timer_type);
-	} else {
-		tp->m_timer.tt_flags |= (1 << timer_type);
-		delta += (ticks - tp->m_timer.last_tick);
-	}
-	tp->m_timer.tt_timer[timer_type] = delta;
-}
-
-int
-tcp_timer_active(struct tcpcb *tp, uint32_t timer_type)
-{
-	return (tp->m_timer.tt_flags & (1 << timer_type));
-}
-
-void
-tcp_timer_stop(struct tcpcb *tp, uint32_t timer_type)
-{
-	tp->m_timer.tt_flags &= ~(1 << timer_type);
-}
-
-void
-tcp_cancel_timers(struct tcpcb *tp)
-{
-	tp->m_timer.tt_flags = 0;
-}
-
-
 bool
 tcp_handle_timers(struct tcpcb *tp)
 {
@@ -387,7 +356,7 @@ tcp_handle_timers(struct tcpcb *tp)
 		tt_flags &= ~TT_FLAG_DELACK;
 		if (tp->m_timer.tt_timer[TT_DELACK] <= tick_passed) {
 			tp->m_timer.tt_flags &= ~TT_FLAG_DELACK;
-			tp->m_timer.tt_timer[TT_DELACK] = 0;
+			//tp->m_timer.tt_timer[TT_DELACK] = 0;
 			tcp_timer_delack(tp);
 			is_delack = true;
 		}
@@ -406,7 +375,7 @@ tcp_handle_timers(struct tcpcb *tp)
 
 		if (tp->m_timer.tt_timer[i] <= tick_passed) {
 			tp->m_timer.tt_flags &= ~(1 << i);
-			tp->m_timer.tt_timer[i] = 0;
+			//tp->m_timer.tt_timer[i] = 0;
 			switch(i) {
 			case TT_REXMT: tcp_timer_rexmt(tp); break;
 			case TT_PERSIST: tcp_timer_persist(tp); break;

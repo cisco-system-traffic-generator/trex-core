@@ -298,7 +298,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 
 	tp->t_maxseg = V_tcp_mssdflt;
 
-	tcp_handle_timers(tp);  /* initial update of last_tick */
+	tp->m_timer.last_tick = ticks;
 
 	if (V_tcp_do_rfc1323)
 		tp->t_flags = (TF_REQ_SCALE|TF_REQ_TSTMP);

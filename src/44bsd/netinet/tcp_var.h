@@ -566,7 +566,7 @@ void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_s
 #define tcp_int_input(tp,m,th,toff,tlen,iptos)  tcp_input(tp, m, th, toff, tlen, iptos)
 void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
 bool tcp_handle_timers(struct tcpcb *tp);
-void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
+//void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
 struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat);
 void tcp_discardcb(struct tcpcb *tp);
 struct tcpcb * tcp_drop(struct tcpcb *, int res);
@@ -591,6 +591,37 @@ uint32_t tcp_new_isn(struct tcpcb *);
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
+
+
+static inline void
+tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
+{
+	if (delta == 0) {
+		tp->m_timer.tt_flags &= ~(1 << timer_type);
+	} else {
+		tp->m_timer.tt_flags |= (1 << timer_type);
+		delta += (tcp_getticks(tp) - tp->m_timer.last_tick);
+	}
+	tp->m_timer.tt_timer[timer_type] = delta;
+}
+
+static inline int
+tcp_timer_active(struct tcpcb *tp, uint32_t timer_type)
+{
+	return (tp->m_timer.tt_flags & (1 << timer_type));
+}
+
+static inline void
+tcp_timer_stop(struct tcpcb *tp, uint32_t timer_type)
+{
+	tp->m_timer.tt_flags &= ~(1 << timer_type);
+}
+
+static inline void
+tcp_cancel_timers(struct tcpcb *tp)
+{
+	tp->m_timer.tt_flags = 0;
+}
 
 
 #endif /* _NETINET_TCP_VAR_H_ */
