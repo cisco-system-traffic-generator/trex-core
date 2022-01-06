@@ -608,7 +608,7 @@ CTcpTunableCtx::CTcpTunableCtx() {
 #ifdef TREX_SIM
     tcp_fast_ticks = tw_time_msec_to_ticks(TCP_TIMER_W_TICK);
 #else
-    tcp_fast_ticks = tw_time_msec_to_ticks(TCPTV_RES_MS);
+    tcp_fast_ticks = TCP_FAST_TICK_;
 #endif
     tcp_do_sack = 1;
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
@@ -686,6 +686,7 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
         tcp_delacktime = tcp_timer_msec_to_ticks(tune->m_tcp_delay_ack_msec);
+        tcp_fast_ticks = tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
     }
     #endif
 

@@ -63,7 +63,7 @@ void tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta);
 int tcp_timer_active(struct tcpcb *tp, uint32_t timer_type);
 void tcp_cancel_timers(struct tcpcb *tp);
 #else
-void tcp_handle_timers(struct tcpcb *tp);
+bool tcp_handle_timers(struct tcpcb *tp);
 #endif
 
 #define tcp_maxpersistidle  TCPTV_KEEP_IDLE
@@ -374,16 +374,32 @@ tcp_cancel_timers(struct tcpcb *tp)
 }
 
 
-void
+bool
 tcp_handle_timers(struct tcpcb *tp)
 {
 	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
 	uint32_t now_tick = ticks;
 	uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
+	bool is_delack = false;
 
+	/* handle fast timer: TT_DELACK */
+	if ((tt_flags & TT_FLAG_DELACK)) {
+		tt_flags &= ~TT_FLAG_DELACK;
+		if (tp->m_timer.tt_timer[TT_DELACK] <= tick_passed) {
+			tp->m_timer.tt_flags &= ~TT_FLAG_DELACK;
+			tp->m_timer.tt_timer[TT_DELACK] = 0;
+			tcp_timer_delack(tp);
+			is_delack = true;
+		}
+	}
+
+	if (tick_passed < TCPTV_SLOWTIMO) {
+		return is_delack;
+	}
+	/* handle slow timer only */
 	tp->m_timer.last_tick = now_tick;
 
-	for (int i = 0; tt_flags && i < TCPT_NTIMERS; i++ ) {
+	for (int i = TT_REXMT; tt_flags && i < TCPT_NTIMERS; i++ ) {
 		if ((tt_flags & (1 << i)) == 0)
 			continue;
 		tt_flags &= ~(1 << i);
@@ -392,7 +408,6 @@ tcp_handle_timers(struct tcpcb *tp)
 			tp->m_timer.tt_flags &= ~(1 << i);
 			tp->m_timer.tt_timer[i] = 0;
 			switch(i) {
-			case TT_DELACK: tcp_timer_delack(tp); break;
 			case TT_REXMT: tcp_timer_rexmt(tp); break;
 			case TT_PERSIST: tcp_timer_persist(tp); break;
 			case TT_KEEP: tcp_timer_keep(tp); break;
@@ -402,5 +417,6 @@ tcp_handle_timers(struct tcpcb *tp)
 			tp->m_timer.tt_timer[i] -= tick_passed;
 		}
 	}
+	return is_delack;
 }
 
