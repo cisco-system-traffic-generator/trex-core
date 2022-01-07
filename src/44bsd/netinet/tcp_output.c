@@ -121,10 +121,11 @@ tcp_output(struct tcpcb *tp)
 	 * If there is some data or critical controls (SYN, RST)
 	 * to send, then transmit; otherwise, investigate further.
 	 */
-	idle = (tp->t_flags & TF_LASTIDLE) || (tp->snd_max == tp->snd_una);
+	idle = /*(tp->t_flags & TF_LASTIDLE) || */(tp->snd_max == tp->snd_una);
 	if (idle && (((ticks - tp->t_rcvtime) >= tp->t_rxtcur) ||
 	    (tp->t_sndtime && ((ticks - tp->t_sndtime) >= tp->t_rxtcur))))
 		cc_after_idle(tp);
+#if 0	/* not used */
 	tp->t_flags &= ~TF_LASTIDLE;
 	if (idle) {
 		if (tp->t_flags & TF_MORETOCOME) {
@@ -132,6 +133,7 @@ tcp_output(struct tcpcb *tp)
 			idle = 0;
 		}
 	}
+#endif
 again:
 	/*
 	 * If we've recently taken a timeout, snd_max will be greater than
@@ -725,6 +727,10 @@ send:
 	 */
 	KASSERT(len >= 0, ("[%s:%d]: len < 0", __func__, __LINE__));
 
+	struct tcp_pkt pkt;
+
+	pkt.m_optlen = optlen;
+
 	/*
 	 * Grab a header mbuf, attaching a copy of data to
 	 * be transmitted, and initialize the header from
@@ -742,7 +748,7 @@ send:
 			TCPSTAT_ADD(tcps_sndbyte_ok, len);
 		}
 
-		if (tcp_build_pkt(tp, off, len, hdrlen, optlen, &m, &th) != 0) {
+		if (tcp_build_dpkt(tp, off, len, hdrlen, &pkt) != 0) {
 			error = ENOBUFS;
 			sack_rxmit = 0;
 			goto out;
@@ -767,12 +773,14 @@ send:
 		else
 			TCPSTAT_INC(tcps_sndwinup);
 
-		if (tcp_build_pkt(tp, 0, 0, hdrlen, optlen, &m, &th) != 0) {
+		if (tcp_build_cpkt(tp, hdrlen, &pkt) != 0) {
 			error = ENOBUFS;
 			sack_rxmit = 0;
 			goto out;
 		}
 	}
+	m = (struct mbuf *)pkt.m_buf;
+	th = (struct tcphdr *)pkt.lpTcp;
 	/* to support ECN in IP header */
 #ifdef INET6
 	if (isipv6) {

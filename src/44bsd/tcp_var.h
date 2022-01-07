@@ -81,10 +81,7 @@ class CTcpReass;
 class CAstfPerTemplateRW;
 class CTcpServerInfo;
 
-struct CTcpPkt {
-    rte_mbuf_t   * m_buf;
-    TCPHeader    * lpTcp;
-    uint16_t       m_optlen;
+struct CTcpPkt : public tcp_pkt {
 
     inline char * get_header_ptr(){
         return (rte_pktmbuf_mtod(m_buf,char *));

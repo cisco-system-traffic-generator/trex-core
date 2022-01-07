@@ -50,7 +50,8 @@
 
 #define MAX_TCPOPTLEN   32  /* max # bytes that go in options */
 
-                      
+
+#if 0
 /*
  * Flags used when sending segments in tcp_output.
  * Basic flags (TH_RST,TH_ACK,TH_SYN,TH_FIN) are totally
@@ -72,6 +73,7 @@ static const char *tcpstates[] = {
 const char ** tcp_get_tcpstate(){
     return (tcpstates);
 }
+#endif
 
 
 static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
@@ -176,7 +178,7 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
     int len= ftp->m_offset_l4+tcphlen;
     rte_mbuf_t * m;
     m=tp->pktmbuf_alloc(len);
-    pkt.m_buf=m;
+    pkt.m_buf=(struct mbuf *)m;
     CTcpPerThreadCtx * ctx = pctx->m_ctx;
 
     if (ftp->is_tunnel()){
@@ -203,12 +205,12 @@ static inline int _tcp_build_cpkt(CPerProfileCtx * pctx,
 
     /* copy template */
     memcpy(p,ftp->m_template_pkt,len);
-    pkt.lpTcp =(TCPHeader    *)(p+ftp->m_offset_l4);
+    pkt.lpTcp =(struct tcphdr *)(p+ftp->m_offset_l4);
 
     return(0);
 }
 
-int tcp_build_cpkt(CPerProfileCtx * pctx,
+static inline int tcp_build_cpkt(CPerProfileCtx * pctx,
                    struct CTcpCb *tp,
                    uint16_t tcphlen,
                    CTcpPkt &pkt){
@@ -220,6 +222,15 @@ int tcp_build_cpkt(CPerProfileCtx * pctx,
        tcp_pkt_update_len(ftp,tp,pkt,0,tcphlen) ;
    }
    return(res);
+}
+
+
+int tcp_build_cpkt(struct tcpcb *_tp, uint16_t hdrlen, struct tcp_pkt *_pkt)
+{
+    CTcpCb *tp = static_cast<CTcpCb*>(_tp);
+    CTcpPkt *pkt = static_cast<CTcpPkt*>(_pkt);
+
+    return tcp_build_cpkt(tp->m_flow->m_pctx, tp, hdrlen, *pkt);
 }
 
 
@@ -330,7 +341,7 @@ static inline int tcp_build_dpkt_(CPerProfileCtx * pctx,
 
 /* len : if TSO==true, it is the TSO packet size (before segmentation), 
          else it is the packet size */
-int tcp_build_dpkt(CPerProfileCtx * pctx,
+static inline int tcp_build_dpkt(CPerProfileCtx * pctx,
                    struct CTcpCb *tp,
                    uint32_t offset, 
                    uint32_t dlen,
@@ -346,27 +357,12 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
     return(res);
 }
 
-int
-tcp_build_pkt(struct tcpcb *_tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp)
+
+int tcp_build_dpkt(struct tcpcb *_tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *_pkt)
 {
     CTcpCb *tp = static_cast<CTcpCb*>(_tp);
-    CTcpPkt pkt;
-    int res;
+    CTcpPkt *pkt = static_cast<CTcpPkt*>(_pkt);
 
-    pkt.m_optlen = optlen;
-    if (len) {
-        res = tcp_build_dpkt(tp->m_flow->m_pctx, tp, off, len, hdrlen, pkt);
-    } else {
-        res = tcp_build_cpkt(tp->m_flow->m_pctx, tp, hdrlen, pkt);
-    }
-
-    if (res == 0) {
-        *mp = (struct mbuf *)pkt.m_buf;
-        if (thp) {
-            *thp = (struct tcphdr *)pkt.lpTcp;
-        }
-    }
-
-    return res;
+    return tcp_build_dpkt(tp->m_flow->m_pctx, tp, off, len, hdrlen, *pkt);
 }
 

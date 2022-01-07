@@ -241,9 +241,14 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	} else
 		optlen = 0;
 
-	if (tcp_build_pkt(tp, 0, 0, tlen, optlen, &m, &nth) != 0) {
+	struct tcp_pkt pkt;
+	pkt.m_optlen = optlen;
+	if (tcp_build_cpkt(tp, tlen, &pkt) != 0) {
 		return;
 	}
+	m = (struct mbuf *)pkt.m_buf;
+	nth = (struct tcphdr *)pkt.lpTcp;
+
 	if (optlen) {
 		bcopy(opt, nth + 1, optlen);
 	}

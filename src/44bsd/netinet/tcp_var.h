@@ -561,6 +561,12 @@ struct tcp_tune {
 extern "C" {
 #endif
 
+struct tcp_pkt {
+	struct mbuf *m_buf;
+	struct tcphdr *lpTcp;
+	uint16_t m_optlen;
+};
+
 /* provided functions */
 #define tcp_int_output(tp)  (tp)->t_fb->tfb_tcp_output(tp)
 int tcp_output(struct tcpcb *tp);
@@ -582,6 +588,8 @@ void tcp_usrclosed(struct tcpcb *);
 /* required functions */
 uint32_t tcp_getticks(struct tcpcb *tp);
 int tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp);
+int tcp_build_dpkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *pkt);
+int tcp_build_cpkt(struct tcpcb *tp, uint16_t hdrlen, struct tcp_pkt *pkt);
 int tcp_ip_output(struct tcpcb *tp, struct mbuf *m);
 int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlenp, struct mbuf *m);
 bool tcp_reass_is_empty(struct tcpcb *tp);
