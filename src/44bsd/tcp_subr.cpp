@@ -170,7 +170,6 @@ void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
 void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
-    m_tcp.m_ctx = m_pctx->m_ctx;
     tcp_inittcpcb(&m_tcp, NULL, &newreno_cc_algo, &m_pctx->m_tunable_ctx, &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id]);
     m_tcp.t_stat_ex = static_cast<tcpstat*>(&m_pctx->m_tcpstat.m_sts);
 
@@ -270,6 +269,7 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
 
     /* back pointer */
     tp->m_flow=this;
+    tp->m_ctx = m_pctx->m_ctx;
 }
 #ifdef  TREX_SIM
 void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
@@ -605,11 +605,7 @@ CTcpTunableCtx::CTcpTunableCtx() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
     tcp_delacktime = TCPTV_DELACK;
-#ifdef TREX_SIM
-    tcp_fast_ticks = tw_time_msec_to_ticks(TCP_TIMER_W_TICK);
-#else
     tcp_fast_ticks = TCP_FAST_TICK_;
-#endif
     tcp_do_sack = 1;
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
@@ -1668,6 +1664,5 @@ tcp_ip_output(struct tcpcb *tp, struct mbuf *m)
 {
     CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
 
-    ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
-    return 0;
+    return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
 }

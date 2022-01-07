@@ -494,10 +494,13 @@ struct	tcpstat {
 #define TCPSTAT_ADD(name, val)                  \
     do {                                        \
 	tp->t_stat->name += val;                \
-	if (tp->t_stat_ex)                      \
-	    tp->t_stat_ex->name += val;         \
+	tp->t_stat_ex->name += val;             \
     } while(0)
-#define TCPSTAT_INC(name)           TCPSTAT_ADD(name, 1)
+#define TCPSTAT_INC(name)			\
+    do {                                        \
+	++tp->t_stat->name;			\
+	++tp->t_stat_ex->name;			\
+    } while(0)
 
 
 /* localized global TCP tunable values */
@@ -565,7 +568,7 @@ int tcp_output(struct tcpcb *tp);
 void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_seq ack, tcp_seq seq, int flags);
 #define tcp_int_input(tp,m,th,toff,tlen,iptos)  tcp_input(tp, m, th, toff, tlen, iptos)
 void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
-bool tcp_handle_timers(struct tcpcb *tp);
+bool tcp_handle_timers(struct tcpcb *tp, uint32_t);
 //void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
 struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat);
 void tcp_discardcb(struct tcpcb *tp);

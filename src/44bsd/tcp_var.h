@@ -1488,10 +1488,10 @@ public:
 
 
 inline void CTcpFlow::on_tick(){
-        m_tick++;
-        if (tcp_handle_timers(&m_tcp)) {
-            m_tcp.t_pkts_cnt = 0;
-        }
+    m_tick++;
+    if (tcp_handle_timers(&m_tcp, m_tcp.m_ctx->tcp_now)) {
+        m_tcp.t_pkts_cnt = 0;
+    }
 }
 
 
