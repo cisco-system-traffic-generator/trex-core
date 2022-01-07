@@ -170,8 +170,16 @@ void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
 void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
-    tcp_inittcpcb(&m_tcp, NULL, &newreno_cc_algo, &m_pctx->m_tunable_ctx, &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id]);
-    m_tcp.t_stat_ex = static_cast<tcpstat*>(&m_pctx->m_tcpstat.m_sts);
+
+    struct tcpcb_param init_param = {
+        .fb = NULL,
+        .cc_algo = &newreno_cc_algo,
+        .tune = &m_pctx->m_tunable_ctx,
+        .stat = &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id],
+        .stat_ex = &m_pctx->m_tcpstat.m_sts,
+        .tcp_ticks = &m_pctx->m_ctx->tcp_now
+    };
+    tcp_inittcpcb(&m_tcp, &init_param);
 
     if (m_template.is_tcp_tso()){
         /* to cache the info*/
@@ -1628,12 +1636,14 @@ m_freem(struct mbuf *m)
 }
 
 
+#if 0
 uint32_t
 tcp_getticks(struct tcpcb *tp)
 {
     CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
     return ctx->tcp_now;
 }
+#endif
 
 uint32_t
 tcp_new_isn(struct tcpcb *tp)

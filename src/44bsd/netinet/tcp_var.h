@@ -567,6 +567,15 @@ struct tcp_pkt {
 	uint16_t m_optlen;
 };
 
+struct tcpcb_param {
+        struct tcp_function_block *fb;
+        struct cc_algo *cc_algo;
+        struct tcp_tune *tune;
+        struct tcpstat *stat;
+        struct tcpstat *stat_ex;
+        uint32_t *tcp_ticks;
+};
+
 /* provided functions */
 #define tcp_int_output(tp)  (tp)->t_fb->tfb_tcp_output(tp)
 int tcp_output(struct tcpcb *tp);
@@ -576,7 +585,7 @@ void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_s
 void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
 bool tcp_handle_timers(struct tcpcb *tp, uint32_t);
 //void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
-struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat);
+struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param);
 void tcp_discardcb(struct tcpcb *tp);
 struct tcpcb * tcp_drop(struct tcpcb *, int res);
 struct tcpcb * tcp_close(struct tcpcb *);
@@ -586,7 +595,8 @@ void tcp_disconnect(struct tcpcb *);
 void tcp_usrclosed(struct tcpcb *);
 
 /* required functions */
-uint32_t tcp_getticks(struct tcpcb *tp);
+//uint32_t tcp_getticks(struct tcpcb *tp);
+#define tcp_getticks(tp)        *((tp)->m_timer.now_tick)
 int tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp);
 int tcp_build_dpkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *pkt);
 int tcp_build_cpkt(struct tcpcb *tp, uint16_t hdrlen, struct tcp_pkt *pkt);

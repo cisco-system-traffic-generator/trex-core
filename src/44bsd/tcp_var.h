@@ -1328,6 +1328,7 @@ int tcp_reass(CTcpPerThreadCtx * ctx,
 #endif
 
 
+#if 0
 const char ** tcp_get_tcpstate();
 
 
@@ -1342,6 +1343,7 @@ int tcp_build_dpkt(CPerProfileCtx * pctx,
                    uint32_t dlen,
                    uint16_t  tcphlen,
                    CTcpPkt &pkt);
+#endif
 
 
 inline bool tcp_reass_is_exists(struct CTcpCb *tp){

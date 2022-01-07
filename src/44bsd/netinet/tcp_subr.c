@@ -64,7 +64,6 @@ void tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *
 void tcp_timer_discard(void *ptp);
 
 #define tcp_ts_getticks()   tcp_getticks(tp)
-#define ticks               tcp_getticks(tp)
 
 
 static int	tcp_default_fb_init(struct tcpcb *tp);
@@ -279,20 +278,21 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
  * come from the zone allocator set up in tcp_init().
  */
 struct tcpcb *
-tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *cc_algo, struct tcp_tune *tune, struct tcpstat *stat)
+tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param)
 {
 	/* Initialise cc_var struct for this tcpcb. */
 	tp->ccv = &tp->m_ccv;
 	tp->ccv->type = IPPROTO_TCP;
 	tp->ccv->ccvc.tcp = tp;
 
-	tp->t_fb = fb ? fb : &tcp_def_funcblk;
-	tp->t_tune = tune;
-	tp->t_stat = stat;
+	tp->t_fb = param->fb ? param->fb : &tcp_def_funcblk;
+	tp->t_tune = param->tune;
+	tp->t_stat = param->stat;
+	tp->t_stat_ex = param->stat_ex;
 	/*
 	 * Use the current system default CC algorithm.
 	 */
-	CC_ALGO(tp) = cc_algo;
+	CC_ALGO(tp) = param->cc_algo;
 
 	if (CC_ALGO(tp)->cb_init != NULL)
 		if (CC_ALGO(tp)->cb_init(tp->ccv) > 0) {
@@ -303,7 +303,8 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 
 	tp->t_maxseg = V_tcp_mssdflt;
 
-	tp->m_timer.last_tick = ticks;
+	tp->m_timer.now_tick = param->tcp_ticks;
+	tp->m_timer.last_tick = tcp_getticks(tp);
 
 	if (V_tcp_do_rfc1323)
 		tp->t_flags = (TF_REQ_SCALE|TF_REQ_TSTMP);
@@ -322,7 +323,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcp_function_block *fb, struct cc_algo *c
 	tp->t_rxtcur = tcp_rexmit_initial;
 	tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
 	tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
-	tp->t_rcvtime = ticks;
+	tp->t_rcvtime = tcp_getticks(tp);
 	if (tp->t_fb->tfb_tcp_fb_init) {
 		if ((*tp->t_fb->tfb_tcp_fb_init)(tp)) {
 			return (NULL);

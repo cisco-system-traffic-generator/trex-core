@@ -171,6 +171,7 @@ struct tcp_timer {
 #define TT_FLAG_KEEP	(1 << TT_KEEP)
 #define TT_FLAG_2MSL	(1 << TT_2MSL)
 	uint32_t	tt_timer[TCPT_NTIMERS];
+	uint32_t	*now_tick;      /* pointer to current tick */
 };
 
 #define	TP_KEEPINIT(tp)	((tp)->t_tune->tcp_keepinit)
