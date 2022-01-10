@@ -58,7 +58,6 @@ int tcp_output(struct tcpcb *tp);
 void tcp_setpersist(struct tcpcb *tp);
 int tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp);
 
-#define ticks               tcp_getticks(tp)
 #define tcp_ts_getticks()   tcp_getticks(tp)
 
 
@@ -105,6 +104,7 @@ tcp_output(struct tcpcb *tp)
 	int tso;
 	struct tcpopt to;
 	unsigned int dont_sendalot = 0;
+	uint32_t ticks = tcp_getticks(tp);
 #if 0
 	int maxburst = TCP_MAXBURST;
 #endif
@@ -122,7 +122,7 @@ tcp_output(struct tcpcb *tp)
 	 * to send, then transmit; otherwise, investigate further.
 	 */
 	idle = /*(tp->t_flags & TF_LASTIDLE) || */(tp->snd_max == tp->snd_una);
-	if (idle && (((ticks - tp->t_rcvtime) >= tp->t_rxtcur) ||
+	if (idle && (((tcp_getticks(tp) - tp->t_rcvtime) >= tp->t_rxtcur) ||
 	    (tp->t_sndtime && ((ticks - tp->t_sndtime) >= tp->t_rxtcur))))
 		cc_after_idle(tp);
 #if 0	/* not used */

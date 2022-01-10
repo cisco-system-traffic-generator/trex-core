@@ -58,7 +58,7 @@ void tcp_free_sackholes(struct tcpcb *tp);
 void tcp_state_change(struct tcpcb *tp, int newstate);
 struct tcpcb * tcp_close(struct tcpcb *tp);
 void tcp_discardcb(struct tcpcb *tp);
-struct tcpcb * tcp_drop(struct tcpcb *tp, int errno);
+struct tcpcb * tcp_drop(struct tcpcb *tp, int res);
 u_int tcp_maxseg(const struct tcpcb *tp);
 void tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m, tcp_seq ack, tcp_seq seq, int flags);
 void tcp_timer_discard(void *ptp);
@@ -339,7 +339,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param)
  * then send a RST to peer.
  */
 struct tcpcb *
-tcp_drop(struct tcpcb *tp, int errno)
+tcp_drop(struct tcpcb *tp, int res)
 {
 	struct socket *so = tcp_getsocket(tp);
 
@@ -349,9 +349,9 @@ tcp_drop(struct tcpcb *tp, int errno)
 		TCPSTAT_INC(tcps_drops);
 	} else
 		TCPSTAT_INC(tcps_conndrops);
-	if (errno == ETIMEDOUT && tp->t_softerror)
-		errno = tp->t_softerror;
-	so->so_error = errno;
+	if (res == ETIMEDOUT && tp->t_softerror)
+		res = tp->t_softerror;
+	so->so_error = res;
 	return (tcp_close(tp));
 }
 

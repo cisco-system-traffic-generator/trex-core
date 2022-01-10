@@ -43,8 +43,6 @@
 
 #include "tcp_debug.h"
 
-#define ticks   tcp_getticks(tp)
-
 
 #ifdef TCPDEBUG
 // <sys/protosw.h>
@@ -77,10 +75,12 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	int isipv6;
 	isipv6 = (ipgen != NULL && ((struct ip *)ipgen)->ip_v == 6) ? 1 : 0;
 #endif /* INET6 */
+	if (tp != NULL) {
 #define TF2_SERVER_ROLE 0x80000000
-	if (tp->t_state == TCPS_LISTEN)
-		tp->t_flags2 |= TF2_SERVER_ROLE;
-	printf("\n(%3.3f) ", tcp_timer_ticks_to_msec(ticks)/1000.0f);
+		if (tp->t_state == TCPS_LISTEN)
+			tp->t_flags2 |= TF2_SERVER_ROLE;
+		printf("\n(%3.3f) ", tcp_timer_ticks_to_msec(tcp_getticks(tp))/1000.0f);
+	}
 	if (act == TA_USER)
 		printf("--- ");
 	if (tcpconsdebug == 0)

@@ -102,7 +102,6 @@ static void tcp_newreno_partial_ack(struct tcpcb *, struct tcphdr *);
 #define BANDLIM_RST_CLOSEDPORT 3 /* No connection, and no listeners */
 #define BANDLIM_RST_OPENPORT 4   /* No connection, listener */
 
-#define ticks               tcp_getticks(tp)
 #define tcp_ts_getticks()   tcp_getticks(tp)
 
 
@@ -356,6 +355,9 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 	if (off > sizeof (struct tcphdr)) {
 		optlen = off - sizeof (struct tcphdr);
 		optp = (u_char *)(th + 1);
+	} else if (off < sizeof (struct tcphdr)) {
+		/* somthing wrong here drop the packet */
+		goto dropunlock;
 	}
 	thflags = th->th_flags;
 
@@ -593,6 +595,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	uint32_t tiwin;
 	uint16_t nsegs;
 	struct tcpopt to;
+	uint32_t ticks = tcp_getticks(tp);
 
 #ifdef TCPDEBUG
 	/*

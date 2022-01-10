@@ -67,7 +67,6 @@ bool tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick);
 #endif
 
 #define tcp_maxpersistidle  TCPTV_KEEP_IDLE
-#define ticks   tcp_getticks(tp)
 
 
 
@@ -94,6 +93,7 @@ tcp_timer_delack(struct tcpcb *tp)
 static inline void
 tcp_timer_2msl(struct tcpcb *tp)
 {
+	uint32_t ticks = tcp_getticks(tp);
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -117,6 +117,7 @@ tcp_timer_2msl(struct tcpcb *tp)
 static inline void
 tcp_timer_keep(struct tcpcb *tp)
 {
+	uint32_t ticks = tcp_getticks(tp);
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -189,6 +190,7 @@ dropit:
 static inline void
 tcp_timer_persist(struct tcpcb *tp)
 {
+	uint32_t ticks = tcp_getticks(tp);
 #ifdef TCPDEBUG
 	int ostate;
 
@@ -239,6 +241,7 @@ out:
 static inline void
 tcp_timer_rexmt(struct tcpcb *tp)
 {
+	uint32_t ticks = tcp_getticks(tp);
 	int rexmt;
 #ifdef TCPDEBUG
 	int ostate;
@@ -347,7 +350,6 @@ static void
 _handle_slow_timers(struct tcpcb *tp, uint32_t tick_passed)
 {
 	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
-	tp->m_timer.last_tick += tick_passed;
 
 	for (int i = TT_REXMT; tt_flags && i < TCPT_NTIMERS; i++ ) {
 		if ((tt_flags & (1 << i)) == 0)
@@ -385,7 +387,10 @@ tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
 		is_delack = true;
 	}
 
-	if (__builtin_expect(tick_passed >= TCPTV_SLOWTIMO, 0)) {
+	/* handle slow timer */
+	if (true || __builtin_expect(tick_passed >= TCPTV_SLOWTIMO, 0)) {
+		tp->m_timer.last_tick = now_tick;
+
 		_handle_slow_timers(tp, tick_passed);
 	}
 
