@@ -388,7 +388,7 @@ tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
 	}
 
 	/* handle slow timer */
-	if (true || __builtin_expect(tick_passed >= TCPTV_SLOWTIMO, 0)) {
+	if (__builtin_expect(tick_passed >= TCPTV_SLOWTIMO, 0)) {
 		tp->m_timer.last_tick = now_tick;
 
 		_handle_slow_timers(tp, tick_passed);

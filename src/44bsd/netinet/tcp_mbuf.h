@@ -8,7 +8,8 @@ struct mbuf;
 extern "C" {
 #endif
 
-void m_adj(struct mbuf *, int);
+void m_adj_fix(struct mbuf *, int, int);
+void m_trim(struct mbuf *, int);
 void m_freem(struct mbuf *);
 
 #ifdef __cplusplus

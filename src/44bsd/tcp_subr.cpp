@@ -1611,7 +1611,7 @@ void CFlowTemplate::build_template(CPerProfileCtx * pctx,
 
 
 
-
+#if 0
 void *
 m_data(struct mbuf *m)
 {
@@ -1634,6 +1634,7 @@ m_freem(struct mbuf *m)
         rte_pktmbuf_free((struct rte_mbuf *)m);
     }
 }
+#endif
 
 
 #if 0

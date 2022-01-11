@@ -79,7 +79,7 @@
 
 #define tcp_timer_msec_to_ticks(msec)   ((msec)*hz/1000)
 #define tcp_timer_ticks_to_msec(tick)   ((tick)*1000/hz)
-#define TCPTV_SLOWTIMO  (  hz/2)                /* slow timer handle resolustion */
+#define TCPTV_SLOWTIMO  ( hz/10)                /* slow timer handle resolustion */
 
 /*
  * Time constants.

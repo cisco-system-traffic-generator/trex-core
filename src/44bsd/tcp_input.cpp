@@ -44,6 +44,7 @@
 #include "tcpip.h"
 #include "tcp_debug.h"
 #include "tcp_socket.h"
+#include "netinet/tcp_mbuf.h"
 #include "utl_mbuf.h"
 #include "astf/astf_db.h"
 #include "astf/astf_template_db.h"
@@ -99,6 +100,28 @@ static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m,
          }
      #endif
 }
+
+
+void
+m_adj_fix(struct mbuf *m, int req_len, int l7_len)
+{
+    tcp_pktmbuf_fix_mbuf((struct rte_mbuf *)m, req_len, l7_len);
+}
+
+void
+m_trim(struct mbuf *m, int req_len)
+{
+    rte_pktmbuf_trim((struct rte_mbuf *)m, req_len);
+}
+
+void
+m_freem(struct mbuf *m)
+{
+    if (m != NULL) {
+        rte_pktmbuf_free((struct rte_mbuf *)m);
+    }
+}
+
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
     int i; 
