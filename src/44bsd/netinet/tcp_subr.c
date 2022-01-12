@@ -178,19 +178,10 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	struct tcpopt to;
 	struct tcphdr *nth;
 	u_char *optp;
-#ifdef INET6
-#ifdef TCPDEBUG
-	int isipv6;
-#endif
-#endif /* INET6 */
 	int optlen, tlen, win;
 	bool incl_opts;
 
 	KASSERT(tp != NULL || m != NULL, ("tcp_respond: tp and m both NULL"));
-
-#ifdef TCPDEBUG
-	isipv6 = tcp_isipv6(tp);
-#endif
 
 	incl_opts = false;
 	win = 0;
@@ -264,11 +255,10 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	nth->th_urp = 0;
 
 #ifdef TCPDEBUG
-	ipgen = ((void *)nth) - (isipv6 ? sizeof(struct ip6_hdr) : sizeof(struct ip));
 	if (tp == NULL || (tcp_getsocket(tp)->so_options & SO_DEBUG))
-		tcp_trace(TA_RESPOND, tp->t_state, tp, ipgen, nth, 0);
+		tcp_trace(TA_RESPOND, tp->t_state, tp, NULL, nth, 0);
 #endif
-	tcp_ip_output(tp, m);
+	tcp_ip_output(tp, m, 0);
 }
 
 /*

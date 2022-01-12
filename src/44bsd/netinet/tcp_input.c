@@ -301,7 +301,6 @@ tcp_fields_to_host(struct tcphdr *th)
 void
 tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos)
 {
-	struct ip *ip = NULL;
 	struct socket *so = NULL;
 	u_char *optp = NULL;
 	int optlen = 0;
@@ -309,12 +308,6 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 	int drop_hdrlen;
 	int thflags;
 	int rstreason = 0;	/* For badport_bandlim accounting purposes */
-#ifdef INET6
-	struct ip6_hdr *ip6 = NULL;
-	int isipv6;
-#else
-	const void *ip6 = NULL;
-#endif /* INET6 */
 	struct tcpopt to;		/* options in this segment */
 #ifdef TCPDEBUG
 	/*
@@ -326,26 +319,8 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 	short ostate = 0;
 #endif
 
-#ifdef INET6
-	isipv6 = tcp_isipv6(tp);
-#endif
-
 	to.to_flags = 0;
 	TCPSTAT_INC(tcps_rcvtotal);
-
-#ifdef INET6
-	if (isipv6) {
-		ip6 = (struct ip6_hdr *)(((void *)th) - sizeof(struct ip6_hdr));
-	}
-#endif
-#if defined(INET) && defined(INET6)
-	else
-#endif
-#ifdef INET
-	{
-		ip = (struct ip *)(((void *)th) - sizeof(struct ip));
-	}
-#endif /* INET */
 
 	/*
 	 * Check that TCP offset makes sense,
@@ -381,17 +356,8 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 #ifdef TCPDEBUG
 	if (so->so_options & SO_DEBUG) {
 		ostate = tp->t_state;
-#ifdef INET6
-		if (isipv6) {
-			bcopy((char *)ip6, (char *)tcp_saveipgen, sizeof(*ip6));
-		} else
-#endif
-			bcopy((char *)ip, (char *)tcp_saveipgen, sizeof(*ip));
 		tcp_savetcp = *th;
 	}
-#else
-	(void) ip;
-	(void) ip6;
 #endif /* TCPDEBUG */
 	/*
 	 * When the socket is accepting connections (the INPCB is in LISTEN
@@ -506,7 +472,7 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 #ifdef TCPDEBUG
 		if (so->so_options & SO_DEBUG)
 			tcp_trace(TA_INPUT, ostate, tp,
-			    (void *)tcp_saveipgen, &tcp_savetcp, 0);
+			    (void *)tcp_saveipgen, &tcp_savetcp, tlen);
 #endif
 		tcp_dooptions(tp, &to, optp, optlen, TO_SYN);
 
@@ -605,12 +571,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 	u_char tcp_saveipgen[IP6_HDR_LEN];
 	struct tcphdr tcp_savetcp = *th;
 	short ostate = tp->t_state;
-#ifdef INET6
-	if (tcp_isipv6(tp))
-		bcopy(((char *)th)-sizeof(struct ip6_hdr), (char *)tcp_saveipgen, sizeof(struct ip6_hdr));
-	else
-#endif
-		bcopy(((char *)th)-sizeof(struct ip), (char *)tcp_saveipgen, sizeof(struct ip));
+	int save_tlen = tlen;
 #endif
 	thflags = th->th_flags;
 	tp->sackhint.last_sack_ack = 0;
@@ -887,7 +848,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 				if (so->so_options & SO_DEBUG)
 					tcp_trace(TA_INPUT, ostate, tp,
 					    (void *)tcp_saveipgen,
-					    &tcp_savetcp, 0);
+					    &tcp_savetcp, save_tlen);
 #endif
 				if (tp->snd_una == tp->snd_max)
 					tcp_timer_activate(tp, TT_REXMT, 0);
@@ -935,7 +896,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
 #ifdef TCPDEBUG
 			if (so->so_options & SO_DEBUG)
 				tcp_trace(TA_INPUT, ostate, tp,
-				    (void *)tcp_saveipgen, &tcp_savetcp, 0);
+				    (void *)tcp_saveipgen, &tcp_savetcp, save_tlen);
 #endif
 
 			/* Add data to socket buffer. */
@@ -2144,7 +2105,7 @@ step6:
 #ifdef TCPDEBUG
 	if (so->so_options & SO_DEBUG)
 		tcp_trace(TA_INPUT, ostate, tp, (void *)tcp_saveipgen,
-			  &tcp_savetcp, 0);
+			  &tcp_savetcp, save_tlen);
 #endif
 
 	/*
@@ -2186,7 +2147,7 @@ dropafterack:
 #ifdef TCPDEBUG
 	if (so->so_options & SO_DEBUG)
 		tcp_trace(TA_DROP, ostate, tp, (void *)tcp_saveipgen,
-			  &tcp_savetcp, 0);
+			  &tcp_savetcp, save_tlen);
 #endif
 	tp->t_flags |= TF_ACKNOW;
 	(void) tp->t_fb->tfb_tcp_output(tp);
@@ -2209,7 +2170,7 @@ drop:
 #ifdef TCPDEBUG
 	if (tp == NULL || (tcp_getsocket(tp)->so_options & SO_DEBUG))
 		tcp_trace(TA_DROP, ostate, tp, (void *)tcp_saveipgen,
-			  &tcp_savetcp, 0);
+			  &tcp_savetcp, save_tlen);
 #endif
 	if (tp != NULL) {
 		tcp_handle_wakeup(tp, so);

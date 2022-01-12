@@ -225,7 +225,7 @@ static inline int tcp_build_cpkt(CPerProfileCtx * pctx,
 }
 
 
-int tcp_build_cpkt(struct tcpcb *_tp, uint16_t hdrlen, struct tcp_pkt *_pkt)
+HOT_FUNC int tcp_build_cpkt(struct tcpcb *_tp, uint16_t hdrlen, struct tcp_pkt *_pkt)
 {
     CTcpCb *tp = static_cast<CTcpCb*>(_tp);
     CTcpPkt *pkt = static_cast<CTcpPkt*>(_pkt);
@@ -358,7 +358,7 @@ static inline int tcp_build_dpkt(CPerProfileCtx * pctx,
 }
 
 
-int tcp_build_dpkt(struct tcpcb *_tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *_pkt)
+HOT_FUNC int tcp_build_dpkt(struct tcpcb *_tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *_pkt)
 {
     CTcpCb *tp = static_cast<CTcpCb*>(_tp);
     CTcpPkt *pkt = static_cast<CTcpPkt*>(_pkt);

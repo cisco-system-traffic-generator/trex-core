@@ -94,7 +94,6 @@ tcp_output(struct tcpcb *tp)
 	uint32_t recwin, sendwin;
 	int off, flags, error = 0;	/* Keep compiler happy */
 	struct mbuf *m;
-	struct ip *ip = NULL;
 	struct tcphdr *th;
 	u_char opt[TCP_MAXOLEN];
 	unsigned ipoptlen, optlen, hdrlen;
@@ -107,12 +106,6 @@ tcp_output(struct tcpcb *tp)
 	uint32_t ticks = tcp_getticks(tp);
 #if 0
 	int maxburst = TCP_MAXBURST;
-#endif
-#ifdef INET6
-	struct ip6_hdr *ip6 = NULL;
-	int isipv6;
-
-	isipv6 = tcp_isipv6(tp);
 #endif
 
 	/*
@@ -781,15 +774,6 @@ send:
 	}
 	m = (struct mbuf *)pkt.m_buf;
 	th = (struct tcphdr *)pkt.lpTcp;
-	/* to support ECN in IP header */
-#ifdef INET6
-	if (isipv6) {
-		ip6 = ((struct ip6_hdr *)th) - 1;
-	} else
-#endif /* INET6 */
-	{
-		ip = ((struct ip *)th) - 1;
-	}
 
 	/*
 	 * Fill in fields, remembering maximum advertised
@@ -819,6 +803,8 @@ send:
 			tp->t_flags2 &= ~TF2_ECN_SND_ECE;
 	}
 
+	int iptos = 0;
+
 	if (tp->t_state == TCPS_ESTABLISHED &&
 	    (tp->t_flags2 & TF2_ECN_PERMIT)) {
 		/*
@@ -830,12 +816,7 @@ send:
 		    (sack_rxmit == 0) &&
 		    !((tp->t_flags & TF_FORCEDATA) && len == 1 &&
 		    SEQ_LT(tp->snd_una, tp->snd_max))) {
-#ifdef INET6
-			if (isipv6)
-				ip6->ip6_flow |= htonl(IPTOS_ECN_ECT0 << 20);
-			else
-#endif
-				ip->ip_tos |= IPTOS_ECN_ECT0;
+			iptos = IPTOS_ECN_ECT0;
 			TCPSTAT_INC(tcps_ecn_ect0);
 			/*
 			 * Reply with proper ECN notifications.
@@ -945,9 +926,7 @@ send:
 	 * Trace.
 	 */
 	if (so->so_options & SO_DEBUG) {
-		void *ipgen = isipv6 ? (void *)ip6 : (void *)ip;
-
-		tcp_trace(TA_OUTPUT, tp->t_state, tp, ipgen, th, 0);
+		tcp_trace(TA_OUTPUT, tp->t_state, tp, NULL, th, len);
 	}
 #endif /* TCPDEBUG */
 	/*
@@ -960,7 +939,7 @@ send:
 	 * m->m_pkthdr.len should have been set before checksum calculation,
 	 * because in6_cksum() need it.
 	 */
-	error = tcp_ip_output(tp, m);
+	error = tcp_ip_output(tp, m, iptos);
 
 out:
 	/*

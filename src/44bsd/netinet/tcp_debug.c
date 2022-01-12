@@ -71,10 +71,7 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 #ifdef TCPDEBUG
 	tcp_seq seq, ack;
 	int len, flags;
-#ifdef INET6
-	int isipv6;
-	isipv6 = (ipgen != NULL && ((struct ip *)ipgen)->ip_v == 6) ? 1 : 0;
-#endif /* INET6 */
+
 	if (tp != NULL) {
 #define TF2_SERVER_ROLE 0x80000000
 		if (tp->t_state == TCPS_LISTEN)
@@ -99,20 +96,15 @@ tcp_trace(short act, short ostate, struct tcpcb *tp, void *ipgen,
 	case TA_INPUT:
 	case TA_OUTPUT:
 	case TA_DROP:
-		if (ipgen == NULL || th == NULL)
+		if (/*ipgen == NULL || */th == NULL)
 			break;
 		seq = th->th_seq;
 		ack = th->th_ack;
-		len =
-#ifdef INET6
-		    isipv6 ? ntohs(((struct ip6_hdr *)ipgen)->ip6_plen) :
-#endif
-		    ntohs(((struct ip *)ipgen)->ip_len) - sizeof(struct ip);
+		len = req;
 		if (act == TA_OUTPUT) {
 			seq = ntohl(seq);
 			ack = ntohl(ack);
 		}
-		len -= th->th_off * 4;
 
 		tcp_seq iseq = 0, iack = 0;
 		if (tp != NULL) {

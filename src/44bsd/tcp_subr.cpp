@@ -1671,7 +1671,7 @@ tcp_getsocket(struct tcpcb *tp)
 #endif
 
 int
-tcp_ip_output(struct tcpcb *tp, struct mbuf *m)
+tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
 {
     CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
 

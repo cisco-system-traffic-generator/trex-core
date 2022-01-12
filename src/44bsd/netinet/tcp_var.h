@@ -597,10 +597,9 @@ void tcp_usrclosed(struct tcpcb *);
 /* required functions */
 //uint32_t tcp_getticks(struct tcpcb *tp);
 #define tcp_getticks(tp)        *((tp)->m_timer.now_tick)
-int tcp_build_pkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, uint16_t optlen, struct mbuf **mp, struct tcphdr **thp);
 int tcp_build_dpkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *pkt);
 int tcp_build_cpkt(struct tcpcb *tp, uint16_t hdrlen, struct tcp_pkt *pkt);
-int tcp_ip_output(struct tcpcb *tp, struct mbuf *m);
+int tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos);
 int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlenp, struct mbuf *m);
 bool tcp_reass_is_empty(struct tcpcb *tp);
 bool tcp_check_no_delay(struct tcpcb *, int);
