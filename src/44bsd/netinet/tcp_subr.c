@@ -279,6 +279,10 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param)
 	tp->t_tune = param->tune;
 	tp->t_stat = param->stat;
 	tp->t_stat_ex = param->stat_ex;
+
+	tp->m_timer.now_tick = param->tcp_ticks;
+	tp->m_timer.last_tick = tcp_getticks(tp);
+
 	/*
 	 * Use the current system default CC algorithm.
 	 */
@@ -292,9 +296,6 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param)
 		}
 
 	tp->t_maxseg = V_tcp_mssdflt;
-
-	tp->m_timer.now_tick = param->tcp_ticks;
-	tp->m_timer.last_tick = tcp_getticks(tp);
 
 	if (V_tcp_do_rfc1323)
 		tp->t_flags = (TF_REQ_SCALE|TF_REQ_TSTMP);

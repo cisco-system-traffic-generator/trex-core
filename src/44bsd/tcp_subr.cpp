@@ -167,13 +167,24 @@ void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
 }
 
 
+static struct cc_algo *cc_algo_list[] = {
+    &newreno_cc_algo,
+    &cubic_cc_algo
+};
+
 void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
 
+    int cc_algo_idx = m_pctx->m_tunable_ctx.tcp_cc_algo;
+
+    if (cc_algo_idx >= sizeof(cc_algo_list)/sizeof(struct cc_algo*)) {
+        cc_algo_idx = 0;
+    }
+
     struct tcpcb_param init_param = {
         .fb = NULL,
-        .cc_algo = &newreno_cc_algo,
+        .cc_algo = cc_algo_list[cc_algo_idx],
         .tune = &m_pctx->m_tunable_ctx,
         .stat = &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id],
         .stat_ex = &m_pctx->m_tcpstat.m_sts,
@@ -627,6 +638,8 @@ CTcpTunableCtx::CTcpTunableCtx() {
     tcprexmtthresh = 3;
     use_inbound_mac = 1;
 
+    tcp_cc_algo = 0;
+
     sb_max = SB_MAX;        /* patchable, not used  */
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
@@ -700,6 +713,14 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::dont_use_inbound_mac)) {
         use_inbound_mac = ((int)tune->m_dont_use_inbound_mac == 0);
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_sack)) {
+        tcp_do_sack = (int)tune->m_tcp_do_sack;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_cc_algo)) {
+        tcp_cc_algo = (int)tune->m_tcp_cc_algo;
     }
 }
 

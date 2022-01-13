@@ -731,6 +731,8 @@ public:
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
 
+    int tcp_cc_algo;    /* select CC algorithm (0: newreno, 1: cubic) */
+
 public:
     CTcpTunableCtx();
 
