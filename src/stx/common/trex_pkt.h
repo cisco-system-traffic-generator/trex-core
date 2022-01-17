@@ -83,13 +83,16 @@ public:
     }
     
     /* slow path and also RVO - pass by value is ok */
-    Json::Value to_json() const {
+    Json::Value to_json(uint16_t snaplen=0) const {
         Json::Value output;
+        uint16_t caplen = (snaplen == 0 || m_size < snaplen) ? m_size : snaplen;
+
         output["ts"]      = m_timestamp;
-        output["binary"]  = base64_encode(m_raw, m_size);
+        output["binary"]  = base64_encode(m_raw, caplen);
         output["port"]    = m_port;
         output["index"]   = Json::UInt64(m_index);
-        
+        output["wirelen"] = m_size;
+
         switch (m_origin) {
         case ORIGIN_TX:
             output["origin"]  = "TX";
@@ -101,7 +104,7 @@ public:
             output["origin"]  = "NONE";
             break;
         }
-        
+
         return output;
     }
 
@@ -198,7 +201,7 @@ public:
      * generate a JSON output of the queue
      * 
      */
-    Json::Value to_json() const;
+    Json::Value to_json(uint16_t snaplen=0) const;
 
     
     /**
