@@ -13,18 +13,18 @@ function find_python3 {
     # try different Python3 paths
     PYTHONS="$@"
     for PYTHON in ${PYTHONS[*]}; do
-        $PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 33)" &> /dev/null
+        $PYTHON -c "import sys; ver = sys.version_info[0] * 10 + sys.version_info[1];sys.exit(ver < 34)" &> /dev/null
         if [ $? -eq 0 ]; then
             return
         fi
     done;
 
-    echo "*** Python3 version is too old, 3.3 or later is required"
+    echo "*** Python3 version is too old, 3.4 or later is required"
     exit -1
 }
 
-find_python3 ${PYTHONS3[*]} 
+find_python3 ${PYTHONS3[*]}
 if [ $? -ne 0 ]; then
-  echo "Python versions 2.7 or 3.3 at least required"
+  echo "Python version 3.4 at least required"
   exit -1
 fi
