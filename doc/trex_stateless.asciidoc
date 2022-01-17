@@ -4190,7 +4190,7 @@ Tagged Packet Grouping *(TPG)* is a STL feature introduced in TRex v2.94 whose m
 TPG is dynamic. It means that you can provide a list of tags that you are interested on, on a port that you are interested
 on a stream that you are interested. We will allocate enough memory to collect statistics based on the user's request.
 
-WARNING: In case your request too much memory, the process of allocating it will take time. Yet, we will attempt 
+WARNING: In case your request too much memory, the process of allocating may take time. Yet, we will attempt 
 and allocate as much memory as possible.
 
 Remember that STL is mostly designed to test L2/L3 devices such as switches. The most common packet manipulation these devices perform is tagging.
@@ -4349,9 +4349,11 @@ In order to disable TPG simply call this method. Note that this method also can 
 
 At each moment, you can check if TPG is enabled or disabled using this method. In case TPG is enabled, this methods provides some more information, like:
 
-* Collecting Ports
+* Acquired Ports - Ports on which TPG can transmit
+* Collecting Ports - Ports on which TPG can collect
 * Number of tpgids
 * Number of tags
+* Username - User that owns this TPG context
 
 ===== Get TPG Stats
 
@@ -4654,9 +4656,9 @@ Tagged Packet Group is enabled
 
 Tagged Packet Group Data
 
-Num Tags | Num TPGId | Ports
----------+-----------+-------
-   19    |    20     | [0, 1]
+Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
+---------+----------------+----------+-----------+---------
+ user1   |     [0, 1]     |  [0, 1]  |    20     |    19
 ----
 
 ==== Start TPG Traffic
@@ -4685,7 +4687,7 @@ Then you can start the profile through the console:
 
 [source, bash]
 ----
-trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 19
+trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 19 --qinq
 ----
 
 ==== Collecting the stats
