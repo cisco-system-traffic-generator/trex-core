@@ -1541,7 +1541,8 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
     
     uint32_t capture_id = parse_uint32(params, "capture_id", result);
     uint32_t pkt_limit  = parse_uint32(params, "pkt_limit", result);
-    
+    uint16_t snaplen    = parse_uint16(params, "snaplen", result, 0);
+
     /* generate a fetch command */
     
     static MsgReply<TrexCaptureRCFetch> reply;
@@ -1562,7 +1563,7 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
             
         result["result"]["pending"]     = rc.get_pending();
         result["result"]["start_ts"]    = rc.get_start_ts();
-        result["result"]["pkts"]        = pkt_buffer->to_json();
+        result["result"]["pkts"]        = pkt_buffer->to_json(snaplen);
  
         /* delete the buffer */
         delete pkt_buffer;

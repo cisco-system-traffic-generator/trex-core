@@ -210,14 +210,14 @@ TrexPktBuffer::get_element_count() const {
 }
 
 Json::Value
-TrexPktBuffer::to_json() const {
+TrexPktBuffer::to_json(uint16_t snaplen) const {
 
     Json::Value output = Json::arrayValue;
 
     int tmp = m_tail;
     while (tmp != m_head) {
         const TrexPkt *pkt = m_buffer[tmp];
-        output.append(pkt->to_json());
+        output.append(pkt->to_json(snaplen));
         tmp = next(tmp);
     }
 

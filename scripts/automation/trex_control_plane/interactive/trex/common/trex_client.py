@@ -994,7 +994,7 @@ class TRexClient(object):
             
 
     @client_api('getter', True)
-    def fetch_capture_packets (self, capture_id, output, pkt_count = 1000):
+    def fetch_capture_packets (self, capture_id, output, pkt_count=1000, fetch_limit=50, snaplen=0):
         """
             Fetch packets from existing active capture
 
@@ -1008,7 +1008,8 @@ class TRexClient(object):
 
                     in case 'output' is a list, each element in the list is an object
                     containing:
-                    'binary' - binary bytes of the packet
+                    'binary' - binary bytes of the snappled packet
+                    'wirelen'- length of the packet on the wire
                     'origin' - RX or TX origin
                     'ts'     - timestamp relative to the start of the capture
                     'index'  - order index in the capture
@@ -1016,6 +1017,13 @@ class TRexClient(object):
 
                 pkt_count: int
                     maximum packets to fetch
+
+                fetch_limit: int
+                    limit of packets to fetch with one _transmit() call
+
+                snaplen: int
+                    snapshot length is the amount of data for each packet that is actually captured
+                    if snaplen is 0 - fetch the full length packet without snapshot
 
             :raises:
                 + :exe:'TRexError'
@@ -1043,9 +1051,9 @@ class TRexClient(object):
         pending = pkt_count
         rc = RC_OK()
 
-        # fetch with iterations - each iteration up to 50 packets
+        # fetch with iterations - each iteration up to fetch_limit(default:50) packets
         while pending > 0 and pkt_count > 0:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(50, pkt_count)})
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(fetch_limit, pkt_count), 'snaplen': snaplen})
             if not rc:
                 self.ctx.logger.post_cmd(rc)
                 raise TRexError(rc)
@@ -1063,7 +1071,8 @@ class TRexClient(object):
 
                 if write_to_file:
                     ts_sec, ts_usec = sec_split_usec(ts)
-                    writer._write_packet(pkt['binary'], sec = ts_sec, usec = ts_usec)
+                    wirelen = pkt.get('wirelen', None) if snaplen else None
+                    writer._write_packet(pkt['binary'], sec=ts_sec, usec=ts_usec, wirelen=wirelen)
                 else:
                     output.append(pkt)
 
