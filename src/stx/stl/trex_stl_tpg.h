@@ -275,12 +275,32 @@ private:
     uint16_t                                  m_num_tags;     // Number of Tags
 };
 
+
+/**************************************
+ * TPGStateUpdate
+ *************************************/
+
+/**
+ * The external TPG states of other components (Rx, DP) that update the
+ * state of CP.
+ **/
+enum class TPGStateUpdate {
+    RX_NO_EXIST,            // RX TPG context doesn't exist (never created or already destroyed)
+    RX_DISABLED,            // RX TPG context exists but disabled.
+    RX_ALLOC_FAIL,          // RX TPG context exists but memory allocation has failed.
+    RX_ENABLED,             // RX TPG context exists and is enabled successfully.
+};
+
+/**************************************
+ * TPG State
+ *************************************/
+
 /**
  * TPGState represents the state machine for the Tagged Packet Group Feature.
  * 1. By default the feature is disabled and the State Machine is set to DISABLED.
  * 2. When a user enables TPG (via RPC), we move to ENABLED_CP. In this state we allocate
  *    the PacketGroupTagMgr in CP and send an async message to start allocating to Rx (which can take a lot of time).
- * 3. When the allocation finishes we move to ENABLED_CP_RX.
+ * 3. When the allocation finishes we move to ENABLED_CP_RX. In case the allocation fails, we move to RX_ALLOC_FAILED.
  * 4. After number 3 finishes, the RPC enables TPG in DP. Now we move to ENABLED.
  * 5. The user can disable TPG via RPC. We disable TPG in DP, send a async message to Rx to deallocate
       and move to DISABLED_DP.
@@ -289,9 +309,9 @@ private:
     The following diagram describes the state machine:
 
      -------------            -------------       -------------
-    |             | USER RPC |             |     |             |
-    |   DISABLED  | -------> |  ENABLED_CP | --> |   ENABLED   |
-    |             |          |             |     |    CP_RX    |
+    |             | USER RPC |             |     |ENABLED_CP_RX|
+    |   DISABLED  | -------> |  ENABLED_CP | --> |      or     |
+    |             |          |             |     |RX_ALLOC_FAIL|
      -------------            -------------       ------------- 
                                                          |
                                           AUTOMATIC RPC  |
@@ -303,13 +323,42 @@ private:
      ------------          ------------              -----------
 
 **/
-enum class TPGState {
-    DISABLED,       // Tagged Packet Group is disabled. Default state.
-    ENABLED_CP,     // Tagged Packet Group is enabled at CP. Message sent to Rx but it hasn't finished allocating.
-    ENABLED_CP_RX,  // Tagged Packet Group is enabled at CP and Rx.
-    ENABLED,        // Tagged Packet Group is enabled at CP, Rx and DP.
-    DISABLED_DP,    // Tagged Packet Group is disabled at DP. Message sent to Rx but it hasn't finished deallocating.
-    DISABLED_DP_RX, // Tagged Packet Group is disabled at DP and Rx.
+class TPGState {
+public:
+
+    enum Value {
+        DISABLED,           // Tagged Packet Group is disabled. Default state.
+        ENABLED_CP,         // Tagged Packet Group is enabled at CP. Message sent to Rx but it hasn't finished allocating.
+        ENABLED_CP_RX,      // Tagged Packet Group is enabled at CP and Rx.
+        ENABLED,            // Tagged Packet Group is enabled at CP, Rx and DP.
+        DISABLED_DP,        // Tagged Packet Group is disabled at DP. Message sent to Rx but it hasn't finished deallocating.
+        DISABLED_DP_RX,     // Tagged Packet Group is disabled at DP and Rx.
+        RX_ALLOC_FAILED     // Rx Failed Allocating memory
+    };
+
+    TPGState(Value val);    // Ctor - Construct directly using value for syntactic sugar.
+
+    /**
+     * Is the TPG state an error state?
+     *
+     * @return bool
+     *   True iff the TPG State is an error state.
+     **/
+    bool isError();
+
+    /**
+     * Get the value of the TPGState as an integer.
+     *
+     * @return int
+     *   TPGState Value casted to int
+     */
+    int getValue();
+
+    friend bool operator==(const TPGState& lhs, const TPGState& rhs);
+    friend bool operator!=(const TPGState& lhs, const TPGState& rhs);
+
+private:
+    Value       m_val;      // Actual Value
 };
 
 /**************************************
@@ -381,7 +430,7 @@ public:
      * @return TPGState
      *   State of Tagged Packet Group Context
      */
-    const TPGState get_tpg_state() { return m_tpg_state; }
+    TPGState get_tpg_state() { return m_tpg_state; }
 
     /**
      * Set the state of Tagged Packet Group Context.
@@ -389,7 +438,39 @@ public:
      * @param tpg_state
      *   State of Tagged Packet Group Context
      */
-    void set_tpg_state(TPGState tpg_state) { m_tpg_state = tpg_state; }
+    void set_tpg_state(const TPGState& tpg_state) { m_tpg_state = tpg_state; }
+
+    /**
+     * Indicate if this TPG context can be disabled?
+     *
+     * @return bool
+     *   True iff the context can be disabled.
+     **/
+    inline bool can_disable() {
+        return m_tpg_state == TPGState::ENABLED || m_tpg_state.isError();
+    }
+
+    /**
+     * Indicate if this TPG context is awaiting for Rx to finish
+     *
+     * @return bool
+     *   True iff awaiting Rx.
+     **/
+    inline bool is_awaiting_rx() {
+        return (m_tpg_state == TPGState::ENABLED_CP) || (m_tpg_state == TPGState::DISABLED_DP);
+    }
+
+    /**
+     * Handle a state update from Rx and return the updated state.
+     *
+     *
+     * @param rx_state
+     *   The state in Rx based on which we need to update the state in Cp.
+     *
+     * @return TPGState
+     *   The new updated state
+     */
+    TPGState handle_rx_state_update(TPGStateUpdate rx_state);
 
     /**
      * Check if port set to collect TPG stats.

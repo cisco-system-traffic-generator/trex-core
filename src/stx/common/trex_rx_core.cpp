@@ -654,13 +654,28 @@ bool CRxCore::tx_pkt(int port_id, const std::string &pkt) {
  * Tagged Packet Group
 *************************************/
 
-bool CRxCore::is_tpg_enabled(const std::string& username) {
-    if (!tpg_ctx_exists(username)) {
+int CRxCore::get_tpg_state(const std::string& username) {
+
+    if (tpg_ctx_exists(username)) {
         // Context doesn't exist.
-        return false;
+        assert(m_tpg_ctx[username]);
+
+        TPGRxState state = m_tpg_ctx[username]->get_state(); // Get state safely
+        switch (state) {
+            case TPGRxState::ALLOC_FAIL:
+                return static_cast<int>(TPGStateUpdate::RX_ALLOC_FAIL);
+
+            case TPGRxState::ENABLED:
+            case TPGRxState::AWAITING_DISABLE:
+                return static_cast<int>(TPGStateUpdate::RX_ENABLED);
+
+            case TPGRxState::DISABLED:
+            case TPGRxState::AWAITING_ENABLE:
+                return static_cast<int>(TPGStateUpdate::RX_DISABLED);
+        }
     }
-    TPGRxState state = m_tpg_ctx[username]->get_state(); // Get state safely
-    return state == TPGRxState::ENABLED;
+
+    return static_cast<int>(TPGStateUpdate::RX_NO_EXIST);
 }
 
 bool CRxCore::tpg_ctx_exists(const std::string& username) {
@@ -706,7 +721,6 @@ void CRxCore::disable_tpg_ctx(const std::string& username) {
     tpg_rx_ctx->deallocate();            // Start deallocating in another thread
 }
 
-
 bool CRxCore::handle_tpg_threads() {
     /**
      * NOTE: Called by the scheduler periodically if there is an allocating/deallocating thread working.
@@ -737,15 +751,20 @@ bool CRxCore::handle_tpg_threads() {
 void CRxCore::_enable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
     m_working_tpg_threads--;
     tpg_rx_ctx->destroy_thread(); // Thread has finished working
-    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
-    uint32_t num_tpgids = tpg_rx_ctx->get_num_tpgids();
 
-    for (uint8_t port: rx_ports_vec) {
-        CTPGTagCntr* port_cntr = tpg_rx_ctx->get_port_cntr(port);
-        m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, tpg_rx_ctx->get_tag_mgr(), port_cntr);
+    if (unlikely(tpg_rx_ctx->get_cntrs() == nullptr)) {
+        tpg_rx_ctx->set_state(TPGRxState::ALLOC_FAIL);
+    } else {
+        const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
+        uint32_t num_tpgids = tpg_rx_ctx->get_num_tpgids();
+
+        for (uint8_t port: rx_ports_vec) {
+            CTPGTagCntr* port_cntr = tpg_rx_ctx->get_port_cntr(port);
+            m_rx_port_mngr_vec[port]->enable_tpg(num_tpgids, tpg_rx_ctx->get_tag_mgr(), port_cntr);
+        }
+
+        tpg_rx_ctx->set_state(TPGRxState::ENABLED);
     }
-
-    tpg_rx_ctx->set_state(TPGRxState::ENABLED);
 }
 
 void CRxCore::_disable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {

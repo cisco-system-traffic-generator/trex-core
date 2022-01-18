@@ -27,15 +27,9 @@ limitations under the License.
 /*******************************************************************
  CTPGTagCntr
 *******************************************************************/
-CTPGTagCntr::CTPGTagCntr() :
-    m_pkts(0),
-    m_bytes(0),
-    m_seq_err(0),
-    m_seq_err_too_big(0),
-    m_seq_err_too_small(0),
-    m_ooo(0),
-    m_dup(0),
-    m_exp_seq(0) {}
+CTPGTagCntr::CTPGTagCntr() {
+    memset(this, 0, sizeof(CTPGTagCntr));
+}
 
 void CTPGTagCntr::update_cntrs(uint32_t rcv_seq, uint32_t pkt_len) {
     if (rcv_seq > m_exp_seq) {
@@ -278,11 +272,8 @@ void TPGRxCtx::spawn_thread(const std::string& name, std::function<void(TPGRxCtx
     if (m_thread) {
         throw TrexException("Context is already allocating/deallocating.");
     }
-    m_thread = new std::thread(func, this);
-    if (!m_thread) {
-        throw TrexException("Unable to create TPG counter thread");
-    }
 
+    m_thread = new std::thread(func, this); // This will throw if it fails
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(sched_getcpu(), &cpuset);
@@ -307,6 +298,7 @@ void TPGRxCtx::_allocate() {
     uint64_t num_cntrs = num_ports * m_num_tpgids * num_tags;
     /**
      * NOTE: Use calloc to distribute the workload based on COW (Copy on Write).
+     * NOTE: The Rx thread validates that the counters were allocated correctly.
      **/
     m_cntrs = (CTPGTagCntr*)calloc(num_cntrs, sizeof(CTPGTagCntr));
 

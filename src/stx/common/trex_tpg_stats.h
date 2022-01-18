@@ -58,9 +58,13 @@ public:
     friend class TPGTagCntrTest;
     friend class TPGRxStatsTest;
 
-    /*
-     * Use the ctor with care, if allocating a lot of counters it can become a bottleneck.
-     */
+    /**
+     * NOTE: In the real usecase, memory is allocated with calloc and cast to this class. All the counters are 0. 
+     *       Adding counters not initialized to zero will not work.
+     *       If you use the constructor, we memset the whole data of the class to 0.
+     *       The ctor is used for testing/allocating a single instance only.
+     * NOTE: Do not add virtual methods to this function.
+     **/
     CTPGTagCntr();
 
     /**
@@ -264,6 +268,7 @@ private:
  * 4. When @disable_tpg_ctx is called in Rx, we start a thread that starts deallocating. This thread will set the state to AWAITING_DISABLE
  *    after it has finished deallocating. Rx will check the state periodically until it moves to AWAITING_DISABLE.
  * 5. The thread has finished deallocating, Rx will destroy the object.
+ * 6. Allocation has failed. Rx thread will discover this and move the state to ALLOC_FAIL.
 
     The following diagram describes the state machine:
 
@@ -276,8 +281,9 @@ private:
                                Periodic Rx Checks   |
                                                     ↓
      ------------                             -----------
-    |            |  deallocation finishes    |           |
-    |  AWAITING  | <------------------------ |  ENABLED  |
+    |            |  deallocation finishes    |  ENABLED  |
+    |  AWAITING  | <------------------------ |    or     |
+    |            |                           | ALLOC_FAIL|
     |   DISABLE  |                           |           |
      ------------                             -----------
 
@@ -288,6 +294,7 @@ enum class TPGRxState {
     AWAITING_ENABLE,    // TPGRxCtx created and memory has just been allocated.
     ENABLED,            // TPGRxCtx enabled and working.
     AWAITING_DISABLE,   // TPGRxCtx still exists but memory has been deallocated.
+    ALLOC_FAIL,         // TPGRxCtx exists but memory allocation has failed.
 };
 
 class TPGRxCtx {
@@ -323,6 +330,15 @@ public:
      *   Number of Tagged Packet Group Identifiers
      */
     const uint32_t get_num_tpgids() { return m_num_tpgids; }
+
+    /**
+     * Get the pointer to the counters. In case the counters are not allocated
+     * or allocation failed, it returns nullptr.
+     *
+     * @return CTPGTagCntr*
+     *    Pointer to counter or nullptr.
+     **/
+    CTPGTagCntr* get_cntrs() { return m_cntrs; }
 
     /**
      * Get the Packet Group Tag Manager
