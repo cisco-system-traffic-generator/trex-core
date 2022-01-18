@@ -1753,9 +1753,9 @@ TrexRpcCmdDisableTaggedPacketGroup::_run(const Json::Value &params, Json::Value 
     TrexStateless* stl = get_stateless_obj();
     TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
 
-    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::ENABLED) {
-        // Disabling the feature is possible only if the feature is already enabled.
-        generate_execute_err(result, "Tagged Packet Group is not enabled for this user!");
+    if (tpg_ctx == nullptr || !tpg_ctx->can_disable()) {
+        // Disabling the feature is possible only if the feature is already enabled, or error has happend.
+        generate_execute_err(result, "Tagged Packet Group is not enabled.");
     }
 
     /* No need to verify the result of the following function since we already 
@@ -1773,7 +1773,7 @@ TrexRpcCmdDestroyTaggedPacketGroupCtx::_run(const Json::Value &params, Json::Val
     TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
 
     if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::DISABLED_DP_RX) {
-        // Disabling the feature is possible only if the feature is already enabled.
+        // Destroying the object is possible only if both Rx and Dp and disabled.
         generate_execute_err(result, "Tagged Packet Group is not disabled for this user! Can't destroy.");
     }
 
@@ -1794,7 +1794,7 @@ TrexRpcCmdGetTaggedPktGroupState::_run(const Json::Value &params, Json::Value &r
     TPGState state = stl->update_tpg_state(username);
 
     // TPGState is an enum class, hence we need to cast it back to an integer.
-    result["result"] = static_cast<int>(state);
+    result["result"] = state.getValue();
 
     return (TREX_RPC_CMD_OK);
 }

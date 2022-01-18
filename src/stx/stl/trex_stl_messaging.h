@@ -412,16 +412,17 @@ private:
 
 };
 
-class TrexStatelessRxIsTPGEnabled: public TrexCpToRxMsgBase {
+class TrexStatelessRxGetTPGState: public TrexCpToRxMsgBase {
 public:
-    TrexStatelessRxIsTPGEnabled(const std::string& username, MsgReply<bool>& reply)
+
+    TrexStatelessRxGetTPGState(const std::string& username, MsgReply<int>& reply)
                                          : m_username(username), m_reply(reply) {}
 
     bool handle(CRxCore *rx_core);
 
 private:
-    const std::string       m_username;     // User for whom we are checking if TPG is enabled.
-    MsgReply<bool>&         m_reply;        // Reply object
+    const std::string         m_username;     // User for whom we are checking if TPG is enabled.
+    MsgReply<int>&            m_reply;        // Reply object
 };
 
 

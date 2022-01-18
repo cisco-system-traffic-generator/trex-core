@@ -346,9 +346,9 @@ bool TrexStatelessRxDisableTaggedPktGroup::handle(CRxCore* rx_core) {
     return true;
 }
 
-bool TrexStatelessRxIsTPGEnabled::handle(CRxCore* rx_core) {
-    bool tpg_enabled = rx_core->is_tpg_enabled(m_username);
-    m_reply.set_reply(tpg_enabled);
+bool TrexStatelessRxGetTPGState::handle(CRxCore* rx_core) {
+    int state = rx_core->get_tpg_state(m_username);
+    m_reply.set_reply(state);
     return true;
 }
 

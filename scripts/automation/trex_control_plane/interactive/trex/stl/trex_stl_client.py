@@ -68,15 +68,45 @@ def validate_port_input(port_arg):
 
 class TPGState:
     """
-    A simple enum representing the states of Tagged Packet Group State machine.
-    This enum should be always kept in Sync with the state machine in the server.
+    A simple class representing the states of Tagged Packet Group State machine.
+    This class should be always kept in Sync with the state machine in the server.
     """
-    DISABLED       = 0      # Tagged Packet Group is disabled.
-    ENABLED_CP     = 1      # Tagged Packet Group Control Plane is enabled, message sent to Rx.
-    ENABLED_CP_RX  = 2      # Tagged Packet Group Control Plane and Rx are enabled. Awaiting Data Plane.
-    ENABLED        = 3      # Tagged Packet Group is enabled.
-    DISABLED_DP    = 4      # Tagged Packet Group Data Plane disabled, message sent to Rx.
-    DISABLED_DP_RX = 5      # Tagged Packet Group Data Plane and Rx disabled. Object can be destroyed.
+    DISABLED        = 0      # Tagged Packet Group is disabled.
+    ENABLED_CP      = 1      # Tagged Packet Group Control Plane is enabled, message sent to Rx.
+    ENABLED_CP_RX   = 2      # Tagged Packet Group Control Plane and Rx are enabled. Awaiting Data Plane.
+    ENABLED         = 3      # Tagged Packet Group is enabled.
+    DISABLED_DP     = 4      # Tagged Packet Group Data Plane disabled, message sent to Rx.
+    DISABLED_DP_RX  = 5      # Tagged Packet Group Data Plane and Rx disabled. Object can be destroyed.
+    RX_ALLOC_FAILED = 6      # Rx Allocation Failed
+
+    ALL_STATES = [DISABLED, ENABLED_CP, ENABLED_CP_RX, ENABLED, DISABLED_DP, DISABLED_DP_RX, RX_ALLOC_FAILED]
+    ERROR_STATES = [RX_ALLOC_FAILED]
+
+
+    def __init__(self, initial_state):
+        if initial_state not in TPGState.ALL_STATES:
+            raise TRexError("Invalid TPG State {}".format(initial_state))
+        self._state = initial_state
+        self.fail_messages = {
+            TPGState.RX_ALLOC_FAILED: "Rx counter allocation failed!"
+        }
+
+    def is_error_state(self):
+        """
+            Indicate if this TPGState is an error state.
+        """
+        return self._state in TPGState.ERROR_STATES
+
+    def get_fail_message(self):
+        """
+            Get the fail message to print to the user for this state.
+        """
+        return self.fail_messages[self._state]
+
+    def __eq__(self, other):
+        if not isinstance(other, TPGState):
+            raise TRexError("Invalid comparision for TPGState")
+        return self._state == other._state
 
 
 class STLClient(TRexClient):
@@ -144,6 +174,7 @@ class STLClient(TRexClient):
                             async_timeout)
 
         self.pgid_stats = CPgIdStats(self.conn.rpc)
+        self.tpg_status = None # TPG Status cached in Python Side
 
     def get_mode (self):
         return "STL"
@@ -423,6 +454,14 @@ class STLClient(TRexClient):
 
         # validate ports
         ports = self.psv.validate('release', ports, PSV_ACQUIRED)
+
+        if self.tpg_status is None:
+            # Nothing in cache
+            self.get_tpg_status()
+
+        if self.tpg_status["enabled"]:
+            self.disable_tpg()
+
 
         self.ctx.logger.pre_cmd("Releasing ports {0}:".format(ports))
         rc = self._for_each_port('release', ports)
@@ -1760,6 +1799,9 @@ class STLClient(TRexClient):
 
         self.ctx.logger.pre_cmd("Enabling Tagged Packet Group")
 
+        # Invalidate cache
+        self.tpg_status = None
+
         # Enable TPG in CP and Rx async.
         params = {
             "num_tpgids": num_tpgids,
@@ -1774,12 +1816,15 @@ class STLClient(TRexClient):
         if not rc:
             raise TRexError(rc)
 
-        tpg_state = TPGState.DISABLED
-        while tpg_state != TPGState.ENABLED_CP_RX:
+        tpg_state = TPGState(TPGState.DISABLED)
+        while tpg_state != TPGState(TPGState.ENABLED_CP_RX):
             rc = self._transmit("get_tpg_state", params={"username": self.ctx.username})
             if not rc:
                 raise TRexError(rc)
-            tpg_state = rc.data()
+            tpg_state = TPGState(rc.data())
+            if tpg_state.is_error_state():
+                self.disable_tpg(surpress_log=True)
+                raise TRexError(tpg_state.get_fail_message())
 
         # Enable TPG in DP Sync
         rc = self._transmit("enable_tpg_dp", params={"username": self.ctx.username})
@@ -1790,7 +1835,7 @@ class STLClient(TRexClient):
             raise TRexError(rc)
 
     @client_api('command', True)
-    def disable_tpg(self, username=None):
+    def disable_tpg(self, username=None, surpress_log=False):
         """
         Disable Tagged Packet Grouping.
 
@@ -1803,8 +1848,16 @@ class STLClient(TRexClient):
         :parameters:
             username: string
                 Username whose TPG context we want to disable. Optional. If not provided, we disable for the calling user.
+
+            surpress_log: bool
+                Surpress logs, in case disable TPG is run as a subroutine. Defaults to False.
         """
-        self.ctx.logger.pre_cmd("Disabling Tagged Packet Group")
+
+        # Invalidate cache
+        self.tpg_status = None
+
+        if not surpress_log:
+            self.ctx.logger.pre_cmd("Disabling Tagged Packet Group")
 
         # Disable TPG RPC simply indicates to the server to start deallocating the memory, it doesn't mean
         # it has finished deallocating
@@ -1814,12 +1867,12 @@ class STLClient(TRexClient):
         if not rc:
             raise TRexError(rc)
 
-        tpg_state = TPGState.ENABLED
-        while tpg_state != TPGState.DISABLED_DP_RX:
+        tpg_state = TPGState(TPGState.ENABLED)
+        while tpg_state != TPGState(TPGState.DISABLED_DP_RX):
             rc = self._transmit("get_tpg_state", params={"username": username})
             if not rc:
                 raise TRexError(rc)
-            tpg_state = rc.data()
+            tpg_state = TPGState(rc.data())
 
         # State is set to TPGState.DISABLED_DP_RX, we can proceed to destroying the context.
         rc = self._transmit("destroy_tpg_ctx", params={"username": username})
@@ -1827,7 +1880,8 @@ class STLClient(TRexClient):
         if not rc:
             raise TRexError(rc)
 
-        self.ctx.logger.post_cmd(rc)
+        if not surpress_log:
+            self.ctx.logger.post_cmd(rc)
 
     @client_api('getter', True)
     def get_tpg_status(self, username=None, port=None):
@@ -1871,6 +1925,11 @@ class STLClient(TRexClient):
                 username                         User that owns this instance of TPG. Relevant only if TPG is enabled.
                 ===============================  ===============
         """
+        default_params = (username is None and port is None)
+        if default_params and self.tpg_status is not None:
+            # Default Params and value is cached, no need to query the server.
+            return self.tpg_status
+
         params = {}
         if port is None:
             params = {"username": self.ctx.username if username is None else username}
@@ -1884,6 +1943,10 @@ class STLClient(TRexClient):
 
         if not rc:
             raise TRexError(rc)
+
+        if default_params:
+            # Cache status only if default parameters
+            self.tpg_status = rc.data()
 
         return rc.data()
 

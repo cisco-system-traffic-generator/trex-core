@@ -166,11 +166,11 @@ protected:
      * @param username
      *   Username for which we are checking if TPG is enabled.
      *
-     * @return bool
-     *  True iff TPG is enabled in Rx for this username.
+     * @return int
+     *  State casted to int so it can pass easily through messages.
      **/
 
-    bool is_tpg_enabled(const std::string& username);
+    int get_tpg_state(const std::string& username);
 
     /**
      * Does the TPG context for this username exist?

@@ -394,29 +394,23 @@ TPGState TrexStateless::update_tpg_state(const std::string& username) {
 
     TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
     TPGState state = tpg_ctx->get_tpg_state();
-    if (! (state == TPGState::ENABLED_CP || state == TPGState::DISABLED_DP)) {
+
+    if (!tpg_ctx->is_awaiting_rx()) {
         // Not awaiting Rx, state is synced.
         return state;
     }
 
-    // Update State based on Rx status
-    static MsgReply<bool> reply;
+    // Get Rx State
+    static MsgReply<int> reply;
     reply.reset();
-    TrexCpToRxMsgBase* msg = new TrexStatelessRxIsTPGEnabled(username, reply);
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxGetTPGState(username, reply);
     CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     ring->SecureEnqueue((CGenNode*)msg, true);
-    bool tpg_rx_enabled = reply.wait_for_reply();
+    int rc = reply.wait_for_reply();
+    TPGStateUpdate rx_state = static_cast<TPGStateUpdate>(rc);
 
+    return tpg_ctx->handle_rx_state_update(rx_state);
 
-    if (state == TPGState::ENABLED_CP && tpg_rx_enabled) {
-        // We were awaiting for Rx to finish allocating and Rx has finished.
-        tpg_ctx->set_tpg_state(TPGState::ENABLED_CP_RX);
-    }
-    if (state == TPGState::DISABLED_DP && !tpg_rx_enabled) {
-        // We were awaiting for Rx to finish deallocating and Rx has finished.
-        tpg_ctx->set_tpg_state(TPGState::DISABLED_DP_RX);
-    }
-    return tpg_ctx->get_tpg_state();
 }
 
 bool TrexStateless::enable_tpg_cp_rx(const std::string& username) {

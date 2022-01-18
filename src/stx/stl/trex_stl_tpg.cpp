@@ -96,6 +96,28 @@ bool PacketGroupTagMgr::add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, 
 }
 
 /**************************************
+ * TPG State
+ *************************************/
+
+TPGState::TPGState(TPGState::Value val) : m_val(val) {}
+
+bool TPGState::isError() {
+    return m_val == Value::RX_ALLOC_FAILED;
+}
+
+int TPGState::getValue() {
+    return static_cast<int>(m_val);
+}
+
+bool operator==(const TPGState& lhs, const TPGState& rhs) {
+    return lhs.m_val == rhs.m_val;
+}
+
+bool operator!=(const TPGState& lhs, const TPGState& rhs) {
+    return !(lhs==rhs);
+}
+
+/**************************************
  * Tagged Packet Group Control Plane Manager
  *************************************/
 TPGCpCtx::TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
@@ -103,13 +125,42 @@ TPGCpCtx::TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
                    const std::set<uint8_t>& cores,
                    const uint32_t num_tpgids,
                    const std::string& username) : 
-                   m_acquired_ports(acquired_ports), m_rx_ports(rx_ports), m_cores(cores), m_num_tpgids(num_tpgids), m_username(username) {
+                   m_acquired_ports(acquired_ports), m_rx_ports(rx_ports), m_cores(cores), m_num_tpgids(num_tpgids), m_username(username), m_tpg_state(TPGState::DISABLED) {
     m_tag_mgr = new PacketGroupTagMgr();
-    m_tpg_state = TPGState::DISABLED;
 }
 
 TPGCpCtx::~TPGCpCtx() {
     delete m_tag_mgr;
+}
+
+TPGState TPGCpCtx::handle_rx_state_update(TPGStateUpdate rx_state) {
+    if (!is_awaiting_rx()) {
+        return m_tpg_state;
+    }
+
+    // Awaiting ENABLE OR DISABLE
+    if (m_tpg_state == TPGState::ENABLED_CP) {
+        // Awaiting Enable
+        switch (rx_state) {
+            case TPGStateUpdate::RX_ENABLED:
+                // RX Enabled Successfully
+                m_tpg_state = TPGState::ENABLED_CP_RX;
+                break;
+            case TPGStateUpdate::RX_ALLOC_FAIL:
+                // Allocation failed
+                m_tpg_state = TPGState::RX_ALLOC_FAILED;
+                break;
+            default:
+                break;
+        }
+    } else {
+        // Awaiting Disable - Rx should return NO_EXIST
+        assert(m_tpg_state == TPGState::DISABLED_DP);
+        if (rx_state == TPGStateUpdate::RX_NO_EXIST) {
+            m_tpg_state = TPGState::DISABLED_DP_RX;
+        }
+    }
+    return m_tpg_state;
 }
 
 
