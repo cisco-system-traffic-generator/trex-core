@@ -101,8 +101,9 @@ tcp_timer_2msl(struct tcpcb *tp)
 #endif
 	KASSERT(inp != NULL, ("%s: tp %p tp->t_inpcb == NULL", __func__, tp));
 	tcp_free_sackholes(tp);
-	if (ticks - tp->t_rcvtime < TCPTV_2MSL) {
-		tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL - (ticks - tp->t_rcvtime));
+	/* TREX_FBSD: TCPTV_2MSL is equal to trex-core tunable tcp_maxidle */
+	if (tp->t_state != TCPS_TIME_WAIT && ticks - tp->t_rcvtime < TCPTV_2MSL) {
+		tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL);
 	} else {
 		tcp_close(tp);
 		return;
@@ -379,8 +380,7 @@ tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
 	bool is_delack = false;
 
 	/* handle fast timer: TT_DELACK */
-	if ((tp->m_timer.tt_flags & TT_FLAG_DELACK) &&
-	    (tp->m_timer.tt_timer[TT_DELACK] <= tick_passed)) {
+	if (tp->m_timer.tt_flags & TT_FLAG_DELACK) {
 		tp->m_timer.tt_flags &= ~TT_FLAG_DELACK;
 		//tp->m_timer.tt_timer[TT_DELACK] = 0;
 		tcp_timer_delack(tp);
@@ -397,3 +397,20 @@ tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
 	return is_delack;
 }
 
+
+void
+tcp_timer_twstart(struct tcpcb *tp)
+{
+	assert(tp->t_state == TCPS_TIME_WAIT);
+
+	tcp_cancel_timers(tp);
+	tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL);
+
+	/*
+	 * To improve performance:
+	 * During TCPS_TIME_WAIT, skip unnecessary calls of tcp_handle_timers.
+	 * But, tick_passed may be less than given TCPTV_2MSL.
+	 * so, guard value 2 is added to avoid the additional call.
+	 */
+	tcp_timer_reset(tp, tcp_timer_ticks_to_msec(TCPTV_2MSL) + 2);
+}

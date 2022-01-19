@@ -608,6 +608,8 @@ bool tcp_isipv6(struct tcpcb *);
 #define tcp_getsocket(tp)       (&(tp)->m_socket)
 uint32_t tcp_new_isn(struct tcpcb *);
 
+void tcp_timer_reset(struct tcpcb *tp, uint32_t msec);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
@@ -620,7 +622,7 @@ tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
 		tp->m_timer.tt_flags &= ~(1 << timer_type);
 	} else {
 		tp->m_timer.tt_flags |= (1 << timer_type);
-		delta += (tcp_getticks(tp) - tp->m_timer.last_tick);
+		//delta += (tcp_getticks(tp) - tp->m_timer.last_tick);
 	}
 	tp->m_timer.tt_timer[timer_type] = delta;
 }

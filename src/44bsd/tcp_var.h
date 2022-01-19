@@ -629,6 +629,7 @@ public:
 
 public:
     CHTimerObj        m_timer; /* 32 bytes */ 
+    uint32_t          m_timer_ticks; /* timer ticks */
     CTcpCb            m_tcp;
     uint8_t           m_tick;
 
@@ -726,7 +727,6 @@ public:
     int tcp_blackhole;
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
-    uint32_t tcp_fast_ticks;
     int tcp_ttl;            /* time to live for TCP segs */
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
@@ -1053,7 +1053,7 @@ public:
 
 public:
     RC_HTW_t timer_w_start(CTcpFlow * flow){
-        return (m_timer_w.timer_start(&flow->m_timer,flow->m_pctx->m_tunable_ctx.tcp_fast_ticks));
+        return (m_timer_w.timer_start(&flow->m_timer,flow->m_timer_ticks));
     }
 
     void handle_udp_timer(CUdpFlow * flow){
@@ -1072,7 +1072,7 @@ public:
             /* terminate the flow in case --nc specified */
             m_ft.terminate_flow(this,flow,true);
         }else{
-            return (m_timer_w.timer_start(&flow->m_timer,flow->m_pctx->m_tunable_ctx.tcp_fast_ticks));
+            return (m_timer_w.timer_start(&flow->m_timer,flow->m_timer_ticks));
         }
         return(RC_HTW_OK);
     }

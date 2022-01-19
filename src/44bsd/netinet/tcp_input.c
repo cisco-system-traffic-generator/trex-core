@@ -72,6 +72,7 @@ extern int tcp_output(struct tcpcb *);
 extern void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
 extern int tcp_timer_active(struct tcpcb *, uint32_t);
 extern void tcp_cancel_timers(struct tcpcb *);
+extern void tcp_timer_twstart(struct tcpcb *);
 /* tcp_subr.c */
 extern u_int tcp_maxseg(const struct tcpcb *);
 extern void tcp_state_change(struct tcpcb *, int);
@@ -1888,8 +1889,7 @@ process_ACK:
 			if (ourfinisacked) {
 				tcp_state_change(tp, TCPS_TIME_WAIT);
 				soisdisconnected(so);
-				tcp_cancel_timers(tp);
-				tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL);
+				tcp_timer_twstart(tp);
 			}
 			break;
 
@@ -2096,8 +2096,7 @@ step6:
 		 */
 		case TCPS_FIN_WAIT_2:
 			tcp_state_change(tp, TCPS_TIME_WAIT);
-			tcp_cancel_timers(tp);
-			tcp_timer_activate(tp, TT_2MSL, TCPTV_2MSL);
+			tcp_timer_twstart(tp);
 			soisdisconnected(so);
 			break;
 		}

@@ -210,6 +210,7 @@ void CTcpFlow::init(){
     m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
 
     /* register the timer */
+    m_timer_ticks = tw_time_msec_to_ticks(tcp_timer_ticks_to_msec(m_pctx->m_tunable_ctx.tcp_delacktime));
     m_pctx->m_ctx->timer_w_start(this);
 }
 
@@ -623,8 +624,7 @@ void CTcpPerThreadCtx::timer_w_on_tick(){
 CTcpTunableCtx::CTcpTunableCtx() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
-    tcp_delacktime = TCPTV_DELACK;
-    tcp_fast_ticks = TCP_FAST_TICK_;
+    tcp_delacktime = tcp_timer_msec_to_ticks(TCP_TIMER_TICK_FAST_MS);
     tcp_do_sack = 1;
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
@@ -703,7 +703,6 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
         tcp_delacktime = tcp_timer_msec_to_ticks(tune->m_tcp_delay_ack_msec);
-        tcp_fast_ticks = tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
     }
     #endif
 
@@ -1698,3 +1697,15 @@ tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
 
     return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
 }
+
+void
+tcp_timer_reset(struct tcpcb *tp, uint32_t msec)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    CTcpFlow * flow = ((CTcpCb*)tp)->m_flow;
+
+    ctx->timer_w_stop(flow);
+    flow->m_timer_ticks = tw_time_msec_to_ticks(msec);
+    ctx->timer_w_start(flow);
+}
+
