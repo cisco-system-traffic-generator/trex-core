@@ -5,17 +5,19 @@ import socket
 from datetime import datetime, timedelta
 from subprocess import Popen, PIPE
 
-# TODO change to something aesthetic 
+# TODO change to something aesthetic
 BIRD_PATH = os.path.abspath(os.path.join(__file__ ,"../../../../../../../bird"))  # trex scripts folder 
 BIRD_TMP_PATH = "/tmp/trex-bird"
-CTL_PATH = "%s/bird.ctl" % BIRD_TMP_PATH  
-CONF_PATH = "%s/bird.conf" % BIRD_PATH 
+CTL_PATH = "%s/bird.ctl" % BIRD_TMP_PATH
+CONF_PATH = "%s/bird.conf" % BIRD_PATH
 DEFAULT_CFG = """
 router id 100.100.100.100;
 protocol device {
     scan time 1;
 }
-"""  
+"""
+
+
 class PyBird(object):
 
     OK, WELCOME, STATUS_REPORT, ROUTE_DETAIL, TABLE_HEADING, PARSE_ERROR = 0, 1, 13, 1008, 2002, 9001
@@ -55,7 +57,7 @@ class PyBird(object):
         if self.socket is None:
             self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.socket.connect(self.socket_file)
-    
+
     def disconnect(self):
         if self.socket is not None:
             self.socket.close()
@@ -106,7 +108,7 @@ class PyBird(object):
             return 'Configured successfully' 
         else:
             res  # Configuration OK code
-    
+
     def set_empty_config(self):
         return self.set_config(DEFAULT_CFG)
 
@@ -636,13 +638,12 @@ class PyBird(object):
         with open(file_name, 'r') as f:
             return f.read()
 
-
     def _write_file(self, data):
         if self.hostname:
             cmd = "cat >" + self.config_file
             self._remote_cmd(cmd, inp=data)
             return
-        
+
         if type(data) is bytes:
             data= data.decode('utf-8')
         with open(self.config_file, 'w') as c_file:
