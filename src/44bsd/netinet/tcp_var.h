@@ -622,7 +622,7 @@ tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
 		tp->m_timer.tt_flags &= ~(1 << timer_type);
 	} else {
 		tp->m_timer.tt_flags |= (1 << timer_type);
-		//delta += (tcp_getticks(tp) - tp->m_timer.last_tick);
+		delta += (tcp_getticks(tp) - tp->m_timer.last_tick);
 	}
 	tp->m_timer.tt_timer[timer_type] = delta;
 }
