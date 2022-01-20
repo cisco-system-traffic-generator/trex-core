@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2021-2021 Cisco Systems, Inc.
+Copyright (c) 2021-2022 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ bool PacketGroupTagMgr::add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, 
 TPGState::TPGState(TPGState::Value val) : m_val(val) {}
 
 bool TPGState::isError() {
-    return m_val == Value::RX_ALLOC_FAILED;
+    return m_val == Value::RX_ALLOC_FAILED || m_val == Value::DP_ALLOC_FAILED;
 }
 
 int TPGState::getValue() {
@@ -122,10 +122,10 @@ bool operator!=(const TPGState& lhs, const TPGState& rhs) {
  *************************************/
 TPGCpCtx::TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
                    const std::vector<uint8_t>& rx_ports,
-                   const std::set<uint8_t>& cores,
+                   const std::unordered_map<uint8_t, bool>& core_map,
                    const uint32_t num_tpgids,
-                   const std::string& username) : 
-                   m_acquired_ports(acquired_ports), m_rx_ports(rx_ports), m_cores(cores), m_num_tpgids(num_tpgids), m_username(username), m_tpg_state(TPGState::DISABLED) {
+                   const std::string& username) :
+                   m_acquired_ports(acquired_ports), m_rx_ports(rx_ports), m_cores_map(core_map), m_num_tpgids(num_tpgids), m_username(username), m_tpg_state(TPGState::DISABLED) {
     m_tag_mgr = new PacketGroupTagMgr();
 }
 
@@ -163,6 +163,19 @@ TPGState TPGCpCtx::handle_rx_state_update(TPGStateUpdate rx_state) {
     return m_tpg_state;
 }
 
+void TPGCpCtx::add_dp_mgr_ptr(uint8_t port_id, TPGDpMgrPerSide* dp_mgr) {
+    m_dp_tpg_mgr[port_id] = dp_mgr;
+}
+
+void TPGCpCtx::get_tpg_tx_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid) {
+    if (m_dp_tpg_mgr.find(port_id) != m_dp_tpg_mgr.end()) {
+        Json::Value& port_stats = stats[std::to_string(port_id)];
+        auto dp_mgr = m_dp_tpg_mgr[port_id];
+        if (dp_mgr) {
+            dp_mgr->get_tpg_tx_stats(port_stats, tpgid);
+        }
+    }
+}
 
 /**************************************
  * Tagged Packet Group Stream Manager
@@ -355,22 +368,67 @@ void TPGStreamMgr::copy_state(TrexStream* from, TrexStream* to) {
     // We haven't instilled a state in the TrexStream.
 }
 
+
 /**************************************
- * Tagged Packet Group Data Plane Manager
- * Per Side
+ * Tagged Packet Group Tx Counters
+ * per group (tpgid).
  *************************************/
-TPGDpMgrPerSide::TPGDpMgrPerSide(uint32_t num_tpgids) : m_num_tpgids(num_tpgids) {
-    m_seq_array = new uint32_t[m_num_tpgids];
-    for (int i = 0; i < m_num_tpgids; i++) {
-        m_seq_array[i] = 0;
-    }
+TPGTxGroupCounters::TPGTxGroupCounters() {
+    static_assert(!std::is_polymorphic<TPGTxGroupCounters>::value, "TPGTxGroupCounters can't be polymorphic!");
+    memset(this, 0, sizeof(TPGTxGroupCounters));
 }
 
+void TPGTxGroupCounters::update_cntr(uint64_t pkts, uint64_t bytes) {
+    m_pkts += pkts;
+    m_bytes += bytes;
+}
+
+void TPGTxGroupCounters::dump_json(Json::Value& stats) {
+    stats["pkts"] = m_pkts;
+    stats["bytes"] = m_bytes;
+}
+
+bool operator==(const TPGTxGroupCounters& lhs, const TPGTxGroupCounters& rhs) {
+    return (lhs.m_pkts == rhs.m_pkts && lhs.m_bytes == rhs.m_bytes);
+}
+
+bool operator!=(const TPGTxGroupCounters& lhs, const TPGTxGroupCounters& rhs) {
+    return !(lhs==rhs);
+}
+
+std::ostream& operator<<(std::ostream& os, const TPGTxGroupCounters& tag) {
+    os << "\n{" << std::endl;
+    os << "Pkts: " << tag.m_pkts << std::endl;
+    os << "Bytes: " << tag.m_bytes << std::endl;
+    os << "}" << std::endl;
+    return os;
+}
+
+void TPGTxGroupCounters::set_cntrs(uint64_t pkts, uint64_t bytes) {
+    m_pkts = pkts;
+    m_bytes = bytes;
+}
+
+/**************************************
+ * Tagged Packet Group Data Plane
+ * Manager Per Side
+ *************************************/
+TPGDpMgrPerSide::TPGDpMgrPerSide(uint32_t num_tpgids) : m_num_tpgids(num_tpgids) {}
+
 TPGDpMgrPerSide::~TPGDpMgrPerSide() {
-    delete[] m_seq_array;
+    free(m_seq_array);
+    free(m_cntrs);
+}
+
+bool TPGDpMgrPerSide::allocate() {
+    static_assert(!std::is_polymorphic<TPGTxGroupCounters>::value, "TPGTxGroupCounters can't be polymorphic!");
+    m_seq_array = (uint32_t*)calloc(m_num_tpgids, sizeof(uint32_t));
+    m_cntrs = (TPGTxGroupCounters*)calloc(m_num_tpgids, sizeof(TPGTxGroupCounters));
+    return (m_seq_array != nullptr && m_cntrs != nullptr);
 }
 
 uint32_t TPGDpMgrPerSide::get_seq(uint32_t tpgid) {
+    assert(m_seq_array);
     if (tpgid >= m_num_tpgids) {
         return 0;
     }
@@ -378,8 +436,25 @@ uint32_t TPGDpMgrPerSide::get_seq(uint32_t tpgid) {
 }
 
 void TPGDpMgrPerSide::inc_seq(uint32_t tpgid) {
+    assert(m_seq_array);
     if (tpgid >= m_num_tpgids) {
         return;
     }
     m_seq_array[tpgid]++;
+}
+
+void TPGDpMgrPerSide::update_tx_cntrs(uint32_t tpgid, uint64_t pkts, uint64_t bytes) {
+    assert(m_cntrs);
+    if (tpgid >= m_num_tpgids) {
+        return;
+    }
+    m_cntrs[tpgid].update_cntr(pkts, bytes);
+}
+
+void TPGDpMgrPerSide::get_tpg_tx_stats(Json::Value& stats, uint32_t tpgid) {
+    if (tpgid >= m_num_tpgids || m_cntrs == nullptr) {
+        return;
+    }
+    Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
+    m_cntrs[tpgid].dump_json(tpgid_stats);
 }

@@ -597,9 +597,23 @@ public:
         m_tpg_ctx = tpg_ctx;
     }
 
+    /**
+     * Sequenced streams are compiled on one core and can't be splitted.
+     * This function returns the core id on which sequenced streams are compiled
+     * for this port.
+     *
+     * @return uint8_t
+     *    Core id on which sequenced streams are compiled on this port.
+     **/
+    uint8_t get_sequenced_stream_core() {
+        /**
+         * NOTE: Sequenced streams are compiled on the first core.
+         **/
+        return m_cores_id_list[0];
+    }
+
 private:
 
-    
     /**
      * when a port stops, perform various actions
      *

@@ -389,7 +389,7 @@ void CGenNodeStateless::refresh(){
 
     /* refresh init value */
 #if 0
-    /* TBD should add a JSON varible for that */
+    /* TBD should add a JSON variable for that */
     refresh_vm_bss();
 #endif
 }
@@ -427,7 +427,7 @@ std::string CGenNodeStateless::get_stream_state_str(stream_state_t stream_state)
  * m - Original mbuf (can be complicated mbuf data structure)
  * fsp_head - return pointer in which the flow stat info should be filled
  * is_const - is the given mbuf const
- * return new mbuf structure in which the fsp_head can be written. If needed, orginal mbuf is freed.
+ * return new mbuf structure in which the fsp_head can be written. If needed, oroginal mbuf is freed.
  */
 rte_mbuf_t * CGenNodeStateless::alloc_flow_stat_mbuf(rte_mbuf_t *m, struct flow_stat_payload_header *&fsp_head
                                                      , bool is_const) {
@@ -956,7 +956,7 @@ bool TrexStatelessDpPerPort::push_pcap(uint8_t port_id,
                                        uint32_t count,
                                        bool is_dual) {
 
-    /* push pcap can only happen on an idle port from the core prespective */
+    /* push pcap can only happen on an idle port from the core perspective */
     assert(m_state == TrexStatelessDpPerPort::ppSTATE_IDLE);
 
     CGenNodePCAP *pcap_node = (CGenNodePCAP *)m_core->create_node();
@@ -1211,7 +1211,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
     }
 
     if ( to_stop_profile ) {
-        /* call stop port explictly to move the state */
+        /* call stop port explicitly to move the state */
         stop_traffic(cur_node->m_port_id,cur_node->m_profile_id,false,profile->get_event_id());
     }
 
@@ -1221,7 +1221,7 @@ bool TrexStatelessDpCore::set_stateless_next_node(CGenNodeStateless * cur_node,
 
 
 /**
- * scehduler runs when traffic exists
+ * scheduler runs when traffic exists
  * it will return when no more transmitting is done on this
  * core
  *
@@ -1290,11 +1290,10 @@ void TrexStatelessDpCore::rx_handle_packet(int dir,
 
 
 /* add per port exit */
-void
-TrexStatelessDpCore::add_port_duration(double duration,
-                                       uint8_t port_id,
-                                       uint32_t profile_id,
-                                       int event_id){
+void TrexStatelessDpCore::add_port_duration(double duration,
+                                            uint8_t port_id,
+                                            uint32_t profile_id,
+                                            int event_id){
     if (duration > 0.0) {
         CGenNodeCommand *node = (CGenNodeCommand *)m_core->create_node() ;
 
@@ -1390,12 +1389,11 @@ void TrexStatelessDpCore::replay_vm_into_cache(TrexStream * stream,
 }
 
 
-void
-TrexStatelessDpCore::add_stream(PerPortProfile * profile,
-                                uint32_t profile_id,
-                                TrexStream * stream,
-                                TrexStreamsCompiledObj *comp,
-                                double start_at_ts) {
+void TrexStatelessDpCore::add_stream(PerPortProfile * profile,
+                                     uint32_t profile_id,
+                                     TrexStream * stream,
+                                     TrexStreamsCompiledObj *comp,
+                                     double start_at_ts) {
 
     CGenNodeStateless *node = (CGenNodeStateless*)m_core->create_node();
 
@@ -1594,12 +1592,11 @@ TrexStatelessDpCore::add_stream(PerPortProfile * profile,
     }
 }
 
-void
-TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
-                                   uint32_t profile_id,
-                                   double duration,
-                                   int event_id,
-                                   double start_at_ts) {
+void TrexStatelessDpCore::start_traffic(TrexStreamsCompiledObj *obj,
+                                        uint32_t profile_id,
+                                        double duration,
+                                        int event_id,
+                                        double start_at_ts) {
 
 
     TrexStatelessDpPerPort * lp_port=get_port_db(obj->get_port_id());
@@ -1672,8 +1669,7 @@ bool TrexStatelessDpCore::are_all_ports_idle() {
 }
 
 
-void
-TrexStatelessDpCore::resume_traffic(uint8_t port_id, uint32_t profile_id){
+void TrexStatelessDpCore::resume_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->resume_traffic(port_id, profile_id);
@@ -1681,8 +1677,7 @@ TrexStatelessDpCore::resume_traffic(uint8_t port_id, uint32_t profile_id){
 }
 
 
-void
-TrexStatelessDpCore::resume_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
+void TrexStatelessDpCore::resume_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->resume_streams(port_id, profile_id, stream_ids);
@@ -1690,24 +1685,21 @@ TrexStatelessDpCore::resume_streams(uint8_t port_id, uint32_t profile_id, stream
 }
 
 
-void
-TrexStatelessDpCore::pause_traffic(uint8_t port_id, uint32_t profile_id){
+void TrexStatelessDpCore::pause_traffic(uint8_t port_id, uint32_t profile_id){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->pause_traffic(port_id, profile_id);
 
 }
 
-void
-TrexStatelessDpCore::pause_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
+void TrexStatelessDpCore::pause_streams(uint8_t port_id, uint32_t profile_id, stream_ids_t &stream_ids){
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->pause_streams(port_id, profile_id, stream_ids);
 
 }
 
-void
-TrexStatelessDpCore::push_pcap(uint8_t port_id,
+void TrexStatelessDpCore::push_pcap(uint8_t port_id,
                                int event_id,
                                const std::string &pcap_filename,
                                double ipg_usec,
@@ -1743,27 +1735,24 @@ TrexStatelessDpCore::push_pcap(uint8_t port_id,
      m_state = TrexStatelessDpCore::STATE_PCAP_TX;
 }
 
-void
-TrexStatelessDpCore::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
+void TrexStatelessDpCore::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->update_traffic(port_id, profile_id, factor);
 
 }
 
-void
-TrexStatelessDpCore::update_streams(uint8_t port_id, uint32_t profile_id, stream_ipgs_map_t &ipg_per_stream) {
+void TrexStatelessDpCore::update_streams(uint8_t port_id, uint32_t profile_id, stream_ipgs_map_t &ipg_per_stream) {
 
     TrexStatelessDpPerPort * lp_port = get_port_db(port_id);
     lp_port->update_streams(port_id, profile_id, ipg_per_stream);
 
 }
 
-void
-TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
-                                  uint32_t profile_id,
-                                  bool     stop_on_id,
-                                  int      event_id) {
+void TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
+                                       uint32_t profile_id,
+                                       bool     stop_on_id,
+                                       int      event_id) {
     /* we cannot remove nodes not from the top of the queue so
        for every active node - make sure next time
        the scheduler invokes it, it will be free */
@@ -1784,13 +1773,11 @@ TrexStatelessDpCore::stop_traffic(uint8_t  port_id,
     ring->SecureEnqueue((CGenNode *)event_msg, true);
 }
 
-void
-TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
+void TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled) {
     set_service_mode(port_id, enabled, false, 0);
 }
 
-void
-TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled, bool filtered, uint8_t mask) {
+void TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled, bool filtered, uint8_t mask) {
     /* ignore the same message */
     if ( enabled == m_is_service_mode &&
         m_is_service_mode_filter == filtered &&
@@ -1822,17 +1809,31 @@ TrexStatelessDpCore::set_service_mode(uint8_t port_id, bool enabled, bool filter
         m_is_service_mode = false;
         m_is_service_mode_filter = false;
     }
-    
+
 }
 
-void TrexStatelessDpCore::enable_tpg(uint32_t num_tpgids) {
-    for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
-        m_tpg_mgr[port] = new TPGDpMgrPerSide(num_tpgids);
+int TrexStatelessDpCore::enable_tpg(uint32_t num_tpgids, bool designated_core) {
+
+    // Sanity check that feature is not set.
+    assert(!is_feature_set(TPG));
+
+    if (designated_core) {
+        for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
+            assert(m_tpg_mgr[port] == nullptr);
+            m_tpg_mgr[port] = new TPGDpMgrPerSide(num_tpgids);
+            if (!m_tpg_mgr[port]->allocate()) {
+                // No need to cleanup now, CP will send a disable message.
+                return static_cast<int>(TPGStateUpdate::DP_ALLOC_FAIL);
+            }
+        }
     }
-    set_tpg_feature();
+
+    set_tpg_feature(); // Feature must be set for all cores in order to redirect to Rx.
+    return static_cast<int>(TPGStateUpdate::DP_ENABLED);
 }
 
 void TrexStatelessDpCore::disable_tpg() {
+    // It is safe even if the feature is not enabled.
     unset_tpg_feature();
     for (uint8_t port = 0; port < NUM_PORTS_PER_CORE; port++) {
         delete m_tpg_mgr[port];
@@ -1840,18 +1841,15 @@ void TrexStatelessDpCore::disable_tpg() {
     }
 }
 
-void
-TrexStatelessDpCore::clear_fs_latency_stats(uint8_t dir) {
+void TrexStatelessDpCore::clear_fs_latency_stats(uint8_t dir) {
     m_ports[dir].m_fs_latency.reset_stats();
 }
 
-void
-TrexStatelessDpCore::clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type) {
+void TrexStatelessDpCore::clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type) {
     m_ports[dir].m_fs_latency.reset_stats_partial(min, max, type);
 }
 
-void
-TrexStatelessDpCore::rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch) {
+void TrexStatelessDpCore::rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch) {
     for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
         for (int hw_id = min; hw_id <= max; hw_id++) {
             CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];
@@ -1868,8 +1866,7 @@ TrexStatelessDpCore::rfc2544_stop_and_sample(int min, int max, bool reset, bool 
     }
 }
 
-void
-TrexStatelessDpCore::rfc2544_reset(int min, int max) {
+void TrexStatelessDpCore::rfc2544_reset(int min, int max) {
     for (uint8_t dir = 0; dir < NUM_PORTS_PER_CORE; dir++) {
         for (int hw_id = min; hw_id <= max; hw_id++) {
             CRFC2544Info &curr_rfc2544 = m_ports[dir].m_rfc2544[hw_id];

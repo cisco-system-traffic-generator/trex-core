@@ -5272,6 +5272,11 @@ public:
         EXPECT_EQ(stats["dup"].asUInt64(), tag_cntr->m_dup);
         EXPECT_EQ(stats["ooo"].asUInt64(), tag_cntr->m_ooo);
     }
+
+    void VALIDATE_TX_STATS_JSON(Json::Value& stats, TPGTxGroupCounters* tpgid_cntr) {
+        EXPECT_EQ(stats["pkts"].asUInt64(), tpgid_cntr->m_pkts);
+        EXPECT_EQ(stats["bytes"].asUInt64(), tpgid_cntr->m_bytes);
+    }
 };
 
 TEST_F(TaggedPktGroupTest, PacketGroupTag) {
@@ -5341,10 +5346,10 @@ TEST_F(TaggedPktGroupTest, PacketGroupTagMgr) {
 TEST_F(TaggedPktGroupTest, TPGCpCtx) {
     std::vector<uint8_t> acquired_ports {0, 1};
     std::vector<uint8_t> rx_ports {1};
-    std::set<uint8_t> cores {0};
+    std::unordered_map<uint8_t, bool> cores_map {{0, true}};
     uint32_t num_tpgids = 20;
     const std::string username = "bdollma";
-    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
     EXPECT_EQ(num_tpgids, tpg_ctx->get_num_tpgids());
 
     const std::vector<uint8_t>& rcv_acq_ports = tpg_ctx->get_acquired_ports();
@@ -5364,8 +5369,8 @@ TEST_F(TaggedPktGroupTest, TPGCpCtx) {
 
     EXPECT_EQ(username, tpg_ctx->get_username());
 
-    const std::set<uint8>& rcv_cores = tpg_ctx->get_cores();
-    ASSERT_EQ(cores.size(), rcv_cores.size());
+    const std::unordered_map<uint8_t, bool>& rcv_cores_map = tpg_ctx->get_cores_map();
+    ASSERT_EQ(cores_map.size(), rcv_cores_map.size());
 
     PacketGroupTagMgr* tag_mgr = tpg_ctx->get_tag_mgr();
     EXPECT_EQ(tag_mgr->get_num_tags(), 0);
@@ -5375,10 +5380,10 @@ TEST_F(TaggedPktGroupTest, TPGCpCtx) {
     // Create another TPG context
     acquired_ports = {2, 3};
     rx_ports = {3};
-    cores = {1};
+    cores_map = {{1, true}};
     num_tpgids = 2;
     const std::string other_user = "bes";
-    TPGCpCtx* second_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, other_user);
+    TPGCpCtx* second_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, other_user);
 
     EXPECT_EQ(num_tpgids, second_ctx->get_num_tpgids());
     EXPECT_EQ(other_user, second_ctx->get_username());
@@ -5488,10 +5493,10 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
     // Add context but don't enable yet
     std::vector<uint8_t> acquired_ports = {0, 1};
     std::vector<uint8_t> rx_ports = {0, 1};
-    std::set<uint8_t> cores = {0};
+    std::unordered_map<uint8_t, bool> cores_map = {{0, true}};
     uint32_t num_tpgids = 5;
     std::string username = "bdollma";
-    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
     TrexStateless* stl = get_stateless_obj();
     stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
 
@@ -5519,7 +5524,7 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
 
     num_tpgids = tpgid+1;
     delete tpg_ctx;
-    tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores, num_tpgids, username);
+    tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
     tpg_ctx->set_tpg_state(TPGState::ENABLED);
     stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
 
@@ -5577,36 +5582,142 @@ TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
     delete tpg_ctx;
 }
 
-TEST_F(TaggedPktGroupTest, TPGDpMgrPerSide) {
-    uint32_t num_tpgids = 3;
-    TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
-    for (int i = 0; i < num_tpgids; ++i) {
-    EXPECT_EQ(dp_mgr->get_seq(i), 0);
+class TPGDpMgrPerSideTest : public TaggedPktGroupTest {
+public:
+    void TestSeq() {
+        /*
+         * Test Sequence numbers
+         */
+        uint32_t num_tpgids = 3;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        for (int i = 0; i < num_tpgids; ++i) {
+            EXPECT_EQ(dp_mgr->get_seq(i), 0);
+        }
+
+        dp_mgr->inc_seq(1);
+        EXPECT_EQ(dp_mgr->get_seq(1), 1);
+        EXPECT_EQ(dp_mgr->get_seq(0), 0);
+
+        for (int i = 0; i < 10; ++i) {
+            dp_mgr->inc_seq(2);
+        }
+
+        EXPECT_EQ(dp_mgr->get_seq(0), 0);
+        EXPECT_EQ(dp_mgr->get_seq(1), 1);
+        EXPECT_EQ(dp_mgr->get_seq(2), 10);
+
+        /***********************************************
+        This functionality can change in the future.
+        At the moment, if someone tries to increment the
+        sequence on a tpgid that is not in range, we
+        ignore.
+        ************************************************/
+        EXPECT_NO_THROW(dp_mgr->inc_seq(3));
+        EXPECT_NO_THROW(dp_mgr->get_seq(3));
+        EXPECT_EQ(dp_mgr->get_seq(3), 0);
+
+        delete dp_mgr;
     }
 
-    dp_mgr->inc_seq(1);
-    EXPECT_EQ(dp_mgr->get_seq(1), 1);
-    EXPECT_EQ(dp_mgr->get_seq(0), 0);
+    void TestCounters() {
+        TPGTxGroupCounters cntr = TPGTxGroupCounters();
+        EXPECT_EQ(cntr.m_bytes, 0);
+        EXPECT_EQ(cntr.m_pkts, 0);
 
-    for (int i = 0; i < 10; ++i) {
-        dp_mgr->inc_seq(2);
+        uint8_t num_pkts = 50;
+        uint64_t pkt_size = 64;
+        for (uint8_t i = 0; i < num_pkts; i++) {
+            cntr.update_cntr(1, pkt_size);
+        }
+
+        EXPECT_EQ(cntr.m_pkts, num_pkts);
+        EXPECT_EQ(cntr.m_bytes, num_pkts * pkt_size);
+
+        TPGTxGroupCounters cntr2 = TPGTxGroupCounters();
+        EXPECT_NE(cntr, cntr2);
+
+        cntr2.set_cntrs(cntr.m_pkts, cntr.m_bytes);
+        EXPECT_EQ(cntr, cntr2);
+
+        Json::Value stats;
+        cntr.dump_json(stats);
+
+        VALIDATE_TX_STATS_JSON(stats, &cntr);
     }
 
-    EXPECT_EQ(dp_mgr->get_seq(0), 0);
-    EXPECT_EQ(dp_mgr->get_seq(1), 1);
-    EXPECT_EQ(dp_mgr->get_seq(2), 10);
+    void TestCounterUpdate() {
+        /**
+         * Check counter dumping and update
+         */
+        uint32_t num_tpgids = 5;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        Json::Value stats;
 
-    /***********************************************
-     This functionality can change in the future.
-     At the moment, if someone tries to increment the
-     sequence on a tpgid that is not in range, we
-     ignore.
-    ************************************************/
-    EXPECT_NO_THROW(dp_mgr->inc_seq(3));
-    EXPECT_NO_THROW(dp_mgr->get_seq(3));
-    EXPECT_EQ(dp_mgr->get_seq(3), 0);
+        TPGTxGroupCounters cntr = TPGTxGroupCounters();
+        for (int i = 0; i < num_tpgids; ++i) {
+            dp_mgr->get_tpg_tx_stats(stats, i);
+            VALIDATE_TX_STATS_JSON(stats[to_string(i)], &cntr);
+        }
 
-    delete dp_mgr;
+
+        uint32_t tpgid = 4;
+        dp_mgr->update_tx_cntrs(tpgid, 2, 120);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        cntr.set_cntrs(2, 120);
+        VALIDATE_TX_STATS_JSON(stats[to_string(tpgid)], &cntr);
+
+
+        tpgid = 2;
+        for (int i = 0; i < 10; ++i) {
+            dp_mgr->update_tx_cntrs(tpgid, 1, 64);
+        }
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        cntr.set_cntrs(10, 640);
+        VALIDATE_TX_STATS_JSON(stats[to_string(tpgid)], &cntr);
+
+        cntr.set_cntrs(0, 0);
+        dp_mgr->get_tpg_tx_stats(stats, 0);
+        VALIDATE_TX_STATS_JSON(stats["0"], &cntr);
+        dp_mgr->get_tpg_tx_stats(stats, 1);
+        VALIDATE_TX_STATS_JSON(stats["1"], &cntr);
+        dp_mgr->get_tpg_tx_stats(stats, 3);
+        VALIDATE_TX_STATS_JSON(stats["3"], &cntr);
+
+        delete dp_mgr;
+    }
+
+    void TestCounterUpdateSanity() {
+         /**
+         * Check counter dumping sanity
+         */
+        uint32_t num_tpgids = 2;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        Json::Value stats;
+
+
+        uint32_t tpgid = 2;
+        dp_mgr->update_tx_cntrs(tpgid, 10, 1000);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        // Using invalid tpgid, stats should be empty.
+        EXPECT_EQ(stats.empty(), true);
+
+        tpgid = 1;
+        dp_mgr->update_tx_cntrs(tpgid, 10, 1000);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        EXPECT_EQ(stats.empty(), false);
+
+        delete dp_mgr;
+    }
+};
+
+TEST_F(TPGDpMgrPerSideTest, TPGDpMgrPerSideTest) {
+    TestSeq();
+    TestCounters();
+    TestCounterUpdate();
+    TestCounterUpdateSanity();
 }
 
 class TPGTagCntrTest : public TaggedPktGroupTest {

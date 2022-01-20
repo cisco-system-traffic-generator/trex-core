@@ -4186,6 +4186,7 @@ Tagged Packet Grouping *(TPG)* is a STL feature introduced in TRex v2.94 whose m
 ** Dot1Q
 ** QinQ
 * Separating the process of statistics collecting from the profile.
+* Collecting Tx stats per stream (like flow stats) in order to validate Rx stats.
 
 TPG is dynamic. It means that you can provide a list of tags that you are interested on, on a port that you are interested
 on a stream that you are interested. We will allocate enough memory to collect statistics based on the user's request.
@@ -4286,17 +4287,17 @@ The following conditions are requisite for TPG:
 
 Some more details:
 
-TPG works in STL software mode only. It can work in a multi core environment and also it supports bi directional traffic.
+* TPG works in STL software mode only. It can work in a multi core environment and also it supports bi directional traffic.
 
-All of the TPG received packets are redirected from the Data Plane to the Rx thread based on some magic installed in TPG packets. This limits the rate to around 5 Mpps.
+* All of the TPG received packets are redirected from the Data Plane to the Rx thread based on some magic installed in TPG packets. This limits the rate to around 5 Mpps.
 
-The tpgid must be unique per stream. In order to collect the stats, we must keep a sequence number for each tpgid. If multiple streams were to use the same tpgid, 
-these streams (which can attached to different Data Plane Cores) can put the sequence number out of sync.
+* The tpgid must be unique per stream. In order to collect the stats, we must keep a sequence number for each tpgid. If multiple streams were to use the same tpgid, 
+these streams (which can be attached to different Data Plane Cores) can put the sequence number out of sync.
 
-In order to install the magic, tpgid and sequence number we require some overhead in the packet. That is why the last 16 bytes of the packet payload will be overridden.
+* In order to install the magic, tpgid and sequence number we require some overhead in the packet. That is why the last 16 bytes of the packet payload will be overridden.
 Packets that don't have at least 16 bytes of payload can't be used for TPG.
 
-Each TPG context is keyed by the username that creates it. The session that the username uses plays no factor.
+* Each TPG context is keyed by the username that creates it. The session that the username uses plays no factor.
 
 ==== Client Api
 
@@ -4424,6 +4425,29 @@ Note that the stats in this case were compressed in 3 sections.
 This Api also returns the next tag to start collecting from. In this case it returns 4000 since it collected all the data. But in case there were different stats for each tag, 
 we would have received only part of the stats we asked for.
 
+===== Get TPG Tx Stats
+
+We can also collect the Tx statistics. This can be done on every port that TPG is enabled on, not only collecting ports.
+
+In order to collect the stats, the user must provide the following parameters:
+
+* Transmitting port
+* tpgid
+
+Tx statistics are limited to the number of packets and number of bytes transmitted by tpgid in each port. In the following example, we collect the Tx statistics for port *0*, tpgid *1*:
+
+.TPG Tx Stats
+[source, python]
+----
+{'0': 
+    {'1': {
+            "m_pkts": 50,
+            "m_bytes": 390
+          }
+    }
+}
+----
+
 ===== Api Tutorial
 
 *Goal*:: Show an End to End use case of Tagged Packet Grouping.
@@ -4535,11 +4559,15 @@ Lastly, we enable TPG, start the streams and collect stats.
         # verify the counters
         for i in range(num_streams):
             # stream number = tpgid
-            stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0, 
-                                max_tag=num_tags, max_sections=num_tags)[0]  # <5>
 
-            tpgid_passed = verify_stream_stats(stats, streams[i].get_pkt_len(), 
-                            rx_port, burst_size, i, verbose, ignore_seq_err) # <6>
+            tx_stats = c.get_tpg_tx_stats(port=tx_port, tpgid=i)             # <5>
+            rx_stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0,
+                             max_tag=num_tags, max_sections=num_tags)[0]     # <6>
+
+            tpgid_passed = verify_stream_stats(rx_stats, tx_stats, rx_port,  # <7>
+                                tx_port, streams[i].get_pkt_len(), 
+                                burst_size, i, verbose, ignore_seq_err)
+
             if not tpgid_passed:
                 passed = False
 
@@ -4548,16 +4576,17 @@ Lastly, we enable TPG, start the streams and collect stats.
         print(e)
 
     finally:
-        c.disable_tpg()                                                      # <7>
+        c.disable_tpg()                                                       # <8>
         c.disconnect()
 ----
 <1> Enable TPG with the Tag configuration we saw before. One port collects.
 <2> Add the streams we defined to the other port that transmits.
 <3> Start the traffic.
 <4> Wait for the traffic to finish on the transmitting port.
-<5> Get the stats
-<6> Verify the stats
-<7> Disable TPG
+<5> Get the Tx stats
+<6> Get the Rx stats
+<7> Verify the stats
+<8> Disable TPG
 
 === Console Api 
 
@@ -4690,9 +4719,9 @@ Then you can start the profile through the console:
 trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 19 --qinq
 ----
 
-==== Collecting the stats
+==== Collecting the Rx stats
 
-After the traffic starts, we can collect the stats:
+After the traffic starts, we can collect the Rx stats:
 
 [source, bash]
 ----
@@ -4725,6 +4754,36 @@ Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates
 unknown |    0    |   0   |     0     |      0      |       0       |     0      |      0
    5    |   10    |  780  |     0     |      0      |       0       |     0      |      0
  6-18   |    0    |   0   |     0     |      0      |       0       |     0      |      0
+----
+
+==== Collecting the Tx stats
+
+After the traffic finishes, we can collect the Tx stats:
+
+[source, bash]
+----
+trex>tpg_tx_stats -h
+usage: tpg_tx_stats [-h] -p PORT --tpgid TPGID
+
+Show Tagged Packet Group Tx Statistics
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+  -p PORT, --port PORT  Port that collects stats.
+  --tpgid TPGID         Tpgid for which we collect stats
+----
+
+In this case, we will collect Tx stats in port *1* since we collected Rx stats in port *0*:
+
+[source, bash]
+----
+trex>tpg_tx_stats -p 1 --tpgid 5
+Port 1, Tpgid 5
+
+Packets | Bytes
+--------+------
+  10    |  780
 ----
 
 ==== Disable TPG

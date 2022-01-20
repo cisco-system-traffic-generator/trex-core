@@ -331,8 +331,14 @@ public:
      *
      * @param num_tpgids
      *   The maximal number of Tagged Packet Group Identifiers.
+     *
+     * @param designated_core
+     *   Sequenced streams are sent only from one core. Designated is True iff TPG packets will be sent from this core.
+     *
+     * @return int
+     *   An TPGStateUpdate casted to int so it can pass easily through messages.
      */
-    void enable_tpg(uint32_t num_tpgids);
+    int enable_tpg(uint32_t num_tpgids, bool designated_core);
 
     /**
      * Disable Tagged Packet Grouping.
@@ -410,19 +416,14 @@ private:
 
     uint8_t                    m_need_to_rx;
     uint8_t                    m_local_port_offset;
-
     TrexStatelessDpPerPort     m_ports[NUM_PORTS_PER_CORE];
-
     double                     m_duration;
-
-    ServiceModeWrapper        *m_wrapper;
+    ServiceModeWrapper*        m_wrapper;
     bool                       m_is_service_mode;
     bool                       m_is_service_mode_filter;
     uint8_t                    m_service_mask;
-    CFlowStatParser *          m_parser;
-
+    CFlowStatParser*           m_parser;
     uint8_t                    m_features;
-
     TPGDpMgrPerSide*           m_tpg_mgr[NUM_PORTS_PER_CORE];               // Tagged Packet Group Data Plane Manager
 };
 
