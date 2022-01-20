@@ -1712,7 +1712,7 @@ public:
     virtual rte_mbuf* update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const, pkt_dir_t dir);
     virtual rte_mbuf* update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, pkt_dir_t dir);
+    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, uint32_t seq);
     virtual void update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                      uint16_t hw_id_payload);
 
@@ -2136,22 +2136,7 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     return (0);
 }
 
-HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, pkt_dir_t dir) {
-
-    uint32_t INVALID_SEQ = 0xBADF00D;
-    TrexStatelessDpCore* stl_dp_core = get_dp_core();
-    uint32_t seq;
-    if (stl_dp_core == nullptr) {
-        seq = INVALID_SEQ;
-    } else {
-        TPGDpMgrPerSide* tpg_dp_mgr = stl_dp_core->get_tpg_dp_mgr(dir);
-        if (tpg_dp_mgr == nullptr) {
-            seq = INVALID_SEQ;
-        } else {
-            seq = tpg_dp_mgr->get_seq(tpgid);
-            tpg_dp_mgr->inc_seq(tpgid);
-        }
-    }
+HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, uint32_t seq) {
     tpg_header->magic = TPG_PAYLOAD_MAGIC;
     tpg_header->tpgid = tpgid;
     tpg_header->seq = seq;
@@ -2170,9 +2155,20 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_tpg(rte_mbuf* m, CGenNodeSta
     struct tpg_payload_header* tpg_header;
     uint32_t tpgid = node_sl->get_stat_pgid();
     rte_mbuf* mi = node_sl->alloc_tpg_mbuf(m, tpg_header, is_const);
-    update_tpg_header(tpg_header, tpgid, dir);
+
+    uint32_t INVALID_SEQ = 0xBADF00D;
+    uint32_t seq = INVALID_SEQ;
+    auto tpg_dp_mgr = get_dp_core()->get_tpg_dp_mgr(dir);
+    if (tpg_dp_mgr) {
+        seq = tpg_dp_mgr->get_seq(tpgid);
+        tpg_dp_mgr->inc_seq(tpgid);
+        tpg_dp_mgr->update_tx_cntrs(tpgid, 1, mi->pkt_len + 4); // 1 Pkt, +4 for CRC
+    }
+
+    update_tpg_header(tpg_header, tpgid, seq);
     return mi;
 }
+
 HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats, bool is_const) {
     // Defining this makes 10% percent packet loss. 1% packet reorder.
@@ -3881,7 +3877,7 @@ CGlobalTRex::init_vif_cores() {
         port_offset+=2;
         if (port_offset == m_max_ports) {
             port_offset = 0;
-            // We want to allow sending latency packets only from first core handling a port
+            // We want to allow sending latency/TPG packets only from first core handling a port
             lat_q_id = CCoreEthIF::INVALID_Q_ID;
         }
     }

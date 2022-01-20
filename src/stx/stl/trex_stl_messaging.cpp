@@ -405,13 +405,13 @@ TrexCpToDpMsgBase* TrexStatelessDpUnsetCaptureFeature::clone() {
 
 bool TrexStatelessDpSetTPGFeature::handle(TrexDpCore *dp_core) {
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
-    stl_core->enable_tpg(m_num_pgids);
-    m_reply.set_reply(true);
+    int rc = stl_core->enable_tpg(m_num_pgids, m_designated_core);
+    m_reply.set_reply(rc);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexStatelessDpSetTPGFeature::clone() {
-    TrexStatelessDpSetTPGFeature *new_msg = new TrexStatelessDpSetTPGFeature(m_reply, m_num_pgids);
+    TrexStatelessDpSetTPGFeature *new_msg = new TrexStatelessDpSetTPGFeature(m_reply, m_num_pgids, m_designated_core);
     return new_msg;
 }
 
@@ -424,5 +424,18 @@ bool TrexStatelessDpUnsetTPGFeature::handle(TrexDpCore *dp_core) {
 
 TrexCpToDpMsgBase* TrexStatelessDpUnsetTPGFeature::clone() {
     TrexStatelessDpUnsetTPGFeature *new_msg = new TrexStatelessDpUnsetTPGFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpGetTPGMgr::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    uint8_t dir = m_port % 2;
+    auto mgr = stl_core->get_tpg_dp_mgr(dir);
+    m_reply.set_reply(mgr);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpGetTPGMgr::clone() {
+    TrexStatelessDpGetTPGMgr *new_msg = new TrexStatelessDpGetTPGMgr(m_reply, m_port);
     return new_msg;
 }

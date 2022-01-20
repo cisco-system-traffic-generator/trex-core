@@ -124,18 +124,19 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdSetServiceMode, "service");
 /**
  * Tagged Packet Grouping
  */
-TREX_RPC_CMD_EXT(TrexRpcCmdEnableTaggedPacketGroupCpRx, "enable_tpg_cp_rx", // Self verifies Ownership
+TREX_RPC_CMD_EXT(TrexRpcCmdEnableTaggedPacketGroup, "enable_tpg", // Self verifies Ownership
 
 /* extended part */
 void _verify_ownership(Json::Value& result, const std::string& username, const uint32_t session_id, uint8_t port_id);
 std::vector<uint8_t> parse_validate_ports(const Json::Value& ports, Json::Value& result, const std::string& username, const uint32_t session_id);
-); 
-TREX_RPC_CMD(TrexRpcCmdEnableTaggedPacketGroupDp, "enable_tpg_dp");      // Self verifies Ownership
+void enable_cp_rx(const Json::Value& params, Json::Value& result);
+void enable_dp(Json::Value& result, const std::string& username);
+);
 TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");         // Need username to disable
-TREX_RPC_CMD(TrexRpcCmdDestroyTaggedPacketGroupCtx, "destroy_tpg_ctx");  // Need username to destroy
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");         // Should not be used by user which is not us.
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStatus, "get_tpg_status");       // Can provide username/port.
 TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStats, "get_tpg_stats");         // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupTxStats, "get_tpg_tx_stats");    // Any user and any port. No need to own.
 
 
 
@@ -394,8 +395,8 @@ TrexRpcCmdGetAllStreams::_run(const Json::Value &params, Json::Value &result) {
                 std::stringstream ss;
                 ss << stream->m_stream_id;
                 streams_json[ss.str()] = j; 
-            }    
-         }    
+            }
+         }
          result["result"]["streams"] = streams_json;
     }
 
@@ -524,19 +525,22 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                 }
             }
             std::string type = parse_string(rx, "rule_type", result);
-            if (type == "latency") {
-                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+            if (type == "stats") {
+                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+            } else {
+                // Sequenced stream
                 if (stream->m_core_id_specified) {
                     std::stringstream ss;
-                    ss << "Core ID pinning is not supported for latency streams.";
+                    ss << "Core ID pinning is not supported for sequenced streams.";
                     generate_execute_err(result, ss.str());
                 }
-            } else if (type == "tpg") {
-                // Tagged Packet Group
-                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_TPG_PAYLOAD;
-            } else {
-                // Default to Flow Stats with IP Id
-                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+                if (type == "latency") {
+                    // Latency Stream
+                    stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_PAYLOAD;
+                } else if (type == "tpg") {
+                    // Tagged Packet Group
+                    stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_TPG_PAYLOAD;
+                }
             }
         }
 
@@ -1595,7 +1599,7 @@ TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
  * Tagged Packet Group
  **************************/
 
-void TrexRpcCmdEnableTaggedPacketGroupCpRx::_verify_ownership(Json::Value& result,
+void TrexRpcCmdEnableTaggedPacketGroup::_verify_ownership(Json::Value& result,
                                                               const std::string& username,
                                                               const uint32_t session_id,
                                                               uint8_t port_id) {
@@ -1618,7 +1622,7 @@ void TrexRpcCmdEnableTaggedPacketGroupCpRx::_verify_ownership(Json::Value& resul
     }
 }
 
-std::vector<uint8_t> TrexRpcCmdEnableTaggedPacketGroupCpRx::parse_validate_ports(const Json::Value& ports,
+std::vector<uint8_t> TrexRpcCmdEnableTaggedPacketGroup::parse_validate_ports(const Json::Value& ports,
                                                                                  Json::Value& result,
                                                                                  const std::string& username,
                                                                                  const uint32_t session_id) {
@@ -1636,14 +1640,7 @@ std::vector<uint8_t> TrexRpcCmdEnableTaggedPacketGroupCpRx::parse_validate_ports
     return ports_vec;
 }
 
-trex_rpc_cmd_rc_e
-TrexRpcCmdEnableTaggedPacketGroupCpRx::_run(const Json::Value &params, Json::Value &result) {
-
-    // Verify software mode
-    if (CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed()) {
-        generate_execute_err(result, "Tagged Packet Group can be enabled only in software mode");
-    }
-
+void TrexRpcCmdEnableTaggedPacketGroup::enable_cp_rx(const Json::Value &params, Json::Value& result) {
     // Let's verify username and ports
     const std::string username = parse_string(params, "username", result);    // Username
     const uint32_t session_id = parse_uint32(params, "session_id", result);   // Session Id
@@ -1724,14 +1721,9 @@ TrexRpcCmdEnableTaggedPacketGroupCpRx::_run(const Json::Value &params, Json::Val
 
     // Notify CP, Rx. Rx can take a long time to allocate, so we do this async.
     stl->enable_tpg_cp_rx(username);
-
-    return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e
-TrexRpcCmdEnableTaggedPacketGroupDp::_run(const Json::Value &params, Json::Value &result) {
-
-    const std::string username = parse_string(params, "username", result);
+void TrexRpcCmdEnableTaggedPacketGroup::enable_dp(Json::Value& result, const std::string& username) {
 
     TrexStateless* stl = get_stateless_obj();
     TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
@@ -1741,7 +1733,30 @@ TrexRpcCmdEnableTaggedPacketGroupDp::_run(const Json::Value &params, Json::Value
         generate_execute_err(result, "Tagged Packet Group in Dp can be enabled only after Cp and Rx!");
     }
 
-    stl->enable_tpg_dp(username);
+    bool rc = stl->enable_tpg_dp(username);
+    if (!rc) {
+        generate_execute_err(result, "Enabling TPG in Data Planed failed. Query the state for details.");
+    }
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdEnableTaggedPacketGroup::_run(const Json::Value& params, Json::Value& result) {
+
+    // Verify software mode
+    if (CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed()) {
+        generate_execute_err(result, "Tagged Packet Group can be enabled only in software mode");
+    }
+
+    const std::string username = parse_string(params, "username", result);
+
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
+
+    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() == TPGState::DISABLED) {
+        enable_cp_rx(params, result);
+    } else {
+        enable_dp(result, username);
+    }
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1750,36 +1765,19 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdDisableTaggedPacketGroup::_run(const Json::Value &params, Json::Value &result) {
 
     const std::string username = parse_string(params, "username", result);
+
     TrexStateless* stl = get_stateless_obj();
     TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
 
-    if (tpg_ctx == nullptr || !tpg_ctx->can_disable()) {
+    if (tpg_ctx != nullptr && tpg_ctx->get_tpg_state() == TPGState::DISABLED_DP_RX) {
+        // Destroying is possible only after disable.
+        stl->destroy_tpg_ctx(username);
+    } else if (tpg_ctx != nullptr && tpg_ctx->can_disable()) {
         // Disabling the feature is possible only if the feature is already enabled, or error has happend.
-        generate_execute_err(result, "Tagged Packet Group is not enabled.");
+        stl->disable_tpg(username);
+    } else {
+            generate_execute_err(result, "Tagged Packet Group is not enabled.");
     }
-
-    /* No need to verify the result of the following function since we already 
-       verified context exists */
-    stl->disable_tpg(username);    // Notify DPs, CP and Rx (async)
-
-    return (TREX_RPC_CMD_OK);
-}
-
-trex_rpc_cmd_rc_e
-TrexRpcCmdDestroyTaggedPacketGroupCtx::_run(const Json::Value &params, Json::Value &result) {
-
-    const std::string username = parse_string(params, "username", result);
-    TrexStateless* stl = get_stateless_obj();
-    TPGCpCtx* tpg_ctx = stl->get_tpg_ctx(username);
-
-    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::DISABLED_DP_RX) {
-        // Destroying the object is possible only if both Rx and Dp and disabled.
-        generate_execute_err(result, "Tagged Packet Group is not disabled for this user! Can't destroy.");
-    }
-
-    /* No need to verify the result of the following function since we already 
-       verified context exists */
-    stl->destroy_tpg_ctx(username);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1912,6 +1910,34 @@ TrexRpcCmdGetTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &r
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetTaggedPktGroupTxStats::_run(const Json::Value &params, Json::Value &result) {
+
+
+    uint8_t port_id = parse_port(params, result);  // Validates the port aswell.
+    uint32_t tpgid = parse_uint32(params, "tpgid", result);  // Tagged Packet Group Identifier
+
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
+
+    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::ENABLED) {
+        // Collecting stats is possible only if the feature is already enabled.
+        generate_execute_err(result, "Tagged Packet Group is not enabled on this port.");
+    }
+
+    // Server Side Validation
+    if (tpgid >= tpg_ctx->get_num_tpgids()) {
+        generate_execute_err(result, "tpgid " + std::to_string(tpgid) + " is bigger than the max allowed tpgid.");
+    }
+
+    // Collect Stats from Rx
+    Json::Value& section = result["result"];
+
+    tpg_ctx->get_tpg_tx_stats(section, port_id, tpgid);
+
+    return (TREX_RPC_CMD_OK);
+}
+
 /****************************** component implementation ******************************/
 
 /**
@@ -1958,13 +1984,12 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdPushRemote(this));
 
     /* Tagged Packet Group */
-    m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroupCpRx(this));
-    m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroupDp(this));
+    m_cmds.push_back(new TrexRpcCmdEnableTaggedPacketGroup(this));
     m_cmds.push_back(new TrexRpcCmdDisableTaggedPacketGroup(this));
-    m_cmds.push_back(new TrexRpcCmdDestroyTaggedPacketGroupCtx(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupState(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStatus(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStats(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupTxStats(this));
 }
 
 

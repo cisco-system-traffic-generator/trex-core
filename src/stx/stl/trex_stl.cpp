@@ -356,15 +356,37 @@ bool TrexStateless::create_tpg_ctx(const std::string& username,
         return false;
     }
 
-    // Get the cores from the ports.
-    std::set<uint8_t> core_ids;
+    /**
+     * Collect the relevant cores from the ports on which TPG is enabled.
+     * In order to avoid duplicates (dual ports share cores), keep this a set.
+     * NOTE: all_cores: represents all the cores relevant to the acquired ports.
+     *       designated_cores: represents all the cores that sequenced streams are
+     *                       compiled to.
+     * NOTE: TPG streams are transmitted only from designated cores. Hence Tx counters
+     *       are allocated only in designated cores. However, TPG needs to be enabled
+     *       in all cores so we can redirect to Rx.
+     **/
+    std::set<uint8_t> all_cores;
+    std::set<uint8_t> designated_cores;
     for (uint8_t port_id : acquired_ports) {
         TrexStatelessPort* port = get_port_by_id(port_id);
         const std::vector<uint8_t> core_ids_per_port = port->get_core_id_list();
-        core_ids.insert(core_ids_per_port.begin(), core_ids_per_port.end());
+        all_cores.insert(core_ids_per_port.begin(), core_ids_per_port.end());
+
+        /**
+         * NOTE: Sequenced streams are compiled to one core, the designated core.
+         */
+        uint8_t designated_core_id = get_port_by_id(port_id)->get_sequenced_stream_core();
+        designated_cores.insert(designated_core_id);
     }
 
-    m_tpg_ctx_per_user[username] = new TPGCpCtx(acquired_ports, rx_ports, core_ids, num_tpgids, username);
+    // Create (core_id->is_designated) Map
+    std::unordered_map<uint8_t, bool> core_id_map;
+    for (uint8_t core_id : all_cores) {
+        core_id_map[core_id] = designated_cores.find(core_id) != designated_cores.end();
+    }
+
+    m_tpg_ctx_per_user[username] = new TPGCpCtx(acquired_ports, rx_ports, core_id_map, num_tpgids, username);
 
     return true;
 }
@@ -393,6 +415,7 @@ TPGState TrexStateless::update_tpg_state(const std::string& username) {
     }
 
     TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
     TPGState state = tpg_ctx->get_tpg_state();
 
     if (!tpg_ctx->is_awaiting_rx()) {
@@ -421,6 +444,7 @@ bool TrexStateless::enable_tpg_cp_rx(const std::string& username) {
     }
 
     TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
 
     // Add pointers to TPG Context in all the acquired ports (all the ports that can transmit)
     const std::vector<uint8_t>& ports = tpg_ctx->get_acquired_ports();
@@ -445,16 +469,35 @@ bool TrexStateless::enable_tpg_dp(const std::string& username) {
     }
 
     TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
     uint32_t num_tpgids = tpg_ctx->get_num_tpgids();
-    const std::set<uint8_t>& core_ids = tpg_ctx->get_cores();
+    const std::unordered_map<uint8_t, bool>& core_id_map = tpg_ctx->get_cores_map();
 
     // Set the feature in DP so we can start redirecting packets
-    for (uint8_t core_id : core_ids) {
-        static MsgReply<bool> reply;
+    for (auto const& it : core_id_map) {
+        uint8_t core_id = it.first;
+        bool is_designated = it.second;
+        static MsgReply<int> reply;
         reply.reset();
-        TrexCpToDpMsgBase* msg = new TrexStatelessDpSetTPGFeature(reply, num_tpgids);
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpSetTPGFeature(reply, num_tpgids, is_designated);
         send_msg_to_dp(core_id, msg);
-        reply.wait_for_reply();
+        int rc = reply.wait_for_reply();
+        TPGStateUpdate dp_state = static_cast<TPGStateUpdate>(rc);
+        if (dp_state == TPGStateUpdate::DP_ALLOC_FAIL) {
+            tpg_ctx->set_tpg_state(TPGState::DP_ALLOC_FAILED);
+            return false;
+        }
+    }
+
+    // Collect pointers to DP Tx counters
+    const std::vector<uint8_t>& acquired_ports = tpg_ctx->get_acquired_ports();
+    for (uint8_t port : acquired_ports) {
+        static MsgReply<TPGDpMgrPerSide*> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpGetTPGMgr(reply, port);
+        send_msg_to_dp(get_port_by_id(port)->get_sequenced_stream_core(), msg);
+        TPGDpMgrPerSide* mgr_ptr = reply.wait_for_reply();
+        tpg_ctx->add_dp_mgr_ptr(port, mgr_ptr);
     }
 
     tpg_ctx->set_tpg_state(TPGState::ENABLED);
@@ -468,11 +511,13 @@ bool TrexStateless::disable_tpg(const std::string& username) {
     }
 
     TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
-    const std::set<uint8_t>& core_ids = tpg_ctx->get_cores();
+    assert(tpg_ctx);
+    const std::unordered_map<uint8_t, bool>& core_id_map = tpg_ctx->get_cores_map();
 
     // Unset the feature in DP
     // This needs to be done first so we don't keep redirecting packets when we don't have counters.
-    for (uint8_t core_id : core_ids) {
+    for (auto const& it : core_id_map) {
+        uint8_t core_id = it.first;
         static MsgReply<bool> reply;
         reply.reset();
         TrexCpToDpMsgBase* msg = new TrexStatelessDpUnsetTPGFeature(reply);
@@ -501,4 +546,3 @@ bool TrexStateless::disable_tpg(const std::string& username) {
      **/
      return true;
 }
-

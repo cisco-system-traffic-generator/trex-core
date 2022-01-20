@@ -29,6 +29,7 @@ class TrexDpCore;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
 class TPGCpCtx;
+class TPGDpMgrPerSide;
 
 
 /**
@@ -474,13 +475,15 @@ private:
 
 class TrexStatelessDpSetTPGFeature : public TrexCpToDpMsgBase {
 public:
-    TrexStatelessDpSetTPGFeature(MsgReply<bool>& reply, uint32_t num_pgids) : m_reply(reply), m_num_pgids(num_pgids) {}
+    TrexStatelessDpSetTPGFeature(MsgReply<int>& reply, uint32_t num_pgids, bool designated_core) :
+                                m_reply(reply), m_num_pgids(num_pgids), m_designated_core(designated_core) {}
     virtual TrexCpToDpMsgBase * clone();
     virtual bool handle(TrexDpCore* dp_core);
 
 private:
-    MsgReply<bool>&     m_reply;
-    uint32_t            m_num_pgids;
+    MsgReply<int>&      m_reply;
+    uint32_t            m_num_pgids;                    // Number of Tagged Packet Group Identifiers
+    bool                m_designated_core;              // This core actually sends TPG packets (sequenced packets are send from one core only)
 };
 
 class TrexStatelessDpUnsetTPGFeature: public TrexCpToDpMsgBase {
@@ -491,6 +494,17 @@ public:
 
 private:
     MsgReply<bool>&     m_reply;
+};
+
+class TrexStatelessDpGetTPGMgr: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpGetTPGMgr(MsgReply<TPGDpMgrPerSide*>& reply, uint8_t port) : m_reply(reply), m_port(port) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<TPGDpMgrPerSide*>&     m_reply;
+    uint8_t                         m_port;
 };
 
 

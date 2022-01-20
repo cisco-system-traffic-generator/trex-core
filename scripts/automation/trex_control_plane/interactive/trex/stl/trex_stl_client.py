@@ -78,9 +78,10 @@ class TPGState:
     DISABLED_DP     = 4      # Tagged Packet Group Data Plane disabled, message sent to Rx.
     DISABLED_DP_RX  = 5      # Tagged Packet Group Data Plane and Rx disabled. Object can be destroyed.
     RX_ALLOC_FAILED = 6      # Rx Allocation Failed
+    DP_ALLOC_FAILED = 7      # Dp Allocation Failed
 
-    ALL_STATES = [DISABLED, ENABLED_CP, ENABLED_CP_RX, ENABLED, DISABLED_DP, DISABLED_DP_RX, RX_ALLOC_FAILED]
-    ERROR_STATES = [RX_ALLOC_FAILED]
+    ALL_STATES = [DISABLED, ENABLED_CP, ENABLED_CP_RX, ENABLED, DISABLED_DP, DISABLED_DP_RX, RX_ALLOC_FAILED, DP_ALLOC_FAILED]
+    ERROR_STATES = [RX_ALLOC_FAILED, DP_ALLOC_FAILED]
 
 
     def __init__(self, initial_state):
@@ -88,7 +89,8 @@ class TPGState:
             raise TRexError("Invalid TPG State {}".format(initial_state))
         self._state = initial_state
         self.fail_messages = {
-            TPGState.RX_ALLOC_FAILED: "Rx counter allocation failed!"
+            TPGState.RX_ALLOC_FAILED: "Rx counter allocation failed!",
+            TPGState.DP_ALLOC_FAILED: "Tx counter allocation failed!"
         }
 
     def is_error_state(self):
@@ -101,6 +103,8 @@ class TPGState:
         """
             Get the fail message to print to the user for this state.
         """
+        if not self.is_error_state():
+            return "TPG State is valid!"
         return self.fail_messages[self._state]
 
     def __eq__(self, other):
@@ -1811,7 +1815,7 @@ class STLClient(TRexClient):
             "session_id": self.ctx.session_id,
             "tags": tags
         }
-        rc = self._transmit("enable_tpg_cp_rx", params=params)
+        rc = self._transmit("enable_tpg", params=params)
 
         if not rc:
             raise TRexError(rc)
@@ -1827,12 +1831,20 @@ class STLClient(TRexClient):
                 raise TRexError(tpg_state.get_fail_message())
 
         # Enable TPG in DP Sync
-        rc = self._transmit("enable_tpg_dp", params={"username": self.ctx.username})
-
-        self.ctx.logger.post_cmd(rc)
+        rc = self._transmit("enable_tpg", params={"username": self.ctx.username})
 
         if not rc:
-            raise TRexError(rc)
+            rc = self._transmit("get_tpg_state", params={"username": self.ctx.username})
+            if not rc:
+                raise TRexError(rc)
+            tpg_state = TPGState(rc.data())
+            if tpg_state.is_error_state():
+                self.disable_tpg(surpress_log=True)
+                raise TRexError(tpg_state.get_fail_message())
+            else:
+                raise TRexError("TPG enablement failed but server doesn't indicate of errors.")
+
+        self.ctx.logger.post_cmd(rc)
 
     @client_api('command', True)
     def disable_tpg(self, username=None, surpress_log=False):
@@ -1875,7 +1887,7 @@ class STLClient(TRexClient):
             tpg_state = TPGState(rc.data())
 
         # State is set to TPGState.DISABLED_DP_RX, we can proceed to destroying the context.
-        rc = self._transmit("destroy_tpg_ctx", params={"username": username})
+        rc = self._transmit("disable_tpg", params={"username": username})
 
         if not rc:
             raise TRexError(rc)
@@ -2135,6 +2147,39 @@ class STLClient(TRexClient):
 
         return (stats, _min_tag)
 
+    @client_api('getter', True)
+    def get_tpg_tx_stats(self, port, tpgid):
+        """
+        Get Tagged Packet Group Identifier statistics that are transmitted in this port,
+        for this Tagged Packet Group Identifier.
+
+        :parameters:
+            port: uint8
+                Port on which we transmit TPG packets.
+
+            tpgid: uint32
+                Tagged Packet Group Identifier
+
+        :returns:
+            dict: Dictionary contains Tagged Packet Group statistics gathered from the server. For example:
+
+            .. highlight:: python
+            .. code-block:: python
+
+                print(get_tpg_tx_stats(port=0, tpgid=1))
+
+                {'0': 
+                    {'1': 
+                        { 'bytes': 0,
+                          'pkts': 0}}}
+        """
+        self.psv.validate('get_tpg_tx_stats', [port])
+        validate_type("tpgid", tpgid, int)
+
+        rc = self._transmit("get_tpg_tx_stats", params={"port_id": port, "tpgid": tpgid})
+        if not rc:
+            raise TRexError(rc)
+        return rc.data()
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -2866,15 +2911,18 @@ class STLClient(TRexClient):
 
 
             if stats is None:
-                self.logger.info(format_text("No stats found for the provided params.\n", "bold", "magenta"))
+                self.logger.info(format_text("\nNo stats found for the provided params.\n", "bold", "yellow"))
+                return
 
             port_stats = stats.get(str(opts.port), None)
             if port_stats is None:
-                self.logger.info(format_text("No stats found for the provided port.\n", "bold", "magenta"))
+                self.logger.info(format_text("\nNo stats found for the provided port.\n", "bold", "yellow"))
+                return
 
             tpgid_stats = port_stats.get(str(opts.tpgid), None)
             if tpgid_stats is None:
-                self.logger.info(format_text("No stats found for the provided tpgid.\n", "bold", "magenta"))
+                self.logger.info(format_text("\nNo stats found for the provided tpgid.\n", "bold", "yellow"))
+                return
 
             stats_list = []
             for tag_id, tag_stats in tpgid_stats.items():
@@ -2891,4 +2939,44 @@ class STLClient(TRexClient):
             first_iteration = False         # Set this false after the first iteration
             current_tag = new_current_tag   # Update the current tag
 
+    @console_api('tpg_tx_stats', 'STL', True)
+    def show_tpg_tx_stats(self, line):
+        '''Show Tagged Packet Group Tx Statistics\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_tx_stats",
+                                         self.show_tpg_tx_stats.__doc__,
+                                         parsing_opts.TPG_STL_TX_STATS
+                                        )
 
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        table_keys_to_headers = [   {'key': 'pkts',                 'header': 'Packets'},
+                                    {'key': 'bytes',                'header': 'Bytes'},
+            ]
+
+        table_kwargs = {'empty_msg': 'No stats found',
+                        'keys_to_headers': table_keys_to_headers}
+
+        tx_stats = {}
+        try:
+            tx_stats = self.get_tpg_tx_stats(opts.port, opts.tpgid)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)
+
+        port_stats = tx_stats.get(str(opts.port), None)
+
+        if port_stats is None:
+            self.logger.info(format_text("\nNo stats found for the provided port.\n", "bold", "yellow"))
+            return
+
+        tpgid_stats = port_stats.get(str(opts.tpgid), None)
+        if tpgid_stats is None:
+            self.logger.info(format_text("\nNo stats found for the provided tpgid.\n", "bold", "yellow"))
+            return
+
+        table_kwargs['title'] = "Port {}, tpgid {}".format(opts.port, opts.tpgid)
+        text_tables.print_table_by_keys(tpgid_stats, **table_kwargs)

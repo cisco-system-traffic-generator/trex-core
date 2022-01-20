@@ -1822,6 +1822,14 @@ class OPTIONS_DB_GROUPS:
         ],
         {})
 
+    TPG_STL_TX_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+        ],
+        {})
+
     TPG_ENABLE = ArgumentGroup(
         NON_MUTEX,
         [

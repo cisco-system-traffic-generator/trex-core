@@ -28,6 +28,7 @@ limitations under the License.
  CTPGTagCntr
 *******************************************************************/
 CTPGTagCntr::CTPGTagCntr() {
+    static_assert(!std::is_polymorphic<CTPGTagCntr>::value, "CTPGTagCntr can't be polymorphic!");
     memset(this, 0, sizeof(CTPGTagCntr));
 }
 
@@ -300,6 +301,7 @@ void TPGRxCtx::_allocate() {
      * NOTE: Use calloc to distribute the workload based on COW (Copy on Write).
      * NOTE: The Rx thread validates that the counters were allocated correctly.
      **/
+    static_assert(!std::is_polymorphic<CTPGTagCntr>::value,  "CTPGTagCntr can't be polymorphic!");
     m_cntrs = (CTPGTagCntr*)calloc(num_cntrs, sizeof(CTPGTagCntr));
 
     // Update state safely

@@ -84,7 +84,7 @@ def get_streams(burst_size, pps, qinq, vlans):
     return streams
 
 
-def verify_stream_stats(stats, pkt_len, rx_port, burst_size, tpgid, verbose, ignore_seq_err):
+def verify_stream_stats(rx_stats, tx_stats, rx_port, tx_port, pkt_len, burst_size, tpgid, verbose, ignore_seq_err):
     """
     Verify Tagged Packet Group Stats per stream.
 
@@ -101,23 +101,51 @@ def verify_stream_stats(stats, pkt_len, rx_port, burst_size, tpgid, verbose, ign
         True iff the stream stats are valid.
 
     """
-    # We have build the streams in such a way that Stream with tpgid = i should 
+
+    ##### Verify Tx Stats #######
+
+    tx_port_stats = tx_stats.get(str(tx_port), None)
+    if tx_port_stats is None:
+        if verbose:
+            print("Port {} not found in Tx stats".format(tx_port))
+        return False
+    tx_tpgid_stats = tx_port_stats.get(str(tpgid), None)
+    if tpgid is None:
+        if verbose:
+            print("tpgid {} not found in port {} Tx stats".format(tpgid, tx_port))
+        return False
+    tx_exp = {
+        "pkts": burst_size,
+        "bytes": burst_size * pkt_len
+    }
+
+    if tx_exp != tx_tpgid_stats:
+        if verbose:
+            print("tpgid {} Tx stats differ from expected: ".format(tpgid))
+            print("Want: {}".format(pformat(tx_exp)))
+            print("Have: {}".format(pformat(tx_tpgid_stats)))
+        return False
+
+
+    ##### Verify Rx Stats #######
+
+    # We have build the streams in such a way that Stream with tpgid = i should
     # have traffic on tag number i only.
     tag = tpgid
-    port_stats = stats.get(str(rx_port), None)
+    port_stats = rx_stats.get(str(rx_port), None)
     if port_stats is None:
         if verbose:
-            print("Port {} not found in stats".format(rx_port))
+            print("Port {} not found in Rx stats".format(rx_port))
         return False
     tpgid_stats = port_stats.get(str(tpgid), None)
     if tpgid is None:
         if verbose:
-            print("tpgid {} not found in port {} stats".format(tpgid, rx_port))
+            print("tpgid {} not found in port {} Rx stats".format(tpgid, rx_port))
         return False
     tag_stats = tpgid_stats.get(str(tag), None)
     if tag_stats is None:
         if verbose:
-            print("tag {} not found in tpgid {} stats".format(tag, tpgid))
+            print("tag {} not found in tpgid {} Rx stats".format(tag, tpgid))
             return False
     exp = {
         "pkts": burst_size,
@@ -134,7 +162,7 @@ def verify_stream_stats(stats, pkt_len, rx_port, burst_size, tpgid, verbose, ign
         exp = {k: v for k, v in exp.items() if k in relevant_keys}
     if exp != tag_stats:
         if verbose:
-            print("Tag {} stats differ from expected: ".format(tag))
+            print("Tag {} Rx stats differ from expected: ".format(tag))
             print("Want: {}".format(pformat(exp)))
             print("Have: {}".format(pformat(tag_stats)))
         return False
@@ -160,8 +188,8 @@ def rx_example(tx_port, rx_port, burst_size, pps, qinq, vlans, verbose, ignore_s
         ignore_seq_err (bool): Should ignore sequence errors when verifying test result?
     """
 
-    print("\nGoing to inject {0} packets on port {1} - checking RX stats on port {2}\n".format(
-        burst_size, tx_port, rx_port))
+    print("\nGoing to inject {0} packets on port {1} - checking TX/RX stats on ports {2}/{3} respectively.\n".format(
+        burst_size, tx_port, tx_port, rx_port))
 
     # create client
     c = STLClient()
@@ -202,9 +230,11 @@ def rx_example(tx_port, rx_port, burst_size, pps, qinq, vlans, verbose, ignore_s
             if verbose:
                 print("*"*LINE_LENGTH)
                 print("Verifying stats for tpgid {}".format(i))
-            stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags)[0]
 
-            tpgid_passed = verify_stream_stats(stats, streams[i].get_pkt_len(), rx_port, burst_size, i, verbose, ignore_seq_err)
+            tx_stats = c.get_tpg_tx_stats(port=tx_port, tpgid=i)
+            rx_stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags)[0]
+
+            tpgid_passed = verify_stream_stats(rx_stats, tx_stats, rx_port, tx_port, streams[i].get_pkt_len(), burst_size, i, verbose, ignore_seq_err)
             if not tpgid_passed:
                 passed = False
             if verbose:

@@ -4,7 +4,7 @@
 */
 
 /*
-Copyright (c) 2021-2021 Cisco Systems, Inc.
+Copyright (c) 2021-2022 Cisco Systems, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,6 +39,12 @@ limitations under the License.
     - It defines a Tagged Packet Group Data Plane Manager to keep hold of the sequence numbers for each
       tpgid.
 */
+
+
+/**
+ * Forward declarations
+ **/
+class TPGDpMgrPerSide;
 
 #define TPG_PAYLOAD_MAGIC 0xE50B5CC1 // Consider the endianess
 
@@ -289,6 +295,8 @@ enum class TPGStateUpdate {
     RX_DISABLED,            // RX TPG context exists but disabled.
     RX_ALLOC_FAIL,          // RX TPG context exists but memory allocation has failed.
     RX_ENABLED,             // RX TPG context exists and is enabled successfully.
+    DP_ALLOC_FAIL,          // DP TPG Mgr per side memory allocation failed.
+    DP_ENABLED,             // DP TPG Mgr created successfully.
 };
 
 /**************************************
@@ -301,26 +309,27 @@ enum class TPGStateUpdate {
  * 2. When a user enables TPG (via RPC), we move to ENABLED_CP. In this state we allocate
  *    the PacketGroupTagMgr in CP and send an async message to start allocating to Rx (which can take a lot of time).
  * 3. When the allocation finishes we move to ENABLED_CP_RX. In case the allocation fails, we move to RX_ALLOC_FAILED.
- * 4. After number 3 finishes, the RPC enables TPG in DP. Now we move to ENABLED.
+ * 4. After number 3 finishes, the RPC enables TPG in DP. Now we move to ENABLED or DP_ALLOC_FAILED.
  * 5. The user can disable TPG via RPC. We disable TPG in DP, send a async message to Rx to deallocate
       and move to DISABLED_DP.
  * 6. When the deallocation finishes we move to DISABLED_DP_RX. At this point the TPGCpCtx can be destroyed.
+ * 7. In case of allocation failure, the client disables.
 
     The following diagram describes the state machine:
 
-     -------------            -------------       -------------
-    |             | USER RPC |             |     |ENABLED_CP_RX|
-    |   DISABLED  | -------> |  ENABLED_CP | --> |      or     |
-    |             |          |             |     |RX_ALLOC_FAIL|
-     -------------            -------------       ------------- 
-                                                         |
-                                          AUTOMATIC RPC  |
-                                                         ↓
-     ------------          ------------              -----------
-    |            |        |            |  USER RPC  |           |
-    |  DISABLED  | <----- |  DISABLED  |  <-------  |  ENABLED  |
-    |   DP_RX    |        |     DP     |            |           |
-     ------------          ------------              -----------
+     -------------            -------------         -------------
+    |             | USER RPC |             |       |ENABLED_CP_RX|
+    |   DISABLED  | -------> |  ENABLED_CP | ----> |      or     |
+    |             |          |             |       |RX_ALLOC_FAIL|
+     -------------            -------------         ------------- 
+                                                          |
+                                          AUTOMATIC RPC   |
+                                                          ↓
+     ------------          ------------              -------------
+    |            |        |            |  USER RPC  |   ENABLED   |
+    |  DISABLED  | <----- |  DISABLED  |  <-------  |     or      |
+    |   DP_RX    |        |     DP     |            |DP_ALLOC_FAIL|
+     ------------          ------------              -------------
 
 **/
 class TPGState {
@@ -333,7 +342,8 @@ public:
         ENABLED,            // Tagged Packet Group is enabled at CP, Rx and DP.
         DISABLED_DP,        // Tagged Packet Group is disabled at DP. Message sent to Rx but it hasn't finished deallocating.
         DISABLED_DP_RX,     // Tagged Packet Group is disabled at DP and Rx.
-        RX_ALLOC_FAILED     // Rx Failed Allocating memory
+        RX_ALLOC_FAILED,    // Rx failed allocating memory.
+        DP_ALLOC_FAILED     // Dp failed allocating memory.
     };
 
     TPGState(Value val);    // Ctor - Construct directly using value for syntactic sugar.
@@ -369,7 +379,7 @@ public:
 
     TPGCpCtx(const std::vector<uint8_t>& acquired_ports,
              const std::vector<uint8_t>& rx_ports,
-             const std::set<uint8_t>& cores,
+             const std::unordered_map<uint8_t, bool>& core_map,
              const uint32_t num_tpgids,
              const std::string& username);
     ~TPGCpCtx();
@@ -395,10 +405,12 @@ public:
     /**
      * Get the set of cores on which this TPG context resides.
      *
-     * @return set<uint8_t>
-     *   Set of cores on which this Tagged Packet Grouping context resides.
+     * @return std::unordered_map<uint8_t, bool>&
+     *   Map of cores on which this Tagged Packet Grouping context resides.
+     *   If the value is True, this is a core that will send TPG traffic (a designated core).
+     *   TPG packets are compiled to one core only since they are sequenced.
      **/
-    const std::set<uint8_t>& get_cores() { return m_cores; }
+    const std::unordered_map<uint8_t, bool>& get_cores_map() { return m_cores_map; }
 
     /**
      * Get the number of Tagged Packet Group Identifiers.
@@ -472,6 +484,18 @@ public:
      */
     TPGState handle_rx_state_update(TPGStateUpdate rx_state);
 
+
+    /**
+     * Add Data Plane TPG manager per port to the Context Manager.
+     *
+     * @param port_id
+     *   Port for which we add the Tx Counter
+     *
+     * @param dp_mgr_ptr
+     *   Pointer to the Data Plane object for this port.
+     **/
+    void add_dp_mgr_ptr(uint8_t port_id, TPGDpMgrPerSide* dp_mgr_ptr);
+
     /**
      * Check if port set to collect TPG stats.
      *
@@ -485,14 +509,29 @@ public:
         return std::find(m_rx_ports.begin(), m_rx_ports.end(), port_id) != m_rx_ports.end();
     }
 
+    /**
+     * Collect TPG Tx stats.
+     *
+     * @param stats
+     *   Json on which we dump the stats
+     *
+     * @param port_id
+     *   Port on which we are interested to collect the TPG stats
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier for the Tagged Packet Group on which we want to collect the stats.
+     **/
+    void get_tpg_tx_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid);
+
 private:
-    const std::vector<uint8_t>    m_acquired_ports;   // Ports on which this TPG context resides (Tx + Rx)
-    const std::vector<uint8_t>    m_rx_ports;         // Ports on which this TPG context collects
-    const std::set<uint8_t>       m_cores;            // Cores on which this TPG context resides
-    const uint32_t                m_num_tpgids;       // Number of Tagged Packet Group Identifiers
-    const std::string             m_username;         // Username that defines this TPG context.
-    PacketGroupTagMgr*            m_tag_mgr;          // Tag Manager
-    TPGState                      m_tpg_state;        // State Machine for Tagged Packet Grouping
+    const std::vector<uint8_t>                      m_acquired_ports;   // Ports on which this TPG context resides (Tx + Rx)
+    const std::vector<uint8_t>                      m_rx_ports;         // Ports on which this TPG context collects
+    const std::unordered_map<uint8_t, bool>         m_cores_map;        // Map of TPG core IDs to boolean indicating if core sends TPG packets.
+    const uint32_t                                  m_num_tpgids;       // Number of Tagged Packet Group Identifiers
+    const std::string                               m_username;         // Username that defines this TPG context.
+    std::unordered_map<uint8_t, TPGDpMgrPerSide*>   m_dp_tpg_mgr;       // Pointer to Dp counter per port.
+    PacketGroupTagMgr*                              m_tag_mgr;          // Tag Manager
+    TPGState                                        m_tpg_state;        // State Machine for Tagged Packet Grouping
 };
 
 /**************************************
@@ -649,10 +688,69 @@ private:
     bool                                            m_software_mode; // Are we running in software mode
 };
 
+/**************************************
+ * Tagged Packet Group Tx Counters
+ * per group (tpgid).
+ *************************************/
+
+class TPGTxGroupCounters {
+public:
+
+    friend class TaggedPktGroupTest;
+    friend class TPGDpMgrPerSideTest;
+    /**
+     * NOTE: In the real usecase, memory is allocated with calloc and cast to this class. All the counters are 0.
+     *       Adding counters not initialized to zero will not work.
+     *       If you use the constructor, we memset the whole data of the class to 0.
+     *       The ctor is used for testing/allocating a single instance only.
+     * NOTE: Do not add virtual methods to this function.
+     **/
+    TPGTxGroupCounters();
+
+    /**
+     * Update a Tagged Packet Group Counter with the number of packets and bytes sent.
+     *
+     * @param pkts
+     *   Number of new packets sent.
+     *
+     * @param bytes
+     *   Number of new bytes sent.
+     */
+    void update_cntr(uint64_t pkts, uint64_t bytes);
+
+    /**
+     * Dump the counters into a json.
+     *
+     * @param json
+     *   Json to dump the counters into.
+     **/
+    void dump_json(Json::Value& json);
+
+    friend bool operator==(const TPGTxGroupCounters& lhs, const TPGTxGroupCounters& rhs);
+    friend bool operator!=(const TPGTxGroupCounters& lhs, const TPGTxGroupCounters& rhs);
+    friend std::ostream& operator<<(std::ostream& os, const TPGTxGroupCounters& tag);
+private:
+
+    /**
+     * Set counters, used for testing.
+     *
+     * @param pkts
+     *   Number of pkts received for this tag.
+     *
+     * @param bytes
+     *   Number of bytes received for this tag.
+     **/
+    void set_cntrs(uint64_t pkts, uint64_t bytes);
+
+    uint64_t        m_pkts;                 // Number of packets transmitted.
+    uint64_t        m_bytes;                // Number of bytes transmitted.
+};
 
 /**************************************
- * Tagged Packet Group Data Plane Manager
+ * Tagged Packet Group Data Plane
+ * Manager Per Side
  *************************************/
+
 class TPGDpMgrPerSide {
     /**
     Tagged Packet Group Data Plane Manager Per Core and Per Side.
@@ -664,6 +762,16 @@ public:
     ~TPGDpMgrPerSide();
     TPGDpMgrPerSide(const TPGDpMgrPerSide&) = delete;
     TPGDpMgrPerSide& operator=(const TPGDpMgrPerSide&) = delete;
+
+
+    /**
+     * Allocate counters and sequence numbers and return an indicator if the allocation was successful.
+     *
+     * @return bool
+     *   True iff the counters and sequence numbers are allocated successfully.
+     **/
+
+    bool allocate();
 
     /**
      * Get the next sequence number for a TPGID.
@@ -684,10 +792,37 @@ public:
      **/
     void inc_seq(uint32_t tpgid);
 
+    /**
+     * Update TPG Tx counters when pkts are transmitted in this core/dir.
+     *
+     * @param tpgid
+     *   Tagged Packet Group identifier
+     *
+     * @param pkts
+     *   Packets transmitted.
+     *
+     * @param bytes
+     *   Bytes transmitted.
+     **/
+
+    void update_tx_cntrs(uint32_t tpgid, uint64_t pkts, uint64_t bytes);
+
+    /**
+     * Get the Tx stats for some Tagged Packet Group.
+     *
+     * @param stats
+     *   Json to write the stats in.
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier.
+     **/
+    void get_tpg_tx_stats(Json::Value& stats, uint32_t tpgid);
+
 private:
 
-    uint32_t*     m_seq_array;       // Sequence number for each tpgid per each port.
-    uint32_t      m_num_tpgids;      // Number of Tagged Packet Group Identifiers.
+    uint32_t*               m_seq_array;       // Sequence number for each tpgid per each port.
+    TPGTxGroupCounters*     m_cntrs;           // Array of tx counters per tpgid
+    uint32_t                m_num_tpgids;      // Number of Tagged Packet Group Identifiers.
 };
 
 #endif /* __TREX_TAGGED_PACKET_GROUPS_H__ */
