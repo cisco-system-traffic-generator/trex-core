@@ -111,7 +111,7 @@ m_adj_fix(struct mbuf *m, int req_len, int l7_len)
 void
 m_trim(struct mbuf *m, int req_len)
 {
-    rte_pktmbuf_trim((struct rte_mbuf *)m, req_len);
+    tcp_pktmbuf_trim((struct rte_mbuf *)m, req_len);
 }
 
 void
