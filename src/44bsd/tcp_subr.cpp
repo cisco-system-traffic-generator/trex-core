@@ -324,6 +324,9 @@ void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx, CServerIpPayload
 
     this->m_pctx = pctx;
     this->m_tg_id = 0;
+    // update statistics in the temporary flow pctx
+    this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[this->m_tg_id];
+    this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
 
     m_app.set_flow_ctx(pctx, this);
 
@@ -398,7 +401,7 @@ void CTcpFlow::update_new_template_assoc_info() {
     delete this->m_pctx;    // free interim profile
 
     this->m_tcp.t_tune = &pctx->m_tunable_ctx;
-    // replace statistics pointers by pctx
+    // update statistics in the resolved pctx
     this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[tg_id];
     this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
 
