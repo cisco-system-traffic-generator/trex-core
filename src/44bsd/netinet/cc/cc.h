@@ -51,7 +51,6 @@
 #ifndef _NETINET_CC_CC_H_
 #define _NETINET_CC_CC_H_
 
-#if defined(_KERNEL) || defined(TREX_FBSD)
 
 extern struct cc_algo newreno_cc_algo;
 extern struct cc_algo cubic_cc_algo;
@@ -87,7 +86,6 @@ struct cc_var {
 #define	CC_DUPACK	0x0002	/* Duplicate ACK. */
 #define	CC_PARTIALACK	0x0004	/* Not yet. */
 #define	CC_SACK		0x0008	/* Not yet. */
-#endif /* _KERNEL */
 
 /*
  * Congestion signal types passed to the cong_signal() hook. The highest order 8
@@ -101,7 +99,6 @@ struct cc_var {
 
 #define	CC_SIGPRIVMASK	0xFF000000	/* Mask to check if sig is private. */
 
-#if defined(_KERNEL) || defined(TREX_FBSD)
 /*
  * Structure to hold data and function pointers that together represent a
  * congestion control algorithm.
@@ -154,5 +151,4 @@ struct cc_algo {
  */
 #define CCV(ccv, what) (ccv)->ccvc.tcp->what
 
-#endif /* _KERNEL */
 #endif /* _NETINET_CC_CC_H_ */

@@ -52,7 +52,7 @@ extern int tcp_timer_active(struct tcpcb *, uint32_t);
 extern void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
 extern void tcp_timer_stop(struct tcpcb *, uint32_t);
 /* tcp_sack.c */
-void tcp_free_sackholes(struct tcpcb *tp);
+extern void tcp_free_sackholes(struct tcpcb *tp);
 
 /* defined functions */
 void tcp_state_change(struct tcpcb *tp, int newstate);
@@ -61,9 +61,6 @@ void tcp_discardcb(struct tcpcb *tp);
 struct tcpcb * tcp_drop(struct tcpcb *tp, int res);
 u_int tcp_maxseg(const struct tcpcb *tp);
 void tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m, tcp_seq ack, tcp_seq seq, int flags);
-void tcp_timer_discard(void *ptp);
-
-#define tcp_ts_getticks()   tcp_getticks(tp)
 
 
 static int	tcp_default_fb_init(struct tcpcb *tp);
@@ -209,7 +206,7 @@ tcp_respond(struct tcpcb *tp, void *ipgen, struct tcphdr *th, struct mbuf *m,
 	u_char opt[TCP_MAXOLEN];
 	optp = &opt[0];
 	if (incl_opts) {
-		/* TREX_FBSD: support SYN respose, from syncache_respond */
+		/* TREX_FBSD: to support SYN response, from syncache_respond */
 		if (flags & TH_SYN) {
 			to.to_mss = tcp_mssopt(tp);
 			to.to_flags = TOF_MSS;
@@ -461,7 +458,7 @@ tcp_state_change(struct tcpcb *tp, int newstate)
 }
 
 
-/* TREX_FBSD: tcp_usrreq.c */
+/* TREX_FBSD: from tcp_usrreq.c */
 
 #include "tcp_seq.h"
 

@@ -103,13 +103,11 @@ static void tcp_newreno_partial_ack(struct tcpcb *, struct tcphdr *);
 #define BANDLIM_RST_CLOSEDPORT 3 /* No connection, and no listeners */
 #define BANDLIM_RST_OPENPORT 4   /* No connection, listener */
 
-#define tcp_ts_getticks()   tcp_getticks(tp)
-
 
 /*
  * CC wrapper hook functions
  */
-void
+static void
 cc_ack_received(struct tcpcb *tp, struct tcphdr *th, uint16_t nsegs,
     uint16_t type)
 {
@@ -219,7 +217,7 @@ cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type)
 	}
 }
 
-void inline
+static void inline
 cc_post_recovery(struct tcpcb *tp, struct tcphdr *th)
 {
 	/* XXXLAS: KASSERT that we're in recovery? */
@@ -241,23 +239,16 @@ cc_post_recovery(struct tcpcb *tp, struct tcphdr *th)
  *	  the ack that opens up a 0-sized window.
  *	- LRO wasn't used for this segment. We make sure by checking that the
  *	  segment size is not larger than the MSS.
+ * TREX_FBSD: trex-core compatible
+ *      - removed !tcp_timer_active(tp, TT_DELACK) that forces ACK on every other packet
+ *      - instead !(thflags & TH_PUSH) and !tcp_check_no_delay(tp, tlen) are added
  */
-#ifndef TREX_FBSD
-#define DELAY_ACK(tp, tlen)						\
-	((!tcp_timer_active(tp, TT_DELACK) &&				\
-	    (tp->t_flags & TF_RXWIN0SENT) == 0) &&			\
-	    (tlen <= tp->t_maxseg) &&					\
-	    (V_tcp_delack_enabled || (tp->t_flags & TF_NEEDSYN)))
-#else /* TREX_FBSD */
 #define DELAY_ACK(tp, tlen)						\
 	(((tp->t_flags & TF_RXWIN0SENT) == 0) &&			\
 	    !(thflags & TH_PUSH) &&					\
 	    (tlen <= tp->t_maxseg) &&					\
 	    (V_tcp_delack_enabled || (tp->t_flags & TF_NEEDSYN)) &&	\
 	    !tcp_check_no_delay(tp, tlen))
-/* !tcp_timer_active(tp, TT_DELACK) forces ACK on every other packet */
-/* !(thflags & TH_PUSH) for trex-core compatible */
-#endif /* TREX_FBSD */
 
 void inline
 cc_ecnpkt_handler(struct tcpcb *tp, struct tcphdr *th, uint8_t iptos)
@@ -2305,7 +2296,7 @@ tcp_dooptions(struct tcpcb *tp, struct tcpopt *to, u_char *cp, int cnt, int flag
  * Collect new round-trip time estimate
  * and update averages and current timeout.
  */
-void
+static void
 tcp_xmit_timer(struct tcpcb *tp, int rtt)
 {
 	int delta;
@@ -2438,7 +2429,7 @@ tcp_mssopt(struct tcpcb *tp)
 	return (mss);
 }
 
-void
+static void
 tcp_prr_partialack(struct tcpcb *tp, struct tcphdr *th)
 {
 	int snd_cnt = 0, limit = 0, del_data = 0, pipe = 0;
@@ -2495,7 +2486,7 @@ tcp_prr_partialack(struct tcpcb *tp, struct tcphdr *th)
  * By setting snd_nxt to ti_ack, this forces retransmission timer to
  * be started again.
  */
-void
+static void
 tcp_newreno_partial_ack(struct tcpcb *tp, struct tcphdr *th)
 {
 	tcp_seq onxt = tp->snd_nxt;

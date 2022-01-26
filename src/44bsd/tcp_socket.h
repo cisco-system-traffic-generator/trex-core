@@ -901,11 +901,9 @@ public:
  * handle on protocol and pointer to protocol
  * private data and error information.
  */
-class tcp_socket: public socket {
-#if 0
+struct tcp_socket: public socket {
 public:
     CEmulApp  *      m_app; /* call back pointer */
-#endif
 };
 
 

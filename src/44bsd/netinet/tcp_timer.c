@@ -35,6 +35,7 @@
 #include "sys_inet.h"
 #include "tcp_var.h"
 
+#include "tcp_timer.h"
 #include "tcp_debug.h"
 
 /* tcp_debug.c */
@@ -49,22 +50,10 @@ extern void cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type);
 extern struct tcpcb * tcp_drop(struct tcpcb *, int);
 extern struct tcpcb * tcp_close(struct tcpcb *);
 extern void tcp_respond(struct tcpcb *, void *, struct tcphdr *, struct mbuf *, tcp_seq, tcp_seq, int);
-extern void tcp_timer_discard(void *);
 
 /* defined functions */
-#if 0
-void tcp_timer_2msl(struct tcpcb *tp);
-void tcp_timer_keep(struct tcpcb *tp);
-void tcp_timer_persist(struct tcpcb *tp);
-void tcp_timer_rexmt(struct tcpcb *tp);
-void tcp_timer_delack(struct tcpcb *tp);
-
-void tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta);
-int tcp_timer_active(struct tcpcb *tp, uint32_t timer_type);
-void tcp_cancel_timers(struct tcpcb *tp);
-#else
-bool tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick);
-#endif
+void tcp_handle_timers(struct tcpcb *tp);
+void tcp_timer_twstart(struct tcpcb *tp);
 
 #define tcp_maxpersistidle  TCPTV_KEEP_IDLE
 
@@ -313,7 +302,7 @@ tcp_timer_rexmt(struct tcpcb *tp)
 	TCPT_RANGESET(tp->t_rxtcur, rexmt,
 		      tp->t_rttmin, TCPTV_REXMTMAX);
 
-	/* TREX_FBSD: to alter the syncache_timer */
+	/* TREX_FBSD: to substitute for the syncache_timer */
 	if (tp->t_state == TCPS_LISTEN) {
 		tcp_respond(tp, NULL, (struct tcphdr *)NULL, (struct mbuf *)NULL, tp->irs + 1, tp->iss, TH_ACK|TH_SYN);
 		tcp_timer_activate(tp, TT_REXMT, tp->t_rxtcur);
@@ -373,18 +362,18 @@ _handle_slow_timers(struct tcpcb *tp, uint32_t tick_passed)
 }
 
 
-bool
-tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
+void
+tcp_handle_timers(struct tcpcb *tp)
 {
+	uint32_t now_tick = tcp_getticks(tp);
 	uint32_t tick_passed = now_tick - tp->m_timer.last_tick;
-	bool is_delack = false;
 
 	/* handle fast timer: TT_DELACK */
 	if (tp->m_timer.tt_flags & TT_FLAG_DELACK) {
 		tp->m_timer.tt_flags &= ~TT_FLAG_DELACK;
 		//tp->m_timer.tt_timer[TT_DELACK] = 0;
 		tcp_timer_delack(tp);
-		is_delack = true;
+		tcp_check_no_delay(tp, -1/* -1: reset counter */);
 	}
 
 	/* handle slow timer */
@@ -393,8 +382,6 @@ tcp_handle_timers(struct tcpcb *tp, uint32_t now_tick)
 
 		_handle_slow_timers(tp, tick_passed);
 	}
-
-	return is_delack;
 }
 
 

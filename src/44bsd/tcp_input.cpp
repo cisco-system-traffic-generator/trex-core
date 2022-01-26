@@ -369,6 +369,11 @@ bool tcp_check_no_delay(struct tcpcb *_tp,int bytes) {
     if ( tp->m_delay_limit == 0 )
         return false;
 
+    if (bytes < 0) {
+        tp->t_pkts_cnt = 0;
+        return true;
+    }
+
     int pkts_cnt = bytes + tp->t_pkts_cnt;
 
     if (pkts_cnt >= tp->m_delay_limit) {

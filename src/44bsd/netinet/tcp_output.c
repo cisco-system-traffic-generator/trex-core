@@ -58,8 +58,6 @@ int tcp_output(struct tcpcb *tp);
 void tcp_setpersist(struct tcpcb *tp);
 int tcp_addoptions(struct tcpcb *tp, struct tcpopt *to, u_char *optp);
 
-#define tcp_ts_getticks()   tcp_getticks(tp)
-
 
 /*
  * Make sure that either retransmit or persist timer is set for SYN, FIN and

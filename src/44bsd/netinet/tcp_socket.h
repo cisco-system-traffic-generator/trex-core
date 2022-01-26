@@ -14,19 +14,15 @@ struct sockbuf {
 
 #define sbused(sb)  ((sb)->sb_cc)
 #define sbavail(sb) ((sb)->sb_cc)
-#define sbflush(sb) (sb)->sb_cc = 0
+static inline void sbflush(struct sockbuf *sb) {
+    sb->sb_cc = 0;
+}
 static inline long sbspace(struct sockbuf *sb) {
     return sb->sb_hiwat - sb->sb_cc;
 }
 
 #define SB_MAX  (2*1024*1024)   /* default for max chars in sockbuf */
 
-
-#if defined(__cplusplus)
-class CEmulApp;
-#else
-struct CEmulApp;
-#endif
 
 struct socket {
     short so_options;           /* (b) from socket call, see socket.h */
@@ -48,12 +44,6 @@ struct socket {
 #define SS_ISDISCONNECTING      0x0008  /* in process of disconnecting */
 #define SS_ISDISCONNECTED       0x2000  /* socket disconnected from peer */
     struct sockbuf so_rcv, so_snd;
-
-#if defined(__cplusplus)
-    CEmulApp* m_app;                    /* a pointer to application layer */
-#else
-    struct CEmulApp* m_app;             /* a pointer to application layer */
-#endif
 };
 
 struct mbuf;

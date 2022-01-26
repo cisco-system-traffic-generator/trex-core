@@ -135,7 +135,6 @@ struct tcpcb {
 	/* data structures per tcpcb */
 	struct tcp_timer m_timer;	/* TCP timer */
 	struct cc_var m_ccv;		/* congestion control specific vars */
-	struct socket m_socket;
 
 	struct tcp_tune *t_tune;	/* pointer to TCP tunable values */
 	struct tcpstat *t_stat;		/* pointer to TCP counters */
@@ -226,7 +225,6 @@ struct tcpcb {
 };
 #endif	/* _KERNEL || _WANT_TCPCB */
 
-#if defined(_KERNEL) || defined(TREX_FBSD)
 
 /*
  * If defining the optional tcp_timers, in the
@@ -265,7 +263,6 @@ struct tcp_function_block {
 	void	(*tfb_tcp_rexmit_tmr)(struct tcpcb *);
 };
 
-#endif	/* _KERNEL || TREX_FBSD */
 
 /*
  * Flags and utility macros for the t_flags field.
@@ -555,65 +552,10 @@ struct tcp_tune {
 #define V_tcp_delacktime            TCP_TUNE(tcp_delacktime)
 
 
-#include <stdbool.h>
+/* inline functions from tcp_timer.c */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct tcp_pkt {
-	struct mbuf *m_buf;
-	struct tcphdr *lpTcp;
-	uint16_t m_optlen;
-};
-
-struct tcpcb_param {
-        struct tcp_function_block *fb;
-        struct cc_algo *cc_algo;
-        struct tcp_tune *tune;
-        struct tcpstat *stat;
-        struct tcpstat *stat_ex;
-        uint32_t *tcp_ticks;
-};
-
-/* provided functions */
-#define tcp_int_output(tp)  (tp)->t_fb->tfb_tcp_output(tp)
-int tcp_output(struct tcpcb *tp);
-#define tcp_int_respond(tp,ack,seq,flags)   tcp_respond(tp, NULL, NULL, NULL, ack, seq, flags)
-void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_seq ack, tcp_seq seq, int flags);
-#define tcp_int_input(tp,m,th,toff,tlen,iptos)  tcp_input(tp, m, th, toff, tlen, iptos)
-void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
-bool tcp_handle_timers(struct tcpcb *tp, uint32_t);
-//void tcp_timer_activate(struct tcpcb *, uint32_t, u_int);
-struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param);
-void tcp_discardcb(struct tcpcb *tp);
-struct tcpcb * tcp_drop(struct tcpcb *, int res);
-struct tcpcb * tcp_close(struct tcpcb *);
-int tcp_connect(struct tcpcb *);
-int tcp_listen(struct tcpcb *);
-void tcp_disconnect(struct tcpcb *);
-void tcp_usrclosed(struct tcpcb *);
-
-/* required functions */
-//uint32_t tcp_getticks(struct tcpcb *tp);
 #define tcp_getticks(tp)        *((tp)->m_timer.now_tick)
-int tcp_build_dpkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *pkt);
-int tcp_build_cpkt(struct tcpcb *tp, uint16_t hdrlen, struct tcp_pkt *pkt);
-int tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos);
-int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlenp, struct mbuf *m);
-bool tcp_reass_is_empty(struct tcpcb *tp);
-bool tcp_check_no_delay(struct tcpcb *, int);
-bool tcp_isipv6(struct tcpcb *);
-//struct socket* tcp_getsocket(struct tcpcb *);
-#define tcp_getsocket(tp)       (&(tp)->m_socket)
-uint32_t tcp_new_isn(struct tcpcb *);
-
-void tcp_timer_reset(struct tcpcb *tp, uint32_t msec);
-
-#ifdef __cplusplus
-} /* extern "C" */
-#endif
-
+#define tcp_ts_getticks()       tcp_getticks(tp)
 
 static inline void
 tcp_timer_activate(struct tcpcb *tp, uint32_t timer_type, u_int delta)
@@ -644,6 +586,67 @@ tcp_cancel_timers(struct tcpcb *tp)
 {
 	tp->m_timer.tt_flags = 0;
 }
+
+
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+/* provided functions */
+int tcp_output(struct tcpcb *tp);
+void tcp_respond(struct tcpcb *tp, void *, struct tcphdr *, struct mbuf *, tcp_seq ack, tcp_seq seq, int flags);
+void tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tlen, uint8_t iptos);
+#define tcp_int_output(tp)      (tp)->t_fb->tfb_tcp_output(tp)
+#define tcp_int_respond(tp,ack,seq,flags)   tcp_respond(tp, NULL, NULL, NULL, ack, seq, flags)
+#define tcp_int_input(tp,m,th,toff,tlen,iptos)  tcp_input(tp, m, th, toff, tlen, iptos)
+
+struct tcpcb_param {
+        struct tcp_function_block *fb;
+        struct cc_algo *cc_algo;
+        struct tcp_tune *tune;
+        struct tcpstat *stat;
+        struct tcpstat *stat_ex;
+        uint32_t *tcp_ticks;
+};
+
+struct tcpcb* tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param);
+
+void tcp_discardcb(struct tcpcb *tp);
+struct tcpcb * tcp_drop(struct tcpcb *, int res);
+struct tcpcb * tcp_close(struct tcpcb *);
+int tcp_connect(struct tcpcb *);
+int tcp_listen(struct tcpcb *);
+void tcp_disconnect(struct tcpcb *);
+void tcp_usrclosed(struct tcpcb *);
+void tcp_handle_timers(struct tcpcb *tp);
+
+
+/* required functions */
+struct tcp_pkt {
+	struct mbuf *m_buf;
+	struct tcphdr *lpTcp;
+	uint16_t m_optlen;
+};
+
+int tcp_build_dpkt(struct tcpcb *tp, uint32_t off, uint32_t len, uint16_t hdrlen, struct tcp_pkt *pkt);
+int tcp_build_cpkt(struct tcpcb *tp, uint16_t hdrlen, struct tcp_pkt *pkt);
+
+struct socket * tcp_getsocket(struct tcpcb *tp);
+
+int tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos);
+int tcp_reass(struct tcpcb *tp, struct tcphdr *th, tcp_seq *seq_start, int *tlenp, struct mbuf *m);
+bool tcp_reass_is_empty(struct tcpcb *tp);
+bool tcp_check_no_delay(struct tcpcb *, int);
+uint32_t tcp_new_isn(struct tcpcb *);
+void tcp_timer_reset(struct tcpcb *tp, uint32_t msec);
+
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 
 #endif /* _NETINET_TCP_VAR_H_ */

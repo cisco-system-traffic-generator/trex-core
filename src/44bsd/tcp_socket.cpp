@@ -135,7 +135,7 @@ void    socantrcvmore(struct tcp_socket *so){
 
 
 /* delete a socket */
-int soabort(struct socket *so){
+int soabort(struct tcp_socket *so){
     so->m_app->on_bh_event(te_SOABORT);
     return(0);
 }
