@@ -22,7 +22,7 @@ class Prof1():
     def __init__(self):
         pass  # tunables
 
-    def create_profile(self,size, send_time, recv_time, mss, win):
+    def create_profile(self, size, send_time, recv_time, mss, win):
 
         http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>'+('*'*size*1024)+'</pre></html>'
 
@@ -45,14 +45,12 @@ class Prof1():
         prog_s.reset()
 
         info = ASTFGlobalInfo()
-        if mss:
-          info.tcp.mss = mss
-        info.tcp.initwnd = 2  # start big
+        info.tcp.mss = mss
+        info.tcp.initwnd = 2   # start big
         info.tcp.no_delay = 0  # to get fast feedback for acks
         info.tcp.no_delay_counter = 2 * mss
         info.tcp.rxbufsize = win * 1024  # 1MB window 
-        info.tcp.txbufsize = win * 1024  
-
+        info.tcp.txbufsize = win * 1024
 
         # ip generator
         ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
@@ -67,8 +65,8 @@ class Prof1():
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
         # profile
-        profile = ASTFProfile(default_ip_gen=ip_gen, 
-                              templates=template,                              
+        profile = ASTFProfile(default_ip_gen=ip_gen,
+                              templates=template,
                               default_c_glob_info=info,
                               default_s_glob_info=info)
 
@@ -95,7 +93,7 @@ class Prof1():
                             help="recv_time : in secs, client receive responses time.")
         parser.add_argument('--mss',
                             type=int,
-                            default=0,
+                            default=1460,
                             help='the mss of the traffic.')
         args = parser.parse_args(tunables)
 
@@ -107,6 +105,7 @@ class Prof1():
         if recv_time < 0:
             recv_time = 1
         mss  = args.mss
+        assert mss > 0, "mss must be greater than 0"
         win  = args.win
         return self.create_profile(size, send_time, recv_time, mss, win)
 
