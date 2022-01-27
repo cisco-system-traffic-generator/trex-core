@@ -759,13 +759,13 @@ def build_prog (bld, build_obj):
 
     bld.stlib(features = 'c',
               includes = tcp_includes_path,
-              cflags   = cflags + ['-DINET', '-DINET6', '-DTREX_FBSD', '-fno-builtin'],
+              cflags   = cflags,
               source   = tcp_src.file_list(top),
               target   = build_obj.get_tcp_target())
 
     bld.program(features='cxx cxxprogram', 
                 includes =  includes_path + tcp_includes_path,
-                cxxflags =  cxxflags + ['-DTREX_FBSD'],
+                cxxflags =  cxxflags,
                 linkflags = linkflags,
                 source = build_obj.get_src(),
                 use = build_obj.get_use_libs() + [build_obj.get_tcp_target()],

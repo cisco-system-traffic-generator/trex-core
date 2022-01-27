@@ -2512,7 +2512,7 @@ def build_prog (bld, build_obj):
 
     bld.stlib(features = 'c',
               includes = tcp_includes_path,
-              cflags   = cflags + ['-DINET', '-DINET6', '-DTREX_FBSD', '-fno-builtin'],
+              cflags   = cflags,
               source   = tcp_src.file_list(top),
               target   = build_obj.get_tcp_target())
 
@@ -2521,7 +2521,7 @@ def build_prog (bld, build_obj):
 
     bld.program(features='cxx cxxprogram',
                 includes =inc_path + tcp_includes_path,
-                cxxflags = ( cxxflags + ['-std=gnu++11', '-DTREX_FBSD']),
+                cxxflags = ( cxxflags + ['-std=gnu++11']),
                 linkflags = linkflags ,
                 lib=['pthread','dl', 'z'] + lib_ext,
                 use =[build_obj.get_dpdk_target(), build_obj.get_bpf_target(), 'zmq', build_obj.get_tcp_target()],
