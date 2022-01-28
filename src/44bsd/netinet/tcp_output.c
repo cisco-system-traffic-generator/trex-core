@@ -410,8 +410,8 @@ after_sack_rexmit:
 		 */
 		if (!(tp->t_flags & TF_MORETOCOME) &&	/* normal case */
 		    (idle || (tp->t_flags & TF_NODELAY)) &&
-		    (uint32_t)len + (uint32_t)off >= sbavail(&so->so_snd) &&
-		    (tp->t_flags & TF_NOPUSH) == 0) {
+		    (uint32_t)len + (uint32_t)off >= sbavail(&so->so_snd)/* &&
+		    (tp->t_flags & TF_NOPUSH) == 0*/) {
 			goto send;
 		}
 		if (tp->t_flags & TF_FORCEDATA)		/* typ. timeout case */
@@ -751,8 +751,9 @@ send:
 		 * give data to the user when a buffer fills or
 		 * a PUSH comes in.)
 		 */
-		if (((uint32_t)off + (uint32_t)len == sbused(&so->so_snd)) &&
-		    !(flags & TH_SYN))
+		/* TREX_FBSD: Force PUSH in case of NODELAY of client side */
+		if ((((uint32_t)off + (uint32_t)len == sbused(&so->so_snd)) &&
+		    !(flags & TH_SYN)) || (tp->t_flags & TF_NODELAY_PUSH))
 			flags |= TH_PUSH;
 	} else {
 		if (tp->t_flags & TF_ACKNOW)

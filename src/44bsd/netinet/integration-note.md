@@ -141,7 +141,7 @@ TCP tunable variables are collected in `struct tcp_tune`. You should instantiate
 `trex-core` has `tcp_no_delay` and `tcp_no_delay_counter` to be supported by FreeBSD TCP stack.
   - `tcp_no_delay`
     - nagle (0x1): `tp->t_flags |= TF_NODELAY`
-    - push (0x2): `tp->t_flags &= ~TF_NOPUSH` (TF_NODELAY_PUSH is not supported)
+    - push (0x2): `tp->t_flags |= TF_NODELAY_PUSH` (renamed TF_NOPUSH flag due to different featuree)
   - `tcp_no_delay_counter`: can handled by the following callback function
     - `bool tcp_check_no_delay(struct tcpcb *, int bytes);`
         - `bytes`: bytes to be accumulated. reset accumulated bytes if bytes < 0.

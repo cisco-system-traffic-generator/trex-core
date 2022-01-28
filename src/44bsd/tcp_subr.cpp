@@ -279,8 +279,8 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
         tp->t_flags |= TF_NODELAY;
     }
-    if (!(tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push)){
-        tp->t_flags |= TF_NOPUSH;
+    if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_push){
+        tp->t_flags |= TF_NODELAY_PUSH;
     }
 
     tp->m_delay_limit = tctx->tcp_no_delay_counter;

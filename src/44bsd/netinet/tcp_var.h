@@ -279,7 +279,7 @@ struct tcp_function_block {
 #define	TF_SACK_PERMIT	0x00000200	/* other side said I could SACK */
 #define	TF_NEEDSYN	0x00000400	/* send SYN (implicit state) */
 #define	TF_NEEDFIN	0x00000800	/* send FIN (implicit state) */
-#define	TF_NOPUSH	0x00001000	/* don't push */
+#define	TF_NODELAY_PUSH	0x00001000	/* TREX_FBSD: Force PUSH */
 #define	TF_PREVVALID	0x00002000	/* saved values for bad rxmit valid */
 #define	TF_WAKESOR	0x00004000	/* wake up receive socket */
 #define	TF_GPUTINPROG	0x00008000	/* Goodput measurement in progress */

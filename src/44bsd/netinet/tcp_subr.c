@@ -295,7 +295,7 @@ tcp_inittcpcb(struct tcpcb *tp, struct tcpcb_param *param)
 	tp->t_maxseg = V_tcp_mssdflt;
 
 	if (V_tcp_do_rfc1323)
-		tp->t_flags = (TF_REQ_SCALE|TF_REQ_TSTMP);
+		tp->t_flags |= (TF_REQ_SCALE|TF_REQ_TSTMP);
 	if (V_tcp_do_sack)
 		tp->t_flags |= TF_SACK_PERMIT;
 	TAILQ_INIT(&tp->snd_holes);
