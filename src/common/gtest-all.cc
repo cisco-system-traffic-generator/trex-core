@@ -6953,12 +6953,12 @@ static int ExecDeathTestChildMain(void* child_arg) {
 // function, but we want to guard against the unlikely possibility of
 // a smart compiler optimizing the recursion away.
 bool StackLowerThanAddress(const void* ptr) {
-  int dummy;
+  int dummy = 0;
   return &dummy < ptr;
 }
 
 bool StackGrowsDown() {
-  int dummy;
+  int dummy = 0;
   return StackLowerThanAddress(&dummy);
 }
 
