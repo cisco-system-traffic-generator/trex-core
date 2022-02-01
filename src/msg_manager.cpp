@@ -31,52 +31,48 @@ limitations under the License.
 ===============================================================================*/
 
 // Creates the CMessagingManager.
-bool CMessagingManager::Create(uint8_t num_dp_threads,std::string a_name){
-    m_num_dp_threads=num_dp_threads;
-    assert(m_dp_to_cp==0);
-    assert(m_cp_to_dp==0);
-    m_cp_to_dp = new CNodeRing[num_dp_threads] ;
+bool CMessagingManager::Create(uint8_t num_dp_threads, std::string a_name, uint16_t ring_size){
+    m_num_dp_threads = num_dp_threads;
+    assert(m_dp_to_cp == nullptr);
+    assert(m_cp_to_dp == nullptr);
+    m_cp_to_dp = new CNodeRing[num_dp_threads];
     m_dp_to_cp = new CNodeRing[num_dp_threads];
     int master_socket_id = rte_lcore_to_socket_id(CGlobalInfo::m_socket.get_master_phy_id());
-    int i;
-    for (i=0; i<num_dp_threads; i++) {
-        CNodeRing * lp;
+    for (int i = 0; i < num_dp_threads; i++) {
+        CNodeRing* lp;
         char name[100];
 
-        lp=getRingCpToDp(i);
-        sprintf(name,"%s_to_%d",(char *)a_name.c_str(),i);
-        assert(lp->Create(std::string(name),1024,master_socket_id)==true);
+        lp = getRingCpToDp(i);
+        sprintf(name,"%s_to_%d", (char *)a_name.c_str(), i);
+        assert(lp->Create(std::string(name), ring_size, master_socket_id) == true);
 
-        lp=getRingDpToCp(i);
-        sprintf(name,"%s_from_%d",(char *)a_name.c_str(),i);
-        assert(lp->Create(std::string(name),1024,master_socket_id)==true);
+        lp = getRingDpToCp(i);
+        sprintf(name,"%s_from_%d", (char *)a_name.c_str(), i);
+        assert(lp->Create(std::string(name), ring_size, master_socket_id) == true);
 
     }
-    assert(m_dp_to_cp);
-    assert(m_cp_to_dp);
     return (true);
 }
 
 // Deletes the CMessagingManager.
 void CMessagingManager::Delete(){
 
-    int i;
-    for (i=0; i<m_num_dp_threads; i++) {
-        CNodeRing * lp;
-        lp=getRingCpToDp(i);
+    for (int i = 0; i < m_num_dp_threads; i++) {
+        CNodeRing* lp;
+        lp = getRingCpToDp(i);
         lp->Delete();
-        lp=getRingDpToCp(i);
+        lp = getRingDpToCp(i);
         lp->Delete();
     }
 
     if (m_dp_to_cp) {
         delete [] m_dp_to_cp;
-        m_dp_to_cp = NULL;
+        m_dp_to_cp = nullptr;
     }
 
     if (m_cp_to_dp) {
         delete [] m_cp_to_dp;
-        m_cp_to_dp = NULL;
+        m_cp_to_dp = nullptr;
     }
 
 }
@@ -176,7 +172,7 @@ bool CMsgIns::Create(uint8_t num_threads, bool is_software_rss){
     if (!res) {
         return (res);
     }
-    res = m_rx_dp.Create(num_threads, "rx_dp");
+    res = m_rx_dp.Create(num_threads, "rx_dp", CGlobalInfo::m_options.m_rx_dp_ring_size);
     if (!res) {
         return res;
     }

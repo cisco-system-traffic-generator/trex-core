@@ -64,9 +64,10 @@ protected:
  public:
 
     CRxCore() {
-        m_is_active      = false;
-        m_ex_zmq_enabled = false;
-        m_ezmq_use_tcp   = false;
+        m_is_active           = false;
+        m_ex_zmq_enabled      = false;
+        m_ezmq_use_tcp        = false;
+        m_dp_msg_hot          = false;
         m_working_tpg_threads = 0;
     }
     ~CRxCore();
@@ -228,44 +229,61 @@ protected:
     void get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
 
  protected:
-    uint32_t handle_msg_packets(void);
-    uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing *r);
 
-    void  delete_zmq();
+    /**
+     * Handle message packets from DPs.
+     *
+     * @return uint32_t
+     *   Number of packets/messages handled.
+     **/
+    uint32_t handle_msg_packets();
 
-    void  create_zmq();
+    /**
+     * Handle message packets from one single DP.
+     *
+     * @param thread_id
+     *   Identifier of the DP.
+     *
+     * @param r
+     *   Ring on which the messages/packets are sent.
+     *
+     * @return uint32_t
+     *   Number of packets/messages handled.
+     **/
+    uint32_t handle_rx_one_queue(uint8_t thread_id, CNodeRing* r);
 
+    /**
+     * Handle one message/packet from DP.
+     *
+     * @param thread_id
+     *   Thread on which the message is received
+     *
+     * @param node
+     *   The message to handle.
+     **/
+    void handle_dp_msg(uint8_t thread_id, CGenNode* node);
+    void delete_zmq();
+    void create_zmq();
     void restart_zmq();
-
-
-    bool  create_zmq(void *   &socket,std::string port);
-
+    bool create_zmq(void *   &socket,std::string port);
     void handle_cp_msg(TrexCpToRxMsgBase *msg);
-
     bool periodic_check_for_cp_messages();
-
     void tickle();
-
     virtual int _do_start(void);
     /* states */
     void hot_state_loop();
     void cold_state_loop();
     void init_work_stage();
     virtual bool work_tick();
-
     void recalculate_next_state();
     bool is_latency_active();
     bool should_be_hot();
-
-    void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing * r);
+    void handle_rx_queue_msgs(uint8_t thread_id, CNodeRing* r);
     void handle_work_stage();
-
     int process_all_pending_pkts(bool flush_rx = false);
-
     void flush_all_pending_pkts() {
         process_all_pending_pkts(true);
     }
-
     void try_rx_queues();
 
     /**
@@ -309,7 +327,10 @@ protected:
     CCpuUtlCp               m_cpu_cp_u;
     dsec_t                  m_sync_time_sec;
     dsec_t                  m_sync_time_period;
+    dsec_t                  m_sync_time_dp_msg_sec;             // Next timestamp when DP messages should be read
+    dsec_t                  m_sync_time_dp_msg_period;          // Period in between two consequent DP message reads.
     dsec_t                  m_grat_arp_sec;
+    bool                    m_dp_msg_hot;                       // Is DP messaging redirection hot?
     uint64_t                m_rx_pkts;
     uint8_t                 m_working_tpg_threads;              // Number of working TPG threads (Ref Counter)
     CRxCoreErrCntrs         m_err_cntrs;
@@ -321,7 +342,7 @@ protected:
 
     /* accessed from control core */
     volatile bool                               m_is_active;
-    std::unordered_map<std::string, TPGRxCtx*>  m_tpg_ctx;      // Rx TPG Contexts
+    std::unordered_map<std::string, TPGRxCtx*>  m_tpg_ctx;       // Rx TPG Contexts
     void*                                       m_zmq_ctx;
     void*                                       m_zmq_rx_socket; // in respect to TRex interface (rx->emu)
     void*                                       m_zmq_tx_socket; // in respect to TRex interface (emu->tx)

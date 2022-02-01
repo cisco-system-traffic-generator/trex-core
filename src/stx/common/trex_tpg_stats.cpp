@@ -135,10 +135,9 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
 
     uint16_t header_size = sizeof(struct tpg_payload_header);
     uint8_t tmp_buf[header_size];
-    memset(tmp_buf, 0, header_size);
     struct tpg_payload_header* tpg_header = (tpg_payload_header *)utl_rte_pktmbuf_get_last_bytes(m, header_size, tmp_buf);
 
-    if (tpg_header->magic != TPG_PAYLOAD_MAGIC) {
+    if (unlikely(tpg_header->magic != TPG_PAYLOAD_MAGIC)) {
         // Not a TPG Packet, return.
         return;
     }
