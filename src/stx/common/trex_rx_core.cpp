@@ -136,9 +136,6 @@ void CRxCore::create(const CRxSlCfg &cfg) {
         }
     }
 
-    for (auto &iter_pair : m_rx_port_mngr_map) {
-        iter_pair.second->wait_for_create_done();
-    }
 
     /* create a TX queue */
     m_tx_queue.create(this, 5000);
@@ -151,7 +148,7 @@ void  CRxCore::restart_zmq()  {
 }
 
 void  CRxCore::create_zmq()  {
-    // create zmq ch 
+    // create zmq ch
     m_zmq_ctx = zmq_ctx_new();
     CParserOption * po =&CGlobalInfo::m_options;
 

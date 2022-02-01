@@ -87,20 +87,41 @@ def run_command(command, timeout = 30, poll_rate = 0.1, cwd = None, demote = Fal
 
 def get_daemon_pid():
     pid = None
-    for conn in netstat.netstat(with_pid = True, search_local_port = args.port):
-        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
-            pid = conn[7]
-            if pid is None:
-                raise Exception('Found the connection, but could not determine pid: %s' % conn)
+    if args.name == 'Cmds':
+        return get_daemon_pid_by_prefix('trex.cmds')
+    else:
+        for conn in netstat.netstat(with_pid = True, search_local_port = args.port):
+            if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
+                pid = conn[7]
+                if pid is None:
+                    raise Exception('Found the connection, but could not determine pid: %s' % conn)
+                break
+    return pid
+
+def get_daemon_pid_by_prefix(process_prefix):
+    pid = None
+    lines = subprocess.check_output(['ps', '-ef']).decode().split("\n")
+    for line in lines:
+        if process_prefix in line and 'general_daemon_server' not in line and 'taskset' not in line:
+            pid = line.split()[1]
             break
     return pid
 
+def is_running_by_prefix(process_prefix):
+    lines = subprocess.check_output(['ps', '-ef']).decode().split("\n")
+    for line in lines:
+        if process_prefix in line and 'general_daemon_server' not in line:
+            return True
+    return False
 
 # faster variant of get_daemon_pid
 def is_running():
-    for conn in netstat.netstat(with_pid = False, search_local_port = args.port):
-        if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
-            return True
+    if args.name == 'Cmds':
+        return is_running_by_prefix('trex.cmds')
+    else:
+        for conn in netstat.netstat(with_pid = False, search_local_port = args.port):
+            if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
+                return True
     return False
 
 
@@ -145,7 +166,9 @@ def start_daemon():
     assert args.exe is not None, 'Must provide -e with an executable string for start command'
     sudo   = 'sudo' if args.sudo else ''
     python = sys.executable if args.py else ''
-    cmd = '{sudo} taskset -c {core} {python} {exe} -p {port}'.format(sudo = sudo, core = args.core, python = python, exe = args.exe,port = args.port)
+    cmd = '{sudo} taskset -c {core} {python} {exe}'.format(sudo = sudo, core = args.core, python = python, exe = args.exe)
+    if args.name != 'Cmds':
+        cmd += ' -p {port}'.format(port = args.port)
 
     proc, stdout_file = run_command(cmd, demote = args.demote, is_daemon = True, cwd = server_path)
     ret = progress(is_running, 'Starting {name} server'.format(name=args.name), '{name} server is started'.format(name=args.name), '{name} server failed to run'.format(name=args.name), fail_check = proc.poll)
@@ -227,7 +250,7 @@ if __name__ == '__main__':
     parser.usage = None
     args = parser.parse_args()
     
-    if args.port is None:
+    if args.port is None and args.name != 'Cmds':
         args.port = get_default_port(args.name)
 
     action_funcs[args.action]()

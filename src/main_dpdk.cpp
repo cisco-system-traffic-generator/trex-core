@@ -3583,6 +3583,9 @@ COLD_FUNC void CGlobalTRex::apply_pretest_results_to_stack(void) {
             continue;
         }
         TrexPort *port = m_stx->get_port_by_id(port_id);
+        while ( port->is_rx_running_cfg_tasks() ) {
+            rte_pause_or_delay_lowend();
+        }
         uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
         uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
         std::string dst_mac((char*)CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, 6);
@@ -7563,15 +7566,16 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
   const int FASTPATH_DELAY_MS = 10;
   const int SLOWPATH_DELAY_MS = 500;
 
-  m_monitor.create("master", 2);
-  TrexWatchDog::getInstance().register_monitor(&m_monitor);
-
-  TrexWatchDog::getInstance().start();
 
   if ( get_is_interactive() ) {
     apply_pretest_results_to_stack();
     run_bird_with_ns();
   }
+
+  m_monitor.create("master", 2);
+  TrexWatchDog::getInstance().register_monitor(&m_monitor);
+
+  TrexWatchDog::getInstance().start();
   while (!is_marked_for_shutdown()) {
 
     /* fast path */
