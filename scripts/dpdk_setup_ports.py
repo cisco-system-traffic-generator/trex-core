@@ -802,6 +802,18 @@ Other network devices
                 print("Could not start scapy daemon server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(-1)
 
+        if self.m_cfg_dict[0].get('stack') == 'linux_based':
+            cmd = '{sys_exe} general_daemon_server restart -n {name} -c {core} --py -i --sudo -e "{exe}"'.format(sys_exe = sys.executable,
+                                                                                                                             core = services_core,
+                                                                                                                             name = 'Cmds',
+                                                                                                                             exe  = '-m trex.cmds_server.cmds_zmq_server')
+
+            ret = os.system(cmd)
+            if ret:
+                print("Could not start cmds server, which is needed in case of linux_based stack")
+                sys.exit(-1)
+
+
         if pa().bird_server:
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -i'.format(sys_exe = sys.executable,
                                                                                                                        name = 'PyBird',
@@ -1614,6 +1626,19 @@ def signal_handler(sig, frame):
 def should_scapy_server_run():
     return not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf)
 
+def should_cmds_server_run():
+    result = False
+    try:
+        stream = open(map_driver.cfg_file, 'r')
+        cfg_dict= yaml.safe_load(stream)
+        if cfg_dict[0].get('stack') == 'linux_based':
+            result = True
+    except Exception as e:
+        print(e)
+        raise e
+    finally:
+        stream.close()
+    return result
 
 def kill_scapy():
     ret = os.system('%s general_daemon_server stop -n Scapy' % sys.executable)
@@ -1635,6 +1660,13 @@ def kill_emu():
             print("Could not stop EMU service.")
             sys.exit(-1)
 
+def kill_cmds_server():
+        cmd = '%s general_daemon_server stop -n Cmds' % sys.executable
+
+        ret = os.system(cmd)
+        if ret:
+            print("Could not stop Cmds server.")
+            sys.exit(-1)
 
 def cleanup_servers():
     ''' cleanup scapy and bird servers '''
@@ -1644,6 +1676,8 @@ def cleanup_servers():
         kill_pybird()
     if pa().emu:
         kill_emu()
+    if should_cmds_server_run():
+        kill_cmds_server()
 
 
 def main ():

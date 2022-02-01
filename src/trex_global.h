@@ -586,6 +586,7 @@ public:
         m_ezmq_ch_enabled     = false;
         m_emzq_ch_tcp         = false;
         m_emzq_ipc_file_path  = "/tmp/emu";
+        m_cmds_ipc_file_path = "/tmp/cmds";
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
@@ -646,6 +647,7 @@ public:
     bool            m_tunnel_enabled;
     bool            m_emzq_ch_tcp;
     std::string     m_emzq_ipc_file_path;
+    std::string     m_cmds_ipc_file_path;
     std::string     m_stack_type;
 
     
