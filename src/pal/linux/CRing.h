@@ -90,8 +90,26 @@ public:
         return ( CRingSp::Enqueue((void*)obj) );
     }
 
+    int EnqueueBulk(T** obj, unsigned int n) {
+        assert(obj);
+        for (int i = 0; i < n; i++) {
+            Enqueue(obj[i]);
+        }
+        return 0;
+    }
+
     int Dequeue(T * & obj){
         return (CRingSp::Dequeue(*((void **)&obj)));
+    }
+
+    int DequeueBulk(T** obj, unsigned int n) {
+        if (Size() < n) {
+            return 1;
+        }
+        for (int i = 0; i < n; i++) {
+            Dequeue(obj[i]);
+        }
+        return 0;
     }
 
     bool Reschedule() {

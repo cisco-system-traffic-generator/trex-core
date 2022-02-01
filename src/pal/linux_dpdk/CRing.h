@@ -35,13 +35,11 @@ public:
         m_ring=0;
     }
 
-    bool Create(std::string name, 
-                uint16_t cnt,
-                int socket_id){
-        m_ring=rte_ring_create((char *)name.c_str(), 
+    bool Create(std::string name, uint16_t cnt, int socket_id) {
+        m_ring = rte_ring_create((char *)name.c_str(),
                                cnt,
-				 socket_id, 
-                 RING_F_SP_ENQ | RING_F_SC_DEQ);
+                               socket_id,
+                               RING_F_SP_ENQ | RING_F_SC_DEQ);
         assert(m_ring);
         return(true);
     }
@@ -55,8 +53,38 @@ public:
         return (rte_ring_sp_enqueue(m_ring,obj));
     }
 
+    /**
+    * Enqueue several objects on a ring.
+    * @param obj
+    *   A pointer to a table of pointers (objects) to enqueue.
+    * @param n
+    *   The number of objects to add in the ring from the obj_table.
+    * @return 
+    *   - true: Success; n objects enqueued.
+    *   - false: Not enough room in the ring to enqueue; no object is enqueued.
+    */
+    bool EnqueueBulk(void** obj, unsigned int n) {
+        assert(obj);
+        return (rte_ring_enqueue_bulk(m_ring, obj, n, NULL) == n ? true : false);
+    }
+
     int Dequeue(void * & obj){
         return(rte_ring_mc_dequeue(m_ring,(void **)&obj));
+    }
+
+    /**
+    * Dequeue several objects on a ring.
+    * @param obj
+    *   A pointer to a table of pointers (objects) that will be filled.
+    * @param n
+    *   The number of objects to dequeue from the ring to the obj_table.
+    * @return 
+    *   - true: Success; n objects dequeued.
+    *   - false: Not enough entries in the ring to dequeue; no object is enqueued.
+    */
+    bool DequeueBulk(void** obj, unsigned int n) {
+        assert(obj);
+        return (rte_ring_dequeue_bulk(m_ring, obj, n, NULL) == n ? true : false);
     }
 
     bool isFull(void){
@@ -65,6 +93,15 @@ public:
 
     bool isEmpty(void){
         return ( rte_ring_empty(m_ring)?true:false );
+    }
+
+    /**
+    * Return the number of entries in a ring.
+    * @return
+    *   The number of entries in the ring.
+    */
+    uint32_t Size() {
+        return rte_ring_count(m_ring);
     }
 
 private:
@@ -82,8 +119,38 @@ public:
         return ( CRingSp::Enqueue((void*)obj) );
     }
 
+    /**
+    * Enqueue several objects on a ring.
+    * @param obj
+    *   A pointer to a table of pointers (objects) to enqueue.
+    * @param n
+    *   The number of objects to add in the ring from the obj_table.
+    * @return 
+    *   - true: Success; n objects enqueued.
+    *   - false: Not enough room in the ring to enqueue; no object is enqueued.
+    */
+    bool EnqueueBulk(T** obj, unsigned int n) {
+        assert(obj);
+        return CRingSp::EnqueueBulk((void**)obj, n);
+    }
+
     int Dequeue(T * & obj){
         return (CRingSp::Dequeue(*((void **)&obj)));
+    }
+
+    /**
+    * Dequeue several objects on a ring.
+    * @param obj
+    *   A pointer to a table of pointers (objects) that will be filled.
+    * @param n
+    *   The number of objects to dequeue from the ring to the obj_table.
+    * @return 
+    *   - true: Success; n objects dequeued.
+    *   - false: Not enough entries in the ring to dequeue; no object is enqueued.
+    */
+    bool DequeueBulk(T** obj, unsigned int n) {
+        assert(obj);
+        return CRingSp::DequeueBulk((void**)obj, n);
     }
 
     void Delete(void){

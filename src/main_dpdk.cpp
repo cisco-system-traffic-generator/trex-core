@@ -3904,7 +3904,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
     register_signals();
 
     m_stats_cnt =0;
-    
+
     /* End update pre flags */
 
     device_prob_init();
@@ -3918,17 +3918,26 @@ COLD_FUNC bool CGlobalTRex::Create(){
     }
     m_zmq_publisher.set_interactive_mode(get_mode()->is_interactive());
 
+
+    CTrexDpdkParams dpdk_p;
+    get_dpdk_drv_params(dpdk_p);
+    if (isVerbose(0)) {
+        dpdk_p.dump(stdout);
+    }
+
     bool is_astf_best_effort_mode = get_mode()->is_astf_best_effort_mode();
     if (is_astf_best_effort_mode) {
         // set data needed for this mode
-        CTrexDpdkParams dpdk_p;
-        get_dpdk_drv_params(dpdk_p);
         CGlobalInfo::m_options.m_tx_ring_size = dpdk_p.tx_desc_num;
         CGlobalInfo::m_options.m_reta_mask = 0xFF;
         CGlobalInfo::m_options.m_astf_best_effort_mode = true;
     }
+
+    bool stl_software_mode = get_is_stateless() && !get_dpdk_mode()->is_hardware_filter_needed();
+    CGlobalInfo::m_options.m_rx_dp_ring_size = stl_software_mode ? dpdk_p.rx_desc_num_data_q : 1024;
+
     /* allocate rings */
-    assert( CMsgIns::Ins()->Create(get_cores_tx(), is_astf_best_effort_mode) );
+    assert(CMsgIns::Ins()->Create(get_cores_tx(), is_astf_best_effort_mode));
 
     if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
         printf("ERROR sizeof(CGenNodeNatInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
@@ -3941,13 +3950,6 @@ COLD_FUNC bool CGlobalTRex::Create(){
     }
 
     /* allocate the memory */
-    CTrexDpdkParams dpdk_p;
-    get_dpdk_drv_params(dpdk_p);
-
-    if (isVerbose(0)) {
-        dpdk_p.dump(stdout);
-    }
-
     bool use_hugepages = !(CGlobalInfo::m_options.m_is_vdev && CGlobalInfo::m_options.m_pdevs_in_vdev.empty());
     CGlobalInfo::init_pools( m_max_ports * dpdk_p.get_total_rx_desc(),
                              dpdk_p.rx_mbuf_type,
@@ -3955,7 +3957,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
 
     device_start();
     dump_config(stdout);
-    m_sync_barrier =new CSyncBarrier(get_cores_tx(),1.0);
+    m_sync_barrier = new CSyncBarrier(get_cores_tx(), 1.0);
 
 
     switch (get_op_mode()) {
@@ -3980,7 +3982,6 @@ COLD_FUNC bool CGlobalTRex::Create(){
         assert(0);
     }
 
-    
     return (true);
 
 }

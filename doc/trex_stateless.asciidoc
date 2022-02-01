@@ -4276,7 +4276,7 @@ For more info, read the multiple user support section.
 The following conditions are requisite for TPG:
 
 * Software Mode
-* Packets are handled by RX thread, 5 Mpps
+* Packets are handled by RX thread, up to 5 Mpps
 * tpgid unique per stream, 32 bit.
 * 16 byte payload header in each packet
 * Tag type is limited and requires server support. List of supported tags:
@@ -4289,7 +4289,7 @@ Some more details:
 
 * TPG works in STL software mode only. It can work in a multi core environment and also it supports bi directional traffic.
 
-* All of the TPG received packets are redirected from the Data Plane to the Rx thread based on some magic installed in TPG packets. This limits the rate to around 5 Mpps.
+* All of the TPG received packets are redirected from the Data Plane to the Rx thread based on some magic installed in TPG packets. This limits the rate to around 3-5 Mpps.
 
 * The tpgid must be unique per stream. In order to collect the stats, we must keep a sequence number for each tpgid. If multiple streams were to use the same tpgid, 
 these streams (which can be attached to different Data Plane Cores) can put the sequence number out of sync.
@@ -4298,6 +4298,35 @@ these streams (which can be attached to different Data Plane Cores) can put the 
 Packets that don't have at least 16 bytes of payload can't be used for TPG.
 
 * Each TPG context is keyed by the username that creates it. The session that the username uses plays no factor.
+
+==== Performance
+
+As mentioned before, the TPG packets are handled in the Rx thread. They are received in Data Plane and from there redirected to the Rx thread. The redirection is different if you use one core or multi core software mode.
+
+* If you are using one core (*-c 1*), the redirection from DP to Rx is done using a hardware ring.
+* If you are using multiple cores, the redirection from DP to Rx is done using software rings.
+
+Hence performance differs if you were to run TRex with one core or multiple cores.
+
+===== Numbers
+
+Using one stream (one tpgid) with one tag allows us to reach 3-5 Mpps with one core. This number can be slightly less if you are using multi-core.
+This sounds illogical, as in most cases using multiple cores should improve the performance. However, remember that since TPG requires a sequence number in the packet, all the streams are compiled in one core anyway.
+
+If we increase the number of streams, the performance decreases because of cache thrashing. However, we can still comfortably reach 2Mpps with 4k streams.
+
+NOTE: The numbers were computed using an XL710 NIC.
+
+===== Bursts
+
+Problems arise when we need to redirect bursts of packets. If a burst contains more packets than the hardware or redirecting ring size, packets will be dropped.
+This is problematic especially in MLX5 cards, where VlanID is considered part of the flow. These NICs will classify packets with different
+vlans as different flows and handle them very slowly, causing the ring to fill and drop packets. In order to solve this problem, we suggest using `isg` to introduce some noise and avoid bursts of multiple streams.
+
+===== Warmup streams
+
+Since the number of TPG counters can be massive, we allocate them lazily. This means that the price to pay for the first packet can be higher than the rest of packets. As such, we suggest sending a warmup stream with a slow rate so that when the real test begins we achieve better results.
+
 
 ==== Client Api
 
