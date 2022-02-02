@@ -26,7 +26,11 @@ CCmdsMngr::CCmdsMngr() {
     zmq_setsockopt(m_zmq_cmds_socket, ZMQ_RCVTIMEO, &timeout_ms, sizeof(timeout_ms));
     zmq_setsockopt(m_zmq_cmds_socket, ZMQ_SNDTIMEO, &timeout_ms, sizeof(timeout_ms));
 
-    std::string file_path_ipc = "ipc://" + po->m_cmds_ipc_file_path + ".ipc";
+    std::string file_suffix = "";
+    if (po->prefix != "") {
+        file_suffix += "_" + po->prefix;
+    }
+    std::string file_path_ipc = "ipc://" + po->m_cmds_ipc_file_path + file_suffix + ".ipc";
     if ( zmq_connect(m_zmq_cmds_socket, file_path_ipc.c_str()) != 0 ) {
         zmq_close(m_zmq_cmds_socket);
         zmq_ctx_term(m_zmq_ctx);
