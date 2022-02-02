@@ -77,6 +77,7 @@ def get_streams(burst_size, pps, qinq, vlans):
                                                          dst="48.0.0.1")/UDP(dport=12, sport=1025)/'at_least_16_bytes_are_needed')
         streams.append(STLStream(name="vlan_{}".format(i),
                                  packet=pkt,
+                                 isg=30 * i, # introduce some isg to avoid bursts in certain setups
                                  flow_stats=STLTaggedPktGroup(tpgid=tpgid),
                                  mode=STLTXSingleBurst(total_pkts=total_pkts,
                                                        pps=pps)))
@@ -223,6 +224,9 @@ def rx_example(tx_port, rx_port, burst_size, pps, qinq, vlans, verbose, ignore_s
 
         # wait for the traffic to finish
         c.wait_on_traffic(ports=[tx_port])
+
+        # Traffic might have ended but takes some time to parse the packets and update the stats.
+        time.sleep(0.5)
 
         # verify the counters
         for i in range(num_streams):

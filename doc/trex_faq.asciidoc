@@ -569,7 +569,8 @@ or introduce `isg` to avoid the burst.
 ===== First TPG packets are dropping
 
 You should attempt to warmup the counters using a small rate stream in the beginning. We allocate the counters lazily, and do so on the first
-packet received for each counter. Hence the price to pay for the first packet is higher than the rest of packets.
+packet received for each counter. Hence the price to pay for the first packet is higher than the rest of packets. Also please make sure you have waited enough time for the Rx
+to parse the packets before querying for the packets as explained in Tagged Packet Group section in stateless documentation.
 
 
 === Bird Integration

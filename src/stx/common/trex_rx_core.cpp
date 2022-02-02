@@ -764,6 +764,13 @@ void CRxCore::disable_tpg_ctx(const std::string& username) {
         return;
     }
     TPGRxCtx* tpg_rx_ctx = m_tpg_ctx[username];
+
+    // Stop the port handlers before freeing the counters.
+    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
+    for (uint8_t port: rx_ports_vec) {
+        m_rx_port_mngr_vec[port]->disable_tpg();
+    }
+
     m_working_tpg_threads++;             // Increase the ref counter
     tpg_rx_ctx->deallocate();            // Start deallocating in another thread
 }
@@ -812,22 +819,20 @@ void CRxCore::_enable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
 
         tpg_rx_ctx->set_state(TPGRxState::ENABLED);
     }
+
+    recalculate_next_state();
 }
 
 void CRxCore::_disable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
     m_working_tpg_threads--;
     tpg_rx_ctx->destroy_thread(); // Thread has finished working
-    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
-
-    for (uint8_t port: rx_ports_vec) {
-        m_rx_port_mngr_vec[port]->disable_tpg();
-    }
 
     delete tpg_rx_ctx;
     /**
      Theoretically we should remove the username from the map here.
      However we are looping the map right now, hence the caller removes it
      **/
+    recalculate_next_state();
 }
 
 void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
