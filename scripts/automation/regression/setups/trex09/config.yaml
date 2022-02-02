@@ -15,10 +15,10 @@
 #     * virtual  - virtual OS (accept low CPU utilization in tests)
 
 ### Router configuration:
-# hostname       - the router hostname as apears in ______# cli prefix
+# hostname       - the router hostname as appears in ______# cli prefix
 # ip_address     - the router's ip that can be used to communicate with
 # image          - the desired imaged wished to be loaded as the router's running config
-# line_password  - router password when access via Telent
+# line_password  - router password when access via Telnet
 # en_password    - router password when changing to "enable" mode
 # interfaces     - an array of client-server pairs, representing the interfaces configurations of the router
 # configurations - an array of configurations that could possibly loaded into the router during the test. 
@@ -35,5 +35,5 @@
 trex:
   hostname       : csi-trex-09
   cores          : 2
-  modes          : ['loopback']
+  modes          : ['loopback', 'stl_software']
   trex_add_args  : '--x710-reset-threshold 10000000'

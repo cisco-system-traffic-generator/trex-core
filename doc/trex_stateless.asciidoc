@@ -4327,6 +4327,23 @@ vlans as different flows and handle them very slowly, causing the ring to fill a
 
 Since the number of TPG counters can be massive, we allocate them lazily. This means that the price to pay for the first packet can be higher than the rest of packets. As such, we suggest sending a warmup stream with a slow rate so that when the real test begins we achieve better results.
 
+===== Waiting for traffic
+
+If you are testing and want to verify the packets are received, it is really important to query for the stats after the traffic is received and parsed. You should use something like:
+
+[source, python]
+----
+    def wait_for_packets(self, ports):
+        # wait for the traffic to finish
+        self.c.wait_on_traffic(ports=ports)                 <1>
+
+        # Traffic might have ended but takes some time to parse
+        # the packets and update the stats.
+        time.sleep(0.5)                                     <2>
+----
+<1> Block until the traffic is received on the port. Use both Tx and Rx as ports.
+<2> Wait an extra 500 milliseconds for the Rx thread to parse the traffic.
+
 
 ==== Client Api
 
@@ -4541,6 +4558,7 @@ def get_streams(burst_size, pps, qinq, vlans):
                             /UDP(dport=12, sport=1025)/'at_least_16_bytes_are_needed')
         streams.append(STLStream(name="vlan_{}".format(i),
                                  packet=pkt,
+                                 isg=30 * i,                                     # <4>
                                  flow_stats=STLTaggedPktGroup(tpgid=tpgid),
                                  mode=STLTXSingleBurst(total_pkts=total_pkts,
                                                        pps=pps)))
@@ -4550,6 +4568,7 @@ def get_streams(burst_size, pps, qinq, vlans):
 <1> Define a stream with QinQ. Note that not necessarily we need to tag our streams, since the DUT can tag.
 <2> Define the stream as a TPG stream, this way we will collect stats on it.
 <3> Define a range of streams with Dot1Q tags. Note that each streams gets a unique tpgid.
+<4> Some setups can suffer bursts, as such we introduce some isg.
 
 Lastly, we enable TPG, start the streams and collect stats.
 
@@ -4585,15 +4604,19 @@ Lastly, we enable TPG, start the streams and collect stats.
         # wait for the traffic to finish
         c.wait_on_traffic(ports=[tx_port])                                   # <4>
 
+        # Traffic might have ended but takes some time to parse 
+        # the packets and update the stats.
+        time.sleep(0.5)                                                      # <5>
+
         # verify the counters
         for i in range(num_streams):
             # stream number = tpgid
 
-            tx_stats = c.get_tpg_tx_stats(port=tx_port, tpgid=i)             # <5>
+            tx_stats = c.get_tpg_tx_stats(port=tx_port, tpgid=i)             # <6>
             rx_stats = c.get_tpg_stats(port=rx_port, tpgid=i, min_tag=0,
-                             max_tag=num_tags, max_sections=num_tags)[0]     # <6>
+                             max_tag=num_tags, max_sections=num_tags)[0]     # <7>
 
-            tpgid_passed = verify_stream_stats(rx_stats, tx_stats, rx_port,  # <7>
+            tpgid_passed = verify_stream_stats(rx_stats, tx_stats, rx_port,  # <8>
                                 tx_port, streams[i].get_pkt_len(), 
                                 burst_size, i, verbose, ignore_seq_err)
 
@@ -4605,19 +4628,20 @@ Lastly, we enable TPG, start the streams and collect stats.
         print(e)
 
     finally:
-        c.disable_tpg()                                                       # <8>
+        c.disable_tpg()                                                       # <9>
         c.disconnect()
 ----
 <1> Enable TPG with the Tag configuration we saw before. One port collects.
 <2> Add the streams we defined to the other port that transmits.
 <3> Start the traffic.
 <4> Wait for the traffic to finish on the transmitting port.
-<5> Get the Tx stats
-<6> Get the Rx stats
-<7> Verify the stats
-<8> Disable TPG
+<5> Wait a few extra milliseconds for the Rx to parse the packets and update the counters.
+<6> Get the Tx stats
+<7> Get the Rx stats
+<8> Verify the stats
+<9> Disable TPG
 
-=== Console Api 
+=== Console Api
 
 TPG can be used through the TRex-Console as well. Let us show how.
 

@@ -18,7 +18,7 @@ class STLRX_Test(CStlGeneral_Test):
         per_driver_params = self.get_per_driver_params()
         CStlGeneral_Test.setUp(self)
 
-        self.c = CTRexScenario.stl_trex;
+        self.c = CTRexScenario.stl_trex
 
         self.tx_port, self.rx_port = CTRexScenario.ports_map['bi'][0]
 
@@ -94,8 +94,8 @@ class STLRX_Test(CStlGeneral_Test):
         else:
             max_drop_allowed = 0
         self.allow_drop             = per_driver_params[drv_name].get('allow_packets_drop_num', max_drop_allowed)
-        
-        # in case of a real DUT there could be a few packets due to the DUT iteself  
+
+        # in case of a real DUT there could be a few packets due to the DUT itself
         if CTRexScenario.setup_name in ['trex14']:
             self.allow_drop = 5
 
@@ -145,16 +145,16 @@ class STLRX_Test(CStlGeneral_Test):
                           ]
                        )
 
-        self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
-        self.pkt_with_vm = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'), vm=vm_without_cache)
-        self.vlan_pkt = STLPktBuilder(pkt = Ether()/Dot1Q()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
-        self.qinq_pkt = STLPktBuilder(pkt = Ether(type=0x88A8)/Dot1Q(vlan=19)/Dot1Q(vlan=11)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+        self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_payload_comes_here'))
+        self.pkt_with_vm = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_payload_comes_here'), vm=vm_without_cache)
+        self.vlan_pkt = STLPktBuilder(pkt = Ether()/Dot1Q()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_payload_comes_here'))
+        self.qinq_pkt = STLPktBuilder(pkt = Ether(type=0x88A8)/Dot1Q(vlan=19)/Dot1Q(vlan=11)/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('Your_payload_comes_here'))
         self.ipv6pkt = STLPktBuilder(pkt = Ether()/IPv6(dst="2001:0:4137:9350:8000:f12a:b9c8:2815",src="2001:4860:0:2001::68")
-                                     /UDP(dport=12,sport=1025)/('Your_paylaod_comes_here'))
+                                     /UDP(dport=12,sport=1025)/('Your_payload_comes_here'))
         self.large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000))
         self.pkt_9k = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*9000))
         self.vm_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")
-                                    / UDP(dport=12,sport=1025)/('Your_paylaod_comes_here')
+                                    / UDP(dport=12,sport=1025)/('Your_payload_comes_here')
                                     , vm = vm)
         self.vm_large_pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/('a'*1000)
                                           , vm = vm)
@@ -185,7 +185,6 @@ class STLRX_Test(CStlGeneral_Test):
         self.errs = []
         self.max_latency = 0
         self.latency_obj = None
-
 
     @classmethod
     def tearDownClass(cls):
@@ -249,8 +248,6 @@ class STLRX_Test(CStlGeneral_Test):
         else:
             return (0.0)
 
-
-
     def __push_latency_elk (self):
         if self.elk : 
             elk_obj = self.get_elk_obj()
@@ -259,7 +256,6 @@ class STLRX_Test(CStlGeneral_Test):
               elk_obj['test'] =obj;
               pprint.pprint(elk_obj['test']);
               self.elk.perf.push_data(elk_obj)
-
 
     def __save_max_latency (self,latency):
         if self.elk : 
@@ -278,15 +274,14 @@ class STLRX_Test(CStlGeneral_Test):
 
                 self.latency_obj = obj
 
-
-    def __verify_latency (self, latency_stats,max_latency,max_average):
+    def __verify_latency (self, latency_stats, max_latency, max_average):
 
         error=0;
         err_latency = latency_stats['err_cntrs']
         latency     = latency_stats['latency']
 
         self.__save_max_latency (latency)
-                                         
+
         for key in err_latency :
             error +=err_latency[key]
         if error > self.allow_drop:
@@ -309,7 +304,6 @@ class STLRX_Test(CStlGeneral_Test):
             return ERROR_LATENCY_TOO_HIGH
 
         return 0
-
 
     def __exit_with_error(self, stats, xstats, err, pkt_len=0, pkt_type=""):
         if pkt_len != 0:
@@ -382,7 +376,7 @@ class STLRX_Test(CStlGeneral_Test):
                                            , 'RX bytes mismatch - got: {0}, expected: {1}'.format(rx_bytes, (total_pkts * rx_pkt_len))
                                            , pkt_len, pkt_type)
 
-    # RX itreation
+    # RX iteration
     def __rx_iteration (self, exp_list, duration=0):
 
         self.c.clear_stats()
@@ -597,10 +591,9 @@ class STLRX_Test(CStlGeneral_Test):
             duration = 0
         self.__rx_iteration(exp, duration = duration)
 
-
     @try_few_times_on_vm
     def test_1_stream_many_iterations (self):
-        
+
         tx_percentage = float(self.rate_fstat)
         if self.is_VM:
             tx_percentage = tx_percentage / 20.0
@@ -676,7 +669,6 @@ class STLRX_Test(CStlGeneral_Test):
                     raise
             self.c.remove_all_streams(ports = [self.tx_port])
 
-
     def __9k_stream(self, pgid, ports, percent, max_latency, avg_latency, duration, pkt_size):
         my_pg_id=pgid
         s_ports=ports;
@@ -726,7 +718,6 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-
 
     # Verify that there is low latency with random packet size,duration and ports
     @try_few_times_on_vm
@@ -779,13 +770,11 @@ class STLRX_Test(CStlGeneral_Test):
 
             self.__push_latency_elk()
 
-
     def check_stats(self, a, b, err):
         if a != b:
             tmp = 'ERROR field : {0}, read : {1} != expected : {2} '.format(err,a,b)
             print(tmp)
             self.errs.append(tmp)
-
 
     def send_1_burst(self, client_ports, is_latency, pkts):
         self.errs = []
@@ -857,7 +846,6 @@ class STLRX_Test(CStlGeneral_Test):
             msg = 'Stats do not match the expected:\n' + '\n'.join(self.errs)
             raise STLError(msg)
 
-
     @try_few_times_on_vm
     def test_fcs_stream(self):
         if self.i40e_vf_defect_github_200:
@@ -918,7 +906,6 @@ class STLRX_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-
 
     # counters get stuck in i40e when they are getting to limit.
     # this test checks our workaround to this issue
@@ -1084,8 +1071,6 @@ class STLRX_Test(CStlGeneral_Test):
             self.dump_vxlan_fs(fs, streams_desc)
             raise
 
-
-
     def test_service_mode_flow_stats(self):
         s = STLStream(packet = self.pkt,
                        flow_stats = STLFlowStats(pg_id = 5))
@@ -1113,7 +1098,6 @@ class STLRX_Test(CStlGeneral_Test):
                 self.c.set_service_mode(ports = [self.rx_port], enabled = True)
         else:
             self.c.set_service_mode(ports = [self.rx_port], enabled = True)
-
 
     def get_stats(self):
         old_stats = self.c.get_stats()
