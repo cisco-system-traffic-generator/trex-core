@@ -88,7 +88,7 @@ def run_command(command, timeout = 30, poll_rate = 0.1, cwd = None, demote = Fal
 def get_daemon_pid():
     pid = None
     if args.name == 'Cmds':
-        return get_daemon_pid_by_prefix('trex.cmds')
+        return get_daemon_pid_by_prefix(['trex.cmds', args.prefix])
     else:
         for conn in netstat.netstat(with_pid = True, search_local_port = args.port):
             if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
@@ -98,26 +98,26 @@ def get_daemon_pid():
                 break
     return pid
 
-def get_daemon_pid_by_prefix(process_prefix):
+def get_daemon_pid_by_prefix(process_prefixes):
     pid = None
     lines = subprocess.check_output(['ps', '-ef']).decode().split("\n")
     for line in lines:
-        if process_prefix in line and 'general_daemon_server' not in line and 'taskset' not in line:
+        if all(prefix in line for prefix in process_prefixes) and 'general_daemon_server' not in line and 'taskset' not in line:
             pid = line.split()[1]
             break
     return pid
 
-def is_running_by_prefix(process_prefix):
+def is_running_by_prefix(process_prefixes):
     lines = subprocess.check_output(['ps', '-ef']).decode().split("\n")
     for line in lines:
-        if process_prefix in line and 'general_daemon_server' not in line:
+        if all(prefix in line for prefix in process_prefixes) and 'general_daemon_server' not in line and 'taskset' not in line:
             return True
     return False
 
 # faster variant of get_daemon_pid
 def is_running():
     if args.name == 'Cmds':
-        return is_running_by_prefix('trex.cmds')
+        return is_running_by_prefix(['trex.cmds', args.prefix])
     else:
         for conn in netstat.netstat(with_pid = False, search_local_port = args.port):
             if conn[2] == '0.0.0.0' and conn[6] == 'LISTEN':
@@ -167,7 +167,10 @@ def start_daemon():
     sudo   = 'sudo' if args.sudo else ''
     python = sys.executable if args.py else ''
     cmd = '{sudo} taskset -c {core} {python} {exe}'.format(sudo = sudo, core = args.core, python = python, exe = args.exe)
-    if args.name != 'Cmds':
+
+    if args.name == 'Cmds' and args.prefix != '':
+        cmd += " -f /tmp/cmds_{0}.ipc".format(args.prefix)
+    elif args.name != 'Cmds':
         cmd += ' -p {port}'.format(port = args.port)
 
     proc, stdout_file = run_command(cmd, demote = args.demote, is_daemon = True, cwd = server_path)
@@ -247,6 +250,8 @@ if __name__ == '__main__':
         help='Check readable path, used in Scapy server')
     parser.add_argument('-i', '--interactive', action = 'store_true', default = False,
         help='True will run command from interactive path, false from scripts')
+    parser.add_argument('--prefix', type = str, default = "", dest = 'prefix',
+        help='TRex prefix in case of multiple instances, necessary for cmds proccess')
     parser.usage = None
     args = parser.parse_args()
     

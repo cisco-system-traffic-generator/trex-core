@@ -807,6 +807,9 @@ Other network devices
                                                                                                                              core = services_core,
                                                                                                                              name = 'Cmds',
                                                                                                                              exe  = '-m trex.cmds_server.cmds_zmq_server')
+            prefix = self.get_prefix()
+            if prefix:
+                cmd += ' --prefix {0}'.format(prefix)
 
             ret = os.system(cmd)
             if ret:
@@ -1660,13 +1663,28 @@ def kill_emu():
             print("Could not stop EMU service.")
             sys.exit(-1)
 
-def kill_cmds_server():
-        cmd = '%s general_daemon_server stop -n Cmds' % sys.executable
 
+def kill_cmds_server():
+    prefix = pa().prefix
+    if prefix == '':
+        try:
+            stream = open(map_driver.cfg_file, 'r')
+            cfg_dict= yaml.safe_load(stream)
+            prefix = cfg_dict[0].get('prefix', '')
+        except Exception as e:
+            print(e)
+            raise e
+        finally:
+            stream.close()
+
+        cmd = '%s general_daemon_server stop -n Cmds' % sys.executable
+        if prefix:
+            cmd += " --prefix {0}".format(prefix)
         ret = os.system(cmd)
         if ret:
             print("Could not stop Cmds server.")
             sys.exit(-1)
+
 
 def cleanup_servers():
     ''' cleanup scapy and bird servers '''
