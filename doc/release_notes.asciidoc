@@ -34,13 +34,12 @@ endif::backend-docbook[]
 * ASTF
 ** fix default mss value for eflow profiles
 
-*General 
-** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/746 
-** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/640 
-** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/789
-** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/779 
-
-* fix EMU ZMQ channel starvation 
+* General 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/746[746]
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/640[640] 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/789[789] 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/779[779] 
+** fix EMU ZMQ channel starvation 
 
 == Release 2.93 ==
 
