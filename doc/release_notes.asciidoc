@@ -26,6 +26,22 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.94 ==
+
+* STL 
+** Add Tagged Packet Group (TPG) feature. It works in software mode and it is much more advanced than flow-stats (can support multicast counting). For more detail see Stateless manual. 
+
+* ASTF
+** fix default mss value for eflow profiles
+
+*General 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/746 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/640 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/789
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/779 
+
+* fix EMU ZMQ channel starvation 
+
 == Release 2.93 ==
 
 * ASTF 
