@@ -102,6 +102,8 @@ static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m,
 }
 
 
+/* tcp_mbuf.h */
+
 void
 m_adj_fix(struct mbuf *m, int req_len, int l7_len)
 {
@@ -120,6 +122,12 @@ m_freem(struct mbuf *m)
     if (m != NULL) {
         rte_pktmbuf_free((struct rte_mbuf *)m);
     }
+}
+
+uint32_t
+m_pktlen(struct mbuf *m)
+{
+    return m->pkt_len;
 }
 
 

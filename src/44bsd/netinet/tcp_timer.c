@@ -340,8 +340,9 @@ static void
 _handle_slow_timers(struct tcpcb *tp, uint32_t tick_passed)
 {
 	uint32_t tt_flags = tp->m_timer.tt_flags & ((1 << TCPT_NTIMERS) - 1);
+	int i;
 
-	for (int i = TT_REXMT; tt_flags && i < TCPT_NTIMERS; i++ ) {
+	for (i = TT_REXMT; tt_flags && i < TCPT_NTIMERS; i++ ) {
 		if ((tt_flags & (1 << i)) == 0)
 			continue;
 		tt_flags &= ~(1 << i);

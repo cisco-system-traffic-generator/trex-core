@@ -757,11 +757,13 @@ def build_prog (bld, build_obj):
     cflags    = build_obj.get_c_flags(is_sanitized)
     linkflags = build_obj.get_link_flags(is_sanitized)
 
-    bld.stlib(features = 'c',
-              includes = tcp_includes_path,
-              cflags   = cflags,
-              source   = tcp_src.file_list(top),
-              target   = build_obj.get_tcp_target())
+    bld.objects(
+        features = 'c',
+        includes = tcp_includes_path,
+        cflags   = cflags,
+        source   = tcp_src.file_list(top),
+        target   = build_obj.get_tcp_target()
+        )
 
     bld.program(features='cxx cxxprogram', 
                 includes =  includes_path + tcp_includes_path,

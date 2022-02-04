@@ -2510,11 +2510,13 @@ def build_prog (bld, build_obj):
               source   = bpf.file_list(top),
               target   = build_obj.get_bpf_target())
 
-    bld.stlib(features = 'c',
-              includes = tcp_includes_path,
-              cflags   = cflags,
-              source   = tcp_src.file_list(top),
-              target   = build_obj.get_tcp_target())
+    bld.objects(
+        features = 'c',
+        includes = tcp_includes_path,
+        cflags   = cflags,
+        source   = tcp_src.file_list(top),
+        target   = build_obj.get_tcp_target()
+        )
 
     inc_path = dpdk_includes_path + includes_path
     cxxflags_ext = ['',]

@@ -310,6 +310,10 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 	struct tcphdr tcp_savetcp;
 	short ostate = 0;
 #endif
+	u_char tcphdr_save[TCP_MAXHLEN];
+	/* copy tcphdr in the stack -- fast in the cache */
+	bcopy(th, &tcphdr_save[0], TCP_MAXHLEN);
+	th = (struct tcphdr *)&tcphdr_save[0];
 
 	to.to_flags = 0;
 	TCPSTAT_INC(tcps_rcvtotal);
@@ -322,7 +326,7 @@ tcp_input(struct tcpcb *tp, struct mbuf *m, struct tcphdr *th, int toff, int tle
 	if (off > sizeof (struct tcphdr)) {
 		optlen = off - sizeof (struct tcphdr);
 		optp = (u_char *)(th + 1);
-	} else if (off < sizeof (struct tcphdr)) {
+	} else if (off < sizeof (struct tcphdr) || toff + tlen > m_pktlen(m)) {
 		/* somthing wrong here drop the packet */
 		goto dropunlock;
 	}
