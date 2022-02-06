@@ -41,10 +41,7 @@ std::string& get_mlx5_so_string(void) {
 }
 
 bool CTRexExtendedDriverBaseMlnx5G::is_support_for_rx_scatter_gather(){
-    if (get_is_tcp_mode()) {
-        return (false);
-    }
-    return (true);
+    return false;
 }
 
 
