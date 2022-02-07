@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.95 ==
+
+* STL
+** Fix mlx5 driver in software mode to support TPG without spurious drop packet
+* EMU upgrade to latest version 
+
 == Release 2.94 ==
 
 * STL 
