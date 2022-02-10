@@ -120,7 +120,7 @@ WARNING: ASTF support was released, however it is under constant improvement.
 ==== Can we address the above requirements using existing DPDK TCP stacks?
 
 Can we leverage one of existing DPDK TCP stacks for our need? The short answer is no. +
-We chose to take a BSD4.4 original code base with FreeBSD bug fixes patches and improve the scalability to address our needs. +
+We chose to take a BSD4.4 original code base with FreeBSD bug fixes patches and improve the scalability to address our needs (now the code has the latest freebsd logic). +
 More on the reasons why in the following sections, but let me just say the above TCP DPDK stacks are optimized for real client/server application/API while in most of our traffic generation use cases, *most* of the traffic is known ahead of time allowing us to do much better. +
 Let's take a look into what are the main properties of TRex TCP module and understand what were the main challenges we tried to solve.
 
@@ -3588,22 +3588,10 @@ ASTF mode can help solving the following requirements:
 In theory, we could have supported that, but it required much more effort because the NIC memory configuration is fundamentally different. For example, in ASTF mode, we need to configure all the Rx queues to receive the packets and to configure the RSS to split the packets to different interface queues. While in Stateful we filter most of the packets and count them in hardware.
 
 ==== Is your core TCP implementation based on prior work?    
-Yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+Yes, first version was based on BSD4.4-Lite TCP logic with a bug fixes from latest and our changes for scale of high concurrent flow and performance.
+From v2.96 version, latest freebsd tcp loginc was ported by @jsmoon 
 The reasons why not to develop the tcp *core* logic from scratch can be found here link:https://news.ycombinator.com/item?id=12021195[Why do we use the Linux kernel's TCP stack?]
 
-==== What TCP RFCs are supported?
-
-* RFC 793
-* RFC 1122
-* RFC 1323
-* RFC 6928
-
-Not implemented:  
-
-* RFC 2018
-
-==== Could you have a more recent TCP implementation?     
-Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
 The short answer is no. The active (concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay command.

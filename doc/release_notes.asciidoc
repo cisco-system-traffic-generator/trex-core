@@ -26,6 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.96 (in process) ==
+
+* ASTF
+** Upgrade TCP logic 
+*** Major change, TCP logic was upgrade to latest freebsd version (1/1/2022) by @jsmoon and includes SACK and new congestion control algorithms (cubic/newreno) 
+*** The new TCP logic has some effect on performance (usually slower, depends on the scenario)
+*** The behavior in case of drop scenario expected to be better (cubic)
+*** The pattern of packets for the same profile is not backward compatible (e.g. packets is larger due to more tcp options for example SACK), so old benchmark with the same profile might need to be tuned
+
+
 == Release 2.95 ==
 
 * STL
